@@ -1,0 +1,13 @@
+{
+  "name": "ai-helpers",
+  "owner": {
+    "name": "openshift-eng"
+  },
+  "plugins": [
+    {
+      "name": "hello-world",
+      "source": "./plugins/hello-world",
+      "description": "Hello World Plugin"
+    }
+  ]
+}

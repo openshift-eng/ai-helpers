@@ -1,0 +1,8 @@
+{
+  "name": "hello-world",
+  "description": "A hello world plugin",
+  "version": "1.0.0",
+  "author": {
+    "name": "Developer"
+  }
+}
