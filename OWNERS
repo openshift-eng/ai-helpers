@@ -4,6 +4,7 @@ approvers:
 - bryan-cox
 - brandisher
 - bentito
+- dgoodwin
 - mrunalp
 options: {}
 reviewers:
@@ -12,4 +13,5 @@ reviewers:
 - bryan-cox
 - brandisher
 - bentito
+- dgoodwin
 - mrunalp
