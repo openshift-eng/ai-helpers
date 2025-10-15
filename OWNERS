@@ -6,6 +6,8 @@ approvers:
 - bentito
 - dgoodwin
 - mrunalp
+- ricardomaraschini
+- zaneb
 options: {}
 reviewers:
 - enxebre
@@ -15,3 +17,6 @@ reviewers:
 - bentito
 - dgoodwin
 - mrunalp
+- ricardomaraschini
+- zaneb
+
