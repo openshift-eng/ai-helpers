@@ -5,6 +5,8 @@ approvers:
 - brandisher
 - bentito
 - mrunalp
+- ricardomaraschini
+- zaneb
 options: {}
 reviewers:
 - enxebre
@@ -13,3 +15,6 @@ reviewers:
 - brandisher
 - bentito
 - mrunalp
+- ricardomaraschini
+- zaneb
+
