@@ -1,17 +1,12 @@
 approvers:
-- enxebre
-- rvanderp3
-- bryan-cox
-- brandisher
 - bentito
+- brandisher
 - dgoodwin
-- mrunalp
-options: {}
+- rvanderp3
+- stbenjam
 reviewers:
-- enxebre
-- rvanderp3
-- bryan-cox
-- brandisher
 - bentito
+- brandisher
 - dgoodwin
-- mrunalp
+- rvanderp3
+- stbenjam
