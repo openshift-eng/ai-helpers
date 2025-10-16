@@ -1,0 +1,8 @@
+{
+  "name": "openshift",
+  "description": "Miscellaenous commands related to development on OpenShift",
+  "version": "0.0.1",
+  "author": {
+    "name": "openshift"
+  }
+}
