@@ -8,6 +8,11 @@
       "name": "hello-world",
       "source": "./plugins/hello-world",
       "description": "Hello World Plugin"
+    },
+    {
+      "name": "jira",
+      "source": "./plugins/jira",
+      "description": "A plugin to automate tasks with Jira"
     }
   ]
 }
