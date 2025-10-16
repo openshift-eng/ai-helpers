@@ -25,7 +25,11 @@ A collection of Claude Code plugins to automate and assist with various developm
 
 ### JIRA Plugin
 
-Automate JIRA issue analysis and pull request creation.
+Comprehensive Jira automation including:
+- **Issue Analysis & Solutions** (`/jira:solve`) - Analyze JIRA issues and create pull requests to solve them
+- **Weekly Status Rollups** (`/jira:status-rollup`) - Generate status summaries by analyzing all child issues
+
+See [plugins/jira/README.md](plugins/jira/README.md) for full documentation.
 
 ## Plugin Development
 
