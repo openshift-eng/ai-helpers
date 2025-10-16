@@ -13,6 +13,11 @@
       "name": "jira",
       "source": "./plugins/jira",
       "description": "A plugin to automate tasks with Jira"
+    },
+    {
+      "name": "utils",
+      "source": "./plugins/utils",
+      "description": "A generic utilities plugin serving as a catch-all for various helper commands"
     }
   ]
 }
