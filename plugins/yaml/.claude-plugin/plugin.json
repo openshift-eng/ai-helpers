@@ -1,5 +1,5 @@
 {
-    "name": "yaml-docs",
+    "name": "yaml",
     "version": "0.0.1",
     "description": "Generate comprehensive YAML documentation from Go struct definitions with sensible default values",
     "author": {
