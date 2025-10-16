@@ -28,6 +28,7 @@ A collection of Claude Code plugins to automate and assist with various developm
 Comprehensive Jira automation including:
 - **Issue Analysis & Solutions** (`/jira:solve`) - Analyze JIRA issues and create pull requests to solve them
 - **Weekly Status Rollups** (`/jira:status-rollup`) - Generate status summaries by analyzing all child issues
+- **Backlog Grooming** (`/jira:grooming`) - Analyze new bugs and cards for grooming meetings
 
 See [plugins/jira/README.md](plugins/jira/README.md) for full documentation.
 

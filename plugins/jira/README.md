@@ -6,6 +6,7 @@ Comprehensive Jira integration for Claude Code, providing AI-powered tools to an
 
 - 🔍 **Issue Analysis and Solutions** - Analyze JIRA issues and create pull requests to solve them
 - 📊 **Status Rollups** - Generate comprehensive weekly status rollup comments for any Jira issue
+- 📋 **Backlog Grooming** - Analyze new bugs and cards for grooming meetings
 - 🤖 **Automated Workflows** - From issue analysis to PR creation, fully automated
 - 💬 **Smart Comment Analysis** - Extracts blockers, risks, and key insights from comments
 
@@ -73,6 +74,26 @@ Generate comprehensive weekly status rollup comments for any Jira issue by recur
 ```
 
 See [commands/status-rollup.md](commands/status-rollup.md) for full documentation.
+
+---
+
+### `/jira:grooming` - Backlog Grooming Assistant
+
+Analyze and organize new bugs and cards added over a specified time period to prepare for grooming meetings. The command provides automated data collection, intelligent analysis, and generates structured, actionable meeting agendas.
+
+**Usage:**
+```bash
+# Single project
+/jira:grooming OCPSTRAT last-week
+
+# Multiple OpenShift projects
+/jira:grooming "OCPSTRAT,OCPBUGS,HOSTEDCP" last-week
+
+# Filter by component
+/jira:grooming OCPSTRAT last-week --component "Control Plane"
+```
+See [commands/grooming.md](commands/grooming.md) for full documentation.
+
 
 ## Troubleshooting
 
