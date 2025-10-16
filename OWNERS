@@ -1,5 +1,6 @@
 approvers:
 - enxebre
+- bryan-cox
 - bentito
 - brandisher
 - dgoodwin
@@ -7,6 +8,7 @@ approvers:
 - stbenjam
 reviewers:
 - enxebre
+- bryan-cox
 - bentito
 - brandisher
 - dgoodwin
