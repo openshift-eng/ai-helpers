@@ -22,7 +22,40 @@ Comprehensive Jira integration for Claude Code, providing AI-powered tools to an
 claude mcp add atlassian npx @modelcontextprotocol/server-atlassian
 ```
 
+OR you can have claude use an already running Jira MCP Server
+
+```bash
+# Add the Atlassian MCP server
+claude mcp add --transport sse atlassian http https://localhost:8080/sse
+```
+
 Configure your Jira credentials according to the [Atlassian MCP documentation](https://github.com/modelcontextprotocol/servers/tree/main/src/atlassian).
+
+### Running Jira MCP Server locally with podman
+
+```bash
+# Start the atlassian mcp server using podman
+podman run -i --rm -p 8080:8080 -e "JIRA_URL=https://issues.redhat.com" -e "JIRA_USERNAME" -e "JIRA_API_TOKEN" -e "JIRA_PERSONAL_TOKEN" -e "JIRA_SSL_VERIFY" ghcr.io/sooperset/mcp-atlassian:latest --transport sse --port 8080 -vv
+```
+
+#### Getting Tokens 
+You'll need to generate your own tokens in several of these examples:
+
+- For JIRA API TOKEN, use https://id.atlassian.com/manage-profile/security/api-tokens
+- For JIRA PERSONAL TOKEN, use https://issues.redhat.com/secure/ViewProfile.jspa?selectedTab=com.atlassian.pats.pats-plugin:jira-user-personal-access-tokens
+- For GitHub bearer token, use https://github.com/settings/tokens
+
+### Notes and tips
+
+- Do not commit real tokens. If you must keep a project-local file, prefer committing a `mcp.json.sample` with placeholders, and keep your real `mcp.json` untracked.
+- Consider using the [rh-pre-commit](https://source.redhat.com/departments/it/it_information_security/leaktk/leaktk_components/rh_pre_commit) hook to scan for secrets accidentally left in commits.
+- The `atlassian` server example uses an MCP container image: `ghcr.io/sooperset/mcp-atlassian:latest`.
+- If you prefer Docker, replace the `podman` command with `docker` (arguments are typically the same).
+- If Podman is installed via Podman Machine on macOS, ensure it is running: `podman machine start`.
+- Keep `JIRA_SSL_VERIFY` as "true" unless you have a specific reason to disable TLS verification.
+- Limit active MCP servers: running too many at once can degrade performance or hit limits. Use Cursor's MCP panel to disable those you don't need for the current session.
+
+
 
 ## Installation
 
