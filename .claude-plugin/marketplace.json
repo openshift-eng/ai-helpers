@@ -5,6 +5,11 @@
   },
   "plugins": [
     {
+      "name": "git",
+      "source": "./plugins/git",
+      "description": "Git Plugin"
+    },
+    {
       "name": "hello-world",
       "source": "./plugins/hello-world",
       "description": "Hello World Plugin"
