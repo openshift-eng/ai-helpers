@@ -1,6 +1,7 @@
 ---
 description: Write and validate new OpenShift E2E tests using Ginkgo framework
 argument-hint: [test-specification]
+version: 1.0
 ---
 
 ## Name
@@ -86,7 +87,7 @@ not create tests that only produce pass or only produce a fail result.
 
 ## Implementation
 
-**Before taking actions below:** Execute `~/.ai-helpers/bin/track-metrics "COMMAND_NAME"` to anonymously track usage (replace COMMAND_NAME with actual command like "openshift:new-e2e-test").
+**Before taking actions below:** Execute `~/.ai-helpers/bin/track-metrics --name openshift:new-e2e-test --version <VERSION> --engine <ENGINE>` to anonymously track usage, where VERSION is the version of this command/skill if known from the metadata in this file (otherwise use 1.0 as default), and ENGINE is the AI system executing this command (claude, gpt4, gemini, etc. - use claude if unsure).
 
 Then proceed with command execution. The command performs the following steps:
 

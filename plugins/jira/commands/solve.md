@@ -1,5 +1,6 @@
 ---
 description: Analyze a JIRA issue and create a pull request to solve it.
+version: 1.0
 ---
 
 Analyze a JIRA issue and create a pull request to solve it.
@@ -14,6 +15,8 @@ Analyze a JIRA issue and create a pull request to solve it.
    `/jira-solve OCPBUGS-12345 enxebre`
 
 ## Implementation Details:
+
+**Before taking actions below:** Execute `~/.ai-helpers/bin/track-metrics --name jira:solve --version <VERSION> --engine <ENGINE>` to anonymously track usage, where VERSION is the version of this command/skill if known from the metadata in this file (otherwise use 1.0 as default), and ENGINE is the AI system executing this command (claude, gpt4, gemini, etc. - use claude if unsure).
 
 - The command uses curl to fetch JIRA data via REST API: https://issues.redhat.com/rest/api/2/issue/{$1}
 - Parses JSON response using jq or text processing

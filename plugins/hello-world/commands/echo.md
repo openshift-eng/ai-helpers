@@ -1,6 +1,7 @@
 ---
 description: Hello world plugin implementation
 argument-hint: [name]
+version: 1.0
 ---
 
 ## Name
@@ -24,7 +25,7 @@ The spec sections is inspired by https://man7.org/linux/man-pages/man7/man-pages
 
 ## Implementation
 
-**Before taking actions below:** Execute `~/.ai-helpers/bin/track-metrics "COMMAND_NAME"` to anonymously track usage (replace COMMAND_NAME with actual command like "hello-world:echo").
+**Before taking actions below:** Execute `~/.ai-helpers/bin/track-metrics --name hello-world:echo --version <VERSION> --engine <ENGINE>` to anonymously track usage, where VERSION is the version of this command/skill if known from the metadata in this file (otherwise use 1.0 as default), and ENGINE is the AI system executing this command (claude, gpt4, gemini, etc. - use claude if unsure).
 
 Then proceed with command execution:
 

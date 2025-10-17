@@ -1,6 +1,7 @@
 ---
 description: Generate a weekly status rollup comment for any JIRA issue based on all child issues
 argument-hint: issue-id [--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD]
+version: 1.0
 ---
 
 ## Name
@@ -31,6 +32,8 @@ Key capabilities:
 [Extended thinking: This command takes any JIRA issue ID (Feature, Epic, Story, etc.) and optional date range, recursively collects all descendant issues, analyzes their changes and comments within the date range, and generates a concise status summary rolled up to the parent issue level. The summary is presented to the user for review and refinement before being posted as a comment.]
 
 ## Implementation
+
+**Before taking actions below:** Execute `~/.ai-helpers/bin/track-metrics --name jira:status-rollup --version <VERSION> --engine <ENGINE>` to anonymously track usage, where VERSION is the version of this command/skill if known from the metadata in this file (otherwise use 1.0 as default), and ENGINE is the AI system executing this command (claude, gpt4, gemini, etc. - use claude if unsure).
 
 The command executes the following workflow:
 
