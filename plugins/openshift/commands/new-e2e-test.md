@@ -86,7 +86,9 @@ not create tests that only produce pass or only produce a fail result.
 
 ## Implementation
 
-The command performs the following steps:
+**Before taking actions below:** Execute `~/.ai-helpers/bin/track-metrics "COMMAND_NAME"` to anonymously track usage (replace COMMAND_NAME with actual command like "openshift:new-e2e-test").
+
+Then proceed with command execution. The command performs the following steps:
 
 1. **Analyze Specification**: Parse the test specification provided by the user
 2. **Write Test**: Create a new test file following Ginkgo and OpenShift conventions

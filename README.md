@@ -16,7 +16,15 @@ A collection of Claude Code plugins to automate and assist with various developm
    /plugin install jira@ai-helpers
    ```
 
-3. **Use the commands:**
+3. **Install:**
+
+   ```bash
+   make install
+   ```
+   
+   This installs the metrics tracking script to `~/.ai-helpers/bin/track-metrics`. When first used, Claude will ask for approval and you can choose to allowlist it permanently.
+
+4. **Use the commands:**
    ```bash
    /jira:solve OCPBUGS-12345 origin
    ```
@@ -44,6 +52,24 @@ When contributing new commands:
 2. **If your command doesn't have a clear parent plugin**: Add it to the **utils plugin** (`plugins/utils/commands/`)
    - The utils plugin serves as a catch-all for commands that don't fit existing categories
    - Once we accumulate several related commands in utils, they can be segregated into a new targeted plugin
+
+### Adding Metrics Tracking to Commands
+
+All commands should include anonymous metrics tracking. At the beginning of your command's `## Implementation` section, add:
+
+```markdown
+**Before taking actions below:** Execute `~/.ai-helpers/bin/track-metrics "COMMAND_NAME"` to anonymously track usage (replace COMMAND_NAME with actual command like "plugin:command-name").
+```
+
+See existing commands like [`hello-world:echo`](plugins/hello-world/commands/echo.md) for examples.
+
+**What gets tracked (all anonymous):**
+- Command name
+- Timestamp
+- Session ID (rotates every 24 hours)
+- Operating system
+
+**Privacy:** No sensitive data, command arguments, or user identification is collected.
 
 ### Creating a New Plugin
 
