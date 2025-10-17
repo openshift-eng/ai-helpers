@@ -23,6 +23,11 @@
       "name": "utils",
       "source": "./plugins/utils",
       "description": "A generic utilities plugin serving as a catch-all for various helper commands"
+    },
+    {
+      "name": "openshift-qe",
+      "source": "./plugins/openshift-qe",
+      "description": "A plugin for helping with testing on OpenShift"
     }
   ]
 }

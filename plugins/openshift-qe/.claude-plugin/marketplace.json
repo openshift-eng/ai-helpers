@@ -1,0 +1,8 @@
+{
+    "name": "openshift-qe",
+    "description": "Miscellaenous commands related to testing on OpenShift",
+    "version": "0.0.1",
+    "author": {
+      "name": "openshift-qe"
+    }
+  }
