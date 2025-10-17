@@ -1,0 +1,8 @@
+{
+  "name": "smarterclayton",
+  "description": "Write better code with smarterclayton",
+  "version": "0.0.1",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}
