@@ -1,0 +1,8 @@
+{
+  "name": "ci",
+  "description": "Miscellaenous tools for working with OpenShift CI",
+  "version": "0.0.1",
+  "author": {
+    "name": "openshift"
+  }
+}

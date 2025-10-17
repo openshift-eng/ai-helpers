@@ -15,6 +15,11 @@
       "description": "A plugin to automate tasks with Jira"
     },
     {
+      "name": "ci",
+      "source": "./plugins/ci",
+      "description": "A plugin to work with OpenShift CI"
+    },
+    {
       "name": "utils",
       "source": "./plugins/utils",
       "description": "A generic utilities plugin serving as a catch-all for various helper commands"
