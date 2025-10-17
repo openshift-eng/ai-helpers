@@ -1,0 +1,8 @@
+{
+  "name": "deads",
+  "description": "channel David Eads for a code review",
+  "version": "0.0.1",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}
