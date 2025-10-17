@@ -7,6 +7,7 @@ Comprehensive Jira integration for Claude Code, providing AI-powered tools to an
 - 🔍 **Issue Analysis and Solutions** - Analyze JIRA issues and create pull requests to solve them
 - 📊 **Status Rollups** - Generate comprehensive weekly status rollup comments for any Jira issue
 - 📋 **Backlog Grooming** - Analyze new bugs and cards for grooming meetings
+- 🧪 **Test Generation** - Generate comprehensive test steps for JIRA issues by analyzing related PRs
 - 🤖 **Automated Workflows** - From issue analysis to PR creation, fully automated
 - 💬 **Smart Comment Analysis** - Extracts blockers, risks, and key insights from comments
 
@@ -94,6 +95,22 @@ Analyze and organize new bugs and cards added over a specified time period to pr
 ```
 See [commands/grooming.md](commands/grooming.md) for full documentation.
 
+---
+
+### `/jira:generate-test-plan` - Generate Test Steps
+
+Generate comprehensive test steps for a JIRA issue by analyzing related pull requests. The command supports auto-discovery of PRs from the JIRA issue or manual specification of specific PRs to analyze.
+
+**Usage:**
+```bash
+# Auto-discover all PRs from JIRA
+/jira:generate-test-plan CNTRLPLANE-205
+
+# Test only specific PRs
+/jira:generate-test-plan CNTRLPLANE-205 https://github.com/openshift/hypershift/pull/6888
+```
+
+See [commands/generate-test-plan.md](commands/generate-test-plan.md) for full documentation.
 
 ## Troubleshooting
 
