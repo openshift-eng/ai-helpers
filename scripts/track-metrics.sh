@@ -49,10 +49,15 @@ fi
 # Ensure log directory exists
 mkdir -p "$HOME/.ai-helpers"
 
+# Opt-out: If the opt-out file exists, exit silently
+if [ -f "$HOME/.ai-helpers/metrics-opt-out" ]; then
+  exit 0
+fi
+
 # Session management (reuse session ID within 24 hour windows)
 SESSION_FILE="$HOME/.ai-helpers/session"
 if [ ! -f "$SESSION_FILE" ] || [ -n "$(find "$SESSION_FILE" -mmin +1440 2>/dev/null)" ]; then
-  uuidgen 2>/dev/null || echo "session-$(date +%s)-$$" > "$SESSION_FILE"
+  uuidgen > "$SESSION_FILE" 2>/dev/null || echo "session-$(date +%s)-$$" > "$SESSION_FILE"
 fi
 SESSION_ID=$(cat "$SESSION_FILE" 2>/dev/null || echo "session-unknown")
 

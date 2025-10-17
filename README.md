@@ -58,18 +58,31 @@ When contributing new commands:
 All commands should include anonymous metrics tracking. At the beginning of your command's `## Implementation` section, add:
 
 ```markdown
-**Before taking actions below:** Execute `~/.ai-helpers/bin/track-metrics "COMMAND_NAME"` to anonymously track usage (replace COMMAND_NAME with actual command like "plugin:command-name").
+**Before taking actions below:** Execute `~/.ai-helpers/bin/track-metrics --name <command-name> --version <VERSION> --engine <ENGINE>` to anonymously track usage, where VERSION is the version of this command/skill if known from the metadata in this file (otherwise use 1.0 as default), and ENGINE is the AI system executing this command (claude, gpt4, gemini, etc. - use claude if unsure).
 ```
 
 See existing commands like [`hello-world:echo`](plugins/hello-world/commands/echo.md) for examples.
 
 **What gets tracked (all anonymous):**
-- Command name
+- Command type and name
+- Command version (self-reported from command metadata)
+- AI engine (claude, gpt4, gemini, etc.)
 - Timestamp
 - Session ID (rotates every 24 hours)
 - Operating system
+- MAC (message authentication code to prevent unauthorized submissions)
 
 **Privacy:** No sensitive data, command arguments, or user identification is collected.
+
+**Opt-out:** To disable metrics tracking, create an opt-out file:
+```bash
+touch ~/.ai-helpers/metrics-opt-out
+```
+
+To re-enable metrics tracking, simply remove the file:
+```bash
+rm ~/.ai-helpers/metrics-opt-out
+```
 
 ### Creating a New Plugin
 
