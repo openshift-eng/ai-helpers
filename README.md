@@ -21,6 +21,17 @@ A collection of Claude Code plugins to automate and assist with various developm
    /jira:solve OCPBUGS-12345 origin
    ```
 
+### Using Cursor
+
+Cursor is able to find the various commands defined in this repo by
+making it available inside your `~/.cursor/commands` directory.
+
+```
+$ mkdir -p ~/.cursor/commands
+$ git clone git@github.com:openshift-eng/ai-helpers.git
+$ ln -s ai-helpers ~/.cursor/commands/ai-helpers
+```
+
 ## Available Plugins
 
 ### JIRA Plugin
