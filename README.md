@@ -29,8 +29,16 @@ Comprehensive Jira automation including:
 - **Issue Analysis & Solutions** (`/jira:solve`) - Analyze JIRA issues and create pull requests to solve them
 - **Weekly Status Rollups** (`/jira:status-rollup`) - Generate status summaries by analyzing all child issues
 - **Backlog Grooming** (`/jira:grooming`) - Analyze new bugs and cards for grooming meetings
+- **Test Generation** (`/jira:generate-test-plan`) - Generate comprehensive test steps for JIRA issues by analyzing related PRs
 
 See [plugins/jira/README.md](plugins/jira/README.md) for full documentation.
+
+### Utils Plugin
+
+General-purpose utilities for development workflows:
+- **PR Test Generation** (`/utils:generate-test-plan`) - Generate test steps for one or more related PRs
+
+See [plugins/utils/commands/generate-test-plan.md](plugins/utils/commands/generate-test-plan.md) for full documentation.
 
 ## Plugin Development
 
