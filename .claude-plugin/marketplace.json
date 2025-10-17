@@ -18,6 +18,11 @@
       "name": "utils",
       "source": "./plugins/utils",
       "description": "A generic utilities plugin serving as a catch-all for various helper commands"
+    },
+    {
+      "name": "openshift",
+      "source": "./plugins/openshift",
+      "description": "Miscellaenous commands related to development on OpenShift"
     }
   ]
 }
