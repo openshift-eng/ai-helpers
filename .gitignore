@@ -28,3 +28,6 @@ __pycache__/
 .venv/
 venv/
 *.egg
+
+# Working directories for skills
+.work/
