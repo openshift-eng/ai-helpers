@@ -5,7 +5,7 @@ Comprehensive Jira integration for Claude Code, providing AI-powered tools to an
 ## Features
 
 - 🔍 **Issue Analysis and Solutions** - Analyze JIRA issues and create pull requests to solve them
-- 📊 **Status Rollups** - Generate comprehensive weekly status rollup comments for any Jira issue
+- 📊 **Status Rollups** - Generate comprehensive status rollup comments for any Jira issue given a date range
 - 📋 **Backlog Grooming** - Analyze new bugs and cards for grooming meetings
 - 🧪 **Test Generation** - Generate comprehensive test steps for JIRA issues by analyzing related PRs
 - 🤖 **Automated Workflows** - From issue analysis to PR creation, fully automated
@@ -67,7 +67,7 @@ See [commands/solve.md](commands/solve.md) for full documentation.
 
 ### `/jira:status-rollup` - Generate Weekly Status Rollups
 
-Generate comprehensive weekly status rollup comments for any Jira issue by recursively analyzing all child issues and their activity within a date range. The command extracts insights from changelogs and comments to create well-formatted status summaries.
+Generate comprehensive status rollup comments for any Jira issue by recursively analyzing all child issues and their activity within a date range. The command extracts insights from changelogs and comments to create well-formatted status summaries.
 
 **Usage:**
 ```bash
