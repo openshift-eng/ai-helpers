@@ -6,24 +6,15 @@ argument-hint: [JIRA issue key] [GitHub PR URLs]
 ## Name
 jira:generate-test-plan
 
-Generate comprehensive test steps for a JIRA issue by analyzing related pull requests.
+## Synopsis
+/jira:generate-test-plan [JIRA issue key] [GitHub PR URLs]
 
-[Extended thinking: This command takes a JIRA issue key and optionally a list of PR URLs. It fetches the JIRA issue details, retrieves all related PRs (or uses the provided PR list), analyzes the changes, and generates a comprehensive manual testing guide.]
+## Description
+The 'jira:generate-test-plan' command takes a JIRA issue key and optionally a list of PR URLs. It fetches the JIRA issue details, retrieves all related PRs (or uses the provided PR list), analyzes the changes, and generates a comprehensive manual testing guide.
 
 **JIRA Issue Test Guide Generator**
 
-## Usage Examples:
-
-1. **Generate test steps for JIRA with auto-discovered PRs**:
-   `/jira:generate-test-plan CNTRLPLANE-205`
-
-2. **Generate test steps for JIRA with specific PRs only**:
-   `/jira:generate-test-plan CNTRLPLANE-205 https://github.com/openshift/hypershift/pull/6888`
-
-3. **Generate test steps for multiple specific PRs**:
-   `/jira:generate-test-plan CNTRLPLANE-205 https://github.com/openshift/hypershift/pull/6888 https://github.com/openshift/hypershift/pull/6889`
-
-## Implementation Details:
+## Implementation:
 
 - The command uses curl to fetch JIRA data via REST API: https://issues.redhat.com/rest/api/2/issue/{$1}
 - Uses WebFetch to extract PR links from JIRA issue if no PRs provided
@@ -131,6 +122,17 @@ Generate comprehensive test steps for a JIRA issue by analyzing related pull req
      - Critical test cases to focus on
    - Highlight any PRs that were skipped and why
    - Ask if the user would like any modifications to the test guide
+
+## Examples:
+
+1. **Generate test steps for JIRA with auto-discovered PRs**:
+   `/jira:generate-test-plan CNTRLPLANE-205`
+
+2. **Generate test steps for JIRA with specific PRs only**:
+   `/jira:generate-test-plan CNTRLPLANE-205 https://github.com/openshift/hypershift/pull/6888`
+
+3. **Generate test steps for multiple specific PRs**:
+   `/jira:generate-test-plan CNTRLPLANE-205 https://github.com/openshift/hypershift/pull/6888 https://github.com/openshift/hypershift/pull/6889`
 
 ## Arguments:
 

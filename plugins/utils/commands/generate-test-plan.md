@@ -6,21 +6,15 @@ argument-hint: [GitHub PR URLs]
 ## Name
 utils:generate-test-plan
 
-Generate test steps for one or more related PRs.
+## Synopsis
+/utils:generate-test-plan [GitHub PR URLs]
 
-[Extended thinking: This command takes one or more GitHub PR URLs, fetches the PR details including description, commits, and file changes, analyzes the changes to understand what features/fixes were implemented, and generates a comprehensive manual testing guide with step-by-step instructions. When multiple PRs are provided, it analyzes them collectively to understand how they work together to fix a bug or implement a feature.]
+## Description
+The 'utils:generate-test-plan' command takes one or more GitHub PR URLs, fetches the PR details including description, commits, and file changes, analyzes the changes to understand what features/fixes were implemented, and generates a comprehensive testing guide with step-by-step instructions. When multiple PRs are provided, it analyzes them collectively to understand how they work together to fix a bug or implement a feature.
 
 **PR Testing Guide Generator**
 
-## Usage Examples:
-
-1. **Generate test steps for a single PR**:
-   `/utils:generate-test-plan https://github.com/openshift/hypershift/pull/6888`
-
-2. **Generate test steps for multiple related PRs**:
-   `/utils:generate-test-plan https://github.com/openshift/hypershift/pull/6888 https://github.com/openshift/hypershift/pull/6889 https://github.com/openshift/hypershift/pull/6890`
-
-## Implementation Details:
+## Implementation:
 
 - The command uses `gh pr view` to fetch PR data for one or more PRs
 - Analyzes PR descriptions, commits, and changed files across all provided PRs
@@ -103,6 +97,14 @@ Generate test steps for one or more related PRs.
    - Provide a brief summary of the test scenarios
    - Highlight any critical test cases or prerequisites
    - Ask if the user would like any modifications to the test guide
+
+## Examples:
+
+1. **Generate test steps for a single PR**:
+   `/utils:generate-test-plan https://github.com/openshift/hypershift/pull/6888`
+
+2. **Generate test steps for multiple related PRs**:
+   `/utils:generate-test-plan https://github.com/openshift/hypershift/pull/6888 https://github.com/openshift/hypershift/pull/6889 https://github.com/openshift/hypershift/pull/6890`
 
 ## Arguments:
 - $1, $2, $3, ..., $N: One or more GitHub PR URLs (at least one required)
