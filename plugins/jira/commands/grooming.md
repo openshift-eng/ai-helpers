@@ -1,6 +1,6 @@
 ---
 description: Analyze new bugs and cards added over a time period and generate grooming meeting agenda
-argument-hint: [project-filter] [time-period]
+argument-hint: [project-filter] [time-period] [--component component-name] [--label label-name]
 ---
 
 ## Name
@@ -8,7 +8,7 @@ jira:grooming
 
 ## Synopsis
 ```
-/jira:grooming [project-filter] [time-period] [--component component-name]
+/jira:grooming [project-filter] [time-period] [--component component-name] [--label label-name]
 ```
 
 ## Description
@@ -34,7 +34,7 @@ The `jira:grooming` command runs in three main phases:
 
 ### 🧩 Phase 1: Data Collection
 - Automatically queries JIRA for new issues within the selected projects and time range.
-- Supports complex JQL filters, including multi-project and component-based queries.
+- Supports complex JQL filters, including multi-project, component-based, and label-based queries.
 - Extracts key fields such as title, type, priority, component, reporter, and assignee.
 - Detects related or duplicate issues to provide better context.
 
@@ -71,6 +71,16 @@ The `jira:grooming` command runs in three main phases:
    /jira:grooming OCPBUGS 2024-10-01:2024-10-15
    ```
 
+5. **Filter by label**:
+   ```
+   /jira:grooming OCPSTRAT last-week --label "technical-debt"
+   ```
+
+6. **Combine component and label filters**:
+   ```
+   /jira:grooming OCPSTRAT last-week --component "Control Plane" --label "performance"
+   ```
+
 ## Output Format
 
 ### Grooming Meeting Agenda
@@ -105,6 +115,7 @@ The command outputs a ready-to-use Markdown document that can be copied into Con
 ```json
 {
   "defaultProjects": ["OCPSTRAT", "OCPBUGS"],
+  "defaultLabels": [],
   "priorityMapping": {
     "Critical": "🚨 Critical",
     "High": "📈 High Priority"
@@ -130,11 +141,17 @@ The command outputs a ready-to-use Markdown document that can be copied into Con
   Options: `last-week` | `last-2-weeks` | `last-month` | `YYYY-MM-DD:YYYY-MM-DD`  
   Default: `last-week`
 
-- **--component** *(optional)*  
-  Filter by JIRA component (single or comma-separated).  
+- **--component** *(optional)*
+  Filter by JIRA component (single or comma-separated).
   Examples:
     - `--component "Networking"`
     - `--component "Control Plane,Storage"`
+
+- **--label** *(optional)*
+  Filter by JIRA labels (single or comma-separated).
+  Examples:
+    - `--label "technical-debt"`
+    - `--label "performance,security"`
 
 ## Return Value
 - **Markdown Report**: Ready-to-use grooming agenda with categorized issues and action items
