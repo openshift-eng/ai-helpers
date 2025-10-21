@@ -92,6 +92,12 @@ Analyze and organize new bugs and cards added over a specified time period to pr
 
 # Filter by component
 /jira:grooming OCPSTRAT last-week --component "Control Plane"
+
+# Filter by label
+/jira:grooming OCPSTRAT last-week --label "technical-debt"
+
+# Combine filters
+/jira:grooming OCPSTRAT last-week --component "Control Plane" --label "security"
 ```
 See [commands/grooming.md](commands/grooming.md) for full documentation.
 
