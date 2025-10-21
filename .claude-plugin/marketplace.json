@@ -25,6 +25,11 @@
       "description": "A plugin to work with OpenShift CI"
     },
     {
+      "name": "session",
+      "source": "./plugins/session",
+      "description": "A plugin for Claude session management and persistence"
+    },
+    {
       "name": "utils",
       "source": "./plugins/utils",
       "description": "A generic utilities plugin serving as a catch-all for various helper commands"
