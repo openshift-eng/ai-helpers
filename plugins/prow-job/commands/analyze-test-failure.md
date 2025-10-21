@@ -1,10 +1,21 @@
 ---
 description: Analyzes test errors from console logs and Prow CI job artifacts
-argument-hint: Pass prowjob-url as $1, the test name as $2.
+argument-hint: prowjob-url test-name
 ---
 
+## Name
+prow-job:analyze-test-failure
+
+## Synopsis
+Generate a test failure analysis for the given test:
+```
+/prow-job:analyze-test-failure <prowjob-url> <test-name>
+```
+
+## Description
 Analyze a failed test by inspecting the test code in the current project and artifacts in Prow CI job. This is done by invoking the "Prow Job Analyze Test Failure" skill.
 
+## Implementation
 Pass the user's request to the skill, which will:
 - Download the artifacts from Google Cloud Storage
 - Check source code of the test
