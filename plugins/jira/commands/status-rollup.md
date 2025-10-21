@@ -1,5 +1,5 @@
 ---
-description: Generate a weekly status rollup comment for any JIRA issue based on all child issues
+description: Generate a status rollup comment for any JIRA issue based on all child issues and a given date range
 argument-hint: issue-id [--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD]
 ---
 
@@ -12,7 +12,7 @@ jira:status-rollup
 ```
 
 ## Description
-The `jira:status-rollup` command generates a comprehensive weekly status rollup for any JIRA issue (Feature, Epic, Story, etc.) by recursively analyzing all child issues and their activity within a specified date range. The command intelligently extracts insights from changelogs and comments to create a concise, well-formatted status summary that can be reviewed and refined before being posted to Jira.
+The `jira:status-rollup` command generates a comprehensive status rollup for any JIRA issue (Feature, Epic, Story, etc.) by recursively analyzing all child issues and their activity within a specified date range. The command intelligently extracts insights from changelogs and comments to create a concise, well-formatted status summary that can be reviewed and refined before being posted to Jira.
 
 This command is particularly useful for:
 - Weekly status updates on Features or Epics
@@ -76,7 +76,7 @@ The command executes the following workflow:
    - Read from temp file (NO re-fetching from Jira)
    - Create formatted summary in Jira wiki markup:
      ```
-     h2. Weekly Status: {start-date} to {end-date}
+     h2. Status Rollup From: {start-date} to {end-date}
 
      *Overall Status:* [Clear statement about health and progress]
 
