@@ -1,0 +1,8 @@
+{
+  "name": "agendas",
+  "description": "A plugin to create various meeting agendas",
+  "version": "0.0.1",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}
