@@ -137,11 +137,12 @@ The command performs the following steps:
 - **Error**: HTTP error, authentication failure, or missing required arguments
 
 **Important for Claude**:
-1. Display the warning about using GitHub Prow commands instead
-2. Validate all required arguments are provided
-3. Parse the JSON response and extract the execution ID
-4. Display the execution ID to the user
-5. Offer to check job status with `/query-job-status`
+1. **REQUIRED**: Before executing this command, you MUST ensure the `ci:oc-auth` skill is loaded by invoking it with the Skill tool. The curl_with_token.sh script depends on this skill being active.
+2. Display the warning about using GitHub Prow commands instead
+3. Validate all required arguments are provided
+4. Parse the JSON response and extract the execution ID
+5. Display the execution ID to the user
+6. Offer to check job status with `/query-job-status`
 
 ## Examples
 

@@ -66,9 +66,10 @@ The DPCR cluster token is used solely for authentication with the Sippy API. Thi
 - **Error**: JSON with `error` field populated if the request fails
 
 **Important for Claude**:
-1. **Before invoking this command**, inform the user that querying Sippy may take 10-60 seconds for complex queries
-2. Extract the `response` field from the JSON and render it as markdown to the user
-3. If there's an `error` field, display that instead
+1. **REQUIRED**: Before executing this command, you MUST ensure the `ci:oc-auth` skill is loaded by invoking it with the Skill tool. The curl_with_token.sh script depends on this skill being active.
+2. **Before invoking this command**, inform the user that querying Sippy may take 10-60 seconds for complex queries
+3. Extract the `response` field from the JSON and render it as markdown to the user
+4. If there's an `error` field, display that instead
 
 ## Examples
 

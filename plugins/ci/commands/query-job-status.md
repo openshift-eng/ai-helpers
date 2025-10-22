@@ -51,11 +51,12 @@ The command performs the following steps:
 - **Error**: HTTP error, authentication failure, or invalid execution ID
 
 **Important for Claude**:
-1. Parse the JSON response and present it in a readable format
-2. Highlight the job status prominently
-3. If PENDING/RUNNING, mention the job is still in progress
-4. If SUCCESS/FAILURE, indicate completion status
-5. If gcs_path is available, provide the path to artifacts
+1. **REQUIRED**: Before executing this command, you MUST ensure the `ci:oc-auth` skill is loaded by invoking it with the Skill tool. The curl_with_token.sh script depends on this skill being active.
+2. Parse the JSON response and present it in a readable format
+3. Highlight the job status prominently
+4. If PENDING/RUNNING, mention the job is still in progress
+5. If SUCCESS/FAILURE, indicate completion status
+6. If gcs_path is available, provide the path to artifacts
 
 ## Examples
 

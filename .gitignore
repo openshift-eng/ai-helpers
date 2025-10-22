@@ -29,5 +29,8 @@ __pycache__/
 venv/
 *.egg
 
+# Claude's settings for this repository
+.claude/
+
 # Working directories for skills
 .work/

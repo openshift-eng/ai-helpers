@@ -94,9 +94,10 @@ The command performs the following steps:
 - **Error**: HTTP error, authentication failure, or missing job name
 
 **Important for Claude**:
-1. Parse the JSON response and extract the execution ID
-2. Display the execution ID to the user
-3. Offer to check job status with `/query-job-status`
+1. **REQUIRED**: Before executing this command, you MUST ensure the `ci:oc-auth` skill is loaded by invoking it with the Skill tool. The curl_with_token.sh script depends on this skill being active.
+2. Parse the JSON response and extract the execution ID
+3. Display the execution ID to the user
+4. Offer to check job status with `/query-job-status`
 
 ## Examples
 
