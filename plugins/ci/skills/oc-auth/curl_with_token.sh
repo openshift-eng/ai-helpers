@@ -33,10 +33,15 @@ CONTEXT=$(oc config get-contexts -o name 2>/dev/null | while read -r ctx; do
 done)
 
 if [ -z "$CONTEXT" ]; then
+  # Generate console URL from API URL
+  # Transform: https://api.{subdomain}.{domain}:6443 -> https://console-openshift-console.apps.{subdomain}.{domain}/
+  CONSOLE_URL=$(echo "$CLUSTER_API_URL" | sed -E 's|https://api\.(.*):6443|https://console-openshift-console.apps.\1/|')
+  
   echo "Error: No oc context found for cluster with API server: $CLUSTER_API_URL" >&2
   echo "" >&2
   echo "Please authenticate first:" >&2
-  echo "1. Visit the cluster's console URL in your browser" >&2
+  echo "1. Visit the cluster's console URL in your browser:" >&2
+  echo "   $CONSOLE_URL" >&2
   echo "2. Log in through the browser with your credentials" >&2
   echo "3. Click on username → 'Copy login command'" >&2
   echo "4. Paste and execute the 'oc login' command in terminal" >&2
