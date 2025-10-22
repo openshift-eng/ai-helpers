@@ -1,0 +1,8 @@
+{
+  "name": "must-gather",
+  "description": "A plugin to analyze and report on must-gather data",
+  "version": "0.0.1",
+  "author": {
+    "name": "openshift"
+  }
+}
