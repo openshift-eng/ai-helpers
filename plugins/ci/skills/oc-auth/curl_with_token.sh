@@ -1,7 +1,7 @@
 #!/bin/bash
 # Curl wrapper that automatically adds OAuth token from specified cluster
-# Usage: curl_with_token.sh <cluster_id> [curl arguments...]
-# cluster_id: Either "app.ci" or "dpcr"
+# Usage: curl_with_token.sh <cluster_api_url> [curl arguments...]
+# cluster_api_url: Full API server URL (e.g., https://api.ci.l2s4.p1.openshiftapps.com:6443)
 # 
 # The token is retrieved and added as "Authorization: Bearer <token>" header
 # automatically, so it never appears in output or command history.
@@ -9,53 +9,43 @@
 set -euo pipefail
 
 if [ $# -lt 2 ]; then
-  echo "Usage: $0 <cluster_id> [curl arguments...]" >&2
-  echo "cluster_id: app.ci or dpcr" >&2
-  echo "Example: $0 app.ci -X GET https://api.example.com/endpoint" >&2
+  echo "Usage: $0 <cluster_api_url> [curl arguments...]" >&2
+  echo "cluster_api_url: Full API server URL" >&2
+  echo "Example: $0 https://api.ci.l2s4.p1.openshiftapps.com:6443 -X GET https://api.example.com/endpoint" >&2
   exit 1
 fi
 
-CLUSTER_ID="$1"
-shift  # Remove cluster_id from arguments
+CLUSTER_API_URL="$1"
+shift  # Remove cluster_api_url from arguments
 
-# Define cluster patterns and console URLs
-case "$CLUSTER_ID" in
-  "app.ci")
-    PATTERN="ci-l2s4-p1"
-    CONSOLE_URL="https://console-openshift-console.apps.ci.l2s4.p1.openshiftapps.com/"
-    ;;
-  "dpcr")
-    PATTERN="cr-j7t7-p1"
-    CONSOLE_URL="https://console-openshift-console.apps.cr.j7t7.p1.openshiftapps.com/"
-    ;;
-  *)
-    echo "Error: Unknown cluster_id: $CLUSTER_ID" >&2
-    echo "Valid options: app.ci, dpcr" >&2
-    exit 1
-    ;;
-esac
+# Extract the cluster API server without protocol for matching
+CLUSTER_SERVER=$(echo "$CLUSTER_API_URL" | sed -E 's|^https?://||')
 
-# Find the context for the specified cluster
+# Find the context for the specified cluster by matching the server URL
 CONTEXT=$(oc config get-contexts -o name 2>/dev/null | while read -r ctx; do
-  cluster=$(oc config view -o jsonpath="{.contexts[?(@.name=='$ctx')].context.cluster}" 2>/dev/null || echo "")
-  if echo "$cluster" | grep -q "$PATTERN"; then
+  server=$(oc config view -o jsonpath="{.clusters[?(@.name=='$(oc config view -o jsonpath="{.contexts[?(@.name=='$ctx')].context.cluster}" 2>/dev/null)')].cluster.server}" 2>/dev/null || echo "")
+  # Extract server without protocol for comparison
+  server_clean=$(echo "$server" | sed -E 's|^https?://||')
+  if [ "$server_clean" = "$CLUSTER_SERVER" ]; then
     echo "$ctx"
     break
   fi
 done)
 
 if [ -z "$CONTEXT" ]; then
-  echo "Error: No oc context found for $CLUSTER_ID cluster (pattern: $PATTERN)" >&2
+  echo "Error: No oc context found for cluster with API server: $CLUSTER_API_URL" >&2
   echo "" >&2
   echo "Please authenticate first:" >&2
-  echo "1. Visit $CONSOLE_URL" >&2
-  echo "2. Log in through the browser with SSO credentials" >&2
+  echo "1. Visit the cluster's console URL in your browser" >&2
+  echo "2. Log in through the browser with your credentials" >&2
   echo "3. Click on username → 'Copy login command'" >&2
   echo "4. Paste and execute the 'oc login' command in terminal" >&2
   echo "" >&2
   echo "Verify authentication with:" >&2
   echo "  oc config get-contexts" >&2
-  echo "Look for a context with cluster name containing '$PATTERN'." >&2
+  echo "  oc cluster-info" >&2
+  echo "" >&2
+  echo "The oc login command should connect to: $CLUSTER_API_URL" >&2
   exit 2
 fi
 
@@ -64,7 +54,7 @@ TOKEN=$(oc whoami -t --context="$CONTEXT" 2>/dev/null || echo "")
 
 if [ -z "$TOKEN" ]; then
   echo "Error: Failed to retrieve token from context $CONTEXT" >&2
-  echo "Please re-authenticate to the $CLUSTER_ID cluster" >&2
+  echo "Please re-authenticate to the cluster: $CLUSTER_API_URL" >&2
   exit 3
 fi
 

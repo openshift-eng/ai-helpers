@@ -48,14 +48,17 @@ The DPCR cluster token is used solely for authentication with the Sippy API. Thi
 3. **API Request**: Sends a POST request to the Sippy API using the `oc-auth` skill's curl wrapper:
    ```bash
    # Use curl_with_token.sh from oc-auth skill - it automatically adds the OAuth token
-   curl_with_token.sh dpcr -s -X POST "https://sippy-auth.dptools.openshift.org/api/chat" \
+   # DPCR cluster API: https://api.cr.j7t7.p1.openshiftapps.com:6443
+   curl_with_token.sh https://api.cr.j7t7.p1.openshiftapps.com:6443 -s -X POST "https://sippy-auth.dptools.openshift.org/api/chat" \
      -H "Content-Type: application/json" \
-     -d "{
-       \"message\": \"$1\",
-       \"chat_history\": [],
-       \"show_thinking\": false,
-       \"persona\": \"default\"
-     }"
+     -d @- <<'EOF'
+{
+  "message": "$1",
+  "chat_history": [],
+  "show_thinking": false,
+  "persona": "default"
+}
+EOF
    ```
 4. **Return JSON**: Returns the full JSON response for Claude to parse
 
@@ -67,9 +70,10 @@ The DPCR cluster token is used solely for authentication with the Sippy API. Thi
 
 **Important for Claude**:
 1. **REQUIRED**: Before executing this command, you MUST ensure the `ci:oc-auth` skill is loaded by invoking it with the Skill tool. The curl_with_token.sh script depends on this skill being active.
-2. **Before invoking this command**, inform the user that querying Sippy may take 10-60 seconds for complex queries
-3. Extract the `response` field from the JSON and render it as markdown to the user
-4. If there's an `error` field, display that instead
+2. You must locate and verify curl_with_token.sh before running it, you (Claude Code) have a bug that tries to use the script from the wrong directory!
+3. **Before invoking this command**, inform the user that querying Sippy may take 10-60 seconds for complex queries
+4. Extract the `response` field from the JSON and render it as markdown to the user
+5. If there's an `error` field, display that instead
 
 ## Examples
 

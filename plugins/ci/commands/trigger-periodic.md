@@ -60,21 +60,22 @@ The command performs the following steps:
    **Without overrides:**
    ```bash
    # Use curl_with_token.sh from oc-auth skill - it automatically adds the OAuth token
-   curl_with_token.sh app.ci -v -X POST \
+   # app.ci cluster API: https://api.ci.l2s4.p1.openshiftapps.com:6443
+   curl_with_token.sh https://api.ci.l2s4.p1.openshiftapps.com:6443 -v -X POST \
      -d '{"job_name": "<JOB_NAME>", "job_execution_type": "1"}' \
      https://gangway-ci.apps.ci.l2s4.p1.openshiftapps.com/v1/executions
    ```
 
    **With overrides:**
    ```bash
-   curl_with_token.sh app.ci -v -X POST \
+   curl_with_token.sh https://api.ci.l2s4.p1.openshiftapps.com:6443 -v -X POST \
      -d '{"job_name": "<JOB_NAME>", "job_execution_type": "1", "pod_spec_options": {"envs": {"ENV_VAR": "value"}}}' \
      https://gangway-ci.apps.ci.l2s4.p1.openshiftapps.com/v1/executions
    ```
 
    **With multistage parameter override:**
    ```bash
-   curl_with_token.sh app.ci -v -X POST \
+   curl_with_token.sh https://api.ci.l2s4.p1.openshiftapps.com:6443 -v -X POST \
      -d '{"job_name": "periodic-to-trigger", "job_execution_type": "1", "pod_spec_options": {"envs": {"MULTISTAGE_PARAM_OVERRIDE_FOO": "bar"}}}' \
      https://gangway-ci.apps.ci.l2s4.p1.openshiftapps.com/v1/executions
    ```
@@ -95,9 +96,10 @@ The command performs the following steps:
 
 **Important for Claude**:
 1. **REQUIRED**: Before executing this command, you MUST ensure the `ci:oc-auth` skill is loaded by invoking it with the Skill tool. The curl_with_token.sh script depends on this skill being active.
-2. Parse the JSON response and extract the execution ID
-3. Display the execution ID to the user
-4. Offer to check job status with `/query-job-status`
+2. You must locate and verify curl_with_token.sh before running it, you (Claude Code) have a bug that tries to use the script from the wrong directory!
+3. Parse the JSON response and extract the execution ID
+4. Display the execution ID to the user
+5. Offer to check job status with `/query-job-status`
 
 ## Examples
 

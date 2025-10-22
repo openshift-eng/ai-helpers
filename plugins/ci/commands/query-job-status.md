@@ -30,7 +30,8 @@ The command performs the following steps:
 2. **Execute API Request**: Make a GET request to query the job status using the `oc-auth` skill's curl wrapper:
    ```bash
    # Use curl_with_token.sh from oc-auth skill - it automatically adds the OAuth token
-   curl_with_token.sh app.ci -X GET \
+   # app.ci cluster API: https://api.ci.l2s4.p1.openshiftapps.com:6443
+   curl_with_token.sh https://api.ci.l2s4.p1.openshiftapps.com:6443 -X GET \
      https://gangway-ci.apps.ci.l2s4.p1.openshiftapps.com/v1/executions/<EXECUTION_ID>
    ```
    The `curl_with_token.sh` wrapper retrieves the OAuth token from the app.ci cluster and adds it as an Authorization header automatically, without exposing the token.
@@ -52,11 +53,12 @@ The command performs the following steps:
 
 **Important for Claude**:
 1. **REQUIRED**: Before executing this command, you MUST ensure the `ci:oc-auth` skill is loaded by invoking it with the Skill tool. The curl_with_token.sh script depends on this skill being active.
-2. Parse the JSON response and present it in a readable format
-3. Highlight the job status prominently
-4. If PENDING/RUNNING, mention the job is still in progress
-5. If SUCCESS/FAILURE, indicate completion status
-6. If gcs_path is available, provide the path to artifacts
+2. You must locate and verify curl_with_token.sh before running it, you (Claude Code) have a bug that tries to use the script from the wrong directory!
+3. Parse the JSON response and present it in a readable format
+4. Highlight the job status prominently
+5. If PENDING/RUNNING, mention the job is still in progress
+6. If SUCCESS/FAILURE, indicate completion status
+7. If gcs_path is available, provide the path to artifacts
 
 ## Examples
 
