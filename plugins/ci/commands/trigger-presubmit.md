@@ -52,23 +52,7 @@ Before executing ANY POST operation (job trigger), Claude MUST:
 4. Only proceed after receiving affirmative confirmation
 
 **Token Usage:**
-The app.ci cluster token (`oc whoami -t`) is used solely for authentication with the gangway REST API. This token grants the same permissions as the authenticated user and must be handled with appropriate care.
-
-## Prerequisites
-
-**Required Authentication:**
-- User MUST be authenticated to the app.ci cluster via browser login
-
-To authenticate:
-1. Visit https://console-openshift-console.apps.ci.l2s4.p1.openshiftapps.com/
-2. Log in through the browser with SSO credentials
-3. Click on username → "Copy login command"
-4. Paste and execute the `oc login` command in terminal
-
-Verify authentication with:
-```bash
-oc whoami
-```
+The app.ci cluster token is used solely for authentication with the gangway REST API. This token grants the same permissions as the authenticated user and must be handled with appropriate care. The `curl_with_token.sh` wrapper handles all authentication automatically.
 
 ## Implementation
 
@@ -76,9 +60,7 @@ The command performs the following steps:
 
 1. **Warn User**: Display a warning that presubmit jobs should typically use GitHub Prow commands (`/test`, `/retest`)
 
-2. **Verify Authentication**: Run `oc whoami` to check if the user is authenticated to the app.ci cluster. If not authenticated, provide instructions to log in via browser.
-
-3. **Parse Arguments**:
+2. **Parse Arguments**:
    - $1: job name (required)
    - $2: organization (required)
    - $3: repository name (required)
@@ -135,12 +117,15 @@ The command performs the following steps:
 
 6. **Request User Confirmation**: Display the complete JSON payload and curl command to the user, then explicitly ask for confirmation before proceeding. Wait for affirmative user response.
 
-7. **Execute Request**: Only after receiving user confirmation, run the curl command:
+7. **Execute Request**: Only after receiving user confirmation, run the curl command using the `oc-auth` skill's curl wrapper:
    ```bash
-   curl -v -X POST -H "Authorization: Bearer $(oc whoami -t)" \
+   # Use curl_with_token.sh from oc-auth skill - it automatically adds the OAuth token
+   # app.ci cluster API: https://api.ci.l2s4.p1.openshiftapps.com:6443
+   curl_with_token.sh https://api.ci.l2s4.p1.openshiftapps.com:6443 -v -X POST \
      -d @/tmp/presubmit-spec.json \
      https://gangway-ci.apps.ci.l2s4.p1.openshiftapps.com/v1/executions
    ```
+   The `curl_with_token.sh` wrapper retrieves the OAuth token from the app.ci cluster and adds it as an Authorization header automatically, without exposing the token.
 
 8. **Clean Up**: Remove the temporary JSON file
 
@@ -153,11 +138,13 @@ The command performs the following steps:
 - **Error**: HTTP error, authentication failure, or missing required arguments
 
 **Important for Claude**:
-1. Display the warning about using GitHub Prow commands instead
-2. Validate all required arguments are provided
-3. Parse the JSON response and extract the execution ID
-4. Display the execution ID to the user
-5. Offer to check job status with `/query-job-status`
+1. **REQUIRED**: Before executing this command, you MUST ensure the `ci:oc-auth` skill is loaded by invoking it with the Skill tool. The curl_with_token.sh script depends on this skill being active.
+2. You must locate and verify curl_with_token.sh before running it, you (Claude Code) have a bug that tries to use the script from the wrong directory!
+3. Display the warning about using GitHub Prow commands instead
+4. Validate all required arguments are provided
+5. Parse the JSON response and extract the execution ID
+6. Display the execution ID to the user
+7. Offer to check job status with `/query-job-status`
 
 ## Examples
 

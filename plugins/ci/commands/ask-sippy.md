@@ -24,53 +24,43 @@ The command sends your question to the Sippy API and returns the agent's
 response. Note that complex queries may take some time to process as the
 agent analyzes CI data. Please inform the user of this.
 
-## Prerequisites
+## Security
 
-**Required Environment Variable:**
-- `ASK_SIPPY_API_TOKEN`: Authentication token for Sippy API access
+**IMPORTANT SECURITY REQUIREMENTS:**
 
-If the token is not set, the command will fail with an authentication error.
+Claude is granted LIMITED and SPECIFIC access to the DPCR cluster token for the following AUTHORIZED operations ONLY:
+- **READ operations**: Querying the Sippy API for CI data analysis
+
+Claude is EXPLICITLY PROHIBITED from:
+- Modifying cluster resources (deployments, pods, services, etc.)
+- Deleting or altering any data
+- Accessing secrets, configmaps, or sensitive data beyond Sippy API responses
+- Making any cluster modifications
+- Using the token for any purpose other than the specific operations listed above
+
+**Token Usage:**
+The DPCR cluster token is used solely for authentication with the Sippy API. This token grants the same permissions as the authenticated user and must be handled with appropriate care. The `curl_with_token.sh` wrapper handles all authentication automatically.
 
 ## Implementation
 
-The command performs the following steps:
-
-1. **Validate Environment**: Checks that `ASK_SIPPY_API_TOKEN` is set
+1. **Validate Arguments**: Checks that a question was provided
 2. **Notify User**: Informs the user that the query is being processed (may take time)
-3. **API Request**: Sends a POST request to the Sippy API with:
-   - The user's question
-   - Empty chat history (each query is independent)
-   - `show_thinking: false` for concise responses
-   - `persona: default` for general AI assistant behavior
+3. **API Request**: Sends a POST request to the Sippy API using the `oc-auth` skill's curl wrapper:
+   ```bash
+   # Use curl_with_token.sh from oc-auth skill - it automatically adds the OAuth token
+   # DPCR cluster API: https://api.cr.j7t7.p1.openshiftapps.com:6443
+   curl_with_token.sh https://api.cr.j7t7.p1.openshiftapps.com:6443 -s -X POST "https://sippy-auth.dptools.openshift.org/api/chat" \
+     -H "Content-Type: application/json" \
+     -d @- <<'EOF'
+{
+  "message": "$1",
+  "chat_history": [],
+  "show_thinking": false,
+  "persona": "default"
+}
+EOF
+   ```
 4. **Return JSON**: Returns the full JSON response for Claude to parse
-
-Implementation logic:
-```bash
-if [ -z "$ASK_SIPPY_API_TOKEN" ]; then
-  echo "Error: ASK_SIPPY_API_TOKEN environment variable is not set"
-  echo "Please set your Sippy API token before using this command"
-  exit 1
-fi
-
-if [ -z "$1" ]; then
-  echo "Error: Please provide a question to ask Sippy"
-  echo "Usage: /ask-sippy [question]"
-  exit 1
-fi
-
-echo "Querying Sippy AI agent... (this may take a moment)"
-echo ""
-
-curl -s -X POST "https://sippy-auth.dptools.openshift.org/api/chat" \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $ASK_SIPPY_API_TOKEN" \
-  -d "{
-    \"message\": \"$1\",
-    \"chat_history\": [],
-    \"show_thinking\": false,
-    \"persona\": \"default\"
-  }"
-```
 
 ## Return Value
 - **Success**: JSON response from Sippy API with the following structure:
@@ -79,9 +69,11 @@ curl -s -X POST "https://sippy-auth.dptools.openshift.org/api/chat" \
 - **Error**: JSON with `error` field populated if the request fails
 
 **Important for Claude**:
-1. **Before invoking this command**, inform the user that querying Sippy may take 10-60 seconds for complex queries
-2. Extract the `response` field from the JSON and render it as markdown to the user
-3. If there's an `error` field, display that instead
+1. **REQUIRED**: Before executing this command, you MUST ensure the `ci:oc-auth` skill is loaded by invoking it with the Skill tool. The curl_with_token.sh script depends on this skill being active.
+2. You must locate and verify curl_with_token.sh before running it, you (Claude Code) have a bug that tries to use the script from the wrong directory!
+3. **Before invoking this command**, inform the user that querying Sippy may take 10-60 seconds for complex queries
+4. Extract the `response` field from the JSON and render it as markdown to the user
+5. If there's an `error` field, display that instead
 
 ## Examples
 

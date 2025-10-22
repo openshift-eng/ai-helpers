@@ -44,61 +44,47 @@ Before executing ANY POST operation (job trigger), Claude MUST:
 4. Only proceed after receiving affirmative confirmation
 
 **Token Usage:**
-The app.ci cluster token (`oc whoami -t`) is used solely for authentication with the gangway REST API. This token grants the same permissions as the authenticated user and must be handled with appropriate care.
-
-## Prerequisites
-
-**Required Authentication:**
-- User MUST be authenticated to the app.ci cluster via browser login
-
-To authenticate:
-1. Visit https://console-openshift-console.apps.ci.l2s4.p1.openshiftapps.com/
-2. Log in through the browser with SSO credentials
-3. Click on username → "Copy login command"
-4. Paste and execute the `oc login` command in terminal
-
-Verify authentication with:
-```bash
-oc whoami
-```
+The app.ci cluster token is used solely for authentication with the gangway REST API. This token grants the same permissions as the authenticated user and must be handled with appropriate care. The `curl_with_token.sh` wrapper handles all authentication automatically.
 
 ## Implementation
 
 The command performs the following steps:
 
-1. **Verify Authentication**: Run `oc whoami` to check if the user is authenticated to the app.ci cluster. If not authenticated, provide instructions to log in via browser.
-
-2. **Parse Arguments**:
+1. **Parse Arguments**:
    - First argument is the job name (required)
    - Remaining arguments are environment variable overrides in KEY=VALUE format
    - Note: Variables that need to override multistage parameters should be prefixed with `MULTISTAGE_PARAM_OVERRIDE_`
 
-3. **Construct API Request**: Build the appropriate curl command:
+2. **Construct API Request**: Build the appropriate curl command using the `oc-auth` skill's curl wrapper:
 
    **Without overrides:**
    ```bash
-   curl -v -X POST -H "Authorization: Bearer $(oc whoami -t)" \
+   # Use curl_with_token.sh from oc-auth skill - it automatically adds the OAuth token
+   # app.ci cluster API: https://api.ci.l2s4.p1.openshiftapps.com:6443
+   curl_with_token.sh https://api.ci.l2s4.p1.openshiftapps.com:6443 -v -X POST \
      -d '{"job_name": "<JOB_NAME>", "job_execution_type": "1"}' \
      https://gangway-ci.apps.ci.l2s4.p1.openshiftapps.com/v1/executions
    ```
 
    **With overrides:**
    ```bash
-   curl -v -X POST -H "Authorization: Bearer $(oc whoami -t)" \
+   curl_with_token.sh https://api.ci.l2s4.p1.openshiftapps.com:6443 -v -X POST \
      -d '{"job_name": "<JOB_NAME>", "job_execution_type": "1", "pod_spec_options": {"envs": {"ENV_VAR": "value"}}}' \
      https://gangway-ci.apps.ci.l2s4.p1.openshiftapps.com/v1/executions
    ```
 
    **With multistage parameter override:**
    ```bash
-   curl -v -X POST -H "Authorization: Bearer $(oc whoami -t)" \
+   curl_with_token.sh https://api.ci.l2s4.p1.openshiftapps.com:6443 -v -X POST \
      -d '{"job_name": "periodic-to-trigger", "job_execution_type": "1", "pod_spec_options": {"envs": {"MULTISTAGE_PARAM_OVERRIDE_FOO": "bar"}}}' \
      https://gangway-ci.apps.ci.l2s4.p1.openshiftapps.com/v1/executions
    ```
+   
+   The `curl_with_token.sh` wrapper retrieves the OAuth token from the app.ci cluster and adds it as an Authorization header automatically, without exposing the token.
 
-4. **Request User Confirmation**: Display the complete JSON payload and curl command to the user, then explicitly ask for confirmation before proceeding. Wait for affirmative user response.
+3. **Request User Confirmation**: Display the complete JSON payload and curl command to the user, then explicitly ask for confirmation before proceeding. Wait for affirmative user response.
 
-5. **Execute Request**: Only after receiving user confirmation, run the constructed curl command
+4. **Execute Request**: Only after receiving user confirmation, run the constructed curl command
 
 6. **Display Results**: Show the API response including the execution ID
 
@@ -109,9 +95,11 @@ The command performs the following steps:
 - **Error**: HTTP error, authentication failure, or missing job name
 
 **Important for Claude**:
-1. Parse the JSON response and extract the execution ID
-2. Display the execution ID to the user
-3. Offer to check job status with `/query-job-status`
+1. **REQUIRED**: Before executing this command, you MUST ensure the `ci:oc-auth` skill is loaded by invoking it with the Skill tool. The curl_with_token.sh script depends on this skill being active.
+2. You must locate and verify curl_with_token.sh before running it, you (Claude Code) have a bug that tries to use the script from the wrong directory!
+3. Parse the JSON response and extract the execution ID
+4. Display the execution ID to the user
+5. Offer to check job status with `/query-job-status`
 
 ## Examples
 
