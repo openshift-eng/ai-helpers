@@ -33,21 +33,32 @@ To authenticate:
 
 Verify authentication with:
 ```bash
-oc whoami
+oc config get-contexts
 ```
+Look for a context with cluster name containing `ci-l2s4-p1`.
+
+**Note**: Since `oc` maintains multiple cluster contexts in your kubeconfig, you can be authenticated to both the app.ci cluster (for triggering jobs) and the DPCR cluster (for Sippy queries) simultaneously. Each `oc login` creates a new context.
 
 ## Implementation
 
 The command performs the following steps:
 
-1. **Verify Authentication**: Run `oc whoami` to check if the user is authenticated to the app.ci cluster. If not authenticated, provide instructions to log in via browser.
+1. **Find app.ci Context**: Search through `oc` contexts to find the one for the app.ci cluster (cluster name containing `ci-l2s4-p1`). If not found, provide instructions to log in via browser.
 
 2. **Parse Arguments**:
    - $1: execution ID (required, UUID format)
 
 3. **Execute API Request**: Make a GET request to query the job status:
    ```bash
-   curl -X GET -H "Authorization: Bearer $(oc whoami -t)" \
+   # Find the app.ci cluster context
+   APPCI_CONTEXT=$(oc config get-contexts -o name | while read ctx; do
+     if oc config view -o jsonpath="{.contexts[?(@.name=='$ctx')].context.cluster}" | grep -q "ci-l2s4-p1"; then
+       echo "$ctx"
+       break
+     fi
+   done)
+   
+   curl -X GET -H "Authorization: Bearer $(oc whoami -t --context=$APPCI_CONTEXT)" \
      https://gangway-ci.apps.ci.l2s4.p1.openshiftapps.com/v1/executions/<EXECUTION_ID>
    ```
 

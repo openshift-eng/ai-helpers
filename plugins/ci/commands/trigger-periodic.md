@@ -59,14 +59,17 @@ To authenticate:
 
 Verify authentication with:
 ```bash
-oc whoami
+oc config get-contexts
 ```
+Look for a context with cluster name containing `ci-l2s4-p1`.
+
+**Note**: Since `oc` maintains multiple cluster contexts in your kubeconfig, you can be authenticated to both the app.ci cluster (for triggering jobs) and the DPCR cluster (for Sippy queries) simultaneously. Each `oc login` creates a new context.
 
 ## Implementation
 
 The command performs the following steps:
 
-1. **Verify Authentication**: Run `oc whoami` to check if the user is authenticated to the app.ci cluster. If not authenticated, provide instructions to log in via browser.
+1. **Find app.ci Context**: Search through `oc` contexts to find the one for the app.ci cluster (cluster name containing `ci-l2s4-p1`). If not found, provide instructions to log in via browser.
 
 2. **Parse Arguments**:
    - First argument is the job name (required)
@@ -75,23 +78,33 @@ The command performs the following steps:
 
 3. **Construct API Request**: Build the appropriate curl command:
 
+   **Find the app.ci context first:**
+   ```bash
+   APPCI_CONTEXT=$(oc config get-contexts -o name | while read ctx; do
+     if oc config view -o jsonpath="{.contexts[?(@.name=='$ctx')].context.cluster}" | grep -q "ci-l2s4-p1"; then
+       echo "$ctx"
+       break
+     fi
+   done)
+   ```
+
    **Without overrides:**
    ```bash
-   curl -v -X POST -H "Authorization: Bearer $(oc whoami -t)" \
+   curl -v -X POST -H "Authorization: Bearer $(oc whoami -t --context=$APPCI_CONTEXT)" \
      -d '{"job_name": "<JOB_NAME>", "job_execution_type": "1"}' \
      https://gangway-ci.apps.ci.l2s4.p1.openshiftapps.com/v1/executions
    ```
 
    **With overrides:**
    ```bash
-   curl -v -X POST -H "Authorization: Bearer $(oc whoami -t)" \
+   curl -v -X POST -H "Authorization: Bearer $(oc whoami -t --context=$APPCI_CONTEXT)" \
      -d '{"job_name": "<JOB_NAME>", "job_execution_type": "1", "pod_spec_options": {"envs": {"ENV_VAR": "value"}}}' \
      https://gangway-ci.apps.ci.l2s4.p1.openshiftapps.com/v1/executions
    ```
 
    **With multistage parameter override:**
    ```bash
-   curl -v -X POST -H "Authorization: Bearer $(oc whoami -t)" \
+   curl -v -X POST -H "Authorization: Bearer $(oc whoami -t --context=$APPCI_CONTEXT)" \
      -d '{"job_name": "periodic-to-trigger", "job_execution_type": "1", "pod_spec_options": {"envs": {"MULTISTAGE_PARAM_OVERRIDE_FOO": "bar"}}}' \
      https://gangway-ci.apps.ci.l2s4.p1.openshiftapps.com/v1/executions
    ```
