@@ -138,10 +138,6 @@ Query the status of a gangway job execution by ID.
 
 ## Configuration
 
-### Environment Variables
-
-- `ASK_SIPPY_API_TOKEN`: Required for Sippy queries.
-
 ### Authentication for Gangway Commands
 
 Gangway commands require authentication to the app.ci cluster:
