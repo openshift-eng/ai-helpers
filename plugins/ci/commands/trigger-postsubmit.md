@@ -48,34 +48,13 @@ Before executing ANY POST operation (job trigger), Claude MUST:
 4. Only proceed after receiving affirmative confirmation
 
 **Token Usage:**
-The app.ci cluster token (`oc whoami -t`) is used solely for authentication with the gangway REST API. This token grants the same permissions as the authenticated user and must be handled with appropriate care.
-
-## Prerequisites
-
-**Required Authentication:**
-- User MUST be authenticated to the app.ci cluster via browser login
-
-To authenticate:
-1. Visit https://console-openshift-console.apps.ci.l2s4.p1.openshiftapps.com/
-2. Log in through the browser with SSO credentials
-3. Click on username → "Copy login command"
-4. Paste and execute the `oc login` command in terminal
-
-Verify authentication with:
-```bash
-oc config get-contexts
-```
-Look for a context with cluster name containing `ci-l2s4-p1`.
-
-**Note**: Since `oc` maintains multiple cluster contexts in your kubeconfig, you can be authenticated to both the app.ci cluster (for triggering jobs) and the DPCR cluster (for Sippy queries) simultaneously. Each `oc login` creates a new context.
+The app.ci cluster token is used solely for authentication with the gangway REST API. This token grants the same permissions as the authenticated user and must be handled with appropriate care. The `curl_with_token.sh` wrapper handles all authentication automatically.
 
 ## Implementation
 
 The command performs the following steps:
 
-1. **Find app.ci Context**: Search through `oc` contexts to find the one for the app.ci cluster (cluster name containing `ci-l2s4-p1`). If not found, provide instructions to log in via browser.
-
-2. **Parse Arguments**:
+1. **Parse Arguments**:
    - $1: job name (required)
    - $2: organization (required)
    - $3: repository name (required)
@@ -122,20 +101,14 @@ The command performs the following steps:
 
 5. **Request User Confirmation**: Display the complete JSON payload and curl command to the user, then explicitly ask for confirmation before proceeding. Wait for affirmative user response.
 
-6. **Execute Request**: Only after receiving user confirmation, run the curl command:
+6. **Execute Request**: Only after receiving user confirmation, run the curl command using the `oc-auth` skill's curl wrapper:
    ```bash
-   # Find the app.ci cluster context
-   APPCI_CONTEXT=$(oc config get-contexts -o name | while read ctx; do
-     if oc config view -o jsonpath="{.contexts[?(@.name=='$ctx')].context.cluster}" | grep -q "ci-l2s4-p1"; then
-       echo "$ctx"
-       break
-     fi
-   done)
-   
-   curl -v -X POST -H "Authorization: Bearer $(oc whoami -t --context=$APPCI_CONTEXT)" \
+   # Use curl_with_token.sh from oc-auth skill - it automatically adds the OAuth token
+   curl_with_token.sh app.ci -v -X POST \
      -d @/tmp/postsubmit-spec.json \
      https://gangway-ci.apps.ci.l2s4.p1.openshiftapps.com/v1/executions
    ```
+   The `curl_with_token.sh` wrapper retrieves the OAuth token from the app.ci cluster and adds it as an Authorization header automatically, without exposing the token.
 
 7. **Clean Up**: Remove the temporary JSON file
 

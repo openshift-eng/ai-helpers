@@ -18,58 +18,31 @@ The `query-job-status` command queries the status of a gangway job execution via
 The command accepts:
 - Execution ID (required, UUID returned when triggering a job)
 
-It makes a GET request to the gangway API and returns the current status of the job including its name, type, status, and GCS path to artifacts if available.
-
-## Prerequisites
-
-**Required Authentication:**
-- User MUST be authenticated to the app.ci cluster via browser login
-
-To authenticate:
-1. Visit https://console-openshift-console.apps.ci.l2s4.p1.openshiftapps.com/
-2. Log in through the browser with SSO credentials
-3. Click on username → "Copy login command"
-4. Paste and execute the `oc login` command in terminal
-
-Verify authentication with:
-```bash
-oc config get-contexts
-```
-Look for a context with cluster name containing `ci-l2s4-p1`.
-
-**Note**: Since `oc` maintains multiple cluster contexts in your kubeconfig, you can be authenticated to both the app.ci cluster (for triggering jobs) and the DPCR cluster (for Sippy queries) simultaneously. Each `oc login` creates a new context.
+It makes a GET request to the gangway API and returns the current status of the job including its name, type, status, and GCS path to artifacts if available. The `curl_with_token.sh` wrapper handles all authentication automatically.
 
 ## Implementation
 
 The command performs the following steps:
 
-1. **Find app.ci Context**: Search through `oc` contexts to find the one for the app.ci cluster (cluster name containing `ci-l2s4-p1`). If not found, provide instructions to log in via browser.
-
-2. **Parse Arguments**:
+1. **Parse Arguments**:
    - $1: execution ID (required, UUID format)
 
-3. **Execute API Request**: Make a GET request to query the job status:
+2. **Execute API Request**: Make a GET request to query the job status using the `oc-auth` skill's curl wrapper:
    ```bash
-   # Find the app.ci cluster context
-   APPCI_CONTEXT=$(oc config get-contexts -o name | while read ctx; do
-     if oc config view -o jsonpath="{.contexts[?(@.name=='$ctx')].context.cluster}" | grep -q "ci-l2s4-p1"; then
-       echo "$ctx"
-       break
-     fi
-   done)
-   
-   curl -X GET -H "Authorization: Bearer $(oc whoami -t --context=$APPCI_CONTEXT)" \
+   # Use curl_with_token.sh from oc-auth skill - it automatically adds the OAuth token
+   curl_with_token.sh app.ci -X GET \
      https://gangway-ci.apps.ci.l2s4.p1.openshiftapps.com/v1/executions/<EXECUTION_ID>
    ```
+   The `curl_with_token.sh` wrapper retrieves the OAuth token from the app.ci cluster and adds it as an Authorization header automatically, without exposing the token.
 
-4. **Display Results**: Parse and present the JSON response with:
+3. **Display Results**: Parse and present the JSON response with:
    - `id`: The execution ID
    - `job_name`: The name of the job
    - `job_type`: The type of job execution (PERIODIC, POSTSUBMIT, PRESUBMIT)
    - `job_status`: Current status (SUCCESS, FAILURE, PENDING, RUNNING, ABORTED)
    - `gcs_path`: Path to job artifacts in GCS (if available)
 
-5. **Offer Follow-up Actions**:
+4. **Offer Follow-up Actions**:
    - If status is PENDING or RUNNING: Offer to check again after a delay
    - If status is SUCCESS or FAILURE with gcs_path: Offer to help access logs/artifacts
 

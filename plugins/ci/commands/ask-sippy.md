@@ -24,81 +24,40 @@ The command sends your question to the Sippy API and returns the agent's
 response. Note that complex queries may take some time to process as the
 agent analyzes CI data. Please inform the user of this.
 
-## Prerequisites
+## Security
 
-**Required Authentication:**
-- User MUST be authenticated to the DPCR cluster via browser login
+**IMPORTANT SECURITY REQUIREMENTS:**
 
-To authenticate:
-1. Visit https://console-openshift-console.apps.cr.j7t7.p1.openshiftapps.com/
-2. Log in through the browser with SSO credentials
-3. Click on username → "Copy login command"
-4. Paste and execute the `oc login` command in terminal
+Claude is granted LIMITED and SPECIFIC access to the DPCR cluster token for the following AUTHORIZED operations ONLY:
+- **READ operations**: Querying the Sippy API for CI data analysis
 
-Verify authentication with:
-```bash
-oc config get-contexts
-```
-Look for a context with cluster name containing `cr-j7t7-p1`.
+Claude is EXPLICITLY PROHIBITED from:
+- Modifying cluster resources (deployments, pods, services, etc.)
+- Deleting or altering any data
+- Accessing secrets, configmaps, or sensitive data beyond Sippy API responses
+- Making any cluster modifications
+- Using the token for any purpose other than the specific operations listed above
 
-**Note**: Since `oc` maintains multiple cluster contexts in your kubeconfig, you can be authenticated to both the DPCR cluster (for Sippy) and the app.ci cluster (for triggering jobs) simultaneously. Each `oc login` creates a new context.
+**Token Usage:**
+The DPCR cluster token is used solely for authentication with the Sippy API. This token grants the same permissions as the authenticated user and must be handled with appropriate care. The `curl_with_token.sh` wrapper handles all authentication automatically.
 
 ## Implementation
 
-The command performs the following steps:
-
-1. **Find DPCR Context**: Search through `oc` contexts to find the one for the DPCR cluster (cluster name containing `cr-j7t7-p1`)
-2. **Verify Authentication**: Check if a DPCR context exists. If not authenticated, provide instructions to log in via browser.
-3. **Validate Arguments**: Checks that a question was provided
-4. **Notify User**: Informs the user that the query is being processed (may take time)
-5. **API Request**: Sends a POST request to the Sippy API with:
-   - The user's question
-   - Empty chat history (each query is independent)
-   - `show_thinking: false` for concise responses
-   - `persona: default` for general AI assistant behavior
-   - OAuth token from `oc whoami -t --context=<DPCR_CONTEXT>` for authentication
-6. **Return JSON**: Returns the full JSON response for Claude to parse
-
-Implementation logic:
-```bash
-# Find the DPCR cluster context
-DPCR_SERVER="https://api.cr.j7t7.p1.openshiftapps.com:6443"
-DPCR_CONTEXT=$(oc config get-contexts -o name | while read ctx; do
-  if oc config view -o jsonpath="{.contexts[?(@.name=='$ctx')].context.cluster}" | grep -q "cr-j7t7-p1"; then
-    echo "$ctx"
-    break
-  fi
-done)
-
-if [ -z "$DPCR_CONTEXT" ]; then
-  echo "Error: Not authenticated to DPCR cluster"
-  echo "Please authenticate first:"
-  echo "1. Visit https://console-openshift-console.apps.cr.j7t7.p1.openshiftapps.com/"
-  echo "2. Log in through the browser with SSO credentials"
-  echo "3. Click on username → 'Copy login command'"
-  echo "4. Paste and execute the 'oc login' command in terminal"
-  exit 1
-fi
-
-if [ -z "$1" ]; then
-  echo "Error: Please provide a question to ask Sippy"
-  echo "Usage: /ask-sippy [question]"
-  exit 1
-fi
-
-echo "Querying Sippy AI agent... (this may take a moment)"
-echo ""
-
-curl -s -X POST "https://sippy-auth.dptools.openshift.org/api/chat" \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $(oc whoami -t --context=$DPCR_CONTEXT)" \
-  -d "{
-    \"message\": \"$1\",
-    \"chat_history\": [],
-    \"show_thinking\": false,
-    \"persona\": \"default\"
-  }"
-```
+1. **Validate Arguments**: Checks that a question was provided
+2. **Notify User**: Informs the user that the query is being processed (may take time)
+3. **API Request**: Sends a POST request to the Sippy API using the `oc-auth` skill's curl wrapper:
+   ```bash
+   # Use curl_with_token.sh from oc-auth skill - it automatically adds the OAuth token
+   curl_with_token.sh dpcr -s -X POST "https://sippy-auth.dptools.openshift.org/api/chat" \
+     -H "Content-Type: application/json" \
+     -d "{
+       \"message\": \"$1\",
+       \"chat_history\": [],
+       \"show_thinking\": false,
+       \"persona\": \"default\"
+     }"
+   ```
+4. **Return JSON**: Returns the full JSON response for Claude to parse
 
 ## Return Value
 - **Success**: JSON response from Sippy API with the following structure:
@@ -144,7 +103,6 @@ curl -s -X POST "https://sippy-auth.dptools.openshift.org/api/chat" \
 - **Response Format**: The API returns JSON with a `response` field containing markdown-formatted text
 - **Markdown Rendering**: Claude will automatically render the markdown response nicely with proper formatting
 - **Error Handling**: If the API returns an error, it will be displayed in the `error` field of the JSON response
-- **Authentication**: Tokens expire and may need to be refreshed via browser login
 
 ## Data Sources Available
 
