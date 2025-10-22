@@ -64,8 +64,96 @@ export ASK_SIPPY_API_TOKEN='your-token-here'
    /ask-sippy Why is the test "sig-network Feature:SCTP should create a Pod with SCTP HostPort" failing?
    ```
 
+### trigger-periodic
+
+Trigger a periodic gangway job with optional environment variable overrides.
+
+**Prerequisites:** Authentication to app.ci cluster (see Configuration)
+
+**Usage:**
+```bash
+/trigger-periodic
+```
+
+**Arguments (interactive):**
+- Job name (e.g., `periodic-ci-openshift-release-master-ci-4.14-e2e-aws-ovn`)
+- Optional environment variable overrides
+
+### trigger-postsubmit
+
+Trigger a postsubmit gangway job with repository refs.
+
+**Prerequisites:** Authentication to app.ci cluster (see Configuration)
+
+**Usage:**
+```bash
+/trigger-postsubmit
+```
+
+**Arguments (interactive):**
+- Job name (e.g., `branch-ci-openshift-assisted-installer-release-4.12-images`)
+- Repository organization (e.g., `openshift`)
+- Repository name (e.g., `assisted-installer`)
+- Base ref/branch (e.g., `release-4.12`)
+- Base SHA (commit hash)
+- Repository link
+- Optional base link (comparison URL)
+- Optional environment variable overrides
+
+### trigger-presubmit
+
+Trigger a presubmit gangway job.
+
+**Prerequisites:** Authentication to app.ci cluster (see Configuration)
+
+**Usage:**
+```bash
+/trigger-presubmit
+```
+
+**WARNING:** Presubmit jobs should typically be triggered using GitHub Prow commands (`/test`, `/retest`). Only use this if you have a specific reason to trigger via REST API.
+
+**Arguments (interactive):**
+- Job name
+- Pull request information (org, repo, base ref, PR number, SHAs)
+- Optional environment variable overrides
+
+### query-job-status
+
+Query the status of a gangway job execution by ID.
+
+**Prerequisites:** Authentication to app.ci cluster (see Configuration)
+
+**Usage:**
+```bash
+/query-job-status
+```
+
+**Arguments (interactive):**
+- Execution ID (returned when a job is triggered)
+
+**Returns:**
+- Job name, type, and status (SUCCESS, FAILURE, PENDING, RUNNING, ABORTED)
+- GCS path to artifacts (if available)
+
 ## Configuration
 
 ### Environment Variables
 
 - `ASK_SIPPY_API_TOKEN`: Required for Sippy queries.
+
+### Authentication for Gangway Commands
+
+Gangway commands require authentication to the app.ci cluster:
+
+1. Visit https://console-openshift-console.apps.ci.l2s4.p1.openshiftapps.com/
+2. Log in with SSO and click "Copy login command"
+3. Execute the `oc login` command in your terminal
+
+Verify with: `oc whoami`
+
+## Additional Resources
+
+- [Sippy Chat Web Interface](https://sippy-auth.dptools.openshift.org/sippy-ng/chat)
+- [Triggering ProwJobs via REST](https://docs.ci.openshift.org/docs/how-tos/triggering-prowjobs-via-rest/)
+- [Gangway CLI](https://github.com/openshift-eng/gangway-cli)
