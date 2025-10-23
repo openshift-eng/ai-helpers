@@ -107,6 +107,7 @@ Fail, if there is no `upstream`, `origin` or `openshift` remote.
 
 14. Create a github pull request against the OpenShift github repository.
     The PR title should be "Rebase to $1 for OCP <current OCP version>".
+    Follow the repository .github/PULL_REQUEST_TEMPLATE.md, if it exists.
     Decription of the PR must look like:
     ```
     ## Upstream changelogs
