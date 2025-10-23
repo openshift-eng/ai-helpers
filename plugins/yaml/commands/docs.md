@@ -3,9 +3,31 @@ description: Generate comprehensive YAML documentation from Go struct definition
 argument-hint: [file:StructName] [output.md]
 ---
 
+## Name
+yaml:docs
+
+## Synopsis
+```
+/yaml:docs [file:StructName] [output.md]
+```
+
+## Description
+The `yaml:docs` command generates comprehensive YAML documentation from Go struct definitions. It analyzes Go structs and produces complete, well-documented YAML configuration examples with intelligent default values for all fields.
+
+This command is designed to help developers quickly create YAML configuration documentation by:
+- Automatically generating sensible default values for all struct fields
+- Adding inline comments explaining each field's purpose and constraints
+- Maintaining proper YAML formatting and structure
+- Supporting nested structs, slices, maps, and complex types
+- Respecting struct tags (yaml, json, validate, default)
+
+The spec sections is inspired by https://man7.org/linux/man-pages/man7/man-pages.7.html#top_of_page
+
+## Implementation
+
 You are a specialized tool for generating comprehensive YAML documentation from Go struct definitions.
 
-## Task
+### Task
 
 Analyze the provided Go struct and generate complete YAML documentation with:
 - All fields populated with intelligent, sensible default values (never leave fields empty)
@@ -13,14 +35,14 @@ Analyze the provided Go struct and generate complete YAML documentation with:
 - Proper YAML formatting and structure
 - Nested YAML for embedded structs with all sub-fields populated
 
-## Input Handling
+### Input Handling
 
 The user may provide input in these formats:
 1. `$1 $2` - File path with struct name (e.g., `pkg/api/types.go:MetricsConfig`) and optional output file path
 2. `$1` - Just the file path with struct name
 3. Selected code containing a Go struct definition (no arguments)
 
-## Instructions
+### Instructions
 
 1. **Locate the struct:**
    - If a file path is provided (format: `file.go:StructName`), read that file and find the specified struct
@@ -54,7 +76,7 @@ The user may provide input in these formats:
    - If an output file path is provided as `$2`, use the Write tool to create that file with the generated YAML content (write pure YAML, not markdown)
    - Otherwise, display the generated YAML to the user in a markdown code block with yaml syntax highlighting
 
-## Important Behaviors
+### Important Behaviors
 
 - **ALWAYS populate all fields** - never leave fields empty or use placeholder text
 - Infer contextually appropriate defaults from field names and types
@@ -62,7 +84,18 @@ The user may provide input in these formats:
 - Maintain the struct's field order in the YAML output
 - Handle complex nested structures by recursively applying these rules
 
-## Example Input
+## Return Value
+- **Claude agent text**: Generated YAML documentation with intelligent defaults and inline comments
+- **File output** (if $2 provided): YAML file written to the specified path
+
+## Examples
+
+### Example 1: Basic usage with file path and struct name
+```
+/yaml:docs pkg/config/server.go:ServerConfig
+```
+
+Input struct:
 ```go
 type ServerConfig struct {
     Host     string        `yaml:"host" json:"host" validate:"required"`
@@ -73,7 +106,7 @@ type ServerConfig struct {
 }
 ```
 
-## Example Output
+Output:
 ```yaml
 # Server configuration
 host: "localhost"          # Required: Server hostname or IP address
@@ -83,9 +116,12 @@ debug: false               # Enable debug logging
 features: ["metrics", "tracing"]  # List of enabled features
 ```
 
-### Advanced Example
-For complex nested structs, all fields are populated with sensible defaults:
+### Example 2: Complex nested structs with output file
+```
+/yaml:docs pkg/config/database.go:DatabaseConfig config/database.yaml
+```
 
+Input struct:
 ```go
 type DatabaseConfig struct {
     Host     string            `yaml:"host"`
@@ -102,7 +138,7 @@ type SSLConfig struct {
 }
 ```
 
-Generated YAML with all fields filled:
+Generated YAML (written to config/database.yaml):
 ```yaml
 # Database configuration
 host: "localhost"                    # Database host
@@ -118,3 +154,15 @@ metadata:                           # Optional metadata configuration
   cache_ttl: "1h"                   # Cache time-to-live
   sync_interval: "5m"               # Sync interval
 ```
+
+### Example 3: Using with selected code
+Select a Go struct definition in your editor, then run:
+```
+/yaml:docs
+```
+
+The command will generate YAML documentation from the selected struct.
+
+## Arguments
+- $1: File path and struct name in format `file.go:StructName` (e.g., `pkg/api/types.go:MetricsConfig`), or selected code containing a Go struct definition
+- $2: (Optional) Output file path where the generated YAML will be written (e.g., `config/example.yaml`)
