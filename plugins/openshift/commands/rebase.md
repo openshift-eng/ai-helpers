@@ -4,16 +4,16 @@ description: Rebase OpenShift fork of an upstream repository to a new upstream r
 ---
 
 ## Name
-ocp-style-rebase
+openshift:rebase
 
 ## Synopsis
 ```
-/ocp-style-rebase [tag]
+/openshift:rebase [tag]
 ```
 
 ## Description
 
-The `/ocp-style-rebase` command rebases git repository in the current working directory
+The `/openshift:rebase` command rebases git repository in the current working directory
 to a new upstream release specified by `[tag]`. If no `[tag]` is specified, the command
 tries to find the latest stable upstream release.
 
