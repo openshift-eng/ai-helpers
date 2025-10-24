@@ -48,6 +48,11 @@
       "name": "agendas",
       "source": "./plugins/agendas",
       "description": "A plugin to create various meeting agendas"
+    },
+    {
+      "name": "must-gather",
+      "source": "./plugins/must-gather",
+      "description": "A plugin to analyze and report on must-gather data"
     }
   ]
 }
