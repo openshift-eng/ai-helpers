@@ -8,6 +8,7 @@ Comprehensive Jira integration for Claude Code, providing AI-powered tools to an
 - 📊 **Status Rollups** - Generate comprehensive status rollup comments for any Jira issue given a date range
 - 📋 **Backlog Grooming** - Analyze new bugs and cards for grooming meetings
 - 🧪 **Test Generation** - Generate comprehensive test steps for JIRA issues by analyzing related PRs
+- ✨ **Issue Creation** - Create well-formed stories, epics, features, tasks, and bugs with guided workflows
 - 🤖 **Automated Workflows** - From issue analysis to PR creation, fully automated
 - 💬 **Smart Comment Analysis** - Extracts blockers, risks, and key insights from comments
 
@@ -150,6 +151,63 @@ Generate comprehensive test steps for a JIRA issue by analyzing related pull req
 ```
 
 See [commands/generate-test-plan.md](commands/generate-test-plan.md) for full documentation.
+
+---
+
+### `/jira:create` - Create Jira Issues
+
+Create well-formed Jira issues (stories, epics, features, tasks, bugs) with intelligent defaults, interactive guidance, and validation. The command applies project-specific conventions, suggests components based on context, and provides templates for consistent issue creation.
+
+**Usage:**
+```bash
+# Create a story
+/jira:create story MYPROJECT "Add user dashboard"
+
+# Create a story with options
+/jira:create story MYPROJECT "Add search functionality" --component "Frontend" --version "2.5.0"
+
+# Create an epic with parent
+/jira:create epic MYPROJECT "Mobile application redesign" --parent MYPROJECT-100
+
+# Create a bug
+/jira:create bug MYPROJECT "Login button doesn't work on mobile"
+
+# Create a bug with component
+/jira:create bug MYPROJECT "API returns 500 error" --component "Backend"
+
+# Create a task
+/jira:create task MYPROJECT "Update API documentation" --parent MYPROJECT-456
+
+# Create a feature
+/jira:create feature MYPROJECT "Advanced search capabilities"
+```
+
+**Key Features:**
+- **Universal requirements** - All tickets MUST include Security Level: Red Hat Employee and label: ai-generated-jira
+- **Smart defaults** - Project and team-specific conventions applied automatically
+- **Interactive templates** - Guides you through user story format, acceptance criteria, bug templates
+- **Security validation** - Scans for credentials and secrets before submission
+- **Extensible** - Supports project-specific and team-specific skills for custom workflows
+- **Hybrid workflow** - Required fields as arguments, optional fields as interactive prompts
+
+**Supported Issue Types:**
+- `story` - User stories with acceptance criteria
+- `epic` - Epics with parent feature linking
+- `feature` - Strategic features with market problem analysis
+- `task` - Technical tasks and operational work
+- `bug` - Bug reports with structured templates
+
+**Project-Specific Conventions:**
+
+Different projects may have different conventions (security levels, labels, versions, components, etc.). The command automatically detects your project and applies the appropriate conventions via project-specific skills.
+
+**Team-Specific Conventions:**
+
+Teams may have additional conventions layered on top of project conventions (component selection, custom fields, workflows, etc.). The command automatically detects team context and applies team-specific skills.
+
+See [commands/create.md](commands/create.md) for full documentation.
+
+---
 
 ## Troubleshooting
 
