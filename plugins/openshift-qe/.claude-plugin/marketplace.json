@@ -1,0 +1,8 @@
+{
+    "name": "openshift-qe",
+    "description": "Generate and execute comprehensive OpenShift test cases with AI-powered analysis and step-by-step execution",
+    "version": "0.0.1",
+    "author": {
+      "name": "openshift-qe"
+    }
+  }
