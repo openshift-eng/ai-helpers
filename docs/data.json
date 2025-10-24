@@ -106,7 +106,7 @@
         {
           "name": "solve",
           "description": "Analyze a JIRA issue and create a pull request to solve it.",
-          "synopsis": "/jira:solve <jira-issue-id> [remote]",
+          "synopsis": "/jira:solve <jira-issue-id> [remote] [upstream]",
           "argument_hint": ""
         },
         {

@@ -7,7 +7,7 @@ jira:solve
 
 ## Synopsis
 ```
-/jira:solve <jira-issue-id> [remote]
+/jira:solve <jira-issue-id> [remote] [upstream]
 ```
 
 ## Description
@@ -33,6 +33,14 @@ This command takes a JIRA URL, fetches the issue description and requirements, a
 
 ### Process Flow
 
+0. **Pre-flight Validation**:
+   - Validate that required tools are available (curl, jq, git, make)
+   - Check if current directory is a valid git repository
+   - Ensure working directory is clean or warn user about uncommitted changes
+   - Validate remote $3 is properly configured
+   - Fetch latest changes from upstream repository: `git fetch $3`
+   - Create feature branch using the jira-key $1 as the branch name. Use main branch from upstream as base. For example: "git checkout -b fix-{jira-key} $3/main"
+
 1. **Issue Analysis**: Parse JIRA URL and fetch issue details:
    - Use curl to fetch JIRA issue data: curl -s "https://issues.redhat.com/rest/api/2/issue/{$1}"
    - Parse JSON response to extract:
@@ -44,7 +52,7 @@ This command takes a JIRA URL, fetches the issue description and requirements, a
          - Optional
             - Steps to reproduce (for bugs)
             - Expected vs actual behavior
-   - Ask the user for further issue grooming if the requried sections are missing
+   - Ask the user for further issue grooming if the required sections are missing
 
 2. **Codebase Analysis**: Search and analyze relevant code:
    - Find related files and functions
@@ -84,7 +92,6 @@ This command takes a JIRA URL, fetches the issue description and requirements, a
     - **You must ensure verification passes** before proceeding to "Commit Creation"
 
 4. **Commit Creation**: 
-   - Create feature branch using the jira-key $1 as the branch name. For example: "git checkout -b fix-{jira-key}"
    - Break commits into logical components based on the nature of the changes
    - Each commit should honor https://www.conventionalcommits.org/en/v1.0.0/ and always include a commit message body articulating the "why"
    - Use your judgment to organize commits in a way that makes them easy to review and understand
@@ -113,7 +120,7 @@ This command takes a JIRA URL, fetches the issue description and requirements, a
      - The PR description should satisfy the template within .github/PULL_REQUEST_TEMPLATE.md if the file exists
      - The "🤖 Generated with Claude Code" sentence should include a reference to the slash command that triggered the execution, for example "via `/jira-solve OCPBUGS-12345 enxebre`"
      - Always create as draft PR
-     - Always create the PR against the remote origin
+     - Always create the PR against the remote $3
      - Use gh cli if you need to
 
 6. **PR Description Review**:
@@ -129,5 +136,6 @@ This command takes a JIRA URL, fetches the issue description and requirements, a
 ## Arguments:
 - $1: The JIRA issue to solve (required)
 - $2: The remote repository to push the branch. Defaults to "origin".
+- $3: The remote repository to rebase and create PR against. Default to "origin" if that is not itself a fork, otherwise look for a remote named "upstream".
 
 The command will provide progress updates and create a comprehensive solution addressing all requirements from the JIRA issue.
