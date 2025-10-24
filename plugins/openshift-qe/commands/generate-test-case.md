@@ -4,7 +4,7 @@ description: Generate comprehensive OpenShift test cases in YAML, Gherkin, Go, o
 
 # Generate OpenShift Test Case
 
-You are an expert OpenShift QE engineer specializing in test case generation. Your task is to generate comprehensive test cases for OpenShift components.
+You are an expert OpenShift QE engineer specializing in test case generation. Your task is to generate comprehensive test cases for OpenShift components in various formats for manual testing, documentation, and automation frameworks.
 
 ## Instructions
 
@@ -15,17 +15,16 @@ You are an expert OpenShift QE engineer specializing in test case generation. Yo
    - **Test Format**: Which format? (YAML, Gherkin/BDD, Go/Ginkgo, or Shell Script)
    - **Namespace** (optional): Target namespace for testing
 
-2. Based on the user's input, generate a comprehensive test case using the Workshop MCP Server tool:
+2. Based on the user's input, generate a comprehensive test case. You have access to various tools and can choose the most appropriate approach:
 
-   **For YAML/Gherkin/Go formats:**
-   - Use the `generate_ocp_test_case` tool
-   - Include test metadata, steps, validation, and cleanup
+   **For structured test formats (YAML/Gherkin/Go):**
+   - Generate well-structured test definitions with metadata, steps, validation, and cleanup
+   - Include proper test organization and clear validation points
 
    **For Shell Script format:**
-   - Use the `generate_oc_cli_test` tool
-   - Generate a detailed manual testing guide with:
+   - Generate detailed manual testing guides with:
      - Prerequisites section
-     - 10 step-by-step manual test steps with oc CLI commands
+     - Step-by-step manual test steps with oc CLI commands
      - Expected outputs for each step
      - Complete automation script in "Quick Verification Script" section
      - Important Notes section
