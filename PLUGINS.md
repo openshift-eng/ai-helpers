@@ -10,6 +10,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Container Image](#container-image-plugin)
 - [Doc](#doc-plugin)
 - [Etcd](#etcd-plugin)
+- [Fbc Art Images](#fbc-art-images-plugin)
 - [Git](#git-plugin)
 - [Hcp](#hcp-plugin)
 - [Hello World](#hello-world-plugin)
@@ -115,6 +116,17 @@ Etcd cluster health monitoring and performance analysis utilities
 - **`/etcd:health-check` `[--verbose]`** - Check etcd cluster health, member status, and identify issues
 
 See [plugins/etcd/README.md](plugins/etcd/README.md) for detailed documentation.
+
+### Fbc Art Images Plugin
+
+Assists with testing operators built in [FBC](https://olm.operatorframework.io/docs/reference/file-based-catalogs/) (File Based Catalog) by Konflux (quay.io/redhat-user-workloads/ocp-art-tenant/art-fbc) with quay.io/redhat-user-workloads/ocp-art-tenant/art-images-share image repository. Requires oras CLI for image discovery.
+
+**Commands:**
+- **`/fbc-art-images:catalog-source` `<ocp-version> <operator-name>`** - Generate CatalogSource manifest for testing operators built in Konflux
+- **`/fbc-art-images:idms` `<ocp-version> <operator-name>`** - Generate IDMS manifest so that art-image-share mirrors would be used on the cluster for all operator related images
+- **`/fbc-art-images:setup` `<ocp-version> <operator-name>`** - Generate CatalogSource, IDMS, and configure pull-secret for FBC testing
+
+See [plugins/fbc-art-images/README.md](plugins/fbc-art-images/README.md) for detailed documentation.
 
 ### Git Plugin
 
