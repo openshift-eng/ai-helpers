@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prow Jobs Report - {{KEYWORDS}}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #0d1117;
+            color: #c9d1d9;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .header {
+            background: #161b22;
+            padding: 24px;
+            border-radius: 8px;
+            margin-bottom: 24px;
+            border: 1px solid #30363d;
+        }
+        h1 {
+            color: #58a6ff;
+            font-size: 28px;
+            margin-bottom: 16px;
+        }
+        .metadata {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 12px;
+            margin-top: 16px;
+        }
+        .metadata-item {
+            background: #0d1117;
+            padding: 12px;
+            border-radius: 6px;
+            border: 1px solid #30363d;
+        }
+        .metadata-item strong {
+            color: #8b949e;
+            display: block;
+            font-size: 12px;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+        .metadata-item span {
+            color: #c9d1d9;
+            font-size: 18px;
+            font-weight: 600;
+        }
+        .filters {
+            background: #161b22;
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            border: 1px solid #30363d;
+        }
+        .filters label {
+            margin-right: 16px;
+            color: #8b949e;
+        }
+        .filters input, .filters select {
+            background: #0d1117;
+            color: #c9d1d9;
+            border: 1px solid #30363d;
+            padding: 6px 12px;
+            border-radius: 6px;
+            margin-left: 8px;
+        }
+        .filters input[type="text"] {
+            width: 300px;
+        }
+        .jobs-table {
+            background: #161b22;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid #30363d;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        thead {
+            background: #0d1117;
+        }
+        th {
+            text-align: left;
+            padding: 12px 16px;
+            color: #8b949e;
+            font-weight: 600;
+            font-size: 12px;
+            text-transform: uppercase;
+            border-bottom: 1px solid #30363d;
+        }
+        td {
+            padding: 12px 16px;
+            border-bottom: 1px solid #21262d;
+        }
+        tr:hover {
+            background: #0d1117;
+        }
+        .job-name {
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 13px;
+            color: #c9d1d9;
+        }
+        .job-url {
+            color: #58a6ff;
+            text-decoration: none;
+        }
+        .job-url:hover {
+            text-decoration: underline;
+        }
+        .state {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .state-success {
+            background: #238636;
+            color: #fff;
+        }
+        .state-failure {
+            background: #da3633;
+            color: #fff;
+        }
+        .state-pending {
+            background: #8b949e;
+            color: #fff;
+        }
+        .state-aborted {
+            background: #f85149;
+            color: #fff;
+        }
+        .state-triggered {
+            background: #1f6feb;
+            color: #fff;
+        }
+        .state-unknown {
+            background: #6e7681;
+            color: #fff;
+        }
+        .stats {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .stat-card {
+            background: #161b22;
+            padding: 16px;
+            border-radius: 8px;
+            border: 1px solid #30363d;
+            flex: 1;
+        }
+        .stat-card strong {
+            color: #8b949e;
+            display: block;
+            font-size: 12px;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+        .stat-card span {
+            font-size: 24px;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>OpenShift QE Prow Jobs Report</h1>
+            <div class="metadata">
+                <div class="metadata-item">
+                    <strong>Keywords</strong>
+                    <span>{{KEYWORDS}}</span>
+                </div>
+                <div class="metadata-item">
+                    <strong>Total Jobs</strong>
+                    <span id="total-jobs">{{TOTAL_JOBS}}</span>
+                </div>
+                <div class="metadata-item">
+                    <strong>Generated</strong>
+                    <span>{{GENERATED_TIME}}</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="stats" id="stats">
+            {{STATS_CARDS}}
+        </div>
+
+        <div class="filters">
+            <label>
+                Search:
+                <input type="text" id="searchInput" placeholder="Filter by job name...">
+            </label>
+            <label>
+                State:
+                <select id="stateFilter">
+                    <option value="">All</option>
+                    {{STATE_OPTIONS}}
+                </select>
+            </label>
+        </div>
+
+        <div class="jobs-table">
+            <table id="jobsTable">
+                <thead>
+                    <tr>
+                        <th style="width: 60%">Job Name</th>
+                        <th style="width: 15%">State</th>
+                        <th style="width: 25%">URL</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{JOB_ROWS}}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // Search functionality
+        const searchInput = document.getElementById('searchInput');
+        const stateFilter = document.getElementById('stateFilter');
+        const table = document.getElementById('jobsTable');
+        const rows = table.getElementsByTagName('tbody')[0].getElementsByTagName('tr');
+        const totalJobsSpan = document.getElementById('total-jobs');
+
+        function filterTable() {
+            const searchTerm = searchInput.value.toLowerCase();
+            const selectedState = stateFilter.value.toLowerCase();
+            let visibleCount = 0;
+
+            for (let row of rows) {
+                const jobName = row.cells[0].textContent.toLowerCase();
+                const state = row.getAttribute('data-state').toLowerCase();
+
+                const matchesSearch = jobName.includes(searchTerm);
+                const matchesState = !selectedState || state === selectedState;
+
+                if (matchesSearch && matchesState) {
+                    row.style.display = '';
+                    visibleCount++;
+                } else {
+                    row.style.display = 'none';
+                }
+            }
+
+            totalJobsSpan.textContent = visibleCount;
+        }
+
+        searchInput.addEventListener('input', filterTable);
+        stateFilter.addEventListener('change', filterTable);
+    </script>
+</body>
+</html>

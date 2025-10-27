@@ -215,6 +215,7 @@ A plugin to analyze and inspect Prow CI job results
 - **`/prow-job:analyze-resource` `prowjob-url resource-name`** - Analyze Kubernetes resource lifecycle in Prow job artifacts
 - **`/prow-job:analyze-test-failure` `prowjob-url test-name`** - Analyzes test errors from console logs and Prow CI job artifacts
 - **`/prow-job:extract-must-gather` `prowjob-url`** - Extract and decompress must-gather archives from Prow job artifacts
+- **`/prow-job:list-qe-jobs` `keywords`** - List all OpenShift QE CI jobs with optional filtering
 
 See [plugins/prow-job/README.md](plugins/prow-job/README.md) for detailed documentation.
 
