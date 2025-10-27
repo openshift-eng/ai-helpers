@@ -48,6 +48,11 @@
       "name": "agendas",
       "source": "./plugins/agendas",
       "description": "A plugin to create various meeting agendas"
+    },
+    {
+      "name": "openshift",
+      "source": "./plugins/openshift",
+      "description": "Miscellaenous commands related to development on OpenShift"
     }
   ]
 }
