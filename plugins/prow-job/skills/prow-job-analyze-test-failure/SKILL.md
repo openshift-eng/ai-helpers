@@ -18,7 +18,9 @@ Identical with "Prow Job Analyze Resource" skill.
 ## Input Format
 
 The user will provide:
+
 1. **Prow job URL** - gcsweb URL containing `test-platform-results/`
+
    - Example: `https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results/pr-logs/pull/openshift_hypershift/6731/pull-ci-openshift-hypershift-main-e2e-aws/1962527613477982208`
    - URL may or may not have trailing slash
 
@@ -37,6 +39,7 @@ Use the "Parse and Validate URL" steps from "Prow Job Analyze Resource" skill
 ### Step 2: Create Working Directory
 
 1. **Check for existing artifacts first**
+
    - Check if `.work/prow-job-analyze-test-failure/{build_id}/logs/` directory exists and has content
    - If it exists with content:
      - Use AskUserQuestion tool to ask:
@@ -70,16 +73,41 @@ Use the "Download and Validate prowjob.json" steps from "Prow Job Analyze Resour
 ### Step 4: Analyze Test Failure
 
 1. **Download build-log.txt**
+
    ```bash
    gcloud storage cp gs://test-platform-results/{bucket-path}/build-log.txt .work/prow-job-analyze-test-failure/{build_id}/logs/build-log.txt --no-user-output-enabled
    ```
 
 2. **Parse and validate**
+
    - Read `.work/prow-job-analyze-resource/{build_id}/logs/build-log.txt`
    - Search for the Test name
    - Gather stack trace related to the test
 
-3. **Determine root cause**
+3. **Examine intervals files for cluster activity during E2E failures**
+
+   - Search recursively for E2E timeline artifacts (known as "interval files") within the bucket-path:
+     ```bash
+     gcloud storage ls 'gs://test-platform-results/{bucket-path}/**/e2e-timelines_spyglass_*json'
+     ```
+   - The files can be nested at unpredictable levels below the bucket-path
+   - There could be as many as two matching files
+   - Download all matching interval files (use the full paths from the search results):
+     ```bash
+     gcloud storage cp gs://test-platform-results/{bucket-path}/**/e2e-timelines_spyglass_*.json .work/prow-job-analyze-test-failure/{build_id}/logs/ --no-user-output-enabled
+     ```
+   - If the wildcard copy doesn't work, copy each file individually using the full paths from the search results
+   - **Scan interval files for test failure timing:**
+     - Look for intervals where `source = "E2ETest"` and `message.annotations.status = "Failed"`
+     - Note the `from` and `to` timestamps on this interval - this indicates when the test was running
+   - **Scan interval files for related cluster events:**
+     - Look for intervals that overlap the timeframe when the failed test was running
+     - Filter for intervals with:
+       - `level = "Error"` or `level = "Warning"`
+       - `source = "OperatorState"`
+     - These events may indicate cluster issues that caused or contributed to the test failure
+
+4. **Determine root cause**
    - Determine a possible root cause for the test failure
    - Analyze stack traces
    - Analyze related code in the code repository
@@ -91,6 +119,7 @@ Use the "Download and Validate prowjob.json" steps from "Prow Job Analyze Resour
 ### Step 5: Present Results to User
 
 1. **Display summary**
+
    ```text
    Test Failure Analysis Complete
 
@@ -104,6 +133,7 @@ Use the "Download and Validate prowjob.json" steps from "Prow Job Analyze Resour
 
    Artifacts downloaded to: .work/prow-job-analyze-test-failure/{build_id}/logs/
    ```
+
 ## Error Handling
 
 Handle errors in the same way as "Error handling" in "Prow Job Analyze Resource" skill
