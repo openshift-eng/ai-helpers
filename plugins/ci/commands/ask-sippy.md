@@ -4,7 +4,7 @@ argument-hint: [question]
 ---
 
 ## Name
-ask-sippy
+ci:ask-sippy
 
 ## Synopsis
 ```

@@ -4,7 +4,7 @@ argument-hint: <execution-id>
 ---
 
 ## Name
-query-job-status
+ci:query-job-status
 
 ## Synopsis
 ```

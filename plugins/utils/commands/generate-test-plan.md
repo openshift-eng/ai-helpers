@@ -14,7 +14,7 @@ The 'utils:generate-test-plan' command takes one or more GitHub PR URLs, fetches
 
 **PR Testing Guide Generator**
 
-## Implementation:
+## Implementation
 
 - The command uses `gh pr view` to fetch PR data for one or more PRs
 - Analyzes PR descriptions, commits, and changed files across all provided PRs

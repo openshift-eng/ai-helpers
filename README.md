@@ -135,6 +135,19 @@ If you're contributing several related commands that warrant their own plugin:
    ```
 3. Register your plugin in `.claude-plugin/marketplace.json`
 
+### Validating Plugins
+
+This repository uses [claudelint](https://github.com/stbenjam/claudelint) to validate plugin structure:
+
+```bash
+make lint
+```
+
+## Additional Documentation
+
+- **[AGENTS.md](AGENTS.md)** - Complete guide for AI agents working with this repository
+- **[CLAUDE.md](CLAUDE.md)** - Claude-specific configuration and notes
+
 ## License
 
 See [LICENSE](LICENSE) for details.
