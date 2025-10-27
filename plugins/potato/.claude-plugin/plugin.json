@@ -1,0 +1,8 @@
+{
+  "name": "potato",
+  "description": "A test plugin for linter validation",
+  "version": "0.0.1",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}
