@@ -59,7 +59,7 @@ Parses unstructured pod logs.
 Generates interactive HTML reports from parsed log data.
 - Combines audit and pod log entries
 - Sorts chronologically
-- Creates interactive timeline visualization
+- Creates interactive filterable table
 - Adds filtering and search capabilities
 
 **Usage:**
