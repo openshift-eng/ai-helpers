@@ -6,6 +6,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Ci](#ci-plugin)
 - [Component Health](#component-health-plugin)
 - [Doc](#doc-plugin)
+- [Fbc Art Images](#fbc-art-images-plugin)
 - [Git](#git-plugin)
 - [Hcp](#hcp-plugin)
 - [Hello World](#hello-world-plugin)
@@ -60,6 +61,17 @@ A plugin for engineering documentation and notes
 - **`/doc:note` `[task description]`** - Generate professional engineering notes and append them to a log file
 
 See [plugins/doc/README.md](plugins/doc/README.md) for detailed documentation.
+
+### Fbc Art Images Plugin
+
+Assists with testing operators built in [FBC](https://olm.operatorframework.io/docs/reference/file-based-catalogs/) (File Based Catalog) by Konflux (quay.io/redhat-user-workloads/ocp-art-tenant/art-fbc) with quay.io/redhat-user-workloads/ocp-art-tenant/art-images-share image repository. Requires oras CLI for image discovery.
+
+**Commands:**
+- **`/fbc-art-images:catalog-source` `<ocp-version> <operator-name>`** - Generate CatalogSource manifest for testing operators built in Konflux
+- **`/fbc-art-images:idms` `<ocp-version> <operator-name>`** - Generate IDMS manifest so that art-image-share mirrors would be used on the cluster for all operator related images
+- **`/fbc-art-images:setup` `<ocp-version> <operator-name>`** - Generate CatalogSource, IDMS, and configure pull-secret for FBC testing
+
+See [plugins/fbc-art-images/README.md](plugins/fbc-art-images/README.md) for detailed documentation.
 
 ### Git Plugin
 
