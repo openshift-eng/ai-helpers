@@ -4,7 +4,7 @@ argument-hint: [release-image] [platform] [options]
 ---
 
 ## Name
-create-cluster
+openshift:create-cluster
 
 ## Synopsis
 ```
