@@ -4,7 +4,7 @@ argument-hint: [test-specification]
 ---
 
 ## Name
-new-e2e-test
+openshift:new-e2e-test
 
 ## Synopsis
 ```

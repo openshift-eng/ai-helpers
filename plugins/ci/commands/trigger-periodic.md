@@ -4,7 +4,7 @@ argument-hint: <job-name> [ENV_VAR=value ...]
 ---
 
 ## Name
-trigger-periodic
+ci:trigger-periodic
 
 ## Synopsis
 ```

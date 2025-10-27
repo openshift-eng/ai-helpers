@@ -1,0 +1,66 @@
+# claudelint configuration for ai-helpers marketplace
+# https://github.com/stbenjam/claudelint
+
+rules:
+  # Plugin structure rules
+  plugin-json-required:
+    enabled: true
+    severity: error
+  
+  plugin-json-valid:
+    enabled: true
+    severity: error
+  
+  plugin-naming:
+    enabled: true
+    severity: warning
+  
+  commands-dir-required:
+    enabled: false  # Plugins can have just skills or hooks
+    severity: warning
+  
+  commands-exist:
+    enabled: false  # Plugins can have just skills or hooks
+    severity: info
+  
+  plugin-readme:
+    enabled: true
+    severity: warning
+  
+  # Command format rules
+  command-naming:
+    enabled: true
+    severity: warning
+  
+  command-frontmatter:
+    enabled: true
+    severity: error
+  
+  command-sections:
+    enabled: true
+    severity: warning
+  
+  command-name-format:
+    enabled: true
+    severity: warning
+  
+  # Marketplace rules
+  marketplace-json-valid:
+    enabled: auto
+    severity: error
+  
+  marketplace-registration:
+    enabled: auto
+    severity: error
+  
+  # Skills rules
+  skill-frontmatter:
+    enabled: true
+    severity: warning
+
+# Exclude patterns
+exclude: []
+
+# Treat warnings as errors in CI
+strict: false
+

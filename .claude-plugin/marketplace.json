@@ -48,6 +48,16 @@
       "name": "agendas",
       "source": "./plugins/agendas",
       "description": "A plugin to create various meeting agendas"
+    },
+    {
+      "name": "openshift",
+      "source": "./plugins/openshift",
+      "description": "OpenShift development utilities and helpers"
+    },
+    {
+      "name": "yaml",
+      "source": "./plugins/yaml",
+      "description": "YAML documentation and utilities"
     }
   ]
 }
