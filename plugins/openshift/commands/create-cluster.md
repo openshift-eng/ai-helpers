@@ -1,6 +1,6 @@
 ---
 description: Extract OpenShift installer from release image and create an OCP cluster
-argument-hint: [release-image] [platform] [options]
+argument-hint: "[release-image] [platform] [options]"
 ---
 
 ## Name
@@ -106,8 +106,8 @@ If arguments are not provided, the command will interactively prompt for:
 - **base-domain** (required): Base domain for the cluster
   - Example: `example.com` → Cluster API will be `api.{cluster-name}.{base-domain}`
 
-- **pull-secret** (optional): Path to pull secret file
-  - Default: `~/pull-secret.txt`
+- **pull-secret** (required): Path to pull secret file
+  - User will be prompted to provide the path
 
 - **installer-dir** (optional): Directory to store/find installer binaries
   - Default: `~/.openshift-installers`
@@ -219,22 +219,118 @@ mkdir -p "$INSTALL_DIR"
 cd "$INSTALL_DIR"
 ```
 
-### 5. Generate install-config.yaml
+### 5. Collect Required Information and Generate install-config.yaml
 
-Run the installer's interactive config generation:
+**IMPORTANT**: Do NOT run the installer interactively. Instead, collect all required information from the user and generate the install-config.yaml programmatically.
+
+**Step 5.1: Collect Information**
+
+Prompt the user for the following information (if not already provided as arguments):
+
+1. **SSH Public Key**:
+   - Check for existing SSH keys: `ls -la ~/.ssh/*.pub`
+   - Ask user to select from available keys or specify path
+   - Default: `~/.ssh/id_rsa.pub`
+
+2. **Platform** (if not provided as argument):
+   - Ask user to select: aws, azure, gcp, vsphere, openstack, none
+
+3. **Platform-specific details**:
+   - For AWS:
+     - Region (e.g., us-east-1, us-west-2)
+   - For Azure:
+     - Region (e.g., centralus, eastus)
+     - Cloud name (e.g., AzurePublicCloud)
+   - For GCP:
+     - Project ID
+     - Region (e.g., us-central1)
+   - For other platforms: collect required platform-specific info
+
+4. **Base Domain**:
+   - Ask for base domain (e.g., example.com, devcluster.openshift.com)
+   - Validate that domain is configured (e.g., Route53 hosted zone for AWS)
+
+5. **Cluster Name**:
+   - Ask for cluster name or use default: `ocp-cluster`
+   - Validate DNS compatibility (lowercase, hyphens only)
+
+6. **Pull Secret**:
+   - **IMPORTANT**: Always ask user to provide the path to their pull secret file
+   - Do NOT use default paths like `~/pull-secret.txt` or `~/Downloads/pull-secret.txt`
+   - Prompt: "Please provide the path to your pull secret file (download from https://console.redhat.com/openshift/install/pull-secret):"
+   - Read contents of pull secret file from the provided path
+
+**Step 5.2: Generate install-config.yaml**
+
+Create the install-config.yaml file programmatically based on collected information:
+
 ```bash
-"$INSTALLER_PATH" create install-config --dir=.
+# Read SSH public key
+SSH_KEY=$(cat "$SSH_KEY_PATH")
+
+# Read pull secret
+PULL_SECRET=$(cat "$PULL_SECRET_PATH")
+
+# Generate install-config.yaml
+cat > install-config.yaml <<EOF
+apiVersion: v1
+baseDomain: ${BASE_DOMAIN}
+metadata:
+  name: ${CLUSTER_NAME}
+compute:
+- name: worker
+  replicas: 3
+controlPlane:
+  name: master
+  replicas: 3
+networking:
+  networkType: OVNKubernetes
+  clusterNetwork:
+  - cidr: 10.128.0.0/14
+    hostPrefix: 23
+  serviceNetwork:
+  - 172.30.0.0/16
+platform:
+  ${PLATFORM}:
+    region: ${REGION}
+pullSecret: '${PULL_SECRET}'
+sshKey: '${SSH_KEY}'
+EOF
 ```
 
-This will interactively prompt for:
-- SSH public key
-- Platform selection
-- Platform-specific details (region, instance types, etc.)
-- Base domain
-- Cluster name
-- Pull secret
+**Platform-specific configurations**:
 
-**IMPORTANT**: Always backup install-config.yaml before proceeding:
+For **AWS**:
+```yaml
+platform:
+  aws:
+    region: us-east-1
+```
+
+For **Azure**:
+```yaml
+platform:
+  azure:
+    region: centralus
+    baseDomainResourceGroupName: ${RESOURCE_GROUP_NAME}
+    cloudName: AzurePublicCloud
+```
+
+For **GCP**:
+```yaml
+platform:
+  gcp:
+    projectID: ${PROJECT_ID}
+    region: us-central1
+```
+
+For **None/Baremetal**:
+```yaml
+platform:
+  none: {}
+```
+
+**IMPORTANT**: Always backup install-config.yaml after creation:
 ```bash
 cp install-config.yaml install-config.yaml.backup
 ```
@@ -336,7 +432,8 @@ cd $INSTALL_DIR
 
 1. **Pull secret not found**:
    - Download from https://console.redhat.com/openshift/install/pull-secret
-   - Save to `~/pull-secret.txt`
+   - Save to a secure location of your choice
+   - Provide the path when prompted during cluster creation
 
 2. **Insufficient cloud quotas**:
    - Check cloud provider quota limits
