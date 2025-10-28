@@ -16,9 +16,21 @@ This command automates the complex process of rebasing OpenShift forks following
 
 ### `/openshift:bump-deps`
 
-Automates the process of bumping dependencies in OpenShift organization projects. It analyzes the dependency, determines 
-the appropriate version to bump to, updates the necessary files (go.mod, go.sum, package.json, etc.), runs tests, 
+Automates the process of bumping dependencies in OpenShift organization projects. It analyzes the dependency, determines
+the appropriate version to bump to, updates the necessary files (go.mod, go.sum, package.json, etc.), runs tests,
 and optionally creates Jira tickets and pull requests.
+
+### `/openshift:create-cluster`
+
+Extract OpenShift installer from release image and create an OCP cluster.
+
+This command automates the process of extracting the installer from a release image and creating a new OpenShift cluster on various platforms (AWS, Azure, GCP, vSphere, OpenStack).
+
+### `/openshift:destroy-cluster`
+
+Destroy an OpenShift cluster created by the create-cluster command.
+
+This command safely destroys a cluster and cleans up all cloud resources. Includes safety confirmations and optional backup of cluster information.
 
 See the [commands/](commands/) directory for full documentation of each command.
 
@@ -121,6 +133,119 @@ Automates dependency updates in OpenShift projects with comprehensive analysis, 
    ```
 
 See [commands/bump-deps.md](commands/bump-deps.md) for full documentation.
+
+### Cluster Management
+
+#### `/openshift:create-cluster` - Create OCP Clusters
+
+Extract the OpenShift installer from a release image and create a new OpenShift Container Platform cluster. This command automates installer extraction and cluster creation for development and testing purposes.
+
+**⚠️ Important**: This is a last-resort tool. For most workflows, use **Cluster Bot**, **Gangway**, or **Multi-PR Testing in CI** instead. Only use this when you need full control over cluster configuration or are testing installer changes.
+
+**Basic Usage:**
+```bash
+# Interactive mode (prompts for all options)
+/openshift:create-cluster
+
+# With release image and platform
+/openshift:create-cluster quay.io/openshift-release-dev/ocp-release:4.21.0-ec.2-x86_64 aws
+
+# With CI build
+/openshift:create-cluster registry.ci.openshift.org/ocp/release:4.21.0-0.ci-2025-10-27-031915 gcp
+```
+
+**Prerequisites:**
+- OpenShift CLI (`oc`) installed
+- Cloud provider credentials configured (AWS, Azure, GCP, etc.)
+- Pull secret from [Red Hat Console](https://console.redhat.com/openshift/install/pull-secret)
+- Domain/DNS configuration (e.g., Route53 hosted zone for AWS)
+
+**Supported Platforms:**
+- AWS (Amazon Web Services)
+- Azure (Microsoft Azure)
+- GCP (Google Cloud Platform)
+- vSphere (VMware vSphere)
+- OpenStack
+- none (Bare metal / platform-agnostic)
+
+**Key Features:**
+- Automatic installer extraction from release images
+- Version-specific installer caching
+- Interactive configuration generation
+- Post-installation verification
+- Cluster credentials and access information
+
+**Arguments:**
+- `[release-image]` (optional): OpenShift release image (prompted if not provided)
+- `[platform]` (optional): Target platform (prompted if not provided)
+
+**Examples:**
+
+1. Create cluster with production release on AWS:
+   ```bash
+   /openshift:create-cluster quay.io/openshift-release-dev/ocp-release:4.21.0-ec.2-x86_64 aws
+   ```
+
+2. Create cluster with CI build interactively:
+   ```bash
+   /openshift:create-cluster registry.ci.openshift.org/ocp/release:4.21.0-0.ci-2025-10-27-031915
+   ```
+
+3. Full interactive mode:
+   ```bash
+   /openshift:create-cluster
+   ```
+
+See [commands/create-cluster.md](commands/create-cluster.md) for full documentation.
+
+#### `/openshift:destroy-cluster` - Destroy OCP Clusters
+
+Safely destroy an OpenShift Container Platform cluster that was created using `/openshift:create-cluster`. This command handles cleanup of all cloud resources with built-in safety confirmations.
+
+**⚠️ WARNING**: This operation is **irreversible** and permanently deletes all cluster resources and data.
+
+**Basic Usage:**
+```bash
+# Interactive mode (searches for installation directories)
+/openshift:destroy-cluster
+
+# With specific installation directory
+/openshift:destroy-cluster ./my-cluster-install-20251028-120000
+
+# With full path
+/openshift:destroy-cluster /path/to/cluster-install-dir
+```
+
+**Safety Features:**
+- Requires explicit "yes" confirmation before destruction
+- Displays cluster information before proceeding
+- Optional backup of cluster credentials and metadata
+- Validates installation directory and metadata
+- Provides manual cleanup instructions if automated cleanup fails
+
+**What Gets Deleted:**
+- All cluster VMs and compute resources
+- Load balancers and networking resources
+- Storage volumes and persistent data
+- DNS records (if managed by installer)
+- All cluster configuration
+
+**Arguments:**
+- `[install-dir]` (optional): Path to cluster installation directory (prompted if not provided)
+
+**Examples:**
+
+1. Destroy cluster interactively:
+   ```bash
+   /openshift:destroy-cluster
+   ```
+
+2. Destroy specific cluster:
+   ```bash
+   /openshift:destroy-cluster ./test-cluster-install-20251028-120000
+   ```
+
+See [commands/destroy-cluster.md](commands/destroy-cluster.md) for full documentation.
 
 ## Development
 
