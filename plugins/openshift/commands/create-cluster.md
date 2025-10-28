@@ -21,6 +21,31 @@ This command is useful for:
 - Automating CI/CD cluster provisioning
 - Testing specific OpenShift versions
 
+## ⚠️ When to Use This Tool
+
+**IMPORTANT**: This is a last resort tool for advanced use cases. For most development workflows, you should use one of these better alternatives:
+
+### Recommended Alternatives
+
+1. **Cluster Bot**: Request ephemeral test clusters without managing infrastructure
+   - No cloud credentials needed
+   - Supports dependent PR testing
+   - Automatically cleaned up
+
+2. **Gangway**
+
+3. **Multi-PR Testing in CI**: Test multiple dependent PRs together using `/test-with` commands
+
+### When to Use create-cluster
+
+Only use this command when:
+- You need full control over cluster configuration
+- You're testing installer changes that aren't suitable for CI
+- You need a long-lived development cluster on your own cloud account
+- The alternatives don't meet your specific requirements
+
+**Note**: This command requires significant setup (cloud credentials, pull secrets, DNS configuration, understanding of OCP versions). If you're new to OpenShift development, start with Cluster Bot or Gangway instead.
+
 ## Prerequisites
 
 Before using this command, ensure you have:
