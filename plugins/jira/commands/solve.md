@@ -57,7 +57,7 @@ This command takes a JIRA URL, fetches the issue description and requirements, a
       - Test files that need updates
 
 3. **Solution Implementation**:
-   - Think hard and create a detailed, step-by-step plan to implement this feature. Save it to spec-$1.md within the contrib/ folder, for example contrib/spec-OCPBUGS-12345.md 
+   - Think hard and create a detailed, step-by-step plan to implement this feature. Save it to spec-$1.md within the .work/jira/solve folder, for example .work/jira/solve/spec-OCPBUGS-12345.md 
    - Always ask the user to review the plan and give them the choice to modify it before start the implementation
    - Implement the plan:
     - Make necessary code changes using Edit/MultiEdit tools
