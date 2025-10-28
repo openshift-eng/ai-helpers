@@ -1,6 +1,6 @@
 ---
 description: Migrate OpenShift periodic CI job definitions from one release version to another
-argument-hint: <from-release> <to-release> [path]
+argument-hint: <from-release> <to-release> [path] [--skip-existing]
 ---
 
 ## Name
@@ -9,7 +9,7 @@ release:migrate-periodics
 ## Synopsis
 Migrate periodic job configuration files from one OpenShift release version to another:
 ```
-/release:migrate-periodics <from-release> <to-release> [path]
+/release:migrate-periodics <from-release> <to-release> [path] [--skip-existing]
 ```
 
 ## Description
@@ -35,6 +35,16 @@ Periodic jobs are CI tests that run on a schedule (via cron) rather than on pull
   - Examples: `ci-operator/config/openshift/etcd`, `ci-operator/config/openshift-priv`
   - Must be relative to the openshift/release repository root
 
+- `$4` (**--skip-existing**): Optional flag to automatically skip existing files
+  - If specified, the command will not prompt to overwrite existing target files
+  - Existing files will be automatically skipped without user interaction
+  - Only new files (where target doesn't exist) will be created
+  - Can appear as either the 3rd or 4th argument for flexibility
+  - Examples:
+    - `/release:migrate-periodics 4.17 4.18 --skip-existing` (skip existing, use default path)
+    - `/release:migrate-periodics 4.17 4.18 ci-operator/config/openshift --skip-existing` (skip existing with custom path)
+  - Useful for automation and batch operations where you don't want to overwrite existing migrations
+
 ## Implementation
 
 Pass the user's request to the `release-migrate-periodics` skill, which will:
@@ -46,10 +56,13 @@ Pass the user's request to the `release-migrate-periodics` skill, which will:
    - Ask user to confirm they want to proceed with modifications on this branch
    - Exit immediately if user declines
 
-2. **Validate inputs and normalize version numbers**
-   - Parse and normalize from-release and to-release versions
+2. **Parse arguments and normalize inputs**
+   - Parse all arguments to extract: from-release, to-release, path, and --skip-existing flag
+   - The --skip-existing flag can appear in position 3 or 4
+   - If a non-path argument is --skip-existing, treat it as the flag
+   - Normalize from-release and to-release versions to {major}.{minor} format
    - Validate version format and relationship
-   - Determine search path (use provided path or default)
+   - Determine search path (use provided path or default to ci-operator/config/)
 
 3. **Find source periodic files**
    - Search for files matching pattern: `*-release-{from-release}__periodics.yaml`
@@ -58,8 +71,13 @@ Pass the user's request to the `release-migrate-periodics` skill, which will:
 
 4. **Check for existing target files**
    - For each source file, check if target already exists
-   - Ask user whether to overwrite existing files
-   - Build migration plan with actions for each file
+   - If --skip-existing flag is set:
+     - Automatically skip all existing files without prompting
+     - Only include non-existing files in migration plan
+   - If --skip-existing flag is NOT set:
+     - Ask user whether to overwrite each existing file
+     - Use AskUserQuestion tool for each conflict
+   - Build migration plan with actions for each file (create/overwrite/skip)
 
 5. **Perform file migration**
    - Read each source file
@@ -122,6 +140,18 @@ The command outputs:
    ```
    This handles private repository periodic configurations.
 
+5. **Migrate with automatic skip of existing files**:
+   ```
+   /release:migrate-periodics 4.17 4.18 --skip-existing
+   ```
+   This migrates all periodic jobs but automatically skips any files that already exist for 4.18, without prompting for each one.
+
+6. **Migrate specific path with skip-existing**:
+   ```
+   /release:migrate-periodics 4.18 4.19 ci-operator/config/openshift --skip-existing
+   ```
+   This migrates periodic jobs for the openshift organization, skipping any existing 4.19 configurations without user interaction.
+
 ## Prerequisites
 
 - User should be working in the `openshift/release` repository
@@ -139,6 +169,12 @@ The command outputs:
 - **Cluster profiles**: Existing cluster profile configurations are preserved unless user specifies changes.
 
 - **YAML formatting**: While the command attempts to preserve formatting, some YAML comments may be lost during programmatic editing.
+
+- **Skip existing files**: Use the `--skip-existing` flag to automatically skip files that already exist for the target release. This is useful for:
+  - Re-running migrations without overwriting already-migrated files
+  - Batch operations where you want to avoid interactive prompts
+  - Automation scripts that should not require user interaction
+  - Incremental migrations where some files have already been manually created
 
 ## See Also
 

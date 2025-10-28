@@ -186,6 +186,18 @@ Processes all repositories under the openshift organization.
 ```
 Handles private repository periodic configurations.
 
+### Migrate with automatic skip of existing files
+```
+/release:migrate-periodics 4.17 4.18 --skip-existing
+```
+Migrates all periodic jobs but automatically skips any existing 4.18 files without prompting. Useful for re-running migrations or batch operations.
+
+### Migrate specific path and skip existing
+```
+/release:migrate-periodics 4.18 4.19 ci-operator/config/openshift --skip-existing
+```
+Migrates openshift organization periodics, automatically skipping any existing 4.19 configurations. No user interaction required for conflicts.
+
 ## Prerequisites
 
 1. **openshift/release repository**
@@ -247,6 +259,20 @@ ci-operator/config/openshift/cloud-credential-operator/
    ```
 
 ## Important Notes
+
+### Skip Existing Files
+The `--skip-existing` flag provides automatic conflict resolution:
+- **When to use:**
+  - Re-running migrations after partial completion
+  - Batch operations where you don't want prompts
+  - Automation scripts requiring no user interaction
+  - Incremental migrations where some files were manually created
+- **Behavior:**
+  - Automatically skips all files that already exist for the target release
+  - No user prompts for overwrite decisions
+  - Only creates new files (where target doesn't exist)
+  - Reports skipped files in final summary
+- **Example use case:** If you've already migrated some repositories manually and want to automatically migrate the rest without being prompted about the ones you've already done
 
 ### Cron Schedule Randomization
 Cron schedules are regenerated with randomized values to avoid thundering herd problems where many jobs start at the same time. The new schedules:

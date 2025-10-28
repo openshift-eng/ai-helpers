@@ -48,6 +48,14 @@ The user will provide:
    - Can specify subdirectory: `ci-operator/config/openshift/etcd`
    - Must be relative to repository root
 
+4. **--skip-existing** (optional) - Flag to automatically skip existing files
+   - Can appear as either the 3rd or 4th argument
+   - If present, automatically skip all existing target files without prompting
+   - If not present, prompt user for each existing file
+   - Examples:
+     - `4.17 4.18 --skip-existing` (default path, skip existing)
+     - `4.17 4.18 ci-operator/config/openshift --skip-existing` (custom path, skip existing)
+
 ## Implementation Steps
 
 ### Step 1: Verify Git Branch and Get User Confirmation
@@ -87,28 +95,45 @@ The user will provide:
      - Log the error
      - Ask user if they want to proceed without branch verification
 
-### Step 2: Validate Inputs and Normalize Version Numbers
+### Step 2: Parse Arguments and Normalize Version Numbers
 
-1. **Parse and normalize from-release**
+1. **Parse all arguments**
+   - Argument 1: `from_version` (required)
+   - Argument 2: `to_version` (required)
+   - Arguments 3 and/or 4: Check for `path` and/or `--skip-existing` flag
+   - Parse logic:
+     - If argument contains `--skip-existing`: set `skip_existing = True`
+     - If argument looks like a path (contains `/` or starts with `ci-operator`): set as `path`
+     - If argument 3 is `--skip-existing`: use default path, enable skip mode
+     - If argument 3 is a path and argument 4 is `--skip-existing`: use custom path, enable skip mode
+   - Store parsed values: `from_version`, `to_version`, `path`, `skip_existing` (boolean)
+
+2. **Normalize from-release**
    - Extract major.minor from input (strip `release-` prefix if present)
    - Remove patch version if provided (e.g., `4.17.0` → `4.17`)
    - Validate format: must be `{digit(s)}.{digit(s)}`
    - Store as: `from_version` (e.g., `4.17`)
 
-2. **Parse and normalize to-release**
+3. **Normalize to-release**
    - Extract major.minor from input (strip `release-` prefix if present)
    - Remove patch version if provided
    - Validate format: must be `{digit(s)}.{digit(s)}`
    - Store as: `to_version` (e.g., `4.18`)
 
-3. **Validate version relationship**
+4. **Validate version relationship**
    - Ensure `from_version != to_version`
    - Optionally warn if `to_version` is older than `from_version`
 
-4. **Determine search path**
+5. **Determine search path**
    - If path provided: use as-is (relative to repo root)
    - If not provided: default to `ci-operator/config/`
    - Verify path exists in repository
+
+6. **Log parsed configuration**
+   - Display to user:
+     - "Migrating from release {from_version} to {to_version}"
+     - "Search path: {path}"
+     - "Skip existing files: {Yes/No}" (based on skip_existing flag)
 
 ### Step 3: Find Source Periodic Files
 
@@ -142,14 +167,28 @@ For each source file found:
 
 2. **Check if target exists**
    - Use Glob or Read to check if target file already exists
-   - If exists:
-     - Use AskUserQuestion to ask if they want to overwrite
-     - Options: "Overwrite", "Skip this file", "Cancel entire migration"
-     - Track user's decision for this file
+   - If target exists:
+     - **If skip_existing flag is True:**
+       - Automatically mark action as "skip"
+       - Log: "Skipping {target_path} (already exists)"
+       - Do NOT prompt user
+     - **If skip_existing flag is False (default):**
+       - Use AskUserQuestion to ask if they want to overwrite
+       - Options: "Overwrite", "Skip this file", "Cancel entire migration"
+       - Track user's decision for this file
+       - If user selects "Cancel entire migration": exit immediately
+   - If target does NOT exist:
+     - Mark action as "create"
 
 3. **Build migration plan**
    - Create list of files to migrate
    - Include: source path, target path, action (create/overwrite/skip)
+   - Count actions:
+     - Files to create (new migrations)
+     - Files to overwrite (re-migrations)
+     - Files to skip (existing, not changing)
+   - Display summary:
+     - "Migration plan: {create_count} to create, {overwrite_count} to overwrite, {skip_count} to skip"
 
 ### Step 5: Perform File Migration
 

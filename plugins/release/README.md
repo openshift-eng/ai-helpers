@@ -33,7 +33,7 @@ Migrate [periodic](https://docs.ci.openshift.org/docs/how-tos/naming-your-ci-job
 
 **Usage:**
 ```
-/release:migrate-periodics <from-release> <to-release> [path]
+/release:migrate-periodics <from-release> <to-release> [path] [--skip-existing]
 ```
 
 **Examples:**
@@ -46,6 +46,12 @@ Migrate [periodic](https://docs.ci.openshift.org/docs/how-tos/naming-your-ci-job
 
 # Migrate entire organization
 /release:migrate-periodics 4.19 4.20 ci-operator/config/openshift
+
+# Migrate with automatic skip of existing files (no prompts)
+/release:migrate-periodics 4.17 4.18 --skip-existing
+
+# Migrate specific path and skip existing files
+/release:migrate-periodics 4.18 4.19 ci-operator/config/openshift --skip-existing
 ```
 
 **Features:**
@@ -53,6 +59,7 @@ Migrate [periodic](https://docs.ci.openshift.org/docs/how-tos/naming-your-ci-job
 - Version string transformation (base images, builder images, registry paths, release names)
 - Randomized cron schedule regeneration to avoid thundering herd
 - Conflict detection and resolution for existing files
+- Optional `--skip-existing` flag to automatically skip existing files without prompting
 - Comprehensive error handling and reporting
 
 ## Typical Workflow
