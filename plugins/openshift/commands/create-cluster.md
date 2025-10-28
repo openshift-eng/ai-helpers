@@ -17,9 +17,6 @@ The `create-cluster` command automates the process of extracting the OpenShift i
 
 This command is useful for:
 - Setting up development/test clusters quickly
-- Ensuring consistent cluster creation across team members
-- Automating CI/CD cluster provisioning
-- Testing specific OpenShift versions
 
 ## ⚠️ When to Use This Tool
 
