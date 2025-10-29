@@ -2,6 +2,19 @@
 
 This document lists all available Claude Code plugins and their commands in the ai-helpers repository.
 
+- [Agendas](#agendas-plugin)
+- [Ci](#ci-plugin)
+- [Doc](#doc-plugin)
+- [Git](#git-plugin)
+- [Hello World](#hello-world-plugin)
+- [Jira](#jira-plugin)
+- [Must Gather](#must-gather-plugin)
+- [Openshift](#openshift-plugin)
+- [Prow Job](#prow-job-plugin)
+- [Session](#session-plugin)
+- [Utils](#utils-plugin)
+- [Yaml](#yaml-plugin)
+
 ### Agendas Plugin
 
 A plugin to create various meeting agendas

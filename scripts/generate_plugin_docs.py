@@ -109,7 +109,15 @@ def generate_plugin_docs(plugins_dir: Path) -> str:
     lines.append("")
     lines.append("This document lists all available Claude Code plugins and their commands in the ai-helpers repository.")
     lines.append("")
-    
+
+    # Generate table of contents
+    for plugin in plugins:
+        plugin_title = plugin.name.replace('-', ' ').title()
+        # Create anchor link (GitHub converts headers to lowercase with hyphens)
+        anchor = plugin_title.lower().replace(' ', '-') + '-plugin'
+        lines.append(f"- [{plugin_title}](#{anchor})")
+    lines.append("")
+
     for plugin in plugins:
         # Plugin header
         lines.append(f"### {plugin.name.replace('-', ' ').title()} Plugin")
