@@ -9,6 +9,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Hello World](#hello-world-plugin)
 - [Jira](#jira-plugin)
 - [Must Gather](#must-gather-plugin)
+- [Olm](#olm-plugin)
 - [Openshift](#openshift-plugin)
 - [Prow Job](#prow-job-plugin)
 - [Session](#session-plugin)
@@ -88,6 +89,15 @@ A plugin to analyze and report on must-gather data
 - **`/must-gather:analyze` `[must-gather-path] [component]`** - Quick analysis of must-gather data - runs all analysis scripts and provides comprehensive cluster diagnostics
 
 See [plugins/must-gather/README.md](plugins/must-gather/README.md) for detailed documentation.
+
+### Olm Plugin
+
+OLM (Operator Lifecycle Manager) debugging and analysis tools
+
+**Commands:**
+- **`/olm:debug` `<issue-description> <must-gather-path> [olm-version]`** - Debug OLM issues using must-gather logs and source code analysis
+
+See [plugins/olm/README.md](plugins/olm/README.md) for detailed documentation.
 
 ### Openshift Plugin
 
