@@ -1,5 +1,5 @@
 ---
-description: Analyze MicroShift Test Scenario result
+description: Analyze MicroShift Test Scenario results
 argument-hint: <job-url> <scenario-name>
 ---
 
