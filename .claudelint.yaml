@@ -1,6 +1,10 @@
 # claudelint configuration for ai-helpers marketplace
 # https://github.com/stbenjam/claudelint
 
+# Load custom rules (paths relative to repository root)
+custom-rules:
+  - .claudelint-custom.py
+
 rules:
   # Plugin structure rules
   plugin-json-required:
@@ -57,6 +61,11 @@ rules:
   skill-frontmatter:
     enabled: true
     severity: warning
+
+  # Custom rules for plugin documentation
+  plugins-doc-up-to-date:
+    enabled: true
+    severity: error
 
 # Exclude patterns
 exclude: []
