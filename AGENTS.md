@@ -271,6 +271,20 @@ If your command needs helper scripts (Python, Bash, etc.):
 
 **Example:** `plugins/prow-job/skills/prow-job-analyze-resource/parse_all_logs.py`
 
+### Validating with the Linter
+
+Before committing changes, always run the plugin linter to ensure compliance:
+
+```bash
+make lint
+```
+
+**When to run the linter:**
+- After creating a new plugin
+- After adding or modifying commands
+- Before committing changes
+- To diagnose structural issues
+
 ## Best Practices for AI Agents
 
 ### When Implementing Commands
@@ -281,6 +295,7 @@ If your command needs helper scripts (Python, Bash, etc.):
 4. **Include error handling:** Document failure scenarios and recovery
 5. **Add examples:** Show common usage patterns
 6. **Test before committing:** Verify the command works as expected
+7. **Run the linter:** Use `make lint` to validate your plugin structure and format
 
 ### When Writing SKILL.md Files
 

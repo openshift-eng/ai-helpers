@@ -25,6 +25,11 @@
       "description": "A plugin to work with OpenShift CI"
     },
     {
+      "name": "doc",
+      "source": "./plugins/doc",
+      "description": "A plugin for engineering documentation and notes"
+    },
+    {
       "name": "session",
       "source": "./plugins/session",
       "description": "A plugin for Claude session management and persistence"
@@ -43,6 +48,26 @@
       "name": "agendas",
       "source": "./plugins/agendas",
       "description": "A plugin to create various meeting agendas"
+    },
+    {
+      "name": "openshift",
+      "source": "./plugins/openshift",
+      "description": "OpenShift development utilities and helpers"
+    },
+    {
+      "name": "yaml",
+      "source": "./plugins/yaml",
+      "description": "YAML documentation and utilities"
+    },
+    {
+      "name": "must-gather",
+      "source": "./plugins/must-gather",
+      "description": "A plugin to analyze and report on must-gather data"
+    },
+    {
+      "name": "microshift-prow-jobs",
+      "source": "./plugins/microshift-prow-jobs",
+      "description": "Analyze MicroShift Test Results from Prow CI jobs"
     }
   ]
 }

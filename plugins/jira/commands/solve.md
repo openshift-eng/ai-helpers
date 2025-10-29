@@ -2,18 +2,28 @@
 description: Analyze a JIRA issue and create a pull request to solve it.
 ---
 
-Analyze a JIRA issue and create a pull request to solve it.
+## Name
+jira:solve
 
-[Extended thinking: This command takes a JIRA URL, fetches the issue description and requirements, analyzes the codebase to understand how to implement the solution, and creates a comprehensive pull request with the necessary changes.]
+## Synopsis
+```
+/jira:solve <jira-issue-id> [remote]
+```
 
-**JIRA Issue Analysis and PR Creation**
+## Description
 
-## Usage Examples:
+The `jira:solve` command analyzes a JIRA issue and creates a pull request to solve it.
+
+This command takes a JIRA URL, fetches the issue description and requirements, analyzes the codebase to understand how to implement the solution, and creates a comprehensive pull request with the necessary changes.
+
+**Usage Examples:**
 
 1. **Solve a specific JIRA issue**:
-   `/jira-solve OCPBUGS-12345 enxebre`
+   ```
+   /jira:solve OCPBUGS-12345 origin
+   ```
 
-## Implementation Details:
+## Implementation
 
 - The command uses curl to fetch JIRA data via REST API: https://issues.redhat.com/rest/api/2/issue/{$1}
 - Parses JSON response using jq or text processing
@@ -21,7 +31,7 @@ Analyze a JIRA issue and create a pull request to solve it.
 - No authentication required for public Red Hat JIRA issues
 - Creates a PR with the solution
 
-## Process Flow:
+### Process Flow
 
 1. **Issue Analysis**: Parse JIRA URL and fetch issue details:
    - Use curl to fetch JIRA issue data: curl -s "https://issues.redhat.com/rest/api/2/issue/{$1}"
@@ -47,7 +57,7 @@ Analyze a JIRA issue and create a pull request to solve it.
       - Test files that need updates
 
 3. **Solution Implementation**:
-   - Think hard and create a detailed, step-by-step plan to implement this feature. Save it to spec-$1.md within the contrib/ folder, for example contrib/spec-OCPBUGS-12345.md 
+   - Think hard and create a detailed, step-by-step plan to implement this feature. Save it to spec-$1.md within the .work/jira/solve folder, for example .work/jira/solve/spec-OCPBUGS-12345.md 
    - Always ask the user to review the plan and give them the choice to modify it before start the implementation
    - Implement the plan:
     - Make necessary code changes using Edit/MultiEdit tools

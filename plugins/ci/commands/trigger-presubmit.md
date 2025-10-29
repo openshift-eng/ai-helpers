@@ -4,7 +4,7 @@ argument-hint: <job-name> <org> <repo> <base-ref> <base-sha> <pr-number> <pr-sha
 ---
 
 ## Name
-trigger-presubmit
+ci:trigger-presubmit
 
 ## Synopsis
 ```

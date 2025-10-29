@@ -20,7 +20,7 @@ tries to find the latest stable upstream release.
 The repository must follow rules described in https://github.com/openshift/kubernetes/blob/master/REBASE.openshift.md,
 namely all OpenShift-specific commits must have prefix `UPSTREAM:`.
 
-## Workflow
+## Implementation
 
 ### Pre-requisites
 Three local remote repositories should be tracked from a local machine: `origin`

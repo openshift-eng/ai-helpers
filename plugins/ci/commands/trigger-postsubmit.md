@@ -4,7 +4,7 @@ argument-hint: <job-name> <org> <repo> <base-ref> <base-sha> [ENV_VAR=value ...]
 ---
 
 ## Name
-trigger-postsubmit
+ci:trigger-postsubmit
 
 ## Synopsis
 ```

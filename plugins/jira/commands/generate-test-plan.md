@@ -14,7 +14,7 @@ The 'jira:generate-test-plan' command takes a JIRA issue key and optionally a li
 
 **JIRA Issue Test Guide Generator**
 
-## Implementation:
+## Implementation
 
 - The command uses curl to fetch JIRA data via REST API: https://issues.redhat.com/rest/api/2/issue/{$1}
 - Uses WebFetch to extract PR links from JIRA issue if no PRs provided

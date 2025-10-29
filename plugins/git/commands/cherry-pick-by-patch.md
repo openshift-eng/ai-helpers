@@ -19,7 +19,7 @@ the command streams the output of `git show commit_hash` to
 `patch -p1 --no-backup-if-mismatch`, and then commit changes with commit message
 from `commit_hash` commit.
 
-## Workflow
+## Implementation
 
 ### Pre-requisites
 

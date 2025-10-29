@@ -32,6 +32,61 @@ $ git clone git@github.com:openshift-eng/ai-helpers.git
 $ ln -s ai-helpers ~/.cursor/commands/ai-helpers
 ```
 
+## Using the Docker Container
+
+A container is available with Claude Code and all plugins pre-installed.
+
+### Building the Container
+
+```bash
+podman build -f images/Dockerfile -t ai-helpers .
+```
+
+### Running with Vertex AI and gcloud Authentication
+
+To use Claude Code with Google Cloud's Vertex AI, you need to pass through your gcloud credentials and set the required environment variables:
+
+```bash
+podman run -it \
+  -e CLAUDE_CODE_USE_VERTEX=1 \
+  -e CLOUD_ML_REGION=your-ml-region \
+  -e ANTHROPIC_VERTEX_PROJECT_ID=your-project-id \
+  -v ~/.config/gcloud:/home/claude/.config/gcloud:ro \
+  -v $(pwd):/workspace \
+  -w /workspace \
+  ai-helpers
+```
+
+**Environment Variables:**
+- `CLAUDE_CODE_USE_VERTEX=1` - Enable Vertex AI integration
+- `CLOUD_ML_REGION` - Your GCP region (e.g., `us-east5`)
+- `ANTHROPIC_VERTEX_PROJECT_ID` - Your GCP project ID
+
+**Volume Mounts:**
+- `-v ~/.config/gcloud:/home/claude/.config/gcloud:ro` - Passes through your gcloud authentication (read-only)
+- `-v $(pwd):/workspace` - Mounts your current directory into the container
+
+### Running Commands Non-Interactively
+
+You can execute Claude Code commands directly without entering an interactive session using the `-p` or `--print` flag:
+
+```bash
+podman run -it \
+  -e CLAUDE_CODE_USE_VERTEX=1 \
+  -e CLOUD_ML_REGION=your-ml-region \
+  -e ANTHROPIC_VERTEX_PROJECT_ID=your-project-id \
+  -v ~/.config/gcloud:/home/claude/.config/gcloud:ro \
+  -v $(pwd):/workspace \
+  -w /workspace \
+  ai-helpers \
+  --print "/hello-world:echo Hello from Claude Code!"
+```
+
+This will:
+1. Start the container with your gcloud credentials
+2. Execute the `/hello-world:echo` command with the provided message
+3. Print the response and exit when complete
+
 ## Available Plugins
 
 ### JIRA Plugin
@@ -48,8 +103,19 @@ See [plugins/jira/README.md](plugins/jira/README.md) for full documentation.
 
 General-purpose utilities for development workflows:
 - **PR Test Generation** (`/utils:generate-test-plan`) - Generate test steps for one or more related PRs
+- **Process Renovate PRs** (`/utils:process-renovate-pr`) - Process Renovate dependency PRs to meet repository standards
 
 See [plugins/utils/commands/generate-test-plan.md](plugins/utils/commands/generate-test-plan.md) for full documentation.
+
+### OpenShift Plugin
+
+OpenShift development workflow automation:
+- **E2E Test Generation** (`/openshift:new-e2e-test`) - Generate end-to-end tests for OpenShift features
+- **Rebase** (`/openshift:rebase`) - Rebases git repository in the current working directory to a new upstream release specified
+- **Create Cluster** (`/openshift:create-cluster`) - Automates the process of extracting the OpenShift installer from a release image
+- **Dependency Bumping** (`/openshift:bump-deps`) - Bump dependencies with automated analysis, testing, and PR creation
+
+- See [plugins/openshift/README.md](plugins/openshift/README.md) for full documentation.
 
 ## Plugin Development
 
@@ -79,6 +145,19 @@ If you're contributing several related commands that warrant their own plugin:
        └── your-command.md
    ```
 3. Register your plugin in `.claude-plugin/marketplace.json`
+
+### Validating Plugins
+
+This repository uses [claudelint](https://github.com/stbenjam/claudelint) to validate plugin structure:
+
+```bash
+make lint
+```
+
+## Additional Documentation
+
+- **[AGENTS.md](AGENTS.md)** - Complete guide for AI agents working with this repository
+- **[CLAUDE.md](CLAUDE.md)** - Claude-specific configuration and notes
 
 ## License
 

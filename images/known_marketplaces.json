@@ -1,0 +1,10 @@
+{
+  "ai-helpers": {
+    "source": {
+      "source": "directory",
+      "path": "/opt/ai-helpers"
+    },
+    "installLocation": "/opt/ai-helpers",
+    "lastUpdated": "2025-10-27T12:00:00.000Z"
+  }
+}

@@ -4,8 +4,7 @@ argument-hint: [optional-description]
 ---
 
 ## Name
-
-save-session - Save conversation context for long-term resumption
+session:save-session
 
 ## Synopsis
 

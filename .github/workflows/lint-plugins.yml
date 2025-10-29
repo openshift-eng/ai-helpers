@@ -1,0 +1,30 @@
+name: Lint Plugins
+
+on:
+  pull_request:
+    paths:
+      - 'plugins/**'
+      - '.claude-plugin/**'
+      - '.github/workflows/lint-plugins.yml'
+  push:
+    branches:
+      - main
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Pull claudelint Docker image
+        run: docker pull ghcr.io/stbenjam/claudelint:main
+      
+      - name: Run claudelint
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/workspace \
+            -w /workspace \
+            ghcr.io/stbenjam/claudelint:main \
+            -v --strict
