@@ -35,6 +35,11 @@ python3 list_regressions.py --release 4.21 --opened true --components "kube-apis
 
 The script outputs JSON data containing regression information to stdout. Diagnostic messages are written to stderr.
 
+**Note**: Time fields are automatically simplified:
+
+- `closed`: Shows timestamp string if closed (e.g., `"2025-09-27T12:04:24.966914Z"`), otherwise `null`
+- `last_failure`: Shows timestamp string if valid (e.g., `"2025-09-25T14:41:17Z"`), otherwise `null`
+
 ## Configuration
 
 Before using, update the API endpoint in `list_regressions.py`:

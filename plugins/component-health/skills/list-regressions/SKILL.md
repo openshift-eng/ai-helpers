@@ -93,6 +93,13 @@ The script outputs JSON data containing regression information. The output inclu
 - Status information
 - Timestamps
 
+The script automatically simplifies time fields (`closed` and `last_failure`):
+
+- Original API format: `{"Time": "2025-09-27T12:04:24.966914Z", "Valid": true}`
+- Simplified format: `"closed": "2025-09-27T12:04:24.966914Z"` (if Valid is true)
+- Or: `"closed": null` (if Valid is false)
+- Same applies to `last_failure` field
+
 Parse this JSON output to extract relevant information for analysis.
 
 ### Step 5: Generate Analysis (Optional)
@@ -165,25 +172,34 @@ python3 plugins/component-health/skills/list-regressions/list_regressions.py \
 
 ## Output Format
 
-The script outputs JSON data with the following structure:
+The script outputs JSON as a list of regressions with the following structure:
 
 ```json
-{
-  "release": "4.17",
-  "regressions": [
-    {
-      "id": "...",
-      "component": "...",
-      "description": "...",
-      "status": "open|closed",
-      "created_at": "...",
-      "updated_at": "..."
-    }
-  ],
-  "count": 0,
-  "timestamp": "..."
-}
+[
+  {
+    "id": 12893,
+    "view": "4.21-main",
+    "release": "4.21",
+    "base_release": "4.18",
+    "component": "Monitoring",
+    "capability": "operator-conditions",
+    "test_id": "...",
+    "test_name": "...",
+    "variants": [...],
+    "opened": "2025-09-26T00:02:51.385944Z",
+    "closed": "2025-09-27T12:04:24.966914Z",
+    "triages": [],
+    "last_failure": "2025-09-25T14:41:17Z",
+    "max_failures": 9,
+    "links": {...}
+  }
+]
 ```
+
+**Note**: Time fields are simplified from the API response:
+
+- `closed`: If the regression is closed: `"closed": "2025-09-27T12:04:24.966914Z"` (timestamp string), otherwise `null`
+- `last_failure`: If valid: `"last_failure": "2025-09-25T14:41:17Z"` (timestamp string), otherwise `null`
 
 ## Examples
 

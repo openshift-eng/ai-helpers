@@ -89,6 +89,42 @@ def filter_by_components(data: list, components: list) -> list:
     return filtered
 
 
+def simplify_time_fields(data: list) -> list:
+    """
+    Simplify time fields in regression data.
+    
+    Converts time fields from a nested structure like:
+      {"Time": "2025-09-27T12:04:24.966914Z", "Valid": true}
+    to either:
+      - The timestamp string if Valid is true
+      - null if Valid is false
+    
+    This applies to fields: 'closed', 'last_failure'
+    
+    Args:
+        data: List of regression dictionaries
+    
+    Returns:
+        List of regressions with simplified time fields
+    """
+    time_fields = ['closed', 'last_failure']
+    
+    for regression in data:
+        for field in time_fields:
+            if field in regression:
+                value = regression[field]
+                # Check if the field is a dict with Valid and Time fields
+                if isinstance(value, dict):
+                    if value.get('Valid') is True:
+                        # Replace with just the timestamp string
+                        regression[field] = value.get('Time')
+                    else:
+                        # Replace with null if not valid
+                        regression[field] = None
+    
+    return data
+
+
 def format_output(data: dict) -> str:
     """
     Format the regression data for output.
@@ -178,6 +214,10 @@ Examples:
         # Filter by components if specified
         if args.components and isinstance(regressions, list):
             regressions = filter_by_components(regressions, args.components)
+        
+        # Simplify time field structures (closed, last_failure)
+        if isinstance(regressions, list):
+            regressions = simplify_time_fields(regressions)
         
         # Reconstruct the data structure if it was originally a dict
         filtered_data = regressions

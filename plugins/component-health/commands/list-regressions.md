@@ -45,6 +45,8 @@ This command is useful for:
    - Script writes diagnostic messages to stderr
    - Parse JSON to extract regression data
    - Note: Component filtering is performed by the script after fetching from API
+   - Note: Time fields (`closed`, `last_failure`) are simplified to either timestamp strings or null
+   - Note: If closed is null this indicates the regression is on-going
 
 4. **Format Results**: Present the regression data in a readable format
 
@@ -70,8 +72,13 @@ The command outputs:
   - Regression ID
   - Description
   - Status (open/closed)
-  - Timestamps
+  - Timestamps (opened, closed)
 - **Format**: Human-readable formatted output with optional JSON data
+
+**Note**: Time fields are simplified in the output:
+
+- `closed`: Shows timestamp if closed (e.g., `"2025-09-27T12:04:24.966914Z"`), otherwise `null`
+- `last_failure`: Shows timestamp if valid (e.g., `"2025-09-25T14:41:17Z"`), otherwise `null`
 
 ## Examples
 
