@@ -88,7 +88,7 @@ Analyze MicroShift Prow CI jobs
 
 **Commands:**
 - **`/microshift-prow-job:analyze-job` `<job-url>`** - Analyze a MicroShift Prow CI job execution
-- **`/microshift-prow-job:analyze-test-scenario` `<job-url> <scenario-name>`** - Analyze MicroShift Test Scenario result
+- **`/microshift-prow-job:analyze-test-scenario` `<job-url> <scenario-name>`** - Analyze MicroShift Test Scenario results
 
 See [plugins/microshift-prow-job/README.md](plugins/microshift-prow-job/README.md) for detailed documentation.
 
