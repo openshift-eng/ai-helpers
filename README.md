@@ -91,16 +91,6 @@ This will:
 
 For a complete list of all available plugins and commands, see **[PLUGINS.md](PLUGINS.md)**.
 
-### OpenShift Plugin
-
-OpenShift development workflow automation:
-- **E2E Test Generation** (`/openshift:new-e2e-test`) - Generate end-to-end tests for OpenShift features
-- **Rebase** (`/openshift:rebase`) - Rebases git repository in the current working directory to a new upstream release specified
-- **Create Cluster** (`/openshift:create-cluster`) - Automates the process of extracting the OpenShift installer from a release image
-- **Dependency Bumping** (`/openshift:bump-deps`) - Bump dependencies with automated analysis, testing, and PR creation
-
-- See [plugins/openshift/README.md](plugins/openshift/README.md) for full documentation.
-
 ## Plugin Development
 
 Want to contribute or create your own plugins? Check out the `plugins/` directory for examples.
