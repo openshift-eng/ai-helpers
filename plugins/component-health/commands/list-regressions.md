@@ -1,6 +1,6 @@
 ---
 description: List component health regressions for an OpenShift release
-argument-hint: <release> [--opened true|false] [--components comp1 comp2 ...]
+argument-hint: <release> [--components comp1 comp2 ...]
 ---
 
 ## Name
@@ -10,12 +10,12 @@ component-health:list-regressions
 ## Synopsis
 
 ```
-/component-health:list-regressions <release> [--opened true|false] [--components comp1 comp2 ...]
+/component-health:list-regressions <release> [--components comp1 comp2 ...]
 ```
 
 ## Description
 
-The `component-health:list-regressions` command fetches and displays component health regression data for a specified OpenShift release. It queries a component health API to retrieve regression information and can optionally filter by open/closed status.
+The `component-health:list-regressions` command fetches and displays component health regression data for a specified OpenShift release. It queries a component health API to retrieve regression information and can optionally filter by component names.
 
 This command is useful for:
 
@@ -26,31 +26,43 @@ This command is useful for:
 
 ## Implementation
 
-1. **Parse Arguments**: Extract release version and optional filters from arguments
+1. **Parse Arguments**: Extract release version and optional component filter from arguments
 
    - Release format: "X.Y" (e.g., "4.17", "4.16")
-   - Opened flag: "true" or "false" (optional)
    - Components: List of component names (optional)
 
 2. **Execute Python Script**: Run the list_regressions.py script with appropriate arguments
 
    - Script location: `plugins/component-health/skills/list-regressions/list_regressions.py`
    - Pass release as `--release` argument
-   - Pass opened flag as `--opened` argument if provided
    - Pass components as `--components` argument if provided
 
 3. **Parse Output**: Process the JSON output from the script
 
-   - Script writes JSON to stdout
+   - Script writes JSON to stdout with the following structure:
+     ```json
+     {
+       "summary": {
+         "total": <number>,
+         "open": <number>,
+         "closed": <number>
+       },
+       "regressions": [...]
+     }
+     ```
    - Script writes diagnostic messages to stderr
-   - Parse JSON to extract regression data
+   - Parse JSON to extract summary and regression data
+   - **CRITICAL**: Always use the summary.total, summary.open, and summary.closed fields for counts
    - Note: Component filtering is performed by the script after fetching from API
    - Note: Time fields (`closed`, `last_failure`) are simplified to either timestamp strings or null
    - Note: If closed is null this indicates the regression is on-going
 
 4. **Format Results**: Present the regression data in a readable format
 
-   - Display summary statistics (total count, open count, closed count)
+   - **FIRST**: Display summary statistics from the `summary` object:
+     - Total regressions: Use `summary.total` (NOT by counting the array)
+     - Open regressions: Use `summary.open` (items where `closed` is null)
+     - Closed regressions: Use `summary.closed` (items where `closed` is not null)
    - List regressions by component
    - Highlight critical regressions if applicable
    - Provide links or references to detailed regression data
@@ -66,18 +78,26 @@ This command is useful for:
 
 The command outputs:
 
-- **Summary**: Total regression count and breakdown by status
+- **Summary**: Statistics from the `summary` object in the JSON response
+  - Total regressions count
+  - Open regressions count (where `closed` is null)
+  - Closed regressions count (where `closed` is not null)
 - **Regression List**: Details of each regression including:
   - Component name
   - Regression ID
-  - Description
-  - Status (open/closed)
-  - Timestamps (opened, closed)
+  - Test information
+  - Status (open/closed - indicated by closed field)
+  - Timestamps (opened, closed, last_failure)
 - **Format**: Human-readable formatted output with optional JSON data
+
+**IMPORTANT - Accurate Counting**:
+- The script outputs a JSON object with a `summary` field containing pre-calculated counts
+- **ALWAYS use these summary counts** rather than attempting to count the regression array
+- This ensures accuracy even when the output is truncated due to size
 
 **Note**: Time fields are simplified in the output:
 
-- `closed`: Shows timestamp if closed (e.g., `"2025-09-27T12:04:24.966914Z"`), otherwise `null`
+- `closed`: Shows timestamp if closed (e.g., `"2025-09-27T12:04:24.966914Z"`), otherwise `null` (indicates ongoing regression)
 - `last_failure`: Shows timestamp if valid (e.g., `"2025-09-25T14:41:17Z"`), otherwise `null`
 
 ## Examples
@@ -90,23 +110,7 @@ The command outputs:
 
    Fetches all regressions (both open and closed) for OpenShift 4.17
 
-2. **List only open regressions**:
-
-   ```
-   /component-health:list-regressions 4.17 --opened true
-   ```
-
-   Fetches only open regressions for OpenShift 4.17
-
-3. **List closed regressions for previous release**:
-
-   ```
-   /component-health:list-regressions 4.16 --opened false
-   ```
-
-   Fetches only closed regressions for OpenShift 4.16
-
-4. **Filter by specific components**:
+2. **Filter by specific components**:
 
    ```
    /component-health:list-regressions 4.21 --components Monitoring etcd
@@ -114,22 +118,18 @@ The command outputs:
 
    Fetches regressions for only Monitoring and etcd components in release 4.21
 
-5. **Combine filters**:
+3. **Filter by single component**:
 
    ```
-   /component-health:list-regressions 4.21 --opened true --components "kube-apiserver" Monitoring
+   /component-health:list-regressions 4.21 --components "kube-apiserver"
    ```
 
-   Fetches only open regressions for kube-apiserver and Monitoring components in release 4.21
+   Fetches regressions for the kube-apiserver component in release 4.21
 
 ## Arguments
 
 - `$1` (required): Release version in format "X.Y" (e.g., "4.17", "4.16")
 - `$2+` (optional): Filter flags
-  - `--opened true|false`: Show only open or closed regressions
-    - `--opened true`: Show only open regressions
-    - `--opened false`: Show only closed regressions
-    - Omit to show all regressions
   - `--components comp1 [comp2 ...]`: Filter by component names (space-separated)
     - Case-insensitive matching
     - Filtering performed after API fetch

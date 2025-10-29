@@ -62,36 +62,38 @@ Execute the script with appropriate arguments:
 python3 plugins/component-health/skills/list-regressions/list_regressions.py \
   --release 4.17
 
-# Filter for only open regressions
-python3 plugins/component-health/skills/list-regressions/list_regressions.py \
-  --release 4.17 \
-  --opened true
-
-# Filter for closed regressions
-python3 plugins/component-health/skills/list-regressions/list_regressions.py \
-  --release 4.16 \
-  --opened false
-
 # Filter by specific components
 python3 plugins/component-health/skills/list-regressions/list_regressions.py \
   --release 4.21 \
   --components Monitoring "kube-apiserver"
 
-# Combine filters - open regressions for specific components
+# Filter by multiple components
 python3 plugins/component-health/skills/list-regressions/list_regressions.py \
   --release 4.21 \
-  --opened true \
-  --components Monitoring etcd
+  --components Monitoring etcd "kube-apiserver"
 ```
 
 ### Step 4: Process the Output
 
-The script outputs JSON data containing regression information. The output includes:
+The script outputs JSON data with the following structure:
 
-- Regression details
-- Component information
-- Status information
-- Timestamps
+```json
+{
+  "summary": {
+    "total": <number>,
+    "open": <number>,
+    "closed": <number>
+  },
+  "regressions": [...]
+}
+```
+
+**CRITICAL**: The output includes a `summary` object with pre-calculated counts:
+- `summary.total`: Total number of regressions
+- `summary.open`: Number of open regressions (where `closed` is null)
+- `summary.closed`: Number of closed regressions (where `closed` is not null)
+
+**ALWAYS use these summary counts** rather than attempting to count the regressions array yourself. This ensures accuracy even when the output is truncated due to size.
 
 The script automatically simplifies time fields (`closed` and `last_failure`):
 
@@ -106,10 +108,10 @@ Parse this JSON output to extract relevant information for analysis.
 
 Based on the regression data:
 
-1. Count total regressions
+1. **Use the summary counts** from the `summary` object (do NOT count the array)
 2. Identify most affected components
 3. Compare with previous releases
-4. Generate summary statistics
+4. Analyze trends in open vs closed regressions
 5. Create visualizations if needed
 
 ## Error Handling
@@ -156,13 +158,6 @@ python3 plugins/component-health/skills/list-regressions/list_regressions.py \
 
 ### Optional Arguments
 
-- `--opened`: Filter by regression status
-
-  - Values: `"true"` or `"false"`
-  - Default: None (returns all regressions)
-  - `"true"`: Returns only open regressions
-  - `"false"`: Returns only closed regressions
-
 - `--components`: Filter by component names
   - Values: Space-separated list of component names
   - Default: None (returns all components)
@@ -172,29 +167,41 @@ python3 plugins/component-health/skills/list-regressions/list_regressions.py \
 
 ## Output Format
 
-The script outputs JSON as a list of regressions with the following structure:
+The script outputs JSON with a summary and list of regressions with the following structure:
 
 ```json
-[
-  {
-    "id": 12893,
-    "view": "4.21-main",
-    "release": "4.21",
-    "base_release": "4.18",
-    "component": "Monitoring",
-    "capability": "operator-conditions",
-    "test_id": "...",
-    "test_name": "...",
-    "variants": [...],
-    "opened": "2025-09-26T00:02:51.385944Z",
-    "closed": "2025-09-27T12:04:24.966914Z",
-    "triages": [],
-    "last_failure": "2025-09-25T14:41:17Z",
-    "max_failures": 9,
-    "links": {...}
-  }
-]
+{
+  "summary": {
+    "total": 62,
+    "open": 2,
+    "closed": 60
+  },
+  "regressions": [
+    {
+      "id": 12893,
+      "view": "4.21-main",
+      "release": "4.21",
+      "base_release": "4.18",
+      "component": "Monitoring",
+      "capability": "operator-conditions",
+      "test_id": "...",
+      "test_name": "...",
+      "variants": [...],
+      "opened": "2025-09-26T00:02:51.385944Z",
+      "closed": "2025-09-27T12:04:24.966914Z",
+      "triages": [],
+      "last_failure": "2025-09-25T14:41:17Z",
+      "max_failures": 9,
+      "links": {...}
+    }
+  ]
+}
 ```
+
+**Important - Summary Object**:
+- The `summary` object contains pre-calculated counts for accuracy
+- **ALWAYS use `summary.total`, `summary.open`, and `summary.closed`** for counts
+- Do NOT attempt to count the `regressions` array yourself
 
 **Note**: Time fields are simplified from the API response:
 
@@ -212,27 +219,7 @@ python3 plugins/component-health/skills/list-regressions/list_regressions.py \
 
 **Expected Output**: JSON containing all regressions for release 4.17
 
-### Example 2: List Open Regressions Only
-
-```bash
-python3 plugins/component-health/skills/list-regressions/list_regressions.py \
-  --release 4.17 \
-  --opened true
-```
-
-**Expected Output**: JSON containing only open regressions for release 4.17
-
-### Example 3: List Closed Regressions
-
-```bash
-python3 plugins/component-health/skills/list-regressions/list_regressions.py \
-  --release 4.16 \
-  --opened false
-```
-
-**Expected Output**: JSON containing only closed regressions for release 4.16
-
-### Example 4: Filter by Component
+### Example 2: Filter by Component
 
 ```bash
 python3 plugins/component-health/skills/list-regressions/list_regressions.py \
@@ -242,16 +229,15 @@ python3 plugins/component-health/skills/list-regressions/list_regressions.py \
 
 **Expected Output**: JSON containing regressions for only Monitoring and etcd components in release 4.21
 
-### Example 5: Combine Filters
+### Example 3: Filter by Single Component
 
 ```bash
 python3 plugins/component-health/skills/list-regressions/list_regressions.py \
   --release 4.21 \
-  --opened true \
   --components "kube-apiserver"
 ```
 
-**Expected Output**: JSON containing only open regressions for the kube-apiserver component in release 4.21
+**Expected Output**: JSON containing regressions for the kube-apiserver component in release 4.21
 
 ## Customization
 
