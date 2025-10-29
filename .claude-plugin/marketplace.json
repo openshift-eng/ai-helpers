@@ -63,6 +63,11 @@
       "name": "must-gather",
       "source": "./plugins/must-gather",
       "description": "A plugin to analyze and report on must-gather data"
+    },
+    {
+      "name": "olmv1",
+      "source": "./plugins/olmv1",
+      "description": "A plugin for managing Kubernetes extensions using OLM v1 (operator-controller)"
     }
   ]
 }

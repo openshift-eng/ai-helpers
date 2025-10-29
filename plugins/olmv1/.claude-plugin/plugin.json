@@ -1,0 +1,8 @@
+{
+  "name": "olmv1",
+  "description": "A plugin for managing Kubernetes extensions using OLM v1 (operator-controller)",
+  "version": "0.1.0",
+  "author": {
+    "name": "openshift-eng"
+  }
+}
