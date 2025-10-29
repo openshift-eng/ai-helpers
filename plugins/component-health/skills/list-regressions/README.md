@@ -1,0 +1,47 @@
+# List Regressions Skill
+
+Python script for fetching component health regression data for OpenShift releases.
+
+## Overview
+
+This skill provides a Python script that queries a component health API to retrieve regression information for specific OpenShift releases. The data can be filtered by open/closed status.
+
+## Usage
+
+```bash
+# List all regressions for a release
+python3 list_regressions.py --release 4.17
+
+# List only open regressions
+python3 list_regressions.py --release 4.17 --opened true
+
+# List only closed regressions
+python3 list_regressions.py --release 4.16 --opened false
+```
+
+## Arguments
+
+- `--release` (required): OpenShift release version (e.g., "4.17", "4.16")
+- `--opened` (optional): Filter by status - "true" for open, "false" for closed
+
+## Output
+
+The script outputs JSON data containing regression information to stdout. Diagnostic messages are written to stderr.
+
+## Configuration
+
+Before using, update the API endpoint in `list_regressions.py`:
+
+```python
+base_url = f"https://your-actual-api.example.com/api/v1/regressions"
+```
+
+## Requirements
+
+- Python 3.6 or later
+- Network access to the component health API
+- No external Python dependencies (uses standard library only)
+
+## See Also
+
+- [SKILL.md](./SKILL.md) - Detailed implementation guide for AI agents
