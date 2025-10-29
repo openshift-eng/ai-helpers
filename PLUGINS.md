@@ -8,8 +8,9 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Git](#git-plugin)
 - [Hello World](#hello-world-plugin)
 - [Jira](#jira-plugin)
-- [Must Gather](#must-gather-plugin)
 - [Microshift Prow Job](#microshift-prow-job-plugin)
+- [Microshift Release Testing](#microshift-release-testing-plugin)
+- [Must Gather](#must-gather-plugin)
 - [Openshift](#openshift-plugin)
 - [Prow Job](#prow-job-plugin)
 - [Session](#session-plugin)
@@ -81,15 +82,6 @@ A plugin to automate tasks with Jira
 
 See [plugins/jira/README.md](plugins/jira/README.md) for detailed documentation.
 
-### Must Gather Plugin
-
-A plugin to analyze and report on must-gather data
-
-**Commands:**
-- **`/must-gather:analyze` `[must-gather-path] [component]`** - Quick analysis of must-gather data - runs all analysis scripts and provides comprehensive cluster diagnostics
-
-See [plugins/must-gather/README.md](plugins/must-gather/README.md) for detailed documentation.
-
 ### Microshift Prow Job Plugin
 
 Analyze MicroShift Prow CI jobs
@@ -99,6 +91,24 @@ Analyze MicroShift Prow CI jobs
 - **`/microshift-prow-job:analyze-test-scenario` `<job-url> <scenario-name>`** - Analyze MicroShift Test Scenario result
 
 See [plugins/microshift-prow-job/README.md](plugins/microshift-prow-job/README.md) for detailed documentation.
+
+### Microshift Release Testing Plugin
+
+Analyze MicroShift Test Results from Prow CI jobs
+
+**Commands:**
+- **`/microshift-release-testing:create-report` `<version> [date]`** - Create a report of MicroShift release testing results for a specific version and optional date
+- **`/microshift-release-testing:get-prow-ci-e2e-job-info` `<job-url>`** - Get detailed information about a specific Prow CI job execution
+- **`/microshift-release-testing:get-scenario-info` `<job-url> <scenario-name>`** - Get detailed information about a specific MicroShift test scenario in JSON format
+
+### Must Gather Plugin
+
+A plugin to analyze and report on must-gather data
+
+**Commands:**
+- **`/must-gather:analyze` `[must-gather-path] [component]`** - Quick analysis of must-gather data - runs all analysis scripts and provides comprehensive cluster diagnostics
+
+See [plugins/must-gather/README.md](plugins/must-gather/README.md) for detailed documentation.
 
 ### Openshift Plugin
 
