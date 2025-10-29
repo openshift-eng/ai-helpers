@@ -8,6 +8,10 @@ Git workflow automation and utilities for Claude Code.
 
 Cherry-pick a git commit into the current branch using the patch command instead of git cherry-pick.
 
+### `/git:commit-suggest`
+
+Generate Conventional Commits style commit messages for staged changes or recent commits.
+
 ### `/git:debt-scan`
 
 Scan the codebase for technical debt markers and generate a report.
