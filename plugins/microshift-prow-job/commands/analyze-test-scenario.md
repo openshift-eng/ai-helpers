@@ -34,7 +34,7 @@ This command works by:
 6. **Compiling artifact links** for all logs and diagnostic files
 7. **Generating formatted Markdown output** containing all collected information
 
-If no scenario name is provided, the command lists all available scenarios by fetching the scenario-info directory listing from GCS.
+If no scenario name is provided it will prompt to the user what scenario to use.
 
 The command uses the `extract_microshift_version.py` helper script to determine the exact MicroShift version tested in the scenario.
 
