@@ -2,10 +2,6 @@ name: Lint Plugins
 
 on:
   pull_request:
-    paths:
-      - 'plugins/**'
-      - '.claude-plugin/**'
-      - '.github/workflows/lint-plugins.yml'
   push:
     branches:
       - main
