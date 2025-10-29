@@ -50,6 +50,45 @@ Find [periodic](https://docs.ci.openshift.org/docs/how-tos/naming-your-ci-jobs/#
 
 **Output:** Lists periodic configurations that need to be migrated, with statistics and suggested next steps.
 
+### `/release:move-periodics-to-dedicated-file`
+
+Move test definitions with periodic scheduling from main/master branch configuration files to dedicated `__periodics.yaml` files for a specific release. This helps properly organize periodic tests that are currently defined in the wrong location.
+
+**Usage:**
+```
+/release:move-periodics-to-dedicated-file <target-release> [path] [--confirm-each-test]
+```
+
+**Examples:**
+```bash
+# Move all periodic tests to 4.21 release files (batch mode)
+/release:move-periodics-to-dedicated-file 4.21
+
+# Move periodic tests for specific organization
+/release:move-periodics-to-dedicated-file 4.21 ci-operator/config/openshift
+
+# Move periodic tests for specific repository
+/release:move-periodics-to-dedicated-file 4.20 ci-operator/config/openshift/cluster-etcd-operator
+
+# Confirm each test individually before moving (interactive mode)
+/release:move-periodics-to-dedicated-file 4.21 --confirm-each-test
+
+# Interactive mode with custom path
+/release:move-periodics-to-dedicated-file 4.21 ci-operator/config/openshift --confirm-each-test
+```
+
+**Features:**
+- Git branch verification and user confirmation before modifications
+- Automatic detection of tests with `interval:` or `cron:` scheduling
+- Creates or updates release-specific `__periodics.yaml` files
+- Version string transformation to match target release
+- Randomized cron schedule regeneration to avoid thundering herd
+- Automatic removal of moved tests from source files in both modes
+- Two operation modes:
+  - **Batch mode (default)**: Display summary, single confirmation, then move and auto-cleanup all tests
+  - **Interactive mode (--confirm-each-test)**: Confirm each test individually, auto-cleanup confirmed tests
+- Handles duplicate test names when merging with existing files
+
 ### `/release:migrate-periodics`
 
 Migrate [periodic](https://docs.ci.openshift.org/docs/how-tos/naming-your-ci-jobs/#configuration-for-periodic-jobs) job definitions from one OpenShift release to another. Automatically transforms version references, regenerates randomized cron schedules, and creates new configuration files.
@@ -85,7 +124,27 @@ Migrate [periodic](https://docs.ci.openshift.org/docs/how-tos/naming-your-ci-job
 - Optional `--skip-existing` flag to automatically skip existing files without prompting
 - Comprehensive error handling and reporting
 
-## Typical Workflow
+## Typical Workflows
+
+### Workflow 1: Organizing Existing Periodic Tests
+
+When you need to move periodic tests from main/master configs to dedicated periodic files:
+
+1. **Find periodic tests in main/master configs:**
+   ```
+   /release:find-main-periodic-tests ci-operator/config/openshift
+   ```
+
+2. **Review the findings** to determine which tests should be moved
+
+3. **Move tests to dedicated periodic files:**
+   ```
+   /release:move-periodics-to-dedicated-file 4.21 ci-operator/config/openshift
+   ```
+
+4. **Verify the changes** and create a pull request
+
+### Workflow 2: Migrating Periodic Jobs to New Release
 
 When preparing periodic jobs for a new OpenShift release:
 
