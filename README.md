@@ -115,7 +115,17 @@ OpenShift development workflow automation:
 - **Create Cluster** (`/openshift:create-cluster`) - Automates the process of extracting the OpenShift installer from a release image
 - **Dependency Bumping** (`/openshift:bump-deps`) - Bump dependencies with automated analysis, testing, and PR creation
 
-- See [plugins/openshift/README.md](plugins/openshift/README.md) for full documentation.
+See [plugins/openshift/README.md](plugins/openshift/README.md) for full documentation.
+
+### Git Plugin
+
+Git workflow automation and utilities:
+- **Commit Suggestion** (`/git:commit-suggest`) - Generate Conventional Commits style commit messages for staged changes or recent commits
+- **Cherry-pick by Patch** (`/git:cherry-pick-by-patch`) - Cherry-pick a commit using the patch command instead of git cherry-pick
+- **Debt Scan** (`/git:debt-scan`) - Scan the codebase for technical debt markers and generate a report
+- **Summary** (`/git:summary`) - Generate a summary of git repository changes and activity
+
+See [plugins/git/README.md](plugins/git/README.md) for full documentation.
 
 ## Plugin Development
 
