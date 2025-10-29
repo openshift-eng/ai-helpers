@@ -65,8 +65,8 @@
       "description": "A plugin to analyze and report on must-gather data"
     },
     {
-      "name": "microshift-prow-jobs",
-      "source": "./plugins/microshift-prow-jobs",
+      "name": "microshift-prow-job",
+      "source": "./plugins/microshift-prow-job",
       "description": "Analyze MicroShift Test Results from Prow CI jobs"
     }
   ]
