@@ -89,43 +89,7 @@ This will:
 
 ## Available Plugins
 
-### JIRA Plugin
-
-Comprehensive Jira automation including:
-- **Issue Analysis & Solutions** (`/jira:solve`) - Analyze JIRA issues and create pull requests to solve them
-- **Weekly Status Rollups** (`/jira:status-rollup`) - Generate status summaries by analyzing all child issues
-- **Backlog Grooming** (`/jira:grooming`) - Analyze new bugs and cards for grooming meetings
-- **Test Generation** (`/jira:generate-test-plan`) - Generate comprehensive test steps for JIRA issues by analyzing related PRs
-
-See [plugins/jira/README.md](plugins/jira/README.md) for full documentation.
-
-### Utils Plugin
-
-General-purpose utilities for development workflows:
-- **PR Test Generation** (`/utils:generate-test-plan`) - Generate test steps for one or more related PRs
-- **Process Renovate PRs** (`/utils:process-renovate-pr`) - Process Renovate dependency PRs to meet repository standards
-
-See [plugins/utils/commands/generate-test-plan.md](plugins/utils/commands/generate-test-plan.md) for full documentation.
-
-### OpenShift Plugin
-
-OpenShift development workflow automation:
-- **E2E Test Generation** (`/openshift:new-e2e-test`) - Generate end-to-end tests for OpenShift features
-- **Rebase** (`/openshift:rebase`) - Rebases git repository in the current working directory to a new upstream release specified
-- **Create Cluster** (`/openshift:create-cluster`) - Automates the process of extracting the OpenShift installer from a release image
-- **Dependency Bumping** (`/openshift:bump-deps`) - Bump dependencies with automated analysis, testing, and PR creation
-
-See [plugins/openshift/README.md](plugins/openshift/README.md) for full documentation.
-
-### Git Plugin
-
-Git workflow automation and utilities:
-- **Commit Suggestion** (`/git:commit-suggest`) - Generate Conventional Commits style commit messages for staged changes or recent commits
-- **Cherry-pick by Patch** (`/git:cherry-pick-by-patch`) - Cherry-pick a commit using the patch command instead of git cherry-pick
-- **Debt Scan** (`/git:debt-scan`) - Scan the codebase for technical debt markers and generate a report
-- **Summary** (`/git:summary`) - Generate a summary of git repository changes and activity
-
-See [plugins/git/README.md](plugins/git/README.md) for full documentation.
+For a complete list of all available plugins and commands, see **[PLUGINS.md](PLUGINS.md)**.
 
 ## Plugin Development
 
@@ -164,8 +128,19 @@ This repository uses [claudelint](https://github.com/stbenjam/claudelint) to val
 make lint
 ```
 
+### Updating Plugin Documentation
+
+After adding or modifying plugins, regenerate the PLUGINS.md file:
+
+```bash
+make update
+```
+
+This automatically scans all plugins and regenerates the complete plugin/command documentation in PLUGINS.md.
+
 ## Additional Documentation
 
+- **[PLUGINS.md](PLUGINS.md)** - Complete list of all available plugins and commands
 - **[AGENTS.md](AGENTS.md)** - Complete guide for AI agents working with this repository
 - **[CLAUDE.md](CLAUDE.md)** - Claude-specific configuration and notes
 
