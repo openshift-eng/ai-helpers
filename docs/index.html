@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Helpers Marketplace - Claude Code Plugins</title>
+    <style>
+        :root {
+            --primary: #ee0000;
+            --primary-dark: #c00000;
+            --secondary: #ff6b6b;
+            --bg-dark: #0f0f0f;
+            --bg-card: #1a1a1a;
+            --bg-code: #2d2d2d;
+            --text-primary: #f5f5f5;
+            --text-secondary: #d4d4d4;
+            --text-muted: #a3a3a3;
+            --border: #3d3d3d;
+            --success: #92cc6f;
+            --accent: #ff9800;
+            --radius: 12px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #0f0f0f 0%, #1a1a1a 100%);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 2rem;
+            padding: 1rem 0;
+        }
+
+        h1 {
+            font-size: 2.25rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 0.5rem;
+        }
+
+        .subtitle {
+            font-size: 1rem;
+            color: var(--text-secondary);
+            margin-bottom: 1.25rem;
+        }
+
+        .stats {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 1.25rem;
+        }
+
+        .stat {
+            background: var(--bg-card);
+            padding: 0.75rem 1.5rem;
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .stat-label {
+            color: var(--text-muted);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .search-box {
+            margin-bottom: 2rem;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 1rem 1.5rem;
+            font-size: 1rem;
+            background: var(--bg-card);
+            border: 2px solid var(--border);
+            border-radius: var(--radius);
+            color: var(--text-primary);
+            transition: all 0.3s ease;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+
+        .search-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .plugins-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 3rem;
+        }
+
+        .plugin-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .plugin-card:hover {
+            transform: translateY(-2px);
+            border-color: var(--primary);
+            box-shadow: 0 8px 24px rgba(238, 0, 0, 0.15);
+        }
+
+        .plugin-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 1rem;
+        }
+
+        .plugin-name {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 0.25rem;
+        }
+
+        .plugin-version {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            background: var(--bg-code);
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+        }
+
+        .plugin-description {
+            color: var(--text-secondary);
+            margin-bottom: 1rem;
+            font-size: 0.95rem;
+        }
+
+        .item-counts {
+            color: var(--text-muted);
+            font-size: 0.875rem;
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            margin-top: auto;
+        }
+
+        .item-count {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        .item-count-badge {
+            background: var(--bg-code);
+            padding: 0.125rem 0.5rem;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+
+        .section-title {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 0.75rem;
+            margin-top: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .section-title:first-of-type {
+            margin-top: 0;
+        }
+
+        .command-item {
+            margin-bottom: 1rem;
+            padding: 0.75rem;
+            background: var(--bg-code);
+            border-radius: 8px;
+        }
+
+        .command-name {
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.9rem;
+            color: var(--success);
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+        }
+
+        .command-synopsis {
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+            padding: 0.5rem;
+            background: var(--bg-dark);
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+
+        .command-description {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+        }
+
+        .skill-item {
+            margin-bottom: 1rem;
+            padding: 0.75rem;
+            background: var(--bg-code);
+            border-radius: 8px;
+            border-left: 3px solid var(--accent);
+        }
+
+        .skill-name {
+            font-size: 0.95rem;
+            color: var(--accent);
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+        }
+
+        .skill-id {
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+        }
+
+        .skill-description {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+        }
+
+
+        .installation {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 2rem;
+            margin-top: 2rem;
+        }
+
+        .installation h2 {
+            font-size: 1.75rem;
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+        }
+
+        .code-block {
+            background: var(--bg-code);
+            padding: 1rem;
+            border-radius: 8px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.9rem;
+            color: var(--success);
+            margin: 1rem 0;
+            overflow-x: auto;
+        }
+
+        .links {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .link-button {
+            display: inline-block;
+            padding: 0.75rem 1.5rem;
+            background: var(--primary);
+            color: white;
+            text-decoration: none;
+            border-radius: var(--radius);
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .link-button:hover {
+            background: var(--primary-dark);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+        }
+
+        .link-button.secondary {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+        }
+
+        .link-button.secondary:hover {
+            background: var(--bg-code);
+        }
+
+        footer {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-muted);
+            font-size: 0.875rem;
+        }
+
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 1.75rem;
+            }
+
+            .plugins-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .stats {
+                gap: 0.75rem;
+            }
+
+            .stat {
+                padding: 0.5rem 1rem;
+            }
+        }
+
+        .no-results {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-muted);
+            display: none;
+        }
+
+        .no-results.show {
+            display: block;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            max-width: 700px;
+            width: 90%;
+            max-height: 85vh;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            padding: 1.5rem 2rem 1rem 2rem;
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+
+        .modal-title-section {
+            flex: 1;
+        }
+
+        .modal-title {
+            font-size: 1.35rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 0.5rem;
+        }
+
+        .modal-meta {
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        #modal-body {
+            padding: 1.5rem 2rem 2rem 2rem;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        .close-button {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 2rem;
+            cursor: pointer;
+            padding: 0;
+            width: 2rem;
+            height: 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: color 0.3s ease;
+        }
+
+        .close-button:hover {
+            color: var(--primary);
+        }
+
+        .install-button {
+            display: inline-block;
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: var(--radius);
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+        }
+
+        .install-button:hover {
+            background: var(--primary-dark);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(238, 0, 0, 0.3);
+        }
+
+        .copy-button {
+            position: absolute;
+            right: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: var(--bg-dark);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            padding: 0.5rem 0.75rem;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .copy-button:hover {
+            background: var(--bg-card);
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        .copy-button svg {
+            flex-shrink: 0;
+        }
+
+        .copy-button.copied {
+            color: var(--success);
+            border-color: var(--success);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>AI Helpers Marketplace</h1>
+            <p class="subtitle">Claude Code Plugins for OpenShift Engineering</p>
+
+            <div class="stats">
+                <div class="stat">
+                    <div class="stat-value" id="plugin-count">0</div>
+                    <div class="stat-label">Plugins</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="command-count">0</div>
+                    <div class="stat-label">Commands</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="skill-count">0</div>
+                    <div class="stat-label">Skills</div>
+                </div>
+            </div>
+
+            <div class="links">
+                <a href="#install" class="install-button">
+                    How to Install
+                </a>
+                <a href="https://github.com/openshift-eng/ai-helpers" class="link-button secondary">
+                    View on GitHub
+                </a>
+                <a href="https://docs.claude.com/en/docs/claude-code" class="link-button secondary">
+                    Claude Code Docs
+                </a>
+            </div>
+        </header>
+
+        <div class="search-box">
+            <input
+                type="text"
+                id="search"
+                class="search-input"
+                placeholder="Search plugins and commands..."
+            >
+        </div>
+
+        <div class="plugins-grid" id="plugins-grid"></div>
+
+        <div class="no-results" id="no-results">
+            No plugins or commands found matching your search.
+        </div>
+
+        <footer>
+            <p>Built with Claude Code | <a href="https://github.com/openshift-eng/ai-helpers" style="color: var(--primary);">openshift-eng/ai-helpers</a></p>
+        </footer>
+    </div>
+
+    <div id="modal" class="modal" onclick="closeModal(event)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h2 class="modal-title" id="modal-title"></h2>
+                <button class="close-button" onclick="closeModal()">&times;</button>
+            </div>
+            <div id="modal-body"></div>
+        </div>
+    </div>
+
+    <script>
+        let allPlugins = [];
+
+        async function loadData() {
+            try {
+                const response = await fetch('data.json');
+                const data = await response.json();
+                allPlugins = data.plugins;
+
+                // Update stats
+                document.getElementById('plugin-count').textContent = data.plugins.length;
+                const totalCommands = data.plugins.reduce((sum, p) => sum + p.commands.length, 0);
+                document.getElementById('command-count').textContent = totalCommands;
+                const totalSkills = data.plugins.reduce((sum, p) => sum + (p.skills || []).length, 0);
+                document.getElementById('skill-count').textContent = totalSkills;
+
+                renderPlugins(allPlugins);
+            } catch (error) {
+                console.error('Error loading data:', error);
+            }
+        }
+
+        function renderPlugins(plugins) {
+            const grid = document.getElementById('plugins-grid');
+            const noResults = document.getElementById('no-results');
+
+            if (plugins.length === 0) {
+                grid.innerHTML = '';
+                noResults.classList.add('show');
+                return;
+            }
+
+            noResults.classList.remove('show');
+
+            grid.innerHTML = plugins.map(plugin => {
+                const skills = plugin.skills || [];
+                const commandCount = plugin.commands.length;
+                const skillCount = skills.length;
+
+                return `
+                <div class="plugin-card" data-plugin="${plugin.name}" onclick="showPluginModal('${plugin.name}')">
+                    <div class="plugin-header">
+                        <div>
+                            <div class="plugin-name">${plugin.name}</div>
+                            <div class="plugin-version">v${plugin.version}</div>
+                        </div>
+                    </div>
+                    <div class="plugin-description">${plugin.description}</div>
+                    <div class="item-counts">
+                        ${commandCount > 0 ? `
+                        <div class="item-count">
+                            <span class="item-count-badge">${commandCount}</span>
+                            <span>command${commandCount !== 1 ? 's' : ''}</span>
+                        </div>
+                        ` : ''}
+                        ${skillCount > 0 ? `
+                        <div class="item-count">
+                            <span class="item-count-badge">${skillCount}</span>
+                            <span>skill${skillCount !== 1 ? 's' : ''}</span>
+                        </div>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+            }).join('');
+        }
+
+        function showPluginModal(pluginName) {
+            const plugin = allPlugins.find(p => p.name === pluginName);
+            if (!plugin) return;
+
+            const skills = plugin.skills || [];
+            const commandCount = plugin.commands.length;
+            const skillCount = skills.length;
+
+            // Build header with title, metadata, and version
+            const headerContent = `
+                <div class="modal-title-section">
+                    <div class="modal-title">${plugin.name}</div>
+                    <div class="modal-meta">
+                        ${commandCount > 0 ? `
+                        <div class="item-count">
+                            <span class="item-count-badge">${commandCount}</span>
+                            <span>command${commandCount !== 1 ? 's' : ''}</span>
+                        </div>
+                        ` : ''}
+                        ${skillCount > 0 ? `
+                        <div class="item-count">
+                            <span class="item-count-badge">${skillCount}</span>
+                            <span>skill${skillCount !== 1 ? 's' : ''}</span>
+                        </div>
+                        ` : ''}
+                    </div>
+                </div>
+                <div style="display: flex; gap: 1rem; align-items: flex-start;">
+                    <span class="plugin-version">v${plugin.version}</span>
+                    <button class="close-button" onclick="closeModal()">&times;</button>
+                </div>
+            `;
+
+            let content = `
+                <div class="plugin-description" style="margin-bottom: 1rem;">${plugin.description}</div>
+                <div style="margin-bottom: 1.5rem;">
+                    <div style="font-size: 0.875rem; color: var(--text-muted); margin-bottom: 0.5rem;">Install this plugin:</div>
+                    <div style="position: relative;">
+                        <div class="code-block" style="padding-right: 5rem;">/plugin install ${plugin.name}@ai-helpers</div>
+                        <button class="copy-button" onclick="copyInstallCommand('${plugin.name}', event)" title="Copy to clipboard">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M5.75 4.75H10.25V1.75H5.75V4.75ZM5.75 4.75H2.75V14.25H10.25V11.25M5.75 4.75V7.75H13.25V14.25H10.25V11.25M10.25 11.25H13.25V7.75H5.75V4.75" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            <span class="copy-button-text">Copy</span>
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            if (commandCount > 0) {
+                content += `
+                    <div class="section-title">Commands</div>
+                    ${plugin.commands.map(cmd => `
+                        <div class="command-item">
+                            <div class="command-name">/${plugin.name}:${cmd.name}</div>
+                            ${cmd.synopsis ? `<div class="command-synopsis">${cmd.synopsis}</div>` : ''}
+                            ${cmd.description ? `<div class="command-description">${cmd.description}</div>` : ''}
+                        </div>
+                    `).join('')}
+                `;
+            }
+
+            if (skillCount > 0) {
+                content += `
+                    <div class="section-title">Skills</div>
+                    ${skills.map(skill => `
+                        <div class="skill-item">
+                            <div class="skill-name">${skill.name}</div>
+                            <div class="skill-id">${plugin.name}:${skill.id}</div>
+                            ${skill.description ? `<div class="skill-description">${skill.description}</div>` : ''}
+                        </div>
+                    `).join('')}
+                `;
+            }
+
+            showModal(headerContent, content);
+            window.location.hash = pluginName;
+        }
+
+        function searchPlugins(query) {
+            const lowerQuery = query.toLowerCase().trim();
+
+            if (!lowerQuery) {
+                renderPlugins(allPlugins);
+                return;
+            }
+
+            const filtered = allPlugins.filter(plugin => {
+                // Search in plugin name
+                if (plugin.name.toLowerCase().includes(lowerQuery)) {
+                    return true;
+                }
+
+                // Search in plugin description
+                if (plugin.description.toLowerCase().includes(lowerQuery)) {
+                    return true;
+                }
+
+                // Search in commands
+                const matchesCommand = plugin.commands.some(cmd => {
+                    return cmd.name.toLowerCase().includes(lowerQuery) ||
+                           (cmd.description && cmd.description.toLowerCase().includes(lowerQuery)) ||
+                           (cmd.synopsis && cmd.synopsis.toLowerCase().includes(lowerQuery));
+                });
+
+                if (matchesCommand) {
+                    return true;
+                }
+
+                // Search in skills
+                const skills = plugin.skills || [];
+                const matchesSkill = skills.some(skill => {
+                    return skill.name.toLowerCase().includes(lowerQuery) ||
+                           skill.id.toLowerCase().includes(lowerQuery) ||
+                           (skill.description && skill.description.toLowerCase().includes(lowerQuery));
+                });
+
+                return matchesSkill;
+            });
+
+            renderPlugins(filtered);
+        }
+
+        // Generic copy to clipboard function
+        function copyToClipboard(text, event) {
+            const button = event.currentTarget;
+            const textSpan = button.querySelector('.copy-button-text');
+            const originalText = textSpan.textContent;
+
+            navigator.clipboard.writeText(text).then(() => {
+                button.classList.add('copied');
+                textSpan.textContent = 'Copied!';
+                setTimeout(() => {
+                    button.classList.remove('copied');
+                    textSpan.textContent = originalText;
+                }, 2000);
+            }).catch(err => {
+                console.error('Failed to copy:', err);
+                textSpan.textContent = 'Failed';
+                setTimeout(() => {
+                    textSpan.textContent = originalText;
+                }, 2000);
+            });
+        }
+
+        // Copy install command to clipboard
+        function copyInstallCommand(pluginName, event) {
+            const command = `/plugin install ${pluginName}@ai-helpers`;
+            copyToClipboard(command, event);
+        }
+
+        // Search functionality
+        document.getElementById('search').addEventListener('input', (e) => {
+            searchPlugins(e.target.value);
+        });
+
+        // Modal functions
+        function showModal(headerContent, bodyContent) {
+            const modalHeader = document.querySelector('#modal .modal-header');
+            const modalBody = document.getElementById('modal-body');
+
+            if (typeof headerContent === 'string' && headerContent.includes('<')) {
+                // Custom header content (HTML)
+                modalHeader.innerHTML = headerContent;
+            } else {
+                // Simple title string (for backwards compatibility)
+                modalHeader.innerHTML = `
+                    <h2 class="modal-title">${headerContent}</h2>
+                    <button class="close-button" onclick="closeModal()">&times;</button>
+                `;
+            }
+
+            modalBody.innerHTML = bodyContent;
+            document.getElementById('modal').classList.add('show');
+        }
+
+        function closeModal(event) {
+            if (!event || event.target.id === 'modal') {
+                document.getElementById('modal').classList.remove('show');
+                if (window.location.hash) {
+                    history.pushState("", document.title, window.location.pathname + window.location.search);
+                }
+            }
+        }
+
+        function showInstallModal() {
+            const content = `
+                <p style="margin-bottom: 1.5rem; color: var(--text-secondary);">
+                    Install plugins from the ai-helpers marketplace using Claude Code:
+                </p>
+
+                <div style="position: relative; margin-bottom: 1.5rem;">
+                    <div class="code-block" style="padding-right: 5rem;">/plugin marketplace add openshift-eng/ai-helpers</div>
+                    <button class="copy-button" onclick="copyToClipboard('/plugin marketplace add openshift-eng/ai-helpers', event)" title="Copy to clipboard">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M5.75 4.75H10.25V1.75H5.75V4.75ZM5.75 4.75H2.75V14.25H10.25V11.25M5.75 4.75V7.75H13.25V14.25H10.25V11.25M10.25 11.25H13.25V7.75H5.75V4.75" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <span class="copy-button-text">Copy</span>
+                    </button>
+                </div>
+
+                <p style="margin: 1.5rem 0 1rem; color: var(--text-secondary);">
+                    Install a specific plugin:
+                </p>
+
+                <div class="code-block">/plugin install jira@ai-helpers</div>
+
+                <p style="margin: 1.5rem 0 1rem; color: var(--text-secondary);">
+                    Use a command from the plugin:
+                </p>
+
+                <div class="code-block">/jira:solve OCPBUGS-12345</div>
+
+                <p style="margin-top: 1.5rem; color: var(--text-muted); font-size: 0.875rem;">
+                    For more information, visit the <a href="https://docs.claude.com/en/docs/claude-code" style="color: var(--primary);">Claude Code documentation</a>.
+                </p>
+            `;
+            showModal('How to Install', content);
+            window.location.hash = 'install';
+        }
+
+        // Close modal with Escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeModal();
+            }
+        });
+
+        // Handle hash-based routing
+        function handleHashChange() {
+            const hash = window.location.hash.slice(1);
+            if (hash) {
+                if (hash === 'install') {
+                    showInstallModal();
+                } else {
+                    const plugin = allPlugins.find(p => p.name === hash);
+                    if (plugin) {
+                        showPluginModal(hash);
+                    }
+                }
+            }
+        }
+
+        window.addEventListener('hashchange', handleHashChange);
+        window.addEventListener('load', handleHashChange);
+
+        // Load data on page load
+        loadData();
+    </script>
+</body>
+</html>

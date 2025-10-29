@@ -1,0 +1,396 @@
+{
+  "name": "ai-helpers",
+  "owner": "openshift-eng",
+  "plugins": [
+    {
+      "name": "git",
+      "description": "Git Plugin",
+      "version": "0.0.1",
+      "commands": [
+        {
+          "name": "branch-cleanup",
+          "description": "Clean up old and defunct branches that are no longer needed",
+          "synopsis": "/git:branch-cleanup [--dry-run] [--merged-only] [--remote]",
+          "argument_hint": "[--dry-run] [--merged-only] [--remote]"
+        },
+        {
+          "name": "cherry-pick-by-patch",
+          "description": "Cherry-pick git commit into current branch by \"patch\" command",
+          "synopsis": "/git:cherry-pick-by-patch commit_hash",
+          "argument_hint": "<commit_hash>"
+        },
+        {
+          "name": "commit-suggest",
+          "description": "Generate Conventional Commits style commit messages or summarize existing commits",
+          "synopsis": "/git:commit-suggest       # Analyze staged changes",
+          "argument_hint": "[N]"
+        },
+        {
+          "name": "debt-scan",
+          "description": "Analyze technical debt indicators in the repository",
+          "synopsis": "/git:debt-scan",
+          "argument_hint": ""
+        },
+        {
+          "name": "summary",
+          "description": "Show current branch, git status, and recent commits for quick context",
+          "synopsis": "/git:summary",
+          "argument_hint": ""
+        }
+      ],
+      "skills": [],
+      "has_readme": true
+    },
+    {
+      "name": "hello-world",
+      "description": "Hello World Plugin",
+      "version": "1.0.0",
+      "commands": [
+        {
+          "name": "echo",
+          "description": "Hello world plugin implementation",
+          "synopsis": "/hello-world:echo [name]",
+          "argument_hint": "[name]"
+        }
+      ],
+      "skills": [],
+      "has_readme": true
+    },
+    {
+      "name": "jira",
+      "description": "A plugin to automate tasks with Jira",
+      "version": "0.0.1",
+      "commands": [
+        {
+          "name": "create",
+          "description": "Create Jira issues (story, epic, feature, task, bug) with proper formatting",
+          "synopsis": "/jira:create <type> [project-key] <summary> [options]",
+          "argument_hint": "<type> [project-key] <summary> [--component <name>] [--version <version>] [--parent <key>]"
+        },
+        {
+          "name": "generate-test-plan",
+          "description": "Generate test steps for a JIRA issue",
+          "synopsis": "",
+          "argument_hint": "[JIRA issue key] [GitHub PR URLs]"
+        },
+        {
+          "name": "grooming",
+          "description": "Analyze new bugs and cards added over a time period and generate grooming meeting agenda",
+          "synopsis": "/jira:grooming [project-filter] [time-period] [--component component-name] [--label label-name]",
+          "argument_hint": "[project-filter] [time-period] [--component component-name] [--label label-name]"
+        },
+        {
+          "name": "solve",
+          "description": "Analyze a JIRA issue and create a pull request to solve it.",
+          "synopsis": "/jira:solve <jira-issue-id> [remote]",
+          "argument_hint": ""
+        },
+        {
+          "name": "status-rollup",
+          "description": "Generate a status rollup comment for any JIRA issue based on all child issues and a given date range",
+          "synopsis": "/jira:status-rollup issue-id [--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD]",
+          "argument_hint": "issue-id [--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD]"
+        }
+      ],
+      "skills": [
+        {
+          "name": "CNTRLPLANE Jira Conventions",
+          "id": "cntrlplane",
+          "description": "Jira conventions for the CNTRLPLANE project used by OpenShift teams"
+        },
+        {
+          "name": "Create Jira Bug",
+          "id": "create-bug",
+          "description": "Implementation guide for creating well-formed Jira bug reports"
+        },
+        {
+          "name": "Create Jira Epic",
+          "id": "create-epic",
+          "description": "Implementation guide for creating Jira epics with proper scope and parent linking"
+        },
+        {
+          "name": "Create Jira Feature",
+          "id": "create-feature",
+          "description": "Implementation guide for creating Jira features representing strategic objectives and market problems"
+        },
+        {
+          "name": "Create Jira Story",
+          "id": "create-story",
+          "description": "Implementation guide for creating well-formed Jira user stories with acceptance criteria"
+        },
+        {
+          "name": "Create Jira Task",
+          "id": "create-task",
+          "description": "Implementation guide for creating Jira tasks for technical and operational work"
+        },
+        {
+          "name": "HyperShift Jira Conventions",
+          "id": "hypershift",
+          "description": "HyperShift team-specific Jira requirements for component selection and conventions"
+        },
+        {
+          "name": "OCPBUGS Jira Conventions",
+          "id": "ocpbugs",
+          "description": "Jira conventions and bug templates for the OCPBUGS project"
+        }
+      ],
+      "has_readme": true
+    },
+    {
+      "name": "ci",
+      "description": "A plugin to work with OpenShift CI",
+      "version": "0.0.1",
+      "commands": [
+        {
+          "name": "ask-sippy",
+          "description": "Ask the Sippy AI agent questions about OpenShift CI payloads, jobs, and test results",
+          "synopsis": "/ask-sippy [question]",
+          "argument_hint": "[question]"
+        },
+        {
+          "name": "query-job-status",
+          "description": "Query the status of a gangway job execution by ID",
+          "synopsis": "/query-job-status <execution-id>",
+          "argument_hint": "<execution-id>"
+        },
+        {
+          "name": "trigger-periodic",
+          "description": "Trigger a periodic gangway job with optional environment variable overrides",
+          "synopsis": "/trigger-periodic <job-name> [ENV_VAR=value ...]",
+          "argument_hint": "<job-name> [ENV_VAR=value ...]"
+        },
+        {
+          "name": "trigger-postsubmit",
+          "description": "Trigger a postsubmit gangway job with repository refs",
+          "synopsis": "/trigger-postsubmit <job-name> <org> <repo> <base-ref> <base-sha> [ENV_VAR=value ...]",
+          "argument_hint": "<job-name> <org> <repo> <base-ref> <base-sha> [ENV_VAR=value ...]"
+        },
+        {
+          "name": "trigger-presubmit",
+          "description": "Trigger a presubmit gangway job (typically use GitHub Prow commands instead)",
+          "synopsis": "/trigger-presubmit <job-name> <org> <repo> <base-ref> <base-sha> <pr-number> <pr-sha> [ENV_VAR=value ...]",
+          "argument_hint": "<job-name> <org> <repo> <base-ref> <base-sha> <pr-number> <pr-sha> [ENV_VAR=value ...]"
+        }
+      ],
+      "skills": [
+        {
+          "name": "OC Authentication Helper",
+          "id": "oc-auth",
+          "description": "Helper skill to retrieve OAuth tokens from the correct OpenShift cluster context when multiple clusters are configured"
+        }
+      ],
+      "has_readme": true
+    },
+    {
+      "name": "doc",
+      "description": "A plugin for engineering documentation and notes",
+      "version": "0.0.1",
+      "commands": [
+        {
+          "name": "note",
+          "description": "Generate professional engineering notes and append them to a log file",
+          "synopsis": "/doc:note [task description]",
+          "argument_hint": "[task description]"
+        }
+      ],
+      "skills": [],
+      "has_readme": true
+    },
+    {
+      "name": "session",
+      "description": "A plugin for Claude session management and persistence",
+      "version": "0.0.1",
+      "commands": [
+        {
+          "name": "save-session",
+          "description": "Save current conversation session to markdown file for future continuation",
+          "synopsis": "/save-session",
+          "argument_hint": "[optional-description]"
+        }
+      ],
+      "skills": [],
+      "has_readme": true
+    },
+    {
+      "name": "utils",
+      "description": "A generic utilities plugin serving as a catch-all for various helper commands",
+      "version": "0.0.1",
+      "commands": [
+        {
+          "name": "address-reviews",
+          "description": "Fetch and address all PR review comments",
+          "synopsis": "",
+          "argument_hint": "[PR number (optional - uses current branch if omitted)]"
+        },
+        {
+          "name": "generate-test-plan",
+          "description": "Generate test steps for one or more related PRs",
+          "synopsis": "",
+          "argument_hint": "[GitHub PR URLs]"
+        },
+        {
+          "name": "placeholder",
+          "description": "Placeholder command for the utils plugin",
+          "synopsis": "/utils:placeholder",
+          "argument_hint": ""
+        },
+        {
+          "name": "process-renovate-pr",
+          "description": "Process Renovate dependency PR(s) to meet repository contribution standards",
+          "synopsis": "/utils:process-renovate-pr <PR_NUMBER|open> [JIRA_PROJECT] [COMPONENT]",
+          "argument_hint": "<PR_NUMBER|open> [JIRA_PROJECT] [COMPONENT]"
+        }
+      ],
+      "skills": [],
+      "has_readme": true
+    },
+    {
+      "name": "olm",
+      "description": "OLM (Operator Lifecycle Manager) debugging and analysis tools",
+      "version": "0.0.1",
+      "commands": [
+        {
+          "name": "debug",
+          "description": "Debug OLM issues using must-gather logs and source code analysis",
+          "synopsis": "/olm:debug <issue-description> <must-gather-path> [olm-version]",
+          "argument_hint": "<issue-description> <must-gather-path> [olm-version]"
+        }
+      ],
+      "skills": [],
+      "has_readme": true
+    },
+    {
+      "name": "prow-job",
+      "description": "A plugin to analyze and inspect Prow CI job results",
+      "version": "0.0.1",
+      "commands": [
+        {
+          "name": "analyze-resource",
+          "description": "Analyze Kubernetes resource lifecycle in Prow job artifacts",
+          "synopsis": "",
+          "argument_hint": "prowjob-url resource-name"
+        },
+        {
+          "name": "analyze-test-failure",
+          "description": "Analyzes test errors from console logs and Prow CI job artifacts",
+          "synopsis": "",
+          "argument_hint": "prowjob-url test-name"
+        },
+        {
+          "name": "extract-must-gather",
+          "description": "Extract and decompress must-gather archives from Prow job artifacts",
+          "synopsis": "/prow-job:extract-must-gather <prowjob-url>",
+          "argument_hint": "prowjob-url"
+        }
+      ],
+      "skills": [
+        {
+          "name": "Prow Job Analyze Resource",
+          "id": "prow-job-analyze-resource",
+          "description": "Analyze Kubernetes resource lifecycle in Prow CI job artifacts by parsing audit logs and pod logs from GCS, generating interactive HTML reports with timelines"
+        },
+        {
+          "name": "Prow Job Analyze Test Failure",
+          "id": "prow-job-analyze-test-failure",
+          "description": "Analyze a failed test by inspecting the code in the current project and artifacts in Prow CI job. Provide a detailed analysis of the test failure in a pre-defined format."
+        },
+        {
+          "name": "Prow Job Extract Must-Gather",
+          "id": "prow-job-extract-must-gather",
+          "description": "Extract and decompress must-gather archives from Prow CI job artifacts, generating an interactive HTML file browser with filters"
+        }
+      ],
+      "has_readme": true
+    },
+    {
+      "name": "agendas",
+      "description": "A plugin to create various meeting agendas",
+      "version": "0.0.1",
+      "commands": [
+        {
+          "name": "outcome-refinement",
+          "description": "Analyze the list of JIRA outcome issues to prepare an outcome refinement meeting agenda.",
+          "synopsis": "/agendas:outcome-refinement",
+          "argument_hint": ""
+        }
+      ],
+      "skills": [],
+      "has_readme": true
+    },
+    {
+      "name": "openshift",
+      "description": "OpenShift development utilities and helpers",
+      "version": "0.0.1",
+      "commands": [
+        {
+          "name": "bump-deps",
+          "description": "Bump dependencies in OpenShift projects with automated analysis and PR creation",
+          "synopsis": "/openshift:bump-deps <dependency> [version] [--create-jira] [--create-pr]",
+          "argument_hint": "<dependency> [version] [--create-jira] [--create-pr]"
+        },
+        {
+          "name": "create-cluster",
+          "description": "Extract OpenShift installer from release image and create an OCP cluster",
+          "synopsis": "/openshift:create-cluster [release-image] [platform] [options]",
+          "argument_hint": "\"[release-image] [platform] [options]\""
+        },
+        {
+          "name": "destroy-cluster",
+          "description": "Destroy an OpenShift cluster created by create-cluster command",
+          "synopsis": "/openshift:destroy-cluster [install-dir]",
+          "argument_hint": "\"[install-dir]\""
+        },
+        {
+          "name": "new-e2e-test",
+          "description": "Write and validate new OpenShift E2E tests using Ginkgo framework",
+          "synopsis": "/new-e2e-test [test-specification]",
+          "argument_hint": "[test-specification]"
+        },
+        {
+          "name": "rebase",
+          "description": "Rebase OpenShift fork of an upstream repository to a new upstream release.",
+          "synopsis": "/openshift:rebase [tag]",
+          "argument_hint": "<tag>"
+        }
+      ],
+      "skills": [],
+      "has_readme": true
+    },
+    {
+      "name": "yaml",
+      "description": "YAML documentation and utilities",
+      "version": "0.0.1",
+      "commands": [
+        {
+          "name": "docs",
+          "description": "Generate comprehensive YAML documentation from Go struct definitions with sensible default values",
+          "synopsis": "/yaml:docs [file:StructName] [output.md]",
+          "argument_hint": "[file:StructName] [output.md]"
+        }
+      ],
+      "skills": [],
+      "has_readme": true
+    },
+    {
+      "name": "must-gather",
+      "description": "A plugin to analyze and report on must-gather data",
+      "version": "0.0.1",
+      "commands": [
+        {
+          "name": "analyze",
+          "description": "Quick analysis of must-gather data - runs all analysis scripts and provides comprehensive cluster diagnostics",
+          "synopsis": "/must-gather:analyze [must-gather-path] [component]",
+          "argument_hint": "[must-gather-path] [component]"
+        }
+      ],
+      "skills": [
+        {
+          "name": "Must-Gather Analyzer",
+          "id": "must-gather-analyzer",
+          "description": "|"
+        }
+      ],
+      "has_readme": true
+    }
+  ]
+}
