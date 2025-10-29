@@ -4,6 +4,29 @@ A plugin to manage OpenShift release workflows, including periodic job configura
 
 ## Commands
 
+### `/release:find-main-periodic-tests`
+
+Find test definitions with periodic scheduling (`interval:` or `cron:`) in main/master branch configuration files. This helps identify tests that may need to be moved to dedicated `__periodics.yaml` files.
+
+**Usage:**
+```
+/release:find-main-periodic-tests [path]
+```
+
+**Examples:**
+```bash
+# Find all periodic tests in main/master configs
+/release:find-main-periodic-tests
+
+# Check specific organization
+/release:find-main-periodic-tests ci-operator/config/openshift
+
+# Check specific repository
+/release:find-main-periodic-tests ci-operator/config/openshift/origin
+```
+
+**Output:** Lists main/master configuration files containing tests with `interval:` or `cron:` fields, helping identify tests that should potentially be in dedicated periodic files.
+
 ### `/release:find-missing-periodics`
 
 Find [periodic](https://docs.ci.openshift.org/docs/how-tos/naming-your-ci-jobs/#configuration-for-periodic-jobs) job configurations that exist for one release version but are missing for another. This is useful for discovering which periodic jobs need to be migrated when preparing a new release.
