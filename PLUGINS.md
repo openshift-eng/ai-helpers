@@ -9,7 +9,6 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Hello World](#hello-world-plugin)
 - [Jira](#jira-plugin)
 - [Microshift Prow Job](#microshift-prow-job-plugin)
-- [Microshift Release Testing](#microshift-release-testing-plugin)
 - [Must Gather](#must-gather-plugin)
 - [Openshift](#openshift-plugin)
 - [Prow Job](#prow-job-plugin)
@@ -91,15 +90,6 @@ Analyze MicroShift Prow CI jobs
 - **`/microshift-prow-job:analyze-test-scenario` `<job-url> <scenario-name>`** - Analyze MicroShift Test Scenario results
 
 See [plugins/microshift-prow-job/README.md](plugins/microshift-prow-job/README.md) for detailed documentation.
-
-### Microshift Release Testing Plugin
-
-Analyze MicroShift Test Results from Prow CI jobs
-
-**Commands:**
-- **`/microshift-release-testing:create-report` `<version> [date]`** - Create a report of MicroShift release testing results for a specific version and optional date
-- **`/microshift-release-testing:get-prow-ci-e2e-job-info` `<job-url>`** - Get detailed information about a specific Prow CI job execution
-- **`/microshift-release-testing:get-scenario-info` `<job-url> <scenario-name>`** - Get detailed information about a specific MicroShift test scenario in JSON format
 
 ### Must Gather Plugin
 
