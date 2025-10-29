@@ -1,6 +1,6 @@
 ---
 description: List component health regressions for an OpenShift release
-argument-hint: <release> [--opened true|false]
+argument-hint: <release> [--opened true|false] [--components comp1 comp2 ...]
 ---
 
 ## Name
@@ -10,7 +10,7 @@ component-health:list-regressions
 ## Synopsis
 
 ```
-/component-health:list-regressions <release> [--opened true|false]
+/component-health:list-regressions <release> [--opened true|false] [--components comp1 comp2 ...]
 ```
 
 ## Description
@@ -26,22 +26,25 @@ This command is useful for:
 
 ## Implementation
 
-1. **Parse Arguments**: Extract release version and optional opened flag from arguments
+1. **Parse Arguments**: Extract release version and optional filters from arguments
 
    - Release format: "X.Y" (e.g., "4.17", "4.16")
    - Opened flag: "true" or "false" (optional)
+   - Components: List of component names (optional)
 
 2. **Execute Python Script**: Run the list_regressions.py script with appropriate arguments
 
    - Script location: `plugins/component-health/skills/list-regressions/list_regressions.py`
    - Pass release as `--release` argument
    - Pass opened flag as `--opened` argument if provided
+   - Pass components as `--components` argument if provided
 
 3. **Parse Output**: Process the JSON output from the script
 
    - Script writes JSON to stdout
    - Script writes diagnostic messages to stderr
    - Parse JSON to extract regression data
+   - Note: Component filtering is performed by the script after fetching from API
 
 4. **Format Results**: Present the regression data in a readable format
 
@@ -55,6 +58,7 @@ This command is useful for:
    - Invalid release format
    - API errors (404, 500, etc.)
    - Empty results
+   - No matches for component filter
 
 ## Return Value
 
@@ -95,13 +99,34 @@ The command outputs:
 
    Fetches only closed regressions for OpenShift 4.16
 
+4. **Filter by specific components**:
+
+   ```
+   /component-health:list-regressions 4.21 --components Monitoring etcd
+   ```
+
+   Fetches regressions for only Monitoring and etcd components in release 4.21
+
+5. **Combine filters**:
+
+   ```
+   /component-health:list-regressions 4.21 --opened true --components "kube-apiserver" Monitoring
+   ```
+
+   Fetches only open regressions for kube-apiserver and Monitoring components in release 4.21
+
 ## Arguments
 
 - `$1` (required): Release version in format "X.Y" (e.g., "4.17", "4.16")
-- `$2` (optional): `--opened` flag followed by "true" or "false"
-  - `--opened true`: Show only open regressions
-  - `--opened false`: Show only closed regressions
-  - Omit to show all regressions
+- `$2+` (optional): Filter flags
+  - `--opened true|false`: Show only open or closed regressions
+    - `--opened true`: Show only open regressions
+    - `--opened false`: Show only closed regressions
+    - Omit to show all regressions
+  - `--components comp1 [comp2 ...]`: Filter by component names (space-separated)
+    - Case-insensitive matching
+    - Filtering performed after API fetch
+    - Can quote multi-word component names: `"kube-apiserver"`
 
 ## Prerequisites
 

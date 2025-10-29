@@ -71,6 +71,17 @@ python3 plugins/component-health/skills/list-regressions/list_regressions.py \
 python3 plugins/component-health/skills/list-regressions/list_regressions.py \
   --release 4.16 \
   --opened false
+
+# Filter by specific components
+python3 plugins/component-health/skills/list-regressions/list_regressions.py \
+  --release 4.21 \
+  --components Monitoring "kube-apiserver"
+
+# Combine filters - open regressions for specific components
+python3 plugins/component-health/skills/list-regressions/list_regressions.py \
+  --release 4.21 \
+  --opened true \
+  --components Monitoring etcd
 ```
 
 ### Step 4: Process the Output
@@ -139,10 +150,18 @@ python3 plugins/component-health/skills/list-regressions/list_regressions.py \
 ### Optional Arguments
 
 - `--opened`: Filter by regression status
+
   - Values: `"true"` or `"false"`
   - Default: None (returns all regressions)
   - `"true"`: Returns only open regressions
   - `"false"`: Returns only closed regressions
+
+- `--components`: Filter by component names
+  - Values: Space-separated list of component names
+  - Default: None (returns all components)
+  - Case-insensitive matching
+  - Examples: `--components Monitoring etcd "kube-apiserver"`
+  - Filtering is performed after fetching data from the API
 
 ## Output Format
 
@@ -196,6 +215,27 @@ python3 plugins/component-health/skills/list-regressions/list_regressions.py \
 ```
 
 **Expected Output**: JSON containing only closed regressions for release 4.16
+
+### Example 4: Filter by Component
+
+```bash
+python3 plugins/component-health/skills/list-regressions/list_regressions.py \
+  --release 4.21 \
+  --components Monitoring etcd
+```
+
+**Expected Output**: JSON containing regressions for only Monitoring and etcd components in release 4.21
+
+### Example 5: Combine Filters
+
+```bash
+python3 plugins/component-health/skills/list-regressions/list_regressions.py \
+  --release 4.21 \
+  --opened true \
+  --components "kube-apiserver"
+```
+
+**Expected Output**: JSON containing only open regressions for the kube-apiserver component in release 4.21
 
 ## Customization
 

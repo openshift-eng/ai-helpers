@@ -15,7 +15,7 @@ Fetch and display regression data for a specific OpenShift release.
 **Usage:**
 
 ```
-/component-health:list-regressions <release> [--opened true|false]
+/component-health:list-regressions <release> [--opened true|false] [--components comp1 comp2 ...]
 ```
 
 **Examples:**
@@ -29,12 +29,19 @@ Fetch and display regression data for a specific OpenShift release.
 
 # List closed regressions for release 4.16
 /component-health:list-regressions 4.16 --opened false
+
+# Filter by specific components
+/component-health:list-regressions 4.21 --components Monitoring etcd
+
+# Combine filters
+/component-health:list-regressions 4.21 --opened true --components "kube-apiserver"
 ```
 
 **Arguments:**
 
 - `<release>`: OpenShift release version (e.g., "4.17", "4.16")
 - `--opened true|false`: (Optional) Filter by status
+- `--components comp1 [comp2 ...]`: (Optional) Filter by component names (case-insensitive)
 
 ## Skills
 
@@ -113,6 +120,14 @@ Check that regressions have been resolved:
 
 ```
 /component-health:list-regressions 4.16 --opened false
+```
+
+### Track Specific Components
+
+Monitor regressions for specific components:
+
+```
+/component-health:list-regressions 4.21 --components Monitoring etcd "kube-apiserver"
 ```
 
 ### Compare Releases

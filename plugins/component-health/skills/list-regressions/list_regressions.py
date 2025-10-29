@@ -61,6 +61,34 @@ def fetch_regressions(release: str, opened: Optional[bool] = None) -> dict:
         raise
 
 
+def filter_by_components(data: list, components: list) -> list:
+    """
+    Filter regression data by component names.
+    
+    Args:
+        data: List of regression dictionaries
+        components: List of component names to filter by
+    
+    Returns:
+        Filtered list of regressions matching the specified components
+    """
+    if not components:
+        return data
+    
+    # Convert components to lowercase for case-insensitive comparison
+    components_lower = [c.lower() for c in components]
+    
+    filtered = [
+        regression for regression in data
+        if regression.get('component', '').lower() in components_lower
+    ]
+    
+    print(f"Filtered from {len(data)} to {len(filtered)} regressions for components: {', '.join(components)}", 
+          file=sys.stderr)
+    
+    return filtered
+
+
 def format_output(data: dict) -> str:
     """
     Format the regression data for output.
@@ -107,6 +135,9 @@ Examples:
   
   # List closed regressions for release 4.15
   %(prog)s --release 4.15 --opened false
+  
+  # Filter by specific components
+  %(prog)s --release 4.21 --components Monitoring "kube-apiserver"
         """
     )
     
@@ -125,6 +156,14 @@ Examples:
         help='Filter by opened status (true for open, false for closed)'
     )
     
+    parser.add_argument(
+        '--components',
+        type=str,
+        nargs='+',
+        default=None,
+        help='Filter by component names (space-separated list, case-insensitive)'
+    )
+    
     args = parser.parse_args()
     
     # Parse the opened flag
@@ -134,10 +173,17 @@ Examples:
     
     try:
         # Fetch regressions
-        data = fetch_regressions(args.release, opened)
+        regressions = fetch_regressions(args.release, opened)
+        
+        # Filter by components if specified
+        if args.components and isinstance(regressions, list):
+            regressions = filter_by_components(regressions, args.components)
+        
+        # Reconstruct the data structure if it was originally a dict
+        filtered_data = regressions
         
         # Format and print output
-        output = format_output(data)
+        output = format_output(filtered_data)
         print(output)
         
         return 0

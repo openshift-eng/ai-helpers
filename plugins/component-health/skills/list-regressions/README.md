@@ -4,7 +4,7 @@ Python script for fetching component health regression data for OpenShift releas
 
 ## Overview
 
-This skill provides a Python script that queries a component health API to retrieve regression information for specific OpenShift releases. The data can be filtered by open/closed status.
+This skill provides a Python script that queries a component health API to retrieve regression information for specific OpenShift releases. The data can be filtered by open/closed status and component names.
 
 ## Usage
 
@@ -17,12 +17,19 @@ python3 list_regressions.py --release 4.17 --opened true
 
 # List only closed regressions
 python3 list_regressions.py --release 4.16 --opened false
+
+# Filter by specific components
+python3 list_regressions.py --release 4.21 --components Monitoring etcd
+
+# Combine filters
+python3 list_regressions.py --release 4.21 --opened true --components "kube-apiserver"
 ```
 
 ## Arguments
 
 - `--release` (required): OpenShift release version (e.g., "4.17", "4.16")
 - `--opened` (optional): Filter by status - "true" for open, "false" for closed
+- `--components` (optional): Space-separated list of component names to filter by (case-insensitive)
 
 ## Output
 
