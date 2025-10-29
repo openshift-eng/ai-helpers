@@ -31,6 +31,32 @@ The installation process has multiple layers:
 
 Failures can occur at any layer, so analysis must check all of them.
 
+## Network Architecture (CRITICAL for Understanding IPv6/Disconnected Jobs)
+
+**IMPORTANT**: The term "disconnected" refers to the cluster nodes, NOT the hypervisor.
+
+### Hypervisor (dev-scripts host)
+- **HAS** full internet access
+- Downloads packages, container images, and dependencies from the public internet
+- Runs dev-scripts Ansible playbooks that download tools (Go, installer, etc.)
+- Hosts a local mirror registry to serve the cluster
+
+### Cluster VMs/Nodes
+- Run in a **private IPv6-only network** (when IP_STACK=v6)
+- **NO** direct internet access (truly disconnected)
+- Pull container images from the hypervisor's local mirror registry
+- Access to hypervisor services only (registry, DNS, etc.)
+
+### Common Misconception
+When analyzing failures in "metal-ipi-ovn-ipv6" jobs:
+- ❌ WRONG: "The hypervisor cannot access the internet, so downloads fail"
+- ✅ CORRECT: "The hypervisor has internet access. If downloads fail, it's likely due to the remote service being unavailable, not network restrictions"
+
+### Implications for Failure Analysis
+1. **Dev-scripts failures** (steps 01-05): If external downloads fail, check if the remote service/URL is down or has removed the resource
+2. **Installation failures** (step 06+): If cluster nodes cannot pull images, check the local mirror registry on the hypervisor
+3. **HTTP 403/404 errors during dev-scripts**: Usually means the resource was removed from the upstream source, not that the network is restricted
+
 ## Prerequisites
 
 1. **gcloud CLI Installation**
