@@ -295,46 +295,6 @@ The job failed due to 1 test failure in the `el96-lrel@storage` scenario:
 ...
 ```
 
-### Scenario Info Output (JSON)
-
-```json
-{
-  "job": {
-    "id": "1979744605507162112",
-    "name": "periodic-ci-openshift-microshift-release-4.20-periodics-e2e-aws-tests-bootc-release-periodic",
-    "version": "4.20",
-    "arch": "x86_64",
-    "image_type": "bootc"
-  },
-  "scenario": {
-    "name": "el96-lrel@standard1",
-    "description": "RHEL 9.6 Latest Release - Standard Tests",
-    "configuration": {
-      "rhel_version": "9.6",
-      "release_type": "latest",
-      "test_category": "Standard Tests",
-      "is_upgrade": false
-    }
-  },
-  "test_results": {
-    "status": "passed",
-    "summary": {
-      "total": 65,
-      "passed": 65,
-      "failed": 0,
-      "errors": 0,
-      "skipped": 0
-    },
-    "execution_time_seconds": 1234.56
-  },
-  "artifacts": {
-    "junit_xml": "https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/...",
-    "boot_log": "https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/...",
-    "debug_log": "https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/..."
-  }
-}
-```
-
 ## Troubleshooting
 
 ### Job Not Found (404)
