@@ -13,6 +13,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Hcp](#hcp-plugin)
 - [Hello World](#hello-world-plugin)
 - [Jira](#jira-plugin)
+- [Learning](#learning-plugin)
 - [Must Gather](#must-gather-plugin)
 - [Node Tuning](#node-tuning-plugin)
 - [Olm](#olm-plugin)
@@ -149,6 +150,16 @@ A plugin to automate tasks with Jira
 - **`/jira:validate-blockers` `[target-version] [component-filter] [--bug issue-key]`** - Validate proposed release blockers using Red Hat OpenShift release blocker criteria
 
 See [plugins/jira/README.md](plugins/jira/README.md) for detailed documentation.
+
+### Learning Plugin
+
+Educational commands for understanding code and concepts through first principles
+
+**Commands:**
+- **`/learning:build-from-scratch` `<topic or technology>`** - Build a concept from first principles with progressive, working code examples
+- **`/learning:explain` `<file|package|concept>`** - Explain code or concepts using first principles with WHAT/WHY/HOW structure
+
+See [plugins/learning/README.md](plugins/learning/README.md) for detailed documentation.
 
 ### Must Gather Plugin
 
