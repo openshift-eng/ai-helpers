@@ -171,24 +171,36 @@ def calculate_summary(regressions: list) -> dict:
     Returns:
         Dictionary containing summary statistics with nested open/closed totals and triaged counts
     """
-    total = len(regressions)
+    total = 0
+    open_total = 0
+    open_triaged = 0
+    closed_total = 0
+    closed_triaged = 0
     
-    # Split into open and closed
-    open_regressions = [r for r in regressions if r.get('closed') is None]
-    closed_regressions = [r for r in regressions if r.get('closed') is not None]
-    
-    # Count triaged regressions (those with non-empty triages list)
-    open_triaged = len([r for r in open_regressions if r.get('triages', [])])
-    closed_triaged = len([r for r in closed_regressions if r.get('triages', [])])
+    # Single pass through all regressions
+    for regression in regressions:
+        total += 1
+        is_triaged = bool(regression.get('triages', []))
+        
+        if regression.get('closed') is None:
+            # Open regression
+            open_total += 1
+            if is_triaged:
+                open_triaged += 1
+        else:
+            # Closed regression
+            closed_total += 1
+            if is_triaged:
+                closed_triaged += 1
     
     return {
         "total": total,
         "open": {
-            "total": len(open_regressions),
+            "total": open_total,
             "triaged": open_triaged
         },
         "closed": {
-            "total": len(closed_regressions),
+            "total": closed_total,
             "triaged": closed_triaged
         }
     }
