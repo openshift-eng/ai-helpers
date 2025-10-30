@@ -8,6 +8,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Git](#git-plugin)
 - [Hello World](#hello-world-plugin)
 - [Jira](#jira-plugin)
+- [Meet](#meet-plugin)
 - [Must Gather](#must-gather-plugin)
 - [Olm](#olm-plugin)
 - [Openshift](#openshift-plugin)
@@ -81,6 +82,16 @@ A plugin to automate tasks with Jira
 - **`/jira:status-rollup` `issue-id [--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD]`** - Generate a status rollup comment for any JIRA issue based on all child issues and a given date range
 
 See [plugins/jira/README.md](plugins/jira/README.md) for detailed documentation.
+
+### Meet Plugin
+
+find overlapping free time to meet with people
+
+**Commands:**
+- **`/meet:create-event` `<natural_language_prompt_for_the_event>`** - Create a new event on Google Calendar.
+- **`/meet:find-time` `<email_addresses> [duration_in_minutes] [days_ahead]`** - Find overlapping free time to meet with one or more people.
+
+See [plugins/meet/README.md](plugins/meet/README.md) for detailed documentation.
 
 ### Must Gather Plugin
 
