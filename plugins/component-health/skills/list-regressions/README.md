@@ -34,7 +34,8 @@ The script outputs JSON data with the following structure to stdout:
   "components": {
     "ComponentName": {
       "summary": {...},
-      "regressions": [...]
+      "open": [...],
+      "closed": [...]
     }
   }
 }
@@ -46,11 +47,13 @@ Diagnostic messages are written to stderr.
 
 - Regressions are grouped by component name (sorted alphabetically)
 - Each component maps to an object containing:
-  - `summary`: Per-component statistics (total, open, closed)
-  - `regressions`: Array of regression objects
+  - `summary`: Per-component statistics (total, open, closed, triaged counts)
+  - `open`: Array of open regression objects
+  - `closed`: Array of closed regression objects
 - Time fields are automatically simplified:
   - `closed`: Shows timestamp string if closed (e.g., `"2025-09-27T12:04:24.966914Z"`), otherwise `null`
   - `last_failure`: Shows timestamp string if valid (e.g., `"2025-09-25T14:41:17Z"`), otherwise `null`
+- Triaged counts: Number of regressions with non-empty `triages` list (triaged to JIRA bugs)
 
 ## Configuration
 

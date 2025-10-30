@@ -125,10 +125,10 @@ Compare regression counts across releases to track quality trends:
 
 The command provides:
 
-- **Overall Summary**: Total counts across all components, open/closed breakdown
+- **Overall Summary**: Total counts across all components, open/closed breakdown, and triage status
 - **Regressions by Component**: Regressions grouped by component name (sorted alphabetically)
-  - Each component includes its own summary statistics (total, open, closed counts)
-  - Each component includes its regression details
+  - Each component includes its own summary statistics (total, open, closed, and triaged counts)
+  - Each component includes separate arrays for open and closed regressions
 - **Regression Details**: Component, ID, description, status, timestamps for each regression
 - **Human-Readable Format**: Easy-to-scan output with highlighting
 

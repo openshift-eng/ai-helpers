@@ -81,17 +81,30 @@ The script outputs JSON data with the following structure:
 {
   "summary": {
     "total": <number>,
-    "open": <number>,
-    "closed": <number>
+    "open": {
+      "total": <number>,
+      "triaged": <number>
+    },
+    "closed": {
+      "total": <number>,
+      "triaged": <number>
+    }
   },
   "components": {
     "ComponentName": {
       "summary": {
         "total": <number>,
-        "open": <number>,
-        "closed": <number>
+        "open": {
+          "total": <number>,
+          "triaged": <number>
+        },
+        "closed": {
+          "total": <number>,
+          "triaged": <number>
+        }
       },
-      "regressions": [...]
+      "open": [...],
+      "closed": [...]
     }
   }
 }
@@ -101,11 +114,14 @@ The script outputs JSON data with the following structure:
 
 - `summary`: Overall statistics across all components
   - `summary.total`: Total number of regressions
-  - `summary.open`: Number of open regressions (where `closed` is null)
-  - `summary.closed`: Number of closed regressions (where `closed` is not null)
+  - `summary.open.total`: Number of open regressions (where `closed` is null)
+  - `summary.open.triaged`: Number of open regressions that have been triaged to a JIRA bug
+  - `summary.closed.total`: Number of closed regressions (where `closed` is not null)
+  - `summary.closed.triaged`: Number of closed regressions that have been triaged to a JIRA bug
 - `components`: Dictionary mapping component names to objects containing:
   - `summary`: Per-component statistics (total, open, closed)
-  - `regressions`: Array of regression objects for that component
+  - `open`: Array of open regression objects for that component
+  - `closed`: Array of closed regression objects for that component
 
 **ALWAYS use these summary counts** rather than attempting to count the regression arrays yourself. This ensures accuracy even when the output is truncated due to size.
 
@@ -123,7 +139,7 @@ Parse this JSON output to extract relevant information for analysis.
 Based on the regression data:
 
 1. **Use the summary counts** from the `summary` and `components.*.summary` objects (do NOT count the arrays)
-2. Identify most affected components using `components.*.summary`
+2. Identify most affected components using `components.*.summary.open.total`
 3. Compare with previous releases
 4. Analyze trends in open vs closed regressions per component
 5. Create visualizations if needed
@@ -187,17 +203,37 @@ The script outputs JSON with summaries and regressions grouped by component:
 {
   "summary": {
     "total": 62,
-    "open": 2,
-    "closed": 60
+    "open": {
+      "total": 2,
+      "triaged": 1
+    },
+    "closed": {
+      "total": 60,
+      "triaged": 58
+    }
   },
   "components": {
     "Monitoring": {
       "summary": {
         "total": 15,
-        "open": 1,
-        "closed": 14
+        "open": {
+          "total": 1,
+          "triaged": 0
+        },
+        "closed": {
+          "total": 14,
+          "triaged": 13
+        }
       },
-      "regressions": [
+      "open": [
+        {
+          "id": 12894,
+          "component": "Monitoring",
+          "closed": null,
+          ...
+        }
+      ],
+      "closed": [
         {
           "id": 12893,
           "view": "4.21-main",
@@ -220,18 +256,32 @@ The script outputs JSON with summaries and regressions grouped by component:
     "etcd": {
       "summary": {
         "total": 20,
-        "open": 0,
-        "closed": 20
+        "open": {
+          "total": 0,
+          "triaged": 0
+        },
+        "closed": {
+          "total": 20,
+          "triaged": 19
+        }
       },
-      "regressions": [...]
+      "open": [],
+      "closed": [...]
     },
     "kube-apiserver": {
       "summary": {
         "total": 27,
-        "open": 1,
-        "closed": 26
+        "open": {
+          "total": 1,
+          "triaged": 1
+        },
+        "closed": {
+          "total": 26,
+          "triaged": 26
+        }
       },
-      "regressions": [...]
+      "open": [...],
+      "closed": [...]
     }
   }
 }
@@ -243,9 +293,10 @@ The script outputs JSON with summaries and regressions grouped by component:
 - Each component in the `components` object has its own `summary` with per-component counts
 - The `components` object maps component names (sorted alphabetically) to objects containing:
   - `summary`: Statistics for this component (total, open, closed)
-  - `regressions`: Array of regression objects for that component
-- **ALWAYS use `summary.*` and `components.*.summary.*`** for counts
-- Do NOT attempt to count the `components.*.regressions` arrays yourself
+  - `open`: Array of open regression objects (where `closed` is null)
+  - `closed`: Array of closed regression objects (where `closed` has a timestamp)
+- **ALWAYS use the `summary` and `components.*.summary` fields** for counts (including `total`, `open.total`, `open.triaged`, `closed.total`, `closed.triaged`)
+- Do NOT attempt to count the `components.*.open` or `components.*.closed` arrays yourself
 
 **Note**: Time fields are simplified from the API response:
 

@@ -58,29 +58,38 @@ def fetch_regressions(release: str) -> dict:
         raise
 
 
-def filter_by_components(data: list, components: list) -> list:
+def filter_by_components(data: list, components: list = None) -> list:
     """
     Filter regression data by component names.
     
     Args:
         data: List of regression dictionaries
-        components: List of component names to filter by
+        components: Optional list of component names to filter by
     
     Returns:
         Filtered list of regressions matching the specified components
     """
+    # Always filter out regressions with empty component names
+    # These are legacy prior to a code change to ensure it is always set.
+    filtered = [
+        regression for regression in data
+        if regression.get('component', '') != ''
+    ]
+    
+    # If no specific components requested, return all non-empty components
     if not components:
-        return data
+        return filtered
     
     # Convert components to lowercase for case-insensitive comparison
     components_lower = [c.lower() for c in components]
     
+    # Further filter by specified components
     filtered = [
-        regression for regression in data
+        regression for regression in filtered
         if regression.get('component', '').lower() in components_lower
     ]
     
-    print(f"Filtered from {len(data)} to {len(filtered)} regressions for components: {', '.join(components)}", 
+    print(f"Filtered to {len(filtered)} regressions for components: {', '.join(components)}", 
           file=sys.stderr)
     
     return filtered
@@ -124,13 +133,13 @@ def simplify_time_fields(data: list) -> list:
 
 def group_by_component(data: list) -> dict:
     """
-    Group regressions by component name.
+    Group regressions by component name and split into open/closed.
     
     Args:
         data: List of regression dictionaries
     
     Returns:
-        Dictionary mapping component names to objects containing regression lists
+        Dictionary mapping component names to objects containing open and closed regression lists
     """
     components = {}
     
@@ -138,9 +147,15 @@ def group_by_component(data: list) -> dict:
         component = regression.get('component', 'Unknown')
         if component not in components:
             components[component] = {
-                "regressions": []
+                "open": [],
+                "closed": []
             }
-        components[component]["regressions"].append(regression)
+        
+        # Split based on whether closed field is null
+        if regression.get('closed') is None:
+            components[component]["open"].append(regression)
+        else:
+            components[component]["closed"].append(regression)
     
     # Sort component names for consistent output
     return dict(sorted(components.items()))
@@ -154,16 +169,28 @@ def calculate_summary(regressions: list) -> dict:
         regressions: List of regression dictionaries
     
     Returns:
-        Dictionary containing summary statistics (total, open, closed)
+        Dictionary containing summary statistics with nested open/closed totals and triaged counts
     """
     total = len(regressions)
-    open_count = len([r for r in regressions if r.get('closed') is None])
-    closed_count = len([r for r in regressions if r.get('closed') is not None])
+    
+    # Split into open and closed
+    open_regressions = [r for r in regressions if r.get('closed') is None]
+    closed_regressions = [r for r in regressions if r.get('closed') is not None]
+    
+    # Count triaged regressions (those with non-empty triages list)
+    open_triaged = len([r for r in open_regressions if r.get('triages', [])])
+    closed_triaged = len([r for r in closed_regressions if r.get('triages', [])])
     
     return {
         "total": total,
-        "open": open_count,
-        "closed": closed_count
+        "open": {
+            "total": len(open_regressions),
+            "triaged": open_triaged
+        },
+        "closed": {
+            "total": len(closed_regressions),
+            "triaged": closed_triaged
+        }
     }
 
 
@@ -172,14 +199,15 @@ def add_component_summaries(components: dict) -> dict:
     Add summary statistics to each component object.
     
     Args:
-        components: Dictionary mapping component names to objects containing regression lists
+        components: Dictionary mapping component names to objects containing open and closed regression lists
     
     Returns:
         Dictionary with summaries added to each component
     """
     for component, component_data in components.items():
-        regressions = component_data["regressions"]
-        component_data["summary"] = calculate_summary(regressions)
+        # Combine open and closed to get all regressions for this component
+        all_regressions = component_data["open"] + component_data["closed"]
+        component_data["summary"] = calculate_summary(all_regressions)
     
     return components
 
@@ -193,7 +221,8 @@ def format_output(data: dict) -> str:
             - 'summary': Overall statistics (total, open, closed)
             - 'components': Dictionary mapping component names to objects with:
                 - 'summary': Per-component statistics
-                - 'regressions': List of regression objects
+                - 'open': List of open regression objects
+                - 'closed': List of closed regression objects
 
     Returns:
         Formatted JSON string output
@@ -239,8 +268,8 @@ Examples:
         # Fetch regressions
         regressions = fetch_regressions(args.release)
 
-        # Filter by components if specified
-        if args.components and isinstance(regressions, list):
+        # Filter by components (always called to remove empty component names)
+        if isinstance(regressions, list):
             regressions = filter_by_components(regressions, args.components)
 
         # Simplify time field structures (closed, last_failure)
@@ -260,7 +289,8 @@ Examples:
         # Calculate overall summary statistics from all regressions
         all_regressions = []
         for comp_data in components.values():
-            all_regressions.extend(comp_data["regressions"])
+            all_regressions.extend(comp_data["open"])
+            all_regressions.extend(comp_data["closed"])
         
         overall_summary = calculate_summary(all_regressions)
 
