@@ -83,11 +83,13 @@ The script outputs JSON data with the following structure:
     "total": <number>,
     "open": {
       "total": <number>,
-      "triaged": <number>
+      "triaged": <number>,
+      "time_to_triage_hrs_avg": <number or null>
     },
     "closed": {
       "total": <number>,
-      "triaged": <number>
+      "triaged": <number>,
+      "time_to_triage_hrs_avg": <number or null>
     }
   },
   "components": {
@@ -96,11 +98,13 @@ The script outputs JSON data with the following structure:
         "total": <number>,
         "open": {
           "total": <number>,
-          "triaged": <number>
+          "triaged": <number>,
+          "time_to_triage_hrs_avg": <number or null>
         },
         "closed": {
           "total": <number>,
-          "triaged": <number>
+          "triaged": <number>,
+          "time_to_triage_hrs_avg": <number or null>
         }
       },
       "open": [...],
@@ -116,12 +120,24 @@ The script outputs JSON data with the following structure:
   - `summary.total`: Total number of regressions
   - `summary.open.total`: Number of open regressions (where `closed` is null)
   - `summary.open.triaged`: Number of open regressions that have been triaged to a JIRA bug
+  - `summary.open.time_to_triage_hrs_avg`: Average hours from opened to first triage (null if no triaged regressions)
   - `summary.closed.total`: Number of closed regressions (where `closed` is not null)
   - `summary.closed.triaged`: Number of closed regressions that have been triaged to a JIRA bug
+  - `summary.closed.time_to_triage_hrs_avg`: Average hours from opened to first triage (null if no triaged regressions)
 - `components`: Dictionary mapping component names to objects containing:
-  - `summary`: Per-component statistics (total, open, closed)
+  - `summary`: Per-component statistics (total, open, closed, triaged counts, average time to triage)
   - `open`: Array of open regression objects for that component
   - `closed`: Array of closed regression objects for that component
+
+**Time to Triage Calculation**:
+
+The `time_to_triage_hrs_avg` field is calculated as:
+
+1. For each triaged regression, find the earliest `created_at` timestamp in the `triages` array
+2. Calculate the time difference between the regression's `opened` timestamp and the earliest triage timestamp
+3. Convert the difference to hours and round to the nearest hour
+4. Average all time-to-triage values for open regressions separately from closed regressions
+5. Return `null` if no regressions have been triaged in that category
 
 **ALWAYS use these summary counts** rather than attempting to count the regression arrays yourself. This ensures accuracy even when the output is truncated due to size.
 
@@ -205,11 +221,13 @@ The script outputs JSON with summaries and regressions grouped by component:
     "total": 62,
     "open": {
       "total": 2,
-      "triaged": 1
+      "triaged": 1,
+      "time_to_triage_hrs_avg": 48
     },
     "closed": {
       "total": 60,
-      "triaged": 58
+      "triaged": 58,
+      "time_to_triage_hrs_avg": 72
     }
   },
   "components": {
@@ -218,11 +236,13 @@ The script outputs JSON with summaries and regressions grouped by component:
         "total": 15,
         "open": {
           "total": 1,
-          "triaged": 0
+          "triaged": 0,
+          "time_to_triage_hrs_avg": null
         },
         "closed": {
           "total": 14,
-          "triaged": 13
+          "triaged": 13,
+          "time_to_triage_hrs_avg": 68
         }
       },
       "open": [
@@ -258,11 +278,13 @@ The script outputs JSON with summaries and regressions grouped by component:
         "total": 20,
         "open": {
           "total": 0,
-          "triaged": 0
+          "triaged": 0,
+          "time_to_triage_hrs_avg": null
         },
         "closed": {
           "total": 20,
-          "triaged": 19
+          "triaged": 19,
+          "time_to_triage_hrs_avg": 84
         }
       },
       "open": [],
@@ -273,11 +295,13 @@ The script outputs JSON with summaries and regressions grouped by component:
         "total": 27,
         "open": {
           "total": 1,
-          "triaged": 1
+          "triaged": 1,
+          "time_to_triage_hrs_avg": 36
         },
         "closed": {
           "total": 26,
-          "triaged": 26
+          "triaged": 26,
+          "time_to_triage_hrs_avg": 60
         }
       },
       "open": [...],

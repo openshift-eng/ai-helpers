@@ -11,10 +11,33 @@ Example:
 """
 
 import argparse
+import os
 import json
 import sys
 import urllib.request
 import urllib.error
+from datetime import datetime
+
+
+def calculate_hours_between(start_timestamp: str, end_timestamp: str) -> int:
+    """
+    Calculate the number of hours between two timestamps, rounded to the nearest hour.
+    
+    Args:
+        start_timestamp: ISO format timestamp string (e.g., "2025-09-26T00:02:51.385944Z")
+        end_timestamp: ISO format timestamp string (e.g., "2025-09-27T12:04:24.966914Z")
+    
+    Returns:
+        Number of hours between the timestamps, rounded to the nearest hour
+    
+    Raises:
+        ValueError: If timestamp parsing fails
+    """
+    start_time = datetime.fromisoformat(start_timestamp.replace('Z', '+00:00'))
+    end_time = datetime.fromisoformat(end_timestamp.replace('Z', '+00:00'))
+    
+    time_diff = end_time - start_time
+    return round(time_diff.total_seconds() / 3600)
 
 
 def fetch_regressions(release: str) -> dict:
@@ -169,39 +192,75 @@ def calculate_summary(regressions: list) -> dict:
         regressions: List of regression dictionaries
     
     Returns:
-        Dictionary containing summary statistics with nested open/closed totals and triaged counts
+        Dictionary containing summary statistics with nested open/closed totals, triaged counts,
+        and average time to triage
     """
     total = 0
     open_total = 0
     open_triaged = 0
+    open_triage_times = []
     closed_total = 0
     closed_triaged = 0
+    closed_triage_times = []
     
     # Single pass through all regressions
     for regression in regressions:
         total += 1
-        is_triaged = bool(regression.get('triages', []))
+        triages = regression.get('triages', [])
+        is_triaged = bool(triages)
         
+        # Calculate time to triage if regression is triaged
+        time_to_triage_hrs = None
+        if is_triaged and regression.get('opened'):
+            try:
+                # Find earliest triage timestamp
+                earliest_triage_time = min(
+                    t['created_at'] for t in triages if t.get('created_at')
+                )
+                
+                # Calculate difference in hours
+                time_to_triage_hrs = calculate_hours_between(
+                    regression['opened'],
+                    earliest_triage_time
+                )
+            except (ValueError, KeyError, TypeError):
+                # Skip if timestamp parsing fails
+                pass
+        
+        # It is common for a triage to be reused as new regressions appear, which makes this a very tricky case to calculate time to triage. 
+        # If you triaged a first round of regressions, then added more 24 hours later, we don't actually know when you triaged them in the db. 
+        # Treating them as if they were immediately triaged would skew results. 
+        # Best we can do is ignore these from consideration. They will count as if they got triaged, but we have no idea what to do with the time to triage.
         if regression.get('closed') is None:
             # Open regression
             open_total += 1
             if is_triaged:
                 open_triaged += 1
+                if time_to_triage_hrs is not None and time_to_triage_hrs > 0:
+                    open_triage_times.append(time_to_triage_hrs)
         else:
             # Closed regression
             closed_total += 1
             if is_triaged:
                 closed_triaged += 1
+                if time_to_triage_hrs is not None and time_to_triage_hrs > 0:
+                    closed_triage_times.append(time_to_triage_hrs)
+    
+    # Calculate average time to triage
+    open_avg_triage_time = round(sum(open_triage_times) / len(open_triage_times)) if open_triage_times else None
+    closed_avg_triage_time = round(sum(closed_triage_times) / len(closed_triage_times)) if closed_triage_times else None
     
     return {
         "total": total,
         "open": {
             "total": open_total,
-            "triaged": open_triaged
+            "triaged": open_triaged,
+            "time_to_triage_hrs_avg": open_avg_triage_time
         },
         "closed": {
             "total": closed_total,
-            "triaged": closed_triaged
+            "triaged": closed_triaged,
+            "time_to_triage_hrs_avg": closed_avg_triage_time
         }
     }
 
