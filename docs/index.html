@@ -263,6 +263,33 @@
             color: var(--text-muted);
         }
 
+        .hook-item {
+            margin-bottom: 1rem;
+            padding: 0.75rem;
+            background: var(--bg-code);
+            border-radius: 8px;
+            border-left: 3px solid var(--secondary);
+        }
+
+        .hook-name {
+            font-size: 0.95rem;
+            color: var(--secondary);
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+        }
+
+        .hook-type {
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+        }
+
+        .hook-description {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+        }
+
 
         .installation {
             background: var(--bg-card);
@@ -513,6 +540,10 @@
                     <div class="stat-value" id="skill-count">0</div>
                     <div class="stat-label">Skills</div>
                 </div>
+                <div class="stat">
+                    <div class="stat-value" id="hook-count">0</div>
+                    <div class="stat-label">Hooks</div>
+                </div>
             </div>
 
             <div class="links">
@@ -573,6 +604,8 @@
                 document.getElementById('command-count').textContent = totalCommands;
                 const totalSkills = data.plugins.reduce((sum, p) => sum + (p.skills || []).length, 0);
                 document.getElementById('skill-count').textContent = totalSkills;
+                const totalHooks = data.plugins.reduce((sum, p) => sum + (p.hooks || []).length, 0);
+                document.getElementById('hook-count').textContent = totalHooks;
 
                 renderPlugins(allPlugins);
             } catch (error) {
@@ -594,8 +627,10 @@
 
             grid.innerHTML = plugins.map(plugin => {
                 const skills = plugin.skills || [];
+                const hooks = plugin.hooks || [];
                 const commandCount = plugin.commands.length;
                 const skillCount = skills.length;
+                const hookCount = hooks.length;
 
                 return `
                 <div class="plugin-card" data-plugin="${plugin.name}" onclick="showPluginModal('${plugin.name}')">
@@ -619,6 +654,12 @@
                             <span>skill${skillCount !== 1 ? 's' : ''}</span>
                         </div>
                         ` : ''}
+                        ${hookCount > 0 ? `
+                        <div class="item-count">
+                            <span class="item-count-badge">${hookCount}</span>
+                            <span>hook${hookCount !== 1 ? 's' : ''}</span>
+                        </div>
+                        ` : ''}
                     </div>
                 </div>
             `;
@@ -630,8 +671,10 @@
             if (!plugin) return;
 
             const skills = plugin.skills || [];
+            const hooks = plugin.hooks || [];
             const commandCount = plugin.commands.length;
             const skillCount = skills.length;
+            const hookCount = hooks.length;
 
             // Build header with title, metadata, and version
             const headerContent = `
@@ -648,6 +691,12 @@
                         <div class="item-count">
                             <span class="item-count-badge">${skillCount}</span>
                             <span>skill${skillCount !== 1 ? 's' : ''}</span>
+                        </div>
+                        ` : ''}
+                        ${hookCount > 0 ? `
+                        <div class="item-count">
+                            <span class="item-count-badge">${hookCount}</span>
+                            <span>hook${hookCount !== 1 ? 's' : ''}</span>
                         </div>
                         ` : ''}
                     </div>
@@ -700,6 +749,19 @@
                 `;
             }
 
+            if (hookCount > 0) {
+                content += `
+                    <div class="section-title">Hooks</div>
+                    ${hooks.map(hook => `
+                        <div class="hook-item">
+                            <div class="hook-name">${hook.name}</div>
+                            <div class="hook-type">Type: ${hook.type}</div>
+                            ${hook.description ? `<div class="hook-description">${hook.description}</div>` : ''}
+                        </div>
+                    `).join('')}
+                `;
+            }
+
             showModal(headerContent, content);
             window.location.hash = pluginName;
         }
@@ -742,7 +804,19 @@
                            (skill.description && skill.description.toLowerCase().includes(lowerQuery));
                 });
 
-                return matchesSkill;
+                if (matchesSkill) {
+                    return true;
+                }
+
+                // Search in hooks
+                const hooks = plugin.hooks || [];
+                const matchesHook = hooks.some(hook => {
+                    return hook.name.toLowerCase().includes(lowerQuery) ||
+                           hook.type.toLowerCase().includes(lowerQuery) ||
+                           (hook.description && hook.description.toLowerCase().includes(lowerQuery));
+                });
+
+                return matchesHook;
             });
 
             renderPlugins(filtered);

@@ -87,6 +87,33 @@ def get_plugin_skills(plugin_path: Path) -> List[Dict[str, str]]:
 
     return skills
 
+def get_plugin_hooks(plugin_path: Path) -> List[Dict[str, str]]:
+    """Get all hooks for a plugin"""
+    hooks = []
+    hooks_file = plugin_path / "hooks" / "hooks.json"
+
+    if not hooks_file.exists():
+        return hooks
+
+    try:
+        with open(hooks_file) as f:
+            hooks_data = json.load(f)
+
+        # Extract description and hook types
+        description = hooks_data.get("description", "")
+        hook_types = hooks_data.get("hooks", {})
+
+        for hook_type, hook_configs in hook_types.items():
+            hooks.append({
+                "name": hook_type,
+                "description": description,
+                "type": hook_type
+            })
+    except Exception as e:
+        print(f"Error processing {hooks_file}: {e}")
+
+    return hooks
+
 def build_website_data():
     """Build complete website data structure"""
     # Get repository root (parent of scripts directory)
@@ -112,9 +139,10 @@ def build_website_data():
             with open(plugin_json_path) as f:
                 plugin_metadata = json.load(f)
 
-        # Get commands and skills
+        # Get commands, skills, and hooks
         commands = get_plugin_commands(plugin_path)
         skills = get_plugin_skills(plugin_path)
+        hooks = get_plugin_hooks(plugin_path)
 
         # Read README if exists
         readme_path = plugin_path / "README.md"
@@ -128,6 +156,7 @@ def build_website_data():
             "version": plugin_metadata.get("version", "unknown"),
             "commands": commands,
             "skills": skills,
+            "hooks": hooks,
             "has_readme": readme_path.exists()
         }
 
@@ -151,3 +180,5 @@ if __name__ == "__main__":
     print(f"Total commands: {total_commands}")
     total_skills = sum(len(p['skills']) for p in data['plugins'])
     print(f"Total skills: {total_skills}")
+    total_hooks = sum(len(p['hooks']) for p in data['plugins'])
+    print(f"Total hooks: {total_hooks}")

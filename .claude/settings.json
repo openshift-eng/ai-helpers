@@ -1,0 +1,13 @@
+{
+  "extraKnownMarketplaces": {
+    "ai-helpers": {
+      "source": {
+        "source": "directory",
+        "path": "."
+      }
+    }
+  },
+  "enabledPlugins": {
+    "metrics@ai-helpers": true
+  }
+}
