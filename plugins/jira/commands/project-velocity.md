@@ -169,20 +169,20 @@ The command executes the following workflow:
 
 ## Examples
 
-1. **Analyze velocity for OCPBUGS project**:
+1. **Analyze velocity for CNTRLPLANE project**:
    ```
-   /jira:project-velocity OCPBUGS
+   /jira:project-velocity CNTRLPLANE
    ```
 
    Example Output:
    ```
    🔐 Using authenticated mode (MCP)
 
-   Project Velocity Analysis for OCPBUGS
+   Project Velocity Analysis for CNTRLPLANE
    =====================================
 
    JQL Query Used:
-   project = OCPBUGS AND issuetype IN (Story, Task, Spike) AND status = Closed AND resolution = Done AND resolved >= -120d ORDER BY resolved DESC
+   project = CNTRLPLANE AND issuetype IN (Story, Task, Spike) AND status = Closed AND resolution = Done AND resolved >= -120d ORDER BY resolved DESC
 
    Analysis Period: Last 120 days (2025-07-02 to 2025-10-30)
 
@@ -192,28 +192,7 @@ The command executes the following workflow:
    - Average Time to Close: 12.3 days
    ```
 
-2. **Analyze velocity for STORY project**:
-   ```
-   /jira:project-velocity STORY
-   ```
-
-   Example Output:
-   ```
-   Project Velocity Analysis for STORY
-   ====================================
-
-   JQL Query Used:
-   project = STORY AND issuetype IN (Story, Task, Spike) AND status = Closed AND resolution = Done AND resolved >= -120d ORDER BY resolved DESC
-
-   Analysis Period: Last 120 days (2025-07-02 to 2025-10-30)
-
-   Results:
-   - Total Issues Closed: 156
-   - Average Issues Per Day: 1.30
-   - Average Time to Close: 8.7 days
-   ```
-
-3. **Using --force-public flag**:
+2. **Using --force-public flag**:
    ```
    /jira:project-velocity OCPBUGS --force-public
    ```
@@ -236,7 +215,7 @@ The command executes the following workflow:
    - Average Time to Close: 12.3 days
    ```
 
-4. **Fallback to public API (MCP unavailable)**:
+3. **Fallback to public API (MCP unavailable)**:
    ```
    /jira:project-velocity STORY
    ```
@@ -260,7 +239,7 @@ The command executes the following workflow:
    - Average Time to Close: 8.7 days
    ```
 
-5. **No issues found example**:
+4. **No issues found example**:
    ```
    /jira:project-velocity NEWPROJECT
    ```
@@ -282,8 +261,8 @@ The command executes the following workflow:
    ```
 
 ## Arguments
-- `PROJECT-KEY` (required): The JIRA project key to analyze (e.g., OCPBUGS, STORY, EPIC). Must be a valid project key in your JIRA instance.
+- `PROJECT-KEY` (required): The JIRA project key to analyze (e.g., CNTRLPLANE). Must be a valid project key in your JIRA instance.
 - `--force-public` (optional): Force public API mode, skip MCP authentication
   - Use when: Quick queries on public projects without MCP overhead
   - Limitation: Only works for public projects
-  - Example: `/jira:project-velocity OCPBUGS --force-public`
+  - Example: `/jira:project-velocity CNTRLPLANE --force-public`
