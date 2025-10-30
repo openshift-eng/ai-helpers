@@ -9,6 +9,7 @@ Comprehensive Jira integration for Claude Code, providing AI-powered tools to an
 - 📋 **Backlog Grooming** - Analyze new bugs and cards for grooming meetings
 - 🧪 **Test Generation** - Generate comprehensive test steps for JIRA issues by analyzing related PRs
 - ✨ **Issue Creation** - Create well-formed stories, epics, features, tasks, and bugs with guided workflows
+- 📝 **Release Note Generation** - Automatically generate bug fix release notes from Jira and linked GitHub PRs
 - 🤖 **Automated Workflows** - From issue analysis to PR creation, fully automated
 - 💬 **Smart Comment Analysis** - Extracts blockers, risks, and key insights from comments
 
@@ -177,6 +178,61 @@ Different projects may have different conventions (security levels, labels, vers
 Teams may have additional conventions layered on top of project conventions (component selection, custom fields, workflows, etc.). The command automatically detects team context and applies team-specific skills.
 
 See [commands/create.md](commands/create.md) for full documentation.
+
+---
+
+### `/jira:create-release-note` - Generate Bug Fix Release Notes
+
+Automatically generate bug fix release notes by analyzing Jira bug tickets and their linked GitHub pull requests. The command extracts Cause and Consequence from the bug description, analyzes PR content (description, commits, code changes, comments), synthesizes the information into a cohesive release note, and updates the Jira ticket.
+
+**Usage:**
+```bash
+/jira:create-release-note OCPBUGS-38358
+```
+
+**What it does:**
+1. Fetches the bug ticket from Jira
+2. Extracts Cause and Consequence sections from bug description
+3. Finds all linked GitHub PRs
+4. Analyzes each PR (description, commits, diff, comments)
+5. Synthesizes Fix, Result, and Workaround information
+6. Validates content for security (no credentials)
+7. Prompts for Release Note Type selection
+8. Updates Jira ticket fields
+
+**Release Note Format:**
+```
+Cause: <extracted from bug description>
+Consequence: <extracted from bug description>
+Fix: <analyzed from PRs>
+Result: <analyzed from PRs>
+Workaround: <analyzed from PRs if applicable>
+```
+
+**Prerequisites:**
+- MCP Jira server configured
+- GitHub CLI (`gh`) installed and authenticated
+- Access to linked GitHub repositories
+- Jira permissions to update Release Note fields
+
+**Example Output:**
+```
+✓ Release Note Created for OCPBUGS-38358
+
+Type: Bug Fix
+
+Text:
+---
+Cause: hostedcontrolplane controller crashes when hcp.Spec.Platform.AWS.CloudProviderConfig.Subnet.ID is undefined
+Consequence: control-plane-operator enters a crash loop
+Fix: Added nil check for CloudProviderConfig.Subnet before accessing Subnet.ID field
+Result: The control-plane-operator no longer crashes when CloudProviderConfig.Subnet is not specified
+---
+
+Updated: https://issues.redhat.com/browse/OCPBUGS-38358
+```
+
+See [commands/create-release-note.md](commands/create-release-note.md) for full documentation.
 
 ---
 
