@@ -1,6 +1,6 @@
 ---
 name: System Configuration Analysis
-description: Analyze system configuration including packages, services, and security settings
+description: Analyze system configuration data from sosreport archives, extracting OS details, installed packages, systemd service status, SELinux/AppArmor policies, and kernel parameters from the sosreport directory structure to diagnose configuration-related system issues
 ---
 
 # System Configuration Analysis Skill

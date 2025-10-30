@@ -1,6 +1,6 @@
 ---
 name: Resource Analysis
-description: Analyze system resource usage including memory, CPU, disk, and processes
+description: Analyze system resource usage data from sosreport archives, extracting memory statistics, CPU load averages, disk space utilization, and process information from the sosreport directory structure to diagnose resource exhaustion, performance bottlenecks, and capacity issues
 ---
 
 # Resource Analysis Skill

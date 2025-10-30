@@ -1,6 +1,6 @@
 ---
 name: Network Analysis
-description: Analyze network configuration, connectivity, and firewall settings
+description: Analyze network configuration data from sosreport archives, extracting interface configurations, routing tables, active connections, firewall rules (firewalld/iptables), and DNS settings from the sosreport directory structure to diagnose network connectivity and configuration issues
 ---
 
 # Network Analysis Skill
