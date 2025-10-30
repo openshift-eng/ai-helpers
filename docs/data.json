@@ -86,6 +86,12 @@
           "argument_hint": "[project-key] [--assignee username] [--days-inactive N]"
         },
         {
+          "name": "create-release-note",
+          "description": "Generate bug fix release notes from Jira tickets and linked GitHub PRs",
+          "synopsis": "/jira:create-release-note <issue-key>",
+          "argument_hint": "<issue-key>"
+        },
+        {
           "name": "create",
           "description": "Create Jira issues (story, epic, feature, task, bug) with proper formatting",
           "synopsis": "/jira:create <type> [project-key] <summary> [options]",
