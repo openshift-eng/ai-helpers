@@ -62,6 +62,12 @@
       "version": "0.0.1",
       "commands": [
         {
+          "name": "create-release-note",
+          "description": "Generate bug fix release notes from Jira tickets and linked GitHub PRs",
+          "synopsis": "/jira:create-release-note <issue-key>",
+          "argument_hint": "<issue-key>"
+        },
+        {
           "name": "create",
           "description": "Create Jira issues (story, epic, feature, task, bug) with proper formatting",
           "synopsis": "/jira:create <type> [project-key] <summary> [options]",
@@ -112,6 +118,11 @@
           "name": "Create Jira Feature",
           "id": "create-feature",
           "description": "Implementation guide for creating Jira features representing strategic objectives and market problems"
+        },
+        {
+          "name": "Create Release Note",
+          "id": "create-release-note",
+          "description": "Detailed implementation guide for generating bug fix release notes from Jira and GitHub PRs"
         },
         {
           "name": "Create Jira Story",
