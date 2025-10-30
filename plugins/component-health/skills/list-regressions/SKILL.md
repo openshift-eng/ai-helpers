@@ -89,7 +89,8 @@ The script outputs JSON data with the following structure:
     "closed": {
       "total": <number>,
       "triaged": <number>,
-      "time_to_triage_hrs_avg": <number or null>
+      "time_to_triage_hrs_avg": <number or null>,
+      "time_to_close_hrs_avg": <number or null>
     }
   },
   "components": {
@@ -104,7 +105,8 @@ The script outputs JSON data with the following structure:
         "closed": {
           "total": <number>,
           "triaged": <number>,
-          "time_to_triage_hrs_avg": <number or null>
+          "time_to_triage_hrs_avg": <number or null>,
+          "time_to_close_hrs_avg": <number or null>
         }
       },
       "open": [...],
@@ -124,6 +126,7 @@ The script outputs JSON data with the following structure:
   - `summary.closed.total`: Number of closed regressions (where `closed` is not null)
   - `summary.closed.triaged`: Number of closed regressions that have been triaged to a JIRA bug
   - `summary.closed.time_to_triage_hrs_avg`: Average hours from opened to first triage (null if no triaged regressions)
+  - `summary.closed.time_to_close_hrs_avg`: Average hours from opened to closed timestamp (null if no valid data)
 - `components`: Dictionary mapping component names to objects containing:
   - `summary`: Per-component statistics (total, open, closed, triaged counts, average time to triage)
   - `open`: Array of open regression objects for that component
@@ -136,8 +139,19 @@ The `time_to_triage_hrs_avg` field is calculated as:
 1. For each triaged regression, find the earliest `created_at` timestamp in the `triages` array
 2. Calculate the time difference between the regression's `opened` timestamp and the earliest triage timestamp
 3. Convert the difference to hours and round to the nearest hour
-4. Average all time-to-triage values for open regressions separately from closed regressions
-5. Return `null` if no regressions have been triaged in that category
+4. Only include positive time differences (zero or negative values are skipped - these occur when triages are reused across regression instances)
+5. Average all valid time-to-triage values for open regressions separately from closed regressions
+6. Return `null` if no regressions have valid time-to-triage data in that category
+
+**Time to Close Calculation**:
+
+The `time_to_close_hrs_avg` field (only for closed regressions) is calculated as:
+
+1. For each closed regression, calculate the time difference between `opened` and `closed` timestamps
+2. Convert the difference to hours and round to the nearest hour
+3. Only include positive time differences (skip data inconsistencies)
+4. Average all valid time-to-close values
+5. Return `null` if no closed regressions have valid time data
 
 **ALWAYS use these summary counts** rather than attempting to count the regression arrays yourself. This ensures accuracy even when the output is truncated due to size.
 
@@ -227,7 +241,8 @@ The script outputs JSON with summaries and regressions grouped by component:
     "closed": {
       "total": 60,
       "triaged": 58,
-      "time_to_triage_hrs_avg": 72
+      "time_to_triage_hrs_avg": 72,
+      "time_to_close_hrs_avg": 168
     }
   },
   "components": {
@@ -242,7 +257,8 @@ The script outputs JSON with summaries and regressions grouped by component:
         "closed": {
           "total": 14,
           "triaged": 13,
-          "time_to_triage_hrs_avg": 68
+          "time_to_triage_hrs_avg": 68,
+          "time_to_close_hrs_avg": 156
         }
       },
       "open": [
@@ -284,7 +300,8 @@ The script outputs JSON with summaries and regressions grouped by component:
         "closed": {
           "total": 20,
           "triaged": 19,
-          "time_to_triage_hrs_avg": 84
+          "time_to_triage_hrs_avg": 84,
+          "time_to_close_hrs_avg": 192
         }
       },
       "open": [],
@@ -301,7 +318,8 @@ The script outputs JSON with summaries and regressions grouped by component:
         "closed": {
           "total": 26,
           "triaged": 26,
-          "time_to_triage_hrs_avg": 60
+          "time_to_triage_hrs_avg": 60,
+          "time_to_close_hrs_avg": 144
         }
       },
       "open": [...],

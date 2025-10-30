@@ -202,6 +202,7 @@ def calculate_summary(regressions: list) -> dict:
     closed_total = 0
     closed_triaged = 0
     closed_triage_times = []
+    closed_times = []
     
     # Single pass through all regressions
     for regression in regressions:
@@ -245,10 +246,25 @@ def calculate_summary(regressions: list) -> dict:
                 closed_triaged += 1
                 if time_to_triage_hrs is not None and time_to_triage_hrs > 0:
                     closed_triage_times.append(time_to_triage_hrs)
+            
+            # Calculate time to close
+            if regression.get('opened') and regression.get('closed'):
+                try:
+                    time_to_close_hrs = calculate_hours_between(
+                        regression['opened'],
+                        regression['closed']
+                    )
+                    # Only include positive time differences
+                    if time_to_close_hrs > 0:
+                        closed_times.append(time_to_close_hrs)
+                except (ValueError, KeyError, TypeError):
+                    # Skip if timestamp parsing fails
+                    pass
     
-    # Calculate average time to triage
+    # Calculate averages
     open_avg_triage_time = round(sum(open_triage_times) / len(open_triage_times)) if open_triage_times else None
     closed_avg_triage_time = round(sum(closed_triage_times) / len(closed_triage_times)) if closed_triage_times else None
+    closed_avg_time = round(sum(closed_times) / len(closed_times)) if closed_times else None
     
     return {
         "total": total,
@@ -260,7 +276,8 @@ def calculate_summary(regressions: list) -> dict:
         "closed": {
             "total": closed_total,
             "triaged": closed_triaged,
-            "time_to_triage_hrs_avg": closed_avg_triage_time
+            "time_to_triage_hrs_avg": closed_avg_triage_time,
+            "time_to_close_hrs_avg": closed_avg_time
         }
     }
 

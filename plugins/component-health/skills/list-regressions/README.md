@@ -55,6 +55,7 @@ Diagnostic messages are written to stderr.
   - `last_failure`: Shows timestamp string if valid (e.g., `"2025-09-25T14:41:17Z"`), otherwise `null`
 - Triaged counts: Number of regressions with non-empty `triages` list (triaged to JIRA bugs)
 - Average time to triage: Average hours from regression opened to earliest triage timestamp (null if no triaged regressions)
+- Average time to close: Average hours from regression opened to closed timestamp (null if no valid data, only for closed regressions)
 
 ## Configuration
 
