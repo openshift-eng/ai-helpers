@@ -4,6 +4,7 @@ This document lists all available Claude Code plugins and their commands in the 
 
 - [Agendas](#agendas-plugin)
 - [Ci](#ci-plugin)
+- [Config](#config-plugin)
 - [Doc](#doc-plugin)
 - [Git](#git-plugin)
 - [Hello World](#hello-world-plugin)
@@ -37,6 +38,16 @@ Miscellaenous tools for working with OpenShift CI
 - **`/ci:trigger-presubmit` `<job-name> <org> <repo> <base-ref> <base-sha> <pr-number> <pr-sha> [ENV_VAR=value ...]`** - Trigger a presubmit gangway job (typically use GitHub Prow commands instead)
 
 See [plugins/ci/README.md](plugins/ci/README.md) for detailed documentation.
+
+### Config Plugin
+
+Claude Code configuration management for hooks and status line customization
+
+**Commands:**
+- **`/config:install-hooks`** - Install Claude Code prompt capture hook
+- **`/config:install-status-line`** - Install Claude Code custom status line with prompt display
+
+See [plugins/config/README.md](plugins/config/README.md) for detailed documentation.
 
 ### Doc Plugin
 
