@@ -344,6 +344,28 @@
     {
       "commands": [
         {
+          "argument_hint": "",
+          "description": "Install Claude Code prompt capture hook",
+          "name": "install-hooks",
+          "synopsis": "/config:install-hooks"
+        },
+        {
+          "argument_hint": "",
+          "description": "Install Claude Code custom status line with prompt display",
+          "name": "install-status-line",
+          "synopsis": "/config:install-status-line"
+        }
+      ],
+      "description": "Claude Code configuration management for hooks and status line customization",
+      "has_readme": true,
+      "hooks": [],
+      "name": "config",
+      "skills": [],
+      "version": "0.0.1"
+    },
+    {
+      "commands": [
+        {
           "argument_hint": "[optional-description]",
           "description": "Save current conversation session to markdown file for future continuation",
           "name": "save-session",

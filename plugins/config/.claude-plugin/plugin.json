@@ -1,0 +1,8 @@
+{
+  "name": "config",
+  "description": "Claude Code configuration management for hooks and status line customization",
+  "version": "0.0.1",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}

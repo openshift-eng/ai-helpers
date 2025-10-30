@@ -6,6 +6,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Ci](#ci-plugin)
 - [Compliance](#compliance-plugin)
 - [Component Health](#component-health-plugin)
+- [Config](#config-plugin)
 - [Container Image](#container-image-plugin)
 - [Doc](#doc-plugin)
 - [Etcd](#etcd-plugin)
@@ -70,6 +71,16 @@ Analyze component health using regression and jira data
 - **`/component-health:summarize-regressions` `<release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]`** - Query and summarize regression data for OpenShift releases with counts and metrics
 
 See [plugins/component-health/README.md](plugins/component-health/README.md) for detailed documentation.
+
+### Config Plugin
+
+Claude Code configuration management for hooks and status line customization
+
+**Commands:**
+- **`/config:install-hooks`** - Install Claude Code prompt capture hook
+- **`/config:install-status-line`** - Install Claude Code custom status line with prompt display
+
+See [plugins/config/README.md](plugins/config/README.md) for detailed documentation.
 
 ### Container Image Plugin
 
