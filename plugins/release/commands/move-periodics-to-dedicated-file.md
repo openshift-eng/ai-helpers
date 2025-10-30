@@ -1,6 +1,6 @@
 ---
 description: Move periodic test definitions from main/master branch configs to dedicated __periodics.yaml files
-argument-hint: <target-release> [path] [--confirm-each-test]
+argument-hint: <target-release> [path|--filter=<json>] [--confirm-each-test]
 ---
 
 ## Name
@@ -9,14 +9,14 @@ release:move-periodics-to-dedicated-file
 ## Synopsis
 Extract test definitions with periodic scheduling from main/master branch configuration files and move them to dedicated periodic configuration files:
 ```
-/release:move-periodics-to-dedicated-file <target-release> [path] [--confirm-each-test]
+/release:move-periodics-to-dedicated-file <target-release> [path|--filter=<json>] [--confirm-each-test]
 ```
 
 ## Description
 The `release:move-periodics-to-dedicated-file` command identifies test definitions with periodic scheduling (`interval:` or `cron:` fields) in main/master branch configuration files and moves them to dedicated `__periodics.yaml` files for a specific release version.
 
 In OpenShift CI, periodic tests should be defined in separate `__periodics.yaml` files rather than in the main/master branch configuration files. This command automates the process of:
-1. Finding tests with periodic scheduling in main/master configs
+1. Finding tests with periodic scheduling in main/master configs (or using a JSON filter)
 2. Extracting those test definitions
 3. Creating or updating the appropriate release-specific `__periodics.yaml` file
 4. Removing the tests from the source main/master file
@@ -31,11 +31,15 @@ This helps maintain proper separation between presubmit tests (run on PRs) and p
   - Examples: `4.18`, `4.19`, `4.20`, `4.21`
   - This will be used in the periodic file naming: `{org}-{repo}-release-{version}__periodics.yaml`
 
-- `$2` (**path**): Optional directory path to search for configuration files
-  - Default: `ci-operator/config/` (searches all subdirectories)
-  - Can specify a subdirectory to limit scope
-  - Examples: `ci-operator/config/openshift`, `ci-operator/config/openshift/origin`
-  - Must be relative to the openshift/release repository root
+- `$2` (**path** or **--filter=<json>**): Optional directory path or JSON filter file
+  - **Path mode** (default): `ci-operator/config/` (searches all subdirectories)
+    - Can specify a subdirectory to limit scope
+    - Examples: `ci-operator/config/openshift`, `ci-operator/config/openshift/origin`
+    - Must be relative to the openshift/release repository root
+  - **Filter mode**: `--filter=<json_file>`
+    - Provide a JSON file (like output from `/release:find-main-periodic-tests --format=json`)
+    - Only tests specified in the JSON file will be processed
+    - Example: `--filter=periodic_tests_report.json`
   - Can also be `--confirm-each-test` if using default path
 
 - `$3` (**--confirm-each-test**): Optional flag to confirm each test individually
@@ -45,6 +49,7 @@ This helps maintain proper separation between presubmit tests (run on PRs) and p
   - Can appear as either the 2nd or 3rd argument for flexibility
   - Examples:
     - `/release:move-periodics-to-dedicated-file 4.21 --confirm-each-test` (confirm each, use default path)
+    - `/release:move-periodics-to-dedicated-file 4.21 --filter=report.json --confirm-each-test` (confirm each with JSON filter)
     - `/release:move-periodics-to-dedicated-file 4.21 ci-operator/config/openshift --confirm-each-test` (confirm each with custom path)
   - If NOT specified (batch mode):
     - All matching periodic tests will be summarized and displayed
@@ -64,27 +69,41 @@ Perform the following steps to move periodic tests to dedicated files:
    - Exit immediately if user declines
 
 2. **Parse and normalize arguments**
-   - Parse all arguments to extract: target-release, path, and --confirm-each-test flag
+   - Parse all arguments to extract: target-release, path/filter, and --confirm-each-test flag
    - The --confirm-each-test flag can appear in position 2 or 3
-   - If a non-path argument is --confirm-each-test, treat it as the flag
+   - Check if argument 2 starts with `--filter=`:
+     - If yes, extract JSON file path and set filter mode
+     - If no, treat as path (or --confirm-each-test flag)
    - Normalize target-release to `{major}.{minor}` format (e.g., `4.21`)
    - Validate version format
-   - Determine search path (use provided path or default to `ci-operator/config/`)
-   - Verify path exists in repository
+   - Determine search mode:
+     - **Filter mode**: If `--filter=<json>` provided, use JSON filter
+     - **Path mode**: Use provided path or default to `ci-operator/config/`
+   - Verify path/file exists in repository
    - Store whether --confirm-each-test flag is set
 
 3. **Find main/master configuration files with periodic tests**
-   - Use Glob tool to search for patterns:
-     - `{search_path}/**/*-main.yaml`
-     - `{search_path}/**/*-master.yaml`
-   - Exclude files that end with `__periodics.yaml`
-   - For each file found:
-     - Read and parse the YAML
-     - Look for `tests:` section
-     - Identify tests with BOTH:
-       - An `as:` field (test name)
-       - Either an `interval:` field OR a `cron:` field
-     - If periodic tests found, add file to processing list
+
+   **If using filter mode (--filter=<json>):**
+   - Create file list using find command:
+     ```bash
+     find /home/fsb/github/neisw/openshift/release/ci-operator/config -name "*-main.yaml" -o -name "*-master.yaml" | grep -v "__periodics.yaml" > /tmp/main_master_files.txt
+     ```
+   - Run find_periodic_tests.py with filter:
+     ```bash
+     python3 plugins/release/skills/release-find-main-periodic-tests/find_periodic_tests.py /tmp/main_master_files.txt --filter=<json_file>
+     ```
+   - Parse the output to get filtered list of files and tests
+
+   **If using path mode (default):**
+   - Create file list using find command for the specified path
+   - Run find_periodic_tests.py without filter:
+     ```bash
+     python3 plugins/release/skills/release-find-main-periodic-tests/find_periodic_tests.py /tmp/main_master_files.txt
+     ```
+   - Parse the output to get all periodic tests in the path
+
+   - For each file with periodic tests found, add to processing list
 
 4. **Display findings and get confirmation based on mode**
 
@@ -235,7 +254,26 @@ The command outputs:
 
 ## Examples
 
-1. **Move all periodic tests to 4.21 release files (batch mode)**:
+1. **Workflow: Find, filter, and move periodic tests**:
+   ```
+   # Step 1: Find all periodic tests and save to JSON
+   /release:find-main-periodic-tests ci-operator/config/openshift
+   # (Then manually run): python3 ... --format=json > periodic_tests_report.json
+
+   # Step 2: Review and edit the JSON file to keep only tests you want to move
+   # (Edit periodic_tests_report.json to remove repositories/tests you don't want to move)
+
+   # Step 3: Move the filtered tests to dedicated files
+   /release:move-periodics-to-dedicated-file 4.21 --filter=periodic_tests_report.json
+   ```
+
+2. **Move specific tests using a filtered JSON file**:
+   ```
+   /release:move-periodics-to-dedicated-file 4.21 --filter=selected_tests.json
+   ```
+   Uses only the repositories and tests specified in the JSON file.
+
+3. **Move all periodic tests to 4.21 release files (batch mode)**:
    ```
    /release:move-periodics-to-dedicated-file 4.21
    ```

@@ -1,6 +1,6 @@
 ---
 description: Find test definitions with periodic scheduling in main/master branch configurations
-argument-hint: [path]
+argument-hint: [path] [--verify-release=VERSION]
 ---
 
 ## Name
@@ -9,7 +9,7 @@ release:find-main-periodic-tests
 ## Synopsis
 Identify test definitions with interval or cron scheduling in main/master branch configuration files:
 ```
-/release:find-main-periodic-tests [path]
+/release:find-main-periodic-tests [path] [--verify-release=VERSION]
 ```
 
 ## Description
@@ -24,74 +24,58 @@ In OpenShift CI, periodic tests are typically defined in separate `__periodics.y
   - Can specify a subdirectory to limit scope
   - Examples: `ci-operator/config/openshift`, `ci-operator/config/openshift-priv`
   - Must be relative to the openshift/release repository root
+  - Can also be `--verify-release=VERSION` if using default path
+
+- `$2` (**--verify-release=VERSION**): Optional flag to filter tests by existing job definitions
+  - Format: `--verify-release=4.21` or `--verify-release=release-4.21`
+  - When specified, only tests that have corresponding job definitions in `ci-operator/jobs/{org}/{repo}/{org}-{repo}-release-{VERSION}-periodics.yaml` will be included in results
+  - This helps identify tests that already have release-specific configurations
+  - Can appear as either the 1st or 2nd argument
+  - Examples:
+    - `/release:find-main-periodic-tests --verify-release=4.21` (verify with default path)
+    - `/release:find-main-periodic-tests ci-operator/config/openshift --verify-release=4.21` (verify with custom path)
 
 ## Implementation
 
-Perform the following steps to identify tests with periodic scheduling:
+Use the `release-find-main-periodic-tests` skill to identify and report tests with periodic scheduling in main/master branch configuration files.
 
-1. **Determine search path**
-   - If path argument provided: use as-is (relative to repo root)
-   - If not provided: default to `ci-operator/config/`
+The skill performs the following steps:
+
+1. **Parse arguments**
+   - Check if `--verify-release=VERSION` is provided in arguments
+   - Extract release version if provided (normalize to `X.Y` format)
+   - Determine search path (default or user-provided)
    - Verify path exists in repository
 
 2. **Find main/master configuration files**
-   - Use Glob tool to search for patterns:
-     - `{search_path}/**/*-main.yaml`
-     - `{search_path}/**/*-master.yaml`
-   - Exclude files that end with `__periodics.yaml`
-   - Store list of found configuration files
+   - Search for `*-main.yaml` and `*-master.yaml` files
+   - Exclude `__periodics.yaml` files (dedicated periodic files)
+   - Create file list in `/tmp/main_master_files.txt`
 
-3. **Parse each configuration file**
-   - Read the YAML file
-   - Look for `tests:` section
-   - For each test definition:
-     - Check if it has an `as:` field (test name)
-     - Check if it has either:
-       - `interval:` field (e.g., `interval: 24h`, `interval: 168h`)
-       - `cron:` field (e.g., `cron: 0 0 * * *`)
-     - If both `as:` and (`interval:` or `cron:`), record this test
+3. **Run find_periodic_tests.py to parse files**
+   - Execute: `python3 plugins/release/skills/release-find-main-periodic-tests/find_periodic_tests.py /tmp/main_master_files.txt`
+   - Script identifies tests with `as:` field AND (`interval:` OR `cron:` field)
+   - Outputs structured data with file paths and test details
 
-4. **Build report**
-   - Group findings by file
-   - For each file with periodic tests:
-     - List the file path
-     - List each test name (`as:` value)
-     - Show the scheduling configuration (`interval:` or `cron:` value)
-   - Calculate statistics:
-     - Total files scanned
+4. **Optional: Verify release-specific jobs (if --verify-release provided)**
+   - For each test found, check if corresponding job file exists:
+     - Path: `ci-operator/jobs/{org}/{repo}/{org}-{repo}-release-{VERSION}-periodics.yaml`
+   - Read the job file and verify test appears in `periodics` section
+   - Filter out tests that don't have release-specific job definitions
+   - Track statistics of filtered vs unfiltered tests
+
+5. **Build and display report**
+   - Show statistics:
+     - Files scanned
      - Files with periodic tests
      - Total periodic tests found
+     - If --verify-release: tests with release jobs vs tests without
+   - List each file containing periodic tests
+   - Show test names and their scheduling configuration
+   - If --verify-release: indicate which tests have release jobs
+   - Provide recommendations for next steps
 
-5. **Display results**
-   - Show summary statistics:
-     ```
-     Periodic Tests in Main/Master Configurations
-     ============================================
-     Search Path: {search_path}
-
-     Scanned {total_files} main/master configuration file(s)
-     Found {files_with_periodic_tests} file(s) containing periodic tests
-     Total periodic tests: {total_tests}
-     ```
-
-   - List files and their periodic tests:
-     ```
-     Files with Periodic Tests:
-     ---------------------------
-
-     1. ci-operator/config/openshift/origin/openshift-origin-main.yaml
-        - test-name-1 (cron: 0 0 * * *)
-        - test-name-2 (interval: 24h)
-
-     2. ci-operator/config/openshift/kubernetes/openshift-kubernetes-master.yaml
-        - periodic-test (interval: 168h)
-     ```
-
-6. **Provide recommendations**
-   - Suggest reviewing these tests to determine if they should be:
-     - Moved to `__periodics.yaml` files
-     - Converted to presubmit/postsubmit tests
-     - Kept as-is if there's a valid reason
+The skill handles all YAML parsing, filtering, and report generation automatically.
 
 ## Return Value
 
@@ -117,13 +101,27 @@ The command outputs:
    ```
    Checks only files under the openshift organization.
 
-3. **Check specific repository**:
+3. **Find tests that already have release-4.21 job definitions**:
+   ```
+   /release:find-main-periodic-tests --verify-release=4.21
+   ```
+   Only shows tests that have corresponding job definitions in `ci-operator/jobs/.../release-4.21-periodics.yaml` files.
+
+   **Use case:** Identify which tests are already configured for the target release and can be safely moved.
+
+4. **Find tests with release jobs in specific organization**:
+   ```
+   /release:find-main-periodic-tests ci-operator/config/openshift --verify-release=4.21
+   ```
+   Combines path filtering with release verification - only shows openshift tests that have 4.21 jobs.
+
+5. **Check specific repository**:
    ```
    /release:find-main-periodic-tests ci-operator/config/openshift/origin
    ```
    Checks only the origin repository configuration.
 
-4. **Check private repositories**:
+6. **Check private repositories**:
    ```
    /release:find-main-periodic-tests ci-operator/config/openshift-priv
    ```
