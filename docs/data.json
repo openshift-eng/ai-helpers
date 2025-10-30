@@ -381,6 +381,12 @@
           "description": "Quick analysis of must-gather data - runs all analysis scripts and provides comprehensive cluster diagnostics",
           "synopsis": "/must-gather:analyze [must-gather-path] [component]",
           "argument_hint": "[must-gather-path] [component]"
+        },
+        {
+          "name": "ovn-dbs",
+          "description": "Analyze OVN databases from a must-gather using ovsdb-tool",
+          "synopsis": "/must-gather:ovn-dbs [must-gather-path] [--node <node-name>] [--query <json>]",
+          "argument_hint": "[must-gather-path]"
         }
       ],
       "skills": [
