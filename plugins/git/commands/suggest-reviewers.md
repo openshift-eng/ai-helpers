@@ -94,7 +94,7 @@ git diff --name-only --diff-filter=d --cached
 
 ### Step 3: Analyze git blame for changed lines
 
-**IMPORTANT: Use the helper script** `plugins/git/skills/suggest-reviewers/analyze_blame.py` to perform this analysis. Do NOT implement this logic manually.
+**IMPORTANT: Use the helper script** `${CLAUDE_PLUGIN_ROOT}/skills/suggest-reviewers/analyze_blame.py` to perform this analysis. Do NOT implement this logic manually.
 
 The script automatically handles:
 - Parsing git diff to identify specific line ranges that were modified
@@ -104,7 +104,7 @@ The script automatically handles:
 
 **For uncommitted changes:**
 ```bash
-python3 plugins/git/skills/suggest-reviewers/analyze_blame.py \
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/suggest-reviewers/analyze_blame.py \
   --mode uncommitted \
   --file <file1> \
   --file <file2> \
@@ -113,7 +113,7 @@ python3 plugins/git/skills/suggest-reviewers/analyze_blame.py \
 
 **For committed changes on feature branch:**
 ```bash
-python3 plugins/git/skills/suggest-reviewers/analyze_blame.py \
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/suggest-reviewers/analyze_blame.py \
   --mode committed \
   --base-branch ${base_branch} \
   --file <file1> \

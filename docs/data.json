@@ -44,7 +44,13 @@
           "argument_hint": ""
         }
       ],
-      "skills": [],
+      "skills": [
+        {
+          "name": "Suggest Reviewers Helper",
+          "id": "suggest-reviewers",
+          "description": "Git blame analysis helper for the suggest-reviewers command"
+        }
+      ],
       "has_readme": true
     },
     {
