@@ -717,6 +717,28 @@
       "version": "0.0.1"
     },
     {
+      "commands": [
+        {
+          "argument_hint": "[must-gather-path|--live] [--component storage|operator|volumes]",
+          "description": "Comprehensive LVMS troubleshooting - analyzes LVMCluster, volume groups, PVCs, and storage issues on live clusters or must-gather",
+          "name": "analyze",
+          "synopsis": "/lvms:analyze [must-gather-path] [--live] [--component <component>]"
+        }
+      ],
+      "description": "LVMS (Logical Volume Manager Storage) plugin for troubleshooting and debugging storage issues",
+      "has_readme": true,
+      "hooks": [],
+      "name": "lvms",
+      "skills": [
+        {
+          "description": "Analyzes LVMS must-gather data to diagnose storage issues",
+          "id": "lvms-analyzer",
+          "name": "LVMS Analyzer"
+        }
+      ],
+      "version": "0.1.0"
+    },
+    {
       "commands": [],
       "description": "Anonymous metrics usage for ai-helpers",
       "has_readme": true,
