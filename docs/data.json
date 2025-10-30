@@ -32,13 +32,25 @@
           "argument_hint": ""
         },
         {
+          "name": "suggest-reviewers",
+          "description": "Suggest appropriate reviewers for a PR based on git blame and OWNERS files",
+          "synopsis": "/git:suggest-reviewers [base-branch]",
+          "argument_hint": "[base-branch]"
+        },
+        {
           "name": "summary",
           "description": "Show current branch, git status, and recent commits for quick context",
           "synopsis": "/git:summary",
           "argument_hint": ""
         }
       ],
-      "skills": [],
+      "skills": [
+        {
+          "name": "Suggest Reviewers Helper",
+          "id": "suggest-reviewers",
+          "description": "Git blame analysis helper for the suggest-reviewers command"
+        }
+      ],
       "has_readme": true
     },
     {
