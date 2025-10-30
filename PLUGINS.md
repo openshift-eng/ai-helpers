@@ -4,6 +4,7 @@ This document lists all available Claude Code plugins and their commands in the 
 
 - [Agendas](#agendas-plugin)
 - [Ci](#ci-plugin)
+- [Compliance](#compliance-plugin)
 - [Component Health](#component-health-plugin)
 - [Doc](#doc-plugin)
 - [Git](#git-plugin)
@@ -42,6 +43,15 @@ Miscellaenous tools for working with OpenShift CI
 - **`/ci:trigger-presubmit` `<job-name> <org> <repo> <base-ref> <base-sha> <pr-number> <pr-sha> [ENV_VAR=value ...]`** - Trigger a presubmit gangway job (typically use GitHub Prow commands instead)
 
 See [plugins/ci/README.md](plugins/ci/README.md) for detailed documentation.
+
+### Compliance Plugin
+
+Security compliance and vulnerability analysis tools for Go projects
+
+**Commands:**
+- **`/compliance:analyze-cve` `<CVE-ID>`** - Analyze Go codebase for CVE vulnerabilities and suggest fixes
+
+See [plugins/compliance/README.md](plugins/compliance/README.md) for detailed documentation.
 
 ### Component Health Plugin
 

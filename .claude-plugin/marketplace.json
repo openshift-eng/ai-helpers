@@ -78,6 +78,11 @@
       "name": "hcp",
       "source": "./plugins/hcp",
       "description": "Generate HyperShift cluster creation commands via hcp CLI from natural language descriptions"
+    },
+    {
+      "name": "compliance",
+      "source": "./plugins/compliance",
+      "description": "Security compliance and vulnerability analysis tools for Go projects"
     }
   ]
 }
