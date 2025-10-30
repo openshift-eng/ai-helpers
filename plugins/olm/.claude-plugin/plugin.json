@@ -1,7 +1,7 @@
 {
   "name": "olm",
-  "description": "OLM (Operator Lifecycle Manager) debugging and analysis tools",
-  "version": "0.0.1",
+  "description": "OLM (Operator Lifecycle Manager) plugin for operator management and debugging",
+  "version": "0.1.0",
   "author": {
     "name": "github.com/openshift-eng"
   }
