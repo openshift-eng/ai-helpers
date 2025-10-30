@@ -76,8 +76,8 @@
         {
           "name": "grooming",
           "description": "Analyze new bugs and cards added over a time period and generate grooming meeting agenda",
-          "synopsis": "/jira:grooming [project-filter] [time-period] [--component component-name] [--label label-name]",
-          "argument_hint": "[project-filter] [time-period] [--component component-name] [--label label-name]"
+          "synopsis": "/jira:grooming [project-filter] [time-period] [--component component-name] [--label label-name] [--sprint sprint-name]",
+          "argument_hint": "[project-filter] [time-period] [--component component-name] [--label label-name] [--sprint sprint-name]"
         },
         {
           "name": "solve",
