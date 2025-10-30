@@ -4,6 +4,7 @@ This document lists all available Claude Code plugins and their commands in the 
 
 - [Agendas](#agendas-plugin)
 - [Bigquery](#bigquery-plugin)
+- [Calendar](#calendar-plugin)
 - [Ci](#ci-plugin)
 - [Compliance](#compliance-plugin)
 - [Component Health](#component-health-plugin)
@@ -44,6 +45,16 @@ BigQuery cost analysis and optimization utilities
 - **`/bigquery:analyze-usage` `<project-id> <timeframe>`** - Analyze BigQuery usage and costs for a project
 
 See [plugins/bigquery/README.md](plugins/bigquery/README.md) for detailed documentation.
+
+### Calendar Plugin
+
+find overlapping free time to meet with people
+
+**Commands:**
+- **`/calendar:create-event` `<natural_language_prompt_for_the_event>`** - Create a new event on Google Calendar.
+- **`/calendar:find-time` `<email_addresses> [duration_in_minutes] [days_ahead]`** - Find overlapping free time to meet with one or more people.
+
+See [plugins/calendar/README.md](plugins/calendar/README.md) for detailed documentation.
 
 ### Ci Plugin
 

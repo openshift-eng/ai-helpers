@@ -993,6 +993,28 @@
         }
       ],
       "version": "0.0.1"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "<natural_language_prompt_for_the_event>",
+          "description": "Create a new event on Google Calendar.",
+          "name": "create-event",
+          "synopsis": "bash"
+        },
+        {
+          "argument_hint": "<email_addresses> [duration_in_minutes] [days_ahead]",
+          "description": "Find overlapping free time to meet with one or more people.",
+          "name": "find-time",
+          "synopsis": "bash"
+        }
+      ],
+      "description": "A plugin to help find time and schedule meetings on your Google Calendar",
+      "has_readme": true,
+      "hooks": [],
+      "name": "calendar",
+      "skills": [],
+      "version": "0.0.1"
     }
   ]
 }
