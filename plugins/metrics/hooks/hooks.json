@@ -1,0 +1,16 @@
+{
+  "description": "Anonymous Usage Metric Collection",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/send_metrics.py --verbose",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}
