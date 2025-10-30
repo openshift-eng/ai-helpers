@@ -34,8 +34,32 @@ The command analyzes test cases and provides structured feedback:
 4. **Check Coverage**: Verify positive, negative, and edge case coverage
 5. **Review Assertions**: Ensure proper validation and error checking
 6. **Evaluate Cleanup**: Verify resource cleanup and namespace management
-7. **Assess Best Practices**: Check against OpenShift testing guidelines
-8. **Generate Recommendations**: Provide actionable improvement suggestions
+7. **Assess Best Practices**: **MUST follow the standards defined in "Testing Guidelines and References" section below**
+8. **Generate Recommendations**: Provide actionable improvement suggestions based on the guidelines
+
+**CRITICAL**: All reviews MUST be evaluated against the specific standards, references, and best practices listed in the **"Testing Guidelines and References"** section below. Do not use generic testing advice - follow the OpenShift-specific guidelines provided.
+
+## Testing Guidelines and References
+
+The review follows established testing best practices from:
+
+**For Ginkgo/E2E Tests:**
+- OpenShift Origin Test Extended: https://github.com/openshift/origin/tree/master/test/extended
+- Ginkgo Testing Framework: https://onsi.github.io/ginkgo/
+- OpenShift Test Best Practices: https://github.com/openshift/origin/blob/master/test/extended/README.md
+
+**For oc CLI Tests:**
+- OpenShift CLI Documentation: https://docs.openshift.com/container-platform/latest/cli_reference/openshift_cli/developer-cli-commands.html
+- Bash Best Practices: https://google.github.io/styleguide/shellguide.html
+
+**Key Testing Standards:**
+- Use descriptive, stable test names (no timestamps, random IDs)
+- Proper resource cleanup (AfterEach, defer, trap)
+- Meaningful assertions with clear failure messages
+- Test isolation (each test creates own resources)
+- Appropriate timeouts and waits
+- No BeforeAll/AfterAll in Ginkgo tests
+- Use framework helpers (e2epod, e2enode) when available
 
 ## Arguments
 

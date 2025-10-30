@@ -38,7 +38,37 @@ The command analyzes the input and generates comprehensive scenarios:
 4. **Generate Negative Tests**: Error handling, invalid inputs, permission issues
 5. **Add Edge Cases**: Boundary values, race conditions, resource limits
 6. **Define Validation**: Clear success criteria and assertions
-7. **Format Output**: Generate in requested format (oc CLI or Ginkgo)
+7. **Format Output**: Generate in requested format (oc CLI or Ginkgo) - **MUST follow the standards in "Test Coverage Guidelines" section below**
+
+**CRITICAL**: All generated test scenarios MUST adhere to the coverage dimensions, best practices, and standards defined in the **"Test Coverage Guidelines"** section below. Use the referenced examples and patterns from OpenShift origin repository.
+
+## Test Coverage Guidelines
+
+The command generates comprehensive test scenarios following industry best practices:
+
+**Test Coverage Dimensions:**
+- **Positive Tests**: Valid inputs and expected workflows
+- **Negative Tests**: Invalid inputs, permission errors, missing dependencies
+- **Edge Cases**: Boundary values (0, max values, empty inputs, special characters)
+- **Security Tests**: RBAC validation, security context enforcement, privilege escalation
+- **Resource Tests**: Low memory, disk pressure, network issues, rate limiting
+- **Concurrency**: Multiple operations happening simultaneously
+- **Failure Recovery**: Restart behavior, cleanup on failure
+
+**References:**
+- OpenShift Test Examples: https://github.com/openshift/origin/tree/master/test/extended
+- Ginkgo BDD Framework: https://onsi.github.io/ginkgo/
+- Test Pattern Catalog: https://github.com/openshift/origin/blob/master/test/extended/README.md
+- oc CLI Reference: https://docs.openshift.com/container-platform/latest/cli_reference/openshift_cli/developer-cli-commands.html
+
+**Best Practices Applied:**
+- Use stable, descriptive test names (no dynamic IDs or timestamps)
+- Ensure proper resource cleanup (prevent resource leaks)
+- Include meaningful assertions with clear failure messages
+- Isolate tests (each test creates its own resources)
+- Add appropriate timeouts to prevent hanging tests
+- Follow Ginkgo patterns: Describe/Context/It hierarchy
+- Use framework helpers: e2epod, e2enode, e2enamespace
 
 ## Arguments
 

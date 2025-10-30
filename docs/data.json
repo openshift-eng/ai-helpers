@@ -395,6 +395,12 @@
           "argument_hint": "\"[install-dir]\""
         },
         {
+          "name": "expand-test-case",
+          "description": "Expand basic test ideas or existing oc commands into comprehensive test scenarios with edge cases in oc CLI or Ginkgo format",
+          "synopsis": "/openshift:expand-test-case [test-idea-or-file-or-commands] [format]",
+          "argument_hint": "[test-idea-or-file-or-commands] [format]"
+        },
+        {
           "name": "new-e2e-test",
           "description": "Write and validate new OpenShift E2E tests using Ginkgo framework",
           "synopsis": "/new-e2e-test [test-specification]",
@@ -405,6 +411,12 @@
           "description": "Rebase OpenShift fork of an upstream repository to a new upstream release.",
           "synopsis": "/openshift:rebase [tag]",
           "argument_hint": "<tag>"
+        },
+        {
+          "name": "review-test-cases",
+          "description": "Review test cases for completeness, quality, and best practices - accepts file path or direct oc commands/test code",
+          "synopsis": "/openshift:review-test-cases [file-path-or-test-code-or-commands]",
+          "argument_hint": "[file-path-or-test-code-or-commands]"
         }
       ],
       "skills": [],
