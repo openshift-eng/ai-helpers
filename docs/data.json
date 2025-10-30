@@ -74,12 +74,6 @@
       "version": "0.0.1",
       "commands": [
         {
-          "name": "backlog",
-          "description": "Find suitable JIRA tickets from the backlog to work on based on priority and activity",
-          "synopsis": "/jira:backlog [project-key] [--assignee username] [--days-inactive N]",
-          "argument_hint": "[project-key] [--assignee username] [--days-inactive N]"
-        },
-        {
           "name": "create-release-note",
           "description": "Generate bug fix release notes from Jira tickets and linked GitHub PRs",
           "synopsis": "/jira:create-release-note <issue-key>",
