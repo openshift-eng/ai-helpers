@@ -212,6 +212,27 @@
       "has_readme": true
     },
     {
+      "name": "learning",
+      "description": "Educational commands for understanding code and concepts through first principles",
+      "version": "0.0.1",
+      "commands": [
+        {
+          "name": "build-from-scratch",
+          "description": "Create a Liz Rice-style walkthrough building a concept from first principles with working code",
+          "synopsis": "/learning:build-from-scratch <topic or technology>",
+          "argument_hint": "<topic or technology>"
+        },
+        {
+          "name": "explain",
+          "description": "Explain code or concepts using first principles with WHAT/WHY/HOW structure",
+          "synopsis": "/learning:explain <file|package|concept>",
+          "argument_hint": "<file|package|concept>"
+        }
+      ],
+      "skills": [],
+      "has_readme": true
+    },
+    {
       "name": "utils",
       "description": "A generic utilities plugin serving as a catch-all for various helper commands",
       "version": "0.0.1",

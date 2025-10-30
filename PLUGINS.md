@@ -8,6 +8,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Git](#git-plugin)
 - [Hello World](#hello-world-plugin)
 - [Jira](#jira-plugin)
+- [Learning](#learning-plugin)
 - [Must Gather](#must-gather-plugin)
 - [Olm](#olm-plugin)
 - [Openshift](#openshift-plugin)
@@ -81,6 +82,16 @@ A plugin to automate tasks with Jira
 - **`/jira:status-rollup` `issue-id [--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD]`** - Generate a status rollup comment for any JIRA issue based on all child issues and a given date range
 
 See [plugins/jira/README.md](plugins/jira/README.md) for detailed documentation.
+
+### Learning Plugin
+
+Educational commands for understanding code and concepts through first principles
+
+**Commands:**
+- **`/learning:build-from-scratch` `<topic or technology>`** - Create a Liz Rice-style walkthrough building a concept from first principles with working code
+- **`/learning:explain` `<file|package|concept>`** - Explain code or concepts using first principles with WHAT/WHY/HOW structure
+
+See [plugins/learning/README.md](plugins/learning/README.md) for detailed documentation.
 
 ### Must Gather Plugin
 
