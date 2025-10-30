@@ -42,7 +42,7 @@
     {
       "name": "olm",
       "source": "./plugins/olm",
-      "description": "OLM (Operator Lifecycle Manager) debugging and analysis tools"
+      "description": "OLM (Operator Lifecycle Manager) plugin for operator management and debugging"
     },
     {
       "name": "prow-job",
