@@ -146,6 +146,27 @@ def group_by_component(data: list) -> dict:
     return dict(sorted(components.items()))
 
 
+def calculate_summary(regressions: list) -> dict:
+    """
+    Calculate summary statistics for a list of regressions.
+    
+    Args:
+        regressions: List of regression dictionaries
+    
+    Returns:
+        Dictionary containing summary statistics (total, open, closed)
+    """
+    total = len(regressions)
+    open_count = len([r for r in regressions if r.get('closed') is None])
+    closed_count = len([r for r in regressions if r.get('closed') is not None])
+    
+    return {
+        "total": total,
+        "open": open_count,
+        "closed": closed_count
+    }
+
+
 def add_component_summaries(components: dict) -> dict:
     """
     Add summary statistics to each component object.
@@ -158,15 +179,7 @@ def add_component_summaries(components: dict) -> dict:
     """
     for component, component_data in components.items():
         regressions = component_data["regressions"]
-        total = len(regressions)
-        open_count = len([r for r in regressions if r.get('closed') is None])
-        closed_count = len([r for r in regressions if r.get('closed') is not None])
-        
-        component_data["summary"] = {
-            "total": total,
-            "open": open_count,
-            "closed": closed_count
-        }
+        component_data["summary"] = calculate_summary(regressions)
     
     return components
 
@@ -244,16 +257,12 @@ Examples:
         if isinstance(components, dict):
             components = add_component_summaries(components)
 
-        # Calculate overall summary statistics
-        total_count = sum(len(comp_data["regressions"]) for comp_data in components.values())
-        total_open = sum(len([r for r in comp_data["regressions"] if r.get('closed') is None]) for comp_data in components.values())
-        total_closed = sum(len([r for r in comp_data["regressions"] if r.get('closed') is not None]) for comp_data in components.values())
+        # Calculate overall summary statistics from all regressions
+        all_regressions = []
+        for comp_data in components.values():
+            all_regressions.extend(comp_data["regressions"])
         
-        overall_summary = {
-            "total": total_count,
-            "open": total_open,
-            "closed": total_closed
-        }
+        overall_summary = calculate_summary(all_regressions)
 
         # Construct output with summary and components
         output_data = {
