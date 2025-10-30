@@ -16,7 +16,7 @@ import json
 import sys
 import urllib.request
 import urllib.error
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 def calculate_hours_between(start_timestamp: str, end_timestamp: str) -> int:
@@ -199,10 +199,15 @@ def calculate_summary(regressions: list) -> dict:
     open_total = 0
     open_triaged = 0
     open_triage_times = []
+    open_times = []
     closed_total = 0
     closed_triaged = 0
     closed_triage_times = []
     closed_times = []
+    
+    # Get current time for calculating open duration
+    current_time = datetime.now(timezone.utc)
+    current_time_str = current_time.isoformat().replace('+00:00', 'Z')
     
     # Single pass through all regressions
     for regression in regressions:
@@ -239,6 +244,20 @@ def calculate_summary(regressions: list) -> dict:
                 open_triaged += 1
                 if time_to_triage_hrs is not None and time_to_triage_hrs > 0:
                     open_triage_times.append(time_to_triage_hrs)
+            
+            # Calculate how long regression has been open
+            if regression.get('opened'):
+                try:
+                    time_open_hrs = calculate_hours_between(
+                        regression['opened'],
+                        current_time_str
+                    )
+                    # Only include positive time differences
+                    if time_open_hrs > 0:
+                        open_times.append(time_open_hrs)
+                except (ValueError, KeyError, TypeError):
+                    # Skip if timestamp parsing fails
+                    pass
         else:
             # Closed regression
             closed_total += 1
@@ -261,23 +280,33 @@ def calculate_summary(regressions: list) -> dict:
                     # Skip if timestamp parsing fails
                     pass
     
-    # Calculate averages
+    # Calculate averages and maximums
     open_avg_triage_time = round(sum(open_triage_times) / len(open_triage_times)) if open_triage_times else None
+    open_max_triage_time = max(open_triage_times) if open_triage_times else None
+    open_avg_time = round(sum(open_times) / len(open_times)) if open_times else None
+    open_max_time = max(open_times) if open_times else None
     closed_avg_triage_time = round(sum(closed_triage_times) / len(closed_triage_times)) if closed_triage_times else None
+    closed_max_triage_time = max(closed_triage_times) if closed_triage_times else None
     closed_avg_time = round(sum(closed_times) / len(closed_times)) if closed_times else None
+    closed_max_time = max(closed_times) if closed_times else None
     
     return {
         "total": total,
         "open": {
             "total": open_total,
             "triaged": open_triaged,
-            "time_to_triage_hrs_avg": open_avg_triage_time
+            "time_to_triage_hrs_avg": open_avg_triage_time,
+            "time_to_triage_hrs_max": open_max_triage_time,
+            "open_hrs_avg": open_avg_time,
+            "open_hrs_max": open_max_time
         },
         "closed": {
             "total": closed_total,
             "triaged": closed_triaged,
             "time_to_triage_hrs_avg": closed_avg_triage_time,
-            "time_to_close_hrs_avg": closed_avg_time
+            "time_to_triage_hrs_max": closed_max_triage_time,
+            "time_to_close_hrs_avg": closed_avg_time,
+            "time_to_close_hrs_max": closed_max_time
         }
     }
 
