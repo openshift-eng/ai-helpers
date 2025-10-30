@@ -92,6 +92,12 @@
           "argument_hint": "[project-filter] [time-period] [--component component-name] [--label label-name]"
         },
         {
+          "name": "project-velocity",
+          "description": "Generate velocity metrics for a JIRA project based on closed issues",
+          "synopsis": "/jira:project-velocity PROJECT-KEY [--force-public]",
+          "argument_hint": "PROJECT-KEY [--force-public]"
+        },
+        {
           "name": "solve",
           "description": "Analyze a JIRA issue and create a pull request to solve it.",
           "synopsis": "/jira:solve <jira-issue-id> [remote]",
@@ -102,6 +108,12 @@
           "description": "Generate a status rollup comment for any JIRA issue based on all child issues and a given date range",
           "synopsis": "/jira:status-rollup issue-id [--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD]",
           "argument_hint": "issue-id [--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD]"
+        },
+        {
+          "name": "test-auth",
+          "description": "Test and verify JIRA MCP server authentication setup",
+          "synopsis": "/jira:test-auth",
+          "argument_hint": ""
         }
       ],
       "skills": [

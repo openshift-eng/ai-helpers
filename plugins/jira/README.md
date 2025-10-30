@@ -57,6 +57,63 @@ You'll need to generate your own tokens in several of these examples:
 - Keep `JIRA_SSL_VERIFY` as "true" unless you have a specific reason to disable TLS verification.
 - Limit active MCP servers: running too many at once can degrade performance or hit limits. Use Cursor's MCP panel to disable those you don't need for the current session.
 
+## Testing Your Setup
+
+To verify your JIRA authentication is configured correctly:
+
+```bash
+/jira:test-auth
+```
+
+This command will:
+- Check MCP server availability
+- Verify authentication credentials
+- Test read permissions
+- Display accessible projects
+- Provide setup guidance if needed
+
+## Authentication Modes
+
+JIRA plugin commands support two modes:
+
+### 1. Authenticated Mode (Recommended) 🔐
+
+- Requires MCP server setup (see above)
+- Access to private projects and issues
+- No rate limiting
+- Full API capabilities
+- **Required for**: `create`, `status-rollup`, `grooming`
+- **Optional for**: `solve`, `generate-test-plan`, `project-velocity`
+- **Displayed as**: "🔐 Using authenticated mode (MCP)"
+- **Verify setup**: `/jira:test-auth`
+
+### 2. Public Mode (Fallback) 🌐
+
+- No setup required
+- Limited to public issues only
+- May encounter rate limits
+- **Available for**: `solve`, `generate-test-plan`, `project-velocity`
+- **Displayed as**: "🌐 Using public API mode (unauthenticated)"
+- **Can be forced for `project-velocity`**: Use `--force-public` flag
+
+## Force Public API Mode
+
+The `/jira:project-velocity` command supports a `--force-public` flag to bypass MCP and use public API directly:
+
+```bash
+/jira:project-velocity OCPBUGS --force-public
+```
+
+**Use cases:**
+- Quick queries on public projects
+- Avoiding MCP overhead for simple requests
+- Testing public API functionality
+
+**Limitations:**
+- Only works for public projects
+- May encounter rate limits
+- No access to private projects/issues
+
 
 
 ## Installation
@@ -206,6 +263,57 @@ Different projects may have different conventions (security levels, labels, vers
 Teams may have additional conventions layered on top of project conventions (component selection, custom fields, workflows, etc.). The command automatically detects team context and applies team-specific skills.
 
 See [commands/create.md](commands/create.md) for full documentation.
+
+---
+
+### `/jira:project-velocity` - Project Velocity Metrics
+
+Generate velocity metrics for a JIRA project based on closed issues over the last 120 days. The command analyzes Story, Task, and Spike issues with resolution "Done" and calculates key performance indicators.
+
+**Usage:**
+```bash
+# Analyze project velocity (authenticated mode preferred)
+/jira:project-velocity OCPBUGS
+
+# Force public API mode
+/jira:project-velocity OCPBUGS --force-public
+```
+
+**Metrics Provided:**
+- Total issues closed in the last 120 days
+- Average issues closed per day
+- Average time to close an issue (in days)
+
+**Authentication:**
+- Supports both authenticated (MCP) and public API modes
+- Use `--force-public` flag to bypass MCP and use public API directly
+- See [Authentication Modes](#authentication-modes) for details
+
+See [commands/project-velocity.md](commands/project-velocity.md) for full documentation.
+
+---
+
+### `/jira:test-auth` - Test Authentication Setup
+
+Verify your JIRA MCP server configuration and authentication setup. Performs diagnostic tests to ensure proper configuration, valid credentials, and correct permissions.
+
+**Usage:**
+```bash
+/jira:test-auth
+```
+
+**Tests Performed:**
+- MCP server connectivity
+- Authentication credential validation
+- Read permissions verification
+- Accessible project count
+
+**Output:**
+- ✅/❌ status indicators for each test
+- Overall authentication status (🔐 Ready / 🌐 Public only)
+- Actionable setup guidance if issues found
+
+See [commands/test-auth.md](commands/test-auth.md) for full documentation.
 
 ---
 
