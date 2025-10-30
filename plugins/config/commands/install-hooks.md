@@ -15,9 +15,11 @@ config:install-hooks
 ## Description
 
 The `config:install-hooks` command installs the session prompt capture hook script to `~/.claude/session-prompt-hook.sh`.
-This hook captures every user prompt during a Claude Code session and saves them to a session-specific file in `/tmp/prompts-{session_id}.txt`.
+This hook captures user prompts during a Claude Code session and saves them to `/tmp/prompts-{session_id}.txt`.
 
-The captured prompts are used by the status line to display the most recent prompt, providing context awareness during development sessions.
+**Purpose**: This hook exists solely to provide the status line with your last prompt for display.
+It has no other functionality and provides no value on its own.
+The status line works fine without it.
 
 ## Implementation
 
@@ -72,10 +74,11 @@ The captured prompts are used by the status line to display the most recent prom
 
 ## Notes
 
-- The hook script captures all prompts to `/tmp/prompts-{session_id}.txt`
-- Prompt files are created per session and persist until system reboot
-- Works in conjunction with the status line script to display recent prompts
+- This hook's only purpose is to enable prompt display in the status line
+- The hook captures prompts to `/tmp/prompts-{session_id}.txt` (persist until reboot)
+- The status line works fine without this hook installed
 - Captured prompts are single-line (newlines converted to spaces)
+- Installing this hook is optional and provides minimal additional value
 
 ## Arguments
 

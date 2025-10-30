@@ -15,15 +15,16 @@ config:install-status-line
 ## Description
 
 The `config:install-status-line` command installs a custom status line script to `~/.claude/status_line.sh`.
-This status line displays rich session information including:
+This status line displays session information including:
 
 - Claude Code version
 - Active model name
 - Git branch or current directory
 - Output style
-- Most recent user prompt (truncated to 50 characters)
+- Most recent user prompt (only if session-prompt-hook is installed)
 
-The status line integrates with the session prompt hook to display contextual information about your current development session.
+The status line works fully without the prompt hook.
+The prompt hook is optional and only adds minimal extra context by showing your last prompt.
 
 ## Implementation
 
@@ -45,7 +46,8 @@ The status line integrates with the session prompt hook to display contextual in
 4. **Provide usage instructions**
    - Inform user how to configure the status line in Claude Code
    - Explain the visual format and color scheme
-   - Note dependency on session-prompt-hook for prompt display
+   - Clarify that the status line works without the prompt hook
+   - Note that session-prompt-hook is optional for prompt display
 
 ## Return Value
 
@@ -111,11 +113,12 @@ v1.2.3 | Sonnet 4.5 | main | default | I would like to contribute ~/.clau...
 
 ## Notes
 
-- The status line reads prompts from `/tmp/prompts-{session_id}.txt`
-- Prompt display requires the session-prompt-hook to be installed and configured
+- The status line works fully without the session-prompt-hook installed
+- If session-prompt-hook is installed, it reads prompts from `/tmp/prompts-{session_id}.txt` for display
 - If no git repository is found, displays the current directory name
 - Colors use matte ANSI codes for terminal compatibility
 - Status line is updated on every prompt submission
+- The prompt hook is optional and provides minimal additional context
 
 ## Arguments
 
