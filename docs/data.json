@@ -209,6 +209,27 @@
       "has_readme": true
     },
     {
+      "name": "config",
+      "description": "Claude Code configuration management for hooks and status line customization",
+      "version": "0.0.1",
+      "commands": [
+        {
+          "name": "install-hooks",
+          "description": "Install Claude Code prompt capture hook",
+          "synopsis": "/config:install-hooks",
+          "argument_hint": ""
+        },
+        {
+          "name": "install-status-line",
+          "description": "Install Claude Code custom status line with prompt display",
+          "synopsis": "/config:install-status-line",
+          "argument_hint": ""
+        }
+      ],
+      "skills": [],
+      "has_readme": true
+    },
+    {
       "name": "session",
       "description": "A plugin for Claude session management and persistence",
       "version": "0.0.1",
