@@ -118,6 +118,7 @@ This command is useful for:
    - Note: Component filtering is performed by the script after fetching from API
    - Note: Time fields (`closed`, `last_failure`) are simplified to either timestamp strings or null
    - Note: If closed is null this indicates the regression is on-going
+   - Note: `links` and `test_id` fields are removed from each regression to reduce response size
 
 4. **Grade Component Health**: Calculate and present health scores based on triage metrics
 
@@ -226,10 +227,14 @@ If requested, include:
 - **ALWAYS use these summary counts** (`summary.total`, `summary.open.total`, `summary.open.triaged`, `summary.closed.total`, `summary.closed.triaged` and corresponding `components.*.summary.*`) rather than attempting to count the regression arrays
 - This ensures accuracy even when the output is truncated due to size
 
-**Note**: Time fields are simplified in the output:
+**Note**: The output is optimized for analysis:
 
-- `closed`: Shows timestamp if closed (e.g., `"2025-09-27T12:04:24.966914Z"`), otherwise `null` (indicates ongoing regression)
-- `last_failure`: Shows timestamp if valid (e.g., `"2025-09-25T14:41:17Z"`), otherwise `null`
+- **Time fields are simplified**:
+  - `closed`: Shows timestamp if closed (e.g., `"2025-09-27T12:04:24.966914Z"`), otherwise `null` (indicates ongoing regression)
+  - `last_failure`: Shows timestamp if valid (e.g., `"2025-09-25T14:41:17Z"`), otherwise `null`
+- **Unnecessary fields are removed**:
+  - `links`: Removed to reduce response size
+  - `test_id`: Removed to reduce response size (can be reconstructed from `test_name` if needed)
 
 ## Examples
 

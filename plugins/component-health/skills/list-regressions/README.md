@@ -53,6 +53,9 @@ Diagnostic messages are written to stderr.
 - Time fields are automatically simplified:
   - `closed`: Shows timestamp string if closed (e.g., `"2025-09-27T12:04:24.966914Z"`), otherwise `null`
   - `last_failure`: Shows timestamp string if valid (e.g., `"2025-09-25T14:41:17Z"`), otherwise `null`
+- Unnecessary fields removed for response size optimization:
+  - `links`: Removed from each regression
+  - `test_id`: Removed from each regression
 - Triaged counts: Number of regressions with non-empty `triages` list (triaged to JIRA bugs)
 - Average time to triage: Average hours from regression opened to earliest triage timestamp (null if no triaged regressions)
 - Maximum time to triage: Maximum hours from regression opened to earliest triage timestamp (null if no triaged regressions)

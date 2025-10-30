@@ -154,6 +154,26 @@ def simplify_time_fields(data: list) -> list:
     return data
 
 
+def remove_unnecessary_fields(regressions: list) -> list:
+    """
+    Remove unnecessary fields from regressions to reduce response size.
+    
+    Removes 'links' and 'test_id' fields from each regression object.
+    
+    Args:
+        regressions: List of regression dictionaries
+    
+    Returns:
+        List of regression dictionaries with unnecessary fields removed
+    """
+    for regression in regressions:
+        # Remove links and test_id to reduce response size
+        regression.pop('links', None)
+        regression.pop('test_id', None)
+    
+    return regressions
+
+
 def group_by_component(data: list) -> dict:
     """
     Group regressions by component name and split into open/closed.
@@ -435,6 +455,10 @@ Examples:
         # Simplify time field structures (closed, last_failure)
         if isinstance(regressions, list):
             regressions = simplify_time_fields(regressions)
+
+        # Remove unnecessary fields to reduce response size
+        if isinstance(regressions, list):
+            regressions = remove_unnecessary_fields(regressions)
 
         # Group regressions by component
         if isinstance(regressions, list):

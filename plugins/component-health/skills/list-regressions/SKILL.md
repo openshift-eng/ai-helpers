@@ -220,12 +220,19 @@ The `time_triaged_closed_hrs_avg` and `time_triaged_closed_hrs_max` fields (only
 
 **ALWAYS use these summary counts** rather than attempting to count the regression arrays yourself. This ensures accuracy even when the output is truncated due to size.
 
-The script automatically simplifies time fields (`closed` and `last_failure`):
+The script automatically simplifies and optimizes the response:
+
+**Time field simplification** (`closed` and `last_failure`):
 
 - Original API format: `{"Time": "2025-09-27T12:04:24.966914Z", "Valid": true}`
 - Simplified format: `"closed": "2025-09-27T12:04:24.966914Z"` (if Valid is true)
 - Or: `"closed": null` (if Valid is false)
 - Same applies to `last_failure` field
+
+**Field removal for response size optimization**:
+
+- `links`: Removed from each regression (reduces response size significantly)
+- `test_id`: Removed from each regression (large field, can be reconstructed from test_name if needed)
 
 Parse this JSON output to extract relevant information for analysis.
 
@@ -372,15 +379,13 @@ The script outputs JSON with summaries and regressions grouped by component:
           "base_release": "4.18",
           "component": "Monitoring",
           "capability": "operator-conditions",
-          "test_id": "...",
           "test_name": "...",
           "variants": [...],
           "opened": "2025-09-26T00:02:51.385944Z",
           "closed": "2025-09-27T12:04:24.966914Z",
           "triages": [],
           "last_failure": "2025-09-25T14:41:17Z",
-          "max_failures": 9,
-          "links": {...}
+          "max_failures": 9
         }
       ]
     },
