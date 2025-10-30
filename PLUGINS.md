@@ -97,6 +97,7 @@ A plugin to automate tasks with Jira
 
 **Commands:**
 - **`/jira:backlog` `[project-key] [--assignee username] [--days-inactive N]`** - Find suitable JIRA tickets from the backlog to work on based on priority and activity
+- **`/jira:create-release-note` `<issue-key>`** - Generate bug fix release notes from Jira tickets and linked GitHub PRs
 - **`/jira:create` `<type> [project-key] <summary> [--component <name>] [--version <version>] [--parent <key>]`** - Create Jira issues (story, epic, feature, task, bug) with proper formatting
 - **`/jira:generate-test-plan` `[JIRA issue key] [GitHub PR URLs]`** - Generate test steps for a JIRA issue
 - **`/jira:grooming` `[project-filter] [time-period] [--component component-name] [--label label-name]`** - Analyze new bugs and cards added over a time period and generate grooming meeting agenda
