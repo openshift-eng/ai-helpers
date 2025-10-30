@@ -310,11 +310,31 @@ def calculate_summary(regressions: list) -> dict:
     triaged_to_closed_avg_time = round(sum(triaged_to_closed_times) / len(triaged_to_closed_times)) if triaged_to_closed_times else None
     triaged_to_closed_max_time = max(triaged_to_closed_times) if triaged_to_closed_times else None
     
+    # Calculate triage percentages
+    total_triaged = open_triaged + closed_triaged
+    triage_percentage = round((total_triaged / total * 100), 1) if total > 0 else 0
+    open_triage_percentage = round((open_triaged / open_total * 100), 1) if open_total > 0 else 0
+    closed_triage_percentage = round((closed_triaged / closed_total * 100), 1) if closed_total > 0 else 0
+    
+    # Calculate overall time to triage (combining open and closed)
+    all_triage_times = open_triage_times + closed_triage_times
+    overall_avg_triage_time = round(sum(all_triage_times) / len(all_triage_times)) if all_triage_times else None
+    overall_max_triage_time = max(all_triage_times) if all_triage_times else None
+    
+    # Time to close is only for closed regressions (already calculated in closed_avg_time/closed_max_time)
+    
     return {
         "total": total,
+        "triaged": total_triaged,
+        "triage_percentage": triage_percentage,
+        "time_to_triage_hrs_avg": overall_avg_triage_time,
+        "time_to_triage_hrs_max": overall_max_triage_time,
+        "time_to_close_hrs_avg": closed_avg_time,
+        "time_to_close_hrs_max": closed_max_time,
         "open": {
             "total": open_total,
             "triaged": open_triaged,
+            "triage_percentage": open_triage_percentage,
             "time_to_triage_hrs_avg": open_avg_triage_time,
             "time_to_triage_hrs_max": open_max_triage_time,
             "open_hrs_avg": open_avg_time,
@@ -323,6 +343,7 @@ def calculate_summary(regressions: list) -> dict:
         "closed": {
             "total": closed_total,
             "triaged": closed_triaged,
+            "triage_percentage": closed_triage_percentage,
             "time_to_triage_hrs_avg": closed_avg_triage_time,
             "time_to_triage_hrs_max": closed_max_triage_time,
             "time_to_close_hrs_avg": closed_avg_time,

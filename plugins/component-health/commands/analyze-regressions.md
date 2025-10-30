@@ -1,5 +1,5 @@
 ---
-description: Analyze component health regressions for an OpenShift release
+description: Grade component health based on regression triage metrics for an OpenShift release
 argument-hint: <release> [--components comp1 comp2 ...]
 ---
 
@@ -15,14 +15,18 @@ component-health:analyze-regressions
 
 ## Description
 
-The `component-health:analyze-regressions` command fetches and displays component health regression data for a specified OpenShift release. It queries a component health API to retrieve regression information and can optionally filter by component names.
+The `component-health:analyze-regressions` command grades component health for a specified OpenShift release by analyzing regression management metrics. It evaluates how well components are managing their test regressions based on three key health indicators:
+
+1. **Triage Coverage**: The percentage of regressions that have been triaged to JIRA bugs
+2. **Triage Timeliness**: How quickly regressions are being triaged (average time from detection to triage)
+3. **Resolution Speed**: How quickly closed regressions are being resolved (average time from detection to closure)
 
 This command is useful for:
 
-- Analyzing component health across releases
-- Tracking regression trends
-- Identifying problematic components
-- Generating quality reports
+- **Grading component health** using regression management metrics
+- **Identifying components** that need attention in their regression handling
+- **Tracking triage and resolution efficiency**
+- **Generating component quality scorecards**
 
 ## Implementation
 
@@ -44,9 +48,16 @@ This command is useful for:
      {
        "summary": {
          "total": <number>,
+         "triaged": <number>,
+         "triage_percentage": <number>,
+         "time_to_triage_hrs_avg": <number or null>,
+         "time_to_triage_hrs_max": <number or null>,
+         "time_to_close_hrs_avg": <number or null>,
+         "time_to_close_hrs_max": <number or null>,
          "open": {
            "total": <number>,
            "triaged": <number>,
+           "triage_percentage": <number>,
            "time_to_triage_hrs_avg": <number or null>,
            "time_to_triage_hrs_max": <number or null>,
            "open_hrs_avg": <number or null>,
@@ -55,6 +66,7 @@ This command is useful for:
          "closed": {
            "total": <number>,
            "triaged": <number>,
+           "triage_percentage": <number>,
            "time_to_triage_hrs_avg": <number or null>,
            "time_to_triage_hrs_max": <number or null>,
            "time_to_close_hrs_avg": <number or null>,
@@ -67,9 +79,16 @@ This command is useful for:
          "ComponentName": {
            "summary": {
              "total": <number>,
+             "triaged": <number>,
+             "triage_percentage": <number>,
+             "time_to_triage_hrs_avg": <number or null>,
+             "time_to_triage_hrs_max": <number or null>,
+             "time_to_close_hrs_avg": <number or null>,
+             "time_to_close_hrs_max": <number or null>,
              "open": {
                "total": <number>,
                "triaged": <number>,
+               "triage_percentage": <number>,
                "time_to_triage_hrs_avg": <number or null>,
                "time_to_triage_hrs_max": <number or null>,
                "open_hrs_avg": <number or null>,
@@ -78,6 +97,7 @@ This command is useful for:
              "closed": {
                "total": <number>,
                "triaged": <number>,
+               "triage_percentage": <number>,
                "time_to_triage_hrs_avg": <number or null>,
                "time_to_triage_hrs_max": <number or null>,
                "time_to_close_hrs_avg": <number or null>,
@@ -99,30 +119,45 @@ This command is useful for:
    - Note: Time fields (`closed`, `last_failure`) are simplified to either timestamp strings or null
    - Note: If closed is null this indicates the regression is on-going
 
-4. **Format Results**: Present the regression data in a readable format
+4. **Grade Component Health**: Calculate and present health scores based on triage metrics
 
-   - **FIRST**: Display overall summary statistics from the `summary` object:
+   - **FIRST**: Display overall health grade from the `summary` object:
+
+     - **Triage Coverage**: Use `summary.triage_percentage` - percentage of all regressions that have been triaged
+       - 90-100%: Excellent ✅
+       - 70-89%: Good ⚠️
+       - 50-69%: Needs Improvement ⚠️
+       - <50%: Poor ❌
+     - **Triage Timeliness**: Use `summary.time_to_triage_hrs_avg` - average hours to triage
+       - <24 hours: Excellent ✅
+       - 24-72 hours: Good ⚠️
+       - 72-168 hours (1 week): Needs Improvement ⚠️
+       - > 168 hours: Poor ❌
+     - **Resolution Speed**: Use `summary.time_to_close_hrs_avg` - average hours to close (for closed regressions)
+       - <168 hours (1 week): Excellent ✅
+       - 168-336 hours (1-2 weeks): Good ⚠️
+       - 336-720 hours (2-4 weeks): Needs Improvement ⚠️
+       - > 720 hours (4+ weeks): Poor ❌
      - Total regressions: Use `summary.total` (NOT by counting arrays)
-     - Open regressions: Use `summary.open.total` (items where `closed` is null)
-     - Open triaged: Use `summary.open.triaged` (open regressions with non-empty triages list)
-     - Open avg time to triage: Use `summary.open.time_to_triage_hrs_avg` (average hours, null if none triaged)
-     - Open max time to triage: Use `summary.open.time_to_triage_hrs_max` (maximum hours, null if none triaged)
-     - Open avg duration: Use `summary.open.open_hrs_avg` (average hours open, from opened to now)
-     - Open max duration: Use `summary.open.open_hrs_max` (maximum hours open, from opened to now)
-     - Closed regressions: Use `summary.closed.total` (items where `closed` is not null)
-     - Closed triaged: Use `summary.closed.triaged` (closed regressions with non-empty triages list)
-     - Closed avg time to triage: Use `summary.closed.time_to_triage_hrs_avg` (average hours, null if none triaged)
-     - Closed max time to triage: Use `summary.closed.time_to_triage_hrs_max` (maximum hours, null if none triaged)
-     - Closed avg time to close: Use `summary.closed.time_to_close_hrs_avg` (average hours from opened to closed)
-     - Closed max time to close: Use `summary.closed.time_to_close_hrs_max` (maximum hours from opened to closed)
-     - Closed avg time triaged to closed: Use `summary.closed.time_triaged_closed_hrs_avg` (average hours from triage to closed, only triaged closed regressions)
-     - Closed max time triaged to closed: Use `summary.closed.time_triaged_closed_hrs_max` (maximum hours from triage to closed, only triaged closed regressions)
-   - **SECOND**: Display per-component breakdown using `components.*.summary`:
-     - For each component, show total, open, and closed counts from its `summary`
-     - Identify components with the most open regressions using `summary.open.total`
-   - List regressions grouped by component from the `components` object
-   - Highlight critical regressions if applicable
-   - Provide links or references to detailed regression data
+     - Total triaged: Use `summary.triaged`
+     - Open vs Closed breakdown:
+       - Open: `summary.open.total` (with `summary.open.triage_percentage`)
+       - Closed: `summary.closed.total` (with `summary.closed.triage_percentage`)
+
+   - **SECOND**: Display per-component health scorecard using `components.*.summary`:
+
+     - For each component, calculate health grade based on:
+       - Triage Coverage: `components.*.summary.triage_percentage`
+       - Triage Timeliness: `components.*.summary.time_to_triage_hrs_avg`
+       - Resolution Speed: `components.*.summary.time_to_close_hrs_avg`
+     - Rank components from best to worst health
+     - Highlight components needing attention (low triage %, high time to triage, slow resolution)
+     - Show open regression count: `components.*.summary.open.total`
+
+   - **THIRD** (optional): Show detailed regression lists if requested
+     - Group by component from the `components` object
+     - Focus on untriaged regressions or slow-to-triage items
+     - Provide links to Sippy or JIRA for more details
 
 5. **Error Handling**: Handle common error scenarios
    - Network errors (connectivity issues)
@@ -133,37 +168,57 @@ This command is useful for:
 
 ## Return Value
 
-The command outputs:
+The command outputs a **Component Health Report** focused on triage metrics:
 
-- **Overall Summary**: Statistics from the `summary` object in the JSON response
-  - Total regressions count across all components
-  - Open regressions count (where `closed` is null)
-  - Open triaged count (regressions triaged to a JIRA bug)
-  - Open average time to triage in hours (from opened to first triage timestamp)
-  - Open maximum time to triage in hours
-  - Open average duration in hours (how long regressions have been open)
-  - Open maximum duration in hours
-  - Closed regressions count (where `closed` is not null)
-  - Closed triaged count (regressions triaged to a JIRA bug)
-  - Closed average time to triage in hours (from opened to first triage timestamp)
-  - Closed maximum time to triage in hours
-  - Closed average time to close in hours (from opened to closed timestamp)
-  - Closed maximum time to close in hours
-  - Closed average time from triage to closed in hours (only for triaged closed regressions)
-  - Closed maximum time from triage to closed in hours (only for triaged closed regressions)
-- **Regressions by Component**: Details grouped by component from the `components` object
-  - Each component maps to an object containing:
-    - `summary`: Per-component statistics (total, open, closed counts)
-    - `open`: Array of open regression objects for that component
-    - `closed`: Array of closed regression objects for that component
-  - Component names are sorted alphabetically
-  - Each regression includes:
-    - Component name
-    - Regression ID
-    - Test information
-    - Status (open/closed - indicated by closed field)
-    - Timestamps (opened, closed, last_failure)
-- **Format**: Human-readable formatted output with optional JSON data
+### Overall Health Grade
+
+From the `summary` object:
+
+- **Triage Coverage Score**: `summary.triage_percentage`% of regressions triaged
+  - Grade interpretation (Excellent/Good/Needs Improvement/Poor)
+  - Total: `summary.total` regressions
+  - Triaged: `summary.triaged` regressions
+- **Triage Timeliness Score**: `summary.time_to_triage_hrs_avg` hours average
+  - Grade interpretation (Excellent/Good/Needs Improvement/Poor)
+  - Maximum time to triage: `summary.time_to_triage_hrs_max` hours
+- **Resolution Speed Score**: `summary.time_to_close_hrs_avg` hours average (closed regressions only)
+  - Grade interpretation (Excellent/Good/Needs Improvement/Poor)
+  - Maximum time to close: `summary.time_to_close_hrs_max` hours
+- **Breakdown by Status**:
+  - Open: `summary.open.total` (`summary.open.triage_percentage`% triaged)
+  - Closed: `summary.closed.total` (`summary.closed.triage_percentage`% triaged)
+
+### Per-Component Health Scorecard
+
+Ranked table from `components.*.summary`:
+
+| Component | Triage Coverage | Triage Time (hrs) | Resolution Time (hrs) | Open | Health Grade |
+| --------- | --------------- | ----------------- | --------------------- | ---- | ------------ |
+| ...       | X.X%            | X hrs             | X hrs                 | X    | ✅/⚠️/❌     |
+
+- **Triage Coverage**: `components.*.summary.triage_percentage`
+- **Triage Time**: `components.*.summary.time_to_triage_hrs_avg`
+- **Resolution Time**: `components.*.summary.time_to_close_hrs_avg` (closed regressions only)
+- **Open Count**: `components.*.summary.open.total`
+- **Health Grade**: Combined score based on coverage, triage time, and resolution time
+
+### Components Needing Attention
+
+Highlighted list of components with:
+
+- Low triage coverage (<70%)
+- Slow triage response (>72 hours average)
+- Slow resolution time (>336 hours / 2 weeks average)
+- High open regression counts
+
+### Detailed Metrics (Optional)
+
+If requested, include:
+
+- Time to close metrics (for closed regressions)
+- Age of open regressions
+- List of untriaged regressions by component
+- Links to Sippy dashboards
 
 **IMPORTANT - Accurate Counting**:
 
@@ -178,29 +233,42 @@ The command outputs:
 
 ## Examples
 
-1. **Analyze all regressions for release 4.17**:
+1. **Grade overall component health for release 4.17**:
 
    ```
    /component-health:analyze-regressions 4.17
    ```
 
-   Fetches all regressions (both open and closed) for OpenShift 4.17
+   Generates a health report showing:
 
-2. **Filter by specific components**:
+   - Overall triage coverage percentage
+   - Average time to triage
+   - Per-component health scorecard
+   - Components needing attention
+
+2. **Grade specific components**:
 
    ```
    /component-health:analyze-regressions 4.21 --components Monitoring etcd
    ```
 
-   Fetches regressions for only Monitoring and etcd components in release 4.21
+   Focuses health grading on Monitoring and etcd components:
 
-3. **Filter by single component**:
+   - Shows triage coverage for these components only
+   - Compares their triage timeliness
+   - Identifies which needs more attention
+
+3. **Assess single component health**:
 
    ```
    /component-health:analyze-regressions 4.21 --components "kube-apiserver"
    ```
 
-   Fetches regressions for the kube-apiserver component in release 4.21
+   Deep dive into kube-apiserver component health:
+
+   - Detailed triage metrics
+   - Open vs closed regression breakdown
+   - List of untriaged regressions if any
 
 ## Arguments
 

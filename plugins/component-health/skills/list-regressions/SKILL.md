@@ -81,9 +81,16 @@ The script outputs JSON data with the following structure:
 {
   "summary": {
     "total": <number>,
+    "triaged": <number>,
+    "triage_percentage": <number>,
+    "time_to_triage_hrs_avg": <number or null>,
+    "time_to_triage_hrs_max": <number or null>,
+    "time_to_close_hrs_avg": <number or null>,
+    "time_to_close_hrs_max": <number or null>,
     "open": {
       "total": <number>,
       "triaged": <number>,
+      "triage_percentage": <number>,
       "time_to_triage_hrs_avg": <number or null>,
       "time_to_triage_hrs_max": <number or null>,
       "open_hrs_avg": <number or null>,
@@ -92,6 +99,7 @@ The script outputs JSON data with the following structure:
     "closed": {
       "total": <number>,
       "triaged": <number>,
+      "triage_percentage": <number>,
       "time_to_triage_hrs_avg": <number or null>,
       "time_to_triage_hrs_max": <number or null>,
       "time_to_close_hrs_avg": <number or null>,
@@ -104,9 +112,16 @@ The script outputs JSON data with the following structure:
     "ComponentName": {
       "summary": {
         "total": <number>,
+        "triaged": <number>,
+        "triage_percentage": <number>,
+        "time_to_triage_hrs_avg": <number or null>,
+        "time_to_triage_hrs_max": <number or null>,
+        "time_to_close_hrs_avg": <number or null>,
+        "time_to_close_hrs_max": <number or null>,
         "open": {
           "total": <number>,
           "triaged": <number>,
+          "triage_percentage": <number>,
           "time_to_triage_hrs_avg": <number or null>,
           "time_to_triage_hrs_max": <number or null>,
           "open_hrs_avg": <number or null>,
@@ -115,6 +130,7 @@ The script outputs JSON data with the following structure:
         "closed": {
           "total": <number>,
           "triaged": <number>,
+          "triage_percentage": <number>,
           "time_to_triage_hrs_avg": <number or null>,
           "time_to_triage_hrs_max": <number or null>,
           "time_to_close_hrs_avg": <number or null>,
@@ -130,26 +146,34 @@ The script outputs JSON data with the following structure:
 }
 ```
 
-**CRITICAL**: The output includes pre-calculated counts:
+**CRITICAL**: The output includes pre-calculated counts and health metrics:
 
 - `summary`: Overall statistics across all components
   - `summary.total`: Total number of regressions
+  - `summary.triaged`: Total number of regressions triaged (open + closed)
+  - **`summary.triage_percentage`**: Percentage of all regressions that have been triaged (KEY HEALTH METRIC)
+  - **`summary.time_to_triage_hrs_avg`**: Overall average hours to triage (combining open and closed, KEY HEALTH METRIC)
+  - `summary.time_to_triage_hrs_max`: Overall maximum hours to triage
+  - **`summary.time_to_close_hrs_avg`**: Overall average hours to close regressions (closed only, KEY HEALTH METRIC)
+  - `summary.time_to_close_hrs_max`: Overall maximum hours to close regressions (closed only)
   - `summary.open.total`: Number of open regressions (where `closed` is null)
   - `summary.open.triaged`: Number of open regressions that have been triaged to a JIRA bug
-  - `summary.open.time_to_triage_hrs_avg`: Average hours from opened to first triage (null if no triaged regressions)
-  - `summary.open.time_to_triage_hrs_max`: Maximum hours from opened to first triage (null if no triaged regressions)
+  - `summary.open.triage_percentage`: Percentage of open regressions triaged
+  - `summary.open.time_to_triage_hrs_avg`: Average hours from opened to first triage (open only)
+  - `summary.open.time_to_triage_hrs_max`: Maximum hours from opened to first triage (open only)
   - `summary.open.open_hrs_avg`: Average hours that open regressions have been open (from opened to current time)
   - `summary.open.open_hrs_max`: Maximum hours that open regressions have been open (from opened to current time)
   - `summary.closed.total`: Number of closed regressions (where `closed` is not null)
   - `summary.closed.triaged`: Number of closed regressions that have been triaged to a JIRA bug
-  - `summary.closed.time_to_triage_hrs_avg`: Average hours from opened to first triage (null if no triaged regressions)
-  - `summary.closed.time_to_triage_hrs_max`: Maximum hours from opened to first triage (null if no triaged regressions)
+  - `summary.closed.triage_percentage`: Percentage of closed regressions triaged
+  - `summary.closed.time_to_triage_hrs_avg`: Average hours from opened to first triage (closed only)
+  - `summary.closed.time_to_triage_hrs_max`: Maximum hours from opened to first triage (closed only)
   - `summary.closed.time_to_close_hrs_avg`: Average hours from opened to closed timestamp (null if no valid data)
   - `summary.closed.time_to_close_hrs_max`: Maximum hours from opened to closed timestamp (null if no valid data)
   - `summary.closed.time_triaged_closed_hrs_avg`: Average hours from first triage to closed (null if no triaged closed regressions)
   - `summary.closed.time_triaged_closed_hrs_max`: Maximum hours from first triage to closed (null if no triaged closed regressions)
 - `components`: Dictionary mapping component names to objects containing:
-  - `summary`: Per-component statistics (total, open, closed, triaged counts, average time to triage)
+  - `summary`: Per-component statistics (includes same fields as overall summary)
   - `open`: Array of open regression objects for that component
   - `closed`: Array of closed regression objects for that component
 
@@ -274,17 +298,25 @@ The script outputs JSON with summaries and regressions grouped by component:
 {
   "summary": {
     "total": 62,
+    "triaged": 59,
+    "triage_percentage": 95.2,
+    "time_to_triage_hrs_avg": 68,
+    "time_to_triage_hrs_max": 240,
+    "time_to_close_hrs_avg": 168,
+    "time_to_close_hrs_max": 480,
     "open": {
       "total": 2,
       "triaged": 1,
+      "triage_percentage": 50.0,
       "time_to_triage_hrs_avg": 48,
-      "time_to_triage_hrs_max": 96,
+      "time_to_triage_hrs_max": 48,
       "open_hrs_avg": 120,
       "open_hrs_max": 200
     },
     "closed": {
       "total": 60,
       "triaged": 58,
+      "triage_percentage": 96.7,
       "time_to_triage_hrs_avg": 72,
       "time_to_triage_hrs_max": 240,
       "time_to_close_hrs_avg": 168,
@@ -297,9 +329,16 @@ The script outputs JSON with summaries and regressions grouped by component:
     "Monitoring": {
       "summary": {
         "total": 15,
+        "triaged": 13,
+        "triage_percentage": 86.7,
+        "time_to_triage_hrs_avg": 68,
+        "time_to_triage_hrs_max": 180,
+        "time_to_close_hrs_avg": 156,
+        "time_to_close_hrs_max": 360,
         "open": {
           "total": 1,
           "triaged": 0,
+          "triage_percentage": 0.0,
           "time_to_triage_hrs_avg": null,
           "time_to_triage_hrs_max": null,
           "open_hrs_avg": 72,
@@ -308,6 +347,7 @@ The script outputs JSON with summaries and regressions grouped by component:
         "closed": {
           "total": 14,
           "triaged": 13,
+          "triage_percentage": 92.9,
           "time_to_triage_hrs_avg": 68,
           "time_to_triage_hrs_max": 180,
           "time_to_close_hrs_avg": 156,
@@ -347,9 +387,16 @@ The script outputs JSON with summaries and regressions grouped by component:
     "etcd": {
       "summary": {
         "total": 20,
+        "triaged": 19,
+        "triage_percentage": 95.0,
+        "time_to_triage_hrs_avg": 84,
+        "time_to_triage_hrs_max": 220,
+        "time_to_close_hrs_avg": 192,
+        "time_to_close_hrs_max": 500,
         "open": {
           "total": 0,
           "triaged": 0,
+          "triage_percentage": 0.0,
           "time_to_triage_hrs_avg": null,
           "time_to_triage_hrs_max": null,
           "open_hrs_avg": null,
@@ -358,6 +405,7 @@ The script outputs JSON with summaries and regressions grouped by component:
         "closed": {
           "total": 20,
           "triaged": 19,
+          "triage_percentage": 95.0,
           "time_to_triage_hrs_avg": 84,
           "time_to_triage_hrs_max": 220,
           "time_to_close_hrs_avg": 192,
@@ -372,9 +420,16 @@ The script outputs JSON with summaries and regressions grouped by component:
     "kube-apiserver": {
       "summary": {
         "total": 27,
+        "triaged": 27,
+        "triage_percentage": 100.0,
+        "time_to_triage_hrs_avg": 58,
+        "time_to_triage_hrs_max": 168,
+        "time_to_close_hrs_avg": 144,
+        "time_to_close_hrs_max": 400,
         "open": {
           "total": 1,
           "triaged": 1,
+          "triage_percentage": 100.0,
           "time_to_triage_hrs_avg": 36,
           "time_to_triage_hrs_max": 36,
           "open_hrs_avg": 96,
@@ -383,6 +438,7 @@ The script outputs JSON with summaries and regressions grouped by component:
         "closed": {
           "total": 26,
           "triaged": 26,
+          "triage_percentage": 100.0,
           "time_to_triage_hrs_avg": 60,
           "time_to_triage_hrs_max": 168,
           "time_to_close_hrs_avg": 144,
