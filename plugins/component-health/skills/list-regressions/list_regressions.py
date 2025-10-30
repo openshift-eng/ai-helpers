@@ -204,6 +204,7 @@ def calculate_summary(regressions: list) -> dict:
     closed_triaged = 0
     closed_triage_times = []
     closed_times = []
+    triaged_to_closed_times = []
     
     # Get current time for calculating open duration
     current_time = datetime.now(timezone.utc)
@@ -265,6 +266,23 @@ def calculate_summary(regressions: list) -> dict:
                 closed_triaged += 1
                 if time_to_triage_hrs is not None and time_to_triage_hrs > 0:
                     closed_triage_times.append(time_to_triage_hrs)
+                
+                # Calculate time from triage to closed
+                if regression.get('closed') and triages:
+                    try:
+                        earliest_triage_time = min(
+                            t['created_at'] for t in triages if t.get('created_at')
+                        )
+                        time_triaged_to_closed_hrs = calculate_hours_between(
+                            earliest_triage_time,
+                            regression['closed']
+                        )
+                        # Only include positive time differences:
+                        if time_triaged_to_closed_hrs > 0:
+                            triaged_to_closed_times.append(time_triaged_to_closed_hrs)
+                    except (ValueError, KeyError, TypeError):
+                        # Skip if timestamp parsing fails
+                        pass
             
             # Calculate time to close
             if regression.get('opened') and regression.get('closed'):
@@ -289,6 +307,8 @@ def calculate_summary(regressions: list) -> dict:
     closed_max_triage_time = max(closed_triage_times) if closed_triage_times else None
     closed_avg_time = round(sum(closed_times) / len(closed_times)) if closed_times else None
     closed_max_time = max(closed_times) if closed_times else None
+    triaged_to_closed_avg_time = round(sum(triaged_to_closed_times) / len(triaged_to_closed_times)) if triaged_to_closed_times else None
+    triaged_to_closed_max_time = max(triaged_to_closed_times) if triaged_to_closed_times else None
     
     return {
         "total": total,
@@ -306,7 +326,9 @@ def calculate_summary(regressions: list) -> dict:
             "time_to_triage_hrs_avg": closed_avg_triage_time,
             "time_to_triage_hrs_max": closed_max_triage_time,
             "time_to_close_hrs_avg": closed_avg_time,
-            "time_to_close_hrs_max": closed_max_time
+            "time_to_close_hrs_max": closed_max_time,
+            "time_triaged_closed_hrs_avg": triaged_to_closed_avg_time,
+            "time_triaged_closed_hrs_max": triaged_to_closed_max_time
         }
     }
 

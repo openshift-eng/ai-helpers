@@ -60,6 +60,8 @@ Diagnostic messages are written to stderr.
 - Maximum open duration: Maximum hours that open regressions have been open (from opened to current time, only for open regressions)
 - Average time to close: Average hours from regression opened to closed timestamp (null if no valid data, only for closed regressions)
 - Maximum time to close: Maximum hours from regression opened to closed timestamp (null if no valid data, only for closed regressions)
+- Average time triaged to closed: Average hours from first triage to closed timestamp (null if no valid data, only for triaged closed regressions)
+- Maximum time triaged to closed: Maximum hours from first triage to closed timestamp (null if no valid data, only for triaged closed regressions)
 
 ## Configuration
 

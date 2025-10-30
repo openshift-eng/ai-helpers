@@ -58,7 +58,9 @@ This command is useful for:
            "time_to_triage_hrs_avg": <number or null>,
            "time_to_triage_hrs_max": <number or null>,
            "time_to_close_hrs_avg": <number or null>,
-           "time_to_close_hrs_max": <number or null>
+           "time_to_close_hrs_max": <number or null>,
+           "time_triaged_closed_hrs_avg": <number or null>,
+           "time_triaged_closed_hrs_max": <number or null>
          }
        },
        "components": {
@@ -79,7 +81,9 @@ This command is useful for:
                "time_to_triage_hrs_avg": <number or null>,
                "time_to_triage_hrs_max": <number or null>,
                "time_to_close_hrs_avg": <number or null>,
-               "time_to_close_hrs_max": <number or null>
+               "time_to_close_hrs_max": <number or null>,
+               "time_triaged_closed_hrs_avg": <number or null>,
+               "time_triaged_closed_hrs_max": <number or null>
              }
            },
            "open": [...],
@@ -111,6 +115,8 @@ This command is useful for:
      - Closed max time to triage: Use `summary.closed.time_to_triage_hrs_max` (maximum hours, null if none triaged)
      - Closed avg time to close: Use `summary.closed.time_to_close_hrs_avg` (average hours from opened to closed)
      - Closed max time to close: Use `summary.closed.time_to_close_hrs_max` (maximum hours from opened to closed)
+     - Closed avg time triaged to closed: Use `summary.closed.time_triaged_closed_hrs_avg` (average hours from triage to closed, only triaged closed regressions)
+     - Closed max time triaged to closed: Use `summary.closed.time_triaged_closed_hrs_max` (maximum hours from triage to closed, only triaged closed regressions)
    - **SECOND**: Display per-component breakdown using `components.*.summary`:
      - For each component, show total, open, and closed counts from its `summary`
      - Identify components with the most open regressions using `summary.open.total`
@@ -143,6 +149,8 @@ The command outputs:
   - Closed maximum time to triage in hours
   - Closed average time to close in hours (from opened to closed timestamp)
   - Closed maximum time to close in hours
+  - Closed average time from triage to closed in hours (only for triaged closed regressions)
+  - Closed maximum time from triage to closed in hours (only for triaged closed regressions)
 - **Regressions by Component**: Details grouped by component from the `components` object
   - Each component maps to an object containing:
     - `summary`: Per-component statistics (total, open, closed counts)
