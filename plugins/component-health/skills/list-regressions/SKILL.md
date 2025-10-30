@@ -89,6 +89,7 @@ The script outputs JSON data with the following structure:
 ```
 
 **CRITICAL**: The output includes a `summary` object with pre-calculated counts:
+
 - `summary.total`: Total number of regressions
 - `summary.open`: Number of open regressions (where `closed` is null)
 - `summary.closed`: Number of closed regressions (where `closed` is not null)
@@ -199,6 +200,7 @@ The script outputs JSON with a summary and list of regressions with the followin
 ```
 
 **Important - Summary Object**:
+
 - The `summary` object contains pre-calculated counts for accuracy
 - **ALWAYS use `summary.total`, `summary.open`, and `summary.closed`** for counts
 - Do NOT attempt to count the `regressions` array yourself
@@ -270,7 +272,7 @@ def fetch_regressions(release: str, opened: Optional[bool] = None,
 
 ## Integration with Commands
 
-This skill is designed to be used by the `/component-health:list-regressions` command, but can also be invoked directly by other commands or scripts that need regression data.
+This skill is designed to be used by the `/component-health:analyze-regressions` command, but can also be invoked directly by other commands or scripts that need regression data.
 
 ## Related Skills
 

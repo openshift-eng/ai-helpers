@@ -8,27 +8,27 @@ The Component Health plugin provides tools for monitoring and analyzing the heal
 
 ## Commands
 
-### `/component-health:list-regressions`
+### `/component-health:analyze-regressions`
 
-Fetch and display regression data for a specific OpenShift release.
+Fetch and analyze regression data for a specific OpenShift release.
 
 **Usage:**
 
 ```
-/component-health:list-regressions <release> [--components comp1 comp2 ...]
+/component-health:analyze-regressions <release> [--components comp1 comp2 ...]
 ```
 
 **Examples:**
 
 ```
-# List all regressions for release 4.17
-/component-health:list-regressions 4.17
+# Analyze all regressions for release 4.17
+/component-health:analyze-regressions 4.17
 
 # Filter by specific components
-/component-health:list-regressions 4.21 --components Monitoring etcd
+/component-health:analyze-regressions 4.21 --components Monitoring etcd
 
 # Filter by single component
-/component-health:list-regressions 4.21 --components "kube-apiserver"
+/component-health:analyze-regressions 4.21 --components "kube-apiserver"
 ```
 
 **Arguments:**
@@ -78,6 +78,9 @@ base_url = f"https://your-actual-api.example.com/api/v1/regressions"
 
 # Install the plugin
 /plugin install component-health@ai-helpers
+
+# Use the command
+/component-health:analyze-regressions 4.21
 ```
 
 ### Manual Installation
@@ -93,10 +96,10 @@ ln -s ai-helpers ~/.cursor/commands/ai-helpers
 
 ### Analyze Release Health
 
-Check the overall health of a release by listing all regressions:
+Check the overall health of a release by analyzing all regressions:
 
 ```
-/component-health:list-regressions 4.17
+/component-health:analyze-regressions 4.17
 ```
 
 Note: Open regressions will have `"closed": null`, while closed regressions will show a timestamp.
@@ -106,7 +109,7 @@ Note: Open regressions will have `"closed": null`, while closed regressions will
 Monitor regressions for specific components:
 
 ```
-/component-health:list-regressions 4.21 --components Monitoring etcd "kube-apiserver"
+/component-health:analyze-regressions 4.21 --components Monitoring etcd "kube-apiserver"
 ```
 
 ### Compare Releases
@@ -114,8 +117,8 @@ Monitor regressions for specific components:
 Compare regression counts across releases to track quality trends:
 
 ```
-/component-health:list-regressions 4.17
-/component-health:list-regressions 4.16
+/component-health:analyze-regressions 4.17
+/component-health:analyze-regressions 4.16
 ```
 
 ## Output Format
