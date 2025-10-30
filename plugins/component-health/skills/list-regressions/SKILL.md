@@ -84,17 +84,30 @@ The script outputs JSON data with the following structure:
     "open": <number>,
     "closed": <number>
   },
-  "regressions": [...]
+  "components": {
+    "ComponentName": {
+      "summary": {
+        "total": <number>,
+        "open": <number>,
+        "closed": <number>
+      },
+      "regressions": [...]
+    }
+  }
 }
 ```
 
-**CRITICAL**: The output includes a `summary` object with pre-calculated counts:
+**CRITICAL**: The output includes pre-calculated counts:
 
-- `summary.total`: Total number of regressions
-- `summary.open`: Number of open regressions (where `closed` is null)
-- `summary.closed`: Number of closed regressions (where `closed` is not null)
+- `summary`: Overall statistics across all components
+  - `summary.total`: Total number of regressions
+  - `summary.open`: Number of open regressions (where `closed` is null)
+  - `summary.closed`: Number of closed regressions (where `closed` is not null)
+- `components`: Dictionary mapping component names to objects containing:
+  - `summary`: Per-component statistics (total, open, closed)
+  - `regressions`: Array of regression objects for that component
 
-**ALWAYS use these summary counts** rather than attempting to count the regressions array yourself. This ensures accuracy even when the output is truncated due to size.
+**ALWAYS use these summary counts** rather than attempting to count the regression arrays yourself. This ensures accuracy even when the output is truncated due to size.
 
 The script automatically simplifies time fields (`closed` and `last_failure`):
 
@@ -109,10 +122,10 @@ Parse this JSON output to extract relevant information for analysis.
 
 Based on the regression data:
 
-1. **Use the summary counts** from the `summary` object (do NOT count the array)
-2. Identify most affected components
+1. **Use the summary counts** from the `summary` and `components.*.summary` objects (do NOT count the arrays)
+2. Identify most affected components using `components.*.summary`
 3. Compare with previous releases
-4. Analyze trends in open vs closed regressions
+4. Analyze trends in open vs closed regressions per component
 5. Create visualizations if needed
 
 ## Error Handling
@@ -168,7 +181,7 @@ python3 plugins/component-health/skills/list-regressions/list_regressions.py \
 
 ## Output Format
 
-The script outputs JSON with a summary and list of regressions with the following structure:
+The script outputs JSON with summaries and regressions grouped by component:
 
 ```json
 {
@@ -177,33 +190,62 @@ The script outputs JSON with a summary and list of regressions with the followin
     "open": 2,
     "closed": 60
   },
-  "regressions": [
-    {
-      "id": 12893,
-      "view": "4.21-main",
-      "release": "4.21",
-      "base_release": "4.18",
-      "component": "Monitoring",
-      "capability": "operator-conditions",
-      "test_id": "...",
-      "test_name": "...",
-      "variants": [...],
-      "opened": "2025-09-26T00:02:51.385944Z",
-      "closed": "2025-09-27T12:04:24.966914Z",
-      "triages": [],
-      "last_failure": "2025-09-25T14:41:17Z",
-      "max_failures": 9,
-      "links": {...}
+  "components": {
+    "Monitoring": {
+      "summary": {
+        "total": 15,
+        "open": 1,
+        "closed": 14
+      },
+      "regressions": [
+        {
+          "id": 12893,
+          "view": "4.21-main",
+          "release": "4.21",
+          "base_release": "4.18",
+          "component": "Monitoring",
+          "capability": "operator-conditions",
+          "test_id": "...",
+          "test_name": "...",
+          "variants": [...],
+          "opened": "2025-09-26T00:02:51.385944Z",
+          "closed": "2025-09-27T12:04:24.966914Z",
+          "triages": [],
+          "last_failure": "2025-09-25T14:41:17Z",
+          "max_failures": 9,
+          "links": {...}
+        }
+      ]
+    },
+    "etcd": {
+      "summary": {
+        "total": 20,
+        "open": 0,
+        "closed": 20
+      },
+      "regressions": [...]
+    },
+    "kube-apiserver": {
+      "summary": {
+        "total": 27,
+        "open": 1,
+        "closed": 26
+      },
+      "regressions": [...]
     }
-  ]
+  }
 }
 ```
 
-**Important - Summary Object**:
+**Important - Summary Objects**:
 
-- The `summary` object contains pre-calculated counts for accuracy
-- **ALWAYS use `summary.total`, `summary.open`, and `summary.closed`** for counts
-- Do NOT attempt to count the `regressions` array yourself
+- The `summary` object contains overall pre-calculated counts for accuracy
+- Each component in the `components` object has its own `summary` with per-component counts
+- The `components` object maps component names (sorted alphabetically) to objects containing:
+  - `summary`: Statistics for this component (total, open, closed)
+  - `regressions`: Array of regression objects for that component
+- **ALWAYS use `summary.*` and `components.*.summary.*`** for counts
+- Do NOT attempt to count the `components.*.regressions` arrays yourself
 
 **Note**: Time fields are simplified from the API response:
 

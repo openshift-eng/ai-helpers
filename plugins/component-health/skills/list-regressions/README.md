@@ -26,12 +26,31 @@ python3 list_regressions.py --release 4.21 --components "kube-apiserver"
 
 ## Output
 
-The script outputs JSON data containing regression information to stdout. Diagnostic messages are written to stderr.
+The script outputs JSON data with the following structure to stdout:
 
-**Note**: Time fields are automatically simplified:
+```json
+{
+  "summary": {...},
+  "components": {
+    "ComponentName": {
+      "summary": {...},
+      "regressions": [...]
+    }
+  }
+}
+```
 
-- `closed`: Shows timestamp string if closed (e.g., `"2025-09-27T12:04:24.966914Z"`), otherwise `null`
-- `last_failure`: Shows timestamp string if valid (e.g., `"2025-09-25T14:41:17Z"`), otherwise `null`
+Diagnostic messages are written to stderr.
+
+**Note**:
+
+- Regressions are grouped by component name (sorted alphabetically)
+- Each component maps to an object containing:
+  - `summary`: Per-component statistics (total, open, closed)
+  - `regressions`: Array of regression objects
+- Time fields are automatically simplified:
+  - `closed`: Shows timestamp string if closed (e.g., `"2025-09-27T12:04:24.966914Z"`), otherwise `null`
+  - `last_failure`: Shows timestamp string if valid (e.g., `"2025-09-25T14:41:17Z"`), otherwise `null`
 
 ## Configuration
 

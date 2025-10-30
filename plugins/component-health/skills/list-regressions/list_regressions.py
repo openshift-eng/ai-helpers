@@ -122,25 +122,53 @@ def simplify_time_fields(data: list) -> list:
     return data
 
 
-def calculate_summary(regressions: list) -> dict:
+def group_by_component(data: list) -> dict:
     """
-    Calculate summary statistics for regressions.
-
+    Group regressions by component name.
+    
     Args:
-        regressions: List of regression dictionaries
-
+        data: List of regression dictionaries
+    
     Returns:
-        Dictionary containing summary statistics
+        Dictionary mapping component names to objects containing regression lists
     """
-    total = len(regressions)
-    open_count = len([r for r in regressions if r.get('closed') is None])
-    closed_count = len([r for r in regressions if r.get('closed') is not None])
+    components = {}
+    
+    for regression in data:
+        component = regression.get('component', 'Unknown')
+        if component not in components:
+            components[component] = {
+                "regressions": []
+            }
+        components[component]["regressions"].append(regression)
+    
+    # Sort component names for consistent output
+    return dict(sorted(components.items()))
 
-    return {
-        "total": total,
-        "open": open_count,
-        "closed": closed_count
-    }
+
+def add_component_summaries(components: dict) -> dict:
+    """
+    Add summary statistics to each component object.
+    
+    Args:
+        components: Dictionary mapping component names to objects containing regression lists
+    
+    Returns:
+        Dictionary with summaries added to each component
+    """
+    for component, component_data in components.items():
+        regressions = component_data["regressions"]
+        total = len(regressions)
+        open_count = len([r for r in regressions if r.get('closed') is None])
+        closed_count = len([r for r in regressions if r.get('closed') is not None])
+        
+        component_data["summary"] = {
+            "total": total,
+            "open": open_count,
+            "closed": closed_count
+        }
+    
+    return components
 
 
 def format_output(data: dict) -> str:
@@ -148,10 +176,14 @@ def format_output(data: dict) -> str:
     Format the regression data for output.
 
     Args:
-        data: Dictionary containing regression data (should have 'summary' and 'regressions' keys)
+        data: Dictionary containing regression data with keys:
+            - 'summary': Overall statistics (total, open, closed)
+            - 'components': Dictionary mapping component names to objects with:
+                - 'summary': Per-component statistics
+                - 'regressions': List of regression objects
 
     Returns:
-        Formatted string output
+        Formatted JSON string output
     """
     return json.dumps(data, indent=2)
 
@@ -202,13 +234,31 @@ Examples:
         if isinstance(regressions, list):
             regressions = simplify_time_fields(regressions)
 
-        # Calculate summary statistics
-        summary = calculate_summary(regressions) if isinstance(regressions, list) else {}
+        # Group regressions by component
+        if isinstance(regressions, list):
+            components = group_by_component(regressions)
+        else:
+            components = {}
 
-        # Construct output with summary and regressions
+        # Add summaries to each component
+        if isinstance(components, dict):
+            components = add_component_summaries(components)
+
+        # Calculate overall summary statistics
+        total_count = sum(len(comp_data["regressions"]) for comp_data in components.values())
+        total_open = sum(len([r for r in comp_data["regressions"] if r.get('closed') is None]) for comp_data in components.values())
+        total_closed = sum(len([r for r in comp_data["regressions"] if r.get('closed') is not None]) for comp_data in components.values())
+        
+        overall_summary = {
+            "total": total_count,
+            "open": total_open,
+            "closed": total_closed
+        }
+
+        # Construct output with summary and components
         output_data = {
-            "summary": summary,
-            "regressions": regressions
+            "summary": overall_summary,
+            "components": components
         }
 
         # Format and print output
