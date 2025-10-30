@@ -1,0 +1,8 @@
+{
+  "name": "learning",
+  "description": "Educational commands for understanding code and concepts through first principles",
+  "version": "0.0.1",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}
