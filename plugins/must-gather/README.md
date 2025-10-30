@@ -18,7 +18,7 @@ This plugin provides tools to analyze must-gather data collected from OpenShift 
 
 ### Analysis Scripts
 
-All scripts located in `skills/must-gather-analyzer/scripts/`:
+All scripts located in `plugins/must-gather/skills/must-gather-analyzer/scripts/`:
 
 #### `analyze_clusterversion.py`
 Analyzes cluster version, update status, and capabilities.
@@ -107,6 +107,57 @@ Shows:
 - OVN pod health
 - PodNetworkConnectivityCheck results
 
+#### `analyze_ovn_dbs.py`
+Analyzes OVN Northbound and Southbound databases from clusters using `ovsdb-tool`.
+
+```bash
+# Standard analysis
+./analyze_ovn_dbs.py <must-gather-path>
+
+# Query mode (raw OVSDB queries)
+./analyze_ovn_dbs.py <must-gather-path> --query '["OVN_Northbound", {...}]'
+```
+
+**Requirements:**
+- `ovsdb-tool` must be installed (`openvswitch` package)
+- Database files collected in `network_logs/ovnk_database_store.tar.gz`
+
+**Output per node:**
+```
+================================================================================
+Node: worker-node.internal
+Pod:  ovnkube-node-79cbh
+================================================================================
+  Logical Switches:      4
+  Logical Switch Ports:  55
+  ACLs:                  7
+  Logical Routers:       2
+
+  POD LOGICAL SWITCH PORTS (43):
+  NAMESPACE                                POD                                           IP
+  ------------------------------------------------------------------------------------------------------------------------
+  openshift-apiserver                      apiserver-7f4f77f688-s6t7b                    10.128.0.4
+  openshift-authentication                 oauth-openshift-96688d9f8-v2l2j               10.128.0.6
+  ...
+```
+
+**Features:**
+- Automatically maps ovnkube pods to nodes by reading pod specifications
+- Per-node logical network topology
+- Filter analysis to specific nodes with `--node` flag
+- **Query Mode**: Run custom OVSDB JSON queries for specific data extraction
+- Claude can construct OVSDB queries based on natural language requests
+- Logical switches and their ports
+- Pod logical switch ports with namespace, pod name, and IP addresses
+- Access Control Lists (ACLs) with priorities, directions, and match rules
+- Logical routers and their ports
+
+**Use Cases:**
+- Verify pod network configuration and IP assignments
+- Troubleshoot connectivity issues by reviewing ACL rules
+- Understand logical network topology across zones
+- Audit network policies translated to OVN ACLs
+
 #### `analyze_events.py`
 Analyzes cluster events sorted by last occurrence.
 
@@ -177,11 +228,11 @@ openshift-monitoring           prometheus-data-prometheus-0        Bound      pv
 
 ### Slash Commands
 
-#### `/analyze-mg [path]`
+#### `/must-gather:analyze [path] [component]`
 Runs comprehensive analysis of must-gather data.
 
 ```
-/analyze-mg ./must-gather.local.123456789
+/must-gather:analyze ./must-gather.local.123456789
 ```
 
 Executes all analysis scripts and provides:
@@ -189,6 +240,37 @@ Executes all analysis scripts and provides:
 - Critical issues and warnings
 - Actionable recommendations
 - Suggested logs to review
+
+Can also analyze specific components:
+```
+/must-gather:analyze ./must-gather.local.123456789 ovn databases
+```
+
+#### `/must-gather:ovn-dbs [path] [--node <node-name>]`
+Analyzes OVN databases from must-gather.
+
+```
+# Analyze all nodes
+/must-gather:ovn-dbs ./must-gather.local.123456789
+
+# Analyze specific node
+/must-gather:ovn-dbs ./must-gather.local.123456789 --node ip-10-0-26-145
+
+# Analyze worker nodes (partial match)
+/must-gather:ovn-dbs ./must-gather.local.123456789 --node worker
+
+# Run custom OVSDB query (Claude constructs the JSON)
+/must-gather:ovn-dbs ./must-gather.local.123456789 --query '["OVN_Northbound", {"op":"select", "table":"ACL", "where":[["priority", ">", 1000]], "columns":["priority","match"]}]'
+```
+
+Provides detailed analysis of:
+- Logical network topology per node (automatically mapped from pods)
+- Pod logical switch ports with IPs
+- ACL rules and priorities
+- Logical routers and switches
+- Node filtering with partial name matching
+
+**Requirements:** `ovsdb-tool` installed
 
 ## Installation
 
