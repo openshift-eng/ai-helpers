@@ -8,6 +8,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Git](#git-plugin)
 - [Hello World](#hello-world-plugin)
 - [Jira](#jira-plugin)
+- [Lvms](#lvms-plugin)
 - [Must Gather](#must-gather-plugin)
 - [Olm](#olm-plugin)
 - [Openshift](#openshift-plugin)
@@ -81,6 +82,15 @@ A plugin to automate tasks with Jira
 - **`/jira:status-rollup` `issue-id [--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD]`** - Generate a status rollup comment for any JIRA issue based on all child issues and a given date range
 
 See [plugins/jira/README.md](plugins/jira/README.md) for detailed documentation.
+
+### Lvms Plugin
+
+LVMS (Logical Volume Manager Storage) plugin for troubleshooting and debugging storage issues
+
+**Commands:**
+- **`/lvms:analyze` `[must-gather-path|--live] [--component storage|operator|volumes]`** - Comprehensive LVMS troubleshooting - analyzes LVMCluster, volume groups, PVCs, and storage issues on live clusters or must-gather
+
+See [plugins/lvms/README.md](plugins/lvms/README.md) for detailed documentation.
 
 ### Must Gather Plugin
 
