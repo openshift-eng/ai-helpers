@@ -6,17 +6,19 @@ Claude Code configuration management for enhanced session awareness and customiz
 
 This plugin provides tools to customize your Claude Code experience with:
 
-- **Session Prompt Hook**: Captures every prompt you submit, enabling context-aware features
-- **Enhanced Status Line**: Displays rich session information including your recent prompt
+- **Enhanced Status Line**: Displays rich session information including Claude Code version, model, git branch, and output style
+- **Session Prompt Hook**: Optional hook that captures prompts to display in the status line (the status line works fine without it)
 
-Together, these tools provide better visibility into your development session and help maintain context across long interactions.
+The status line provides useful visibility into your development session.
+The prompt hook adds minimal extra context by showing your last prompt in the status line.
 
 ## Commands
 
 ### `/config:install-hooks`
 
-Installs the session prompt capture hook that saves every prompt to a session-specific file.
-This enables the status line to display your most recent prompt for quick context reference.
+Installs the session prompt capture hook that saves prompts to a session-specific file.
+This is specifically for use with the status line to display your most recent prompt.
+The hook has no other functionality.
 
 See [commands/install-hooks.md](commands/install-hooks.md) for full documentation.
 
@@ -27,7 +29,7 @@ Installs a custom status line that displays:
 - Active model
 - Git branch or directory name
 - Output style
-- Your most recent prompt (truncated)
+- Your most recent prompt (only if the prompt hook is installed)
 
 See [commands/install-status-line.md](commands/install-status-line.md) for full documentation.
 
@@ -39,18 +41,24 @@ See [commands/install-status-line.md](commands/install-status-line.md) for full 
 
 ## Quick Setup
 
-To get the complete experience with both prompt tracking and enhanced status line:
+Minimal setup (recommended):
 
 ```bash
-# Install the prompt hook
-/config:install-hooks
-
 # Install the status line
 /config:install-status-line
 
 # Configure Claude Code (manual step)
-claude code config hooks --add UserPromptSubmit ~/.claude/session-prompt-hook.sh
 claude code config status-line ~/.claude/status_line.sh
+```
+
+Optional: Add prompt display to status line:
+
+```bash
+# Install the prompt hook (optional)
+/config:install-hooks
+
+# Configure the hook (manual step)
+claude code config hooks --add UserPromptSubmit ~/.claude/session-prompt-hook.sh
 ```
 
 ## Requirements
@@ -66,9 +74,10 @@ claude code config status-line ~/.claude/status_line.sh
 
 ## How It Works
 
-1. **Prompt Hook**: When you submit a prompt, the hook script captures it to `/tmp/prompts-{session_id}.txt`
-2. **Status Line**: Each time the status line renders, it reads the latest prompt from that file
-3. **Context Awareness**: You can always see your last prompt in the status line, helping maintain context during long sessions
+1. **Status Line**: Displays session information (version, model, branch, output style) on every prompt
+2. **Prompt Hook** (optional): If installed, captures prompts to `/tmp/prompts-{session_id}.txt` so the status line can display your last prompt
+
+The status line works independently and provides useful context without the hook.
 
 ## Example Status Line
 
