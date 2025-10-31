@@ -24,9 +24,12 @@ The `component-health:analyze-regressions` command grades component health for a
 This command is useful for:
 
 - **Grading component health** using regression management metrics
-- **Identifying components** that need attention in their regression handling
+- **Identifying components** that need help with their regression handling
 - **Tracking triage and resolution efficiency**
 - **Generating component quality scorecards**
+
+Grading is subjective and not meant to be a critique of team performance. This is intended to help identify
+where help is needed and track progress as we try to improve our regression response rates.
 
 ## Implementation
 
@@ -54,7 +57,7 @@ This command is useful for:
      - Only applied for GA'd releases
      - Excludes regressions opened after GA (post-release regressions, often not monitored/triaged)
      - For in-development releases (null GA date), no end date filtering is applied
-   - **Always pass `--short` flag** to exclude regression data from response (only include summaries)
+   - **Always pass `--short` flag** to exclude regression data from response (only include summaries, otherwise we get truncation problems)
 
 4. **Parse Output**: Process the JSON output from the script
 
@@ -137,6 +140,12 @@ This command is useful for:
 
 5. **Grade Component Health**: Calculate and present health scores based on triage metrics
 
+   **IMPORTANT - Closed Regression Triage**:
+
+   - **DO NOT recommend retroactively triaging closed regressions** - the tooling does not support this
+   - When identifying untriaged regressions that need attention, **only consider open regressions** (`summary.open.total - summary.open.triaged`)
+   - Closed regression triage percentages are provided for historical analysis only, not as actionable items
+
    - **FIRST**: Display overall health grade from the `summary` object:
 
      - **Triage Coverage**: Use `summary.triage_percentage` - percentage of all regressions that have been triaged
@@ -176,6 +185,7 @@ This command is useful for:
      - Can provide links to Sippy dashboards for drill-down analysis
 
 6. **Error Handling**: Handle common error scenarios
+
    - Network errors (connectivity issues)
    - Invalid release format
    - API errors (404, 500, etc.)
@@ -236,13 +246,19 @@ Highlighted list of components with:
 - High open regression counts
 - High overall regression counts throughout the release
 
+**IMPORTANT**: When listing specific untriaged regressions that need action:
+
+- **Only list OPEN untriaged regressions** - these are actionable
+- **Do NOT recommend triaging closed regressions** - the tooling does not support retroactive triage
+- Calculate actionable untriaged count as: `components.*.summary.open.total - components.*.summary.open.triaged`
+
 ### Detailed Metrics (Optional)
 
 If requested, include:
 
 - Time to close metrics (for closed regressions)
 - Age of open regressions
-- List of untriaged regressions by component
+- List of **open** untriaged regressions by component (do NOT list closed untriaged regressions as these cannot be retroactively triaged)
 - Links to Sippy dashboards
 
 **IMPORTANT - Accurate Counting**:
@@ -307,7 +323,7 @@ If requested, include:
 
    - Detailed triage metrics
    - Open vs closed regression breakdown
-   - List of untriaged regressions if any
+   - Count of open untriaged regressions that need attention (if any)
 
 ## Arguments
 

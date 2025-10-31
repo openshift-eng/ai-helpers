@@ -1,6 +1,6 @@
 # Component Health Plugin
 
-Grade component health based on regression triage metrics for OpenShift releases.
+Grade component health based on various metrics for OpenShift releases.
 
 ## Overview
 
@@ -8,7 +8,7 @@ The Component Health plugin evaluates how well OpenShift components are managing
 
 1. **Triage Coverage**: What percentage of regressions have been triaged to JIRA bugs
 2. **Triage Timeliness**: How quickly regressions are being triaged
-3. **Resolution Speed**: How quickly closed regressions are being resolved
+3. **Resolution Speed**: How quickly regressions are being resolved
 
 These metrics help identify components that need attention in their regression management and track overall quality trends.
 
@@ -101,17 +101,6 @@ Returns GA dates, development start dates, and capabilities for the specified re
 1. **Python 3.6+**: Required to run the regression analysis scripts
 2. **Network Access**: Required to reach the component health API
 
-### Configuration
-
-Before using the plugin, configure the API endpoint:
-
-1. Open `plugins/component-health/skills/list-regressions/list_regressions.py`
-2. Update the `base_url` variable with your actual component health API endpoint:
-
-```python
-base_url = f"https://your-actual-api.example.com/api/v1/regressions"
-```
-
 ## Installation
 
 ### Via Marketplace (Recommended)
@@ -143,7 +132,7 @@ ln -s ai-helpers ~/.cursor/commands/ai-helpers
 Get a health scorecard for a release based on triage metrics:
 
 ```
-/component-health:analyze-regressions 4.17
+/component-health:analyze-regressions 4.20
 ```
 
 Output includes:
