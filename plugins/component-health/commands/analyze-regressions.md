@@ -182,6 +182,14 @@ This command is useful for:
    - Empty results
    - No matches for component filter
 
+7. **Offer HTML Report Generation** (AFTER displaying the text report):
+   - Ask the user if they would like an interactive HTML report
+   - If yes, generate an HTML report using the template
+   - Template location: `plugins/component-health/skills/analyze-regressions/report_template.html`
+   - Save report to: `.work/component-health-{release}/report.html`
+   - Open the report in the user's default browser using `open` command (macOS) or equivalent
+   - Display the file path to the user
+
 ## Return Value
 
 The command outputs a **Component Health Report** focused on triage metrics:
