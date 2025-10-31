@@ -125,6 +125,36 @@ See [commands/generate-test-plan.md](commands/generate-test-plan.md) for full do
 
 ---
 
+### `/jira:query-qa-assignment` - Query QA Assignment Coverage
+
+Find Features, Epics, and Stories missing QA assignments for a specific OpenShift version. Analyzes QA Contact assignments on Features and Epics, and identifies unassigned QE testing stories.
+
+**Usage:**
+```bash
+# Single feature label
+/jira:query-qa-assignment --feature-label CORS --target-version openshift-4.21
+
+# Multiple feature labels
+/jira:query-qa-assignment --feature-label CORS --feature-label SPLAT --target-version 4.21
+
+# With epic project filter
+/jira:query-qa-assignment --feature-label CORS --target-version 4.21 --epic-project CORS --epic-project SPLAT
+
+# Multiple labels and projects
+/jira:query-qa-assignment --feature-label CORS --feature-label NetworkEdge --target-version openshift-4.22 --epic-project CORS --epic-project SPLAT
+```
+
+**Key Features:**
+- Multi-label support for filtering Features
+- Version-specific analysis
+- Hierarchical tracking: Features → Epics → Stories
+- Identifies missing QA Contacts and unassigned QE stories
+- Generates comprehensive coverage reports with statistics
+
+See [commands/query-qa-assignment.md](commands/query-qa-assignment.md) for full documentation.
+
+---
+
 ### `/jira:create` - Create Jira Issues
 
 Create well-formed Jira issues (stories, epics, features, tasks, bugs) with intelligent defaults, interactive guidance, and validation. The command applies project-specific conventions, suggests components based on context, and provides templates for consistent issue creation.
