@@ -395,6 +395,12 @@
           "argument_hint": "<dependency> [version] [--create-jira] [--create-pr]"
         },
         {
+          "name": "cluster-health-check",
+          "description": "Perform comprehensive health check on OpenShift cluster and report issues",
+          "synopsis": "/openshift:cluster-health-check [--verbose] [--output-format json|text]",
+          "argument_hint": "\"[--verbose] [--output-format]\""
+        },
+        {
           "name": "create-cluster",
           "description": "Extract OpenShift installer from release image and create an OCP cluster",
           "synopsis": "/openshift:create-cluster [release-image] [platform] [options]",

@@ -116,6 +116,7 @@ OpenShift development utilities and helpers
 
 **Commands:**
 - **`/openshift:bump-deps` `<dependency> [version] [--create-jira] [--create-pr]`** - Bump dependencies in OpenShift projects with automated analysis and PR creation
+- **`/openshift:cluster-health-check` `"[--verbose] [--output-format]"`** - Perform comprehensive health check on OpenShift cluster and report issues
 - **`/openshift:create-cluster` `"[release-image] [platform] [options]"`** - Extract OpenShift installer from release image and create an OCP cluster
 - **`/openshift:destroy-cluster` `"[install-dir]"`** - Destroy an OpenShift cluster created by create-cluster command
 - **`/openshift:new-e2e-test` `[test-specification]`** - Write and validate new OpenShift E2E tests using Ginkgo framework
