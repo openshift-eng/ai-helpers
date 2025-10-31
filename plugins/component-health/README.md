@@ -59,6 +59,27 @@ Python script for fetching component health regression data from an API.
 - `SKILL.md`: Detailed implementation guide for AI agents
 - `README.md`: User-facing documentation
 
+### get-release-dates
+
+Python script for fetching OpenShift release dates and metadata from Sippy.
+
+**Location:** `plugins/component-health/skills/get-release-dates/`
+
+**Key Files:**
+
+- `get_release_dates.py`: Main script for fetching release information
+- `SKILL.md`: Detailed implementation guide for AI agents
+- `README.md`: User-facing documentation
+
+**Usage:**
+
+```bash
+python3 plugins/component-health/skills/get-release-dates/get_release_dates.py \
+  --release 4.21
+```
+
+Returns GA dates, development start dates, and capabilities for the specified release.
+
 ## Setup
 
 ### Prerequisites
