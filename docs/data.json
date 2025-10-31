@@ -93,7 +93,7 @@
         },
         {
           "name": "query-qa-assignment",
-          "description": "Find Epic and Story issues without QA assignments for a specific version",
+          "description": "Find Feature, Epic, and Story issues without QA assignments for a specific OpenShift version",
           "synopsis": "/jira:query-qa-assignment --feature-label <label> [--feature-label <label2>] --target-version <version> [--epic-project <project>]",
           "argument_hint": "--feature-label <label> [--feature-label <label2>] --target-version <version> [--epic-project <project>]"
         },
