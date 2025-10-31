@@ -68,6 +68,11 @@
       "name": "must-gather",
       "source": "./plugins/must-gather",
       "description": "A plugin to analyze and report on must-gather data"
+    },
+    {
+      "name": "testing",
+      "source": "./plugins/testing",
+      "description": "Comprehensive test case generation and QA automation tools"
     }
   ]
 }

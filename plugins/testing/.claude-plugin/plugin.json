@@ -1,0 +1,8 @@
+{
+  "name": "testing",
+  "description": "Comprehensive test case generation and QA automation tools",
+  "version": "0.0.1",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}
