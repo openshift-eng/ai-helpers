@@ -177,28 +177,43 @@ Consequence: "control-plane-operator enters a crash loop"
 
 **Objective**: Find all GitHub PR URLs associated with this bug.
 
-**Sources to check**:
+**Sources to check** (in priority order):
 
-1. **Issue Links** (via MCP response):
-   - Iterate through `issuelinks` array
-   - For each link, check if it contains a GitHub URL
-   - Extract URLs matching pattern: `https://github\.com/[\w-]+/[\w-]+/pull/\d+`
+1. **Remote Links** (Primary source - web links in Jira):
+   - Check the Jira issue response for web links
+   - Field name varies: `remotelinks`, or `issuelinks` with outward GitHub PR links
+   - Extract GitHub PR URLs matching pattern: `https://github\.com/[\w-]+/[\w-]+/pull/\d+`
+   - **IMPORTANT**: Never use `gh issue view {JIRA-KEY}` - Jira keys are NOT GitHub issue numbers
 
-2. **Remote Links** (via MCP response):
-   - Some Jira instances store web links separately
-   - Check for fields like `remotelinks` or similar
-   - Extract GitHub PR URLs
-
-3. **Bug Description**:
+2. **Bug Description**:
    - Scan the `description` field for GitHub PR URLs
    - Use regex: `https://github\.com/([\w-]+)/([\w-]+)/pull/(\d+)`
-   - Extract all matches
+   - Extract and parse all matches
+   - **IMPORTANT**: Only extract full PR URLs, not issue references
 
-4. **Bug Comments**:
+3. **Bug Comments**:
    - Iterate through `comment.comments` array
    - For each comment, scan `body` field for GitHub PR URLs
    - Use same regex pattern
    - Extract all matches
+
+4. **Search by bug number** (Fallback if no PR URLs found):
+   - If no PRs found via links, search GitHub for PRs mentioning the bug
+   - **For OCPBUGS**: Try common OpenShift repos:
+     ```bash
+     for repo in "openshift/hypershift" "openshift/cluster-api-provider-aws" "openshift/origin"; do
+       gh pr list --repo "$repo" --search "{issue-key} in:title,body" --state all --limit 10 --json number,url,title
+     done
+     ```
+   - Display found PRs and ask user to confirm which are relevant:
+     ```
+     Found PRs mentioning {issue-key}:
+     1. openshift/hypershift#4567 - Fix panic when CloudProviderConfig.Subnet is undefined
+     2. openshift/hypershift#4568 - Add tests for Subnet validation
+
+     Which PRs should be included in the release note? (enter numbers separated by commas, or 'all')
+     ```
+   - **IMPORTANT**: Never use `gh issue view {JIRA-KEY}` - this will fail
 
 **URL Parsing**:
 
@@ -215,13 +230,13 @@ For each found URL `https://github.com/openshift/hypershift/pull/4567`:
 
 **Validation**:
 
-- If no PRs found:
+- If no PRs found after all attempts:
   ```
   No GitHub PRs found linked to {issue-key}.
 
   Please link at least one PR to generate release notes.
 
-  How to link PRs:
+  How to link PRs in Jira:
   1. Edit the bug in Jira
   2. Add a web link to the GitHub PR URL
   3. Or mention the PR URL in a comment
