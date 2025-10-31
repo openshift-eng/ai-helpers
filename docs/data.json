@@ -1202,6 +1202,28 @@
       "name": "gwapi",
       "skills": [],
       "version": "0.0.1"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "[--project PROJECT] [--component COMPONENT] [--week-offset N] [--batch-size N]",
+          "description": "Generate comprehensive weekly team activity reports from Jira",
+          "name": "weekly",
+          "synopsis": "/report-writer:weekly --project CLID [--component oc-mirror] [--week-offset -1] [--batch-size 5]"
+        }
+      ],
+      "description": "A plugin to generate reports",
+      "has_readme": true,
+      "hooks": [],
+      "name": "report-writer",
+      "skills": [
+        {
+          "description": "Generate comprehensive weekly team activity reports from Jira with complete issue data, changelogs, and activity filtering",
+          "id": "weekly-report",
+          "name": "Weekly Report Generation"
+        }
+      ],
+      "version": "0.0.1"
     }
   ]
 }
