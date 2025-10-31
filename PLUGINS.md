@@ -30,6 +30,7 @@ See [plugins/agendas/README.md](plugins/agendas/README.md) for detailed document
 Miscellaenous tools for working with OpenShift CI
 
 **Commands:**
+- **`/ci:add-debug-wait` `<workflow-or-job-name>`** - Add a wait step to a CI workflow for debugging test failures
 - **`/ci:ask-sippy` `[question]`** - Ask the Sippy AI agent questions about OpenShift CI payloads, jobs, and test results
 - **`/ci:query-job-status` `<execution-id>`** - Query the status of a gangway job execution by ID
 - **`/ci:trigger-periodic` `<job-name> [ENV_VAR=value ...]`** - Trigger a periodic gangway job with optional environment variable overrides
