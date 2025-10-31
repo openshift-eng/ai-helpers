@@ -68,6 +68,11 @@
       "name": "must-gather",
       "source": "./plugins/must-gather",
       "description": "A plugin to analyze and report on must-gather data"
+    },
+    {
+      "name": "meet",
+      "source": "./plugins/meet",
+      "description": "A plugin to help find time and schedule meetings on your Google Calendar"
     }
   ]
 }

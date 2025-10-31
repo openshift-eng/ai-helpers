@@ -457,6 +457,27 @@
         }
       ],
       "has_readme": true
+    },
+    {
+      "name": "meet",
+      "description": "A plugin to help find time and schedule meetings on your Google Calendar",
+      "version": "0.0.1",
+      "commands": [
+        {
+          "name": "create-event",
+          "description": "Create a new event on Google Calendar.",
+          "synopsis": "/meet:create-event <natural_language_prompt_for_the_event>",
+          "argument_hint": "<natural_language_prompt_for_the_event>"
+        },
+        {
+          "name": "find-time",
+          "description": "Find overlapping free time to meet with one or more people.",
+          "synopsis": "/meet:find-time <email_addresses> [duration_in_minutes] [days_ahead]",
+          "argument_hint": "<email_addresses> [duration_in_minutes] [days_ahead]"
+        }
+      ],
+      "skills": [],
+      "has_readme": true
     }
   ]
 }
