@@ -55,7 +55,7 @@ Before using this command, ensure you have:
 2. **Cloud Provider Credentials** configured for your chosen platform:
    - **AWS**: `~/.aws/credentials` configured with appropriate permissions
    - **Azure**: Azure CLI authenticated (`az login`)
-   - **GCP**: Service account key configured
+   - **GCP**: The command will guide you through service account setup (either using an existing service account JSON or creating a new one)
    - **vSphere**: vCenter credentials
    - **OpenStack**: clouds.yaml configured
 
@@ -242,6 +242,7 @@ Prompt the user for the following information (if not already provided as argume
      - Region (e.g., centralus, eastus)
      - Cloud name (e.g., AzurePublicCloud)
    - For GCP:
+     - Follow the **GCP Service Account Setup** (see Step 5.2a below)
      - Project ID
      - Region (e.g., us-central1)
    - For other platforms: collect required platform-specific info
@@ -259,6 +260,111 @@ Prompt the user for the following information (if not already provided as argume
    - Do NOT use default paths like `~/pull-secret.txt` or `~/Downloads/pull-secret.txt`
    - Prompt: "Please provide the path to your pull secret file (download from https://console.redhat.com/openshift/install/pull-secret):"
    - Read contents of pull secret file from the provided path
+
+**Step 5.2a: GCP Service Account Setup** (Only for GCP platform)
+
+If the platform is GCP, the installer requires a service account JSON file with appropriate permissions. Present the user with two options:
+
+1. **Use an existing service account JSON file**
+2. **Create a new service account**
+
+**Ask the user**: "Do you want to use an existing service account JSON file or create a new one?"
+
+**Option 1: Use Existing Service Account**
+
+If the user chooses to use an existing service account:
+- Prompt: "Please provide the path to your GCP service account JSON file:"
+- Store the path as `$GCP_SERVICE_ACCOUNT_PATH`
+- Verify the file exists and is valid JSON
+- Set the environment variable:
+  ```bash
+  export GOOGLE_APPLICATION_CREDENTIALS="$GCP_SERVICE_ACCOUNT_PATH"
+  ```
+
+**Option 2: Create New Service Account**
+
+If the user chooses to create a new service account:
+
+1. **Verify gcloud CLI is installed**:
+   ```bash
+   if ! command -v gcloud &> /dev/null; then
+       echo "Error: 'gcloud' CLI not found. Please install the Google Cloud SDK."
+       echo "Visit: https://cloud.google.com/sdk/docs/install"
+       exit 1
+   fi
+   ```
+
+2. **Prompt for Kerberos ID**:
+   - Ask: "Please provide your Kerberos ID (e.g., jsmith):"
+   - Store as `$KERBEROS_ID`
+   - Validate it's not empty
+
+3. **Set service account name**:
+   ```bash
+   SERVICE_ACCOUNT_NAME="${KERBEROS_ID}-development"
+   ```
+
+4. **Create the service account**:
+   ```bash
+   echo "Creating service account: $SERVICE_ACCOUNT_NAME"
+   gcloud iam service-accounts create "$SERVICE_ACCOUNT_NAME" --display-name="$SERVICE_ACCOUNT_NAME"
+   ```
+
+5. **Extract service account details**:
+   ```bash
+   # Get service account information
+   SERVICE_ACCOUNT_JSON="$(gcloud iam service-accounts list --format json | jq -r '.[] | select(.name | match("/\(env.SERVICE_ACCOUNT_NAME)@"))')"
+   SERVICE_ACCOUNT_EMAIL="$(jq -r .email <<< "$SERVICE_ACCOUNT_JSON")"
+   PROJECT_ID="$(jq -r .projectId <<< "$SERVICE_ACCOUNT_JSON")"
+
+   echo "Service Account Email: $SERVICE_ACCOUNT_EMAIL"
+   echo "Project ID: $PROJECT_ID"
+   ```
+
+6. **Grant required permissions**:
+   ```bash
+   echo "Granting IAM roles to service account..."
+
+   while IFS= read -r ROLE_TO_ADD ; do
+      echo "Adding role: $ROLE_TO_ADD"
+      gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+         --condition="None" \
+         --member="serviceAccount:$SERVICE_ACCOUNT_EMAIL" \
+         --role="$ROLE_TO_ADD"
+   done << 'END_OF_ROLES'
+   roles/compute.admin
+   roles/iam.securityAdmin
+   roles/iam.serviceAccountAdmin
+   roles/iam.serviceAccountKeyAdmin
+   roles/iam.serviceAccountUser
+   roles/storage.admin
+   roles/dns.admin
+   roles/compute.loadBalancerAdmin
+   roles/iam.roleAdmin
+   END_OF_ROLES
+
+   echo "All roles granted successfully."
+   ```
+
+7. **Create and download service account key**:
+   ```bash
+   KEY_FILE="${HOME}/.gcp/${SERVICE_ACCOUNT_NAME}-key.json"
+   mkdir -p "$(dirname "$KEY_FILE")"
+
+   echo "Creating service account key..."
+   gcloud iam service-accounts keys create "$KEY_FILE" \
+      --iam-account="$SERVICE_ACCOUNT_EMAIL"
+
+   echo "Service account key saved to: $KEY_FILE"
+   ```
+
+8. **Set environment variable**:
+   ```bash
+   export GOOGLE_APPLICATION_CREDENTIALS="$KEY_FILE"
+   echo "GOOGLE_APPLICATION_CREDENTIALS set to: $KEY_FILE"
+   ```
+
+9. **Store PROJECT_ID for later use** in install-config.yaml generation.
 
 **Step 5.2: Generate install-config.yaml**
 
