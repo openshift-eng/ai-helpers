@@ -148,6 +148,7 @@ See [plugins/openshift/README.md](plugins/openshift/README.md) for detailed docu
 A plugin to analyze and inspect Prow CI job results
 
 **Commands:**
+- **`/prow-job:analyze-install-failure` `<prowjob-url>`** - Analyze OpenShift installation failures in Prow CI jobs
 - **`/prow-job:analyze-resource` `prowjob-url resource-name`** - Analyze Kubernetes resource lifecycle in Prow job artifacts
 - **`/prow-job:analyze-test-failure` `prowjob-url test-name`** - Analyzes test errors from console logs and Prow CI job artifacts
 - **`/prow-job:extract-must-gather` `prowjob-url`** - Extract and decompress must-gather archives from Prow job artifacts
