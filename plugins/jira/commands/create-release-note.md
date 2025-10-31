@@ -51,27 +51,40 @@ The `jira:create-release-note` command runs in multiple phases:
 
 Extract all linked GitHub PR URLs from multiple sources:
 
-1. **Issue links**: Check the `issuelinks` field from the Jira issue
-   - Look for links to GitHub issues/PRs
-   - Extract GitHub URLs from linked items
-
-2. **Remote links**: Check the `remotelinks` or web links field
+1. **Remote links** (Primary source - web links in Jira):
+   - Check the Jira issue response for web links/remote links
+   - Common field names: `remotelinks`, `issuelinks` with `outwardIssue.fields.issuetype.name == "GitHub PR"`
    - Look for GitHub PR URLs in remote link objects
    - Pattern: `https://github.com/{org}/{repo}/pull/{number}`
+   - Extract PR URLs and parse into `{org}/{repo}` and `{number}`
 
-3. **Description text**: Scan bug description for GitHub PR URLs
+2. **Description text**: Scan bug description for GitHub PR URLs
    - Use regex pattern to find PR URLs: `https://github\.com/[\w-]+/[\w-]+/pull/\d+`
-   - Extract unique PR URLs
+   - Extract and parse all matches
+   - **IMPORTANT**: Do NOT use `gh issue view {JIRA-KEY}` - Jira keys are not GitHub issues
 
-4. **Comments**: Scan bug comments for GitHub PR URLs
+3. **Comments**: Scan bug comments for GitHub PR URLs
    - Iterate through comments
-   - Extract PR URLs using same pattern
+   - Extract PR URLs using same regex pattern
+   - **IMPORTANT**: Only look for full GitHub PR URLs, not issue references
 
-5. **Deduplicate**: Create unique set of PR URLs
+4. **Deduplicate**: Create unique set of PR URLs
+
+5. **Search by bug number** (Fallback if no PR URLs found):
+   - If no PRs found via links, search GitHub for PRs mentioning the bug
+   - **For OCPBUGS**: Search common repos (openshift/hypershift, openshift/cluster-api-provider-*):
+     ```bash
+     # Try common OpenShift repos
+     for repo in "openshift/hypershift" "openshift/cluster-api-provider-aws" "openshift/origin"; do
+       gh pr list --repo $repo --search "{issue-key} in:title,body" --state all --limit 10 --json number,url,title
+     done
+     ```
+   - Ask user to confirm which PRs are relevant
+   - **IMPORTANT**: Never use `gh issue view {JIRA-KEY}` - this will fail because Jira keys are not GitHub issue numbers
 
 6. **Validate**: Ensure at least one PR is found
-   - If no PRs found, show error: "No GitHub PRs found linked to {issue-key}. Please link at least one PR to generate release notes."
-   - Provide instructions on how to link PRs
+   - If no PRs found after all attempts, show error: "No GitHub PRs found linked to {issue-key}. Please link at least one PR to generate release notes."
+   - Provide instructions on how to link PRs in Jira
 
 ### 📊 Phase 3: Analyze Each GitHub PR
 
