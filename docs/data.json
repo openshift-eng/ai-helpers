@@ -74,6 +74,12 @@
       "version": "0.0.1",
       "commands": [
         {
+          "name": "clone-from-github",
+          "description": "Clone GitHub issues to Jira with proper formatting and linking",
+          "synopsis": "/jira:clone-from-github <issue-number> [issue-number...] [options]",
+          "argument_hint": "<github-issue-numbers> [--github-project <org/repo>] [--jira-project <key>] [--dryrun]"
+        },
+        {
           "name": "create",
           "description": "Create Jira issues (story, epic, feature, task, bug) with proper formatting",
           "synopsis": "/jira:create <type> [project-key] <summary> [options]",
@@ -90,6 +96,18 @@
           "description": "Analyze new bugs and cards added over a time period and generate grooming meeting agenda",
           "synopsis": "/jira:grooming [project-filter] [time-period] [--component component-name] [--label label-name]",
           "argument_hint": "[project-filter] [time-period] [--component component-name] [--label label-name]"
+        },
+        {
+          "name": "reconcile-github",
+          "description": "Reconcile state mismatches between GitHub and Jira issues",
+          "synopsis": "/jira:reconcile-github [options]",
+          "argument_hint": "[--github-project <org/repo>] [--jira-project <key>] [--profile <name>] [--porcelain] [--output json|yaml]"
+        },
+        {
+          "name": "setup-gh2jira",
+          "description": "Install and configure the gh2jira utility with all required tools and credentials",
+          "synopsis": "/jira:setup-gh2jira",
+          "argument_hint": ""
         },
         {
           "name": "solve",
