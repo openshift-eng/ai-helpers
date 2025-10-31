@@ -68,6 +68,11 @@
       "name": "must-gather",
       "source": "./plugins/must-gather",
       "description": "A plugin to analyze and report on must-gather data"
+    },
+    {
+      "name": "compliance",
+      "source": "./plugins/compliance",
+      "description": "Security compliance and vulnerability analysis tools for Go projects"
     }
   ]
 }
