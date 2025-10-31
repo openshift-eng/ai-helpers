@@ -160,6 +160,12 @@
       "version": "0.0.1",
       "commands": [
         {
+          "name": "add-debug-wait",
+          "description": "Add a wait step to a CI workflow for debugging test failures",
+          "synopsis": "/ci:add-debug-wait <workflow-or-job-name>",
+          "argument_hint": "<workflow-or-job-name>"
+        },
+        {
           "name": "ask-sippy",
           "description": "Ask the Sippy AI agent questions about OpenShift CI payloads, jobs, and test results",
           "synopsis": "/ask-sippy [question]",
