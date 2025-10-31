@@ -207,10 +207,11 @@ Ranked table from `components.*.summary`:
 
 Highlighted list of components with:
 
-- Low triage coverage (<70%)
+- Low triage coverage (<50%)
 - Slow triage response (>72 hours average)
 - Slow resolution time (>336 hours / 2 weeks average)
 - High open regression counts
+- High overall regression counts throughout the release
 
 ### Detailed Metrics (Optional)
 
