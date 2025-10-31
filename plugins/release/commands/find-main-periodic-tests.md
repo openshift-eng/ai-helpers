@@ -209,6 +209,7 @@ See: https://docs.ci.openshift.org/docs/how-tos/naming-your-ci-jobs/#configurati
 
 ## See Also
 
+- `/release:migrate-main-periodics-to-variant-config` - Move periodic tests from main/master configs to dedicated __periodics.yaml files
 - `/release:find-missing-periodics` - Find missing periodic configurations between releases
 - `/release:migrate-periodics` - Migrate periodic configurations from one release to another
 - OpenShift CI Documentation: https://docs.ci.openshift.org/docs/how-tos/naming-your-ci-jobs/#configuration-for-periodic-jobs

@@ -4,16 +4,16 @@ argument-hint: <target-release> [path|--filter=<json>] [--confirm-each-test]
 ---
 
 ## Name
-release:move-periodics-to-dedicated-file
+release:migrate-main-periodics-to-variant-config
 
 ## Synopsis
 Extract test definitions with periodic scheduling from main/master branch configuration files and move them to dedicated periodic configuration files:
 ```
-/release:move-periodics-to-dedicated-file <target-release> [path|--filter=<json>] [--confirm-each-test]
+/release:migrate-main-periodics-to-variant-config <target-release> [path|--filter=<json>] [--confirm-each-test]
 ```
 
 ## Description
-The `release:move-periodics-to-dedicated-file` command identifies test definitions with periodic scheduling (`interval:` or `cron:` fields) in main/master branch configuration files and moves them to dedicated `__periodics.yaml` files for a specific release version.
+The `release:migrate-main-periodics-to-variant-config` command identifies test definitions with periodic scheduling (`interval:` or `cron:` fields) in main/master branch configuration files and moves them to dedicated `__periodics.yaml` files for a specific release version.
 
 In OpenShift CI, periodic tests should be defined in separate `__periodics.yaml` files rather than in the main/master branch configuration files. This command automates the process of:
 1. Finding tests with periodic scheduling in main/master configs (or using a JSON filter)
@@ -48,9 +48,9 @@ This helps maintain proper separation between presubmit tests (run on PRs) and p
   - When a test is declined, it will be skipped and remain in the source file
   - Can appear as either the 2nd or 3rd argument for flexibility
   - Examples:
-    - `/release:move-periodics-to-dedicated-file 4.21 --confirm-each-test` (confirm each, use default path)
-    - `/release:move-periodics-to-dedicated-file 4.21 --filter=report.json --confirm-each-test` (confirm each with JSON filter)
-    - `/release:move-periodics-to-dedicated-file 4.21 ci-operator/config/openshift --confirm-each-test` (confirm each with custom path)
+    - `/release:migrate-main-periodics-to-variant-config 4.21 --confirm-each-test` (confirm each, use default path)
+    - `/release:migrate-main-periodics-to-variant-config 4.21 --filter=report.json --confirm-each-test` (confirm each with JSON filter)
+    - `/release:migrate-main-periodics-to-variant-config 4.21 ci-operator/config/openshift --confirm-each-test` (confirm each with custom path)
   - If NOT specified (batch mode):
     - All matching periodic tests will be summarized and displayed
     - A single confirmation prompt asks: "Proceed with moving all tests?"
@@ -264,48 +264,48 @@ The command outputs:
    # (Edit periodic_tests_report.json to remove repositories/tests you don't want to move)
 
    # Step 3: Move the filtered tests to dedicated files
-   /release:move-periodics-to-dedicated-file 4.21 --filter=periodic_tests_report.json
+   /release:migrate-main-periodics-to-variant-config 4.21 --filter=periodic_tests_report.json
    ```
 
 2. **Move specific tests using a filtered JSON file**:
    ```
-   /release:move-periodics-to-dedicated-file 4.21 --filter=selected_tests.json
+   /release:migrate-main-periodics-to-variant-config 4.21 --filter=selected_tests.json
    ```
    Uses only the repositories and tests specified in the JSON file.
 
 3. **Move all periodic tests to 4.21 release files (batch mode)**:
    ```
-   /release:move-periodics-to-dedicated-file 4.21
+   /release:migrate-main-periodics-to-variant-config 4.21
    ```
    Searches all of `ci-operator/config/` for main/master files with periodic tests and creates/updates corresponding `*-release-4.21__periodics.yaml` files. All matching tests are moved, with a single prompt asking if they should be removed from source files.
 
 2. **Move periodic tests for specific organization**:
    ```
-   /release:move-periodics-to-dedicated-file 4.21 ci-operator/config/openshift
+   /release:migrate-main-periodics-to-variant-config 4.21 ci-operator/config/openshift
    ```
    Processes only files under the openshift organization.
 
 3. **Move periodic tests for specific repository**:
    ```
-   /release:move-periodics-to-dedicated-file 4.20 ci-operator/config/openshift/cluster-etcd-operator
+   /release:migrate-main-periodics-to-variant-config 4.20 ci-operator/config/openshift/cluster-etcd-operator
    ```
    Processes only the cluster-etcd-operator repository configuration.
 
 4. **Move periodic tests for private repositories**:
    ```
-   /release:move-periodics-to-dedicated-file 4.19 ci-operator/config/openshift-priv
+   /release:migrate-main-periodics-to-variant-config 4.19 ci-operator/config/openshift-priv
    ```
    Processes configurations in the openshift-priv organization.
 
 5. **Confirm each test individually (interactive mode)**:
    ```
-   /release:move-periodics-to-dedicated-file 4.21 --confirm-each-test
+   /release:migrate-main-periodics-to-variant-config 4.21 --confirm-each-test
    ```
    Prompts for each periodic test found, asking if it should be moved. Tests confirmed for moving are automatically removed from the source file.
 
 6. **Confirm each test with custom path**:
    ```
-   /release:move-periodics-to-dedicated-file 4.21 ci-operator/config/openshift --confirm-each-test
+   /release:migrate-main-periodics-to-variant-config 4.21 ci-operator/config/openshift --confirm-each-test
    ```
    Processes only the openshift organization, with individual test confirmation.
 
