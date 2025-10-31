@@ -4,16 +4,16 @@ argument-hint: <from-release> <to-release> [path]
 ---
 
 ## Name
-release:find-missing-periodics
+release:find-missing-variant-periodics
 
 ## Synopsis
 Identify periodic job configurations that exist for one release but are missing for another:
 ```
-/release:find-missing-periodics <from-release> <to-release> [path]
+/release:find-missing-variant-periodics <from-release> <to-release> [path]
 ```
 
 ## Description
-The `release:find-missing-periodics` command identifies OpenShift periodic CI job configurations that exist for a source release version but are missing for a target release version. This is useful for discovering which periodic jobs need to be migrated when preparing a new release.
+The `release:find-missing-variant-periodics` command identifies OpenShift periodic CI job configurations that exist for a source release version but are missing for a target release version. This is useful for discovering which periodic jobs need to be migrated when preparing a new release.
 
 The command searches for periodic configuration files matching the source release pattern, then checks if corresponding configurations exist for the target release. It reports any missing configurations that should potentially be created.
 
@@ -107,7 +107,7 @@ Perform the following steps to identify missing periodic configurations:
 
 7. **Provide next steps**
    - If missing configurations found:
-     - Suggest using `/release:migrate-periodics {from_version} {to_version} [path]` to migrate them
+     - Suggest using `/release:migrate-variant-periodics {from_version} {to_version} [path]` to migrate them
      - Suggest reviewing if all missing configs should actually be migrated
    - If no missing configurations:
      - Inform user: "All periodic configurations for {from_version} have corresponding {to_version} configurations."
@@ -126,25 +126,25 @@ The command outputs:
 
 1. **Find all missing periodics from 4.17 to 4.18**:
    ```
-   /release:find-missing-periodics 4.17 4.18
+   /release:find-missing-variant-periodics 4.17 4.18
    ```
    Searches all of `ci-operator/config/` and reports which 4.17 periodic configs don't have corresponding 4.18 configs.
 
 2. **Check specific repository for missing periodics**:
    ```
-   /release:find-missing-periodics 4.18 4.19 ci-operator/config/openshift/cloud-credential-operator
+   /release:find-missing-variant-periodics 4.18 4.19 ci-operator/config/openshift/cloud-credential-operator
    ```
    Checks only the cloud-credential-operator directory.
 
 3. **Find missing periodics for an organization**:
    ```
-   /release:find-missing-periodics release-4.19 release-4.20 ci-operator/config/openshift
+   /release:find-missing-variant-periodics release-4.19 release-4.20 ci-operator/config/openshift
    ```
    Checks all repositories under the openshift organization.
 
 4. **Check openshift-priv repositories**:
    ```
-   /release:find-missing-periodics 4.17 4.18 ci-operator/config/openshift-priv
+   /release:find-missing-variant-periodics 4.17 4.18 ci-operator/config/openshift-priv
    ```
    Checks private repository periodic configurations.
 
@@ -157,13 +157,13 @@ The command outputs:
 
 - **Discovery tool**: This is a read-only analysis command - it doesn't modify any files
 
-- **Use before migration**: Run this command before `/release:migrate-periodics` to understand the scope of work
+- **Use before migration**: Run this command before `/release:migrate-variant-periodics` to understand the scope of work
 
 - **Version relationship**: Works in both directions - you can check newer-to-older or older-to-newer
 
 - **Not all configs need migration**: Some repositories may intentionally not have periodic configs for certain releases (EOL, not applicable, etc.). Review the missing list to determine which should actually be migrated.
 
-- **Complementary to migrate**: After running this command and identifying missing configs, use `/release:migrate-periodics` to perform the actual migration
+- **Complementary to migrate**: After running this command and identifying missing configs, use `/release:migrate-variant-periodics` to perform the actual migration
 
 ## Output Format Example
 
@@ -190,14 +190,14 @@ Missing Configurations (need migration):
 Next Steps:
 -----------
 To migrate missing configurations, run:
-  /release:migrate-periodics 4.17 4.18 ci-operator/config/openshift
+  /release:migrate-variant-periodics 4.17 4.18 ci-operator/config/openshift
 
 To migrate specific repositories, run:
-  /release:migrate-periodics 4.17 4.18 ci-operator/config/openshift/cloud-credential-operator
+  /release:migrate-variant-periodics 4.17 4.18 ci-operator/config/openshift/cloud-credential-operator
 ```
 
 ## See Also
 
-- `/release:migrate-periodics` - Migrate periodic configurations from one release to another
+- `/release:migrate-variant-periodics` - Migrate periodic configurations from one release to another
 - OpenShift CI Documentation: https://docs.ci.openshift.org/docs/how-tos/naming-your-ci-jobs/#configuration-for-periodic-jobs
 - Periodic jobs overview in the OpenShift CI system

@@ -37,7 +37,7 @@ This helps maintain proper separation between presubmit tests (run on PRs) and p
     - Examples: `ci-operator/config/openshift`, `ci-operator/config/openshift/origin`
     - Must be relative to the openshift/release repository root
   - **Filter mode**: `--filter=<json_file>`
-    - Provide a JSON file (like output from `/release:find-main-periodic-tests --format=json`)
+    - Provide a JSON file (like output from `/release:find-main-periodics --format=json`)
     - Only tests specified in the JSON file will be processed
     - Example: `--filter=periodic_tests_report.json`
   - Can also be `--confirm-each-test` if using default path
@@ -91,7 +91,7 @@ Perform the following steps to move periodic tests to dedicated files:
      ```
    - Run find_periodic_tests.py with filter:
      ```bash
-     python3 plugins/release/skills/release-find-main-periodic-tests/find_periodic_tests.py /tmp/main_master_files.txt --filter=<json_file>
+     python3 plugins/release/skills/release-find-main-periodics/find_periodic_tests.py /tmp/main_master_files.txt --filter=<json_file>
      ```
    - Parse the output to get filtered list of files and tests
 
@@ -99,7 +99,7 @@ Perform the following steps to move periodic tests to dedicated files:
    - Create file list using find command for the specified path
    - Run find_periodic_tests.py without filter:
      ```bash
-     python3 plugins/release/skills/release-find-main-periodic-tests/find_periodic_tests.py /tmp/main_master_files.txt
+     python3 plugins/release/skills/release-find-main-periodics/find_periodic_tests.py /tmp/main_master_files.txt
      ```
    - Parse the output to get all periodic tests in the path
 
@@ -257,7 +257,7 @@ The command outputs:
 1. **Workflow: Find, filter, and move periodic tests**:
    ```
    # Step 1: Find all periodic tests and save to JSON
-   /release:find-main-periodic-tests ci-operator/config/openshift
+   /release:find-main-periodics ci-operator/config/openshift
    # (Then manually run): python3 ... --format=json > periodic_tests_report.json
 
    # Step 2: Review and edit the JSON file to keep only tests you want to move
@@ -548,8 +548,8 @@ See: https://docs.ci.openshift.org/docs/how-tos/naming-your-ci-jobs/#configurati
 
 ## See Also
 
-- `/release:find-main-periodic-tests` - Find test definitions with periodic scheduling in main/master configs
-- `/release:migrate-periodics` - Migrate periodic configurations from one release to another
-- `/release:find-missing-periodics` - Find missing periodic configurations between releases
+- `/release:find-main-periodics` - Find test definitions with periodic scheduling in main/master configs
+- `/release:migrate-variant-periodics` - Migrate periodic configurations from one release to another
+- `/release:find-missing-variant-periodics` - Find missing periodic configurations between releases
 - OpenShift CI Documentation: https://docs.ci.openshift.org/docs/how-tos/naming-your-ci-jobs/#configuration-for-periodic-jobs
 - Periodic jobs overview in the OpenShift CI system

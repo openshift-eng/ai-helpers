@@ -4,16 +4,16 @@ argument-hint: <from-release> <to-release> [path] [--skip-existing]
 ---
 
 ## Name
-release:migrate-periodics
+release:migrate-variant-periodics
 
 ## Synopsis
 Migrate periodic job configuration files from one OpenShift release version to another:
 ```
-/release:migrate-periodics <from-release> <to-release> [path] [--skip-existing]
+/release:migrate-variant-periodics <from-release> <to-release> [path] [--skip-existing]
 ```
 
 ## Description
-The `release:migrate-periodics` command automates the migration of OpenShift periodic CI job definitions between release versions. It finds all periodic configuration files matching the source release version, transforms version-specific references, regenerates randomized cron schedules, and creates new configuration files for the target release.
+The `release:migrate-variant-periodics` command automates the migration of OpenShift periodic CI job definitions between release versions. It finds all periodic configuration files matching the source release version, transforms version-specific references, regenerates randomized cron schedules, and creates new configuration files for the target release.
 
 Periodic jobs are CI tests that run on a schedule (via cron) rather than on pull requests. These are defined in files following the pattern: `*-release-{major.minor}__periodics.yaml` in the `ci-operator/config/` directory.
 
@@ -41,13 +41,13 @@ Periodic jobs are CI tests that run on a schedule (via cron) rather than on pull
   - Only new files (where target doesn't exist) will be created
   - Can appear as either the 3rd or 4th argument for flexibility
   - Examples:
-    - `/release:migrate-periodics 4.17 4.18 --skip-existing` (skip existing, use default path)
-    - `/release:migrate-periodics 4.17 4.18 ci-operator/config/openshift --skip-existing` (skip existing with custom path)
+    - `/release:migrate-variant-periodics 4.17 4.18 --skip-existing` (skip existing, use default path)
+    - `/release:migrate-variant-periodics 4.17 4.18 ci-operator/config/openshift --skip-existing` (skip existing with custom path)
   - Useful for automation and batch operations where you don't want to overwrite existing migrations
 
 ## Implementation
 
-Pass the user's request to the `release-migrate-periodics` skill, which will:
+Pass the user's request to the `release-migrate-variant-periodics` skill, which will:
 
 1. **Verify git branch and get user confirmation**
    - Check current git branch using `git rev-parse --abbrev-ref HEAD`
@@ -118,37 +118,37 @@ The command outputs:
 
 1. **Migrate all periodic jobs from 4.17 to 4.18**:
    ```
-   /release:migrate-periodics 4.17 4.18
+   /release:migrate-variant-periodics 4.17 4.18
    ```
    This searches all of `ci-operator/config/` for files matching `*-release-4.17__periodics.yaml` and creates corresponding `*-release-4.18__periodics.yaml` files.
 
 2. **Migrate periodic jobs for a specific repository**:
    ```
-   /release:migrate-periodics 4.18 4.19 ci-operator/config/openshift/cloud-credential-operator
+   /release:migrate-variant-periodics 4.18 4.19 ci-operator/config/openshift/cloud-credential-operator
    ```
    This limits the search to the `cloud-credential-operator` directory.
 
 3. **Migrate all openshift organization periodics**:
    ```
-   /release:migrate-periodics release-4.19 release-4.20 ci-operator/config/openshift
+   /release:migrate-variant-periodics release-4.19 release-4.20 ci-operator/config/openshift
    ```
    This searches all repositories under the `openshift` organization directory.
 
 4. **Migrate periodics for openshift-priv repositories**:
    ```
-   /release:migrate-periodics 4.17 4.18 ci-operator/config/openshift-priv
+   /release:migrate-variant-periodics 4.17 4.18 ci-operator/config/openshift-priv
    ```
    This handles private repository periodic configurations.
 
 5. **Migrate with automatic skip of existing files**:
    ```
-   /release:migrate-periodics 4.17 4.18 --skip-existing
+   /release:migrate-variant-periodics 4.17 4.18 --skip-existing
    ```
    This migrates all periodic jobs but automatically skips any files that already exist for 4.18, without prompting for each one.
 
 6. **Migrate specific path with skip-existing**:
    ```
-   /release:migrate-periodics 4.18 4.19 ci-operator/config/openshift --skip-existing
+   /release:migrate-variant-periodics 4.18 4.19 ci-operator/config/openshift --skip-existing
    ```
    This migrates periodic jobs for the openshift organization, skipping any existing 4.19 configurations without user interaction.
 
