@@ -3,11 +3,12 @@
 Script to fetch regression data for OpenShift components.
 
 Usage:
-    python3 list_regressions.py --release <release> [--components comp1 comp2 ...]
+    python3 list_regressions.py --release <release> [--components comp1 comp2 ...] [--short]
 
 Example:
     python3 list_regressions.py --release 4.17
     python3 list_regressions.py --release 4.21 --components Monitoring etcd
+    python3 list_regressions.py --release 4.21 --short
 """
 
 import argparse
@@ -464,6 +465,9 @@ Examples:
   
   # Filter by multiple components
   %(prog)s --release 4.21 --components Monitoring etcd "kube-apiserver"
+  
+  # Short output mode (summaries only, no regression data)
+  %(prog)s --release 4.17 --short
         """
     )
     
@@ -494,6 +498,12 @@ Examples:
         type=str,
         default=None,
         help='End date for filtering (YYYY-MM-DD format, e.g., "2022-08-10"). Filters out regressions opened after this date.'
+    )
+    
+    parser.add_argument(
+        '--short',
+        action='store_true',
+        help='Short output mode: exclude regression data, only include summaries'
     )
     args = parser.parse_args()
     
@@ -538,10 +548,23 @@ Examples:
         overall_summary = calculate_summary(all_regressions)
 
         # Construct output with summary and components
-        output_data = {
-            "summary": overall_summary,
-            "components": components
-        }
+        # If --short flag is specified, remove regression data from components
+        if args.short:
+            # Create a copy of components with only summaries
+            components_short = {}
+            for component_name, component_data in components.items():
+                components_short[component_name] = {
+                    "summary": component_data["summary"]
+                }
+            output_data = {
+                "summary": overall_summary,
+                "components": components_short
+            }
+        else:
+            output_data = {
+                "summary": overall_summary,
+                "components": components
+            }
 
         # Format and print output
         output = format_output(output_data)

@@ -54,10 +54,11 @@ This command is useful for:
      - Only applied for GA'd releases
      - Excludes regressions opened after GA (post-release regressions, often not monitored/triaged)
      - For in-development releases (null GA date), no end date filtering is applied
+   - **Always pass `--short` flag** to exclude regression data from response (only include summaries)
 
 4. **Parse Output**: Process the JSON output from the script
 
-   - Script writes JSON to stdout with the following structure:
+   - Script writes JSON to stdout with the following structure (when using `--short` flag):
      ```json
      {
        "summary": {
@@ -119,20 +120,16 @@ This command is useful for:
                "time_triaged_closed_hrs_avg": <number or null>,
                "time_triaged_closed_hrs_max": <number or null>
              }
-           },
-           "open": [...],
-           "closed": [...]
+           }
          }
        }
      }
      ```
    - Script writes diagnostic messages to stderr
-   - Parse JSON to extract summary and regression data grouped by component
+   - Parse JSON to extract summary data grouped by component
    - **CRITICAL**: Always use the summary.total, summary.open.total, summary.closed.total and components._.summary._ fields for counts
+   - **Note**: The `--short` flag is always used, so regression arrays (`open`/`closed`) are not included in component data
    - Note: Component filtering is performed by the script after fetching from API
-   - Note: Time fields (`closed`, `last_failure`) are simplified to either timestamp strings or null
-   - Note: If closed is null this indicates the regression is on-going
-   - Note: `links` and `test_id` fields are removed from each regression to reduce response size
    - Note: Date filtering is applied to focus on the development window
      - Regressions closed before development started are excluded (always applied)
      - Regressions opened after GA are excluded (only for GA'd releases)
@@ -173,10 +170,10 @@ This command is useful for:
      - Highlight components needing attention (low triage %, high time to triage, slow resolution)
      - Show open regression count: `components.*.summary.open.total`
 
-   - **THIRD** (optional): Show detailed regression lists if requested
-     - Group by component from the `components` object
-     - Focus on untriaged regressions or slow-to-triage items
-     - Provide links to Sippy or JIRA for more details
+   - **Note**: Detailed regression data is not available when using `--short` flag
+     - Only summary statistics are included in the response
+     - For detailed regression lists, the script can be run without the `--short` flag
+     - Can provide links to Sippy dashboards for drill-down analysis
 
 6. **Error Handling**: Handle common error scenarios
    - Network errors (connectivity issues)
@@ -248,12 +245,13 @@ If requested, include:
 
 **Note**: The output is optimized for analysis:
 
-- **Time fields are simplified**:
-  - `closed`: Shows timestamp if closed (e.g., `"2025-09-27T12:04:24.966914Z"`), otherwise `null` (indicates ongoing regression)
-  - `last_failure`: Shows timestamp if valid (e.g., `"2025-09-25T14:41:17Z"`), otherwise `null`
-- **Unnecessary fields are removed**:
-  - `links`: Removed to reduce response size
-  - `test_id`: Removed to reduce response size (can be reconstructed from `test_name` if needed)
+- **Short mode is always used** (`--short` flag):
+  - Regression data arrays (`open` and `closed`) are excluded from component objects
+  - Only summary statistics are included
+  - This significantly reduces response size for better performance
+- **Summary statistics provide complete metrics**:
+  - Total counts, triage percentages, and timing metrics are available at both overall and per-component levels
+  - No need to iterate through regression arrays
 
 ## Examples
 
