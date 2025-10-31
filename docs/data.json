@@ -194,6 +194,37 @@
       "has_readme": true
     },
     {
+      "name": "component-health",
+      "description": "Analyze component health and track regressions across OpenShift releases",
+      "version": "0.0.1",
+      "commands": [
+        {
+          "name": "analyze-regressions",
+          "description": "Grade component health based on regression triage metrics for an OpenShift release",
+          "synopsis": "/component-health:analyze-regressions <release> [--components comp1 comp2 ...]",
+          "argument_hint": "<release> [--components comp1 comp2 ...]"
+        }
+      ],
+      "skills": [
+        {
+          "name": "Analyze Regressions",
+          "id": "analyze-regressions",
+          "description": "Grade component health based on regression triage metrics for OpenShift releases"
+        },
+        {
+          "name": "Get Release Dates",
+          "id": "get-release-dates",
+          "description": "Fetch OpenShift release dates and metadata from Sippy API"
+        },
+        {
+          "name": "List Regressions",
+          "id": "list-regressions",
+          "description": "Fetch and analyze component health regressions for OpenShift releases"
+        }
+      ],
+      "has_readme": true
+    },
+    {
       "name": "doc",
       "description": "A plugin for engineering documentation and notes",
       "version": "0.0.1",
