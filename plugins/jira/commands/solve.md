@@ -57,7 +57,7 @@ This command takes a JIRA URL, fetches the issue description and requirements, a
       - Test files that need updates
 
 3. **Solution Implementation**:
-   - Think hard and create a detailed, step-by-step plan to implement this feature. Save it to spec-$1.md within the .work/jira/solve folder, for example .work/jira/solve/spec-OCPBUGS-12345.md 
+   - Think hard and create a detailed, step-by-step plan to implement this feature. Save it to spec-$1.md within the .work/jira/solve folder, for example .work/jira/solve/spec-OCPBUGS-12345.md
    - Always ask the user to review the plan and give them the choice to modify it before start the implementation
    - Implement the plan:
     - Make necessary code changes using Edit/MultiEdit tools
@@ -69,10 +69,19 @@ This command takes a JIRA URL, fetches the issue description and requirements, a
       - Use your best judgement if godoc comments are needed for private functions
       - For example, a comment should not be generated for a simple function like func add(int a, b) int { return a + b}
     - Create unit tests for any newly created functions
-  - After making code changes, always run `make lint-fix` to ensure imports are properly sorted and linting issues are fixed
-  - Always ensure code builds and passes existing tests:
-   - Run `make pre-commit`, or `make verify`, `make build` and `make test` if you need to be more specific
-   - You absolutely must run `make pre-commit` and get it passing before going to the "Commit Creation"
+  - After making code changes, verify the implementation based on the repository's tooling:
+    - **Check for Makefile**: Run `ls Makefile` to see if one exists
+    - **If Makefile exists**: Check available targets with `make help` or `grep '^[^#]*:' Makefile | head -20`
+    - **Run appropriate verification commands**:
+      - If `make lint-fix` exists: Run it to ensure imports are properly sorted and linting issues are fixed
+      - If `make verify`, `make build`, `make test` exist: Run these to ensure code builds and passes tests
+      - If no Makefile or make targets: Look for alternative commands:
+        - Go projects: `go fmt ./...`, `go vet ./...`, `go test ./...`, `go build ./...`
+        - Node.js: `npm test`, `npm run build`, `npm run lint`
+        - Python: `pytest`, `python -m unittest`, `pylint`, `black .`
+        - Other: Follow repository conventions in CI config files (.github/workflows/, .gitlab-ci.yml, etc.)
+    - **Never assume make targets exist** - always verify first
+    - **You must ensure verification passes** before proceeding to "Commit Creation"
 
 4. **Commit Creation**: 
    - Create feature branch using the jira-key $1 as the branch name. For example: "git checkout -b fix-{jira-key}"
