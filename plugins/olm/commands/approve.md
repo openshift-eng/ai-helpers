@@ -1,5 +1,5 @@
 ---
-description: Approve pending InstallPlans for operator installations and upgrades
+description: Approve pending InstallPlans for operator installations and upgrades (OLM v0 only)
 argument-hint: <operator-name> [namespace] [--all]
 ---
 
@@ -14,6 +14,8 @@ olm:approve
 ## Description
 The `olm:approve` command approves pending InstallPlans for operators with manual approval mode. This is required for operators that have `installPlanApproval: Manual` in their Subscription to proceed with installation or upgrades.
 
+**⚠️  OLM v0 ONLY**: This command only works with OLM v0. OLM v1 does not use InstallPlans.
+
 This command helps you:
 - Approve operator installations that are waiting for manual approval
 - Approve operator upgrades
@@ -24,7 +26,28 @@ This command helps you:
 
 The command performs the following steps:
 
-1. **Parse Arguments**:
+1. **Check OLM Version** (v0 ONLY):
+   ```bash
+   # Check if version context is set
+   if [ -f .work/olm/context.txt ]; then
+     OLM_VERSION=$(cat .work/olm/context.txt)
+     if [ "$OLM_VERSION" == "v1" ]; then
+       echo "❌ Command not available for OLM v1"
+       echo ""
+       echo "The /olm:approve command is only available for OLM v0."
+       echo "Current context: v1"
+       echo ""
+       echo "OLM v1 does not use InstallPlans. Installations proceed automatically"
+       echo "once RBAC permissions are satisfied."
+       echo ""
+       echo "To use this command, switch to v0:"
+       echo "  /olm:use-version v0"
+       exit 1
+     fi
+   fi
+   ```
+
+2. **Parse Arguments**:
    - `$1`: Operator name (required) - Name of the operator
    - `$2`: Namespace (optional) - Namespace where operator is installed
      - If not provided, searches for the operator across all namespaces

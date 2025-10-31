@@ -1,32 +1,123 @@
 # OLM Plugin
 
-A comprehensive plugin for managing and debugging Operator Lifecycle Manager (OLM) in OpenShift clusters.
+A comprehensive unified plugin for managing and debugging Operator Lifecycle Manager (OLM) in Kubernetes and OpenShift clusters.
 
 ## Overview
 
-This plugin provides comprehensive OLM capabilities:
+This plugin provides comprehensive OLM capabilities for both **OLM v0** (traditional) and **OLM v1** (next-generation):
 
-- **Operator Discovery**: Search and discover operators across all catalog sources
-- **Lifecycle Management**: Install, upgrade, and uninstall operators with intelligent defaults
-- **Health Monitoring**: List and check detailed operator health status
-- **Update Management**: Check for and install operator updates with approval workflows
-- **Troubleshooting**: Diagnose and fix common OLM issues automatically
-- **Catalog Management**: Add, remove, and manage custom catalog sources
-- **Advanced Debugging**: Troubleshoot OLM issues by correlating must-gather logs with source code and known bugs in Jira
-- **Safety Features**: Orphaned resource cleanup, stuck namespace detection, and confirmation prompts
-- **Context-Aware**: Automatic channel discovery, namespace auto-detection, and smart recommendations
+- **Unified Interface**: Single plugin supporting both OLM versions
+- **Operator/Extension Discovery**: Search and discover packages across catalogs
+- **Lifecycle Management**: Install, upgrade, and uninstall with version-aware commands
+- **Health Monitoring**: List and check detailed status
+- **Update Management**: Handle upgrades with version-specific strategies
+- **Troubleshooting**: Diagnose and fix issues (v0: orphaned resources, v1: RBAC permissions)
+- **Catalog Management**: Manage catalog sources (v0) or ClusterCatalogs (v1)
+- **Advanced Debugging**: Troubleshoot using must-gather logs with source code correlation
+- **RBAC Management**: Automatic RBAC setup and fixing for OLM v1
 
-The plugin supports both OLMv0 (traditional OLM) and OLMv1 (next-generation) architectures.
+## 🔑 Version Management (Important!)
+
+**This plugin requires explicit OLM version selection.** You must specify which OLM version to use via:
+
+### Option 1: Set Context (Recommended)
+```bash
+# Detect what's installed in your cluster
+/olm:detect-version
+
+# Set version context for your session
+/olm:use-version v0  # For traditional OLM
+/olm:use-version v1  # For next-generation OLM
+
+# Now use commands without repeating --version
+/olm:install cert-manager
+/olm:list
+/olm:status cert-manager
+```
+
+### Option 2: Per-Command Flag
+```bash
+# Use --version flag on each command
+/olm:install cert-manager --version v0
+/olm:list --version v1
+/olm:status postgres-operator --version v0
+```
+
+### Version Detection
+```bash
+# Auto-detect which OLM version(s) are installed
+/olm:detect-version
+```
+
+### Key Differences
+
+| Aspect        | OLM v0 (Traditional)              | OLM v1 (Next-Generation)                    |
+| ------------- | --------------------------------- | ------------------------------------------- |
+| **Resources** | Subscription, CSV, InstallPlan    | ClusterExtension, ClusterCatalog            |
+| **Catalogs**  | CatalogSource (namespace-scoped)  | ClusterCatalog (cluster-scoped)             |
+| **CLI**       | `oc` (OpenShift CLI)              | `kubectl`                                   |
+| **RBAC**      | Managed by OLM (cluster-admin)    | User-managed (ServiceAccount + ClusterRole) |
+| **Upgrades**  | Automatic or manual approval      | Version constraints or channel tracking     |
+| **Scope**     | Primarily operators               | Any Kubernetes extension                    |
+| **Best For**  | OpenShift, existing installations | New projects, GitOps, flexible versioning   |
 
 ## Prerequisites
 
+### Common
 - Claude Code installed
+- Access to a Kubernetes/OpenShift cluster with sufficient RBAC permissions
+
+### OLM v0 Specific
 - OpenShift CLI (`oc`) installed and configured
-- Access to an OpenShift cluster with cluster-admin or sufficient RBAC permissions
+- OLM v0 installed (pre-installed on OpenShift)
+
+### OLM v1 Specific
+- `kubectl` installed and configured
+- OLM v1 (operator-controller) installed
+- cert-manager installed (optional, for webhook support)
+
+### Optional
 - `git` (required for debug command)
 - Network access to GitHub and Jira (for debug command)
 
 ## Commands
+
+### Version Management Commands
+
+#### `/olm:use-version` - Set OLM Version Context
+
+Set the OLM version context for your session to avoid repeating `--version` on every command.
+
+**Usage:**
+```bash
+/olm:use-version v0        # Set to OLM v0
+/olm:use-version v1        # Set to OLM v1
+/olm:use-version           # View current context
+/olm:use-version clear     # Clear context
+```
+
+See [commands/use-version.md](commands/use-version.md) for full documentation.
+
+---
+
+#### `/olm:detect-version` - Auto-Detect OLM Version
+
+Automatically detect which OLM version(s) are installed in your cluster.
+
+**Usage:**
+```bash
+/olm:detect-version
+```
+
+**What it does:**
+- Checks for OLM v0 installation (openshift-operator-lifecycle-manager namespace)
+- Checks for OLM v1 installation (olmv1-system namespace)
+- Shows component status and versions
+- Provides recommendations for version selection
+
+See [commands/detect-version.md](commands/detect-version.md) for full documentation.
+
+---
 
 ### Operator Management Commands
 
@@ -166,9 +257,11 @@ See [commands/upgrade.md](commands/upgrade.md) for full documentation.
 
 ---
 
-#### `/olm:approve` - Approve InstallPlans
+#### `/olm:approve` - Approve InstallPlans (v0 only)
 
 Approve pending InstallPlans for operators with manual approval mode.
+
+**⚠️  OLM v0 ONLY**: This command only works with OLM v0.
 
 **Usage:**
 ```bash
@@ -190,6 +283,38 @@ Approve pending InstallPlans for operators with manual approval mode.
 - `--all` (optional): Approve all pending InstallPlans
 
 See [commands/approve.md](commands/approve.md) for full documentation.
+
+---
+
+#### `/olm:fix-rbac` - Fix RBAC Permissions (v1 only)
+
+Diagnose and fix RBAC permission issues for ClusterExtensions.
+
+**⚠️  OLM v1 ONLY**: This command only works with OLM v1.
+
+**Usage:**
+```bash
+/olm:fix-rbac postgres-operator        # Fix RBAC for failed extension
+```
+
+**What it does:**
+- Detects pre-authorization failures in ClusterExtension status
+- Parses missing RBAC permissions from error messages
+- Identifies current ServiceAccount and ClusterRole
+- Offers to automatically update ClusterRole with missing permissions
+- Or displays required RBAC YAML for manual application
+
+**When to use:**
+- Extension installation is stuck in "Progressing" state
+- Status shows "pre-authorization failed" errors
+- You see RBAC-related error messages
+
+**Arguments:**
+- `extension-name` (required): Name of the ClusterExtension to fix
+
+**Note:** Requires the `PreflightPermissions` feature gate to be enabled in operator-controller for detailed permission analysis.
+
+See [commands/fix-rbac.md](commands/fix-rbac.md) for full documentation.
 
 ---
 
