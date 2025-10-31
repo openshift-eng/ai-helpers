@@ -1,6 +1,6 @@
 ---
 description: Analyze new bugs and cards added over a time period and generate grooming meeting agenda
-argument-hint: [project-filter] [time-period] [--component component-name] [--label label-name]
+argument-hint: [project-filter] [time-period] [--component component-name] [--label label-name] [--sprint sprint-name]
 ---
 
 ## Name
@@ -8,7 +8,7 @@ jira:grooming
 
 ## Synopsis
 ```
-/jira:grooming [project-filter] [time-period] [--component component-name] [--label label-name]
+/jira:grooming [project-filter] [time-period] [--component component-name] [--label label-name] [--sprint sprint-name]
 ```
 
 ## Description
@@ -81,6 +81,16 @@ The `jira:grooming` command runs in three main phases:
    /jira:grooming OCPSTRAT last-week --component "Control Plane" --label "performance"
    ```
 
+7. **Filter by sprint**:
+   ```
+   /jira:grooming OCPSTRAT "" --sprint "OTA 277"
+   ```
+
+8. **Combine sprint with other filters**:
+   ```
+   /jira:grooming OCPSTRAT "" --component "Cluster Version Operator" --sprint "OTA 277"
+   ```
+
 ## Output Format
 
 ### Grooming Meeting Agenda
@@ -136,10 +146,11 @@ The command outputs a ready-to-use Markdown document that can be copied into Con
     - `"OpenShift Virtualization,Red Hat OpenShift Control Planes"`  
       Default: read from configuration file
 
-- **$2 – time-period**  
-  Time range for issue collection.  
-  Options: `last-week` | `last-2-weeks` | `last-month` | `YYYY-MM-DD:YYYY-MM-DD`  
+- **$2 – time-period**
+  Time range for issue collection.
+  Options: `last-week` | `last-2-weeks` | `last-month` | `YYYY-MM-DD:YYYY-MM-DD` | `""` (empty string for no time filter)
   Default: `last-week`
+  Note: To query all issues without time filtering, pass an empty string `""`
 
 - **--component** *(optional)*
   Filter by JIRA component (single or comma-separated).
@@ -152,6 +163,11 @@ The command outputs a ready-to-use Markdown document that can be copied into Con
   Examples:
     - `--label "technical-debt"`
     - `--label "performance,security"`
+
+- **--sprint** *(optional)*
+  Filter by JIRA sprint name.
+  Examples:
+    - `--sprint "OTA 277"`
 
 ## Return Value
 - **Markdown Report**: Ready-to-use grooming agenda with categorized issues and action items
