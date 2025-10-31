@@ -362,6 +362,12 @@
       "version": "0.0.1",
       "commands": [
         {
+          "name": "analyze-install-failure",
+          "description": "Analyze OpenShift installation failures in Prow CI jobs",
+          "synopsis": "/prow-job:analyze-install-failure <prowjob-url>",
+          "argument_hint": "<prowjob-url>"
+        },
+        {
           "name": "analyze-resource",
           "description": "Analyze Kubernetes resource lifecycle in Prow job artifacts",
           "synopsis": "",
@@ -381,6 +387,16 @@
         }
       ],
       "skills": [
+        {
+          "name": "Prow Job Analyze Install Failure",
+          "id": "prow-job-analyze-install-failure",
+          "description": "Analyze OpenShift installation failures in Prow CI jobs by examining installer logs, log bundles, and sosreports. Use when CI job fails \"install should succeed\" tests at bootstrap, cluster creation or other stages."
+        },
+        {
+          "name": "Prow Job Analyze Metal Install Failure",
+          "id": "prow-job-analyze-metal-install-failure",
+          "description": "Analyze OpenShift bare metal installation failures in Prow CI jobs using dev-scripts artifacts. Use for jobs with \"metal\" in name, for debugging Metal3/Ironic provisioning, installation, or dev-scripts setup failures. You may also use the prow-job-analyze-install-failure skill with this one."
+        },
         {
           "name": "Prow Job Analyze Resource",
           "id": "prow-job-analyze-resource",
