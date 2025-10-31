@@ -21,6 +21,7 @@ The command can analyze:
 - Node conditions and resource status
 - Pod failures, restarts, and crash loops
 - Network configuration and OVN health
+- OVN databases - logical topology, ACLs, pods
 - Kubernetes events (warnings and errors)
 - etcd cluster health and quorum status
 - Persistent volume and claim status
@@ -46,12 +47,13 @@ The actual must-gather directory is the subdirectory with the hash name, not the
 
 Analysis scripts must be available at:
 ```
-.claude-plugin/skills/must-gather-analyzer/scripts/
+plugins/must-gather/skills/must-gather-analyzer/scripts/
 ├── analyze_clusterversion.py
 ├── analyze_clusteroperators.py
 ├── analyze_nodes.py
 ├── analyze_pods.py
 ├── analyze_network.py
+├── analyze_ovn_dbs.py
 ├── analyze_events.py
 ├── analyze_etcd.py
 └── analyze_pvs.py
@@ -62,7 +64,7 @@ Analysis scripts must be available at:
 **CRITICAL: Script-Only Analysis**
 
 - **NEVER** attempt to analyze must-gather data directly using bash commands, grep, or manual file reading
-- **ONLY** use the provided Python scripts in `.claude-plugin/skills/must-gather-analyzer/scripts/`
+- **ONLY** use the provided Python scripts in `plugins/must-gather/skills/must-gather-analyzer/scripts/`
 - If scripts are missing or not found:
   1. Stop immediately
   2. Inform the user that the analysis scripts are not available
@@ -73,12 +75,12 @@ Analysis scripts must be available at:
 
 Before running any analysis, first verify:
 ```bash
-ls .claude-plugin/skills/must-gather-analyzer/scripts/analyze_clusteroperators.py
+ls plugins/must-gather/skills/must-gather-analyzer/scripts/analyze_clusteroperators.py
 ```
 
 If this fails, STOP and report to the user:
 ```
-The must-gather analysis scripts are not available at .claude-plugin/skills/must-gather-analyzer/scripts/. Please ensure the must-gather-analyzer skill is properly installed before running analysis.
+The must-gather analysis scripts are not available at plugins/must-gather/skills/must-gather-analyzer/scripts/. Please ensure the must-gather-analyzer skill is properly installed before running analysis.
 ```
 
 ## Implementation
@@ -99,6 +101,7 @@ The command performs the following steps:
    - "pods", "pod status", "containers", "crashloop", "failing pods" → `analyze_pods.py` ONLY
    - "etcd", "etcd health", "quorum" → `analyze_etcd.py` ONLY
    - "network", "networking", "ovn", "connectivity" → `analyze_network.py` ONLY
+   - "ovn databases", "ovn-dbs", "ovn db", "logical switches", "acls" → `analyze_ovn_dbs.py` ONLY
    - "nodes", "node status", "node conditions" → `analyze_nodes.py` ONLY
    - "operators", "cluster operators", "degraded" → `analyze_clusteroperators.py` ONLY
    - "version", "cluster version", "update", "upgrade" → `analyze_clusterversion.py` ONLY
@@ -119,7 +122,7 @@ The command performs the following steps:
 
 3. **Execute Analysis Scripts**:
    ```bash
-   python3 .claude-plugin/skills/must-gather-analyzer/scripts/<script>.py <must-gather-path>
+   python3 plugins/must-gather/skills/must-gather-analyzer/scripts/<script>.py <must-gather-path>
    ```
 
 4. **Synthesize Results**: Generate findings and recommendations based on script output
