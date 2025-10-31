@@ -15,6 +15,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Openshift](#openshift-plugin)
 - [Prow Job](#prow-job-plugin)
 - [Session](#session-plugin)
+- [Testing](#testing-plugin)
 - [Utils](#utils-plugin)
 - [Yaml](#yaml-plugin)
 
@@ -171,6 +172,15 @@ A plugin to save and resume conversation sessions across long time intervals
 - **`/session:save-session` `[optional-description]`** - Save current conversation session to markdown file for future continuation
 
 See [plugins/session/README.md](plugins/session/README.md) for detailed documentation.
+
+### Testing Plugin
+
+Comprehensive test case generation and QA automation tools
+
+**Commands:**
+- **`/testing:generate-test-case-doc` `<feature_name> [--priority high|medium|low] [--component name] [--format markdown|docx]`** - Generate comprehensive test cases for a feature with priority filtering and multiple output formats
+
+See [plugins/testing/README.md](plugins/testing/README.md) for detailed documentation.
 
 ### Utils Plugin
 

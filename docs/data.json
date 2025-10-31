@@ -603,6 +603,27 @@
         }
       ],
       "has_readme": true
+    },
+    {
+      "name": "testing",
+      "description": "Comprehensive test case generation and QA automation tools",
+      "version": "0.0.1",
+      "commands": [
+        {
+          "name": "generate-test-case-doc",
+          "description": "Generate comprehensive test cases for a feature with priority filtering and multiple output formats",
+          "synopsis": "/testing:generate-test-case-doc <feature_name> [--priority high|medium|low] [--component name] [--format markdown|docx]",
+          "argument_hint": "<feature_name> [--priority high|medium|low] [--component name] [--format markdown|docx]"
+        }
+      ],
+      "skills": [
+        {
+          "name": "Test Case Document Generator",
+          "id": "testcase-doc-generator",
+          "description": "Generate comprehensive test case documents with DOCX export capability"
+        }
+      ],
+      "has_readme": true
     }
   ]
 }
