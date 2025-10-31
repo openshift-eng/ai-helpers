@@ -4,6 +4,7 @@ This document lists all available Claude Code plugins and their commands in the 
 
 - [Agendas](#agendas-plugin)
 - [Ci](#ci-plugin)
+- [Component Health](#component-health-plugin)
 - [Doc](#doc-plugin)
 - [Git](#git-plugin)
 - [Hcp](#hcp-plugin)
@@ -38,6 +39,15 @@ Miscellaenous tools for working with OpenShift CI
 - **`/ci:trigger-presubmit` `<job-name> <org> <repo> <base-ref> <base-sha> <pr-number> <pr-sha> [ENV_VAR=value ...]`** - Trigger a presubmit gangway job (typically use GitHub Prow commands instead)
 
 See [plugins/ci/README.md](plugins/ci/README.md) for detailed documentation.
+
+### Component Health Plugin
+
+Analyze component health using regression and jira data
+
+**Commands:**
+- **`/component-health:analyze-regressions` `<release> [--components comp1 comp2 ...]`** - Grade component health based on regression triage metrics for an OpenShift release
+
+See [plugins/component-health/README.md](plugins/component-health/README.md) for detailed documentation.
 
 ### Doc Plugin
 
