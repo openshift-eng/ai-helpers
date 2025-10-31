@@ -45,6 +45,20 @@ Grade component health based on regression triage metrics for a specific OpenShi
 - `<release>`: OpenShift release version (e.g., "4.17", "4.16")
 - `--components comp1 [comp2 ...]`: (Optional) Filter by component names (case-insensitive)
 
+**Automatic Date Filtering:**
+
+The command automatically fetches release dates and filters regressions to the development window:
+
+- For GA'd releases (e.g., 4.17): Filters to regressions within the development window
+  - Excludes regressions closed before development started (--start filter)
+  - Excludes regressions opened after GA date (--end filter)
+  - Focuses analysis on regressions during active development
+- For in-development releases (e.g., 4.21 with null GA date): Partial filtering applied
+  - Excludes regressions closed before development started (--start filter)
+  - No end date filtering (release still in development)
+
+This ensures health grading reflects component behavior during the release development period, excluding pre-release regressions and (for GA'd releases) post-GA regressions that may not have been actively monitored.
+
 ## Skills
 
 ### list-regressions

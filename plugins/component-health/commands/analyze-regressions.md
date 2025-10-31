@@ -35,13 +35,27 @@ This command is useful for:
    - Release format: "X.Y" (e.g., "4.17", "4.16")
    - Components: List of component names (optional)
 
-2. **Execute Python Script**: Run the list_regressions.py script with appropriate arguments
+2. **Fetch Release Dates**: Run the get_release_dates.py script to get development window dates
+
+   - Script location: `plugins/component-health/skills/get-release-dates/get_release_dates.py`
+   - Pass release as `--release` argument
+   - Extract `development_start` and `ga` dates from JSON output
+   - Convert timestamps to simple date format (YYYY-MM-DD)
+
+3. **Execute Python Script**: Run the list_regressions.py script with appropriate arguments
 
    - Script location: `plugins/component-health/skills/list-regressions/list_regressions.py`
    - Pass release as `--release` argument
    - Pass components as `--components` argument if provided
+   - Pass `development_start` date as `--start` argument (if available)
+     - Always applied (for both GA'd and in-development releases)
+     - Excludes regressions closed before development started (not relevant to this release)
+   - Pass `ga` date as `--end` argument (only if GA date is not null)
+     - Only applied for GA'd releases
+     - Excludes regressions opened after GA (post-release regressions, often not monitored/triaged)
+     - For in-development releases (null GA date), no end date filtering is applied
 
-3. **Parse Output**: Process the JSON output from the script
+4. **Parse Output**: Process the JSON output from the script
 
    - Script writes JSON to stdout with the following structure:
      ```json
@@ -119,8 +133,12 @@ This command is useful for:
    - Note: Time fields (`closed`, `last_failure`) are simplified to either timestamp strings or null
    - Note: If closed is null this indicates the regression is on-going
    - Note: `links` and `test_id` fields are removed from each regression to reduce response size
+   - Note: Date filtering is applied to focus on the development window
+     - Regressions closed before development started are excluded (always applied)
+     - Regressions opened after GA are excluded (only for GA'd releases)
+     - For in-development releases (null GA date), only start date filtering is applied
 
-4. **Grade Component Health**: Calculate and present health scores based on triage metrics
+5. **Grade Component Health**: Calculate and present health scores based on triage metrics
 
    - **FIRST**: Display overall health grade from the `summary` object:
 
@@ -160,7 +178,7 @@ This command is useful for:
      - Focus on untriaged regressions or slow-to-triage items
      - Provide links to Sippy or JIRA for more details
 
-5. **Error Handling**: Handle common error scenarios
+6. **Error Handling**: Handle common error scenarios
    - Network errors (connectivity issues)
    - Invalid release format
    - API errors (404, 500, etc.)
@@ -251,6 +269,15 @@ If requested, include:
    - Average time to triage
    - Per-component health scorecard
    - Components needing attention
+
+   **Note**: The command automatically fetches release dates and applies filtering:
+
+   - For GA'd releases (like 4.17):
+     - Excludes regressions closed before development started (--start filter)
+     - Excludes regressions opened after GA (--end filter)
+   - For in-development releases (like 4.21 with null GA):
+     - Excludes regressions closed before development started (--start filter only)
+     - No end date filtering (release still in development)
 
 2. **Grade specific components**:
 

@@ -154,6 +154,46 @@ def simplify_time_fields(data: list) -> list:
     return data
 
 
+def filter_by_date_range(regressions: list, start_date: str = None, end_date: str = None) -> list:
+    """
+    Filter regressions by date range.
+    
+    Args:
+        regressions: List of regression dictionaries
+        start_date: Start date in YYYY-MM-DD format. Filters out regressions closed before this date.
+        end_date: End date in YYYY-MM-DD format. Filters out regressions opened after this date.
+    
+    Returns:
+        Filtered list of regressions
+        
+    Note:
+        - If start_date is provided: excludes regressions that were closed before start_date
+        - If end_date is provided: excludes regressions that were opened after end_date
+        - This allows filtering to a development window (e.g., from development_start to GA)
+    """
+    if not start_date and not end_date:
+        return regressions
+    
+    filtered = []
+    
+    for regression in regressions:
+        # Skip if opened after end_date
+        if end_date and regression.get('opened'):
+            opened_date = regression['opened'].split('T')[0]  # Extract YYYY-MM-DD
+            if opened_date > end_date:
+                continue
+        
+        # Skip if closed before start_date
+        if start_date and regression.get('closed'):
+            closed_date = regression['closed'].split('T')[0]  # Extract YYYY-MM-DD
+            if closed_date < start_date:
+                continue
+        
+        filtered.append(regression)
+    
+    return filtered
+
+
 def remove_unnecessary_fields(regressions: list) -> list:
     """
     Remove unnecessary fields from regressions to reduce response size.
@@ -303,7 +343,7 @@ def calculate_summary(regressions: list) -> dict:
                     except (ValueError, KeyError, TypeError):
                         # Skip if timestamp parsing fails
                         pass
-            
+                
             # Calculate time to close
             if regression.get('opened') and regression.get('closed'):
                 try:
@@ -329,7 +369,7 @@ def calculate_summary(regressions: list) -> dict:
     closed_max_time = max(closed_times) if closed_times else None
     triaged_to_closed_avg_time = round(sum(triaged_to_closed_times) / len(triaged_to_closed_times)) if triaged_to_closed_times else None
     triaged_to_closed_max_time = max(triaged_to_closed_times) if triaged_to_closed_times else None
-    
+
     # Calculate triage percentages
     total_triaged = open_triaged + closed_triaged
     triage_percentage = round((total_triaged / total * 100), 1) if total > 0 else 0
@@ -442,7 +482,22 @@ Examples:
         help='Filter by component names (space-separated list, case-insensitive)'
     )
     
+    parser.add_argument(
+        '--start',
+        type=str,
+        default=None,
+        help='Start date for filtering (YYYY-MM-DD format, e.g., "2022-03-10"). Filters out regressions closed before this date.'
+    )
+    
+    parser.add_argument(
+        '--end',
+        type=str,
+        default=None,
+        help='End date for filtering (YYYY-MM-DD format, e.g., "2022-08-10"). Filters out regressions opened after this date.'
+    )
     args = parser.parse_args()
+    
+  
     
     try:
         # Fetch regressions
@@ -455,6 +510,10 @@ Examples:
         # Simplify time field structures (closed, last_failure)
         if isinstance(regressions, list):
             regressions = simplify_time_fields(regressions)
+
+        # Filter by date range (to focus on development window)
+        if isinstance(regressions, list):
+            regressions = filter_by_date_range(regressions, args.start, args.end)
 
         # Remove unnecessary fields to reduce response size
         if isinstance(regressions, list):

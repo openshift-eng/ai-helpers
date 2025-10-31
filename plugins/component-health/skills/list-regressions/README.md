@@ -17,12 +17,20 @@ python3 list_regressions.py --release 4.21 --components Monitoring etcd
 
 # Filter by single component
 python3 list_regressions.py --release 4.21 --components "kube-apiserver"
+
+# Filter to development window (GA'd release - both start and end)
+python3 list_regressions.py --release 4.17 --start 2024-05-17 --end 2024-10-01
+
+# Filter to development window (in-development release - start only, no GA yet)
+python3 list_regressions.py --release 4.21 --start 2025-09-02
 ```
 
 ## Arguments
 
 - `--release` (required): OpenShift release version (e.g., "4.17", "4.16")
 - `--components` (optional): Space-separated list of component names to filter by (case-insensitive)
+- `--start` (optional): Start date in YYYY-MM-DD format. Excludes regressions closed before this date.
+- `--end` (optional): End date in YYYY-MM-DD format. Excludes regressions opened after this date.
 
 ## Output
 
@@ -56,6 +64,13 @@ Diagnostic messages are written to stderr.
 - Unnecessary fields removed for response size optimization:
   - `links`: Removed from each regression
   - `test_id`: Removed from each regression
+- Optional date filtering to focus on development window:
+  - Use `--start` and `--end` to filter regressions to a specific time period
+  - Typical use: Filter to development window using release dates
+    - `--start`: Always applied (development_start date)
+    - `--end`: Only for GA'd releases (GA date)
+  - For GA'd releases: Both start and end filtering applied
+  - For in-development releases: Only start filtering applied (no end date yet)
 - Triaged counts: Number of regressions with non-empty `triages` list (triaged to JIRA bugs)
 - Average time to triage: Average hours from regression opened to earliest triage timestamp (null if no triaged regressions)
 - Maximum time to triage: Maximum hours from regression opened to earliest triage timestamp (null if no triaged regressions)

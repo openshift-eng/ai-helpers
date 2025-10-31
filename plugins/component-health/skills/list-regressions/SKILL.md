@@ -71,6 +71,17 @@ python3 plugins/component-health/skills/list-regressions/list_regressions.py \
 python3 plugins/component-health/skills/list-regressions/list_regressions.py \
   --release 4.21 \
   --components Monitoring etcd "kube-apiserver"
+
+# Filter by development window (GA'd release - both start and end)
+python3 plugins/component-health/skills/list-regressions/list_regressions.py \
+  --release 4.17 \
+  --start 2024-05-17 \
+  --end 2024-10-01
+
+# Filter by development window (in-development release - start only)
+python3 plugins/component-health/skills/list-regressions/list_regressions.py \
+  --release 4.21 \
+  --start 2025-09-02
 ```
 
 ### Step 4: Process the Output
@@ -233,6 +244,20 @@ The script automatically simplifies and optimizes the response:
 
 - `links`: Removed from each regression (reduces response size significantly)
 - `test_id`: Removed from each regression (large field, can be reconstructed from test_name if needed)
+
+**Date filtering (optional)**:
+
+- Use `--start` and `--end` parameters to filter regressions to a specific time window
+- `--start YYYY-MM-DD`: Excludes regressions that were closed before this date
+- `--end YYYY-MM-DD`: Excludes regressions that were opened after this date
+- Typical use case: Filter to the development window
+  - `--start`: development_start date from get-release-dates skill (always applied)
+  - `--end`: GA date from get-release-dates skill (only for GA'd releases)
+- For GA'd releases: Both start and end filtering applied
+- For in-development releases (null GA date): Only start filtering applied (no end date)
+- Benefits: Focuses analysis on regressions during active development, excluding:
+  - Regressions closed before the release development started (not relevant)
+  - Regressions opened after GA (post-release, often not monitored/triaged - GA'd releases only)
 
 Parse this JSON output to extract relevant information for analysis.
 
