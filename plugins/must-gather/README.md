@@ -251,6 +251,56 @@ Active alerts: 2 total (0 pending, 2 firing)
 ================================================================================
 ```
 
+#### `analyze_ipsec.py`
+
+Analyzes IPsec configuration and tunnel status.
+
+```bash
+# Analyze IPsec for all nodes
+./analyze_ipsec.py <must-gather-path>
+
+# Analyze IPsec for a specific node
+./analyze_ipsec.py <must-gather-path> <node-name>
+```
+
+Shows:
+- IPsec configuration status (enabled/disabled and mode)
+- ovn-ipsec-host daemonset pod status
+- Per-pod IPsec tunnel establishment status
+- Connection names and their establishment state
+- Summary of total, established, and failed connections
+
+Output includes:
+```plaintext
+====================================================================================================
+IPSEC CONFIGURATION
+====================================================================================================
+Status: ✓ ENABLED
+Mode:   Full
+
+====================================================================================================
+OVN-IPSEC-HOST PODS (Daemonset)
+====================================================================================================
+
+Found 3 ovn-ipsec-host pod(s):
+NAME                                      READY      STATUS          RESTARTS   NODE
+ovn-ipsec-host-abc123                     1/1        Running         0          worker-0
+
+====================================================================================================
+IPSEC TUNNEL STATUS
+====================================================================================================
+
+Total Connections: 6
+Established:       5 ✓
+Not Established:   1 ✗
+```
+
+**Use cases:**
+- Verify IPsec is enabled and configured correctly
+- Troubleshoot IPsec tunnel connectivity issues
+- Identify which specific tunnels failed to establish
+- Monitor IPsec daemonset pod health
+
 ### Slash Commands
 
 #### `/must-gather:analyze [path] [component]`
@@ -296,6 +346,34 @@ Provides detailed analysis of:
 - Node filtering with partial name matching
 
 **Requirements:** `ovsdb-tool` installed
+
+#### `/must-gather:ipsec [path] [node-name]`
+Analyzes IPsec configuration and tunnel status from must-gather.
+
+```bash
+# Analyze IPsec for all nodes
+/must-gather:ipsec ./must-gather.local.123456789
+
+# Analyze IPsec for a specific node
+/must-gather:ipsec ./must-gather.local.123456789 worker-0
+
+# Check if IPsec is enabled
+/must-gather:ipsec ./must-gather.local.123456789
+```
+
+Provides analysis of:
+- IPsec configuration (whether enabled and mode)
+- ovn-ipsec-host daemonset pod status on each node
+- IPsec tunnel establishment status
+- Per-connection status showing which tunnels are established
+- Node filtering to troubleshoot specific node issues
+
+**Use cases:**
+- Verify IPsec deployment and configuration
+- Troubleshoot connectivity issues
+- Identify failed IPsec tunnels
+- Validate cluster upgrades
+- Audit IPsec health across nodes
 
 ## Installation
 
