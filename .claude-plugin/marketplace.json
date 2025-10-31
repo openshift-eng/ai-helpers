@@ -68,6 +68,11 @@
       "name": "must-gather",
       "source": "./plugins/must-gather",
       "description": "A plugin to analyze and report on must-gather data"
+    },
+    {
+      "name": "hcp",
+      "source": "./plugins/hcp",
+      "description": "Generate HyperShift cluster creation commands via hcp CLI from natural language descriptions"
     }
   ]
 }

@@ -457,6 +457,52 @@
         }
       ],
       "has_readme": true
+    },
+    {
+      "name": "hcp",
+      "description": "Generate HyperShift cluster creation commands via hcp CLI from natural language descriptions",
+      "version": "0.0.1",
+      "commands": [
+        {
+          "name": "generate",
+          "description": "Generate ready-to-execute hypershift cluster creation commands from natural language descriptions",
+          "synopsis": "/hcp:generate <provider> <cluster-description>",
+          "argument_hint": "<provider> <cluster-description>"
+        }
+      ],
+      "skills": [
+        {
+          "name": "HyperShift Agent Provider",
+          "id": "hcp-create-agent",
+          "description": "Use this skill when you need to deploy HyperShift clusters on bare metal, edge environments, or disconnected infrastructures using pre-provisioned agents"
+        },
+        {
+          "name": "HyperShift AWS Provider",
+          "id": "hcp-create-aws",
+          "description": "Use this skill when you need to deploy HyperShift clusters on AWS infrastructure with proper STS credentials, IAM roles, and VPC configuration"
+        },
+        {
+          "name": "HyperShift Azure Provider",
+          "id": "hcp-create-azure",
+          "description": "Use this skill when you need to deploy HyperShift clusters on Microsoft Azure with proper identity configuration and resource management"
+        },
+        {
+          "name": "HyperShift KubeVirt Provider",
+          "id": "hcp-create-kubevirt",
+          "description": "Use this skill when you need to deploy HyperShift clusters on existing Kubernetes clusters using KubeVirt virtualization"
+        },
+        {
+          "name": "HyperShift OpenStack Provider",
+          "id": "hcp-create-openstack",
+          "description": "Use this skill when you need to deploy HyperShift clusters on OpenStack infrastructure with proper flavor selection and network configuration"
+        },
+        {
+          "name": "HyperShift PowerVS Provider",
+          "id": "hcp-create-powervs",
+          "description": "Use this skill when you need to deploy HyperShift clusters on IBM Cloud PowerVS with proper processor configuration and resource management"
+        }
+      ],
+      "has_readme": true
     }
   ]
 }

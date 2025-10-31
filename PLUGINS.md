@@ -6,6 +6,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Ci](#ci-plugin)
 - [Doc](#doc-plugin)
 - [Git](#git-plugin)
+- [Hcp](#hcp-plugin)
 - [Hello World](#hello-world-plugin)
 - [Jira](#jira-plugin)
 - [Must Gather](#must-gather-plugin)
@@ -60,6 +61,15 @@ Git workflow automation and utilities
 - **`/git:summary`** - Show current branch, git status, and recent commits for quick context
 
 See [plugins/git/README.md](plugins/git/README.md) for detailed documentation.
+
+### Hcp Plugin
+
+Generate HyperShift cluster creation commands via hcp CLI from natural language descriptions
+
+**Commands:**
+- **`/hcp:generate` `<provider> <cluster-description>`** - Generate ready-to-execute hypershift cluster creation commands from natural language descriptions
+
+See [plugins/hcp/README.md](plugins/hcp/README.md) for detailed documentation.
 
 ### Hello World Plugin
 
