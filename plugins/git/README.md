@@ -4,6 +4,10 @@ Git workflow automation and utilities for Claude Code.
 
 ## Commands
 
+### `/git:branch-resolve`
+
+Analyze and resolve git branch issues (conflicts, divergence, push/pull problems)
+
 ### `/git:cherry-pick-by-patch`
 
 Cherry-pick a git commit into the current branch using the patch command instead of git cherry-pick.
