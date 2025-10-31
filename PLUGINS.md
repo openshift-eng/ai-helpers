@@ -97,16 +97,19 @@ See [plugins/must-gather/README.md](plugins/must-gather/README.md) for detailed 
 OLM (Operator Lifecycle Manager) plugin for operator management and debugging
 
 **Commands:**
-- **`/olm:approve` `<operator-name> [namespace] [--all]`** - Approve pending InstallPlans for operator installations and upgrades
-- **`/olm:catalog` `<list|add|remove|refresh|status> [arguments]`** - Manage catalog sources for discovering and installing operators
+- **`/olm:approve` `<operator-name> [namespace] [--all]`** - Approve pending InstallPlans for operator installations and upgrades (OLM v0 only)
+- **`/olm:catalog` `<action> [args] [--version v0|v1]`** - Manage catalog sources (v0) or ClusterCatalogs (v1)
 - **`/olm:debug` `<issue-description> <must-gather-path> [olm-version]`** - Debug OLM issues using must-gather logs and source code analysis
-- **`/olm:diagnose` `[operator-name] [namespace] [--fix] [--cluster]`** - Diagnose and optionally fix common OLM and operator issues
-- **`/olm:install` `<operator-name> [namespace] [channel] [source] [--approval=Automatic|Manual]`** - Install a day-2 operator using Operator Lifecycle Manager
-- **`/olm:list` `[namespace] [--all-namespaces]`** - List installed operators in the cluster
-- **`/olm:search` `[query] [--catalog <catalog-name>]`** - Search for available operators in catalog sources
-- **`/olm:status` `<operator-name> [namespace]`** - Get detailed status and health information for an operator
-- **`/olm:uninstall` `<operator-name> [namespace] [--remove-crds] [--remove-namespace]`** - Uninstall a day-2 operator and optionally remove its resources
-- **`/olm:upgrade` `<operator-name> [namespace] [--channel=<channel>] [--approve]`** - Update an operator to the latest version or switch channels
+- **`/olm:detect-version`** - Auto-detect which OLM version(s) are installed in the cluster
+- **`/olm:diagnose` `[operator-name] [namespace] [--fix] [--cluster]`** - Diagnose and optionally fix common OLM and operator issues (OLM v0 only)
+- **`/olm:fix-rbac` `<extension-name>`** - Fix RBAC permission issues for a ClusterExtension (OLM v1 only)
+- **`/olm:install` `<name> [options] [--version v0|v1]`** - Install an operator (v0) or extension (v1) using OLM
+- **`/olm:list` `[namespace] [--all-namespaces] [--version v0|v1]`** - List installed operators (v0) or extensions (v1) in the cluster
+- **`/olm:search` `[query] [--catalog <name>] [--version v0|v1]`** - Search for available operators (v0) or extensions (v1) in catalogs
+- **`/olm:status` `<name> [namespace] [--version v0|v1]`** - Get detailed status of an operator (v0) or extension (v1)
+- **`/olm:uninstall` `<name> [namespace] [--remove-crds] [--remove-namespace] [--version v0|v1]`** - Uninstall an operator (v0) or extension (v1) from the cluster
+- **`/olm:upgrade` `<name> [namespace] [--channel <channel>] [--approve] [--version v0|v1]`** - Upgrade an operator (v0) or extension (v1) to a new version
+- **`/olm:use-version` `[v0|v1|clear]`** - Set or view the OLM version context for this session
 
 See [plugins/olm/README.md](plugins/olm/README.md) for detailed documentation.
 

@@ -1,6 +1,6 @@
 ---
-description: Search for available operators in catalog sources
-argument-hint: [query] [--catalog <catalog-name>]
+description: Search for available operators (v0) or extensions (v1) in catalogs
+argument-hint: [query] [--catalog <name>] [--version v0|v1]
 ---
 
 ## Name
@@ -8,240 +8,228 @@ olm:search
 
 ## Synopsis
 ```
-/olm:search [query] [--catalog <catalog-name>]
+/olm:search [query] [--catalog <name>] [--version v0|v1]
 ```
 
 ## Description
-The `olm:search` command searches for available operators in the cluster's catalog sources (OperatorHub). It helps you discover operators that can be installed, showing their names, descriptions, versions, channels, and catalog sources.
+The `olm:search` command searches for available operators (OLM v0) or extensions (OLM v1) in catalog sources, helping you discover what can be installed.
 
-This command helps you:
-- Find operators by name, description, or keywords
-- Discover what operators are available for installation
-- View operator details before installing
-- Check available versions and channels
-- Identify which catalog source contains a specific operator
-
-The command searches across all available catalog sources (redhat-operators, certified-operators, community-operators, redhat-marketplace, and custom catalogs) and presents results in an easy-to-read format.
+**You must explicitly specify which OLM version to use** via:
+- `--version` flag on this command, OR
+- Setting the context with `/olm:use-version v0|v1`
 
 ## Implementation
 
-The command performs the following steps:
+### 1. Determine OLM Version
+
+**See [skills/version-detection/SKILL.md](../../skills/version-detection/SKILL.md) for complete logic.**
+
+### 2. Branch to Version-Specific Implementation
+
+---
+
+## OLM v0 Implementation
+
+### Synopsis (v0)
+```
+/olm:search [query] [--catalog <name>] [--exact] [--version v0]
+```
+
+### Steps
 
 1. **Parse Arguments**:
-   - `$1`: Query string (optional) - Search term for filtering operators
-     - If not provided, lists all available operators
-     - Can be partial name, keyword, or description
-   - `$2+`: Flags (optional):
-     - `--catalog <catalog-name>`: Limit search to specific catalog source
-     - `--exact`: Only show exact name matches
-     - `--installed`: Show only installed operators (combination with /olm:list)
+   - `$1`: Query string (optional) - search term
+   - `--catalog <name>`: Filter by specific CatalogSource
+   - `--exact`: Only exact name matches
+   - `--version v0`: OLM version
 
-2. **Prerequisites Check**:
-   - Verify `oc` CLI is installed: `which oc`
-   - Verify cluster access: `oc whoami`
-   - If not installed or not authenticated, provide clear instructions
-
-3. **Fetch Catalog Data**:
-   - Get all PackageManifests from openshift-marketplace:
-     ```bash
-     oc get packagemanifests -n openshift-marketplace -o json
-     ```
-   - If `--catalog` flag is specified, filter by catalog source:
-     ```bash
-     oc get packagemanifests -n openshift-marketplace -o json | jq '.items[] | select(.status.catalogSource=="{catalog-name}")'
-     ```
-
-4. **Parse PackageManifest Data**:
-   - For each PackageManifest, extract:
-     - Name: `.metadata.name`
-     - Display Name: `.status.channels[0].currentCSVDesc.displayName`
-     - Description: `.status.channels[0].currentCSVDesc.description`
-     - Provider: `.status.provider.name`
-     - Catalog Source: `.status.catalogSource`
-     - Catalog Namespace: `.status.catalogSourceNamespace`
-     - Default Channel: `.status.defaultChannel`
-     - All Channels: `.status.channels[].name`
-     - Latest Version: `.status.channels[] | select(.name==.status.defaultChannel) | .currentCSVDesc.version`
-     - Categories: `.status.channels[0].currentCSVDesc.annotations["categories"]`
-     - Capabilities: `.status.channels[0].currentCSVDesc.annotations["capabilities"]`
-
-5. **Apply Search Filter** (if query provided):
-   - Case-insensitive search across:
-     - Operator name (`.metadata.name`)
-     - Display name (`.status.channels[0].currentCSVDesc.displayName`)
-     - Description (`.status.channels[0].currentCSVDesc.description`)
-     - Provider name (`.status.provider.name`)
-     - Categories
-   - If `--exact` flag, only match exact operator names
-
-6. **Sort Results**:
-   - Primary sort: By catalog source (redhat-operators first, then certified, community, etc.)
-   - Secondary sort: By operator name alphabetically
-
-7. **Format Search Results**:
-   
-   **A. Summary Header**
-   ```
-   Found X operators matching "{query}"
-   ```
-   
-   **B. Results List**
-   For each operator:
-   ```
-   ┌─────────────────────────────────────────────────────────────
-   │ cert-manager-operator for Red Hat OpenShift
-   ├─────────────────────────────────────────────────────────────
-   │ Name:        openshift-cert-manager-operator
-   │ Provider:    Red Hat
-   │ Catalog:     redhat-operators
-   │ Default:     stable-v1
-   │ Channels:    stable-v1, tech-preview-v1.13
-   │ Version:     v1.13.1
-   │ Categories:  Security
-   │ 
-   │ Description: Manages the lifecycle of TLS certificates...
-   │ 
-   │ Install:     /olm:install openshift-cert-manager-operator
-   └─────────────────────────────────────────────────────────────
+2. **Fetch PackageManifests**:
+   ```bash
+   if [ -n "{catalog}" ]; then
+     PACKAGES=$(oc get packagemanifests -n openshift-marketplace -o json | \
+       jq --arg cat "{catalog}" '.items[] | select(.status.catalogSource==$cat)')
+   else
+     PACKAGES=$(oc get packagemanifests -n openshift-marketplace -o json | jq '.items[]')
+   fi
    ```
 
-8. **Group by Catalog** (optional, for better readability):
-   ```
-   ═════════════════════════════════════════════════════════════
-   RED HAT OPERATORS (3)
-   ═════════════════════════════════════════════════════════════
-   
-   [List of operators from redhat-operators]
-   
-   ═════════════════════════════════════════════════════════════
-   CERTIFIED OPERATORS (1)
-   ═════════════════════════════════════════════════════════════
-   
-   [List of operators from certified-operators]
-   
-   ═════════════════════════════════════════════════════════════
-   COMMUNITY OPERATORS (2)
-   ═════════════════════════════════════════════════════════════
-   
-   [List of operators from community-operators]
+3. **Filter by Query**:
+   ```bash
+   if [ -n "{query}" ]; then
+     if [ "{exact}" == "true" ]; then
+       PACKAGES=$(echo "$PACKAGES" | jq --arg q "{query}" 'select(.metadata.name==$q)')
+     else
+       PACKAGES=$(echo "$PACKAGES" | jq --arg q "{query}" \
+         'select(.metadata.name | test($q; "i")) or 
+          select(.status.channels[0].currentCSVDesc.displayName | test($q; "i")) or
+          select(.status.channels[0].currentCSVDesc.description | test($q; "i"))')
+     fi
+   fi
    ```
 
-9. **Provide Installation Guidance**:
-   - For each operator, show ready-to-use install command:
-     ```
-     To install: /olm:install {operator-name}
-     ```
-   - For operators with specific channel recommendations, note them
+4. **Display Results**:
+   ```bash
+   echo "$PACKAGES" | jq -r '
+     .metadata.name + "|" + 
+     .status.catalogSource + "|" + 
+     .status.defaultChannel + "|" + 
+     (.status.channels[0].currentCSVDesc.displayName // "N/A") + "|" + 
+     ((.status.channels[0].currentCSVDesc.description // "N/A") | .[0:80])' | \
+   while IFS='|' read -r name catalog channel display desc; do
+     echo "Name: $name"
+     echo "  Catalog: $catalog"
+     echo "  Channel: $channel"
+     echo "  Display: $display"
+     echo "  Description: $desc"
+     echo ""
+     echo "  Install: /olm:install $name --version v0"
+     echo ""
+   done
+   ```
 
-10. **Handle No Results**:
-    - If no operators match the query:
-      ```
-      No operators found matching "{query}"
-      
-      Suggestions:
-      - Try a broader search term
-      - List all available operators: /olm:search
-      - Check specific catalog: /olm:search {query} --catalog redhat-operators
-      ```
+---
 
-11. **Show Popular/Recommended Operators** (if no query provided):
-    - Highlight commonly used operators:
-      - cert-manager
-      - external-secrets-operator
-      - OpenShift Pipelines
-      - OpenShift GitOps
-      - Service Mesh
-      - etc.
+## OLM v1 Implementation
+
+### Synopsis (v1)
+```
+/olm:search [query] [--catalog <name>] [--version v1]
+```
+
+### Steps
+
+1. **Parse Arguments**:
+   - `$1`: Query string (optional)
+   - `--catalog <name>`: Filter by specific ClusterCatalog
+   - `--version v1`: OLM version
+
+2. **Check Prerequisites**:
+   ```bash
+   if ! kubectl get namespace olmv1-system &> /dev/null; then
+     echo "❌ OLM v1 not installed"
+     exit 1
+   fi
+   
+   if ! kubectl get service catalogd-service -n olmv1-system &> /dev/null; then
+     echo "❌ catalogd-service not found"
+     exit 1
+   fi
+   ```
+
+3. **Get ClusterCatalogs**:
+   ```bash
+   if [ -n "{catalog}" ]; then
+     CATALOGS="{catalog}"
+   else
+     CATALOGS=$(kubectl get clustercatalogs --no-headers 2>/dev/null | awk '{print $1}')
+   fi
+   
+   if [ -z "$CATALOGS" ]; then
+     echo "No catalogs found"
+     echo "Add a catalog: /olm:catalog add <name> <image> --version v1"
+     exit 0
+   fi
+   ```
+
+4. **Set up port forwarding to catalogd**:
+   ```bash
+   kubectl -n olmv1-system port-forward svc/catalogd-service 8443:443 &
+   PORT_FORWARD_PID=$!
+   sleep 2
+   
+   # Ensure cleanup on exit
+   trap "kill $PORT_FORWARD_PID 2>/dev/null" EXIT
+   ```
+
+5. **Query each catalog**:
+   ```bash
+   for CATALOG in $CATALOGS; do
+     echo "Searching catalog: $CATALOG"
+     echo ""
+     
+     # Fetch all packages
+     PACKAGES=$(curl -sk "https://localhost:8443/catalogs/$CATALOG/api/v1/all" | \
+       jq -s '.[] | select(.schema == "olm.package")')
+     
+     # Filter by query if provided
+     if [ -n "{query}" ]; then
+       PACKAGES=$(echo "$PACKAGES" | jq --arg q "{query}" 'select(.name | test($q; "i"))')
+     fi
+     
+     # Display each package
+     echo "$PACKAGES" | jq -r '.name' | while read -r PKG_NAME; do
+       # Get package details
+       PKG_INFO=$(echo "$PACKAGES" | jq --arg name "$PKG_NAME" 'select(.name==$name)')
+       DEFAULT_CHANNEL=$(echo "$PKG_INFO" | jq -r '.defaultChannel')
+       DESCRIPTION=$(echo "$PKG_INFO" | jq -r '.description // "N/A"')
+       
+       # Get channels
+       CHANNELS=$(curl -sk "https://localhost:8443/catalogs/$CATALOG/api/v1/all" | \
+         jq -s --arg pkg "$PKG_NAME" '.[] | select(.schema == "olm.channel" and .package==$pkg) | .name' | tr '\n' ',' | sed 's/,$//')
+       
+       # Get latest version
+       LATEST_VERSION=$(curl -sk "https://localhost:8443/catalogs/$CATALOG/api/v1/all" | \
+         jq -s --arg pkg "$PKG_NAME" --arg ch "$DEFAULT_CHANNEL" \
+         '.[] | select(.schema == "olm.channel" and .package==$pkg and .name==$ch) | .entries[0].name' | \
+         grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+       
+       echo "Name: $PKG_NAME"
+       echo "  Catalog: $CATALOG"
+       echo "  Default Channel: $DEFAULT_CHANNEL"
+       echo "  Available Channels: $CHANNELS"
+       echo "  Latest Version: ${LATEST_VERSION:-unknown}"
+       echo "  Description: ${DESCRIPTION:0:80}"
+       echo ""
+       echo "  Install: /olm:install $PKG_NAME --version v1 --channel $DEFAULT_CHANNEL --namespace <namespace>"
+       echo ""
+     done
+   done
+   
+   # Cleanup
+   kill $PORT_FORWARD_PID 2>/dev/null
+   ```
+
+---
 
 ## Return Value
-- **Success**: List of matching operators with detailed information
-- **No Results**: Message indicating no matches with suggestions
-- **Error**: Connection or permission error with troubleshooting guidance
-- **Format**:
-  - Summary of search results
-  - Detailed operator information cards
-  - Installation commands for each operator
-  - Grouped by catalog source
+
+### OLM v0
+- List of matching PackageManifests with install commands
+
+### OLM v1
+- List of matching packages from ClusterCatalogs with install commands
 
 ## Examples
 
-1. **Search for cert-manager operator**:
-   ```
-   /olm:search cert-manager
-   ```
+### Example 1: Search all operators (v0)
 
-2. **Search for secrets-related operators**:
-   ```
-   /olm:search secrets
-   ```
-   Output listing multiple operators related to secrets management.
+```bash
+/olm:use-version v0
+/olm:search cert-manager
+```
 
-3. **List all operators** (no query):
-   ```
-   /olm:search
-   ```
+### Example 2: Search specific catalog (v1)
 
-4. **Search in specific catalog**:
-   ```
-   /olm:search prometheus --catalog community-operators
-   ```
-   Output showing only Prometheus-related operators from community-operators catalog.
+```bash
+/olm:search postgres --catalog operatorhubio --version v1
+```
 
-5. **Exact name match**:
-   ```
-   /olm:search external-secrets-operator --exact
-   ```
-   Output showing only the exact match for external-secrets-operator.
+### Example 3: List all available (v0)
 
-6. **Search for operators by category** (e.g., security):
-   ```
-   /olm:search security
-   ```
-   Output listing all security-related operators.
+```bash
+/olm:search --version v0
+```
 
 ## Arguments
-- **$1** (query): Search term to filter operators (optional)
-  - If not provided, lists all available operators (may be very long)
-  - Searches across name, display name, description, provider
-  - Case-insensitive partial matching
-  - Example: "cert", "secrets", "security", "monitoring"
-- **$2+** (flags): Optional flags
-  - `--catalog <catalog-name>`: Limit search to specific catalog
-    - Values: "redhat-operators", "certified-operators", "community-operators", "redhat-marketplace", or custom catalog name
-  - `--exact`: Only show exact name matches (no partial matching)
-  - `--installed`: Show only operators that are currently installed
 
+- **$1** (query): Search term (optional)
+- **--catalog <name>**: Filter by catalog
+- **--version v0|v1**: OLM version (optional if context set)
+- **--exact**: Exact match only (v0 only)
 
-## Troubleshooting
+## Notes
 
-- **No operators found**: 
-  - Verify catalog sources are available:
-    ```bash
-    oc get catalogsources -n openshift-marketplace
-    ```
-  - Check if catalog sources are healthy:
-    ```bash
-    oc get pods -n openshift-marketplace
-    ```
-- **Slow search**:
-  - Use more specific search terms
-  - Search in specific catalog: `--catalog redhat-operators`
-- **Incomplete information**:
-  - Some operators may have limited metadata in their PackageManifest
-- **Permission denied**:
-  - Ensure you can read PackageManifests:
-    ```bash
-    oc auth can-i list packagemanifests -n openshift-marketplace
-    ```
-
-## Related Commands
-
-- `/olm:install <operator-name>` - Install an operator found in search results
-- `/olm:list` - List installed operators
-- `/olm:status <operator-name>` - Check status of an installed operator
-
-## Additional Resources
-
-- [OperatorHub.io](https://operatorhub.io/) - Browse operators online
-- [Operator Lifecycle Manager Documentation](https://olm.operatorframework.io/)
-
+- **v0**: Searches PackageManifests in openshift-marketplace
+- **v1**: Queries ClusterCatalogs via catalogd API, requires port-forwarding
+- Empty query lists all available packages
+- Use install command shown in output to install

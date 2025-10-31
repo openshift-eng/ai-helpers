@@ -263,15 +263,15 @@
       "commands": [
         {
           "name": "approve",
-          "description": "Approve pending InstallPlans for operator installations and upgrades",
+          "description": "Approve pending InstallPlans for operator installations and upgrades (OLM v0 only)",
           "synopsis": "/olm:approve <operator-name> [namespace] [--all]",
           "argument_hint": "<operator-name> [namespace] [--all]"
         },
         {
           "name": "catalog",
-          "description": "Manage catalog sources for discovering and installing operators",
-          "synopsis": "/olm:catalog list",
-          "argument_hint": "<list|add|remove|refresh|status> [arguments]"
+          "description": "Manage catalog sources (v0) or ClusterCatalogs (v1)",
+          "synopsis": "/olm:catalog <action> [args] [--version v0|v1]",
+          "argument_hint": "<action> [args] [--version v0|v1]"
         },
         {
           "name": "debug",
@@ -280,49 +280,73 @@
           "argument_hint": "<issue-description> <must-gather-path> [olm-version]"
         },
         {
+          "name": "detect-version",
+          "description": "Auto-detect which OLM version(s) are installed in the cluster",
+          "synopsis": "/olm:detect-version",
+          "argument_hint": ""
+        },
+        {
           "name": "diagnose",
-          "description": "Diagnose and optionally fix common OLM and operator issues",
+          "description": "Diagnose and optionally fix common OLM and operator issues (OLM v0 only)",
           "synopsis": "/olm:diagnose [operator-name] [namespace] [--fix] [--cluster]",
           "argument_hint": "[operator-name] [namespace] [--fix] [--cluster]"
         },
         {
+          "name": "fix-rbac",
+          "description": "Fix RBAC permission issues for a ClusterExtension (OLM v1 only)",
+          "synopsis": "/olm:fix-rbac <extension-name>",
+          "argument_hint": "<extension-name>"
+        },
+        {
           "name": "install",
-          "description": "Install a day-2 operator using Operator Lifecycle Manager",
-          "synopsis": "/olm:install <operator-name> [namespace] [channel] [source] [--approval=Automatic|Manual]",
-          "argument_hint": "<operator-name> [namespace] [channel] [source] [--approval=Automatic|Manual]"
+          "description": "Install an operator (v0) or extension (v1) using OLM",
+          "synopsis": "/olm:install <name> [options] [--version v0|v1]",
+          "argument_hint": "<name> [options] [--version v0|v1]"
         },
         {
           "name": "list",
-          "description": "List installed operators in the cluster",
-          "synopsis": "/olm:list [namespace] [--all-namespaces]",
-          "argument_hint": "[namespace] [--all-namespaces]"
+          "description": "List installed operators (v0) or extensions (v1) in the cluster",
+          "synopsis": "/olm:list [namespace] [--all-namespaces] [--version v0|v1]",
+          "argument_hint": "[namespace] [--all-namespaces] [--version v0|v1]"
         },
         {
           "name": "search",
-          "description": "Search for available operators in catalog sources",
-          "synopsis": "/olm:search [query] [--catalog <catalog-name>]",
-          "argument_hint": "[query] [--catalog <catalog-name>]"
+          "description": "Search for available operators (v0) or extensions (v1) in catalogs",
+          "synopsis": "/olm:search [query] [--catalog <name>] [--version v0|v1]",
+          "argument_hint": "[query] [--catalog <name>] [--version v0|v1]"
         },
         {
           "name": "status",
-          "description": "Get detailed status and health information for an operator",
-          "synopsis": "/olm:status <operator-name> [namespace]",
-          "argument_hint": "<operator-name> [namespace]"
+          "description": "Get detailed status of an operator (v0) or extension (v1)",
+          "synopsis": "/olm:status <name> [namespace] [--version v0|v1]",
+          "argument_hint": "<name> [namespace] [--version v0|v1]"
         },
         {
           "name": "uninstall",
-          "description": "Uninstall a day-2 operator and optionally remove its resources",
-          "synopsis": "/olm:uninstall <operator-name> [namespace] [--remove-crds] [--remove-namespace]",
-          "argument_hint": "<operator-name> [namespace] [--remove-crds] [--remove-namespace]"
+          "description": "Uninstall an operator (v0) or extension (v1) from the cluster",
+          "synopsis": "/olm:uninstall <name> [namespace] [--remove-crds] [--remove-namespace] [--version v0|v1]",
+          "argument_hint": "<name> [namespace] [--remove-crds] [--remove-namespace] [--version v0|v1]"
         },
         {
           "name": "upgrade",
-          "description": "Update an operator to the latest version or switch channels",
-          "synopsis": "/olm:upgrade <operator-name> [namespace] [--channel=<channel>] [--approve]",
-          "argument_hint": "<operator-name> [namespace] [--channel=<channel>] [--approve]"
+          "description": "Upgrade an operator (v0) or extension (v1) to a new version",
+          "synopsis": "/olm:upgrade <name> [namespace] [--channel <channel>] [--approve] [--version v0|v1]",
+          "argument_hint": "<name> [namespace] [--channel <channel>] [--approve] [--version v0|v1]"
+        },
+        {
+          "name": "use-version",
+          "description": "Set or view the OLM version context for this session",
+          "synopsis": "/olm:use-version [v0|v1|clear]",
+          "argument_hint": "[v0|v1|clear]"
         }
       ],
-      "skills": [],
+      "skills": [
+        {
+          "name": "OLM Version Detection",
+          "id": "version-detection",
+          "description": "Determine which OLM version to use based on context and flags"
+        }
+      ],
       "has_readme": true
     },
     {
