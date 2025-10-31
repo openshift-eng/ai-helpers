@@ -215,6 +215,85 @@ def remove_unnecessary_fields(regressions: list) -> list:
     return regressions
 
 
+def exclude_suspected_infra_regressions(regressions: list) -> tuple[list, int]:
+    """
+    Filter out suspected infrastructure-related mass regressions.
+    
+    This is an imprecise attempt to filter out mass regressions caused by infrastructure
+    issues which the TRT handles via a separate mechanism. These
+    mass incidents typically result in many short-lived regressions being opened and
+    closed on the same day.
+    
+    Algorithm:
+    1. First pass: Count how many short-lived regressions (closed within 96 hours of opening)
+       were closed on each date.
+    2. Second pass: Filter out regressions that:
+       - Were closed within 96 hours of being opened, AND
+       - Were closed on a date where >50 short-lived regressions were closed
+    
+    Args:
+        regressions: List of regression dictionaries
+    
+    Returns:
+        Tuple of (filtered_regressions, count_of_filtered_regressions)
+    """
+    # First pass: Track count of short-lived regressions closed on each date
+    short_lived_closures_by_date = {}
+    
+    for regression in regressions:
+        opened = regression.get('opened')
+        closed = regression.get('closed')
+        
+        # Skip if not closed or missing opened timestamp
+        if not closed or not opened:
+            continue
+        
+        try:
+            # Calculate how long the regression was open
+            hours_open = calculate_hours_between(opened, closed)
+            
+            # If closed within 96 hours, increment counter for the closed date
+            if hours_open <= 96:
+                closed_date = closed.split('T')[0]  # Extract YYYY-MM-DD
+                short_lived_closures_by_date[closed_date] = short_lived_closures_by_date.get(closed_date, 0) + 1
+        except (ValueError, KeyError, TypeError):
+            # Skip if timestamp parsing fails
+            continue
+    
+    # Second pass: Filter out suspected infra regressions
+    filtered_regressions = []
+    filtered_count = 0
+    
+    for regression in regressions:
+        opened = regression.get('opened')
+        closed = regression.get('closed')
+        
+        # Keep open regressions
+        if not closed or not opened:
+            filtered_regressions.append(regression)
+            continue
+        
+        try:
+            # Calculate how long the regression was open
+            hours_open = calculate_hours_between(opened, closed)
+            closed_date = closed.split('T')[0]  # Extract YYYY-MM-DD
+            
+            # Filter out if:
+            # 1. Was closed within 96 hours, AND
+            # 2. More than 50 short-lived regressions were closed on that date
+            if hours_open <= 96 and short_lived_closures_by_date.get(closed_date, 0) > 50:
+                filtered_count += 1
+                continue
+            
+            # Keep this regression
+            filtered_regressions.append(regression)
+        except (ValueError, KeyError, TypeError):
+            # If timestamp parsing fails, keep the regression
+            filtered_regressions.append(regression)
+    
+    return filtered_regressions, filtered_count
+
+
 def group_by_component(data: list) -> dict:
     """
     Group regressions by component name and split into open/closed.
@@ -245,12 +324,13 @@ def group_by_component(data: list) -> dict:
     return dict(sorted(components.items()))
 
 
-def calculate_summary(regressions: list) -> dict:
+def calculate_summary(regressions: list, filtered_suspected_infra: int = 0) -> dict:
     """
     Calculate summary statistics for a list of regressions.
     
     Args:
         regressions: List of regression dictionaries
+        filtered_suspected_infra: Count of regressions filtered out as suspected infrastructure issues
     
     Returns:
         Dictionary containing summary statistics with nested open/closed totals, triaged counts,
@@ -388,6 +468,7 @@ def calculate_summary(regressions: list) -> dict:
         "total": total,
         "triaged": total_triaged,
         "triage_percentage": triage_percentage,
+        "filtered_suspected_infra_regressions": filtered_suspected_infra,
         "time_to_triage_hrs_avg": overall_avg_triage_time,
         "time_to_triage_hrs_max": overall_max_triage_time,
         "time_to_close_hrs_avg": closed_avg_time,
@@ -529,6 +610,13 @@ Examples:
         if isinstance(regressions, list):
             regressions = remove_unnecessary_fields(regressions)
 
+        # Filter out suspected infrastructure regressions
+        filtered_infra_count = 0
+        if isinstance(regressions, list):
+            regressions, filtered_infra_count = exclude_suspected_infra_regressions(regressions)
+            print(f"Filtered out {filtered_infra_count} suspected infrastructure regressions", 
+                  file=sys.stderr)
+
         # Group regressions by component
         if isinstance(regressions, list):
             components = group_by_component(regressions)
@@ -545,7 +633,7 @@ Examples:
             all_regressions.extend(comp_data["open"])
             all_regressions.extend(comp_data["closed"])
         
-        overall_summary = calculate_summary(all_regressions)
+        overall_summary = calculate_summary(all_regressions, filtered_infra_count)
 
         # Construct output with summary and components
         # If --short flag is specified, remove regression data from components
