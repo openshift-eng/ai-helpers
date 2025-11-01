@@ -21,5 +21,12 @@ lint-pull: ## Pull the latest claudelint image
 	@echo "Pulling latest claudelint image..."
 	$(CONTAINER_RUNTIME) pull $(CLAUDELINT_IMAGE)
 
+.PHONY: update
+update: ## Update plugin documentation and website data
+	@echo "Updating plugin documentation..."
+	@python3 scripts/generate_plugin_docs.py
+	@echo "Building website data..."
+	@python3 scripts/build-website.py
+
 .DEFAULT_GOAL := help
 

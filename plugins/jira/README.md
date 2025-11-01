@@ -16,36 +16,25 @@ Comprehensive Jira integration for Claude Code, providing AI-powered tools to an
 
 - Claude Code installed
 - Jira MCP server configured
+- Optional: `gh` CLI tools installed and configured, for GitHub access.
 
 ### Setting up Jira MCP Server
 
 ```bash
-# Add the Atlassian MCP server
-claude mcp add atlassian npx @modelcontextprotocol/server-atlassian
-```
-
-OR you can have claude use an already running Jira MCP Server
-
-```bash
-# Add the Atlassian MCP server
-claude mcp add --transport sse atlassian http https://localhost:8080/sse
-```
-
-Configure your Jira credentials according to the [Atlassian MCP documentation](https://github.com/modelcontextprotocol/servers/tree/main/src/atlassian).
-
-### Running Jira MCP Server locally with podman
-
-```bash
 # Start the atlassian mcp server using podman
-podman run -i --rm -p 8080:8080 -e "JIRA_URL=https://issues.redhat.com" -e "JIRA_USERNAME" -e "JIRA_API_TOKEN" -e "JIRA_PERSONAL_TOKEN" -e "JIRA_SSL_VERIFY" ghcr.io/sooperset/mcp-atlassian:latest --transport sse --port 8080 -vv
+podman run -i --rm -p 8080:8080 -e "JIRA_URL=https://issues.redhat.com" -e "JIRA_USERNAME" -e "JIRA_PERSONAL_TOKEN" -e "JIRA_SSL_VERIFY" ghcr.io/sooperset/mcp-atlassian:latest --transport sse --port 8080 -vv
 ```
 
-#### Getting Tokens 
-You'll need to generate your own tokens in several of these examples:
+Add the MCP server to Claude:
 
-- For JIRA API TOKEN, use https://id.atlassian.com/manage-profile/security/api-tokens
-- For JIRA PERSONAL TOKEN, use https://issues.redhat.com/secure/ViewProfile.jspa?selectedTab=com.atlassian.pats.pats-plugin:jira-user-personal-access-tokens
-- For GitHub bearer token, use https://github.com/settings/tokens
+```bash
+# Add the Atlassian MCP server
+claude mcp add --transport sse atlassian http://localhost:8080/sse
+```
+
+#### Getting Tokens
+
+For your Jira token, use https://issues.redhat.com/secure/ViewProfile.jspa?selectedTab=com.atlassian.pats.pats-plugin:jira-user-personal-access-tokens
 
 ### Notes and tips
 
@@ -57,31 +46,13 @@ You'll need to generate your own tokens in several of these examples:
 - Keep `JIRA_SSL_VERIFY` as "true" unless you have a specific reason to disable TLS verification.
 - Limit active MCP servers: running too many at once can degrade performance or hit limits. Use Cursor's MCP panel to disable those you don't need for the current session.
 
-
-
 ## Installation
 
-### From the OpenShift AI Helpers Marketplace
+Ensure you have the ai-helpers marketplace enabled, via [the instructions here](/README.md).
 
 ```bash
-# Add the marketplace (one-time setup)
-/plugin marketplace add https://raw.githubusercontent.com/openshift-eng/ai-helpers/main/marketplace.json
-
 # Install the plugin
-/plugin install jira
-```
-
-### Manual Installation
-
-```bash
-# Clone the repository
-git clone https://github.com/openshift-eng/ai-helpers.git
-
-# Copy to Claude Code plugins directory
-cp -r ai-helpers/plugins/jira ~/.claude/plugins/
-
-# Enable the plugin
-/plugin enable jira
+/plugin install jira@ai-helpers
 ```
 
 ## Available Commands
