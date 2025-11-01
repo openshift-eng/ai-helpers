@@ -80,6 +80,12 @@
           "argument_hint": "<issue-key>"
         },
         {
+          "name": "backlog",
+          "description": "Find suitable JIRA tickets from the backlog to work on based on priority and activity",
+          "synopsis": "/jira:backlog [project-key] [--assignee username] [--days-inactive N]",
+          "argument_hint": "[project-key] [--assignee username] [--days-inactive N]"
+        },
+        {
           "name": "create",
           "description": "Create Jira issues (story, epic, feature, task, bug) with proper formatting",
           "synopsis": "/jira:create <type> [project-key] <summary> [options]",
