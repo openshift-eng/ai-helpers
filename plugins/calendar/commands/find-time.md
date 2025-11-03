@@ -7,7 +7,7 @@ argument-hint: <email_addresses> [duration_in_minutes] [days_ahead]
 calendar:find-time
 
 ## Synopsis
-```
+```bash
 /calendar:find-time <email_addresses> [duration_in_minutes] [days_ahead]
 ```
 
@@ -24,9 +24,9 @@ The `calendar:find-time` command helps you find overlapping available time with 
 - Convert duration to minutes if provided in other formats
 
 ### Phase 2: Gather Free/Busy Information
-- Use the `get-freebusy` tool from the `plugin:calendar:google-calendar` MCP server to get busy times for all participants
+- Use the `mcp__google-calendar__get-freebusy` function from the google-calendar MCP server to get busy times for all participants
 - Query the specified days_ahead for each participant's calendar
-- Get current time and primary calendar timezone using `get-current-time`
+- Get current time and primary calendar timezone using `mcp__google-calendar__get-current-time`
 
 ### Phase 3: Analyze Available Time Slots
 - Calculate free blocks by inverting busy periods for each participant
@@ -38,7 +38,7 @@ The `calendar:find-time` command helps you find overlapping available time with 
 
 ### Phase 4: Generate Meeting Suggestions
 - Sort potential meeting times by preference (earlier in week, business hours, etc.)
-- Present top 3-5 options with clear time formatting
+- Present top 3–5 options with clear time formatting
 - Display times in the user's primary calendar timezone
 - Include day of week and date for clarity
 - Provide alternative suggestions if no perfect matches found
@@ -46,7 +46,7 @@ The `calendar:find-time` command helps you find overlapping available time with 
 ### Phase 5: Error Handling
 - Handle cases where no common free time exists
 - Provide helpful suggestions (shorter duration, different date range)
-- If you can't access a calendar, give up the operation gracefully. Then tell the user that the email adress maybe wrong
+- If you can't access a calendar, give up the operation gracefully. Then tell the user that the email address might be wrong
 - Validate that all email addresses have accessible calendars
 
 ## Return Value
@@ -60,17 +60,17 @@ The `calendar:find-time` command helps you find overlapping available time with 
 ## Examples
 
 1. **Basic usage with two people**:
-   ```
+   ```bash
    /calendar:find-time alice@company.com,bob@company.com 60
    ```
 
 2. **Including date range**:
-   ```
+   ```bash
    /calendar:find-time team@company.com,manager@company.com 30 7
    ```
 
 3. **Multiple participants with specific date**:
-   ```
+   ```bash
    /calendar:find-time alice@company.com,bob@company.com,carol@company.com 45 15
    ```
 

@@ -612,13 +612,13 @@
         {
           "name": "create-event",
           "description": "Create a new event on Google Calendar.",
-          "synopsis": "/calendar:create-event <natural_language_prompt_for_the_event>",
+          "synopsis": "bash",
           "argument_hint": "<natural_language_prompt_for_the_event>"
         },
         {
           "name": "find-time",
           "description": "Find overlapping free time to meet with one or more people.",
-          "synopsis": "/calendar:find-time <email_addresses> [duration_in_minutes] [days_ahead]",
+          "synopsis": "bash",
           "argument_hint": "<email_addresses> [duration_in_minutes] [days_ahead]"
         }
       ],

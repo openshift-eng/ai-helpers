@@ -15,7 +15,7 @@ Google Calendar integration for Claude Code, providing AI-powered tools to find 
 
 - Claude Code installed
 - Google Calendar API access configured
-- Google Calendar MCP server(bundled)
+- Google Calendar MCP server running locally
 
 ## Setup
 
@@ -35,14 +35,24 @@ Google Calendar integration for Claude Code, providing AI-powered tools to find 
    - Select **"Desktop app"** as the application type (Important!)
    - Download the auth key
 
-### 2. Environment Configuration
+### 2. MCP Server Setup
 
-After completing previous step, you must specify the credentials file path using the `GOOGLE_OAUTH_CREDENTIALS` environment variable prior to starting Claude Code, this tells the `google-calendar-mcp` MCP server where to look for auth keys.
+After completing the previous step, you need to set up the google-calendar MCP server locally.
 
-```bash
-export GOOGLE_OAUTH_CREDENTIALS=~/.config/client_secret_xxxxxxxxx.json
-claude
-```
+1. **Install the google-calendar MCP server** (if not already installed):
+   ```bash
+   npm install -g @cocal/google-calendar-mcp
+   ```
+
+2. **Set environment variable** for credentials:
+   ```bash
+   export GOOGLE_OAUTH_CREDENTIALS=~/.config/client_secret_xxxxxxxxx.json
+   ```
+
+3. **Add the MCP server to Claude Code** with the MCP server running:
+   ```bash
+   claude mcp add --transport stdio google-calendar -- npx @cocal/google-calendar-mcp
+   ```
 
 ## Installation
 
@@ -170,8 +180,10 @@ See [commands/create-event.md](commands/create-event.md) for full documentation.
 - Verify OAuth scopes include calendar access
 
 ### MCP Server Issues
-- Ensure `@cocal/google-calendar-mcp` is available via npm
-- Check that the MCP server is properly configured
+- Ensure `@cocal/google-calendar-mcp` is installed and available
+- Check that the MCP server is properly configured in your Claude Code settings
+- Verify the MCP server is running and accessible
+- Check that the google-calendar MCP functions are available (e.g., `mcp__google-calendar__*`)
 - Verify network connectivity for API calls
 
 For command-specific troubleshooting, see the individual command documentation.
@@ -182,4 +194,3 @@ For command-specific troubleshooting, see the individual command documentation.
 - **Calendar Data**: Free/busy information is queried in real-time and not stored
 - **Privacy**: Only calendar availability is accessed, not detailed event content
 - **Scope**: The plugin only requests minimal necessary Calendar API permissions
-

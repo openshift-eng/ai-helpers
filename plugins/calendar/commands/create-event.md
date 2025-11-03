@@ -7,7 +7,7 @@ argument-hint: <natural_language_prompt_for_the_event>
 calendar:create-event
 
 ## Synopsis
-```
+```bash
 /calendar:create-event <natural_language_prompt_for_the_event>
 ```
 
@@ -38,7 +38,7 @@ The `calendar:create-event` command creates a new calendar event on Google Calen
 
 ### Phase 3: Format Event Data
 - Convert all dates and times to ISO 8601 format
-- Use `get-current-time` tool to determine user's timezone
+- Use `mcp__google-calendar__get-current-time` function to determine user's timezone
 - Ensure start time is before end time
 - Format attendee list properly for calendar API
 - Prepare event description with any additional context
@@ -46,12 +46,12 @@ The `calendar:create-event` command creates a new calendar event on Google Calen
 ### Phase 4: Ask For User Confirmation
 - Display the summary, meeting time, attendees, description 
 - Ask user to confirm
-- If user confirms, proceed to phase 5, otherwise, modify the summary, meeting time, attendees, description based on user's input until user confirms you correctly intepreted the intent.
+- If user confirms, proceed to phase 5, otherwise, modify the summary, meeting time, attendees, description based on user's input until user confirms you correctly interpreted the intent.
 
 ### Phase 5: Create Calendar Event
-- Use the `create-event` tool from the `plugin:calendar:google-calendar` MCP server
-- Automatically attach Google Meet link for virtual participation
-- Create event on user's primary calendar
+- Use the `mcp__google-calendar__create-event` function from the google-calendar MCP server
+- Automatically attach Google Meet link for virtual participation using the `conferenceData` parameter
+- Create event on user's primary calendar (calendarId: 'primary')
 - Include all parsed attendees, description, and meeting details
 - Handle calendar API responses and potential conflicts
 
@@ -79,27 +79,27 @@ The `calendar:create-event` command creates a new calendar event on Google Calen
 ## Examples
 
 1. **Simple meeting**:
-   ```
+   ```bash
    /calendar:create-event Team standup tomorrow at 9am for 30 minutes
    ```
 
 2. **Meeting with specific attendees**:
-   ```
+   ```bash
    /calendar:create-event Project review Friday 2pm with alice@company.com and bob@company.com
    ```
 
 3. **Detailed planning session**:
-   ```
+   ```bash
    /calendar:create-event Quarterly planning session next Monday 10am-12pm with the whole engineering team
    ```
 
 4. **Quick 1:1 meeting**:
-   ```
+   ```bash
    /calendar:create-event Coffee chat with Sarah tomorrow 3pm for 45 minutes
    ```
 
 5. **All-hands meeting**:
-   ```
+   ```bash
    /calendar:create-event Monthly all-hands meeting first Friday of next month 2-3pm with leadership team
    ```
 
