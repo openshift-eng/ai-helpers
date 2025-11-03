@@ -41,45 +41,77 @@
             padding: 2rem;
         }
 
-        header {
-            text-align: center;
-            margin-bottom: 2rem;
-            padding: 1rem 0;
+        .navbar {
+            background: var(--bg-card);
+            border-bottom: 1px solid var(--border);
+            padding: 0.75rem 0;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+        }
+
+        body {
+            padding-top: 60px;
+        }
+
+        .navbar-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 2rem;
+        }
+
+        .navbar-brand {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+        }
+
+        .navbar-title {
+            display: flex;
+            flex-direction: column;
+            gap: 0.125rem;
         }
 
         h1 {
-            font-size: 2.25rem;
-            font-weight: 800;
+            font-size: 1.25rem;
+            font-weight: 700;
             background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
-            margin-bottom: 0.5rem;
+            margin: 0;
         }
 
         .subtitle {
-            font-size: 1rem;
-            color: var(--text-secondary);
-            margin-bottom: 1.25rem;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin: 0;
         }
 
-        .stats {
+        .navbar-stats {
             display: flex;
             gap: 1rem;
-            justify-content: center;
-            flex-wrap: wrap;
-            margin-bottom: 1.25rem;
+            align-items: center;
         }
 
         .stat {
-            background: var(--bg-card);
-            padding: 0.75rem 1.5rem;
-            border-radius: var(--radius);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.375rem 0.75rem;
+            background: var(--bg-code);
+            border-radius: 6px;
             border: 1px solid var(--border);
         }
 
         .stat-value {
-            font-size: 1.5rem;
+            font-size: 1rem;
             font-weight: 700;
             color: var(--primary);
         }
@@ -87,12 +119,21 @@
         .stat-label {
             color: var(--text-muted);
             font-size: 0.75rem;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
+        }
+
+        .navbar-links {
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+        }
+
+        header {
+            margin-bottom: 2rem;
         }
 
         .search-box {
             margin-bottom: 2rem;
+            position: relative;
         }
 
         .search-input {
@@ -114,6 +155,113 @@
 
         .search-input::placeholder {
             color: var(--text-muted);
+        }
+
+        .autocomplete-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            margin-top: 0.5rem;
+            max-height: 400px;
+            overflow-y: auto;
+            display: none;
+            z-index: 100;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+        }
+
+        .autocomplete-dropdown.show {
+            display: block;
+        }
+
+        .autocomplete-section {
+            padding: 0.75rem 0;
+        }
+
+        .autocomplete-section:not(:last-child) {
+            border-bottom: 1px solid var(--border);
+        }
+
+        .autocomplete-section-title {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            padding: 0.5rem 1rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .autocomplete-item {
+            padding: 0.75rem 1rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .autocomplete-item:hover {
+            background: var(--bg-code);
+        }
+
+        .autocomplete-item-icon {
+            flex-shrink: 0;
+            width: 32px;
+            height: 32px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.875rem;
+        }
+
+        .autocomplete-item-icon.plugin {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            color: white;
+        }
+
+        .autocomplete-item-icon.command {
+            background: var(--bg-code);
+            color: var(--success);
+            border: 1px solid var(--border);
+        }
+
+        .autocomplete-item-icon.skill {
+            background: var(--bg-code);
+            color: var(--accent);
+            border: 1px solid var(--border);
+        }
+
+        .autocomplete-item-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .autocomplete-item-title {
+            font-size: 0.95rem;
+            color: var(--text-primary);
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+
+        .autocomplete-item-subtitle {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .autocomplete-empty {
+            padding: 2rem 1rem;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 0.875rem;
         }
 
         .plugins-grid {
@@ -289,38 +437,32 @@
             overflow-x: auto;
         }
 
-        .links {
-            display: flex;
-            gap: 1rem;
-            margin-top: 1rem;
-            justify-content: center;
-            flex-wrap: wrap;
+        .nav-link {
+            display: inline-block;
+            padding: 0.5rem 0.875rem;
+            background: transparent;
+            color: var(--text-secondary);
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 500;
+            font-size: 0.875rem;
+            transition: all 0.2s ease;
+            border: 1px solid transparent;
         }
 
-        .link-button {
-            display: inline-block;
-            padding: 0.75rem 1.5rem;
+        .nav-link:hover {
+            background: var(--bg-code);
+            color: var(--text-primary);
+        }
+
+        .nav-link.primary {
             background: var(--primary);
             color: white;
-            text-decoration: none;
-            border-radius: var(--radius);
-            font-weight: 600;
-            transition: all 0.3s ease;
+            border-color: var(--primary);
         }
 
-        .link-button:hover {
+        .nav-link.primary:hover {
             background: var(--primary-dark);
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
-        }
-
-        .link-button.secondary {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-        }
-
-        .link-button.secondary:hover {
-            background: var(--bg-code);
         }
 
         footer {
@@ -330,21 +472,49 @@
             font-size: 0.875rem;
         }
 
-        @media (max-width: 768px) {
-            h1 {
-                font-size: 1.75rem;
+        @media (max-width: 968px) {
+            .navbar-content {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 1rem;
+            }
+
+            .navbar-brand {
+                width: 100%;
+                justify-content: space-between;
+            }
+
+            .navbar-stats {
+                gap: 0.5rem;
+            }
+
+            .stat-label {
+                display: none;
+            }
+
+            .navbar-links {
+                width: 100%;
+                justify-content: space-between;
             }
 
             .plugins-grid {
                 grid-template-columns: 1fr;
             }
+        }
 
-            .stats {
-                gap: 0.75rem;
+        @media (max-width: 480px) {
+            .navbar-stats {
+                flex-wrap: wrap;
             }
 
-            .stat {
-                padding: 0.5rem 1rem;
+            .navbar-links {
+                flex-direction: column;
+                width: 100%;
+            }
+
+            .nav-link {
+                width: 100%;
+                text-align: center;
             }
         }
 
@@ -492,49 +662,75 @@
             color: var(--success);
             border-color: var(--success);
         }
+
+        .readme-button {
+            background: var(--bg-code);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            padding: 0.5rem 0.75rem;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-decoration: none;
+            font-family: inherit;
+        }
+
+        .readme-button:hover {
+            background: var(--bg-card);
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        .readme-button svg {
+            flex-shrink: 0;
+        }
     </style>
 </head>
 <body>
+    <div class="navbar">
+        <div class="navbar-content">
+            <div class="navbar-brand">
+                <div class="navbar-title">
+                    <h1>AI Helpers Marketplace</h1>
+                    <p class="subtitle">Claude Code Plugins for OpenShift Engineering</p>
+                </div>
+                <div class="navbar-stats">
+                    <div class="stat">
+                        <div class="stat-value" id="plugin-count">0</div>
+                        <div class="stat-label">Plugins</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value" id="command-count">0</div>
+                        <div class="stat-label">Commands</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value" id="skill-count">0</div>
+                        <div class="stat-label">Skills</div>
+                    </div>
+                </div>
+            </div>
+            <div class="navbar-links">
+                <a href="#install" class="nav-link primary">How to Install</a>
+                <a href="https://github.com/openshift-eng/ai-helpers" class="nav-link" target="_blank">GitHub</a>
+                <a href="https://docs.claude.com/en/docs/claude-code/overview" class="nav-link" target="_blank">Docs</a>
+            </div>
+        </div>
+    </div>
+
     <div class="container">
-        <header>
-            <h1>AI Helpers Marketplace</h1>
-            <p class="subtitle">Claude Code Plugins for OpenShift Engineering</p>
-
-            <div class="stats">
-                <div class="stat">
-                    <div class="stat-value" id="plugin-count">0</div>
-                    <div class="stat-label">Plugins</div>
-                </div>
-                <div class="stat">
-                    <div class="stat-value" id="command-count">0</div>
-                    <div class="stat-label">Commands</div>
-                </div>
-                <div class="stat">
-                    <div class="stat-value" id="skill-count">0</div>
-                    <div class="stat-label">Skills</div>
-                </div>
-            </div>
-
-            <div class="links">
-                <a href="#install" class="install-button">
-                    How to Install
-                </a>
-                <a href="https://github.com/openshift-eng/ai-helpers" class="link-button secondary">
-                    View on GitHub
-                </a>
-                <a href="https://docs.claude.com/en/docs/claude-code" class="link-button secondary">
-                    Claude Code Docs
-                </a>
-            </div>
-        </header>
-
         <div class="search-box">
             <input
                 type="text"
                 id="search"
                 class="search-input"
-                placeholder="Search plugins and commands..."
+                placeholder="Search plugins, commands, and skills..."
+                autocomplete="off"
             >
+            <div id="autocomplete" class="autocomplete-dropdown"></div>
         </div>
 
         <div class="plugins-grid" id="plugins-grid"></div>
@@ -565,7 +761,9 @@
             try {
                 const response = await fetch('data.json');
                 const data = await response.json();
-                allPlugins = data.plugins;
+
+                // Sort plugins alphabetically
+                allPlugins = data.plugins.sort((a, b) => a.name.localeCompare(b.name));
 
                 // Update stats
                 document.getElementById('plugin-count').textContent = data.plugins.length;
@@ -575,6 +773,9 @@
                 document.getElementById('skill-count').textContent = totalSkills;
 
                 renderPlugins(allPlugins);
+
+                // Handle hash after data is loaded
+                handleHashChange();
             } catch (error) {
                 console.error('Error loading data:', error);
             }
@@ -652,9 +853,22 @@
                         ` : ''}
                     </div>
                 </div>
-                <div style="display: flex; gap: 1rem; align-items: flex-start;">
-                    <span class="plugin-version">v${plugin.version}</span>
-                    <button class="close-button" onclick="closeModal()">&times;</button>
+                <div style="display: flex; flex-direction: column; gap: 0.5rem; align-items: flex-end;">
+                    <div style="display: flex; gap: 1rem; align-items: flex-start;">
+                        <span class="plugin-version">v${plugin.version}</span>
+                        <button class="close-button" onclick="closeModal()">&times;</button>
+                    </div>
+                    ${plugin.has_readme ? `
+                    <a href="https://github.com/openshift-eng/ai-helpers/tree/main/plugins/${plugin.name}/README.md"
+                       target="_blank"
+                       class="readme-button">
+                        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M3 3h10v10H3V3z" stroke="currentColor" stroke-width="1.5" fill="none"/>
+                            <path d="M5 6h6 M5 8h6 M5 10h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                        </svg>
+                        README
+                    </a>
+                    ` : ''}
                 </div>
             `;
 
@@ -704,48 +918,137 @@
             window.location.hash = pluginName;
         }
 
-        function searchPlugins(query) {
+        function searchAndShowAutocomplete(query) {
             const lowerQuery = query.toLowerCase().trim();
+            const autocomplete = document.getElementById('autocomplete');
 
             if (!lowerQuery) {
+                autocomplete.classList.remove('show');
                 renderPlugins(allPlugins);
                 return;
             }
 
-            const filtered = allPlugins.filter(plugin => {
-                // Search in plugin name
-                if (plugin.name.toLowerCase().includes(lowerQuery)) {
-                    return true;
+            // Find matching items
+            const results = {
+                plugins: [],
+                commands: [],
+                skills: []
+            };
+
+            allPlugins.forEach(plugin => {
+                // Check plugin match
+                if (plugin.name.toLowerCase().includes(lowerQuery) ||
+                    plugin.description.toLowerCase().includes(lowerQuery)) {
+                    results.plugins.push(plugin);
                 }
 
-                // Search in plugin description
-                if (plugin.description.toLowerCase().includes(lowerQuery)) {
-                    return true;
-                }
-
-                // Search in commands
-                const matchesCommand = plugin.commands.some(cmd => {
-                    return cmd.name.toLowerCase().includes(lowerQuery) ||
-                           (cmd.description && cmd.description.toLowerCase().includes(lowerQuery)) ||
-                           (cmd.synopsis && cmd.synopsis.toLowerCase().includes(lowerQuery));
+                // Check command matches
+                plugin.commands.forEach(cmd => {
+                    if (cmd.name.toLowerCase().includes(lowerQuery) ||
+                        (cmd.description && cmd.description.toLowerCase().includes(lowerQuery)) ||
+                        (cmd.synopsis && cmd.synopsis.toLowerCase().includes(lowerQuery))) {
+                        results.commands.push({
+                            plugin: plugin.name,
+                            command: cmd
+                        });
+                    }
                 });
 
-                if (matchesCommand) {
-                    return true;
-                }
-
-                // Search in skills
+                // Check skill matches
                 const skills = plugin.skills || [];
-                const matchesSkill = skills.some(skill => {
-                    return skill.name.toLowerCase().includes(lowerQuery) ||
-                           skill.id.toLowerCase().includes(lowerQuery) ||
-                           (skill.description && skill.description.toLowerCase().includes(lowerQuery));
+                skills.forEach(skill => {
+                    if (skill.name.toLowerCase().includes(lowerQuery) ||
+                        skill.id.toLowerCase().includes(lowerQuery) ||
+                        (skill.description && skill.description.toLowerCase().includes(lowerQuery))) {
+                        results.skills.push({
+                            plugin: plugin.name,
+                            skill: skill
+                        });
+                    }
                 });
-
-                return matchesSkill;
             });
 
+            // Show autocomplete
+            updateAutocomplete(results);
+
+            // Filter plugin cards
+            const matchedPluginNames = new Set([
+                ...results.plugins.map(p => p.name),
+                ...results.commands.map(c => c.plugin),
+                ...results.skills.map(s => s.plugin)
+            ]);
+            const filtered = allPlugins.filter(p => matchedPluginNames.has(p.name));
             renderPlugins(filtered);
+        }
+
+        function updateAutocomplete(results) {
+            const autocomplete = document.getElementById('autocomplete');
+            const hasResults = results.plugins.length > 0 || results.commands.length > 0 || results.skills.length > 0;
+
+            if (!hasResults) {
+                autocomplete.innerHTML = '<div class="autocomplete-empty">No matches found</div>';
+                autocomplete.classList.add('show');
+                return;
+            }
+
+            let html = '';
+
+            // Plugins section
+            if (results.plugins.length > 0) {
+                html += `
+                    <div class="autocomplete-section">
+                        <div class="autocomplete-section-title">Plugins</div>
+                        ${results.plugins.map(plugin => `
+                            <div class="autocomplete-item" onclick="showPluginModal('${plugin.name}')">
+                                <div class="autocomplete-item-icon plugin">${plugin.name.charAt(0).toUpperCase()}</div>
+                                <div class="autocomplete-item-content">
+                                    <div class="autocomplete-item-title">${plugin.name}</div>
+                                    <div class="autocomplete-item-subtitle">${plugin.description}</div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }
+
+            // Commands section
+            if (results.commands.length > 0) {
+                html += `
+                    <div class="autocomplete-section">
+                        <div class="autocomplete-section-title">Commands</div>
+                        ${results.commands.slice(0, 10).map(item => `
+                            <div class="autocomplete-item" onclick="showPluginModal('${item.plugin}')">
+                                <div class="autocomplete-item-icon command">$</div>
+                                <div class="autocomplete-item-content">
+                                    <div class="autocomplete-item-title">/${item.plugin}:${item.command.name}</div>
+                                    <div class="autocomplete-item-subtitle">${item.command.description || item.command.synopsis || ''}</div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }
+
+            // Skills section
+            if (results.skills.length > 0) {
+                html += `
+                    <div class="autocomplete-section">
+                        <div class="autocomplete-section-title">Skills</div>
+                        ${results.skills.slice(0, 10).map(item => `
+                            <div class="autocomplete-item" onclick="showPluginModal('${item.plugin}')">
+                                <div class="autocomplete-item-icon skill">⚡</div>
+                                <div class="autocomplete-item-content">
+                                    <div class="autocomplete-item-title">${item.skill.name}</div>
+                                    <div class="autocomplete-item-subtitle">${item.plugin}:${item.skill.id}</div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }
+
+            autocomplete.innerHTML = html;
+            autocomplete.classList.add('show');
         }
 
         // Generic copy to clipboard function
@@ -778,7 +1081,23 @@
 
         // Search functionality
         document.getElementById('search').addEventListener('input', (e) => {
-            searchPlugins(e.target.value);
+            searchAndShowAutocomplete(e.target.value);
+        });
+
+        // Close autocomplete when clicking outside
+        document.addEventListener('click', (e) => {
+            const searchBox = document.querySelector('.search-box');
+            const autocomplete = document.getElementById('autocomplete');
+            if (!searchBox.contains(e.target)) {
+                autocomplete.classList.remove('show');
+            }
+        });
+
+        // Keep autocomplete open when clicking inside search box
+        document.getElementById('search').addEventListener('focus', (e) => {
+            if (e.target.value.trim()) {
+                searchAndShowAutocomplete(e.target.value);
+            }
         });
 
         // Modal functions
@@ -869,7 +1188,6 @@
         }
 
         window.addEventListener('hashchange', handleHashChange);
-        window.addEventListener('load', handleHashChange);
 
         // Load data on page load
         loadData();
