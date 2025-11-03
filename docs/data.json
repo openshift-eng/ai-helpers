@@ -283,6 +283,12 @@
           "argument_hint": "[PR number (optional - uses current branch if omitted)]"
         },
         {
+          "name": "auto-deploy-dangerous",
+          "description": "Auto-deploy changes with AI review",
+          "synopsis": "/utils:auto-deploy-dangerous <feature-name>",
+          "argument_hint": ""
+        },
+        {
           "name": "generate-test-plan",
           "description": "Generate test steps for one or more related PRs",
           "synopsis": "",
