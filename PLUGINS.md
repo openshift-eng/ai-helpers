@@ -123,6 +123,7 @@ OLM (Operator Lifecycle Manager) plugin for operator management and debugging
 - **`/olm:diagnose` `[operator-name] [namespace] [--fix] [--cluster]`** - Diagnose and optionally fix common OLM and operator issues
 - **`/olm:install` `<operator-name> [namespace] [channel] [source] [--approval=Automatic|Manual]`** - Install a day-2 operator using Operator Lifecycle Manager
 - **`/olm:list` `[namespace] [--all-namespaces]`** - List installed operators in the cluster
+- **`/olm:opm` `<action> [arguments...]`** - Execute opm (Operator Package Manager) commands for building and managing operator catalogs
 - **`/olm:search` `[query] [--catalog <catalog-name>]`** - Search for available operators in catalog sources
 - **`/olm:status` `<operator-name> [namespace]`** - Get detailed status and health information for an operator
 - **`/olm:uninstall` `<operator-name> [namespace] [--remove-crds] [--remove-namespace]`** - Uninstall a day-2 operator and optionally remove its resources

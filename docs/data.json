@@ -329,6 +329,12 @@
           "argument_hint": "[namespace] [--all-namespaces]"
         },
         {
+          "name": "opm",
+          "description": "Execute opm (Operator Package Manager) commands for building and managing operator catalogs",
+          "synopsis": "bash",
+          "argument_hint": "<action> [arguments...]"
+        },
+        {
           "name": "search",
           "description": "Search for available operators in catalog sources",
           "synopsis": "/olm:search [query] [--catalog <catalog-name>]",
