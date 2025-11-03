@@ -67,6 +67,7 @@ Git workflow automation and utilities
 - **`/git:cherry-pick-by-patch` `<commit_hash>`** - Cherry-pick git commit into current branch by "patch" command
 - **`/git:commit-suggest` `[N]`** - Generate Conventional Commits style commit messages or summarize existing commits
 - **`/git:debt-scan`** - Analyze technical debt indicators in the repository
+- **`/git:setup` `[--upstream-only | --downstream-only]`** - Set up a git repository with upstream and downstream remotes for forked development workflows
 - **`/git:suggest-reviewers` `[base-branch]`** - Suggest appropriate reviewers for a PR based on git blame and OWNERS files
 - **`/git:summary`** - Show current branch, git status, and recent commits for quick context
 
