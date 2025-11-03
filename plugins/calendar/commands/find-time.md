@@ -4,15 +4,15 @@ argument-hint: <email_addresses> [duration_in_minutes] [days_ahead]
 ---
 
 ## Name
-meet:find-time
+calendar:find-time
 
 ## Synopsis
 ```
-/meet:find-time <email_addresses> [duration_in_minutes] [days_ahead]
+/calendar:find-time <email_addresses> [duration_in_minutes] [days_ahead]
 ```
 
 ## Description
-The `meet:find-time` command helps you find overlapping available time with people by analyzing calendar availability across multiple participants and suggesting optimal meeting times.
+The `calendar:find-time` command helps you find overlapping available time with people by analyzing calendar availability across multiple participants and suggesting optimal meeting times.
 
 ## Implementation
 
@@ -24,7 +24,7 @@ The `meet:find-time` command helps you find overlapping available time with peop
 - Convert duration to minutes if provided in other formats
 
 ### Phase 2: Gather Free/Busy Information
-- Use the `get-freebusy` tool from the `plugin:meet:google-calendar` MCP server to get busy times for all participants
+- Use the `get-freebusy` tool from the `plugin:calendar:google-calendar` MCP server to get busy times for all participants
 - Query the specified days_ahead for each participant's calendar
 - Get current time and primary calendar timezone using `get-current-time`
 
@@ -61,17 +61,17 @@ The `meet:find-time` command helps you find overlapping available time with peop
 
 1. **Basic usage with two people**:
    ```
-   /meet:find-time alice@company.com,bob@company.com 60
+   /calendar:find-time alice@company.com,bob@company.com 60
    ```
 
 2. **Including date range**:
    ```
-   /meet:find-time team@company.com,manager@company.com 30 7
+   /calendar:find-time team@company.com,manager@company.com 30 7
    ```
 
 3. **Multiple participants with specific date**:
    ```
-   /meet:find-time alice@company.com,bob@company.com,carol@company.com 45 15
+   /calendar:find-time alice@company.com,bob@company.com,carol@company.com 45 15
    ```
 
 ## Arguments

@@ -1,4 +1,4 @@
-# Meet Plugin
+# Calendar Plugin
 
 Google Calendar integration for Claude Code, providing AI-powered tools to find meeting times and schedule events seamlessly.
 
@@ -51,25 +51,25 @@ claude
 /plugin marketplace add openshift-eng/ai-helpers
 
 # Install the plugin
-/plugin install meet@ai-helpers
+/plugin install calendar@ai-helpers
 ```
 
 ## Available Commands
 
-### `/meet:find-time` - Find Overlapping Free Time
+### `/calendar:find-time` - Find Overlapping Free Time
 
 Find overlapping available time with multiple participants by analyzing calendar availability and suggesting optimal meeting times.
 
 **Usage:**
 ```bash
 # Basic usage with two people
-/meet:find-time alice@company.com,bob@company.com 60
+/calendar:find-time alice@company.com,bob@company.com 60
 
 # Including custom date range
-/meet:find-time team@company.com,manager@company.com 30 7
+/calendar:find-time team@company.com,manager@company.com 30 7
 
 # Multiple participants with longer timeline
-/meet:find-time alice@company.com,bob@company.com,carol@company.com 45 15
+/calendar:find-time alice@company.com,bob@company.com,carol@company.com 45 15
 ```
 
 **Features:**
@@ -84,26 +84,26 @@ See [commands/find-time.md](commands/find-time.md) for full documentation.
 
 ---
 
-### `/meet:create-event` - Create Calendar Events
+### `/calendar:create-event` - Create Calendar Events
 
 Create new calendar events using natural language descriptions with automatic Google Meet integration and intelligent parsing.
 
 **Usage:**
 ```bash
 # Simple meeting
-/meet:create-event Team standup tomorrow at 9am for 30 minutes
+/calendar:create-event Team standup tomorrow at 9am for 30 minutes
 
 # Meeting with specific attendees
-/meet:create-event Project review Friday 2pm with alice@company.com and bob@company.com
+/calendar:create-event Project review Friday 2pm with alice@company.com and bob@company.com
 
 # Detailed planning session
-/meet:create-event Quarterly planning session next Monday 10am-12pm with the whole engineering team
+/calendar:create-event Quarterly planning session next Monday 10am-12pm with the whole engineering team
 
 # Quick 1:1 meeting
-/meet:create-event Coffee chat with Sarah tomorrow 3pm for 45 minutes
+/calendar:create-event Coffee chat with Sarah tomorrow 3pm for 45 minutes
 
 # All-hands meeting
-/meet:create-event Monthly all-hands meeting first Friday of next month 2-3pm with leadership team
+/calendar:create-event Monthly all-hands meeting first Friday of next month 2-3pm with leadership team
 ```
 
 **Features:**
@@ -125,29 +125,29 @@ See [commands/create-event.md](commands/create-event.md) for full documentation.
 
 1. **Find available time:**
    ```bash
-   /meet:find-time team-lead@company.com,dev1@company.com,dev2@company.com,designer@company.com 60 5
+   /calendar:find-time team-lead@company.com,dev1@company.com,dev2@company.com,designer@company.com 60 5
    ```
 
 2. **Create the meeting:**
    ```bash
-   /meet:create-event Sprint planning session Thursday 2pm with team-lead@company.com,dev1@company.com,dev2@company.com,designer@company.com
+   /calendar:create-event Sprint planning session Thursday 2pm with team-lead@company.com,dev1@company.com,dev2@company.com,designer@company.com
    ```
 
 ### Scheduling a Quick Sync
 
 ```bash
 # One command to create immediate meeting
-/meet:create-event Quick sync with John tomorrow 11am for 15 minutes
+/calendar:create-event Quick sync with John tomorrow 11am for 15 minutes
 ```
 
 ### Cross-timezone Meeting
 
 ```bash
 # Find time considering global participants
-/meet:find-time alice@us.company.com,bob@uk.company.com,carol@asia.company.com 30 10
+/calendar:find-time alice@us.company.com,bob@uk.company.com,carol@asia.company.com 30 10
 
 # Create with specific timezone considerations
-/meet:create-event Global standup next Monday 8am PST with alice@us.company.com,bob@uk.company.com,carol@asia.company.com
+/calendar:create-event Global standup next Monday 8am PST with alice@us.company.com,bob@uk.company.com,carol@asia.company.com
 ```
 
 ## Troubleshooting

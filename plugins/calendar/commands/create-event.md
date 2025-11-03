@@ -4,15 +4,15 @@ argument-hint: <natural_language_prompt_for_the_event>
 ---
 
 ## Name
-meet:create-event
+calendar:create-event
 
 ## Synopsis
 ```
-/meet:create-event <natural_language_prompt_for_the_event>
+/calendar:create-event <natural_language_prompt_for_the_event>
 ```
 
 ## Description
-The `meet:create-event` command creates a new calendar event on Google Calendar based on natural language input. It intelligently parses event details from user descriptions, automatically adds Google Meet links for virtual participation, and handles timezone conversions and date parsing.
+The `calendar:create-event` command creates a new calendar event on Google Calendar based on natural language input. It intelligently parses event details from user descriptions, automatically adds Google Meet links for virtual participation, and handles timezone conversions and date parsing.
 
 ## Implementation
 
@@ -49,7 +49,7 @@ The `meet:create-event` command creates a new calendar event on Google Calendar 
 - If user confirms, proceed to phase 5, otherwise, modify the summary, meeting time, attendees, description based on user's input until user confirms you correctly intepreted the intent.
 
 ### Phase 5: Create Calendar Event
-- Use the `create-event` tool from the `plugin:meet:google-calendar` MCP server
+- Use the `create-event` tool from the `plugin:calendar:google-calendar` MCP server
 - Automatically attach Google Meet link for virtual participation
 - Create event on user's primary calendar
 - Include all parsed attendees, description, and meeting details
@@ -80,27 +80,27 @@ The `meet:create-event` command creates a new calendar event on Google Calendar 
 
 1. **Simple meeting**:
    ```
-   /meet:create-event Team standup tomorrow at 9am for 30 minutes
+   /calendar:create-event Team standup tomorrow at 9am for 30 minutes
    ```
 
 2. **Meeting with specific attendees**:
    ```
-   /meet:create-event Project review Friday 2pm with alice@company.com and bob@company.com
+   /calendar:create-event Project review Friday 2pm with alice@company.com and bob@company.com
    ```
 
 3. **Detailed planning session**:
    ```
-   /meet:create-event Quarterly planning session next Monday 10am-12pm with the whole engineering team
+   /calendar:create-event Quarterly planning session next Monday 10am-12pm with the whole engineering team
    ```
 
 4. **Quick 1:1 meeting**:
    ```
-   /meet:create-event Coffee chat with Sarah tomorrow 3pm for 45 minutes
+   /calendar:create-event Coffee chat with Sarah tomorrow 3pm for 45 minutes
    ```
 
 5. **All-hands meeting**:
    ```
-   /meet:create-event Monthly all-hands meeting first Friday of next month 2-3pm with leadership team
+   /calendar:create-event Monthly all-hands meeting first Friday of next month 2-3pm with leadership team
    ```
 
 ## Arguments
