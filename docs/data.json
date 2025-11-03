@@ -160,10 +160,22 @@
           "argument_hint": "[question]"
         },
         {
+          "name": "list-unstable-tests",
+          "description": "List unstable tests with pass rate below 95%",
+          "synopsis": "/ci:list-unstable-tests <version> <keywords> [sippy-url]",
+          "argument_hint": "<version> <keywords> [sippy-url]"
+        },
+        {
           "name": "query-job-status",
           "description": "Query the status of a gangway job execution by ID",
           "synopsis": "/query-job-status <execution-id>",
           "argument_hint": "<execution-id>"
+        },
+        {
+          "name": "query-test-result",
+          "description": "Query test results from Sippy by version and test keywords",
+          "synopsis": "/ci:query-test-result <version> <keywords> [sippy-url]",
+          "argument_hint": "<version> <keywords> [sippy-url]"
         },
         {
           "name": "trigger-periodic",
