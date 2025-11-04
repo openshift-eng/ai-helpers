@@ -287,6 +287,28 @@ make lint
 
 ## Best Practices for AI Agents
 
+### Ethical Guidelines
+
+**IMPORTANT: Never Reference Real People**
+
+Plugins, commands, skills, and hooks must NEVER reference real people by name, even as stylistic examples (e.g., "in the style of <specific human>").
+
+**Ethical rationale:**
+1. **Consent**: Individuals have not consented to have their identity or persona used in AI-generated content
+2. **Misrepresentation**: AI cannot accurately replicate a person's unique voice, style, or intent
+3. **Intellectual Property**: A person's distinctive style may be protected
+4. **Dignity**: Using someone's identity without permission diminishes their autonomy
+
+**Instead, describe specific qualities explicitly**
+
+Good examples:
+
+* "Write commit messages that are direct, technically precise, and focused on the rationale behind changes"
+* "Explain using clear analogies, a sense of wonder, and accessible language for non-experts"
+* "Code review comments that are encouraging, constructive, and focus on collaborative improvement"
+
+When you identify a desirable characteristic (clarity, brevity, formality, humor, etc.), describe it explicitly rather than using a person as proxy.
+
 ### When Implementing Commands
 
 1. **Follow existing patterns:** Review similar commands before implementing
@@ -296,6 +318,7 @@ make lint
 5. **Add examples:** Show common usage patterns
 6. **Test before committing:** Verify the command works as expected
 7. **Run the linter:** Use `make lint` to validate your plugin structure and format
+8. **Respect ethical guidelines:** Never reference real people; describe specific qualities instead
 
 ### When Writing SKILL.md Files
 
@@ -304,6 +327,7 @@ make lint
 3. **Handle edge cases:** Document what to do when things go wrong
 4. **Include prerequisites:** List required tools and how to check for them
 5. **Show examples:** Real-world examples help clarify complex workflows
+6. **Respect ethical guidelines:** Never reference real people; describe specific qualities instead
 
 ### File Naming and Paths
 

@@ -1,0 +1,104 @@
+language: en-US
+early_access: false
+reviews:
+  profile: chill
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  review_status: true
+  collapse_walkthrough: false
+  auto_review:
+    enabled: true
+    drafts: true
+  pre_merge_checks:
+    custom_checks:
+      - name: "No Real People Names in Style References"
+        mode: error
+        instructions: |
+          Never allow references to real people by name in:
+          - Plugin commands
+          - Skill documentation
+          - Example prompts or instructions
+          - Style references (e.g., "in the style of <person>")
+
+          Instead, require explicit descriptions of desired qualities (e.g., "direct and technically precise"
+          instead of "like <specific person>").
+
+          Flag ANY instance where a real person's name is used as a style reference or example.
+
+      - name: "No Assumed Git Remote Names"
+        mode: error
+        instructions: |
+          Code should NEVER assume git remote names like "origin" or "upstream" without first discovering them.
+
+          ❌ Bad examples:
+          - `git push origin main`
+          - `git fetch upstream`
+          - `git remote add origin <url>`
+          - Using "origin" or "upstream" in instructions without checking first
+
+          ✅ Good examples:
+          - `git remote -v` to discover remotes first
+          - `git branch -vv` to check tracking branches
+          - Instructions that say "discover the remote name first"
+
+          Flag any hardcoded remote name usage in commands, skills, or documentation.
+
+      - name: "Git Push Safety Rules"
+        mode: error
+        instructions: |
+          1. Commands and skills must NEVER push without explicit user permission
+             - Must ask the user before pushing
+             - Cannot push autonomously
+
+          2. NEVER allow pushing to main or master branches
+             - Reject `git push <remote> main`
+             - Reject `git push <remote> master`
+             - Reject any push to main/master variants
+
+          3. NEVER allow force push operations anywhere
+             - Reject `git push -f`
+             - Reject `git push --force`
+             - Reject `git push --force-with-lease`
+             - Reject any force push variant
+
+          ❌ Always reject:
+          - `git push` without user confirmation
+          - `git push origin main`
+          - `git push upstream master`
+          - `git push -f` (any force push variant)
+          - `git push --force`
+          - `git push --force-with-lease`
+          - Automated push workflows
+
+          ✅ Allow:
+          - `git push` to feature branches after asking user
+          - Instructions that say "ask the user before pushing"
+          - Documentation about push workflows (without executing)
+
+          Flag any git push without user confirmation, any push to main/master, or any force push.
+
+      - name: "No Untrusted MCP Servers"
+        mode: error
+        instructions: |
+          Code should NEVER introduce MCP (Model Context Protocol) server installations from untrusted sources.
+
+          ❌ Reject:
+          - Random npm packages for MCP servers
+          - Arbitrary GitHub repositories
+          - Unofficial or unverified MCP servers
+          - Any `npx @<random-org>/mcp-server-*` installations
+
+          Flag any introduction of new MCP server dependencies and require justification and security review.
+
+chat:
+  auto_reply: true
+
+# Custom review patterns
+tools:
+  shellcheck:
+    enabled: true
+  yamllint:
+    enabled: true
+  markdownlint:
+    enabled: true
