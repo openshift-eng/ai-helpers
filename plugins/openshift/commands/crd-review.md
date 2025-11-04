@@ -68,9 +68,9 @@ The review covers Go API type definitions, providing actionable feedback to impr
 - **Workload APIs**: Usually namespaced, user-facing resources
 
 #### Field Design
-- **Avoid Boolean Fields**: Use enumerations instead of binary true/false
-  - ❌ Bad: `enabled: true`
-  - ✅ Good: `state: "Enabled"` with enum values `["Enabled", "Disabled", "Auto"]`
+- **Avoid Boolean Fields**: Use enumerations that describe end-user behavior instead of binary true/false
+  - ❌ Bad: `paused: true`
+  - ✅ Good: `lifecycle: "Paused"` with enum values `["Paused", "Active"]`
 - **Object References**: Use specific types, omit "Ref" suffix
 - **Clear Semantics**: Each field should have one clear purpose
 
