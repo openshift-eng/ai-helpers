@@ -42,6 +42,10 @@ def construct_build_log_url(version, job_id, job_type):
 def fetch_build_log(url):
     """Fetch the build log content from the given URL."""
     try:
+        # Validate URL scheme
+        if not url.startswith('https://'):
+            return None, f"Invalid URL scheme. Only HTTPS URLs are supported."
+        
         # Create SSL context that doesn't verify certificates
         # This is needed for some environments where SSL cert chain is incomplete
         ssl_context = ssl.create_default_context()
@@ -53,7 +57,7 @@ def fetch_build_log(url):
             return content, None
     except urllib.error.URLError as e:
         return None, f"Failed to fetch build log: {e}"
-    except Exception as e:
+    except (UnicodeDecodeError, OSError) as e:
         return None, f"Error reading build log: {e}"
 
 
@@ -89,7 +93,7 @@ def determine_build_type(version_string):
     elif "-rc." in version_string:
         return "rc"
     else:
-       return "zstream"
+        return "zstream"
 
 
 def main():
@@ -104,6 +108,28 @@ def main():
     job_id = sys.argv[1]
     version = sys.argv[2]
     job_type = sys.argv[3]
+    
+    # Validate inputs
+    if not job_id or not job_id.strip():
+        print(json.dumps({
+            "success": False,
+            "error": "job_id cannot be empty"
+        }))
+        sys.exit(1)
+    
+    if not version or not version.strip():
+        print(json.dumps({
+            "success": False,
+            "error": "version cannot be empty"
+        }))
+        sys.exit(1)
+    
+    if not job_type or not job_type.strip():
+        print(json.dumps({
+            "success": False,
+            "error": "job_type cannot be empty"
+        }))
+        sys.exit(1)
 
     # Construct build log URL
     url = construct_build_log_url(version, job_id, job_type)
