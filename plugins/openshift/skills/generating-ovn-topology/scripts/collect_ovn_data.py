@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-collect-ovn-data.py - Collect OVN data from live cluster
+collect_ovn_data.py - Collect OVN data from live cluster
 
-Usage: collect-ovn-data.py <KUBECONFIG>
+Usage: collect_ovn_data.py <KUBECONFIG>
 
 This script collects OVN data from a live Kubernetes cluster:
 1. Collects pod information from cluster (including auto-discovery of ovnkube-node pods)
@@ -19,6 +19,11 @@ Outputs (all files written to $TMPDIR, defaults to /tmp):
 Exit codes:
   0 - Success (all nodes collected OR partial success with warnings)
   1 - Total failure (no data collected)
+
+Note: This script must be run from the scripts/ directory or have the scripts/
+      directory in PYTHONPATH for the ovn_utils import to work.
+
+Requirements: Python 3.6+, kubectl in PATH
 """
 
 import json
@@ -27,6 +32,29 @@ import subprocess
 import sys
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
+import csv
+from io import StringIO
+
+# Import shared utilities (must be in same directory or in PYTHONPATH)
+from ovn_utils import detect_ovn_namespace, detect_ovsdb_container
+
+# Configuration constants (module-scoped, private)
+_OVNKUBE_NODE_APP_LABEL = "ovnkube-node"
+_OVNKUBE_NODE_NAME_LABEL = "ovnkube-node"
+_OVNKUBE_NODE_PREFIX = "ovnkube-node-"
+
+# OVN component types (module-scoped, private)
+_COMPONENT_LOGICAL_SWITCH = "Logical_Switch"
+_COMPONENT_LOGICAL_SWITCH_PORT = "Logical_Switch_Port"
+_COMPONENT_LOGICAL_ROUTER = "Logical_Router"
+_COMPONENT_LOGICAL_ROUTER_PORT = "Logical_Router_Port"
+
+# File name constants (module-scoped, private)
+_PODS_DETAIL_FILE = "ovn_pods_detail.txt"
+_SWITCHES_DETAIL_FILE = "ovn_switches_detail.txt"
+_ROUTERS_DETAIL_FILE = "ovn_routers_detail.txt"
+_LSPS_DETAIL_FILE = "ovn_lsps_detail.txt"
+_LRPS_DETAIL_FILE = "ovn_lrps_detail.txt"
 
 
 @dataclass
@@ -49,38 +77,20 @@ class CollectionStats:
 class OVNDataCollector:
     """Collect OVN data from live cluster with graceful degradation."""
 
-    # Configuration constants
-    OVN_NAMESPACE = "ovn-kubernetes"
-    OVSDB_CONTAINER = "nb-ovsdb"
-    OVNKUBE_NODE_APP_LABEL = "ovnkube-node"
-    OVNKUBE_NODE_NAME_LABEL = "ovnkube-node"
-    OVNKUBE_NODE_PREFIX = "ovnkube-node-"
-
-    # OVN component types
-    COMPONENT_LOGICAL_SWITCH = "Logical_Switch"
-    COMPONENT_LOGICAL_SWITCH_PORT = "Logical_Switch_Port"
-    COMPONENT_LOGICAL_ROUTER = "Logical_Router"
-    COMPONENT_LOGICAL_ROUTER_PORT = "Logical_Router_Port"
-
-    # File name constants
-    PODS_DETAIL_FILE = "ovn_pods_detail.txt"
-    SWITCHES_DETAIL_FILE = "ovn_switches_detail.txt"
-    ROUTERS_DETAIL_FILE = "ovn_routers_detail.txt"
-    LSPS_DETAIL_FILE = "ovn_lsps_detail.txt"
-    LRPS_DETAIL_FILE = "ovn_lrps_detail.txt"
-
     def __init__(self, kubeconfig: str, tmpdir: str = "/tmp"):
         self.kubeconfig = kubeconfig
         self.tmpdir = tmpdir
         self.stats = CollectionStats()
         self.ovnkube_node_pods: List[str] = []  # Discovered ovnkube-node pods
+        self.ovsdb_container: Optional[str] = None  # Will be detected later
+        self.ovn_namespace: Optional[str] = None  # Will be detected in run()
 
         # Output files (detail files with UUIDs for switches/routers)
-        self.pods_file = os.path.join(tmpdir, self.PODS_DETAIL_FILE)
-        self.switches_file = os.path.join(tmpdir, self.SWITCHES_DETAIL_FILE)
-        self.routers_file = os.path.join(tmpdir, self.ROUTERS_DETAIL_FILE)
-        self.lsps_file = os.path.join(tmpdir, self.LSPS_DETAIL_FILE)
-        self.lrps_file = os.path.join(tmpdir, self.LRPS_DETAIL_FILE)
+        self.pods_file = os.path.join(tmpdir, _PODS_DETAIL_FILE)
+        self.switches_file = os.path.join(tmpdir, _SWITCHES_DETAIL_FILE)
+        self.routers_file = os.path.join(tmpdir, _ROUTERS_DETAIL_FILE)
+        self.lsps_file = os.path.join(tmpdir, _LSPS_DETAIL_FILE)
+        self.lrps_file = os.path.join(tmpdir, _LRPS_DETAIL_FILE)
 
     def initialize_output_files(self):
         """Create/clear output files."""
@@ -113,19 +123,19 @@ class OVNDataCollector:
         labels = pod_item.get('metadata', {}).get('labels', {})
 
         # Must be in ovn-kubernetes namespace
-        if namespace != self.OVN_NAMESPACE:
+        if namespace != self.ovn_namespace:
             return False
 
         # Method 1: Check for app=ovnkube-node label
-        if labels.get('app') == self.OVNKUBE_NODE_APP_LABEL:
+        if labels.get('app') == _OVNKUBE_NODE_APP_LABEL:
             return True
 
         # Method 2: Check for name=ovnkube-node label (older deployments)
-        if labels.get('name') == self.OVNKUBE_NODE_NAME_LABEL:
+        if labels.get('name') == _OVNKUBE_NODE_NAME_LABEL:
             return True
 
         # Method 3: Check name pattern
-        if name.startswith(self.OVNKUBE_NODE_PREFIX):
+        if name.startswith(_OVNKUBE_NODE_PREFIX):
             return True
 
         return False
@@ -175,6 +185,8 @@ class OVNDataCollector:
 
         try:
             # Try JSON parsing first (more reliable)
+            env = os.environ.copy()
+            env["KUBECONFIG"] = self.kubeconfig
             result = subprocess.run(
                 [
                     "kubectl", "--kubeconfig", self.kubeconfig,
@@ -183,7 +195,7 @@ class OVNDataCollector:
                 capture_output=True,
                 text=True,
                 timeout=30,
-                env={"KUBECONFIG": self.kubeconfig}
+                env=env
             )
 
             if result.returncode != 0:
@@ -225,6 +237,8 @@ class OVNDataCollector:
     def _collect_pods_fallback(self) -> bool:
         """Fallback method using kubectl -o wide and auto-discover ovnkube-node pods."""
         try:
+            env = os.environ.copy()
+            env["KUBECONFIG"] = self.kubeconfig
             result = subprocess.run(
                 [
                     "kubectl", "--kubeconfig", self.kubeconfig,
@@ -233,7 +247,7 @@ class OVNDataCollector:
                 capture_output=True,
                 text=True,
                 timeout=30,
-                env={"KUBECONFIG": self.kubeconfig}
+                env=env
             )
 
             if result.returncode != 0:
@@ -256,8 +270,8 @@ class OVNDataCollector:
                         self.stats.pods_collected += 1
 
                         # Auto-discover ovnkube-node pods (simple pattern check for fallback)
-                        if (namespace == self.OVN_NAMESPACE and
-                                pod_name.startswith(self.OVNKUBE_NODE_PREFIX)):
+                        if (namespace == self.ovn_namespace and
+                                pod_name.startswith(_OVNKUBE_NODE_PREFIX)):
                             self.ovnkube_node_pods.append(pod_name)
 
             print(
@@ -273,16 +287,18 @@ class OVNDataCollector:
     def get_node_name_for_pod(self, pod: str) -> Optional[str]:
         """Get node name for a given pod."""
         try:
+            env = os.environ.copy()
+            env["KUBECONFIG"] = self.kubeconfig
             result = subprocess.run(
                 [
                     "kubectl", "--kubeconfig", self.kubeconfig,
-                    "get", "pod", "-n", self.OVN_NAMESPACE, pod,
+                    "get", "pod", "-n", self.ovn_namespace, pod,
                     "-o", "jsonpath={.spec.nodeName}",
                 ],
                 capture_output=True,
                 text=True,
                 timeout=10,
-                env={"KUBECONFIG": self.kubeconfig},
+                env=env,
             )
 
             if result.returncode == 0 and result.stdout.strip():
@@ -313,10 +329,12 @@ class OVNDataCollector:
             internally. Errors are logged to stderr and return (False, 0).
         """
         try:
+            env = os.environ.copy()
+            env["KUBECONFIG"] = self.kubeconfig
             result = subprocess.run(
                 [
                     "kubectl", "--kubeconfig", self.kubeconfig,
-                    "exec", "-n", self.OVN_NAMESPACE, pod, "-c", self.OVSDB_CONTAINER,
+                    "exec", "-n", self.ovn_namespace, pod, "-c", self.ovsdb_container,
                     "--",
                     "ovn-nbctl", "--no-leader-only", "--format=csv",
                     "--data=bare", "--no-headings",
@@ -325,7 +343,7 @@ class OVNDataCollector:
                 capture_output=True,
                 text=True,
                 timeout=30,
-                env={"KUBECONFIG": self.kubeconfig},
+                env=env,
             )
 
             if result.returncode != 0:
@@ -338,10 +356,11 @@ class OVNDataCollector:
                 for line in lines:
                     if not line:
                         continue
-                    # Convert CSV (comma-separated) to pipe-separated
-                    # Write: node|[columns from query]
-                    line_with_pipes = line.replace(',', '|')
-                    f.write(f"{node_name}|{line_with_pipes}\n")
+                    # Parse CSV properly to handle quoted fields with commas
+                    reader = csv.reader(StringIO(line))
+                    for row in reader:
+                        line_with_pipes = '|'.join(row)
+                        f.write(f"{node_name}|{line_with_pipes}\n")
                     count += 1
 
             return True, count
@@ -379,7 +398,7 @@ class OVNDataCollector:
         # Output: node|uuid|name|other_config
         print("    Querying Logical_Switch...")
         success, count = self.query_ovn_component(
-            pod, node_name, self.COMPONENT_LOGICAL_SWITCH,
+            pod, node_name, _COMPONENT_LOGICAL_SWITCH,
             "_uuid,name,other_config", self.switches_file
         )
         if success:
@@ -396,7 +415,7 @@ class OVNDataCollector:
         # Output: node|name|addresses|type|options
         print("    Querying Logical_Switch_Port...")
         success, count = self.query_ovn_component(
-            pod, node_name, self.COMPONENT_LOGICAL_SWITCH_PORT,
+            pod, node_name, _COMPONENT_LOGICAL_SWITCH_PORT,
             "name,addresses,type,options", self.lsps_file
         )
         if success:
@@ -413,7 +432,7 @@ class OVNDataCollector:
         # Output: node|uuid|name|external_ids|options
         print("    Querying Logical_Router...")
         success, count = self.query_ovn_component(
-            pod, node_name, self.COMPONENT_LOGICAL_ROUTER,
+            pod, node_name, _COMPONENT_LOGICAL_ROUTER,
             "_uuid,name,external_ids,options", self.routers_file
         )
         if success:
@@ -430,7 +449,7 @@ class OVNDataCollector:
         # Output: node|name|mac|networks|options
         print("    Querying Logical_Router_Port...")
         success, count = self.query_ovn_component(
-            pod, node_name, self.COMPONENT_LOGICAL_ROUTER_PORT,
+            pod, node_name, _COMPONENT_LOGICAL_ROUTER_PORT,
             "name,mac,networks,options", self.lrps_file
         )
         if success:
@@ -458,6 +477,27 @@ class OVNDataCollector:
                 file=sys.stderr,
             )
             return
+
+        # Auto-detect OVSDB container name using first pod
+        try:
+            self.ovsdb_container = detect_ovsdb_container(
+                self.kubeconfig, self.ovn_namespace, self.ovnkube_node_pods[0]
+            )
+        except RuntimeError as e:
+            print(f"❌ Container detection failed: {e}", file=sys.stderr)
+            return
+
+        # Print architecture detection summary
+        print()
+        print("=" * 50)
+        print("ARCHITECTURE DETECTION")
+        print("=" * 50)
+        platform = "OpenShift" if self.ovn_namespace == "openshift-ovn-kubernetes" else "Upstream OVN-Kubernetes"
+        print(f"  Platform:       {platform}")
+        print(f"  OVN Namespace:  {self.ovn_namespace}")
+        print(f"  NBDB Container: {self.ovsdb_container}")
+        print(f"  Nodes:          {len(self.ovnkube_node_pods)}")
+        print()
 
         for pod in self.ovnkube_node_pods:
             self.stats.nodes_attempted += 1
@@ -533,8 +573,8 @@ class OVNDataCollector:
                 print(f"  • {failed}")
             print()
             print("💡 TIP: Check these nodes with:")
-            print("   kubectl get pods -n ovn-kubernetes")
-            print("   kubectl describe pod -n ovn-kubernetes <pod-name>")
+            print(f"   kubectl get pods -n {self.ovn_namespace}")
+            print(f"   kubectl describe pod -n {self.ovn_namespace} <pod-name>")
             print()
 
         # Print final status
@@ -557,6 +597,13 @@ class OVNDataCollector:
             0 if successful (including partial success)
             1 if complete failure
         """
+        # Detect OVN namespace after argument validation
+        try:
+            self.ovn_namespace = detect_ovn_namespace(self.kubeconfig)
+        except Exception as exc:
+            print(f"❌ Failed to detect OVN namespace: {exc}", file=sys.stderr)
+            return 1
+
         # Initialize output files
         self.initialize_output_files()
 

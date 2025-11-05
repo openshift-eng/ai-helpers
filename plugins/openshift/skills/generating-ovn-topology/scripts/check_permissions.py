@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 """
-check-permissions.py - Check user permissions and warn if write access detected
+check_permissions.py - Check user permissions and warn if write access detected
 
-Usage: ./check-permissions.py KUBECONFIG
+Usage: ./check_permissions.py KUBECONFIG
 Returns: 0 if user confirms to proceed, 1 if user cancels or error, 2 if write perms detected
 
+Note: This script must be run from the scripts/ directory or have the scripts/
+      directory in PYTHONPATH for the ovn_utils import to work.
+
+Requirements: Python 3.6+, kubectl in PATH
 """
 
 import subprocess
@@ -12,36 +16,42 @@ import sys
 import os
 from typing import List, Optional
 
+# Import shared utilities (must be in same directory or in PYTHONPATH)
+from ovn_utils import detect_ovn_namespace
+
+# Dangerous write permissions to check
+_DANGEROUS_PERMS = (
+    ("delete", "pods", "Delete pods"),
+    ("create", "pods", "Create pods"),
+    ("patch", "pods", "Modify pods"),
+    ("update", "pods", "Update pods"),
+    ("deletecollection", "pods", "Bulk delete pods"),
+    ("delete", "deployments", "Delete deployments"),
+    ("create", "deployments", "Create deployments"),
+    ("patch", "deployments", "Modify deployments"),
+    ("delete", "services", "Delete services"),
+    ("create", "services", "Create services"),
+)
+
 
 class PermissionChecker:
     """Check Kubernetes RBAC permissions for the OVN topology skill."""
 
     # Configuration constants
-    PERMISSION_CHECK_TIMEOUT = 5  # seconds
-    OVN_NAMESPACE = "ovn-kubernetes"
-
-    # Dangerous write permissions to check
-    DANGEROUS_PERMS = [
-        ("delete", "pods", "Delete pods"),
-        ("create", "pods", "Create pods"),
-        ("patch", "pods", "Modify pods"),
-        ("update", "pods", "Update pods"),
-        ("deletecollection", "pods", "Bulk delete pods"),
-        ("delete", "deployments", "Delete deployments"),
-        ("create", "deployments", "Create deployments"),
-        ("patch", "deployments", "Modify deployments"),
-        ("delete", "services", "Delete services"),
-        ("create", "services", "Create services"),
-    ]
+    _PERMISSION_CHECK_TIMEOUT = 5  # seconds
 
     def __init__(self, kubeconfig: str):
         self.kubeconfig = kubeconfig
         self.write_perms_found = False
         self.write_perms_list: List[str] = []
+        self.ovn_namespace: Optional[str] = None
+
 
     def check_kubectl_available(self) -> bool:
         """Check if kubectl is available in PATH."""
         try:
+            env = os.environ.copy()
+            env["KUBECONFIG"] = self.kubeconfig
             subprocess.run(
                 [
                     "kubectl",
@@ -53,7 +63,7 @@ class PermissionChecker:
                 ],
                 capture_output=True,
                 check=True,
-                env={"KUBECONFIG": self.kubeconfig},
+                env=env,
             )
             return True
         except FileNotFoundError:
@@ -95,11 +105,13 @@ class PermissionChecker:
             cmd.extend(["-n", namespace])
 
         try:
+            env = os.environ.copy()
+            env["KUBECONFIG"] = self.kubeconfig
             result = subprocess.run(
                 cmd,
                 capture_output=True,
-                timeout=self.PERMISSION_CHECK_TIMEOUT,
-                env={"KUBECONFIG": self.kubeconfig}
+                timeout=self._PERMISSION_CHECK_TIMEOUT,
+                env=env
             )
             return result.returncode == 0
         except subprocess.TimeoutExpired:
@@ -120,11 +132,11 @@ class PermissionChecker:
     def check_all_permissions(self) -> None:
         """Check all dangerous write permissions."""
         print("🔐 Checking your Kubernetes permissions...\n", file=sys.stderr)
-        print(f"Checking permissions in '{self.OVN_NAMESPACE}' namespace...\n", file=sys.stderr)
+        print(f"Checking permissions in '{self.ovn_namespace}' namespace...\n", file=sys.stderr)
 
         # Check dangerous write permissions
-        for verb, resource, description in self.DANGEROUS_PERMS:
-            if self.check_permission(resource, verb, self.OVN_NAMESPACE):
+        for verb, resource, description in _DANGEROUS_PERMS:
+            if self.check_permission(resource, verb, self.ovn_namespace):
                 self.write_perms_found = True
                 self.write_perms_list.append(f"  ⚠️  {description} ({verb} {resource})")
 
@@ -138,11 +150,11 @@ class PermissionChecker:
 
         # Check namespace admin (only add if not already cluster admin)
         if not any("CLUSTER ADMIN" in perm for perm in self.write_perms_list):
-            if self.check_permission("*", "*", self.OVN_NAMESPACE):
+            if self.check_permission("*", "*", self.ovn_namespace):
                 self.write_perms_found = True
                 self.write_perms_list.append(
                     f"  ⚠️  NAMESPACE ADMIN - Full access to "
-                    f"{self.OVN_NAMESPACE} namespace"
+                    f"{self.ovn_namespace} namespace"
                 )
 
     def display_warning(self) -> None:
@@ -186,6 +198,13 @@ class PermissionChecker:
     def run(self) -> int:
         """Run the permission check."""
         if not self.check_kubectl_available():
+            return 1
+
+        # Detect OVN namespace after kubectl availability check
+        try:
+            self.ovn_namespace = detect_ovn_namespace(self.kubeconfig)
+        except Exception as exc:
+            print(f"❌ Error detecting OVN namespace: {exc}", file=sys.stderr)
             return 1
 
         self.check_all_permissions()

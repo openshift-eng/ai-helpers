@@ -19,7 +19,6 @@ The `openshift:visualize-ovn-topology` command generates a comprehensive Mermaid
 
 - Logical switches and routers
 - Switch and router ports with MAC/IP addresses
-- Load balancers and their VIPs
 - Pod connectivity
 - External network connections
 - Per-node component placement (interconnect mode) or centralized components (default mode)
@@ -43,7 +42,7 @@ This command invokes the `generating-ovn-topology` skill which implements a data
 **Key Features:**
 - **Data-driven**: Never generates synthetic data - always queries real cluster
 - **Architecture-aware**: Correctly handles both interconnect and default deployment modes
-- **Complete topology**: Shows all logical switches, routers, ports, and load balancers
+- **Complete topology**: Shows all logical switches, routers, and ports
 - **Visual clarity**: Uses color-coded components and node subgraphs for organization
 
 **Skill Reference:**
@@ -59,12 +58,12 @@ This command invokes the `generating-ovn-topology` skill which implements a data
 ## Examples
 
 1. **Basic usage** (generates topology for detected cluster):
-   ```
+   ```shell
    /openshift:visualize-ovn-topology
    ```
 
    Output:
-   ```
+   ```text
    ✓ Successfully generated OVN-Kubernetes topology diagram
 
    📄 Diagram saved to: ovn-topology-diagram.md
@@ -73,19 +72,19 @@ This command invokes the `generating-ovn-topology` skill which implements a data
    - 3 nodes (ovn-control-plane, ovn-worker, ovn-worker2)
    - 10 logical switches, 4 logical routers
    - 27 logical switch ports, 13 logical router ports
-   - 9 running pods, 4 load balancers
+   - 9 running pods
    - Mode: Interconnect (distributed control plane)
 
    💡 Open the file in your IDE to view the full rendered Mermaid diagram!
    ```
 
 2. **With existing file** (prompts for action):
-   ```
+   ```shell
    /openshift:visualize-ovn-topology
    ```
 
    You'll be asked:
-   ```
+   ```text
    File ovn-topology-diagram.md already exists. Would you like to:
    (1) Overwrite it
    (2) Save to a different location

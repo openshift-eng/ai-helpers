@@ -10,20 +10,41 @@ tools: [Bash, Read, Write]
 
 1. **Detect Cluster**: Find the OVN-Kubernetes cluster kubeconfig
 
-   Run: `KC=$(scripts/detect-cluster.sh)`
+   Run: `scripts/detect-cluster.sh 2>/dev/null`
 
-   The script intelligently discovers OVN-Kubernetes clusters:
+   The script discovers OVN-Kubernetes clusters:
    - Scans all kubeconfig files: current KUBECONFIG env, ~/.kube/kind-config, ~/ovn.conf, ~/.kube/config
    - Tests ALL contexts in each kubeconfig (not just current-context)
-   - If one cluster found: automatically selects it
-   - If multiple clusters found: prompts user to choose
-   - If selected context isn't current-context: automatically switches it
-   - Returns kubeconfig path on stdout, diagnostics on stderr
-   - Exit codes: 0=success, 1=no cluster found, 2=user cancelled
+   - Returns parseable list to stdout: `index|kubeconfig|cluster_name|node_count|namespace`
+   - Diagnostics go to stderr
+   - Exit code: 0=success, 1=no clusters found
+
+   **How to handle the output:**
+
+   The script returns pipe-delimited lines to stdout, one per cluster found, e.g.:
+   ```
+   1|/home/user/.kube/kind-config|kind-ovn|3|ovn-kubernetes
+   2|/home/user/.kube/config|prod-cluster|12|openshift-ovn-kubernetes
+   ```
+
+   **Decision logic:**
+   - If **one cluster** found → automatically use it (extract kubeconfig path from column 2)
+   - If **multiple clusters** found → show the list to user and ask them to choose by number
+   - After selection, extract the kubeconfig path from column 2 of the chosen line
+   - Store the selected kubeconfig path in variable `KC` for use in subsequent steps
+
+   **Example output format parsing:**
+   - Column 1: Index number (for user selection)
+   - Column 2: Kubeconfig file path (this is what you need for `$KC`)
+   - Column 3: Cluster display name
+   - Column 4: Number of nodes
+   - Column 5: OVN namespace name
+
+   **Important**: Parse the output using standard text processing. The exact implementation is up to you - use whatever approach works best (awk, Python, inline parsing, etc.).
 
 2. **Check Permissions**: Verify user's Kubernetes access level and inform about write permissions
 
-   Run: `scripts/check-permissions.py "$KC"`
+   Run: `scripts/check_permissions.py "$KC"`
 
    The script returns:
    - **Exit 0**: Read-only access or user confirmed → proceed
@@ -43,7 +64,7 @@ tools: [Bash, Read, Write]
    5. If user says yes → continue, if no → stop
 
    **Example of proper user communication:**
-   ```
+   ```text
    ⚠️  WARNING: Write Permissions Detected
 
    Your kubeconfig has cluster admin permissions:
@@ -72,7 +93,7 @@ tools: [Bash, Read, Write]
 
 4. **Collect OVN Data**: Get full topology data from the cluster
 
-   Run: `scripts/collect-ovn-data.py "$KC"`
+   Run: `scripts/collect_ovn_data.py "$KC"`
 
    Detail files written to `$TMPDIR`:
    - `ovn_switches_detail.txt` - node|uuid|name|other_config
@@ -83,7 +104,7 @@ tools: [Bash, Read, Write]
 
 5. **Analyze Placement**: Determine per-node vs cluster-wide components
 
-   Run: `scripts/analyze-placement.py "$TMPDIR"`
+   Run: `scripts/analyze_placement.py "$TMPDIR"`
 
    Placement results written to `$TMPDIR`:
    - `ovn_switch_placement.txt` - name|placement (per-node|cluster-wide|cluster-wide-visual)
@@ -150,14 +171,14 @@ In **interconnect mode**, each node runs its own NBDB with local copies of compo
 
 ## Helper Scripts
 
-All helper scripts are in the `scripts/` directory. 
+All helper scripts are in the `scripts/` directory.
 
 | Script | Purpose | Input | Output |
 |--------|---------|-------|--------|
-| [detect-cluster.sh](scripts/detect-cluster.sh) | Find OVN cluster kubeconfig across all contexts. Scans multiple kubeconfig files and all their contexts. Prompts user if multiple clusters found. | None | Kubeconfig path to stdout, diagnostics to stderr. Exit: 0=success, 1=none found, 2=cancelled |
-| [check-permissions.py](scripts/check-permissions.py) | Check user permissions and warn if write access detected. | KUBECONFIG path | Exit: 0=proceed, 1=cancelled/error, 2=write perms (needs user confirmation) |
-| [collect-ovn-data.py](scripts/collect-ovn-data.py) | **Data collector**: Queries each node for all data, with **graceful degradation** (continues on node failures). Writes detail files. | KUBECONFIG path | Detail files: `ovn_switches_detail.txt`, `ovn_routers_detail.txt`, `ovn_lsps_detail.txt`, `ovn_lrps_detail.txt`, `ovn_pods_detail.txt` |
-| [analyze-placement.py](scripts/analyze-placement.py) | **Placement analyzer**: Analyzes UUID patterns from detail files to determine per-node vs cluster-wide placement. | TMPDIR (reads detail files) | Placement files: `ovn_switch_placement.txt`, `ovn_router_placement.txt` |
+| [detect-cluster.sh](scripts/detect-cluster.sh) | Find OVN cluster kubeconfig across all contexts. Scans multiple kubeconfig files and all their contexts. Returns parseable list. | None | Parseable list to stdout: `index|kubeconfig|cluster|nodes|namespace`. Exit: 0=success, 1=none found |
+| [check_permissions.py](scripts/check_permissions.py) | Check user permissions and warn if write access detected. | KUBECONFIG path | Exit: 0=proceed, 1=cancelled/error, 2=write perms (needs user confirmation) |
+| [collect_ovn_data.py](scripts/collect_ovn_data.py) | **Data collector**: Queries each node for all data, with **graceful degradation** (continues on node failures). Writes detail files. | KUBECONFIG path | Detail files: `ovn_switches_detail.txt`, `ovn_routers_detail.txt`, `ovn_lsps_detail.txt`, `ovn_lrps_detail.txt`, `ovn_pods_detail.txt` |
+| [analyze_placement.py](scripts/analyze_placement.py) | **Placement analyzer**: Analyzes UUID patterns from detail files to determine per-node vs cluster-wide placement. | TMPDIR (reads detail files) | Placement files: `ovn_switch_placement.txt`, `ovn_router_placement.txt` |
 
 ---
 
@@ -301,7 +322,7 @@ graph BT
 
 **CRITICAL: Discover pods from `$TMPDIR/ovn_pods_detail.txt`, NOT from LSPs**
 
-The file `$TMPDIR/ovn_pods_detail.txt` contains ALL running pods in the cluster (populated by collect-ovn-data.py).
+The file `$TMPDIR/ovn_pods_detail.txt` contains ALL running pods in the cluster (populated by collect_ovn_data.py).
 Format: `namespace|pod_name|pod_ip|node_name`
 
 **Pod-to-LSP Mapping Logic:**
@@ -332,7 +353,8 @@ Format: `namespace|pod_name|pod_ip|node_name`
 - `breth0_{node}`: LocalNet port (type="localnet")
 - `jtor-*`, `etor-*`, `tstor-*`: Router ports (type="router")
 
-**Example: Control Plane Node with Host-Network Pods**
+### Example: Control Plane Node with Host-Network Pods
+
 ```mermaid
 %% 8 host-network pods sharing management port
 POD_etcd["Pod: etcd-ovn-control-plane<br/>Namespace: kube-system<br/>IP: 10.89.0.10"]

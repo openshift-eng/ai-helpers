@@ -112,7 +112,7 @@ This ensures **informed consent** - you're always aware when admin credentials a
 
 ### Generated Diagram
 
-The command creates a Mermaid diagram in markdown format:
+The command creates a Mermaid diagram in Markdown format:
 
 ```markdown
 # OVN-Kubernetes Network Topology

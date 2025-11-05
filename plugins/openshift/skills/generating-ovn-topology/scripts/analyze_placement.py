@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-analyze-placement.py - Analyze OVN component placement from collected data
+analyze_placement.py - Analyze OVN component placement from collected data
 
-Usage: analyze-placement.py [TMPDIR]
+Usage: analyze_placement.py [TMPDIR]
 
 This script analyzes UUID patterns from previously collected OVN data to determine
 component placement (per-node vs cluster-wide).
@@ -18,6 +18,8 @@ Output files (written to $TMPDIR):
 Exit codes:
   0 - Success
   1 - Missing input files or analysis failed
+
+Requirements: Python 3.6+
 """
 
 import os
@@ -71,7 +73,7 @@ class PlacementAnalyzer:
                 file=sys.stderr,
             )
             print(
-                "   Run collect-ovn-data.py first to gather data.",
+                "   Run collect_ovn_data.py first to gather data.",
                 file=sys.stderr,
             )
             return False
@@ -82,7 +84,7 @@ class PlacementAnalyzer:
                 file=sys.stderr,
             )
             print(
-                "   Run collect-ovn-data.py first to gather data.",
+                "   Run collect_ovn_data.py first to gather data.",
                 file=sys.stderr,
             )
             return False
