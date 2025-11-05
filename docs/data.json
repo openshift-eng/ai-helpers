@@ -173,8 +173,8 @@
         {
           "name": "add-debug-wait",
           "description": "Add a wait step to a CI workflow for debugging test failures",
-          "synopsis": "/ci:add-debug-wait <workflow-or-job-name>",
-          "argument_hint": "<workflow-or-job-name>"
+          "synopsis": "/ci:add-debug-wait <workflow-or-job-name> [timeout]",
+          "argument_hint": "<workflow-or-job-name> [timeout]"
         },
         {
           "name": "ask-sippy",
