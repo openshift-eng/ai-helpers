@@ -559,6 +559,33 @@
       "has_readme": true
     },
     {
+      "name": "microshift-prow-job",
+      "description": "Analyze MicroShift Test Results from Prow CI jobs",
+      "version": "0.0.1",
+      "commands": [
+        {
+          "name": "analyze-job",
+          "description": "Analyze a MicroShift Prow CI job execution",
+          "synopsis": "/microshift-prow-job:analyze-job <job-url>",
+          "argument_hint": "<job-url>"
+        },
+        {
+          "name": "analyze-test-scenario",
+          "description": "Analyze MicroShift Test Scenario results",
+          "synopsis": "/microshift-prow-job:analyze-test-scenario <job-url> <scenario-name>",
+          "argument_hint": "<job-url> <scenario-name>"
+        }
+      ],
+      "skills": [
+        {
+          "name": "Extract MicroShift Version",
+          "id": "extract-microshift-version",
+          "description": "Extract MicroShift version and build type from Prow CI build logs"
+        }
+      ],
+      "has_readme": true
+    },
+    {
       "name": "hcp",
       "description": "Generate HyperShift cluster creation commands via hcp CLI from natural language descriptions",
       "version": "0.0.1",
