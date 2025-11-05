@@ -25,6 +25,11 @@
       "description": "A plugin to work with OpenShift CI"
     },
     {
+      "name": "component-health",
+      "source": "./plugins/component-health",
+      "description": "Analyze component health and track regressions across OpenShift releases"
+    },
+    {
       "name": "doc",
       "source": "./plugins/doc",
       "description": "A plugin for engineering documentation and notes"
@@ -38,6 +43,11 @@
       "name": "utils",
       "source": "./plugins/utils",
       "description": "A generic utilities plugin serving as a catch-all for various helper commands"
+    },
+    {
+      "name": "olm",
+      "source": "./plugins/olm",
+      "description": "OLM (Operator Lifecycle Manager) plugin for operator management and debugging"
     },
     {
       "name": "prow-job",
@@ -68,6 +78,11 @@
       "name": "microshift-prow-job",
       "source": "./plugins/microshift-prow-job",
       "description": "Analyze MicroShift Test Results from Prow CI jobs"
+    },
+    {
+      "name": "hcp",
+      "source": "./plugins/hcp",
+      "description": "Generate HyperShift cluster creation commands via hcp CLI from natural language descriptions"
     }
   ]
 }

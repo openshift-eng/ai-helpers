@@ -96,6 +96,26 @@ For a complete list of all available plugins and commands, see **[PLUGINS.md](PL
 Want to contribute or create your own plugins? Check out the `plugins/` directory for examples.
 Make sure your commands and agents follow the conventions for the Sections structure presented in the hello-world reference implementation plugin (see [`hello-world:echo`](plugins/hello-world/commands/echo.md) for an example).
 
+### Ethical Guidelines
+
+Plugins, commands, skills, and hooks must NEVER reference real people by name, even as stylistic examples (e.g., "in the style of <specific human>").
+
+**Ethical rationale:**
+1. **Consent**: Individuals have not consented to have their identity or persona used in AI-generated content
+2. **Misrepresentation**: AI cannot accurately replicate a person's unique voice, style, or intent
+3. **Intellectual Property**: A person's distinctive style may be protected
+4. **Dignity**: Using someone's identity without permission diminishes their autonomy
+
+**Instead, describe specific qualities explicitly**
+
+Good examples:
+
+* "Write commit messages that are direct, technically precise, and focused on the rationale behind changes"
+* "Explain using clear analogies, a sense of wonder, and accessible language for non-experts"
+* "Code review comments that are encouraging, constructive, and focus on collaborative improvement"
+
+When you identify a desirable characteristic (clarity, brevity, formality, humor, etc.), describe it explicitly rather than using a person as proxy.
+
 ### Adding New Commands
 
 When contributing new commands:

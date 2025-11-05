@@ -9,6 +9,7 @@ Comprehensive Jira integration for Claude Code, providing AI-powered tools to an
 - 📋 **Backlog Grooming** - Analyze new bugs and cards for grooming meetings
 - 🧪 **Test Generation** - Generate comprehensive test steps for JIRA issues by analyzing related PRs
 - ✨ **Issue Creation** - Create well-formed stories, epics, features, tasks, and bugs with guided workflows
+- 📝 **Release Note Generation** - Automatically generate bug fix release notes from Jira and linked GitHub PRs
 - 🤖 **Automated Workflows** - From issue analysis to PR creation, fully automated
 - 💬 **Smart Comment Analysis** - Extracts blockers, risks, and key insights from comments
 
@@ -16,36 +17,25 @@ Comprehensive Jira integration for Claude Code, providing AI-powered tools to an
 
 - Claude Code installed
 - Jira MCP server configured
+- Optional: `gh` CLI tools installed and configured, for GitHub access.
 
 ### Setting up Jira MCP Server
 
 ```bash
-# Add the Atlassian MCP server
-claude mcp add atlassian npx @modelcontextprotocol/server-atlassian
-```
-
-OR you can have claude use an already running Jira MCP Server
-
-```bash
-# Add the Atlassian MCP server
-claude mcp add --transport sse atlassian http https://localhost:8080/sse
-```
-
-Configure your Jira credentials according to the [Atlassian MCP documentation](https://github.com/modelcontextprotocol/servers/tree/main/src/atlassian).
-
-### Running Jira MCP Server locally with podman
-
-```bash
 # Start the atlassian mcp server using podman
-podman run -i --rm -p 8080:8080 -e "JIRA_URL=https://issues.redhat.com" -e "JIRA_USERNAME" -e "JIRA_API_TOKEN" -e "JIRA_PERSONAL_TOKEN" -e "JIRA_SSL_VERIFY" ghcr.io/sooperset/mcp-atlassian:latest --transport sse --port 8080 -vv
+podman run -i --rm -p 8080:8080 -e "JIRA_URL=https://issues.redhat.com" -e "JIRA_USERNAME" -e "JIRA_PERSONAL_TOKEN" -e "JIRA_SSL_VERIFY" ghcr.io/sooperset/mcp-atlassian:latest --transport sse --port 8080 -vv
 ```
 
-#### Getting Tokens 
-You'll need to generate your own tokens in several of these examples:
+Add the MCP server to Claude:
 
-- For JIRA API TOKEN, use https://id.atlassian.com/manage-profile/security/api-tokens
-- For JIRA PERSONAL TOKEN, use https://issues.redhat.com/secure/ViewProfile.jspa?selectedTab=com.atlassian.pats.pats-plugin:jira-user-personal-access-tokens
-- For GitHub bearer token, use https://github.com/settings/tokens
+```bash
+# Add the Atlassian MCP server
+claude mcp add --transport sse atlassian http://localhost:8080/sse
+```
+
+#### Getting Tokens
+
+For your Jira token, use https://issues.redhat.com/secure/ViewProfile.jspa?selectedTab=com.atlassian.pats.pats-plugin:jira-user-personal-access-tokens
 
 ### Notes and tips
 
@@ -57,31 +47,13 @@ You'll need to generate your own tokens in several of these examples:
 - Keep `JIRA_SSL_VERIFY` as "true" unless you have a specific reason to disable TLS verification.
 - Limit active MCP servers: running too many at once can degrade performance or hit limits. Use Cursor's MCP panel to disable those you don't need for the current session.
 
-
-
 ## Installation
 
-### From the OpenShift AI Helpers Marketplace
+Ensure you have the ai-helpers marketplace enabled, via [the instructions here](/README.md).
 
 ```bash
-# Add the marketplace (one-time setup)
-/plugin marketplace add https://raw.githubusercontent.com/openshift-eng/ai-helpers/main/marketplace.json
-
 # Install the plugin
-/plugin install jira
-```
-
-### Manual Installation
-
-```bash
-# Clone the repository
-git clone https://github.com/openshift-eng/ai-helpers.git
-
-# Copy to Claude Code plugins directory
-cp -r ai-helpers/plugins/jira ~/.claude/plugins/
-
-# Enable the plugin
-/plugin enable jira
+/plugin install jira@ai-helpers
 ```
 
 ## Available Commands
@@ -206,6 +178,61 @@ Different projects may have different conventions (security levels, labels, vers
 Teams may have additional conventions layered on top of project conventions (component selection, custom fields, workflows, etc.). The command automatically detects team context and applies team-specific skills.
 
 See [commands/create.md](commands/create.md) for full documentation.
+
+---
+
+### `/jira:create-release-note` - Generate Bug Fix Release Notes
+
+Automatically generate bug fix release notes by analyzing Jira bug tickets and their linked GitHub pull requests. The command extracts Cause and Consequence from the bug description, analyzes PR content (description, commits, code changes, comments), synthesizes the information into a cohesive release note, and updates the Jira ticket.
+
+**Usage:**
+```bash
+/jira:create-release-note OCPBUGS-38358
+```
+
+**What it does:**
+1. Fetches the bug ticket from Jira
+2. Extracts Cause and Consequence sections from bug description
+3. Finds all linked GitHub PRs
+4. Analyzes each PR (description, commits, diff, comments)
+5. Synthesizes Fix, Result, and Workaround information
+6. Validates content for security (no credentials)
+7. Prompts for Release Note Type selection
+8. Updates Jira ticket fields
+
+**Release Note Format:**
+```
+Cause: <extracted from bug description>
+Consequence: <extracted from bug description>
+Fix: <analyzed from PRs>
+Result: <analyzed from PRs>
+Workaround: <analyzed from PRs if applicable>
+```
+
+**Prerequisites:**
+- MCP Jira server configured
+- GitHub CLI (`gh`) installed and authenticated
+- Access to linked GitHub repositories
+- Jira permissions to update Release Note fields
+
+**Example Output:**
+```
+✓ Release Note Created for OCPBUGS-38358
+
+Type: Bug Fix
+
+Text:
+---
+Cause: hostedcontrolplane controller crashes when hcp.Spec.Platform.AWS.CloudProviderConfig.Subnet.ID is undefined
+Consequence: control-plane-operator enters a crash loop
+Fix: Added nil check for CloudProviderConfig.Subnet before accessing Subnet.ID field
+Result: The control-plane-operator no longer crashes when CloudProviderConfig.Subnet is not specified
+---
+
+Updated: https://issues.redhat.com/browse/OCPBUGS-38358
+```
+
+See [commands/create-release-note.md](commands/create-release-note.md) for full documentation.
 
 ---
 
