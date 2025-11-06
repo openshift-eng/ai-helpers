@@ -187,13 +187,6 @@ def print_route_table(route_list: List[Dict[str, str]], namespace_filter: str = 
             print("No Routes found.")
         return
 
-    # Filter by namespace if specified
-    if namespace_filter:
-        route_list = [r for r in route_list if r['namespace'] == namespace_filter]
-        if not route_list:
-            print(f"No Routes found in namespace '{namespace_filter}'.")
-            return
-
     # Print header
     print(f"{'NAMESPACE':<30} {'NAME':<40} {'HOST':<80} {'ADMITTED':<10} AGE")
 
@@ -323,6 +316,10 @@ def analyze_routes(must_gather_path: str, namespace: str = None, problems_only: 
     # Format routes
     route_info_list = [format_route(route, ns) for ns, route in routes]
 
+    # Filter by namespace if specified
+    if namespace:
+        route_info_list = [r for r in route_info_list if r['namespace'] == namespace]
+
     # Filter problems only
     if problems_only:
         route_info_list = [r for r in route_info_list if r['admitted'] != 'True']
@@ -330,7 +327,7 @@ def analyze_routes(must_gather_path: str, namespace: str = None, problems_only: 
     # Sort by namespace, then name
     route_info_list.sort(key=lambda r: (r['namespace'], r['name']))
 
-    # Print table
+    # Print table (no longer needs to filter by namespace)
     print_route_table(route_info_list, namespace)
 
     # Summary

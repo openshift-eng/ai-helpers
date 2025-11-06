@@ -208,12 +208,12 @@ SUMMARY: X/Y resources healthy
 
 All scripts located in:
 ```
-.claude-plugin/skills/must-gather-analyzer/scripts/
+plugins/must-gather/skills/must-gather-analyzer/scripts/
 ```
 
 ## Documentation
 
-- Full guide: `.claude-plugin/README.md`
-- Skill details: `.claude-plugin/skills/must-gather-analyzer/SKILL.md`
-- Comprehensive analysis: `.claude-plugin/commands/comprehensive-analysis.md`
-- This reference: `.claude-plugin/skills/must-gather-analyzer/QUICK-REFERENCE.md`
+- Full guide: `plugins/must-gather/README.md`
+- Skill details: `plugins/must-gather/skills/must-gather-analyzer/SKILL.md`
+- Comprehensive analysis: `plugins/must-gather/commands/comprehensive-analysis.md`
+- This reference: `plugins/must-gather/skills/must-gather-analyzer/QUICK-REFERENCE.md`

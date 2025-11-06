@@ -18,8 +18,10 @@ from typing import Dict, List, Tuple, Optional
 
 def extract_error_pattern(line: str) -> str:
     """Extract a meaningful error pattern from a log line."""
-    # Remove timestamp prefix if present
+    # Remove timestamp prefix if present (ISO format: 2024-01-01T12:34:56.789Z)
     line = re.sub(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z\s*', '', line)
+    # Remove kubelet-style log prefix if present (E1106 12:34:56.123456 12345 file.go:123])
+    line = re.sub(r'^[IWEF]\d{4}\s+\d{2}:\d{2}:\d{2}\.\d+\s+\d+\s+[^\]]+\]\s*', '', line)
 
     # Try to extract common error message patterns
 
@@ -72,11 +74,12 @@ def parse_log_file(file_path: Path) -> Dict[str, any]:
                 line = line.strip()
 
                 # Look for common error patterns (case insensitive)
-                if re.search(r'\b(ERROR|Error|error|FATAL|Fatal|fatal|CRIT|Critical|PANIC|Panic|panic)\b', line):
+                # Kubelet uses: E (Error), W (Warning), I (Info), F (Fatal)
+                if re.search(r'\b(ERROR|Error|error|FATAL|Fatal|fatal|CRIT|Critical|PANIC|Panic|panic)\b', line) or re.match(r'^E\d{4}', line):
                     total_errors += 1
                     pattern = extract_error_pattern(line)
                     error_patterns[pattern] += 1
-                elif re.search(r'\b(WARN|Warning|warning)\b', line):
+                elif re.search(r'\b(WARN|Warning|warning)\b', line) or re.match(r'^W\d{4}', line):
                     total_warnings += 1
                     pattern = extract_error_pattern(line)
                     warning_patterns[pattern] += 1

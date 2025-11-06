@@ -30,8 +30,6 @@ command_exists() {
 stop_camgi() {
     echo -e "${BLUE}Stopping camgi containers...${NC}"
 
-    local stopped=0
-
     # Check for podman
     if command_exists podman; then
         local containers=$(podman ps -q --filter ancestor=quay.io/elmiko/okd-camgi)
@@ -40,9 +38,8 @@ stop_camgi() {
             echo "$containers" | while read container; do
                 echo -e "${BLUE}Stopping container: $container${NC}"
                 podman stop "$container"
-                stopped=$((stopped + 1))
             done
-            echo -e "${GREEN}Stopped $stopped camgi container(s)${NC}"
+            echo -e "${GREEN}Stopped camgi container(s)${NC}"
         else
             echo -e "${YELLOW}No running camgi containers found${NC}"
         fi
@@ -56,9 +53,8 @@ stop_camgi() {
             echo "$containers" | while read container; do
                 echo -e "${BLUE}Stopping container: $container${NC}"
                 docker stop "$container"
-                stopped=$((stopped + 1))
             done
-            echo -e "${GREEN}Stopped $stopped camgi container(s)${NC}"
+            echo -e "${GREEN}Stopped camgi container(s)${NC}"
         else
             echo -e "${YELLOW}No running camgi containers found${NC}"
         fi
@@ -99,7 +95,6 @@ if [ ! -d "$MG_PATH" ]; then
 fi
 
 # Check if we need to find the subdirectory with hash
-ORIGINAL_PATH="$MG_PATH"
 if [ ! -d "$MG_PATH/cluster-scoped-resources" ]; then
     echo -e "${YELLOW}Looking for must-gather subdirectory...${NC}"
     # Find subdirectory containing cluster-scoped-resources
@@ -198,7 +193,7 @@ run_camgi() {
         # Open browser in background
         (sleep 2 && xdg-open http://127.0.0.1:8080 2>/dev/null) &
 
-        docker run --rm -it -p 8080:8080 -v "$MG_PATH:/must-gather" quay.io/elmiko/okd-camgi
+        docker run --rm -it -p 8080:8080 -v "$MG_PATH:/must-gather:Z" quay.io/elmiko/okd-camgi
         return $?
     fi
 

@@ -2,7 +2,7 @@
 
 ## What We Built
 
-A comprehensive Claude Code plugin for analyzing OpenShift must-gather diagnostic data with 13 Python analysis scripts, automation tooling, and detailed documentation.
+A comprehensive Claude Code plugin for analyzing OpenShift must-gather diagnostic data with 14 Python analysis scripts, automation tooling, and detailed documentation.
 
 ## Analysis Scripts (14 Total)
 
@@ -58,7 +58,7 @@ Scripts designed to work together for root cause investigation:
 ## Automation & Reporting
 
 ### Comprehensive Analysis Command
-`.claude-plugin/commands/comprehensive-analysis.md`
+`plugins/must-gather/commands/comprehensive-analysis.md`
 - Systematic 5-phase analysis workflow
 - Report generation template
 - Cross-referencing guidelines

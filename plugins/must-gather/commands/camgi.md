@@ -96,7 +96,7 @@ The command performs the following steps:
 3. **Launch CAMGI**:
    Execute the CAMGI launcher script:
    ```bash
-   /home/psundara/ws/src/github.com/openshift/must-gather/.claude-plugin/skills/must-gather-analyzer/scripts/run-camgi.sh <must-gather-path>
+   plugins/must-gather/skills/must-gather-analyzer/scripts/run-camgi.sh <must-gather-path>
    ```
 
    The script will:
@@ -197,7 +197,7 @@ podman run --rm -it -p 8080:8080 \
 
 - CAMGI GitHub: https://github.com/elmiko/okd-camgi
 - CAMGI PyPI: https://pypi.org/project/okd-camgi/
-- Launcher Script: `.claude-plugin/skills/must-gather-analyzer/scripts/run-camgi.sh`
+- Launcher Script: `plugins/must-gather/skills/must-gather-analyzer/scripts/run-camgi.sh`
 
 ## Arguments
 

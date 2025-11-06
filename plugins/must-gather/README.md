@@ -441,7 +441,7 @@ Generates a comprehensive report with:
 - Detailed recommendations
 - Cross-referenced findings
 
-See `/home/psundara/ws/src/github.com/openshift/must-gather/.claude-plugin/commands/comprehensive-analysis.md` for full details.
+See `plugins/must-gather/commands/comprehensive-analysis.md` for full details.
 
 #### Automation Script
 
@@ -459,14 +459,14 @@ This generates a timestamped report file with complete analysis output.
 
 If you're working in the must-gather repository:
 
-1. The plugin is already available in `.claude-plugin/`
+1. The plugin is already available in `plugins/must-gather`
 2. Claude Code will automatically detect project plugins
 
 ### Manual Installation
 
 To use this plugin in other projects:
 
-1. Copy the `.claude-plugin/` directory to your desired location
+1. Copy the `plugins/must-gather` directory to your desired location
 2. Add to Claude Code:
    ```bash
    /plugin marketplace add /path/to/.claude-plugin
@@ -576,11 +576,11 @@ For detailed comprehensive analysis with full report:
 
 Or use the automation script:
 ```bash
-cd .claude-plugin/skills/must-gather-analyzer/scripts
+cd plugins/must-gather/skills/must-gather-analyzer/scripts
 ./run-comprehensive-analysis.sh /path/to/must-gather
 ```
 
-This runs all 13 analysis scripts in systematic order and generates a detailed report with:
+This runs all 14 analysis scripts in systematic order and generates a detailed report with:
 - Executive summary and health assessment
 - Critical issues prioritized by severity
 - Root cause analysis with cross-referenced findings

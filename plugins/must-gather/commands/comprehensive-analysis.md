@@ -48,7 +48,7 @@ The actual must-gather directory is the subdirectory with the hash name, not the
 
 Analysis scripts must be available at:
 ```
-.claude-plugin/skills/must-gather-analyzer/scripts/
+plugins/must-gather/skills/must-gather-analyzer/scripts/
 ├── analyze_clusterversion.py
 ├── analyze_clusteroperators.py
 ├── analyze_nodes.py
@@ -70,7 +70,7 @@ Analysis scripts must be available at:
 **CRITICAL: Script-Only Analysis**
 
 - **NEVER** attempt to analyze must-gather data directly using bash commands, grep, or manual file reading
-- **ONLY** use the provided Python scripts in `.claude-plugin/skills/must-gather-analyzer/scripts/`
+- **ONLY** use the provided Python scripts in `plugins/must-gather/skills/must-gather-analyzer/scripts/`
 - If scripts are missing or not found:
   1. Stop immediately
   2. Inform the user that the analysis scripts are not available
@@ -81,12 +81,12 @@ Analysis scripts must be available at:
 
 Before running any analysis, first verify:
 ```bash
-ls .claude-plugin/skills/must-gather-analyzer/scripts/analyze_clusteroperators.py
+ls plugins/must-gather/skills/must-gather-analyzer/scripts/analyze_clusteroperators.py
 ```
 
 If this fails, STOP and report to the user:
 ```
-The must-gather analysis scripts are not available at .claude-plugin/skills/must-gather-analyzer/scripts/. Please ensure the must-gather-analyzer skill is properly installed before running analysis.
+The must-gather analysis scripts are not available at plugins/must-gather/skills/must-gather-analyzer/scripts/. Please ensure the must-gather-analyzer skill is properly installed before running analysis.
 ```
 
 ## Implementation
@@ -108,7 +108,7 @@ These provide the overall cluster state and identify system-wide issues.
 
 1. **Cluster Version**
    ```bash
-   python3 .claude-plugin/skills/must-gather-analyzer/scripts/analyze_clusterversion.py <must-gather-path>
+   python3 plugins/must-gather/skills/must-gather-analyzer/scripts/analyze_clusterversion.py <must-gather-path>
    ```
    - Identifies cluster version and update status
    - Shows if cluster is progressing through an update
@@ -116,7 +116,7 @@ These provide the overall cluster state and identify system-wide issues.
 
 2. **Cluster Operators**
    ```bash
-   python3 .claude-plugin/skills/must-gather-analyzer/scripts/analyze_clusteroperators.py <must-gather-path>
+   python3 plugins/must-gather/skills/must-gather-analyzer/scripts/analyze_clusteroperators.py <must-gather-path>
    ```
    - Identifies degraded, unavailable, or progressing operators
    - **Critical**: Operator issues often cascade to other components
@@ -127,7 +127,7 @@ These analyze the underlying infrastructure supporting workloads.
 
 3. **Nodes**
    ```bash
-   python3 .claude-plugin/skills/must-gather-analyzer/scripts/analyze_nodes.py <must-gather-path>
+   python3 plugins/must-gather/skills/must-gather-analyzer/scripts/analyze_nodes.py <must-gather-path>
    ```
    - Shows node conditions (Ready, DiskPressure, MemoryPressure)
    - Identifies nodes with issues
@@ -135,7 +135,7 @@ These analyze the underlying infrastructure supporting workloads.
 
 4. **Network**
    ```bash
-   python3 .claude-plugin/skills/must-gather-analyzer/scripts/analyze_network.py <must-gather-path>
+   python3 plugins/must-gather/skills/must-gather-analyzer/scripts/analyze_network.py <must-gather-path>
    ```
    - Shows network type (OVN-Kubernetes, OpenShift SDN)
    - Checks network operator health
@@ -143,7 +143,7 @@ These analyze the underlying infrastructure supporting workloads.
 
 5. **OVN Databases** (OVN-Kubernetes clusters only)
    ```bash
-   python3 .claude-plugin/skills/must-gather-analyzer/scripts/analyze_ovn_dbs.py <must-gather-path>
+   python3 plugins/must-gather/skills/must-gather-analyzer/scripts/analyze_ovn_dbs.py <must-gather-path>
    ```
    - Analyzes OVN Northbound/Southbound databases from network_logs
    - Shows logical switches, switch ports, ACLs, and routers per node
@@ -153,8 +153,8 @@ These analyze the underlying infrastructure supporting workloads.
 
 6. **Ingress and Routes**
    ```bash
-   python3 .claude-plugin/skills/must-gather-analyzer/scripts/analyze_ingress.py <must-gather-path> --ingresscontrollers
-   python3 .claude-plugin/skills/must-gather-analyzer/scripts/analyze_ingress.py <must-gather-path> --routes --problems-only
+   python3 plugins/must-gather/skills/must-gather-analyzer/scripts/analyze_ingress.py <must-gather-path> --ingresscontrollers
+   python3 plugins/must-gather/skills/must-gather-analyzer/scripts/analyze_ingress.py <must-gather-path> --routes --problems-only
    ```
    - Checks IngressController availability
    - Identifies routes not admitted
@@ -165,7 +165,7 @@ These analyze application workloads and their dependencies.
 
 7. **Pods**
    ```bash
-   python3 .claude-plugin/skills/must-gather-analyzer/scripts/analyze_pods.py <must-gather-path> --problems-only
+   python3 plugins/must-gather/skills/must-gather-analyzer/scripts/analyze_pods.py <must-gather-path> --problems-only
    ```
    - Shows crashlooping, pending, or failed pods
    - **Cross-reference**: Match pod issues with node and operator problems
@@ -173,7 +173,7 @@ These analyze application workloads and their dependencies.
 
 8. **Storage**
    ```bash
-   python3 .claude-plugin/skills/must-gather-analyzer/scripts/analyze_pvs.py <must-gather-path>
+   python3 plugins/must-gather/skills/must-gather-analyzer/scripts/analyze_pvs.py <must-gather-path>
    ```
    - Shows PersistentVolume and PersistentVolumeClaim status
    - Identifies pending or unbound volumes
@@ -181,7 +181,7 @@ These analyze application workloads and their dependencies.
 
 9. **MachineConfigPools**
    ```bash
-   python3 .claude-plugin/skills/must-gather-analyzer/scripts/analyze_machineconfigpools.py <must-gather-path>
+   python3 plugins/must-gather/skills/must-gather-analyzer/scripts/analyze_machineconfigpools.py <must-gather-path>
    ```
    - Shows node configuration rollout status
    - Identifies stuck node updates
@@ -192,7 +192,7 @@ These provide insights into cluster stability and specific events.
 
 10. **etcd Cluster**
     ```bash
-    python3 .claude-plugin/skills/must-gather-analyzer/scripts/analyze_etcd.py <must-gather-path>
+    python3 plugins/must-gather/skills/must-gather-analyzer/scripts/analyze_etcd.py <must-gather-path>
     ```
     - Checks etcd member health and quorum
     - **Critical**: etcd issues can cause API server instability
@@ -200,7 +200,7 @@ These provide insights into cluster stability and specific events.
 
 11. **Events**
     ```bash
-    python3 .claude-plugin/skills/must-gather-analyzer/scripts/analyze_events.py <must-gather-path> --type Warning --count 100
+    python3 plugins/must-gather/skills/must-gather-analyzer/scripts/analyze_events.py <must-gather-path> --type Warning --count 100
     ```
     - Shows warning events across the cluster
     - Helps identify recent problems and their timeline
@@ -211,7 +211,7 @@ These provide detailed error patterns from various log sources.
 
 12. **Service Logs** (Master Node Services)
     ```bash
-    python3 .claude-plugin/skills/must-gather-analyzer/scripts/analyze_servicelogs.py <must-gather-path> --errors-only
+    python3 plugins/must-gather/skills/must-gather-analyzer/scripts/analyze_servicelogs.py <must-gather-path> --errors-only
     ```
     - Analyzes kubelet and crio logs from systemd
     - **Note**: Only collected from master nodes in must-gather
@@ -220,10 +220,10 @@ These provide detailed error patterns from various log sources.
 13. **Pod Logs** (Container Application Logs)
     ```bash
     # Start with problem namespaces identified in Phase 3
-    python3 .claude-plugin/skills/must-gather-analyzer/scripts/analyze_pod_logs.py <must-gather-path> --errors-only --top 5
+    python3 plugins/must-gather/skills/must-gather-analyzer/scripts/analyze_pod_logs.py <must-gather-path> --errors-only --top 5
 
     # Or analyze specific namespace
-    # python3 .claude-plugin/skills/must-gather-analyzer/scripts/analyze_pod_logs.py <must-gather-path> --namespace <namespace> --top 10
+    # python3 plugins/must-gather/skills/must-gather-analyzer/scripts/analyze_pod_logs.py <must-gather-path> --namespace <namespace> --top 10
     ```
     - Analyzes application container logs
     - Shows error patterns from failing components
@@ -231,7 +231,7 @@ These provide detailed error patterns from various log sources.
 
 14. **Node Logs** (Kubelet Logs)
     ```bash
-    python3 .claude-plugin/skills/must-gather-analyzer/scripts/analyze_node_logs.py <must-gather-path> --log-type kubelet --errors-only --top 5
+    python3 plugins/must-gather/skills/must-gather-analyzer/scripts/analyze_node_logs.py <must-gather-path> --log-type kubelet --errors-only --top 5
     ```
     - Analyzes kubelet logs from all nodes
     - **Note**: Kubelet logs are gzipped and extracted on-the-fly
@@ -504,16 +504,16 @@ When a specific namespace has issues:
 NAMESPACE="openshift-etcd"
 
 # 1. Check pods in namespace
-python3 .claude-plugin/skills/must-gather-analyzer/scripts/analyze_pods.py <mg-path> --namespace $NAMESPACE
+python3 plugins/must-gather/skills/must-gather-analyzer/scripts/analyze_pods.py <mg-path> --namespace $NAMESPACE
 
 # 2. Check events in namespace
-python3 .claude-plugin/skills/must-gather-analyzer/scripts/analyze_events.py <mg-path> --namespace $NAMESPACE
+python3 plugins/must-gather/skills/must-gather-analyzer/scripts/analyze_events.py <mg-path> --namespace $NAMESPACE
 
 # 3. Analyze pod logs in namespace
-python3 .claude-plugin/skills/must-gather-analyzer/scripts/analyze_pod_logs.py <mg-path> --namespace $NAMESPACE --show-warnings
+python3 plugins/must-gather/skills/must-gather-analyzer/scripts/analyze_pod_logs.py <mg-path> --namespace $NAMESPACE --show-warnings
 
 # 4. Check PVCs in namespace
-python3 .claude-plugin/skills/must-gather-analyzer/scripts/analyze_pvs.py <mg-path> --namespace $NAMESPACE
+python3 plugins/must-gather/skills/must-gather-analyzer/scripts/analyze_pvs.py <mg-path> --namespace $NAMESPACE
 ```
 
 ### Node-Focused Investigation
@@ -524,16 +524,16 @@ When a specific node has issues:
 NODE="ip-10-0-45-79"
 
 # 1. Check node status
-python3 .claude-plugin/skills/must-gather-analyzer/scripts/analyze_nodes.py <mg-path>  # Look for the node
+python3 plugins/must-gather/skills/must-gather-analyzer/scripts/analyze_nodes.py <mg-path>  # Look for the node
 
 # 2. Check pods on that node
-python3 .claude-plugin/skills/must-gather-analyzer/scripts/analyze_pods.py <mg-path>  # Note which pods are on that node
+python3 plugins/must-gather/skills/must-gather-analyzer/scripts/analyze_pods.py <mg-path>  # Note which pods are on that node
 
 # 3. Check node logs
-python3 .claude-plugin/skills/must-gather-analyzer/scripts/analyze_node_logs.py <mg-path> --node $NODE --show-warnings
+python3 plugins/must-gather/skills/must-gather-analyzer/scripts/analyze_node_logs.py <mg-path> --node $NODE --show-warnings
 
 # 4. Check kubelet errors specifically
-python3 .claude-plugin/skills/must-gather-analyzer/scripts/analyze_node_logs.py <mg-path> --node $NODE --log-type kubelet --top 15
+python3 plugins/must-gather/skills/must-gather-analyzer/scripts/analyze_node_logs.py <mg-path> --node $NODE --log-type kubelet --top 15
 ```
 
 ### Update/Upgrade Investigation
@@ -542,16 +542,16 @@ When investigating update issues:
 
 ```bash
 # 1. Check update status
-python3 .claude-plugin/skills/must-gather-analyzer/scripts/analyze_clusterversion.py <mg-path>
+python3 plugins/must-gather/skills/must-gather-analyzer/scripts/analyze_clusterversion.py <mg-path>
 
 # 2. Check MachineConfigPools (nodes updating?)
-python3 .claude-plugin/skills/must-gather-analyzer/scripts/analyze_machineconfigpools.py <mg-path>
+python3 plugins/must-gather/skills/must-gather-analyzer/scripts/analyze_machineconfigpools.py <mg-path>
 
 # 3. Check if operators progressing
-python3 .claude-plugin/skills/must-gather-analyzer/scripts/analyze_clusteroperators.py <mg-path>
+python3 plugins/must-gather/skills/must-gather-analyzer/scripts/analyze_clusteroperators.py <mg-path>
 
 # 4. Check for update-related events
-python3 .claude-plugin/skills/must-gather-analyzer/scripts/analyze_events.py <mg-path> --type Warning
+python3 plugins/must-gather/skills/must-gather-analyzer/scripts/analyze_events.py <mg-path> --type Warning
 ```
 
 ### OVN Network Investigation (OVN-Kubernetes clusters)
@@ -560,24 +560,24 @@ When investigating OVN networking issues:
 
 ```bash
 # 1. Check network operator status
-python3 .claude-plugin/skills/must-gather-analyzer/scripts/analyze_network.py <mg-path>
+python3 plugins/must-gather/skills/must-gather-analyzer/scripts/analyze_network.py <mg-path>
 
 # 2. Analyze OVN databases (all nodes)
-python3 .claude-plugin/skills/must-gather-analyzer/scripts/analyze_ovn_dbs.py <mg-path>
+python3 plugins/must-gather/skills/must-gather-analyzer/scripts/analyze_ovn_dbs.py <mg-path>
 
 # 3. Analyze specific node's OVN database
-python3 .claude-plugin/skills/must-gather-analyzer/scripts/analyze_ovn_dbs.py <mg-path> --node <node-name>
+python3 plugins/must-gather/skills/must-gather-analyzer/scripts/analyze_ovn_dbs.py <mg-path> --node <node-name>
 
 # 4. Run custom OVSDB query
 # Example: Find all ACLs with priority > 1000
-python3 .claude-plugin/skills/must-gather-analyzer/scripts/analyze_ovn_dbs.py <mg-path> \
+python3 plugins/must-gather/skills/must-gather-analyzer/scripts/analyze_ovn_dbs.py <mg-path> \
   --query '["OVN_Northbound", {"op":"select", "table":"ACL", "where":[["priority", ">", 1000]], "columns":["priority","match","action"]}]'
 
 # 5. Check OVN pods
-python3 .claude-plugin/skills/must-gather-analyzer/scripts/analyze_pods.py <mg-path> --namespace openshift-ovn-kubernetes
+python3 plugins/must-gather/skills/must-gather-analyzer/scripts/analyze_pods.py <mg-path> --namespace openshift-ovn-kubernetes
 
 # 6. Check OVN logs
-python3 .claude-plugin/skills/must-gather-analyzer/scripts/analyze_pod_logs.py <mg-path> --namespace openshift-ovn-kubernetes --show-warnings
+python3 plugins/must-gather/skills/must-gather-analyzer/scripts/analyze_pod_logs.py <mg-path> --namespace openshift-ovn-kubernetes --show-warnings
 ```
 
 **Note**: OVN database analysis requires:

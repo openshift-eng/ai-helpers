@@ -26,7 +26,7 @@ Use `/comprehensive-analysis` command or automation script for complete cluster 
 - Generates detailed report with executive summary
 - Cross-references issues across components
 - Provides root cause analysis and recommendations
-- See `.claude-plugin/commands/comprehensive-analysis.md` for details
+- See `plugins/must-gather/commands/comprehensive-analysis.md` for details
 
 ## Overview
 
