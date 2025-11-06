@@ -6,6 +6,8 @@ Claude Code plugin for analyzing OpenShift must-gather diagnostic data.
 
 This plugin provides tools to analyze must-gather data collected from OpenShift clusters, displaying resource status in familiar `oc`-like format and identifying cluster issues.
 
+**Quick Start**: See [QUICK-REFERENCE.md](skills/must-gather-analyzer/QUICK-REFERENCE.md) for a command cheat sheet.
+
 ## Features
 
 ### Skills
@@ -226,6 +228,151 @@ NAMESPACE                      NAME                                STATUS     VO
 openshift-monitoring           prometheus-data-prometheus-0        Bound      pvc-3d4a0119-b2f2-44fa-9b2f-b11c611c74f2       20Gi
 ```
 
+#### `analyze_ingress.py`
+Analyzes IngressControllers and Routes.
+
+```bash
+# Analyze IngressControllers
+./analyze_ingress.py <must-gather-path> --ingresscontrollers
+
+# Analyze Routes (all namespaces)
+./analyze_ingress.py <must-gather-path> --routes
+
+# Routes in specific namespace
+./analyze_ingress.py <must-gather-path> --routes --namespace openshift-console
+
+# Only routes with problems
+./analyze_ingress.py <must-gather-path> --routes --problems-only
+```
+
+Output format:
+```
+NAME                 DOMAIN                                                       REPLICAS   AVAILABLE   PROGRESSING   DEGRADED   TYPE
+default              apps.ci-op-54xcy53v-3c4c5.example.com                        2/2        True        False         False      LoadBalancerService
+
+NAMESPACE                      NAME                                     HOST                                                                             ADMITTED   AGE
+openshift-console              console                                  console-openshift-console.apps.example.com                                       True       1d
+openshift-authentication       oauth-openshift                          oauth-openshift.apps.example.com                                                 True       1d
+```
+
+#### `analyze_servicelogs.py`
+Analyzes host service logs from systemd services.
+
+**Note**: Host service logs (systemd) are typically collected only from master nodes in must-gather data.
+
+```bash
+# All service logs
+./analyze_servicelogs.py <must-gather-path>
+
+# Filter by service name
+./analyze_servicelogs.py <must-gather-path> --service kubelet
+
+# Only services with errors
+./analyze_servicelogs.py <must-gather-path> --errors-only
+
+# Show warnings in addition to errors
+./analyze_servicelogs.py <must-gather-path> --show-warnings
+```
+
+Output format:
+```
+SERVICE                                  ERRORS     WARNINGS   STATUS
+======================================================================
+kubelet (masters)                        9271       14         ⚠️  HAS ERRORS
+crio (masters)                           21         656        ⚠️  HAS ERRORS
+
+ERROR PATTERNS (9271 total occurrences):
+1. [712x] DeleteContainer returned error
+2. [550x] Error syncing pod, skipping
+3. [512x] ContainerStatus from runtime service failed
+```
+
+#### `analyze_machineconfigpools.py`
+Analyzes MachineConfigPools to identify node update and rollout issues.
+
+```bash
+# Show all MachineConfigPools
+./analyze_machineconfigpools.py <must-gather-path>
+
+# Show only pools with problems
+./analyze_machineconfigpools.py <must-gather-path> --problems-only
+```
+
+Output format:
+```
+NAME                 CONFIG                                             UPDATED   UPDATING   DEGRADED   MACHINECOUNT   READYMACHINECOUNT   UPDATEDMACHINECOUNT
+master               rendered-master-abc123                             True      False      False      3              3                   3
+worker               rendered-worker-def456                             True      False      False      3              3                   3
+```
+
+#### `analyze_pod_logs.py`
+Analyzes pod/container logs to identify error patterns.
+
+```bash
+# Analyze all pod logs with errors
+./analyze_pod_logs.py <must-gather-path>
+
+# Analyze logs for a specific namespace
+./analyze_pod_logs.py <must-gather-path> --namespace openshift-etcd
+
+# Analyze logs for a specific pod
+./analyze_pod_logs.py <must-gather-path> --pod etcd
+
+# Show top 5 error patterns
+./analyze_pod_logs.py <must-gather-path> --top 5
+```
+
+Output format:
+```
+NAMESPACE                      POD                                                CONTAINER                                ERRORS     WARNINGS   LINES
+openshift-etcd                 etcd-ip-10-0-45-79.us-west-1.compute.internal      etcd                                     76         0          346
+
+ERROR PATTERNS (76 total occurrences):
+1. [44x] error
+2. [15x] failed to reach the peer URL
+3. [15x] failed to get version
+```
+
+#### `analyze_node_logs.py`
+Analyzes node logs including kubelet, sysinfo, and dmesg logs.
+
+**Note**: Kubelet logs are gzipped and will be extracted on-the-fly.
+
+```bash
+# Analyze all node logs
+./analyze_node_logs.py <must-gather-path>
+
+# Analyze logs for a specific node
+./analyze_node_logs.py <must-gather-path> --node ip-10-0-45-79
+
+# Analyze only kubelet logs
+./analyze_node_logs.py <must-gather-path> --log-type kubelet
+
+# Skip kubelet logs (avoids extracting gzipped files)
+./analyze_node_logs.py <must-gather-path> --skip-kubelet
+
+# Show top 5 error patterns
+./analyze_node_logs.py <must-gather-path> --top 5
+
+# Show warnings in addition to errors
+./analyze_node_logs.py <must-gather-path> --show-warnings
+
+# Show only nodes with errors
+./analyze_node_logs.py <must-gather-path> --errors-only
+```
+
+Output format:
+```
+NODE                                          LOG TYPE        ERRORS     WARNINGS   LINES
+ip-10-0-45-79.us-west-1.compute.internal      kubelet         755        17         11755
+ip-10-0-45-79.us-west-1.compute.internal      sysinfo         1          1          3357
+
+ERROR PATTERNS (755 total occurrences):
+1. [176x] Error syncing pod, skipping
+2. [112x] Error getting the current node from lister
+3. [90x] DeleteContainer returned error
+```
+
 ### Slash Commands
 
 #### `/must-gather:analyze [path] [component]`
@@ -271,6 +418,40 @@ Provides detailed analysis of:
 - Node filtering with partial name matching
 
 **Requirements:** `ovsdb-tool` installed
+
+#### `/comprehensive-analysis [path]`
+Performs detailed comprehensive analysis with full report generation.
+
+```
+/comprehensive-analysis ./must-gather.local.123456789
+```
+
+Executes a systematic 5-phase analysis:
+- **Phase 1**: Cluster-level health (version, operators)
+- **Phase 2**: Infrastructure health (nodes, network, ingress)
+- **Phase 3**: Workload health (pods, storage, MachineConfigPools)
+- **Phase 4**: Critical components (etcd, events)
+- **Phase 5**: Detailed diagnostics (service logs, pod logs, node logs)
+
+Generates a comprehensive report with:
+- Executive summary with health assessment
+- Critical issues prioritized by impact
+- Root cause analysis
+- Error pattern analysis across all log sources
+- Detailed recommendations
+- Cross-referenced findings
+
+See `/home/psundara/ws/src/github.com/openshift/must-gather/.claude-plugin/commands/comprehensive-analysis.md` for full details.
+
+#### Automation Script
+
+You can also run the automated analysis script directly:
+
+```bash
+./scripts/run-comprehensive-analysis.sh <must-gather-path> [output-file]
+```
+
+This generates a timestamped report file with complete analysis output.
 
 ## Installation
 
@@ -339,13 +520,73 @@ Ask Claude:
 - "What storage resources exist?"
 - "Are there any pending PVCs?"
 
+### Analyzing Ingress and Routes
+
+Ask Claude:
+- "Check the IngressController status"
+- "Show me all routes in the cluster"
+- "Are there any routes not admitted?"
+- "What's the ingress configuration?"
+
+### Analyzing Service Logs
+
+Ask Claude:
+- "Show me error patterns in the service logs"
+- "Check kubelet logs for errors"
+- "What service errors occurred on the masters?"
+- "Analyze systemd service logs"
+
+### Analyzing MachineConfigPools
+
+Ask Claude:
+- "Check the MachineConfigPool status"
+- "Are there any stuck node updates?"
+- "Show me the machine config pool rollout status"
+- "Check if nodes are updating properly"
+
+### Analyzing Pod Logs
+
+Ask Claude:
+- "Analyze pod logs for errors"
+- "Check etcd pod logs"
+- "Show error patterns in openshift-apiserver pods"
+- "What errors are in the container logs?"
+- "Show me pod log errors in openshift-etcd namespace"
+
+### Analyzing Node Logs
+
+Ask Claude:
+- "Analyze node logs for errors"
+- "Check kubelet logs on all nodes"
+- "Show error patterns in node logs"
+- "What kubelet errors occurred?"
+- "Analyze node logs for ip-10-0-45-79"
+
 ### Complete Cluster Analysis
 
+For a quick overview:
 ```
 /analyze-mg ./must-gather.local.5464029130631179436
 ```
 
-This runs all analysis scripts and provides comprehensive diagnostics.
+For detailed comprehensive analysis with full report:
+```
+/comprehensive-analysis ./must-gather.local.5464029130631179436
+```
+
+Or use the automation script:
+```bash
+cd .claude-plugin/skills/must-gather-analyzer/scripts
+./run-comprehensive-analysis.sh /path/to/must-gather
+```
+
+This runs all 13 analysis scripts in systematic order and generates a detailed report with:
+- Executive summary and health assessment
+- Critical issues prioritized by severity
+- Root cause analysis with cross-referenced findings
+- Error pattern analysis from all log sources
+- Actionable recommendations for remediation
+- Suggested logs for detailed investigation
 
 ## Requirements
 
