@@ -264,7 +264,7 @@ The command executes the following workflow:
 
    echo ""
    echo "✓ Fetching complete: ${TOTAL_FETCHED} tickets downloaded in $((BATCH_NUM + 1)) batch(es)"
-   ```bash
+   ```
 
    **Why curl instead of MCP:**
    - Direct file streaming avoids Claude's tool result size limits (413 errors)
