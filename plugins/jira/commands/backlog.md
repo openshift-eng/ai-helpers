@@ -7,7 +7,7 @@ argument-hint: [project-key] [--assignee username] [--days-inactive N]
 jira:backlog
 
 ## Synopsis
-```bash
+```
 /jira:backlog [project-key] [--assignee username] [--days-inactive N]
 ```
 
