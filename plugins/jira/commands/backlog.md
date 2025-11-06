@@ -7,7 +7,7 @@ argument-hint: [project-key] [--assignee username] [--days-inactive N]
 jira:backlog
 
 ## Synopsis
-```
+```bash
 /jira:backlog [project-key] [--assignee username] [--days-inactive N]
 ```
 
@@ -77,8 +77,8 @@ Create or edit `~/.config/claude-code/mcp.json`:
 **Field Descriptions:**
 - `JIRA_URL`: Your JIRA instance URL (e.g., `https://issues.redhat.com` for Red Hat JIRA)
 - `JIRA_USERNAME`: Your JIRA username/email address
-- `JIRA_API_TOKEN`: Atlassian API token from https://id.atlassian.com/manage-profile/security/api-tokens
-- `JIRA_PERSONAL_TOKEN`: Red Hat JIRA Personal Access Token from https://issues.redhat.com/secure/ViewProfile.jspa?selectedTab=com.atlassian.pats.pats-plugin:jira-user-personal-access-tokens
+- `JIRA_API_TOKEN`: Atlassian API token from [Atlassian API Token Management Page](https://id.atlassian.com/manage-profile/security/api-tokens)
+- `JIRA_PERSONAL_TOKEN`: Red Hat JIRA Personal Access Token from [Red Hat Jira PAT Management Page](https://issues.redhat.com/secure/ViewProfile.jspa?selectedTab=com.atlassian.pats.pats-plugin:jira-user-personal-access-tokens)
 
 **Note:** The command will use `JIRA_PERSONAL_TOKEN` if available (preferred for Red Hat JIRA), otherwise falls back to `JIRA_API_TOKEN`.
 
@@ -138,7 +138,7 @@ podman rm mcp-atlassian
 
 To verify your MCP server is properly configured and can connect to JIRA, you can test it with a simple JIRA query in Claude Code:
 
-```
+```bash
 Ask Claude Code to run: "Use the mcp__atlassian__jira_get_issue tool to fetch OCPBUGS-1"
 ```
 
@@ -169,7 +169,7 @@ The command executes the following workflow:
      AUTH_TOKEN="${JIRA_PERSONAL_TOKEN:-$JIRA_API_TOKEN}"
      ```
    - If any required credentials are missing or the file doesn't exist, display error:
-     ```
+     ```bash
      Error: JIRA credentials not configured.
 
      This command requires JIRA credentials from the MCP server configuration file.
@@ -225,10 +225,10 @@ The command executes the following workflow:
    while true; do
      # Construct API URL with pagination
      API_URL="${JIRA_URL}/rest/api/2/search?\
-jql=${ENCODED_JQL}&\
-startAt=${START_AT}&\
-maxResults=1000&\
-fields=summary,status,priority,assignee,reporter,created,updated,description,labels,components,watches,comment"
+      jql=${ENCODED_JQL}&\
+      startAt=${START_AT}&\
+      maxResults=1000&\
+      fields=summary,status,priority,assignee,reporter,created,updated,description,labels,components,watches,comment"
 
      # Fetch batch using curl with Bearer token authentication
      HTTP_CODE=$(curl -s -w "%{http_code}" \
@@ -264,7 +264,7 @@ fields=summary,status,priority,assignee,reporter,created,updated,description,lab
 
    echo ""
    echo "✓ Fetching complete: ${TOTAL_FETCHED} tickets downloaded in $((BATCH_NUM + 1)) batch(es)"
-   ```
+   ```bash
 
    **Why curl instead of MCP:**
    - Direct file streaming avoids Claude's tool result size limits (413 errors)
@@ -339,8 +339,8 @@ fields=summary,status,priority,assignee,reporter,created,updated,description,lab
    ```
 
    **Outputs:**
-   - `.work/jira-backlog/{project-key}/filtered.json` - All filtered tickets grouped by priority
-   - `.work/jira-backlog/{project-key}/stats.json` - Priority distribution statistics
+- `.work/jira-backlog/{project-key}/filtered.json` - All filtered tickets grouped by priority
+- `.work/jira-backlog/{project-key}/stats.json` - Priority distribution statistics
 
    **Run the script:**
    ```bash
@@ -410,7 +410,7 @@ fields=summary,status,priority,assignee,reporter,created,updated,description,lab
 7. **Format Output Report**
    Generate a formatted report organized by priority:
 
-   ```
+   ```bash
    # Backlog Tickets for {project-key}
 
    ## Search Criteria
@@ -480,7 +480,7 @@ fields=summary,status,priority,assignee,reporter,created,updated,description,lab
 
 **Error Handling:**
 - **Missing credentials file**: If `~/.config/claude-code/mcp.json` doesn't exist, display:
-  ```
+  ```bash
   Error: JIRA credentials not configured.
 
   This command requires JIRA credentials from the MCP server configuration file.
@@ -490,7 +490,7 @@ fields=summary,status,priority,assignee,reporter,created,updated,description,lab
   See Prerequisites section for the required mcp.json format and setup instructions.
   ```
 - **Invalid credentials in file**: If credentials are missing from mcp.json, display:
-  ```
+  ```bash
   Error: JIRA credentials incomplete in ~/.config/claude-code/mcp.json
 
   Required fields in .mcpServers.atlassian.env:
@@ -501,7 +501,7 @@ fields=summary,status,priority,assignee,reporter,created,updated,description,lab
   See Prerequisites section for the required mcp.json format.
   ```
 - **Authentication failure**: If curl returns 401/403, display:
-  ```
+  ```bash
   Error: JIRA authentication failed (HTTP 401/403)
 
   Please verify your JIRA credentials in ~/.config/claude-code/mcp.json:
