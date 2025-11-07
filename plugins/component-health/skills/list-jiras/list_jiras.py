@@ -26,6 +26,7 @@ import urllib.error
 import urllib.parse
 from typing import Optional, List, Dict, Any
 from collections import defaultdict
+from datetime import datetime, timedelta
 
 
 def get_env_var(name: str) -> str:
@@ -44,14 +45,18 @@ def build_jql_query(project: str, components: Optional[List[str]] = None,
     """Build JQL query string from parameters."""
     parts = [f'project = {project}']
 
-    # Add status filter
+    # Calculate date for 30 days ago
+    thirty_days_ago = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
+
+    # Add status filter - include recently closed bugs (within last 30 days) or open bugs
     if statuses:
         # If specific statuses are requested, use them
         status_list = ', '.join(f'"{s}"' for s in statuses)
         parts.append(f'status IN ({status_list})')
     elif not include_closed:
-        # Default: exclude closed bugs
-        parts.append('status != Closed')
+        # Default: open bugs OR bugs closed in the last 30 days
+        parts.append(f'(status != Closed OR (status = Closed AND resolved >= "{thirty_days_ago}"))')
+    # If include_closed is True, get all bugs (no status filter)
 
     # Add component filter
     if components:
@@ -82,7 +87,7 @@ def fetch_jira_issues(jira_url: str, token: str,
     params = {
         'jql': jql,
         'maxResults': max_results,
-        'fields': 'summary,status,priority,components,assignee,created,updated'
+        'fields': 'summary,status,priority,components,assignee,created,updated,resolutiondate'
     }
 
     # Encode parameters
@@ -129,9 +134,14 @@ def generate_summary(issues: List[Dict[str, Any]]) -> Dict[str, Any]:
     Returns:
         Dictionary containing overall summary and per-component summaries
     """
+    # Calculate cutoff date for 30 days ago
+    thirty_days_ago = datetime.now() - timedelta(days=30)
+
     # Overall summary
     overall_summary = {
         'total': 0,
+        'opened_last_30_days': 0,
+        'closed_last_30_days': 0,
         'by_status': defaultdict(int),
         'by_priority': defaultdict(int),
         'by_component': defaultdict(int)
@@ -140,6 +150,8 @@ def generate_summary(issues: List[Dict[str, Any]]) -> Dict[str, Any]:
     # Per-component data
     components_data = defaultdict(lambda: {
         'total': 0,
+        'opened_last_30_days': 0,
+        'closed_last_30_days': 0,
         'by_status': defaultdict(int),
         'by_priority': defaultdict(int)
     })
@@ -147,6 +159,37 @@ def generate_summary(issues: List[Dict[str, Any]]) -> Dict[str, Any]:
     for issue in issues:
         fields = issue.get('fields', {})
         overall_summary['total'] += 1
+
+        # Parse created date
+        created_str = fields.get('created')
+        if created_str:
+            try:
+                # JIRA date format: 2024-01-15T10:30:00.000+0000
+                created_date = datetime.strptime(created_str[:19], '%Y-%m-%dT%H:%M:%S')
+                if created_date >= thirty_days_ago:
+                    overall_summary['opened_last_30_days'] += 1
+                    is_recently_opened = True
+                else:
+                    is_recently_opened = False
+            except (ValueError, TypeError):
+                is_recently_opened = False
+        else:
+            is_recently_opened = False
+
+        # Parse resolution date (when issue was closed)
+        resolution_date_str = fields.get('resolutiondate')
+        if resolution_date_str:
+            try:
+                resolution_date = datetime.strptime(resolution_date_str[:19], '%Y-%m-%dT%H:%M:%S')
+                if resolution_date >= thirty_days_ago:
+                    overall_summary['closed_last_30_days'] += 1
+                    is_recently_closed = True
+                else:
+                    is_recently_closed = False
+            except (ValueError, TypeError):
+                is_recently_closed = False
+        else:
+            is_recently_closed = False
 
         # Count by status
         status = fields.get('status', {}).get('name', 'Unknown')
@@ -178,6 +221,10 @@ def generate_summary(issues: List[Dict[str, Any]]) -> Dict[str, Any]:
             components_data[component_name]['total'] += 1
             components_data[component_name]['by_status'][status] += 1
             components_data[component_name]['by_priority'][priority_name] += 1
+            if is_recently_opened:
+                components_data[component_name]['opened_last_30_days'] += 1
+            if is_recently_closed:
+                components_data[component_name]['closed_last_30_days'] += 1
 
     # Convert defaultdicts to regular dicts and sort
     overall_summary['by_status'] = dict(sorted(
@@ -198,6 +245,8 @@ def generate_summary(issues: List[Dict[str, Any]]) -> Dict[str, Any]:
     for comp_name, comp_data in sorted(components_data.items()):
         components[comp_name] = {
             'total': comp_data['total'],
+            'opened_last_30_days': comp_data['opened_last_30_days'],
+            'closed_last_30_days': comp_data['closed_last_30_days'],
             'by_status': dict(sorted(
                 comp_data['by_status'].items(),
                 key=lambda x: x[1], reverse=True

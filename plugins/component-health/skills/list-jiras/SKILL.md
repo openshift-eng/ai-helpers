@@ -127,12 +127,15 @@ The script outputs JSON data with the following structure:
   },
   "summary": {
     "total": 100,
+    "opened_last_30_days": 15,
+    "closed_last_30_days": 8,
     "by_status": {
       "New": 35,
       "In Progress": 25,
       "Verified": 20,
       "Modified": 15,
-      "ON_QA": 5
+      "ON_QA": 5,
+      "Closed": 8
     },
     "by_priority": {
       "Normal": 50,
@@ -152,11 +155,14 @@ The script outputs JSON data with the following structure:
   "components": {
     "kube-apiserver": {
       "total": 25,
+      "opened_last_30_days": 4,
+      "closed_last_30_days": 2,
       "by_status": {
         "New": 10,
         "In Progress": 8,
         "Verified": 5,
-        "Modified": 2
+        "Modified": 2,
+        "Closed": 2
       },
       "by_priority": {
         "Major": 12,
@@ -167,11 +173,14 @@ The script outputs JSON data with the following structure:
     },
     "Management Console": {
       "total": 30,
+      "opened_last_30_days": 6,
+      "closed_last_30_days": 3,
       "by_status": {
         "New": 12,
         "In Progress": 10,
         "Verified": 6,
-        "Modified": 2
+        "Modified": 2,
+        "Closed": 3
       },
       "by_priority": {
         "Normal": 18,
@@ -182,10 +191,13 @@ The script outputs JSON data with the following structure:
     },
     "etcd": {
       "total": 15,
+      "opened_last_30_days": 3,
+      "closed_last_30_days": 2,
       "by_status": {
         "New": 8,
         "In Progress": 4,
-        "Verified": 3
+        "Verified": 3,
+        "Closed": 2
       },
       "by_priority": {
         "Normal": 10,
@@ -203,27 +215,34 @@ The script outputs JSON data with the following structure:
 - `project`: The JIRA project queried
 - `total_count`: Total number of matching issues (from JIRA search results)
 - `fetched_count`: Number of issues actually fetched (limited by --limit parameter)
-- `query`: The JQL query executed
+- `query`: The JQL query executed (includes filter for recently closed bugs)
 - `filters`: Applied filters (components, statuses, include_closed, limit)
 - `summary`: Overall statistics across all fetched issues
   - `total`: Count of fetched issues (same as `fetched_count`)
-  - `by_status`: Count of issues per status
+  - `opened_last_30_days`: Number of issues created in the last 30 days
+  - `closed_last_30_days`: Number of issues closed/resolved in the last 30 days
+  - `by_status`: Count of issues per status (includes recently closed issues)
   - `by_priority`: Count of issues per priority
   - `by_component`: Count of issues per component (note: issues can have multiple components)
 - `components`: Per-component breakdown with individual summaries
   - Each component key maps to:
     - `total`: Number of issues assigned to this component
+    - `opened_last_30_days`: Number of issues created in the last 30 days for this component
+    - `closed_last_30_days`: Number of issues closed in the last 30 days for this component
     - `by_status`: Status distribution for this component
     - `by_priority`: Priority distribution for this component
 - `note`: Informational message if results are truncated
 
 **Important Notes**:
 
+- **By default, the query includes**: Open bugs + bugs closed in the last 30 days
+- This allows tracking of recent closure activity alongside current open bugs
 - The script fetches a maximum number of issues (default 100, configurable with `--limit`)
 - The `total_count` represents all matching issues in JIRA
 - Summary statistics are based on the fetched issues only
 - For accurate statistics across large datasets, increase the `--limit` parameter
 - Issues can have multiple components, so component totals may sum to more than the overall total
+- `opened_last_30_days` and `closed_last_30_days` help track recent bug flow and velocity
 
 ### Step 6: Present Results
 
