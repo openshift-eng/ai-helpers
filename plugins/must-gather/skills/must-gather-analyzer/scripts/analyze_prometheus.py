@@ -53,7 +53,7 @@ def analyze_prometheus(must_gather_path: str, namespace: Optional[str] = None):
         return 1
     status = rules.get("status", "")
     if status != "success":
-        print(f"{rules_file}: unexpected status ${status}")
+        print(f"{rules_file}: unexpected status {status}")
         return 1
 
     if "data" not in rules or "groups" not in rules["data"]:
