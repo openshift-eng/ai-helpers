@@ -127,20 +127,30 @@ def generate_summary(issues: List[Dict[str, Any]]) -> Dict[str, Any]:
         issues: List of JIRA issue objects
 
     Returns:
-        Dictionary containing summary statistics
+        Dictionary containing overall summary and per-component summaries
     """
-    summary = {
+    # Overall summary
+    overall_summary = {
+        'total': 0,
         'by_status': defaultdict(int),
         'by_priority': defaultdict(int),
         'by_component': defaultdict(int)
     }
 
+    # Per-component data
+    components_data = defaultdict(lambda: {
+        'total': 0,
+        'by_status': defaultdict(int),
+        'by_priority': defaultdict(int)
+    })
+
     for issue in issues:
         fields = issue.get('fields', {})
+        overall_summary['total'] += 1
 
         # Count by status
         status = fields.get('status', {}).get('name', 'Unknown')
-        summary['by_status'][status] += 1
+        overall_summary['by_status'][status] += 1
 
         # Count by priority
         priority = fields.get('priority')
@@ -148,25 +158,59 @@ def generate_summary(issues: List[Dict[str, Any]]) -> Dict[str, Any]:
             priority_name = priority.get('name', 'Undefined')
         else:
             priority_name = 'Undefined'
-        summary['by_priority'][priority_name] += 1
+        overall_summary['by_priority'][priority_name] += 1
 
-        # Count by component (issues can have multiple components)
+        # Process components (issues can have multiple components)
         components = fields.get('components', [])
+        component_names = []
+
         if components:
             for component in components:
                 component_name = component.get('name', 'Unknown')
-                summary['by_component'][component_name] += 1
+                component_names.append(component_name)
+                overall_summary['by_component'][component_name] += 1
         else:
-            summary['by_component']['No Component'] += 1
+            component_names = ['No Component']
+            overall_summary['by_component']['No Component'] += 1
 
-    # Convert defaultdicts to regular dicts and sort by count (descending)
+        # Update per-component statistics
+        for component_name in component_names:
+            components_data[component_name]['total'] += 1
+            components_data[component_name]['by_status'][status] += 1
+            components_data[component_name]['by_priority'][priority_name] += 1
+
+    # Convert defaultdicts to regular dicts and sort
+    overall_summary['by_status'] = dict(sorted(
+        overall_summary['by_status'].items(),
+        key=lambda x: x[1], reverse=True
+    ))
+    overall_summary['by_priority'] = dict(sorted(
+        overall_summary['by_priority'].items(),
+        key=lambda x: x[1], reverse=True
+    ))
+    overall_summary['by_component'] = dict(sorted(
+        overall_summary['by_component'].items(),
+        key=lambda x: x[1], reverse=True
+    ))
+
+    # Convert component data to regular dicts and sort
+    components = {}
+    for comp_name, comp_data in sorted(components_data.items()):
+        components[comp_name] = {
+            'total': comp_data['total'],
+            'by_status': dict(sorted(
+                comp_data['by_status'].items(),
+                key=lambda x: x[1], reverse=True
+            )),
+            'by_priority': dict(sorted(
+                comp_data['by_priority'].items(),
+                key=lambda x: x[1], reverse=True
+            ))
+        }
+
     return {
-        'by_status': dict(sorted(summary['by_status'].items(),
-                                key=lambda x: x[1], reverse=True)),
-        'by_priority': dict(sorted(summary['by_priority'].items(),
-                                  key=lambda x: x[1], reverse=True)),
-        'by_component': dict(sorted(summary['by_component'].items(),
-                                   key=lambda x: x[1], reverse=True))
+        'summary': overall_summary,
+        'components': components
     }
 
 
@@ -243,13 +287,14 @@ Examples:
     total_count = response.get('total', 0)
     fetched_count = len(issues)
 
-    # Generate summary
-    summary = generate_summary(issues)
+    # Generate summary and component breakdowns
+    data = generate_summary(issues)
 
-    # Build output
+    # Build output with metadata
     output = {
         'project': args.project,
         'total_count': total_count,
+        'fetched_count': fetched_count,
         'query': jql,
         'filters': {
             'components': args.component,
@@ -257,8 +302,8 @@ Examples:
             'include_closed': args.include_closed,
             'limit': args.limit
         },
-        'summary': summary,
-        'fetched_count': fetched_count
+        'summary': data['summary'],
+        'components': data['components']
     }
 
     # Add note if results are truncated

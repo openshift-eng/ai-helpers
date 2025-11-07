@@ -115,91 +115,115 @@ The script outputs JSON data with the following structure:
 
 ```json
 {
-  "total": 1500,
-  "maxResults": 50,
-  "startAt": 0,
-  "issues": [
-    {
-      "key": "OCPBUGS-12345",
-      "fields": {
-        "summary": "Bug summary text",
-        "status": {
-          "name": "New"
-        },
-        "priority": {
-          "name": "Major"
-        },
-        "components": [
-          {
-            "name": "kube-apiserver"
-          }
-        ],
-        "assignee": {...},
-        "created": "2024-01-15T10:30:00.000+0000",
-        "updated": "2024-01-20T15:45:00.000+0000"
-      }
-    },
-    ...
-  ]
-}
-```
-
-### Step 5: Generate Summary Statistics
-
-Process the issues to create summary counts:
-
-1. **Count by Status**: Iterate through issues and group by `fields.status.name`
-2. **Count by Priority**: Iterate through issues and group by `fields.priority.name`
-3. **Count by Component**: Iterate through issues and extract all `fields.components[].name`
-   - Note: Issues can have multiple components
-   - Issues with no components should be counted as "No Component"
-
-4. Sort each summary by count (descending order)
-
-5. Create the final summary object:
-
-```json
-{
   "project": "OCPBUGS",
   "total_count": 1500,
-  "fetched_count": 50,
+  "fetched_count": 100,
   "query": "project = OCPBUGS AND status != Closed",
   "filters": {
     "components": null,
     "statuses": null,
     "include_closed": false,
-    "limit": 50
+    "limit": 100
   },
   "summary": {
+    "total": 100,
     "by_status": {
-      "New": 15,
-      "In Progress": 12,
-      "Verified": 8,
-      ...
+      "New": 35,
+      "In Progress": 25,
+      "Verified": 20,
+      "Modified": 15,
+      "ON_QA": 5
     },
     "by_priority": {
-      "Critical": 2,
-      "Major": 10,
-      "Normal": 25,
-      ...
+      "Normal": 50,
+      "Major": 30,
+      "Minor": 12,
+      "Critical": 5,
+      "Undefined": 3
     },
     "by_component": {
-      "kube-apiserver": 8,
-      "Management Console": 15,
-      ...
+      "kube-apiserver": 25,
+      "Management Console": 30,
+      "Networking": 20,
+      "etcd": 15,
+      "No Component": 10
     }
   },
-  "note": "Showing first 50 of 1500 total results. Summary based on fetched issues only."
+  "components": {
+    "kube-apiserver": {
+      "total": 25,
+      "by_status": {
+        "New": 10,
+        "In Progress": 8,
+        "Verified": 5,
+        "Modified": 2
+      },
+      "by_priority": {
+        "Major": 12,
+        "Normal": 10,
+        "Minor": 2,
+        "Critical": 1
+      }
+    },
+    "Management Console": {
+      "total": 30,
+      "by_status": {
+        "New": 12,
+        "In Progress": 10,
+        "Verified": 6,
+        "Modified": 2
+      },
+      "by_priority": {
+        "Normal": 18,
+        "Major": 8,
+        "Minor": 3,
+        "Critical": 1
+      }
+    },
+    "etcd": {
+      "total": 15,
+      "by_status": {
+        "New": 8,
+        "In Progress": 4,
+        "Verified": 3
+      },
+      "by_priority": {
+        "Normal": 10,
+        "Major": 4,
+        "Critical": 1
+      }
+    }
+  },
+  "note": "Showing first 100 of 1500 total results. Increase --limit for more accurate statistics."
 }
 ```
 
+**Field Descriptions**:
+
+- `project`: The JIRA project queried
+- `total_count`: Total number of matching issues (from JIRA search results)
+- `fetched_count`: Number of issues actually fetched (limited by --limit parameter)
+- `query`: The JQL query executed
+- `filters`: Applied filters (components, statuses, include_closed, limit)
+- `summary`: Overall statistics across all fetched issues
+  - `total`: Count of fetched issues (same as `fetched_count`)
+  - `by_status`: Count of issues per status
+  - `by_priority`: Count of issues per priority
+  - `by_component`: Count of issues per component (note: issues can have multiple components)
+- `components`: Per-component breakdown with individual summaries
+  - Each component key maps to:
+    - `total`: Number of issues assigned to this component
+    - `by_status`: Status distribution for this component
+    - `by_priority`: Priority distribution for this component
+- `note`: Informational message if results are truncated
+
 **Important Notes**:
 
-- The MCP JIRA search tool has a maximum limit of 50 results per query
-- The `total` field represents all matching issues in JIRA
-- Summary statistics are based on the fetched issues only (up to 50)
-- For more complete statistics, you may need multiple queries with pagination
-- Summary percentages should note they are based on the sample, not the full dataset
+- The script fetches a maximum number of issues (default 100, configurable with `--limit`)
+- The `total_count` represents all matching issues in JIRA
+- Summary statistics are based on the fetched issues only
+- For accurate statistics across large datasets, increase the `--limit` parameter
+- Issues can have multiple components, so component totals may sum to more than the overall total
 
 ### Step 6: Present Results
 
