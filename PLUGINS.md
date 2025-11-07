@@ -15,6 +15,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Openshift](#openshift-plugin)
 - [Prow Job](#prow-job-plugin)
 - [Session](#session-plugin)
+- [Test Coverage](#test-coverage-plugin)
 - [Utils](#utils-plugin)
 - [Yaml](#yaml-plugin)
 
@@ -171,6 +172,16 @@ A plugin to save and resume conversation sessions across long time intervals
 - **`/session:save-session` `[optional-description]`** - Save current conversation session to markdown file for future continuation
 
 See [plugins/session/README.md](plugins/session/README.md) for detailed documentation.
+
+### Test Coverage Plugin
+
+Analyze code coverage and identify untested paths
+
+**Commands:**
+- **`/test-coverage:analyze` `<path-or-url> [--output <path>] [--priority <level>] [--test-structure-only]`** - Analyze test code structure without running tests to identify coverage gaps
+- **`/test-coverage:gaps` `<test-file-or-url> [--output <path>]`** - Identify E2E test scenario gaps in OpenShift/Kubernetes tests (component-agnostic)
+
+See [plugins/test-coverage/README.md](plugins/test-coverage/README.md) for detailed documentation.
 
 ### Utils Plugin
 
