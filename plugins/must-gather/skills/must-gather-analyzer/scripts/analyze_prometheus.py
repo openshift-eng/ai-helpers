@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Analyze Promehteus data from must-gather data.
+Analyze Prometheus data from must-gather data.
 Shows Prometheus status, targets, and active alerts.
 """
 
@@ -50,9 +50,16 @@ def analyze_prometheus(must_gather_path: str, namespace: Optional[str] = None):
     # Retrieve active alerts.
     rules_file = f"{base_path}/monitoring/prometheus/rules.json"
     rules = parse_json_file(rules_file)
+    if rules is None:
+        return 1
     status = rules.get("status", "")
     if status != "success":
         print(f"{rules_file}: unexpected status ${status}")
+        return 1
+
+    if "data" not in rules or "groups" not in rules["data"]:
+        print(f"Error: Unexpected JSON structure in {rules_file}", file=sys.stderr)
+        return 1
 
     alerts = []
     for group in rules["data"]["groups"]:
@@ -65,7 +72,7 @@ def analyze_prometheus(must_gather_path: str, namespace: Optional[str] = None):
                         alerts.append(alert)
 
     # Sort alerts by namespace, alertname and severity.
-    alerts.sort(key=lambda x: (x.get('labels', {}).get('namespace', ''), x.get('labels', {}).get('name', ''), x.get('labels', {}).get('severity', '')))
+    alerts.sort(key=lambda x: (x.get('labels', {}).get('namespace', ''), x.get('labels', {}).get('alertname', ''), x.get('labels', {}).get('severity', '')))
 
     # Print results
     print_alerts_table(alerts)
