@@ -78,8 +78,8 @@ def analyze_prometheus(must_gather_path: str, namespace: Optional[str] = None):
 
     # Summary
     total_alerts = len(alerts)
-    pending = sum(1 for alert in alerts if alert['state'] == 'pending')
-    firing = sum(1 for alert in alerts if alert['state'] == 'firing')
+    pending = sum(1 for alert in alerts if alert.get('state') == 'pending')
+    firing = sum(1 for alert in alerts if alert.get('state') == 'firing')
 
     print(f"\n{'='*80}")
     print(f"SUMMARY")
