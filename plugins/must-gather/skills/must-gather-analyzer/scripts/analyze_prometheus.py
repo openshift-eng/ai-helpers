@@ -8,7 +8,6 @@ import sys
 import os
 import json
 import argparse
-from operator import attrgetter
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
