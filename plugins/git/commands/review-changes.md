@@ -177,6 +177,26 @@ git add src/auth.ts src/middleware.ts
 - Performance benchmark comparison
 ```
 
+## Important Limitations
+
+**Non-Deterministic Analysis:**
+This command uses AI analysis which is inherently non-deterministic. Key considerations:
+
+- **Consistency**: Running the same command multiple times on identical code may produce different feedback
+- **Prompt Sensitivity**: Changes to AGENTS.md or other repository conventions may alter analysis behavior  
+- **Model Variations**: Different AI models or versions may provide varying recommendations
+
+**Recommended Usage Pattern:**
+- **Interactive Pre-Commit Checks**: Best suited for self-review before committing changes
+- **Human Oversight Required**: Always apply common sense and domain expertise to suggestions
+- **Supplementary Tool**: Use alongside traditional linters, security scanners, and human review
+- **Learning Aid**: Treat inconsistencies as opportunities to discuss and refine standards
+
+**Not Recommended For:**
+- Automated CI/CD gates without human review
+- Security-critical validation as sole verification method  
+- Consistent policy enforcement across teams without additional tooling
+
 ## Security Guidelines
 
 **The command follows these security principles:**
