@@ -603,6 +603,14 @@
         }
       ],
       "has_readme": true
+    },
+    {
+      "name": "report-writer",
+      "description": "An agent plugin to generate reports",
+      "version": "0.0.1",
+      "commands": [],
+      "skills": [],
+      "has_readme": true
     }
   ]
 }
