@@ -237,6 +237,12 @@
             border: 1px solid var(--border);
         }
 
+        .autocomplete-item-icon.hook {
+            background: var(--bg-code);
+            color: var(--secondary);
+            border: 1px solid var(--border);
+        }
+
         .autocomplete-item-content {
             flex: 1;
             min-width: 0;
@@ -407,6 +413,33 @@
         }
 
         .skill-description {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+        }
+
+        .hook-item {
+            margin-bottom: 1rem;
+            padding: 0.75rem;
+            background: var(--bg-code);
+            border-radius: 8px;
+            border-left: 3px solid var(--secondary);
+        }
+
+        .hook-name {
+            font-size: 0.95rem;
+            color: var(--secondary);
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+        }
+
+        .hook-type {
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+        }
+
+        .hook-description {
             font-size: 0.875rem;
             color: var(--text-muted);
         }
@@ -711,6 +744,10 @@
                         <div class="stat-value" id="skill-count">0</div>
                         <div class="stat-label">Skills</div>
                     </div>
+                    <div class="stat">
+                        <div class="stat-value" id="hook-count">0</div>
+                        <div class="stat-label">Hooks</div>
+                    </div>
                 </div>
             </div>
             <div class="navbar-links">
@@ -771,6 +808,8 @@
                 document.getElementById('command-count').textContent = totalCommands;
                 const totalSkills = data.plugins.reduce((sum, p) => sum + (p.skills || []).length, 0);
                 document.getElementById('skill-count').textContent = totalSkills;
+                const totalHooks = data.plugins.reduce((sum, p) => sum + (p.hooks || []).length, 0);
+                document.getElementById('hook-count').textContent = totalHooks;
 
                 renderPlugins(allPlugins);
 
@@ -795,8 +834,10 @@
 
             grid.innerHTML = plugins.map(plugin => {
                 const skills = plugin.skills || [];
+                const hooks = plugin.hooks || [];
                 const commandCount = plugin.commands.length;
                 const skillCount = skills.length;
+                const hookCount = hooks.length;
 
                 return `
                 <div class="plugin-card" data-plugin="${plugin.name}" onclick="showPluginModal('${plugin.name}')">
@@ -820,6 +861,12 @@
                             <span>skill${skillCount !== 1 ? 's' : ''}</span>
                         </div>
                         ` : ''}
+                        ${hookCount > 0 ? `
+                        <div class="item-count">
+                            <span class="item-count-badge">${hookCount}</span>
+                            <span>hook${hookCount !== 1 ? 's' : ''}</span>
+                        </div>
+                        ` : ''}
                     </div>
                 </div>
             `;
@@ -831,8 +878,10 @@
             if (!plugin) return;
 
             const skills = plugin.skills || [];
+            const hooks = plugin.hooks || [];
             const commandCount = plugin.commands.length;
             const skillCount = skills.length;
+            const hookCount = hooks.length;
 
             // Build header with title, metadata, and version
             const headerContent = `
@@ -849,6 +898,12 @@
                         <div class="item-count">
                             <span class="item-count-badge">${skillCount}</span>
                             <span>skill${skillCount !== 1 ? 's' : ''}</span>
+                        </div>
+                        ` : ''}
+                        ${hookCount > 0 ? `
+                        <div class="item-count">
+                            <span class="item-count-badge">${hookCount}</span>
+                            <span>hook${hookCount !== 1 ? 's' : ''}</span>
                         </div>
                         ` : ''}
                     </div>
@@ -914,6 +969,19 @@
                 `;
             }
 
+            if (hookCount > 0) {
+                content += `
+                    <div class="section-title">Hooks</div>
+                    ${hooks.map(hook => `
+                        <div class="hook-item">
+                            <div class="hook-name">${hook.name}</div>
+                            <div class="hook-type">Type: ${hook.type}</div>
+                            ${hook.description ? `<div class="hook-description">${hook.description}</div>` : ''}
+                        </div>
+                    `).join('')}
+                `;
+            }
+
             showModal(headerContent, content);
             window.location.hash = pluginName;
         }
@@ -932,7 +1000,8 @@
             const results = {
                 plugins: [],
                 commands: [],
-                skills: []
+                skills: [],
+                hooks: []
             };
 
             allPlugins.forEach(plugin => {
@@ -966,6 +1035,19 @@
                         });
                     }
                 });
+
+                // Check hook matches
+                const hooks = plugin.hooks || [];
+                hooks.forEach(hook => {
+                    if (hook.name.toLowerCase().includes(lowerQuery) ||
+                        hook.type.toLowerCase().includes(lowerQuery) ||
+                        (hook.description && hook.description.toLowerCase().includes(lowerQuery))) {
+                        results.hooks.push({
+                            plugin: plugin.name,
+                            hook: hook
+                        });
+                    }
+                });
             });
 
             // Show autocomplete
@@ -975,7 +1057,8 @@
             const matchedPluginNames = new Set([
                 ...results.plugins.map(p => p.name),
                 ...results.commands.map(c => c.plugin),
-                ...results.skills.map(s => s.plugin)
+                ...results.skills.map(s => s.plugin),
+                ...results.hooks.map(h => h.plugin)
             ]);
             const filtered = allPlugins.filter(p => matchedPluginNames.has(p.name));
             renderPlugins(filtered);
@@ -983,7 +1066,7 @@
 
         function updateAutocomplete(results) {
             const autocomplete = document.getElementById('autocomplete');
-            const hasResults = results.plugins.length > 0 || results.commands.length > 0 || results.skills.length > 0;
+            const hasResults = results.plugins.length > 0 || results.commands.length > 0 || results.skills.length > 0 || results.hooks.length > 0;
 
             if (!hasResults) {
                 autocomplete.innerHTML = '<div class="autocomplete-empty">No matches found</div>';
@@ -1040,6 +1123,24 @@
                                 <div class="autocomplete-item-content">
                                     <div class="autocomplete-item-title">${item.skill.name}</div>
                                     <div class="autocomplete-item-subtitle">${item.plugin}:${item.skill.id}</div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }
+
+            // Hooks section
+            if (results.hooks.length > 0) {
+                html += `
+                    <div class="autocomplete-section">
+                        <div class="autocomplete-section-title">Hooks</div>
+                        ${results.hooks.slice(0, 10).map(item => `
+                            <div class="autocomplete-item" onclick="showPluginModal('${item.plugin}')">
+                                <div class="autocomplete-item-icon hook">🪝</div>
+                                <div class="autocomplete-item-content">
+                                    <div class="autocomplete-item-title">${item.hook.name}</div>
+                                    <div class="autocomplete-item-subtitle">${item.hook.type}</div>
                                 </div>
                             </div>
                         `).join('')}

@@ -80,6 +80,11 @@
       "description": "A plugin to analyze and report on must-gather data"
     },
     {
+      "name": "metrics",
+      "source": "./plugins/metrics",
+      "description": "Anonymous metrics usage for ai-helpers"
+    },
+    {
       "name": "hcp",
       "source": "./plugins/hcp",
       "description": "Generate HyperShift cluster creation commands via hcp CLI from natural language descriptions"

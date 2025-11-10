@@ -51,6 +51,7 @@
           "description": "Git blame analysis helper for the suggest-reviewers command"
         }
       ],
+      "hooks": [],
       "has_readme": true
     },
     {
@@ -66,6 +67,7 @@
         }
       ],
       "skills": [],
+      "hooks": [],
       "has_readme": true
     },
     {
@@ -163,6 +165,7 @@
           "description": "Jira conventions and bug templates for the OCPBUGS project"
         }
       ],
+      "hooks": [],
       "has_readme": true
     },
     {
@@ -226,6 +229,7 @@
           "description": "Helper skill to retrieve OAuth tokens from the correct OpenShift cluster context when multiple clusters are configured"
         }
       ],
+      "hooks": [],
       "has_readme": true
     },
     {
@@ -257,6 +261,7 @@
           "description": "Fetch and analyze component health regressions for OpenShift releases"
         }
       ],
+      "hooks": [],
       "has_readme": true
     },
     {
@@ -272,6 +277,7 @@
         }
       ],
       "skills": [],
+      "hooks": [],
       "has_readme": true
     },
     {
@@ -287,6 +293,7 @@
         }
       ],
       "skills": [],
+      "hooks": [],
       "has_readme": true
     },
     {
@@ -356,6 +363,7 @@
         }
       ],
       "skills": [],
+      "hooks": [],
       "has_readme": true
     },
     {
@@ -425,6 +433,7 @@
         }
       ],
       "skills": [],
+      "hooks": [],
       "has_readme": true
     },
     {
@@ -484,6 +493,7 @@
           "description": "Extract and decompress must-gather archives from Prow CI job artifacts, generating an interactive HTML file browser with filters"
         }
       ],
+      "hooks": [],
       "has_readme": true
     },
     {
@@ -499,6 +509,7 @@
         }
       ],
       "skills": [],
+      "hooks": [],
       "has_readme": true
     },
     {
@@ -562,6 +573,7 @@
         }
       ],
       "skills": [],
+      "hooks": [],
       "has_readme": true
     },
     {
@@ -577,6 +589,7 @@
         }
       ],
       "skills": [],
+      "hooks": [],
       "has_readme": true
     },
     {
@@ -602,6 +615,32 @@
           "name": "Must-Gather Analyzer",
           "id": "must-gather-analyzer",
           "description": "|"
+        }
+      ],
+      "hooks": [],
+      "has_readme": true
+    },
+    {
+      "name": "metrics",
+      "description": "Anonymous metrics usage for ai-helpers",
+      "version": "0.0.1",
+      "commands": [],
+      "skills": [],
+      "hooks": [
+        {
+          "name": "UserPromptSubmit",
+          "description": "Anonymous Usage Metric Collection",
+          "type": "UserPromptSubmit"
+        },
+        {
+          "name": "PreToolUse",
+          "description": "Anonymous Usage Metric Collection",
+          "type": "PreToolUse"
+        },
+        {
+          "name": "SessionEnd",
+          "description": "Anonymous Usage Metric Collection",
+          "type": "SessionEnd"
         }
       ],
       "has_readme": true
@@ -650,6 +689,7 @@
           "description": "Use this skill when you need to deploy HyperShift clusters on IBM Cloud PowerVS with proper processor configuration and resource management"
         }
       ],
+      "hooks": [],
       "has_readme": true
     },
     {
