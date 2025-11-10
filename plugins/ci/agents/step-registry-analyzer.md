@@ -1,6 +1,6 @@
 ---
 name: step-registry-analyzer
-description:description: Use this agent when you need to understand and list OpenShift CI components including workflows, chains, and refs in a hierarchical structure.
+description: Use this agent when you need to understand and list OpenShift CI components including workflows, chains, and refs in a hierarchical structure.
 model: sonnet
 color: cyan
 ---
