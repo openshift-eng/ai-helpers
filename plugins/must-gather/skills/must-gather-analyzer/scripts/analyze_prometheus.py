@@ -47,7 +47,6 @@ def analyze_prometheus(must_gather_path: str, namespace: Optional[str] = None):
     base_path = Path(must_gather_path)
 
     # Retrieve active alerts.
--   rules_file = f"{base_path}/monitoring/prometheus/rules.json"
    rules_path = base_path / "monitoring" / "prometheus" / "rules.json"
    rules = parse_json_file(rules_path)
 
