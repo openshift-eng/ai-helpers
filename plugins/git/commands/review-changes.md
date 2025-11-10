@@ -41,28 +41,36 @@ The command analyzes git changes using multiple review perspectives:
    - `--commits N`: `git diff HEAD~N..HEAD` (last N commits)
 2. Extract changed files and diff content
 3. Identify file types for language-specific analysis
+4. Check for repository conventions (AGENTS.md, CONTRIBUTING.md, etc.)
 
 **Step 2: Multi-Perspective Analysis**
 Analyze changes from these perspectives:
-1. **Security Review**
+1. **Repository Conventions Review**
+   - Check adherence to AGENTS.md guidelines (if present)
+   - Validate plugin structure and naming conventions
+   - Review commit message format compliance
+   - Ensure ethical guidelines are followed (no real person references)
+
+2. **Security Review**
    - Check for hardcoded secrets/credentials
    - Identify potential injection vulnerabilities
    - Review authentication/authorization changes
    - Flag unsafe file operations
 
-2. **Performance Review**
-   - Identify inefficient algorithms or data structures
-   - Check for unnecessary database queries
-   - Review memory allocation patterns
-   - Flag potential bottlenecks
+3. **Performance Review** (context-aware)
+   - Web/Frontend: Bundle size, render performance, API calls
+   - Distributed Systems: Consensus algorithms, network partitions, eventual consistency
+   - Microservices: Circuit breakers, retry patterns, service boundaries
+   - Database: Query efficiency, indexing, transaction boundaries
+   - General: Memory allocation, algorithm complexity
 
-3. **Code Quality Review**
+4. **Code Quality Review**
    - Assess code readability and maintainability
    - Check adherence to established patterns
    - Review error handling implementation
    - Validate naming conventions
 
-4. **Testing Coverage**
+5. **Testing Coverage**
    - Identify untested code paths
    - Suggest test cases for new functionality
    - Review existing test modifications
@@ -177,31 +185,53 @@ git add src/auth.ts src/middleware.ts
 - Suggests secure alternatives for identified issues
 - Focuses on defensive security practices only
 
-## Language-Specific Reviews
+## Context-Aware Analysis
+
+**Web/Frontend Systems:**
+- Bundle size optimization and lazy loading
+- React/Vue component lifecycle issues
+- DOM manipulation efficiency
+- Browser compatibility concerns
+
+**Distributed/Microservice Systems:**
+- CAP theorem considerations (Consistency, Availability, Partition tolerance)
+- Service mesh configuration and circuit breakers
+- Event sourcing and saga patterns
+- Distributed transaction handling
+- Network partition resilience
+
+**Database Systems:**
+- ACID property maintenance
+- Query optimization and indexing strategies
+- Connection pooling and resource management
+- Migration safety and rollback procedures
+
+**Language-Specific Reviews:**
 
 **TypeScript/JavaScript:**
-- ESLint rule violations
-- TypeScript strict mode compliance  
-- React/Node.js best practices
+- ESLint rule violations and TypeScript strict mode
+- Async/await patterns and Promise handling
 - Package vulnerability checks
 
 **Python:**
-- PEP 8 style compliance
+- PEP 8 compliance and type hint coverage
 - Security best practices (bandit-style checks)
-- Performance anti-patterns
-- Type hint coverage
+- Concurrent programming patterns
 
 **Go:**
-- Go fmt compliance
-- Race condition detection
-- Error handling patterns
-- Interface design review
+- Go fmt compliance and race condition detection
+- Goroutine lifecycle management
+- Interface design and error handling patterns
+
+**Rust:**
+- Ownership and borrowing correctness
+- Memory safety and performance patterns
+- Cargo.toml dependency management
 
 **General:**
-- Documentation completeness
-- Git commit message quality
-- Breaking change identification
-- Backward compatibility analysis
+- Repository convention adherence (AGENTS.md, CONTRIBUTING.md)
+- Documentation completeness and accuracy
+- Breaking change identification and migration paths
 
 ## Arguments
 
