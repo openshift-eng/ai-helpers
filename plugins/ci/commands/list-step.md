@@ -31,7 +31,7 @@ The command performs the following steps:
 2. Execute Analysis: Use the Task tool with step-registry-analyzer agent:
    Task tool with:
 - subagent_type: "step-registry-analyzer"
-- description: "analzye and list all workflow/chain/ref with repository path for <workflow-or-chain-name> and keep the hierarchical structure"
+- description: "analyze and list all workflow/chain/ref with repository path for <workflow-or-chain-name> and keep the hierarchical structure"
 - prompt: Detailed request to analyze the workflow or chain and provide complete hierarchical breakdown
 
 3. Display Results: Present the hierarchical structure showing:
