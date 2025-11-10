@@ -83,21 +83,37 @@ def fetch_jira_issues(jira_url: str, token: str,
     # Build API URL
     api_url = f"{jira_url}/rest/api/2/search"
 
-    # Build query parameters
+    # Build query parameters - Note: fields should be comma-separated without URL encoding the commas
+    fields_list = [
+        'summary', 'status', 'priority', 'components', 'assignee',
+        'created', 'updated', 'resolutiondate',
+        'versions',  # Affects Version/s
+        'fixVersions',  # Fix Version/s
+        'customfield_12319940'  # Target Version
+    ]
+
     params = {
         'jql': jql,
         'maxResults': max_results,
-        'fields': 'summary,status,priority,components,assignee,created,updated,resolutiondate'
+        'fields': ','.join(fields_list)
     }
 
-    # Encode parameters
-    query_string = '&'.join(f'{k}={urllib.parse.quote(str(v))}' for k, v in params.items())
+    # Encode parameters - but don't encode commas in fields parameter
+    encoded_params = []
+    for k, v in params.items():
+        if k == 'fields':
+            # Don't encode commas in fields list
+            encoded_params.append(f'{k}={v}')
+        else:
+            encoded_params.append(f'{k}={urllib.parse.quote(str(v))}')
+
+    query_string = '&'.join(encoded_params)
     full_url = f"{api_url}?{query_string}"
 
     # Create request with bearer token authentication
     request = urllib.request.Request(full_url)
     request.add_header('Authorization', f'Bearer {token}')
-    request.add_header('Content-Type', 'application/json')
+    # Note: Don't add Content-Type for GET requests
 
     print(f"Fetching issues from JIRA...", file=sys.stderr)
     print(f"JQL: {jql}", file=sys.stderr)
@@ -105,6 +121,12 @@ def fetch_jira_issues(jira_url: str, token: str,
     try:
         with urllib.request.urlopen(request, timeout=30) as response:
             data = json.loads(response.read().decode())
+            
+            # Write raw response to file for inspection
+            with open('jira_response.json', 'w') as f:
+                json.dump(data, f, indent=2)
+            print(f"Wrote raw response to jira_response.json", file=sys.stderr)
+            
             print(f"Fetched {len(data.get('issues', []))} of {data.get('total', 0)} total issues",
                   file=sys.stderr)
             return data
