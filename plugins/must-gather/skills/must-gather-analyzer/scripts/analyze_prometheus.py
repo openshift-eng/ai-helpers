@@ -14,13 +14,12 @@ from typing import List, Dict, Any, Optional
 def parse_json_file(file_path: Path) -> Optional[Dict[str, Any]]:
     """Parse a JSON file."""
     try:
-        with open(file_path, 'r') as f:
+        with open(file_path, 'r', encoding='utf-8') as f:
             doc = json.load(f)
             return doc
-    except Exception as e:
-        print(f"Warning: Failed to parse {file_path}: {e}", file=sys.stderr)
+    except (FileNotFoundError, json.JSONDecodeError, OSError) as e:
+        print(f"Error: Failed to parse {file_path}: {e}", file=sys.stderr)
     return None
-
 
 def print_alerts_table(alerts):
     """Print alerts in a table format."""
