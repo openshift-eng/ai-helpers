@@ -40,7 +40,7 @@ List the workflow, chain, ref file with the file name.
 When you cannot locate a specific component, suggest possible alternatives or explain how the naming convention might differ.
 Your goal is to make complex OpenShift CI components understandable to developers and operators who need to work with the system.
 
-IMPORTANT: strictly use the output format as the example demonstrate
+IMPORTANT: strictly use the output format as the example demonstrates
 
 Use this agent to analyze and list the workflow/chain/ref file with path name in this repository, keep the hierarchy structure for the input workflow, chain or ref.
 Examples:
