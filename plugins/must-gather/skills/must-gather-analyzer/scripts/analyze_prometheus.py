@@ -47,20 +47,18 @@ def analyze_prometheus(must_gather_path: str, namespace: Optional[str] = None):
     base_path = Path(must_gather_path)
 
     # Retrieve active alerts.
-   rules_path = base_path / "monitoring" / "prometheus" / "rules.json"
-   rules = parse_json_file(rules_path)
+    rules_path = base_path / "monitoring" / "prometheus" / "rules.json"
+    rules = parse_json_file(rules_path)
 
     if rules is None:
         return 1
     status = rules.get("status", "")
--   if status != "success":
-   if status != "success":
-       print(f"{rules_path}: unexpected status {status}", file=sys.stderr)
+    if status != "success":
+        print(f"{rules_path}: unexpected status {status}", file=sys.stderr)
         return 1
 
--   if "data" not in rules or "groups" not in rules["data"]:
-   if "data" not in rules or "groups" not in rules["data"]:
-       print(f"Error: Unexpected JSON structure in {rules_path}", file=sys.stderr)
+    if "data" not in rules or "groups" not in rules["data"]:
+        print(f"Error: Unexpected JSON structure in {rules_path}", file=sys.stderr)
         return 1
 
     alerts = []
