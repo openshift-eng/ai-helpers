@@ -279,6 +279,12 @@
           "synopsis": "/ask-sippy [question]"
         },
         {
+          "name": "list-step",
+          "description": "List the step for the given workflow or chain name",
+          "synopsis": "",
+          "argument_hint": "<workflow-or-chain-name>"
+        },
+        {
           "argument_hint": "<version> <keywords> [sippy-url]",
           "description": "List unstable tests with pass rate below 95%",
           "name": "list-unstable-tests",
