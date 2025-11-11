@@ -7,7 +7,7 @@ argument-hint: [--staged|--pr-ready|--commits N]
 git:review-changes
 
 ## Synopsis
-```
+```bash
 /git:review-changes                    # Review current working directory changes
 /git:review-changes --staged           # Review staged changes only
 /git:review-changes --pr-ready         # Generate PR-ready review summary
@@ -34,7 +34,7 @@ AI-powered code review assistant that analyzes git changes and provides structur
 
 The command analyzes git changes using multiple review perspectives:
 
-**Step 1: Change Detection**
+### Step 1: Change Detection
 1. Determine scope based on arguments:
    - Default: `git diff HEAD` (all uncommitted changes)
    - `--staged`: `git diff --cached` (staged changes only)
@@ -43,7 +43,7 @@ The command analyzes git changes using multiple review perspectives:
 3. Identify file types for language-specific analysis
 4. Check for repository conventions (AGENTS.md, CONTRIBUTING.md, etc.)
 
-**Step 2: Multi-Perspective Analysis**
+### Step 2: Multi-Perspective Analysis
 Analyze changes from these perspectives:
 1. **Repository Conventions Review**
    - Check adherence to AGENTS.md guidelines (if present)
@@ -76,14 +76,14 @@ Analyze changes from these perspectives:
    - Review existing test modifications
    - Check for regression test needs
 
-**Step 3: Generate Structured Report**
+### Step 3: Generate Structured Report
 1. **Summary Section**: High-level change overview
 2. **Critical Issues**: Security and performance blockers
 3. **Recommendations**: Specific improvement suggestions
 4. **Review Checklist**: Items for human reviewers to verify
 5. **Test Plan**: Suggested testing approach
 
-**Step 4: Format Output**
+### Step 4: Format Output
 - `--pr-ready` flag generates markdown formatted for PR descriptions
 - Standard output uses terminal-friendly formatting with colors/icons
 - Include file references with line numbers for easy navigation
@@ -108,7 +108,7 @@ git add src/auth.ts src/middleware.ts
 ## Return Value
 
 **Standard Format:**
-```
+```text
 🔍 Code Review Analysis
 
 📋 SUMMARY
