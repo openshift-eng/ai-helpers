@@ -483,6 +483,12 @@
           "argument_hint": "\"[--verbose] [--output-format]\""
         },
         {
+          "name": "crd-review",
+          "description": "Review Kubernetes CRDs against Kubernetes and OpenShift API conventions",
+          "synopsis": "/openshift:crd-review [repository-path]",
+          "argument_hint": "[repository-path]"
+        },
+        {
           "name": "create-cluster",
           "description": "Extract OpenShift installer from release image and create an OCP cluster",
           "synopsis": "/openshift:create-cluster [release-image] [platform] [options]",
