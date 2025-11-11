@@ -6,6 +6,7 @@ argument-hint: [--staged|--pr-ready|--commits N]
 ## Name
 git:review-changes
 
+<!-- markdownlint-disable MD040 -->
 ## Synopsis
 ```
 /git:review-changes                    # Review current working directory changes
@@ -13,6 +14,7 @@ git:review-changes
 /git:review-changes --pr-ready         # Generate PR-ready review summary
 /git:review-changes --commits N        # Review last N commits
 ```
+<!-- markdownlint-enable MD040 -->
 
 ## Description
 AI-powered code review assistant that analyzes git changes and provides structured feedback on code quality, security, performance, and style. Helps maintain consistent code review standards across development teams.
