@@ -495,6 +495,18 @@
           "argument_hint": "\"[install-dir]\""
         },
         {
+          "name": "etcd-analyze-performance",
+          "description": "Analyze etcd performance metrics, latency, and identify bottlenecks",
+          "synopsis": "/openshift:etcd-analyze-performance [--duration <minutes>]",
+          "argument_hint": "\"[--duration <minutes>]\""
+        },
+        {
+          "name": "etcd-check-health",
+          "description": "Check etcd cluster health, member status, and identify issues",
+          "synopsis": "/openshift:etcd-check-health [--verbose]",
+          "argument_hint": "\"[--verbose]\""
+        },
+        {
           "name": "expand-test-case",
           "description": "Expand basic test ideas or existing oc commands into comprehensive test scenarios with edge cases in oc CLI or Ginkgo format",
           "synopsis": "/openshift:expand-test-case [test-idea-or-file-or-commands] [format]",
