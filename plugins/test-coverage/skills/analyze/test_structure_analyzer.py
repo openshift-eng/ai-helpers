@@ -242,12 +242,16 @@ def parse_test_file(file_path: str, language: str = 'go') -> TestFile:
             else:
                 test_name = match.group(0)
 
-            # Find end of test function (simplified - looks for next function or end of file)
-            line_end = i + 1
-            for j in range(i + 1, len(lines)):
-                if re.search(test_pattern, lines[j]) or (j + 1 == len(lines)):
+            # Find end of test function by tracking brace depth
+            line_end = i
+            brace_depth = 0
+            for j in range(i, len(lines)):
+                brace_depth += lines[j].count('{') - lines[j].count('}')
+                if brace_depth <= 0 and j > i:
                     line_end = j
                     break
+            else:
+                line_end = len(lines) - 1
 
             # Extract function calls (potential test targets)
             test_block = '\n'.join(lines[i:line_end])
@@ -377,9 +381,10 @@ def parse_source_file(file_path: str, language: str = 'go') -> SourceFile:
 
 def extract_function_calls(code_block: str, language: str = 'go') -> List[str]:
     """Extract function calls from Go code block (simplified)"""
-    # Extract function call patterns
-    pattern = r'(\w+)\s*\('
-    calls = re.findall(pattern, code_block)
+    # Extract function call patterns - capture final identifier after any dotted qualifiers
+    # This ensures pkg.DoThing() captures "DoThing" instead of "pkg"
+    call_pattern = r'(?:(?:\b\w+\.)+)?(\b\w+)\s*\('
+    calls = [match.group(1) for match in re.finditer(call_pattern, code_block)]
 
     # Filter out Go keywords
     keywords = {'if', 'for', 'switch', 'return', 'func', 'range', 'select', 'go', 'defer'}
@@ -424,16 +429,19 @@ def map_tests_to_source(test_files: List[TestFile], source_files: List[SourceFil
     for source_file in source_files:
         # Find test files that target this source file
         related_tests = [tf for tf in test_files if tf.target_file == source_file.path]
+        candidate_tests = related_tests if related_tests else test_files
+        tests_covering_file: Set[str] = set()
 
         # Map functions to tests
         function_mapping = {}
         for func in source_file.functions:
             # Find tests that call this function
             tests_for_func = []
-            for test_file in related_tests:
+            for test_file in candidate_tests:
                 for test in test_file.tests:
                     if func.name in test.targets:
                         tests_for_func.append(test.name)
+                        tests_covering_file.add(test_file.path)
 
             function_mapping[func.name] = {
                 'tested': len(tests_for_func) > 0,
@@ -444,8 +452,10 @@ def map_tests_to_source(test_files: List[TestFile], source_files: List[SourceFil
                 'lines': [func.line_start, func.line_end]
             }
 
+        mapped_test_files = sorted(tests_covering_file) if tests_covering_file else [tf.path for tf in related_tests]
+
         mapping[source_file.path] = {
-            'test_files': [tf.path for tf in related_tests],
+            'test_files': mapped_test_files,
             'functions': function_mapping,
             'tested_functions': sum(1 for f in function_mapping.values() if f['tested']),
             'untested_functions': sum(1 for f in function_mapping.values() if not f['tested']),
@@ -843,14 +853,23 @@ def main():
         # HTML report
         html_path = os.path.join(args.output, 'test-structure-report.html')
         try:
-            from .test_structure_reports import generate_test_structure_html
+            # Try relative import first (when run as module)
+            try:
+                from .test_structure_reports import generate_test_structure_html
+            except ImportError:
+                # Fallback to absolute import (when run as script)
+                from skills.analyze.test_structure_reports import generate_test_structure_html
+
             with open(json_path, 'r') as f:
                 json_data = json.load(f)
             generate_test_structure_html(json_data, html_path)
-        except ImportError:
-            print("Warning: report_generator not found, skipping HTML report")
+        except ImportError as e:
+            print(f"Warning: Could not import HTML report generator: {e}")
+            print("Skipping HTML report generation")
         except Exception as e:
             print(f"Warning: Failed to generate HTML report: {e}")
+            import traceback
+            traceback.print_exc()
 
         # Print summary to console
         print()
