@@ -564,6 +564,12 @@
       "version": "0.0.1",
       "commands": [
         {
+          "name": "cluster-health-check",
+          "description": "Perform comprehensive health check on HCP cluster and report issues",
+          "synopsis": "/hcp:cluster-health-check <cluster-name> [--verbose] [--output-format json|text]",
+          "argument_hint": "<cluster-name> [--verbose] [--output-format json|text]"
+        },
+        {
           "name": "generate",
           "description": "Generate ready-to-execute hypershift cluster creation commands from natural language descriptions",
           "synopsis": "/hcp:generate <provider> <cluster-description>",
