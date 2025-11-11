@@ -4,6 +4,7 @@ Custom report template that matches the exact format of the example report
 """
 
 from datetime import datetime
+from html import escape
 from typing import Dict, List
 import re
 
@@ -11,10 +12,10 @@ import re
 def generate_custom_gap_report(analysis: Dict, scores: Dict, output_path: str):
     """Generate gap report matching the exact format of the example"""
 
-    file_name = analysis['file'].split('/')[-1]
-    file_path = analysis['file']
+    file_name = escape(analysis['file'].split('/')[-1])
+    file_path = escape(analysis['file'])
     test_count = analysis['test_count']
-    component = analysis.get('component_type', 'unknown').title()
+    component = escape(analysis.get('component_type', 'unknown').title())
     coverage = analysis['coverage']
     gaps = analysis['gaps']
     test_cases = analysis.get('test_cases', [])
@@ -136,15 +137,14 @@ def generate_custom_gap_report(analysis: Dict, scores: Dict, output_path: str):
         'topology_coverage': {'order': 4, 'label': 'Topology Coverage'},
         'protocol_coverage': {'order': 5, 'label': 'Protocol Coverage'},
         'service_type_coverage': {'order': 6, 'label': 'Service Type Coverage'},
-        'scenario_coverage': {'order': 7, 'label': 'Scenario Coverage'},
-        'storage_class_coverage': {'order': 8, 'label': 'Storage Class Coverage'},
-        'volume_mode_coverage': {'order': 9, 'label': 'Volume Mode Coverage'},
-        'volume_coverage': {'order': 10, 'label': 'Volume Type Coverage'},
-        'csi_driver_coverage': {'order': 11, 'label': 'CSI Driver Coverage'},
-        'snapshot_coverage': {'order': 12, 'label': 'Snapshot Coverage'},
-        'operator_coverage': {'order': 13, 'label': 'Operator Coverage'},
-        'api_coverage': {'order': 14, 'label': 'API Coverage'},
-        'rbac_coverage': {'order': 15, 'label': 'RBAC Coverage'},
+        'storage_class_coverage': {'order': 7, 'label': 'Storage Class Coverage'},
+        'volume_mode_coverage': {'order': 8, 'label': 'Volume Mode Coverage'},
+        'volume_coverage': {'order': 9, 'label': 'Volume Type Coverage'},
+        'csi_driver_coverage': {'order': 10, 'label': 'CSI Driver Coverage'},
+        'snapshot_coverage': {'order': 11, 'label': 'Snapshot Coverage'},
+        'operator_coverage': {'order': 12, 'label': 'Operator Coverage'},
+        'api_coverage': {'order': 13, 'label': 'API Coverage'},
+        'rbac_coverage': {'order': 14, 'label': 'RBAC Coverage'},
     }
 
     # Sort scores by defined order, then render dynamically
@@ -160,7 +160,7 @@ def generate_custom_gap_report(analysis: Dict, scores: Dict, output_path: str):
 
         # Get label or generate from key
         display_info = SCORE_DISPLAY.get(score_key, {})
-        label = display_info.get('label', score_key.replace('_', ' ').title())
+        label = escape(display_info.get('label', score_key.replace('_', ' ').title()))
 
         html += f"""            <div class="score-card {get_score_class(score_value)}">
                 <div class="label">{label}</div>
@@ -222,7 +222,7 @@ def generate_custom_gap_report(analysis: Dict, scores: Dict, output_path: str):
 """
 
     for gap in [g for g in all_gaps if g.get('priority') == 'high'][:5]:
-        html += f"                <li>{gap.get('recommendation', 'No recommendation')}</li>\n"
+        html += f"                <li>{escape(gap.get('recommendation', 'No recommendation'))}</li>\n"
 
     html += """
             </ul>
@@ -484,23 +484,23 @@ def _generate_whats_tested_section(coverage: Dict, scores: Dict, test_cases: Lis
             proto_name = proto.split()[0]  # Get base protocol name
             if proto == 'HTTP (over TCP)' and has_http:
                 html += f"""                <tr>
-                    <td>{proto}</td>
+                    <td>{escape(proto)}</td>
                     <td class="tested">✓ TESTED</td>
-                    <td>{desc}</td>
+                    <td>{escape(desc)}</td>
                 </tr>
 """
             elif proto_name in tested:
                 html += f"""                <tr>
-                    <td>{proto}</td>
+                    <td>{escape(proto)}</td>
                     <td class="tested">✓ TESTED</td>
-                    <td>{proto_name} protocol validated</td>
+                    <td>{escape(proto_name)} protocol validated</td>
                 </tr>
 """
             else:
                 html += f"""                <tr>
-                    <td>{proto}</td>
+                    <td>{escape(proto)}</td>
                     <td class="not-tested">✗ NOT TESTED</td>
-                    <td>{desc}</td>
+                    <td>{escape(desc)}</td>
                 </tr>
 """
 
@@ -535,21 +535,21 @@ def _generate_whats_tested_section(coverage: Dict, scores: Dict, test_cases: Lis
     for platform in all_platforms:
         if platform in tested_platforms:
             html += f"""                <tr>
-                    <td>{platform}</td>
+                    <td>{escape(platform)}</td>
                     <td class="tested">✓ TESTED</td>
                     <td>Covered in test suite</td>
                 </tr>
 """
         elif platform == 'IBM Cloud' and 'PowerVS' in tested_platforms:
             html += f"""                <tr>
-                    <td>{platform}</td>
+                    <td>{escape(platform)}</td>
                     <td class="partial">⚠ PARTIAL</td>
                     <td>PowerVS covered, not standard IBM Cloud</td>
                 </tr>
 """
         else:
             html += f"""                <tr>
-                    <td>{platform}</td>
+                    <td>{escape(platform)}</td>
                     <td class="not-tested">✗ NOT TESTED</td>
                     <td>Platform not covered</td>
                 </tr>
@@ -584,7 +584,7 @@ def _generate_whats_tested_section(coverage: Dict, scores: Dict, test_cases: Lis
 
         for feature_name, stacks in features.items():
             html += f"""                <tr>
-                    <td>{feature_name}</td>
+                    <td>{escape(feature_name)}</td>
                     <td class="{'tested' if stacks['ipv4'] else 'not-tested'}">{'✓' if stacks['ipv4'] else '✗'}</td>
                     <td class="{'tested' if stacks['ipv6'] else 'not-tested'}">{'✓' if stacks['ipv6'] else '✗'}</td>
                     <td class="{'tested' if stacks['dualstack'] else 'not-tested'}">{'✓' if stacks['dualstack'] else '✗'}</td>
@@ -624,16 +624,16 @@ def _generate_whats_tested_section(coverage: Dict, scores: Dict, test_cases: Lis
         for topo, desc in all_topologies:
             if topo in tested_topologies:
                 html += f"""                <tr>
-                    <td>{topo}</td>
+                    <td>{escape(topo)}</td>
                     <td class="tested">✓ TESTED</td>
-                    <td>{desc}</td>
+                    <td>{escape(desc)}</td>
                 </tr>
 """
             else:
                 html += f"""                <tr>
-                    <td>{topo}</td>
+                    <td>{escape(topo)}</td>
                     <td class="not-tested">✗ NOT TESTED</td>
-                    <td>{desc}</td>
+                    <td>{escape(desc)}</td>
                 </tr>
 """
 
@@ -664,9 +664,9 @@ def _generate_whats_tested_section(coverage: Dict, scores: Dict, test_cases: Lis
         gap = info['gap']
 
         html += f"""                <tr>
-                    <td>{scenario_name}</td>
+                    <td>{escape(scenario_name)}</td>
                     <td class="{status}">{'✓ TESTED' if status == 'tested' else '⚠ PARTIAL' if status == 'partial' else '✗ NOT TESTED'}</td>
-                    <td>{gap}</td>
+                    <td>{escape(gap)}</td>
                 </tr>
 """
 
@@ -680,27 +680,31 @@ def _generate_whats_tested_section(coverage: Dict, scores: Dict, test_cases: Lis
 
 def _generate_gap_card(gap: Dict) -> str:
     """Generate a single gap card HTML"""
-    gap_id = gap.get('gap_id', 'GAP-000')
-    priority = gap.get('priority', 'low')
-    category = gap.get('category', 'General')
-    impact = gap.get('impact', 'No impact specified')
-    recommendation = gap.get('recommendation', 'No recommendation')
-    effort = gap.get('effort', 'medium')
+    gap_id = escape(gap.get('gap_id', 'GAP-000'))
+    priority = (gap.get('priority') or 'low').lower()
+    if priority not in ('high', 'medium', 'low'):
+        priority = 'low'
+    category = escape(gap.get('category', 'General'))
+    impact = escape(gap.get('impact', 'No impact specified'))
+    recommendation = escape(gap.get('recommendation', 'No recommendation'))
+    effort = (gap.get('effort') or 'medium').lower()
+    if effort not in ('high', 'medium', 'low'):
+        effort = 'medium'
     coverage_improvement = gap.get('coverage_improvement', 0)
 
     # Get the gap name/title from the gap data
-    title = gap.get('protocol') or gap.get('scenario') or gap.get('platform') or gap.get('service_type') or gap.get('ip_stack') or gap.get('topology') or 'Coverage Gap'
+    title = escape(gap.get('protocol') or gap.get('scenario') or gap.get('platform') or gap.get('service_type') or gap.get('ip_stack') or gap.get('topology') or 'Coverage Gap')
 
     return f"""
             <div class="gap-card {priority}" data-priority="{priority}">
                 <div class="gap-id">{gap_id}</div>
-                <h4><span class="priority {priority}">{priority.upper()}</span><span class="category">{category}</span> {title}</h4>
+                <h4><span class="priority {priority}">{escape(priority.upper())}</span><span class="category">{category}</span> {title}</h4>
                 <div class="impact">
                     <strong>Impact:</strong> {impact}
                 </div>
                 <div class="recommendation">
                     <strong>Recommendation:</strong> {recommendation}
                 </div>
-                <p><strong>Effort:</strong> <span class="effort {effort}">{effort.title()}</span> | <strong>Coverage Improvement:</strong> +{coverage_improvement:.1f}%</p>
+                <p><strong>Effort:</strong> <span class="effort {effort}">{escape(effort.title())}</span> | <strong>Coverage Improvement:</strong> +{coverage_improvement:.1f}%</p>
             </div>
 """

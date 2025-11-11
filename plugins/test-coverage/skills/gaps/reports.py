@@ -4,6 +4,7 @@ E2E Test Gap Analysis Report Generator
 Generates HTML, JSON, and text reports for e2e test scenario gap analysis
 """
 
+import html
 import json
 import os
 from datetime import datetime
@@ -27,6 +28,17 @@ NETWORK_COMPONENTS = {'networking', 'router', 'dns', 'network-observability'}
 STORAGE_COMPONENTS = {'storage', 'csi'}
 
 
+# HTML escape helper function
+esc = lambda value: html.escape(str(value), quote=True)
+
+
+# Priority sanitization helper
+def sanitize_priority(priority):
+    """Sanitize priority value to prevent XSS injection"""
+    safe_priority = (priority or 'low').lower() if isinstance(priority, str) else 'low'
+    return safe_priority if safe_priority in ('high', 'medium', 'low') else 'low'
+
+
 # ============================================================================
 # E2E Test Gap Analysis Reports
 # ============================================================================
@@ -34,7 +46,7 @@ STORAGE_COMPONENTS = {'storage', 'csi'}
 def generate_gap_html_report(analysis: Dict, scores: Dict, output_path: str):
     """Generate HTML report for E2E test gap analysis"""
 
-    file_name = os.path.basename(analysis['file'])
+    file_name = esc(os.path.basename(analysis['file']))
     test_count = analysis['test_count']
     coverage = analysis['coverage']
     gaps = analysis['gaps']
@@ -81,49 +93,37 @@ def generate_gap_html_report(analysis: Dict, scores: Dict, output_path: str):
     # Add component-specific metrics
     component_type = analysis.get('component_type', 'unknown')
     if component_type in NETWORK_COMPONENTS:
-        html += f"""
+        metric_cards = [
+            ("Protocol Coverage", scores.get('protocol_coverage')),
+            ("Service Type Coverage", scores.get('service_type_coverage')),
+            ("IP Stack Coverage", scores.get('ip_stack_coverage')),
+            ("Topology Coverage", scores.get('topology_coverage')),
+        ]
+        for label, value in metric_cards:
+            if value is None:
+                continue
+            html += f"""
                 <div class="score-card">
-                    <h3>Protocol Coverage</h3>
-                    <div class="value">{scores['protocol_coverage']:.0f}%</div>
+                    <h3>{esc(label)}</h3>
+                    <div class="value">{value:.0f}%</div>
                     <div class="progress-bar">
-                        <div class="progress-fill" style="width: {scores['protocol_coverage']}%"></div>
-                    </div>
-                </div>
-                <div class="score-card">
-                    <h3>Service Type Coverage</h3>
-                    <div class="value">{scores['service_type_coverage']:.0f}%</div>
-                    <div class="progress-bar">
-                        <div class="progress-fill" style="width: {scores['service_type_coverage']}%"></div>
-                    </div>
-                </div>
-                <div class="score-card">
-                    <h3>IP Stack Coverage</h3>
-                    <div class="value">{scores['ip_stack_coverage']:.0f}%</div>
-                    <div class="progress-bar">
-                        <div class="progress-fill" style="width: {scores['ip_stack_coverage']}%"></div>
-                    </div>
-                </div>
-                <div class="score-card">
-                    <h3>Topology Coverage</h3>
-                    <div class="value">{scores['topology_coverage']:.0f}%</div>
-                    <div class="progress-bar">
-                        <div class="progress-fill" style="width: {scores['topology_coverage']}%"></div>
+                        <div class="progress-fill" style="width: {value}%"></div>
                     </div>
                 </div>"""
     elif component_type in STORAGE_COMPONENTS:
-        html += f"""
+        metric_cards = [
+            ("Storage Class Coverage", scores.get('storage_class_coverage')),
+            ("Volume Mode Coverage", scores.get('volume_mode_coverage')),
+        ]
+        for label, value in metric_cards:
+            if value is None:
+                continue
+            html += f"""
                 <div class="score-card">
-                    <h3>Storage Class Coverage</h3>
-                    <div class="value">{scores['storage_class_coverage']:.0f}%</div>
+                    <h3>{esc(label)}</h3>
+                    <div class="value">{value:.0f}%</div>
                     <div class="progress-bar">
-                        <div class="progress-fill" style="width: {scores['storage_class_coverage']}%"></div>
-                    </div>
-                </div>
-                <div class="score-card">
-                    <h3>Volume Mode Coverage</h3>
-                    <div class="value">{scores['volume_mode_coverage']:.0f}%</div>
-                    <div class="progress-bar">
-                        <div class="progress-fill" style="width: {scores['volume_mode_coverage']}%"></div>
+                        <div class="progress-fill" style="width: {value}%"></div>
                     </div>
                 </div>"""
 
@@ -173,9 +173,9 @@ def generate_gap_html_report(analysis: Dict, scores: Dict, output_path: str):
 
         html += f"""
                     <tr>
-                        <td><strong>{platform}</strong></td>
-                        <td><span class="status-badge {status_class}">{status_text}</span></td>
-                        <td>{impact}</td>
+                        <td><strong>{esc(platform)}</strong></td>
+                        <td><span class="status-badge {status_class}">{esc(status_text)}</span></td>
+                        <td>{esc(impact)}</td>
                     </tr>
 """
 
@@ -192,15 +192,15 @@ def generate_gap_html_report(analysis: Dict, scores: Dict, output_path: str):
     if gaps.get('platforms'):
         html += "<h3 style='margin: 20px 0 15px;'>Platform Gaps</h3>"
         for gap in gaps['platforms']:
-            priority_class = gap['priority']
+            priority_class = sanitize_priority(gap.get('priority'))
             html += f"""
             <div class="gap-card {priority_class}">
                 <h4>
-                    <span class="status-badge priority-{priority_class}">{gap['priority'].upper()} PRIORITY</span>
-                    {gap['platform']}
+                    <span class="status-badge priority-{priority_class}">{esc(priority_class.upper())} PRIORITY</span>
+                    {esc(gap['platform'])}
                 </h4>
-                <div class="impact"><strong>Impact:</strong> {gap['impact']}</div>
-                <div class="recommendation">💡 {gap['recommendation']}</div>
+                <div class="impact"><strong>Impact:</strong> {esc(gap['impact'])}</div>
+                <div class="recommendation">💡 {esc(gap['recommendation'])}</div>
             </div>
 """
 
@@ -208,15 +208,15 @@ def generate_gap_html_report(analysis: Dict, scores: Dict, output_path: str):
     if gaps.get('protocols'):
         html += "<h3 style='margin: 20px 0 15px;'>Protocol Gaps</h3>"
         for gap in gaps['protocols']:
-            priority_class = gap['priority']
+            priority_class = sanitize_priority(gap.get('priority'))
             html += f"""
             <div class="gap-card {priority_class}">
                 <h4>
-                    <span class="status-badge priority-{priority_class}">{gap['priority'].upper()} PRIORITY</span>
-                    {gap['protocol']}
+                    <span class="status-badge priority-{priority_class}">{esc(priority_class.upper())} PRIORITY</span>
+                    {esc(gap['protocol'])}
                 </h4>
-                <div class="impact"><strong>Impact:</strong> {gap['impact']}</div>
-                <div class="recommendation">💡 {gap['recommendation']}</div>
+                <div class="impact"><strong>Impact:</strong> {esc(gap['impact'])}</div>
+                <div class="recommendation">💡 {esc(gap['recommendation'])}</div>
             </div>
 """
 
@@ -224,15 +224,15 @@ def generate_gap_html_report(analysis: Dict, scores: Dict, output_path: str):
     if gaps.get('service_types'):
         html += "<h3 style='margin: 20px 0 15px;'>Service Type Gaps</h3>"
         for gap in gaps['service_types']:
-            priority_class = gap['priority']
+            priority_class = sanitize_priority(gap.get('priority'))
             html += f"""
             <div class="gap-card {priority_class}">
                 <h4>
-                    <span class="status-badge priority-{priority_class}">{gap['priority'].upper()} PRIORITY</span>
-                    {gap['service_type']}
+                    <span class="status-badge priority-{priority_class}">{esc(priority_class.upper())} PRIORITY</span>
+                    {esc(gap['service_type'])}
                 </h4>
-                <div class="impact"><strong>Impact:</strong> {gap['impact']}</div>
-                <div class="recommendation">💡 {gap['recommendation']}</div>
+                <div class="impact"><strong>Impact:</strong> {esc(gap['impact'])}</div>
+                <div class="recommendation">💡 {esc(gap['recommendation'])}</div>
             </div>
 """
 
@@ -240,15 +240,15 @@ def generate_gap_html_report(analysis: Dict, scores: Dict, output_path: str):
     if gaps.get('ip_stacks'):
         html += "<h3 style='margin: 20px 0 15px;'>IP Stack Gaps</h3>"
         for gap in gaps['ip_stacks']:
-            priority_class = gap['priority']
+            priority_class = sanitize_priority(gap.get('priority'))
             html += f"""
             <div class="gap-card {priority_class}">
                 <h4>
-                    <span class="status-badge priority-{priority_class}">{gap['priority'].upper()} PRIORITY</span>
-                    {gap['ip_stack']}
+                    <span class="status-badge priority-{priority_class}">{esc(priority_class.upper())} PRIORITY</span>
+                    {esc(gap['ip_stack'])}
                 </h4>
-                <div class="impact"><strong>Impact:</strong> {gap['impact']}</div>
-                <div class="recommendation">💡 {gap['recommendation']}</div>
+                <div class="impact"><strong>Impact:</strong> {esc(gap['impact'])}</div>
+                <div class="recommendation">💡 {esc(gap['recommendation'])}</div>
             </div>
 """
 
@@ -256,15 +256,15 @@ def generate_gap_html_report(analysis: Dict, scores: Dict, output_path: str):
     if gaps.get('topologies'):
         html += "<h3 style='margin: 20px 0 15px;'>Topology Gaps</h3>"
         for gap in gaps['topologies']:
-            priority_class = gap['priority']
+            priority_class = sanitize_priority(gap.get('priority'))
             html += f"""
             <div class="gap-card {priority_class}">
                 <h4>
-                    <span class="status-badge priority-{priority_class}">{gap['priority'].upper()} PRIORITY</span>
-                    {gap['topology']}
+                    <span class="status-badge priority-{priority_class}">{esc(priority_class.upper())} PRIORITY</span>
+                    {esc(gap['topology'])}
                 </h4>
-                <div class="impact"><strong>Impact:</strong> {gap['impact']}</div>
-                <div class="recommendation">💡 {gap['recommendation']}</div>
+                <div class="impact"><strong>Impact:</strong> {esc(gap['impact'])}</div>
+                <div class="recommendation">💡 {esc(gap['recommendation'])}</div>
             </div>
 """
 
@@ -272,15 +272,15 @@ def generate_gap_html_report(analysis: Dict, scores: Dict, output_path: str):
     if gaps.get('storage_classes'):
         html += "<h3 style='margin: 20px 0 15px;'>Storage Class Gaps</h3>"
         for gap in gaps['storage_classes']:
-            priority_class = gap['priority']
+            priority_class = sanitize_priority(gap.get('priority'))
             html += f"""
             <div class="gap-card {priority_class}">
                 <h4>
-                    <span class="status-badge priority-{priority_class}">{gap['priority'].upper()} PRIORITY</span>
-                    {gap['storage_class']}
+                    <span class="status-badge priority-{priority_class}">{esc(priority_class.upper())} PRIORITY</span>
+                    {esc(gap['storage_class'])}
                 </h4>
-                <div class="impact"><strong>Impact:</strong> {gap['impact']}</div>
-                <div class="recommendation">💡 {gap['recommendation']}</div>
+                <div class="impact"><strong>Impact:</strong> {esc(gap['impact'])}</div>
+                <div class="recommendation">💡 {esc(gap['recommendation'])}</div>
             </div>
 """
 
@@ -288,15 +288,15 @@ def generate_gap_html_report(analysis: Dict, scores: Dict, output_path: str):
     if gaps.get('volume_modes'):
         html += "<h3 style='margin: 20px 0 15px;'>Volume Mode Gaps</h3>"
         for gap in gaps['volume_modes']:
-            priority_class = gap['priority']
+            priority_class = sanitize_priority(gap.get('priority'))
             html += f"""
             <div class="gap-card {priority_class}">
                 <h4>
-                    <span class="status-badge priority-{priority_class}">{gap['priority'].upper()} PRIORITY</span>
-                    {gap['volume_mode']}
+                    <span class="status-badge priority-{priority_class}">{esc(priority_class.upper())} PRIORITY</span>
+                    {esc(gap['volume_mode'])}
                 </h4>
-                <div class="impact"><strong>Impact:</strong> {gap['impact']}</div>
-                <div class="recommendation">💡 {gap['recommendation']}</div>
+                <div class="impact"><strong>Impact:</strong> {esc(gap['impact'])}</div>
+                <div class="recommendation">💡 {esc(gap['recommendation'])}</div>
             </div>
 """
 
@@ -304,15 +304,15 @@ def generate_gap_html_report(analysis: Dict, scores: Dict, output_path: str):
     if gaps.get('scenarios'):
         html += "<h3 style='margin: 20px 0 15px;'>Scenario Gaps</h3>"
         for gap in gaps['scenarios']:
-            priority_class = gap['priority']
+            priority_class = sanitize_priority(gap.get('priority'))
             html += f"""
             <div class="gap-card {priority_class}">
                 <h4>
-                    <span class="status-badge priority-{priority_class}">{gap['priority'].upper()} PRIORITY</span>
-                    {gap['scenario']}
+                    <span class="status-badge priority-{priority_class}">{esc(priority_class.upper())} PRIORITY</span>
+                    {esc(gap['scenario'])}
                 </h4>
-                <div class="impact"><strong>Impact:</strong> {gap['impact']}</div>
-                <div class="recommendation">💡 {gap['recommendation']}</div>
+                <div class="impact"><strong>Impact:</strong> {esc(gap['impact'])}</div>
+                <div class="recommendation">💡 {esc(gap['recommendation'])}</div>
             </div>
 """
 
@@ -325,11 +325,13 @@ def generate_gap_html_report(analysis: Dict, scores: Dict, output_path: str):
 """
 
     for i, test in enumerate(analysis['test_cases'], 1):
-        tags_html = ''.join([f'<span class="tag">{tag}</span>' for tag in test['tags']])
+        tags_html = ''.join([f'<span class="tag">{esc(tag)}</span>' for tag in test['tags']])
+        test_name = esc(test['name'][:80])
+        test_name_suffix = "..." if len(test['name']) > 80 else ""
         html += f"""
                 <div class="test-case">
-                    <strong>{i}. {test['name'][:80]}{"..." if len(test['name']) > 80 else ""}</strong>
-                    <div class="line">Line {test['line']} | ID: {test['id']}</div>
+                    <strong>{i}. {test_name}{test_name_suffix}</strong>
+                    <div class="line">Line {test['line']} | ID: {esc(test['id'])}</div>
                     <div class="tags">{tags_html if tags_html else '<span class="tag">No tags</span>'}</div>
                 </div>
 """
@@ -364,7 +366,7 @@ def generate_gap_html_report(analysis: Dict, scores: Dict, output_path: str):
                 high_priority_gaps.append(gap['recommendation'])
 
     for rec in high_priority_gaps[:5]:
-        html += f"<li>{rec}</li>\n"
+        html += f"<li>{esc(rec)}</li>\n"
 
     html += """
                 </ul>
@@ -381,7 +383,7 @@ def generate_gap_html_report(analysis: Dict, scores: Dict, output_path: str):
                 medium_priority_gaps.append(gap['recommendation'])
 
     for rec in medium_priority_gaps[:5]:
-        html += f"<li>{rec}</li>\n"
+        html += f"<li>{esc(rec)}</li>\n"
 
     target_score = min(95, scores['overall'] + 20)
 

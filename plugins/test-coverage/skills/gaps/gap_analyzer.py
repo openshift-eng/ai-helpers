@@ -136,7 +136,8 @@ class GapAnalyzer:
 
         # Extract test cases
         test_cases = []
-        test_pattern = r'g\.It\("([^"]+)"'
+        # Match both prefixed (g.It, o.It) and bare (It) calls with single or double quotes
+        test_pattern = r'(?:g\.|o\.)?It\(\s*["\']([^"\']+)["\']'
         for match in re.finditer(test_pattern, self.content):
             test_name = match.group(1)
             line_num = self.content[:match.start()].count('\n') + 1
@@ -196,13 +197,16 @@ class GapAnalyzer:
     def _analyze_protocols(self) -> Dict:
         """Analyze protocol coverage (TCP, UDP, SCTP)"""
         # Detect explicit protocol mentions
+        # Note: ICMP is not included as OpenShift officially doesn't support it
+
+        # Check for explicit TCP keyword
         tcp_explicit = bool(re.search(r'\bTCP\b', self.content, re.IGNORECASE))
 
-        # Detect HTTP/HTTPS as implicit TCP testing
-        http_detected = bool(re.search(r'\bcurl\b|http://|https://|\bHTTP\b|getRequestURL|ifconfig\.me', self.content, re.IGNORECASE))
+        # Check for HTTP/HTTPS via curl, wget, or HTTP URLs (these are TCP-based)
+        tcp_via_http = bool(re.search(r'\bcurl\b|\bwget\b|http://|https://|\bHTTP\b', self.content, re.IGNORECASE))
 
         protocols = {
-            'TCP': tcp_explicit or http_detected,
+            'TCP': tcp_explicit or tcp_via_http,
             'UDP': bool(re.search(r'\bUDP\b', self.content, re.IGNORECASE)),
             'SCTP': bool(re.search(r'\bSCTP\b', self.content, re.IGNORECASE)),
         }
@@ -247,7 +251,7 @@ class GapAnalyzer:
         """Analyze network topology coverage"""
         topologies = {
             'Single Node': bool(re.search(r'single.node|sno', self.content, re.IGNORECASE)),
-            'Multi-Node': bool(re.search(r'multi.node|ha|high.availability', self.content, re.IGNORECASE)),
+            'Multi-Node': bool(re.search(r'multi.node|\bHA\b|high.availability', self.content, re.IGNORECASE)),
             'Hosted Control Plane': bool(re.search(r'hypershift|hosted.control.plane|hcp', self.content, re.IGNORECASE)),
         }
 
@@ -266,17 +270,18 @@ class GapAnalyzer:
 
         Only mark platforms as "not tested" if there are explicit platform checks/skips.
         """
-        # Detect explicit platform mentions
+        # Define all platforms to track
+        all_platforms = ['vSphere', 'ROSA', 'AWS', 'Azure', 'GCP', 'Bare Metal']
+
+        # Detect explicit platform mentions in test names/tags (informational only)
         platform_mentions = {
             'vSphere': bool(re.search(r'vsphere', self.content, re.IGNORECASE)),
-            'ROSA': bool(re.search(r'ROSA', self.content)),
-            'AWS': bool(re.search(r'\bAWS\b|aws.*platform', self.content)),
+            'ROSA': bool(re.search(r'ROSA', self.content, re.IGNORECASE)),
+            'AWS': bool(re.search(r'\bAWS\b|aws.*platform', self.content, re.IGNORECASE)),
             'Azure': bool(re.search(r'azure', self.content, re.IGNORECASE)),
             'GCP': bool(re.search(r'\bGCP\b|google.*cloud', self.content, re.IGNORECASE)),
             'Bare Metal': bool(re.search(r'baremetal|bare.metal', self.content, re.IGNORECASE)),
         }
-
-        any_platform_mentioned = any(platform_mentions.values())
 
         # Check if there are platform-specific skip patterns with actual platform names
         has_platform_specific_skips = bool(re.search(
@@ -284,25 +289,54 @@ class GapAnalyzer:
             r'skipUnless.*(?:aws|azure|gcp|vsphere|baremetal)|'
             r'only.*(?:aws|azure|gcp|vsphere|baremetal)|'
             r'(?:aws|azure|gcp|vsphere|baremetal).*only|'
-            r'framework\.SkipUnless.*(?:aws|azure|gcp|vsphere|baremetal)',
+            r'framework\.SkipUnless.*(?:aws|azure|gcp|vsphere|baremetal)|'
+            r'checkPlatform\s*\(.*?\).*?g\.Skip',  # OpenShift pattern: platform := checkPlatform(oc) + g.Skip
             self.content,
-            re.IGNORECASE
+            re.IGNORECASE | re.DOTALL
         ))
 
-        # Decision logic:
-        # 1. If specific platforms are mentioned OR platform-specific skips exist
-        #    → Only those specific platforms are tested
-        # 2. If NO platform mentions AND NO platform-specific skips
-        #    → Test runs on ALL platforms (platform-agnostic)
+        # Extract individual test cases to analyze per-test platform restrictions
+        test_pattern = r'(?:g\.|o\.)?It\(\s*["\']([^"\']+)["\'].*?\}\)'
+        test_cases = re.finditer(test_pattern, self.content, re.DOTALL)
 
-        if any_platform_mentioned or has_platform_specific_skips:
-            # Has platform-specific logic = only mentioned platforms are tested
+        # Track which platforms are covered across all test cases
+        platforms_with_tests = set()
+        platforms_explicitly_skipped = set()
+
+        for test_match in test_cases:
+            test_body = test_match.group(0)
+
+            # Check if this specific test has platform restrictions
+            has_platform_check = bool(re.search(r'checkPlatform\s*\(', test_body))
+
+            if has_platform_check:
+                # Test has platform restrictions - find which platforms are allowed
+                # Look for platform names in skip conditions
+                if re.search(r'vsphere', test_body, re.IGNORECASE):
+                    platforms_with_tests.add('vSphere')
+                    # If vsphere is the only allowed platform, others are skipped
+                    if re.search(r'Skip.*not vsphere', test_body, re.IGNORECASE):
+                        platforms_explicitly_skipped.update(['AWS', 'Azure', 'GCP', 'Bare Metal'])
+            else:
+                # Test has NO platform check = runs on ALL platforms
+                platforms_with_tests.update(all_platforms)
+
+        # Decision logic:
+        # If we found tests that run on all platforms OR no platform-specific logic exists,
+        # assume all platforms are tested
+        if not has_platform_specific_skips:
+            # No platform-specific logic anywhere = runs on all platforms
+            tested_platforms = all_platforms
+            not_tested_platforms = []
+        elif platforms_with_tests:
+            # Some tests run on all platforms, some have restrictions
+            # Platform is tested if ANY test runs on it
+            tested_platforms = sorted(list(platforms_with_tests))
+            not_tested_platforms = sorted([p for p in all_platforms if p not in platforms_with_tests])
+        else:
+            # Fallback: use platform mentions (conservative estimate)
             tested_platforms = [p for p, mentioned in platform_mentions.items() if mentioned]
             not_tested_platforms = [p for p, mentioned in platform_mentions.items() if not mentioned]
-        else:
-            # No platform-specific logic = runs on all platforms
-            tested_platforms = list(platform_mentions.keys())
-            not_tested_platforms = []
 
         return {
             'tested': tested_platforms,
@@ -356,6 +390,7 @@ class GapAnalyzer:
             'Concurrent Operations': bool(re.search(r'concurrent|parallel|race', self.content, re.IGNORECASE)),
             'Performance/Scale': bool(re.search(r'performance|scale|benchmark', self.content, re.IGNORECASE)),
             'RBAC/Security': bool(re.search(r'rbac|permission|unauthorized|security', self.content, re.IGNORECASE)),
+            'Traffic Disruption': bool(re.search(r'traffic.*disrupt|packet.*loss|latency|jitter|network.*delay|chaos|fault.*injection', self.content, re.IGNORECASE)),
         }
 
         return {
@@ -423,14 +458,12 @@ class GapAnalyzer:
         """Identify protocol testing gaps (TCP, UDP, SCTP)"""
         gaps = []
 
-        # Check for explicit TCP testing
+        # Check for TCP testing
         tcp_explicit = bool(re.search(r'\bTCP\b', self.content, re.IGNORECASE))
-
-        # Check for HTTP/HTTPS as implicit TCP testing
-        http_detected = bool(re.search(r'\bcurl\b|http://|https://|\bHTTP\b|getRequestURL|ifconfig\.me', self.content, re.IGNORECASE))
+        tcp_via_http = bool(re.search(r'\bcurl\b|\bwget\b|http://|https://|\bHTTP\b', self.content, re.IGNORECASE))
 
         # TCP gap analysis
-        if not tcp_explicit and not http_detected:
+        if not tcp_explicit and not tcp_via_http:
             # No TCP testing at all
             gaps.append({
                 'protocol': 'TCP',
@@ -440,15 +473,15 @@ class GapAnalyzer:
                 'effort': 'medium',
                 'coverage_improvement': 8.0
             })
-        elif http_detected and not tcp_explicit:
-            # TCP tested via HTTP, but not explicitly
+        elif tcp_via_http and not tcp_explicit:
+            # TCP tested via HTTP/curl, but suggest non-HTTP TCP tests as well
             gaps.append({
                 'protocol': 'TCP (non-HTTP)',
-                'priority': 'medium',
-                'impact': 'TCP tested via HTTP, but non-HTTP TCP traffic (databases, custom protocols) not validated',
-                'recommendation': 'Add explicit TCP tests for non-HTTP traffic (e.g., database connections, custom ports)',
+                'priority': 'low',
+                'impact': 'TCP tested via HTTP/curl, but non-HTTP TCP traffic (databases, custom protocols) not explicitly validated',
+                'recommendation': 'Consider adding explicit non-HTTP TCP tests (e.g., database connections, custom ports)',
                 'effort': 'low',
-                'coverage_improvement': 4.0
+                'coverage_improvement': 2.0
             })
 
         if not re.search(r'\bUDP\b', self.content, re.IGNORECASE):
@@ -651,12 +684,23 @@ class GapAnalyzer:
                 'recommendation': 'Add RBAC and security tests',
                 'effort': 'medium',
                 'coverage_improvement': 5.0
+            },
+            'Traffic Disruption': {
+                'priority': 'high',
+                'impact': 'Network resilience under adverse conditions not tested',
+                'recommendation': 'Add traffic disruption tests (packet loss, latency, jitter, network chaos)',
+                'effort': 'high',
+                'coverage_improvement': 7.0
             }
         }
 
         # Only report gaps for scenarios that are not tested
         for scenario in not_tested:
             if scenario in scenario_details:
+                # Filter Traffic Disruption to networking components only
+                if scenario == 'Traffic Disruption' and self.component_type not in NETWORK_COMPONENTS:
+                    continue
+
                 gap = {'scenario': scenario}
                 gap.update(scenario_details[scenario])
                 gaps.append(gap)
@@ -746,7 +790,6 @@ class GapAnalyzer:
     def calculate_coverage_score(self, analysis: Dict) -> Dict:
         """Calculate overall coverage score (component-agnostic for all OpenShift/K8s components)"""
         coverage = analysis['coverage']
-        gaps = analysis['gaps']
 
         # Scenario score - tests for error handling, upgrades, security, performance, etc.
         scenario_data = coverage.get('scenarios', {'tested': [], 'not_tested': []})
@@ -948,14 +991,18 @@ def main():
 
     # Show high priority gaps (component-agnostic)
     all_gaps = []
-    for key in ('platforms', 'scenarios'):
-        all_gaps.extend(analysis['gaps'].get(key, []))
+    for entries in analysis['gaps'].values():
+        if entries:
+            all_gaps.extend(entries)
     high_priority = [g for g in all_gaps if g.get('priority') == 'high']
 
     if high_priority:
         print(f"High Priority Gaps ({len(high_priority)}):")
         for i, gap in enumerate(high_priority[:5], 1):
-            name = gap.get('platform') or gap.get('scenario')
+            name = (gap.get('platform') or gap.get('scenario') or
+                    gap.get('protocol') or gap.get('topology') or
+                    gap.get('storage_class') or gap.get('service_type') or
+                    gap.get('volume_mode') or gap.get('ip_stack'))
             impact = gap.get('impact', 'Unknown impact')
             print(f"  {i}. {name} - {impact}")
         print()

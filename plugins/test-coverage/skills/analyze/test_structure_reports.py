@@ -4,6 +4,7 @@ Test Structure Report Generator
 Generates HTML reports for test structure analysis
 """
 
+import html
 import json
 import os
 from datetime import datetime
@@ -17,6 +18,10 @@ except ImportError:
         from plugins.test_coverage.skills.common.report_styles import get_common_css
     except ImportError:
         from common.report_styles import get_common_css
+
+
+# HTML escape helper function
+esc = lambda value: html.escape(str(value), quote=True)
 
 
 # ============================================================================
@@ -45,7 +50,7 @@ def _generate_test_only_html(data: Dict, output_path: str):
     test_file_details = data.get('test_file_details', {})
 
     file_path = test_file_details.get('path', '')
-    file_name = os.path.basename(file_path)
+    file_name = esc(os.path.basename(file_path))
     test_count = test_file_details.get('test_count', 0)
     tests = test_file_details.get('tests', [])
     imports = test_file_details.get('imports', [])
@@ -59,12 +64,12 @@ def _generate_test_only_html(data: Dict, output_path: str):
         targets = test.get('targets', [])
 
         # Clean up test name
-        display_name = test_name.replace("It: ", "")
+        display_name = esc(test_name.replace("It: ", ""))
 
         # Format targets
         targets_html = ""
         if targets:
-            targets_list = ', '.join(targets[:10])
+            targets_list = esc(', '.join(targets[:10]))
             if len(targets) > 10:
                 targets_list += f' +{len(targets) - 10} more'
             targets_html = f'<div class="test-targets">Calls: {targets_list}</div>'
@@ -96,7 +101,7 @@ def _generate_test_only_html(data: Dict, output_path: str):
             <h1>📋 Test Structure Analysis</h1>
             <div class="meta">
                 <strong>File:</strong> {file_name} |
-                <strong>Language:</strong> {language.upper()} |
+                <strong>Language:</strong> {esc(language.upper())} |
                 <strong>Mode:</strong> Test-Only Analysis |
                 <strong>Generated:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
             </div>
@@ -139,7 +144,7 @@ def _generate_test_only_html(data: Dict, output_path: str):
 """
 
     for imp in imports[:20]:
-        html += f"<li style='padding: 8px; border-bottom: 1px solid #e5e7eb;'><code>{imp}</code></li>\n"
+        html += f"<li style='padding: 8px; border-bottom: 1px solid #e5e7eb;'><code>{esc(imp)}</code></li>\n"
 
     if len(imports) > 20:
         html += f"<li style='padding: 8px; color: #666;'>... and {len(imports) - 20} more imports</li>\n"
@@ -197,8 +202,8 @@ def _generate_full_structure_html(data: Dict, output_path: str):
         <div class="header">
             <h1>📊 Test Structure Analysis</h1>
             <div class="meta">
-                <strong>Directory:</strong> {source_dir} |
-                <strong>Language:</strong> {language.upper()} |
+                <strong>Directory:</strong> {esc(source_dir)} |
+                <strong>Language:</strong> {esc(language.upper())} |
                 <strong>Generated:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
             </div>
         </div>
@@ -259,17 +264,20 @@ def _generate_untested_files_section(untested_files: List[Dict]) -> str:
 
     for file in untested_files[:20]:
         file_path = file.get('file', '')
-        file_name = os.path.basename(file_path)
+        file_name = esc(os.path.basename(file_path))
+        file_path_escaped = esc(file_path)
         total_funcs = file.get('total_functions', 0)
         exported = file.get('exported_functions', 0)
-        priority = file.get('priority', 'low')
+        priority = (file.get('priority') or 'low').lower()
+        if priority not in ('high', 'medium', 'low'):
+            priority = 'low'
 
         html += f"""
         <tr>
-            <td><strong>{file_name}</strong><br><small style="color: #666;">{file_path}</small></td>
+            <td><strong>{file_name}</strong><br><small style="color: #666;">{file_path_escaped}</small></td>
             <td>{total_funcs}</td>
             <td>{exported}</td>
-            <td><span class="status-badge priority-{priority}">{priority.upper()}</span></td>
+            <td><span class="status-badge priority-{priority}">{esc(priority.upper())}</span></td>
         </tr>
         """
 
@@ -289,15 +297,18 @@ def _generate_partially_tested_files_section(partially_tested: List[Dict]) -> st
 
     for file in partially_tested[:20]:
         file_path = file.get('file', '')
-        file_name = os.path.basename(file_path)
+        file_name = esc(os.path.basename(file_path))
+        file_path_escaped = esc(file_path)
         coverage = file.get('coverage', 0)
         tested = file.get('tested_functions', 0)
         untested = file.get('untested_functions', 0)
-        priority = file.get('priority', 'low')
+        priority = (file.get('priority') or 'low').lower()
+        if priority not in ('high', 'medium', 'low'):
+            priority = 'low'
 
         html += f"""
         <tr>
-            <td><strong>{file_name}</strong><br><small style="color: #666;">{file_path}</small></td>
+            <td><strong>{file_name}</strong><br><small style="color: #666;">{file_path_escaped}</small></td>
             <td>
                 <div class="progress-bar" style="height: 20px;">
                     <div class="progress-fill" style="width: {coverage}%; font-size: 0.75em;">{coverage:.0f}%</div>
@@ -305,7 +316,7 @@ def _generate_partially_tested_files_section(partially_tested: List[Dict]) -> st
             </td>
             <td>{tested}</td>
             <td>{untested}</td>
-            <td><span class="status-badge priority-{priority}">{priority.upper()}</span></td>
+            <td><span class="status-badge priority-{priority}">{esc(priority.upper())}</span></td>
         </tr>
         """
 
@@ -330,10 +341,10 @@ def _generate_untested_functions_section(untested_functions: List[Dict]) -> str:
     html = '<table class="matrix-table"><thead><tr><th>Function</th><th>File</th><th>Visibility</th><th>Complexity</th></tr></thead><tbody>'
 
     for func in high_priority:
-        func_name = func.get('function', '')
+        func_name = esc(func.get('function', ''))
         file_path = func.get('file', '')
-        file_name = os.path.basename(file_path)
-        visibility = func.get('visibility', 'unknown')
+        file_name = esc(os.path.basename(file_path))
+        visibility = esc(func.get('visibility', 'unknown'))
         complexity = func.get('complexity', 1)
 
         html += f"""
@@ -415,9 +426,9 @@ def generate_comprehensive_html(data: Dict, output_path: str):
         <div class="header">
             <h1>🎯 Unified Test Coverage Analysis</h1>
             <div class="meta">
-                <strong>Directory:</strong> {source_dir} |
-                <strong>Language:</strong> {language.upper()} |
-                <strong>Framework:</strong> {framework} |
+                <strong>Directory:</strong> {esc(source_dir)} |
+                <strong>Language:</strong> {esc(language.upper())} |
+                <strong>Framework:</strong> {esc(framework)} |
                 <strong>Generated:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
             </div>
         </div>
@@ -455,7 +466,7 @@ def generate_comprehensive_html(data: Dict, output_path: str):
 """
 
     for strength in strengths:
-        html += f'<li>{strength}</li>\n'
+        html += f'<li>{esc(strength)}</li>\n'
 
     html += """
                 </ul>
@@ -467,21 +478,23 @@ def generate_comprehensive_html(data: Dict, output_path: str):
 """
 
     for gap in gaps:
-        severity = gap.get('severity', 'MEDIUM')
+        raw_severity = gap.get('severity')
+        severity = (raw_severity or 'MEDIUM').upper()
+        priority_class = severity.lower()
+        if priority_class not in ('high', 'medium', 'low'):
+            priority_class = 'low'
         area = gap.get('area', 'Unknown')
         finding = gap.get('finding', '')
         recommendation = gap.get('recommendation', '')
 
-        priority_class = severity.lower()
-
         html += f"""
             <div class="gap-card {priority_class}">
                 <h4>
-                    <span class="status-badge priority-{priority_class}">{severity} PRIORITY</span>
-                    {area}
+                    <span class="status-badge priority-{priority_class}">{esc(severity)} PRIORITY</span>
+                    {esc(area)}
                 </h4>
-                <div class="impact"><strong>Finding:</strong> {finding}</div>
-                <div class="recommendation">💡 {recommendation}</div>
+                <div class="impact"><strong>Finding:</strong> {esc(finding)}</div>
+                <div class="recommendation">💡 {esc(recommendation)}</div>
             </div>
 """
 
@@ -501,19 +514,19 @@ def generate_comprehensive_html(data: Dict, output_path: str):
     if high_recs:
         html += '<h3 style="color: #dc2626; margin-bottom: 15px;">🔴 High Priority</h3><ul style="margin-left: 20px; line-height: 2;">'
         for _, area, rec in high_recs[:5]:
-            html += f'<li><strong>{area}:</strong> {rec}</li>\n'
+            html += f'<li><strong>{esc(area)}:</strong> {esc(rec)}</li>\n'
         html += '</ul>'
 
     if medium_recs:
         html += '<h3 style="color: #f59e0b; margin: 20px 0 15px;">🟡 Medium Priority</h3><ul style="margin-left: 20px; line-height: 2;">'
         for _, area, rec in medium_recs[:5]:
-            html += f'<li><strong>{area}:</strong> {rec}</li>\n'
+            html += f'<li><strong>{esc(area)}:</strong> {esc(rec)}</li>\n'
         html += '</ul>'
 
     if low_recs:
         html += '<h3 style="color: #3b82f6; margin: 20px 0 15px;">🔵 Low Priority</h3><ul style="margin-left: 20px; line-height: 2;">'
         for _, area, rec in low_recs[:3]:
-            html += f'<li><strong>{area}:</strong> {rec}</li>\n'
+            html += f'<li><strong>{esc(area)}:</strong> {esc(rec)}</li>\n'
         html += '</ul>'
 
     html += """
