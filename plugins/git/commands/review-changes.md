@@ -7,7 +7,7 @@ argument-hint: [--staged|--pr-ready|--commits N]
 git:review-changes
 
 ## Synopsis
-```bash
+```
 /git:review-changes                    # Review current working directory changes
 /git:review-changes --staged           # Review staged changes only
 /git:review-changes --pr-ready         # Generate PR-ready review summary

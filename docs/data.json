@@ -34,7 +34,7 @@
         {
           "name": "review-changes",
           "description": "Automated code review analysis for git changes",
-          "synopsis": "/git:review-changes [--staged|--pr-ready|--commits N]",
+          "synopsis": "/git:review-changes                    # Review current working directory changes",
           "argument_hint": "[--staged|--pr-ready|--commits N]"
         },
         {
