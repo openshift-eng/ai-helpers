@@ -25,7 +25,8 @@ def parse_frontmatter(content: str) -> Dict[str, str]:
 
 def extract_synopsis(content: str) -> str:
     """Extract synopsis from command markdown"""
-    match = re.search(r'## Synopsis\s*```\s*([^\n]+)', content, re.MULTILINE)
+    # Match Synopsis header, optional language identifier, then capture the next non-empty line
+    match = re.search(r'## Synopsis\s*```(?:\w+)?\s*\n([^\n]+)', content, re.MULTILINE)
     if match:
         return match.group(1).strip()
     return ""

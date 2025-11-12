@@ -40,6 +40,11 @@
       "description": "A plugin for Claude session management and persistence"
     },
     {
+      "name": "security",
+      "source": "./plugins/security",
+      "description": "CVE analysis and container image vulnerability scanning for Red Hat ecosystem"
+    },
+    {
       "name": "utils",
       "source": "./plugins/utils",
       "description": "A generic utilities plugin serving as a catch-all for various helper commands"

@@ -290,6 +290,33 @@
       "has_readme": true
     },
     {
+      "name": "security",
+      "description": "CVE analysis and container image vulnerability scanning for Red Hat ecosystem",
+      "version": "0.1.0",
+      "commands": [
+        {
+          "name": "image-grades",
+          "description": "Generate container vulnerability grade report using container-grade-reporter",
+          "synopsis": "/security:image-grades <config.yaml> [--grade <grades>] [--email]",
+          "argument_hint": "<config.yaml> [--grade <grades>] [--email]"
+        },
+        {
+          "name": "set-image-grade-tool-path",
+          "description": "Configure the path to container-grade-reporter tool",
+          "synopsis": "/security:set-image-grade-tool-path <path>",
+          "argument_hint": "<path>"
+        }
+      ],
+      "skills": [
+        {
+          "name": "Container Grade Reporter Integration",
+          "id": "container-grade-reporter",
+          "description": "Integration guide for using the container-grade-reporter tool to fetch and process container vulnerability grades"
+        }
+      ],
+      "has_readme": true
+    },
+    {
       "name": "utils",
       "description": "A generic utilities plugin serving as a catch-all for various helper commands",
       "version": "0.0.1",
