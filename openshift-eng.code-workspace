@@ -1,0 +1,49 @@
+{
+  // VS Code workspace for GENERAL OpenShift resources
+  // This opens ai-helpers (automation) and enhancements (knowledge) together
+  //
+  // Your team likely has additional repos - add them here or create a separate workspace!
+  // Example: Add your team's operator, test suite, or other repos to this list
+
+  "folders": [
+    {
+      "name": "🤖 AI Helpers (General Automation)",
+      "path": "."
+    },
+    {
+      "name": "📚 Enhancements (General Knowledge)",
+      "path": "../enhancements"
+    }
+    // Add your team-specific repos here, e.g.:
+    // {
+    //   "name": "Your Component",
+    //   "path": "../your-component-repo"
+    // }
+  ],
+  "settings": {
+    "files.exclude": {
+      "**/.git": true,
+      "**/.work": true,
+      "**/node_modules": true
+    },
+    "search.exclude": {
+      "**/.git": true,
+      "**/.work": true,
+      "**/node_modules": true
+    },
+    "editor.formatOnSave": true,
+    "editor.rulers": [
+      80,
+      120
+    ],
+    "files.trimTrailingWhitespace": true,
+    "files.insertFinalNewline": true
+  },
+  "extensions": {
+    "recommendations": [
+      "yzhang.markdown-all-in-one",
+      "davidanson.vscode-markdownlint",
+      "redhat.vscode-yaml"
+    ]
+  }
+}

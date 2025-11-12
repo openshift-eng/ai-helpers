@@ -2,6 +2,152 @@
 
 A collection of Claude Code plugins to automate and assist with various development tasks.
 
+## 🚀 New Hire Quick Start
+
+### Understanding General vs Team-Specific Resources
+
+Welcome to OpenShift engineering! OpenShift consists of **dozens of teams** working across **many repositories**. This guide focuses on **general OpenShift resources** useful to all teams.
+
+#### General Resources (All Teams)
+
+**1. ai-helpers (THIS REPO) - General Automation**
+- 🤖 Claude Code automation plugins for common tasks
+- 🔧 Workflow commands: JIRA, CI analysis, component health
+- 📝 Tools useful across all OpenShift teams
+- 🎯 **Use for:** JIRA automation, CI debugging, bug tracking
+
+**2. openshift/enhancements - General OpenShift Knowledge**
+- 📚 Enhancement proposals (KEPs) for OpenShift features
+- 🏗️ Architecture docs for how OpenShift works
+- 📖 Process docs for the OpenShift project
+- 🔍 **Use for:** Understanding OpenShift design, cross-component architecture
+
+#### Team-Specific Resources
+
+Your specific team (e.g., kube-apiserver, networking, storage, etc.) has:
+- **Component repos**: Your team's code (operators, controllers, etc.)
+- **Team docs**: Team-specific runbooks and guides
+- **Team tools**: Custom automation and development tools
+
+👉 **Ask your manager or team lead** about team-specific repositories and onboarding!
+
+### Setup General Resources (5 minutes)
+
+This section covers general OpenShift resources. Your team will guide you through team-specific setup separately.
+
+#### Step 1: Clone General Repositories
+
+```bash
+# ai-helpers: General automation (you likely have this already)
+git clone https://github.com/openshift-eng/ai-helpers.git
+
+# enhancements: General OpenShift knowledge (optional but recommended)
+cd .. && git clone https://github.com/openshift/enhancements.git
+
+# Or clone enhancements to Go workspace:
+mkdir -p ~/go/src/github.com/openshift
+cd ~/go/src/github.com/openshift
+git clone https://github.com/openshift/enhancements.git
+```
+
+#### Step 2: Open in Claude Code
+
+**Option A: Use the Workspace File (Recommended)**
+
+Open both repos together using the provided workspace file:
+
+```bash
+# From the ai-helpers directory
+code openshift-eng.code-workspace
+```
+
+This opens both ai-helpers and enhancements side-by-side with optimal settings.
+
+**Option B: Open ai-helpers Only**
+
+```bash
+cd path/to/ai-helpers
+code .
+```
+
+You can open enhancements later in a separate window when needed.
+
+#### Step 3: Verify Your Setup
+
+In Claude Code, run:
+
+```bash
+/onboarding:start
+```
+
+This command will:
+- ✅ Detect if you have the enhancements repo
+- ⚙️ Check your environment variables (JIRA credentials, etc.)
+- 📋 Show you available commands
+- 🎯 Provide personalized next steps
+
+#### Step 4: Start Automating
+
+Try your first automation commands:
+
+```bash
+# See component bug metrics
+/component-health:summarize-jiras OCPBUGS --component "kube-apiserver"
+
+# Search for documentation across both repos
+/onboarding:search "networking"
+
+# Create a JIRA ticket
+/jira:create task OCPBUGS "My first automated ticket"
+```
+
+### Navigation Tips
+
+**Working in ai-helpers (automation):**
+- Use slash commands like `/jira:solve`, `/component-health:summarize-jiras`
+- This repo provides tools, not technical documentation
+- Commands are organized by plugin in `plugins/`
+
+**When you need deep technical knowledge:**
+1. Open the enhancements repo in a new Claude Code window:
+   ```bash
+   cd path/to/enhancements
+   code . --new-window
+   ```
+2. Ask Claude about specific enhancement proposals (KEPs)
+3. Search for architecture documentation
+4. Understand design decisions and feature history
+
+**Cross-repo search from here:**
+```bash
+/onboarding:search "your topic"
+```
+Searches both repos and routes you to the right documentation!
+
+### Why These General Repos?
+
+- **ai-helpers**: Automates common tasks (JIRA, CI, bug tracking) across all teams
+- **enhancements**: Explains how OpenShift works at a high level
+
+These are **general resources** useful regardless of your team. They complement (but don't replace) your team-specific repositories. Think of them as:
+- **ai-helpers**: Swiss Army knife of automation tools
+- **enhancements**: OpenShift architectural encyclopedia
+
+Your team's specific repos will teach you about your component; these teach you about OpenShift as a whole.
+
+### Need Help?
+
+```bash
+# Verify your setup anytime
+/onboarding:start
+
+# Search for help on any topic
+/onboarding:search "topic"
+
+# See all available commands
+Type / in Claude Code to see autocomplete
+```
+
 ## Installation
 
 ### From the Claude Code Plugin Marketplace
