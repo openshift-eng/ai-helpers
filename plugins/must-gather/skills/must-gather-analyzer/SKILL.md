@@ -176,6 +176,28 @@ Shows storage resources:
 - Storage classes
 - Pending/unbound volumes
 
+#### CAMGI - Cluster Autoscaler Inspector
+```bash
+# Start CAMGI web interface
+./scripts/run-camgi.sh <must-gather-path>
+
+# Stop CAMGI containers
+./scripts/run-camgi.sh stop
+
+# Or use slash command
+/must-gather:camgi <must-gather-path>
+/must-gather:camgi stop
+```
+
+Interactive web-based analysis for cluster autoscaler:
+- Examines cluster autoscaler configuration and behavior
+- Provides visual interface for investigating autoscaler decisions
+- Reviews scaling events and node group status
+- Helps debug autoscaler-related issues
+- Automatically handles permissions and browser launching
+- Runs on http://127.0.0.1:8080
+- See `scripts/README-CAMGI.md` for detailed documentation
+
 ### 3. Interpret and Report
 
 After running the scripts:
@@ -236,6 +258,12 @@ Output: etcd cluster health and member status
 Parses: `cluster-scoped-resources/core/persistentvolumes/`, `namespaces/*/core/persistentvolumeclaims.yaml`
 Output: PV and PVC status tables
 
+### scripts/run-camgi.sh
+Launches: CAMGI (Cluster Autoscaler Must-Gather Inspector) web interface
+Output: Interactive web UI at http://127.0.0.1:8080 for autoscaler analysis
+Prerequisites: Podman/Docker (containerized) or `pip3 install okd-camgi` (local)
+See: `scripts/README-CAMGI.md` for detailed documentation
+
 ## Tips for Analysis
 
 1. **Start with Cluster Operators**: They often reveal system-wide issues
@@ -261,6 +289,11 @@ Output: PV and PVC status tables
 1. Run `analyze_network.py` - check network health
 2. Run `analyze_pods.py --namespace openshift-ovn-kubernetes`
 3. Check PodNetworkConnectivityCheck results
+
+### "Cluster autoscaler problems"
+1. Run `run-camgi.sh <must-gather-path>` - launch interactive autoscaler inspector
+2. Use CAMGI web UI to examine autoscaler configuration and scaling events
+3. Review autoscaler decisions and node group status
 
 ## Next Steps After Analysis
 
