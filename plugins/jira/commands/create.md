@@ -95,7 +95,7 @@ Analyze summary text for context clues:
 
 **Universal requirements (MUST be applied to ALL tickets):**
 - **Security level:** Red Hat Employee (required)
-- **Labels:** ai-generated-jira (required)
+- **Labels:** made-by-ai-helpers (required)
 
 **Project defaults:**
 - May include default project for certain issue types
@@ -176,7 +176,7 @@ Use the `mcp__atlassian__jira_create_issue` MCP tool with collected parameters.
 
 **Required fields (MUST be included):**
 - `security`: `{"name": "Red Hat Employee"}`
-- `labels`: `["ai-generated-jira"]` (may be combined with additional labels)
+- `labels`: `["made-by-ai-helpers"]` (may be combined with additional labels)
 
 **Project-specific and team-specific fields:**
 - Custom field mappings

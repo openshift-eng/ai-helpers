@@ -384,7 +384,7 @@ Out of scope: Custom metrics-based scaling (will be separate story CNTRLPLANE-45
     components="HyperShift / ROSA",
     additional_fields={
         "customfield_12319940": "openshift-4.21",  # target version
-        "labels": ["ai-generated-jira"],
+        "labels": ["made-by-ai-helpers"],
         "security": {"name": "Red Hat Employee"}
     }
 )
@@ -650,7 +650,7 @@ URL: https://jira.example.com/browse/MYPROJECT-123
 **Auto-applied (via cntrlplane skill):**
 - Component: HyperShift / ROSA (detected from "ROSA HCP")
 - Target Version: openshift-4.21
-- Labels: ai-generated-jira
+- Labels: made-by-ai-helpers
 - Security: Red Hat Employee
 
 **Interactive prompts:**

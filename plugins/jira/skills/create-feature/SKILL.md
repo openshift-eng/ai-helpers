@@ -448,7 +448,7 @@ h3. Mitigation
     components="HyperShift",
     additional_fields={
         "customfield_12319940": "openshift-4.21",  # target version (initial)
-        "labels": ["ai-generated-jira", "observability", "enterprise"],
+        "labels": ["made-by-ai-helpers", "observability", "enterprise"],
         "security": {"name": "Red Hat Employee"}
     }
 )

@@ -92,7 +92,7 @@ HyperShift team uses specific version defaults:
 
 ## Labels
 
-In addition to `ai-generated-jira` (from CNTRLPLANE skill), HyperShift issues may include:
+In addition to `made-by-ai-helpers` (from CNTRLPLANE skill), HyperShift issues may include:
 
 **Platform-specific:**
 - `aro-hcp` - ARO HCP specific
@@ -123,7 +123,7 @@ mcp__atlassian__jira_create_issue(
     components="HyperShift / ARO" | "HyperShift / ROSA" | "HyperShift",
     additional_fields={
         "customfield_12319940": "openshift-4.21",  # target version
-        "labels": ["ai-generated-jira"],
+        "labels": ["made-by-ai-helpers"],
         "security": {"name": "Red Hat Employee"}
     }
 )
@@ -141,7 +141,7 @@ mcp__atlassian__jira_create_issue(
     additional_fields={
         "versions": [{"name": "4.21"}],          # affects version
         "customfield_12319940": "4.21",           # target version
-        "labels": ["ai-generated-jira"],
+        "labels": ["made-by-ai-helpers"],
         "security": {"name": "Red Hat Employee"}
     }
 )
@@ -159,7 +159,7 @@ mcp__atlassian__jira_create_issue(
 **Auto-detected:**
 - Component: **HyperShift / ROSA** (detected from "ROSA HCP")
 - Target Version: openshift-4.21
-- Labels: ai-generated-jira
+- Labels: made-by-ai-helpers
 - Security: Red Hat Employee
 
 **Interactive prompts:**
@@ -182,7 +182,7 @@ mcp__atlassian__jira_create_issue(
 - Component: **HyperShift / ARO** (detected from "ARO HCP")
 - Affected Version: 4.21 (default, user can override)
 - Target Version: 4.21
-- Labels: ai-generated-jira
+- Labels: made-by-ai-helpers
 - Security: Red Hat Employee
 
 **Interactive prompts:**
@@ -202,7 +202,7 @@ mcp__atlassian__jira_create_issue(
 - Component: **HyperShift** (platform-agnostic, from "HyperShift operator")
 - Target Version: openshift-4.21
 - Epic Name: Same as summary
-- Labels: ai-generated-jira
+- Labels: made-by-ai-helpers
 - Security: Red Hat Employee
 
 **Interactive prompts:**
@@ -222,7 +222,7 @@ mcp__atlassian__jira_create_issue(
 **Auto-detected:**
 - Component: **HyperShift** (affects both platforms)
 - Target Version: openshift-4.21
-- Labels: ai-generated-jira
+- Labels: made-by-ai-helpers
 - Security: Red Hat Employee
 
 **Interactive prompts:**

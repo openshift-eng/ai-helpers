@@ -28,7 +28,7 @@ This skill is automatically invoked by the `/jira:create` command when the proje
 
 ## Version Requirements
 
-**Note:** Universal requirements (Security Level: Red Hat Employee, Labels: ai-generated-jira) are defined in the `/jira:create` command and automatically applied to all tickets.
+**Note:** Universal requirements (Security Level: Red Hat Employee, Labels: made-by-ai-helpers) are defined in the `/jira:create` command and automatically applied to all tickets.
 
 ### Target Version (customfield_12319940)
 **Purpose:** Target release version for the feature/story/task
@@ -100,7 +100,7 @@ mcp__atlassian__jira_create_issue(
     components="<component name>",  # if required by team
     additional_fields={
         "customfield_12319940": "openshift-4.21",  # target version (default)
-        "labels": ["ai-generated-jira"],
+        "labels": ["made-by-ai-helpers"],
         "security": {"name": "Red Hat Employee"}
     }
 )
@@ -118,7 +118,7 @@ mcp__atlassian__jira_create_issue(
     additional_fields={
         "customfield_12319940": "openshift-4.21",
         "customfield_epicname": "<epic name>",  # required, same as summary
-        "labels": ["ai-generated-jira"],
+        "labels": ["made-by-ai-helpers"],
         "security": {"name": "Red Hat Employee"},
         "parent": {"key": "CNTRLPLANE-123"}  # if --parent specified
     }
@@ -136,7 +136,7 @@ mcp__atlassian__jira_create_issue(
     components="<component name>",  # if required
     additional_fields={
         "customfield_12319940": "openshift-4.21",
-        "labels": ["ai-generated-jira"],
+        "labels": ["made-by-ai-helpers"],
         "security": {"name": "Red Hat Employee"}
     }
 )
@@ -153,7 +153,7 @@ mcp__atlassian__jira_create_issue(
     components="<component name>",  # if required
     additional_fields={
         "customfield_12319940": "openshift-4.21",
-        "labels": ["ai-generated-jira"],
+        "labels": ["made-by-ai-helpers"],
         "security": {"name": "Red Hat Employee"},
         "parent": {"key": "CNTRLPLANE-456"}  # if --parent specified
     }
@@ -170,7 +170,7 @@ mcp__atlassian__jira_create_issue(
 | Description | `description` | Formatted template content |
 | Component | `components` | Team-specific (optional) |
 | Target Version | `additional_fields.customfield_12319940` | `"openshift-4.21"` (default) |
-| Labels | `additional_fields.labels` | `["ai-generated-jira"]` (required) |
+| Labels | `additional_fields.labels` | `["made-by-ai-helpers"]` (required) |
 | Security Level | `additional_fields.security` | `{"name": "Red Hat Employee"}` (required) |
 | Parent Link | `additional_fields.parent` | `{"key": "PARENT-123"}` |
 | Epic Name | `additional_fields.customfield_epicname` | Same as summary (epics only) |
@@ -186,7 +186,7 @@ mcp__atlassian__jira_create_issue(
 
 ## Examples
 
-**Note:** All examples automatically apply universal requirements (Security: Red Hat Employee, Labels: ai-generated-jira) as defined in `/jira:create` command.
+**Note:** All examples automatically apply universal requirements (Security: Red Hat Employee, Labels: made-by-ai-helpers) as defined in `/jira:create` command.
 
 ### Create CNTRLPLANE Story
 

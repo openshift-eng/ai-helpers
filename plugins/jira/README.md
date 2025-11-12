@@ -155,7 +155,7 @@ Create well-formed Jira issues (stories, epics, features, tasks, bugs) with inte
 ```
 
 **Key Features:**
-- **Universal requirements** - All tickets MUST include Security Level: Red Hat Employee and label: ai-generated-jira
+- **Universal requirements** - All tickets MUST include Security Level: Red Hat Employee and label: made-by-ai-helpers
 - **Smart defaults** - Project and team-specific conventions applied automatically
 - **Interactive templates** - Guides you through user story format, acceptance criteria, bug templates
 - **Security validation** - Scans for credentials and secrets before submission

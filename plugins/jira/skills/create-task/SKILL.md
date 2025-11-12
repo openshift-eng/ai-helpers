@@ -287,7 +287,7 @@ Reference: API changes introduced in PR #1234
     components="HyperShift",
     additional_fields={
         "customfield_12319940": "openshift-4.21",  # target version
-        "labels": ["ai-generated-jira", "documentation"],
+        "labels": ["made-by-ai-helpers", "documentation"],
         "security": {"name": "Red Hat Employee"}
     }
 )

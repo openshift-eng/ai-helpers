@@ -331,7 +331,7 @@ h2. Dependencies
     additional_fields={
         "customfield_12319940": "openshift-4.21",  # target version
         "customfield_epicname": "Multi-cluster metrics aggregation for ROSA HCP",  # epic name
-        "labels": ["ai-generated-jira", "observability"],
+        "labels": ["made-by-ai-helpers", "observability"],
         "security": {"name": "Red Hat Employee"}
     }
 )
@@ -570,7 +570,7 @@ Parent feature? (optional)
 - Component: HyperShift / ARO (detected from "ARO HCP")
 - Target Version: openshift-4.21
 - Epic Name: Same as summary
-- Labels: ai-generated-jira
+- Labels: made-by-ai-helpers
 - Security: Red Hat Employee
 
 **Interactive prompts:**

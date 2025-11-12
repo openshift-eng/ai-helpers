@@ -321,7 +321,7 @@ Logs attached.
     additional_fields={
         "versions": [{"name": "4.21"}],           # affects version
         "customfield_12319940": "4.21",            # target version
-        "labels": ["ai-generated-jira"],
+        "labels": ["made-by-ai-helpers"],
         "security": {"name": "Red Hat Employee"}   # if required
     }
 )
@@ -503,7 +503,7 @@ Any additional context?
 - Component: HyperShift / ROSA (detected from "ROSA HCP")
 - Affects Version: 4.21
 - Target Version: 4.21
-- Labels: ai-generated-jira
+- Labels: made-by-ai-helpers
 - Security: Red Hat Employee
 
 **Interactive prompts:**

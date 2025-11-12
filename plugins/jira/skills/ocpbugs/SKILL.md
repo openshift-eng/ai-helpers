@@ -28,7 +28,7 @@ This skill is automatically invoked by the `/jira:create` command when the proje
 
 ## Version Requirements
 
-**Note:** Universal requirements (Security Level: Red Hat Employee, Labels: ai-generated-jira) are defined in the `/jira:create` command and automatically applied to all tickets.
+**Note:** Universal requirements (Security Level: Red Hat Employee, Labels: made-by-ai-helpers) are defined in the `/jira:create` command and automatically applied to all tickets.
 
 ### Affects Version/s (`versions`)
 **Purpose:** Version where the bug was found
@@ -100,7 +100,7 @@ mcp__atlassian__jira_create_issue(
     additional_fields={
         "versions": [{"name": "4.21"}],           # affects version (user-specified)
         "customfield_12319940": "openshift-4.21", # target version (default or user-specified)
-        "labels": ["ai-generated-jira"],
+        "labels": ["made-by-ai-helpers"],
         "security": {"name": "Red Hat Employee"}
     }
 )
@@ -117,7 +117,7 @@ mcp__atlassian__jira_create_issue(
 | Component | `components` | Team-specific (optional) |
 | Affects Version | `additional_fields.versions` | `[{"name": "4.21"}]` (user-specified) |
 | Target Version | `additional_fields.customfield_12319940` | `"openshift-4.21"` (default or user-specified) |
-| Labels | `additional_fields.labels` | `["ai-generated-jira"]` (required) |
+| Labels | `additional_fields.labels` | `["made-by-ai-helpers"]` (required) |
 | Security Level | `additional_fields.security` | `{"name": "Red Hat Employee"}` (required) |
 
 ## Interactive Prompts
@@ -132,7 +132,7 @@ mcp__atlassian__jira_create_issue(
 
 ## Examples
 
-**Note:** All examples automatically apply universal requirements (Security: Red Hat Employee, Labels: ai-generated-jira) as defined in `/jira:create` command.
+**Note:** All examples automatically apply universal requirements (Security: Red Hat Employee, Labels: made-by-ai-helpers) as defined in `/jira:create` command.
 
 ### Create Bug with Minimal Info
 
