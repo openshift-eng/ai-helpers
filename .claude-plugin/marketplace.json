@@ -78,6 +78,11 @@
       "name": "hcp",
       "source": "./plugins/hcp",
       "description": "Generate HyperShift cluster creation commands via hcp CLI from natural language descriptions"
+    },
+    {
+      "name": "test-coverage",
+      "source": "./plugins/test-coverage",
+      "description": "Analyze test coverage and identify gaps in test scenarios"
     }
   ]
 }

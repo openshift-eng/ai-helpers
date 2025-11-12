@@ -603,6 +603,38 @@
         }
       ],
       "has_readme": true
+    },
+    {
+      "name": "test-coverage",
+      "description": "Analyze test coverage and identify gaps in test scenarios",
+      "version": "0.0.1",
+      "commands": [
+        {
+          "name": "analyze",
+          "description": "Analyze test code structure without running tests to identify coverage gaps",
+          "synopsis": "/test-coverage:analyze <path-or-url> [--output <path>] [--priority <level>] [--test-structure-only]",
+          "argument_hint": "<path-or-url> [--output <path>] [--priority <level>] [--test-structure-only]"
+        },
+        {
+          "name": "gaps",
+          "description": "Identify E2E test scenario gaps in OpenShift/Kubernetes tests (component-agnostic)",
+          "synopsis": "bash",
+          "argument_hint": "<test-file-or-url> [--output <path>]"
+        }
+      ],
+      "skills": [
+        {
+          "name": "Test Structure Analysis",
+          "id": "analyze",
+          "description": "Analyze test code structure directly to provide coverage analysis"
+        },
+        {
+          "name": "Component-Aware Test Gap Analysis",
+          "id": "gaps",
+          "description": "Intelligently identify missing test coverage based on component type"
+        }
+      ],
+      "has_readme": true
     }
   ]
 }

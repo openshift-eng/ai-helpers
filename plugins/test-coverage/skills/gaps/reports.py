@@ -12,7 +12,7 @@ from typing import Dict, List
 
 # Import shared CSS styles
 try:
-    from ..common.report_styles import get_common_css
+    from ...utils.common.report_styles import get_common_css
 except ImportError:
     import sys
     import os
@@ -20,7 +20,7 @@ except ImportError:
     parent_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     if parent_dir not in sys.path:
         sys.path.insert(0, parent_dir)
-    from skills.common.report_styles import get_common_css
+    from utils.common.report_styles import get_common_css
 
 
 # Component type constants
