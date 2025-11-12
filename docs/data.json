@@ -14,6 +14,12 @@
           "argument_hint": "[--dry-run] [--merged-only] [--remote]"
         },
         {
+          "name": "branch-resolve",
+          "description": "Analyze and resolve git branch issues (conflicts, divergence, push/pull problems)",
+          "synopsis": "/git:branch-resolve [issue-description]",
+          "argument_hint": "[issue-description]"
+        },
+        {
           "name": "cherry-pick-by-patch",
           "description": "Cherry-pick git commit into current branch by \"patch\" command",
           "synopsis": "/git:cherry-pick-by-patch commit_hash",
