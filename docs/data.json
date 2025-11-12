@@ -87,7 +87,7 @@
         },
         {
           "name": "create",
-          "description": "Create Jira issues (story, epic, feature, task, bug) with proper formatting",
+          "description": "Create Jira issues (story, epic, feature, task, bug, feature-request) with proper formatting",
           "synopsis": "/jira:create <type> [project-key] <summary> [options]",
           "argument_hint": "<type> [project-key] <summary> [--component <name>] [--version <version>] [--parent <key>]"
         },
@@ -136,6 +136,11 @@
           "name": "Create Jira Feature",
           "id": "create-feature",
           "description": "Implementation guide for creating Jira features representing strategic objectives and market problems"
+        },
+        {
+          "name": "Create Jira Feature Request",
+          "id": "create-feature-request",
+          "description": "Implementation guide for creating Feature Requests in the RFE project"
         },
         {
           "name": "Create Release Note",

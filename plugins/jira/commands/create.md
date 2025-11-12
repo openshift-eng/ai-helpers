@@ -1,5 +1,5 @@
 ---
-description: Create Jira issues (story, epic, feature, task, bug) with proper formatting
+description: Create Jira issues (story, epic, feature, task, bug, feature-request) with proper formatting
 argument-hint: <type> [project-key] <summary> [--component <name>] [--version <version>] [--parent <key>]
 ---
 
@@ -12,22 +12,23 @@ jira:create
 ```
 
 ## Description
-The `jira:create` command creates Jira issues following best practices and team-specific conventions. It supports creating stories, epics, features, tasks, and bugs with intelligent defaults, interactive prompts, and validation.
+The `jira:create` command creates Jira issues following best practices and team-specific conventions. It supports creating stories, epics, features, tasks, bugs, and feature requests with intelligent defaults, interactive prompts, and validation.
 
 This command is particularly useful for:
 - Creating well-formed user stories with acceptance criteria
 - Organizing epics and features with proper hierarchy
 - Submitting bugs with complete reproduction steps
+- Capturing customer-driven feature requests with business justification
 - Maintaining consistency across team Jira practices
 
 ## Key Features
 
-- **Multi-Type Support** - Create stories, epics, features, tasks, or bugs from a single command
-- **Smart Defaults** - Automatically applies project-specific conventions (e.g., CNTRLPLANE, OCPBUGS)
+- **Multi-Type Support** - Create stories, epics, features, tasks, bugs, or feature requests from a single command
+- **Smart Defaults** - Automatically applies project-specific conventions (e.g., CNTRLPLANE, OCPBUGS, RFE)
 - **Interactive Guidance** - Prompts for missing information with helpful templates
 - **Context Detection** - Analyzes summary text to suggest components (ARO, ROSA, HyperShift)
 - **Security Validation** - Scans for credentials and secrets before submission
-- **Template Support** - Provides user story templates, bug report templates, acceptance criteria formats
+- **Template Support** - Provides user story templates, bug report templates, feature request workflows, acceptance criteria formats
 
 ## Implementation
 
@@ -61,6 +62,12 @@ Invoke the appropriate skill based on issue type using the Skill tool:
   - Loads bug report template
   - Provides structured reproduction steps
   - Offers severity and reproducibility guidance
+
+- **Type: `feature-request`** → Invoke `jira:create-feature-request` skill
+  - Loads customer-driven feature request guidance
+  - Provides 4-question workflow (title, description, business requirements, components)
+  - Offers component mapping from teams/operators
+  - Targets RFE project
 
 ### 🏢 Phase 2: Apply Project-Specific Conventions
 
@@ -149,6 +156,13 @@ Prompt for missing required information based on issue type:
   - Actual results (include error messages)
   - Expected results (correct behavior)
   - Additional info (logs, screenshots)
+
+**For Feature Requests:**
+- Use 4-question workflow:
+  1. Proposed title of feature request
+  2. Nature and description (current limitations, desired behavior, use case)
+  3. Business requirements (customer impact, regulatory drivers, justification)
+  4. Affected packages and components (teams, operators, component mapping)
 
 ### 🔒 Phase 6: Security Validation
 
@@ -251,7 +265,13 @@ Applied defaults:
    ```
    → Prompts for market problem, strategic value, success criteria, epic breakdown
 
-8. **Create with project-specific conventions** (examples vary by project):
+8. **Create a feature request**:
+   ```
+   /jira:create feature-request RFE "Support custom SSL certificates for ROSA HCP"
+   ```
+   → Prompts for nature/description, business requirements, affected components (4-question workflow)
+
+9. **Create with project-specific conventions** (examples vary by project):
    ```
    /jira:create story SPECIALPROJECT "New capability"
    ```
@@ -261,11 +281,12 @@ Applied defaults:
 
 - **$1 – type** *(required)*
   Issue type to create.
-  **Options:** `story` | `epic` | `feature` | `task` | `bug`
+  **Options:** `story` | `epic` | `feature` | `task` | `bug` | `feature-request`
 
-- **$2 – project-key** *(optional for bugs)*
-  JIRA project key (e.g., `CNTRLPLANE`, `OCPBUGS`, `MYPROJECT`).
+- **$2 – project-key** *(optional for bugs and feature-requests)*
+  JIRA project key (e.g., `CNTRLPLANE`, `OCPBUGS`, `RFE`, `MYPROJECT`).
   **Default for bugs:** `OCPBUGS`
+  **Default for feature-requests:** `RFE`
   **Required for:** stories, epics, features, tasks
 
 - **$3 – summary** *(required)*
@@ -460,6 +481,7 @@ The following skills are automatically invoked by this command:
 - **create-feature** - Feature planning and strategy
 - **create-task** - Technical task creation
 - **create-bug** - Bug report templates
+- **create-feature-request** - Customer-driven feature request workflow for RFE project
 
 **Project-specific skills:**
 - **cntrlplane** - CNTRLPLANE project conventions (stories, epics, features, tasks)
@@ -472,6 +494,7 @@ To view skill details:
 ```bash
 ls plugins/jira/skills/
 cat plugins/jira/skills/create-story/SKILL.md
+cat plugins/jira/skills/create-feature-request/SKILL.md
 cat plugins/jira/skills/cntrlplane/SKILL.md
 cat plugins/jira/skills/ocpbugs/SKILL.md
 cat plugins/jira/skills/hypershift/SKILL.md
