@@ -176,6 +176,19 @@ Shows storage resources:
 - Storage classes
 - Pending/unbound volumes
 
+#### Monitoring Analysis
+```bash
+# All alerts.
+./scripts/analyze_prometheus.py <must-gather-path>
+
+# Alerts in specific namespace
+./scripts/analyze_prometheus.py <must-gather-path> --namespace openshift-monitoring
+```
+
+Shows monitoring information:
+- Alerts (state, namespace, name, active since, labels)
+- Total of pending/firing alerts
+
 ### 3. Interpret and Report
 
 After running the scripts:

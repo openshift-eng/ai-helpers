@@ -226,6 +226,31 @@ NAMESPACE                      NAME                                STATUS     VO
 openshift-monitoring           prometheus-data-prometheus-0        Bound      pvc-3d4a0119-b2f2-44fa-9b2f-b11c611c74f2       20Gi
 ```
 
+#### `analyze_prometheus.py`
+
+Analyzes Prometheus alerts.
+
+```bash
+# Alerts in all namespaces
+./analyze_prometheus.py <must-gather-path>
+
+# Alerts from a specific namespace
+./analyze_prometheus.py <must-gather-path> --namespace openshift-monitoring
+```
+
+Output format:
+```
+ALERTS
+STATE      NAMESPACE                                          NAME                                               SEVERITY   SINCE                LABELS
+firing     openshift-monitoring                               Watchdog                                           none       2025-10-06T09:54:21Z {}
+firing     openshift-monitoring                               AlertmanagerReceiversNotConfigured                 warning    2025-10-06T09:54:51Z {}
+
+================================================================================
+SUMMARY
+Active alerts: 2 total (0 pending, 2 firing)
+================================================================================
+```
+
 ### Slash Commands
 
 #### `/must-gather:analyze [path] [component]`
