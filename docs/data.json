@@ -307,6 +307,12 @@
           "argument_hint": "[GitHub PR URLs]"
         },
         {
+          "name": "install-gitleaks",
+          "description": "Install gitleaks for detecting secrets in code",
+          "synopsis": "/utils:install-gitleaks",
+          "argument_hint": ""
+        },
+        {
           "name": "placeholder",
           "description": "Placeholder command for the utils plugin",
           "synopsis": "/utils:placeholder",
@@ -319,7 +325,13 @@
           "argument_hint": "<PR_NUMBER|open> [JIRA_PROJECT] [COMPONENT]"
         }
       ],
-      "skills": [],
+      "skills": [
+        {
+          "name": "Redact Sensitive Information",
+          "id": "redact-sensitive-info",
+          "description": "ALWAYS use this skill when users ask to redact secrets, clean up config files, remove passwords/tokens/credentials, make files safe to share, or sanitize sensitive data. Includes automated gitleaks verification. DO NOT manually redact - use this skill instead!"
+        }
+      ],
       "has_readme": true
     },
     {
