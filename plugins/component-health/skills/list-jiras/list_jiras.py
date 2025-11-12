@@ -2,7 +2,7 @@
 """
 JIRA Bug Query Script
 
-This script queries JIRA bugs for a specified project and generates summary statistics.
+This script queries JIRA bugs for a specified project and returns raw issue data.
 It uses environment variables for authentication and supports filtering by component,
 status, and other criteria.
 
@@ -25,7 +25,6 @@ import urllib.request
 import urllib.error
 import urllib.parse
 from typing import Optional, List, Dict, Any
-from collections import defaultdict
 from datetime import datetime, timedelta
 
 
@@ -121,12 +120,6 @@ def fetch_jira_issues(jira_url: str, token: str,
     try:
         with urllib.request.urlopen(request, timeout=30) as response:
             data = json.loads(response.read().decode())
-            
-            # Write raw response to file for inspection
-            with open('jira_response.json', 'w') as f:
-                json.dump(data, f, indent=2)
-            print(f"Wrote raw response to jira_response.json", file=sys.stderr)
-            
             print(f"Fetched {len(data.get('issues', []))} of {data.get('total', 0)} total issues",
                   file=sys.stderr)
             return data
@@ -146,149 +139,10 @@ def fetch_jira_issues(jira_url: str, token: str,
         sys.exit(1)
 
 
-def generate_summary(issues: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """
-    Generate summary statistics from issues.
-
-    Args:
-        issues: List of JIRA issue objects
-
-    Returns:
-        Dictionary containing overall summary and per-component summaries
-    """
-    # Calculate cutoff date for 30 days ago
-    thirty_days_ago = datetime.now() - timedelta(days=30)
-
-    # Overall summary
-    overall_summary = {
-        'total': 0,
-        'opened_last_30_days': 0,
-        'closed_last_30_days': 0,
-        'by_status': defaultdict(int),
-        'by_priority': defaultdict(int),
-        'by_component': defaultdict(int)
-    }
-
-    # Per-component data
-    components_data = defaultdict(lambda: {
-        'total': 0,
-        'opened_last_30_days': 0,
-        'closed_last_30_days': 0,
-        'by_status': defaultdict(int),
-        'by_priority': defaultdict(int)
-    })
-
-    for issue in issues:
-        fields = issue.get('fields', {})
-        overall_summary['total'] += 1
-
-        # Parse created date
-        created_str = fields.get('created')
-        if created_str:
-            try:
-                # JIRA date format: 2024-01-15T10:30:00.000+0000
-                created_date = datetime.strptime(created_str[:19], '%Y-%m-%dT%H:%M:%S')
-                if created_date >= thirty_days_ago:
-                    overall_summary['opened_last_30_days'] += 1
-                    is_recently_opened = True
-                else:
-                    is_recently_opened = False
-            except (ValueError, TypeError):
-                is_recently_opened = False
-        else:
-            is_recently_opened = False
-
-        # Parse resolution date (when issue was closed)
-        resolution_date_str = fields.get('resolutiondate')
-        if resolution_date_str:
-            try:
-                resolution_date = datetime.strptime(resolution_date_str[:19], '%Y-%m-%dT%H:%M:%S')
-                if resolution_date >= thirty_days_ago:
-                    overall_summary['closed_last_30_days'] += 1
-                    is_recently_closed = True
-                else:
-                    is_recently_closed = False
-            except (ValueError, TypeError):
-                is_recently_closed = False
-        else:
-            is_recently_closed = False
-
-        # Count by status
-        status = fields.get('status', {}).get('name', 'Unknown')
-        overall_summary['by_status'][status] += 1
-
-        # Count by priority
-        priority = fields.get('priority')
-        if priority:
-            priority_name = priority.get('name', 'Undefined')
-        else:
-            priority_name = 'Undefined'
-        overall_summary['by_priority'][priority_name] += 1
-
-        # Process components (issues can have multiple components)
-        components = fields.get('components', [])
-        component_names = []
-
-        if components:
-            for component in components:
-                component_name = component.get('name', 'Unknown')
-                component_names.append(component_name)
-                overall_summary['by_component'][component_name] += 1
-        else:
-            component_names = ['No Component']
-            overall_summary['by_component']['No Component'] += 1
-
-        # Update per-component statistics
-        for component_name in component_names:
-            components_data[component_name]['total'] += 1
-            components_data[component_name]['by_status'][status] += 1
-            components_data[component_name]['by_priority'][priority_name] += 1
-            if is_recently_opened:
-                components_data[component_name]['opened_last_30_days'] += 1
-            if is_recently_closed:
-                components_data[component_name]['closed_last_30_days'] += 1
-
-    # Convert defaultdicts to regular dicts and sort
-    overall_summary['by_status'] = dict(sorted(
-        overall_summary['by_status'].items(),
-        key=lambda x: x[1], reverse=True
-    ))
-    overall_summary['by_priority'] = dict(sorted(
-        overall_summary['by_priority'].items(),
-        key=lambda x: x[1], reverse=True
-    ))
-    overall_summary['by_component'] = dict(sorted(
-        overall_summary['by_component'].items(),
-        key=lambda x: x[1], reverse=True
-    ))
-
-    # Convert component data to regular dicts and sort
-    components = {}
-    for comp_name, comp_data in sorted(components_data.items()):
-        components[comp_name] = {
-            'total': comp_data['total'],
-            'opened_last_30_days': comp_data['opened_last_30_days'],
-            'closed_last_30_days': comp_data['closed_last_30_days'],
-            'by_status': dict(sorted(
-                comp_data['by_status'].items(),
-                key=lambda x: x[1], reverse=True
-            )),
-            'by_priority': dict(sorted(
-                comp_data['by_priority'].items(),
-                key=lambda x: x[1], reverse=True
-            ))
-        }
-
-    return {
-        'summary': overall_summary,
-        'components': components
-    }
-
-
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(
-        description='Query JIRA bugs and generate summary statistics',
+        description='Query JIRA bugs and return raw issue data',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -358,10 +212,7 @@ Examples:
     total_count = response.get('total', 0)
     fetched_count = len(issues)
 
-    # Generate summary and component breakdowns
-    data = generate_summary(issues)
-
-    # Build output with metadata
+    # Build output with metadata and raw issues
     output = {
         'project': args.project,
         'total_count': total_count,
@@ -373,15 +224,14 @@ Examples:
             'include_closed': args.include_closed,
             'limit': args.limit
         },
-        'summary': data['summary'],
-        'components': data['components']
+        'issues': issues
     }
 
     # Add note if results are truncated
     if fetched_count < total_count:
         output['note'] = (
             f"Showing first {fetched_count} of {total_count} total results. "
-            f"Increase --limit for more accurate statistics."
+            f"Increase --limit for more data."
         )
 
     # Output JSON to stdout

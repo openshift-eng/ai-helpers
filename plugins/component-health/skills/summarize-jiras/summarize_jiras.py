@@ -1,0 +1,320 @@
+#!/usr/bin/env python3
+"""
+JIRA Bug Summarization Script
+
+This script queries JIRA bugs for a specified project and generates summary statistics.
+It leverages the list_jiras.py script to fetch raw data, then calculates counts by
+status, priority, and component.
+
+Environment Variables:
+    JIRA_URL: Base URL for JIRA instance (e.g., "https://issues.redhat.com")
+    JIRA_PERSONAL_TOKEN: Your JIRA API bearer token or personal access token
+
+Usage:
+    python3 summarize_jiras.py --project OCPBUGS
+    python3 summarize_jiras.py --project OCPBUGS --component "kube-apiserver"
+    python3 summarize_jiras.py --project OCPBUGS --status New "In Progress"
+    python3 summarize_jiras.py --project OCPBUGS --include-closed --limit 500
+"""
+
+import argparse
+import json
+import os
+import sys
+import subprocess
+from typing import List, Dict, Any
+from collections import defaultdict
+from datetime import datetime, timedelta
+
+
+def call_list_jiras(project: str, components: List[str] = None,
+                    statuses: List[str] = None,
+                    include_closed: bool = False,
+                    limit: int = 100) -> Dict[str, Any]:
+    """
+    Call the list_jiras.py script to fetch raw JIRA data.
+
+    Args:
+        project: JIRA project key
+        components: Optional list of component names to filter by
+        statuses: Optional list of status values to filter by
+        include_closed: Whether to include closed bugs
+        limit: Maximum number of issues to fetch
+
+    Returns:
+        Dictionary containing raw JIRA data from list_jiras.py
+    """
+    # Build command to call list_jiras.py
+    script_path = os.path.join(
+        os.path.dirname(os.path.dirname(__file__)),
+        'list-jiras',
+        'list_jiras.py'
+    )
+
+    cmd = ['python3', script_path, '--project', project, '--limit', str(limit)]
+
+    if components:
+        cmd.append('--component')
+        cmd.extend(components)
+
+    if statuses:
+        cmd.append('--status')
+        cmd.extend(statuses)
+
+    if include_closed:
+        cmd.append('--include-closed')
+
+    print(f"Calling list_jiras.py to fetch raw data...", file=sys.stderr)
+
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=60
+        )
+        return json.loads(result.stdout)
+    except subprocess.CalledProcessError as e:
+        print(f"Error calling list_jiras.py: {e}", file=sys.stderr)
+        if e.stderr:
+            print(f"Error output: {e.stderr}", file=sys.stderr)
+        sys.exit(1)
+    except subprocess.TimeoutExpired:
+        print(f"Timeout calling list_jiras.py", file=sys.stderr)
+        sys.exit(1)
+    except json.JSONDecodeError as e:
+        print(f"Error parsing JSON from list_jiras.py: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def generate_summary(issues: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """
+    Generate summary statistics from issues.
+
+    Args:
+        issues: List of JIRA issue objects
+
+    Returns:
+        Dictionary containing overall summary and per-component summaries
+    """
+    # Calculate cutoff date for 30 days ago
+    thirty_days_ago = datetime.now() - timedelta(days=30)
+
+    # Overall summary
+    overall_summary = {
+        'total': 0,
+        'opened_last_30_days': 0,
+        'closed_last_30_days': 0,
+        'by_status': defaultdict(int),
+        'by_priority': defaultdict(int),
+        'by_component': defaultdict(int)
+    }
+
+    # Per-component data
+    components_data = defaultdict(lambda: {
+        'total': 0,
+        'opened_last_30_days': 0,
+        'closed_last_30_days': 0,
+        'by_status': defaultdict(int),
+        'by_priority': defaultdict(int)
+    })
+
+    for issue in issues:
+        fields = issue.get('fields', {})
+        overall_summary['total'] += 1
+
+        # Parse created date
+        created_str = fields.get('created')
+        if created_str:
+            try:
+                # JIRA date format: 2024-01-15T10:30:00.000+0000
+                created_date = datetime.strptime(created_str[:19], '%Y-%m-%dT%H:%M:%S')
+                if created_date >= thirty_days_ago:
+                    overall_summary['opened_last_30_days'] += 1
+                    is_recently_opened = True
+                else:
+                    is_recently_opened = False
+            except (ValueError, TypeError):
+                is_recently_opened = False
+        else:
+            is_recently_opened = False
+
+        # Parse resolution date (when issue was closed)
+        resolution_date_str = fields.get('resolutiondate')
+        if resolution_date_str:
+            try:
+                resolution_date = datetime.strptime(resolution_date_str[:19], '%Y-%m-%dT%H:%M:%S')
+                if resolution_date >= thirty_days_ago:
+                    overall_summary['closed_last_30_days'] += 1
+                    is_recently_closed = True
+                else:
+                    is_recently_closed = False
+            except (ValueError, TypeError):
+                is_recently_closed = False
+        else:
+            is_recently_closed = False
+
+        # Count by status
+        status = fields.get('status', {}).get('name', 'Unknown')
+        overall_summary['by_status'][status] += 1
+
+        # Count by priority
+        priority = fields.get('priority')
+        if priority:
+            priority_name = priority.get('name', 'Undefined')
+        else:
+            priority_name = 'Undefined'
+        overall_summary['by_priority'][priority_name] += 1
+
+        # Process components (issues can have multiple components)
+        components = fields.get('components', [])
+        component_names = []
+
+        if components:
+            for component in components:
+                component_name = component.get('name', 'Unknown')
+                component_names.append(component_name)
+                overall_summary['by_component'][component_name] += 1
+        else:
+            component_names = ['No Component']
+            overall_summary['by_component']['No Component'] += 1
+
+        # Update per-component statistics
+        for component_name in component_names:
+            components_data[component_name]['total'] += 1
+            components_data[component_name]['by_status'][status] += 1
+            components_data[component_name]['by_priority'][priority_name] += 1
+            if is_recently_opened:
+                components_data[component_name]['opened_last_30_days'] += 1
+            if is_recently_closed:
+                components_data[component_name]['closed_last_30_days'] += 1
+
+    # Convert defaultdicts to regular dicts and sort
+    overall_summary['by_status'] = dict(sorted(
+        overall_summary['by_status'].items(),
+        key=lambda x: x[1], reverse=True
+    ))
+    overall_summary['by_priority'] = dict(sorted(
+        overall_summary['by_priority'].items(),
+        key=lambda x: x[1], reverse=True
+    ))
+    overall_summary['by_component'] = dict(sorted(
+        overall_summary['by_component'].items(),
+        key=lambda x: x[1], reverse=True
+    ))
+
+    # Convert component data to regular dicts and sort
+    components = {}
+    for comp_name, comp_data in sorted(components_data.items()):
+        components[comp_name] = {
+            'total': comp_data['total'],
+            'opened_last_30_days': comp_data['opened_last_30_days'],
+            'closed_last_30_days': comp_data['closed_last_30_days'],
+            'by_status': dict(sorted(
+                comp_data['by_status'].items(),
+                key=lambda x: x[1], reverse=True
+            )),
+            'by_priority': dict(sorted(
+                comp_data['by_priority'].items(),
+                key=lambda x: x[1], reverse=True
+            ))
+        }
+
+    return {
+        'summary': overall_summary,
+        'components': components
+    }
+
+
+def main():
+    """Main entry point."""
+    parser = argparse.ArgumentParser(
+        description='Query JIRA bugs and generate summary statistics',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  %(prog)s --project OCPBUGS
+  %(prog)s --project OCPBUGS --component "kube-apiserver"
+  %(prog)s --project OCPBUGS --component "kube-apiserver" "etcd"
+  %(prog)s --project OCPBUGS --status New "In Progress"
+  %(prog)s --project OCPBUGS --include-closed --limit 500
+        """
+    )
+
+    parser.add_argument(
+        '--project',
+        required=True,
+        help='JIRA project key (e.g., OCPBUGS, OCPSTRAT)'
+    )
+
+    parser.add_argument(
+        '--component',
+        nargs='+',
+        help='Filter by component names (space-separated)'
+    )
+
+    parser.add_argument(
+        '--status',
+        nargs='+',
+        help='Filter by status values (space-separated)'
+    )
+
+    parser.add_argument(
+        '--include-closed',
+        action='store_true',
+        help='Include closed bugs in results (default: only open bugs)'
+    )
+
+    parser.add_argument(
+        '--limit',
+        type=int,
+        default=100,
+        help='Maximum number of issues to fetch (default: 100, max: 1000)'
+    )
+
+    args = parser.parse_args()
+
+    # Validate limit
+    if args.limit < 1 or args.limit > 1000:
+        print("Error: --limit must be between 1 and 1000", file=sys.stderr)
+        sys.exit(1)
+
+    # Fetch raw JIRA data using list_jiras.py
+    print(f"Fetching JIRA data for project {args.project}...", file=sys.stderr)
+    raw_data = call_list_jiras(
+        project=args.project,
+        components=args.component,
+        statuses=args.status,
+        include_closed=args.include_closed,
+        limit=args.limit
+    )
+
+    # Extract issues from raw data
+    issues = raw_data.get('issues', [])
+    print(f"Generating summary statistics from {len(issues)} issues...", file=sys.stderr)
+
+    # Generate summary statistics
+    summary_data = generate_summary(issues)
+
+    # Build output with metadata and summaries
+    output = {
+        'project': raw_data.get('project'),
+        'total_count': raw_data.get('total_count'),
+        'fetched_count': raw_data.get('fetched_count'),
+        'query': raw_data.get('query'),
+        'filters': raw_data.get('filters'),
+        'summary': summary_data['summary'],
+        'components': summary_data['components']
+    }
+
+    # Add note if present in raw data
+    if 'note' in raw_data:
+        output['note'] = raw_data['note']
+
+    # Output JSON to stdout
+    print(json.dumps(output, indent=2))
+
+
+if __name__ == '__main__':
+    main()

@@ -1,21 +1,21 @@
 ---
 name: List JIRAs
-description: Query and summarize JIRA bugs for a specific project
+description: Query and return raw JIRA bug data for a specific project
 ---
 
 # List JIRAs
 
-This skill provides functionality to query JIRA bugs for a specified project and generate summary statistics. It uses the JIRA REST API to fetch bug information and provides counts by status, priority, and component.
+This skill provides functionality to query JIRA bugs for a specified project and return raw issue data. It uses the JIRA REST API to fetch complete bug information with all fields and metadata, without performing any summarization.
 
 ## When to Use This Skill
 
 Use this skill when you need to:
 
-- Get a count of open bugs in a JIRA project
-- Analyze bug distribution by status, priority, or component
-- Generate summary reports for bug backlog
-- Track bug trends over time
-- Compare bug counts across different components
+- Fetch raw JIRA issue data for further processing
+- Access complete issue details including all fields
+- Build custom analysis workflows
+- Provide data to other commands (like `summarize-jiras`)
+- Export JIRA data for offline analysis
 
 ## Prerequisites
 
@@ -118,119 +118,73 @@ The script outputs JSON data with the following structure:
   "project": "OCPBUGS",
   "total_count": 1500,
   "fetched_count": 100,
-  "query": "project = OCPBUGS AND status != Closed",
+  "query": "project = OCPBUGS AND (status != Closed OR (status = Closed AND resolved >= \"2025-10-11\"))",
   "filters": {
     "components": null,
     "statuses": null,
     "include_closed": false,
     "limit": 100
   },
-  "summary": {
-    "total": 100,
-    "opened_last_30_days": 15,
-    "closed_last_30_days": 8,
-    "by_status": {
-      "New": 35,
-      "In Progress": 25,
-      "Verified": 20,
-      "Modified": 15,
-      "ON_QA": 5,
-      "Closed": 8
-    },
-    "by_priority": {
-      "Normal": 50,
-      "Major": 30,
-      "Minor": 12,
-      "Critical": 5,
-      "Undefined": 3
-    },
-    "by_component": {
-      "kube-apiserver": 25,
-      "Management Console": 30,
-      "Networking": 20,
-      "etcd": 15,
-      "No Component": 10
-    }
-  },
-  "components": {
-    "kube-apiserver": {
-      "total": 25,
-      "opened_last_30_days": 4,
-      "closed_last_30_days": 2,
-      "by_status": {
-        "New": 10,
-        "In Progress": 8,
-        "Verified": 5,
-        "Modified": 2,
-        "Closed": 2
-      },
-      "by_priority": {
-        "Major": 12,
-        "Normal": 10,
-        "Minor": 2,
-        "Critical": 1
+  "issues": [
+    {
+      "key": "OCPBUGS-12345",
+      "fields": {
+        "summary": "Bug title here",
+        "status": {
+          "name": "New",
+          "id": "1"
+        },
+        "priority": {
+          "name": "Major",
+          "id": "3"
+        },
+        "components": [
+          {"name": "kube-apiserver", "id": "12345"}
+        ],
+        "assignee": {
+          "displayName": "John Doe",
+          "emailAddress": "jdoe@example.com"
+        },
+        "created": "2025-11-01T10:30:00.000+0000",
+        "updated": "2025-11-05T14:20:00.000+0000",
+        "resolutiondate": null,
+        "versions": [
+          {"name": "4.21"}
+        ],
+        "fixVersions": [
+          {"name": "4.22"}
+        ],
+        "customfield_12319940": "4.22.0"
       }
     },
-    "Management Console": {
-      "total": 30,
-      "opened_last_30_days": 6,
-      "closed_last_30_days": 3,
-      "by_status": {
-        "New": 12,
-        "In Progress": 10,
-        "Verified": 6,
-        "Modified": 2,
-        "Closed": 3
-      },
-      "by_priority": {
-        "Normal": 18,
-        "Major": 8,
-        "Minor": 3,
-        "Critical": 1
-      }
-    },
-    "etcd": {
-      "total": 15,
-      "opened_last_30_days": 3,
-      "closed_last_30_days": 2,
-      "by_status": {
-        "New": 8,
-        "In Progress": 4,
-        "Verified": 3,
-        "Closed": 2
-      },
-      "by_priority": {
-        "Normal": 10,
-        "Major": 4,
-        "Critical": 1
-      }
-    }
-  },
-  "note": "Showing first 100 of 1500 total results. Increase --limit for more accurate statistics."
+    ...more issues...
+  ],
+  "note": "Showing first 100 of 1500 total results. Increase --limit for more data."
 }
 ```
 
 **Field Descriptions**:
 
 - `project`: The JIRA project queried
-- `total_count`: Total number of matching issues (from JIRA search results)
+- `total_count`: Total number of matching issues in JIRA (from search results)
 - `fetched_count`: Number of issues actually fetched (limited by --limit parameter)
 - `query`: The JQL query executed (includes filter for recently closed bugs)
 - `filters`: Applied filters (components, statuses, include_closed, limit)
-- `summary`: Overall statistics across all fetched issues
-  - `total`: Count of fetched issues (same as `fetched_count`)
-  - `opened_last_30_days`: Number of issues created in the last 30 days
-  - `closed_last_30_days`: Number of issues closed/resolved in the last 30 days
-  - `by_status`: Count of issues per status (includes recently closed issues)
-  - `by_priority`: Count of issues per priority
-  - `by_component`: Count of issues per component (note: issues can have multiple components)
-- `components`: Per-component breakdown with individual summaries
-  - Each component key maps to:
-    - `total`: Number of issues assigned to this component
-    - `opened_last_30_days`: Number of issues created in the last 30 days for this component
-    - `closed_last_30_days`: Number of issues closed in the last 30 days for this component
-    - `by_status`: Status distribution for this component
-    - `by_priority`: Priority distribution for this component
+- `issues`: Array of raw JIRA issue objects, each containing:
+  - `key`: Issue key (e.g., "OCPBUGS-12345")
+  - `fields`: Object containing all JIRA fields for the issue:
+    - `summary`: Issue title/summary
+    - `status`: Status object with name and ID
+    - `priority`: Priority object with name and ID
+    - `components`: Array of component objects
+    - `assignee`: Assignee object with user details
+    - `created`: Creation timestamp
+    - `updated`: Last updated timestamp
+    - `resolutiondate`: Resolution timestamp (null if not closed)
+    - `versions`: Affects Version/s array
+    - `fixVersions`: Fix Version/s array
+    - `customfield_12319940`: Target Version (custom field)
+    - And many other JIRA fields as applicable
 - `note`: Informational message if results are truncated
 
 **Important Notes**:
@@ -239,20 +193,20 @@ The script outputs JSON data with the following structure:
 - This allows tracking of recent closure activity alongside current open bugs
 - The script fetches a maximum number of issues (default 100, configurable with `--limit`)
 - The `total_count` represents all matching issues in JIRA
-- Summary statistics are based on the fetched issues only
-- For accurate statistics across large datasets, increase the `--limit` parameter
-- Issues can have multiple components, so component totals may sum to more than the overall total
-- `opened_last_30_days` and `closed_last_30_days` help track recent bug flow and velocity
+- The returned data includes ALL fields for each issue, providing complete information
+- For large datasets, increase the `--limit` parameter to fetch more issues
+- Issues can have multiple components
+- All JIRA field data is preserved in the raw format
 
 ### Step 6: Present Results
 
-Based on the JIRA data:
+Based on the raw JIRA data:
 
-1. Present total bug counts
-2. Highlight distribution by status (e.g., how many in "New" vs "In Progress")
-3. Identify priority breakdown (Critical, Major, Normal, etc.)
-4. Show component distribution
-5. Calculate actionable metrics (e.g., New + Assigned = bugs needing triage/work)
+1. Inform the user about the total count vs fetched count
+2. Explain that the raw data includes all JIRA fields
+3. Suggest using `/component-health:summarize-jiras` if they need summary statistics
+4. The raw issue data can be passed to other commands for further processing
+5. Highlight any truncation and suggest increasing --limit if needed
 
 ## Error Handling
 
@@ -321,36 +275,35 @@ python3 plugins/component-health/skills/list-jiras/list_jiras.py \
 
 ## Output Format
 
-The script outputs JSON with summary statistics and metadata:
+The script outputs JSON with metadata and raw issue data:
 
 ```json
 {
   "project": "OCPBUGS",
   "total_count": 5430,
-  "query": "project = OCPBUGS AND status != Closed",
+  "fetched_count": 100,
+  "query": "project = OCPBUGS AND (status != Closed OR (status = Closed AND resolved >= \"2025-10-11\"))",
   "filters": {
     "components": null,
+    "statuses": null,
     "include_closed": false,
     "limit": 100
   },
-  "summary": {
-    "by_status": {
-      "New": 1250,
-      "In Progress": 800,
-      "Verified": 650
+  "issues": [
+    {
+      "key": "OCPBUGS-12345",
+      "fields": {
+        "summary": "Example bug",
+        "status": {"name": "New"},
+        "priority": {"name": "Major"},
+        "components": [{"name": "kube-apiserver"}],
+        "created": "2025-11-01T10:30:00.000+0000",
+        ...
+      }
     },
-    "by_priority": {
-      "Critical": 50,
-      "Major": 450,
-      "Normal": 2100
-    },
-    "by_component": {
-      "kube-apiserver": 146,
-      "Management Console": 392
-    }
-  },
-  "fetched_count": 100,
-  "note": "Showing first 100 of 5430 total results. Increase --limit for more accurate statistics."
+    ...
+  ],
+  "note": "Showing first 100 of 5430 total results. Increase --limit for more data."
 }
 ```
 
@@ -363,7 +316,7 @@ python3 plugins/component-health/skills/list-jiras/list_jiras.py \
   --project OCPBUGS
 ```
 
-**Expected Output**: JSON containing summary of all open bugs in OCPBUGS project
+**Expected Output**: JSON containing raw issue data for all open bugs in OCPBUGS project
 
 ### Example 2: Filter by Component
 
@@ -373,7 +326,7 @@ python3 plugins/component-health/skills/list-jiras/list_jiras.py \
   --component "kube-apiserver"
 ```
 
-**Expected Output**: JSON containing bugs for the kube-apiserver component only
+**Expected Output**: JSON containing raw issue data for the kube-apiserver component only
 
 ### Example 3: Include Closed Bugs
 
@@ -384,7 +337,7 @@ python3 plugins/component-health/skills/list-jiras/list_jiras.py \
   --limit 500
 ```
 
-**Expected Output**: JSON containing both open and closed bugs (up to 500 issues)
+**Expected Output**: JSON containing raw issue data for both open and closed bugs (up to 500 issues)
 
 ### Example 4: Filter by Multiple Components
 
@@ -394,14 +347,19 @@ python3 plugins/component-health/skills/list-jiras/list_jiras.py \
   --component "kube-apiserver" "etcd" "Networking"
 ```
 
-**Expected Output**: JSON containing bugs for specified components
+**Expected Output**: JSON containing raw issue data for bugs in specified components
 
 ## Integration with Commands
 
-This skill is designed to be used by component health analysis commands and bug triage workflows, but can also be invoked directly for ad-hoc JIRA queries.
+This skill is designed to:
+- Provide raw JIRA data to other commands (like `summarize-jiras`)
+- Be used directly for ad-hoc JIRA queries
+- Serve as a data source for custom analysis workflows
+- Export JIRA data for offline processing
 
 ## Related Skills
 
+- `summarize-jiras`: Calculate summary statistics from JIRA data
 - `list-regressions`: Fetch regression data for releases
 - `analyze-regressions`: Grade component health based on regressions
 - `get-release-dates`: Fetch OpenShift release dates
@@ -409,8 +367,9 @@ This skill is designed to be used by component health analysis commands and bug 
 ## Notes
 
 - The script uses Python's `urllib` and `json` modules (no external dependencies)
-- Output is always JSON format for easy parsing
+- Output is always JSON format for easy parsing and further processing
 - Diagnostic messages are written to stderr, data to stdout
 - The script has a 30-second timeout for HTTP requests
 - For large projects, consider using component filters to reduce query size
-- Summary statistics are based on fetched issues (controlled by --limit), not total matching issues
+- The returned data includes ALL JIRA fields for complete information
+- Use `/component-health:summarize-jiras` if you need summary statistics instead of raw data
