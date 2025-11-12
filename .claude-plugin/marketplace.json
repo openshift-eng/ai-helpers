@@ -78,6 +78,11 @@
       "name": "hcp",
       "source": "./plugins/hcp",
       "description": "Generate HyperShift cluster creation commands via hcp CLI from natural language descriptions"
+    },
+    {
+      "name": "calendar",
+      "source": "./plugins/calendar",
+      "description": "A plugin to help find time and schedule meetings on your Google Calendar"
     }
   ]
 }

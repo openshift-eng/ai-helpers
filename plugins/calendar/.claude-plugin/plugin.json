@@ -1,0 +1,8 @@
+{
+  "name": "calendar",
+  "description": "find overlapping free time to meet with people",
+  "version": "0.0.1",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}
