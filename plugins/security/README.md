@@ -51,7 +51,7 @@ Generate container vulnerability grade report for configured releases and compon
 
 **Usage:**
 ```text
-/security:image-grades <config.yaml>
+/security:image-grades <config.yaml> [--grade <grades>] [--email]
 ```
 
 **Examples:**
@@ -61,11 +61,34 @@ Generate container vulnerability grade report for configured releases and compon
 
 # Generate report with specific configuration
 /security:image-grades ./configs/security-check.yaml
+
+# Filter to show only high-risk grades (C, D, F)
+/security:image-grades ~/ossm-releases.yaml --grade c,d,f
+
+# Generate and email the vulnerability report
+/security:image-grades ./configs/security-check.yaml --email
+
+# Filter and email critical vulnerabilities only
+/security:image-grades ~/ossm-releases.yaml --grade d,f --email
 ```
+
+**Optional Arguments:**
+
+- **`--grade <grades>`**: Filter output to specific vulnerability grades
+  - Accepts comma-separated list of grades: A, B, C, D, F (case-insensitive)
+  - Examples: `--grade b`, `--grade c,d,f`, `--grade D,F`
+  - Useful for focusing on high-risk containers or specific grade ranges
+
+- **`--email`**: Send HTML email report instead of terminal output
+  - Requires SMTP configuration in the container-grade-reporter tool
+  - Generates professional HTML report with Red Hat branding
+  - Can be combined with `--grade` for filtered email alerts
 
 **Features:**
 - **Automated execution**: Runs container-grade-reporter tool via Makefile
 - **Grade visualization**: Color-coded grades (A-F scale with ✅⚠️❌ indicators)
+- **Grade filtering**: Focus on specific vulnerability levels (--grade option)
+- **Email reporting**: Professional HTML reports with Red Hat branding (--email option)
 - **Multi-architecture analysis**: Shows architecture support and grade consistency
 - **Release organization**: Groups results by release for clarity
 - **Summary statistics**: Grade distribution and action items
@@ -97,9 +120,10 @@ Summary: 2 repositories | Grades: 1×B, 1×C
    - Requires Red Hat internal network access
 
 2. **Kerberos Authentication**
-   - Service account keytab file
+   - Service account keytab file (base64-encoded)
    - Default location: `~/ossm-report-sa.keytab`
    - Or set `KEYTAB_PATH` environment variable
+   - Note: The tool expects base64 format, not binary
 
 3. **System Requirements**
    - Python 3.11+ (Python 3.12 recommended)
@@ -200,14 +224,16 @@ The container-grade-reporter tool requires Kerberos authentication via keytab fi
 export KEYTAB_PATH=/path/to/your/keytab
 ```
 
-**Obtaining a keytab:**
+**Obtaining and preparing a keytab:**
 
 1. Request service account from Red Hat IT via ServiceNow
-2. Generate keytab using Red Hat's IPA process
-3. Convert to base64 format:
+2. Generate keytab using Red Hat's IPA process (produces binary .keytab file)
+3. Convert to base64 format for the container-grade-reporter tool:
    ```bash
    base64 your-keytab.keytab > ~/ossm-report-sa.keytab
    ```
+
+**Important**: The base64-encoded keytab is used by the tool's Makefile, which automatically decodes it before authentication.
 
 **Testing authentication:**
 
@@ -216,6 +242,34 @@ export KEYTAB_PATH=/path/to/your/keytab
 cd ~/Code/container-grade-reporter
 make auth-setup
 ```
+
+### Keytab Format Notes
+
+**Why base64 encoding?**
+
+The container-grade-reporter tool uses base64-encoded keytab files for:
+- Easier storage in configuration management systems
+- Compatibility with secret management tools (Vault, AWS Secrets Manager)
+- Text-safe transmission and environment variable usage
+- Automated CI/CD integration
+
+**The Makefile workflow:**
+1. Reads base64 keytab from `~/ossm-report-sa.keytab` or `$KEYTAB_PATH`
+2. Decodes to temporary binary file
+3. Runs `kinit` with binary keytab
+4. Cleans up temporary files
+
+**Manual testing:**
+If you need to test Kerberos authentication manually outside the tool:
+```bash
+# Decode base64 keytab to binary for kinit
+base64 -d ~/ossm-report-sa.keytab > /tmp/test.keytab
+kinit -kt /tmp/test.keytab your-principal@IPA.REDHAT.COM
+klist  # Verify Kerberos ticket
+rm /tmp/test.keytab  # Cleanup
+```
+
+Note: Never use `kinit -kt` directly with the base64-encoded keytab - it will fail.
 
 ## Usage Patterns
 
@@ -346,9 +400,16 @@ Error: Kerberos authentication failed
 **Solutions:**
 
 1. Verify keytab exists: `ls ~/ossm-report-sa.keytab`
-2. Check keytab is base64 encoded
-3. Test manual authentication: `kinit -kt ~/keytab your-principal@IPA.REDHAT.COM`
-4. Contact Red Hat IT for keytab issues
+2. Check keytab is base64 encoded: `file ~/ossm-report-sa.keytab` should show "ASCII text"
+3. Test by decoding: `base64 -d ~/ossm-report-sa.keytab | file -` should show "data"
+4. For manual authentication testing, decode first:
+   ```bash
+   base64 -d ~/ossm-report-sa.keytab > /tmp/test.keytab
+   kinit -kt /tmp/test.keytab your-principal@IPA.REDHAT.COM
+   klist  # Verify ticket
+   rm /tmp/test.keytab
+   ```
+5. Contact Red Hat IT for keytab issues
 
 ### Network Issues
 

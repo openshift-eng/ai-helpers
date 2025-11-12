@@ -107,17 +107,23 @@ The tool looks for the keytab file at:
 
 1. Request service account from Red Hat IT via ServiceNow
 2. Follow Red Hat's IPA keytab generation process
-3. Convert keytab to base64 format:
+3. Convert keytab to base64 format for the tool:
    ```bash
    base64 your-keytab.keytab > ~/ossm-report-sa.keytab
    ```
+   **Why base64?** The Makefile expects base64 and handles decoding automatically.
 
 **Testing authentication:**
 
 ```bash
-# Manual test (if using non-base64 keytab)
+# If you have the original binary keytab:
 kinit -kt ~/your-keytab.keytab your-principal@IPA.REDHAT.COM
+
+# If you only have the base64 version, decode first:
+base64 -d ~/ossm-report-sa.keytab > /tmp/test.keytab
+kinit -kt /tmp/test.keytab your-principal@IPA.REDHAT.COM
 klist  # Verify ticket is valid
+rm /tmp/test.keytab  # Cleanup
 ```
 
 **Note:** The Makefile automatically handles keytab decoding and kinit when running the tool.
