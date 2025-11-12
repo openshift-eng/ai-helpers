@@ -13,7 +13,7 @@ must-gather:analyze
 
 ## Description
 
-The `analyze` command performs comprehensive analysis of OpenShift must-gather diagnostic data. It runs specialized Python analysis scripts to extract and summarize cluster health information across multiple components.
+The `must-gather:analyze` command performs comprehensive analysis of OpenShift must-gather diagnostic data. It runs specialized Python analysis scripts to extract and summarize cluster health information across multiple components.
 
 The command can analyze:
 - Cluster version and update status
@@ -25,6 +25,11 @@ The command can analyze:
 - Kubernetes events (warnings and errors)
 - etcd cluster health and quorum status
 - Persistent volume and claim status
+- Ingress controllers and route admission
+- MachineConfigPool rollout status
+- Service logs (systemd services on master nodes)
+- Pod logs (container application logs)
+- Node logs (kubelet logs from all nodes)
 
 You can request analysis of the entire cluster or focus on a specific component.
 
@@ -38,7 +43,9 @@ must-gather/
 └── registry-ci-openshift-org-origin-...-sha256-<hash>/
     ├── cluster-scoped-resources/
     ├── namespaces/
-    └── ...
+    ├── nodes/
+    ├── network_logs/
+    └── etcd_info/
 ```
 
 The actual must-gather directory is the subdirectory with the hash name, not the parent directory.
@@ -56,7 +63,12 @@ plugins/must-gather/skills/must-gather-analyzer/scripts/
 ├── analyze_ovn_dbs.py
 ├── analyze_events.py
 ├── analyze_etcd.py
-└── analyze_pvs.py
+├── analyze_pvs.py
+├── analyze_ingress.py
+├── analyze_machineconfigpools.py
+├── analyze_servicelogs.py
+├── analyze_pod_logs.py
+└── analyze_node_logs.py
 ```
 
 ## Error Handling
@@ -107,6 +119,11 @@ The command performs the following steps:
    - "version", "cluster version", "update", "upgrade" → `analyze_clusterversion.py` ONLY
    - "events", "warnings", "errors" → `analyze_events.py` ONLY
    - "storage", "pv", "pvc", "volumes", "persistent" → `analyze_pvs.py` ONLY
+   - "ingress", "ingresscontroller", "routes", "router" → `analyze_ingress.py` ONLY
+   - "machineconfigpool", "mcp", "node updates", "node rollout", "stuck nodes" → `analyze_machineconfigpools.py` ONLY
+   - "service logs", "kubelet", "crio", "systemd", "host logs" → `analyze_servicelogs.py` ONLY
+   - "pod logs", "container logs", "application logs", "log errors", "log patterns" → `analyze_pod_logs.py` ONLY
+   - "node logs", "kubelet logs", "kubelet errors", "node errors", "sysinfo" → `analyze_node_logs.py` ONLY
 
    **STEP 2: No specific component mentioned**
 
@@ -119,6 +136,11 @@ The command performs the following steps:
    6. Events - warnings only (`analyze_events.py --type Warning --count 50`)
    7. etcd (`analyze_etcd.py`)
    8. Storage (`analyze_pvs.py`)
+   9. Ingress - controllers only (`analyze_ingress.py --ingresscontrollers`)
+   10. MachineConfigPools (`analyze_machineconfigpools.py`)
+   11. Service Logs - errors only (`analyze_servicelogs.py --errors-only`)
+   12. Pod Logs - top errors only (`analyze_pod_logs.py --errors-only --top 5`)
+   13. Node Logs - kubelet errors only (`analyze_node_logs.py --log-type kubelet --errors-only --top 5`)
 
 3. **Execute Analysis Scripts**:
    ```bash
@@ -175,6 +197,21 @@ ETCD CLUSTER HEALTH:
 STORAGE (PVs/PVCs):
 [output from analyze_pvs.py]
 
+INGRESS CONTROLLERS:
+[output from analyze_ingress.py --ingresscontrollers]
+
+MACHINECONFIGPOOLS:
+[output from analyze_machineconfigpools.py]
+
+SERVICE LOGS (ERROR PATTERNS):
+[output from analyze_servicelogs.py --errors-only]
+
+POD LOGS (ERROR PATTERNS):
+[output from analyze_pod_logs.py --errors-only --top 5]
+
+NODE LOGS (KUBELET ERROR PATTERNS):
+[output from analyze_node_logs.py --log-type kubelet --errors-only --top 5]
+
 ================================================================================
 FINDINGS AND RECOMMENDATIONS
 ================================================================================
@@ -218,6 +255,18 @@ Logs to Review:
    ```
    Runs only `analyze_network.py` for network-specific analysis.
 
+5. **Investigate service logs**:
+   ```
+   /must-gather:analyze analyze service logs
+   ```
+   Asks for must-gather path, then runs only `analyze_servicelogs.py`.
+
+6. **Check ingress and routes**:
+   ```
+   /must-gather:analyze check ingress
+   ```
+   Asks for must-gather path, then runs only `analyze_ingress.py`.
+
 ## Notes
 
 - **Must-Gather Path**: Always use the subdirectory containing `cluster-scoped-resources/` and `namespaces/`, not the parent directory
@@ -227,6 +276,7 @@ Logs to Review:
 - **Pattern Detection**: Identifies patterns like multiple pod failures on the same node
 - **Actionable Output**: Focuses on insights and recommendations rather than raw data dumps
 - **Priority**: Issues are prioritized by severity (Critical > Warning > Info)
+- **Event Validation**: Events show historical attempts, not necessarily current failures. Always cross-reference events with current pod/component status to distinguish resolved retries from active issues.
 
 ## Arguments
 

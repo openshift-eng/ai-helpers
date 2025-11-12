@@ -114,6 +114,8 @@ A plugin to analyze and report on must-gather data
 
 **Commands:**
 - **`/must-gather:analyze` `[must-gather-path] [component]`** - Quick analysis of must-gather data - runs all analysis scripts and provides comprehensive cluster diagnostics
+- **`/must-gather:camgi` `[must-gather-path|stop]`** - Launch CAMGI (Cluster Autoscaler Must-Gather Inspector) web interface to analyze cluster autoscaler behavior
+- **`/must-gather:comprehensive-analysis` `[must-gather-path]`** - Comprehensive must-gather analysis - generates a detailed cluster health report identifying critical issues, warnings, and actionable recommendations
 - **`/must-gather:ovn-dbs` `[must-gather-path]`** - Analyze OVN databases from a must-gather using ovsdb-tool
 
 See [plugins/must-gather/README.md](plugins/must-gather/README.md) for detailed documentation.
