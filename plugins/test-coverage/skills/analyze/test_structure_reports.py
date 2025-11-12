@@ -12,12 +12,12 @@ from typing import Dict, List
 
 # Import shared CSS styles
 try:
-    from ..common.report_styles import get_common_css
+    from ...utils.common.report_styles import get_common_css
 except ImportError:
     try:
-        from plugins.test_coverage.skills.common.report_styles import get_common_css
+        from plugins.test_coverage.utils.common.report_styles import get_common_css
     except ImportError:
-        from common.report_styles import get_common_css
+        from utils.common.report_styles import get_common_css
 
 
 # HTML escape helper function

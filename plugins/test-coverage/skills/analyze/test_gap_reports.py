@@ -24,12 +24,12 @@ except ImportError:
 
 # Import shared CSS styles
 try:
-    from ..common.report_styles import get_common_css
+    from ...utils.common.report_styles import get_common_css
 except ImportError:
     try:
-        from common.report_styles import get_common_css
+        from plugins.test_coverage.utils.common.report_styles import get_common_css
     except ImportError:
-        from plugins.test_coverage.skills.common.report_styles import get_common_css
+        from utils.common.report_styles import get_common_css
 
 # Import test structure HTML generation functions
 try:
