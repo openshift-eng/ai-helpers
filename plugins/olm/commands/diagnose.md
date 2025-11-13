@@ -1,5 +1,5 @@
 ---
-description: Diagnose and optionally fix common OLM and operator issues
+description: Diagnose and optionally fix common OLM and operator issues (OLM v0 only)
 argument-hint: [operator-name] [namespace] [--fix] [--cluster]
 ---
 
@@ -14,6 +14,8 @@ olm:diagnose
 ## Description
 The `olm:diagnose` command diagnoses common OLM and operator issues, including orphaned CRDs, stuck namespaces, failed installations, and catalog source problems. It can optionally attempt to fix detected issues automatically.
 
+**⚠️  OLM v0 ONLY**: This command currently only supports OLM v0 diagnostics.
+
 This command helps you:
 - Detect and clean up orphaned CRDs from deleted operators
 - Fix namespaces stuck in Terminating state
@@ -27,7 +29,29 @@ This command helps you:
 
 The command performs the following steps:
 
-1. **Parse Arguments**:
+1. **Check OLM Version** (v0 ONLY):
+   ```bash
+   # Check if version context is set
+   if [ -f .work/olm/context.txt ]; then
+     OLM_VERSION=$(cat .work/olm/context.txt)
+     if [ "$OLM_VERSION" == "v1" ]; then
+       echo "❌ Command not available for OLM v1"
+       echo ""
+       echo "The /olm:diagnose command currently only supports OLM v0."
+       echo "Current context: v1"
+       echo ""
+       echo "For OLM v1 diagnostics:"
+       echo "  - Use: /olm:status <extension-name> --version v1"
+       echo "  - Use: /olm:fix-rbac <extension-name> --version v1"
+       echo ""
+       echo "To use this command with v0:"
+       echo "  /olm:use-version v0"
+       exit 1
+     fi
+   fi
+   ```
+
+2. **Parse Arguments**:
    - `$1`: Operator name (optional) - Specific operator to diagnose
    - `$2`: Namespace (optional) - Specific namespace to check
    - `$3+`: Flags (optional):
