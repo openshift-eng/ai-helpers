@@ -78,6 +78,11 @@
       "name": "hcp",
       "source": "./plugins/hcp",
       "description": "Generate HyperShift cluster creation commands via hcp CLI from natural language descriptions"
+    },
+    {
+      "name": "testing",
+      "source": "./plugins/testing",
+      "description": "Comprehensive test case generation and QA automation tools"
     }
   ]
 }
