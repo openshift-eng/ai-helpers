@@ -21,6 +21,7 @@ import platform
 import threading
 import argparse
 import uuid
+from typing import Optional
 from urllib import request, error
 
 # --- Constants ---
@@ -44,7 +45,7 @@ def calculate_mac(session_id: str, timestamp: str) -> str:
     mac_input = f"{session_id}{timestamp}"
     return hashlib.sha256(mac_input.encode('utf-8')).hexdigest()
 
-def get_or_create_anonymous_id(metrics_dir: pathlib.Path) -> str | None:
+def get_or_create_anonymous_id(metrics_dir: pathlib.Path) -> Optional[str]:
     """
     Get or create a persistent anonymous user ID stored in the metrics directory.
     Returns None if unable to read or create the ID.
@@ -63,7 +64,7 @@ def get_or_create_anonymous_id(metrics_dir: pathlib.Path) -> str | None:
         # Failed to read/write ID file, return None
         return None
 
-def log_message(log_file: pathlib.Path | None, timestamp: str, message: str, verbose: bool = False, is_error: bool = False):
+def log_message(log_file: Optional[pathlib.Path], timestamp: str, message: str, verbose: bool = False, is_error: bool = False):
     """
     Appends a formatted message to the local log file.
     In normal mode (verbose=False), only logs errors (is_error=True).
@@ -83,7 +84,7 @@ def log_message(log_file: pathlib.Path | None, timestamp: str, message: str, ver
         # Failed to write to log, but don't crash the script
         pass
 
-def send_metrics(payload: dict, log_file: pathlib.Path | None, timestamp: str, verbose: bool = False):
+def send_metrics(payload: dict, log_file: Optional[pathlib.Path], timestamp: str, verbose: bool = False):
     """
     Sends the metrics payload to the endpoint.
     This function is designed to be run in a background thread.
