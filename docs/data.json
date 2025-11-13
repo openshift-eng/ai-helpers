@@ -615,6 +615,21 @@
         }
       ],
       "has_readme": true
+    },
+    {
+      "name": "compliance",
+      "description": "Security compliance and vulnerability analysis tools for Go projects",
+      "version": "0.0.1",
+      "commands": [
+        {
+          "name": "analyze-cve",
+          "description": "Analyze Go codebase for CVE vulnerabilities and suggest fixes",
+          "synopsis": "/compliance:analyze-cve <CVE-ID>",
+          "argument_hint": "<CVE-ID>"
+        }
+      ],
+      "skills": [],
+      "has_readme": true
     }
   ]
 }
