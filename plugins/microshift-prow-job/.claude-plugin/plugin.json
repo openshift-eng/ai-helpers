@@ -1,0 +1,10 @@
+{
+  "name": "microshift-prow-job",
+  "description": "Analyze MicroShift Prow CI jobs",
+  "version": "0.0.1",
+  "author": {
+    "name": "Alejandro Gullón",
+    "email": "agullon@redhat.com",
+    "url": "https://github.com/agullon"
+  }
+}

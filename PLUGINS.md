@@ -11,6 +11,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Hcp](#hcp-plugin)
 - [Hello World](#hello-world-plugin)
 - [Jira](#jira-plugin)
+- [Microshift Prow Job](#microshift-prow-job-plugin)
 - [Must Gather](#must-gather-plugin)
 - [Olm](#olm-plugin)
 - [Openshift](#openshift-plugin)
@@ -118,6 +119,16 @@ A plugin to automate tasks with Jira
 - **`/jira:status-rollup` `issue-id [--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD]`** - Generate a status rollup comment for any JIRA issue based on all child issues and a given date range
 
 See [plugins/jira/README.md](plugins/jira/README.md) for detailed documentation.
+
+### Microshift Prow Job Plugin
+
+Analyze MicroShift Prow CI jobs
+
+**Commands:**
+- **`/microshift-prow-job:analyze-job` `<job-url>`** - Analyze a MicroShift Prow CI job execution
+- **`/microshift-prow-job:analyze-test-scenario` `<job-url> <scenario-name>`** - Analyze MicroShift Test Scenario results
+
+See [plugins/microshift-prow-job/README.md](plugins/microshift-prow-job/README.md) for detailed documentation.
 
 ### Must Gather Plugin
 
