@@ -4,6 +4,7 @@ This document lists all available Claude Code plugins and their commands in the 
 
 - [Agendas](#agendas-plugin)
 - [Ci](#ci-plugin)
+- [Compliance](#compliance-plugin)
 - [Component Health](#component-health-plugin)
 - [Doc](#doc-plugin)
 - [Git](#git-plugin)
@@ -15,6 +16,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Openshift](#openshift-plugin)
 - [Prow Job](#prow-job-plugin)
 - [Session](#session-plugin)
+- [Sosreport](#sosreport-plugin)
 - [Test Coverage](#test-coverage-plugin)
 - [Utils](#utils-plugin)
 - [Yaml](#yaml-plugin)
@@ -33,7 +35,7 @@ See [plugins/agendas/README.md](plugins/agendas/README.md) for detailed document
 Miscellaenous tools for working with OpenShift CI
 
 **Commands:**
-- **`/ci:add-debug-wait` `<workflow-or-job-name>`** - Add a wait step to a CI workflow for debugging test failures
+- **`/ci:add-debug-wait` `<workflow-or-job-name> [timeout]`** - Add a wait step to a CI workflow for debugging test failures
 - **`/ci:ask-sippy` `[question]`** - Ask the Sippy AI agent questions about OpenShift CI payloads, jobs, and test results
 - **`/ci:list-unstable-tests` `<version> <keywords> [sippy-url]`** - List unstable tests with pass rate below 95%
 - **`/ci:query-job-status` `<execution-id>`** - Query the status of a gangway job execution by ID
@@ -43,6 +45,15 @@ Miscellaenous tools for working with OpenShift CI
 - **`/ci:trigger-presubmit` `<job-name> <org> <repo> <base-ref> <base-sha> <pr-number> <pr-sha> [ENV_VAR=value ...]`** - Trigger a presubmit gangway job (typically use GitHub Prow commands instead)
 
 See [plugins/ci/README.md](plugins/ci/README.md) for detailed documentation.
+
+### Compliance Plugin
+
+Security compliance and vulnerability analysis tools for Go projects
+
+**Commands:**
+- **`/compliance:analyze-cve` `<CVE-ID>`** - Analyze Go codebase for CVE vulnerabilities and suggest fixes
+
+See [plugins/compliance/README.md](plugins/compliance/README.md) for detailed documentation.
 
 ### Component Health Plugin
 
@@ -99,6 +110,7 @@ See [plugins/hello-world/README.md](plugins/hello-world/README.md) for detailed 
 A plugin to automate tasks with Jira
 
 **Commands:**
+- **`/jira:backlog` `[project-key] [--assignee username] [--days-inactive N]`** - Find suitable JIRA tickets from the backlog to work on based on priority and activity
 - **`/jira:create-release-note` `<issue-key>`** - Generate bug fix release notes from Jira tickets and linked GitHub PRs
 - **`/jira:create` `<type> [project-key] <summary> [--component <name>] [--version <version>] [--parent <key>]`** - Create Jira issues (story, epic, feature, task, bug) with proper formatting
 - **`/jira:generate-test-plan` `[JIRA issue key] [GitHub PR URLs]`** - Generate test steps for a JIRA issue
@@ -143,6 +155,7 @@ OpenShift development utilities and helpers
 **Commands:**
 - **`/openshift:bump-deps` `<dependency> [version] [--create-jira] [--create-pr]`** - Bump dependencies in OpenShift projects with automated analysis and PR creation
 - **`/openshift:cluster-health-check` `"[--verbose] [--output-format]"`** - Perform comprehensive health check on OpenShift cluster and report issues
+- **`/openshift:crd-review` `[repository-path]`** - Review Kubernetes CRDs against Kubernetes and OpenShift API conventions
 - **`/openshift:create-cluster` `"[release-image] [platform] [options]"`** - Extract OpenShift installer from release image and create an OCP cluster
 - **`/openshift:destroy-cluster` `"[install-dir]"`** - Destroy an OpenShift cluster created by create-cluster command
 - **`/openshift:expand-test-case` `[test-idea-or-file-or-commands] [format]`** - Expand basic test ideas or existing oc commands into comprehensive test scenarios with edge cases in oc CLI or Ginkgo format
@@ -172,6 +185,15 @@ A plugin to save and resume conversation sessions across long time intervals
 - **`/session:save-session` `[optional-description]`** - Save current conversation session to markdown file for future continuation
 
 See [plugins/session/README.md](plugins/session/README.md) for detailed documentation.
+
+### Sosreport Plugin
+
+Analyze sosreport archives for system diagnostics and troubleshooting
+
+**Commands:**
+- **`/sosreport:analyze` `<path-to-sosreport> [--only <areas>] [--skip <areas>]`** - Analyze sosreport archive for system diagnostics and issues
+
+See [plugins/sosreport/README.md](plugins/sosreport/README.md) for detailed documentation.
 
 ### Test Coverage Plugin
 

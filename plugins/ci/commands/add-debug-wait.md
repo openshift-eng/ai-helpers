@@ -1,6 +1,6 @@
 ---
 description: Add a wait step to a CI workflow for debugging test failures
-argument-hint: <workflow-or-job-name>
+argument-hint: <workflow-or-job-name> [timeout]
 ---
 
 ## Name
@@ -8,7 +8,7 @@ ci:add-debug-wait
 
 ## Synopsis
 ```
-/ci:add-debug-wait <workflow-or-job-name>
+/ci:add-debug-wait <workflow-or-job-name> [timeout]
 ```
 
 ## Description
@@ -16,9 +16,9 @@ ci:add-debug-wait
 The `ci:add-debug-wait` command adds a `wait` step to a CI job/workflow for debugging test failures.
 
 **What it does:**
-1. Takes job name and OCP version as input
+1. Takes job name, OCP version, and optional timeout as input
 2. Finds and edits the job config or workflow file
-3. Adds `- ref: wait` before the last test step
+3. Adds `- ref: wait` before the last test step (with optional timeout configuration)
 4. Commits and pushes the change
 5. Gives you a GitHub link to create the PR
 
@@ -32,14 +32,26 @@ The command performs the following steps:
 
 **Prompt user for** (in this order):
 
-1. **Workflow/Job Name**: (from command argument or prompt)
+1. **Workflow/Job Name**: (from command argument $1 or prompt)
    ```
    Workflow or job name: <user-input>
    Example: aws-c2s-ipi-disc-priv-fips-f7
    Example: baremetalds-two-node-arbiter-e2e-openshift-test-private-tests
    ```
 
-2. **OCP Version**: (prompt - REQUIRED for searching job configs)
+2. **Timeout** (optional, from command argument $2):
+   ```
+   Wait timeout in hours (optional, default: 3h):
+   Examples: "1h", "2h", "8h", "24h", "72h"
+   Valid range: 1h to 72h
+   ```
+   - If not provided, uses the wait step's default behavior (3 hours)
+   - Format: Integer followed by 'h' (e.g., "1h", "2h", "8h")
+   - Valid range: 1h to 72h (maximum enforced by wait step's timeout setting)
+   - Will be normalized to Go duration format (e.g., "8h" → "8h0m0s")
+   - This will be set as the `timeout:` property on the wait step in the workflow/job YAML
+
+3. **OCP Version**: (prompt - REQUIRED for searching job configs)
    ```
    OCP version for debugging (e.g., 4.18, 4.19, 4.20, 4.21, 4.22):
    ```
@@ -48,7 +60,7 @@ The command performs the following steps:
    - Document which version needs debugging
    - Add context to the PR
 
-3. **OpenShift Release Repo Path**: (prompt if not in current directory)
+4. **OpenShift Release Repo Path**: (prompt if not in current directory)
    ```
    Path to openshift/release repository:
    Default: ~/repos/openshift-release
@@ -275,15 +287,36 @@ Please provide the full job name to modify the job config instead.
 **Edit the job config file directly** - no confirmation needed:
 
 ```bash
-# Simply add '- ref: wait' before the last test step
+# Add wait step before the last test step
+# If timeout is provided, add it as a step property
 # Using the Python implementation from Step 6 below
 ```
+
+**Two scenarios**:
+
+1. **Without custom timeout** (uses wait step's built-in default of 3h):
+   ```yaml
+   test:
+   - ref: wait
+   - chain: openshift-e2e-test-qe
+   ```
+   Note: No timeout or best_effort needed - the wait step will use its default TIMEOUT env var (3 hours)
+
+2. **With custom timeout** (user provided timeout parameter):
+   ```yaml
+   test:
+   - ref: wait
+     timeout: 8h0m0s
+     best_effort: true
+   - chain: openshift-e2e-test-qe
+   ```
+   Note: `best_effort: true` is required when timeout is customized to prevent the wait step from failing the job if it times out
 
 **Show brief confirmation**:
 ```
 ✅ Modified: ${job_name} (OCP ${ocp_version})
    File: <job-config-file-path>
-   Added: - ref: wait (before last test step)
+   Added: - ref: wait${timeout:+ (timeout: ${timeout})}
 ```
 
 ### Step 5b: Modify Workflow File
@@ -291,15 +324,36 @@ Please provide the full job name to modify the job config instead.
 **Edit the workflow file directly** - no confirmation needed:
 
 ```bash
-# Simply add '- ref: wait' before the last test step
+# Add wait step before the last test step
+# If timeout is provided, add it as a step property
 # Using the Python implementation from Step 6 below
 ```
+
+**Two scenarios**:
+
+1. **Without custom timeout** (uses wait step's built-in default of 3h):
+   ```yaml
+   test:
+   - ref: wait
+   - chain: baremetalds-ipi-test
+   ```
+   Note: No timeout or best_effort needed - the wait step will use its default TIMEOUT env var (3 hours)
+
+2. **With custom timeout** (user provided timeout parameter):
+   ```yaml
+   test:
+   - ref: wait
+     timeout: 8h0m0s
+     best_effort: true
+   - chain: baremetalds-ipi-test
+   ```
+   Note: `best_effort: true` is required when timeout is customized to prevent the wait step from failing the job if it times out
 
 **Show brief confirmation**:
 ```
 ✅ Modified: ${workflow_name} workflow
    File: <workflow-file-path>
-   Added: - ref: wait (before last test step)
+   Added: - ref: wait${timeout:+ (timeout: ${timeout})}
    ⚠️  Impact: Affects ALL jobs using this workflow
 ```
 
@@ -353,9 +407,15 @@ The wait step should be added before the last step in the job's test section:
 
 Example Python implementation:
 ```python
-def add_wait_step_to_job_config(file_path, job_name):
+def add_wait_step_to_job_config(file_path, job_name, timeout=None):
     """
     Add '- ref: wait' before the last step in the job's test: section
+
+    Args:
+        file_path: Path to the job config YAML file
+        job_name: Name of the job to modify
+        timeout: Optional timeout in Go duration format (e.g., "8h0m0s", "1h30m")
+                 If provided, also adds 'best_effort: true'
     """
     with open(file_path, 'r') as f:
         lines = f.readlines()
@@ -387,24 +447,21 @@ def add_wait_step_to_job_config(file_path, job_name):
     # Find all test steps (lines with '- ref:' or '- chain:')
     test_steps = []
     indent_spaces = None
+    test_section_indent = len(lines[test_line_index]) - len(lines[test_line_index].lstrip())
 
     for i in range(test_line_index + 1, len(lines)):
         line = lines[i]
         stripped = line.lstrip()
+        current_indent = len(line) - len(stripped)
+
+        # Stop if we hit another key at same or lower indent as 'test:'
+        if stripped and current_indent <= test_section_indent and not stripped.startswith('-'):
+            break
 
         if stripped.startswith('- ref:') or stripped.startswith('- chain:'):
             if indent_spaces is None:
-                indent_spaces = len(line) - len(stripped)
+                indent_spaces = current_indent
             test_steps.append(i)
-
-        # Stop if we hit another key at same or lower indentation as 'test:'
-        if line.strip() and not line.startswith(' '):
-            break
-        if line.strip() and line.strip() != '' and not line.strip().startswith('#'):
-            test_indent = len(lines[test_line_index]) - len(lines[test_line_index].lstrip())
-            current_indent = len(line) - len(line.lstrip())
-            if current_indent <= test_indent and stripped not in ['', '#']:
-                break
 
     if not test_steps:
         raise ValueError("No test steps found in test: section")
@@ -416,8 +473,20 @@ def add_wait_step_to_job_config(file_path, job_name):
 
     # Insert wait step before the last test step
     last_step_index = test_steps[-1]
-    wait_line = ' ' * indent_spaces + '- ref: wait\n'
-    lines.insert(last_step_index, wait_line)
+
+    if timeout:
+        # With timeout: add ref, timeout, and best_effort properties
+        wait_lines = [
+            ' ' * indent_spaces + '- ref: wait\n',
+            ' ' * (indent_spaces + 2) + f'timeout: {timeout}\n',
+            ' ' * (indent_spaces + 2) + 'best_effort: true\n'
+        ]
+        for line in reversed(wait_lines):
+            lines.insert(last_step_index, line)
+    else:
+        # Without timeout: simple ref only
+        wait_line = ' ' * indent_spaces + '- ref: wait\n'
+        lines.insert(last_step_index, wait_line)
 
     # Write back
     with open(file_path, 'w') as f:
@@ -438,9 +507,14 @@ The wait step should be added before the last step in the workflow's test sectio
 
 Example Python implementation:
 ```python
-def add_wait_step_to_workflow(file_path):
+def add_wait_step_to_workflow(file_path, timeout=None):
     """
     Add '- ref: wait' before the last step in the workflow's test: section
+
+    Args:
+        file_path: Path to the workflow YAML file
+        timeout: Optional timeout in Go duration format (e.g., "8h0m0s", "1h30m")
+                 If provided, also adds 'best_effort: true'
     """
     with open(file_path, 'r') as f:
         lines = f.readlines()
@@ -458,19 +532,21 @@ def add_wait_step_to_workflow(file_path):
     # Find all test steps (lines with '- ref:' or '- chain:')
     test_steps = []
     indent_spaces = None
+    test_section_indent = len(lines[test_line_index]) - len(lines[test_line_index].lstrip())
 
     for i in range(test_line_index + 1, len(lines)):
         line = lines[i]
         stripped = line.lstrip()
+        current_indent = len(line) - len(stripped)
+
+        # Stop if we hit another section key at same indent level as 'test:'
+        if stripped and current_indent == test_section_indent and not stripped.startswith('-'):
+            break
 
         if stripped.startswith('- ref:') or stripped.startswith('- chain:'):
             if indent_spaces is None:
-                indent_spaces = len(line) - len(stripped)
+                indent_spaces = current_indent
             test_steps.append(i)
-
-        # Stop if we hit another top-level key
-        if line.strip() and not line.startswith(' '):
-            break
 
     if not test_steps:
         raise ValueError("No test steps found in test: section")
@@ -482,8 +558,20 @@ def add_wait_step_to_workflow(file_path):
 
     # Insert wait step before the last test step
     last_step_index = test_steps[-1]
-    wait_line = ' ' * indent_spaces + '- ref: wait\n'
-    lines.insert(last_step_index, wait_line)
+
+    if timeout:
+        # With timeout: add ref, timeout, and best_effort properties
+        wait_lines = [
+            ' ' * indent_spaces + '- ref: wait\n',
+            ' ' * (indent_spaces + 2) + f'timeout: {timeout}\n',
+            ' ' * (indent_spaces + 2) + 'best_effort: true\n'
+        ]
+        for line in reversed(wait_lines):
+            lines.insert(last_step_index, line)
+    else:
+        # Without timeout: simple ref only
+        wait_line = ' ' * indent_spaces + '- ref: wait\n'
+        lines.insert(last_step_index, wait_line)
 
     # Write back
     with open(file_path, 'w') as f:
@@ -566,6 +654,26 @@ Valid versions: 4.18, 4.19, 4.20, 4.21, 4.22, master
 Please provide a valid version.
 ```
 
+### Error: Invalid Timeout Format
+```
+❌ Invalid timeout format: ${timeout}
+
+Valid format: Integer followed by 'h' (e.g., "1h", "2h", "8h", "24h", "72h")
+Valid range: 1h to 72h
+
+Examples:
+- "1h" (1 hour)
+- "8h" (8 hours)
+- "24h" (24 hours)
+- "72h" (72 hours, maximum)
+
+Please provide a valid timeout in hours.
+```
+
+### Note: Timeout Normalization
+
+When a user provides a timeout like "8h", the implementation should normalize it to the standard Go duration format "8h0m0s" for consistency with existing configurations in the codebase.
+
 ## Return Value
 
 - **Success**: PR URL and debugging instructions
@@ -574,7 +682,7 @@ Please provide a valid version.
 
 ## Examples
 
-### Example 1: Job Config (Most Common)
+### Example 1: Job Config Without Custom Timeout
 
 ```
 User: /ci:add-debug-wait aws-ipi-f7-longduration-workload
@@ -597,16 +705,49 @@ Claude: ✅ Modified: aws-ipi-f7-longduration-workload (OCP 4.21)
 
 **Done!** Just click the link and create the PR.
 
-### Example 2: Workflow File (Fallback)
+### Example 2: Job Config With Custom Timeout
 
 ```
-User: /ci:add-debug-wait baremetalds-two-node-arbiter-upgrade
+User: /ci:add-debug-wait aws-ipi-f7-longduration-workload 8h
+
+Claude: OCP version: 4.21
+         Repo path: ~/automation/Openshift/release
+
+Claude: ✅ Modified: aws-ipi-f7-longduration-workload (OCP 4.21)
+        Added: - ref: wait (timeout: 8h0m0s)
+        ✅ Changes pushed successfully!
+
+        Create PR here:
+        https://github.com/openshift/release/compare/master...debug-aws-ipi-f7-longduration-workload-4.21-20251031
+
+        Branch: debug-aws-ipi-f7-longduration-workload-4.21-20251031
+        Job: aws-ipi-f7-longduration-workload
+        OCP: 4.21
+        Timeout: 8h0m0s
+
+        ⚠️  Remember to close PR after debugging (DO NOT MERGE)
+```
+
+**Result in YAML**:
+```yaml
+test:
+- ref: wait
+  timeout: 8h0m0s
+  best_effort: true
+- chain: openshift-e2e-test-qe
+```
+
+### Example 3: Workflow File With Timeout
+
+```
+User: /ci:add-debug-wait baremetalds-two-node-arbiter-upgrade 24h
 
 Claude: OCP version: 4.20
          Repo path: ~/repos/openshift-release
 
 Claude: ℹ️  No job config found, searching workflow...
         ✅ Modified: baremetalds-two-node-arbiter-upgrade workflow
+        Added: - ref: wait (timeout: 24h0m0s)
         ⚠️  Impact: Affects ALL jobs using this workflow
         ✅ Changes pushed successfully!
 
@@ -615,11 +756,13 @@ Claude: ℹ️  No job config found, searching workflow...
 
         Branch: debug-baremetalds-two-node-arbiter-upgrade-4.20-20251031
         OCP: 4.20
+        Timeout: 24h0m0s
 ```
 
 ## Arguments
 
 - **$1** (workflow-or-job-name): The name of the CI workflow or job to add the wait step to (required)
+- **$2** (timeout): Optional timeout in hours (1h-72h). Examples: "1h", "8h", "24h", "72h". If not provided, uses wait step's default (3h)
 
 ## Notes
 

@@ -12,17 +12,18 @@ jira:grooming
 ```
 
 ## Description
-The `jira:grooming` command helps teams prepare for backlog grooming meetings. It automatically collects bugs and user stories created within a specified time period, analyzes their priority, complexity, and dependencies, and generates structured grooming meeting agendas.
+The `jira:grooming` command helps teams prepare for backlog grooming meetings. It automatically collects bugs and user stories created within a specified time period OR assigned to a specific sprint, analyzes their priority, complexity, and dependencies, and generates structured grooming meeting agendas.
 
 This command is particularly useful for:
 - Backlog organization before sprint planning
+- Sprint-specific grooming sessions
 - Regular requirement grooming meetings
 - Priority assessment of new bugs
 - Technical debt organization and planning
 
 ## Key Features
 
-- **Automated Data Collection** – Collect and categorize new issues within specified time periods by type (Bug, Story, Task, Epic), extract key information (priority, components, labels), and identify unassigned or incomplete issues.
+- **Automated Data Collection** – Collect and categorize issues within specified time periods or sprints by type (Bug, Story, Task, Epic), extract key information (priority, components, labels), and identify unassigned or incomplete issues.
 
 - **Intelligent Analysis** – Evaluate issue complexity based on historical data, identify related or duplicate issues, analyze business value and technical impact, and detect potential dependencies.
 
@@ -33,7 +34,10 @@ This command is particularly useful for:
 The `jira:grooming` command runs in three main phases:
 
 ### 🧩 Phase 1: Data Collection
-- Automatically queries JIRA for new issues within the selected projects and time range.
+- Automatically queries JIRA for issues based on the provided time range or sprint name:
+  - **Time range mode**: Filters issues by creation date within the specified period (e.g., `last-week`, `2024-01-01:2024-01-31`)
+  - **Sprint mode**: Filters issues by JIRA Sprint without time constraints (e.g., `"OTA 277"`)
+  - Sprint detection: If the time-period parameter doesn't match known time range formats, it's treated as a sprint name
 - Supports complex JQL filters, including multi-project, component-based, and label-based queries.
 - Extracts key fields such as title, type, priority, component, reporter, and assignee.
 - Detects related or duplicate issues to provide better context.
@@ -79,6 +83,11 @@ The `jira:grooming` command runs in three main phases:
 6. **Combine component and label filters**:
    ```
    /jira:grooming OCPSTRAT last-week --component "Control Plane" --label "performance"
+   ```
+
+7. **Query sprint issues with component filter**:
+   ```bash
+   /jira:grooming OCPBUGS "OTA 277" --component "Cluster Version Operator"
    ```
 
 ## Output Format
@@ -136,10 +145,16 @@ The command outputs a ready-to-use Markdown document that can be copied into Con
     - `"OpenShift Virtualization,Red Hat OpenShift Control Planes"`  
       Default: read from configuration file
 
-- **$2 – time-period**  
-  Time range for issue collection.  
-  Options: `last-week` | `last-2-weeks` | `last-month` | `YYYY-MM-DD:YYYY-MM-DD`  
+- **$2 – time-period**
+  Time range for issue collection OR sprint name.
+  Options:
+  - Time ranges: `last-week` | `last-2-weeks` | `last-month` | `YYYY-MM-DD:YYYY-MM-DD`
+  - Sprint name: Any string that doesn't match time range formats (e.g., `"OTA 277"`)
   Default: `last-week`
+
+  **Behavior:**
+  - If a time range is provided, filters issues by creation date within that range
+  - If a sprint name is provided, filters issues by JIRA Sprint WITHOUT applying time range constraints
 
 - **--component** *(optional)*
   Filter by JIRA component (single or comma-separated).
