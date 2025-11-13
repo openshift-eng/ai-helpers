@@ -40,6 +40,11 @@
       "description": "A plugin for Claude session management and persistence"
     },
     {
+      "name": "sosreport",
+      "source": "./plugins/sosreport",
+      "description": "Analyze sosreport archives for system diagnostics and troubleshooting"
+    },
+    {
       "name": "utils",
       "source": "./plugins/utils",
       "description": "A generic utilities plugin serving as a catch-all for various helper commands"

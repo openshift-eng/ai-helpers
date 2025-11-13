@@ -16,6 +16,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Openshift](#openshift-plugin)
 - [Prow Job](#prow-job-plugin)
 - [Session](#session-plugin)
+- [Sosreport](#sosreport-plugin)
 - [Utils](#utils-plugin)
 - [Yaml](#yaml-plugin)
 
@@ -183,6 +184,15 @@ A plugin to save and resume conversation sessions across long time intervals
 - **`/session:save-session` `[optional-description]`** - Save current conversation session to markdown file for future continuation
 
 See [plugins/session/README.md](plugins/session/README.md) for detailed documentation.
+
+### Sosreport Plugin
+
+Analyze sosreport archives for system diagnostics and troubleshooting
+
+**Commands:**
+- **`/sosreport:analyze` `<path-to-sosreport> [--only <areas>] [--skip <areas>]`** - Analyze sosreport archive for system diagnostics and issues
+
+See [plugins/sosreport/README.md](plugins/sosreport/README.md) for detailed documentation.
 
 ### Utils Plugin
 

@@ -290,6 +290,42 @@
       "has_readme": true
     },
     {
+      "name": "sosreport",
+      "description": "Analyze sosreport archives for system diagnostics and troubleshooting",
+      "version": "0.0.1",
+      "commands": [
+        {
+          "name": "analyze",
+          "description": "Analyze sosreport archive for system diagnostics and issues",
+          "synopsis": "/sosreport:analyze <path-to-sosreport> [--only <areas>] [--skip <areas>]",
+          "argument_hint": "<path-to-sosreport> [--only <areas>] [--skip <areas>]"
+        }
+      ],
+      "skills": [
+        {
+          "name": "Logs Analysis",
+          "id": "logs-analysis",
+          "description": "Analyze system and application log data from sosreport archives, extracting error patterns, kernel panics, OOM events, service failures, and application crashes from journald logs and traditional log files within the sosreport directory structure to identify root causes of system failures and issues"
+        },
+        {
+          "name": "Network Analysis",
+          "id": "network-analysis",
+          "description": "Analyze network configuration data from sosreport archives, extracting interface configurations, routing tables, active connections, firewall rules (firewalld/iptables), and DNS settings from the sosreport directory structure to diagnose network connectivity and configuration issues"
+        },
+        {
+          "name": "Resource Analysis",
+          "id": "resource-analysis",
+          "description": "Analyze system resource usage data from sosreport archives, extracting memory statistics, CPU load averages, disk space utilization, and process information from the sosreport directory structure to diagnose resource exhaustion, performance bottlenecks, and capacity issues"
+        },
+        {
+          "name": "System Configuration Analysis",
+          "id": "system-config-analysis",
+          "description": "Analyze system configuration data from sosreport archives, extracting OS details, installed packages, systemd service status, SELinux/AppArmor policies, and kernel parameters from the sosreport directory structure to diagnose configuration-related system issues"
+        }
+      ],
+      "has_readme": true
+    },
+    {
       "name": "utils",
       "description": "A generic utilities plugin serving as a catch-all for various helper commands",
       "version": "0.0.1",
