@@ -191,6 +191,12 @@
           "argument_hint": "[question]"
         },
         {
+          "name": "list-step",
+          "description": "List the step for the given workflow or chain name",
+          "synopsis": "",
+          "argument_hint": "<workflow-or-chain-name>"
+        },
+        {
           "name": "list-unstable-tests",
           "description": "List unstable tests with pass rate below 95%",
           "synopsis": "/ci:list-unstable-tests <version> <keywords> [sippy-url]",
