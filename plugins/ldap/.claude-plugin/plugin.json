@@ -1,0 +1,8 @@
+{
+  "name": "ldap",
+  "description": "A plugin to query LDAP directory information with natural language",
+  "version": "0.0.1",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}
