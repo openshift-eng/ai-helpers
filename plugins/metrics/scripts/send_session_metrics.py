@@ -17,6 +17,7 @@ import hashlib
 import platform
 import threading
 import argparse
+from typing import Optional
 from urllib import request, error
 
 # --- Constants ---
@@ -33,7 +34,7 @@ ANONYMOUS_ID_FILE_NAME = ".anonymous_id"
 
 # --- Helper Functions ---
 
-def get_or_create_anonymous_id(metrics_dir: pathlib.Path) -> str | None:
+def get_or_create_anonymous_id(metrics_dir: pathlib.Path) -> Optional[str]:
     """
     Get or create a persistent anonymous user ID stored in the metrics directory.
     Returns None if unable to read or create the ID.
@@ -53,7 +54,7 @@ def get_or_create_anonymous_id(metrics_dir: pathlib.Path) -> str | None:
         # Failed to read/write ID file, return None
         return None
 
-def log_message(log_file: pathlib.Path | None, timestamp: str, message: str, verbose: bool = False):
+def log_message(log_file: Optional[pathlib.Path], timestamp: str, message: str, verbose: bool = False):
     """
     Appends a formatted message to the local log file if verbose is True.
     """
@@ -67,7 +68,7 @@ def log_message(log_file: pathlib.Path | None, timestamp: str, message: str, ver
         # Failed to write to log, but don't crash the script
         pass
 
-def parse_transcript(transcript_path: str, log_file: pathlib.Path | None = None, verbose: bool = False) -> dict:
+def parse_transcript(transcript_path: str, log_file: Optional[pathlib.Path] = None, verbose: bool = False) -> dict:
     """
     Parse the transcript JSONL file and extract session metrics.
     Returns a dict with all the session metrics.
@@ -97,7 +98,7 @@ def parse_transcript(transcript_path: str, log_file: pathlib.Path | None = None,
 
     # Check if file exists
     if not os.path.exists(transcript_path):
-        timestamp = datetime.datetime.now(datetime.UTC).isoformat(timespec='seconds')
+        timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds')
         log_message(log_file, timestamp, f"ERROR: Transcript file does not exist: {transcript_path}", verbose)
         return metrics
 
@@ -182,15 +183,16 @@ def parse_transcript(transcript_path: str, log_file: pathlib.Path | None = None,
 
                 if has_error:
                     metrics['had_errors'] = True
+                    metrics['tool_error_count'] += 1
 
     except Exception as e:
         # Failed to parse transcript, return partial metrics
-        timestamp = datetime.datetime.now(datetime.UTC).isoformat(timespec='seconds')
+        timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds')
         log_message(log_file, timestamp, f"ERROR parsing transcript: {type(e).__name__}: {str(e)}", verbose)
 
     return metrics
 
-def send_session_metrics(payload: dict, log_file: pathlib.Path | None, timestamp: str, verbose: bool = False):
+def send_session_metrics(payload: dict, log_file: Optional[pathlib.Path], timestamp: str, verbose: bool = False):
     """
     Sends the session metrics payload to the endpoint.
     This function is designed to be run in a background thread.
@@ -287,7 +289,7 @@ def main():
 
     # --- 4. Prepare and Send Metrics ---
     # Use RFC3339 format (ISO 8601 with timezone)
-    timestamp = datetime.datetime.now(datetime.UTC).isoformat(timespec='seconds')
+    timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds')
     os_name = platform.system().lower()
 
     # Calculate MAC: SHA256(session_id + start_timestamp)
@@ -339,6 +341,8 @@ def main():
     log_message(log_file, timestamp, f"Sending session metrics: {json.dumps(payload)}", verbose)
 
     # Send metrics (asynchronous in a non-daemon thread)
+    # The script will exit, but the thread will continue
+    # running until the network request finishes or times out.
     thread = threading.Thread(
         target=send_session_metrics,
         args=(payload, log_file, timestamp, verbose),
