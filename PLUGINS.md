@@ -6,6 +6,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Ci](#ci-plugin)
 - [Compliance](#compliance-plugin)
 - [Component Health](#component-health-plugin)
+- [Container Image](#container-image-plugin)
 - [Doc](#doc-plugin)
 - [Git](#git-plugin)
 - [Hcp](#hcp-plugin)
@@ -62,6 +63,18 @@ Analyze component health using regression and jira data
 - **`/component-health:analyze-regressions` `<release> [--components comp1 comp2 ...]`** - Grade component health based on regression triage metrics for an OpenShift release
 
 See [plugins/component-health/README.md](plugins/component-health/README.md) for detailed documentation.
+
+### Container Image Plugin
+
+Container image inspection and analysis using skopeo and podman
+
+**Commands:**
+- **`/container-image:compare` `<image1> <image2>`** - Compare two container images to identify differences
+- **`/container-image:inspect` `<image>`** - Inspect and provide detailed breakdown of a container image
+- **`/container-image:manifest-list` `<image>`** - Analyze and display manifest list details for multi-architecture images
+- **`/container-image:tags` `<repository>`** - List and analyze available tags for a container image repository
+
+See [plugins/container-image/README.md](plugins/container-image/README.md) for detailed documentation.
 
 ### Doc Plugin
 
