@@ -166,6 +166,21 @@
       "has_readme": true
     },
     {
+      "name": "ldap",
+      "description": "A plugin to query LDAP directory information with natural language",
+      "version": "0.0.1",
+      "commands": [
+        {
+          "name": "ask",
+          "description": "Query LDAP directory with natural language questions",
+          "synopsis": "/ldap:ask <question>",
+          "argument_hint": "<question>"
+        }
+      ],
+      "skills": [],
+      "has_readme": true
+    },
+    {
       "name": "ci",
       "description": "A plugin to work with OpenShift CI",
       "version": "0.0.1",

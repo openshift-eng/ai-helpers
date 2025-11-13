@@ -10,6 +10,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Hcp](#hcp-plugin)
 - [Hello World](#hello-world-plugin)
 - [Jira](#jira-plugin)
+- [Ldap](#ldap-plugin)
 - [Must Gather](#must-gather-plugin)
 - [Olm](#olm-plugin)
 - [Openshift](#openshift-plugin)
@@ -107,6 +108,15 @@ A plugin to automate tasks with Jira
 - **`/jira:status-rollup` `issue-id [--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD]`** - Generate a status rollup comment for any JIRA issue based on all child issues and a given date range
 
 See [plugins/jira/README.md](plugins/jira/README.md) for detailed documentation.
+
+### Ldap Plugin
+
+A plugin to query LDAP directory information with natural language
+
+**Commands:**
+- **`/ldap:ask` `<question>`** - Query LDAP directory with natural language questions
+
+See [plugins/ldap/README.md](plugins/ldap/README.md) for detailed documentation.
 
 ### Must Gather Plugin
 
