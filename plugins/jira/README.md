@@ -8,7 +8,7 @@ Comprehensive Jira integration for Claude Code, providing AI-powered tools to an
 - 📊 **Status Rollups** - Generate comprehensive status rollup comments for any Jira issue given a date range
 - 📋 **Backlog Grooming** - Analyze new bugs and cards for grooming meetings
 - 🧪 **Test Generation** - Generate comprehensive test steps for JIRA issues by analyzing related PRs
-- ✨ **Issue Creation** - Create well-formed stories, epics, features, tasks, and bugs with guided workflows
+- ✨ **Issue Creation** - Create well-formed stories, epics, features, tasks, bugs, and feature requests with guided workflows
 - 📝 **Release Note Generation** - Automatically generate bug fix release notes from Jira and linked GitHub PRs
 - 🤖 **Automated Workflows** - From issue analysis to PR creation, fully automated
 - 💬 **Smart Comment Analysis** - Extracts blockers, risks, and key insights from comments
@@ -128,7 +128,7 @@ See [commands/generate-test-plan.md](commands/generate-test-plan.md) for full do
 
 ### `/jira:create` - Create Jira Issues
 
-Create well-formed Jira issues (stories, epics, features, tasks, bugs) with intelligent defaults, interactive guidance, and validation. The command applies project-specific conventions, suggests components based on context, and provides templates for consistent issue creation.
+Create well-formed Jira issues (stories, epics, features, tasks, bugs, feature requests) with intelligent defaults, interactive guidance, and validation. The command applies project-specific conventions, suggests components based on context, and provides templates for consistent issue creation.
 
 **Usage:**
 ```bash
@@ -152,6 +152,9 @@ Create well-formed Jira issues (stories, epics, features, tasks, bugs) with inte
 
 # Create a feature
 /jira:create feature MYPROJECT "Advanced search capabilities"
+
+# Create a feature request
+/jira:create feature-request RFE "Support custom SSL certificates for ROSA HCP"
 ```
 
 **Key Features:**
@@ -168,6 +171,7 @@ Create well-formed Jira issues (stories, epics, features, tasks, bugs) with inte
 - `feature` - Strategic features with market problem analysis
 - `task` - Technical tasks and operational work
 - `bug` - Bug reports with structured templates
+- `feature-request` - Customer-driven feature requests for RFE project with business justification
 
 **Project-Specific Conventions:**
 

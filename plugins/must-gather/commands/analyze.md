@@ -25,6 +25,7 @@ The command can analyze:
 - Kubernetes events (warnings and errors)
 - etcd cluster health and quorum status
 - Persistent volume and claim status
+- Prometheus alerts
 
 You can request analysis of the entire cluster or focus on a specific component.
 
@@ -107,6 +108,7 @@ The command performs the following steps:
    - "version", "cluster version", "update", "upgrade" → `analyze_clusterversion.py` ONLY
    - "events", "warnings", "errors" → `analyze_events.py` ONLY
    - "storage", "pv", "pvc", "volumes", "persistent" → `analyze_pvs.py` ONLY
+   - "alerts", "prometheus", "monitoring" → `analyze_prometheus.py` ONLY
 
    **STEP 2: No specific component mentioned**
 
@@ -119,6 +121,7 @@ The command performs the following steps:
    6. Events - warnings only (`analyze_events.py --type Warning --count 50`)
    7. etcd (`analyze_etcd.py`)
    8. Storage (`analyze_pvs.py`)
+   9. Monitoring (`analyze_prometheus.py`)
 
 3. **Execute Analysis Scripts**:
    ```bash
@@ -174,6 +177,9 @@ ETCD CLUSTER HEALTH:
 
 STORAGE (PVs/PVCs):
 [output from analyze_pvs.py]
+
+MONITORING (Alerts):
+[output from analyze_prometheus.py]
 
 ================================================================================
 FINDINGS AND RECOMMENDATIONS

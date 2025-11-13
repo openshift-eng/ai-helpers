@@ -43,6 +43,9 @@
       "name": "security",
       "source": "./plugins/security",
       "description": "CVE analysis and container image vulnerability scanning for Red Hat ecosystem"
+      "name": "sosreport",
+      "source": "./plugins/sosreport",
+      "description": "Analyze sosreport archives for system diagnostics and troubleshooting"
     },
     {
       "name": "utils",
@@ -80,9 +83,19 @@
       "description": "A plugin to analyze and report on must-gather data"
     },
     {
+      "name": "metrics",
+      "source": "./plugins/metrics",
+      "description": "Anonymous metrics usage for ai-helpers"
+    },
+    {
       "name": "hcp",
       "source": "./plugins/hcp",
       "description": "Generate HyperShift cluster creation commands via hcp CLI from natural language descriptions"
+    },
+    {
+      "name": "compliance",
+      "source": "./plugins/compliance",
+      "description": "Security compliance and vulnerability analysis tools for Go projects"
     }
   ]
 }

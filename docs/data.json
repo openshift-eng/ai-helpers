@@ -51,6 +51,7 @@
           "description": "Git blame analysis helper for the suggest-reviewers command"
         }
       ],
+      "hooks": [],
       "has_readme": true
     },
     {
@@ -66,6 +67,7 @@
         }
       ],
       "skills": [],
+      "hooks": [],
       "has_readme": true
     },
     {
@@ -87,7 +89,7 @@
         },
         {
           "name": "create",
-          "description": "Create Jira issues (story, epic, feature, task, bug) with proper formatting",
+          "description": "Create Jira issues (story, epic, feature, task, bug, feature-request) with proper formatting",
           "synopsis": "/jira:create <type> [project-key] <summary> [options]",
           "argument_hint": "<type> [project-key] <summary> [--component <name>] [--version <version>] [--parent <key>]"
         },
@@ -138,6 +140,11 @@
           "description": "Implementation guide for creating Jira features representing strategic objectives and market problems"
         },
         {
+          "name": "Create Jira Feature Request",
+          "id": "create-feature-request",
+          "description": "Implementation guide for creating Feature Requests in the RFE project"
+        },
+        {
           "name": "Create Release Note",
           "id": "create-release-note",
           "description": "Detailed implementation guide for generating bug fix release notes from Jira and GitHub PRs"
@@ -163,6 +170,7 @@
           "description": "Jira conventions and bug templates for the OCPBUGS project"
         }
       ],
+      "hooks": [],
       "has_readme": true
     },
     {
@@ -226,6 +234,7 @@
           "description": "Helper skill to retrieve OAuth tokens from the correct OpenShift cluster context when multiple clusters are configured"
         }
       ],
+      "hooks": [],
       "has_readme": true
     },
     {
@@ -257,6 +266,7 @@
           "description": "Fetch and analyze component health regressions for OpenShift releases"
         }
       ],
+      "hooks": [],
       "has_readme": true
     },
     {
@@ -272,6 +282,7 @@
         }
       ],
       "skills": [],
+      "hooks": [],
       "has_readme": true
     },
     {
@@ -287,6 +298,44 @@
         }
       ],
       "skills": [],
+      "hooks": [],
+      "has_readme": true
+    },
+    {
+      "name": "sosreport",
+      "description": "Analyze sosreport archives for system diagnostics and troubleshooting",
+      "version": "0.0.1",
+      "commands": [
+        {
+          "name": "analyze",
+          "description": "Analyze sosreport archive for system diagnostics and issues",
+          "synopsis": "/sosreport:analyze <path-to-sosreport> [--only <areas>] [--skip <areas>]",
+          "argument_hint": "<path-to-sosreport> [--only <areas>] [--skip <areas>]"
+        }
+      ],
+      "skills": [
+        {
+          "name": "Logs Analysis",
+          "id": "logs-analysis",
+          "description": "Analyze system and application log data from sosreport archives, extracting error patterns, kernel panics, OOM events, service failures, and application crashes from journald logs and traditional log files within the sosreport directory structure to identify root causes of system failures and issues"
+        },
+        {
+          "name": "Network Analysis",
+          "id": "network-analysis",
+          "description": "Analyze network configuration data from sosreport archives, extracting interface configurations, routing tables, active connections, firewall rules (firewalld/iptables), and DNS settings from the sosreport directory structure to diagnose network connectivity and configuration issues"
+        },
+        {
+          "name": "Resource Analysis",
+          "id": "resource-analysis",
+          "description": "Analyze system resource usage data from sosreport archives, extracting memory statistics, CPU load averages, disk space utilization, and process information from the sosreport directory structure to diagnose resource exhaustion, performance bottlenecks, and capacity issues"
+        },
+        {
+          "name": "System Configuration Analysis",
+          "id": "system-config-analysis",
+          "description": "Analyze system configuration data from sosreport archives, extracting OS details, installed packages, systemd service status, SELinux/AppArmor policies, and kernel parameters from the sosreport directory structure to diagnose configuration-related system issues"
+        }
+      ],
+      "hooks": [],
       "has_readme": true
     },
     {
@@ -347,6 +396,7 @@
         }
       ],
       "skills": [],
+      "hooks": [],
       "has_readme": true
     },
     {
@@ -416,6 +466,7 @@
         }
       ],
       "skills": [],
+      "hooks": [],
       "has_readme": true
     },
     {
@@ -475,6 +526,7 @@
           "description": "Extract and decompress must-gather archives from Prow CI job artifacts, generating an interactive HTML file browser with filters"
         }
       ],
+      "hooks": [],
       "has_readme": true
     },
     {
@@ -490,6 +542,7 @@
         }
       ],
       "skills": [],
+      "hooks": [],
       "has_readme": true
     },
     {
@@ -508,6 +561,12 @@
           "description": "Perform comprehensive health check on OpenShift cluster and report issues",
           "synopsis": "/openshift:cluster-health-check [--verbose] [--output-format json|text]",
           "argument_hint": "\"[--verbose] [--output-format]\""
+        },
+        {
+          "name": "crd-review",
+          "description": "Review Kubernetes CRDs against Kubernetes and OpenShift API conventions",
+          "synopsis": "/openshift:crd-review [repository-path]",
+          "argument_hint": "[repository-path]"
         },
         {
           "name": "create-cluster",
@@ -547,6 +606,7 @@
         }
       ],
       "skills": [],
+      "hooks": [],
       "has_readme": true
     },
     {
@@ -562,6 +622,7 @@
         }
       ],
       "skills": [],
+      "hooks": [],
       "has_readme": true
     },
     {
@@ -587,6 +648,32 @@
           "name": "Must-Gather Analyzer",
           "id": "must-gather-analyzer",
           "description": "|"
+        }
+      ],
+      "hooks": [],
+      "has_readme": true
+    },
+    {
+      "name": "metrics",
+      "description": "Anonymous metrics usage for ai-helpers",
+      "version": "0.0.1",
+      "commands": [],
+      "skills": [],
+      "hooks": [
+        {
+          "name": "UserPromptSubmit",
+          "description": "Anonymous Usage Metric Collection",
+          "type": "UserPromptSubmit"
+        },
+        {
+          "name": "PreToolUse",
+          "description": "Anonymous Usage Metric Collection",
+          "type": "PreToolUse"
+        },
+        {
+          "name": "SessionEnd",
+          "description": "Anonymous Usage Metric Collection",
+          "type": "SessionEnd"
         }
       ],
       "has_readme": true
@@ -635,6 +722,23 @@
           "description": "Use this skill when you need to deploy HyperShift clusters on IBM Cloud PowerVS with proper processor configuration and resource management"
         }
       ],
+      "hooks": [],
+      "has_readme": true
+    },
+    {
+      "name": "compliance",
+      "description": "Security compliance and vulnerability analysis tools for Go projects",
+      "version": "0.0.1",
+      "commands": [
+        {
+          "name": "analyze-cve",
+          "description": "Analyze Go codebase for CVE vulnerabilities and suggest fixes",
+          "synopsis": "/compliance:analyze-cve <CVE-ID>",
+          "argument_hint": "<CVE-ID>"
+        }
+      ],
+      "skills": [],
+      "hooks": [],
       "has_readme": true
     }
   ]
