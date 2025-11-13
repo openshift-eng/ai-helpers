@@ -48,7 +48,7 @@ For Red Hat/OpenShift engineers, the default configuration targets:
 
 You can customize these values in your `~/.ldaprc` file:
 
-```
+```text
 URI ldap://your-ldap-server.com
 BASE dc=your,dc=domain,dc=com
 ```

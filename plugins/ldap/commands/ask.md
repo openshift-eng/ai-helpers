@@ -33,7 +33,7 @@ Ask natural language questions about the LDAP directory. The command parses your
 
 3. **Parse question**: Determine query type and extract search terms from the natural language question
 
-5. **Format output**: Return results in simple, readable format
+4. **Format output**: Return results in simple, readable format
 
 **Query types:**
 - User info: Search by uid, email, or name → return user details
@@ -43,7 +43,7 @@ Ask natural language questions about the LDAP directory. The command parses your
 
 ## Examples
 
-```
+```bash
 /ldap:ask find user jsmith
 /ldap:ask who is manager of jdoe
 /ldap:ask what groups does jsmith have
