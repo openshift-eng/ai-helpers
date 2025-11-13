@@ -1,6 +1,6 @@
 ---
 description: Query and summarize JIRA bugs for a specific project with counts by component
-argument-hint: <project> [--component comp1 comp2 ...] [--status status1 status2 ...] [--include-closed] [--limit N]
+argument-hint: --project <project> [--component comp1 comp2 ...] [--status status1 status2 ...] [--include-closed] [--limit N]
 ---
 
 ## Name
@@ -10,7 +10,7 @@ component-health:summarize-jiras
 ## Synopsis
 
 ```
-/component-health:summarize-jiras <project> [--component comp1 comp2 ...] [--status status1 status2 ...] [--include-closed] [--limit N]
+/component-health:summarize-jiras --project <project> [--component comp1 comp2 ...] [--status status1 status2 ...] [--include-closed] [--limit N]
 ```
 
 ## Description
@@ -57,7 +57,7 @@ This command is useful for:
 
 3. **Parse Arguments**: Extract project key and optional filters from arguments
 
-   - Project key: Required first argument (e.g., "OCPBUGS", "OCPSTRAT")
+   - Project key: Required `--project` flag (e.g., "OCPBUGS", "OCPSTRAT")
    - Optional filters:
      - `--component`: Space-separated list of component names
      - `--status`: Space-separated list of status values
@@ -168,7 +168,7 @@ For each component:
 1. **Summarize all open bugs for a project**:
 
    ```
-   /component-health:summarize-jiras OCPBUGS
+   /component-health:summarize-jiras --project OCPBUGS
    ```
 
    Fetches all open bugs in the OCPBUGS project (up to default limit of 100) and displays summary statistics.
@@ -176,7 +176,7 @@ For each component:
 2. **Filter by specific component**:
 
    ```
-   /component-health:summarize-jiras OCPBUGS --component "kube-apiserver"
+   /component-health:summarize-jiras --project OCPBUGS --component "kube-apiserver"
    ```
 
    Shows bug counts for only the kube-apiserver component.
@@ -184,7 +184,7 @@ For each component:
 3. **Filter by multiple components**:
 
    ```
-   /component-health:summarize-jiras OCPBUGS --component "kube-apiserver" "etcd" "Networking"
+   /component-health:summarize-jiras --project OCPBUGS --component "kube-apiserver" "etcd" "Networking"
    ```
 
    Shows bug counts for kube-apiserver, etcd, and Networking components.
@@ -192,7 +192,7 @@ For each component:
 4. **Include closed bugs**:
 
    ```
-   /component-health:summarize-jiras OCPBUGS --include-closed --limit 500
+   /component-health:summarize-jiras --project OCPBUGS --include-closed --limit 500
    ```
 
    Includes both open and closed bugs, fetching up to 500 issues.
@@ -200,7 +200,7 @@ For each component:
 5. **Filter by status**:
 
    ```
-   /component-health:summarize-jiras OCPBUGS --status New "In Progress" Verified
+   /component-health:summarize-jiras --project OCPBUGS --status New "In Progress" Verified
    ```
 
    Shows only bugs in New, In Progress, or Verified status.
@@ -208,18 +208,18 @@ For each component:
 6. **Combine multiple filters**:
 
    ```
-   /component-health:summarize-jiras OCPBUGS --component "Management Console" --status New Assigned --limit 200
+   /component-health:summarize-jiras --project OCPBUGS --component "Management Console" --status New Assigned --limit 200
    ```
 
    Shows bugs for Management Console component that are in New or Assigned status.
 
 ## Arguments
 
-- `$1` (required): JIRA project key
+- `--project <project>` (required): JIRA project key
   - Format: Project key in uppercase (e.g., "OCPBUGS", "OCPSTRAT")
   - Must be a valid JIRA project you have access to
 
-- `$2+` (optional): Filter flags
+- Additional optional flags:
   - `--component <name1> [name2 ...]`: Filter by component names
     - Space-separated list of component names
     - Case-sensitive matching

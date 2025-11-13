@@ -98,8 +98,11 @@ def generate_summary(issues: List[Dict[str, Any]]) -> Dict[str, Any]:
     Returns:
         Dictionary containing overall summary and per-component summaries
     """
-    # Calculate cutoff date for 30 days ago
-    thirty_days_ago = datetime.now() - timedelta(days=30)
+    # Calculate cutoff dates
+    now = datetime.now()
+    thirty_days_ago = now - timedelta(days=30)
+    ninety_days_ago = now - timedelta(days=90)
+    one_eighty_days_ago = now - timedelta(days=180)
 
     # Overall summary
     overall_summary = {
@@ -108,7 +111,13 @@ def generate_summary(issues: List[Dict[str, Any]]) -> Dict[str, Any]:
         'closed_last_30_days': 0,
         'by_status': defaultdict(int),
         'by_priority': defaultdict(int),
-        'by_component': defaultdict(int)
+        'by_component': defaultdict(int),
+        'open_bugs_by_age': {
+            '0-30d': 0,
+            '30-90d': 0,
+            '90-180d': 0,
+            '>180d': 0
+        }
     }
 
     # Per-component data
@@ -117,7 +126,13 @@ def generate_summary(issues: List[Dict[str, Any]]) -> Dict[str, Any]:
         'opened_last_30_days': 0,
         'closed_last_30_days': 0,
         'by_status': defaultdict(int),
-        'by_priority': defaultdict(int)
+        'by_priority': defaultdict(int),
+        'open_bugs_by_age': {
+            '0-30d': 0,
+            '30-90d': 0,
+            '90-180d': 0,
+            '>180d': 0
+        }
     })
 
     for issue in issues:
@@ -167,6 +182,27 @@ def generate_summary(issues: List[Dict[str, Any]]) -> Dict[str, Any]:
             priority_name = 'Undefined'
         overall_summary['by_priority'][priority_name] += 1
 
+        # Calculate age for open bugs
+        is_open = status != 'Closed'
+        age_bucket = None
+        if is_open and created_str:
+            try:
+                created_date = datetime.strptime(created_str[:19], '%Y-%m-%dT%H:%M:%S')
+                age_days = (now - created_date).days
+
+                if age_days <= 30:
+                    age_bucket = '0-30d'
+                elif age_days <= 90:
+                    age_bucket = '30-90d'
+                elif age_days <= 180:
+                    age_bucket = '90-180d'
+                else:
+                    age_bucket = '>180d'
+
+                overall_summary['open_bugs_by_age'][age_bucket] += 1
+            except (ValueError, TypeError):
+                pass
+
         # Process components (issues can have multiple components)
         components = fields.get('components', [])
         component_names = []
@@ -189,6 +225,8 @@ def generate_summary(issues: List[Dict[str, Any]]) -> Dict[str, Any]:
                 components_data[component_name]['opened_last_30_days'] += 1
             if is_recently_closed:
                 components_data[component_name]['closed_last_30_days'] += 1
+            if age_bucket:
+                components_data[component_name]['open_bugs_by_age'][age_bucket] += 1
 
     # Convert defaultdicts to regular dicts and sort
     overall_summary['by_status'] = dict(sorted(
@@ -218,7 +256,8 @@ def generate_summary(issues: List[Dict[str, Any]]) -> Dict[str, Any]:
             'by_priority': dict(sorted(
                 comp_data['by_priority'].items(),
                 key=lambda x: x[1], reverse=True
-            ))
+            )),
+            'open_bugs_by_age': comp_data['open_bugs_by_age']
         }
 
     return {

@@ -60,6 +60,8 @@ Analyze component health using regression and jira data
 
 **Commands:**
 - **`/component-health:analyze-regressions` `<release> [--components comp1 comp2 ...]`** - Grade component health based on regression triage metrics for an OpenShift release
+- **`/component-health:list-jiras` `<project> [--component comp1 comp2 ...] [--status status1 status2 ...] [--include-closed] [--limit N]`** - Query and list raw JIRA bug data for a specific project
+- **`/component-health:summarize-jiras` `--project <project> [--component comp1 comp2 ...] [--status status1 status2 ...] [--include-closed] [--limit N]`** - Query and summarize JIRA bugs for a specific project with counts by component
 
 See [plugins/component-health/README.md](plugins/component-health/README.md) for detailed documentation.
 
