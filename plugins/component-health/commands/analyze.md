@@ -44,29 +44,45 @@ Grading is subjective and not meant to be a critique of team performance. This i
 
    - Release format: "X.Y" (e.g., "4.17", "4.21")
    - Optional filters:
-     - `--components`: Space-separated list of component names
+     - `--components`: Space-separated list of component search strings (fuzzy match)
      - `--project`: JIRA project key (default: "OCPBUGS")
 
-2. **Fetch Regression Summary**: Call the summarize-regressions command
+2. **Resolve Component Names**: Use fuzzy matching to find actual component names
+
+   - Run list_components.py to get all available components:
+     ```bash
+     python3 plugins/component-health/skills/list-components/list_components.py --release <release>
+     ```
+   - If `--components` was provided:
+     - For each search string, find all components containing that string (case-insensitive)
+     - Combine all matches into a single list
+     - Remove duplicates
+     - If no matches found for a search string, warn the user and show available components
+   - If `--components` was NOT provided:
+     - Use all available components from the list
+
+3. **Fetch Regression Summary**: Call the summarize-regressions command
 
    - Execute: `/component-health:summarize-regressions <release> [--components ...]`
+   - Pass resolved component names
    - Extract regression metrics:
      - Total regressions, triage percentages, timing metrics
      - Per-component breakdowns
      - Open vs closed regression counts
    - Note development window dates for context
 
-3. **Fetch JIRA Bug Summary**: Call the summarize-jiras command
+4. **Fetch JIRA Bug Summary**: Call the summarize-jiras command for each component
 
-   - Execute: `/component-health:summarize-jiras --project <project> [--component ...]`
-   - Extract bug metrics:
+   - For each resolved component name:
+     - Execute: `/component-health:summarize-jiras --project <project> --component "<component>"`
+     - Note: Must iterate over components because JIRA queries can be too large otherwise
+   - Aggregate bug metrics:
      - Total open bugs by component
      - Bug age distribution
      - Opened vs closed in last 30 days
      - Priority breakdowns
-   - Filter by the same components if specified
 
-4. **Calculate Combined Health Grades**: Analyze both regression and bug data
+5. **Calculate Combined Health Grades**: Analyze both regression and bug data
 
    **For each component, grade based on:**
 
@@ -104,7 +120,9 @@ Grading is subjective and not meant to be a critique of team performance. This i
       - Weight regression health more heavily (e.g., 60%) as it's more actionable
       - Bug backlog provides context (40%)
 
-5. **Display Overall Health Report**: Present comprehensive analysis
+6. **Display Overall Health Report**: Present comprehensive analysis
+
+   - Show which components were matched (if fuzzy search was used)
 
    **Section 1: Overall Release Health**
    - Release version and development window
@@ -132,7 +150,7 @@ Grading is subjective and not meant to be a critique of team performance. This i
      - "Slow regression triage: X hours average"
    - Context for each issue
 
-6. **Offer HTML Report Generation** (AFTER displaying the text report):
+7. **Offer HTML Report Generation** (AFTER displaying the text report):
    - Ask the user if they would like an interactive HTML report
    - If yes, generate an HTML report combining both data sources
    - Use template from: `plugins/component-health/skills/analyze-regressions/report_template.html`
@@ -141,7 +159,7 @@ Grading is subjective and not meant to be a critique of team performance. This i
    - Open the report in the user's default browser
    - Display the file path to the user
 
-7. **Error Handling**: Handle common error scenarios
+8. **Error Handling**: Handle common error scenarios
 
    - Network connectivity issues
    - Invalid release format
@@ -226,35 +244,35 @@ If requested:
    - Combined health grades
    - Prioritized recommendations
 
-2. **Analyze specific components**:
+2. **Analyze specific components (exact match)**:
 
    ```
-   /component-health:analyze 4.21 --components Monitoring etcd
+   /component-health:analyze 4.21 --components Monitoring Etcd
    ```
 
-   Focuses analysis on Monitoring and etcd components:
+   Focuses analysis on Monitoring and Etcd components:
    - Compares health between the two
    - Identifies which needs more attention
    - Provides targeted recommendations
 
-3. **Analyze with custom JIRA project**:
+3. **Analyze by fuzzy search**:
+
+   ```
+   /component-health:analyze 4.21 --components network
+   ```
+
+   Analyzes all components containing "network" (e.g., "Networking / ovn-kubernetes", "Networking / DNS", etc.):
+   - Compares health across all networking components
+   - Identifies networking-related quality issues
+   - Provides targeted recommendations
+
+4. **Analyze with custom JIRA project**:
 
    ```
    /component-health:analyze 4.21 --project OCPSTRAT
    ```
 
    Analyzes health using bugs from OCPSTRAT project instead of default OCPBUGS.
-
-4. **Single component deep dive**:
-
-   ```
-   /component-health:analyze 4.21 --components "kube-apiserver"
-   ```
-
-   Comprehensive health analysis for kube-apiserver:
-   - Detailed regression metrics
-   - Complete bug backlog analysis
-   - Specific recommendations for improvement
 
 5. **In-development release analysis**:
 
@@ -274,11 +292,14 @@ If requested:
   - Must be a valid OpenShift release number
 
 - `$2+` (optional): Filter flags
-  - `--components <comp1> [comp2 ...]`: Filter by component names
-    - Space-separated list of component names
-    - Case-insensitive matching
-    - Quote multi-word names if needed
+  - `--components <search1> [search2 ...]`: Filter by component names using fuzzy search
+    - Space-separated list of component search strings
+    - Case-insensitive substring matching
+    - Each search string matches all components containing that substring
+    - If no components provided, all components are analyzed
     - Applied to both regression and bug queries
+    - Example: "network" matches "Networking / ovn-kubernetes", "Networking / DNS", etc.
+    - Example: "kube-" matches "kube-apiserver", "kube-controller-manager", etc.
 
   - `--project <PROJECT>`: JIRA project key
     - Default: "OCPBUGS"

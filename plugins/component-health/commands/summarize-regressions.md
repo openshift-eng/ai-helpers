@@ -44,11 +44,25 @@ This command is useful for:
 
    - Release format: "X.Y" (e.g., "4.17", "4.21")
    - Optional filters:
-     - `--components`: Space-separated list of component names
+     - `--components`: Space-separated list of component search strings (fuzzy match)
      - `--start`: Start date for filtering (YYYY-MM-DD)
      - `--end`: End date for filtering (YYYY-MM-DD)
 
-3. **Fetch Release Dates**: Run the get_release_dates.py script to get development window dates
+3. **Resolve Component Names**: Use fuzzy matching to find actual component names
+
+   - Run list_components.py to get all available components:
+     ```bash
+     python3 plugins/component-health/skills/list-components/list_components.py --release <release>
+     ```
+   - If `--components` was provided:
+     - For each search string, find all components containing that string (case-insensitive)
+     - Combine all matches into a single list
+     - Remove duplicates
+     - If no matches found for a search string, warn the user and show available components
+   - If `--components` was NOT provided:
+     - Use all available components from the list
+
+4. **Fetch Release Dates**: Run the get_release_dates.py script to get development window dates
 
    - Script location: `plugins/component-health/skills/get-release-dates/get_release_dates.py`
    - Pass release as `--release` argument
@@ -56,11 +70,11 @@ This command is useful for:
    - Convert timestamps to simple date format (YYYY-MM-DD)
    - Use these dates if `--start` and `--end` are not explicitly provided
 
-4. **Execute Python Script**: Run the list_regressions.py script with appropriate arguments
+5. **Execute Python Script**: Run the list_regressions.py script with appropriate arguments
 
    - Script location: `plugins/component-health/skills/list-regressions/list_regressions.py`
    - Pass release as `--release` argument
-   - Pass components as `--components` argument if provided
+   - Pass resolved component names as `--components` argument
    - Pass `development_start` date as `--start` argument (if available)
      - Always applied (for both GA'd and in-development releases)
      - Excludes regressions closed before development started
@@ -70,7 +84,7 @@ This command is useful for:
      - For in-development releases (null GA date), no end date filtering is applied
    - **Always pass `--short` flag** to exclude regression arrays (only summaries)
 
-5. **Parse Output**: Process the JSON output from the script
+6. **Parse Output**: Process the JSON output from the script
 
    - Script writes JSON to stdout with summary structure:
      - `summary`: Overall statistics (total, triaged, percentages, timing)
@@ -78,8 +92,9 @@ This command is useful for:
    - **ALWAYS use the summary fields** for counts and metrics
    - Regression arrays are not included (due to `--short` flag)
 
-6. **Present Results**: Display summary in a clear, readable format
+7. **Present Results**: Display summary in a clear, readable format
 
+   - Show which components were matched (if fuzzy search was used)
    - Show overall summary statistics
    - Display per-component breakdowns
    - Highlight key metrics:
@@ -90,7 +105,7 @@ This command is useful for:
    - Present data in tables or structured format
    - Note any date filtering applied
 
-7. **Error Handling**: Handle common error scenarios
+8. **Error Handling**: Handle common error scenarios
 
    - Network connectivity issues
    - Invalid release format
@@ -162,7 +177,7 @@ For each component (from `components.*.summary`):
 
    Fetches and summarizes all regressions for release 4.17, automatically applying development window date filtering.
 
-2. **Filter by specific component**:
+2. **Filter by specific component (exact match)**:
 
    ```
    /component-health:summarize-regressions 4.21 --components Monitoring
@@ -170,15 +185,23 @@ For each component (from `components.*.summary`):
 
    Shows summary statistics for only the Monitoring component in release 4.21.
 
-3. **Filter by multiple components**:
+3. **Filter by fuzzy search**:
 
    ```
-   /component-health:summarize-regressions 4.21 --components Monitoring etcd "kube-apiserver"
+   /component-health:summarize-regressions 4.21 --components network
    ```
 
-   Shows summary statistics for Monitoring, etcd, and kube-apiserver components.
+   Finds all components containing "network" (case-insensitive) and shows summary statistics for all matches (e.g., "Networking / ovn-kubernetes", "Networking / DNS", etc.).
 
-4. **Specify custom date range**:
+4. **Filter by multiple search strings**:
+
+   ```
+   /component-health:summarize-regressions 4.21 --components etcd kube-
+   ```
+
+   Finds all components containing "etcd" OR "kube-" and shows combined summary statistics.
+
+5. **Specify custom date range**:
 
    ```
    /component-health:summarize-regressions 4.17 --start 2024-05-17 --end 2024-10-29
@@ -188,7 +211,7 @@ For each component (from `components.*.summary`):
    - Excludes regressions closed before 2024-05-17
    - Excludes regressions opened after 2024-10-29
 
-5. **In-development release**:
+6. **In-development release**:
 
    ```
    /component-health:summarize-regressions 4.21
@@ -199,14 +222,6 @@ For each component (from `components.*.summary`):
    - No end date filtering (release not yet GA'd)
    - Shows current state of regression management
 
-6. **Single component deep dive**:
-
-   ```
-   /component-health:summarize-regressions 4.21 --components "kube-apiserver"
-   ```
-
-   Provides detailed summary metrics for the kube-apiserver component only.
-
 ## Arguments
 
 - `$1` (required): Release version
@@ -214,10 +229,13 @@ For each component (from `components.*.summary`):
   - Must be a valid OpenShift release number
 
 - `$2+` (optional): Filter flags
-  - `--components <comp1> [comp2 ...]`: Filter by component names
-    - Space-separated list of component names
-    - Case-insensitive matching
-    - Quote multi-word names if needed
+  - `--components <search1> [search2 ...]`: Filter by component names using fuzzy search
+    - Space-separated list of component search strings
+    - Case-insensitive substring matching
+    - Each search string matches all components containing that substring
+    - If no components provided, all components are analyzed
+    - Example: "network" matches "Networking / ovn-kubernetes", "Networking / DNS", etc.
+    - Example: "kube-" matches "kube-apiserver", "kube-controller-manager", etc.
 
   - `--start <YYYY-MM-DD>`: Filter by start date
     - Excludes regressions closed before this date

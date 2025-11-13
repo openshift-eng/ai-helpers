@@ -37,28 +37,43 @@ This command is useful for:
 
    - Release format: "X.Y" (e.g., "4.17", "4.21")
    - Optional filters:
-     - `--components`: Space-separated list of component names
+     - `--components`: Space-separated list of component search strings (fuzzy match)
      - `--start`: Start date for filtering (YYYY-MM-DD)
      - `--end`: End date for filtering (YYYY-MM-DD)
      - `--short`: Exclude regression arrays from output (only summaries)
 
-3. **Fetch Release Dates** (if date filtering needed): Run the get_release_dates.py script
+3. **Resolve Component Names**: Use fuzzy matching to find actual component names
+
+   - Run list_components.py to get all available components:
+     ```bash
+     python3 plugins/component-health/skills/list-components/list_components.py --release <release>
+     ```
+   - If `--components` was provided:
+     - For each search string, find all components containing that string (case-insensitive)
+     - Example: "network" matches "Networking / ovn-kubernetes", "Networking / DNS", etc.
+     - Combine all matches into a single list
+     - Remove duplicates
+     - If no matches found for a search string, warn the user and show available components
+   - If `--components` was NOT provided:
+     - Use all available components from the list
+
+4. **Fetch Release Dates** (if date filtering needed): Run the get_release_dates.py script
 
    - Script location: `plugins/component-health/skills/get-release-dates/get_release_dates.py`
    - Pass release as `--release` argument
    - Extract `development_start` and `ga` dates from JSON output
    - Use these dates for `--start` and `--end` parameters if not explicitly provided
 
-4. **Execute Python Script**: Run the list_regressions.py script
+5. **Execute Python Script**: Run the list_regressions.py script
 
    - Script location: `plugins/component-health/skills/list-regressions/list_regressions.py`
    - Pass release as `--release` argument
-   - Pass components as `--components` argument if provided
+   - Pass resolved component names as `--components` argument
    - Pass `--start` date if filtering by start date
    - Pass `--end` date if filtering by end date
    - Capture JSON output from stdout
 
-5. **Parse Output**: Process the JSON response
+6. **Parse Output**: Process the JSON response
 
    - The script outputs JSON with the following structure:
      - `summary`: Overall statistics (total, triaged, percentages, timing metrics)
@@ -69,15 +84,16 @@ This command is useful for:
          - `closed`: Array of closed regression objects
    - **Note**: When using `--short` flag, regression arrays are excluded (only summaries)
 
-6. **Present Results**: Display or store the raw regression data
+7. **Present Results**: Display or store the raw regression data
 
+   - Show which components were matched (if fuzzy search was used)
    - The command returns the complete JSON response with metadata and raw regressions
    - Inform the user about overall counts from the summary
    - The raw regression data can be passed to other commands for analysis
    - Suggest using `/component-health:summarize-regressions` for summary statistics
    - Suggest using `/component-health:analyze` for health grading
 
-7. **Error Handling**: Handle common error scenarios
+8. **Error Handling**: Handle common error scenarios
 
    - Network connectivity issues
    - Invalid release format
@@ -197,7 +213,7 @@ Each regression object (in `components.*.open` or `components.*.closed` arrays) 
 
    Fetches all regression data for release 4.17, including all components.
 
-2. **Filter by specific component**:
+2. **Filter by specific component (exact match)**:
 
    ```
    /component-health:list-regressions 4.21 --components Monitoring
@@ -205,15 +221,33 @@ Each regression object (in `components.*.open` or `components.*.closed` arrays) 
 
    Returns regression data for only the Monitoring component.
 
-3. **Filter by multiple components**:
+3. **Filter by fuzzy search**:
 
    ```
-   /component-health:list-regressions 4.21 --components Monitoring etcd "kube-apiserver"
+   /component-health:list-regressions 4.21 --components network
    ```
 
-   Returns regression data for Monitoring, etcd, and kube-apiserver components.
+   Finds all components containing "network" (case-insensitive):
+   - Networking / ovn-kubernetes
+   - Networking / DNS
+   - Networking / router
+   - Networking / cluster-network-operator
+   - ... and returns regression data for all matches
 
-4. **Filter by development window** (GA'd release):
+4. **Filter by multiple search strings**:
+
+   ```
+   /component-health:list-regressions 4.21 --components etcd kube-
+   ```
+
+   Finds all components containing "etcd" OR "kube-":
+   - Etcd
+   - kube-apiserver
+   - kube-controller-manager
+   - kube-scheduler
+   - kube-storage-version-migrator
+
+5. **Filter by development window** (GA'd release):
 
    ```
    /component-health:list-regressions 4.17 --start 2024-05-17 --end 2024-10-29
@@ -223,7 +257,7 @@ Each regression object (in `components.*.open` or `components.*.closed` arrays) 
    - Excludes regressions closed before 2024-05-17
    - Excludes regressions opened after 2024-10-29
 
-5. **Filter for in-development release**:
+6. **Filter for in-development release**:
 
    ```
    /component-health:list-regressions 4.21 --start 2025-09-02
@@ -233,13 +267,13 @@ Each regression object (in `components.*.open` or `components.*.closed` arrays) 
    - Excludes regressions closed before development started
    - No end date (release still in development)
 
-6. **Combine component and date filters**:
+7. **Combine fuzzy component search and date filters**:
 
    ```
-   /component-health:list-regressions 4.21 --components "kube-apiserver" --start 2025-09-02
+   /component-health:list-regressions 4.21 --components network --start 2025-09-02
    ```
 
-   Returns kube-apiserver regressions from the development window.
+   Returns regressions for all networking components from the development window.
 
 ## Arguments
 
@@ -248,10 +282,13 @@ Each regression object (in `components.*.open` or `components.*.closed` arrays) 
   - Must be a valid OpenShift release number
 
 - `$2+` (optional): Filter flags
-  - `--components <comp1> [comp2 ...]`: Filter by component names
-    - Space-separated list of component names
-    - Case-insensitive matching
-    - Quote multi-word names if needed
+  - `--components <search1> [search2 ...]`: Filter by component names using fuzzy search
+    - Space-separated list of component search strings
+    - Case-insensitive substring matching
+    - Each search string matches all components containing that substring
+    - If no components provided, all components are analyzed
+    - Example: "network" matches "Networking / ovn-kubernetes", "Networking / DNS", etc.
+    - Example: "kube-" matches "kube-apiserver", "kube-controller-manager", etc.
 
   - `--start <YYYY-MM-DD>`: Filter regressions by start date
     - Excludes regressions closed before this date

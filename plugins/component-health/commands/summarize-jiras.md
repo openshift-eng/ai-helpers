@@ -59,19 +59,36 @@ This command is useful for:
 
    - Project key: Required `--project` flag (e.g., "OCPBUGS", "OCPSTRAT")
    - Optional filters:
-     - `--component`: Space-separated list of component names
+     - `--component`: Space-separated list of component search strings (fuzzy match)
      - `--status`: Space-separated list of status values
      - `--include-closed`: Flag to include closed bugs
-     - `--limit`: Maximum number of issues to fetch (default: 100, max: 1000)
+     - `--limit`: Maximum number of issues to fetch per component (default: 100, max: 1000)
 
-4. **Execute Python Script**: Run the summarize_jiras.py script
+4. **Resolve Component Names** (if component filter provided): Use fuzzy matching to find actual component names
+
+   - Extract release from context or ask user for release version
+   - Run list_components.py to get all available components:
+     ```bash
+     python3 plugins/component-health/skills/list-components/list_components.py --release <release>
+     ```
+   - For each search string in `--component`:
+     - Find all components containing that string (case-insensitive)
+     - Combine all matches into a single list
+     - Remove duplicates
+     - If no matches found for a search string, warn the user and show available components
+
+5. **Execute Python Script**: Run the summarize_jiras.py script for each component
 
    - Script location: `plugins/component-health/skills/summarize-jiras/summarize_jiras.py`
    - The script internally calls `list_jiras.py` to fetch raw data
-   - Build command with arguments
-   - Capture JSON output from stdout
+   - **Important**: Iterate over each resolved component separately to avoid overly large queries
+   - For each component:
+     - Build command with project, single component, and other filters
+     - Execute: `python3 summarize_jiras.py --project <project> --component "<component>" [other args]`
+     - Capture JSON output from stdout
+   - Aggregate summary statistics from all components into a combined response
 
-5. **Parse Output**: Process the JSON response
+6. **Parse Output**: Process the aggregated JSON response
 
    - Extract summary statistics:
      - `total_count`: Total matching issues in JIRA
@@ -83,17 +100,18 @@ This command is useful for:
      - Each component has its own counts by status and priority
      - Includes opened/closed in last 30 days per component
 
-6. **Present Results**: Display summary in a clear format
+7. **Present Results**: Display summary in a clear format
 
-   - Show total bug count
+   - Show which components were matched (if fuzzy search was used)
+   - Show total bug count across all components
    - Display status breakdown (e.g., New, In Progress, Verified, etc.)
    - Display priority breakdown (Critical, Major, Normal, Minor, etc.)
    - Display component distribution
    - Show per-component breakdowns with status and priority counts
-   - Highlight any truncation (if fetched_count < total_count)
+   - Highlight any truncation (if fetched_count < total_count for any component)
    - Suggest increasing --limit if results are truncated
 
-7. **Error Handling**: Handle common error scenarios
+8. **Error Handling**: Handle common error scenarios
 
    - Network connectivity issues
    - Invalid JIRA credentials
@@ -220,10 +238,14 @@ For each component:
   - Must be a valid JIRA project you have access to
 
 - Additional optional flags:
-  - `--component <name1> [name2 ...]`: Filter by component names
-    - Space-separated list of component names
-    - Case-sensitive matching
-    - Quote multi-word names: `"Management Console"`
+  - `--component <search1> [search2 ...]`: Filter by component names using fuzzy search
+    - Space-separated list of component search strings
+    - Case-insensitive substring matching
+    - Each search string matches all components containing that substring
+    - Makes separate JIRA queries for each matched component to avoid overly large results
+    - Example: "network" matches "Networking / ovn-kubernetes", "Networking / DNS", etc.
+    - Example: "kube-" matches "kube-apiserver", "kube-controller-manager", etc.
+    - Note: Requires release context (inferred from recent commands or specified by user)
 
   - `--status <status1> [status2 ...]`: Filter by status values
     - Space-separated list of status names
@@ -233,9 +255,10 @@ For each component:
     - By default, only open bugs are returned
     - When specified, closed bugs are included
 
-  - `--limit <N>`: Maximum number of issues to fetch
+  - `--limit <N>`: Maximum number of issues to fetch per component
     - Default: 100
     - Range: 1-1000
+    - When using component filters, this limit applies to each component separately
     - Higher values provide more accurate statistics but slower performance
 
 ## Prerequisites
