@@ -294,7 +294,7 @@
           "name": "save-session",
           "description": "Save current conversation session to markdown file for future continuation",
           "synopsis": "/save-session",
-          "argument_hint": "[optional-description]"
+          "argument_hint": "[-i] [description]"
         }
       ],
       "skills": [],
