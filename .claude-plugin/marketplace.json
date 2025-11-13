@@ -43,6 +43,8 @@
       "name": "security",
       "source": "./plugins/security",
       "description": "CVE analysis and container image vulnerability scanning for Red Hat ecosystem"
+    },
+    {
       "name": "sosreport",
       "source": "./plugins/sosreport",
       "description": "Analyze sosreport archives for system diagnostics and troubleshooting"
