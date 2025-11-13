@@ -243,10 +243,10 @@
       "version": "0.0.1",
       "commands": [
         {
-          "name": "analyze-regressions",
-          "description": "Grade component health based on regression triage metrics for an OpenShift release",
-          "synopsis": "/component-health:analyze-regressions <release> [--components comp1 comp2 ...]",
-          "argument_hint": "<release> [--components comp1 comp2 ...]"
+          "name": "analyze",
+          "description": "Analyze and grade component health based on regression and JIRA bug metrics",
+          "synopsis": "/component-health:analyze <release> [--components comp1 comp2 ...] [--project JIRAPROJECT]",
+          "argument_hint": "<release> [--components comp1 comp2 ...] [--project JIRAPROJECT]"
         },
         {
           "name": "list-jiras",
@@ -255,10 +255,22 @@
           "argument_hint": "<project> [--component comp1 comp2 ...] [--status status1 status2 ...] [--include-closed] [--limit N]"
         },
         {
+          "name": "list-regressions",
+          "description": "Fetch and list raw regression data for OpenShift releases",
+          "synopsis": "/component-health:list-regressions <release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]",
+          "argument_hint": "<release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]"
+        },
+        {
           "name": "summarize-jiras",
           "description": "Query and summarize JIRA bugs for a specific project with counts by component",
           "synopsis": "/component-health:summarize-jiras --project <project> [--component comp1 comp2 ...] [--status status1 status2 ...] [--include-closed] [--limit N]",
           "argument_hint": "--project <project> [--component comp1 comp2 ...] [--status status1 status2 ...] [--include-closed] [--limit N]"
+        },
+        {
+          "name": "summarize-regressions",
+          "description": "Query and summarize regression data for OpenShift releases with counts and metrics",
+          "synopsis": "/component-health:summarize-regressions <release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]",
+          "argument_hint": "<release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]"
         }
       ],
       "skills": [
