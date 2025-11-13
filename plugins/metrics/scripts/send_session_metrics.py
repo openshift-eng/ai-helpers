@@ -54,11 +54,17 @@ def get_or_create_anonymous_id(metrics_dir: pathlib.Path) -> Optional[str]:
         # Failed to read/write ID file, return None
         return None
 
-def log_message(log_file: Optional[pathlib.Path], timestamp: str, message: str, verbose: bool = False):
+def log_message(log_file: Optional[pathlib.Path], timestamp: str, message: str, verbose: bool = False, is_error: bool = False):
     """
-    Appends a formatted message to the local log file if verbose is True.
+    Appends a formatted message to the local log file.
+    In normal mode (verbose=False), only logs errors (is_error=True).
+    In verbose mode (verbose=True), logs all messages.
     """
-    if not verbose or log_file is None:
+    if log_file is None:
+        return
+
+    # Only log if verbose is enabled OR this is an error message
+    if not verbose and not is_error:
         return
 
     try:
@@ -99,7 +105,7 @@ def parse_transcript(transcript_path: str, log_file: Optional[pathlib.Path] = No
     # Check if file exists
     if not os.path.exists(transcript_path):
         timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds')
-        log_message(log_file, timestamp, f"ERROR: Transcript file does not exist: {transcript_path}", verbose)
+        log_message(log_file, timestamp, f"ERROR: Transcript file does not exist: {transcript_path}", verbose=verbose, is_error=True)
         return metrics
 
     line_count = 0  # Initialize outside try block so it's accessible later
@@ -188,7 +194,7 @@ def parse_transcript(transcript_path: str, log_file: Optional[pathlib.Path] = No
     except Exception as e:
         # Failed to parse transcript, return partial metrics
         timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds')
-        log_message(log_file, timestamp, f"ERROR parsing transcript: {type(e).__name__}: {str(e)}", verbose)
+        log_message(log_file, timestamp, f"ERROR parsing transcript: {type(e).__name__}: {str(e)}", verbose=verbose, is_error=True)
 
     return metrics
 
@@ -205,35 +211,41 @@ def send_session_metrics(payload: dict, log_file: Optional[pathlib.Path], timest
 
         # Log full API call details when verbose
         if verbose:
-            log_message(log_file, timestamp, f"API Request: POST {METRICS_URL}", verbose)
-            log_message(log_file, timestamp, f"Headers: {json.dumps(headers)}", verbose)
-            log_message(log_file, timestamp, f"Payload: {json.dumps(payload, indent=2)}", verbose)
+            log_message(log_file, timestamp, f"API Request: POST {METRICS_URL}", verbose=verbose)
+            log_message(log_file, timestamp, f"Headers: {json.dumps(headers)}", verbose=verbose)
+            log_message(log_file, timestamp, f"Payload: {json.dumps(payload, indent=2)}", verbose=verbose)
 
         with request.urlopen(req, timeout=NETWORK_TIMEOUT_SECONDS) as response:
             body = response.read().decode('utf-8', 'ignore')
-            log_message(log_file, timestamp, f"Response: HTTP {response.status} - {body}", verbose)
+            log_message(log_file, timestamp, f"Response: HTTP {response.status} - {body}", verbose=verbose)
 
     except error.HTTPError as e:
-        # Handle HTTP errors (e.g., 4xx, 5xx)
+        # Handle HTTP errors (e.g., 4xx, 5xx) - Always log errors
         try:
             body = e.read().decode('utf-8', 'ignore')
         except Exception:
             body = "(could not read error body)"
-        log_message(log_file, timestamp, f"ERROR: HTTP {e.code} - {body}", verbose)
+        error_msg = f"ERROR: HTTP {e.code} - {body}\nData sent: {json.dumps(payload, indent=2)}"
+        log_message(log_file, timestamp, error_msg, verbose=verbose, is_error=True)
 
     except Exception as e:
-        # Handle network/timeout errors
+        # Handle network/timeout errors - Always log errors
         error_detail = f"{type(e).__name__}: {str(e)}"
-        log_message(log_file, timestamp, f"ERROR: Failed to send ({error_detail})", verbose)
+        error_msg = f"ERROR: Failed to send ({error_detail})\nData sent: {json.dumps(payload, indent=2)}"
+        log_message(log_file, timestamp, error_msg, verbose=verbose, is_error=True)
 
 # --- Main Execution ---
 
 def main():
-    # --- 0. Parse Command-Line Arguments ---
+    # --- 0. Parse Command-Line Arguments and Environment ---
     parser = argparse.ArgumentParser(description="AI Helpers Session Metrics Tracking")
     parser.add_argument('-v', '--verbose', action='store_true', help='Enable verbose logging')
     args = parser.parse_args()
-    verbose = args.verbose
+
+    # Check environment variable for verbose mode (takes precedence over --verbose flag)
+    verbose = os.environ.get('CLAUDE_METRICS_VERBOSE', '').lower() in ('1', 'true', 'yes')
+    if args.verbose:
+        verbose = True
 
     # --- 1. Setup Paths ---
     log_file = None
@@ -337,8 +349,8 @@ def main():
     if session_metrics['cache_read_tokens'] > 0:
         payload['cache_read_tokens'] = session_metrics['cache_read_tokens']
 
-    # Log locally (synchronous)
-    log_message(log_file, timestamp, f"Sending session metrics: {json.dumps(payload)}", verbose)
+    # Log locally (synchronous) - only in verbose mode
+    log_message(log_file, timestamp, f"Sending session metrics: {json.dumps(payload)}", verbose=verbose)
 
     # Send metrics (asynchronous in a non-daemon thread)
     # The script will exit, but the thread will continue

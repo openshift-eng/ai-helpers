@@ -63,11 +63,17 @@ def get_or_create_anonymous_id(metrics_dir: pathlib.Path) -> str | None:
         # Failed to read/write ID file, return None
         return None
 
-def log_message(log_file: pathlib.Path | None, timestamp: str, message: str, verbose: bool = False):
+def log_message(log_file: pathlib.Path | None, timestamp: str, message: str, verbose: bool = False, is_error: bool = False):
     """
-    Appends a formatted message to the local log file if verbose is True.
+    Appends a formatted message to the local log file.
+    In normal mode (verbose=False), only logs errors (is_error=True).
+    In verbose mode (verbose=True), logs all messages.
     """
-    if not verbose or log_file is None:
+    if log_file is None:
+        return
+
+    # Only log if verbose is enabled OR this is an error message
+    if not verbose and not is_error:
         return
 
     try:
@@ -90,35 +96,41 @@ def send_metrics(payload: dict, log_file: pathlib.Path | None, timestamp: str, v
 
         # Log full API call details when verbose
         if verbose:
-            log_message(log_file, timestamp, f"API Request: POST {METRICS_URL}", verbose)
-            log_message(log_file, timestamp, f"Headers: {json.dumps(headers)}", verbose)
-            log_message(log_file, timestamp, f"Payload: {json.dumps(payload, indent=2)}", verbose)
+            log_message(log_file, timestamp, f"API Request: POST {METRICS_URL}", verbose=verbose)
+            log_message(log_file, timestamp, f"Headers: {json.dumps(headers)}", verbose=verbose)
+            log_message(log_file, timestamp, f"Payload: {json.dumps(payload, indent=2)}", verbose=verbose)
 
         with request.urlopen(req, timeout=NETWORK_TIMEOUT_SECONDS) as response:
             body = response.read().decode('utf-8', 'ignore')
-            log_message(log_file, timestamp, f"Response: HTTP {response.status} - {body}", verbose)
+            log_message(log_file, timestamp, f"Response: HTTP {response.status} - {body}", verbose=verbose)
 
     except error.HTTPError as e:
-        # Handle HTTP errors (e.g., 4xx, 5xx)
+        # Handle HTTP errors (e.g., 4xx, 5xx) - Always log errors
         try:
             body = e.read().decode('utf-8', 'ignore')
         except Exception:
             body = "(could not read error body)"
-        log_message(log_file, timestamp, f"ERROR: HTTP {e.code} - {body}", verbose)
+        error_msg = f"ERROR: HTTP {e.code} - {body}\nData sent: {json.dumps(payload, indent=2)}"
+        log_message(log_file, timestamp, error_msg, verbose=verbose, is_error=True)
 
     except Exception as e:
-        # Handle network/timeout errors
+        # Handle network/timeout errors - Always log errors
         error_detail = f"{type(e).__name__}: {str(e)}"
-        log_message(log_file, timestamp, f"ERROR: Failed to send ({error_detail})", verbose)
+        error_msg = f"ERROR: Failed to send ({error_detail})\nData sent: {json.dumps(payload, indent=2)}"
+        log_message(log_file, timestamp, error_msg, verbose=verbose, is_error=True)
 
 # --- Main Execution ---
 
 def main():
-    # --- 0. Parse Command-Line Arguments ---
+    # --- 0. Parse Command-Line Arguments and Environment ---
     parser = argparse.ArgumentParser(description="AI Helpers Metrics Tracking")
     parser.add_argument('-v', '--verbose', action='store_true', help='Enable verbose logging')
     args = parser.parse_args()
-    verbose = args.verbose
+
+    # Check environment variable for verbose mode (takes precedence over --verbose flag)
+    verbose = os.environ.get('CLAUDE_METRICS_VERBOSE', '').lower() in ('1', 'true', 'yes')
+    if args.verbose:
+        verbose = True
 
     # --- 1. Setup Paths ---
     log_file = None
@@ -198,8 +210,8 @@ def main():
         "user_id": anonymous_id  # Persistent anonymous user identifier
     }
 
-    # Log locally (synchronous)
-    log_message(log_file, timestamp, f"Sending metrics: {json.dumps(payload)}", verbose)
+    # Log locally (synchronous) - only in verbose mode
+    log_message(log_file, timestamp, f"Sending metrics: {json.dumps(payload)}", verbose=verbose)
 
     # Send metrics (asynchronous in a non-daemon thread)
     # The script will exit, but the thread will continue

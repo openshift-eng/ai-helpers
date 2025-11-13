@@ -216,15 +216,6 @@ Collected when your Claude Code session ends:
 
 ## Enabling the Plugin
 
-The metrics plugin requires explicit configuration.
-
-### Method 1: Repository Trust (Recommended)
-
-If you clone and trust this repository locally, it will be automatically
-installed by the included settings.json.
-
-### Method 2: Manual Installation
-
 If you've installed ai-helpers from the marketplace:
 
 ```bash
@@ -241,6 +232,63 @@ If you wish to opt out of metrics collection:
 
 ```bash
 /plugin disable metrics@ai-helpers
+```
+
+## Configuration
+
+The plugin can be configured using environment variables:
+
+### `CLAUDE_METRICS_URL`
+
+Override the metrics endpoint URL (useful for testing or custom deployments):
+
+```bash
+export CLAUDE_METRICS_URL=https://localhost:8080/metrics
+```
+
+The plugin will automatically append `/events` for event metrics and `/sessions` for session metrics.
+
+**Default**: `https://us-central1-openshift-ci-data-analysis.cloudfunctions.net/metrics-upload`
+
+### `CLAUDE_METRICS_VERBOSE`
+
+Enable verbose logging to see all metrics activity in the log file:
+
+```bash
+export CLAUDE_METRICS_VERBOSE=1
+# or
+export CLAUDE_METRICS_VERBOSE=true
+# or
+export CLAUDE_METRICS_VERBOSE=yes
+```
+
+**Logging behavior:**
+- **Normal mode** (default): Only errors are logged to `metrics.log` with full details including:
+  - HTTP error codes and response bodies
+  - Network/timeout errors
+  - The complete payload that failed to send
+- **Verbose mode**: All activity is logged, including:
+  - Successful transmissions
+  - API request details (URL, headers, payload)
+  - Response status codes and bodies
+
+**Log location**: `${CLAUDE_PLUGIN_ROOT}/metrics.log`
+
+**Example verbose log entry:**
+```
+[2025-10-30T12:34:56+00:00] Sending metrics: {"type": "slash_command", "name": "jira:solve", ...}
+[2025-10-30T12:34:56+00:00] API Request: POST https://...
+[2025-10-30T12:34:56+00:00] Response: HTTP 200 - {"status": "ok"}
+```
+
+**Example error log entry (always logged):**
+```
+[2025-10-30T12:34:56+00:00] ERROR: HTTP 500 - Internal Server Error
+Data sent: {
+  "type": "slash_command",
+  "name": "jira:solve",
+  ...
+}
 ```
 
 ## Network Behavior

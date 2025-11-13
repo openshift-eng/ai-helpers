@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/send_metrics.py --verbose",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/send_metrics.py",
             "timeout": 30
           }
         ]
@@ -18,7 +18,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/send_metrics.py --verbose",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/send_metrics.py",
             "timeout": 30
           }
         ]
@@ -29,7 +29,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/send_session_metrics.py --verbose",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/send_session_metrics.py",
             "timeout": 30
           }
         ]
