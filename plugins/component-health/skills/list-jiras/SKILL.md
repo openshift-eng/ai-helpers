@@ -20,11 +20,13 @@ Use this skill when you need to:
 ## Prerequisites
 
 1. **Python 3 Installation**
+
    - Check if installed: `which python3`
    - Python 3.6 or later is required
    - Comes pre-installed on most systems
 
 2. **JIRA Authentication**
+
    - Requires environment variables to be set:
      - `JIRA_URL`: Base URL for JIRA instance (e.g., "https://issues.redhat.com")
      - `JIRA_PERSONAL_TOKEN`: Your JIRA bearer token or personal access token
@@ -191,7 +193,7 @@ The script outputs JSON data with the following structure:
 
 - **By default, the query includes**: Open bugs + bugs closed in the last 30 days
 - This allows tracking of recent closure activity alongside current open bugs
-- The script fetches a maximum number of issues (default 100, configurable with `--limit`)
+- The script fetches a maximum number of issues (default 1000, configurable with `--limit`)
 - The `total_count` represents all matching issues in JIRA
 - The returned data includes ALL fields for each issue, providing complete information
 - For large datasets, increase the `--limit` parameter to fetch more issues
@@ -213,20 +215,24 @@ Based on the raw JIRA data:
 ### Common Errors
 
 1. **Authentication Errors**
+
    - **Symptom**: HTTP 401 Unauthorized
-   - **Solution**: Verify JIRA_USERNAME and JIRA_PERSONAL_TOKEN are correct
+   - **Solution**: Verify JIRA_PERSONAL_TOKEN is correct
    - **Check**: Ensure token has not expired
 
 2. **Network Errors**
+
    - **Symptom**: `URLError` or connection timeout
    - **Solution**: Check network connectivity and JIRA_URL is accessible
    - **Retry**: The script has a 30-second timeout, consider retrying
 
 3. **Invalid Project**
+
    - **Symptom**: HTTP 400 or empty results
    - **Solution**: Verify the project key is correct (e.g., "OCPBUGS", not "ocpbugs")
 
 4. **Missing Environment Variables**
+
    - **Symptom**: Error message about missing credentials
    - **Solution**: Set required environment variables (JIRA_URL, JIRA_USERNAME, JIRA_PERSONAL_TOKEN)
 
@@ -254,17 +260,20 @@ python3 plugins/component-health/skills/list-jiras/list_jiras.py \
 ### Optional Arguments
 
 - `--component`: Filter by component names
+
   - Values: Space-separated list of component names
   - Default: None (returns all components)
   - Case-sensitive matching
   - Examples: `--component "kube-apiserver" "Management Console"`
 
 - `--status`: Filter by status values
+
   - Values: Space-separated list of status names
   - Default: None (returns all statuses except Closed)
   - Examples: `--status New "In Progress" Verified`
 
 - `--include-closed`: Include closed bugs in the results
+
   - Default: false (only open bugs)
   - When specified, includes bugs in "Closed" status
 
@@ -352,6 +361,7 @@ python3 plugins/component-health/skills/list-jiras/list_jiras.py \
 ## Integration with Commands
 
 This skill is designed to:
+
 - Provide raw JIRA data to other commands (like `summarize-jiras`)
 - Be used directly for ad-hoc JIRA queries
 - Serve as a data source for custom analysis workflows

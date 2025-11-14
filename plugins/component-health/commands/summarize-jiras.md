@@ -299,4 +299,4 @@ For each component:
 - Skill Documentation: `plugins/component-health/skills/summarize-jiras/SKILL.md`
 - Script: `plugins/component-health/skills/summarize-jiras/summarize_jiras.py`
 - Related Command: `/component-health:list-jiras` (for raw JIRA data)
-- Related Command: `/component-health:analyze-regressions`
+- Related Command: `/component-health:analyze`
