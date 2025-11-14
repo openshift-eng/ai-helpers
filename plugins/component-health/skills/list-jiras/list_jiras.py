@@ -182,7 +182,7 @@ Examples:
         '--limit',
         type=int,
         default=100,
-        help='Maximum number of issues to fetch (default: 100, max: 1000)'
+        help='Maximum number of issues to fetch per component (default: 100, max: 1000)'
     )
 
     args = parser.parse_args()
@@ -196,43 +196,115 @@ Examples:
     jira_url = get_env_var('JIRA_URL').rstrip('/')
     token = get_env_var('JIRA_PERSONAL_TOKEN')
 
-    # Build JQL query
-    jql = build_jql_query(
-        project=args.project,
-        components=args.component,
-        statuses=args.status,
-        include_closed=args.include_closed
-    )
+    # If multiple components are provided, warn user and iterate through them
+    if args.component and len(args.component) > 1:
+        print(f"\nQuerying {len(args.component)} components individually...", file=sys.stderr)
+        print("This may take a few seconds.", file=sys.stderr)
+        print(f"Components: {', '.join(args.component)}\n", file=sys.stderr)
 
-    # Fetch issues
-    response = fetch_jira_issues(jira_url, token, jql, args.limit)
+        # Initialize aggregated results
+        all_issues = []
+        all_total_count = 0
+        component_queries = []
 
-    # Extract data
-    issues = response.get('issues', [])
-    total_count = response.get('total', 0)
-    fetched_count = len(issues)
+        # Iterate through each component
+        for idx, component in enumerate(args.component, 1):
+            print(f"[{idx}/{len(args.component)}] Querying component: {component}...", file=sys.stderr)
 
-    # Build output with metadata and raw issues
-    output = {
-        'project': args.project,
-        'total_count': total_count,
-        'fetched_count': fetched_count,
-        'query': jql,
-        'filters': {
-            'components': args.component,
-            'statuses': args.status,
-            'include_closed': args.include_closed,
-            'limit': args.limit
-        },
-        'issues': issues
-    }
+            # Build JQL query for this component
+            jql = build_jql_query(
+                project=args.project,
+                components=[component],
+                statuses=args.status,
+                include_closed=args.include_closed
+            )
 
-    # Add note if results are truncated
-    if fetched_count < total_count:
-        output['note'] = (
-            f"Showing first {fetched_count} of {total_count} total results. "
-            f"Increase --limit for more data."
+            # Fetch issues for this component
+            response = fetch_jira_issues(jira_url, token, jql, args.limit)
+
+            # Aggregate results
+            component_issues = response.get('issues', [])
+            component_total = response.get('total', 0)
+
+            all_issues.extend(component_issues)
+            all_total_count += component_total
+            component_queries.append(f"{component}: {jql}")
+
+            print(f"  Found {len(component_issues)} of {component_total} total issues for {component}",
+                  file=sys.stderr)
+
+        print(f"\nTotal issues fetched: {len(all_issues)} (from {all_total_count} total across all components)\n",
+              file=sys.stderr)
+
+        # Build combined JQL query string for output (informational only)
+        combined_jql = build_jql_query(
+            project=args.project,
+            components=args.component,
+            statuses=args.status,
+            include_closed=args.include_closed
         )
+
+        # Build output with aggregated data
+        output = {
+            'project': args.project,
+            'total_count': all_total_count,
+            'fetched_count': len(all_issues),
+            'query': combined_jql,
+            'component_queries': component_queries,
+            'filters': {
+                'components': args.component,
+                'statuses': args.status,
+                'include_closed': args.include_closed,
+                'limit': args.limit
+            },
+            'issues': all_issues
+        }
+
+        # Add note if results are truncated
+        if len(all_issues) < all_total_count:
+            output['note'] = (
+                f"Showing {len(all_issues)} of {all_total_count} total results across {len(args.component)} components. "
+                f"Increase --limit to fetch more per component."
+            )
+    else:
+        # Single component or no component filter - use original logic
+        # Build JQL query
+        jql = build_jql_query(
+            project=args.project,
+            components=args.component,
+            statuses=args.status,
+            include_closed=args.include_closed
+        )
+
+        # Fetch issues
+        response = fetch_jira_issues(jira_url, token, jql, args.limit)
+
+        # Extract data
+        issues = response.get('issues', [])
+        total_count = response.get('total', 0)
+        fetched_count = len(issues)
+
+        # Build output with metadata and raw issues
+        output = {
+            'project': args.project,
+            'total_count': total_count,
+            'fetched_count': fetched_count,
+            'query': jql,
+            'filters': {
+                'components': args.component,
+                'statuses': args.status,
+                'include_closed': args.include_closed,
+                'limit': args.limit
+            },
+            'issues': issues
+        }
+
+        # Add note if results are truncated
+        if fetched_count < total_count:
+            output['note'] = (
+                f"Showing first {fetched_count} of {total_count} total results. "
+                f"Increase --limit for more data."
+            )
 
     # Output JSON to stdout
     print(json.dumps(output, indent=2))

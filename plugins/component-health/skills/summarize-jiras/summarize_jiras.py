@@ -72,8 +72,11 @@ def call_list_jiras(project: str, components: List[str] = None,
             capture_output=True,
             text=True,
             check=True,
-            timeout=60
+            timeout=300  # 5 minutes to allow for multiple component queries
         )
+        # Pass through stderr to show progress messages from list_jiras.py
+        if result.stderr:
+            print(result.stderr, file=sys.stderr, end='')
         return json.loads(result.stdout)
     except subprocess.CalledProcessError as e:
         print(f"Error calling list_jiras.py: {e}", file=sys.stderr)
@@ -81,7 +84,7 @@ def call_list_jiras(project: str, components: List[str] = None,
             print(f"Error output: {e.stderr}", file=sys.stderr)
         sys.exit(1)
     except subprocess.TimeoutExpired:
-        print(f"Timeout calling list_jiras.py", file=sys.stderr)
+        print(f"Timeout calling list_jiras.py (exceeded 5 minutes)", file=sys.stderr)
         sys.exit(1)
     except json.JSONDecodeError as e:
         print(f"Error parsing JSON from list_jiras.py: {e}", file=sys.stderr)
@@ -309,7 +312,7 @@ Examples:
         '--limit',
         type=int,
         default=100,
-        help='Maximum number of issues to fetch (default: 100, max: 1000)'
+        help='Maximum number of issues to fetch per component (default: 100, max: 1000)'
     )
 
     args = parser.parse_args()
