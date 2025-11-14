@@ -93,6 +93,11 @@
       "name": "compliance",
       "source": "./plugins/compliance",
       "description": "Security compliance and vulnerability analysis tools for Go projects"
+    },
+    {
+      "name": "node-tuning",
+      "source": "./plugins/node-tuning",
+      "description": "Generate and analyze OpenShift node tuning profiles"
     }
   ]
 }
