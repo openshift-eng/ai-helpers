@@ -91,7 +91,7 @@ Grading is subjective and not meant to be a critique of team performance. This i
 
    - **ALWAYS execute this step** - do not skip or wait for user to request it
    - For each resolved component name:
-     - Execute: `/component-health:summarize-jiras --project <project> --component "<component>"`
+     - Execute: `/component-health:summarize-jiras --project <project> --component "<component>" --limit 1000`
      - Note: Must iterate over components because JIRA queries can be too large otherwise
    - Aggregate bug metrics across all components:
      - Total open bugs by component

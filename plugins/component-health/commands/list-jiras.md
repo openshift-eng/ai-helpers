@@ -61,7 +61,7 @@ This command is useful for:
      - `--component`: Space-separated list of component search strings (fuzzy match)
      - `--status`: Space-separated list of status values
      - `--include-closed`: Flag to include closed bugs
-     - `--limit`: Maximum number of issues to fetch per component (default: 100, max: 1000)
+     - `--limit`: Maximum number of issues to fetch per component (default: 1000, max: 1000)
 
 4. **Resolve Component Names** (if component filter provided): Use fuzzy matching to find actual component names
 
@@ -193,7 +193,7 @@ The command outputs **raw JIRA issue data** in JSON format with the following st
    /component-health:list-jiras OCPBUGS
    ```
 
-   Fetches all open bugs in the OCPBUGS project (up to default limit of 100) and returns raw issue data.
+   Fetches all open bugs in the OCPBUGS project (up to default limit of 1000) and returns raw issue data.
 
 2. **Filter by specific component (exact match)**:
 
@@ -270,7 +270,7 @@ The command outputs **raw JIRA issue data** in JSON format with the following st
     - When specified, closed bugs are included
 
   - `--limit <N>`: Maximum number of issues to fetch per component
-    - Default: 100
+    - Default: 1000
     - Range: 1-1000
     - When using component filters, this limit applies to each component separately
     - Higher values provide more accurate statistics but slower performance

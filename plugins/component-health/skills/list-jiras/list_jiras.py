@@ -181,8 +181,8 @@ Examples:
     parser.add_argument(
         '--limit',
         type=int,
-        default=100,
-        help='Maximum number of issues to fetch per component (default: 100, max: 1000)'
+        default=1000,
+        help='Maximum number of issues to fetch per component (default: 1000, max: 1000)'
     )
 
     args = parser.parse_args()
