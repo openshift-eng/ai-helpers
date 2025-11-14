@@ -466,6 +466,12 @@
           "argument_hint": "prowjob-url test-name"
         },
         {
+          "name": "bump-release-version",
+          "description": "Bump the release version in ci-operator config files",
+          "synopsis": "bash",
+          "argument_hint": ""
+        },
+        {
           "name": "extract-must-gather",
           "description": "Extract and decompress must-gather archives from Prow job artifacts",
           "synopsis": "/prow-job:extract-must-gather <prowjob-url>",
