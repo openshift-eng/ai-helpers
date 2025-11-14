@@ -5,6 +5,9 @@
 # Read JSON input from stdin
 input=$(cat)
 
+# Variables
+TARGET_DIR="${TMPDIR:-/tmp}/claude-sessions"
+
 # Extract session_id and prompt
 SESSION_ID=$(echo "$input" | jq -r '.session_id // empty')
 PROMPT=$(echo "$input" | jq -r '.prompt // empty')
@@ -17,5 +20,8 @@ fi
 # Convert multiline prompt to single line
 PROMPT_SINGLE_LINE=$(echo "$PROMPT" | tr '\n' ' ' | sed 's/  */ /g')
 
-# Append to session-specific file in /tmp
-echo "$PROMPT_SINGLE_LINE" >> "/tmp/prompts-${SESSION_ID}.txt"
+# Verify target folder exists
+mkdir -p "$TARGET_DIR"
+
+# Append to session-specific file
+echo "$PROMPT_SINGLE_LINE" >> "$TARGET_DIR/prompts-${SESSION_ID}.txt"
