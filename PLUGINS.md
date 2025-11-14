@@ -59,7 +59,12 @@ See [plugins/compliance/README.md](plugins/compliance/README.md) for detailed do
 Analyze component health using regression and jira data
 
 **Commands:**
-- **`/component-health:analyze-regressions` `<release> [--components comp1 comp2 ...]`** - Grade component health based on regression triage metrics for an OpenShift release
+- **`/component-health:analyze` `<release> [--components comp1 comp2 ...] [--project JIRAPROJECT]`** - Analyze and grade component health based on regression and JIRA bug metrics
+- **`/component-health:list-components` `<release>`** - List all components tracked in Sippy for a release
+- **`/component-health:list-jiras` `<project> [--component comp1 comp2 ...] [--status status1 status2 ...] [--include-closed] [--limit N]`** - Query and list raw JIRA bug data for a specific project
+- **`/component-health:list-regressions` `<release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]`** - Fetch and list raw regression data for OpenShift releases
+- **`/component-health:summarize-jiras` `--project <project> [--component comp1 comp2 ...] [--status status1 status2 ...] [--include-closed] [--limit N]`** - Query and summarize JIRA bugs for a specific project with counts by component
+- **`/component-health:summarize-regressions` `<release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]`** - Query and summarize regression data for OpenShift releases with counts and metrics
 
 See [plugins/component-health/README.md](plugins/component-health/README.md) for detailed documentation.
 
