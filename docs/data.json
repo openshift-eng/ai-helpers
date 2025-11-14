@@ -249,6 +249,12 @@
           "argument_hint": "<release> [--components comp1 comp2 ...] [--project JIRAPROJECT]"
         },
         {
+          "name": "list-components",
+          "description": "List all components tracked in Sippy for a release",
+          "synopsis": "/component-health:list-components <release>",
+          "argument_hint": "<release>"
+        },
+        {
           "name": "list-jiras",
           "description": "Query and list raw JIRA bug data for a specific project",
           "synopsis": "/component-health:list-jiras <project> [--component comp1 comp2 ...] [--status status1 status2 ...] [--include-closed] [--limit N]",
@@ -283,6 +289,11 @@
           "name": "Get Release Dates",
           "id": "get-release-dates",
           "description": "Fetch OpenShift release dates and metadata from Sippy API"
+        },
+        {
+          "name": "List Components",
+          "id": "list-components",
+          "description": "Fetch component names from Sippy component readiness API"
         },
         {
           "name": "List JIRAs",

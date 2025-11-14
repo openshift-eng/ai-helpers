@@ -15,14 +15,22 @@ component-health:analyze
 
 ## Description
 
-The `component-health:analyze` command provides comprehensive component health analysis for a specified OpenShift release by combining regression management metrics with JIRA bug backlog data. It evaluates component health based on:
+The `component-health:analyze` command provides comprehensive component health analysis for a specified OpenShift release by **automatically combining** regression management metrics with JIRA bug backlog data.
 
-1. **Regression Management**: How well components are managing test regressions
+**CRITICAL**: This command REQUIRES and AUTOMATICALLY fetches BOTH data sources:
+1. Regression data (via summarize-regressions)
+2. JIRA bug data (via summarize-jiras)
+
+The analysis is INCOMPLETE without both data sources. Both are fetched automatically without user prompting.
+
+The command evaluates component health based on:
+
+1. **Regression Management** (ALWAYS fetched automatically): How well components are managing test regressions
    - Triage coverage (% of regressions triaged to JIRA bugs)
    - Triage timeliness (average time from detection to triage)
    - Resolution speed (average time from detection to closure)
 
-2. **Bug Backlog Health**: Current state of open bugs for components
+2. **Bug Backlog Health** (ALWAYS fetched automatically): Current state of open bugs for components
    - Open bug counts by component
    - Bug age distribution
    - Bug priority breakdown
@@ -39,6 +47,8 @@ This command is useful for:
 Grading is subjective and not meant to be a critique of team performance. This is intended to help identify where help is needed and track progress as we improve our quality practices.
 
 ## Implementation
+
+**CRITICAL WORKFLOW**: The analyze command MUST execute steps 3 and 4 (fetch regression data AND fetch JIRA data) automatically without waiting for user prompting. Both data sources are required for a complete analysis.
 
 1. **Parse Arguments**: Extract release version and optional filters from arguments
 
@@ -61,8 +71,11 @@ Grading is subjective and not meant to be a critique of team performance. This i
    - If `--components` was NOT provided:
      - Use all available components from the list
 
-3. **Fetch Regression Summary**: Call the summarize-regressions command
+3. **Fetch Regression Summary**: REQUIRED - Always call the summarize-regressions command
 
+   **IMPORTANT**: This step is REQUIRED for the analyze command. Regression data must ALWAYS be fetched automatically without user prompting. The analyze command combines both regression and bug metrics - it is incomplete without both data sources.
+
+   - **ALWAYS execute this step** - do not skip or wait for user to request it
    - Execute: `/component-health:summarize-regressions <release> [--components ...]`
    - Pass resolved component names
    - Extract regression metrics:
@@ -70,23 +83,31 @@ Grading is subjective and not meant to be a critique of team performance. This i
      - Per-component breakdowns
      - Open vs closed regression counts
    - Note development window dates for context
+   - If regression API is unreachable, inform the user and note this in the report but continue with bug-only analysis
 
-4. **Fetch JIRA Bug Summary**: Call the summarize-jiras command for each component
+4. **Fetch JIRA Bug Summary**: REQUIRED - Always call the summarize-jiras command
 
+   **IMPORTANT**: This step is REQUIRED for the analyze command. JIRA bug data must ALWAYS be fetched automatically without user prompting. The analyze command combines both regression and bug metrics - it is incomplete without both data sources.
+
+   - **ALWAYS execute this step** - do not skip or wait for user to request it
    - For each resolved component name:
      - Execute: `/component-health:summarize-jiras --project <project> --component "<component>"`
      - Note: Must iterate over components because JIRA queries can be too large otherwise
-   - Aggregate bug metrics:
+   - Aggregate bug metrics across all components:
      - Total open bugs by component
      - Bug age distribution
      - Opened vs closed in last 30 days
      - Priority breakdowns
+   - If JIRA authentication is not configured, inform the user and provide setup instructions
+   - If JIRA queries fail, note this in the report but continue with regression-only analysis
 
-5. **Calculate Combined Health Grades**: Analyze both regression and bug data
+5. **Calculate Combined Health Grades**: REQUIRED - Analyze BOTH regression and bug data
+
+   **IMPORTANT**: This step requires data from BOTH step 3 (regressions) AND step 4 (JIRA bugs). Do not perform analysis with only one data source unless the other failed to fetch.
 
    **For each component, grade based on:**
 
-   a. **Regression Health** (from summarize-regressions):
+   a. **Regression Health** (from step 3: summarize-regressions):
       - Triage Coverage: % of regressions triaged
         - 90-100%: Excellent ✅
         - 70-89%: Good ⚠️
@@ -103,7 +124,7 @@ Grading is subjective and not meant to be a critique of team performance. This i
         - 336-720 hours (2-4 weeks): Needs Improvement ⚠️
         - >720 hours (4+ weeks): Poor ❌
 
-   b. **Bug Backlog Health** (from summarize-jiras):
+   b. **Bug Backlog Health** (from step 4: summarize-jiras):
       - Open Bug Count: Total open bugs
         - Component-relative thresholds (compare across components)
       - Bug Age: Average/maximum age of open bugs
@@ -120,33 +141,39 @@ Grading is subjective and not meant to be a critique of team performance. This i
       - Weight regression health more heavily (e.g., 60%) as it's more actionable
       - Bug backlog provides context (40%)
 
-6. **Display Overall Health Report**: Present comprehensive analysis
+6. **Display Overall Health Report**: Present comprehensive analysis combining BOTH data sources
+
+   **IMPORTANT**: The report MUST include BOTH regression metrics AND JIRA bug metrics. Do not present regression-only analysis unless JIRA data fetch failed.
 
    - Show which components were matched (if fuzzy search was used)
+   - Inform user that both regression and bug data were analyzed
 
    **Section 1: Overall Release Health**
    - Release version and development window
-   - Overall regression metrics (from summarize-regressions)
-   - Overall bug metrics (from summarize-jiras)
-   - High-level health grade
+   - Overall regression metrics (from summarize-regressions):
+     - Total regressions, triage %, timing metrics
+   - Overall bug metrics (from summarize-jiras):
+     - Total open bugs, opened/closed last 30 days, priority breakdown
+   - High-level combined health grade
 
    **Section 2: Per-Component Health Scorecard**
-   - Ranked table of components from best to worst health
-   - Key metrics per component:
+   - Ranked table of components from best to worst combined health
+   - Key metrics per component (BOTH regression AND bug data):
      - Regression triage coverage
      - Average triage time
      - Average resolution time
-     - Open bug count
-     - Bug age metrics
+     - Open bug count (from JIRA)
+     - Bug age metrics (from JIRA)
+     - Bug flow (opened vs closed, from JIRA)
      - Combined health grade
    - Visual indicators (✅ ⚠️ ❌) for quick assessment
 
    **Section 3: Components Needing Attention**
-   - Prioritized list of components with specific issues
+   - Prioritized list of components with specific issues from BOTH sources
    - Actionable recommendations for each component:
      - "X open untriaged regressions need triage" (only OPEN, not closed)
-     - "High bug backlog: X open bugs (Y older than 90 days)"
-     - "Growing bug backlog: +X net bugs in last 30 days"
+     - "High bug backlog: X open bugs (Y older than 90 days)" (from JIRA)
+     - "Growing bug backlog: +X net bugs in last 30 days" (from JIRA)
      - "Slow regression triage: X hours average"
    - Context for each issue
 
@@ -238,11 +265,11 @@ If requested:
    /component-health:analyze 4.17
    ```
 
-   Generates comprehensive health report for release 4.17:
-   - Regression management metrics
-   - JIRA bug backlog metrics
-   - Combined health grades
-   - Prioritized recommendations
+   Automatically fetches and analyzes BOTH data sources for release 4.17:
+   - Regression management metrics (via summarize-regressions)
+   - JIRA bug backlog metrics (via summarize-jiras)
+   - Combined health grades based on both sources
+   - Prioritized recommendations using both regression and bug data
 
 2. **Analyze specific components (exact match)**:
 
@@ -250,10 +277,11 @@ If requested:
    /component-health:analyze 4.21 --components Monitoring Etcd
    ```
 
-   Focuses analysis on Monitoring and Etcd components:
-   - Compares health between the two
-   - Identifies which needs more attention
-   - Provides targeted recommendations
+   Automatically fetches BOTH regression and bug data for Monitoring and Etcd:
+   - Compares combined health between the two components
+   - Shows regression metrics AND bug backlog for each
+   - Identifies which component needs more attention
+   - Provides targeted recommendations based on both data sources
 
 3. **Analyze by fuzzy search**:
 
@@ -261,9 +289,11 @@ If requested:
    /component-health:analyze 4.21 --components network
    ```
 
-   Analyzes all components containing "network" (e.g., "Networking / ovn-kubernetes", "Networking / DNS", etc.):
-   - Compares health across all networking components
-   - Identifies networking-related quality issues
+   Automatically fetches BOTH data sources for all components containing "network":
+   - Finds all networking components (e.g., "Networking / ovn-kubernetes", "Networking / DNS", etc.)
+   - Compares combined health across all networking components
+   - Shows regression metrics AND bug backlog for each
+   - Identifies networking-related quality issues from both sources
    - Provides targeted recommendations
 
 4. **Analyze with custom JIRA project**:
@@ -280,10 +310,11 @@ If requested:
    /component-health:analyze 4.21
    ```
 
-   Analyzes health for an in-development release:
+   Automatically fetches BOTH data sources for an in-development release:
    - Shows current regression management state
-   - Tracks bug flow trends
-   - Identifies areas to focus on before GA
+   - Shows current bug backlog state
+   - Tracks bug flow trends (opened vs closed)
+   - Identifies areas to focus on before GA based on both regression and bug metrics
 
 ## Arguments
 
@@ -326,18 +357,20 @@ If requested:
 
 ## Notes
 
-- This command combines data from two sources: regression API and JIRA
+- **CRITICAL**: This command AUTOMATICALLY fetches data from TWO sources:
+  1. Regression API (via `/component-health:summarize-regressions`)
+  2. JIRA API (via `/component-health:summarize-jiras`)
+- Both data sources are REQUIRED and fetched automatically without user prompting
+- The analysis is incomplete without both regression and bug data
 - Health grades are subjective and intended as guidance, not criticism
 - Recommendations focus on actionable items (open untriaged regressions, not closed)
 - Infrastructure regressions are automatically filtered from regression counts
 - JIRA queries default to open bugs + bugs closed in last 30 days
-- HTML reports provide interactive visualizations for better insights
-- The command internally uses:
-  - `/component-health:summarize-regressions` for regression data
-  - `/component-health:summarize-jiras` for bug backlog data
-- For detailed regression data, use `/component-health:list-regressions`
-- For detailed JIRA data, use `/component-health:list-jiras`
-- Combined analysis provides holistic view of component quality
+- HTML reports provide interactive visualizations combining both data sources
+- If one data source fails, the command continues with the available data and notes the failure
+- For detailed regression data only, use `/component-health:list-regressions`
+- For detailed JIRA data only, use `/component-health:list-jiras`
+- This command provides the most comprehensive view by combining both sources
 
 ## See Also
 
