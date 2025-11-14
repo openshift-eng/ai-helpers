@@ -208,7 +208,7 @@ Output:
 }
 ```
 
-### Example 3: Query Non-Existent Release
+### Example 2: Query Non-Existent Release
 
 ```bash
 python3 plugins/component-health/skills/list-components/list_components.py \
