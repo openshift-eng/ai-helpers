@@ -106,6 +106,12 @@
           "argument_hint": "[project-filter] [time-period] [--component component-name] [--label label-name]"
         },
         {
+          "name": "query-qa-assignment",
+          "description": "Find Feature, Epic, and Story issues without QA assignments for a specific OpenShift version",
+          "synopsis": "/jira:query-qa-assignment --feature-label <label> [--feature-label <label2>] --target-version <version> [--epic-project <project>]",
+          "argument_hint": "--feature-label <label> [--feature-label <label2>] --target-version <version> [--epic-project <project>]"
+        },
+        {
           "name": "solve",
           "description": "Analyze a JIRA issue and create a pull request to solve it.",
           "synopsis": "/jira:solve <jira-issue-id> [remote]",
