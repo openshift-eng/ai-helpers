@@ -20,6 +20,10 @@ Scan the codebase for technical debt markers and generate a report.
 
 Generate a summary of git repository changes and activity.
 
+### `/git:sync-downstream`
+
+Sync downstream fork with upstream while preserving downstream-specific files configured in `.downstream-preserve`.
+
 See the [commands/](commands/) directory for full documentation of each command.
 
 ## Installation
