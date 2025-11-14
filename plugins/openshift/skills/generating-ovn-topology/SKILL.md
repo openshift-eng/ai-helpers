@@ -1,6 +1,6 @@
 ---
 name: generating-ovn-topology
-description: Generates and displays OVN-Kubernetes network topology diagrams showing logical switches, routers, ports, and load balancers with IP/MAC addresses in Mermaid format
+description: Generates and displays OVN-Kubernetes network topology diagrams showing logical switches, routers, ports with IP/MAC addresses in Mermaid format
 tools: [Bash, Read, Write]
 ---
 
@@ -91,9 +91,15 @@ tools: [Bash, Read, Write]
 3. **Check Output File**: Ask user if `ovn-topology-diagram.md` exists:
    - (1) Overwrite, (2) Custom path, (3) Timestamp, (4) Cancel
 
-4. **Collect OVN Data**: Get full topology data from the cluster
+4. **Create Private Temp Directory**: Create a private temporary directory using `mkdtemp` and use it for all temporary files.
 
-   Run: `scripts/collect_ovn_data.py "$KC"`
+   ```bash
+   TMPDIR=$(mktemp -d)
+   ```
+
+5. **Collect OVN Data**: Get full topology data from the cluster
+
+   Run: `scripts/collect_ovn_data.py "$KC" "$TMPDIR"`
 
    Detail files written to `$TMPDIR`:
    - `ovn_switches_detail.txt` - node|uuid|name|other_config
@@ -102,7 +108,7 @@ tools: [Bash, Read, Write]
    - `ovn_lrps_detail.txt` - node|name|mac|networks|options
    - `ovn_pods_detail.txt` - namespace|name|ip|node
 
-5. **Analyze Placement**: Determine per-node vs cluster-wide components
+6. **Analyze Placement**: Determine per-node vs cluster-wide components
 
    Run: `scripts/analyze_placement.py "$TMPDIR"`
 
@@ -110,7 +116,7 @@ tools: [Bash, Read, Write]
    - `ovn_switch_placement.txt` - name|placement (per-node|cluster-wide|cluster-wide-visual)
    - `ovn_router_placement.txt` - name|placement (per-node|cluster-wide|cluster-wide-visual)
 
-6. **Generate Diagram**: Create Mermaid `graph BT` diagram
+7. **Generate Diagram**: Create Mermaid `graph BT` diagram
    - Read `$TMPDIR/ovn_switch_placement.txt` to determine where each switch goes
    - Read `$TMPDIR/ovn_router_placement.txt` to determine where each router goes
    - Read detail files directly (ovn_switches_detail.txt, ovn_routers_detail.txt, etc.)
@@ -118,7 +124,7 @@ tools: [Bash, Read, Write]
    - If placement is `per-node` → put inside node subgraph
    - If placement is `cluster-wide` or `cluster-wide-visual` → put outside subgraphs
 
-7. **Save & Report**: Write diagram to file, show summary, clean up temporary files
+8. **Save & Report**: Write diagram to file, show summary, clean up temporary files
 
 **CRITICAL RULES**:
 - ❌ NO codebase searching for IPs/MACs
@@ -127,8 +133,9 @@ tools: [Bash, Read, Write]
 - ❌ NO direct kubectl commands (must use helper scripts only)
 - ✅ Always use `KUBECONFIG="$KC" kubectl --kubeconfig="$KC"` for kubectl commands
 - ✅ Use helper scripts for architecture discovery
-- ✅ Temporary files use `$TMPDIR` (defaults to `/tmp/` if not set)
-- ✅ Clean up temporary files when done
+- ✅ **SECURITY**: Create private temp directory with `TMPDIR=$(mktemp -d)` - never use `/tmp` directly
+- ✅ Temporary files use `$TMPDIR` (private directory created with mkdtemp)
+- ✅ Clean up temporary files when done: `rm -rf "$TMPDIR"`
 
 ## Safety & Security Guarantees
 
@@ -177,7 +184,7 @@ All helper scripts are in the `scripts/` directory.
 |--------|---------|-------|--------|
 | [detect-cluster.sh](scripts/detect-cluster.sh) | Find OVN cluster kubeconfig across all contexts. Scans multiple kubeconfig files and all their contexts. Returns parseable list. | None | Parseable list to stdout: `index|kubeconfig|cluster|nodes|namespace`. Exit: 0=success, 1=none found |
 | [check_permissions.py](scripts/check_permissions.py) | Check user permissions and warn if write access detected. | KUBECONFIG path | Exit: 0=proceed, 1=cancelled/error, 2=write perms (needs user confirmation) |
-| [collect_ovn_data.py](scripts/collect_ovn_data.py) | **Data collector**: Queries each node for all data, with **graceful degradation** (continues on node failures). Writes detail files. | KUBECONFIG path | Detail files: `ovn_switches_detail.txt`, `ovn_routers_detail.txt`, `ovn_lsps_detail.txt`, `ovn_lrps_detail.txt`, `ovn_pods_detail.txt` |
+| [collect_ovn_data.py](scripts/collect_ovn_data.py) | **Data collector**: Queries each node for all data, with **graceful degradation** (continues on node failures). Writes detail files. | KUBECONFIG path, TMPDIR | Detail files: `ovn_switches_detail.txt`, `ovn_routers_detail.txt`, `ovn_lsps_detail.txt`, `ovn_lrps_detail.txt`, `ovn_pods_detail.txt` |
 | [analyze_placement.py](scripts/analyze_placement.py) | **Placement analyzer**: Analyzes UUID patterns from detail files to determine per-node vs cluster-wide placement. | TMPDIR (reads detail files) | Placement files: `ovn_switch_placement.txt`, `ovn_router_placement.txt` |
 
 ---
@@ -254,7 +261,7 @@ graph BT
 
 1. **Graph Direction**: Always `graph BT` (bottom-to-top)
 
-2. **Component Placement**: Determined by `/tmp/ovn_*_placement.txt`
+2. **Component Placement**: Determined by `$TMPDIR/ovn_*_placement.txt`
    - `per-node` → INSIDE node subgraph
    - `cluster-wide` or `cluster-wide-visual` → OUTSIDE all subgraphs, **defined AFTER all node subgraphs**
    - **CRITICAL**: Define ALL cluster-wide components AFTER all nodes to position them at the TOP
@@ -390,10 +397,9 @@ MGMT_cp --> LSP_mgmt --> LS_node
 1. Generate complete Mermaid diagram following structure above
 2. Save to file chosen by user
 3. Show summary: nodes, switches, routers, ports, LBs, mode
-4. Clean up temporary files:
+4. Clean up temporary directory:
    ```bash
-   rm -f "$TMPDIR/ovn_switch_placement.txt" "$TMPDIR/ovn_router_placement.txt"
-   rm -f "$TMPDIR/ovn_switches_detail.txt" "$TMPDIR/ovn_routers_detail.txt"
-   rm -f "$TMPDIR/ovn_pods_detail.txt" "$TMPDIR/ovn_lsps_detail.txt" "$TMPDIR/ovn_lrps_detail.txt"
+   rm -rf "$TMPDIR"
    ```
+
 5. Tell user to open file in IDE to view rendered diagram

@@ -7,7 +7,9 @@ This module provides common functions used across multiple OVN topology scripts.
 Requirements: Python 3.6+, kubectl in PATH
 """
 
+import errno
 import json
+import os
 import subprocess
 import sys
 from typing import Optional
@@ -269,6 +271,7 @@ def _has_ovn_nbctl(kubeconfig: str, ovn_namespace: str, pod: str, container: str
         True if container has ovn-nbctl, False otherwise
     """
     try:
+        # Use ovn-nbctl --version instead of which (which may not be available)
         result = subprocess.run(
             [
                 "kubectl", "--kubeconfig", kubeconfig,
@@ -276,7 +279,7 @@ def _has_ovn_nbctl(kubeconfig: str, ovn_namespace: str, pod: str, container: str
                 "-n", ovn_namespace,
                 "-c", container,
                 "--",
-                "which", "ovn-nbctl",
+                "ovn-nbctl", "--version",
             ],
             capture_output=True,
             timeout=5,
@@ -284,4 +287,81 @@ def _has_ovn_nbctl(kubeconfig: str, ovn_namespace: str, pod: str, container: str
         return result.returncode == 0
     except (subprocess.TimeoutExpired, subprocess.SubprocessError):
         return False
+
+
+def safe_write_file(filepath: str, content: str):
+    """Safely write a file using os.open() with O_NOFOLLOW to prevent symlink attacks.
+
+    Args:
+        filepath: Path to the file to write
+        content: Content to write to the file
+
+    Raises:
+        OSError: If file cannot be written (e.g., symlink detected)
+    """
+    # Check if the file already exists as a symlink before attempting to write
+    if os.path.lexists(filepath):
+        if os.path.islink(filepath):
+            raise OSError(
+                f"Security violation: {filepath} is a symlink (CWE-377/CWE-59)"
+            )
+
+    # O_NOFOLLOW prevents following symlinks, O_CREAT creates if missing,
+    # O_WRONLY opens for writing, O_TRUNC truncates existing file
+    # 0o600 = rw------- permissions
+    flags = os.O_NOFOLLOW | os.O_CREAT | os.O_WRONLY | os.O_TRUNC
+    try:
+        fd = os.open(filepath, flags, 0o600)
+        try:
+            with os.fdopen(fd, 'w') as f:
+                f.write(content)
+        except Exception:
+            os.close(fd)
+            raise
+    except OSError as e:
+        # O_NOFOLLOW will fail if final path component is a symlink
+        # ELOOP = too many symlinks (file is symlink)
+        if e.errno == errno.ELOOP:
+            raise OSError(
+                f"Security violation: {filepath} is a symlink (CWE-377/CWE-59)"
+            ) from e
+        raise
+
+
+def safe_append_file(filepath: str, content: str):
+    """Safely append to a file, checking for symlinks first.
+
+    Args:
+        filepath: Path to the file to append to
+        content: Content to append to the file
+
+    Raises:
+        OSError: If file cannot be written (e.g., symlink detected)
+    """
+    # Check if the file exists as a symlink before attempting to append
+    if os.path.lexists(filepath):
+        if os.path.islink(filepath):
+            raise OSError(
+                f"Security violation: {filepath} is a symlink (CWE-377/CWE-59)"
+            )
+        # File exists and is not a symlink, safe to append
+        flags = os.O_NOFOLLOW | os.O_WRONLY | os.O_APPEND
+    else:
+        # File doesn't exist, create it with safe flags
+        flags = os.O_NOFOLLOW | os.O_CREAT | os.O_WRONLY | os.O_APPEND
+
+    try:
+        fd = os.open(filepath, flags, 0o600)
+        try:
+            with os.fdopen(fd, 'a') as f:
+                f.write(content)
+        except Exception:
+            os.close(fd)
+            raise
+    except OSError as e:
+        if e.errno == errno.ELOOP:
+            raise OSError(
+                f"Security violation: {filepath} is a symlink (CWE-377/CWE-59)"
+            ) from e
+        raise
 

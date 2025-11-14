@@ -2,16 +2,16 @@
 """
 analyze_placement.py - Analyze OVN component placement from collected data
 
-Usage: analyze_placement.py [TMPDIR]
+Usage: analyze_placement.py TMPDIR
 
 This script analyzes UUID patterns from previously collected OVN data to determine
 component placement (per-node vs cluster-wide).
 
-Input files (read from $TMPDIR, defaults to /tmp):
+Input files (read from TMPDIR):
   - ovn_switches_detail.txt - node|uuid|name|other_config
   - ovn_routers_detail.txt  - node|uuid|name|external_ids|options
 
-Output files (written to $TMPDIR):
+Output files (written to TMPDIR):
   - ovn_switch_placement.txt  - name|placement (per-node|cluster-wide|cluster-wide-visual)
   - ovn_router_placement.txt  - name|placement (per-node|cluster-wide|cluster-wide-visual)
 
@@ -26,6 +26,9 @@ import os
 import sys
 from collections import defaultdict
 from typing import Dict, List, Set, Tuple
+
+# Import shared utilities (must be in same directory or in PYTHONPATH)
+from ovn_utils import safe_write_file
 
 
 class PlacementAnalyzer:
@@ -46,8 +49,12 @@ class PlacementAnalyzer:
     PLACEMENT_CLUSTER_WIDE = "cluster-wide"
     PLACEMENT_CLUSTER_WIDE_VISUAL = "cluster-wide-visual"
 
-    def __init__(self, tmpdir: str = "/tmp"):
-        self.tmpdir = tmpdir
+    def __init__(self, tmpdir: str):
+        """Initialize PlacementAnalyzer with a private temporary directory.
+
+        Args:
+            tmpdir: Private temporary directory path.
+        """
 
         # Input files (with UUIDs)
         self.switches_file = os.path.join(tmpdir, self.SWITCHES_DETAIL_FILE)
@@ -166,6 +173,7 @@ class PlacementAnalyzer:
 
         return placement
 
+
     def analyze_uuid_patterns(self):
         """Analyze UUID patterns to determine per-node vs cluster-wide placement."""
         print()
@@ -207,14 +215,18 @@ class PlacementAnalyzer:
             placement = switch_placement[self.JOIN_SWITCH_NAME]
             print(f"  → join: {placement.upper()} (detected) → keeping as-is")
 
-        # Write placement files
-        with open(self.switch_placement_file, 'w') as f:
-            for name in sorted(switch_placement.keys()):
-                f.write(f"{name}|{switch_placement[name]}\n")
+        # Write placement files using safe write to prevent symlink attacks
+        switch_content = "".join(
+            f"{name}|{switch_placement[name]}\n"
+            for name in sorted(switch_placement.keys())
+        )
+        safe_write_file(self.switch_placement_file, switch_content)
 
-        with open(self.router_placement_file, 'w') as f:
-            for name in sorted(router_placement.keys()):
-                f.write(f"{name}|{router_placement[name]}\n")
+        router_content = "".join(
+            f"{name}|{router_placement[name]}\n"
+            for name in sorted(router_placement.keys())
+        )
+        safe_write_file(self.router_placement_file, router_content)
 
         print()
         print("✓ Placement analysis complete:")
@@ -289,7 +301,14 @@ class PlacementAnalyzer:
 
 def main():
     """Main entry point."""
-    tmpdir = sys.argv[1] if len(sys.argv) > 1 else os.environ.get('TMPDIR', '/tmp')
+    if len(sys.argv) < 2:
+        print(
+            "Usage: analyze_placement.py TMPDIR",
+            file=sys.stderr,
+        )
+        return 1
+
+    tmpdir = sys.argv[1]
 
     analyzer = PlacementAnalyzer(tmpdir)
     return analyzer.run()

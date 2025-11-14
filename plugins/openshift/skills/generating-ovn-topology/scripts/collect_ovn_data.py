@@ -2,14 +2,14 @@
 """
 collect_ovn_data.py - Collect OVN data from live cluster
 
-Usage: collect_ovn_data.py <KUBECONFIG>
+Usage: collect_ovn_data.py <KUBECONFIG> <TMPDIR>
 
 This script collects OVN data from a live Kubernetes cluster:
 1. Collects pod information from cluster (including auto-discovery of ovnkube-node pods)
 2. Queries each node's NBDB once for all needed data
 3. Writes standardized detail files (switches/routers include UUIDs)
 
-Outputs (all files written to $TMPDIR, defaults to /tmp):
+Outputs (all files written to TMPDIR):
   - ovn_switches_detail.txt - node|uuid|name|other_config
   - ovn_routers_detail.txt  - node|uuid|name|external_ids|options
   - ovn_lsps_detail.txt     - node|name|addresses|type|options
@@ -36,7 +36,12 @@ import csv
 from io import StringIO
 
 # Import shared utilities (must be in same directory or in PYTHONPATH)
-from ovn_utils import detect_ovn_namespace, detect_ovsdb_container
+from ovn_utils import (
+    detect_ovn_namespace,
+    detect_ovsdb_container,
+    safe_write_file,
+    safe_append_file,
+)
 
 # Configuration constants (module-scoped, private)
 _OVNKUBE_NODE_APP_LABEL = "ovnkube-node"
@@ -77,9 +82,15 @@ class CollectionStats:
 class OVNDataCollector:
     """Collect OVN data from live cluster with graceful degradation."""
 
-    def __init__(self, kubeconfig: str, tmpdir: str = "/tmp"):
+    def __init__(self, kubeconfig: str, tmpdir: str):
+        """Initialize OVNDataCollector with a private temporary directory.
+
+        Args:
+            kubeconfig: Path to kubeconfig file
+            tmpdir: Private temporary directory path.
+        """
+
         self.kubeconfig = kubeconfig
-        self.tmpdir = tmpdir
         self.stats = CollectionStats()
         self.ovnkube_node_pods: List[str] = []  # Discovered ovnkube-node pods
         self.ovsdb_container: Optional[str] = None  # Will be detected later
@@ -101,8 +112,8 @@ class OVNDataCollector:
             self.lsps_file,
             self.lrps_file,
         ]:
-            with open(filepath, 'w'):
-                pass
+            # Create empty file using safe write
+            safe_write_file(filepath, "")
 
     def _is_ovnkube_node_pod(self, pod_item: dict) -> bool:
         """Check if a pod is an ovnkube-node pod.
@@ -150,23 +161,26 @@ class OVNDataCollector:
             Number of pods collected
         """
         count = 0
-        with open(self.pods_file, 'w') as f:
-            for item in data.get('items', []):
-                # Only running pods with IPs
-                if (item.get('status', {}).get('phase') == 'Running' and
-                        item.get('status', {}).get('podIP')):
+        content_lines = []
+        for item in data.get('items', []):
+            # Only running pods with IPs
+            if (item.get('status', {}).get('phase') == 'Running' and
+                    item.get('status', {}).get('podIP')):
 
-                    namespace = item['metadata']['namespace']
-                    name = item['metadata']['name']
-                    pod_ip = item['status']['podIP']
-                    node = item['spec'].get('nodeName', 'unknown')
+                namespace = item['metadata']['namespace']
+                name = item['metadata']['name']
+                pod_ip = item['status']['podIP']
+                node = item['spec'].get('nodeName', 'unknown')
 
-                    f.write(f"{namespace}|{name}|{pod_ip}|{node}\n")
-                    count += 1
+                content_lines.append(f"{namespace}|{name}|{pod_ip}|{node}\n")
+                count += 1
 
-                    # Auto-discover ovnkube-node pods
-                    if self._is_ovnkube_node_pod(item):
-                        self.ovnkube_node_pods.append(name)
+                # Auto-discover ovnkube-node pods
+                if self._is_ovnkube_node_pod(item):
+                    self.ovnkube_node_pods.append(name)
+
+        if content_lines:
+            safe_write_file(self.pods_file, "".join(content_lines))
 
         return count
 
@@ -253,26 +267,29 @@ class OVNDataCollector:
             if result.returncode != 0:
                 return False
 
-            with open(self.pods_file, 'w') as f:
-                for line in result.stdout.strip().split('\n'):
-                    if not line:
-                        continue
-                    parts = line.split()
-                    if (len(parts) >= 8 and parts[3] == 'Running' and
-                            parts[6] != '<none>'):
-                        namespace = parts[0]
-                        pod_name = parts[1]
-                        pod_ip = parts[6]
-                        node_name = parts[7]
+            content_lines = []
+            for line in result.stdout.strip().split('\n'):
+                if not line:
+                    continue
+                parts = line.split()
+                if (len(parts) >= 8 and parts[3] == 'Running' and
+                        parts[6] != '<none>'):
+                    namespace = parts[0]
+                    pod_name = parts[1]
+                    pod_ip = parts[6]
+                    node_name = parts[7]
 
-                        # namespace|pod_name|pod_ip|node_name
-                        f.write(f"{namespace}|{pod_name}|{pod_ip}|{node_name}\n")
-                        self.stats.pods_collected += 1
+                    # namespace|pod_name|pod_ip|node_name
+                    content_lines.append(f"{namespace}|{pod_name}|{pod_ip}|{node_name}\n")
+                    self.stats.pods_collected += 1
 
-                        # Auto-discover ovnkube-node pods (simple pattern check for fallback)
-                        if (namespace == self.ovn_namespace and
-                                pod_name.startswith(_OVNKUBE_NODE_PREFIX)):
-                            self.ovnkube_node_pods.append(pod_name)
+                    # Auto-discover ovnkube-node pods (simple pattern check for fallback)
+                    if (namespace == self.ovn_namespace and
+                            pod_name.startswith(_OVNKUBE_NODE_PREFIX)):
+                        self.ovnkube_node_pods.append(pod_name)
+
+            if content_lines:
+                safe_write_file(self.pods_file, "".join(content_lines))
 
             print(
                 f"  ✓ Collected {self.stats.pods_collected} running pods (fallback)"
@@ -352,16 +369,20 @@ class OVNDataCollector:
             lines = result.stdout.strip().split('\n')
             count = 0
 
-            with open(output_file, 'a') as f:
-                for line in lines:
-                    if not line:
-                        continue
-                    # Parse CSV properly to handle quoted fields with commas
-                    reader = csv.reader(StringIO(line))
-                    for row in reader:
-                        line_with_pipes = '|'.join(row)
-                        f.write(f"{node_name}|{line_with_pipes}\n")
+            # Build content to append
+            content_lines = []
+            for line in lines:
+                if not line:
+                    continue
+                # Parse CSV properly to handle quoted fields with commas
+                reader = csv.reader(StringIO(line))
+                for row in reader:
+                    line_with_pipes = '|'.join(row)
+                    content_lines.append(f"{node_name}|{line_with_pipes}\n")
                     count += 1
+
+            if content_lines:
+                safe_append_file(output_file, "".join(content_lines))
 
             return True, count
 
@@ -524,9 +545,8 @@ class OVNDataCollector:
                     f"  ❌ Error collecting from {node_name}: {e}",
                     file=sys.stderr,
                 )
-                error_msg = str(e)[:50]
                 self.stats.nodes_failed.append(
-                    f"{node_name} ({pod}) - {error_msg}"
+                    f"{node_name} ({pod}) - {str(e)}"
                 )
 
     def is_collection_successful(self) -> bool:
@@ -631,14 +651,15 @@ class OVNDataCollector:
 
 def main():
     """Main entry point."""
-    if len(sys.argv) != 2:
+    if len(sys.argv) != 3:
         print(
-            f"Usage: {sys.argv[0]} <KUBECONFIG>",
+            f"Usage: {sys.argv[0]} <KUBECONFIG> <TMPDIR>",
             file=sys.stderr,
         )
         return 1
 
     kubeconfig = sys.argv[1]
+    tmpdir = sys.argv[2]
 
     if not os.path.exists(kubeconfig):
         print(
@@ -646,8 +667,6 @@ def main():
             file=sys.stderr,
         )
         return 1
-
-    tmpdir = os.environ.get('TMPDIR', '/tmp')
 
     collector = OVNDataCollector(kubeconfig, tmpdir)
     return collector.run()
