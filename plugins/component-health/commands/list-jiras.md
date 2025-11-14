@@ -152,6 +152,11 @@ The command outputs **raw JIRA issue data** in JSON format with the following st
 ### Additional Information
 
 - **note**: (Optional) If results are truncated, includes a note suggesting to increase the limit
+- **component_queries**: (Optional) When multiple components are queried, this array shows the individual query executed for each component. Each entry contains:
+  - `component`: The component name
+  - `query`: The JQL query executed for this component
+  - `total_count`: Total matching issues for this component
+  - `fetched_count`: Number of issues fetched for this component
 
 ### Example Output Structure
 
@@ -167,6 +172,20 @@ The command outputs **raw JIRA issue data** in JSON format with the following st
     "include_closed": false,
     "limit": 100
   },
+  "component_queries": [
+    {
+      "component": "kube-apiserver",
+      "query": "project = OCPBUGS AND component = \"kube-apiserver\" AND ...",
+      "total_count": 800,
+      "fetched_count": 50
+    },
+    {
+      "component": "kube-controller-manager",
+      "query": "project = OCPBUGS AND component = \"kube-controller-manager\" AND ...",
+      "total_count": 700,
+      "fetched_count": 50
+    }
+  ],
   "issues": [
     {
       "key": "OCPBUGS-12345",
@@ -313,4 +332,4 @@ The command outputs **raw JIRA issue data** in JSON format with the following st
 - Skill Documentation: `plugins/component-health/skills/list-jiras/SKILL.md`
 - Script: `plugins/component-health/skills/list-jiras/list_jiras.py`
 - Related Command: `/component-health:summarize-jiras` (for summary statistics)
-- Related Command: `/component-health:analyze-regressions`
+- Related Command: `/component-health:analyze`
