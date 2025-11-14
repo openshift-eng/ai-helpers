@@ -14,7 +14,7 @@ config:install-hooks
 
 ## Description
 
-The `config:install-hooks` command installs the session prompt capture hook script to `~/.claude/session-prompt-hook.sh`.
+The `config:install-hooks` command installs the session prompt capture hook script to `~/.claude/hooks/session-prompt-hook.sh`.
 This hook captures user prompts during a Claude Code session and saves them to `/tmp/prompts-{session_id}.txt`.
 
 **Purpose**: This hook exists solely to provide the status line with your last prompt for display.
@@ -30,6 +30,7 @@ The status line works fine without it.
 
 2. **Configure Claude Code to use the hook**
    - Edit `~/.claude/settings.json` and add:
+
      ```json
      {
        "hooks": {
@@ -46,6 +47,7 @@ The status line works fine without it.
        }
      }
      ```
+
    - Replace `USERNAME` with the actual username
    - If settings.json already has other content, merge this configuration
    - Restart Claude Code or start a new session for changes to take effect
@@ -68,18 +70,21 @@ The status line works fine without it.
 ## Prerequisites
 
 - **jq**: Required for JSON parsing in the hook script
-  - Check: `which jq`
-  - Install (Fedora): `sudo dnf install jq`
-  - Install (Arch Linux): `sudo pacman -S jq`
-  - Install (macOS): `brew install jq`
+    - Check: `which jq`
+    - Install (Fedora): `sudo dnf install jq`
+    - Install (Arch Linux): `sudo pacman -S jq`
+    - Install (macOS): `brew install jq`
 
 ## Examples
 
 1. **Basic installation**:
+
    ```
    /config:install-hooks
    ```
+
    Expected output:
+
    ```
    Installed session-prompt-hook.sh to ~/.claude/
 
