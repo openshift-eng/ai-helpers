@@ -46,9 +46,17 @@ Minimal setup (recommended):
 ```bash
 # Install the status line
 /config:install-status-line
+```
 
-# Configure Claude Code (manual step)
-claude code config status-line ~/.claude/status_line.sh
+Then add to your `~/.claude/settings.json`:
+
+```json
+{
+  "statusLine": {
+    "type": "command",
+    "command": "/home/YOUR_USERNAME/.claude/status_line.sh"
+  }
+}
 ```
 
 Optional: Add prompt display to status line:
@@ -56,10 +64,32 @@ Optional: Add prompt display to status line:
 ```bash
 # Install the prompt hook (optional)
 /config:install-hooks
-
-# Configure the hook (manual step)
-claude code config hooks --add UserPromptSubmit ~/.claude/session-prompt-hook.sh
 ```
+
+Then add to your `~/.claude/settings.json`:
+
+```json
+{
+  "statusLine": {
+    "type": "command",
+    "command": "/home/YOUR_USERNAME/.claude/status_line.sh"
+  },
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/YOUR_USERNAME/.claude/session-prompt-hook.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+**Important**: Restart Claude Code or start a new session for changes to take effect.
 
 ## Requirements
 

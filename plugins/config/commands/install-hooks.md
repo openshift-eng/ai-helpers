@@ -29,9 +29,26 @@ The status line works fine without it.
    - Ensure the script is executable
 
 2. **Configure Claude Code to use the hook**
-   - The hook must be registered in Claude Code settings
-   - Hook type: `UserPromptSubmit`
-   - The configuration can be done via `claude code config hooks` or by editing the settings file
+   - Edit `~/.claude/settings.json` and add:
+     ```json
+     {
+       "hooks": {
+         "UserPromptSubmit": [
+           {
+             "hooks": [
+               {
+                 "type": "command",
+                 "command": "/home/USERNAME/.claude/session-prompt-hook.sh"
+               }
+             ]
+           }
+         ]
+       }
+     }
+     ```
+   - Replace `USERNAME` with the actual username
+   - If settings.json already has other content, merge this configuration
+   - Restart Claude Code or start a new session for changes to take effect
 
 3. **Verify installation**
    - Check that `~/.claude/session-prompt-hook.sh` exists
@@ -66,10 +83,24 @@ The status line works fine without it.
    ```
    Installed session-prompt-hook.sh to ~/.claude/
 
-   To enable the hook, run:
-   claude code config hooks --add UserPromptSubmit ~/.claude/session-prompt-hook.sh
+   To enable the hook, add to ~/.claude/settings.json:
 
-   Or manually edit your Claude Code settings.
+   {
+     "hooks": {
+       "UserPromptSubmit": [
+         {
+           "hooks": [
+             {
+               "type": "command",
+               "command": "/home/YOUR_USERNAME/.claude/session-prompt-hook.sh"
+             }
+           ]
+         }
+       ]
+     }
+   }
+
+   Then restart Claude Code or start a new session.
    ```
 
 ## Notes
