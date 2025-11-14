@@ -34,8 +34,18 @@ The prompt hook is optional and only adds minimal extra context by showing your 
    - Ensure the script is executable
 
 2. **Configure Claude Code to use the status line**
-   - The status line must be registered in Claude Code settings
-   - Configuration can be done via `claude code config status-line` or by editing the settings file
+   - Edit `~/.claude/settings.json` and add:
+     ```json
+     {
+       "statusLine": {
+         "type": "command",
+         "command": "/home/USERNAME/.claude/status_line.sh"
+       }
+     }
+     ```
+   - Replace `USERNAME` with the actual username
+   - If settings.json already has other content, merge this configuration
+   - Restart Claude Code or start a new session for changes to take effect
 
 3. **Verify installation**
    - Check that `~/.claude/status_line.sh` exists
@@ -80,10 +90,16 @@ The prompt hook is optional and only adds minimal extra context by showing your 
    ```
    Installed status_line.sh to ~/.claude/
 
-   To enable the status line, run:
-   claude code config status-line ~/.claude/status_line.sh
+   To enable the status line, add to ~/.claude/settings.json:
 
-   Or manually edit your Claude Code settings.
+   {
+     "statusLine": {
+       "type": "command",
+       "command": "/home/YOUR_USERNAME/.claude/status_line.sh"
+     }
+   }
+
+   Then restart Claude Code or start a new session.
 
    Status line format:
    [version] | [model] | [branch/dir] | [style] | [last prompt...]
