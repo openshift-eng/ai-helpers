@@ -42,6 +42,12 @@
           "description": "Show current branch, git status, and recent commits for quick context",
           "synopsis": "/git:summary",
           "argument_hint": ""
+        },
+        {
+          "name": "track-prs",
+          "description": "Track and monitor your open Pull Requests across GitHub repositories",
+          "synopsis": "/git:track-prs              # All repos, all open PRs (including drafts)",
+          "argument_hint": "[--all | --current]"
         }
       ],
       "skills": [
