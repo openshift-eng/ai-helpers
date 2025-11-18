@@ -155,6 +155,8 @@ class GapAnalyzer:
             'service_types': self._analyze_service_types(),
             'ip_stacks': self._analyze_ip_stacks(),
             'topologies': self._analyze_topologies(),
+            'network_layers': self._analyze_network_layers(),
+            'gateway_modes': self._analyze_gateway_modes(),
             'storage_classes': self._analyze_storage_classes(),
             'volume_modes': self._analyze_volume_modes(),
             'scenarios': self._analyze_scenarios(),
@@ -166,6 +168,8 @@ class GapAnalyzer:
             'service_types': self._identify_service_type_gaps(),
             'ip_stacks': self._identify_ip_stack_gaps(),
             'topologies': self._identify_topology_gaps(),
+            'network_layers': self._identify_network_layer_gaps(),
+            'gateway_modes': self._identify_gateway_mode_gaps(),
             'storage_classes': self._identify_storage_class_gaps(),
             'volume_modes': self._identify_volume_mode_gaps(),
             'scenarios': self._identify_scenario_gaps()
@@ -248,17 +252,156 @@ class GapAnalyzer:
         }
 
     def _analyze_topologies(self) -> Dict:
-        """Analyze network topology coverage"""
+        """Analyze network topology coverage with improved pattern matching and logic-based detection
+
+        Important convention for openshift-tests-private repository:
+        - Tests WITHOUT NonHyperShiftHOST tag → assumed to run on Hosted Control Plane (HCP)
+        - Tests WITH NonHyperShiftHOST tag → only run on traditional/standalone OpenShift (NOT on HCP)
+        """
+
+        # Single Node (SNO) - explicit mentions only, with word boundaries to avoid false positives
+        sno_patterns = [
+            r'\bsno\b',                    # SNO abbreviation (word boundary prevents matching "ingressnodefirewall")
+            r'\bsingle-node\b',            # single-node (hyphenated)
+            r'\bsinglenode\b',             # singlenode (no hyphen)
+            r'single\s+node\s+openshift',  # "Single Node OpenShift"
+            r'sno\s+cluster',              # "SNO cluster"
+        ]
+        single_node_keyword = bool(re.search('|'.join(sno_patterns), self.content, re.IGNORECASE))
+
+        # Multi-Node - Keywords for explicit HA/multi-node topology testing
+        multi_node_keyword_patterns = [
+            r'\bmulti-node\b',             # multi-node (hyphenated)
+            r'\bmultinode\b',              # multinode (no hyphen)
+            r'\bHA\s+cluster\b',           # HA cluster (word boundaries to avoid "cluster has")
+            r'\bcluster\s+HA\b',           # cluster HA (word boundaries)
+            r'\bhigh\s+availability\b',    # high availability
+            r'node\s+failure',             # node failure scenarios
+            r'node\s+failover',            # node failover scenarios
+            r'multiple\s+control\s+plane', # multiple control plane nodes
+            r'three\s+node\s+cluster',     # three node cluster (more specific)
+            r'\bHA\s+mode\b',              # HA mode
+            r'highly\s+available',         # highly available
+        ]
+        multi_node_keyword = bool(re.search('|'.join(multi_node_keyword_patterns), self.content, re.IGNORECASE))
+
+        # Multi-Node - Logic-based detection (actual multi-node test implementation)
+        multi_node_logic_patterns = [
+            # Node count requirements (skip if less than 2+ nodes)
+            r'len\(nodeList(?:\.Items)?\)\s*<\s*[2-9]',  # len(nodeList.Items) < 2
+            r'requires?\s+[2-9]\+?\s+nodes',              # "requires 2 nodes", "require 2+ nodes"
+            r'requires?\s+at\s+least\s+[2-9]\s+nodes',   # "requires at least 2 nodes"
+            # Accessing multiple node indices (indicates cross-node operations)
+            r'nodeList(?:\.Items)?\[0\].*nodeList(?:\.Items)?\[1\]',  # accessing Items[0] and Items[1]
+            r'nodeList(?:\.Items)?\[1\].*nodeList(?:\.Items)?\[0\]',  # accessing Items[1] and Items[0]
+        ]
+        multi_node_logic = bool(re.search('|'.join(multi_node_logic_patterns), self.content, re.IGNORECASE | re.DOTALL))
+
+        # Combine keyword and logic-based detection for multi-node
+        multi_node = multi_node_keyword or multi_node_logic
+
+        # Hosted Control Plane (HyperShift) - Enhanced detection using openshift-tests-private convention
+        # 1. Check for explicit HCP/HyperShift mentions
+        hcp_patterns = [
+            r'\bhypershift\b',
+            r'\bhcp\b',
+            r'hosted\s+control\s+plane',
+            r'hosted-control-plane',
+        ]
+        hcp_explicit = bool(re.search('|'.join(hcp_patterns), self.content, re.IGNORECASE))
+
+        # 2. Check for NonHyperShiftHOST tag in test names (openshift-tests-private convention)
+        # Extract test cases to check for NonHyperShiftHOST tag
+        test_pattern = r'(?:g\.|o\.)?It\(\s*["\']([^"\']+)["\']'
+        test_cases = list(re.finditer(test_pattern, self.content))
+
+        # Count tests with and without NonHyperShiftHOST tag
+        tests_with_nonhypershift_tag = 0
+        tests_without_nonhypershift_tag = 0
+
+        for match in test_cases:
+            test_name = match.group(1)
+            # Check if test name contains NonHyperShiftHOST tag
+            if 'NonHyperShiftHOST' in test_name:
+                tests_with_nonhypershift_tag += 1
+            else:
+                tests_without_nonhypershift_tag += 1
+
+        # HCP is tested if:
+        # - Explicit HCP mention OR
+        # - Tests exist WITHOUT NonHyperShiftHOST tag (meaning they run on HCP)
+        hcp = hcp_explicit or (tests_without_nonhypershift_tag > 0)
+
         topologies = {
-            'Single Node': bool(re.search(r'single.node|sno', self.content, re.IGNORECASE)),
-            'Multi-Node': bool(re.search(r'multi.node|\bHA\b|high.availability', self.content, re.IGNORECASE)),
-            'Hosted Control Plane': bool(re.search(r'hypershift|hosted.control.plane|hcp', self.content, re.IGNORECASE)),
+            'Single Node': single_node_keyword,
+            'Multi-Node': multi_node,
+            'Hosted Control Plane': hcp,
         }
 
         return {
             'tested': [t for t, tested in topologies.items() if tested],
             'not_tested': [t for t, tested in topologies.items() if not tested],
             'count': sum(topologies.values())
+        }
+
+    def _analyze_network_layers(self) -> Dict:
+        """Analyze network layer topology for networking components (Default Network/Layer2/Layer3)"""
+        # Only applicable for networking components
+        if self.component_type not in NETWORK_COMPONENTS:
+            return {'tested': [], 'not_tested': [], 'count': 0}
+
+        # Check if this is a UDN (User Defined Network) test
+        has_udn = bool(re.search(r'\budn\b|user.defined.network', self.content, re.IGNORECASE))
+
+        # Only analyze network layers if UDN is detected
+        if not has_udn:
+            return {'tested': [], 'not_tested': [], 'count': 0}
+
+        # Only check for default network if UDN tests are present (makes sense in comparison)
+        has_default_network = bool(re.search(r'default.network|default network', self.content, re.IGNORECASE))
+
+        layers = {
+            'Default Network': has_default_network,
+            'Layer2': bool(re.search(r'layer2|layer.2|layer 2|\bl2\b', self.content, re.IGNORECASE)),
+            'Layer3': bool(re.search(r'layer3|layer.3|layer 3|\bl3\b', self.content, re.IGNORECASE)),
+        }
+
+        return {
+            'tested': [layer for layer, tested in layers.items() if tested],
+            'not_tested': [layer for layer, tested in layers.items() if not tested],
+            'count': sum(layers.values())
+        }
+
+    def _analyze_gateway_modes(self) -> Dict:
+        """Analyze OVN gateway modes for networking components (Local/Shared)"""
+        # Only applicable for networking components
+        if self.component_type not in NETWORK_COMPONENTS:
+            return {'tested': [], 'not_tested': [], 'count': 0}
+
+        # Check if gateway mode testing is present
+        has_gateway_mode = bool(re.search(r'gateway.mode|ovn.*gateway|getOVNGatewayMode|switchOVNGatewayMode',
+                                          self.content, re.IGNORECASE))
+
+        # If no explicit gateway mode testing detected, assume Shared gateway (default)
+        # and flag Local gateway as not tested
+        if not has_gateway_mode:
+            return {
+                'tested': ['Shared'],
+                'not_tested': ['Local'],
+                'count': 1
+            }
+
+        modes = {
+            'Local': bool(re.search(r'local.gateway|local.*gateway.*mode|gateway.*mode.*local',
+                                   self.content, re.IGNORECASE)),
+            'Shared': bool(re.search(r'shared.gateway|shared.*gateway.*mode|gateway.*mode.*shared',
+                                    self.content, re.IGNORECASE)),
+        }
+
+        return {
+            'tested': [mode for mode, tested in modes.items() if tested],
+            'not_tested': [mode for mode, tested in modes.items() if not tested],
+            'count': sum(modes.values())
         }
 
     def _analyze_platforms(self) -> Dict:
@@ -269,9 +412,18 @@ class GapAnalyzer:
         it means the test runs on ALL platforms by default.
 
         Only mark platforms as "not tested" if there are explicit platform checks/skips.
+
+        Exception: nmstate and BGP tests are Bare Metal only.
         """
+        # Detect nmstate and BGP files which are Bare Metal only
+        is_nmstate_or_bgp = bool(re.search(r'nmstate|kubernetes-nmstate|/bgp[_\-]|border.gateway', self.file_path.lower()))
+
         # Define all platforms to track
-        all_platforms = ['vSphere', 'ROSA', 'AWS', 'Azure', 'GCP', 'Bare Metal']
+        # For nmstate and BGP, only expect Bare Metal
+        if is_nmstate_or_bgp:
+            all_platforms = ['Bare Metal']
+        else:
+            all_platforms = ['vSphere', 'ROSA', 'AWS', 'Azure', 'GCP', 'Bare Metal']
 
         # Detect explicit platform mentions in test names/tags (informational only)
         platform_mentions = {
@@ -374,6 +526,29 @@ class GapAnalyzer:
             'tested': [f.replace('_', ' ').title() for f, tested in features.items() if tested],
             'count': sum(features.values())
         }
+
+    def _is_operator_test(self) -> bool:
+        """Detect if this test file is actually testing operator functionality"""
+        operator_patterns = [
+            # Operator installation/deployment
+            r'install.*operator|operator.*install',
+            r'deploy.*operator|operator.*deploy',
+            # OLM (Operator Lifecycle Manager) resources
+            r'\bsubscription\b.*operator',
+            r'\boperatorgroup\b',
+            r'\binstallplan\b',
+            r'\bclusterserviceversion\b|\bcsv\b',
+            r'catalogsource',
+            # Operator-specific testing (not just waiting for operator state)
+            r'operator.*upgrade|upgrade.*operator',
+            r'operator.*migration|migration.*operator',
+            r'createOperator|installOperator|deployOperator',
+            # Operator controller/manager testing
+            r'operator.*controller|controller.*manager.*operator',
+            r'operator.*reconcil',
+        ]
+
+        return bool(re.search('|'.join(operator_patterns), self.content, re.IGNORECASE))
 
     def _analyze_scenarios(self) -> Dict:
         """Analyze test scenario coverage"""
@@ -701,6 +876,10 @@ class GapAnalyzer:
                 if scenario == 'Traffic Disruption' and self.component_type not in NETWORK_COMPONENTS:
                     continue
 
+                # Filter Operator Upgrades to operator-focused tests only
+                if scenario == 'Operator Upgrades' and not self._is_operator_test():
+                    continue
+
                 gap = {'scenario': scenario}
                 gap.update(scenario_details[scenario])
                 gaps.append(gap)
@@ -726,30 +905,134 @@ class GapAnalyzer:
         return gaps
 
     def _identify_topology_gaps(self) -> List[Dict]:
-        """Identify topology testing gaps"""
+        """Identify topology testing gaps
+
+        Note: For openshift-tests-private, tests without NonHyperShiftHOST tag
+        are assumed to run on Hosted Control Plane (HCP) topology.
+        """
         gaps = []
         topologies = self._analyze_topologies()
 
         priority_map = {
             'Multi-Node': 'high',
             'Single Node': 'medium',
-            'Hosted Control Plane': 'medium'
+            'Hosted Control Plane': 'high'  # HCP is production-critical
         }
 
         effort_map = {
             'Multi-Node': 'low',
             'Single Node': 'medium',
-            'Hosted Control Plane': 'high'
+            'Hosted Control Plane': 'low'  # Just remove NonHyperShiftHOST tag
         }
+
+        impact_map = {
+            'Multi-Node': 'Multi-Node HA topology not tested - critical for production resilience',
+            'Single Node': 'Single Node OpenShift (SNO) topology not tested - edge deployments not validated',
+            'Hosted Control Plane': 'Hosted Control Plane (HCP) topology not tested - all tests have NonHyperShiftHOST tag'
+        }
+
+        # Detect component type for enhanced recommendations
+        is_networking = self.component_type in NETWORK_COMPONENTS
+        is_nmstate = bool(re.search(r'nmstate|kubernetes-nmstate', self.file_path.lower()))
+
+        recommendation_map = {
+            'Multi-Node': 'Add Multi-Node HA topology test cases',
+            'Single Node': 'Add Single Node OpenShift (SNO) topology test cases',
+            'Hosted Control Plane': 'Remove NonHyperShiftHOST tag from tests that should run on HCP, or add HCP-specific tests'
+        }
+
+        # Enhance Multi-Node recommendation for networking components
+        if is_networking:
+            recommendation_map['Multi-Node'] = 'Add Multi-Node HA topology test cases covering: cross-node testing, node failure scenarios, distributed network state'
+            # Further enhance for nmstate with specific examples
+            if is_nmstate:
+                recommendation_map['Multi-Node'] = 'Add Multi-Node HA topology test cases covering: cross-node testing (HA bond/bridge configurations), node failure scenarios, distributed network state'
 
         for topo in topologies['not_tested']:
             gaps.append({
                 'topology': topo,
                 'priority': priority_map.get(topo, 'low'),
-                'impact': f'{topo} topology not tested',
-                'recommendation': f'Add {topo} topology test cases',
+                'impact': impact_map.get(topo, f'{topo} topology not tested'),
+                'recommendation': recommendation_map.get(topo, f'Add {topo} topology test cases'),
                 'effort': effort_map.get(topo, 'medium'),
                 'coverage_improvement': 4.0
+            })
+
+        return gaps
+
+    def _identify_network_layer_gaps(self) -> List[Dict]:
+        """Identify network layer testing gaps (Default Network/Layer2/Layer3) for networking components"""
+        gaps = []
+
+        # Only applicable for networking components
+        if self.component_type not in NETWORK_COMPONENTS:
+            return gaps
+
+        network_layers = self._analyze_network_layers()
+
+        priority_map = {
+            'Default Network': 'high',
+            'Layer2': 'high',
+            'Layer3': 'high',
+        }
+
+        impact_map = {
+            'Default Network': 'Default Network not tested',
+            'Layer2': 'L2 switching, broadcast domain, ARP functionality not tested',
+            'Layer3': 'L3 routing, inter-subnet connectivity not tested',
+        }
+
+        recommendation_map = {
+            'Default Network': 'Add Default Network test cases',
+            'Layer2': 'Add Layer2 network topology test cases (same broadcast domain, ARP, MAC-based forwarding)',
+            'Layer3': 'Add Layer3 network topology test cases (routed connectivity, different subnets)',
+        }
+
+        for layer in network_layers['not_tested']:
+            gaps.append({
+                'network_layer': layer,
+                'priority': priority_map.get(layer, 'medium'),
+                'impact': impact_map.get(layer, f'{layer} networking not tested'),
+                'recommendation': recommendation_map.get(layer, f'Add {layer} test cases'),
+                'effort': 'medium',
+                'coverage_improvement': 6.0
+            })
+
+        return gaps
+
+    def _identify_gateway_mode_gaps(self) -> List[Dict]:
+        """Identify OVN gateway mode testing gaps (Local/Shared) for networking components"""
+        gaps = []
+
+        # Only applicable for networking components
+        if self.component_type not in NETWORK_COMPONENTS:
+            return gaps
+
+        gateway_modes = self._analyze_gateway_modes()
+
+        priority_map = {
+            'Local': 'high',
+            'Shared': 'high',
+        }
+
+        impact_map = {
+            'Local': 'Local gateway mode not tested - traffic exits from same node',
+            'Shared': 'Shared gateway mode not tested - traffic routed through gateway nodes',
+        }
+
+        recommendation_map = {
+            'Local': 'Add Local gateway mode test cases (each node has own gateway)',
+            'Shared': 'Add Shared gateway mode test cases (traffic through shared gateway nodes)',
+        }
+
+        for mode in gateway_modes['not_tested']:
+            gaps.append({
+                'gateway_mode': mode,
+                'priority': priority_map.get(mode, 'medium'),
+                'impact': impact_map.get(mode, f'{mode} gateway mode not tested'),
+                'recommendation': recommendation_map.get(mode, f'Add {mode} gateway mode test cases'),
+                'effort': 'medium',
+                'coverage_improvement': 5.0
             })
 
         return gaps
@@ -759,7 +1042,16 @@ class GapAnalyzer:
 
         # Determine relevant categories based on component type using shared constants
         if self.component_type in NETWORK_COMPONENTS:
-            relevant_categories = ['platforms', 'protocols', 'service_types', 'ip_stacks', 'topologies', 'scenarios']
+            relevant_categories = [
+                'platforms',
+                'protocols',
+                'service_types',
+                'ip_stacks',
+                'topologies',
+                'network_layers',
+                'gateway_modes',
+                'scenarios',
+            ]
         elif self.component_type in STORAGE_COMPONENTS:
             relevant_categories = ['platforms', 'storage_classes', 'volume_modes', 'scenarios']
         elif self.component_type in CONTROL_PLANE_COMPONENTS:
@@ -831,11 +1123,30 @@ class GapAnalyzer:
         total_topologies = len(topology_data['tested']) + len(topology_data['not_tested'])
         topology_score = (len(topology_data['tested']) / max(total_topologies, 1)) * 100
 
+        # Network layer score - Layer2/Layer3 coverage (for UDN networking tests)
+        network_layer_data = coverage.get('network_layers', {'tested': [], 'not_tested': []})
+        total_network_layers = len(network_layer_data['tested']) + len(network_layer_data['not_tested'])
+        network_layer_score = (len(network_layer_data['tested']) / max(total_network_layers, 1)) * 100
+
+        # Gateway mode score - Local/Shared gateway coverage (for OVN networking tests)
+        gateway_mode_data = coverage.get('gateway_modes', {'tested': [], 'not_tested': []})
+        total_gateway_modes = len(gateway_mode_data['tested']) + len(gateway_mode_data['not_tested'])
+        gateway_mode_score = (len(gateway_mode_data['tested']) / max(total_gateway_modes, 1)) * 100
+
         # Component-aware scoring - select relevant metrics based on component type
 
-        # Network-related components (protocols, IP stacks, topologies)
+        # Network-related components (protocols, IP stacks, topologies, network layers, gateway modes)
         if self.component_type in NETWORK_COMPONENTS:
+            # Build metric list dynamically based on what's detected
             metric_values = [platform_score, protocol_score, service_type_score, ip_stack_score, topology_score, scenario_score]
+
+            # Include network layer score if UDN tests are detected
+            if total_network_layers > 0:
+                metric_values.append(network_layer_score)
+
+            # Include gateway mode score if gateway mode tests are detected
+            if total_gateway_modes > 0:
+                metric_values.append(gateway_mode_score)
 
         # Storage-related components (storage classes, volume modes)
         elif self.component_type in STORAGE_COMPONENTS:
@@ -889,6 +1200,12 @@ class GapAnalyzer:
             # Only add IP stack coverage if IP stacks are mentioned
             if len(coverage.get('ip_stacks', {}).get('tested', [])) + len(coverage.get('ip_stacks', {}).get('not_tested', [])) > 0:
                 scores['ip_stack_coverage'] = round(ip_stack_score, 1)
+            # Only add network layer coverage if network layers are mentioned (UDN tests)
+            if len(coverage.get('network_layers', {}).get('tested', [])) + len(coverage.get('network_layers', {}).get('not_tested', [])) > 0:
+                scores['network_layer_coverage'] = round(network_layer_score, 1)
+            # Only add gateway mode coverage if gateway modes are mentioned (OVN gateway tests)
+            if len(coverage.get('gateway_modes', {}).get('tested', [])) + len(coverage.get('gateway_modes', {}).get('not_tested', [])) > 0:
+                scores['gateway_mode_coverage'] = round(gateway_mode_score, 1)
             # Only add topology if topologies are mentioned
             if len(coverage.get('topologies', {}).get('tested', [])) + len(coverage.get('topologies', {}).get('not_tested', [])) > 0:
                 scores['topology_coverage'] = round(topology_score, 1)
@@ -999,10 +1316,19 @@ def main():
     if high_priority:
         print(f"High Priority Gaps ({len(high_priority)}):")
         for i, gap in enumerate(high_priority[:5], 1):
-            name = (gap.get('platform') or gap.get('scenario') or
-                    gap.get('protocol') or gap.get('topology') or
-                    gap.get('storage_class') or gap.get('service_type') or
-                    gap.get('volume_mode') or gap.get('ip_stack'))
+            name = (
+                gap.get('platform')
+                or gap.get('scenario')
+                or gap.get('protocol')
+                or gap.get('topology')
+                or gap.get('storage_class')
+                or gap.get('service_type')
+                or gap.get('volume_mode')
+                or gap.get('ip_stack')
+                or gap.get('network_layer')
+                or gap.get('gateway_mode')
+                or "Unknown gap"
+            )
             impact = gap.get('impact', 'Unknown impact')
             print(f"  {i}. {name} - {impact}")
         print()

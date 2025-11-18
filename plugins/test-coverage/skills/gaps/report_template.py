@@ -135,6 +135,8 @@ def generate_custom_gap_report(analysis: Dict, scores: Dict, output_path: str):
         'platform_coverage': {'order': 2, 'label': 'Platform Coverage'},
         'ip_stack_coverage': {'order': 3, 'label': 'IP Stack Coverage'},
         'topology_coverage': {'order': 4, 'label': 'Topology Coverage'},
+        'network_layer_coverage': {'order': 5, 'label': 'Network Layer Coverage'},
+        'gateway_mode_coverage': {'order': 6, 'label': 'Gateway Mode Coverage'},
         'protocol_coverage': {'order': 5, 'label': 'Protocol Coverage'},
         'service_type_coverage': {'order': 6, 'label': 'Service Type Coverage'},
         'storage_class_coverage': {'order': 7, 'label': 'Storage Class Coverage'},
@@ -632,6 +634,97 @@ def _generate_whats_tested_section(coverage: Dict, scores: Dict, test_cases: Lis
             else:
                 html += f"""                <tr>
                     <td>{escape(topo)}</td>
+                    <td class="not-tested">✗ NOT TESTED</td>
+                    <td>{escape(desc)}</td>
+                </tr>
+"""
+
+        html += """
+            </tbody>
+        </table>
+"""
+
+    # Network Layer Coverage - Only for networking components with UDN tests
+    network_layers_data = coverage.get('network_layers', {})
+    has_network_layer_data = len(network_layers_data.get('tested', [])) + len(network_layers_data.get('not_tested', [])) > 0
+
+    if component_type in ('networking', 'router', 'dns', 'network-observability') and has_network_layer_data:
+        html += """
+        <h3>Network Layer Coverage (UDN)</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Network Layer</th>
+                    <th>Status</th>
+                    <th>Description</th>
+                </tr>
+            </thead>
+            <tbody>
+"""
+        tested_network_layers = network_layers_data.get('tested', [])
+
+        all_network_layers = [
+            ('Default Network', 'Default Network'),
+            ('Layer2', 'L2 switching - same broadcast domain, ARP, MAC-based forwarding'),
+            ('Layer3', 'L3 routing - different subnets, IP-based forwarding, inter-subnet connectivity')
+        ]
+
+        for layer, desc in all_network_layers:
+            if layer in tested_network_layers:
+                html += f"""                <tr>
+                    <td>{escape(layer)}</td>
+                    <td class="tested">✓ TESTED</td>
+                    <td>{escape(desc)}</td>
+                </tr>
+"""
+            else:
+                html += f"""                <tr>
+                    <td>{escape(layer)}</td>
+                    <td class="not-tested">✗ NOT TESTED</td>
+                    <td>{escape(desc)}</td>
+                </tr>
+"""
+
+        html += """
+            </tbody>
+        </table>
+"""
+
+    # Gateway Mode Coverage - Only for networking components with OVN gateway tests
+    gateway_modes_data = coverage.get('gateway_modes', {})
+    has_gateway_mode_data = len(gateway_modes_data.get('tested', [])) + len(gateway_modes_data.get('not_tested', [])) > 0
+
+    if component_type in ('networking', 'router', 'dns', 'network-observability') and has_gateway_mode_data:
+        html += """
+        <h3>Gateway Mode Coverage (OVN)</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Gateway Mode</th>
+                    <th>Status</th>
+                    <th>Description</th>
+                </tr>
+            </thead>
+            <tbody>
+"""
+        tested_gateway_modes = gateway_modes_data.get('tested', [])
+
+        all_gateway_modes = [
+            ('Local', 'Each node has its own gateway - traffic exits from the same node'),
+            ('Shared', 'Traffic routed through shared gateway nodes - centralized egress')
+        ]
+
+        for mode, desc in all_gateway_modes:
+            if mode in tested_gateway_modes:
+                html += f"""                <tr>
+                    <td>{escape(mode)}</td>
+                    <td class="tested">✓ TESTED</td>
+                    <td>{escape(desc)}</td>
+                </tr>
+"""
+            else:
+                html += f"""                <tr>
+                    <td>{escape(mode)}</td>
                     <td class="not-tested">✗ NOT TESTED</td>
                     <td>{escape(desc)}</td>
                 </tr>
