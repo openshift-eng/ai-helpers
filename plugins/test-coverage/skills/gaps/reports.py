@@ -463,6 +463,14 @@ def generate_gap_text_report(analysis: Dict, scores: Dict, output_path: str):
 
     lines.append(f"Scenario Coverage:         {scores.get('scenario_coverage', 0):.1f}%")
 
+    # Add network layer coverage if present (UDN tests)
+    if 'network_layer_coverage' in scores:
+        lines.append(f"Network Layer Coverage:    {scores.get('network_layer_coverage', 0):.1f}%")
+
+    # Add gateway mode coverage if present (OVN gateway tests)
+    if 'gateway_mode_coverage' in scores:
+        lines.append(f"Gateway Mode Coverage:     {scores.get('gateway_mode_coverage', 0):.1f}%")
+
     lines.extend([
         "",
         "=" * 60,
@@ -476,6 +484,33 @@ def generate_gap_text_report(analysis: Dict, scores: Dict, output_path: str):
         "Platforms:",
         *[f"  ✓ {p}" for p in coverage.get('platforms', {}).get('tested', [])],
     ])
+
+    # Add tested topologies if any
+    tested_topologies = coverage.get('topologies', {}).get('tested', [])
+    if tested_topologies:
+        lines.extend([
+            "",
+            "Topologies:",
+            *[f"  ✓ {t}" for t in tested_topologies],
+        ])
+
+    # Add tested network layers if any (UDN tests)
+    tested_network_layers = coverage.get('network_layers', {}).get('tested', [])
+    if tested_network_layers:
+        lines.extend([
+            "",
+            "Network Layers:",
+            *[f"  ✓ {l}" for l in tested_network_layers],
+        ])
+
+    # Add tested gateway modes if any (OVN gateway tests)
+    tested_gateway_modes = coverage.get('gateway_modes', {}).get('tested', [])
+    if tested_gateway_modes:
+        lines.extend([
+            "",
+            "Gateway Modes:",
+            *[f"  ✓ {m}" for m in tested_gateway_modes],
+        ])
 
     # Add tested scenarios if any
     tested_scenarios = coverage.get('scenarios', {}).get('tested', [])
@@ -540,6 +575,26 @@ def generate_gap_text_report(analysis: Dict, scores: Dict, output_path: str):
         for gap in gaps['topologies']:
             lines.extend([
                 f"  [{gap['priority'].upper()}] {gap['topology']}",
+                f"    Impact: {gap['impact']}",
+                f"    Recommendation: {gap['recommendation']}",
+                ""
+            ])
+
+    if gaps.get('network_layers'):
+        lines.append("NETWORK LAYER GAPS:")
+        for gap in gaps['network_layers']:
+            lines.extend([
+                f"  [{gap['priority'].upper()}] {gap['network_layer']}",
+                f"    Impact: {gap['impact']}",
+                f"    Recommendation: {gap['recommendation']}",
+                ""
+            ])
+
+    if gaps.get('gateway_modes'):
+        lines.append("GATEWAY MODE GAPS:")
+        for gap in gaps['gateway_modes']:
+            lines.extend([
+                f"  [{gap['priority'].upper()}] {gap['gateway_mode']}",
                 f"    Impact: {gap['impact']}",
                 f"    Recommendation: {gap['recommendation']}",
                 ""
