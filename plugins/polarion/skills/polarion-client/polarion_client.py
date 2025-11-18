@@ -504,8 +504,7 @@ def main():
             if keywords:
                 # Override search keywords
                 original_search = client.search_projects
-                client.search_projects = lambda: original_search(keywords)
-            
+                client.search_projects = lambda case_sensitive=False, **kwargs: original_search(keywords, case_sensitive, **kwargs)
             summary = client.get_qe_activity_summary(args.days_back, args.project_limit)
             
             print(f"\nTest Activity Summary ({summary['period_start'][:10]} to {summary['period_end'][:10]}):")
