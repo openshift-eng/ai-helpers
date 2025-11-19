@@ -96,6 +96,7 @@ See [plugins/git/README.md](plugins/git/README.md) for detailed documentation.
 Generate HyperShift cluster creation commands via hcp CLI from natural language descriptions
 
 **Commands:**
+- **`/hcp:cluster-health-check` `<cluster-name> [--verbose] [--output-format json|text]`** - Perform comprehensive health check on HCP cluster and report issues
 - **`/hcp:generate` `<provider> <cluster-description>`** - Generate ready-to-execute hypershift cluster creation commands from natural language descriptions
 
 See [plugins/hcp/README.md](plugins/hcp/README.md) for detailed documentation.
