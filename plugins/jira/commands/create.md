@@ -164,6 +164,36 @@ Prompt for missing required information based on issue type:
   3. Business requirements (customer impact, regulatory drivers, justification)
   4. Affected packages and components (teams, operators, component mapping)
 
+### ✅ Phase 5.5: Summary Validation
+
+Before security validation, validate the summary format to catch common mistakes:
+
+**Check for anti-patterns:**
+1. Summary starts with "As a" (user story format belongs in description)
+2. Summary contains "I want" or "so that" (belongs in description)
+3. Summary exceeds 100 characters (likely too long, may be full user story)
+
+**Action if anti-pattern detected:**
+1. Detect that user put full user story in summary field
+2. Extract the key action/feature from the summary
+3. Generate a concise alternative (5-10 words)
+4. Prompt user for confirmation:
+   ```
+   The summary looks like a full user story. Summaries should be concise titles.
+
+   Current: "As a cluster admin, I want to configure ImageTagMirrorSet in HostedCluster CRs so that I can enable tag-based image proxying"
+
+   Suggested: "Enable ImageTagMirrorSet configuration in HostedCluster CRs"
+
+   Use the suggested summary? (yes/no/edit)
+   ```
+
+5. If user says yes, use suggested summary
+6. If user says edit, prompt for their preferred summary
+7. If user says no, use their original summary (but warn it may be truncated in Jira)
+
+**Note:** This validation should happen BEFORE creating the issue, to avoid having to update the summary afterward.
+
 ### 🔒 Phase 6: Security Validation
 
 Scan all content (summary, description, comments) for sensitive data:
@@ -201,6 +231,8 @@ Use the `mcp__atlassian__jira_create_issue` MCP tool with collected parameters.
 - Any other project/team-specific requirements
 
 The MCP tool parameters come from the combined guidance of type-specific, project-specific, and team-specific skills, with universal requirements always applied.
+
+**Note:** Project-specific skills (e.g., CNTRLPLANE) may implement fallback strategies for handling creation failures (such as epic linking). Refer to the project-specific skill documentation for these strategies.
 
 ### 📤 Phase 8: Return Result
 
@@ -427,6 +459,47 @@ Would you like to edit the description?
 - **"Version not found"** → Fetch available versions, suggest closest match
 - **"Permission denied"** → User may lack permissions, suggest contacting admin
 - **"Issue type not available"** → Project may not support this issue type
+
+### Epic Link Creation Failure
+
+**Scenario:** Story/task creation fails when including epic link field.
+
+**Action:**
+Refer to project-specific skills for epic linking fallback strategies:
+- **CNTRLPLANE:** See CNTRLPLANE skill "Epic Linking Implementation Strategy" section
+- **Other projects:** Consult project-specific skill documentation
+
+**General pattern:**
+1. Detect error related to linking (error contains "epic", "parent", "link", or "customfield")
+2. Check project-specific skill for recommended fallback approach
+3. Typically: Create without link, then link via update
+4. Inform user of outcome
+
+### Field Format Error
+
+**Scenario:** Field provided in wrong format (e.g., Target Version as string instead of array).
+
+**Common field format errors:**
+
+1. **Target Version format**
+   - ❌ Wrong: `"customfield_12319940": "openshift-4.21"`
+   - ✅ Correct: `"customfield_12319940": [{"id": "12448830"}]`
+   - **Action:** Fetch version ID using `mcp__atlassian__jira_get_project_versions`, convert to correct format
+
+2. **Epic Link format**
+   - ❌ Wrong: `"parent": {"key": "EPIC-123"}` (for stories)
+   - ✅ Correct: `"customfield_12311140": "EPIC-123"` (string, not object)
+   - **Action:** Convert to correct format and retry
+
+3. **Component format**
+   - ❌ Wrong: `"components": "ComponentName"`
+   - ✅ Correct: `"components": ["ComponentName"]` (array) or just `"ComponentName"` (MCP accepts both)
+   - **Action:** Ensure consistent format
+
+**Detection:**
+- Parse error message for field names
+- Check skill documentation for correct format
+- Automatically convert and retry when possible
 
 ## Best Practices
 
