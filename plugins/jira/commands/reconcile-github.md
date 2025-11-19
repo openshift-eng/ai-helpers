@@ -7,7 +7,7 @@ argument-hint: [--github-project <org/repo>] [--jira-project <key>] [--profile <
 jira:reconcile-github
 
 ## Synopsis
-```
+```bash
 /jira:reconcile-github [options]
 ```
 

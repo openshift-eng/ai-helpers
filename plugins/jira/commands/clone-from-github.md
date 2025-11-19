@@ -23,23 +23,54 @@ The command uses the [gh2jira utility](https://github.com/oceanc80/gh2jira) to p
 
 ## Implementation
 
-### 📋 Phase 1: Validate Prerequisites
+### 📋 Phase 1: Validate Prerequisites and Locate Installation
 
 Check that the gh2jira utility is available and configured:
 
-1. **Verify gh2jira binary exists**:
+1. **Locate gh2jira binary and installation directory**:
    ```bash
-   which gh2jira || echo "gh2jira not found. Run /jira:setup-gh2jira to install."
+   # Find the gh2jira binary
+   GH2JIRA_BIN=$(which gh2jira 2>/dev/null)
+
+   if [ -z "$GH2JIRA_BIN" ]; then
+     echo "gh2jira not found. Run /jira:setup-gh2jira to install."
+     exit 1
+   fi
+
+   # If it's a symlink, resolve it to find the actual installation
+   if [ -L "$GH2JIRA_BIN" ]; then
+     GH2JIRA_BIN=$(readlink "$GH2JIRA_BIN")
+   fi
+
+   # Get the directory containing the gh2jira binary
+   GH2JIRA_DIR=$(dirname "$GH2JIRA_BIN")
+
+   echo "Found gh2jira at: $GH2JIRA_DIR"
    ```
 
-2. **Verify configuration files exist**:
-   - Check for `tokenstore.yaml` in the gh2jira directory
-   - Check for `profiles.yaml` if using profiles
-   - If missing, provide instructions on creating them (see gh2jira README)
+2. **Verify configuration files exist in installation directory**:
+   ```bash
+   cd "$GH2JIRA_DIR" || exit 1
 
-3. **Check for required environment variables or config**:
-   - GitHub token (in tokenstore.yaml)
-   - Jira token (in tokenstore.yaml)
+   # Check for tokenstore.yaml
+   if [ ! -f "tokenstore.yaml" ]; then
+     echo "tokenstore.yaml not found in $GH2JIRA_DIR"
+     echo "Run /jira:setup-gh2jira to configure authentication."
+     exit 1
+   fi
+
+   # Check for profiles.yaml (optional)
+   if [ -f "profiles.yaml" ]; then
+     echo "Found profiles.yaml"
+   fi
+   ```
+
+3. **Verify tokens are configured**:
+   - Check that `tokenstore.yaml` contains actual tokens (not placeholder values)
+   - GitHub token should not contain "YOUR_GITHUB_TOKEN"
+   - Jira token should not contain "YOUR_JIRA_TOKEN"
+
+**IMPORTANT**: All gh2jira commands MUST be executed from the `$GH2JIRA_DIR` directory to ensure configuration files are properly loaded.
 
 **If prerequisites are missing:**
 - Inform user about missing requirements
@@ -96,8 +127,15 @@ gh2jira clone 100 101 102 --profile-name default --dryrun
 
 ### ▶️ Phase 4: Execute Clone Operation
 
-1. **Run the gh2jira command**:
-   - Execute the constructed command
+1. **Run the gh2jira command from installation directory**:
+   ```bash
+   # IMPORTANT: Change to gh2jira installation directory
+   cd "$GH2JIRA_DIR" || exit 1
+
+   # Execute the gh2jira clone command
+   gh2jira clone <issue-numbers> [flags]
+   ```
+   - Execute the constructed command from `$GH2JIRA_DIR`
    - Capture stdout and stderr
    - Monitor exit code
 
@@ -110,6 +148,8 @@ gh2jira clone 100 101 102 --profile-name default --dryrun
    - Display progress for each issue being cloned
    - Show created Jira issue keys and URLs
    - Report any errors or failures
+
+**Note**: Running from `$GH2JIRA_DIR` ensures that `tokenstore.yaml`, `profiles.yaml`, and `workflows.yaml` are found correctly.
 
 ### 📊 Phase 5: Display Results
 
