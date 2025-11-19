@@ -106,6 +106,12 @@
           "argument_hint": "<issue-key>"
         },
         {
+          "name": "clone-from-github",
+          "description": "Clone GitHub issues to Jira with proper formatting and linking",
+          "synopsis": "/jira:clone-from-github <issue-number> [issue-number...] [options]",
+          "argument_hint": "<github-issue-numbers> [--github-project <org/repo>] [--jira-project <key>] [--dryrun]"
+        },
+        {
           "name": "create",
           "description": "Create Jira issues (story, epic, feature, task, bug, feature-request) with proper formatting",
           "synopsis": "/jira:create <type> [project-key] <summary> [options]",

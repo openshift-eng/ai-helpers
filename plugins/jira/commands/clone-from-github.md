@@ -1,6 +1,6 @@
 ---
 description: Clone GitHub issues to Jira with proper formatting and linking
-argument-hint: <github-issue-numbers> [--github-project <org/repo>] [--jira-project <key>] [--dryrun]
+argument-hint: <issue-number> [issue-number...] [--github-project <org/repo>] [--jira-project <key>] [--dryrun]
 ---
 
 ## Name
@@ -104,7 +104,7 @@ Construct the gh2jira clone command based on provided arguments:
 
 **Basic command structure:**
 ```bash
-gh2jira clone <issue-numbers> [flags]
+gh2jira clone <issue-number> [issue-number...] [flags]
 ```
 
 **Flag mapping:**
@@ -133,7 +133,7 @@ gh2jira clone 100 101 102 --profile-name default --dryrun
    cd "$GH2JIRA_DIR" || exit 1
 
    # Execute the gh2jira clone command
-   gh2jira clone <issue-numbers> [flags]
+   gh2jira clone <issue-number> [issue-number...] [flags]
    ```
    - Execute the constructed command from `$GH2JIRA_DIR`
    - Capture stdout and stderr
