@@ -46,9 +46,9 @@ The actual must-gather directory is the subdirectory with the hash name, not the
 
 **Required Scripts:**
 
-Analysis scripts must be available at:
+Analysis scripts are bundled with this plugin at:
 ```
-plugins/must-gather/skills/must-gather-analyzer/scripts/
+<plugin-root>/skills/must-gather-analyzer/scripts/
 ├── analyze_clusterversion.py
 ├── analyze_clusteroperators.py
 ├── analyze_nodes.py
@@ -59,6 +59,8 @@ plugins/must-gather/skills/must-gather-analyzer/scripts/
 ├── analyze_etcd.py
 └── analyze_pvs.py
 ```
+
+Where `<plugin-root>` is the directory where this plugin is installed (typically `~/.cursor/commands/ai-helpers/plugins/must-gather/` or similar).
 
 ## Error Handling
 
@@ -74,15 +76,26 @@ plugins/must-gather/skills/must-gather-analyzer/scripts/
 
 **Script Availability Check:**
 
-Before running any analysis, first verify:
-```bash
-ls plugins/must-gather/skills/must-gather-analyzer/scripts/analyze_clusteroperators.py
-```
+Before running any analysis:
 
-If this fails, STOP and report to the user:
-```
-The must-gather analysis scripts are not available at plugins/must-gather/skills/must-gather-analyzer/scripts/. Please ensure the must-gather-analyzer skill is properly installed before running analysis.
-```
+1. Locate the scripts directory by searching for a known script:
+   ```bash
+   SCRIPT_PATH=$(find ~ -name "analyze_clusteroperators.py" -path "*/must-gather/skills/must-gather-analyzer/scripts/*" 2>/dev/null | head -1)
+   
+   if [ -z "$SCRIPT_PATH" ]; then
+       echo "ERROR: Must-gather analysis scripts not found."
+       echo "Please ensure the must-gather plugin from ai-helpers is properly installed."
+       exit 1
+   fi
+   
+   # All scripts are in the same directory, so just get the directory
+   SCRIPTS_DIR=$(dirname "$SCRIPT_PATH")
+   ```
+
+2. If scripts cannot be found, STOP and report to the user:
+   ```
+   The must-gather analysis scripts could not be located. Please ensure the must-gather plugin from openshift-eng/ai-helpers is properly installed in your Claude Code plugins directory.
+   ```
 
 ## Implementation
 
@@ -123,12 +136,21 @@ The command performs the following steps:
    8. Storage (`analyze_pvs.py`)
    9. Monitoring (`analyze_prometheus.py`)
 
-3. **Execute Analysis Scripts**:
+3. **Locate Plugin Scripts**:
+   - Use the script availability check from the Error Handling section to find the plugin root
+   - Store the scripts directory path in `$SCRIPTS_DIR`
+
+4. **Execute Analysis Scripts**:
    ```bash
-   python3 plugins/must-gather/skills/must-gather-analyzer/scripts/<script>.py <must-gather-path>
+   python3 "$SCRIPTS_DIR/<script>.py" <must-gather-path>
+   ```
+   
+   Example:
+   ```bash
+   python3 "$SCRIPTS_DIR/analyze_clusteroperators.py" ./must-gather.local.123/quay-io-...
    ```
 
-4. **Synthesize Results**: Generate findings and recommendations based on script output
+5. **Synthesize Results**: Generate findings and recommendations based on script output
 
 ## Return Value
 
