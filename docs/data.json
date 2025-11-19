@@ -798,6 +798,34 @@
       ],
       "hooks": [],
       "has_readme": true
+    },
+    {
+      "name": "container-image",
+      "description": "Container image inspection and analysis using skopeo and podman",
+      "version": "0.0.1",
+      "commands": [
+        {
+          "name": "compare",
+          "description": "Compare two container images to identify differences",
+          "synopsis": "/container-image:compare <image1> <image2>",
+          "argument_hint": "<image1> <image2>"
+        },
+        {
+          "name": "inspect",
+          "description": "Inspect and provide detailed breakdown of a container image",
+          "synopsis": "/container-image:inspect <image>",
+          "argument_hint": "<image>"
+        },
+        {
+          "name": "tags",
+          "description": "List and analyze available tags for a container image repository",
+          "synopsis": "/container-image:tags <repository>",
+          "argument_hint": "<repository>"
+        }
+      ],
+      "skills": [],
+      "hooks": [],
+      "has_readme": true
     }
   ]
 }

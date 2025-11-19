@@ -98,6 +98,11 @@
       "name": "node-tuning",
       "source": "./plugins/node-tuning",
       "description": "Generate and analyze OpenShift node tuning profiles"
+    },
+    {
+      "name": "container-image",
+      "source": "./plugins/container-image",
+      "description": "Container image inspection and analysis using skopeo and podman"
     }
   ]
 }
