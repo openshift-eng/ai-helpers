@@ -179,6 +179,12 @@
           "description": "Validate proposed release blockers using Red Hat OpenShift release blocker criteria",
           "name": "validate-blockers",
           "synopsis": "/jira:validate-blockers [target-version] [component-filter] [--bug issue-key]"
+        },
+        {
+          "name": "update-weekly-status",
+          "description": "Update weekly status summaries for Jira issues with component and user filtering",
+          "synopsis": "/jira:update-weekly-status [project-key] [--component <component-name>] [--label <label-name>] [user-filters...]",
+          "argument_hint": "[project-key] [--component name] [--label label-name] [user-filters...]"
         }
       ],
       "description": "A plugin to automate tasks with Jira",

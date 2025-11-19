@@ -6,6 +6,7 @@ Comprehensive Jira integration for Claude Code, providing AI-powered tools to an
 
 - 🔍 **Issue Analysis and Solutions** - Analyze JIRA issues and create pull requests to solve them
 - 📊 **Status Rollups** - Generate comprehensive status rollup comments for any Jira issue given a date range
+- 📝 **Weekly Status Updates** - Automate weekly status summary updates with intelligent activity analysis and color-coded health indicators
 - 📋 **Backlog Grooming** - Analyze new bugs and cards for grooming meetings
 - 🏷️ **Activity Type Categorization** - AI-powered categorization of JIRA tickets into activity types with confidence scoring
 - 🧪 **Test Generation** - Generate comprehensive test steps for JIRA issues by analyzing related PRs
@@ -269,6 +270,60 @@ Updated: https://issues.redhat.com/browse/OCPBUGS-38358
 ```
 
 See [commands/create-release-note.md](commands/create-release-note.md) for full documentation.
+
+---
+
+### `/jira:update-weekly-status` - Update Weekly Status Summaries
+
+Automate the process of updating weekly status summaries for Jira issues with intelligent activity analysis and color-coded health indicators. The command analyzes recent activity across tickets, GitHub PRs, and GitLab MRs to draft status updates (Red/Yellow/Green), then allows you to review and modify them before updating Jira.
+
+**Usage:**
+```bash
+# Interactive mode (prompts for project and component)
+/jira:update-weekly-status
+
+# Specify project
+/jira:update-weekly-status OCPSTRAT
+
+# Specify project and component
+/jira:update-weekly-status OCPSTRAT --component "Control Plane"
+
+# With label filter
+/jira:update-weekly-status OCPSTRAT --label strategic-work
+
+# With specific users (by email)
+/jira:update-weekly-status OCPBUGS antoni@redhat.com jdoe@redhat.com
+
+# With excluded users
+/jira:update-weekly-status OCPSTRAT !manager@redhat.com
+
+# Full example with all options
+/jira:update-weekly-status OCPSTRAT --component "Control Plane" --label strategic-work user@redhat.com
+```
+
+**Key Features:**
+- Interactive component selection from available project components
+- User filtering by email or display name (with auto-resolution)
+- Intelligent activity analysis (comments, child issues, linked PRs/MRs)
+- Recent update warnings to prevent duplicate updates (24-hour check)
+- Batch processing with selective skip options
+- Formatted status summaries with color-coded health indicators (Red/Yellow/Green)
+- Auto-detects Status Summary custom field or prompts for field ID
+
+**What it does:**
+1. Filters issues by project, component, label, and assignee
+2. Checks recent activity (comments, PR updates, child issues)
+3. Drafts color-coded status summaries with specific accomplishments
+4. Warns about recently-updated issues to avoid duplicates
+5. Allows review and modification before updating
+6. Provides comprehensive summary report with statistics
+
+**Prerequisites:**
+- Jira MCP server configured
+- GitHub CLI (`gh`) installed and authenticated (optional but recommended)
+- Jira permissions to update Status Summary field
+
+See [commands/update-weekly-status.md](commands/update-weekly-status.md) for full documentation.
 
 ---
 
