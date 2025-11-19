@@ -12,6 +12,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Hello World](#hello-world-plugin)
 - [Jira](#jira-plugin)
 - [Must Gather](#must-gather-plugin)
+- [Node Tuning](#node-tuning-plugin)
 - [Olm](#olm-plugin)
 - [Openshift](#openshift-plugin)
 - [Prow Job](#prow-job-plugin)
@@ -134,6 +135,16 @@ A plugin to analyze and report on must-gather data
 - **`/must-gather:ovn-dbs` `[must-gather-path]`** - Analyze OVN databases from a must-gather using ovsdb-tool
 
 See [plugins/must-gather/README.md](plugins/must-gather/README.md) for detailed documentation.
+
+### Node Tuning Plugin
+
+Automatically create and apply tuned profile
+
+**Commands:**
+- **`/node-tuning:analyze-node-tuning` `"[--sosreport PATH] [--format json|markdown] [--max-irq-samples N]"`** - Analyze kernel/sysctl tuning from a live node or sosreport snapshot and propose NTO recommendations
+- **`/node-tuning:generate-tuned-profile` `"[profile-name] [--summary ...] [--sysctl ...] [options]"`** - Generate a Tuned (tuned.openshift.io/v1) profile manifest for the Node Tuning Operator
+
+See [plugins/node-tuning/README.md](plugins/node-tuning/README.md) for detailed documentation.
 
 ### Olm Plugin
 

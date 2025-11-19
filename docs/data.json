@@ -770,6 +770,34 @@
       "skills": [],
       "hooks": [],
       "has_readme": true
+    },
+    {
+      "name": "node-tuning",
+      "description": "Generate and analyze OpenShift node tuning profiles",
+      "version": "1.0.0",
+      "commands": [
+        {
+          "name": "analyze-node-tuning",
+          "description": "Analyze kernel/sysctl tuning from a live node or sosreport snapshot and propose NTO recommendations",
+          "synopsis": "text",
+          "argument_hint": "\"[--sosreport PATH] [--format json|markdown] [--max-irq-samples N]\""
+        },
+        {
+          "name": "generate-tuned-profile",
+          "description": "Generate a Tuned (tuned.openshift.io/v1) profile manifest for the Node Tuning Operator",
+          "synopsis": "text",
+          "argument_hint": "\"[profile-name] [--summary ...] [--sysctl ...] [options]\""
+        }
+      ],
+      "skills": [
+        {
+          "name": "Node Tuning Helper Scripts",
+          "id": "scripts",
+          "description": "Generate tuned manifests and evaluate node tuning snapshots"
+        }
+      ],
+      "hooks": [],
+      "has_readme": true
     }
   ]
 }
