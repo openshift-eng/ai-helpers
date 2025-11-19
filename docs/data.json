@@ -395,6 +395,12 @@
           "argument_hint": "[PR number (optional - uses current branch if omitted)]"
         },
         {
+          "name": "auto-approve-konflux-prs",
+          "description": "Automate approving Konflux bot PRs for the given repository by adding /lgtm and /approve",
+          "synopsis": "",
+          "argument_hint": "<target-repository>"
+        },
+        {
           "name": "generate-test-plan",
           "description": "Generate test steps for one or more related PRs",
           "synopsis": "",
