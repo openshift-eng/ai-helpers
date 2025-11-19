@@ -14,6 +14,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Must Gather](#must-gather-plugin)
 - [Olm](#olm-plugin)
 - [Openshift](#openshift-plugin)
+- [Polarion](#polarion-plugin)
 - [Prow Job](#prow-job-plugin)
 - [Session](#session-plugin)
 - [Sosreport](#sosreport-plugin)
@@ -170,6 +171,19 @@ OpenShift development utilities and helpers
 - **`/openshift:review-test-cases` `[file-path-or-test-code-or-commands]`** - Review test cases for completeness, quality, and best practices - accepts file path or direct oc commands/test code
 
 See [plugins/openshift/README.md](plugins/openshift/README.md) for detailed documentation.
+
+### Polarion Plugin
+
+Polarion test management integration and test case tracking for OpenShift projects
+
+**Commands:**
+- **`/polarion:activity` `"[--days-back <days>] [--project-limit <num>] [--keywords <words>] [--output <file>]"`** - Generate comprehensive test activity reports across OpenShift projects with contributor tracking
+- **`/polarion:health-check` `"[--verbose] [--projects] [--export]"`** - Verify Polarion connectivity, authentication, and project access permissions
+- **`/polarion:projects` `"[--keywords <words>] [--limit <num>] [--output <file>]"`** - Discover and list OpenShift-related projects in Polarion with advanced filtering
+- **`/polarion:test-runs` `"<project-id> [--days-back <days>] [--limit <num>] [--output <file>]"`** - Analyze test runs for specific projects with detailed filtering and export options
+- **`/polarion:weekly-report` `"[--keywords <words>] [--output <file>] [--format <markdown|json>]"`** - Generate automated weekly test activity reports optimized for team communication
+
+See [plugins/polarion/README.md](plugins/polarion/README.md) for detailed documentation.
 
 ### Prow Job Plugin
 

@@ -1,0 +1,8 @@
+{
+  "name": "polarion",
+  "description": "Polarion test management integration and test case tracking for OpenShift projects",
+  "version": "0.0.1",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}

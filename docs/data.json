@@ -770,6 +770,52 @@
       "skills": [],
       "hooks": [],
       "has_readme": true
+    },
+    {
+      "name": "polarion",
+      "description": "Polarion test management integration and test case tracking for OpenShift projects",
+      "version": "0.0.1",
+      "commands": [
+        {
+          "name": "activity",
+          "description": "Generate comprehensive test activity reports across OpenShift projects with contributor tracking",
+          "synopsis": "bash",
+          "argument_hint": "\"[--days-back <days>] [--project-limit <num>] [--keywords <words>] [--output <file>]\""
+        },
+        {
+          "name": "health-check",
+          "description": "Verify Polarion connectivity, authentication, and project access permissions",
+          "synopsis": "text",
+          "argument_hint": "\"[--verbose] [--projects] [--export]\""
+        },
+        {
+          "name": "projects",
+          "description": "Discover and list OpenShift-related projects in Polarion with advanced filtering",
+          "synopsis": "/polarion:projects [--keywords <words>] [--limit <num>] [--output <file>] [--format <json|csv>] [--verbose]",
+          "argument_hint": "\"[--keywords <words>] [--limit <num>] [--output <file>]\""
+        },
+        {
+          "name": "test-runs",
+          "description": "Analyze test runs for specific projects with detailed filtering and export options",
+          "synopsis": "bash",
+          "argument_hint": "\"<project-id> [--days-back <days>] [--limit <num>] [--output <file>]\""
+        },
+        {
+          "name": "weekly-report",
+          "description": "Generate automated weekly test activity reports optimized for team communication",
+          "synopsis": "bash",
+          "argument_hint": "\"[--keywords <words>] [--output <file>] [--format <markdown|json>]\""
+        }
+      ],
+      "skills": [
+        {
+          "name": "Polarion Client Integration",
+          "id": "polarion-client",
+          "description": "Comprehensive skill for integrating with Polarion test management system for test execution analysis"
+        }
+      ],
+      "hooks": [],
+      "has_readme": true
     }
   ]
 }
