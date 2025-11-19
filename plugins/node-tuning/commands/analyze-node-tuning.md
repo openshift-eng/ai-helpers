@@ -7,7 +7,7 @@ argument-hint: "[--sosreport PATH] [--format json|markdown] [--max-irq-samples N
 node-tuning:analyze-node-tuning
 
 ## Synopsis
-```
+```text
 /node-tuning:analyze-node-tuning [--sosreport PATH] [--collect-sosreport|--no-collect-sosreport] [--sosreport-output PATH] [--node NODE] [--kubeconfig PATH] [--oc-binary PATH] [--format json|markdown] [--max-irq-samples N] [--keep-snapshot]
 ```
 
@@ -61,12 +61,12 @@ Use this command when you need to:
 ## Examples
 
 1. **Analyze a live node and print Markdown**
-   ```
+   ```text
    /node-tuning:analyze-node-tuning --format markdown
    ```
 
 2. **Capture `/proc` and `/sys` via `oc debug` (sosreport by default) and analyze remotely**
-   ```
+   ```text
    /node-tuning:analyze-node-tuning \
      --node worker-rt-0 \
      --kubeconfig ~/.kube/prod \
@@ -74,7 +74,7 @@ Use this command when you need to:
    ```
 
 3. **Collect a sosreport via `oc debug` (custom image + flags) and analyze it locally**
-   ```
+   ```text
    /node-tuning:analyze-node-tuning \
      --node worker-rt-0 \
      --toolbox-image registry.example.com/support-tools:latest \
@@ -84,7 +84,7 @@ Use this command when you need to:
    ```
 
 4. **Inspect an extracted sosreport and save JSON to disk**
-   ```
+   ```text
    /node-tuning:analyze-node-tuning \
      --sosreport ~/Downloads/sosreport-worker-001 \
      --format json \
@@ -92,7 +92,7 @@ Use this command when you need to:
    ```
 
 5. **Limit the recommendation set to a handful of IRQ overlaps**
-   ```
+   ```text
    /node-tuning:analyze-node-tuning --sosreport /tmp/sosreport --max-irq-samples 5
    ```
 

@@ -722,13 +722,13 @@
         {
           "name": "analyze-node-tuning",
           "description": "Analyze kernel/sysctl tuning from a live node or sosreport snapshot and propose NTO recommendations",
-          "synopsis": "/node-tuning:analyze-node-tuning [--sosreport PATH] [--collect-sosreport|--no-collect-sosreport] [--sosreport-output PATH] [--node NODE] [--kubeconfig PATH] [--oc-binary PATH] [--format json|markdown] [--max-irq-samples N] [--keep-snapshot]",
+          "synopsis": "text",
           "argument_hint": "\"[--sosreport PATH] [--format json|markdown] [--max-irq-samples N]\""
         },
         {
           "name": "generate-tuned-profile",
           "description": "Generate a Tuned (tuned.openshift.io/v1) profile manifest for the Node Tuning Operator",
-          "synopsis": "/node-tuning:generate-tuned-profile [profile-name] [--summary TEXT] [--include VALUE ...] [--sysctl KEY=VALUE ...] [--match-label KEY[=VALUE] ...] [options]",
+          "synopsis": "text",
           "argument_hint": "\"[profile-name] [--summary ...] [--sysctl ...] [options]\""
         }
       ],

@@ -7,7 +7,7 @@ argument-hint: "[profile-name] [--summary ...] [--sysctl ...] [options]"
 node-tuning:generate-tuned-profile
 
 ## Synopsis
-```
+```text
 /node-tuning:generate-tuned-profile [profile-name] [--summary TEXT] [--include VALUE ...] [--sysctl KEY=VALUE ...] [--match-label KEY[=VALUE] ...] [options]
 ```
 
@@ -57,7 +57,8 @@ spec:
 
 3. **Invoke the generator script**
    - Run the helper with the collected switches:
-     ```bash
+     ```text
+     bash
      python3 plugins/node-tuning/skills/scripts/generate_tuned_profile.py \
        --profile-name "$PROFILE_NAME" \
        --summary "$SUMMARY" \
@@ -86,7 +87,8 @@ Use this workflow when enabling huge pages or other kernel boot parameters that 
 1. **Label target nodes**
    - Preview candidates: `python3 plugins/node-tuning/skills/scripts/generate_tuned_profile.py --list-nodes --node-selector "node-role.kubernetes.io/worker" --skip-manifest`.
    - Label workers with the helper (repeat per node):
-     ```bash
+     ```text
+     bash
      python3 plugins/node-tuning/skills/scripts/generate_tuned_profile.py \
        --label-node ip-10-0-1-23.ec2.internal:node-role.kubernetes.io/worker-hp= \
        --overwrite-labels \
@@ -96,7 +98,8 @@ Use this workflow when enabling huge pages or other kernel boot parameters that 
 
 2. **Generate the Tuned manifest**
    - Include bootloader arguments via the helper script:
-     ```bash
+     ```text
+     bash
      python3 plugins/node-tuning/skills/scripts/generate_tuned_profile.py \
        --profile-name "openshift-node-hugepages" \
        --summary "Boot time configuration for hugepages" \
@@ -146,7 +149,7 @@ Use this workflow when enabling huge pages or other kernel boot parameters that 
 ## Examples
 
 1. **Realtime worker profile targeting worker-rt MCP**
-   ```
+   ```text
    /node-tuning:generate-tuned-profile openshift-realtime \
      --summary "Custom realtime tuned profile" \
      --include openshift-node --include realtime \
@@ -157,7 +160,7 @@ Use this workflow when enabling huge pages or other kernel boot parameters that 
    ```
 
 2. **Sysctl-only profile matched by node label**
-   ```
+   ```text
    /node-tuning:generate-tuned-profile custom-net-tuned \
      --summary "Increase conntrack table" \
      --sysctl net.netfilter.nf_conntrack_max=262144 \
@@ -166,7 +169,7 @@ Use this workflow when enabling huge pages or other kernel boot parameters that 
    ```
 
 3. **Preview manifest without writing to disk**
-   ```
+   ```text
    /node-tuning:generate-tuned-profile pidmax-test \
      --summary "Raise pid max" \
      --sysctl kernel.pid_max=131072 \
