@@ -230,7 +230,9 @@ A generic utilities plugin serving as a catch-all for various helper commands an
 
 **Commands:**
 - **`/utils:address-reviews` `[PR number (optional - uses current branch if omitted)]`** - Fetch and address all PR review comments
+- **`/utils:analyze-feature` `[JIRA URL]`** - Analyze a JIRA feature enhancement request and generate actionable implementation plan
 - **`/utils:generate-test-plan` `[GitHub PR URLs]`** - Generate test steps for one or more related PRs
+- **`/utils:obfuscate-data` `"<input-file-path> [output-file-path]"`** - "Obfuscates sensitive data within a file before sharing or analysis."
 - **`/utils:placeholder`** - Placeholder command for the utils plugin
 - **`/utils:process-renovate-pr` `<PR_NUMBER|open> [JIRA_PROJECT] [COMPONENT]`** - Process Renovate dependency PR(s) to meet repository contribution standards
 

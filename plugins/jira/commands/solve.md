@@ -46,17 +46,23 @@ This command takes a JIRA URL, fetches the issue description and requirements, a
             - Expected vs actual behavior
    - Ask the user for further issue grooming if the requried sections are missing
 
-2. **Codebase Analysis**: Search and analyze relevant code:
+2. **Data Obfuscation**: Sanitize the fetched JIRA data before analysis.
+   - This step uses the `obfuscate-sensitive-data` skill.
+   - Save the JIRA description to a temporary file: `.work/jira/solve/jira-description-{$1}.txt`
+   - Run the `/utils:obfuscate-data` command on the file.
+   - Use the resulting `.obfuscated` file for the codebase analysis in the next step.
+
+3. **Codebase Analysis**: Search and analyze relevant code based on the **obfuscated** JIRA description:
    - Find related files and functions
    - Understand current implementation
    - Identify areas that need changes
    - Use Grep and Glob tools to search for:
-      - Related function names mentioned in JIRA
+      - Related function names mentioned in the sanitized JIRA description
       - File patterns related to the component
       - Similar existing implementations
       - Test files that need updates
 
-3. **Solution Implementation**:
+4. **Solution Implementation**:
    - Think hard and create a detailed, step-by-step plan to implement this feature. Save it to spec-$1.md within the .work/jira/solve folder, for example .work/jira/solve/spec-OCPBUGS-12345.md
    - Always ask the user to review the plan and give them the choice to modify it before start the implementation
    - Implement the plan:
@@ -83,7 +89,7 @@ This command takes a JIRA URL, fetches the issue description and requirements, a
     - **Never assume make targets exist** - always verify first
     - **You must ensure verification passes** before proceeding to "Commit Creation"
 
-4. **Commit Creation**: 
+5. **Commit Creation**: 
    - Create feature branch using the jira-key $1 as the branch name. For example: "git checkout -b fix-{jira-key}"
    - Break commits into logical components based on the nature of the changes
    - Each commit should honor https://www.conventionalcommits.org/en/v1.0.0/ and always include a commit message body articulating the "why"
@@ -106,7 +112,7 @@ This command takes a JIRA URL, fetches the issue description and requirements, a
      - Documentation: Changes in `docs/` directory
        - Example: `git commit -m"docs: Document X feature" -m"Help users understand how to configure and use the new capability"`
 
-5. **PR Creation**: 
+6. **PR Creation**: 
    - Push the branch with all commits against the remote specified in argument $2
    - Create pull request with:
      - Clear title referencing JIRA issue as a prefix. For example: "OCPBUGS-12345: ..."
@@ -116,7 +122,7 @@ This command takes a JIRA URL, fetches the issue description and requirements, a
      - Always create the PR against the remote origin
      - Use gh cli if you need to
 
-6. **PR Description Review**:
+7. **PR Description Review**:
    - After creating the PR, display the PR URL and description to the user
    - Ask the user: "Please review the PR description. Would you like me to update it? (yes/no)"
    - If the user says yes or requests changes:
