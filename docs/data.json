@@ -395,12 +395,6 @@
           "argument_hint": "[PR number (optional - uses current branch if omitted)]"
         },
         {
-          "name": "analyze-feature",
-          "description": "Analyze a JIRA feature enhancement request and generate actionable implementation plan",
-          "synopsis": "",
-          "argument_hint": "[JIRA URL]"
-        },
-        {
           "name": "generate-test-plan",
           "description": "Generate test steps for one or more related PRs",
           "synopsis": "",
