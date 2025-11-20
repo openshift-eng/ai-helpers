@@ -6,6 +6,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Ci](#ci-plugin)
 - [Component Health](#component-health-plugin)
 - [Doc](#doc-plugin)
+- [Etcd](#etcd-plugin)
 - [Git](#git-plugin)
 - [Hcp](#hcp-plugin)
 - [Hello World](#hello-world-plugin)
@@ -60,6 +61,16 @@ A plugin for engineering documentation and notes
 - **`/doc:note` `[task description]`** - Generate professional engineering notes and append them to a log file
 
 See [plugins/doc/README.md](plugins/doc/README.md) for detailed documentation.
+
+### Etcd Plugin
+
+Etcd cluster health monitoring and performance analysis utilities
+
+**Commands:**
+- **`/etcd:analyze-performance` `"[--duration <minutes>]"`** - Analyze etcd performance metrics, latency, and identify bottlenecks
+- **`/etcd:health-check` `"[--verbose]"`** - Check etcd cluster health, member status, and identify issues
+
+See [plugins/etcd/README.md](plugins/etcd/README.md) for detailed documentation.
 
 ### Git Plugin
 
