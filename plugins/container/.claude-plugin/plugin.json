@@ -1,0 +1,8 @@
+{
+  "name": "container",
+  "description": "Container and Dockerfile optimization and analysis tools",
+  "version": "0.0.1",
+  "author": {
+    "name": "openshift-eng"
+  }
+}
