@@ -180,6 +180,7 @@ A plugin to analyze and report on must-gather data
 **Commands:**
 - **`/must-gather:analyze` `[must-gather-path] [component]`** - Quick analysis of must-gather data - runs all analysis scripts and provides comprehensive cluster diagnostics
 - **`/must-gather:ovn-dbs` `[must-gather-path]`** - Analyze OVN databases from a must-gather using ovsdb-tool
+- **`/must-gather:windows` `[must-gather-path] [--component COMPONENT]`** - Analyze Windows node logs and issues in must-gather data
 
 See [plugins/must-gather/README.md](plugins/must-gather/README.md) for detailed documentation.
 

@@ -735,6 +735,12 @@
           "description": "Analyze OVN databases from a must-gather using ovsdb-tool",
           "name": "ovn-dbs",
           "synopsis": "/must-gather:ovn-dbs [must-gather-path] [--node <node-name>] [--query <json>]"
+        },
+        {
+          "argument_hint": "[must-gather-path] [--component COMPONENT]",
+          "description": "Analyze Windows node logs and issues in must-gather data",
+          "name": "windows",
+          "synopsis": "/must-gather:windows [must-gather-path] [--component COMPONENT] [--errors-only]"
         }
       ],
       "description": "A plugin to analyze and report on must-gather data",
