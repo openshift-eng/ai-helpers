@@ -317,6 +317,12 @@
     {
       "commands": [
         {
+          "argument_hint": "[--type <type>] [--style <style>] [--force]",
+          "description": "Generate or update README.md for a repository",
+          "name": "generate-readme",
+          "synopsis": "/doc:generate-readme [--type <type>] [--style <style>] [--force]"
+        },
+        {
           "argument_hint": "[task description]",
           "description": "Generate professional engineering notes and append them to a log file",
           "name": "note",

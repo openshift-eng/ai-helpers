@@ -87,6 +87,7 @@ See [plugins/container-image/README.md](plugins/container-image/README.md) for d
 A plugin for engineering documentation and notes
 
 **Commands:**
+- **`/doc:generate-readme` `[--type <type>] [--style <style>] [--force]`** - Generate or update README.md for a repository
 - **`/doc:note` `[task description]`** - Generate professional engineering notes and append them to a log file
 
 See [plugins/doc/README.md](plugins/doc/README.md) for detailed documentation.
