@@ -315,6 +315,44 @@
       "has_readme": true
     },
     {
+      "name": "fbc-art-images",
+      "description": "A plugin for testing operators built in FBC ([File Based Catalog](https://olm.operatorframework.io/docs/reference/file-based-catalogs/) by Konflux with art-images-share repository. Requires oras CLI.",
+      "version": "0.0.1",
+      "commands": [
+        {
+          "name": "catalog-source",
+          "description": "Generate CatalogSource manifest for testing operators built in Konflux",
+          "synopsis": "bash",
+          "argument_hint": "<ocp-version> <operator-name>"
+        },
+        {
+          "name": "idms",
+          "description": "Generate IDMS manifest so that art-image-share mirrors would be used on the cluster for all operator related images",
+          "synopsis": "/fbc-art-images:idms <ocp-version> <operator-name>",
+          "argument_hint": "<ocp-version> <operator-name>"
+        },
+        {
+          "name": "setup",
+          "description": "Generate CatalogSource, IDMS, and configure pull-secret for FBC testing",
+          "synopsis": "bash",
+          "argument_hint": "<ocp-version> <operator-name>"
+        }
+      ],
+      "skills": [
+        {
+          "name": "Generate CatalogSource Manifest",
+          "id": "generate-catalog-source",
+          "description": "Generate a CatalogSource manifest for FBC operator testing"
+        },
+        {
+          "name": "Generate IDMS Manifest",
+          "id": "generate-idms",
+          "description": "Generate an ImageDigestMirrorSet manifest for art-image-share registry mirroring"
+        }
+      ],
+      "has_readme": true
+    },
+    {
       "name": "doc",
       "description": "A plugin for engineering documentation and notes",
       "version": "0.0.1",
