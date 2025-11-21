@@ -42,6 +42,12 @@
           "description": "Show current branch, git status, and recent commits for quick context",
           "synopsis": "/git:summary",
           "argument_hint": ""
+        },
+        {
+          "name": "sync-downstream",
+          "description": "Sync downstream fork with upstream while preserving downstream-specific files",
+          "synopsis": "/git:sync-downstream [--dry-run]",
+          "argument_hint": "[--dry-run]"
         }
       ],
       "skills": [

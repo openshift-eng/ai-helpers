@@ -101,6 +101,7 @@ Git workflow automation and utilities
 - **`/git:debt-scan`** - Analyze technical debt indicators in the repository
 - **`/git:suggest-reviewers` `[base-branch]`** - Suggest appropriate reviewers for a PR based on git blame and OWNERS files
 - **`/git:summary`** - Show current branch, git status, and recent commits for quick context
+- **`/git:sync-downstream` `[--dry-run]`** - Sync downstream fork with upstream while preserving downstream-specific files
 
 See [plugins/git/README.md](plugins/git/README.md) for detailed documentation.
 
