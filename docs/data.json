@@ -407,6 +407,12 @@
           "argument_hint": "[GitHub PR URLs]"
         },
         {
+          "name": "obfuscate-data",
+          "description": "\"Obfuscates sensitive data within a file before sharing or analysis.\"",
+          "synopsis": "/utils:obfuscate-data <input-file-path> [output-file-path]",
+          "argument_hint": "\"<input-file-path> [output-file-path]\""
+        },
+        {
           "name": "placeholder",
           "description": "Placeholder command for the utils plugin",
           "synopsis": "/utils:placeholder",
@@ -419,7 +425,13 @@
           "argument_hint": "<PR_NUMBER|open> [JIRA_PROJECT] [COMPONENT]"
         }
       ],
-      "skills": [],
+      "skills": [
+        {
+          "name": "Obfuscate Sensitive Data",
+          "id": "obfuscate-sensitive-data",
+          "description": "\"A skill for identifying and obfuscating sensitive information in text data before it is processed or shared.\""
+        }
+      ],
       "hooks": [],
       "has_readme": true
     },
