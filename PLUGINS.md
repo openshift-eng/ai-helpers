@@ -17,6 +17,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Olm](#olm-plugin)
 - [Openshift](#openshift-plugin)
 - [Prow Job](#prow-job-plugin)
+- [Security](#security-plugin)
 - [Session](#session-plugin)
 - [Sosreport](#sosreport-plugin)
 - [Utils](#utils-plugin)
@@ -205,6 +206,16 @@ A plugin to analyze and inspect Prow CI job results
 - **`/prow-job:extract-must-gather` `prowjob-url`** - Extract and decompress must-gather archives from Prow job artifacts
 
 See [plugins/prow-job/README.md](plugins/prow-job/README.md) for detailed documentation.
+
+### Security Plugin
+
+Container vulnerability grade reporting using container-grade-reporter tool
+
+**Commands:**
+- **`/security:image-grades` `<config.yaml> [--grade <grades>] [--email]`** - Generate container vulnerability grade report using container-grade-reporter
+- **`/security:set-image-grade-tool-path` `<path>`** - Configure the path to container-grade-reporter tool
+
+See [plugins/security/README.md](plugins/security/README.md) for detailed documentation.
 
 ### Session Plugin
 
