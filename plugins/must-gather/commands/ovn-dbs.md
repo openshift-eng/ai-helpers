@@ -46,36 +46,51 @@ network_logs/
 
 **Analysis Script:**
 
-The script is located in the plugin directory:
+The script is bundled with this plugin:
 ```
-plugins/must-gather/skills/must-gather-analyzer/scripts/analyze_ovn_dbs.py
+<plugin-root>/skills/must-gather-analyzer/scripts/analyze_ovn_dbs.py
 ```
 
-Claude will automatically locate it from the plugin installation.
+Where `<plugin-root>` is the directory where this plugin is installed (typically `~/.cursor/commands/ai-helpers/plugins/must-gather/` or similar).
+
+Claude will automatically locate it by searching for the script in the plugin installation directory, regardless of your current working directory.
 
 ## Implementation
 
 The command performs the following steps:
 
-1. **Extract Database Tarball**:
+1. **Locate Analysis Script**:
+   ```bash
+   SCRIPT_PATH=$(find ~ -name "analyze_ovn_dbs.py" -path "*/must-gather/skills/must-gather-analyzer/scripts/*" 2>/dev/null | head -1)
+   
+   if [ -z "$SCRIPT_PATH" ]; then
+       echo "ERROR: analyze_ovn_dbs.py script not found."
+       echo "Please ensure the must-gather plugin from ai-helpers is properly installed."
+       exit 1
+   fi
+   
+   SCRIPTS_DIR=$(dirname "$SCRIPT_PATH")
+   ```
+
+2. **Extract Database Tarball**:
    - Locate `network_logs/ovnk_database_store.tar.gz`
    - Extract if not already extracted
    - Find all `*_nbdb` and `*_sbdb` files
 
-2. **Query Each Zone's Database**:
+3. **Query Each Zone's Database**:
    For each zone (node), query the Northbound database using `ovsdb-tool query`:
 
    ```bash
    ovsdb-tool query <zone>_nbdb '["OVN_Northbound", {"op":"select", "table":"<table>", "where":[], "columns":[...]}]'
    ```
 
-3. **Analyze and Display**:
+4. **Analyze and Display**:
    - **Logical Switches**: Names and port counts
    - **Logical Switch Ports**: Filter for pods (external_ids.pod=true), show namespace, pod name, and IP
    - **ACLs**: Priority, direction, match rules, and actions
    - **Logical Routers**: Names and port counts
 
-4. **Present Zone Summary**:
+5. **Present Zone Summary**:
    - Total counts per zone
    - Detailed breakdowns
    - Sorted and formatted output
