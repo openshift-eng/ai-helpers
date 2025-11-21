@@ -32,6 +32,12 @@
           "argument_hint": ""
         },
         {
+          "name": "setup",
+          "description": "Set up a git repository with upstream and downstream remotes for forked development workflows",
+          "synopsis": "/git:setup [--upstream-only | --downstream-only]",
+          "argument_hint": "[--upstream-only | --downstream-only]"
+        },
+        {
           "name": "suggest-reviewers",
           "description": "Suggest appropriate reviewers for a PR based on git blame and OWNERS files",
           "synopsis": "/git:suggest-reviewers [base-branch]",
