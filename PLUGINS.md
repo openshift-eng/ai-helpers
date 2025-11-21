@@ -96,6 +96,7 @@ Git workflow automation and utilities
 
 **Commands:**
 - **`/git:branch-cleanup` `[--dry-run] [--merged-only] [--remote]`** - Clean up old and defunct branches that are no longer needed
+- **`/git:branch-resolve` `[issue-description]`** - Analyze and resolve git branch issues (conflicts, divergence, push/pull problems)
 - **`/git:cherry-pick-by-patch` `<commit_hash>`** - Cherry-pick git commit into current branch by "patch" command
 - **`/git:commit-suggest` `[N]`** - Generate Conventional Commits style commit messages or summarize existing commits
 - **`/git:debt-scan`** - Analyze technical debt indicators in the repository
