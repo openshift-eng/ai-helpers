@@ -94,30 +94,6 @@
           "argument_hint": "<issue-key>"
         },
         {
-          "name": "backlog",
-          "description": "Find suitable JIRA tickets from the backlog to work on based on priority and activity",
-          "synopsis": "/jira:backlog [project-key] [--assignee username] [--days-inactive N]",
-          "argument_hint": "[project-key] [--assignee username] [--days-inactive N]"
-        },
-        {
-          "name": "create-release-note",
-          "description": "Generate bug fix release notes from Jira tickets and linked GitHub PRs",
-          "synopsis": "/jira:create-release-note <issue-key>",
-          "argument_hint": "<issue-key>"
-        },
-        {
-          "name": "clone-from-github",
-          "description": "Clone GitHub issues to Jira with proper formatting and linking",
-          "synopsis": "/jira:clone-from-github <issue-number> [issue-number...] [options]",
-          "argument_hint": "<github-issue-numbers> [--github-project <org/repo>] [--jira-project <key>] [--dryrun]"
-        },
-        {
-          "name": "create-release-note",
-          "description": "Generate bug fix release notes from Jira tickets and linked GitHub PRs",
-          "synopsis": "/jira:create-release-note <issue-key>",
-          "argument_hint": "<issue-key>"
-        },
-        {
           "name": "create",
           "description": "Create Jira issues (story, epic, feature, task, bug, feature-request) with proper formatting",
           "synopsis": "/jira:create <type> [project-key] <summary> [options]",
@@ -138,7 +114,7 @@
         {
           "name": "reconcile-github",
           "description": "Reconcile state mismatches between GitHub and Jira issues",
-          "synopsis": "/jira:reconcile-github [options]",
+          "synopsis": "bash",
           "argument_hint": "[--github-project <org/repo>] [--jira-project <key>] [--profile <name>] [--porcelain] [--output json|yaml]"
         },
         {

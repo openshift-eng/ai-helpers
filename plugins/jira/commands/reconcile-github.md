@@ -111,7 +111,7 @@ gh2jira reconcile --profile-name default --porcelain --output json
 Format and display results to the user based on output mode:
 
 **Human-readable output (default):**
-```
+```text
 Reconciliation Report
 =====================
 
@@ -163,19 +163,19 @@ Mismatched: 5 (20%)
 ## Examples
 
 ### Example 1: Reconcile using profile
-```
+```bash
 /jira:reconcile-github --profile olm-project
 ```
 Uses the `olm-project` profile to reconcile all linked issues.
 
 ### Example 2: Reconcile with explicit projects
-```
+```bash
 /jira:reconcile-github --github-project operator-framework/operator-lifecycle-manager --jira-project OCPBUGS
 ```
 Reconciles issues between the specified GitHub and Jira projects.
 
 ### Example 3: Machine-readable output for scripting
-```
+```bash
 /jira:reconcile-github --profile default --porcelain --output json
 ```
 Outputs reconciliation results in JSON format for automated processing.
@@ -239,7 +239,7 @@ mappings:
 **Scenario:** The gh2jira binary doesn't exist.
 
 **Action:**
-```
+```text
 The gh2jira utility is not installed.
 
 Please run /jira:setup-gh2jira to install and configure gh2jira.
@@ -256,7 +256,7 @@ Please run /jira:setup-gh2jira to install and configure gh2jira.
 **Scenario:** workflows.yaml doesn't exist.
 
 **Action:**
-```
+```text
 Workflows configuration not found.
 
 Please run /jira:setup-gh2jira to configure gh2jira, which will create the default workflows.yaml configuration.
