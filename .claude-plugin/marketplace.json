@@ -70,6 +70,11 @@
       "description": "OpenShift development utilities and helpers"
     },
     {
+      "name": "etcd",
+      "source": "./plugins/etcd",
+      "description": "Etcd cluster health monitoring and performance analysis utilities"
+    },
+    {
       "name": "yaml",
       "source": "./plugins/yaml",
       "description": "YAML documentation and utilities"

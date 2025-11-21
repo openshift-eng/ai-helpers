@@ -640,6 +640,27 @@
       "has_readme": true
     },
     {
+      "name": "etcd",
+      "description": "Etcd cluster health monitoring and performance analysis utilities",
+      "version": "0.0.1",
+      "commands": [
+        {
+          "name": "analyze-performance",
+          "description": "Analyze etcd performance metrics, latency, and identify bottlenecks",
+          "synopsis": "/etcd:analyze-performance [--duration <minutes>]",
+          "argument_hint": "\"[--duration <minutes>]\""
+        },
+        {
+          "name": "health-check",
+          "description": "Check etcd cluster health, member status, and identify issues",
+          "synopsis": "/etcd:health-check [--verbose]",
+          "argument_hint": "\"[--verbose]\""
+        }
+      ],
+      "skills": [],
+      "has_readme": true
+    },
+    {
       "name": "yaml",
       "description": "YAML documentation and utilities",
       "version": "0.0.1",
