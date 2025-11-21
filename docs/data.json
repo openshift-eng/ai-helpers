@@ -832,6 +832,55 @@
       "skills": [],
       "hooks": [],
       "has_readme": true
+    },
+    {
+      "name": "crypto-inventory",
+      "description": "Find and inventory cryptographic usage across codebases",
+      "version": "1.0.0",
+      "commands": [
+        {
+          "name": "find",
+          "description": "Search for specific cryptographic algorithms, APIs, or operations in the codebase",
+          "synopsis": "/crypto-inventory:find <algorithm|api> [--language go|python|java|javascript|typescript|rust|c|cpp|csharp|auto] [--format markdown|json] [--output path]",
+          "argument_hint": "<algorithm|api> [--language go|python|java|javascript|typescript|rust|c|cpp|csharp|auto] [--format markdown|json] [--output path]"
+        },
+        {
+          "name": "scan",
+          "description": "Scan codebase and generate a comprehensive crypto usage inventory from user code and third-party dependencies",
+          "synopsis": "/crypto-inventory:scan [--format markdown|json] [--output path] [--language go|python|java|javascript|typescript|rust|c|cpp|csharp|auto] [--include-deps]",
+          "argument_hint": "[--format markdown|json] [--output path] [--language go|python|java|javascript|typescript|rust|c|cpp|csharp|auto] [--include-deps]"
+        },
+        {
+          "name": "security",
+          "description": "Scan codebase for security-critical cryptographic issues and provide actionable recommendations",
+          "synopsis": "/crypto-inventory:security [--format markdown|json] [--output path] [--language go|python|java|javascript|typescript|rust|c|cpp|csharp|auto] [--include-deps]",
+          "argument_hint": "[--format markdown|json] [--output path] [--language go|python|java|javascript|typescript|rust|c|cpp|csharp|auto] [--include-deps]"
+        }
+      ],
+      "skills": [
+        {
+          "name": "Crypto Detection Core",
+          "id": "crypto-detection-core",
+          "description": "Shared core logic for crypto detection: language detection, semgrep setup, filtering rules, and error handling"
+        },
+        {
+          "name": "Crypto Finder Patterns",
+          "id": "crypto-finder-patterns",
+          "description": "Comprehensive patterns and search strategies for finding cryptographic usage across multiple programming languages"
+        },
+        {
+          "name": "Crypto Parameter Extraction",
+          "id": "crypto-parameter-extraction",
+          "description": "Extract cryptographic parameter values from semgrep results using metavariables and literal parsing"
+        },
+        {
+          "name": "Semgrep Execution",
+          "id": "crypto-semgrep-execution",
+          "description": "Execute semgrep scans and process results for crypto detection"
+        }
+      ],
+      "hooks": [],
+      "has_readme": true
     }
   ]
 }
