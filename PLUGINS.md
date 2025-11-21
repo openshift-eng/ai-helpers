@@ -17,6 +17,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Olm](#olm-plugin)
 - [Openshift](#openshift-plugin)
 - [Prow Job](#prow-job-plugin)
+- [Release](#release-plugin)
 - [Session](#session-plugin)
 - [Sosreport](#sosreport-plugin)
 - [Utils](#utils-plugin)
@@ -205,6 +206,18 @@ A plugin to analyze and inspect Prow CI job results
 - **`/prow-job:extract-must-gather` `prowjob-url`** - Extract and decompress must-gather archives from Prow job artifacts
 
 See [plugins/prow-job/README.md](plugins/prow-job/README.md) for detailed documentation.
+
+### Release Plugin
+
+A plugin to manage release configurations
+
+**Commands:**
+- **`/release:find-main-periodics` `[path] [--verify-release=VERSION]`** - Find test definitions with periodic scheduling in main/master branch configurations
+- **`/release:find-missing-variant-periodics` `<from-release> <to-release> [path]`** - Find periodic configurations missing for a target release version
+- **`/release:migrate-main-periodics-to-variant-config` `<target-release> [path|--filter=<json>] [--confirm-each-test]`** - Move periodic test definitions from main/master branch configs to dedicated __periodics.yaml files
+- **`/release:migrate-variant-periodics` `<from-release> <to-release> [path] [--skip-existing]`** - Migrate OpenShift periodic CI job definitions from one release version to another
+
+See [plugins/release/README.md](plugins/release/README.md) for detailed documentation.
 
 ### Session Plugin
 

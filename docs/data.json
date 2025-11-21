@@ -560,6 +560,50 @@
       "has_readme": true
     },
     {
+      "name": "release",
+      "description": "A plugin to manage OpenShift release workflows and periodic job migrations",
+      "version": "0.0.1",
+      "commands": [
+        {
+          "name": "find-main-periodics",
+          "description": "Find test definitions with periodic scheduling in main/master branch configurations",
+          "synopsis": "",
+          "argument_hint": "[path] [--verify-release=VERSION]"
+        },
+        {
+          "name": "find-missing-variant-periodics",
+          "description": "Find periodic configurations missing for a target release version",
+          "synopsis": "",
+          "argument_hint": "<from-release> <to-release> [path]"
+        },
+        {
+          "name": "migrate-main-periodics-to-variant-config",
+          "description": "Move periodic test definitions from main/master branch configs to dedicated __periodics.yaml files",
+          "synopsis": "",
+          "argument_hint": "<target-release> [path|--filter=<json>] [--confirm-each-test]"
+        },
+        {
+          "name": "migrate-variant-periodics",
+          "description": "Migrate OpenShift periodic CI job definitions from one release version to another",
+          "synopsis": "",
+          "argument_hint": "<from-release> <to-release> [path] [--skip-existing]"
+        }
+      ],
+      "skills": [
+        {
+          "name": "release-find-main-periodic-tests",
+          "id": "release-find-main-periodics",
+          "description": "Find test definitions with periodic scheduling in main/master branch configuration files"
+        },
+        {
+          "name": "Release Migrate Periodics",
+          "id": "release-migrate-variant-periodics",
+          "description": "Migrate OpenShift periodic CI job definitions from one release version to another by copying and transforming YAML configuration files"
+        }
+      ],
+      "has_readme": true
+    },
+    {
       "name": "agendas",
       "description": "A plugin to create various meeting agendas",
       "version": "0.0.1",

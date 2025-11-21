@@ -1,0 +1,8 @@
+{
+  "name": "release",
+  "description": "A plugin to manage release configurations",
+  "version": "0.0.1",
+  "author": {
+    "name": "github.com/neisw"
+  }
+}
