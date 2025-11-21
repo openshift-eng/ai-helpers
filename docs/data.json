@@ -116,6 +116,12 @@
           "description": "Generate a status rollup comment for any JIRA issue based on all child issues and a given date range",
           "synopsis": "/jira:status-rollup issue-id [--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD]",
           "argument_hint": "issue-id [--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD]"
+        },
+        {
+          "name": "update-weekly-status",
+          "description": "Update weekly status summaries for Jira issues with component and user filtering",
+          "synopsis": "/jira:update-weekly-status [project-key] [--component <component-name>] [--label <label-name>] [user-filters...]",
+          "argument_hint": "[project-key] [--component name] [--label label-name] [user-filters...]"
         }
       ],
       "skills": [
