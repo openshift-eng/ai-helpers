@@ -320,6 +320,12 @@
       "version": "0.0.1",
       "commands": [
         {
+          "name": "generate-readme",
+          "description": "Generate or update README.md for a repository",
+          "synopsis": "/doc:generate-readme [--type <type>] [--style <style>] [--force]",
+          "argument_hint": "[--type <type>] [--style <style>] [--force]"
+        },
+        {
           "name": "note",
           "description": "Generate professional engineering notes and append them to a log file",
           "synopsis": "/doc:note [task description]",
