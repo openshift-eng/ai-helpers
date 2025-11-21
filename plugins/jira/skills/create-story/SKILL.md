@@ -17,6 +17,49 @@ This skill is automatically invoked by the `/jira:create story` command to guide
 - User has permissions to create issues in the target project
 - Understanding of the user story and acceptance criteria to be created
 
+## ⚠️ Summary vs Description: CRITICAL DISTINCTION
+
+**This is the #1 mistake when creating stories. The summary field and description field serve different purposes:**
+
+### Summary Field (Issue Title)
+- **SHORT, concise title** (5-10 words maximum)
+- Action-oriented, describes WHAT will be done
+- **Does NOT contain the full "As a... I want... So that..." format**
+- Think of it as a newspaper headline
+
+**Good summary examples:**
+- ✅ "Enable ImageTagMirrorSet configuration in HostedCluster CRs"
+- ✅ "Add automatic node pool scaling for ROSA HCP"
+- ✅ "Implement webhook validation for HostedCluster resources"
+
+**Bad summary examples:**
+- ❌ "As a cluster admin, I want to configure ImageTagMirrorSet in HostedCluster CRs so that I can enable tag-based image proxying" (Full user story - belongs in description!)
+- ❌ "As a developer, I want to view metrics so that I can debug issues" (User story format - belongs in description!)
+
+### Description Field (Issue Body)
+- Contains the **FULL user story format**: "As a... I want... So that..."
+- Includes **acceptance criteria**
+- Includes **additional context**
+- Can be lengthy and detailed
+
+**Correct usage:**
+```
+Summary: "Enable ImageTagMirrorSet configuration in HostedCluster CRs"
+
+Description:
+  As a cluster admin, I want to configure ImageTagMirrorSet in HostedCluster CRs,
+  so that I can enable tag-based image proxying for my workloads.
+
+  Acceptance Criteria:
+  - Test that ImageTagMirrorSet can be specified...
+```
+
+### When Collecting Story Information
+1. First collect the full user story (As a... I want... So that...)
+2. Then extract/generate a concise summary title from that story
+3. Present both to user for confirmation
+4. Summary goes in `summary` parameter, full story goes in `description`
+
 ## User Story Best Practices
 
 ### What is a User Story?
@@ -310,14 +353,13 @@ Split:
 Before submitting the story, validate:
 
 ### Required Fields
-- ✅ Summary is clear and concise
-- ✅ Description contains user story in proper format
+- ✅ Summary is concise title (5-10 words), NOT full user story (see "Summary vs Description" section above)
+- ✅ Description contains full user story in "As a... I want... So that..." format
 - ✅ Acceptance criteria are present (at least 2)
 - ✅ Component is specified (if required by project)
 - ✅ Target version is set (if required by project)
 
 ### Story Quality
-- ✅ Story follows "As a... I want... So that..." format
 - ✅ Story describes user-facing value (not implementation)
 - ✅ Acceptance criteria are testable
 - ✅ Acceptance criteria are specific (not vague)
@@ -334,7 +376,7 @@ Before submitting the story, validate:
 ```python
 mcp__atlassian__jira_create_issue(
     project_key="<PROJECT_KEY>",
-    summary="<story summary>",
+    summary="<concise title>",  # 5-10 words, NOT full user story
     issue_type="Story",
     description="""
 As a <user>, I want to <action>, so that <value>.
@@ -383,26 +425,15 @@ Out of scope: Custom metrics-based scaling (will be separate story CNTRLPLANE-45
     """,
     components="HyperShift / ROSA",
     additional_fields={
-        "customfield_12319940": "openshift-4.21",  # target version
         "labels": ["ai-generated-jira"],
         "security": {"name": "Red Hat Employee"}
+        # Note: Target version omitted (optional in CNTRLPLANE)
+        # Note: Epic link handled separately - see CNTRLPLANE skill for details
     }
 )
 ```
 
-### With Parent Link
-
-```python
-mcp__atlassian__jira_create_issue(
-    project_key="MYPROJECT",
-    summary="Implement scaling API endpoints",
-    issue_type="Story",
-    description="<story content>",
-    additional_fields={
-        "parent": {"key": "MYPROJECT-100"}  # link to epic
-    }
-)
-```
+**Note:** For epic linking, parent field handling, and other project-specific requirements, refer to the appropriate project-specific skill (e.g., CNTRLPLANE, OCPBUGS).
 
 ## Jira Description Formatting
 

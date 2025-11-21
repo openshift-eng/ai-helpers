@@ -31,25 +31,150 @@ This skill is automatically invoked by the `/jira:create` command when the proje
 **Note:** Universal requirements (Security Level: Red Hat Employee, Labels: ai-generated-jira) are defined in the `/jira:create` command and automatically applied to all tickets.
 
 ### Target Version (customfield_12319940)
-**Purpose:** Target release version for the feature/story/task
 
-**Common default:** `openshift-4.21` (current development release)
+**Status:** OPTIONAL (many issues in CNTRLPLANE have null target version)
 
-**Override:** Teams may specify different versions based on their roadmap:
-- `openshift-4.20` (maintenance release)
-- `openshift-4.22` (future release)
-- `openshift-4.23` (future release)
-- Or team-specific version schemes
+**Recommendation:** **Omit this field** unless specifically required by the team or user explicitly requests it.
+
+**If target version must be set:**
+
+1. **First, fetch available versions:**
+   ```python
+   versions = mcp__atlassian__jira_get_project_versions(project_key="CNTRLPLANE")
+   ```
+
+2. **Find the version ID** for the desired version (e.g., "openshift-4.21" has id "12448830")
+
+3. **Use correct MCP format** (array of version objects with ID):
+   ```python
+   "customfield_12319940": [{"id": "12448830"}]  # openshift-4.21
+   ```
+
+**Common version IDs:**
+- `openshift-4.21`: `{"id": "12448830"}`
+- `openshift-4.20`: `{"id": "12447110"}`
+- `openshift-4.22`: `{"id": "12448831"}`
+
+**IMPORTANT:** Do NOT use string format like `"openshift-4.21"` - this will fail. Must use array with version ID.
 
 **Never set:**
 - Fix Version/s (`fixVersions`) - This is managed by the release team
 
 ### Version Override Handling
 
-When user specifies a different version:
-1. Accept the version as provided
-2. Validate version exists using MCP tool `jira_get_project_versions` if needed
+If user specifies a version:
+1. Fetch available versions using `mcp__atlassian__jira_get_project_versions`
+2. Find the matching version ID
 3. If version doesn't exist, suggest closest match or ask user to confirm
+4. Use array format with version ID: `[{"id": "VERSION_ID"}]`
+
+## Epic Link Requirements
+
+**⚠️ CRITICAL:** To link a story to an epic in CNTRLPLANE, you **MUST** use the Epic Link custom field, NOT the `parent` field.
+
+### Epic Link Field (customfield_12311140)
+
+**Field Details:**
+- **Field Name:** Epic Link
+- **Custom Field ID:** `customfield_12311140`
+- **MCP Parameter:** `additional_fields.customfield_12311140`
+- **Value Format:** Epic key as string (e.g., `"CNTRLPLANE-123"`)
+- **Used For:** Linking stories to epics
+
+**IMPORTANT:** Do NOT use `additional_fields.parent` for epic-story relationships. The `parent` field has different semantics and will cause creation to fail.
+
+### MCP Format for Epic Link
+
+```python
+additional_fields={
+    "customfield_12311140": "CNTRLPLANE-123",  # Epic Link (use actual epic key)
+    "labels": ["ai-generated-jira"],
+    "security": {"name": "Red Hat Employee"}
+}
+```
+
+### Epic Linking Implementation Strategy
+
+When the `--parent` flag is provided for a story/task, use this implementation strategy:
+
+#### Pre-Validation (Do This First)
+
+Before attempting to create the issue:
+1. Verify the parent epic exists using `mcp__atlassian__jira_get_issue`
+2. If epic doesn't exist, prompt user:
+   ```
+   Epic {epic_key} not found. Options:
+   1. Proceed without epic link
+   2. Specify different epic
+   3. Cancel creation
+
+   What would you like to do?
+   ```
+3. Only proceed if epic is valid or user chooses to proceed without link
+
+#### Preferred Approach: Include Epic Link in Creation
+
+Attempt to create the issue with Epic Link included:
+```python
+mcp__atlassian__jira_create_issue(
+    project_key="CNTRLPLANE",
+    summary="<story title>",
+    issue_type="Story",
+    description="<description>",
+    components="<component>",
+    additional_fields={
+        "customfield_12311140": "<epic-key>",  # Epic Link (e.g., "CNTRLPLANE-456")
+        "labels": ["ai-generated-jira"],
+        "security": {"name": "Red Hat Employee"}
+    }
+)
+```
+
+#### Fallback Strategy (If Creation Fails)
+
+If creation fails with an error related to epic linking:
+1. Detect error contains keywords: "epic", "parent", "customfield", or "link"
+2. Inform user: "Epic link failed during creation, using fallback strategy..."
+3. Create issue WITHOUT the epic link:
+   ```python
+   story = mcp__atlassian__jira_create_issue(
+       project_key="CNTRLPLANE",
+       summary="<story title>",
+       issue_type="Story",
+       description="<description>",
+       components="<component>",
+       additional_fields={
+           "labels": ["ai-generated-jira"],
+           "security": {"name": "Red Hat Employee"}
+       }
+   )
+   ```
+4. If creation succeeds, link to epic via update:
+   ```python
+   mcp__atlassian__jira_update_issue(
+       issue_key=story["key"],
+       fields={},
+       additional_fields={
+           "customfield_12311140": "<epic-key>"
+       }
+   )
+   ```
+5. Inform user of success:
+   ```
+   Created: CNTRLPLANE-XXX
+   Linked to epic: <epic-key> ✓
+   Title: <story title>
+   URL: https://issues.redhat.com/browse/CNTRLPLANE-XXX
+   ```
+
+#### If Fallback Also Fails
+
+If the update call to add Epic Link also fails:
+```
+Story created: CNTRLPLANE-XXX
+⚠️  Automatic epic linking failed. Please link manually in Jira.
+URL: https://issues.redhat.com/browse/CNTRLPLANE-XXX
+```
 
 ## Component Requirements
 
@@ -91,15 +216,31 @@ Some teams require specific components, while others do not. The CNTRLPLANE skil
 
 ### For CNTRLPLANE Stories
 
+**Basic story (no epic link):**
 ```python
 mcp__atlassian__jira_create_issue(
     project_key="CNTRLPLANE",
-    summary="<story summary>",
+    summary="<concise story title>",  # NOT full user story format
     issue_type="Story",
-    description="<formatted description with AC>",
+    description="<formatted description with full user story and AC>",
     components="<component name>",  # if required by team
     additional_fields={
-        "customfield_12319940": "openshift-4.21",  # target version (default)
+        "labels": ["ai-generated-jira"],
+        "security": {"name": "Red Hat Employee"}
+    }
+)
+```
+
+**Story linked to epic:**
+```python
+mcp__atlassian__jira_create_issue(
+    project_key="CNTRLPLANE",
+    summary="<concise story title>",  # NOT full user story format
+    issue_type="Story",
+    description="<formatted description with full user story and AC>",
+    components="<component name>",  # if required by team
+    additional_fields={
+        "customfield_12311140": "<epic-key>",  # Epic Link (e.g., "CNTRLPLANE-456")
         "labels": ["ai-generated-jira"],
         "security": {"name": "Red Hat Employee"}
     }
@@ -108,19 +249,35 @@ mcp__atlassian__jira_create_issue(
 
 ### For CNTRLPLANE Epics
 
+**Basic epic (no parent feature):**
 ```python
 mcp__atlassian__jira_create_issue(
     project_key="CNTRLPLANE",
-    summary="<epic summary>",
+    summary="<concise epic title>",
     issue_type="Epic",
     description="<epic description with scope and AC>",
     components="<component name>",  # if required
     additional_fields={
-        "customfield_12319940": "openshift-4.21",
-        "customfield_epicname": "<epic name>",  # required, same as summary
+        "customfield_12311141": "<epic name>",  # required, same as summary
+        "labels": ["ai-generated-jira"],
+        "security": {"name": "Red Hat Employee"}
+    }
+)
+```
+
+**Epic linked to parent feature:**
+```python
+mcp__atlassian__jira_create_issue(
+    project_key="CNTRLPLANE",
+    summary="<concise epic title>",
+    issue_type="Epic",
+    description="<epic description with scope and AC>",
+    components="<component name>",  # if required
+    additional_fields={
+        "customfield_12311141": "<epic name>",  # required, same as summary
         "labels": ["ai-generated-jira"],
         "security": {"name": "Red Hat Employee"},
-        "parent": {"key": "CNTRLPLANE-123"}  # if --parent specified
+        "parent": {"key": "CNTRLPLANE-123"}  # parent feature link
     }
 )
 ```
@@ -130,20 +287,21 @@ mcp__atlassian__jira_create_issue(
 ```python
 mcp__atlassian__jira_create_issue(
     project_key="CNTRLPLANE",
-    summary="<feature summary>",
+    summary="<concise feature title>",
     issue_type="Feature",
     description="<feature description with market problem and success criteria>",
     components="<component name>",  # if required
     additional_fields={
-        "customfield_12319940": "openshift-4.21",
         "labels": ["ai-generated-jira"],
         "security": {"name": "Red Hat Employee"}
+        # Target version is optional - omit unless specifically required
     }
 )
 ```
 
 ### For CNTRLPLANE Tasks
 
+**Task linked to epic (via Epic Link):**
 ```python
 mcp__atlassian__jira_create_issue(
     project_key="CNTRLPLANE",
@@ -152,28 +310,30 @@ mcp__atlassian__jira_create_issue(
     description="<task description with what/why/AC>",
     components="<component name>",  # if required
     additional_fields={
-        "customfield_12319940": "openshift-4.21",
+        "customfield_12311140": "CNTRLPLANE-456",  # Epic Link (if linking to epic)
         "labels": ["ai-generated-jira"],
-        "security": {"name": "Red Hat Employee"},
-        "parent": {"key": "CNTRLPLANE-456"}  # if --parent specified
+        "security": {"name": "Red Hat Employee"}
     }
 )
 ```
 
+**Note:** If you need to link a task to a parent story, use Epic Link field (`customfield_12311140`) with the story key.
+
 ### Field Mapping Reference
 
-| Requirement | MCP Parameter | Value |
-|-------------|---------------|-------|
-| Project | `project_key` | `"CNTRLPLANE"` |
-| Issue Type | `issue_type` | `"Story"`, `"Epic"`, `"Feature"`, `"Task"` |
-| Summary | `summary` | User-provided text |
-| Description | `description` | Formatted template content |
-| Component | `components` | Team-specific (optional) |
-| Target Version | `additional_fields.customfield_12319940` | `"openshift-4.21"` (default) |
-| Labels | `additional_fields.labels` | `["ai-generated-jira"]` (required) |
-| Security Level | `additional_fields.security` | `{"name": "Red Hat Employee"}` (required) |
-| Parent Link | `additional_fields.parent` | `{"key": "PARENT-123"}` |
-| Epic Name | `additional_fields.customfield_epicname` | Same as summary (epics only) |
+| Requirement | MCP Parameter | Value | Required? |
+|-------------|---------------|-------|-----------|
+| Project | `project_key` | `"CNTRLPLANE"` | Yes |
+| Issue Type | `issue_type` | `"Story"`, `"Epic"`, `"Feature"`, `"Task"` | Yes |
+| Summary | `summary` | Concise title (5-10 words), NOT full user story | Yes |
+| Description | `description` | Formatted template (contains full user story) | Yes |
+| Component | `components` | Team-specific component name | Varies by team |
+| Target Version | `additional_fields.customfield_12319940` | Array: `[{"id": "12448830"}]` **Recommend omitting** | No |
+| Labels | `additional_fields.labels` | `["ai-generated-jira"]` | Yes |
+| Security Level | `additional_fields.security` | `{"name": "Red Hat Employee"}` | Yes |
+| Epic Link (stories→epics) | `additional_fields.customfield_12311140` | Epic key as string: `"CNTRLPLANE-123"` | No |
+| Epic Name (epics only) | `additional_fields.customfield_epicname` | Same as summary | Yes (epics) |
+| Parent Link (epics→features) | `additional_fields.parent` | `{"key": "FEATURE-123"}` | No |
 
 ## Interactive Prompts
 
