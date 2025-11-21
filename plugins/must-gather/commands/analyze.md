@@ -22,6 +22,7 @@ The command can analyze:
 - Pod failures, restarts, and crash loops
 - Network configuration and OVN health
 - OVN databases - logical topology, ACLs, pods
+- IPsec configuration and tunnel status
 - Kubernetes events (warnings and errors)
 - etcd cluster health and quorum status
 - Persistent volume and claim status
@@ -55,9 +56,11 @@ plugins/must-gather/skills/must-gather-analyzer/scripts/
 ├── analyze_pods.py
 ├── analyze_network.py
 ├── analyze_ovn_dbs.py
+├── analyze_ipsec.py
 ├── analyze_events.py
 ├── analyze_etcd.py
-└── analyze_pvs.py
+├── analyze_pvs.py
+└── analyze_prometheus.py
 ```
 
 ## Error Handling
@@ -103,6 +106,7 @@ The command performs the following steps:
    - "etcd", "etcd health", "quorum" → `analyze_etcd.py` ONLY
    - "network", "networking", "ovn", "connectivity" → `analyze_network.py` ONLY
    - "ovn databases", "ovn-dbs", "ovn db", "logical switches", "acls" → `analyze_ovn_dbs.py` ONLY
+   - "ipsec", "ipsec tunnels", "ipsec status", "ipsec configuration" → `analyze_ipsec.py` ONLY
    - "nodes", "node status", "node conditions" → `analyze_nodes.py` ONLY
    - "operators", "cluster operators", "degraded" → `analyze_clusteroperators.py` ONLY
    - "version", "cluster version", "update", "upgrade" → `analyze_clusterversion.py` ONLY
@@ -118,10 +122,11 @@ The command performs the following steps:
    3. Nodes (`analyze_nodes.py`)
    4. Pods - problems only (`analyze_pods.py --problems-only`)
    5. Network (`analyze_network.py`)
-   6. Events - warnings only (`analyze_events.py --type Warning --count 50`)
-   7. etcd (`analyze_etcd.py`)
-   8. Storage (`analyze_pvs.py`)
-   9. Monitoring (`analyze_prometheus.py`)
+   6. IPsec (`analyze_ipsec.py`)
+   7. Events - warnings only (`analyze_events.py --type Warning --count 50`)
+   8. etcd (`analyze_etcd.py`)
+   9. Storage (`analyze_pvs.py`)
+   10. Monitoring (`analyze_prometheus.py`)
 
 3. **Execute Analysis Scripts**:
    ```bash
@@ -168,6 +173,9 @@ PROBLEMATIC PODS:
 
 NETWORK STATUS:
 [output from analyze_network.py]
+
+IPSEC STATUS:
+[output from analyze_ipsec.py]
 
 WARNING EVENTS (Last 50):
 [output from analyze_events.py --type Warning --count 50]
@@ -223,6 +231,12 @@ Logs to Review:
    /must-gather:analyze ./must-gather/registry-ci-openshift-org-origin-4-20-...-sha256-abc123/ show me network issues
    ```
    Runs only `analyze_network.py` for network-specific analysis.
+
+5. **Check IPsec tunnel status**:
+   ```
+   /must-gather:analyze ./must-gather/registry-ci-openshift-org-origin-4-20-...-sha256-abc123/ analyze ipsec tunnels
+   ```
+   Runs only `analyze_ipsec.py` to check IPsec configuration and tunnel establishment.
 
 ## Notes
 
