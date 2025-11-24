@@ -114,7 +114,7 @@
         {
           "name": "reconcile-github",
           "description": "Reconcile state mismatches between GitHub and Jira issues",
-          "synopsis": "bash",
+          "synopsis": "/jira:reconcile-github [options]",
           "argument_hint": "[--github-project <org/repo>] [--jira-project <key>] [--profile <name>] [--porcelain] [--output json|yaml]"
         },
         {
@@ -479,7 +479,7 @@
         {
           "name": "opm",
           "description": "Execute opm (Operator Package Manager) commands for building and managing operator catalogs",
-          "synopsis": "bash",
+          "synopsis": "/olm:opm build-index-image <catalog-path> <index-image-tag> [--cacheless] [--arch=<arch>] [--base-image=<image>] [--builder-image=<image>]",
           "argument_hint": "<action> [arguments...]"
         },
         {
@@ -797,13 +797,13 @@
         {
           "name": "analyze-node-tuning",
           "description": "Analyze kernel/sysctl tuning from a live node or sosreport snapshot and propose NTO recommendations",
-          "synopsis": "text",
+          "synopsis": "/node-tuning:analyze-node-tuning [--sosreport PATH] [--collect-sosreport|--no-collect-sosreport] [--sosreport-output PATH] [--node NODE] [--kubeconfig PATH] [--oc-binary PATH] [--format json|markdown] [--max-irq-samples N] [--keep-snapshot]",
           "argument_hint": "\"[--sosreport PATH] [--format json|markdown] [--max-irq-samples N]\""
         },
         {
           "name": "generate-tuned-profile",
           "description": "Generate a Tuned (tuned.openshift.io/v1) profile manifest for the Node Tuning Operator",
-          "synopsis": "text",
+          "synopsis": "/node-tuning:generate-tuned-profile [profile-name] [--summary TEXT] [--include VALUE ...] [--sysctl KEY=VALUE ...] [--match-label KEY[=VALUE] ...] [options]",
           "argument_hint": "\"[profile-name] [--summary ...] [--sysctl ...] [options]\""
         }
       ],
