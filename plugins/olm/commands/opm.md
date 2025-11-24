@@ -8,8 +8,13 @@ olm:opm
 
 ## Synopsis
 ```bash
-/olm:opm build-index-image <catalog-path> <index-image-tag> [--cacheless] [--arch=<arch>] [--base-image=<image>] [--builder-image=<image>]
-/olm:opm build-semver-index-image <semver-template-file> <index-image-tag> [--cacheless] [--arch=<arch>] [--base-image=<image>] [--builder-image=<image>]
+/olm:opm <action> [arguments...]
+```
+
+**Available actions:**
+```bash
+/olm:opm build-index-image <catalog-path> <index-image-tag> [options]
+/olm:opm build-semver-index-image <semver-template-file> <index-image-tag> [options]
 /olm:opm generate-semver-template <bundle-list> [--output=<file>] [--major=true|false] [--minor=true|false]
 /olm:opm list packages <index-ref>
 /olm:opm list channels <index-ref> [package-name]
