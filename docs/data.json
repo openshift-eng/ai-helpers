@@ -479,7 +479,7 @@
         {
           "name": "opm",
           "description": "Execute opm (Operator Package Manager) commands for building and managing operator catalogs",
-          "synopsis": "/olm:opm build-index-image <catalog-path> <index-image-tag> [--cacheless] [--arch=<arch>] [--base-image=<image>] [--builder-image=<image>]",
+          "synopsis": "/olm:opm <action> [arguments...]",
           "argument_hint": "<action> [arguments...]"
         },
         {
