@@ -1,63 +1,161 @@
 # Component Health Plugin
 
-Grade component health based on various metrics for OpenShift releases.
+Analyze component health based on regression and bug metrics for OpenShift releases.
 
 ## Overview
 
-The Component Health plugin evaluates how well OpenShift components are managing their test regressions by analyzing key regression management metrics. It provides health grades based on three key indicators:
+The Component Health plugin provides comprehensive quality analysis for OpenShift components by evaluating:
 
-1. **Triage Coverage**: What percentage of regressions have been triaged to JIRA bugs
-2. **Triage Timeliness**: How quickly regressions are being triaged
-3. **Resolution Speed**: How quickly regressions are being resolved
+1. **Regression Management Metrics**:
+   - Triage Coverage: What percentage of regressions have been triaged to JIRA bugs
+   - Triage Timeliness: How quickly regressions are being triaged
+   - Resolution Speed: How quickly regressions are being resolved
 
-These metrics help identify components that need attention in their regression management and track overall quality trends.
+2. **Bug Backlog Health**:
+   - Open bug counts by component
+   - Bug age distribution
+   - Recent bug flow (opened vs closed)
+   - Priority breakdowns
+
+The plugin offers three levels of analysis:
+- **List**: Raw regression data for detailed investigation
+- **Summarize**: Summary statistics and counts
+- **Analyze**: Combined health grading with actionable recommendations
 
 ## Commands
 
-### `/component-health:analyze-regressions`
+### `/component-health:list-regressions`
 
-Grade component health based on regression triage metrics for a specific OpenShift release.
+Fetch and list raw regression data for OpenShift releases without summarization.
 
 **Usage:**
 
 ```
-/component-health:analyze-regressions <release> [--components comp1 comp2 ...]
+/component-health:list-regressions <release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]
 ```
 
 **Examples:**
 
 ```
-# Grade overall component health for release 4.17
-/component-health:analyze-regressions 4.17
-# Shows triage coverage % and timeliness across all components
+# List all regressions for release 4.17
+/component-health:list-regressions 4.17
 
-# Grade specific components
-/component-health:analyze-regressions 4.21 --components Monitoring etcd
-# Compare health grades for Monitoring and etcd
+# Filter by specific component
+/component-health:list-regressions 4.21 --components Monitoring
 
-# Deep dive into single component health
-/component-health:analyze-regressions 4.21 --components "kube-apiserver"
-# Detailed health metrics for kube-apiserver component
+# Filter by development window
+/component-health:list-regressions 4.17 --start 2024-05-17 --end 2024-10-29
 ```
 
-**Arguments:**
+**Use Cases:**
+- Accessing complete regression details for investigation
+- Building custom analysis workflows
+- Exporting data for offline analysis
 
-- `<release>`: OpenShift release version (e.g., "4.17", "4.16")
-- `--components comp1 [comp2 ...]`: (Optional) Filter by component names (case-insensitive)
+### `/component-health:summarize-regressions`
+
+Query and summarize regression data with counts and metrics.
+
+**Usage:**
+
+```
+/component-health:summarize-regressions <release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]
+```
+
+**Examples:**
+
+```
+# Summarize all regressions for release 4.17
+/component-health:summarize-regressions 4.17
+# Shows counts, triage percentages, timing metrics
+
+# Filter by specific components
+/component-health:summarize-regressions 4.21 --components Monitoring etcd
+# Compare summary metrics for Monitoring and etcd
+
+# Custom date range
+/component-health:summarize-regressions 4.17 --start 2024-05-17 --end 2024-10-29
+```
+
+**Use Cases:**
+- Getting quick regression counts by component
+- Tracking triage coverage and response times
+- Understanding open vs closed breakdown
+- Generating summary reports
+
+### `/component-health:analyze`
+
+Analyze and grade component health based on regression and JIRA bug metrics.
+
+**Usage:**
+
+```
+/component-health:analyze <release> [--components comp1 comp2 ...] [--project JIRAPROJECT]
+```
+
+**Examples:**
+
+```
+# Comprehensive health analysis for release 4.17
+/component-health:analyze 4.17
+# Shows combined regression + bug backlog health grades
+
+# Analyze specific components
+/component-health:analyze 4.21 --components Monitoring etcd
+# Compare overall health grades for Monitoring and etcd
+
+# Deep dive into single component
+/component-health:analyze 4.21 --components "kube-apiserver"
+# Detailed health metrics with actionable recommendations
+
+# Use alternative JIRA project
+/component-health:analyze 4.21 --project OCPSTRAT
+```
+
+**Use Cases:**
+- Grading overall component quality
+- Identifying components needing attention
+- Getting actionable recommendations
+- Generating comprehensive health scorecards
+- Prioritizing engineering investment
 
 **Automatic Date Filtering:**
 
-The command automatically fetches release dates and filters regressions to the development window:
+The analyze command automatically fetches release dates and filters regressions to the development window:
 
 - For GA'd releases (e.g., 4.17): Filters to regressions within the development window
-  - Excludes regressions closed before development started (--start filter)
-  - Excludes regressions opened after GA date (--end filter)
+  - Excludes regressions closed before development started
+  - Excludes regressions opened after GA date
   - Focuses analysis on regressions during active development
-- For in-development releases (e.g., 4.21 with null GA date): Partial filtering applied
-  - Excludes regressions closed before development started (--start filter)
+- For in-development releases (e.g., 4.21): Partial filtering applied
+  - Excludes regressions closed before development started
   - No end date filtering (release still in development)
 
-This ensures health grading reflects component behavior during the release development period, excluding pre-release regressions and (for GA'd releases) post-GA regressions that may not have been actively monitored.
+This ensures health grading reflects component behavior during the release development period.
+
+### `/component-health:list-jiras`
+
+Query and list raw JIRA bug data for a specific project.
+
+**Usage:**
+
+```
+/component-health:list-jiras <project> [--component comp1 comp2 ...] [--status status1 ...] [--include-closed] [--limit N]
+```
+
+See command documentation for detailed usage.
+
+### `/component-health:summarize-jiras`
+
+Query and summarize JIRA bugs with counts by component, status, and priority.
+
+**Usage:**
+
+```
+/component-health:summarize-jiras --project <project> [--component comp1 ...] [--status status1 ...] [--include-closed] [--limit N]
+```
+
+See command documentation for detailed usage.
 
 ## Skills
 
@@ -112,8 +210,10 @@ Returns GA dates, development start dates, and capabilities for the specified re
 # Install the plugin
 /plugin install component-health@ai-helpers
 
-# Use the command
-/component-health:analyze-regressions 4.21
+# Use the commands
+/component-health:analyze 4.21
+/component-health:summarize-regressions 4.21
+/component-health:list-regressions 4.21
 ```
 
 ### Manual Installation
@@ -127,87 +227,142 @@ ln -s ai-helpers ~/.cursor/commands/ai-helpers
 
 ## Use Cases
 
-### Grade Release Health
+### Analyze Overall Component Health
 
-Get a health scorecard for a release based on triage metrics:
+Get a comprehensive health scorecard combining regression and bug metrics:
 
 ```
-/component-health:analyze-regressions 4.20
+/component-health:analyze 4.20
 ```
 
 Output includes:
 
-- Overall triage coverage percentage (target: 90%+)
-- Average time to triage (target: <24 hours)
+- Regression triage coverage percentage (target: 90%+)
+- Average time to triage regressions (target: <24 hours)
+- Bug backlog counts and age distribution
 - Per-component health grades
-- Components needing attention
+- Actionable recommendations
 
 ### Identify Components Needing Attention
 
-Find components with poor triage metrics:
+Find components with quality issues:
 
 ```
-/component-health:analyze-regressions 4.21 --components Monitoring etcd "kube-apiserver"
+/component-health:analyze 4.21 --components Monitoring etcd "kube-apiserver"
 ```
 
 Compare components by:
 
-- Triage coverage percentage
-- Average triage timeliness
-- Open regression counts
+- Regression triage coverage percentage
+- Average regression triage timeliness
+- Open bug backlog size
+- Combined health grade
 
-### Track Health Trends Across Releases
+### Generate Regression Summary Reports
 
-Compare triage metrics across releases to track improvement:
+Get summary statistics for regression management:
 
 ```
-/component-health:analyze-regressions 4.17
-/component-health:analyze-regressions 4.16
+/component-health:summarize-regressions 4.21
+```
+
+Shows:
+
+- Total regressions per component
+- Triage percentages
+- Timing metrics (average/max)
+- Open vs closed breakdown
+
+### Investigate Specific Regressions
+
+Access raw regression data for detailed investigation:
+
+```
+/component-health:list-regressions 4.21 --components "kube-apiserver"
+```
+
+Returns complete regression details including:
+
+- Test names and variants
+- Opened/closed timestamps
+- Triage information
+- Failure counts
+
+### Track Trends Across Releases
+
+Compare metrics across releases to track improvement:
+
+```
+/component-health:analyze 4.17
+/component-health:analyze 4.16
 ```
 
 ## Output Format
 
-The command provides a **Component Health Report** with:
+### analyze Command
 
-### Overall Health Grade
+The `/component-health:analyze` command provides a **Comprehensive Component Health Report** with:
 
-- **Triage Coverage**: Percentage of regressions triaged (e.g., "95.2% triaged")
-  - 90-100%: Excellent ✅
-  - 70-89%: Good ⚠️
-  - 50-69%: Needs Improvement ⚠️
-  - <50%: Poor ❌
-- **Triage Timeliness**: Average hours to triage (e.g., "68 hours avg")
-  - <24 hours: Excellent ✅
-  - 24-72 hours: Good ⚠️
-  - 72-168 hours: Needs Improvement ⚠️
-  - > 168 hours: Poor ❌
-- **Resolution Speed**: Average hours to close regressions (e.g., "168 hours avg")
-  - <168 hours (1 week): Excellent ✅
-  - 168-336 hours (1-2 weeks): Good ⚠️
-  - 336-720 hours (2-4 weeks): Needs Improvement ⚠️
-  - > 720 hours (4+ weeks): Poor ❌
-- Total regressions and triaged counts
-- Breakdown by open/closed status
+#### Overall Health Grade
 
-### Per-Component Health Scorecard
+- **Regression Metrics**:
+  - Triage Coverage: Percentage of regressions triaged
+    - 90-100%: Excellent ✅
+    - 70-89%: Good ⚠️
+    - 50-69%: Needs Improvement ⚠️
+    - <50%: Poor ❌
+  - Triage Timeliness: Average hours to triage
+    - <24 hours: Excellent ✅
+    - 24-72 hours: Good ⚠️
+    - 72-168 hours: Needs Improvement ⚠️
+    - >168 hours: Poor ❌
+  - Resolution Speed: Average hours to close regressions
+    - <168 hours (1 week): Excellent ✅
+    - 168-336 hours (1-2 weeks): Good ⚠️
+    - 336-720 hours (2-4 weeks): Needs Improvement ⚠️
+    - >720 hours (4+ weeks): Poor ❌
+
+- **Bug Backlog Metrics**:
+  - Total open bugs across all components
+  - Bugs opened/closed in last 30 days
+  - Priority distribution
+
+#### Per-Component Health Scorecard
 
 - Ranked table of components with:
-  - Triage coverage percentage
-  - Average time to triage
-  - Average time to close (resolution speed)
-  - Open regression count
-  - Health grade (✅/⚠️/❌)
+  - Regression triage coverage percentage
+  - Average time to triage regressions
+  - Average resolution time
+  - Open bug count
+  - Bug age metrics
+  - Combined health grade (✅/⚠️/❌)
 
-### Components Needing Attention
+#### Components Needing Attention
 
-- Highlighted list of components with poor health metrics
-- Focus on low triage coverage, slow triage response, or slow resolution times
+- Prioritized list with actionable recommendations:
+  - Open untriaged regressions (only actionable items)
+  - High bug backlogs
+  - Growing bug trends
+  - Slow triage response times
 
-### Detailed Metrics (Optional)
+### summarize-regressions Command
 
-- Time to close metrics
-- Age of open regressions
-- Lists of untriaged regressions
+The `/component-health:summarize-regressions` command provides:
+
+- Total regression counts by component
+- Triage percentages (overall, open, closed)
+- Timing metrics (average/max time to triage, time to close)
+- Open vs closed breakdown
+- Per-component summaries
+
+### list-regressions Command
+
+The `/component-health:list-regressions` command returns raw JSON data including:
+
+- Complete regression objects with all fields
+- Test names, variants, timestamps
+- Triage information (linked JIRA bugs)
+- Failure counts and last failure timestamps
 
 ## Technical Details
 

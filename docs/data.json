@@ -43,6 +43,7 @@
       ],
       "description": "Git Plugin",
       "has_readme": true,
+      "hooks": [],
       "name": "git",
       "skills": [
         {
@@ -64,6 +65,7 @@
       ],
       "description": "Hello World Plugin",
       "has_readme": true,
+      "hooks": [],
       "name": "hello-world",
       "skills": [],
       "version": "1.0.0"
@@ -84,7 +86,7 @@
         },
         {
           "argument_hint": "<type> [project-key] <summary> [--component <name>] [--version <version>] [--parent <key>]",
-          "description": "Create Jira issues (story, epic, feature, task, bug) with proper formatting",
+          "description": "Create Jira issues (story, epic, feature, task, bug, feature-request) with proper formatting",
           "name": "create",
           "synopsis": "/jira:create <type> [project-key] <summary> [options]"
         },
@@ -95,10 +97,10 @@
           "synopsis": ""
         },
         {
-          "argument_hint": "[project-filter] [time-period] [--component component-name] [--label label-name]",
+          "argument_hint": "[project-filter] [time-period] [--component component-name] [--label label-name] [--type issue-type]",
           "description": "Analyze new bugs and cards added over a time period and generate grooming meeting agenda",
           "name": "grooming",
-          "synopsis": "/jira:grooming [project-filter] [time-period] [--component component-name] [--label label-name]"
+          "synopsis": "/jira:grooming [project-filter] [time-period] [--component component-name] [--label label-name] [--type issue-type]"
         },
         {
           "argument_hint": "",
@@ -115,6 +117,7 @@
       ],
       "description": "A plugin to automate tasks with Jira",
       "has_readme": true,
+      "hooks": [],
       "name": "jira",
       "skills": [
         {
@@ -136,6 +139,11 @@
           "description": "Implementation guide for creating Jira features representing strategic objectives and market problems",
           "id": "create-feature",
           "name": "Create Jira Feature"
+        },
+        {
+          "description": "Implementation guide for creating Feature Requests in the RFE project",
+          "id": "create-feature-request",
+          "name": "Create Jira Feature Request"
         },
         {
           "description": "Detailed implementation guide for generating bug fix release notes from Jira and GitHub PRs",
@@ -218,6 +226,7 @@
       ],
       "description": "A plugin to work with OpenShift CI",
       "has_readme": true,
+      "hooks": [],
       "name": "ci",
       "skills": [
         {
@@ -231,14 +240,45 @@
     {
       "commands": [
         {
-          "argument_hint": "<release> [--components comp1 comp2 ...]",
-          "description": "Grade component health based on regression triage metrics for an OpenShift release",
-          "name": "analyze-regressions",
-          "synopsis": "/component-health:analyze-regressions <release> [--components comp1 comp2 ...]"
+          "argument_hint": "<release> [--components comp1 comp2 ...] [--project JIRAPROJECT]",
+          "description": "Analyze and grade component health based on regression and JIRA bug metrics",
+          "name": "analyze",
+          "synopsis": "/component-health:analyze <release> [--components comp1 comp2 ...] [--project JIRAPROJECT]"
+        },
+        {
+          "argument_hint": "<release>",
+          "description": "List all components tracked in Sippy for a release",
+          "name": "list-components",
+          "synopsis": "/component-health:list-components <release>"
+        },
+        {
+          "argument_hint": "<project> [--component comp1 comp2 ...] [--status status1 status2 ...] [--include-closed] [--limit N]",
+          "description": "Query and list raw JIRA bug data for a specific project",
+          "name": "list-jiras",
+          "synopsis": "/component-health:list-jiras <project> [--component comp1 comp2 ...] [--status status1 status2 ...] [--include-closed] [--limit N]"
+        },
+        {
+          "argument_hint": "<release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]",
+          "description": "Fetch and list raw regression data for OpenShift releases",
+          "name": "list-regressions",
+          "synopsis": "/component-health:list-regressions <release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]"
+        },
+        {
+          "argument_hint": "--project <project> [--component comp1 comp2 ...] [--status status1 status2 ...] [--include-closed] [--limit N]",
+          "description": "Query and summarize JIRA bugs for a specific project with counts by component",
+          "name": "summarize-jiras",
+          "synopsis": "/component-health:summarize-jiras --project <project> [--component comp1 comp2 ...] [--status status1 status2 ...] [--include-closed] [--limit N]"
+        },
+        {
+          "argument_hint": "<release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]",
+          "description": "Query and summarize regression data for OpenShift releases with counts and metrics",
+          "name": "summarize-regressions",
+          "synopsis": "/component-health:summarize-regressions <release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]"
         }
       ],
       "description": "Analyze component health and track regressions across OpenShift releases",
       "has_readme": true,
+      "hooks": [],
       "name": "component-health",
       "skills": [
         {
@@ -252,9 +292,24 @@
           "name": "Get Release Dates"
         },
         {
+          "description": "Fetch component names from Sippy component readiness API",
+          "id": "list-components",
+          "name": "List Components"
+        },
+        {
+          "description": "Query and return raw JIRA bug data for a specific project",
+          "id": "list-jiras",
+          "name": "List JIRAs"
+        },
+        {
           "description": "Fetch and analyze component health regressions for OpenShift releases",
           "id": "list-regressions",
           "name": "List Regressions"
+        },
+        {
+          "description": "Query and summarize JIRA bugs for a specific project with counts by component",
+          "id": "summarize-jiras",
+          "name": "Summarize JIRAs"
         }
       ],
       "version": "0.0.1"
@@ -270,6 +325,7 @@
       ],
       "description": "A plugin for engineering documentation and notes",
       "has_readme": true,
+      "hooks": [],
       "name": "doc",
       "skills": [],
       "version": "0.0.1"
@@ -285,8 +341,46 @@
       ],
       "description": "A plugin for Claude session management and persistence",
       "has_readme": true,
+      "hooks": [],
       "name": "session",
       "skills": [],
+      "version": "0.0.1"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "<path-to-sosreport> [--only <areas>] [--skip <areas>]",
+          "description": "Analyze sosreport archive for system diagnostics and issues",
+          "name": "analyze",
+          "synopsis": "/sosreport:analyze <path-to-sosreport> [--only <areas>] [--skip <areas>]"
+        }
+      ],
+      "description": "Analyze sosreport archives for system diagnostics and troubleshooting",
+      "has_readme": true,
+      "hooks": [],
+      "name": "sosreport",
+      "skills": [
+        {
+          "description": "Analyze system and application log data from sosreport archives, extracting error patterns, kernel panics, OOM events, service failures, and application crashes from journald logs and traditional log files within the sosreport directory structure to identify root causes of system failures and issues",
+          "id": "logs-analysis",
+          "name": "Logs Analysis"
+        },
+        {
+          "description": "Analyze network configuration data from sosreport archives, extracting interface configurations, routing tables, active connections, firewall rules (firewalld/iptables), and DNS settings from the sosreport directory structure to diagnose network connectivity and configuration issues",
+          "id": "network-analysis",
+          "name": "Network Analysis"
+        },
+        {
+          "description": "Analyze system resource usage data from sosreport archives, extracting memory statistics, CPU load averages, disk space utilization, and process information from the sosreport directory structure to diagnose resource exhaustion, performance bottlenecks, and capacity issues",
+          "id": "resource-analysis",
+          "name": "Resource Analysis"
+        },
+        {
+          "description": "Analyze system configuration data from sosreport archives, extracting OS details, installed packages, systemd service status, SELinux/AppArmor policies, and kernel parameters from the sosreport directory structure to diagnose configuration-related system issues",
+          "id": "system-config-analysis",
+          "name": "System Configuration Analysis"
+        }
+      ],
       "version": "0.0.1"
     },
     {
@@ -295,6 +389,12 @@
           "argument_hint": "[PR number (optional - uses current branch if omitted)]",
           "description": "Fetch and address all PR review comments",
           "name": "address-reviews",
+          "synopsis": ""
+        },
+        {
+          "argument_hint": "<target-repository>",
+          "description": "Automate approving Konflux bot PRs for the given repository by adding /lgtm and /approve",
+          "name": "auto-approve-konflux-prs",
           "synopsis": ""
         },
         {
@@ -318,6 +418,7 @@
       ],
       "description": "A generic utilities plugin serving as a catch-all for various helper commands",
       "has_readme": true,
+      "hooks": [],
       "name": "utils",
       "skills": [],
       "version": "0.0.1"
@@ -361,6 +462,12 @@
           "synopsis": "/olm:list [namespace] [--all-namespaces]"
         },
         {
+          "argument_hint": "<action> [arguments...]",
+          "description": "Execute opm (Operator Package Manager) commands for building and managing operator catalogs",
+          "name": "opm",
+          "synopsis": "bash"
+        },
+        {
           "argument_hint": "[query] [--catalog <catalog-name>]",
           "description": "Search for available operators in catalog sources",
           "name": "search",
@@ -387,6 +494,7 @@
       ],
       "description": "OLM (Operator Lifecycle Manager) plugin for operator management and debugging",
       "has_readme": true,
+      "hooks": [],
       "name": "olm",
       "skills": [],
       "version": "0.1.0"
@@ -420,6 +528,7 @@
       ],
       "description": "A plugin to analyze and inspect Prow CI job results",
       "has_readme": true,
+      "hooks": [],
       "name": "prow-job",
       "skills": [
         {
@@ -461,6 +570,7 @@
       ],
       "description": "A plugin to create various meeting agendas",
       "has_readme": true,
+      "hooks": [],
       "name": "agendas",
       "skills": [],
       "version": "0.0.1"
@@ -478,6 +588,12 @@
           "description": "Perform comprehensive health check on OpenShift cluster and report issues",
           "name": "cluster-health-check",
           "synopsis": "/openshift:cluster-health-check [--verbose] [--output-format json|text]"
+        },
+        {
+          "argument_hint": "[repository-path]",
+          "description": "Review Kubernetes CRDs against Kubernetes and OpenShift API conventions",
+          "name": "crd-review",
+          "synopsis": "/openshift:crd-review [repository-path]"
         },
         {
           "argument_hint": "\"[release-image] [platform] [options]\"",
@@ -518,6 +634,7 @@
       ],
       "description": "OpenShift development utilities and helpers",
       "has_readme": true,
+      "hooks": [],
       "name": "openshift",
       "skills": [],
       "version": "0.0.1"
@@ -539,6 +656,7 @@
       ],
       "description": "Etcd cluster health monitoring and performance analysis utilities",
       "has_readme": true,
+      "hooks": [],
       "name": "etcd",
       "skills": [],
       "version": "0.0.1"
@@ -554,6 +672,7 @@
       ],
       "description": "YAML documentation and utilities",
       "has_readme": true,
+      "hooks": [],
       "name": "yaml",
       "skills": [],
       "version": "0.0.1"
@@ -575,6 +694,7 @@
       ],
       "description": "A plugin to analyze and report on must-gather data",
       "has_readme": true,
+      "hooks": [],
       "name": "must-gather",
       "skills": [
         {
@@ -586,7 +706,38 @@
       "version": "0.0.1"
     },
     {
+      "commands": [],
+      "description": "Anonymous metrics usage for ai-helpers",
+      "has_readme": true,
+      "hooks": [
+        {
+          "description": "Anonymous Usage Metric Collection",
+          "name": "UserPromptSubmit",
+          "type": "UserPromptSubmit"
+        },
+        {
+          "description": "Anonymous Usage Metric Collection",
+          "name": "PreToolUse",
+          "type": "PreToolUse"
+        },
+        {
+          "description": "Anonymous Usage Metric Collection",
+          "name": "SessionEnd",
+          "type": "SessionEnd"
+        }
+      ],
+      "name": "metrics",
+      "skills": [],
+      "version": "0.0.1"
+    },
+    {
       "commands": [
+        {
+          "argument_hint": "<cluster-name> [--verbose] [--output-format json|text]",
+          "description": "Perform comprehensive health check on HCP cluster and report issues",
+          "name": "cluster-health-check",
+          "synopsis": "/hcp:cluster-health-check <cluster-name> [--verbose] [--output-format json|text]"
+        },
         {
           "argument_hint": "<provider> <cluster-description>",
           "description": "Generate ready-to-execute hypershift cluster creation commands from natural language descriptions",
@@ -596,6 +747,7 @@
       ],
       "description": "Generate HyperShift cluster creation commands via hcp CLI from natural language descriptions",
       "has_readme": true,
+      "hooks": [],
       "name": "hcp",
       "skills": [
         {
@@ -629,6 +781,78 @@
           "name": "HyperShift PowerVS Provider"
         }
       ],
+      "version": "0.0.1"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "<CVE-ID>",
+          "description": "Analyze Go codebase for CVE vulnerabilities and suggest fixes",
+          "name": "analyze-cve",
+          "synopsis": "/compliance:analyze-cve <CVE-ID>"
+        }
+      ],
+      "description": "Security compliance and vulnerability analysis tools for Go projects",
+      "has_readme": true,
+      "hooks": [],
+      "name": "compliance",
+      "skills": [],
+      "version": "0.0.1"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "\"[--sosreport PATH] [--format json|markdown] [--max-irq-samples N]\"",
+          "description": "Analyze kernel/sysctl tuning from a live node or sosreport snapshot and propose NTO recommendations",
+          "name": "analyze-node-tuning",
+          "synopsis": "text"
+        },
+        {
+          "argument_hint": "\"[profile-name] [--summary ...] [--sysctl ...] [options]\"",
+          "description": "Generate a Tuned (tuned.openshift.io/v1) profile manifest for the Node Tuning Operator",
+          "name": "generate-tuned-profile",
+          "synopsis": "text"
+        }
+      ],
+      "description": "Generate and analyze OpenShift node tuning profiles",
+      "has_readme": true,
+      "hooks": [],
+      "name": "node-tuning",
+      "skills": [
+        {
+          "description": "Generate tuned manifests and evaluate node tuning snapshots",
+          "id": "scripts",
+          "name": "Node Tuning Helper Scripts"
+        }
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "<image1> <image2>",
+          "description": "Compare two container images to identify differences",
+          "name": "compare",
+          "synopsis": "/container-image:compare <image1> <image2>"
+        },
+        {
+          "argument_hint": "<image>",
+          "description": "Inspect and provide detailed breakdown of a container image",
+          "name": "inspect",
+          "synopsis": "/container-image:inspect <image>"
+        },
+        {
+          "argument_hint": "<repository>",
+          "description": "List and analyze available tags for a container image repository",
+          "name": "tags",
+          "synopsis": "/container-image:tags <repository>"
+        }
+      ],
+      "description": "Container image inspection and analysis using skopeo and podman",
+      "has_readme": true,
+      "hooks": [],
+      "name": "container-image",
+      "skills": [],
       "version": "0.0.1"
     }
   ]

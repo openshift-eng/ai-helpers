@@ -40,6 +40,11 @@
       "description": "A plugin for Claude session management and persistence"
     },
     {
+      "name": "sosreport",
+      "source": "./plugins/sosreport",
+      "description": "Analyze sosreport archives for system diagnostics and troubleshooting"
+    },
+    {
       "name": "utils",
       "source": "./plugins/utils",
       "description": "A generic utilities plugin serving as a catch-all for various helper commands"
@@ -80,9 +85,29 @@
       "description": "A plugin to analyze and report on must-gather data"
     },
     {
+      "name": "metrics",
+      "source": "./plugins/metrics",
+      "description": "Anonymous metrics usage for ai-helpers"
+    },
+    {
       "name": "hcp",
       "source": "./plugins/hcp",
       "description": "Generate HyperShift cluster creation commands via hcp CLI from natural language descriptions"
+    },
+    {
+      "name": "compliance",
+      "source": "./plugins/compliance",
+      "description": "Security compliance and vulnerability analysis tools for Go projects"
+    },
+    {
+      "name": "node-tuning",
+      "source": "./plugins/node-tuning",
+      "description": "Generate and analyze OpenShift node tuning profiles"
+    },
+    {
+      "name": "container-image",
+      "source": "./plugins/container-image",
+      "description": "Container image inspection and analysis using skopeo and podman"
     }
   ]
 }
