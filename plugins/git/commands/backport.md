@@ -7,7 +7,7 @@ argument-hint: <commit> <branch1> [branch2...] [--new-branch]
 git:backport
 
 ## Synopsis
-```
+```bash
 /git:backport <commit> <branch1> [branch2...] [--new-branch|-b]
 ```
 
@@ -86,25 +86,25 @@ The command is interactive and waits for user input when conflicts occur and **R
 ## Examples
 
 1. **Basic backport to a single branch**:
-   ```
+   ```bash
    /git:backport abc1234 release-1.0
    ```
    Cherry-picks commit `abc1234` directly to the `release-1.0` branch.
 
 2. **Backport to multiple branches**:
-   ```
+   ```bash
    /git:backport abc1234 release-1.0 release-1.1 release-1.2
    ```
    Cherry-picks commit `abc1234` to three different release branches.
 
 3. **Backport with new branch creation (for PRs)**:
-   ```
+   ```bash
    /git:backport abc1234 release-1.0 release-1.1 --new-branch
    ```
    Creates new branches `backport-abc1234-to-release-1.0` and `backport-abc1234-to-release-1.1`, each containing the cherry-picked commit. These branches can then be used to create pull requests.
 
 4. **Using short flag syntax**:
-   ```
+   ```bash
    /git:backport abc1234 main -b
    ```
    Same as `--new-branch`, creates a new branch `backport-abc1234-to-main`.
