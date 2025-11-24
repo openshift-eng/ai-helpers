@@ -618,7 +618,7 @@
         {
           "name": "gaps",
           "description": "Identify E2E test scenario gaps in OpenShift/Kubernetes tests (component-agnostic)",
-          "synopsis": "bash",
+          "synopsis": "/test-coverage:gaps <test-file-or-url> [--output <path>]",
           "argument_hint": "<test-file-or-url> [--output <path>]"
         }
       ],
@@ -634,6 +634,7 @@
           "description": "Intelligently identify missing test coverage based on component type"
         }
       ],
+      "hooks": [],
       "has_readme": true
     }
   ]
