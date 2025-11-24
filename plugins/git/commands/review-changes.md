@@ -64,7 +64,7 @@ esac
 3. Identify file types for language-specific analysis
 4. Filter out binary files and generated code
 
-### 🔍 Phase 3: Multi-Perspective Analysis**
+### 🔍 Phase 3: Multi-Perspective Analysis
 Analyze changes from these perspectives:
 1. **Security Review**
    - Check for hardcoded secrets/credentials
@@ -90,14 +90,14 @@ Analyze changes from these perspectives:
    - Review existing test modifications
    - Check for regression test needs
 
-### 📋 Phase 4: Generate Structured Report**
+### 📋 Phase 4: Generate Structured Report
 1. **Summary Section**: High-level change overview
 2. **Critical Issues**: Security and performance blockers
 3. **Recommendations**: Specific improvement suggestions
 4. **Review Checklist**: Items for human reviewers to verify
 5. **Test Plan**: Suggested testing approach
 
-### 🎨 Phase 5: Format Output**
+### 🎨 Phase 5: Format Output
 - `--pr-ready` flag generates markdown formatted for PR descriptions
 - Standard output uses terminal-friendly formatting with colors/icons
 - Include file references with line numbers for easy navigation
