@@ -474,6 +474,11 @@ Refer to project-specific skills for epic linking fallback strategies:
 2. Check project-specific skill for recommended fallback approach
 3. Typically: Create without link, then link via update
 4. Inform user of outcome
+5. **Last stand fallback:** If all strategies fail (including update-after-create), retry with absolute minimal fields:
+   - Remove ALL custom fields (epic link, target version, etc.)
+   - Keep only: project_key, summary, issue_type, description, assignee, components
+   - Log to console what was stripped out
+   - If this succeeds, inform user which fields need manual configuration in Jira
 
 ### Field Format Error
 
