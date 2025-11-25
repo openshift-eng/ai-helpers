@@ -14,7 +14,7 @@
       "name": "hello-world",
       "source": "./plugins/hello-world",
       "description": "Hello World Plugin",
-      "version": "1.0.0"
+      "version": "1.0.1"
     },
     {
       "name": "jira",
