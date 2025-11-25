@@ -72,4 +72,4 @@ fi
    ```
 
 ## Arguments:
-- $1: The name to be printed "Hello ${1}"
+- `$1`: The name to be printed "Hello ${1}"
