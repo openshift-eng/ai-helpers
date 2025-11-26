@@ -131,6 +131,61 @@ if ! oc exec ... 2>&1 | grep -q "UUID"; then
 fi
 ```
 
+## Adaptation Guidance
+
+If expected values don't match your environment, use these techniques to discover the correct values:
+
+### Finding the Ironic API Port
+
+If port 6385 doesn't work, discover the actual port:
+```bash
+# Check service ports
+oc get service -n openshift-machine-api metal3-state -o jsonpath='{.spec.ports[*].port}'
+
+# Then update IRONIC_ENDPOINT
+IRONIC_ENDPOINT="https://localhost:${DISCOVERED_PORT}"
+```
+
+### Finding Services and Pods
+
+If service/pod names differ from expected patterns:
+```bash
+# List all services/pods in the namespace
+oc get services -n openshift-machine-api
+oc get pods -n openshift-machine-api
+
+# Filter by labels
+oc get services -n openshift-machine-api -l app=metal3
+oc get pods -n openshift-machine-api -l app=metal3 -o jsonpath='{.items[0].metadata.name}'
+```
+
+### Finding Container Names and Credential Paths
+
+If container names or credential paths are different:
+```bash
+# List containers in a pod
+oc get pod -n openshift-machine-api <pod-name> -o jsonpath='{.spec.containers[*].name}'
+
+# Find credential files
+oc exec -n openshift-machine-api $POD -c $CONTAINER -- find /auth -type f 2>/dev/null
+```
+
+### Alternative Commands
+
+If `baremetal` command is unavailable, try:
+```bash
+# Check what's available
+oc exec -n openshift-machine-api $METAL3_POD -c metal3-ironic -- which openstack
+
+# Try alternatives: "openstack baremetal node list" or "ironic node-list"
+
+# Or use curl directly
+oc exec -n openshift-machine-api $METAL3_POD -c metal3-ironic -- \
+  curl -k -u "$IRONIC_USERNAME:$IRONIC_PASSWORD" "$IRONIC_ENDPOINT/v1/nodes"
+```
+
+**General strategy:** When commands fail, list resources with `oc get`, check labels with `-l`, inspect with `oc describe`, and explore interactively with `oc exec`.
+
 ## Return Value
 
 The command outputs a table with the following columns:
