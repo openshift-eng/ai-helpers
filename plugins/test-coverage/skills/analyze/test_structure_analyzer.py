@@ -658,7 +658,7 @@ def main():
     parser.add_argument('source_dir', help='Go source directory to analyze')
     parser.add_argument('--priority', choices=['all', 'high', 'medium', 'low'], default='all',
                         help='Filter gaps by priority level')
-    parser.add_argument('--output', default='.work/test-coverage/structure',
+    parser.add_argument('--output', default='.work/test-coverage/analyze',
                         help='Output directory for reports')
     parser.add_argument('--include-test-utils', action='store_true',
                         help='Include test utility/helper files in analysis (excluded by default)')

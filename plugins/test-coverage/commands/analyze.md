@@ -31,7 +31,7 @@ This command is the foundation for QE or Dev teams to understand their e2e test 
   - **Local path**: `./pkg/`, `/home/user/project/test/e2e/networking/infw.go`
   - **GitHub URL**: `https://github.com/owner/repo/blob/main/test/file_test.go`
   - **GitHub raw URL**: `https://raw.githubusercontent.com/owner/repo/main/test/file_test.go`
-  - **GitLab URL**: `https://gitlab.com/owner/repo/-/blob/main/test/file_test.py`
+  - **GitLab URL**: `https://gitlab.com/owner/repo/-/blob/main/test/file_test.go`
   - **HTTP(S) URL**: Any direct file URL
   - URLs are automatically downloaded and cached in `.work/test-coverage/cache/`
 
@@ -53,7 +53,7 @@ This command is the foundation for QE or Dev teams to understand their e2e test 
   - E2E tests are identified by:
     - File naming patterns (e.g., *e2e*_test.go, *integration*_test.go)
     - Directory location (e.g., test/e2e/, test/integration/)
-    - Test markers (e.g., [Serial], [Disruptive] for Ginkgo, @pytest.mark.integration for Python)
+    - Test markers (e.g., [Serial], [Disruptive] for Ginkgo)
 
 - `--test-pattern <pattern>`: Custom test file pattern (optional)
   - Example: `--test-pattern "**/*Test.java,**/Test*.java"`
