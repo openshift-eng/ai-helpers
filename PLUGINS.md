@@ -17,6 +17,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Node Tuning](#node-tuning-plugin)
 - [Olm](#olm-plugin)
 - [Openshift](#openshift-plugin)
+- [Origin](#origin-plugin)
 - [Prow Job](#prow-job-plugin)
 - [Session](#session-plugin)
 - [Sosreport](#sosreport-plugin)
@@ -204,6 +205,15 @@ OpenShift development utilities and helpers
 - **`/openshift:review-test-cases` `[file-path-or-test-code-or-commands]`** - Review test cases for completeness, quality, and best practices - accepts file path or direct oc commands/test code
 
 See [plugins/openshift/README.md](plugins/openshift/README.md) for detailed documentation.
+
+### Origin Plugin
+
+Helpers for openshift/origin development.
+
+**Commands:**
+- **`/origin:two-node-origin-pr-helper`** - |
+
+See [plugins/origin/README.md](plugins/origin/README.md) for detailed documentation.
 
 ### Prow Job Plugin
 

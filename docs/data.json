@@ -830,6 +830,22 @@
     {
       "commands": [
         {
+          "argument_hint": "",
+          "description": "|",
+          "name": "two-node-origin-pr-helper",
+          "synopsis": ""
+        }
+      ],
+      "description": "Helpers for openshift/origin development.",
+      "has_readme": true,
+      "hooks": [],
+      "name": "origin",
+      "skills": [],
+      "version": "0.0.1"
+    },
+    {
+      "commands": [
+        {
           "argument_hint": "<image1> <image2>",
           "description": "Compare two container images to identify differences",
           "name": "compare",
