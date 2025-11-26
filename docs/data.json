@@ -333,7 +333,7 @@
     {
       "commands": [
         {
-          "argument_hint": "[optional-description]",
+          "argument_hint": "[-i] [description]",
           "description": "Save current conversation session to markdown file for future continuation",
           "name": "save-session",
           "synopsis": "/save-session"

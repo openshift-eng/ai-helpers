@@ -222,7 +222,7 @@ See [plugins/prow-job/README.md](plugins/prow-job/README.md) for detailed docume
 A plugin to save and resume conversation sessions across long time intervals
 
 **Commands:**
-- **`/session:save-session` `[optional-description]`** - Save current conversation session to markdown file for future continuation
+- **`/session:save-session` `[-i] [description]`** - Save current conversation session to markdown file for future continuation
 
 See [plugins/session/README.md](plugins/session/README.md) for detailed documentation.
 
