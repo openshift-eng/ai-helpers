@@ -833,7 +833,7 @@
           "argument_hint": "<pr> [--repo owner/repo] [--focus tests|ci|helpers|all] [--depth quick|full]",
           "description": "Expert review tool for PRs that add or modify Two Node (Fencing or Arbiter) tests under test/extended/two_node/ in openshift/origin.",
           "name": "two-node-origin-pr-helper",
-          "synopsis": ""
+          "synopsis": "/origin:two-node-origin-pr-helper <pr> [--repo owner/repo] [--focus tests|ci|helpers|all] [--depth quick|full]"
         }
       ],
       "description": "Helpers for openshift/origin development.",

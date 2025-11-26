@@ -8,18 +8,9 @@ argument-hint: <pr> [--repo owner/repo] [--focus tests|ci|helpers|all] [--depth 
 origin:two-node-origin-pr-helper
 
 ## Synopsis
-
+```
 /origin:two-node-origin-pr-helper <pr> [--repo owner/repo] [--focus tests|ci|helpers|all] [--depth quick|full]
-
-markdown
-Copy code
-
-Where:
-
-- `<pr>`: GitHub PR number or full PR URL (default repo: `openshift/origin`).
-- `--repo owner/repo`: Optional, overrides the default repo.
-- `--focus tests|ci|helpers|all`: Optional, controls which aspects to emphasize (default: `all`).
-- `--depth quick|full`: Optional, `quick` for short summary, `full` for detailed 4-section output (default: `full`).
+```
 
 ## Description
 
@@ -172,7 +163,6 @@ Using the tests, suite tags, and Serial decisions:
 - Determine whether existing CI lanes are likely to cover these tests:
   - e.g. lanes already running `[Suite:openshift/two-node]` on a Two Node topology.
 - If coverage looks insufficient, propose what kind of CI lane is appropriate:
-
   - Topology: Two Node Fencing vs Two Node + Arbiter vs generic Two Node.
   - Suite / `TEST_SUITE`: e.g. Two Node suite vs generic conformance.
   - Feature gates / environment flags:
@@ -206,9 +196,6 @@ live API calls. It operates on the local Git checkout and PR diff only.
 Typical invocation:
 
 /origin:two-node-origin-pr-helper <pr> [--repo owner/repo] [--focus tests|ci|helpers|all] [--depth quick|full]
-
-markdown
-Copy code
 
 Where:
 
@@ -325,9 +312,6 @@ Respect `--focus` and `--depth`:
 
 /origin:two-node-origin-pr-helper 30510 --repo openshift/origin --focus all --depth full
 
-markdown
-Copy code
-
 Context (for illustration):
 
 - PR 30510 adds degraded Two Node Fencing tests under `test/extended/two_node/`.
@@ -350,9 +334,6 @@ The command should respond with:
 **User command**
 
 /origin:two-node-origin-pr-helper https://github.com/openshift/origin/pull/XXXXX --focus tests --depth quick
-
-markdown
-Copy code
 
 Context (for illustration):
 
