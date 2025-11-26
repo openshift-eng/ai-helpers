@@ -1,163 +1,232 @@
 ---
-description: |
-  Assist with openshift/origin PRs that add or modify Two Node (Fencing or Arbiter)
-  tests under test/extended/two_node/. Dynamically discover the changed tests,
-  review their logic and structure, suggest reuse of existing Origin and Kubernetes
-  utilities, recommend suite and Serial annotations, propose CI lane coverage, and
-  generate ready-to-paste text for both the Origin PR and the corresponding
-  openshift/release CI lane PR.
+description: Expert review tool for PRs that add or modify Two Node (Fencing or Arbiter) tests under test/extended/two_node/ in openshift/origin.
+argument-hint: <pr> [--repo owner/repo] [--focus tests|ci|helpers|all] [--depth quick|full]
 ---
 
 ## Name
 
-`/origin:two-node-origin-pr-helper` — Expert helper for Origin Two Node test PRs.
+origin:two-node-origin-pr-helper
 
 ## Synopsis
 
-Analyze an `openshift/origin` PR that adds or modifies Two Node (Fencing or Arbiter)
-tests under `test/extended/two_node/`, then:
+/origin:two-node-origin-pr-helper <pr> [--repo owner/repo] [--focus tests|ci|helpers|all] [--depth quick|full]
 
-- discover changed tests,
-- review their design and correctness,
-- suggest helper/utility reuse,
-- recommend suite and `[Serial]` annotations,
-- propose CI lane coverage,
-- and generate ready-to-paste PR text for both Origin and Release.
+markdown
+Copy code
 
-Typical usage:
+Where:
 
-> /origin:two-node-origin-pr-helper  
-> Repo: openshift/origin  
-> PR: https://github.com/openshift/origin/pull/30510  
+- `<pr>`: GitHub PR number or full PR URL (default repo: `openshift/origin`).
+- `--repo owner/repo`: Optional, overrides the default repo.
+- `--focus tests|ci|helpers|all`: Optional, controls which aspects to emphasize (default: `all`).
+- `--depth quick|full`: Optional, `quick` for short summary, `full` for detailed 4-section output (default: `full`).
 
 ## Description
 
-Use this command when you have an `openshift/origin` PR that modifies or adds Two Node
-(Fencing or Arbiter) tests under `test/extended/two_node/` and you need an expert,
-end-to-end review for them.
+The `/origin:two-node-origin-pr-helper` command is an expert review tool for PRs that add or modify
+Two Node (Fencing or Arbiter) tests under `test/extended/two_node/` in `openshift/origin`.
 
-The goal is to provide a **single, structured response** that:
+It:
 
-1. Summarizes what the PR changes for Two Node tests.
-2. Reviews the tests’ logic, structure, and correctness.
-3. Suggests reuse of existing Origin and Kubernetes utilities instead of duplicating logic.
-4. Recommends appropriate suite tags and `[Serial]` annotations.
-5. Proposes which CI lane(s) in `openshift/release` should cover these tests.
-6. Generates short, ready-to-paste PR description text for both Origin and Release.
+- Discovers changed Two Node test files from the current branch.
+- Analyzes Ginkgo `Describe` / `It` blocks, suite tags, and `[Serial]` markers.
+- Reviews test logic, structure, cleanup, and determinism.
+- Suggests reuse of existing Origin and Kubernetes helpers instead of ad-hoc code.
+- Recommends suite + `[Serial]` tagging and CI coverage.
+- Generates ready-to-paste PR description text for both Origin and Release repos.
 
-This helper is scoped to **Two Node OpenShift topologies** (Fencing and Arbiter) and
-should reason based on what the code actually does, not on a hard-coded list of
-function names or helpers.
+Use this command when creating or reviewing Origin PRs that touch the Two Node test suite and you
+want a focused, reproducible review of test design, helper usage, and CI integration.
 
 ## Implementation
 
 The command should behave as follows.
 
-1. **Automatically discover relevant changes**
-   - Identify all changed files under `test/extended/two_node/`.
-   - From those files, dynamically extract:
-     - new or modified `Describe` / `It` blocks,
-     - suite tags (e.g. `[Suite:...]`),
-     - Serial markers,
-     - imports and helper usage.
+### 1. Argument handling
 
-2. **Review test design and correctness**
-   - Check whether the tests’ logic matches their stated intent (names, comments).
-   - For Two Node Fencing / Arbiter scenarios, reason about:
-     - degraded vs non-degraded behavior,
-     - fencing / failover intent,
-     - arbiter / quorum intent,
-     - correctness of expectations and assertions.
-   - Do **not** assume specific helper or function names exist; instead, use the
-     actual code and imports in the PR to understand what the tests are doing.
+Parse arguments from the invocation:
 
-3. **Suggest reuse of existing utilities and helpers**
-   - Look for patterns where the PR re-implements generic behaviors that are already
-     available in imported Origin or Kubernetes utilities.
-   - Typical examples include, but are not limited to:
-     - Origin test utilities such as:
-       - `exutil "github.com/openshift/origin/test/extended/util"`
-       - image helpers under `github.com/openshift/origin/test/extended/util/...`
-     - Kubernetes utilities from the broader `k8s.io/...` ecosystem, for example:
-       - client libraries under `k8s.io/client-go/...`
-       - generic helpers under `k8s.io/apimachinery/pkg/util/...` (wait, retry, intstr, sets, etc.)
-       - pointer and type helpers under `k8s.io/utils/...`
-   - If you see manual polling loops, ad-hoc resource creation, or repeated patterns
-     that look similar to existing helpers in the repo:
-     - point out where a helper could be reused,
-     - or suggest that a new helper be extracted and placed in an appropriate
-       shared location (for example, a shared Two Node utility file).
-   - Do this **based on the actual imports and surrounding code in the PR**, not on
-     a fixed list of helper names.
+- `<pr>`:
+  - Accept either a PR number (e.g. `30510`) or full URL
+    (`https://github.com/openshift/origin/pull/30510`).
+- `--repo owner/repo`:
+  - Default: `openshift/origin` if omitted.
+- `--focus`:
+  - `tests`   → emphasize test logic, structure, determinism.
+  - `ci`      → emphasize suite tags, `[Serial]`, CI lane coverage.
+  - `helpers` → emphasize helper/utility reuse and refactor suggestions.
+  - `all`     → cover all aspects (default if omitted).
+- `--depth`:
+  - `quick` → short, high-level summary in each section.
+  - `full`  → detailed 4-section output (default if omitted).
 
-4. **Evaluate structure and readability**
-   - Review Ginkgo structure:
-     - `Describe` / `Context` / `It` organization,
-     - naming clarity,
-     - use of `By` steps (if present),
-     - quality of assertion messages.
-   - Suggest improvements where they would make the tests easier to understand,
-     debug, and maintain.
+The internal behavior (what to inspect and how to reason) is the same; `--focus` changes emphasis
+and the level of detail per topic, and `--depth` controls how verbose the final answer is.
 
-5. **Recommend suite and Serial annotations**
-   - Decide, based on what the tests do, which suite is appropriate (for example
-     `[Suite:openshift/two-node]` for Two Node–specific behavior).
-   - Recommend which tests should be `[Serial]` vs safe to run in parallel:
-     - tests that heavily modify cluster-scoped state, reboot control-plane nodes,
-       or put the cluster into unusual states are more likely to require `[Serial]`;
-     - tests that are fully namespaced, use isolated resources, and leave the
-       cluster in a clean state are more likely to be parallel-safe.
-   - Base these recommendations on the observed behavior and impact of the tests,
-     not on hard-coded rules.
+### 2. Automatically discover relevant changes
 
-6. **Propose CI lane coverage**
-   - Given the tests and their suite/tagging, reason about:
-     - whether existing CI lanes already cover these tests,
-     - or whether a new lane / suite configuration is needed.
-   - When recommending CI changes in `openshift/release`, provide:
-     - the suite or `TEST_SUITE` that should be used,
-     - a rough lane naming suggestion (if helpful),
-     - any notable environment flags or feature gates that the tests assume
-       (for example, if they rely on a specific Two Node topology or feature set).
-   - Keep this guidance general enough that it remains valid as suites and
-     lane names evolve.
+Assume the command is run inside a local checkout of the repo on the PR branch.
 
-7. **Generate ready-to-paste text**
-   - For the `openshift/origin` PR description:
-     - Concisely describe what the new Two Node tests cover,
-     - Mention any important suite/tagging and Serial decisions,
-     - Summarize key design and behavior points.
-   - For the `openshift/release` PR:
-     - Explain what kind of Two Node behavior the lane validates,
-     - Note which suite or tags it focuses on,
-     - Describe how it complements existing lanes (for example, “Two Node–specific
-       degraded behavior” vs “generic conformance”).
+- Determine which files have changed:
+  - Use `git diff --name-only` for the PR range, or an equivalent mechanism that Claude has access to.
+- Filter to Two Node tests:
+  - Consider Go files under `test/extended/two_node/` that were added or modified.
+- For each such file:
+  - Parse the contents enough to identify:
+    - new or modified Ginkgo `Describe` / `Context` / `It` blocks,
+    - suite tags (e.g. `[Suite:openshift/two-node]`),
+    - `[Serial]` markers,
+    - imports and the key helpers/utilities being used.
 
-The command is purely **static**: it should not require cluster access, kubeconfig,
-or secrets. It operates on the local Git checkout and PR diff only.
+### 3. Review test design and correctness
+
+For each relevant test:
+
+- Check whether names, comments, and assertions are consistent with the stated intent:
+  - degraded vs non-degraded behavior,
+  - Two Node Fencing vs Two Node Arbiter focus,
+  - quorum / failover / recovery semantics,
+  - etc.
+- Pay particular attention to:
+  - How the cluster state is set up (e.g. degraded TNF mode, arbiter behavior),
+  - Which conditions are asserted (e.g. PDB behavior, reboot-block, quorum changes),
+  - Whether the expectations match typical Two Node semantics in Origin.
+
+Do **not** assume specific helper or function names exist. Infer behavior from the actual code,
+imports, and test logic present in the PR.
+
+### 4. Suggest reuse of existing utilities and helpers
+
+Look for patterns where the PR re-implements behavior that is likely covered by existing helpers.
+
+Examples (non-exhaustive, pattern-based):
+
+- Origin test utilities such as:
+  - `exutil "github.com/openshift/origin/test/extended/util"`
+  - image helpers under `github.com/openshift/origin/test/extended/util/...`
+- Kubernetes helper packages, for example:
+  - `k8s.io/client-go/...` client usage patterns,
+  - `k8s.io/apimachinery/pkg/util/...` (wait, retry, intstr, sets, etc.),
+  - `k8s.io/utils/...` pointer / type helpers.
+
+If you see:
+
+- Hand-rolled polling loops,
+- Custom resource creation logic that looks similar across tests,
+- Repeated boilerplate for waiting on pods/nodes/MCPs,
+
+then:
+
+- Call out where an existing helper is already being used correctly,
+- Suggest where existing helpers could replace ad-hoc code,
+- Or propose that new shared helpers be extracted into a common Two Node utility file when
+  patterns are repeated in multiple tests.
+
+Importantly, base these suggestions on the **actual imports and code** in the PR, not a hard-coded
+list of function names.
+
+### 5. Evaluate structure and readability
+
+Review the Ginkgo test structure:
+
+- `Describe` / `Context` / `It` hierarchy:
+  - Are scopes and groupings clear?
+  - Do names convey behavior and expectations?
+- Use of `By(...)` steps (if present) to narrate critical phases.
+- Assertion quality:
+  - Are failure messages informative?
+  - Are conditions checked via proper waits/conditions rather than brittle sleeps?
+
+Suggest improvements where they would materially help future readers/debugging, especially for
+complex Two Node scenarios where debugging can be painful.
+
+### 6. Recommend suite and Serial annotations
+
+Based on what each test does:
+
+- Suite tagging:
+  - For Two Node–specific behavior, prefer something like
+    `[Suite:openshift/two-node]` (or whatever suite tagging is used in the file).
+  - If another suite is clearly more appropriate and consistent with the surrounding tests,
+    call that out explicitly.
+- `[Serial]` vs parallel:
+  - Tests that:
+    - modify cluster-scoped state,
+    - reboot control-plane nodes,
+    - intentionally degrade or fence nodes,
+    - or otherwise put the cluster into unusual states
+    are strong candidates for `[Serial]`.
+  - Tests that:
+    - are fully namespaced,
+    - use isolated resources,
+    - clean up after themselves,
+    - and don’t disrupt cluster-wide behavior
+    are more likely to be parallel-safe.
+- Provide reasoning:
+  - Explain *why* a given test should or should not be `[Serial]`, referencing its behavior.
+
+### 7. Propose CI lane coverage
+
+Using the tests, suite tags, and Serial decisions:
+
+- Determine whether existing CI lanes are likely to cover these tests:
+  - e.g. lanes already running `[Suite:openshift/two-node]` on a Two Node topology.
+- If coverage looks insufficient, propose what kind of CI lane is appropriate:
+
+  - Topology: Two Node Fencing vs Two Node + Arbiter vs generic Two Node.
+  - Suite / `TEST_SUITE`: e.g. Two Node suite vs generic conformance.
+  - Feature gates / environment flags:
+    - e.g. if tests assume DualReplica / degraded behavior, etc.
+  - Whether the lane should be:
+    - periodic vs blocking vs optional (if the user provides context).
+
+Avoid hard-coding specific lane names; instead, describe the lane characteristics and how it fits
+into the existing Two Node CI story.
+
+### 8. Generate ready-to-paste text
+
+Produce short, practical text snippets:
+
+- For the `openshift/origin` PR:
+  - Summarize what the new Two Node tests cover.
+  - Mention suite tags and any `[Serial]` decisions.
+  - Highlight key behavioral checks (e.g. degraded TNF behavior, arbiter recovery).
+- For a potential `openshift/release` PR:
+  - Describe what the CI lane validates (e.g. degraded Two Node Fencing behavior, arbiter quorum).
+  - Note which suite/tags it runs.
+  - Explain how it complements existing lanes (e.g. Two Node degraded behavior vs generic e2e).
+
+The command is purely **static**: it should not require cluster access, kubeconfig, secrets, or
+live API calls. It operates on the local Git checkout and PR diff only.
 
 ---
 
 ## Expected input
 
-From the user, you primarily expect:
+Typical invocation:
 
-- The **PR link** (or repo + PR number), e.g.:
-  - `https://github.com/openshift/origin/pull/30510`
+/origin:two-node-origin-pr-helper <pr> [--repo owner/repo] [--focus tests|ci|helpers|all] [--depth quick|full]
 
-You should assume the command is run within a local checkout of the repo on the
-PR branch. Where possible, **inspect the diff directly**, for example by reading:
+markdown
+Copy code
 
-- `git diff --name-only` to discover changed files,
-- the contents of changed Go files under `test/extended/two_node/`.
+Where:
 
-Optionally, the user may also provide:
+- `<pr>`: PR number or full PR URL.
+- `--repo`: Optional, defaults to `openshift/origin`.
+- `--focus`: Optional, defaults to `all`.
+- `--depth`: Optional, defaults to `full`.
 
-- A short summary of what the PR is trying to validate (for context).
-- Any specific questions (e.g. “Should this be Serial?”, “Is this using exutil correctly?”).
+Assume the command is run:
 
-Do **not** require the user to manually paste all tests; instead, discover them
-from the actual code in the PR wherever possible.
+- Inside a local checkout of the target repo,
+- On the branch that corresponds to the PR (or with the PR’s diff available).
+
+The tool should:
+
+- Use the PR reference to orient itself (repo + PR number/URL),
+- Inspect the local diff and files under `test/extended/two_node/`,
+- Ask the user for clarifications only when absolutely necessary (e.g. ambiguous topology).
 
 ---
 
@@ -169,116 +238,132 @@ When reviewing the PR, dynamically derive:
    - All Go files under `test/extended/two_node/` that were added or modified.
 
 2. **Test metadata**
-   - New or modified Ginkgo `Describe` / `It` blocks.
+   - New or modified Ginkgo `Describe` / `Context` / `It` blocks.
    - Suite tags such as `[Suite:...]`.
    - Serial tags such as `[Serial]` if present.
-   - Any feature-gate or topology hints in the test names, descriptions, or comments.
+   - Any feature-gate or topology hints in test names, descriptions, or comments.
 
 3. **Behavior and intent**
-   - From names, comments, and logic:
-     - infer whether the tests are about Two Node Fencing, Arbiter, degraded mode,
-       failover, quorum, or general conformance.
-   - Check whether the implementation appears consistent with that intent:
-     - e.g. if the description talks about degraded behavior, does the test
-       actually set up and verify a degraded scenario?
+   - From names, comments, and logic, infer whether tests cover:
+     - Two Node Fencing vs Two Node Arbiter,
+     - degraded mode vs normal operation,
+     - failover, fencing, or recovery flows,
+     - quorum behavior, etc.
+   - Check that implementation matches intent:
+     - e.g. a “degraded” test actually sets up and asserts degraded behavior.
 
 4. **Use and reuse of utilities**
-   - Inspect imports and helper calls to see which utilities are already in use,
-     including but not limited to:
-     - Origin utilities (for example, `exutil` and related helpers),
-     - image helpers,
-     - common Kubernetes utility packages.
-   - Look for places where:
-     - the PR re-implements logic that appears similar to helpers already in
-       the repo,
-     - or where logic is complex enough that extracting a helper would improve
-       readability and reuse.
-   - Suggest concrete refactor opportunities but phrase them in terms of patterns
-     (“this polling loop looks like it could use a shared wait helper”) rather
-     than hard-coding specific function names.
+   - Inspect imports and helper calls to see which utilities are already in use:
+     - Origin utilities (`exutil`, image helpers, etc.),
+     - Common Kubernetes utility packages.
+   - Identify:
+     - duplicated logic that could use existing helpers,
+     - complex blocks that would benefit from extraction into shared helpers.
+   - Phrase suggestions as patterns, not hard-coded function names.
 
 5. **Safety, cleanup, and determinism**
-   - Check that tests:
-     - clean up resources they create, where appropriate,
-     - avoid leaving the cluster in a confusing state for subsequent tests,
-     - use reasonable timeouts and retries,
-     - avoid brittle sleeps where a condition-based wait would be better.
+   - Verify that tests:
+     - clean up resources where appropriate,
+     - leave the cluster in a reasonable state,
+     - use condition-based waits instead of arbitrary sleeps,
+     - have sensible timeouts and error messages.
 
 6. **Suite and Serial recommendations**
-   - Based on the above, recommend:
-     - suite tagging (`[Suite:openshift/two-node]` or others if appropriate),
-     - whether each test should be `[Serial]` or parallel-safe, with reasoning.
+   - Recommend suite tags and `[Serial]` where appropriate, with justification.
 
 7. **CI lane recommendations**
-   - Suggest a high-level CI plan:
-     - whether existing lanes likely cover these tests,
-     - whether a dedicated Two Node lane is appropriate,
-     - and roughly how it should be configured (suite, topology assumptions, etc.).
-   - Avoid relying on specific hard-coded lane names; instead, describe the
-     characteristics a lane should have.
+   - Suggest:
+     - whether existing lanes likely run these tests,
+     - whether a new/dedicated lane is needed,
+     - what topology/suite/flags that lane should have.
 
 ---
 
 ## Output structure
 
-Always respond in four sections:
+Always respond in **four sections**:
 
 1. **Summary of changes**
    - 2–5 bullet points summarizing:
      - which Two Node test files were touched,
-     - in very broad terms, what scenarios they cover.
+     - what scenarios they cover at a high level.
 
 2. **Review of tests (design, logic, reuse)**
    - Bullet points or short paragraphs covering:
      - logic correctness and alignment with intent,
-     - opportunities to reuse existing utilities or extract helpers,
-     - improvements to Ginkgo structure and assertions,
+     - opportunities to reuse utilities or extract helpers,
+     - Ginkgo structure and assertion quality,
      - cleanup and determinism.
 
 3. **Suite, Serial, and CI recommendations**
-   - Suite tags you recommend and why.
-   - Serial vs parallel recommendations and why.
-   - A concise CI coverage suggestion:
-     - whether existing lanes are probably enough,
-     - or what kind of lane configuration should run these tests.
+   - Recommended suite tags and why.
+   - `[Serial]` vs parallel recommendations and why.
+   - Concise CI coverage plan:
+     - existing lanes vs new lane,
+     - topology and suite characteristics.
 
 4. **Ready-to-paste PR text**
-   - A short paragraph for the Origin PR description that:
-     - explains new tests and why they exist,
-     - mentions suite and any special considerations.
-   - A short paragraph for the Release PR (if needed) that:
+   - For the Origin PR description:
+     - explains new tests and motivation,
+     - mentions suite/tagging and special considerations.
+   - For a Release PR (if needed):
      - explains what the CI lane validates,
      - and how it fits into the broader Two Node testing story.
 
-Keep the tone technical, concise, and practical.
+Respect `--focus` and `--depth`:
+
+- For `--focus tests`, put most detail into section 2.
+- For `--focus ci`, emphasize section 3.
+- For `--focus helpers`, emphasize reuse/refactor parts of section 2.
+- For `--depth quick`, produce shorter bullets and more compact text in each section.
 
 ---
 
 ## Example 1 — Degraded Two Node Fencing tests
 
-**User prompt**
+**User command**
 
-> /origin:two-node-origin-pr-helper  
->  
-> Repo: openshift/origin  
-> PR: https://github.com/openshift/origin/pull/30510  
->  
-> This PR adds degraded Two Node tests under test/extended/two_node/.
-> Please review the tests, suggest reuse of existing helpers/utilities,
-> and recommend suite, Serial tagging, and CI coverage. Also generate
-> suggested PR descriptions for origin + release.
+/origin:two-node-origin-pr-helper 30510 --repo openshift/origin --focus all --depth full
+
+markdown
+Copy code
+
+Context (for illustration):
+
+- PR 30510 adds degraded Two Node Fencing tests under `test/extended/two_node/`.
+- The user wants:
+  - Review of test design and helper usage,
+  - Suite + `[Serial]` recommendations,
+  - CI coverage suggestions,
+  - Ready-to-paste PR description snippets.
+
+The command should respond with:
+
+- A 4-section analysis as described above,
+- Explicit notes on degraded TNF behavior and MCO/PDB semantics (based on actual code),
+- Suggested Two Node suite configuration for CI.
 
 ---
 
 ## Example 2 — Two Node Arbiter recovery tests
 
-**User prompt**
+**User command**
 
-> /origin:two-node-origin-pr-helper  
->  
-> Repo: openshift/origin  
-> PR: <link>  
->  
-> This PR adds recovery tests for Two Node + Arbiter under test/extended/two_node/.
-> Please review structure, logic correctness, helper reuse, suite/Serial decisions,
-> and suggest CI coverage + PR description text.
+/origin:two-node-origin-pr-helper https://github.com/openshift/origin/pull/XXXXX --focus tests --depth quick
+
+markdown
+Copy code
+
+Context (for illustration):
+
+- The PR adds recovery tests for Two Node + Arbiter under `test/extended/two_node/`.
+- The user is mainly interested in:
+  - Test structure and logic correctness,
+  - Helper reuse suggestions.
+
+The command should respond with:
+
+- A 4-section output, but with:
+  - Shorter bullets overall (`--depth quick`),
+  - More detail in section 2 (`--focus tests`),
+  - Brief CI and PR-text suggestions.
