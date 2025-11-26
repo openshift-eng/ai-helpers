@@ -113,6 +113,12 @@
           "description": "Generate a status rollup comment for any JIRA issue based on all child issues and a given date range",
           "name": "status-rollup",
           "synopsis": "/jira:status-rollup issue-id [--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD]"
+        },
+        {
+          "argument_hint": "[target-version] [component-filter] [--bug issue-key]",
+          "description": "Validate proposed release blockers using Red Hat OpenShift release blocker criteria",
+          "name": "validate-blockers",
+          "synopsis": "/jira:validate-blockers [target-version] [component-filter] [--bug issue-key]"
         }
       ],
       "description": "A plugin to automate tasks with Jira",
@@ -164,6 +170,11 @@
           "description": "HyperShift team-specific Jira requirements for component selection and conventions",
           "id": "hypershift",
           "name": "HyperShift Jira Conventions"
+        },
+        {
+          "description": "Detailed implementation guide for validating proposed release blockers",
+          "id": "jira-validate-blockers",
+          "name": "JIRA Release Blocker Validator"
         },
         {
           "description": "Jira conventions and bug templates for the OCPBUGS project",
