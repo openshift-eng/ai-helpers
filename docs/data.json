@@ -621,6 +621,12 @@
           "description": "Review test cases for completeness, quality, and best practices - accepts file path or direct oc commands/test code",
           "synopsis": "/openshift:review-test-cases [file-path-or-test-code-or-commands]",
           "argument_hint": "[file-path-or-test-code-or-commands]"
+        },
+        {
+          "name": "test-review",
+          "description": "Review Ginkgo test code changes in current branch for naming violations and best practices",
+          "synopsis": "/openshift:test-review [base-branch]",
+          "argument_hint": "[base-branch]"
         }
       ],
       "skills": [],
