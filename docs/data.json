@@ -325,6 +325,12 @@
           "synopsis": "/ci:check-if-jira-regression-is-ongoing <jira-key-or-url>"
         },
         {
+          "argument_hint": "[repo] <pr-number>",
+          "description": "Find and retest failed e2e CI jobs on a PR",
+          "name": "e2e-retest",
+          "synopsis": "/ci:e2e-retest <pr-number>"
+        },
+        {
           "argument_hint": "prowjob-url",
           "description": "Extract and decompress must-gather archives from Prow job artifacts",
           "name": "extract-prow-job-must-gather",
@@ -347,6 +353,18 @@
           "description": "List unstable tests with pass rate below 95%",
           "name": "list-unstable-tests",
           "synopsis": "/ci:list-unstable-tests <version> <keywords> [sippy-url]"
+        },
+        {
+          "argument_hint": "[repo] <pr-number>",
+          "description": "Find and retest failed payload jobs on a PR",
+          "name": "payload-retest",
+          "synopsis": "/ci:payload-retest <pr-number>"
+        },
+        {
+          "argument_hint": "[repo] <pr-number>",
+          "description": "Find and retest failed e2e CI jobs and payload jobs on a PR",
+          "name": "pr-retest",
+          "synopsis": "/ci:pr-retest <pr-number>"
         },
         {
           "argument_hint": "<execution-id>",
@@ -391,6 +409,11 @@
       "name": "ci",
       "skills": [
         {
+          "description": "Helper scripts for analyzing and retesting failed e2e CI jobs on pull requests",
+          "id": "e2e-retest",
+          "name": "E2E Retest Helper Scripts"
+        },
+        {
           "description": "Fetch JIRA issue details including status, assignee, comments, and progress classification",
           "id": "fetch-jira-issue",
           "name": "Fetch JIRA Issue"
@@ -434,6 +457,16 @@
           "description": "Helper skill to retrieve OAuth tokens from the correct OpenShift cluster context when multiple clusters are configured",
           "id": "oc-auth",
           "name": "OC Authentication Helper"
+        },
+        {
+          "description": "Helper scripts for analyzing and retesting failed payload CI jobs on pull requests",
+          "id": "payload-retest",
+          "name": "Payload Retest Helper Scripts"
+        },
+        {
+          "description": "Wrapper script that combines e2e and payload retest functionality for comprehensive PR CI analysis",
+          "id": "pr-retest",
+          "name": "PR Retest Wrapper Script"
         },
         {
           "description": "Analyze OpenShift installation failures in Prow CI jobs by examining installer logs, log bundles, and sosreports. Use when CI job fails \"install should succeed\" tests at bootstrap, cluster creation or other stages.",
@@ -481,7 +514,7 @@
           "name": "Triage Regression"
         }
       ],
-      "version": "0.0.7"
+      "version": "0.0.8"
     },
     {
       "commands": [
