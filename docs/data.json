@@ -865,6 +865,22 @@
       "name": "container-image",
       "skills": [],
       "version": "0.0.1"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "[--node <node-name>] [--verbose] [--output-format json|text]",
+          "description": "Perform comprehensive health check on cluster nodes and report kubelet, CRI-O, and node-level issues",
+          "name": "cluster-node-health-check",
+          "synopsis": "/node:cluster-node-health-check [--node <node-name>] [--verbose] [--output-format json|text]"
+        }
+      ],
+      "description": "Kubernetes and OpenShift node health monitoring and diagnostics",
+      "has_readme": true,
+      "hooks": [],
+      "name": "node",
+      "skills": [],
+      "version": "0.0.1"
     }
   ]
 }

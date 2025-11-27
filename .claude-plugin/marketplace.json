@@ -108,6 +108,11 @@
       "name": "container-image",
       "source": "./plugins/container-image",
       "description": "Container image inspection and analysis using skopeo and podman"
+    },
+    {
+      "name": "node",
+      "source": "./plugins/node",
+      "description": "Kubernetes and OpenShift node health monitoring and diagnostics"
     }
   ]
 }
