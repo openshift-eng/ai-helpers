@@ -6,12 +6,15 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Ci](#ci-plugin)
 - [Compliance](#compliance-plugin)
 - [Component Health](#component-health-plugin)
+- [Container Image](#container-image-plugin)
 - [Doc](#doc-plugin)
+- [Etcd](#etcd-plugin)
 - [Git](#git-plugin)
 - [Hcp](#hcp-plugin)
 - [Hello World](#hello-world-plugin)
 - [Jira](#jira-plugin)
 - [Must Gather](#must-gather-plugin)
+- [Node Tuning](#node-tuning-plugin)
 - [Olm](#olm-plugin)
 - [Openshift](#openshift-plugin)
 - [Prow Job](#prow-job-plugin)
@@ -68,6 +71,17 @@ Analyze component health using regression and jira data
 
 See [plugins/component-health/README.md](plugins/component-health/README.md) for detailed documentation.
 
+### Container Image Plugin
+
+Container image inspection and analysis using skopeo and podman
+
+**Commands:**
+- **`/container-image:compare` `<image1> <image2>`** - Compare two container images to identify differences
+- **`/container-image:inspect` `<image>`** - Inspect and provide detailed breakdown of a container image
+- **`/container-image:tags` `<repository>`** - List and analyze available tags for a container image repository
+
+See [plugins/container-image/README.md](plugins/container-image/README.md) for detailed documentation.
+
 ### Doc Plugin
 
 A plugin for engineering documentation and notes
@@ -76,6 +90,16 @@ A plugin for engineering documentation and notes
 - **`/doc:note` `[task description]`** - Generate professional engineering notes and append them to a log file
 
 See [plugins/doc/README.md](plugins/doc/README.md) for detailed documentation.
+
+### Etcd Plugin
+
+Etcd cluster health monitoring and performance analysis utilities
+
+**Commands:**
+- **`/etcd:analyze-performance` `"[--duration <minutes>]"`** - Analyze etcd performance metrics, latency, and identify bottlenecks
+- **`/etcd:health-check` `"[--verbose]"`** - Check etcd cluster health, member status, and identify issues
+
+See [plugins/etcd/README.md](plugins/etcd/README.md) for detailed documentation.
 
 ### Git Plugin
 
@@ -96,6 +120,7 @@ See [plugins/git/README.md](plugins/git/README.md) for detailed documentation.
 Generate HyperShift cluster creation commands via hcp CLI from natural language descriptions
 
 **Commands:**
+- **`/hcp:cluster-health-check` `<cluster-name> [--verbose] [--output-format json|text]`** - Perform comprehensive health check on HCP cluster and report issues
 - **`/hcp:generate` `<provider> <cluster-description>`** - Generate ready-to-execute hypershift cluster creation commands from natural language descriptions
 
 See [plugins/hcp/README.md](plugins/hcp/README.md) for detailed documentation.
@@ -118,9 +143,10 @@ A plugin to automate tasks with Jira
 - **`/jira:create-release-note` `<issue-key>`** - Generate bug fix release notes from Jira tickets and linked GitHub PRs
 - **`/jira:create` `<type> [project-key] <summary> [--component <name>] [--version <version>] [--parent <key>]`** - Create Jira issues (story, epic, feature, task, bug, feature-request) with proper formatting
 - **`/jira:generate-test-plan` `[JIRA issue key] [GitHub PR URLs]`** - Generate test steps for a JIRA issue
-- **`/jira:grooming` `[project-filter] [time-period] [--component component-name] [--label label-name]`** - Analyze new bugs and cards added over a time period and generate grooming meeting agenda
+- **`/jira:grooming` `[project-filter] [time-period] [--component component-name] [--label label-name] [--type issue-type]`** - Analyze new bugs and cards added over a time period and generate grooming meeting agenda
 - **`/jira:solve`** - Analyze a JIRA issue and create a pull request to solve it.
 - **`/jira:status-rollup` `issue-id [--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD]`** - Generate a status rollup comment for any JIRA issue based on all child issues and a given date range
+- **`/jira:validate-blockers` `[target-version] [component-filter] [--bug issue-key]`** - Validate proposed release blockers using Red Hat OpenShift release blocker criteria
 
 See [plugins/jira/README.md](plugins/jira/README.md) for detailed documentation.
 
@@ -134,6 +160,16 @@ A plugin to analyze and report on must-gather data
 
 See [plugins/must-gather/README.md](plugins/must-gather/README.md) for detailed documentation.
 
+### Node Tuning Plugin
+
+Automatically create and apply tuned profile
+
+**Commands:**
+- **`/node-tuning:analyze-node-tuning` `"[--sosreport PATH] [--format json|markdown] [--max-irq-samples N]"`** - Analyze kernel/sysctl tuning from a live node or sosreport snapshot and propose NTO recommendations
+- **`/node-tuning:generate-tuned-profile` `"[profile-name] [--summary ...] [--sysctl ...] [options]"`** - Generate a Tuned (tuned.openshift.io/v1) profile manifest for the Node Tuning Operator
+
+See [plugins/node-tuning/README.md](plugins/node-tuning/README.md) for detailed documentation.
+
 ### Olm Plugin
 
 OLM (Operator Lifecycle Manager) plugin for operator management and debugging
@@ -145,6 +181,7 @@ OLM (Operator Lifecycle Manager) plugin for operator management and debugging
 - **`/olm:diagnose` `[operator-name] [namespace] [--fix] [--cluster]`** - Diagnose and optionally fix common OLM and operator issues
 - **`/olm:install` `<operator-name> [namespace] [channel] [source] [--approval=Automatic|Manual]`** - Install a day-2 operator using Operator Lifecycle Manager
 - **`/olm:list` `[namespace] [--all-namespaces]`** - List installed operators in the cluster
+- **`/olm:opm` `<action> [arguments...]`** - Execute opm (Operator Package Manager) commands for building and managing operator catalogs
 - **`/olm:search` `[query] [--catalog <catalog-name>]`** - Search for available operators in catalog sources
 - **`/olm:status` `<operator-name> [namespace]`** - Get detailed status and health information for an operator
 - **`/olm:uninstall` `<operator-name> [namespace] [--remove-crds] [--remove-namespace]`** - Uninstall a day-2 operator and optionally remove its resources
@@ -206,6 +243,7 @@ A generic utilities plugin serving as a catch-all for various helper commands an
 
 **Commands:**
 - **`/utils:address-reviews` `[PR number (optional - uses current branch if omitted)]`** - Fetch and address all PR review comments
+- **`/utils:auto-approve-konflux-prs` `<target-repository>`** - Automate approving Konflux bot PRs for the given repository by adding /lgtm and /approve
 - **`/utils:generate-test-plan` `[GitHub PR URLs]`** - Generate test steps for one or more related PRs
 - **`/utils:placeholder`** - Placeholder command for the utils plugin
 - **`/utils:process-renovate-pr` `<PR_NUMBER|open> [JIRA_PROJECT] [COMPONENT]`** - Process Renovate dependency PR(s) to meet repository contribution standards

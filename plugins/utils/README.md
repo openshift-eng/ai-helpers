@@ -16,6 +16,10 @@ Process and address code review comments on pull requests.
 
 Automate processing of Renovate dependency update PRs.
 
+### `/utils:auto-approve-konflux-prs`
+
+Automate approving Konflux bot PRs for the given repository by adding /lgtm and /approve
+
 ### `/utils:placeholder`
 
 A placeholder command for testing and development.

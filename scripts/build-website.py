@@ -172,7 +172,7 @@ if __name__ == "__main__":
     output_file.parent.mkdir(exist_ok=True)
 
     with open(output_file, 'w') as f:
-        json.dump(data, f, indent=2)
+        json.dump(data, f, indent=2, sort_keys=True)
 
     print(f"Website data written to {output_file}")
     print(f"Total plugins: {len(data['plugins'])}")

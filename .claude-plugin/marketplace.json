@@ -70,6 +70,11 @@
       "description": "OpenShift development utilities and helpers"
     },
     {
+      "name": "etcd",
+      "source": "./plugins/etcd",
+      "description": "Etcd cluster health monitoring and performance analysis utilities"
+    },
+    {
       "name": "yaml",
       "source": "./plugins/yaml",
       "description": "YAML documentation and utilities"
@@ -93,6 +98,16 @@
       "name": "compliance",
       "source": "./plugins/compliance",
       "description": "Security compliance and vulnerability analysis tools for Go projects"
+    },
+    {
+      "name": "node-tuning",
+      "source": "./plugins/node-tuning",
+      "description": "Generate and analyze OpenShift node tuning profiles"
+    },
+    {
+      "name": "container-image",
+      "source": "./plugins/container-image",
+      "description": "Container image inspection and analysis using skopeo and podman"
     }
   ]
 }

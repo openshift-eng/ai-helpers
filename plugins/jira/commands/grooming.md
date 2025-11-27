@@ -1,6 +1,6 @@
 ---
 description: Analyze new bugs and cards added over a time period and generate grooming meeting agenda
-argument-hint: [project-filter] [time-period] [--component component-name] [--label label-name]
+argument-hint: [project-filter] [time-period] [--component component-name] [--label label-name] [--type issue-type]
 ---
 
 ## Name
@@ -8,7 +8,7 @@ jira:grooming
 
 ## Synopsis
 ```
-/jira:grooming [project-filter] [time-period] [--component component-name] [--label label-name]
+/jira:grooming [project-filter] [time-period] [--component component-name] [--label label-name] [--type issue-type]
 ```
 
 ## Description
@@ -38,7 +38,7 @@ The `jira:grooming` command runs in three main phases:
   - **Time range mode**: Filters issues by creation date within the specified period (e.g., `last-week`, `2024-01-01:2024-01-31`)
   - **Sprint mode**: Filters issues by JIRA Sprint without time constraints (e.g., `"OTA 277"`)
   - Sprint detection: If the time-period parameter doesn't match known time range formats, it's treated as a sprint name
-- Supports complex JQL filters, including multi-project, component-based, and label-based queries.
+- Supports complex JQL filters, including multi-project, component-based, label-based, and issue-type queries.
 - Extracts key fields such as title, type, priority, component, reporter, and assignee.
 - Detects related or duplicate issues to provide better context.
 
@@ -89,6 +89,21 @@ The `jira:grooming` command runs in three main phases:
    ```bash
    /jira:grooming OCPBUGS "OTA 277" --component "Cluster Version Operator"
    ```
+
+8. **Filter by issue type**:
+   ```
+   /jira:grooming OCPSTRAT last-week --type Bug
+   ```
+
+9. **Filter by multiple issue types**:
+   ```
+   /jira:grooming OCPSTRAT last-week --type "Bug,Epic"
+   ```
+
+10. **Combine all filters**:
+    ```
+    /jira:grooming OCPSTRAT last-week --component "Control Plane" --label "performance" --type Story
+    ```
 
 ## Output Format
 
@@ -167,6 +182,15 @@ The command outputs a ready-to-use Markdown document that can be copied into Con
   Examples:
     - `--label "technical-debt"`
     - `--label "performance,security"`
+
+- **--type** *(optional)*
+  Filter by JIRA issue type (single or comma-separated).
+  Examples:
+    - `--type Bug`
+    - `--type "Epic,Story"`
+    - `--type "Bug,Task,Feature"`
+
+  Common issue types: `Bug`, `Story`, `Task`, `Epic`, `Feature`, `Sub-task`
 
 ## Return Value
 - **Markdown Report**: Ready-to-use grooming agenda with categorized issues and action items
