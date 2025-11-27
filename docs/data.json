@@ -279,10 +279,28 @@
           "synopsis": "/ask-sippy [question]"
         },
         {
+          "argument_hint": "[repo] <pr-number>",
+          "description": "Find and retest failed e2e CI jobs on a PR",
+          "name": "e2e-retest",
+          "synopsis": "/ci:e2e-retest <pr-number>"
+        },
+        {
           "argument_hint": "<version> <keywords> [sippy-url]",
           "description": "List unstable tests with pass rate below 95%",
           "name": "list-unstable-tests",
           "synopsis": "/ci:list-unstable-tests <version> <keywords> [sippy-url]"
+        },
+        {
+          "argument_hint": "[repo] <pr-number>",
+          "description": "Find and retest failed payload jobs on a PR",
+          "name": "payload-retest",
+          "synopsis": "/ci:payload-retest <pr-number>"
+        },
+        {
+          "argument_hint": "[repo] <pr-number>",
+          "description": "Find and retest failed e2e CI jobs and payload jobs on a PR",
+          "name": "pr-retest",
+          "synopsis": "/ci:pr-retest <pr-number>"
         },
         {
           "argument_hint": "<execution-id>",
@@ -321,6 +339,11 @@
       "name": "ci",
       "skills": [
         {
+          "description": "Helper scripts for analyzing and retesting failed e2e CI jobs on pull requests",
+          "id": "e2e-retest",
+          "name": "E2E Retest Helper Scripts"
+        },
+        {
           "description": "Fetch detailed information about a Component Readiness regression from the Sippy API",
           "id": "fetch-regression-details",
           "name": "Fetch Regression Details"
@@ -334,9 +357,19 @@
           "description": "Helper skill to retrieve OAuth tokens from the correct OpenShift cluster context when multiple clusters are configured",
           "id": "oc-auth",
           "name": "OC Authentication Helper"
+        },
+        {
+          "description": "Helper scripts for analyzing and retesting failed payload CI jobs on pull requests",
+          "id": "payload-retest",
+          "name": "Payload Retest Helper Scripts"
+        },
+        {
+          "description": "Wrapper script that combines e2e and payload retest functionality for comprehensive PR CI analysis",
+          "id": "pr-retest",
+          "name": "PR Retest Wrapper Script"
         }
       ],
-      "version": "0.0.4"
+      "version": "0.0.5"
     },
     {
       "commands": [
