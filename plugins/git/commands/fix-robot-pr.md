@@ -60,14 +60,24 @@ Common error patterns:
 - `CONFLICT` → Merge conflicts
 - `hack/verify-*.sh` → Other verification failures
 
-### 3. Create a New Clean Branch
+### 3. Discover Git Remotes and Create Branch
 
 ```bash
+# Discover the upstream remote (the main repository)
+UPSTREAM_REMOTE=$(git remote -v | grep "openshift.*fetch" | grep -v "$(git config user.name)" | awk '{print $1}' | head -1)
+
+# Discover the fork remote (your fork)
+FORK_REMOTE=$(git remote -v | grep "$(git config user.name).*push" | awk '{print $1}' | head -1)
+
+# If not found, fall back to common names
+UPSTREAM_REMOTE=${UPSTREAM_REMOTE:-upstream}
+FORK_REMOTE=${FORK_REMOTE:-origin}
+
 # Fetch the latest base branch
-git fetch upstream <base-branch>
+git fetch $UPSTREAM_REMOTE <base-branch>
 
 # Create new branch following naming convention
-git checkout -b cherry-pick-<issue-number>-to-<base-branch> upstream/<base-branch>
+git checkout -b cherry-pick-<issue-number>-to-<base-branch> $UPSTREAM_REMOTE/<base-branch>
 ```
 
 Example: `cherry-pick-29611-to-release-4.19`
@@ -116,8 +126,13 @@ git commit -m "Update generated test annotations"
 ### 6. Push and Create Replacement PR
 
 ```bash
-# Push to your fork (assuming 'origin' is your fork)
-git push -u origin cherry-pick-<issue-number>-to-<base-branch>
+# Use the discovered fork remote (from step 3)
+# If running this step separately, rediscover the fork remote:
+FORK_REMOTE=$(git remote -v | grep "$(git config user.name).*push" | awk '{print $1}' | head -1)
+FORK_REMOTE=${FORK_REMOTE:-origin}
+
+# Push to your fork
+git push -u $FORK_REMOTE cherry-pick-<issue-number>-to-<base-branch>
 
 # Create PR using gh CLI
 gh pr create \
@@ -257,10 +272,11 @@ Beyond what the robot can do:
 
 - Works with any `openshift-cherrypick-robot` PR
 - Error messages help determine exactly what to fix
-- All changes pushed to your fork (`origin` remote)
+- Automatically discovers git remote names (no hardcoded assumptions)
+- All changes pushed to your fork (auto-discovered remote)
 - New PRs target the upstream repository (e.g., `openshift/origin`)
 - Branch naming convention: `cherry-pick-<issue>-to-<release>`
 - Maintains full control to add any fixes needed
 - If no error messages provided, will check PR status and CI logs automatically
-- Assumes `upstream` remote points to the main repository (e.g., `openshift/origin`)
-- Assumes `origin` remote points to your fork
+- Remote discovery uses `git remote -v` and `git config user.name` to identify fork vs upstream
+- Falls back to common names (`origin` for fork, `upstream` for main repo) if auto-discovery fails
