@@ -211,7 +211,7 @@ See [plugins/openshift/README.md](plugins/openshift/README.md) for detailed docu
 Helpers for openshift/origin development.
 
 **Commands:**
-- **`/origin:two-node-origin-pr-helper` `<pr> [--repo owner/repo] [--focus tests|ci|helpers|all] [--depth quick|full]`** - Expert review tool for PRs that add or modify Two Node (Fencing or Arbiter) tests under test/extended/two_node/ in openshift/origin.
+- **`/origin:two-node-origin-pr-helper` `"[--url PR_URL] [<pr>] [--depth quick|full]"`** - "Expert review tool for PRs that add or modify Two Node (Fencing or Arbiter) tests under test/extended/two_node/ in openshift/origin."
 
 See [plugins/origin/README.md](plugins/origin/README.md) for detailed documentation.
 
