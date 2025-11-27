@@ -13,10 +13,11 @@ openshift:test-review
 
 ## Description
 
-The `test-review` command analyzes test code changes in the current git branch to identify potential issues with Ginkgo test naming and structure. It performs two main types of validation:
+The `test-review` command analyzes test code changes in the current git branch to identify potential issues with Ginkgo test naming and structure. It performs three main types of validation:
 
 1. **Component Mapping**: Ensures new tests have proper component tags (preferably `[Jira:"component"]`) to map test failures to the correct team
 2. **Test Name Stability**: Ensures test names are stable and deterministic by detecting potentially random or dynamic strings
+3. **Parallel Safety**: Validates that tests requiring serial execution have the `[Serial]` tag, and that tests with `[Serial]` actually need it
 
 This command is designed for reviewing test changes in OpenShift repositories (commonly openshift/origin) that use the Ginkgo testing framework, where test names are constructed using nested blocks of `Describe()`, `Context()`, `When()`, and `It()` functions.
 
@@ -115,18 +116,51 @@ The command performs the following steps:
    Describe(fmt.Sprintf("[sig-%s] Pod creation", "network"))
    ```
 
-6. **Generate Report**:
+6. **Validate Parallel Safety**:
+   For each new test, analyze the test code to determine if it can safely run in parallel with other tests:
+
+   **Indicators that a test NEEDS `[Serial]` tag:**
+   - **MachineConfig operations**: Creating, updating, or deleting MachineConfig or MachineConfigPool resources
+   - **Node modifications**: Rebooting nodes, draining nodes, cordoning/uncordoning, changing node labels that affect scheduling
+   - **Cluster-wide configuration**: Modifying cluster operators, cluster-scoped resources, or global settings
+   - **Resource quota/limits**: Setting cluster-wide quotas or limits that could affect other tests
+   - **Network policies**: Cluster-wide network policies or CNI configuration changes
+   - **API server configuration**: Changes to API server settings, admission plugins, or authentication
+   - **Storage provisioner changes**: Modifying default storage classes or provisioner settings
+   - **Cluster upgrade operations**: Any operations that trigger cluster version changes
+
+   **Indicators that `[Serial]` is NOT needed (safe for parallel):**
+   - Test operates only in its own namespace
+   - Creates only namespaced resources (pods, services, deployments, etc.)
+   - Does not modify nodes or cluster-wide settings
+   - Uses isolated resources that don't interfere with other tests
+
+   **Detection logic:**
+   - Read the full test code (not just the name, but the actual implementation)
+   - Search for keywords indicating cluster-wide operations:
+     - `MachineConfig`, `MachineConfigPool`, `mc.machineconfiguration.openshift.io`
+     - Node operations: `cordon`, `uncordon`, `drain`, `SchedulingDisabled`
+     - Cluster operators: `clusteroperator`, `config.openshift.io`
+     - Reboot: `reboot`, `systemctl reboot`
+   - Check if test has `[Serial]` tag in name
+   - Flag mismatches:
+     - Test performs cluster-wide operations but lacks `[Serial]` tag
+     - Test has `[Serial]` tag but only operates in its namespace
+
+7. **Generate Report**:
    - List all test files with changes
    - For each file, show:
      - New or modified test cases detected
      - Component mapping status and any violations
+     - Parallel safety status and any violations
      - Any naming violations found with specific line numbers and code snippets
      - Suggested fixes for each violation
    - If no new tests found, report that clearly
    - If tests found but no violations, provide a summary of tests reviewed
 
-7. **Provide Recommendations**:
+8. **Provide Recommendations**:
    - Suggest adding `[Jira:"component"]` tags for tests missing component mapping
+   - Suggest adding or removing `[Serial]` tags based on test behavior analysis
    - Suggest rewriting test names to be static and descriptive
    - Reference the test naming guidelines from openshift/origin
    - Link to relevant documentation if available
@@ -135,7 +169,7 @@ The command performs the following steps:
 
 **Format**: Markdown report with the following sections:
 
-1. **Summary**: Number of test files changed, new tests added, violations found (both component mapping and naming)
+1. **Summary**: Number of test files changed, new tests added, violations found (component mapping, parallel safety, and naming)
 2. **Commit Context**: List of commit messages in the branch
 3. **Test Files Changed**: List of all test files modified
 4. **Component Mapping Violations** (if any):
@@ -143,13 +177,19 @@ The command performs the following steps:
    - Test name
    - Issue: Missing tag, invalid component, or unverified legacy tag
    - Suggested fix
-5. **Naming Violations** (if any):
+5. **Parallel Safety Violations** (if any):
+   - File path and line number
+   - Test name
+   - Issue: Missing `[Serial]` tag when needed, or unnecessary `[Serial]` tag
+   - Evidence from code analysis (cluster-wide operations detected)
+   - Suggested fix
+6. **Naming Violations** (if any):
    - File path and line number
    - Original test name code
    - Explanation of the violation
    - Suggested fix
-6. **Clean Tests** (if any): List of new tests with no violations
-7. **Recommendations**: Best practices and next steps
+7. **Clean Tests** (if any): List of new tests with no violations
+8. **Recommendations**: Best practices and next steps
 
 ## Examples
 
@@ -174,14 +214,16 @@ The command performs the following steps:
 
    ### Summary
    - Comparing against: up/master
-   - Test files changed: 2
-   - New tests detected: 5
+   - Test files changed: 3
+   - New tests detected: 6
    - Component mapping violations: 2
+   - Parallel safety violations: 2
    - Naming violations: 1
 
    ### Commit Context
    - abc123 Add new pod creation tests
    - def456 Fix namespace isolation test
+   - ghi789 Add MachineConfig test
 
    ### Component Mapping Violations
 
@@ -201,6 +243,39 @@ The command performs the following steps:
    **Issue**: Component "network-edge" does not exist in OCPBUGS project. Valid components can be found using the Jira plugin.
 
    **Suggested fix**: Verify the correct component name (e.g., `[Jira:"Networking"]` or similar).
+
+   ### Parallel Safety Violations
+
+   #### test/extended/machineconfig/rollout_test.go:56
+   Test name: "should apply custom MachineConfig and wait for rollout [Jira:\"MachineConfig\"]"
+
+   **Issue**: Test performs cluster-wide operations that could affect other tests but is missing the `[Serial]` tag.
+
+   **Evidence**: Test code contains:
+   - `MachineConfig` resource creation
+   - `MachineConfigPool` status check
+   - Node reboot detection
+
+   **Suggested fix**:
+   ```go
+   It("should apply custom MachineConfig and wait for rollout [Serial] [Jira:\"MachineConfig\"]")
+   ```
+
+   #### test/extended/pods/simple_test.go:23
+   Test name: "should create and delete a simple pod [Serial] [Jira:\"kube-apiserver\"]"
+
+   **Issue**: Test has `[Serial]` tag but only operates within its own namespace. This test can safely run in parallel.
+
+   **Evidence**: Test code only:
+   - Creates pod in test namespace
+   - Waits for pod ready
+   - Deletes pod
+   - No cluster-wide operations detected
+
+   **Suggested fix**:
+   ```go
+   It("should create and delete a simple pod [Jira:\"kube-apiserver\"]")
+   ```
 
    ### Naming Violations
 
@@ -223,6 +298,9 @@ The command performs the following steps:
 
    ### Recommendations
    - Add `[Jira:"component"]` tags to all tests for proper component mapping (preferred)
+   - Review parallel safety violations and add/remove `[Serial]` tags as needed:
+     - Add `[Serial]` for tests that modify cluster-wide resources (MachineConfigs, nodes, cluster operators)
+     - Remove `[Serial]` from tests that only operate within their namespace
    - If using legacy `[sig-*]` or `[bz-*]` tags, ensure they exist elsewhere in the repository
    - Remove dynamic content from test names (variables, timestamps, specific values)
    - Use the Jira plugin to verify valid component names: `/component-health:list-components`
@@ -252,8 +330,13 @@ The command performs the following steps:
   - If Jira plugin is not available, the command will still check for the presence of component tags but cannot validate them
   - Legacy `[sig-*]` and `[bz-*]` tags are verified by checking if they exist elsewhere in the repository
 - **Component tag format**: The `[Jira:"component"]` tag can appear anywhere in the test name (typically at the end)
+- **Parallel safety validation**:
+  - Analyzes actual test code (not just the name) to detect cluster-wide operations
+  - Flags tests missing `[Serial]` when they perform operations that could affect other tests
+  - Flags tests with unnecessary `[Serial]` tags that only operate in their namespace
+  - Searches for keywords: MachineConfig, node operations, cluster operators, etc.
 - **Format strings**: `fmt.Sprintf()` is allowed when all arguments are string literals (e.g., `fmt.Sprintf("[Jira:%q]", "kube-apiserver")` is acceptable for proper quoting)
 - **Dynamic content detection**: Only flags format strings that use variables or function calls, not static string literals
 - Only analyzes `.go` files in test-related paths
 - Does not execute tests, only performs static analysis of test code
-- Focuses specifically on component mapping and test naming violations; does not perform comprehensive code review
+- Focuses specifically on component mapping, parallel safety, and test naming violations; does not perform comprehensive code review
