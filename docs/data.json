@@ -360,6 +360,28 @@
     {
       "commands": [
         {
+          "argument_hint": "<topic or technology>",
+          "description": "Build a concept from first principles with progressive, working code examples",
+          "name": "build-from-scratch",
+          "synopsis": "/learning:build-from-scratch <topic or technology>"
+        },
+        {
+          "argument_hint": "<file|package|concept>",
+          "description": "Explain code or concepts using first principles with WHAT/WHY/HOW structure",
+          "name": "explain",
+          "synopsis": "/learning:explain <file|package|concept>"
+        }
+      ],
+      "description": "Educational commands for understanding code and concepts through first principles",
+      "has_readme": true,
+      "hooks": [],
+      "name": "learning",
+      "skills": [],
+      "version": "0.0.1"
+    },
+    {
+      "commands": [
+        {
           "argument_hint": "<path-to-sosreport> [--only <areas>] [--skip <areas>]",
           "description": "Analyze sosreport archive for system diagnostics and issues",
           "name": "analyze",
