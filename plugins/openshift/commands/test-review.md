@@ -1,6 +1,6 @@
 ---
-description: Review Ginkgo test code changes in current branch for naming violations and best practices
-argument-hint: [base-branch]
+description: Review Ginkgo test code changes in current branch or PR for naming violations and best practices
+argument-hint: [base-branch-or-pr-url]
 ---
 
 ## Name
@@ -8,12 +8,12 @@ openshift:test-review
 
 ## Synopsis
 ```
-/openshift:test-review [base-branch]
+/openshift:test-review [base-branch-or-pr-url]
 ```
 
 ## Description
 
-The `test-review` command analyzes test code changes in the current git branch to identify potential issues with Ginkgo test naming and structure. It performs three main types of validation:
+The `test-review` command analyzes test code changes in the current git branch or a GitHub pull request to identify potential issues with Ginkgo test naming and structure. It performs three main types of validation:
 
 1. **Component Mapping**: Ensures new tests have proper component tags (preferably `[Jira:"component"]`) to map test failures to the correct team
 2. **Test Name Stability**: Ensures test names are stable and deterministic by detecting potentially random or dynamic strings
@@ -25,28 +25,55 @@ This command is designed for reviewing test changes in OpenShift repositories (c
 
 The command performs the following steps:
 
-1. **Determine Base Branch**:
-   - If user provides `base-branch` argument, use it directly (e.g., `up/main`, `origin/master`)
-   - Validate the provided branch exists: `git rev-parse --verify <base-branch> 2>/dev/null`
-   - If no argument provided, auto-detect upstream branch:
-     - Check for these remotes in order: `up`, `upstream`, `origin`
-     - Check for these branch names in order: `master`, `main`
-     - Use the first combination that exists (e.g., `up/master`, `up/main`, `upstream/master`, `origin/main`, etc.)
-     - Command to check: `git rev-parse --verify <remote>/<branch> 2>/dev/null`
-   - If auto-detection fails, error and ask user to specify base branch explicitly
+1. **Determine Source of Changes**:
+   - Check if argument is provided
+   - If argument looks like a URL (contains `github.com/` and `/pull/`):
+     - **PR Mode**: Parse the PR URL to extract owner, repo, and PR number
+     - Use GitHub CLI (`gh`) to fetch PR information:
+       - `gh pr view <PR-number> --repo <owner>/<repo> --json files,baseRefName,headRefName,commits`
+     - Get list of changed files from the PR
+     - Get base branch and head branch from PR metadata
+     - For each changed test file, fetch the file content from both base and head
+   - Else if argument is a branch name (e.g., `up/main`, `origin/master`):
+     - **Branch Mode**: Validate the branch exists: `git rev-parse --verify <base-branch> 2>/dev/null`
+     - Use git diff to compare current branch against provided base branch
+   - Else if no argument provided:
+     - **Auto-detect Mode**: Auto-detect upstream branch:
+       - Check for these remotes in order: `up`, `upstream`, `origin`
+       - Check for these branch names in order: `master`, `main`
+       - Use the first combination that exists
+       - Command to check: `git rev-parse --verify <remote>/<branch> 2>/dev/null`
+   - If all methods fail, error and ask user to specify base branch or PR URL explicitly
 
 2. **Identify Code Changes**:
-   - Run `git diff <base-branch>...HEAD --name-only` to find all changed files
-   - Filter for Go test files (files ending in `_test.go` or in `test/` directories)
-   - Read commit messages from the current branch using `git log <base-branch>..HEAD --oneline`
+   - **If PR Mode**:
+     - Changed files are already available from `gh pr view` JSON output
+     - Filter for Go files that may contain tests:
+       - Files ending in `.go` (including but not limited to `_test.go`)
+       - Located in `test/` directories (common in openshift/origin)
+       - Located in directories containing test code (e.g., `test/extended/`, `e2e/`)
+     - Commit messages available from PR commits in JSON output
+   - **If Branch/Auto-detect Mode**:
+     - Run `git diff <base-branch>...HEAD --name-only` to find all changed files
+     - Filter for Go files that may contain tests:
+       - Files ending in `.go` (including but not limited to `_test.go`)
+       - Located in `test/` directories
+       - Located in directories containing test code
+     - Read commit messages from the current branch using `git log <base-branch>..HEAD --oneline`
 
 3. **Detect New Tests**:
-   - For each changed test file, run `git diff <base-branch>...HEAD -- <file>` to see the actual changes
+   - **If PR Mode**:
+     - For each changed Go file, use `gh api` to get the diff:
+       - `gh api repos/<owner>/<repo>/pulls/<pr-number>/files --jq '.[] | select(.filename == "<file>") | .patch'`
+     - Parse the unified diff to find additions
+   - **If Branch/Auto-detect Mode**:
+     - For each changed Go file, run `git diff <base-branch>...HEAD -- <file>` to see the actual changes
    - Look for lines that are additions (start with `+`) containing Ginkgo test functions:
      - `Describe(`
      - `Context(`
      - `When(`
      - `It(`
+   - **Note**: In OpenShift test projects (e.g., openshift/origin), Ginkgo tests often appear in `.go` files without the `_test.go` suffix, particularly in `test/extended/` and similar directories
    - These indicate new or modified test cases
    - Extract the full test name by combining all nested blocks (Describe/Context/When/It)
 
@@ -137,6 +164,8 @@ The command performs the following steps:
 
    **Detection logic:**
    - Read the full test code (not just the name, but the actual implementation)
+   - **If PR Mode**: Fetch complete file content from PR head branch using `gh api`
+   - **If Branch Mode**: Read file from working directory or use `git show`
    - Search for keywords indicating cluster-wide operations:
      - `MachineConfig`, `MachineConfigPool`, `mc.machineconfiguration.openshift.io`
      - Node operations: `cordon`, `uncordon`, `drain`, `SchedulingDisabled`
@@ -208,12 +237,23 @@ The command performs the following steps:
    /openshift:test-review upstream/master
    ```
 
+4. **Review a GitHub pull request**:
+   ```
+   /openshift:test-review https://github.com/openshift/origin/pull/305390
+   ```
+
+5. **Review a PR from a different repository**:
+   ```
+   /openshift:test-review https://github.com/openshift/kubernetes/pull/12345
+   ```
+
    Expected output when violations are found:
    ```markdown
    ## Test Review Report
 
    ### Summary
-   - Comparing against: up/master
+   - Source: PR #305390 (openshift/origin)
+   - Comparing: base branch `master` vs head branch `my-feature`
    - Test files changed: 3
    - New tests detected: 6
    - Component mapping violations: 2
@@ -309,22 +349,38 @@ The command performs the following steps:
 
 ## Arguments
 
-- **$1** (base-branch, optional): The base branch to compare against (e.g., `up/main`, `origin/master`, `upstream/main`). If not provided, the command will auto-detect the upstream branch by checking for remotes (`up`, `upstream`, `origin`) and branch names (`master`, `main`) in order.
+- **$1** (base-branch-or-pr-url, optional): Either:
+  - **GitHub PR URL**: Full URL to a pull request (e.g., `https://github.com/openshift/origin/pull/305390`). The command will fetch and analyze the PR changes using GitHub CLI.
+  - **Base branch**: The base branch to compare against (e.g., `up/main`, `origin/master`, `upstream/main`). The command will compare the current branch against this base.
+  - **Omit**: If not provided, the command will auto-detect the upstream branch by checking for remotes (`up`, `upstream`, `origin`) and branch names (`master`, `main`) in order.
 
 ## Prerequisites
 
-- Must be run from within a git repository
-- Must have a current branch that differs from the upstream branch
-- Repository should contain Ginkgo-based Go tests
+- **For local branch analysis**:
+  - Must be run from within a git repository
+  - Must have a current branch that differs from the upstream branch
+  - Repository should contain Ginkgo-based Go tests (typically in `test/` directories)
+- **For PR analysis**:
+  - GitHub CLI (`gh`) must be installed and authenticated
+  - No local repository needed if reviewing a PR URL
+- **General**:
+  - Works with any Ginkgo test project structure (tests in `*_test.go` files or regular `.go` files)
 
 ## Notes
 
-- **Branch detection priority**:
+- **Mode detection**:
+  - Automatically detects if argument is a PR URL (contains `github.com/` and `/pull/`)
+  - PR mode uses GitHub CLI (`gh`) to fetch changes - no local clone needed
+  - Branch mode requires local git repository
+- **Branch detection priority** (for branch/auto-detect mode):
   - If base branch is provided as argument, it takes priority and is validated
   - If not provided, auto-detects by checking remotes (`up`, `upstream`, `origin`) and branch names (`master`, `main`)
   - Uses the first valid combination found
   - Displays which branch comparison is being used in the report
-- **Recommended usage**: If you have multiple remotes or stale branches, explicitly specify the base branch (e.g., `/openshift:test-review up/main`) to ensure accurate comparison
+- **Recommended usage**:
+  - Use PR URL when reviewing someone else's PR or when you don't have the code locally
+  - Use base branch name when reviewing your local working branch
+  - If you have multiple remotes or stale branches, explicitly specify the base branch (e.g., `/openshift:test-review up/main`)
 - **Component validation**:
   - If the Jira MCP plugin is enabled, the command will validate `[Jira:"component"]` tags against actual OCPBUGS components
   - If Jira plugin is not available, the command will still check for the presence of component tags but cannot validate them
@@ -337,6 +393,9 @@ The command performs the following steps:
   - Searches for keywords: MachineConfig, node operations, cluster operators, etc.
 - **Format strings**: `fmt.Sprintf()` is allowed when all arguments are string literals (e.g., `fmt.Sprintf("[Jira:%q]", "kube-apiserver")` is acceptable for proper quoting)
 - **Dynamic content detection**: Only flags format strings that use variables or function calls, not static string literals
-- Only analyzes `.go` files in test-related paths
+- **Test file detection**:
+  - Analyzes all `.go` files in test-related directories (not just `*_test.go` files)
+  - OpenShift test projects often organize Ginkgo tests in regular `.go` files within `test/extended/` and similar directories
+  - Detects tests by looking for Ginkgo functions (`Describe`, `Context`, `When`, `It`) rather than relying on file naming conventions
 - Does not execute tests, only performs static analysis of test code
 - Focuses specifically on component mapping, parallel safety, and test naming violations; does not perform comprehensive code review

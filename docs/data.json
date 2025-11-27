@@ -624,9 +624,9 @@
         },
         {
           "name": "test-review",
-          "description": "Review Ginkgo test code changes in current branch for naming violations and best practices",
-          "synopsis": "/openshift:test-review [base-branch]",
-          "argument_hint": "[base-branch]"
+          "description": "Review Ginkgo test code changes in current branch or PR for naming violations and best practices",
+          "synopsis": "/openshift:test-review [base-branch-or-pr-url]",
+          "argument_hint": "[base-branch-or-pr-url]"
         }
       ],
       "skills": [],

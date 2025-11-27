@@ -166,7 +166,7 @@ OpenShift development utilities and helpers
 - **`/openshift:new-e2e-test` `[test-specification]`** - Write and validate new OpenShift E2E tests using Ginkgo framework
 - **`/openshift:rebase` `<tag>`** - Rebase OpenShift fork of an upstream repository to a new upstream release.
 - **`/openshift:review-test-cases` `[file-path-or-test-code-or-commands]`** - Review test cases for completeness, quality, and best practices - accepts file path or direct oc commands/test code
-- **`/openshift:test-review` `[base-branch]`** - Review Ginkgo test code changes in current branch for naming violations and best practices
+- **`/openshift:test-review` `[base-branch-or-pr-url]`** - Review Ginkgo test code changes in current branch or PR for naming violations and best practices
 
 See [plugins/openshift/README.md](plugins/openshift/README.md) for detailed documentation.
 
