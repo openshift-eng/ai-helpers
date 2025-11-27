@@ -41,7 +41,7 @@ The command should behave as follows.
 Parse arguments from the invocation:
 
 - --url:
-  - Optional full PR URL (example: https://github.com/openshift/origin/pull/30510)
+  - Optional full PR URL (example: <https://github.com/openshift/origin/pull/30510>)
   - When provided, this takes precedence over any local git information.
 
 - <pr> (optional positional):
@@ -143,7 +143,7 @@ The command is static and requires no cluster access.
 
 /origin:two-node-origin-pr-helper --depth full  
 /origin:two-node-origin-pr-helper 30510 --depth full  
-/origin:two-node-origin-pr-helper --url https://github.com/openshift/origin/pull/30510 --depth quick  
+/origin:two-node-origin-pr-helper --url <https://github.com/openshift/origin/pull/30510> --depth quick  
 
 ---
 
