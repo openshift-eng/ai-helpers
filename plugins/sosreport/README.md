@@ -12,6 +12,87 @@ The sosreport plugin provides AI-powered analysis of sosreport archives, which a
 
 ## Commands
 
+### `/sosreport:collector`
+
+Automates the collection of SOS reports from one or more OpenShift nodes and downloads them locally.
+
+**Single-node Usage:**
+```bash
+/sosreport:collector <command> <node-name> [options]
+```
+
+**Single-node Commands:**
+- `start` - Start a debug pod on the target node
+- `collect` - Collect SOS report from the node (requires debug pod)
+- `download` - Download SOS report from debug pod to local machine
+- `list` - List available SOS reports in the debug pod
+- `cleanup` - Delete the debug pod
+- `all` - Execute complete workflow (start → collect → download)
+
+**Multi-node Usage:**
+```bash
+/sosreport:collector multi <node1> <node2> [...] [options]
+```
+
+**Multi-node Options:**
+- `--max-parallel <num>` - Maximum parallel collections (default: 5)
+- `--cleanup` - Automatically cleanup debug pods after collection
+
+**Options:**
+- `--download-dir <path>` - Directory to store downloaded reports (default: `.work/sos-reports`)
+- `--case-id <id>` - Red Hat case ID to associate with the SOS report
+- `--namespace <ns>` - Namespace for debug pod (default: `default`)
+- `--plugin-timeout <seconds>` - Timeout for each SOS plugin (default: 900)
+- `--report-path <path>` - Specific report path to download (for `download` command)
+- `--force` - Force cleanup without confirmation (for `cleanup` command)
+
+**Single-node Examples:**
+
+```bash
+# Full workflow - collect and download in one command
+/sosreport:collector all worker-0.example.com
+
+# With Red Hat case ID
+/sosreport:collector all worker-0.example.com --case-id 12345678
+
+# Step-by-step workflow
+/sosreport:collector start worker-0.example.com
+/sosreport:collector collect worker-0.example.com
+/sosreport:collector download worker-0.example.com
+/sosreport:collector cleanup worker-0.example.com
+
+# List available reports
+/sosreport:collector list worker-0.example.com
+```
+
+**Multi-node Examples:**
+
+```bash
+# Collect from multiple worker nodes
+/sosreport:collector multi worker-0.example.com worker-1.example.com worker-2.example.com
+
+# With case ID and auto-cleanup
+/sosreport:collector multi worker-{0..9}.example.com --case-id 12345678 --cleanup
+
+# Limit parallel collections for smaller clusters
+/sosreport:collector multi worker-{0..19}.example.com --max-parallel 3
+
+# Full cluster collection
+/sosreport:collector multi \
+  master-{0..2}.example.com \
+  worker-{0..9}.example.com \
+  --case-id 12345678 \
+  --cleanup
+```
+
+**Key Features:**
+- Single-node: Fine-grained control with separate commands per step
+- Multi-node: Parallel execution saves time (5 nodes in parallel takes ~2x vs 5x sequential)
+- Independent node processing (failures don't stop other collections)
+- Comprehensive summary showing successes/failures
+- Per-node logs saved to `.work/sos-reports/logs/<node>.log` (multi-node mode)
+- Collection typically takes 10-30 minutes per node
+
 ### `/sosreport:analyze`
 
 Performs comprehensive analysis of a sosreport archive with support for selective analysis.
@@ -139,7 +220,69 @@ git clone https://github.com/openshift-eng/ai-helpers.git
 
 ## Typical Workflows
 
-### Full Comprehensive Analysis
+### OpenShift Node Collection and Analysis
+
+1. **Collect SOS report from OpenShift node**:
+   ```bash
+   /sosreport:collector all worker-0.example.com --case-id 12345678
+   ```
+   This automatically starts a debug pod, collects the SOS report, and downloads it to `.work/sos-reports/`.
+
+2. **Analyze the collected report**:
+   ```bash
+   /sosreport:analyze .work/sos-reports/sosreport-worker-0-*.tar.xz
+   ```
+   Performs comprehensive analysis of the downloaded report.
+
+3. **Review findings**: Examine the interactive summary for critical issues and recommendations across all areas
+
+4. **Deep dive**: Ask follow-up questions about specific findings:
+   ```bash
+   Can you show me more details about the OOM killer events?
+   What caused the kubelet service to fail?
+   ```
+
+5. **Clean up**: Remove the debug pod when finished:
+   ```bash
+   /sosreport:collector cleanup worker-0.example.com
+   ```
+
+### Multi-Node Collection and Comparative Analysis
+
+1. **Collect from multiple nodes in parallel**:
+   ```bash
+   /sosreport:collector multi \
+     worker-0.example.com \
+     worker-1.example.com \
+     worker-2.example.com \
+     --case-id 12345678 \
+     --cleanup
+   ```
+   Collects SOS reports from all specified nodes simultaneously with automatic cleanup.
+
+2. **Review the summary**:
+   The command displays which nodes succeeded/failed and shows local file paths for all collected reports.
+
+3. **Analyze individual nodes**:
+   ```bash
+   # Analyze a specific problematic node
+   /sosreport:analyze .work/sos-reports/sosreport-worker-1-*.tar.xz --only logs
+   ```
+
+4. **Comparative analysis**:
+   Ask questions across multiple reports:
+   ```
+   Compare memory usage across all three worker nodes
+   Which node has the most OOM killer events?
+   Are there common errors across all nodes?
+   ```
+
+5. **Retry failed nodes** (if any):
+   ```bash
+   /sosreport:collector all worker-X.example.com
+   ```
+
+### Full Comprehensive Analysis (Pre-collected Report)
 
 1. **Obtain sosreport**: Get a sosreport archive from a system (usually generated with `sosreport` or `sos report` command)
 

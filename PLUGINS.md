@@ -233,6 +233,7 @@ Analyze sosreport archives for system diagnostics and troubleshooting
 
 **Commands:**
 - **`/sosreport:analyze` `<path-to-sosreport> [--only <areas>] [--skip <areas>]`** - Analyze sosreport archive for system diagnostics and issues
+- **`/sosreport:collector` `<command> <node-name(s)> [options]`** - Collect SOS reports from one or more OpenShift nodes and download them locally
 
 See [plugins/sosreport/README.md](plugins/sosreport/README.md) for detailed documentation.
 
