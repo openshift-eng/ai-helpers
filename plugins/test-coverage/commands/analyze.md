@@ -209,7 +209,7 @@ For each source file:
 
 Execute the test structure analyzer Python script:
 ```bash
-python plugins/test-coverage/skills/test-structure/test_structure_analyzer.py \
+python skills/analyze/test_structure_analyzer.py \
     <source-directory> \
     --priority <priority> \
     --output <output-dir>

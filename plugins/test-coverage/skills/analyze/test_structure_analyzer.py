@@ -501,12 +501,10 @@ def identify_gaps(mapping: Dict, priority_filter: str = 'all') -> Dict:
     }
 
     for source_file, data in mapping.items():
-        priority = calculate_priority(source_file, data)
+        file_priority = calculate_priority(source_file, data)
+        include_file_level = priority_filter == 'all' or file_priority == priority_filter
 
-        if priority_filter != 'all' and priority != priority_filter:
-            continue
-
-        if len(data['test_files']) == 0:
+        if len(data['test_files']) == 0 and include_file_level:
             # Completely untested file
             exported_count = sum(
                 1 for f in data['functions'].values()
@@ -516,10 +514,10 @@ def identify_gaps(mapping: Dict, priority_filter: str = 'all') -> Dict:
                 'file': source_file,
                 'total_functions': data['total_functions'],
                 'exported_functions': exported_count,
-                'priority': priority
+                'priority': file_priority
             })
 
-        elif data['untested_functions'] > 0:
+        elif data['untested_functions'] > 0 and include_file_level:
             # Partially tested file
             gaps['partially_tested_files'].append({
                 'file': source_file,
@@ -528,10 +526,10 @@ def identify_gaps(mapping: Dict, priority_filter: str = 'all') -> Dict:
                 'untested_functions': data['untested_functions'],
                 'total_functions': data['total_functions'],
                 'coverage': (data['tested_functions'] / data['total_functions'] * 100) if data['total_functions'] > 0 else 0,
-                'priority': priority
+                'priority': file_priority
             })
 
-        # Collect untested functions
+        # Collect untested functions (always iterate, apply function-level priority filter)
         for func_name, func_data in data['functions'].items():
             if not func_data['tested']:
                 func_priority = 'high' if func_data['visibility'] in ['exported', 'public'] else 'low'
