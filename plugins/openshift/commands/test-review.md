@@ -25,7 +25,18 @@ This command is designed for reviewing test changes in OpenShift repositories (c
 
 The command performs the following steps:
 
-1. **Determine Source of Changes**:
+1. **Load OpenShift Testing Guidelines**:
+   - Fetch the latest testing and feature guidelines from OpenShift enhancements repository
+   - Use `curl` to download: `https://raw.githubusercontent.com/openshift/enhancements/refs/heads/master/dev-guide/feature-zero-to-hero.md`
+   - Parse the document to extract:
+     - Testing requirements for OpenShift features
+     - Best practices for test organization
+     - Feature lifecycle requirements
+     - Quality criteria and standards
+   - Keep this context available throughout the review to validate against official OpenShift standards
+   - If fetch fails, continue with review but note that latest guidelines are unavailable
+
+2. **Determine Source of Changes**:
    - Check if argument is provided
    - If argument looks like a URL (contains `github.com/` and `/pull/`):
      - **PR Mode**: Parse the PR URL to extract owner, repo, and PR number
@@ -45,7 +56,7 @@ The command performs the following steps:
        - Command to check: `git rev-parse --verify <remote>/<branch> 2>/dev/null`
    - If all methods fail, error and ask user to specify base branch or PR URL explicitly
 
-2. **Identify Code Changes**:
+3. **Identify Code Changes**:
    - **If PR Mode**:
      - Changed files are already available from `gh pr view` JSON output
      - Filter for Go files that may contain tests:
@@ -61,7 +72,7 @@ The command performs the following steps:
        - Located in directories containing test code
      - Read commit messages from the current branch using `git log <base-branch>..HEAD --oneline`
 
-3. **Detect New Tests**:
+4. **Detect New Tests**:
    - **If PR Mode**:
      - For each changed Go file, use `gh api` to get the diff:
        - `gh api repos/<owner>/<repo>/pulls/<pr-number>/files --jq '.[] | select(.filename == "<file>") | .patch'`
@@ -77,7 +88,7 @@ The command performs the following steps:
    - These indicate new or modified test cases
    - Extract the full test name by combining all nested blocks (Describe/Context/When/It)
 
-4. **Validate Component Mapping**:
+5. **Validate Component Mapping**:
    For each new test detected, verify it has proper component tagging:
 
    **Preferred: [Jira:"component"] tag**
@@ -98,7 +109,7 @@ The command performs the following steps:
 
    **Missing component tag**: Flag as violation if no component tag found
 
-5. **Analyze Test Names for Dynamic Content**:
+6. **Analyze Test Names for Dynamic Content**:
    For each detected test definition, check if the test name contains potentially random or dynamic strings:
 
    **❌ VIOLATIONS TO FLAG:**
@@ -143,7 +154,7 @@ The command performs the following steps:
    Describe(fmt.Sprintf("[sig-%s] Pod creation", "network"))
    ```
 
-6. **Validate Parallel Safety**:
+7. **Validate Parallel Safety**:
    For each new test, analyze the test code to determine if it can safely run in parallel with other tests:
 
    **Indicators that a test NEEDS `[Serial]` tag:**
@@ -176,7 +187,7 @@ The command performs the following steps:
      - Test performs cluster-wide operations but lacks `[Serial]` tag
      - Test has `[Serial]` tag but only operates in its namespace
 
-7. **Generate Report**:
+8. **Generate Report**:
    - List all test files with changes
    - For each file, show:
      - New or modified test cases detected
@@ -187,12 +198,14 @@ The command performs the following steps:
    - If no new tests found, report that clearly
    - If tests found but no violations, provide a summary of tests reviewed
 
-8. **Provide Recommendations**:
+9. **Provide Recommendations**:
    - Suggest adding `[Jira:"component"]` tags for tests missing component mapping
    - Suggest adding or removing `[Serial]` tags based on test behavior analysis
    - Suggest rewriting test names to be static and descriptive
+   - Cross-reference findings with the OpenShift feature-zero-to-hero guidelines loaded in step 1
+   - Provide context-aware recommendations based on official OpenShift testing standards
    - Reference the test naming guidelines from openshift/origin
-   - Link to relevant documentation if available
+   - Link to relevant documentation including the feature-zero-to-hero guide
 
 ## Return Value
 
@@ -254,6 +267,7 @@ The command performs the following steps:
    ### Summary
    - Source: PR #305390 (openshift/origin)
    - Comparing: base branch `master` vs head branch `my-feature`
+   - OpenShift testing guidelines: Loaded from feature-zero-to-hero.md
    - Test files changed: 3
    - New tests detected: 6
    - Component mapping violations: 2
@@ -344,7 +358,8 @@ The command performs the following steps:
    - If using legacy `[sig-*]` or `[bz-*]` tags, ensure they exist elsewhere in the repository
    - Remove dynamic content from test names (variables, timestamps, specific values)
    - Use the Jira plugin to verify valid component names: `/component-health:list-components`
-   - See https://github.com/openshift/origin/blob/master/test/extended/README.md for test naming guidelines
+   - See official OpenShift testing guidelines: https://github.com/openshift/enhancements/blob/master/dev-guide/feature-zero-to-hero.md
+   - See test naming guidelines: https://github.com/openshift/origin/blob/master/test/extended/README.md
    ```
 
 ## Arguments
@@ -368,6 +383,11 @@ The command performs the following steps:
 
 ## Notes
 
+- **OpenShift guidelines integration**:
+  - Automatically fetches the latest feature-zero-to-hero guide from openshift/enhancements at the start of execution
+  - Uses these official guidelines to validate test quality and completeness
+  - Provides context-aware recommendations based on OpenShift testing standards
+  - If the guidelines cannot be fetched, the review continues but recommendations may be more generic
 - **Mode detection**:
   - Automatically detects if argument is a PR URL (contains `github.com/` and `/pull/`)
   - PR mode uses GitHub CLI (`gh`) to fetch changes - no local clone needed
