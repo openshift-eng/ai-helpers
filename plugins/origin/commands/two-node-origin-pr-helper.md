@@ -1,6 +1,6 @@
 ---
-description: "Expert review tool for PRs that add or modify Two Node (Fencing or Arbiter) tests under test/extended/two_node/ in openshift/origin."
-argument-hint: "[--url PR_URL] [<pr>] [--depth quick|full]"
+description: Expert review tool for PRs that add or modify Two Node (Fencing or Arbiter) tests under test/extended/two_node/ in openshift/origin.
+argument-hint: [--url PR_URL] [<pr>] [--depth quick|full]
 ---
 
 ## Name
