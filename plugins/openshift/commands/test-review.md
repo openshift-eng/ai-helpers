@@ -26,7 +26,7 @@ This command is designed for reviewing test changes in OpenShift repositories (c
 The command performs the following steps:
 
 1. **Load OpenShift Testing Guidelines**:
-   - Fetch the latest testing and feature guidelines from OpenShift enhancements repository
+   - Fetch the latest guidelines for landing a feature in OpenShift from the enhancements repository
    - Use `curl` to download: `https://raw.githubusercontent.com/openshift/enhancements/refs/heads/master/dev-guide/feature-zero-to-hero.md`
    - Parse the document to extract:
      - Testing requirements for OpenShift features
@@ -125,6 +125,8 @@ The command performs the following steps:
 
    **IMPORTANT**: Git history tracks authorship - do not include author/owner information in test names.
 
+   **IMPORTANT**: The `[Level0]` tag is valuable and should be preserved - it indicates a test was ported from openshift-tests-private and was considered important. Only the format needs correction (from untagged "LEVEL0" to tagged `[Level0]`).
+
    **Examples of violations:**
    ```go
    // BAD: Contains fmt.Sprintf with variable
@@ -165,9 +167,11 @@ The command performs the following steps:
    // GOOD: Format string with literal arguments for proper quoting
    Describe(fmt.Sprintf("[sig-%s] Pod creation", "network"))
 
-   // GOOD: Properly tagged Level0 (if needed)
+   // GOOD: Properly tagged Level0 (preserve this tag when porting tests)
    It("should create pod successfully [Level0] [Jira:\"kube-apiserver\"]")
    Describe("[Level0] Networking isolation tests")
+
+   // NOTE: [Level0] should be preserved - it indicates an important test ported from openshift-tests-private
    ```
 
 7. **Validate Parallel Safety**:
@@ -204,9 +208,10 @@ The command performs the following steps:
      - Test has `[Serial]` tag but only operates in its namespace
 
 8. **Generate Report**:
+   - **Assemble Full Test Names**: For each new or modified test detected, construct the complete test name by combining all nested Ginkgo blocks (Describe/Context/When/It)
    - List all test files with changes
    - For each file, show:
-     - New or modified test cases detected
+     - New or modified test cases detected with their full assembled names
      - Component mapping status and any violations
      - Parallel safety status and any violations
      - Any naming violations found with specific line numbers and code snippets
@@ -228,26 +233,27 @@ The command performs the following steps:
 **Format**: Markdown report with the following sections:
 
 1. **Summary**: Number of test files changed, new tests added, violations found (component mapping, parallel safety, and naming)
-2. **Commit Context**: List of commit messages in the branch
-3. **Test Files Changed**: List of all test files modified
-4. **Component Mapping Violations** (if any):
+2. **Tests Detected**: Full list of all new or modified test names (complete paths assembled from nested Ginkgo blocks)
+3. **Commit Context**: List of commit messages in the branch
+4. **Test Files Changed**: List of all test files modified
+5. **Component Mapping Violations** (if any):
    - File path and line number
    - Test name
    - Issue: Missing tag, invalid component, or unverified legacy tag
    - Suggested fix
-5. **Parallel Safety Violations** (if any):
+6. **Parallel Safety Violations** (if any):
    - File path and line number
    - Test name
    - Issue: Missing `[Serial]` tag when needed, or unnecessary `[Serial]` tag
    - Evidence from code analysis (cluster-wide operations detected)
    - Suggested fix
-6. **Naming Violations** (if any):
+7. **Naming Violations** (if any):
    - File path and line number
    - Original test name code
    - Explanation of the violation
    - Suggested fix
-7. **Clean Tests** (if any): List of new tests with no violations
-8. **Recommendations**: Best practices and next steps
+8. **Clean Tests** (if any): List of new tests with no violations
+9. **Recommendations**: Best practices and next steps
 
 ## Examples
 
@@ -283,17 +289,36 @@ The command performs the following steps:
    ### Summary
    - Source: PR #305390 (openshift/origin)
    - Comparing: base branch `master` vs head branch `my-feature`
-   - OpenShift testing guidelines: Loaded from feature-zero-to-hero.md
+   - OpenShift feature development guidelines: Loaded from feature-zero-to-hero.md
    - Test files changed: 3
    - New tests detected: 6
    - Component mapping violations: 2
    - Parallel safety violations: 2
    - Naming violations: 3 (1 dynamic content, 2 deprecated conventions)
 
+   ### Tests Detected
+
+   The following new or modified tests were found:
+
+   1. `[sig-node] Pods should create pod successfully` (test/extended/pods/creation_test.go:32)
+   2. `[sig-network] Networking should isolate traffic between namespaces [Jira:"network-edge"]` (test/extended/networking/isolation_test.go:78)
+   3. `[sig-machineconfig] MachineConfig should apply custom MachineConfig and wait for rollout [Jira:"MachineConfig"]` (test/extended/machineconfig/rollout_test.go:56)
+   4. `[sig-node] Pods should create and delete a simple pod [Serial] [Jira:"kube-apiserver"]` (test/extended/pods/simple_test.go:23)
+   5. `[sig-auth] RBAC Author:jdoe-OCP-54321 should verify RBAC permissions` (test/extended/auth/rbac_test.go:67)
+   6. `[sig-storage] LEVEL0 persistent volume provisioning` (test/extended/storage/volume_test.go:123)
+
    ### Commit Context
    - abc123 Add new pod creation tests
    - def456 Fix namespace isolation test
    - ghi789 Add MachineConfig test
+
+   ### Test Files Changed
+   - test/extended/pods/creation_test.go
+   - test/extended/pods/simple_test.go
+   - test/extended/networking/isolation_test.go
+   - test/extended/machineconfig/rollout_test.go
+   - test/extended/auth/rbac_test.go
+   - test/extended/storage/volume_test.go
 
    ### Component Mapping Violations
 
@@ -378,7 +403,9 @@ The command performs the following steps:
    Describe("LEVEL0 persistent volume provisioning")
    ```
 
-   **Issue**: Test name contains untagged "LEVEL0" (deprecated format from openshift-tests-private). Level0 should use proper tag format.
+   **Issue**: Test name contains untagged "LEVEL0" (deprecated format from openshift-tests-private). The Level0 designation should use proper tag format `[Level0]`.
+
+   **Note**: The `[Level0]` tag is valuable - it indicates this test was ported from openshift-tests-private and was considered important. Preserve this tag, just correct the format.
 
    **Suggested fix**:
    ```go
@@ -397,11 +424,11 @@ The command performs the following steps:
      - Remove `[Serial]` from tests that only operate within their namespace
    - Remove deprecated openshift-tests-private conventions:
      - Remove "Author:" and "Owner:" prefixes from test names (git history tracks authorship)
-     - Convert untagged "LEVEL0" to proper tag format: `[Level0]`
+     - Convert untagged "LEVEL0" to proper tag format: `[Level0]` (preserve the tag - it indicates an important ported test)
    - If using legacy `[sig-*]` or `[bz-*]` tags, ensure they exist elsewhere in the repository
    - Remove dynamic content from test names (variables, timestamps, specific values)
    - Use the Jira plugin to verify valid component names: `/component-health:list-components`
-   - See official OpenShift testing guidelines: https://github.com/openshift/enhancements/blob/master/dev-guide/feature-zero-to-hero.md
+   - See official OpenShift feature development guidelines: https://github.com/openshift/enhancements/blob/master/dev-guide/feature-zero-to-hero.md
    - See test naming guidelines: https://github.com/openshift/origin/blob/master/test/extended/README.md
    ```
 
@@ -426,6 +453,11 @@ The command performs the following steps:
 
 ## Notes
 
+- **Test name assembly**:
+  - The report includes a "Tests Detected" section at the start listing all new or modified tests
+  - Full test names are assembled by combining all nested Ginkgo blocks (Describe/Context/When/It)
+  - For example: `Describe("[sig-node] Pods") + Context("basic operations") + It("should create pod")` → `[sig-node] Pods basic operations should create pod`
+  - This makes it easy to see exactly which tests are being added or changed
 - **OpenShift guidelines integration**:
   - Automatically fetches the latest feature-zero-to-hero guide from openshift/enhancements at the start of execution
   - Uses these official guidelines to validate test quality and completeness
@@ -460,6 +492,7 @@ The command performs the following steps:
   - Flags "Author:" and "Owner:" prefixes in test names (deprecated from openshift-tests-private)
   - Git history is the proper way to track test authorship
   - Flags untagged "LEVEL0" - this should use proper tag format: `[Level0]`
+  - **Important**: The `[Level0]` tag itself is valuable and should be preserved - it indicates a test was ported from openshift-tests-private and was considered important
   - These conventions are being cleaned up as tests are ported from openshift-tests-private to main repos
 - **Test file detection**:
   - Analyzes all `.go` files in test-related directories (not just `*_test.go` files)
