@@ -30,6 +30,11 @@
       "description": "Analyze component health and track regressions across OpenShift releases"
     },
     {
+      "name": "fbc-art-images",
+      "source": "./plugins/fbc-art-images",
+      "description": "A plugin for testing operators built in FBC ([File Based Catalog](https://olm.operatorframework.io/docs/reference/file-based-catalogs/) by Konflux with art-images-share repository. Requires oras CLI."
+    },
+    {
       "name": "doc",
       "source": "./plugins/doc",
       "description": "A plugin for engineering documentation and notes"
