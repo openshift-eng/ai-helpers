@@ -285,6 +285,30 @@ make lint
 - Before committing changes
 - To diagnose structural issues
 
+### Syncing Gemini CLI Commands
+
+This repository maintains both Claude Code commands (`plugins/*/commands/*.md`) and Gemini CLI commands (`.gemini/commands/*/*.toml`). To avoid maintaining duplicate content, Gemini commands are automatically generated from Claude commands.
+
+**After creating or modifying any Claude command**, sync the Gemini commands:
+
+```bash
+make sync-gemini
+```
+
+This will:
+- Convert all Claude commands (`plugins/*/commands/*.md`) to Gemini format (`.gemini/commands/*/*.toml`)
+- Extract the description and implementation details
+- Apply necessary format conversions (Markdown → TOML)
+- Replace Claude-specific references with Gemini-specific ones
+
+**When to run the sync:**
+- After creating a new command
+- After modifying an existing command
+- Before committing changes that affect command files
+- To ensure Claude and Gemini commands stay in sync
+
+**Important:** Always commit the generated `.gemini/` files along with your Claude command changes to keep both formats synchronized.
+
 ## Best Practices for AI Agents
 
 ### Ethical Guidelines
@@ -318,7 +342,8 @@ When you identify a desirable characteristic (clarity, brevity, formality, humor
 5. **Add examples:** Show common usage patterns
 6. **Test before committing:** Verify the command works as expected
 7. **Run the linter:** Use `make lint` to validate your plugin structure and format
-8. **Respect ethical guidelines:** Never reference real people; describe specific qualities instead
+8. **Sync Gemini commands:** Always run `make sync-gemini` after creating or modifying commands
+9. **Respect ethical guidelines:** Never reference real people; describe specific qualities instead
 
 ### When Writing SKILL.md Files
 
