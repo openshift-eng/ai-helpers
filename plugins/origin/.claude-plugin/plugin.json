@@ -1,0 +1,8 @@
+{
+  "name": "origin",
+  "description": "Helpers for openshift/origin development.",
+  "version": "0.0.1",
+  "author": {
+    "name": "openshift"
+  }
+}
