@@ -641,13 +641,25 @@
           "description": "Review test cases for completeness, quality, and best practices - accepts file path or direct oc commands/test code",
           "name": "review-test-cases",
           "synopsis": "/openshift:review-test-cases [file-path-or-test-code-or-commands]"
+        },
+        {
+          "argument_hint": "",
+          "description": "Generate and visualize OVN-Kubernetes network topology diagram",
+          "name": "visualize-ovn-topology",
+          "synopsis": "/openshift:visualize-ovn-topology"
         }
       ],
       "description": "OpenShift development utilities and helpers",
       "has_readme": true,
       "hooks": [],
       "name": "openshift",
-      "skills": [],
+      "skills": [
+        {
+          "description": "Generates and displays OVN-Kubernetes network topology diagrams showing logical switches, routers, ports with IP/MAC addresses in Mermaid format",
+          "id": "generating-ovn-topology",
+          "name": "generating-ovn-topology"
+        }
+      ],
       "version": "0.0.1"
     },
     {
