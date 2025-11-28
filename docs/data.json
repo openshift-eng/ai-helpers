@@ -589,6 +589,12 @@
     {
       "commands": [
         {
+          "argument_hint": "<pattern-name> [--orgs org1,org2] [--repos N]",
+          "description": "Analyze how OpenShift repos implement a design pattern and get custom recommendations",
+          "name": "analyze-pattern",
+          "synopsis": "/openshift:analyze-pattern <pattern> [--orgs org1,org2] [--repos N] [--refresh] [--skip-clone]"
+        },
+        {
           "argument_hint": "<dependency> [version] [--create-jira] [--create-pr]",
           "description": "Bump dependencies in OpenShift projects with automated analysis and PR creation",
           "name": "bump-deps",
@@ -647,7 +653,13 @@
       "has_readme": true,
       "hooks": [],
       "name": "openshift",
-      "skills": [],
+      "skills": [
+        {
+          "description": "Analyze design pattern implementations across OpenShift/Kubernetes repositories using AI",
+          "id": "pattern-analyzer",
+          "name": "Pattern Analyzer"
+        }
+      ],
       "version": "0.0.1"
     },
     {
