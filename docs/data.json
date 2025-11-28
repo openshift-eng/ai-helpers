@@ -91,6 +91,12 @@
           "synopsis": "/jira:create <type> [project-key] <summary> [options]"
         },
         {
+          "argument_hint": "<feature-key>",
+          "description": "Generate comprehensive feature documentation from Jira feature and all related issues and PRs",
+          "name": "generate-feature-doc",
+          "synopsis": "/jira:generate-feature-doc <feature-key>"
+        },
+        {
           "argument_hint": "[JIRA issue key] [GitHub PR URLs]",
           "description": "Generate test steps for a JIRA issue",
           "name": "generate-test-plan",
@@ -167,9 +173,19 @@
           "name": "Create Jira Task"
         },
         {
+          "description": "Recursively extract GitHub Pull Request links from Jira issues",
+          "id": "extract-prs",
+          "name": "Jira Pull Request Extractor"
+        },
+        {
           "description": "HyperShift team-specific Jira requirements for component selection and conventions",
           "id": "hypershift",
           "name": "HyperShift Jira Conventions"
+        },
+        {
+          "description": "Detailed implementation guide for recursively analyzing Jira features and generating comprehensive documentation",
+          "id": "jira-doc-generator",
+          "name": "Jira Feature Documentation Generator"
         },
         {
           "description": "Detailed implementation guide for validating proposed release blockers",
