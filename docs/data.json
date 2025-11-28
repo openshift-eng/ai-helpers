@@ -241,69 +241,9 @@
       "name": "ci",
       "skills": [
         {
-          "name": "bump-deps",
-          "description": "Bump dependencies in OpenShift projects with automated analysis and PR creation",
-          "synopsis": "/openshift:bump-deps <dependency> [version] [--create-jira] [--create-pr]",
-          "argument_hint": "<dependency> [version] [--create-jira] [--create-pr]"
-        },
-        {
-          "name": "cluster-health-check",
-          "description": "Perform comprehensive health check on OpenShift cluster and report issues",
-          "synopsis": "/openshift:cluster-health-check [--verbose] [--output-format json|text]",
-          "argument_hint": "\"[--verbose] [--output-format]\""
-        },
-        {
-          "name": "crd-review",
-          "description": "Review Kubernetes CRDs against Kubernetes and OpenShift API conventions",
-          "synopsis": "/openshift:crd-review [repository-path]",
-          "argument_hint": "[repository-path]"
-        },
-        {
-          "name": "create-cluster",
-          "description": "Extract OpenShift installer from release image and create an OCP cluster",
-          "synopsis": "/openshift:create-cluster [release-image] [platform] [options]",
-          "argument_hint": "\"[release-image] [platform] [options]\""
-        },
-        {
-          "name": "destroy-cluster",
-          "description": "Destroy an OpenShift cluster created by create-cluster command",
-          "synopsis": "/openshift:destroy-cluster [install-dir]",
-          "argument_hint": "\"[install-dir]\""
-        },
-        {
-          "name": "expand-test-case",
-          "description": "Expand basic test ideas or existing oc commands into comprehensive test scenarios with edge cases in oc CLI or Ginkgo format",
-          "synopsis": "/openshift:expand-test-case [test-idea-or-file-or-commands] [format]",
-          "argument_hint": "[test-idea-or-file-or-commands] [format]"
-        },
-        {
-          "name": "new-e2e-test",
-          "description": "Write and validate new OpenShift E2E tests using Ginkgo framework",
-          "synopsis": "/new-e2e-test [test-specification]",
-          "argument_hint": "[test-specification]"
-        },
-        {
           "description": "Helper skill to retrieve OAuth tokens from the correct OpenShift cluster context when multiple clusters are configured",
           "id": "oc-auth",
           "name": "OC Authentication Helper"
-        },
-        {
-          "name": "rebase",
-          "description": "Rebase OpenShift fork of an upstream repository to a new upstream release.",
-          "synopsis": "/openshift:rebase [tag]",
-          "argument_hint": "<tag>"
-        },
-        {
-          "name": "review-test-cases",
-          "description": "Review test cases for completeness, quality, and best practices - accepts file path or direct oc commands/test code",
-          "synopsis": "/openshift:review-test-cases [file-path-or-test-code-or-commands]",
-          "argument_hint": "[file-path-or-test-code-or-commands]"
-        },
-        {
-          "name": "test-review",
-          "description": "Review Ginkgo test code changes in current branch or PR for naming violations and best practices",
-          "synopsis": "/openshift:test-review [base-branch-or-pr-url]",
-          "argument_hint": "[base-branch-or-pr-url]"
         }
       ],
       "version": "0.0.1"
@@ -701,6 +641,12 @@
           "description": "Review test cases for completeness, quality, and best practices - accepts file path or direct oc commands/test code",
           "name": "review-test-cases",
           "synopsis": "/openshift:review-test-cases [file-path-or-test-code-or-commands]"
+        },
+        {
+          "argument_hint": "[base-branch-or-pr-url]",
+          "description": "Review Ginkgo test code changes in current branch or PR for naming violations and best practices",
+          "name": "test-review",
+          "synopsis": "/openshift:test-review [base-branch-or-pr-url]"
         }
       ],
       "description": "OpenShift development utilities and helpers",

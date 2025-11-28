@@ -109,8 +109,8 @@ The command performs the following steps:
 
    **Missing component tag**: Flag as violation if no component tag found
 
-6. **Analyze Test Names for Dynamic Content**:
-   For each detected test definition, check if the test name contains potentially random or dynamic strings:
+6. **Analyze Test Names for Dynamic Content and Deprecated Conventions**:
+   For each detected test definition, check if the test name contains potentially random or dynamic strings, and validate against deprecated conventions:
 
    **❌ VIOLATIONS TO FLAG:**
    - **String formatting with variables**: `fmt.Sprintf()` with variables that could be dynamic/random
@@ -118,8 +118,12 @@ The command performs the following steps:
    - **Generated identifiers**: UUIDs, random strings, timestamps
    - **Resource names**: Pod names, namespace names with dynamic suffixes
    - **Numeric values**: Specific limits, counts, durations that might change
+   - **Deprecated: Author/Owner in name**: Test names containing "Author:" or "Owner:" (deprecated convention from openshift-tests-private)
+   - **Deprecated: Untagged LEVEL**: Test names containing "LEVEL0" without proper tag format (should be `[Level0]`)
 
    **IMPORTANT**: `fmt.Sprintf()` is acceptable when ALL arguments are string literals (constants). This is commonly used for proper quoting in tags like `[Jira:%q]`.
+
+   **IMPORTANT**: Git history tracks authorship - do not include author/owner information in test names.
 
    **Examples of violations:**
    ```go
@@ -134,6 +138,14 @@ The command performs the following steps:
 
    // BAD: Specific numeric limit that might change
    It("should create pod within 15 seconds")
+
+   // BAD: Author/Owner in name (deprecated from openshift-tests-private)
+   It("Author:jdoe-OCP-12345-should create pod successfully")
+   It("Owner:teamname should verify deployment")
+
+   // BAD: Untagged LEVEL0 (deprecated format from openshift-tests-private)
+   It("LEVEL0 should create pod successfully")
+   Describe("LEVEL0 networking tests")
    ```
 
    **✅ ACCEPTABLE patterns:**
@@ -152,6 +164,10 @@ The command performs the following steps:
 
    // GOOD: Format string with literal arguments for proper quoting
    Describe(fmt.Sprintf("[sig-%s] Pod creation", "network"))
+
+   // GOOD: Properly tagged Level0 (if needed)
+   It("should create pod successfully [Level0] [Jira:\"kube-apiserver\"]")
+   Describe("[Level0] Networking isolation tests")
    ```
 
 7. **Validate Parallel Safety**:
@@ -272,7 +288,7 @@ The command performs the following steps:
    - New tests detected: 6
    - Component mapping violations: 2
    - Parallel safety violations: 2
-   - Naming violations: 1
+   - Naming violations: 3 (1 dynamic content, 2 deprecated conventions)
 
    ### Commit Context
    - abc123 Add new pod creation tests
@@ -345,6 +361,30 @@ The command performs the following steps:
    It(fmt.Sprintf("should create pod successfully [Jira:%q]", "kube-apiserver"))
    ```
 
+   #### test/extended/auth/rbac_test.go:67
+   ```go
+   It("Author:jdoe-OCP-54321 should verify RBAC permissions")
+   ```
+
+   **Issue**: Test name contains deprecated "Author:" prefix from openshift-tests-private. Git history tracks authorship - this information should not be in test names.
+
+   **Suggested fix**:
+   ```go
+   It("should verify RBAC permissions [Jira:\"kube-apiserver\"]")
+   ```
+
+   #### test/extended/storage/volume_test.go:123
+   ```go
+   Describe("LEVEL0 persistent volume provisioning")
+   ```
+
+   **Issue**: Test name contains untagged "LEVEL0" (deprecated format from openshift-tests-private). Level0 should use proper tag format.
+
+   **Suggested fix**:
+   ```go
+   Describe("[Level0] persistent volume provisioning")
+   ```
+
    ### Clean Tests
    - test/extended/storage/pvc_test.go:34 - `It(fmt.Sprintf("should provision persistent volume claim [Jira:%q]", "Storage"))`
    - test/extended/networking/dns_test.go:56 - `It("should resolve cluster DNS [Jira:\"Networking\"]")`
@@ -355,6 +395,9 @@ The command performs the following steps:
    - Review parallel safety violations and add/remove `[Serial]` tags as needed:
      - Add `[Serial]` for tests that modify cluster-wide resources (MachineConfigs, nodes, cluster operators)
      - Remove `[Serial]` from tests that only operate within their namespace
+   - Remove deprecated openshift-tests-private conventions:
+     - Remove "Author:" and "Owner:" prefixes from test names (git history tracks authorship)
+     - Convert untagged "LEVEL0" to proper tag format: `[Level0]`
    - If using legacy `[sig-*]` or `[bz-*]` tags, ensure they exist elsewhere in the repository
    - Remove dynamic content from test names (variables, timestamps, specific values)
    - Use the Jira plugin to verify valid component names: `/component-health:list-components`
@@ -413,6 +456,11 @@ The command performs the following steps:
   - Searches for keywords: MachineConfig, node operations, cluster operators, etc.
 - **Format strings**: `fmt.Sprintf()` is allowed when all arguments are string literals (e.g., `fmt.Sprintf("[Jira:%q]", "kube-apiserver")` is acceptable for proper quoting)
 - **Dynamic content detection**: Only flags format strings that use variables or function calls, not static string literals
+- **Deprecated convention detection**:
+  - Flags "Author:" and "Owner:" prefixes in test names (deprecated from openshift-tests-private)
+  - Git history is the proper way to track test authorship
+  - Flags untagged "LEVEL0" - this should use proper tag format: `[Level0]`
+  - These conventions are being cleaned up as tests are ported from openshift-tests-private to main repos
 - **Test file detection**:
   - Analyzes all `.go` files in test-related directories (not just `*_test.go` files)
   - OpenShift test projects often organize Ginkgo tests in regular `.go` files within `test/extended/` and similar directories
