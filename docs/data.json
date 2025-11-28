@@ -589,6 +589,12 @@
     {
       "commands": [
         {
+          "argument_hint": "\"\"",
+          "description": "Bootstrap OpenShift Manager (OM) integration for OpenShift operators with automated resource discovery",
+          "name": "bootstrap-om",
+          "synopsis": "bash"
+        },
+        {
           "argument_hint": "<dependency> [version] [--create-jira] [--create-pr]",
           "description": "Bump dependencies in OpenShift projects with automated analysis and PR creation",
           "name": "bump-deps",
