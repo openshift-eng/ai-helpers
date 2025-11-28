@@ -20,6 +20,12 @@ Automates the process of bumping dependencies in OpenShift organization projects
 the appropriate version to bump to, updates the necessary files (go.mod, go.sum, package.json, etc.), runs tests,
 and optionally creates Jira tickets and pull requests.
 
+### `/openshift:analyze-pattern`
+
+Analyze how OpenShift and Kubernetes repositories implement a design pattern and get custom recommendations.
+
+This command searches GitHub for pattern implementations, analyzes common approaches, and provides context-aware guidance tailored to your repository type.
+
 ### `/openshift:create-cluster`
 
 Extract OpenShift installer from release image and create an OCP cluster.
@@ -137,6 +143,106 @@ Automates dependency updates in OpenShift projects with comprehensive analysis, 
    ```
 
 See [commands/bump-deps.md](commands/bump-deps.md) for full documentation.
+
+### Pattern Analysis
+
+#### `/openshift:analyze-pattern` - Analyze Design Pattern Implementations
+
+Analyze how OpenShift and Kubernetes repositories implement specific design patterns and get context-aware recommendations tailored to your repository.
+
+**Basic Usage:**
+```bash
+# Analyze NetworkPolicy implementations
+/openshift:analyze-pattern NetworkPolicy
+
+# Analyze ValidatingWebhook across multiple orgs
+/openshift:analyze-pattern ValidatingWebhook --orgs openshift,kubernetes,kubernetes-sigs
+
+# Default: comprehensive analysis (50 repos)
+/openshift:analyze-pattern NetworkPolicy
+
+# Quick analysis with fewer repos (faster)
+/openshift:analyze-pattern MutatingWebhook --repos 10
+
+# Minimal analysis (fastest)
+/openshift:analyze-pattern CustomResourceDefinition --repos 5
+
+# Force refresh cached analysis
+/openshift:analyze-pattern NetworkPolicy --refresh
+```
+
+**What It Does:**
+- Searches GitHub for repositories implementing the pattern
+- Clones and analyzes top repositories
+- Detects common implementation approaches
+- Identifies key features and configurations
+- Finds repositories most similar to yours
+- Generates context-aware recommendations
+
+**Key Features:**
+- Analyzes up to 50 repositories by default for comprehensive insights
+- Statistical analysis ("X% of repos use approach Y") with high confidence
+- Context detection (understands your project type)
+- Similarity matching (finds repos like yours)
+- Getting started steps tailored to your repo
+- Caches results for fast subsequent runs
+
+**Arguments:**
+- `<pattern>` (required): Pattern name (e.g., NetworkPolicy, ValidatingWebhook)
+- `--orgs <org1,org2>`: GitHub organizations to search (default: openshift,kubernetes)
+- `--repos <N>`: Maximum repos to analyze (default: 50, range: 3-50)
+- `--refresh`: Force refresh cached analysis
+
+**Examples:**
+
+1. Basic pattern analysis:
+   ```bash
+   /openshift:analyze-pattern NetworkPolicy
+   ```
+   Output:
+   - 6/7 repos use ValidatingWebhooks
+   - 7/7 repos use namespace label selectors
+   - Follow cluster-network-operator (most similar to your operator project)
+   - Step-by-step implementation guide
+
+2. Analyze across multiple orgs:
+   ```bash
+   /openshift:analyze-pattern CustomResourceDefinition --orgs openshift,kubernetes,kubernetes-sigs
+   ```
+
+3. Quick analysis with fewer repos:
+   ```bash
+   /openshift:analyze-pattern MutatingWebhook --repos 5
+   ```
+
+**Prerequisites:**
+- Python 3.6+ (check: `python3 --version`)
+- Git installed (check: `git --version`)
+- Network access to GitHub
+- (Optional) `GITHUB_TOKEN` environment variable for higher API rate limits
+
+**Output:**
+- Repositories analyzed and ranked by quality
+- Statistical insights on common patterns
+- Context-aware recommendations for your repo
+- References to best implementations
+- Cached results in `.work/design-patterns/<pattern>/`
+
+**Use Cases:**
+- Learning how to implement a new pattern
+- Understanding common approaches vs unique ones
+- Getting started guidance tailored to your project
+- Finding high-quality reference implementations
+- Avoiding common implementation mistakes
+
+**Tier 1 MVP Features:**
+- GitHub repository search and ranking
+- Pattern detection and statistical analysis
+- Context detection (project type, existing patterns)
+- Similarity matching with analyzed repos
+- Getting started recommendations
+
+See [commands/analyze-pattern.md](commands/analyze-pattern.md) for full documentation.
 
 ### Cluster Management
 
