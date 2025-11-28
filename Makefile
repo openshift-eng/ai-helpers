@@ -28,5 +28,11 @@ update: ## Update plugin documentation and website data
 	@echo "Building website data..."
 	@python3 scripts/build-website.py
 
+.PHONY: sync-gemini
+sync-gemini: ## Sync Gemini CLI commands from Claude Code commands
+	@echo "Syncing Gemini commands from Claude commands..."
+	@python3 scripts/sync_gemini_commands.py
+	@echo "Gemini commands synced successfully!"
+
 .DEFAULT_GOAL := help
 
