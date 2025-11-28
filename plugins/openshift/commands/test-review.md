@@ -102,7 +102,12 @@ The command performs the following steps:
    **Alternative: [sig-*] or [bz-*] tags**
    - Look for `[sig-<name>]` or `[bz-<name>]` tags
    - Verify the tag is used elsewhere in the repository:
-     - Run `git grep -r "\[sig-<name>\]" test/` or `git grep -r "\[bz-<name>\]" test/`
+     - **If PR Mode**: Check if we're in the target repository locally
+       - Parse PR URL to extract org/repo (e.g., `openshift/origin`)
+       - Check if current directory is that repository: `git remote -v | grep "github.com[:/]<org>/<repo>"`
+       - If local repo matches PR target: Run `git grep -r "\[sig-<name>\]" test/` locally
+       - If not in matching repo: Note that tag validation requires local checkout and skip validation
+     - **If Branch Mode**: Run `git grep -r "\[sig-<name>\]" test/` or `git grep -r "\[bz-<name>\]" test/`
      - If tag exists in other tests, it's valid
      - If tag is unique to this test, flag as potential made-up tag
    - Examples: `[sig-network]`, `[bz-storage]`
@@ -479,7 +484,10 @@ The command performs the following steps:
 - **Component validation**:
   - If the Jira MCP plugin is enabled, the command will validate `[Jira:"component"]` tags against actual OCPBUGS components
   - If Jira plugin is not available, the command will still check for the presence of component tags but cannot validate them
-  - Legacy `[sig-*]` and `[bz-*]` tags are verified by checking if they exist elsewhere in the repository
+  - Legacy `[sig-*]` and `[bz-*]` tags are verified by checking if they exist elsewhere in the repository:
+    - **In PR mode**: If you're in the target repository locally (checked via `git remote -v`), the command will use local code to validate sig- tags
+    - **In branch mode**: Always uses local repository for tag validation
+    - If not in the matching repository during PR review, tag validation will be skipped with a note
 - **Component tag format**: The `[Jira:"component"]` tag can appear anywhere in the test name (typically at the end)
 - **Parallel safety validation**:
   - Analyzes actual test code (not just the name) to detect cluster-wide operations
