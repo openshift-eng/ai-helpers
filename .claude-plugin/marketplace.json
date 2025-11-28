@@ -85,6 +85,11 @@
       "description": "A plugin to analyze and report on must-gather data"
     },
     {
+      "name": "lvms",
+      "source": "./plugins/lvms",
+      "description": "LVMS (Logical Volume Manager Storage) plugin for troubleshooting and debugging storage issues"
+    },
+    {
       "name": "metrics",
       "source": "./plugins/metrics",
       "description": "Anonymous metrics usage for ai-helpers"

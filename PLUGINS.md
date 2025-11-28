@@ -13,6 +13,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Hcp](#hcp-plugin)
 - [Hello World](#hello-world-plugin)
 - [Jira](#jira-plugin)
+- [Lvms](#lvms-plugin)
 - [Must Gather](#must-gather-plugin)
 - [Node Tuning](#node-tuning-plugin)
 - [Olm](#olm-plugin)
@@ -149,6 +150,15 @@ A plugin to automate tasks with Jira
 - **`/jira:validate-blockers` `[target-version] [component-filter] [--bug issue-key]`** - Validate proposed release blockers using Red Hat OpenShift release blocker criteria
 
 See [plugins/jira/README.md](plugins/jira/README.md) for detailed documentation.
+
+### Lvms Plugin
+
+LVMS (Logical Volume Manager Storage) plugin for troubleshooting and debugging storage issues
+
+**Commands:**
+- **`/lvms:analyze` `[must-gather-path|--live] [--component storage|operator|volumes]`** - Comprehensive LVMS troubleshooting - analyzes LVMCluster, volume groups, PVCs, and storage issues on live clusters or must-gather
+
+See [plugins/lvms/README.md](plugins/lvms/README.md) for detailed documentation.
 
 ### Must Gather Plugin
 
