@@ -2,12 +2,14 @@
 name: Must-Gather Analyzer
 description: |
   Analyze OpenShift must-gather diagnostic data including cluster operators, pods, nodes,
-  and network components. Use this skill when the user asks about cluster health, operator status,
-  pod issues, node conditions, or wants diagnostic insights from must-gather data.
+  network components, and BGP routing (FRR-K8s). Use this skill when the user asks about cluster health,
+  operator status, pod issues, node conditions, BGP configuration, or wants diagnostic insights from
+  must-gather data.
 
   Triggers: "analyze must-gather", "check cluster health", "operator status", "pod issues",
   "node status", "failing pods", "degraded operators", "cluster problems", "crashlooping",
-  "network issues", "etcd health", "analyze clusteroperators", "analyze pods", "analyze nodes"
+  "network issues", "etcd health", "analyze clusteroperators", "analyze pods", "analyze nodes",
+  "bgp", "frr-k8s", "bgp neighbors", "bgp routes", "bgp sessions"
 ---
 
 # Must-Gather Analyzer Skill
@@ -25,6 +27,7 @@ This skill provides analysis for:
 - **Events**: Warning and error events across namespaces
 - **etcd**: Cluster health, member status, and quorum
 - **Storage**: PersistentVolumes and PersistentVolumeClaims status
+- **BGP/FRR-K8s**: BGP neighbor status, route health, and configuration validation
 
 ## Must-Gather Directory Structure
 
@@ -189,6 +192,39 @@ Shows monitoring information:
 - Alerts (state, namespace, name, active since, labels)
 - Total of pending/firing alerts
 
+#### BGP/FRR-K8s Analysis
+```bash
+# Full BGP analysis
+./scripts/analyze_bgp.py <must-gather-path>
+
+# Detailed view with individual routes
+./scripts/analyze_bgp.py <must-gather-path> --verbose
+
+# Node-specific analysis
+./scripts/analyze_bgp.py <must-gather-path> --node master-2
+```
+
+Shows FRR-K8s BGP configuration and state:
+- FRR-K8s installation and pod health
+- Per-node BGP routers (ASN, VRF assignments)
+- BGP neighbor status (address, ASN, state, uptime)
+- Route health (IPv4/IPv6, valid/invalid, best path selection)
+- Configuration validation (raw config usage, BFD profiles)
+- FRR-K8s synchronization (dump_frr vs FRRNodeState)
+- Issues correlation with FRRConfiguration resources
+
+**Key Analysis Points:**
+- **dump_frr is authoritative**: The `show running-config` output is ground truth
+- **FRRNodeState should match**: Discrepancies indicate FRR-K8s sync issues
+- **Raw config is unsupported**: Flagged as warning, can cause sync problems
+- **Route status codes**:
+  - Missing `*` = INVALID route (critical)
+  - `r` = RIB-failure (route rejected)
+  - `S` = Stale route
+  - `>` = Best path selected
+
+**Note:** Analyzes FRR-K8s only. MetalLB resources not included.
+
 ### 3. Interpret and Report
 
 After running the scripts:
@@ -274,6 +310,17 @@ Output: PV and PVC status tables
 1. Run `analyze_network.py` - check network health
 2. Run `analyze_pods.py --namespace openshift-ovn-kubernetes`
 3. Check PodNetworkConnectivityCheck results
+
+### "BGP neighbors not establishing" or "VM network routing issues"
+1. Run `analyze_bgp.py` - check BGP neighbor status and routes
+2. Run `analyze_pods.py --namespace openshift-frr-k8s` - verify FRR pod health
+3. Run `analyze_nodes.py` - check node network connectivity
+4. Review issues section for:
+   - BGP sessions not in Established state
+   - Invalid routes (missing `*`)
+   - FRR-K8s sync problems (dump_frr vs FRRNodeState mismatch)
+   - Unsupported raw config usage
+5. Suggest checking FRR container logs for session errors
 
 ## Next Steps After Analysis
 

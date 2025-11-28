@@ -697,6 +697,12 @@
           "synopsis": "/must-gather:analyze [must-gather-path] [component]"
         },
         {
+          "argument_hint": "[must-gather-path] [--verbose] [--node <node>]",
+          "description": "Analyze FRR-K8s BGP configuration and routing state",
+          "name": "bgp",
+          "synopsis": "/must-gather:bgp [must-gather-path] [--verbose] [--node <node-name>]"
+        },
+        {
           "argument_hint": "[must-gather-path]",
           "description": "Analyze OVN databases from a must-gather using ovsdb-tool",
           "name": "ovn-dbs",

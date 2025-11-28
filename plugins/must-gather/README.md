@@ -251,6 +251,85 @@ Active alerts: 2 total (0 pending, 2 firing)
 ================================================================================
 ```
 
+#### `analyze_bgp.py`
+
+Analyzes FRR-K8s BGP configuration and routing state.
+
+```bash
+# Standard analysis
+./analyze_bgp.py <must-gather-path>
+
+# Verbose output with route details
+./analyze_bgp.py <must-gather-path> --verbose
+
+# Filter to specific node
+./analyze_bgp.py <must-gather-path> --node master-2
+```
+
+**Requirements:**
+- FRR-K8s must be installed in the cluster
+- Must-gather should include `openshift-frr-k8s` namespace resources
+
+**Output format:**
+```
+================================================================================
+BGP ANALYSIS SUMMARY
+================================================================================
+FRR-K8s Status:    Installed
+Namespace:         openshift-frr-k8s
+FRR Pods:          6/6 Running
+Configurations:    8 FRRConfiguration resources found
+
+PER-NODE BGP STATUS (from actual running config):
+
+NODE: master-0.ostest.test.metalkube.org
+─────────────────────────────────────────────────────────────────
+BGP ROUTERS:
+VRF             ASN
+default         64512
+evpnl2          64512
+
+NEIGHBORS:
+PEER ADDRESS                             ASN        STATE           UPTIME
+192.168.111.3                            64512      Established     3h15m
+fd2e:6f44:5dd8:c956::3                   64512      Established     3h15m
+
+ROUTES (IPv4): 1 total, 1 best
+ROUTES (IPv6): 1 total, 1 best
+
+================================================================================
+ISSUES DETECTED
+================================================================================
+
+CRITICAL ISSUES:
+✅ No critical issues detected
+
+WARNINGS:
+⚠️  UNSUPPORTED: Raw config in use (receive-filtered)
+
+RECOMMENDATIONS:
+→ Remove raw config from FRRConfigurations (unsupported, can cause sync issues)
+================================================================================
+```
+
+**Features:**
+- Analyzes actual FRR running state from `dump_frr` files (authoritative source)
+- Detects BGP session establishment issues
+- Identifies route problems (invalid routes, RIB-failures, stale routes)
+- Validates FRR-K8s synchronization (compares dump_frr vs FRRNodeState)
+- Flags unsupported raw configuration usage
+- Provides per-node BGP status across VRFs
+- Correlates issues with FRRConfiguration resources (best-effort hints)
+
+**Use Cases:**
+- Troubleshoot BGP neighbor connectivity issues
+- Verify route advertisement and reception
+- Diagnose OpenShift Virtualization VM network routing problems
+- Detect FRR-K8s synchronization issues
+- Validate BGP configuration across cluster nodes
+
+**Note:** This analyzes FRR-K8s only. MetalLB-specific resources are not included.
+
 ### Slash Commands
 
 #### `/must-gather:analyze [path] [component]`
@@ -296,6 +375,34 @@ Provides detailed analysis of:
 - Node filtering with partial name matching
 
 **Requirements:** `ovsdb-tool` installed
+
+#### `/must-gather:bgp [path] [--verbose] [--node <node>]`
+Analyzes FRR-K8s BGP configuration and routing state.
+
+```
+# Full BGP analysis
+/must-gather:bgp ./must-gather.local.123456789
+
+# Detailed output with individual routes
+/must-gather:bgp ./must-gather.local.123456789 --verbose
+
+# Node-specific analysis
+/must-gather:bgp ./must-gather.local.123456789 --node master-2
+
+# Combined filters
+/must-gather:bgp ./must-gather.local.123456789 --node worker-0 --verbose
+```
+
+Provides comprehensive BGP analysis:
+- FRR-K8s installation status and pod health
+- Per-node BGP routers (ASN, VRF assignments)
+- BGP neighbor status (address, ASN, state, uptime)
+- Route health (IPv4/IPv6, valid/invalid, best path selection)
+- Configuration validation (raw config usage, BFD profiles)
+- FRR-K8s synchronization checks (dump_frr vs FRRNodeState)
+- Best-effort correlation of issues to FRRConfiguration resources
+
+**Note:** Analyzes FRR-K8s only. MetalLB resources not included.
 
 ## Installation
 
@@ -363,6 +470,16 @@ Ask Claude:
 - "Show me PersistentVolumes and PVCs"
 - "What storage resources exist?"
 - "Are there any pending PVCs?"
+
+### Analyzing BGP/FRR-K8s
+
+Ask Claude:
+- "Analyze BGP configuration in this must-gather"
+- "Show me FRR-K8s BGP neighbors"
+- "Are all BGP sessions established?"
+- "What route policies are configured?"
+- "Check for BGP issues"
+- "Is FRR-K8s synchronized with the FRR daemon?"
 
 ### Complete Cluster Analysis
 
