@@ -535,6 +535,12 @@
           "description": "Extract and decompress must-gather archives from Prow job artifacts",
           "name": "extract-must-gather",
           "synopsis": "/prow-job:extract-must-gather <prowjob-url>"
+        },
+        {
+          "argument_hint": "keywords",
+          "description": "List all OpenShift QE CI jobs with optional filtering",
+          "name": "list-qe-jobs",
+          "synopsis": "/prow-job:list-qe-jobs [keywords]"
         }
       ],
       "description": "A plugin to analyze and inspect Prow CI job results",
@@ -566,6 +572,11 @@
           "description": "Extract and decompress must-gather archives from Prow CI job artifacts, generating an interactive HTML file browser with filters",
           "id": "prow-job-extract-must-gather",
           "name": "Prow Job Extract Must-Gather"
+        },
+        {
+          "description": "List all jobs for further debugging or analysis",
+          "id": "prow-job-list-qe-jobs",
+          "name": "Prow Job list jobs"
         }
       ],
       "version": "0.0.1"
