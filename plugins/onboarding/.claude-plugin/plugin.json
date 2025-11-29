@@ -1,0 +1,8 @@
+{
+  "name": "onboarding",
+  "description": "New hire onboarding tools and multi-repo navigation",
+  "version": "0.0.1",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}
