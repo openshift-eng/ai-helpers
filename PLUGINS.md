@@ -4,17 +4,23 @@ This document lists all available Claude Code plugins and their commands in the 
 
 - [Agendas](#agendas-plugin)
 - [Ci](#ci-plugin)
+- [Compliance](#compliance-plugin)
 - [Component Health](#component-health-plugin)
+- [Container Image](#container-image-plugin)
 - [Doc](#doc-plugin)
+- [Etcd](#etcd-plugin)
 - [Git](#git-plugin)
 - [Hcp](#hcp-plugin)
 - [Hello World](#hello-world-plugin)
 - [Jira](#jira-plugin)
+- [Lvms](#lvms-plugin)
 - [Must Gather](#must-gather-plugin)
+- [Node Tuning](#node-tuning-plugin)
 - [Olm](#olm-plugin)
 - [Openshift](#openshift-plugin)
 - [Prow Job](#prow-job-plugin)
 - [Session](#session-plugin)
+- [Sosreport](#sosreport-plugin)
 - [Utils](#utils-plugin)
 - [Yaml](#yaml-plugin)
 
@@ -43,14 +49,39 @@ Miscellaenous tools for working with OpenShift CI
 
 See [plugins/ci/README.md](plugins/ci/README.md) for detailed documentation.
 
+### Compliance Plugin
+
+Security compliance and vulnerability analysis tools for Go projects
+
+**Commands:**
+- **`/compliance:analyze-cve` `<CVE-ID>`** - Analyze Go codebase for CVE vulnerabilities and suggest fixes
+
+See [plugins/compliance/README.md](plugins/compliance/README.md) for detailed documentation.
+
 ### Component Health Plugin
 
 Analyze component health using regression and jira data
 
 **Commands:**
-- **`/component-health:analyze-regressions` `<release> [--components comp1 comp2 ...]`** - Grade component health based on regression triage metrics for an OpenShift release
+- **`/component-health:analyze` `<release> [--components comp1 comp2 ...] [--project JIRAPROJECT]`** - Analyze and grade component health based on regression and JIRA bug metrics
+- **`/component-health:list-components` `<release>`** - List all components tracked in Sippy for a release
+- **`/component-health:list-jiras` `<project> [--component comp1 comp2 ...] [--status status1 status2 ...] [--include-closed] [--limit N]`** - Query and list raw JIRA bug data for a specific project
+- **`/component-health:list-regressions` `<release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]`** - Fetch and list raw regression data for OpenShift releases
+- **`/component-health:summarize-jiras` `--project <project> [--component comp1 comp2 ...] [--status status1 status2 ...] [--include-closed] [--limit N]`** - Query and summarize JIRA bugs for a specific project with counts by component
+- **`/component-health:summarize-regressions` `<release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]`** - Query and summarize regression data for OpenShift releases with counts and metrics
 
 See [plugins/component-health/README.md](plugins/component-health/README.md) for detailed documentation.
+
+### Container Image Plugin
+
+Container image inspection and analysis using skopeo and podman
+
+**Commands:**
+- **`/container-image:compare` `<image1> <image2>`** - Compare two container images to identify differences
+- **`/container-image:inspect` `<image>`** - Inspect and provide detailed breakdown of a container image
+- **`/container-image:tags` `<repository>`** - List and analyze available tags for a container image repository
+
+See [plugins/container-image/README.md](plugins/container-image/README.md) for detailed documentation.
 
 ### Doc Plugin
 
@@ -60,6 +91,16 @@ A plugin for engineering documentation and notes
 - **`/doc:note` `[task description]`** - Generate professional engineering notes and append them to a log file
 
 See [plugins/doc/README.md](plugins/doc/README.md) for detailed documentation.
+
+### Etcd Plugin
+
+Etcd cluster health monitoring and performance analysis utilities
+
+**Commands:**
+- **`/etcd:analyze-performance` `"[--duration <minutes>]"`** - Analyze etcd performance metrics, latency, and identify bottlenecks
+- **`/etcd:health-check` `"[--verbose]"`** - Check etcd cluster health, member status, and identify issues
+
+See [plugins/etcd/README.md](plugins/etcd/README.md) for detailed documentation.
 
 ### Git Plugin
 
@@ -81,6 +122,7 @@ See [plugins/git/README.md](plugins/git/README.md) for detailed documentation.
 Generate HyperShift cluster creation commands via hcp CLI from natural language descriptions
 
 **Commands:**
+- **`/hcp:cluster-health-check` `<cluster-name> [--verbose] [--output-format json|text]`** - Perform comprehensive health check on HCP cluster and report issues
 - **`/hcp:generate` `<provider> <cluster-description>`** - Generate ready-to-execute hypershift cluster creation commands from natural language descriptions
 
 See [plugins/hcp/README.md](plugins/hcp/README.md) for detailed documentation.
@@ -99,14 +141,25 @@ See [plugins/hello-world/README.md](plugins/hello-world/README.md) for detailed 
 A plugin to automate tasks with Jira
 
 **Commands:**
+- **`/jira:backlog` `[project-key] [--assignee username] [--days-inactive N]`** - Find suitable JIRA tickets from the backlog to work on based on priority and activity
 - **`/jira:create-release-note` `<issue-key>`** - Generate bug fix release notes from Jira tickets and linked GitHub PRs
-- **`/jira:create` `<type> [project-key] <summary> [--component <name>] [--version <version>] [--parent <key>]`** - Create Jira issues (story, epic, feature, task, bug) with proper formatting
+- **`/jira:create` `<type> [project-key] <summary> [--component <name>] [--version <version>] [--parent <key>]`** - Create Jira issues (story, epic, feature, task, bug, feature-request) with proper formatting
 - **`/jira:generate-test-plan` `[JIRA issue key] [GitHub PR URLs]`** - Generate test steps for a JIRA issue
-- **`/jira:grooming` `[project-filter] [time-period] [--component component-name] [--label label-name]`** - Analyze new bugs and cards added over a time period and generate grooming meeting agenda
+- **`/jira:grooming` `[project-filter] [time-period] [--component component-name] [--label label-name] [--type issue-type]`** - Analyze new bugs and cards added over a time period and generate grooming meeting agenda
 - **`/jira:solve`** - Analyze a JIRA issue and create a pull request to solve it.
 - **`/jira:status-rollup` `issue-id [--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD]`** - Generate a status rollup comment for any JIRA issue based on all child issues and a given date range
+- **`/jira:validate-blockers` `[target-version] [component-filter] [--bug issue-key]`** - Validate proposed release blockers using Red Hat OpenShift release blocker criteria
 
 See [plugins/jira/README.md](plugins/jira/README.md) for detailed documentation.
+
+### Lvms Plugin
+
+LVMS (Logical Volume Manager Storage) plugin for troubleshooting and debugging storage issues
+
+**Commands:**
+- **`/lvms:analyze` `[must-gather-path|--live] [--component storage|operator|volumes]`** - Comprehensive LVMS troubleshooting - analyzes LVMCluster, volume groups, PVCs, and storage issues on live clusters or must-gather
+
+See [plugins/lvms/README.md](plugins/lvms/README.md) for detailed documentation.
 
 ### Must Gather Plugin
 
@@ -117,6 +170,16 @@ A plugin to analyze and report on must-gather data
 - **`/must-gather:ovn-dbs` `[must-gather-path]`** - Analyze OVN databases from a must-gather using ovsdb-tool
 
 See [plugins/must-gather/README.md](plugins/must-gather/README.md) for detailed documentation.
+
+### Node Tuning Plugin
+
+Automatically create and apply tuned profile
+
+**Commands:**
+- **`/node-tuning:analyze-node-tuning` `"[--sosreport PATH] [--format json|markdown] [--max-irq-samples N]"`** - Analyze kernel/sysctl tuning from a live node or sosreport snapshot and propose NTO recommendations
+- **`/node-tuning:generate-tuned-profile` `"[profile-name] [--summary ...] [--sysctl ...] [options]"`** - Generate a Tuned (tuned.openshift.io/v1) profile manifest for the Node Tuning Operator
+
+See [plugins/node-tuning/README.md](plugins/node-tuning/README.md) for detailed documentation.
 
 ### Olm Plugin
 
@@ -129,6 +192,7 @@ OLM (Operator Lifecycle Manager) plugin for operator management and debugging
 - **`/olm:diagnose` `[operator-name] [namespace] [--fix] [--cluster]`** - Diagnose and optionally fix common OLM and operator issues
 - **`/olm:install` `<operator-name> [namespace] [channel] [source] [--approval=Automatic|Manual]`** - Install a day-2 operator using Operator Lifecycle Manager
 - **`/olm:list` `[namespace] [--all-namespaces]`** - List installed operators in the cluster
+- **`/olm:opm` `<action> [arguments...]`** - Execute opm (Operator Package Manager) commands for building and managing operator catalogs
 - **`/olm:search` `[query] [--catalog <catalog-name>]`** - Search for available operators in catalog sources
 - **`/olm:status` `<operator-name> [namespace]`** - Get detailed status and health information for an operator
 - **`/olm:uninstall` `<operator-name> [namespace] [--remove-crds] [--remove-namespace]`** - Uninstall a day-2 operator and optionally remove its resources
@@ -143,6 +207,7 @@ OpenShift development utilities and helpers
 **Commands:**
 - **`/openshift:bump-deps` `<dependency> [version] [--create-jira] [--create-pr]`** - Bump dependencies in OpenShift projects with automated analysis and PR creation
 - **`/openshift:cluster-health-check` `"[--verbose] [--output-format]"`** - Perform comprehensive health check on OpenShift cluster and report issues
+- **`/openshift:crd-review` `[repository-path]`** - Review Kubernetes CRDs against Kubernetes and OpenShift API conventions
 - **`/openshift:create-cluster` `"[release-image] [platform] [options]"`** - Extract OpenShift installer from release image and create an OCP cluster
 - **`/openshift:destroy-cluster` `"[install-dir]"`** - Destroy an OpenShift cluster created by create-cluster command
 - **`/openshift:expand-test-case` `[test-idea-or-file-or-commands] [format]`** - Expand basic test ideas or existing oc commands into comprehensive test scenarios with edge cases in oc CLI or Ginkgo format
@@ -173,12 +238,22 @@ A plugin to save and resume conversation sessions across long time intervals
 
 See [plugins/session/README.md](plugins/session/README.md) for detailed documentation.
 
+### Sosreport Plugin
+
+Analyze sosreport archives for system diagnostics and troubleshooting
+
+**Commands:**
+- **`/sosreport:analyze` `<path-to-sosreport> [--only <areas>] [--skip <areas>]`** - Analyze sosreport archive for system diagnostics and issues
+
+See [plugins/sosreport/README.md](plugins/sosreport/README.md) for detailed documentation.
+
 ### Utils Plugin
 
 A generic utilities plugin serving as a catch-all for various helper commands and agents
 
 **Commands:**
 - **`/utils:address-reviews` `[PR number (optional - uses current branch if omitted)]`** - Fetch and address all PR review comments
+- **`/utils:auto-approve-konflux-prs` `<target-repository>`** - Automate approving Konflux bot PRs for the given repository by adding /lgtm and /approve
 - **`/utils:generate-test-plan` `[GitHub PR URLs]`** - Generate test steps for one or more related PRs
 - **`/utils:placeholder`** - Placeholder command for the utils plugin
 - **`/utils:process-renovate-pr` `<PR_NUMBER|open> [JIRA_PROJECT] [COMPONENT]`** - Process Renovate dependency PR(s) to meet repository contribution standards

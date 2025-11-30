@@ -280,7 +280,7 @@ Please provide the full job name to modify the job config instead.
 ```
 → Exit or prompt for job name
 
-→ Continue to **Step 5b: Show Diff for Workflow**
+→ Continue to **Step 5b: Modify Workflow File**
 
 ### Step 5a: Modify Job Config File
 
@@ -289,7 +289,7 @@ Please provide the full job name to modify the job config instead.
 ```bash
 # Add wait step before the last test step
 # If timeout is provided, add it as a step property
-# Using the Python implementation from Step 6 below
+# See Step 6 for the YAML modification algorithm
 ```
 
 **Two scenarios**:
@@ -326,7 +326,7 @@ Please provide the full job name to modify the job config instead.
 ```bash
 # Add wait step before the last test step
 # If timeout is provided, add it as a step property
-# Using the Python implementation from Step 6 below
+# See Step 6 for the YAML modification algorithm
 ```
 
 **Two scenarios**:
@@ -392,193 +392,53 @@ OCP Version: ${ocp_version}
 Workflow: ${workflow_name}"
 ```
 
-**YAML Modification Methods** (safe text-based approach):
+**YAML Modification Algorithm**:
 
-#### For Job Configuration Files
+The modification process for both job configs and workflow files follows the same pattern:
 
-The wait step should be added before the last step in the job's test section:
-1. Read the job config file line by line
-2. Find the job definition (line with `- as: ${job_name}`)
-3. Find the `test:` section within that job
-4. Find all test steps (lines starting with `- ref:` or `- chain:`)
-5. Check if `- ref: wait` already exists
-6. If not, insert `- ref: wait` before the **last** test step with proper indentation
-7. Write the file back
+1. **Locate the target**: Find the `test:` section
+   - For job configs: Within the specific job definition (`- as: ${job_name}`)
+   - For workflows: At the workflow level
 
-Example Python implementation:
-```python
-def add_wait_step_to_job_config(file_path, job_name, timeout=None):
-    """
-    Add '- ref: wait' before the last step in the job's test: section
+2. **Find test steps**: Identify all steps (lines with `- ref:` or `- chain:`)
 
-    Args:
-        file_path: Path to the job config YAML file
-        job_name: Name of the job to modify
-        timeout: Optional timeout in Go duration format (e.g., "8h0m0s", "1h30m")
-                 If provided, also adds 'best_effort: true'
-    """
-    with open(file_path, 'r') as f:
-        lines = f.readlines()
+3. **Check for duplicates**: Ensure `- ref: wait` doesn't already exist
 
-    # Find job definition (- as: job_name)
-    job_line_index = None
-    for i, line in enumerate(lines):
-        if f'as: {job_name}' in line and line.strip().startswith('- as:'):
-            job_line_index = i
-            break
+4. **Insert wait step**: Add before the **last** test step with matching indentation
 
-    if job_line_index is None:
-        raise ValueError(f"Job '{job_name}' not found in config file")
+5. **Handle timeout**:
+   - Without timeout: Add simple `- ref: wait`
+   - With timeout: Add as multi-line with `timeout` and `best_effort` properties
 
-    # Find 'test:' section within this job
-    test_line_index = None
-    for i in range(job_line_index + 1, len(lines)):
-        line = lines[i]
-        # Stop if we hit the next job (another '- as:' at same indentation level)
-        if line.strip().startswith('- as:') and i != job_line_index:
-            break
-        if line.strip() == 'test:':
-            test_line_index = i
-            break
+**Example transformation:**
 
-    if test_line_index is None:
-        raise ValueError(f"No 'test:' section found in job '{job_name}'")
-
-    # Find all test steps (lines with '- ref:' or '- chain:')
-    test_steps = []
-    indent_spaces = None
-    test_section_indent = len(lines[test_line_index]) - len(lines[test_line_index].lstrip())
-
-    for i in range(test_line_index + 1, len(lines)):
-        line = lines[i]
-        stripped = line.lstrip()
-        current_indent = len(line) - len(stripped)
-
-        # Stop if we hit another key at same or lower indent as 'test:'
-        if stripped and current_indent <= test_section_indent and not stripped.startswith('-'):
-            break
-
-        if stripped.startswith('- ref:') or stripped.startswith('- chain:'):
-            if indent_spaces is None:
-                indent_spaces = current_indent
-            test_steps.append(i)
-
-    if not test_steps:
-        raise ValueError("No test steps found in test: section")
-
-    # Check if wait already exists
-    for i in range(test_line_index + 1, test_steps[-1] + 5):
-        if i < len(lines) and 'ref: wait' in lines[i]:
-            return False  # Wait already exists
-
-    # Insert wait step before the last test step
-    last_step_index = test_steps[-1]
-
-    if timeout:
-        # With timeout: add ref, timeout, and best_effort properties
-        wait_lines = [
-            ' ' * indent_spaces + '- ref: wait\n',
-            ' ' * (indent_spaces + 2) + f'timeout: {timeout}\n',
-            ' ' * (indent_spaces + 2) + 'best_effort: true\n'
-        ]
-        for line in reversed(wait_lines):
-            lines.insert(last_step_index, line)
-    else:
-        # Without timeout: simple ref only
-        wait_line = ' ' * indent_spaces + '- ref: wait\n'
-        lines.insert(last_step_index, wait_line)
-
-    # Write back
-    with open(file_path, 'w') as f:
-        f.writelines(lines)
-
-    return True
+Before:
+```yaml
+test:
+- chain: openshift-e2e-test-qe
 ```
 
-#### For Workflow Files
-
-The wait step should be added before the last step in the workflow's test section:
-1. Read the workflow file line by line
-2. Find the `test:` section
-3. Find all test steps (lines starting with `- ref:` or `- chain:`)
-4. Check if `- ref: wait` already exists
-5. If not, insert `- ref: wait` before the **last** test step with proper indentation
-6. Write the file back
-
-Example Python implementation:
-```python
-def add_wait_step_to_workflow(file_path, timeout=None):
-    """
-    Add '- ref: wait' before the last step in the workflow's test: section
-
-    Args:
-        file_path: Path to the workflow YAML file
-        timeout: Optional timeout in Go duration format (e.g., "8h0m0s", "1h30m")
-                 If provided, also adds 'best_effort: true'
-    """
-    with open(file_path, 'r') as f:
-        lines = f.readlines()
-
-    # Find 'test:' section
-    test_line_index = None
-    for i, line in enumerate(lines):
-        if line.strip() == 'test:':
-            test_line_index = i
-            break
-
-    if test_line_index is None:
-        raise ValueError("No 'test:' section found in workflow")
-
-    # Find all test steps (lines with '- ref:' or '- chain:')
-    test_steps = []
-    indent_spaces = None
-    test_section_indent = len(lines[test_line_index]) - len(lines[test_line_index].lstrip())
-
-    for i in range(test_line_index + 1, len(lines)):
-        line = lines[i]
-        stripped = line.lstrip()
-        current_indent = len(line) - len(stripped)
-
-        # Stop if we hit another section key at same indent level as 'test:'
-        if stripped and current_indent == test_section_indent and not stripped.startswith('-'):
-            break
-
-        if stripped.startswith('- ref:') or stripped.startswith('- chain:'):
-            if indent_spaces is None:
-                indent_spaces = current_indent
-            test_steps.append(i)
-
-    if not test_steps:
-        raise ValueError("No test steps found in test: section")
-
-    # Check if wait already exists in test section
-    for i in range(test_line_index + 1, test_steps[-1] + 5):
-        if i < len(lines) and 'ref: wait' in lines[i]:
-            return False  # Wait already exists
-
-    # Insert wait step before the last test step
-    last_step_index = test_steps[-1]
-
-    if timeout:
-        # With timeout: add ref, timeout, and best_effort properties
-        wait_lines = [
-            ' ' * indent_spaces + '- ref: wait\n',
-            ' ' * (indent_spaces + 2) + f'timeout: {timeout}\n',
-            ' ' * (indent_spaces + 2) + 'best_effort: true\n'
-        ]
-        for line in reversed(wait_lines):
-            lines.insert(last_step_index, line)
-    else:
-        # Without timeout: simple ref only
-        wait_line = ' ' * indent_spaces + '- ref: wait\n'
-        lines.insert(last_step_index, wait_line)
-
-    # Write back
-    with open(file_path, 'w') as f:
-        f.writelines(lines)
-
-    return True
+After (without timeout):
+```yaml
+test:
+- ref: wait
+- chain: openshift-e2e-test-qe
 ```
+
+After (with timeout=8h):
+```yaml
+test:
+- ref: wait
+  timeout: 8h0m0s
+  best_effort: true
+- chain: openshift-e2e-test-qe
+```
+
+**Critical constraints:**
+- Preserve exact YAML indentation (typically 2 spaces per level)
+- Insert BEFORE the last step, not after
+- When timeout is set, `best_effort: true` is required to prevent job failure
+- Normalize timeout format to Go duration (e.g., "8h" → "8h0m0s")
 
 ### Step 7: Push and Show GitHub Link
 
@@ -682,53 +542,32 @@ When a user provides a timeout like "8h", the implementation should normalize it
 
 ## Examples
 
-### Example 1: Job Config Without Custom Timeout
+### Example 1: Without Timeout (Default 3h)
 
-```
-User: /ci:add-debug-wait aws-ipi-f7-longduration-workload
-
-Claude: OCP version: 4.21
-         Repo path: ~/automation/Openshift/release
-
-Claude: ✅ Modified: aws-ipi-f7-longduration-workload (OCP 4.21)
-        ✅ Changes pushed successfully!
-
-        Create PR here:
-        https://github.com/openshift/release/compare/master...debug-aws-ipi-f7-longduration-workload-4.21-20251031
-
-        Branch: debug-aws-ipi-f7-longduration-workload-4.21-20251031
-        Job: aws-ipi-f7-longduration-workload
-        OCP: 4.21
-
-        ⚠️  Remember to close PR after debugging (DO NOT MERGE)
+```bash
+/ci:add-debug-wait aws-ipi-f7-longduration-workload
 ```
 
-**Done!** Just click the link and create the PR.
+Prompts for: OCP version (4.21), repo path
 
-### Example 2: Job Config With Custom Timeout
-
-```
-User: /ci:add-debug-wait aws-ipi-f7-longduration-workload 8h
-
-Claude: OCP version: 4.21
-         Repo path: ~/automation/Openshift/release
-
-Claude: ✅ Modified: aws-ipi-f7-longduration-workload (OCP 4.21)
-        Added: - ref: wait (timeout: 8h0m0s)
-        ✅ Changes pushed successfully!
-
-        Create PR here:
-        https://github.com/openshift/release/compare/master...debug-aws-ipi-f7-longduration-workload-4.21-20251031
-
-        Branch: debug-aws-ipi-f7-longduration-workload-4.21-20251031
-        Job: aws-ipi-f7-longduration-workload
-        OCP: 4.21
-        Timeout: 8h0m0s
-
-        ⚠️  Remember to close PR after debugging (DO NOT MERGE)
+Result:
+```yaml
+test:
+- ref: wait
+- chain: openshift-e2e-test-qe
 ```
 
-**Result in YAML**:
+Returns: PR creation link
+
+### Example 2: With Custom Timeout
+
+```bash
+/ci:add-debug-wait aws-ipi-f7-longduration-workload 8h
+```
+
+Prompts for: OCP version (4.21), repo path
+
+Result:
 ```yaml
 test:
 - ref: wait
@@ -737,27 +576,17 @@ test:
 - chain: openshift-e2e-test-qe
 ```
 
-### Example 3: Workflow File With Timeout
+Returns: PR creation link with timeout info
 
+### Example 3: Workflow File
+
+```bash
+/ci:add-debug-wait baremetalds-two-node-arbiter-upgrade 24h
 ```
-User: /ci:add-debug-wait baremetalds-two-node-arbiter-upgrade 24h
 
-Claude: OCP version: 4.20
-         Repo path: ~/repos/openshift-release
+Behavior: Searches job config first, falls back to workflow if not found. Warns that workflow changes affect ALL jobs using it.
 
-Claude: ℹ️  No job config found, searching workflow...
-        ✅ Modified: baremetalds-two-node-arbiter-upgrade workflow
-        Added: - ref: wait (timeout: 24h0m0s)
-        ⚠️  Impact: Affects ALL jobs using this workflow
-        ✅ Changes pushed successfully!
-
-        Create PR here:
-        https://github.com/openshift/release/compare/master...debug-baremetalds-two-node-arbiter-upgrade-4.20-20251031
-
-        Branch: debug-baremetalds-two-node-arbiter-upgrade-4.20-20251031
-        OCP: 4.20
-        Timeout: 24h0m0s
-```
+Returns: PR creation link
 
 ## Arguments
 

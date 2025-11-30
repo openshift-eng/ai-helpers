@@ -1,5 +1,5 @@
 ---
-description: Create Jira issues (story, epic, feature, task, bug) with proper formatting
+description: Create Jira issues (story, epic, feature, task, bug, feature-request) with proper formatting
 argument-hint: <type> [project-key] <summary> [--component <name>] [--version <version>] [--parent <key>]
 ---
 
@@ -12,22 +12,23 @@ jira:create
 ```
 
 ## Description
-The `jira:create` command creates Jira issues following best practices and team-specific conventions. It supports creating stories, epics, features, tasks, and bugs with intelligent defaults, interactive prompts, and validation.
+The `jira:create` command creates Jira issues following best practices and team-specific conventions. It supports creating stories, epics, features, tasks, bugs, and feature requests with intelligent defaults, interactive prompts, and validation.
 
 This command is particularly useful for:
 - Creating well-formed user stories with acceptance criteria
 - Organizing epics and features with proper hierarchy
 - Submitting bugs with complete reproduction steps
+- Capturing customer-driven feature requests with business justification
 - Maintaining consistency across team Jira practices
 
 ## Key Features
 
-- **Multi-Type Support** - Create stories, epics, features, tasks, or bugs from a single command
-- **Smart Defaults** - Automatically applies project-specific conventions (e.g., CNTRLPLANE, OCPBUGS)
+- **Multi-Type Support** - Create stories, epics, features, tasks, bugs, or feature requests from a single command
+- **Smart Defaults** - Automatically applies project-specific conventions (e.g., CNTRLPLANE, OCPBUGS, RFE)
 - **Interactive Guidance** - Prompts for missing information with helpful templates
 - **Context Detection** - Analyzes summary text to suggest components (ARO, ROSA, HyperShift)
 - **Security Validation** - Scans for credentials and secrets before submission
-- **Template Support** - Provides user story templates, bug report templates, acceptance criteria formats
+- **Template Support** - Provides user story templates, bug report templates, feature request workflows, acceptance criteria formats
 
 ## Implementation
 
@@ -61,6 +62,12 @@ Invoke the appropriate skill based on issue type using the Skill tool:
   - Loads bug report template
   - Provides structured reproduction steps
   - Offers severity and reproducibility guidance
+
+- **Type: `feature-request`** → Invoke `jira:create-feature-request` skill
+  - Loads customer-driven feature request guidance
+  - Provides 4-question workflow (title, description, business requirements, components)
+  - Offers component mapping from teams/operators
+  - Targets RFE project
 
 ### 🏢 Phase 2: Apply Project-Specific Conventions
 
@@ -150,6 +157,43 @@ Prompt for missing required information based on issue type:
   - Expected results (correct behavior)
   - Additional info (logs, screenshots)
 
+**For Feature Requests:**
+- Use 4-question workflow:
+  1. Proposed title of feature request
+  2. Nature and description (current limitations, desired behavior, use case)
+  3. Business requirements (customer impact, regulatory drivers, justification)
+  4. Affected packages and components (teams, operators, component mapping)
+
+### ✅ Phase 5.5: Summary Validation
+
+Before security validation, validate the summary format to catch common mistakes:
+
+**Check for anti-patterns:**
+1. Summary starts with "As a" (user story format belongs in description)
+2. Summary contains "I want" or "so that" (belongs in description)
+3. Summary exceeds 100 characters (likely too long, may be full user story)
+
+**Action if anti-pattern detected:**
+1. Detect that user put full user story in summary field
+2. Extract the key action/feature from the summary
+3. Generate a concise alternative (5-10 words)
+4. Prompt user for confirmation:
+   ```
+   The summary looks like a full user story. Summaries should be concise titles.
+
+   Current: "As a cluster admin, I want to configure ImageTagMirrorSet in HostedCluster CRs so that I can enable tag-based image proxying"
+
+   Suggested: "Enable ImageTagMirrorSet configuration in HostedCluster CRs"
+
+   Use the suggested summary? (yes/no/edit)
+   ```
+
+5. If user says yes, use suggested summary
+6. If user says edit, prompt for their preferred summary
+7. If user says no, use their original summary (but warn it may be truncated in Jira)
+
+**Note:** This validation should happen BEFORE creating the issue, to avoid having to update the summary afterward.
+
 ### 🔒 Phase 6: Security Validation
 
 Scan all content (summary, description, comments) for sensitive data:
@@ -187,6 +231,8 @@ Use the `mcp__atlassian__jira_create_issue` MCP tool with collected parameters.
 - Any other project/team-specific requirements
 
 The MCP tool parameters come from the combined guidance of type-specific, project-specific, and team-specific skills, with universal requirements always applied.
+
+**Note:** Project-specific skills (e.g., CNTRLPLANE) may implement fallback strategies for handling creation failures (such as epic linking). Refer to the project-specific skill documentation for these strategies.
 
 ### 📤 Phase 8: Return Result
 
@@ -251,7 +297,13 @@ Applied defaults:
    ```
    → Prompts for market problem, strategic value, success criteria, epic breakdown
 
-8. **Create with project-specific conventions** (examples vary by project):
+8. **Create a feature request**:
+   ```
+   /jira:create feature-request RFE "Support custom SSL certificates for ROSA HCP"
+   ```
+   → Prompts for nature/description, business requirements, affected components (4-question workflow)
+
+9. **Create with project-specific conventions** (examples vary by project):
    ```
    /jira:create story SPECIALPROJECT "New capability"
    ```
@@ -261,11 +313,12 @@ Applied defaults:
 
 - **$1 – type** *(required)*
   Issue type to create.
-  **Options:** `story` | `epic` | `feature` | `task` | `bug`
+  **Options:** `story` | `epic` | `feature` | `task` | `bug` | `feature-request`
 
-- **$2 – project-key** *(optional for bugs)*
-  JIRA project key (e.g., `CNTRLPLANE`, `OCPBUGS`, `MYPROJECT`).
+- **$2 – project-key** *(optional for bugs and feature-requests)*
+  JIRA project key (e.g., `CNTRLPLANE`, `OCPBUGS`, `RFE`, `MYPROJECT`).
   **Default for bugs:** `OCPBUGS`
+  **Default for feature-requests:** `RFE`
   **Required for:** stories, epics, features, tasks
 
 - **$3 – summary** *(required)*
@@ -407,6 +460,52 @@ Would you like to edit the description?
 - **"Permission denied"** → User may lack permissions, suggest contacting admin
 - **"Issue type not available"** → Project may not support this issue type
 
+### Epic Link Creation Failure
+
+**Scenario:** Story/task creation fails when including epic link field.
+
+**Action:**
+Refer to project-specific skills for epic linking fallback strategies:
+- **CNTRLPLANE:** See CNTRLPLANE skill "Epic Linking Implementation Strategy" section
+- **Other projects:** Consult project-specific skill documentation
+
+**General pattern:**
+1. Detect error related to linking (error contains "epic", "parent", "link", or "customfield")
+2. Check project-specific skill for recommended fallback approach
+3. Typically: Create without link, then link via update
+4. Inform user of outcome
+5. **Last stand fallback:** If all strategies fail (including update-after-create), retry with absolute minimal fields:
+   - Remove ALL custom fields (epic link, target version, etc.)
+   - Keep only: project_key, summary, issue_type, description, assignee, components
+   - Log to console what was stripped out
+   - If this succeeds, inform user which fields need manual configuration in Jira
+
+### Field Format Error
+
+**Scenario:** Field provided in wrong format (e.g., Target Version as string instead of array).
+
+**Common field format errors:**
+
+1. **Target Version format**
+   - ❌ Wrong: `"customfield_12319940": "openshift-4.21"`
+   - ✅ Correct: `"customfield_12319940": [{"id": "12448830"}]`
+   - **Action:** Fetch version ID using `mcp__atlassian__jira_get_project_versions`, convert to correct format
+
+2. **Epic Link format**
+   - ❌ Wrong: `"parent": {"key": "EPIC-123"}` (for stories)
+   - ✅ Correct: `"customfield_12311140": "EPIC-123"` (string, not object)
+   - **Action:** Convert to correct format and retry
+
+3. **Component format**
+   - ❌ Wrong: `"components": "ComponentName"`
+   - ✅ Correct: `"components": ["ComponentName"]` (array) or just `"ComponentName"` (MCP accepts both)
+   - **Action:** Ensure consistent format
+
+**Detection:**
+- Parse error message for field names
+- Check skill documentation for correct format
+- Automatically convert and retry when possible
+
 ## Best Practices
 
 1. **Use descriptive summaries:** Include relevant keywords for context and auto-detection
@@ -460,6 +559,7 @@ The following skills are automatically invoked by this command:
 - **create-feature** - Feature planning and strategy
 - **create-task** - Technical task creation
 - **create-bug** - Bug report templates
+- **create-feature-request** - Customer-driven feature request workflow for RFE project
 
 **Project-specific skills:**
 - **cntrlplane** - CNTRLPLANE project conventions (stories, epics, features, tasks)
@@ -472,6 +572,7 @@ To view skill details:
 ```bash
 ls plugins/jira/skills/
 cat plugins/jira/skills/create-story/SKILL.md
+cat plugins/jira/skills/create-feature-request/SKILL.md
 cat plugins/jira/skills/cntrlplane/SKILL.md
 cat plugins/jira/skills/ocpbugs/SKILL.md
 cat plugins/jira/skills/hypershift/SKILL.md

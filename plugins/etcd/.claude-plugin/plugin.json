@@ -1,0 +1,8 @@
+{
+  "name": "etcd",
+  "description": "Etcd cluster health monitoring and performance analysis utilities",
+  "version": "0.0.1",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}

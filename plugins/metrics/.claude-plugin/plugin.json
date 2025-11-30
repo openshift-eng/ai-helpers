@@ -1,0 +1,8 @@
+{
+  "name": "metrics",
+  "description": "Anonymous metrics usage for ai-helpers",
+  "version": "0.0.1",
+  "author": {
+    "name": "openshift"
+  }
+}

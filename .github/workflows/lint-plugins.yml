@@ -16,7 +16,7 @@ jobs:
       
       - name: Pull claudelint Docker image
         run: docker pull ghcr.io/stbenjam/claudelint:main
-      
+
       - name: Run claudelint
         run: |
           docker run --rm \

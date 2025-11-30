@@ -91,14 +91,13 @@ reviews:
 
           Flag any introduction of new MCP server dependencies and require justification and security review.
 
+  tools:
+    shellcheck:
+      enabled: true
+    yamllint:
+      enabled: true
+    markdownlint:
+      enabled: true
+
 chat:
   auto_reply: true
-
-# Custom review patterns
-tools:
-  shellcheck:
-    enabled: true
-  yamllint:
-    enabled: true
-  markdownlint:
-    enabled: true

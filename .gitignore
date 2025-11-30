@@ -34,3 +34,7 @@ venv/
 
 # Working directories for skills
 .work/
+
+# Various logs and metrics tracking info
+*.log
+.anonymous_id

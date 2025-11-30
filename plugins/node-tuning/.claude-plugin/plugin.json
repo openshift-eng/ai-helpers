@@ -1,0 +1,8 @@
+{
+    "name": "node-tuning",
+    "description": "Automatically create and apply tuned profile",
+    "version": "1.0.0",
+    "author": {
+        "name": "github.com/openshift-eng"
+    }
+}
