@@ -7,7 +7,7 @@ argument-hint: [--staged|--pr-ready|--commits N]
 git:review-changes
 
 ## Synopsis
-```
+```text
 /git:review-changes                    # Review current working directory changes
 /git:review-changes --staged           # Review staged changes only
 /git:review-changes --pr-ready         # Generate PR-ready review summary
@@ -32,7 +32,7 @@ AI-powered code review assistant that analyzes git changes and provides structur
 
 ## Implementation
 
-### 🔧 Phase 1: Parse Arguments and Determine Scope
+## Phase 1: Parse Arguments and Determine Scope
 
 **Argument Processing:**
 ```bash
@@ -58,13 +58,13 @@ esac
 - **Commit History**: Last N commits (`git diff HEAD~N..HEAD`)
 - **PR Ready**: Any scope with markdown output formatting
 
-### 📊 Phase 2: Change Detection
+## Phase 2: Change Detection
 1. Execute determined diff command to get changes
 2. Extract changed files and diff content  
 3. Identify file types for language-specific analysis
 4. Filter out binary files and generated code
 
-### 🔍 Phase 3: Multi-Perspective Analysis
+## Phase 3: Multi-Perspective Analysis
 Analyze changes from these perspectives:
 1. **Security Review**
    - Check for hardcoded secrets/credentials
@@ -90,14 +90,14 @@ Analyze changes from these perspectives:
    - Review existing test modifications
    - Check for regression test needs
 
-### 📋 Phase 4: Generate Structured Report
+## Phase 4: Generate Structured Report
 1. **Summary Section**: High-level change overview
 2. **Critical Issues**: Security and performance blockers
 3. **Recommendations**: Specific improvement suggestions
 4. **Review Checklist**: Items for human reviewers to verify
 5. **Test Plan**: Suggested testing approach
 
-### 🎨 Phase 5: Format Output
+## Phase 5: Format Output
 - `--pr-ready` flag generates markdown formatted for PR descriptions
 - Standard output uses terminal-friendly formatting with colors/icons
 - Include file references with line numbers for easy navigation
@@ -122,7 +122,7 @@ git add src/auth.ts src/middleware.ts
 ## Return Value
 
 **Standard Format:**
-```
+```text
 🔍 Code Review Analysis
 
 📋 SUMMARY
