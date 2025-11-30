@@ -29,10 +29,10 @@
           "synopsis": "/git:debt-scan"
         },
         {
-          "name": "review-changes",
+          "argument_hint": "[--staged|--pr-ready|--commits N]",
           "description": "Automated code review analysis for git changes",
-          "synopsis": "text",
-          "argument_hint": "[--staged|--pr-ready|--commits N]"
+          "name": "review-changes",
+          "synopsis": "text"
         },
         {
           "argument_hint": "[base-branch]",
