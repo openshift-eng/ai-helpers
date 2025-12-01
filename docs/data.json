@@ -641,6 +641,12 @@
           "synopsis": "/openshift:expand-test-case [test-idea-or-file-or-commands] [format]"
         },
         {
+          "argument_hint": "",
+          "description": "Check status of Ironic baremetal nodes in OpenShift cluster",
+          "name": "ironic-status",
+          "synopsis": "/openshift:ironic-status"
+        },
+        {
           "argument_hint": "[test-specification]",
           "description": "Write and validate new OpenShift E2E tests using Ginkgo framework",
           "name": "new-e2e-test",
