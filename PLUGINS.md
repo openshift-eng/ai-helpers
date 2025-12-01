@@ -7,6 +7,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Compliance](#compliance-plugin)
 - [Component Health](#component-health-plugin)
 - [Container Image](#container-image-plugin)
+- [Crypto Inventory](#crypto-inventory-plugin)
 - [Doc](#doc-plugin)
 - [Etcd](#etcd-plugin)
 - [Git](#git-plugin)
@@ -82,6 +83,17 @@ Container image inspection and analysis using skopeo and podman
 - **`/container-image:tags` `<repository>`** - List and analyze available tags for a container image repository
 
 See [plugins/container-image/README.md](plugins/container-image/README.md) for detailed documentation.
+
+### Crypto Inventory Plugin
+
+Find and inventory cryptographic usage across codebases
+
+**Commands:**
+- **`/crypto-inventory:find` `<algorithm|api> [--language go|python|java|javascript|typescript|rust|c|cpp|csharp|auto] [--format markdown|json] [--output path]`** - Search for specific cryptographic algorithms, APIs, or operations in the codebase
+- **`/crypto-inventory:scan` `[--format markdown|json] [--output path] [--language go|python|java|javascript|typescript|rust|c|cpp|csharp|auto] [--include-deps]`** - Scan codebase and generate a comprehensive crypto usage inventory from user code and third-party dependencies
+- **`/crypto-inventory:security` `[--format markdown|json] [--output path] [--language go|python|java|javascript|typescript|rust|c|cpp|csharp|auto] [--include-deps]`** - Scan codebase for security-critical cryptographic issues and provide actionable recommendations
+
+See [plugins/crypto-inventory/README.md](plugins/crypto-inventory/README.md) for detailed documentation.
 
 ### Doc Plugin
 
