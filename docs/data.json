@@ -886,6 +886,12 @@
           "synopsis": "/openshift:expand-test-case [test-idea-or-file-or-commands] [format]"
         },
         {
+          "argument_hint": "[host-name] [component] [firmware-url]",
+          "description": "Update OpenShift node firmware via HostFirmwareComponents CRD [host-name] [component] [firmware-url]",
+          "name": "firmware-update",
+          "synopsis": "/openshift:firmware-update [host-name] [component] [firmware-url]"
+        },
+        {
           "argument_hint": "",
           "description": "Check status of Ironic baremetal nodes in OpenShift cluster",
           "name": "ironic-status",
@@ -956,7 +962,7 @@
           "name": "OpenShift Node Kernel Inspection"
         }
       ],
-      "version": "0.0.4"
+      "version": "0.1.0"
     },
     {
       "commands": [
