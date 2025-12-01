@@ -30,7 +30,7 @@
         },
         {
           "argument_hint": "[--staged|--pr-ready|--commits N]",
-          "description": "Automated code review analysis for git changes",
+          "description": "OpenShift CI configuration review and validation",
           "name": "review-changes",
           "synopsis": "text"
         },
