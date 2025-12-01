@@ -58,14 +58,59 @@ esac
 - **Commit History**: Last N commits (`git diff HEAD~N..HEAD`)
 - **PR Ready**: Any scope with markdown output formatting
 
+## Phase 1.5: Repository Context Detection (Optional Enhancement)
+
+**Context Sources (in priority order):**
+1. `.reviewrc` - Repository-specific review configuration  
+2. `AGENTS.md` - AI agent guidance (extract review-related sections)
+3. `CONTRIBUTING.md` - Contributor guidelines (extract review sections)  
+4. Repository type detection (CI configs, package files, etc.)
+
+**Context Integration:**
+```bash
+# Detect repository-specific review context
+REPO_CONTEXT=""
+if [[ -f ".reviewrc" ]]; then
+    source .reviewrc  # Custom review configuration
+elif [[ -f "AGENTS.md" ]]; then
+    REPO_CONTEXT="$(grep -A 20 -i 'review\|code.*quality\|security\|testing\|best.*practice' AGENTS.md)"
+elif [[ -f "CONTRIBUTING.md" ]]; then
+    REPO_CONTEXT="$(grep -A 10 -i 'review\|code.*review\|pull.*request' CONTRIBUTING.md)"
+fi
+
+# Repository type detection for focused analysis
+if [[ -d "ci-operator/config" ]]; then
+    REPO_TYPE="openshift-ci"
+    FOCUS_AREAS="yaml_lint,job_config,step_registry,prow_configuration"
+elif [[ -f "package.json" ]]; then
+    REPO_TYPE="nodejs"
+    FOCUS_AREAS="security,performance,typescript,dependency_audit"
+elif [[ -f "go.mod" ]]; then
+    REPO_TYPE="golang"
+    FOCUS_AREAS="race_conditions,error_handling,interface_design,performance"
+elif [[ -f "requirements.txt" ]] || [[ -f "pyproject.toml" ]]; then
+    REPO_TYPE="python"
+    FOCUS_AREAS="security,pep8,type_hints,performance"
+fi
+```
+
+**Benefits:**
+- Adapts review focus based on repository-specific guidelines
+- Maintains backward compatibility with generic reviews
+- Supports gradual adoption across different repository types
+- Respects explicit repository review requirements
+
 ## Phase 2: Change Detection
 1. Execute determined diff command to get changes
 2. Extract changed files and diff content  
 3. Identify file types for language-specific analysis
 4. Filter out binary files and generated code
+5. Apply repository-specific context if available
 
 ## Phase 3: Multi-Perspective Analysis
-Analyze changes from these perspectives:
+Analyze changes from these perspectives, adapting based on repository context:
+
+**Core Analysis (All Repositories):**
 1. **Security Review**
    - Check for hardcoded secrets/credentials
    - Identify potential injection vulnerabilities
@@ -89,6 +134,40 @@ Analyze changes from these perspectives:
    - Suggest test cases for new functionality
    - Review existing test modifications
    - Check for regression test needs
+
+**Repository-Specific Analysis:**
+When `REPO_CONTEXT` or `REPO_TYPE` is detected, enhance analysis with:
+
+- **OpenShift CI Repositories** (`ci-operator/config` detected):
+  - YAML syntax and structure validation
+  - Prow job configuration best practices
+  - Step-registry component reusability
+  - Resource naming conventions
+  - Integration with existing workflows
+
+- **Node.js Projects** (`package.json` detected):
+  - Dependency vulnerability scanning
+  - TypeScript strict mode compliance
+  - React/Express.js best practices
+  - Package.json security audit
+
+- **Go Projects** (`go.mod` detected):
+  - Race condition detection
+  - Interface design patterns
+  - Error handling conventions
+  - Go module best practices
+
+- **Python Projects** (`requirements.txt`/`pyproject.toml` detected):
+  - PEP 8 compliance
+  - Type hint coverage
+  - Security best practices (bandit-style)
+  - Dependency management
+
+- **Custom Guidelines** (`AGENTS.md`/`.reviewrc` detected):
+  - Apply repository-specific review criteria
+  - Follow documented coding standards
+  - Respect team-specific conventions
+  - Check against project-specific requirements
 
 ## Phase 4: Generate Structured Report
 1. **Summary Section**: High-level change overview
@@ -117,6 +196,44 @@ git add src/auth.ts src/middleware.ts
 
 # Review changes in last 3 commits
 /git:review-changes --commits 3
+```
+
+### Repository-Specific Examples
+
+**OpenShift CI Repository:**
+```bash
+# In a repository with ci-operator/config directory
+/git:review-changes --staged
+
+# Output includes CI-specific analysis:
+# - YAML validation for ci-operator configs
+# - Step-registry best practices
+# - Prow job naming conventions
+# - Resource usage recommendations
+```
+
+**Repository with AGENTS.md:**
+```bash
+# In ai-helpers repository
+/git:review-changes --pr-ready
+
+# Output includes:
+# - Plugin structure validation
+# - Command definition format compliance
+# - Skill documentation completeness
+# - Marketplace registration checks
+```
+
+**Node.js Project:**
+```bash
+# In a TypeScript/React project
+/git:review-changes
+
+# Enhanced analysis includes:
+# - TypeScript strict mode compliance
+# - React hook usage patterns
+# - Dependency vulnerability checks
+# - Package.json security audit
 ```
 
 ## Return Value
