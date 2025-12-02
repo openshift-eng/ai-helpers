@@ -15,6 +15,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Jira](#jira-plugin)
 - [Lvms](#lvms-plugin)
 - [Must Gather](#must-gather-plugin)
+- [Node](#node-plugin)
 - [Node Tuning](#node-tuning-plugin)
 - [Olm](#olm-plugin)
 - [Openshift](#openshift-plugin)
@@ -170,6 +171,15 @@ A plugin to analyze and report on must-gather data
 - **`/must-gather:ovn-dbs` `[must-gather-path]`** - Analyze OVN databases from a must-gather using ovsdb-tool
 
 See [plugins/must-gather/README.md](plugins/must-gather/README.md) for detailed documentation.
+
+### Node Plugin
+
+Kubernetes and OpenShift node health monitoring and diagnostics
+
+**Commands:**
+- **`/node:cluster-node-health-check` `[--node <node-name>] [--verbose] [--output-format json|text]`** - Perform comprehensive health check on cluster nodes and report kubelet, CRI-O, and node-level issues
+
+See [plugins/node/README.md](plugins/node/README.md) for detailed documentation.
 
 ### Node Tuning Plugin
 
