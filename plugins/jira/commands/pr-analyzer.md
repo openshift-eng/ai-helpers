@@ -4,8 +4,24 @@ argument hint: PR (pull request)
 description: Analyze RHEL/ClusterLabs resource-agents PRs and generate comprehensive documentation
 ---
 
-You are analyzing resource-agents PRs for TNF clusters.
 
+## Name
+jira:pr-analyzer
+
+## Synopsis
+```bash
+/jira:pr-analyzer #PR Number
+```
+
+## Prerequisites
+It will help to have the GitHub CLI, or gh installed.
+
+## Description
+The `jira:pr-analyzer` helps a person understand the changes of a PR. This is beneficial for getting a summary. 
+It may not be necessary to write complete tests around the PR, but a good overview. A document is written out 
+that can be preserved and read by other team members. A quick verify script is also created.                               
+
+## Implementation
 When user says "analyze PR [number]" or provides PR URL/diff, create 2 files:
 
 1. PR{NUMBER}_GUIDE.md:
@@ -50,6 +66,6 @@ When user says "analyze PR [number]" or provides PR URL/diff, create 2 files:
    - Cleanup/restore
    - exit 0/1
 
-JIRA Patterns: OCPBUGS-*/OCPEDGE-*/RHEL-* → https://issues.redhat.com/browse/{ID}
+JIRA Patterns: OCPBUGS-*/OCPEDGE-*/RHEL-* → [https://issues.redhat.com/browse/{ID}](https://issues.redhat.com/browse/{ID})
 
 Context: ClusterLabs/RHEL resource-agents, Pacemaker/OCF, TNF 2-node clusters, production RHEL/OpenShift
