@@ -1,0 +1,8 @@
+{
+  "name": "bigquery",
+  "description": "BigQuery cost analysis and optimization utilities",
+  "version": "0.0.1",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}

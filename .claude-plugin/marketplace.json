@@ -118,6 +118,11 @@
       "name": "node",
       "source": "./plugins/node",
       "description": "Kubernetes and OpenShift node health monitoring and diagnostics"
+    },
+    {
+      "name": "bigquery",
+      "source": "./plugins/bigquery",
+      "description": "BigQuery analysis utilities"
     }
   ]
 }

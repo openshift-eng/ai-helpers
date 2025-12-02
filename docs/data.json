@@ -937,6 +937,28 @@
       "name": "node",
       "skills": [],
       "version": "0.0.1"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "<project-id> <timeframe>",
+          "description": "Analyze BigQuery usage and costs for a project",
+          "name": "analyze-usage",
+          "synopsis": "/bigquery:analyze-usage <project-id> <timeframe>"
+        }
+      ],
+      "description": "BigQuery analysis utilities",
+      "has_readme": true,
+      "hooks": [],
+      "name": "bigquery",
+      "skills": [
+        {
+          "description": "Comprehensive analysis of BigQuery usage patterns, costs, and query performance",
+          "id": "analyze-usage",
+          "name": "Analyze BigQuery Usage"
+        }
+      ],
+      "version": "0.0.1"
     }
   ]
 }
