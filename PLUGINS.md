@@ -3,6 +3,7 @@
 This document lists all available Claude Code plugins and their commands in the ai-helpers repository.
 
 - [Agendas](#agendas-plugin)
+- [Bigquery](#bigquery-plugin)
 - [Ci](#ci-plugin)
 - [Compliance](#compliance-plugin)
 - [Component Health](#component-health-plugin)
@@ -34,6 +35,15 @@ A plugin to create various meeting agendas
 - **`/agendas:outcome-refinement`** - Analyze the list of JIRA outcome issues to prepare an outcome refinement meeting agenda.
 
 See [plugins/agendas/README.md](plugins/agendas/README.md) for detailed documentation.
+
+### Bigquery Plugin
+
+BigQuery cost analysis and optimization utilities
+
+**Commands:**
+- **`/bigquery:analyze-usage` `<project-id> <timeframe>`** - Analyze BigQuery usage and costs for a project
+
+See [plugins/bigquery/README.md](plugins/bigquery/README.md) for detailed documentation.
 
 ### Ci Plugin
 
