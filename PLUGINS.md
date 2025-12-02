@@ -19,6 +19,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Node Tuning](#node-tuning-plugin)
 - [Olm](#olm-plugin)
 - [Openshift](#openshift-plugin)
+- [Origin](#origin-plugin)
 - [Prow Job](#prow-job-plugin)
 - [Session](#session-plugin)
 - [Sosreport](#sosreport-plugin)
@@ -228,6 +229,15 @@ OpenShift development utilities and helpers
 - **`/openshift:visualize-ovn-topology`** - Generate and visualize OVN-Kubernetes network topology diagram
 
 See [plugins/openshift/README.md](plugins/openshift/README.md) for detailed documentation.
+
+### Origin Plugin
+
+Helpers for openshift/origin development.
+
+**Commands:**
+- **`/origin:two-node-origin-pr-helper` `[--url PR_URL] [<pr>] [--depth quick|full]`** - Expert review tool for PRs that add or modify Two Node (Fencing or Arbiter) tests under test/extended/two_node/ in openshift/origin.
+
+See [plugins/origin/README.md](plugins/origin/README.md) for detailed documentation.
 
 ### Prow Job Plugin
 
