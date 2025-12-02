@@ -17,9 +17,8 @@ jira:pr-analyzer
 It will help to have the GitHub CLI, or gh installed.
 
 ## Description
-The `jira:pr-analyzer` helps a person understand the changes of a PR. This is beneficial for getting a summary. 
-It may not be necessary to write complete tests around the PR, but a good overview. A document is written out 
-that can be preserved and read by other team members. A quick verify script is also created.                               
+The `jira:pr-analyzer` command generates comprehensive documentation and a verification script to help understand PR changes. 
+It produces a shareable guide with a summary, testing steps, and troubleshooting information, plus an executable verification script.
 
 ## Implementation
 When user says "analyze PR [number]" or provides PR URL/diff, create 2 files:
