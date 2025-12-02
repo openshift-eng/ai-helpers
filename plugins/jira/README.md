@@ -21,31 +21,37 @@ Comprehensive Jira integration for Claude Code, providing AI-powered tools to an
 
 ### Setting up Jira MCP Server
 
-```bash
-# Start the atlassian mcp server using podman
-podman run -i --rm -p 8080:8080 -e "JIRA_URL=https://issues.redhat.com" -e "JIRA_USERNAME" -e "JIRA_PERSONAL_TOKEN" -e "JIRA_SSL_VERIFY" ghcr.io/sooperset/mcp-atlassian:latest --transport sse --port 8080 -vv
-```
+This plugin includes a `.mcp.json` file that automatically configures the Atlassian MCP server when the plugin is installed. The MCP server runs the `ghcr.io/sooperset/mcp-atlassian:latest` container using Podman.
 
-Add the MCP server to Claude:
+#### Prerequisites
 
-```bash
-# Add the Atlassian MCP server
-claude mcp add --transport sse atlassian http://localhost:8080/sse
-```
+1. **Podman installed and running**
+   - [Install Podman](https://podman.io/getting-started/installation)
+   - On macOS with Podman Machine: ensure it's running with `podman machine start`
 
-#### Getting Tokens
+2. **Environment variables set**
 
-For your Jira token, use https://issues.redhat.com/secure/ViewProfile.jspa?selectedTab=com.atlassian.pats.pats-plugin:jira-user-personal-access-tokens
+   Add the following to your shell profile (`~/.zshrc`, `~/.bashrc`, or equivalent):
 
-### Notes and tips
+   ```bash
+   export JIRA_USERNAME="your-username"
+   export JIRA_PERSONAL_TOKEN="your-personal-access-token"
+   ```
 
-- Do not commit real tokens. If you must keep a project-local file, prefer committing a `mcp.json.sample` with placeholders, and keep your real `mcp.json` untracked.
-- Consider using the [rh-pre-commit](https://source.redhat.com/departments/it/it_information_security/leaktk/leaktk_components/rh_pre_commit) hook to scan for secrets accidentally left in commits.
-- The `atlassian` server example uses an MCP container image: `ghcr.io/sooperset/mcp-atlassian:latest`.
-- If you prefer Docker, replace the `podman` command with `docker` (arguments are typically the same).
-- If Podman is installed via Podman Machine on macOS, ensure it is running: `podman machine start`.
-- Keep `JIRA_SSL_VERIFY` as "true" unless you have a specific reason to disable TLS verification.
-- Limit active MCP servers: running too many at once can degrade performance or hit limits. Use Cursor's MCP panel to disable those you don't need for the current session.
+   After adding these, reload your shell or run `source ~/.zshrc` (or your profile file).
+
+#### Getting Your Jira Personal Access Token
+
+Generate your Jira personal access token here:
+[Jira Personal Access Tokens](https://issues.redhat.com/secure/ViewProfile.jspa?selectedTab=com.atlassian.pats.pats-plugin:jira-user-personal-access-tokens)
+
+#### Configuration Details
+
+The plugin's `.mcp.json` configures:
+- **JIRA_URL**: `https://issues.redhat.com` (Red Hat's Jira instance)
+- **JIRA_USERNAME**: From your `$JIRA_USERNAME` environment variable
+- **JIRA_PERSONAL_TOKEN**: From your `$JIRA_PERSONAL_TOKEN` environment variable
+- **JIRA_SSL_VERIFY**: `true` (keep enabled for security)
 
 ## Installation
 
