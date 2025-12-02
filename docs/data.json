@@ -110,6 +110,12 @@
         },
         {
           "argument_hint": "",
+          "description": "Analyze RHEL/ClusterLabs resource-agents PRs and generate comprehensive documentation",
+          "name": "pr-analyzer",
+          "synopsis": "bash"
+        },
+        {
+          "argument_hint": "",
           "description": "Analyze a JIRA issue and create a pull request to solve it.",
           "name": "solve",
           "synopsis": "/jira:solve <jira-issue-id> [remote]"
