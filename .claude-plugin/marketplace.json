@@ -179,6 +179,12 @@
       "version": "0.0.4"
     },
     {
+      "name": "golang",
+      "source": "./plugins/golang",
+      "description": "Run golang codebase related commands and tools",
+      "version": "0.1.0"
+    },
+    {
       "name": "ote-migration",
       "source": "./plugins/ote-migration",
       "description": "Automate OpenShift Tests Extension (OTE) migration for component repositories",
