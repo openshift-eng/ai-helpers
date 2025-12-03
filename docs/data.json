@@ -103,10 +103,10 @@
           "synopsis": ""
         },
         {
-          "argument_hint": "[project-filter] [time-period] [--component component-name] [--label label-name] [--type issue-type]",
+          "argument_hint": "[project-filter] [time-period] [--component component-name] [--label label-name] [--type issue-type] [--status status] [--story-points]",
           "description": "Analyze new bugs and cards added over a time period and generate grooming meeting agenda",
           "name": "grooming",
-          "synopsis": "/jira:grooming [project-filter] [time-period] [--component component-name] [--label label-name] [--type issue-type]"
+          "synopsis": "/jira:grooming [project-filter] [time-period] [--component component-name] [--label label-name] [--type issue-type] [--status status] [--story-points]"
         },
         {
           "argument_hint": "",
