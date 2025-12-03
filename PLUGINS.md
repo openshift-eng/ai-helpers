@@ -11,6 +11,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Doc](#doc-plugin)
 - [Etcd](#etcd-plugin)
 - [Git](#git-plugin)
+- [Golang](#golang-plugin)
 - [Hcp](#hcp-plugin)
 - [Hello World](#hello-world-plugin)
 - [Jira](#jira-plugin)
@@ -130,6 +131,16 @@ Git workflow automation and utilities
 - **`/git:summary`** - Show current branch, git status, and recent commits for quick context
 
 See [plugins/git/README.md](plugins/git/README.md) for detailed documentation.
+
+### Golang Plugin
+
+Run golang codebase related commands and tools
+
+**Commands:**
+- **`/golang:lint-fix`** - Run golangci-lint tool and fix all reported issues
+- **`/golang:lint`** - Run golangci-lint tool to check for code quality issues
+
+See [plugins/golang/README.md](plugins/golang/README.md) for detailed documentation.
 
 ### Hcp Plugin
 

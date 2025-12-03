@@ -133,6 +133,11 @@
       "name": "workspaces",
       "source": "./plugins/workspaces",
       "description": "Manage isolated git worktree workspaces for multi-repo development"
+    },
+    {
+      "name": "golang",
+      "source": "./plugins/golang",
+      "description": "Go code quality checking and linting using golangci-lint"
     }
   ]
 }
