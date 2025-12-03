@@ -8,13 +8,14 @@ Claude Code session management and persistence utilities.
 
 Load and learn from recent conversation history to maintain context across sessions.
 
-This command automatically reads your recent conversation history from Claude Code's history file, allowing Claude to remember previous discussions without manual effort.
+This command uses an AI agent to analyze your conversation history and generate a compact summary, allowing Claude to understand previous work without loading full message history into the main thread.
 
 **Key features:**
-- Automatically loads recent conversations from `~/.claude/history.jsonl`
-- Maintains context across days and weeks
-- No need to manually save sessions beforehand
-- Smart filtering by time range and project
+- Agent-based analysis of `~/.claude/history.jsonl` in separate context
+- Generates compact summaries (300-500 tokens) instead of loading full history
+- Human-reviewed summaries before internalization
+- Smart filtering by time range, project, and keywords
+- Maintains context across days and weeks without context bloat
 
 See [commands/load-context.md](commands/load-context.md) for full documentation.
 

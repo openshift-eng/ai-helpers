@@ -37,171 +37,195 @@ This command solves the problem of Claude "forgetting" context after you close a
 - ✅ **No repetition** - Avoid re-explaining the same concepts every day
 - ✅ **Smart filtering** - Filter by time, project, or keywords
 - ✅ **Flexible search** - Combine multiple filters for precise context loading
+- ✅ **Context-efficient** - Uses agent to generate compact summaries, preserving main thread context
+- ✅ **Human-reviewed** - You approve the summary before it's ingested
 
 ## Implementation
 
-The command follows a five-phase process:
+The command uses an **agent-based approach** to efficiently process conversation history and generate a compact summary. This keeps the main thread's context clean while still providing helpful continuity.
 
-### Phase 1: Read Claude Code History File
+**Why use an agent?**
+- Heavy history parsing happens in **separate context** (doesn't bloat main thread)
+- Agent generates a **compact summary** instead of loading full message history
+- Main thread only ingests the summary after **human review**
+- Preserves context window and maintains quality
 
-1. **Locate history file**:
-   - Path: `~/.claude/history.jsonl`
-   - This file contains all conversation history in JSON Lines format
+### Phase 1: Launch History Analysis Agent
 
-2. **Read and parse the file**:
-   ```bash
-   cat ~/.claude/history.jsonl
-   ```
-   - Each line is a JSON object representing one user message
-   - Format: `{"display": "user message", "project": "/path/to/project", "timestamp": 1234567890, "sessionId": "uuid"}`
-
-3. **Determine time range**:
-   - Default: Last 7 days if no argument provided
-   - Custom: Use the `days` argument (e.g., 3 for last 3 days)
-   - Calculate timestamp threshold: `current_time - (days * 24 * 60 * 60 * 1000)`
-
-### Phase 2: Parse Filter Arguments
-
-1. **Parse command arguments**:
+1. **Parse command arguments first** (in main thread):
    - Detect numeric argument as `days` (e.g., `3`, `7`, `30`)
    - Detect `project:` prefix for project filtering (e.g., `project:ai-helpers`)
    - Detect `keyword:` prefix for keyword search (e.g., `keyword:loadbalancer`)
    - Support multiple filters in any order
 
-2. **Extract filter values**:
-   ```bash
-   # Examples of argument parsing:
-   # "3" → days=3
-   # "project:ai-helpers" → project="ai-helpers"
-   # "keyword:aws" → keyword="aws"
-   # "7 project:ai-helpers" → days=7, project="ai-helpers"
-   # "keyword:loadbalancer project:huali-test" → keyword="loadbalancer", project="huali-test"
+2. **Spawn a general-purpose agent** using the Task tool:
+   ```
+   Launch agent to analyze conversation history with filters:
+   - Days: [N] (default: 7)
+   - Project: [project-name] (optional)
+   - Keyword: [search-term] (optional)
    ```
 
-### Phase 3: Filter and Extract Relevant Conversations
+3. **Agent's mission**:
+   - Read `~/.claude/history.jsonl`
+   - Parse and filter based on provided arguments
+   - Generate a **compact summary** (target: 300-500 tokens)
+   - Return summary to main thread
 
-1. **Filter by timestamp** (if days specified):
-   - Only include messages within the specified time range
-   - Parse `timestamp` field (milliseconds since epoch)
-   - Default: 7 days if no time filter specified
-   - Filter out messages older than the threshold
+### Phase 2: Agent Reads and Filters History
 
-2. **Filter by project** (if project: specified):
-   - Extract project name from `project` path field
-   - Match against specified project name
-   - Case-insensitive matching
-   - Example: `project:ai-helpers` matches `/Users/user/project/ai-helpers`
+**Agent performs these steps in its own context:**
 
-3. **Filter by keyword** (if keyword: specified):
-   - Search in `display` field (user message text)
-   - Case-insensitive search
-   - Match partial words (e.g., `keyword:load` matches "loadbalancer", "loading")
-   - Boolean OR if multiple keywords
+1. **Locate and read history file**:
+   - Path: `~/.claude/history.jsonl`
+   - Each line is a JSON object: `{"display": "user message", "project": "/path/to/project", "timestamp": 1234567890, "sessionId": "uuid"}`
 
-4. **Group and organize**:
-   - Group filtered messages by `project` path
-   - Group by `sessionId` to reconstruct conversation threads
+2. **Apply filters**:
+   - **Time filter** (if days specified):
+     - Calculate threshold: `current_time - (days * 24 * 60 * 60 * 1000)`
+     - Only include messages after threshold
+   - **Project filter** (if project: specified):
+     - Match last component of project path (case-insensitive)
+     - Example: `project:ai-helpers` matches `/Users/user/project/ai-helpers`
+   - **Keyword filter** (if keyword: specified):
+     - Search in `display` field (case-insensitive)
+     - Partial matching (e.g., `keyword:load` matches "loadbalancer", "loading")
+
+3. **Organize filtered messages**:
+   - Group by project path
+   - Group by sessionId to understand conversation threads
    - Maintain chronological order
 
-5. **Extract message content**:
-   - Parse `display` field for the user's question/message
-   - Handle pasted content references if present
-   - Clean up formatting (remove extra whitespace, newlines)
+### Phase 3: Agent Generates Compact Summary
 
-### Phase 4: Organize and Summarize Conversations
+**The agent creates a HIGH-LEVEL summary** (NOT full message content):
 
-1. **Categorize by project**:
-   - Organize messages by the project they relate to
-   - Identify which project(s) have the most activity
-   - Note project paths for context
+**Target length**: 300-500 tokens maximum
 
-2. **Identify key topics**:
-   - Extract technical topics from messages (e.g., "build image", "push to quay", "write tests")
-   - Group related questions together
-   - Identify recurring themes or problems
-
-3. **Build chronological narrative**:
-   - Create a timeline of your work
-   - Show progression from earlier to recent questions
-   - Highlight unresolved questions or ongoing work
-
-### Phase 5: Present Context Summary
-
-Display a comprehensive summary in this format:
+**Summary structure**:
 
 ```
-📚 Loaded conversation history from the last [N] days
+📊 Analysis of [N] messages from last [X] days
 
-**Time range**: [Start Date] to [End Date]
-**Total messages**: [X] messages across [Y] sessions
+**Projects** (by activity):
+- ai-helpers: 23 messages
+  Topics: JIRA automation, plugin development, slash commands
+- cloud-provider-aws: 15 messages
+  Topics: NLB debugging, client IP preservation, target group attributes
+- cluster-capi-operator: 12 messages
+  Topics: E2E tests, label synchronization, MAPI generation
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+**Key Technical Areas**:
+- AWS infrastructure (load balancers, IAM, networking)
+- Kubernetes controllers and CRDs
+- Testing (E2E with Ginkgo, unit tests)
+- CI/CD (Docker builds, Quay registry)
 
-📂 **Projects you've been working on:**
-
-1. /path/to/project1 ([X] messages)
-2. /path/to/project2 ([Y] messages)
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-🔍 **Key topics and questions:**
-
-**Project: machine-api-provider-aws**
-- Building and pushing Docker images to Quay
-- Testing synchronized conditions in controllers
-- Image size differences between local and remote
-
-**Project: cluster-capi-operator**
-- Writing E2E tests for label/annotation synchronization
-- Verifying MAPI generation and synchronized time changes
-- Code refactoring to reduce duplication
-
-**Project: cloud-provider-aws**
-- Load balancer issues with AWS
-- Client IP preservation for NLB
-- Hairpin connection debugging
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-💡 **Recent technical context:**
-
-- You've been working on Kubernetes controllers across multiple projects
-- Focus on AWS infrastructure (load balancers, images, IAM)
-- Writing E2E tests with Ginkgo framework
-- Docker image building and registry operations
-- Debugging AWS NLB target group attributes
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-✅ Context loaded! I now understand your recent work across these projects.
-
-**How can I help you today?**
+**Recent Focus**:
+- Debugging AWS NLB hairpin connection issues
+- Writing E2E tests for annotation synchronization
+- Building and pushing container images to Quay
 ```
 
-### Phase 6: Internalize Context
+**What NOT to include**:
+- ❌ Full message text
+- ❌ Detailed conversation history
+- ❌ Specific file paths or code snippets
+- ❌ Complete chronological narratives
 
-After displaying the summary:
+**What TO include**:
+- ✅ Project names and message counts
+- ✅ High-level topic keywords
+- ✅ Technical themes and patterns
+- ✅ Recent focus areas
 
-1. **Store context mentally**:
-   - Claude has now read all the conversation history
-   - Can reference specific past questions
-   - Understands the technical background
+### Phase 4: Present Summary for Human Review
 
-2. **Be ready to answer**:
-   - If user asks about previous work, recall details
-   - Don't ask for information that was already discussed
-   - Build on previous conversations naturally
+**After agent completes**, present the summary to the user:
 
-3. **Handle follow-up questions**:
-   - User might ask: "What did we discuss about X?"
-   - Claude can reference specific past messages
-   - Provide continuity without repetition
+```
+📚 I've analyzed your conversation history from the last 7 days.
+
+Here's a high-level summary:
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[Agent's compact summary displayed here]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📊 **Context Impact**:
+- This summary is approximately [X] tokens
+- Main thread context remains clean
+- You can refine filters if needed
+
+Would you like me to internalize this context?
+
+Options:
+- **yes** - I'll remember this high-level overview
+- **no** - Discard summary, no context added
+- **refine** - Adjust filters (e.g., "just ai-helpers project")
+```
+
+### Phase 5: User Reviews and Decides
+
+**User responses:**
+
+1. **User says "yes"**:
+   - Main thread internalizes the compact summary
+   - Can reference general topics and projects
+   - Context window preserved
+
+2. **User says "no"**:
+   - Discard summary entirely
+   - No context added to main thread
+   - User maintains full control
+
+3. **User requests refinement**:
+   - User says "refine" or describes desired filter (e.g., "just show ai-helpers", "just ai-helpers project")
+   - Claude presents available filter options based on the current summary:
+     - Project filters from discovered projects
+     - Time range suggestions
+     - Keyword suggestions based on topics
+   - User selects desired refinement
+   - Re-run agent with updated filters
+   - Present new refined summary for review
+   - User can continue refining or approve/reject
+
+### Phase 6: Internalize Summary (If Approved)
+
+**If user approves:**
+
+1. **Main thread context**:
+   - Has high-level overview of recent work
+   - Knows which projects are active
+   - Understands general technical themes
+   - Does NOT have full message history
+
+2. **Answer follow-up questions**:
+   - User: "What have I been working on with AWS?"
+   - Claude: "Based on the summary, you've been working on NLB debugging, client IP preservation, and target group attributes in the cloud-provider-aws project."
+   - Can reference general topics from summary
+   - Cannot quote specific past messages (summary only)
+
+3. **Benefits maintained**:
+   - ✅ Context continuity across sessions
+   - ✅ Project awareness
+   - ✅ No context bloat
+   - ✅ User control preserved
 
 ## Return Value
 
-**Terminal output**: Comprehensive summary of loaded conversations (see Phase 4 format above)
+**Terminal output**:
+- Compact summary generated by agent (300-500 tokens)
+- Context impact assessment (token count)
+- User approval prompt
 
-**Internal state**: Claude has full context from recent history
+**Internal state** (after user approval):
+- High-level overview of recent work
+- Project names and activity levels
+- General technical themes
+- Does NOT contain full message history
 
 ## Examples
 
@@ -213,12 +237,40 @@ After displaying the summary:
 
 **Output:**
 ```
-📚 Loaded conversation history from the last 7 days
+📚 I've analyzed your conversation history from the last 7 days.
 
-**Time range**: Nov 21, 2025 to Nov 28, 2025
-**Total messages**: 45 messages across 8 sessions
+Here's a high-level summary:
 
-[... detailed summary as shown in Phase 4 ...]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📊 Analysis of 45 messages from last 7 days
+
+**Projects** (by activity):
+- ai-helpers: 23 messages
+  Topics: JIRA automation, plugin development, slash commands
+- cloud-provider-aws: 15 messages
+  Topics: NLB debugging, client IP preservation, AWS networking
+- cluster-capi-operator: 7 messages
+  Topics: E2E tests, label synchronization
+
+**Key Technical Areas**:
+- AWS infrastructure (load balancers, target groups)
+- Kubernetes controllers and CRDs
+- Testing frameworks (Ginkgo, E2E)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📊 **Context Impact**:
+- This summary is approximately 420 tokens
+- Main thread context remains clean
+- You can refine filters if needed
+
+Would you like me to internalize this context?
+
+Options:
+- **yes** - I'll remember this high-level overview
+- **no** - Discard summary, no context added
+- **refine** - Adjust filters (e.g., "just ai-helpers project")
 ```
 
 ### Example 2: Load last 3 days only
@@ -247,12 +299,31 @@ Loads all conversations related to the `ai-helpers` project (no time limit). Use
 
 **Output:**
 ```
-📚 Loaded conversation history for project: ai-helpers
+📚 I've analyzed conversation history for project: ai-helpers
 
-**Total messages**: 45 messages across 6 sessions
-**Projects**: ai-helpers only
+Here's a high-level summary:
 
-[Shows only ai-helpers related conversations...]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📊 Analysis of 45 messages (ai-helpers project only)
+
+**Topics Covered**:
+- JIRA automation and integration
+- Claude Code plugin development
+- Slash command creation
+- Marketplace registration
+- Command documentation (man page format)
+
+**Key Technical Areas**:
+- Claude Code plugin architecture
+- JIRA API integration
+- Markdown frontmatter and formatting
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📊 **Context Impact**: ~380 tokens
+
+Would you like me to internalize this context? (yes/no/refine)
 ```
 
 ### Example 5: Filter by keyword
@@ -265,12 +336,27 @@ Searches all history for conversations containing "loadbalancer". Useful for fin
 
 **Output:**
 ```
-📚 Loaded conversations matching keyword: loadbalancer
+📚 I've analyzed conversations matching keyword: loadbalancer
 
-**Total messages**: 12 messages across 3 sessions
-**Keyword matches**: loadbalancer (case-insensitive)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-[Shows only messages mentioning loadbalancer...]
+📊 Analysis of 12 messages (keyword: loadbalancer)
+
+**Projects Involved**:
+- cloud-provider-aws: 9 messages
+- openshift-docs: 3 messages
+
+**Topics**:
+- AWS NLB target group configuration
+- Client IP preservation settings
+- Load balancer annotation syntax
+- Hairpin connection debugging
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📊 **Context Impact**: ~280 tokens
+
+Would you like me to internalize this context? (yes/no/refine)
 ```
 
 ### Example 6: Combine filters - Time + Project
@@ -452,14 +538,26 @@ If user says yes, load all. If no, suggest alternatives.
 
 ## Best Practices
 
+### Context Management Philosophy
+
+**The key principle**: Let the agent do the heavy lifting, keep your main thread clean.
+
+- ✅ **Agent processes** large history files
+- ✅ **You review** compact summaries before accepting
+- ✅ **Main thread** only gets high-level overview
+- ✅ **Quality preserved** by avoiding context bloat
+
 ### Daily Workflow
 
 **Start of day:**
 ```bash
-/session:load-context 3  # Load last 3 days
+/session:load-context 3  # Agent analyzes last 3 days, presents summary
 ```
 
-This gives you continuity without overload.
+Review the summary, then choose:
+- `yes` - Internalize the compact overview
+- `no` - Skip if you don't need context today
+- `refine` - Narrow down to specific project
 
 **End of day (optional):**
 ```bash
@@ -470,21 +568,70 @@ This gives you continuity without overload.
 
 **Monday morning:**
 ```bash
-/session:load-context 7  # Load last week including Friday
+/session:load-context 7  # Agent summarizes last week
 ```
+
+Review summary to understand what happened over the weekend or last week.
 
 ### After Extended Break
 
 **After vacation/weekend:**
 ```bash
-/session:load-context 14  # Load 2 weeks to catch up
+/session:load-context 14  # Agent summarizes 2 weeks
 ```
+
+The agent will extract high-level themes, not dump 2 weeks of full messages.
 
 ### Project-Specific Work
 
-If working on multiple projects, the command automatically categorizes by project, so you can see which project has recent activity.
+**When focusing on one project:**
+```bash
+/session:load-context project:ai-helpers  # Only ai-helpers context
+```
+
+**When debugging specific issue:**
+```bash
+/session:load-context 3 keyword:error  # Recent error discussions
+```
+
+### Managing Context Budget
+
+**Good practice:**
+1. Start with narrow filters (3 days, specific project)
+2. Review summary before accepting
+3. If summary is too broad, refine filters
+4. Only accept summaries that are genuinely useful
+
+**Avoid:**
+- ❌ Loading 30+ days without project filter (too broad)
+- ❌ Accepting summaries you don't actually need
+- ❌ Re-loading context multiple times in same session
 
 ## Technical Details
+
+### Agent-Based Architecture
+
+**Why use an agent?**
+
+Traditional approach (loading full history into main thread):
+```
+Main Thread: Read 1000 messages → Parse → Filter → Load all → CONTEXT BLOAT
+```
+
+Agent-based approach (current implementation):
+```
+Main Thread: Parse args → Launch agent
+  ↓
+Agent Context: Read 1000 messages → Parse → Filter → Summarize → Return 400 tokens
+  ↓
+Main Thread: Review summary → User approves → Internalize 400 tokens only
+```
+
+**Benefits:**
+- Main thread context stays under 500 tokens (vs. potentially 10,000+)
+- Agent context is discarded after summary generation
+- User maintains control via approval step
+- Quality preserved by avoiding context exhaustion
 
 ### History File Format
 
@@ -516,11 +663,32 @@ const threshold = now - daysAgo
 messages.filter(msg => msg.timestamp >= threshold)
 ```
 
+### Summary Generation Guidelines (for Agent)
+
+**Target token count**: 300-500 tokens
+
+**What to extract:**
+- Project names and message counts
+- High-level topic keywords (3-5 per project)
+- Technical themes (languages, frameworks, tools)
+- Recent focus areas (what's being worked on now)
+
+**What to exclude:**
+- Full message text or quotes
+- Specific file paths or code snippets
+- Detailed chronological narratives
+- Implementation details
+
+**Quality check:**
+- Can a human read the summary in 30 seconds?
+- Does it capture the "essence" without details?
+- Would it help Claude understand context without full history?
+
 ### Privacy Note
 
 - This command only reads from your local `~/.claude/history.jsonl` file
 - No data is sent anywhere
-- All processing happens locally
+- All processing happens locally (including agent execution)
 - Only you and Claude see this history
 
 ## Differences from /session:save-session
@@ -528,15 +696,22 @@ messages.filter(msg => msg.timestamp >= threshold)
 | Feature | `/session:save-session` | `/session:load-context` |
 |---------|------------------------|-------------------------|
 | **Purpose** | Save current conversation | Load past conversations |
-| **Manual?** | Yes - you decide when | Automatic reading |
-| **Format** | Structured markdown | Parses JSONL history |
-| **Content** | Current session only | Multiple past sessions |
-| **Use case** | Document important work | Daily continuity |
-| **Output** | Creates new file | Reads existing history |
+| **Manual?** | Yes - you decide when | Yes - you approve summary |
+| **Format** | Structured markdown | Agent-generated summary |
+| **Content** | Current session only | Multiple past sessions (summarized) |
+| **Use case** | Document important work | Daily continuity via compact overview |
+| **Output** | Creates new file | Generates in-memory summary (300-500 tokens) |
+| **Context impact** | None (writes file) | Minimal (~400 tokens after approval) |
+| **Agent usage** | No | Yes (parsing in separate context) |
 
 **Recommended usage**: Use both together
-- `/session:load-context` at start of day (automatic memory)
+- `/session:load-context` at start of day (compact context recovery)
 - `/session:save-session` for important milestones (structured docs)
+
+**Complementary workflows:**
+- `/session:load-context` gives you high-level awareness of recent work
+- `/session:save-session` creates permanent documentation of important sessions
+- Together they provide both continuity and documentation
 
 ## See Also
 
