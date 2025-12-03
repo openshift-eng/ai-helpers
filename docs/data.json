@@ -31,8 +31,8 @@
         {
           "argument_hint": "<pr-url> [error-messages]",
           "description": "Fix a cherrypick-robot PR that needs manual intervention",
-          "name": "fix-robot-pr",
-          "synopsis": "/git:fix-robot-pr <pr-url> [error-messages]"
+          "name": "fix-cherrypick-robot-pr",
+          "synopsis": "/git:fix-cherrypick-robot-pr <pr-url> [error-messages]"
         },
         {
           "argument_hint": "[base-branch]",

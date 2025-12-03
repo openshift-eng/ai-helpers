@@ -4,16 +4,16 @@ argument-hint: <pr-url> [error-messages]
 ---
 
 ## Name
-git:fix-robot-pr
+git:fix-cherrypick-robot-pr
 
 ## Synopsis
 ```
-/git:fix-robot-pr <pr-url> [error-messages]
+/git:fix-cherrypick-robot-pr <pr-url> [error-messages]
 ```
 
 ## Description
 
-The `git:fix-robot-pr` command replaces a cherrypick-robot PR with a clean, manually-crafted cherry-pick PR that includes fixes the robot cannot handle.
+The `git:fix-cherrypick-robot-pr` command replaces a cherrypick-robot PR with a clean, manually-crafted cherry-pick PR that includes fixes the robot cannot handle.
 
 The cherrypick-robot creates automated PRs but cannot:
 - Fix verification failures (JSON validation, missing annotations)
@@ -37,7 +37,7 @@ Use `gh pr view <pr-url>` to extract:
 
 Example:
 ```bash
-gh pr view https://github.com/openshift/origin/pull/30524 --json baseRefName,title,commits,number,statusCheckRollup
+gh pr view <pr-url> --json baseRefName,title,commits,number,statusCheckRollup
 ```
 
 ### 2. Analyze Error Messages
@@ -54,17 +54,12 @@ Parse the provided error output to identify:
 3. CI failure URL if provided
 4. Automatically fetch from PR status checks
 
-Common error patterns:
-- `hack/verify-jsonformat.sh` → JSON validation failure
-- `hack/verify-generated.sh` → Missing test annotations
-- `CONFLICT` → Merge conflicts
-- `hack/verify-*.sh` → Other verification failures
-
 ### 3. Discover Git Remotes and Create Branch
 
 ```bash
 # Discover the upstream remote (the main repository)
-UPSTREAM_REMOTE=$(git remote -v | grep "openshift.*fetch" | grep -v "$(git config user.name)" | awk '{print $1}' | head -1)
+# Look for a remote that's not owned by the current user
+UPSTREAM_REMOTE=$(git remote -v | grep "fetch" | grep -v "$(git config user.name)" | awk '{print $1}' | head -1)
 
 # Discover the fork remote (your fork)
 FORK_REMOTE=$(git remote -v | grep "$(git config user.name).*push" | awk '{print $1}' | head -1)
@@ -80,7 +75,7 @@ git fetch $UPSTREAM_REMOTE <base-branch>
 git checkout -b cherry-pick-<issue-number>-to-<base-branch> $UPSTREAM_REMOTE/<base-branch>
 ```
 
-Example: `cherry-pick-29611-to-release-4.19`
+Example branch name: `cherry-pick-12345-to-release-1.0`
 
 ### 4. Cherry-Pick Commits
 
@@ -98,30 +93,34 @@ Handle any conflicts that arise during cherry-picking.
 
 ### 5. Apply Necessary Fixes Based on Errors
 
-**For JSON validation errors:**
+Based on the error analysis from step 2, apply the necessary fixes:
+
+**Analyze the errors to determine:**
+1. Which files are causing failures
+2. What type of failure (validation, conflict, test, build)
+3. What fix strategy is appropriate for the repository
+
+**Common fix strategies:**
+
+- **Validation failures**: Check if files can be excluded from validation or need correction
+- **Generated file mismatches**: Run repository update/regeneration scripts (e.g., `make update`, `make generate`)
+- **Merge conflicts**: Resolve conflicts by reviewing both sides and understanding the target branch context
+- **Test failures**: Update tests to be compatible with the target branch
+- **Build failures**: Update dependencies or build configuration for the target branch
+
+**Apply fixes with clear commits:**
 ```bash
-# Add files to exclusion list in hack/verify-jsonformat.sh
-# Edit the excluded_files array to include the problematic JSON file
+# Make necessary changes based on error analysis
+# Stage and commit each logical fix separately
+git add <affected-files>
+git commit -m "<clear description of what was fixed and why>"
 ```
 
-**For missing test annotations:**
-```bash
-# Regenerate annotations
-hack/update-generated.sh
-git add test/extended/util/annotate/generated/zz_generated.annotations.go
-git commit -m "Update generated test annotations"
-```
-
-**For merge conflicts:**
-- Resolve using context from error messages
-- Review the conflicting sections
-- Apply appropriate resolution
-- Stage and commit resolved files
-
-**For other verification failures:**
-- Identify the specific verification script failing
-- Apply repository-specific fixes
-- Commit with clear explanation
+**Note**: The specific fix commands will vary by repository. Consult the repository's documentation for:
+- Verification script locations and options
+- Code generation/update commands
+- Testing conventions
+- Contribution guidelines
 
 ### 6. Push and Create Replacement PR
 
@@ -185,42 +184,24 @@ The `/close` command triggers the bot to close the PR.
 ### Example 1: With Error Messages Pasted Directly
 
 ```
-/git:fix-robot-pr https://github.com/openshift/origin/pull/30524
+/git:fix-cherrypick-robot-pr https://github.com/org/repo/pull/12345
 
 Error messages:
-hack/verify-jsonformat.sh
-2025/11/24 20:07:50 ERROR: Invalid JSON file 'test/extended/util/compat_otp/testdata/opm/render/validate/catalog-error/operator-2/index.json': invalid character '{' after top-level value
-exit status 1
-
-hack/verify-generated.sh
-FAILURE: hack/verify-generated.sh:14: executing 'git diff --exit-code' expecting success: the command returned the wrong error code
-diff --git a/test/extended/util/annotate/generated/zz_generated.annotations.go
-+    "[sig-api-machinery][Feature:APIServer] TestTLSMinimumVersions": " [Suite:openshift/conformance/parallel]",
+[paste CI error output here]
 ```
 
-**What gets extracted:**
-- Base branch: `release-4.19`
-- Bug ID: `OCPBUGS-65944`
-- Commits: `3f8cbdc94c`, `0a70b81572`
-- PR to close: `30524`
-
-**What gets analyzed from errors:**
-- JSON validation failure → Add file to exclusion list
-- Missing annotation → Run `hack/update-generated.sh`
-
-**What gets fixed:**
-- Add `catalog-error/operator-2/index.json` to `excluded_files` in `hack/verify-jsonformat.sh`
-- Run `hack/update-generated.sh` to regenerate annotations
-- Commit fixes with clear message
-
-**Result:**
-- New PR created: `https://github.com/openshift/origin/pull/30529`
-- Old robot PR closed with explanation
+**The command will:**
+1. Extract PR information (base branch, commits, bug ID)
+2. Analyze the error messages to identify failure types
+3. Cherry-pick commits to a new branch
+4. Guide you through applying appropriate fixes based on repository conventions
+5. Create a new PR with fixes applied
+6. Close the old robot PR with explanation
 
 ### Example 2: With Error Log File Reference
 
 ```
-/git:fix-robot-pr https://github.com/openshift/origin/pull/30524
+/git:fix-cherrypick-robot-pr https://github.com/org/repo/pull/12345
 
 Error log file: /path/to/ci-errors.log
 ```
@@ -230,9 +211,9 @@ The command reads the error log file and processes it the same way as Example 1.
 ### Example 3: With CI Failure Page Link
 
 ```
-/git:fix-robot-pr https://github.com/openshift/origin/pull/30524
+/git:fix-cherrypick-robot-pr https://github.com/org/repo/pull/12345
 
-CI failure: https://prow.ci.openshift.org/view/gs/test-platform-results/pr-logs/pull/30524/...
+CI failure: https://ci-system.example.com/logs/...
 ```
 
 The command fetches the CI logs from the provided URL and analyzes them.
@@ -240,7 +221,7 @@ The command fetches the CI logs from the provided URL and analyzes them.
 ### Example 4: No Error Messages (Auto-detect)
 
 ```
-/git:fix-robot-pr https://github.com/openshift/origin/pull/30524
+/git:fix-cherrypick-robot-pr https://github.com/org/repo/pull/12345
 ```
 
 If no error messages are provided, the command will:
@@ -251,7 +232,7 @@ If no error messages are provided, the command will:
 
 ## Arguments
 
-- **$1** (required): PR URL - The URL of the cherrypick-robot PR to fix (e.g., `https://github.com/openshift/origin/pull/30524`)
+- **$1** (required): PR URL - The URL of the cherrypick-robot PR to fix (e.g., `https://github.com/org/repo/pull/12345`)
 - **$2** (optional): Error messages - Can be:
   - Error messages pasted directly
   - File path to error log (e.g., `/path/to/ci-errors.log`)
@@ -261,22 +242,24 @@ If no error messages are provided, the command will:
 ## Common Issues This Handles
 
 Beyond what the robot can do:
-- ✅ **JSON validation errors** - Add exclusions for intentionally broken test files
-- ✅ **Missing annotations** - Regenerate test annotations
+- ✅ **Validation errors** - Apply exclusions or corrections based on repository conventions
+- ✅ **Generated file mismatches** - Run appropriate update/regeneration commands
 - ✅ **Merge conflicts** - Resolve using context
-- ✅ **Verification failures** - Apply appropriate fixes
-- ✅ **Context-specific fixes** - Apply fixes for the target branch
+- ✅ **Test failures** - Update tests for target branch compatibility
+- ✅ **Build failures** - Update dependencies or configuration
+- ✅ **Context-specific fixes** - Apply fixes appropriate for the target branch
 - ✅ **Edge cases** - Handle with human judgment
 
 ## Notes
 
-- Works with any `openshift-cherrypick-robot` PR
+- Works with cherrypick-robot PRs across different repositories
 - Error messages help determine exactly what to fix
 - Automatically discovers git remote names (no hardcoded assumptions)
 - All changes pushed to your fork (auto-discovered remote)
-- New PRs target the upstream repository (e.g., `openshift/origin`)
+- New PRs target the upstream repository
 - Branch naming convention: `cherry-pick-<issue>-to-<release>`
 - Maintains full control to add any fixes needed
 - If no error messages provided, will check PR status and CI logs automatically
 - Remote discovery uses `git remote -v` and `git config user.name` to identify fork vs upstream
 - Falls back to common names (`origin` for fork, `upstream` for main repo) if auto-discovery fails
+- Fix strategies will vary by repository - consult repository documentation for specific commands
