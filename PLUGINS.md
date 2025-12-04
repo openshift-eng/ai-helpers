@@ -3,6 +3,7 @@
 This document lists all available Claude Code plugins and their commands in the ai-helpers repository.
 
 - [Agendas](#agendas-plugin)
+- [Bigquery](#bigquery-plugin)
 - [Ci](#ci-plugin)
 - [Compliance](#compliance-plugin)
 - [Component Health](#component-health-plugin)
@@ -13,10 +14,13 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Hcp](#hcp-plugin)
 - [Hello World](#hello-world-plugin)
 - [Jira](#jira-plugin)
+- [Lvms](#lvms-plugin)
 - [Must Gather](#must-gather-plugin)
+- [Node](#node-plugin)
 - [Node Tuning](#node-tuning-plugin)
 - [Olm](#olm-plugin)
 - [Openshift](#openshift-plugin)
+- [Origin](#origin-plugin)
 - [Prow Job](#prow-job-plugin)
 - [Session](#session-plugin)
 - [Sosreport](#sosreport-plugin)
@@ -31,6 +35,15 @@ A plugin to create various meeting agendas
 - **`/agendas:outcome-refinement`** - Analyze the list of JIRA outcome issues to prepare an outcome refinement meeting agenda.
 
 See [plugins/agendas/README.md](plugins/agendas/README.md) for detailed documentation.
+
+### Bigquery Plugin
+
+BigQuery cost analysis and optimization utilities
+
+**Commands:**
+- **`/bigquery:analyze-usage` `<project-id> <timeframe>`** - Analyze BigQuery usage and costs for a project
+
+See [plugins/bigquery/README.md](plugins/bigquery/README.md) for detailed documentation.
 
 ### Ci Plugin
 
@@ -143,15 +156,25 @@ A plugin to automate tasks with Jira
 - **`/jira:clone-from-github` `<issue-number> [issue-number...] [--github-project <org/repo>] [--jira-project <key>] [--dryrun]`** - Clone GitHub issues to Jira with proper formatting and linking
 - **`/jira:create-release-note` `<issue-key>`** - Generate bug fix release notes from Jira tickets and linked GitHub PRs
 - **`/jira:create` `<type> [project-key] <summary> [--component <name>] [--version <version>] [--parent <key>]`** - Create Jira issues (story, epic, feature, task, bug, feature-request) with proper formatting
+- **`/jira:generate-feature-doc` `<feature-key>`** - Generate comprehensive feature documentation from Jira feature and all related issues and PRs
 - **`/jira:generate-test-plan` `[JIRA issue key] [GitHub PR URLs]`** - Generate test steps for a JIRA issue
-- **`/jira:grooming` `[project-filter] [time-period] [--component component-name] [--label label-name] [--type issue-type]`** - Analyze new bugs and cards added over a time period and generate grooming meeting agenda
 - **`/jira:reconcile-github` `[--github-project <org/repo>] [--jira-project <key>] [--profile <name>] [--porcelain] [--output json|yaml]`** - Reconcile state mismatches between GitHub and Jira issues
 - **`/jira:setup-gh2jira`** - Install and configure the gh2jira utility with all required tools and credentials
+- **`/jira:grooming` `[project-filter] [time-period] [--component component-name] [--label label-name] [--type issue-type] [--status status] [--story-points]`** - Analyze new bugs and cards added over a time period and generate grooming meeting agenda
 - **`/jira:solve`** - Analyze a JIRA issue and create a pull request to solve it.
 - **`/jira:status-rollup` `issue-id [--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD]`** - Generate a status rollup comment for any JIRA issue based on all child issues and a given date range
 - **`/jira:validate-blockers` `[target-version] [component-filter] [--bug issue-key]`** - Validate proposed release blockers using Red Hat OpenShift release blocker criteria
 
 See [plugins/jira/README.md](plugins/jira/README.md) for detailed documentation.
+
+### Lvms Plugin
+
+LVMS (Logical Volume Manager Storage) plugin for troubleshooting and debugging storage issues
+
+**Commands:**
+- **`/lvms:analyze` `[must-gather-path|--live] [--component storage|operator|volumes]`** - Comprehensive LVMS troubleshooting - analyzes LVMCluster, volume groups, PVCs, and storage issues on live clusters or must-gather
+
+See [plugins/lvms/README.md](plugins/lvms/README.md) for detailed documentation.
 
 ### Must Gather Plugin
 
@@ -162,6 +185,15 @@ A plugin to analyze and report on must-gather data
 - **`/must-gather:ovn-dbs` `[must-gather-path]`** - Analyze OVN databases from a must-gather using ovsdb-tool
 
 See [plugins/must-gather/README.md](plugins/must-gather/README.md) for detailed documentation.
+
+### Node Plugin
+
+Kubernetes and OpenShift node health monitoring and diagnostics
+
+**Commands:**
+- **`/node:cluster-node-health-check` `[--node <node-name>] [--verbose] [--output-format json|text]`** - Perform comprehensive health check on cluster nodes and report kubelet, CRI-O, and node-level issues
+
+See [plugins/node/README.md](plugins/node/README.md) for detailed documentation.
 
 ### Node Tuning Plugin
 
@@ -203,11 +235,22 @@ OpenShift development utilities and helpers
 - **`/openshift:create-cluster` `"[release-image] [platform] [options]"`** - Extract OpenShift installer from release image and create an OCP cluster
 - **`/openshift:destroy-cluster` `"[install-dir]"`** - Destroy an OpenShift cluster created by create-cluster command
 - **`/openshift:expand-test-case` `[test-idea-or-file-or-commands] [format]`** - Expand basic test ideas or existing oc commands into comprehensive test scenarios with edge cases in oc CLI or Ginkgo format
+- **`/openshift:ironic-status`** - Check status of Ironic baremetal nodes in OpenShift cluster
 - **`/openshift:new-e2e-test` `[test-specification]`** - Write and validate new OpenShift E2E tests using Ginkgo framework
 - **`/openshift:rebase` `<tag>`** - Rebase OpenShift fork of an upstream repository to a new upstream release.
 - **`/openshift:review-test-cases` `[file-path-or-test-code-or-commands]`** - Review test cases for completeness, quality, and best practices - accepts file path or direct oc commands/test code
+- **`/openshift:visualize-ovn-topology`** - Generate and visualize OVN-Kubernetes network topology diagram
 
 See [plugins/openshift/README.md](plugins/openshift/README.md) for detailed documentation.
+
+### Origin Plugin
+
+Helpers for openshift/origin development.
+
+**Commands:**
+- **`/origin:two-node-origin-pr-helper` `[--url PR_URL] [<pr>] [--depth quick|full]`** - Expert review tool for PRs that add or modify Two Node (Fencing or Arbiter) tests under test/extended/two_node/ in openshift/origin.
+
+See [plugins/origin/README.md](plugins/origin/README.md) for detailed documentation.
 
 ### Prow Job Plugin
 

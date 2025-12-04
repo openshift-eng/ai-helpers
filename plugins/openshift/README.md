@@ -32,6 +32,10 @@ Destroy an OpenShift cluster created by the create-cluster command.
 
 This command safely destroys a cluster and cleans up all cloud resources. Includes safety confirmations and optional backup of cluster information.
 
+### `/openshift:ironic-status`
+
+Check status of Ironic baremetal nodes in OpenShift cluster.
+
 See the [commands/](commands/) directory for full documentation of each command.
 
 ## Installation
