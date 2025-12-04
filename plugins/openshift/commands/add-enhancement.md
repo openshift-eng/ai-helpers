@@ -1,26 +1,40 @@
 ---
 description: Create a new OpenShift Enhancement Proposal
-args:
-  - name: area
-    description: Enhancement area (subdirectory under enhancements/)
-  - name: name
-    description: One-line title describing the enhancement
-  - name: description
-    description: Detailed description (what, why, who)
-  - name: jira
-    description: JIRA ticket URL for tracking
+argument-hint: <area> <name> <description> <jira>
 ---
 
-You are tasked with creating a new OpenShift Enhancement Proposal based on the template from the openshift/enhancements repository (https://raw.githubusercontent.com/openshift/enhancements/master/guidelines/enhancement_template.md). You must mirror all required headings from the enhancement template exactly, even if there is nothing to be added, and in this case the section should be empty.
+## Name
+openshift:add-enhancement
 
-## Inputs Provided
+## Synopsis
+```
+/openshift:add-enhancement <area> <name> <description> <jira>
+```
 
-- **Area**: {{area}}
-- **Name**: {{name}}
-- **Description**: {{description}}
-- **JIRA Ticket**: {{jira}}
+## Description
 
-## Instructions
+The `openshift:add-enhancement` command creates a new OpenShift Enhancement
+Proposal (EP) based on the official template from the openshift/enhancements
+repository. It generates a comprehensive enhancement document with all required
+sections, metadata, and guidance following OpenShift's enhancement process.
+
+This command automates the creation of enhancement proposals by:
+- Fetching the latest enhancement template from the openshift/enhancements
+  repository
+- Analyzing the provided description to extract what, why, and who information
+- Generating user stories, goals, and non-goals based on the requirements
+- Creating properly formatted enhancement files with all required sections
+- Applying OpenShift-specific conventions for feature gates, API design, and
+  testing requirements
+
+## Arguments
+
+- **area**: Enhancement area (subdirectory under enhancements/)
+- **name**: One-line title describing the enhancement
+- **description**: Detailed description (what, why, who)
+- **jira**: JIRA ticket URL for tracking
+
+## Implementation
 
 Act as an experienced software architect to create a comprehensive enhancement proposal. Follow these steps:
 
@@ -46,7 +60,7 @@ Act as an experienced software architect to create a comprehensive enhancement p
    - Ask clarifying questions about telemetry, security, upgrade and downgrade process, rollbacks, dependencies, in case it is not possible to assert these fields.
 
 3. **Generate the Enhancement File**:
-   - Create the file at `enhancements/{{area}}/{{filename}}.md` where filename is the kebab-case version of the name
+   - Create the file at `enhancements/<area>/<filename>.md` where filename is the kebab-case version of the name argument
    - Fill in the template with:
      - **Title**: Use the provided name
      - **Summary**: One paragraph describing what this enhancement is about
