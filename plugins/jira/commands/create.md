@@ -514,10 +514,24 @@ Applied defaults:
   Auto-detected from summary context if not provided (for CNTRLPLANE/OCPBUGS).
 
 - **--version** *(optional)*
-  Target version (e.g., `"4.21"`, `"4.22"`, `"2.5.0"`).
-  **Default varies by project:**
-  - CNTRLPLANE/OCPBUGS: `openshift-4.21`
-  - Other projects: Prompt or use project default
+  Target version. User input is normalized to Jira format `openshift-X.Y`.
+
+  **Accepted input formats (examples):**
+  | User Input | Normalized |
+  |------------|------------|
+  | `4.21` | `openshift-4.21` |
+  | `4.22.0` | `openshift-4.22` |
+  | `openshift 4.23` | `openshift-4.23` |
+  | `OCP 4.21` | `openshift-4.21` |
+  | `ocp 4.22` | `openshift-4.22` |
+
+  **Behavior:** If not provided via flag, user is prompted (optional field).
+
+  **Normalization rules:**
+  1. Convert to lowercase
+  2. Remove "ocp" or "openshift" prefix (with space or hyphen)
+  3. Extract version number (X.Y or X.Y.Z → X.Y)
+  4. Prepend "openshift-"
 
 - **--parent** *(optional)*
   Parent issue key for linking (e.g., `CNTRLPLANE-123`).

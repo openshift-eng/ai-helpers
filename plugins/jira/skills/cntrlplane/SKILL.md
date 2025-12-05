@@ -34,39 +34,59 @@ This skill is automatically invoked by the `/jira:create` command when the proje
 
 **Status:** OPTIONAL (many issues in CNTRLPLANE have null target version)
 
-**Recommendation:** **Omit this field** unless specifically required by the team or user explicitly requests it.
+**Recommendation:** **Prompt the user** for target version if needed, rather than assuming a default.
 
-**If target version must be set:**
+**Prompt:** "Which OpenShift version should this target? (e.g., 4.22, openshift 4.22, OCP 4.22) or press Enter to skip"
+
+### Version Input Normalization
+
+Users may specify versions in various formats. Normalize all inputs to the Jira format `openshift-X.Y`:
+
+| User Input | Normalized Output |
+|------------|-------------------|
+| `4.21` | `openshift-4.21` |
+| `4.22.0` | `openshift-4.22` |
+| `openshift 4.23` | `openshift-4.23` |
+| `openshift-4.21` | `openshift-4.21` |
+| `OCP 4.22` | `openshift-4.22` |
+| `ocp 4.21` | `openshift-4.21` |
+| `OpenShift 4.23` | `openshift-4.23` |
+
+**Normalization rules:**
+1. Convert to lowercase
+2. Remove "ocp" or "openshift" prefix (with or without space/hyphen)
+3. Extract version number (X.Y or X.Y.Z → X.Y)
+4. Prepend "openshift-"
+
+### Setting Target Version in MCP
+
+**If target version is set:**
 
 1. **First, fetch available versions:**
    ```python
    versions = mcp__atlassian__jira_get_project_versions(project_key="CNTRLPLANE")
    ```
 
-2. **Find the version ID** for the desired version (e.g., "openshift-4.21" has id "12448830")
+2. **Find the version ID** for the normalized version name (e.g., "openshift-4.22")
 
 3. **Use correct MCP format** (array of version objects with ID):
    ```python
-   "customfield_12319940": [{"id": "12448830"}]  # openshift-4.21
+   "customfield_12319940": [{"id": "VERSION_ID"}]  # e.g., openshift-4.22
    ```
 
-**Common version IDs:**
-- `openshift-4.21`: `{"id": "12448830"}`
-- `openshift-4.20`: `{"id": "12447110"}`
-- `openshift-4.22`: `{"id": "12448831"}`
-
-**IMPORTANT:** Do NOT use string format like `"openshift-4.21"` - this will fail. Must use array with version ID.
+**IMPORTANT:** Do NOT use string format like `"openshift-4.22"` - this will fail. Must use array with version ID.
 
 **Never set:**
 - Fix Version/s (`fixVersions`) - This is managed by the release team
 
-### Version Override Handling
+### Version Handling Workflow
 
-If user specifies a version:
-1. Fetch available versions using `mcp__atlassian__jira_get_project_versions`
-2. Find the matching version ID
-3. If version doesn't exist, suggest closest match or ask user to confirm
-4. Use array format with version ID: `[{"id": "VERSION_ID"}]`
+When user specifies a version (via `--version` flag or prompt):
+1. **Normalize** the input to `openshift-X.Y` format
+2. **Fetch** available versions using `mcp__atlassian__jira_get_project_versions`
+3. **Find** the matching version ID
+4. **If version doesn't exist**, suggest closest match or ask user to confirm
+5. **Use array format** with version ID: `[{"id": "VERSION_ID"}]`
 
 ## Parent Linking in CNTRLPLANE
 
@@ -269,7 +289,7 @@ mcp__atlassian__jira_create_issue(
 **Note:** Detailed prompts for each issue type are defined in type-specific skills (create-story, create-epic, create-feature, create-task).
 
 **CNTRLPLANE-specific prompts:**
-- **Target version** (optional): "Which version should this target? (default: openshift-4.21)"
+- **Target version** (optional): "Which OpenShift version should this target? (e.g., 4.22, openshift 4.22, OCP 4.22) or press Enter to skip"
 - **Component** (if required by team): Defer to team-specific skills
 - **Parent link** (for epics/tasks): "Link to parent Feature/Epic?" (optional)
 
@@ -283,10 +303,9 @@ mcp__atlassian__jira_create_issue(
 /jira:create story CNTRLPLANE "Enable pod disruption budgets for control plane"
 ```
 
-**CNTRLPLANE-specific defaults:**
-- Target Version: openshift-4.21
-
-**Prompts:** See `create-story` skill for story-specific prompts
+**Prompts:**
+- Target version (optional): User prompted, input normalized (e.g., "4.22" → "openshift-4.22")
+- See `create-story` skill for story-specific prompts
 
 ### Create CNTRLPLANE Epic
 
@@ -294,11 +313,12 @@ mcp__atlassian__jira_create_issue(
 /jira:create epic CNTRLPLANE "Improve cluster lifecycle management"
 ```
 
-**CNTRLPLANE-specific defaults:**
-- Target Version: openshift-4.21
+**CNTRLPLANE-specific requirements:**
 - Epic Name: Same as summary (required field)
 
-**Prompts:** See `create-epic` skill for epic-specific prompts
+**Prompts:**
+- Target version (optional): User prompted, input normalized
+- See `create-epic` skill for epic-specific prompts
 
 ### Create CNTRLPLANE Feature
 
@@ -306,10 +326,9 @@ mcp__atlassian__jira_create_issue(
 /jira:create feature CNTRLPLANE "Advanced observability capabilities"
 ```
 
-**CNTRLPLANE-specific defaults:**
-- Target Version: openshift-4.21
-
-**Prompts:** See `create-feature` skill for feature-specific prompts
+**Prompts:**
+- Target version (optional): User prompted, input normalized
+- See `create-feature` skill for feature-specific prompts
 
 ### Create CNTRLPLANE Task
 
@@ -317,10 +336,9 @@ mcp__atlassian__jira_create_issue(
 /jira:create task CNTRLPLANE "Refactor cluster controller reconciliation logic"
 ```
 
-**CNTRLPLANE-specific defaults:**
-- Target Version: openshift-4.21
-
-**Prompts:** See `create-task` skill for task-specific prompts
+**Prompts:**
+- Target version (optional): User prompted, input normalized
+- See `create-task` skill for task-specific prompts
 
 ## Error Handling
 
@@ -407,17 +425,18 @@ Team-specific skills are invoked automatically when team keywords are detected i
 When `/jira:create` is invoked for CNTRLPLANE:
 
 1. ✅ **CNTRLPLANE skill loaded:** Applies project-specific conventions
-2. ⚙️ **Apply CNTRLPLANE defaults:**
-   - Target version: openshift-4.21 (default)
+2. ⚙️ **Apply CNTRLPLANE requirements:**
    - Epic name field (for epics)
 3. 🔍 **Check for team-specific skills:** If team keywords detected, invoke team skill (e.g., `hypershift`)
-4. 💬 **Interactive prompts:** Collect missing information (see type-specific skills for details)
+4. 💬 **Interactive prompts:** Collect missing information:
+   - Target version (optional): Prompt user, normalize input (e.g., "4.22" → "openshift-4.22")
+   - See type-specific skills for additional prompts
 
 **Note:** Universal requirements (security, labels), security validation, and issue creation handled by `/jira:create` command.
 
 ## Best Practices
 
-1. **Version consistency:** Use common defaults (openshift-4.21) unless team specifies otherwise
+1. **Version input:** Always normalize user version input (e.g., "4.22", "OCP 4.22" → "openshift-4.22")
 2. **Template adherence:** Defer to type-specific skills for templates (create-story, create-epic, etc.)
 3. **Link hierarchy:** Link epics to features, tasks to stories/epics using `--parent` flag
 4. **Descriptive summaries:** Use clear, searchable issue summaries
