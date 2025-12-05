@@ -1,8 +1,13 @@
 {
+"name": "openshift",
+"owner": {
+"name": "openshift"
+},
+"plugins": [
+{
   "name": "openshift",
-  "description": "Miscellaenous commands related to development on OpenShift",
-  "version": "0.0.1",
-  "author": {
-    "name": "openshift"
-  }
+  "source": "./",
+  "description": "Miscellaneous commands related to development on OpenShift"
+}
+]
 }
