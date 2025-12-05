@@ -1,9 +1,5 @@
 FROM registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.24-openshift-4.21
 
-# Install Node.js and NPM from yum repositories
-RUN dnf install -y nodejs npm \
-    && dnf clean all
-
 # Install Python 3 and development tools
 RUN dnf install -y \
     python3 \
@@ -11,8 +7,8 @@ RUN dnf install -y \
     python3-devel \
     && dnf clean all
 
-# Install Claude Code CLI globally
-RUN npm install -g @anthropic-ai/claude-code
+# Install Claude Code CLI using the official installation script
+RUN curl -fsSL https://claude.ai/install.sh | bash
 
 # Install common Python tools
 RUN pip3 install --no-cache-dir \
