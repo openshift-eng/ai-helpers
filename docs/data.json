@@ -5,6 +5,12 @@
     {
       "commands": [
         {
+          "argument_hint": "[pr-number]",
+          "description": "Automatically add 'approve' label to PR when all conditions are met",
+          "name": "auto-approve",
+          "synopsis": "/git:auto-approve [pr-number]"
+        },
+        {
           "argument_hint": "[--dry-run] [--merged-only] [--remote]",
           "description": "Clean up old and defunct branches that are no longer needed",
           "name": "branch-cleanup",
