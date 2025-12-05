@@ -37,8 +37,13 @@ USER claude
 # Install Claude Code CLI using the official installation script
 RUN curl -fsSL https://claude.ai/install.sh | bash
 
+# In CI, OpenShift uses a random UID
+RUN chmod g+rxw -R /home/claude && \
+  chmod g+rxw -R /opt/ai-helpers
+
 # Ensure ~/.local/bin is in PATH for the entrypoint
 ENV PATH="/home/claude/.local/bin:${PATH}"
+ENV CLAUDE_CONFIG_DIR="/home/claude/.claude"
 
 # Set Claude Code as the default command
 ENTRYPOINT ["claude"]
