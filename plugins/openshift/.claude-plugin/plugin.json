@@ -1,7 +1,7 @@
 {
   "name": "openshift",
   "description": "OpenShift development utilities and helpers",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "author": {
     "name": "github.com/openshift-eng"
   }
