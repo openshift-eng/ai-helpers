@@ -13,22 +13,22 @@ RUN pip3 install --no-cache-dir \
     requests \
     pyyaml
 
-# Create claude user
-RUN useradd -m -u 1000 -s /bin/bash claude
+# Create claude user with root group for OpenShift compatibility
+RUN useradd -m -u 1000 -g 0 -s /bin/bash claude
 
 # Copy ai-helpers repository to /opt/ai-helpers
 COPY . /opt/ai-helpers
-RUN chown -R claude:claude /opt/ai-helpers
+RUN chown -R claude:root /opt/ai-helpers
 
 # Create Claude configuration directory and copy settings
 #   Note: We pre-configure known_marketplaces.json because extraKnownMarketplaces doesn't seem to work in non-interactive mode.
 RUN mkdir -p /home/claude/.claude/plugins
 COPY images/claude-settings.json /home/claude/.claude/settings.json
 COPY images/known_marketplaces.json /home/claude/.claude/plugins/known_marketplaces.json
-RUN chown -R claude:claude /home/claude/.claude
+RUN chown -R claude:root /home/claude
 
 # Create workspace directory
-RUN mkdir -p /workspace && chown -R claude:claude /workspace
+RUN mkdir -p /workspace && chown -R claude:root /workspace
 WORKDIR /workspace
 
 # Switch to claude user
@@ -37,9 +37,10 @@ USER claude
 # Install Claude Code CLI using the official installation script
 RUN curl -fsSL https://claude.ai/install.sh | bash
 
-# In CI, OpenShift uses a random UID
-RUN chmod g+rxw -R /home/claude && \
-  chmod g+rxw -R /opt/ai-helpers
+# In CI, OpenShift uses a random UID, but in the root group
+RUN chmod -R g+rwx /home/claude && \
+  chmod -R g+rwx /opt/ai-helpers && \
+  chmod -R g+rwx /workspace
 
 # Ensure ~/.local/bin is in PATH for the entrypoint
 ENV PATH="/home/claude/.local/bin:${PATH}"
