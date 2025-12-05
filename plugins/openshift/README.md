@@ -36,6 +36,15 @@ This command safely destroys a cluster and cleans up all cloud resources. Includ
 
 Check status of Ironic baremetal nodes in OpenShift cluster.
 
+### Node Kernel Diagnostics
+
+Kernel-level networking diagnostics for OpenShift/OVN-Kubernetes nodes:
+
+- `/openshift:node-kernel-conntrack` - Connection tracking inspection
+- `/openshift:node-kernel-iptables` - IPv4/IPv6 packet filter rules
+- `/openshift:node-kernel-nft` - nftables packet filtering
+- `/openshift:node-kernel-ip` - IP routing and network interfaces
+
 See the [commands/](commands/) directory for full documentation of each command.
 
 ## Installation
@@ -285,13 +294,92 @@ To add a new command to this plugin:
 ```
 plugins/openshift/
 ├── .claude-plugin/
-│   └── marketplace.json          # Plugin metadata
+│   └── plugin.json                    # Plugin metadata
 ├── commands/
-│   ├── bump-deps.md              # Dependency bumping command
-│   ├── new-e2e-test.md           # E2E test generation
-│   └── ...                        # Additional commands
-└── README.md                      # This file
+│   ├── bump-deps.md                   # Dependency bumping command
+│   ├── new-e2e-test.md                # E2E test generation
+│   ├── node-kernel-conntrack.md       # Kernel: Connection tracking
+│   ├── node-kernel-ip.md              # Kernel: IP routing and interfaces
+│   ├── node-kernel-iptables.md        # Kernel: iptables rules
+│   ├── node-kernel-nft.md             # Kernel: nftables rules
+│   └── ...                             # Additional commands
+├── skills/
+│   ├── generating-ovn-topology/       # OVN topology visualization
+│   └── openshift-node-kernel/         # Node kernel diagnostics helpers
+│       └── kernel-helper.sh           # Helper for kernel networking commands
+└── README.md                           # This file
 ```
+
+## Node Kernel Diagnostics
+
+Kernel-level networking diagnostics and troubleshooting tools for OpenShift/OVN-Kubernetes nodes. These commands provide direct access to kernel networking subsystems including conntrack, iptables, nftables, and IP routing configuration.
+
+### Available Commands
+
+#### `/openshift:node-kernel-conntrack`
+
+Interact with the connection tracking system of a Kubernetes node to discover currently tracked connections.
+
+**Usage:**
+```bash
+/openshift:node-kernel-conntrack <node> <image> [--command <cmd>] [--filter <params>]
+```
+
+**Example:**
+```bash
+/openshift:node-kernel-conntrack worker-2 registry.redhat.io/rhel9/support-tools --command -L
+```
+
+#### `/openshift:node-kernel-iptables`
+
+Inspect IPv4 and IPv6 packet filter rules in the Linux kernel.
+
+**Usage:**
+```bash
+/openshift:node-kernel-iptables <node> <image> --command <cmd> [--table <table>] [--filter <params>]
+```
+
+**Example:**
+```bash
+/openshift:node-kernel-iptables worker-2 registry.redhat.io/rhel9/support-tools --command -L --table nat --filter "-nv4"
+```
+
+#### `/openshift:node-kernel-nft`
+
+Inspect nftables packet filtering and classification rules.
+
+**Usage:**
+```bash
+/openshift:node-kernel-nft <node> <image> --command <cmd> [--family <family>]
+```
+
+**Example:**
+```bash
+/openshift:node-kernel-nft worker-2 registry.redhat.io/rhel9/support-tools --command "list tables" --family inet
+```
+
+#### `/openshift:node-kernel-ip`
+
+Inspect routing, network devices, and interfaces configuration.
+
+**Usage:**
+```bash
+/openshift:node-kernel-ip <node> <image> --command <cmd> [--options <opts>] [--filter <params>]
+```
+
+**Example:**
+```bash
+/openshift:node-kernel-ip worker-2 registry.redhat.io/rhel9/support-tools --command "route show" --options "-4"
+```
+
+### Common Use Cases
+
+- Debug connection tracking and NAT issues
+- Analyze iptables/nftables rules for traffic flow problems
+- Troubleshoot routing and interface configuration
+- Investigate OVN-Kubernetes networking at the kernel level
+
+See individual command documentation in [commands/](commands/) for detailed usage.
 
 ## Related Plugins
 
