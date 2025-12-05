@@ -20,6 +20,10 @@ Automate processing of Renovate dependency update PRs.
 
 Automate approving Konflux bot PRs for the given repository by adding /lgtm and /approve
 
+### `/utils:review-security`
+
+Review code files to detect common security vulnerabilities and issues.
+
 ### `/utils:placeholder`
 
 A placeholder command for testing and development.
