@@ -7,9 +7,6 @@ RUN dnf install -y \
     python3-devel \
     && dnf clean all
 
-# Install Claude Code CLI using the official installation script
-RUN curl -fsSL https://claude.ai/install.sh | bash
-
 # Install common Python tools
 RUN pip3 install --no-cache-dir \
     pytest \
@@ -36,6 +33,12 @@ WORKDIR /workspace
 
 # Switch to claude user
 USER claude
+
+# Install Claude Code CLI using the official installation script
+RUN curl -fsSL https://claude.ai/install.sh | bash
+
+# Ensure ~/.local/bin is in PATH for the entrypoint
+ENV PATH="/home/claude/.local/bin:${PATH}"
 
 # Set Claude Code as the default command
 ENTRYPOINT ["claude"]
