@@ -498,6 +498,12 @@
           "description": "Review potential overlaps with existing ai-helpers (Claude Code Plugins, Commands, Skills, Sub-agents, or Hooks) and open PRs",
           "name": "review-ai-helpers-overlap",
           "synopsis": "/utils:review-ai-helpers-overlap [--idea \"description\"] [--pr NUMBER] [--verbose]"
+        },
+        {
+          "argument_hint": "[file-paths-or-patterns]",
+          "description": "Orchestrate security scanners and provide contextual triage of findings",
+          "name": "review-security",
+          "synopsis": "/utils:review-security [file-paths-or-patterns]"
         }
       ],
       "description": "A generic utilities plugin serving as a catch-all for various helper commands",
@@ -505,7 +511,7 @@
       "hooks": [],
       "name": "utils",
       "skills": [],
-      "version": "0.0.2"
+      "version": "0.0.3"
     },
     {
       "commands": [
