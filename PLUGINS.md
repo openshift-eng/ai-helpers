@@ -179,6 +179,7 @@ A plugin to analyze and report on must-gather data
 
 **Commands:**
 - **`/must-gather:analyze` `[must-gather-path] [component]`** - Quick analysis of must-gather data - runs all analysis scripts and provides comprehensive cluster diagnostics
+- **`/must-gather:multus` `[must-gather-path] [output-html-path]`** - Analyze Multus CNI configuration and multi-networked pods from must-gather data
 - **`/must-gather:ovn-dbs` `[must-gather-path]`** - Analyze OVN databases from a must-gather using ovsdb-tool
 
 See [plugins/must-gather/README.md](plugins/must-gather/README.md) for detailed documentation.
