@@ -35,6 +35,11 @@
       "description": "A plugin for engineering documentation and notes"
     },
     {
+      "name": "config",
+      "source": "./plugins/config",
+      "description": "Claude Code configuration management for hooks and status line customization"
+    },
+    {
       "name": "session",
       "source": "./plugins/session",
       "description": "A plugin for Claude session management and persistence"
