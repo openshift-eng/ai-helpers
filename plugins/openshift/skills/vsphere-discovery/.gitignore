@@ -1,0 +1,18 @@
+# Binaries
+vsphere-helper
+vsphere-helper-*
+
+# Go build artifacts
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test binaries
+*.test
+
+# Go coverage
+*.out
+
+# Dependency directories
+vendor/
