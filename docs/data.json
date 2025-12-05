@@ -975,6 +975,28 @@
         }
       ],
       "version": "0.0.1"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "",
+          "description": "Run golangci-lint and fix all reported issues",
+          "name": "lint-fix",
+          "synopsis": "/golangci-linter:lint-fix"
+        },
+        {
+          "argument_hint": "",
+          "description": "Run golangci-lint to check for code quality issues",
+          "name": "lint",
+          "synopsis": "/golangci-linter:lint"
+        }
+      ],
+      "description": "Run golangci-lint to check and fix code quality issues in Go projects",
+      "has_readme": true,
+      "hooks": [],
+      "name": "golangci-linter",
+      "skills": [],
+      "version": "0.1.0"
     }
   ]
 }
