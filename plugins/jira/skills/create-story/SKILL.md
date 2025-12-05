@@ -428,7 +428,25 @@ Out of scope: Custom metrics-based scaling (will be separate story CNTRLPLANE-45
         "labels": ["ai-generated-jira"],
         "security": {"name": "Red Hat Employee"}
         # Note: Target version omitted (optional in CNTRLPLANE)
-        # Note: Epic link handled separately - see CNTRLPLANE skill for details
+    }
+)
+```
+
+### With Parent Epic Link
+
+When linking a story to a parent epic via `--parent` flag, use the Epic Link custom field:
+
+```python
+mcp__atlassian__jira_create_issue(
+    project_key="CNTRLPLANE",
+    summary="Add metrics endpoint for cluster health",
+    issue_type="Story",
+    description="<story description with user story format and AC>",
+    components="HyperShift / ROSA",
+    additional_fields={
+        "customfield_12311140": "CNTRLPLANE-456",  # Epic Link - parent epic key as STRING
+        "labels": ["ai-generated-jira"],
+        "security": {"name": "Red Hat Employee"}
     }
 )
 ```
@@ -698,10 +716,24 @@ URL: https://jira.example.com/browse/MYPROJECT-123
 /jira:create story CNTRLPLANE "Add scaling metrics to observability dashboard" --parent CNTRLPLANE-100
 ```
 
+**Implementation:**
+1. Pre-validate that CNTRLPLANE-100 exists and is an Epic
+2. Create story with Epic Link field:
+   ```python
+   additional_fields={
+       "customfield_12311140": "CNTRLPLANE-100",  # Epic Link (NOT parent field!)
+       "labels": ["ai-generated-jira"],
+       "security": {"name": "Red Hat Employee"}
+   }
+   ```
+3. If creation fails, use fallback: create without link, then update to add link
+
 **Result:**
 - Story created
-- Linked to epic CNTRLPLANE-100
+- Linked to epic CNTRLPLANE-100 via Epic Link field
 - All standard fields applied
+
+**See:** `/jira:create` command documentation for complete parent linking implementation strategy
 
 ## Best Practices Summary
 
@@ -758,7 +790,8 @@ As a user, I want to create, edit, delete, and share documents
 
 ## See Also
 
-- `/jira:create` - Main command that invokes this skill
+- `/jira:create` - Main command that invokes this skill (includes Issue Hierarchy and Parent Linking documentation)
 - `cntrlplane` skill - CNTRLPLANE specific conventions
+- `create-epic` skill - For creating parent epics
 - Agile Alliance: User Story resources
 - Mike Cohn: User Stories Applied
