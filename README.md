@@ -39,8 +39,11 @@ A container is available with Claude Code and all plugins pre-installed.
 ### Building the Container
 
 ```bash
-podman build -f images/Dockerfile -t ai-helpers .
+podman build -f Containerfile -t ai-helpers .
 ```
+
+- The `Containerfile` in this repository uses safer pnpm package manager with Red Hat UBI 9 Node.js 22 base (which is multi-arch friendly)
+   - while the defacto `images/Dockerfile` uses standard npm with OpenShift CI base images.
 
 ### Running with Vertex AI and gcloud Authentication
 
