@@ -34,147 +34,96 @@ This skill is automatically invoked by the `/jira:create` command when the proje
 
 **Status:** OPTIONAL (many issues in CNTRLPLANE have null target version)
 
-**Recommendation:** **Omit this field** unless specifically required by the team or user explicitly requests it.
+**Recommendation:** **Prompt the user** for target version if needed, rather than assuming a default.
 
-**If target version must be set:**
+**Prompt:** "Which OpenShift version should this target? (e.g., 4.22, openshift 4.22, OCP 4.22) or press Enter to skip"
+
+### Version Input Normalization
+
+Users may specify versions in various formats. Normalize all inputs to the Jira format `openshift-X.Y`:
+
+| User Input | Normalized Output |
+|------------|-------------------|
+| `4.21` | `openshift-4.21` |
+| `4.22.0` | `openshift-4.22` |
+| `openshift 4.23` | `openshift-4.23` |
+| `openshift-4.21` | `openshift-4.21` |
+| `OCP 4.22` | `openshift-4.22` |
+| `ocp 4.21` | `openshift-4.21` |
+| `OpenShift 4.23` | `openshift-4.23` |
+
+**Normalization rules:**
+1. Convert to lowercase
+2. Remove "ocp" or "openshift" prefix (with or without space/hyphen)
+3. Extract version number (X.Y or X.Y.Z → X.Y)
+4. Prepend "openshift-"
+
+### Setting Target Version in MCP
+
+**If target version is set:**
 
 1. **First, fetch available versions:**
    ```python
    versions = mcp__atlassian__jira_get_project_versions(project_key="CNTRLPLANE")
    ```
 
-2. **Find the version ID** for the desired version (e.g., "openshift-4.21" has id "12448830")
+2. **Find the version ID** for the normalized version name (e.g., "openshift-4.22")
 
 3. **Use correct MCP format** (array of version objects with ID):
    ```python
-   "customfield_12319940": [{"id": "12448830"}]  # openshift-4.21
+   "customfield_12319940": [{"id": "VERSION_ID"}]  # e.g., openshift-4.22
    ```
 
-**Common version IDs:**
-- `openshift-4.21`: `{"id": "12448830"}`
-- `openshift-4.20`: `{"id": "12447110"}`
-- `openshift-4.22`: `{"id": "12448831"}`
-
-**IMPORTANT:** Do NOT use string format like `"openshift-4.21"` - this will fail. Must use array with version ID.
+**IMPORTANT:** Do NOT use string format like `"openshift-4.22"` - this will fail. Must use array with version ID.
 
 **Never set:**
 - Fix Version/s (`fixVersions`) - This is managed by the release team
 
-### Version Override Handling
+### Version Handling Workflow
 
-If user specifies a version:
-1. Fetch available versions using `mcp__atlassian__jira_get_project_versions`
-2. Find the matching version ID
-3. If version doesn't exist, suggest closest match or ask user to confirm
-4. Use array format with version ID: `[{"id": "VERSION_ID"}]`
+When user specifies a version (via `--version` flag or prompt):
+1. **Normalize** the input to `openshift-X.Y` format
+2. **Fetch** available versions using `mcp__atlassian__jira_get_project_versions`
+3. **Find** the matching version ID
+4. **If version doesn't exist**, suggest closest match or ask user to confirm
+5. **Use array format** with version ID: `[{"id": "VERSION_ID"}]`
 
-## Epic Link Requirements
+## Parent Linking in CNTRLPLANE
 
-**⚠️ CRITICAL:** To link a story to an epic in CNTRLPLANE, you **MUST** use the Epic Link custom field, NOT the `parent` field.
+**See:** `/jira:create` command documentation for the complete "Issue Hierarchy and Parent Linking" reference, including field mapping, MCP code examples, and fallback strategies.
 
-### Epic Link Field (customfield_12311140)
+### Quick Reference for CNTRLPLANE
 
-**Field Details:**
-- **Field Name:** Epic Link
-- **Custom Field ID:** `customfield_12311140`
-- **MCP Parameter:** `additional_fields.customfield_12311140`
-- **Value Format:** Epic key as string (e.g., `"CNTRLPLANE-123"`)
-- **Used For:** Linking stories to epics
+CNTRLPLANE uses different fields for different parent relationships:
 
-**IMPORTANT:** Do NOT use `additional_fields.parent` for epic-story relationships. The `parent` field has different semantics and will cause creation to fail.
+| Creating | Parent Type | Field to Use | Value Format |
+|----------|-------------|--------------|--------------|
+| Story | Epic | `customfield_12311140` (Epic Link) | `"CNTRLPLANE-123"` (string) |
+| Task | Epic | `customfield_12311140` (Epic Link) | `"CNTRLPLANE-123"` (string) |
+| Epic | Feature | `customfield_12313140` (Parent Link) | `"CNTRLPLANE-123"` (string) |
 
-### MCP Format for Epic Link
+**⚠️ CRITICAL:**
+- Story/Task → Epic uses **Epic Link** (`customfield_12311140`)
+- Epic → Feature uses **Parent Link** (`customfield_12313140`)
+- Both fields take STRING values (issue key), NOT objects
+- The standard `parent` field does NOT work
 
-```python
-additional_fields={
-    "customfield_12311140": "CNTRLPLANE-123",  # Epic Link (use actual epic key)
-    "labels": ["ai-generated-jira"],
-    "security": {"name": "Red Hat Employee"}
-}
-```
+### CNTRLPLANE-Specific Field IDs
 
-### Epic Linking Implementation Strategy
+| Field | Custom Field ID | Format |
+|-------|-----------------|--------|
+| Epic Link (for stories/tasks) | `customfield_12311140` | String: `"CNTRLPLANE-123"` |
+| Parent Link (for epics→features) | `customfield_12313140` | String: `"CNTRLPLANE-123"` |
+| Epic Name (required for epics) | `customfield_12311141` | String: same as summary |
+| Target Version | `customfield_12319940` | Array: `[{"id": "12448830"}]` |
 
-When the `--parent` flag is provided for a story/task, use this implementation strategy:
+### Implementation
 
-#### Pre-Validation (Do This First)
-
-Before attempting to create the issue:
-1. Verify the parent epic exists using `mcp__atlassian__jira_get_issue`
-2. If epic doesn't exist, prompt user:
-   ```
-   Epic {epic_key} not found. Options:
-   1. Proceed without epic link
-   2. Specify different epic
-   3. Cancel creation
-
-   What would you like to do?
-   ```
-3. Only proceed if epic is valid or user chooses to proceed without link
-
-#### Preferred Approach: Include Epic Link in Creation
-
-Attempt to create the issue with Epic Link included:
-```python
-mcp__atlassian__jira_create_issue(
-    project_key="CNTRLPLANE",
-    summary="<story title>",
-    issue_type="Story",
-    description="<description>",
-    components="<component>",
-    additional_fields={
-        "customfield_12311140": "<epic-key>",  # Epic Link (e.g., "CNTRLPLANE-456")
-        "labels": ["ai-generated-jira"],
-        "security": {"name": "Red Hat Employee"}
-    }
-)
-```
-
-#### Fallback Strategy (If Creation Fails)
-
-If creation fails with an error related to epic linking:
-1. Detect error contains keywords: "epic", "parent", "customfield", or "link"
-2. Inform user: "Epic link failed during creation, using fallback strategy..."
-3. Create issue WITHOUT the epic link:
-   ```python
-   story = mcp__atlassian__jira_create_issue(
-       project_key="CNTRLPLANE",
-       summary="<story title>",
-       issue_type="Story",
-       description="<description>",
-       components="<component>",
-       additional_fields={
-           "labels": ["ai-generated-jira"],
-           "security": {"name": "Red Hat Employee"}
-       }
-   )
-   ```
-4. If creation succeeds, link to epic via update:
-   ```python
-   mcp__atlassian__jira_update_issue(
-       issue_key=story["key"],
-       fields={},
-       additional_fields={
-           "customfield_12311140": "<epic-key>"
-       }
-   )
-   ```
-5. Inform user of success:
-   ```
-   Created: CNTRLPLANE-XXX
-   Linked to epic: <epic-key> ✓
-   Title: <story title>
-   URL: https://issues.redhat.com/browse/CNTRLPLANE-XXX
-   ```
-
-#### If Fallback Also Fails
-
-If the update call to add Epic Link also fails:
-```
-Story created: CNTRLPLANE-XXX
-⚠️  Automatic epic linking failed. Please link manually in Jira.
-URL: https://issues.redhat.com/browse/CNTRLPLANE-XXX
-```
+Follow the implementation strategy documented in `/jira:create` command:
+1. **Pre-validate** the parent exists and is the correct type
+2. **Attempt creation** with the appropriate parent field
+3. **Use fallback** if creation fails (create without link, then update)
+4. **Report outcome** to user
 
 ## Component Requirements
 
@@ -275,9 +224,9 @@ mcp__atlassian__jira_create_issue(
     components="<component name>",  # if required
     additional_fields={
         "customfield_12311141": "<epic name>",  # required, same as summary
+        "customfield_12313140": "CNTRLPLANE-123",  # Parent Link - feature key as STRING
         "labels": ["ai-generated-jira"],
-        "security": {"name": "Red Hat Employee"},
-        "parent": {"key": "CNTRLPLANE-123"}  # parent feature link
+        "security": {"name": "Red Hat Employee"}
     }
 )
 ```
@@ -340,7 +289,7 @@ mcp__atlassian__jira_create_issue(
 **Note:** Detailed prompts for each issue type are defined in type-specific skills (create-story, create-epic, create-feature, create-task).
 
 **CNTRLPLANE-specific prompts:**
-- **Target version** (optional): "Which version should this target? (default: openshift-4.21)"
+- **Target version** (optional): "Which OpenShift version should this target? (e.g., 4.22, openshift 4.22, OCP 4.22) or press Enter to skip"
 - **Component** (if required by team): Defer to team-specific skills
 - **Parent link** (for epics/tasks): "Link to parent Feature/Epic?" (optional)
 
@@ -354,10 +303,9 @@ mcp__atlassian__jira_create_issue(
 /jira:create story CNTRLPLANE "Enable pod disruption budgets for control plane"
 ```
 
-**CNTRLPLANE-specific defaults:**
-- Target Version: openshift-4.21
-
-**Prompts:** See `create-story` skill for story-specific prompts
+**Prompts:**
+- Target version (optional): User prompted, input normalized (e.g., "4.22" → "openshift-4.22")
+- See `create-story` skill for story-specific prompts
 
 ### Create CNTRLPLANE Epic
 
@@ -365,11 +313,12 @@ mcp__atlassian__jira_create_issue(
 /jira:create epic CNTRLPLANE "Improve cluster lifecycle management"
 ```
 
-**CNTRLPLANE-specific defaults:**
-- Target Version: openshift-4.21
+**CNTRLPLANE-specific requirements:**
 - Epic Name: Same as summary (required field)
 
-**Prompts:** See `create-epic` skill for epic-specific prompts
+**Prompts:**
+- Target version (optional): User prompted, input normalized
+- See `create-epic` skill for epic-specific prompts
 
 ### Create CNTRLPLANE Feature
 
@@ -377,10 +326,9 @@ mcp__atlassian__jira_create_issue(
 /jira:create feature CNTRLPLANE "Advanced observability capabilities"
 ```
 
-**CNTRLPLANE-specific defaults:**
-- Target Version: openshift-4.21
-
-**Prompts:** See `create-feature` skill for feature-specific prompts
+**Prompts:**
+- Target version (optional): User prompted, input normalized
+- See `create-feature` skill for feature-specific prompts
 
 ### Create CNTRLPLANE Task
 
@@ -388,10 +336,9 @@ mcp__atlassian__jira_create_issue(
 /jira:create task CNTRLPLANE "Refactor cluster controller reconciliation logic"
 ```
 
-**CNTRLPLANE-specific defaults:**
-- Target Version: openshift-4.21
-
-**Prompts:** See `create-task` skill for task-specific prompts
+**Prompts:**
+- Target version (optional): User prompted, input normalized
+- See `create-task` skill for task-specific prompts
 
 ## Error Handling
 
@@ -478,17 +425,18 @@ Team-specific skills are invoked automatically when team keywords are detected i
 When `/jira:create` is invoked for CNTRLPLANE:
 
 1. ✅ **CNTRLPLANE skill loaded:** Applies project-specific conventions
-2. ⚙️ **Apply CNTRLPLANE defaults:**
-   - Target version: openshift-4.21 (default)
+2. ⚙️ **Apply CNTRLPLANE requirements:**
    - Epic name field (for epics)
 3. 🔍 **Check for team-specific skills:** If team keywords detected, invoke team skill (e.g., `hypershift`)
-4. 💬 **Interactive prompts:** Collect missing information (see type-specific skills for details)
+4. 💬 **Interactive prompts:** Collect missing information:
+   - Target version (optional): Prompt user, normalize input (e.g., "4.22" → "openshift-4.22")
+   - See type-specific skills for additional prompts
 
 **Note:** Universal requirements (security, labels), security validation, and issue creation handled by `/jira:create` command.
 
 ## Best Practices
 
-1. **Version consistency:** Use common defaults (openshift-4.21) unless team specifies otherwise
+1. **Version input:** Always normalize user version input (e.g., "4.22", "OCP 4.22" → "openshift-4.22")
 2. **Template adherence:** Defer to type-specific skills for templates (create-story, create-epic, etc.)
 3. **Link hierarchy:** Link epics to features, tasks to stories/epics using `--parent` flag
 4. **Descriptive summaries:** Use clear, searchable issue summaries
@@ -498,7 +446,7 @@ When `/jira:create` is invoked for CNTRLPLANE:
 
 ## See Also
 
-- `/jira:create` - Main command that invokes this skill
+- `/jira:create` - Main command that invokes this skill (includes Issue Hierarchy and Parent Linking documentation)
 - `ocpbugs` skill - For OCPBUGS bugs
 - Team-specific skills (e.g., `hypershift`) - For team-specific conventions
 - Type-specific skills (create-story, create-epic, create-feature, create-task) - For issue type best practices
