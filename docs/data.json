@@ -109,6 +109,12 @@
           "synopsis": "/jira:grooming [project-filter] [time-period] [--component component-name] [--label label-name] [--type issue-type] [--status status] [--story-points]"
         },
         {
+          "argument_hint": "<project-key> [time-period] [--component name] [--assignee username] [--reporter username] [--status status] [--search term] [--search-description]",
+          "description": "List and analyze JIRA issues organized by component with flexible filtering",
+          "name": "issues-by-component",
+          "synopsis": "/jira:issues-by-component <project-key> [time-period] [--component component-name] [--assignee username] [--reporter username] [--status status] [--search search-term] [--search-description]"
+        },
+        {
           "argument_hint": "",
           "description": "Analyze a JIRA issue and create a pull request to solve it.",
           "name": "solve",
