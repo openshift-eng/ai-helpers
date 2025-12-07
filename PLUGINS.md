@@ -22,6 +22,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Openshift](#openshift-plugin)
 - [Origin](#origin-plugin)
 - [Prow Job](#prow-job-plugin)
+- [Prow Qe Jobs](#prow-qe-jobs-plugin)
 - [Session](#session-plugin)
 - [Sosreport](#sosreport-plugin)
 - [Utils](#utils-plugin)
@@ -260,6 +261,15 @@ A plugin to analyze and inspect Prow CI job results
 - **`/prow-job:extract-must-gather` `prowjob-url`** - Extract and decompress must-gather archives from Prow job artifacts
 
 See [plugins/prow-job/README.md](plugins/prow-job/README.md) for detailed documentation.
+
+### Prow Qe Jobs Plugin
+
+Plugin for listing and managing OpenShift QE Prow jobs
+
+**Commands:**
+- **`/prow-qe-jobs:list-qe-jobs` `"[filter-pattern]"`** - Lists upgrade jobs from openshift-tests-private CI configurations
+
+See [plugins/prow-qe-jobs/README.md](plugins/prow-qe-jobs/README.md) for detailed documentation.
 
 ### Session Plugin
 
