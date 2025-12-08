@@ -611,7 +611,7 @@
           "synopsis": "/openshift:bump-deps <dependency> [version] [--create-jira] [--create-pr]"
         },
         {
-          "argument_hint": "\"[--verbose] [--output-format]\"",
+          "argument_hint": "[--verbose] [--output-format]",
           "description": "Perform comprehensive health check on OpenShift cluster and report issues",
           "name": "cluster-health-check",
           "synopsis": "/openshift:cluster-health-check [--verbose] [--output-format json|text]"
@@ -623,13 +623,13 @@
           "synopsis": "/openshift:crd-review [repository-path]"
         },
         {
-          "argument_hint": "\"[release-image] [platform] [options]\"",
+          "argument_hint": "[release-image] [platform] [options]",
           "description": "Extract OpenShift installer from release image and create an OCP cluster",
           "name": "create-cluster",
           "synopsis": "/openshift:create-cluster [release-image] [platform] [options]"
         },
         {
-          "argument_hint": "\"[install-dir]\"",
+          "argument_hint": "[install-dir]",
           "description": "Destroy an OpenShift cluster created by create-cluster command",
           "name": "destroy-cluster",
           "synopsis": "/openshift:destroy-cluster [install-dir]"
@@ -687,13 +687,13 @@
     {
       "commands": [
         {
-          "argument_hint": "\"[--duration <minutes>]\"",
+          "argument_hint": "[--duration <minutes>]",
           "description": "Analyze etcd performance metrics, latency, and identify bottlenecks",
           "name": "analyze-performance",
           "synopsis": "/etcd:analyze-performance [--duration <minutes>]"
         },
         {
-          "argument_hint": "\"[--verbose]\"",
+          "argument_hint": "[--verbose]",
           "description": "Check etcd cluster health, member status, and identify issues",
           "name": "health-check",
           "synopsis": "/etcd:health-check [--verbose]"
@@ -869,13 +869,13 @@
     {
       "commands": [
         {
-          "argument_hint": "\"[--sosreport PATH] [--format json|markdown] [--max-irq-samples N]\"",
+          "argument_hint": "[--sosreport PATH] [--format json|markdown] [--max-irq-samples N]",
           "description": "Analyze kernel/sysctl tuning from a live node or sosreport snapshot and propose NTO recommendations",
           "name": "analyze-node-tuning",
           "synopsis": "text"
         },
         {
-          "argument_hint": "\"[profile-name] [--summary ...] [--sysctl ...] [options]\"",
+          "argument_hint": "[profile-name] [--summary ...] [--sysctl ...] [options]",
           "description": "Generate a Tuned (tuned.openshift.io/v1) profile manifest for the Node Tuning Operator",
           "name": "generate-tuned-profile",
           "synopsis": "text"

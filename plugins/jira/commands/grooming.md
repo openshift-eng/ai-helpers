@@ -1,6 +1,6 @@
 ---
 description: Analyze new bugs and cards added over a time period and generate grooming meeting agenda
-argument-hint: [project-filter] [time-period] [--component component-name] [--label label-name] [--type issue-type] [--status status] [--story-points]
+argument-hint: "[project-filter] [time-period] [--component component-name] [--label label-name] [--type issue-type] [--status status] [--story-points]"
 ---
 
 ## Name

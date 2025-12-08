@@ -1,6 +1,6 @@
 ---
 description: Quick analysis of must-gather data - runs all analysis scripts and provides comprehensive cluster diagnostics
-argument-hint: [must-gather-path] [component]
+argument-hint: "[must-gather-path] [component]"
 ---
 
 ## Name
