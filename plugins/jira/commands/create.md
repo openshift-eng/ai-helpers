@@ -30,6 +30,190 @@ This command is particularly useful for:
 - **Security Validation** - Scans for credentials and secrets before submission
 - **Template Support** - Provides user story templates, bug report templates, feature request workflows, acceptance criteria formats
 
+## Issue Hierarchy and Parent Linking
+
+Jira issues form a hierarchy. Understanding this hierarchy is critical for proper parent linking:
+
+```
+Feature (Strategic objective, market problem)
+    │
+    └── Epic (Body of work, fits in a quarter)
+            │
+            ├── Story (User-facing functionality, fits in a sprint)
+            │
+            └── Task (Technical work, fits in a sprint)
+```
+
+### Parent Linking Field Reference
+
+**CRITICAL:** Different relationships use different Jira fields. Using the wrong field will cause creation to fail.
+
+| Relationship | Field | MCP Parameter | Value Format |
+|--------------|-------|---------------|--------------|
+| **Epic → Feature** | Parent Link (custom field) | `additional_fields.customfield_12313140` | `"PROJ-123"` (string) |
+| **Story → Epic** | Epic Link (custom field) | `additional_fields.customfield_12311140` | `"PROJ-123"` (string) |
+| **Task → Epic** | Epic Link (custom field) | `additional_fields.customfield_12311140` | `"PROJ-123"` (string) |
+| **Task → Story** | Epic Link (custom field) | `additional_fields.customfield_12311140` | `"PROJ-123"` (string) |
+
+**Why the difference?**
+- The Parent Link field (`customfield_12313140`) is used for Epic→Feature relationships in CNTRLPLANE
+- The Epic Link field (`customfield_12311140`) is used for Story/Task→Epic relationships
+- Both are custom fields specific to how Red Hat Jira handles hierarchy
+- The standard `parent` field does NOT work for these relationships
+
+### MCP Code Examples for Parent Linking
+
+#### Linking a Story to an Epic
+
+```python
+mcp__atlassian__jira_create_issue(
+    project_key="CNTRLPLANE",
+    summary="Add metrics endpoint for cluster health",
+    issue_type="Story",
+    description="<story description>",
+    components="HyperShift / ROSA",
+    additional_fields={
+        "customfield_12311140": "CNTRLPLANE-456",  # Epic Link - links to parent epic
+        "labels": ["ai-generated-jira"],
+        "security": {"name": "Red Hat Employee"}
+    }
+)
+```
+
+#### Linking an Epic to a Feature
+
+```python
+mcp__atlassian__jira_create_issue(
+    project_key="CNTRLPLANE",
+    summary="Multi-cluster metrics aggregation",
+    issue_type="Epic",
+    description="<epic description>",
+    components="HyperShift",
+    additional_fields={
+        "customfield_12311141": "Multi-cluster metrics aggregation",  # Epic Name (same as summary)
+        "customfield_12313140": "CNTRLPLANE-100",  # Parent Link - links to parent feature (STRING, not object!)
+        "labels": ["ai-generated-jira"],
+        "security": {"name": "Red Hat Employee"}
+    }
+)
+```
+
+#### Linking a Task to an Epic
+
+```python
+mcp__atlassian__jira_create_issue(
+    project_key="CNTRLPLANE",
+    summary="Refactor metrics collection pipeline",
+    issue_type="Task",
+    description="<task description>",
+    additional_fields={
+        "customfield_12311140": "CNTRLPLANE-456",  # Epic Link - links to parent epic
+        "labels": ["ai-generated-jira"],
+        "security": {"name": "Red Hat Employee"}
+    }
+)
+```
+
+### Parent Linking Implementation Strategy
+
+When the `--parent` flag is provided, follow this strategy:
+
+#### Step 1: Pre-Validation (Required)
+
+Before creating the issue, validate the parent:
+
+```python
+# Fetch parent issue to verify it exists and is correct type
+parent_issue = mcp__atlassian__jira_get_issue(issue_key="<parent-key>")
+
+# Verify parent type matches expected hierarchy:
+# - If creating Story/Task with --parent, parent should be Epic
+# - If creating Epic with --parent, parent should be Feature
+```
+
+**Validation rules:**
+| Creating | Parent Should Be | If Wrong Type |
+|----------|------------------|---------------|
+| Story | Epic | Warn user, ask to confirm or correct |
+| Task | Epic or Story | Warn user, ask to confirm or correct |
+| Epic | Feature | Warn user, ask to confirm or correct |
+
+**If parent not found:**
+```
+Parent issue CNTRLPLANE-999 not found.
+
+Options:
+1. Proceed without parent link
+2. Specify different parent
+3. Cancel creation
+
+What would you like to do?
+```
+
+#### Step 2: Attempt Creation with Parent Link
+
+Include the appropriate parent field based on issue type:
+
+- **Story/Task → Epic:** Use `customfield_12311140` (Epic Link)
+- **Epic → Feature:** Use `customfield_12313140` (Parent Link)
+
+#### Step 3: Fallback Strategy (If Creation Fails)
+
+If creation fails with an error related to parent linking:
+
+1. **Detect linking error:** Error message contains "epic", "parent", "link", or "customfield"
+
+2. **Create without parent link:**
+   ```python
+   issue = mcp__atlassian__jira_create_issue(
+       # ... same parameters but WITHOUT the parent/epic link field
+   )
+   ```
+
+3. **Link via update:**
+   ```python
+   # For Story/Task → Epic:
+   mcp__atlassian__jira_update_issue(
+       issue_key=issue["key"],
+       fields={},
+       additional_fields={"customfield_12311140": "<epic-key>"}
+   )
+
+   # For Epic → Feature:
+   mcp__atlassian__jira_update_issue(
+       issue_key=issue["key"],
+       fields={},
+       additional_fields={"customfield_12313140": "<feature-key>"}
+   )
+   ```
+
+4. **Report outcome:**
+   ```
+   Created: CNTRLPLANE-789
+   Linked to parent: CNTRLPLANE-456 ✓
+   Title: <issue title>
+   URL: https://issues.redhat.com/browse/CNTRLPLANE-789
+   ```
+
+#### Step 4: If Fallback Also Fails
+
+If the update to add parent link also fails:
+```
+Created: CNTRLPLANE-789
+⚠️  Automatic parent linking failed. Please link manually in Jira.
+URL: https://issues.redhat.com/browse/CNTRLPLANE-789
+```
+
+### Common Parent Linking Errors
+
+| Error Message | Cause | Solution |
+|---------------|-------|----------|
+| `Field 'parent' does not exist` | Using standard `parent` field | Use `customfield_12313140` (Parent Link) or `customfield_12311140` (Epic Link) |
+| `customfield_12311140 is not valid` | Epic Link field issue | Use fallback: create then update |
+| `customfield_12313140 is not valid` | Parent Link field issue | Use fallback: create then update |
+| `Parent issue not found` | Invalid parent key | Verify parent exists first |
+| `Cannot link to issue of type X` | Wrong parent type | Verify hierarchy (Story→Epic, Epic→Feature) |
+
 ## Implementation
 
 The `jira:create` command runs in multiple phases:
@@ -330,10 +514,24 @@ Applied defaults:
   Auto-detected from summary context if not provided (for CNTRLPLANE/OCPBUGS).
 
 - **--version** *(optional)*
-  Target version (e.g., `"4.21"`, `"4.22"`, `"2.5.0"`).
-  **Default varies by project:**
-  - CNTRLPLANE/OCPBUGS: `openshift-4.21`
-  - Other projects: Prompt or use project default
+  Target version. User input is normalized to Jira format `openshift-X.Y`.
+
+  **Accepted input formats (examples):**
+  | User Input | Normalized |
+  |------------|------------|
+  | `4.21` | `openshift-4.21` |
+  | `4.22.0` | `openshift-4.22` |
+  | `openshift 4.23` | `openshift-4.23` |
+  | `OCP 4.21` | `openshift-4.21` |
+  | `ocp 4.22` | `openshift-4.22` |
+
+  **Behavior:** If not provided via flag, user is prompted (optional field).
+
+  **Normalization rules:**
+  1. Convert to lowercase
+  2. Remove "ocp" or "openshift" prefix (with space or hyphen)
+  3. Extract version number (X.Y or X.Y.Z → X.Y)
+  4. Prepend "openshift-"
 
 - **--parent** *(optional)*
   Parent issue key for linking (e.g., `CNTRLPLANE-123`).
