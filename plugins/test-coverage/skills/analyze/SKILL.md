@@ -358,6 +358,92 @@ Interactive HTML report with:
 
 When implementing this skill in a command:
 
+### Step 0: Generate Analyzer Script at Runtime
+
+**CRITICAL:** Before running any analysis, generate the analyzer script from the reference implementation.
+
+```bash
+# Create output directory
+mkdir -p .work/test-coverage/analyze/
+
+# Generate the analyzer script from the specification below
+# Claude Code will write test_structure_analyzer.py based on the Analyzer Specification section
+```
+
+**Analyzer Specification:**
+
+Generate a Python script (`test_structure_analyzer.py`) that analyzes Go test structure without running tests:
+
+**Input:** Path or URL to a Go test file or directory
+**Output:** Structured JSON data printed to stdout, plus optional text summary to stderr
+
+**Core Algorithm:**
+
+0. **Input Processing** (handle URLs and local paths):
+   - Check if input starts with `http://` or `https://`
+   - If URL: Use `urllib.request.urlopen()` to fetch content, save to temp file
+   - If local path: Use directly
+   - After analysis: Clean up temp file if created
+   - Note: Directory URLs not supported, only single file URLs
+
+1. **File Discovery**:
+   - Test files: `*_test.go` (exclude vendor, generated code)
+   - E2E tests: Files in `test/e2e/`, `test/integration/`, or containing `[Serial]`, `[Disruptive]` markers
+   - Source files: `*.go` (exclude `*_test.go`, vendor)
+
+2. **Test Parsing** (regex-based):
+   - Ginkgo: `(?:g\.|o\.)?It\(\s*["']([^"']+)["']` → extract test name, line number
+   - Standard Go: `func (Test\w+)\(t \*testing\.T\)` → extract test function name
+   - Extract targets (functions called): regex for `\w+\([^)]*\)` inside test body
+
+3. **Source File Analysis**:
+   - Parse function definitions: `func (\w+)\(` or `func \(\w+ \*?\w+\) (\w+)\(`
+   - Track exported vs unexported (capitalized vs lowercase first letter)
+
+4. **Test-to-Source Mapping**:
+   - Convention: `handler_test.go` → `handler.go`
+   - Function-level: Match test names to source function names (e.g., `TestHandleRequest` → `HandleRequest`)
+   - Import analysis: Parse `import` statements in test files
+
+5. **Single File Mode** (when input is a file, not directory):
+   - Analyze only the test file structure
+   - Extract: test count, test names, imports, line numbers
+   - Skip source file mapping and gap detection
+   - Output: Test structure analysis only
+
+6. **Output Format** (JSON to stdout):
+```json
+{
+  "language": "go",
+  "source_dir": "/path/to/src",
+  "test_only_mode": false,
+  "summary": {
+    "total_source_files": 45,
+    "total_test_files": 32,
+    "untested_files_count": 8
+  },
+  "test_file_details": {
+    "path": "/path/to/test.go",
+    "test_count": 15,
+    "tests": [
+      {"name": "TestFoo", "line_start": 10, "line_end": 20, "targets": ["Foo", "Bar"]}
+    ],
+    "imports": ["testing", "github.com/onsi/ginkgo"]
+  }
+}
+```
+
+**Command-line Interface:**
+```
+python3 .work/test-coverage/analyze/test_structure_analyzer.py <source-path> [--test-structure-only] [--output <dir>]
+```
+
+**Why Runtime Generation:**
+- Claude Code generates the analyzer from this specification
+- No separate `.py` file to maintain
+- SKILL.md is the single source of truth
+- Simpler and more maintainable
+
 ### Step 1: Validate Inputs
 
 Check that source directory exists and detect language if not specified.
@@ -365,11 +451,8 @@ Check that source directory exists and detect language if not specified.
 ### Step 2: Execute Test Structure Analyzer
 
 ```bash
-# Create output directory
-mkdir -p .work/test-coverage/analyze/
-
 # Run analyzer (outputs structured JSON to stdout)
-python3 skills/analyze/test_structure_analyzer.py \
+python3 .work/test-coverage/analyze/test_structure_analyzer.py \
     <source-directory> \
     --priority <priority> \
     --output-json
@@ -394,7 +477,7 @@ import subprocess
 
 # Run analyzer and capture JSON output
 result = subprocess.run(
-    ['python3', 'skills/analyze/test_structure_analyzer.py', source_dir, '--output-json'],
+    ['python3', '.work/test-coverage/analyze/test_structure_analyzer.py', source_dir, '--output-json'],
     capture_output=True,
     text=True
 )
@@ -446,6 +529,114 @@ Reports Generated:
   ✓ Text:  .work/test-coverage/analyze/test-structure-summary.txt
 ```
 
+## ⚠️ MANDATORY PRE-COMPLETION VALIDATION
+
+**CRITICAL:** Before declaring this skill complete, you MUST execute ALL validation checks below. Failure to validate is considered incomplete execution.
+
+### Validation Checklist
+
+Execute these verification steps in order. ALL must pass:
+
+#### 1. File Existence Check
+
+```bash
+# Verify all three reports exist
+test -f .work/test-coverage/analyze/test-structure-report.html && echo "✓ HTML exists" || echo "✗ HTML MISSING"
+test -f .work/test-coverage/analyze/test-structure-report.json && echo "✓ JSON exists" || echo "✗ JSON MISSING"
+test -f .work/test-coverage/analyze/test-structure-summary.txt && echo "✓ Text exists" || echo "✗ Text MISSING"
+```
+
+**Required:** All three files must exist. If any are missing, regenerate them.
+
+#### 2. Test Case Extraction Verification
+
+```bash
+# Verify test cases were extracted
+python3 << 'EOF'
+import json
+try:
+    with open('.work/test-coverage/analyze/test-structure-report.json', 'r') as f:
+        data = json.load(f)
+
+    test_count = data.get('summary', {}).get('test_cases_count', 0)
+
+    if test_count > 0:
+        print(f"✓ Test cases extracted: {test_count}")
+    else:
+        print("✗ NO TEST CASES FOUND - verify test file contains Ginkgo tests")
+        exit(1)
+except Exception as e:
+    print(f"✗ ERROR: {e}")
+    exit(1)
+EOF
+```
+
+**Required:** Test cases must be extracted. Zero test cases indicates a parsing issue.
+
+#### 3. HTML Report Structure Verification
+
+```bash
+# Verify HTML has required sections
+grep -q "<h2>Test Cases" .work/test-coverage/analyze/test-structure-report.html && \
+  echo "✓ Test Cases section present" || \
+  echo "✗ MISSING: Test Cases section"
+
+grep -q "<h2>Coverage Summary" .work/test-coverage/analyze/test-structure-report.html && \
+  echo "✓ Coverage Summary section present" || \
+  echo "✗ MISSING: Coverage Summary section"
+```
+
+**Required:** HTML must have all structural sections.
+
+#### 4. JSON Structure Verification
+
+```python
+# Verify JSON has all required fields
+python3 << 'EOF'
+import json
+try:
+    with open('.work/test-coverage/analyze/test-structure-report.json', 'r') as f:
+        data = json.load(f)
+
+    required_fields = [
+        ('summary.language', lambda d: d['summary']['language']),
+        ('summary.test_cases_count', lambda d: d['summary']['test_cases_count']),
+        ('test_cases', lambda d: d['test_cases']),
+    ]
+
+    missing = []
+    for name, getter in required_fields:
+        try:
+            getter(data)
+            print(f"✓ {name}")
+        except (KeyError, TypeError):
+            print(f"✗ MISSING: {name}")
+            missing.append(name)
+
+    if not missing:
+        print("\n✓ All required JSON fields present")
+    else:
+        print(f"\n✗ INCOMPLETE: Missing {len(missing)} required fields")
+        exit(1)
+except Exception as e:
+    print(f"✗ ERROR: {e}")
+    exit(1)
+EOF
+```
+
+**Required:** All required JSON fields must be present.
+
+### Validation Summary
+
+**Before declaring this skill complete:**
+
+1. ✓ All three report files exist
+2. ✓ Test cases successfully extracted (count > 0)
+3. ✓ HTML has all required sections
+4. ✓ JSON contains all required fields
+
+**If ANY check fails:** Fix the issue and re-run all validation checks. Do NOT declare the skill complete until ALL checks pass.
+
 ## Error Handling
 
 ### Common Issues and Solutions
@@ -468,7 +659,7 @@ Reports Generated:
 
 ```bash
 # Analyze test structure for Go project
-python3 test_structure_analyzer.py /path/to/go/project
+python3 .work/test-coverage/analyze/test_structure_analyzer.py /path/to/go/project
 
 # Output:
 # Language: go
@@ -481,7 +672,7 @@ python3 test_structure_analyzer.py /path/to/go/project
 
 ```bash
 # Analyze only high-priority gaps
-python3 test_structure_analyzer.py /path/to/go/project \
+python3 .work/test-coverage/analyze/test_structure_analyzer.py /path/to/go/project \
     --priority high \
     --exclude "*/vendor/*" \
     --output reports/test-gaps/
@@ -491,7 +682,7 @@ python3 test_structure_analyzer.py /path/to/go/project \
 
 ```bash
 # Analyze single test file structure
-python3 test_structure_analyzer.py ./test/e2e/networking/infw.go \
+python3 .work/test-coverage/analyze/test_structure_analyzer.py ./test/e2e/networking/infw.go \
     --test-structure-only \
     --output ./reports/
 ```

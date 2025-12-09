@@ -207,13 +207,10 @@ For each source file:
 
 ### Step 8: Invoke Test Structure Analyzer
 
-Execute the test structure analyzer Python script:
-```bash
-python skills/analyze/test_structure_analyzer.py \
-    <source-directory> \
-    --priority <priority> \
-    --output <output-dir>
-```
+**Invoke the analyze skill** to generate analyzer script at runtime and execute analysis. The skill will:
+- Generate the analyzer from the specification in SKILL.md
+- Execute analysis on the source directory
+- Generate all three report formats (HTML, JSON, Text)
 
 ## Return Value
 

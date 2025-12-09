@@ -108,9 +108,7 @@ This command helps OpenShift/Kubernetes QE or Dev teams focus testing efforts on
 
 ### Step 4: Generate Reports
 
-**Execute:** `python3 skills/gaps/gap_analyzer.py <test-file> --output <output-dir>`
-
-Generate all three report formats:
+**Invoke the gaps skill** to generate analyzer script at runtime and produce all three report formats:
 
 1. **HTML Report** (`test-gaps-report.html`):
    - Coverage scores dashboard

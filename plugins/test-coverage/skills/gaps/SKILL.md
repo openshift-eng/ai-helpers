@@ -23,10 +23,10 @@ Use this skill when you need to:
 
 **This skill MUST ALWAYS generate all three report formats (HTML, JSON, and Text) at runtime.**
 
-The gap analyzer script (`skills/gaps/gap_analyzer.py`) performs the analysis and returns structured data. Claude Code is responsible for generating all three report formats based on this data.
+The gap analyzer script (generated at runtime to `.work/test-coverage/gaps/gap_analyzer.py`) performs the analysis and returns structured data. Claude Code is responsible for generating all three report formats based on this data.
 
 **Required Actions:**
-1. ✅ **Execute**: `python3 skills/gaps/gap_analyzer.py <test-file> --output-json` (outputs structured JSON to stdout)
+1. ✅ **Execute**: `python3 .work/test-coverage/gaps/gap_analyzer.py <test-file> --output-json` (outputs structured JSON to stdout)
 2. ✅ **Generate**: Create all three report files (HTML, JSON, Text) at runtime
 3. ✅ **Verify**: All three reports are generated successfully
 4. ✅ **Display**: Show report locations and summary to the user
@@ -648,16 +648,108 @@ test coverage and ensure production readiness.
 
 When implementing this skill in a command:
 
-### Step 1: Execute Gap Analyzer Script (MANDATORY)
+### Step 0: Generate Analyzer Script at Runtime
 
-**Execute the gap analyzer script to perform analysis and return structured data:**
+**CRITICAL:** Before running any analysis, generate the analyzer script from the reference implementation.
 
 ```bash
 # Create output directory
 mkdir -p .work/test-coverage/gaps/
 
+# Generate the analyzer script from the specification below
+# Claude Code will write gap_analyzer.py based on the Analyzer Specification section
+```
+
+**Analyzer Specification:**
+
+Generate a Python script (`gap_analyzer.py`) that performs component-aware E2E test gap analysis:
+
+**Input:** Path or URL to a Go test file (Ginkgo framework)
+**Output:** JSON to stdout with analysis results and coverage scores
+
+**Core Algorithm:**
+
+0. **Input Processing** (handle URLs and local paths):
+   - Check if input starts with `http://` or `https://`
+   - If URL: Use `urllib.request.urlopen()` to fetch content, save to temp file
+   - If local path: Use directly
+   - After analysis: Clean up temp file if created
+
+1. **Component Detection** (auto-detect from file path/content):
+   - Networking: `/networking/`, `egressip`, `networkpolicy` → component_type='networking'
+   - Storage: `/storage/`, `persistentvolume` → component_type='storage'
+   - Other components: etcd, apiserver, mco, operators, etc.
+
+2. **Test Extraction** (regex-based):
+   - Pattern: `(?:g\.|o\.)?It\(\s*["']([^"']+)["']`
+   - Extract: test name, line number, tags ([Serial], [Disruptive]), test ID (pattern: `-\d+-`)
+
+3. **Coverage Analysis** (keyword search in file content):
+   - **Platforms**: Search for `aws|azure|gcp|vsphere|baremetal|rosa` (case-insensitive)
+   - **Protocols**: Search for `\bTCP\b`, `\bUDP\b`, `\bSCTP\b`, `curl|wget|http` (TCP via HTTP)
+   - **IP Stacks**: Search for `ipv4`, `ipv6`, `dualstack`
+   - **Service Types**: Search for `NodePort`, `LoadBalancer`, `ClusterIP`
+   - **Network Layers** (networking only): `layer2|l2`, `layer3|l3`, `default network`
+   - **Gateway Modes** (networking only):
+     - Search for `local.gateway|lgw` → if found, Local Gateway is tested
+     - Shared Gateway is DEFAULT in OVN-K: if tests exist but no local gateway pattern found → Shared Gateway is tested
+     - If no tests exist → neither is tested
+   - **Topologies**: `sno|single-node`, `multi-node|HA cluster`, `hypershift|hcp`, check NonHyperShiftHOST tag
+   - **Scenarios**: `failover`, `reboot`, `restart`, `delete`, `invalid`, `upgrade`, `concurrent`, `performance`, `rbac`, `traffic disruption`
+
+4. **Gap Identification**:
+   - For each category, items NOT found = gaps
+   - Assign priority: high (production-critical), medium (important), low (nice-to-have)
+   - Platform gaps: Azure/GCP/AWS = high, vSphere/Bare Metal = medium
+   - Protocol gaps: UDP = high, SCTP = medium, TCP non-HTTP = low
+   - Service type gaps: LoadBalancer = high, others = medium
+   - Scenario gaps: Error Handling = high, Traffic Disruption = high (networking only)
+
+5. **Coverage Scoring** (component-aware):
+   - Networking: avg(platform, protocol, service_type, ip_stack, network_layer, gateway_mode, topology, scenario)
+   - Storage: avg(platform, storage_class, volume_mode, scenario)
+   - Other: avg(platform, scenario)
+   - Each dimension: (tested_count / total_count) × 100
+
+6. **Output Format** (JSON to stdout):
+```json
+{
+  "analysis": {
+    "file": "/path/to/test.go",
+    "component_type": "networking",
+    "test_count": 15,
+    "test_cases": [...],
+    "coverage": {
+      "platforms": {"tested": [...], "not_tested": [...]},
+      "protocols": {"tested": [...], "not_tested": [...]},
+      ...
+    },
+    "gaps": {
+      "platforms": [{"platform": "Azure", "priority": "high", "impact": "...", "recommendation": "..."}],
+      ...
+    }
+  },
+  "scores": {
+    "overall": 62.0,
+    "platform_coverage": 100.0,
+    ...
+  }
+}
+```
+
+**Why Runtime Generation:**
+- Claude Code generates the analyzer from this specification
+- No separate `.py` file to maintain
+- SKILL.md is the single source of truth
+- Claude Code is excellent at generating code from specifications
+
+### Step 1: Execute Gap Analyzer Script (MANDATORY)
+
+**Execute the gap analyzer script to perform analysis and return structured data:**
+
+```bash
 # Run gap analyzer (outputs structured JSON to stdout)
-python3 skills/gaps/gap_analyzer.py <test-file-path> --output-json
+python3 .work/test-coverage/gaps/gap_analyzer.py <test-file-path> --output-json
 ```
 
 The analyzer will output structured JSON to stdout containing:
@@ -678,7 +770,7 @@ import subprocess
 
 # Run analyzer and capture JSON output
 result = subprocess.run(
-    ['python3', 'skills/gaps/gap_analyzer.py', test_file, '--output-json'],
+    ['python3', '.work/test-coverage/gaps/gap_analyzer.py', test_file, '--output-json'],
     capture_output=True,
     text=True
 )
@@ -768,6 +860,178 @@ high_priority_gaps = [
 ]
 ```
 
+## ⚠️ MANDATORY PRE-COMPLETION VALIDATION
+
+**CRITICAL:** Before declaring this skill complete, you MUST execute ALL validation checks below. Failure to validate is considered incomplete execution.
+
+### Validation Checklist
+
+Execute these verification steps in order. ALL must pass:
+
+#### 1. File Existence Check
+
+```bash
+# Verify all three reports exist
+test -f .work/test-coverage/gaps/test-gaps-report.html && echo "✓ HTML exists" || echo "✗ HTML MISSING"
+test -f .work/test-coverage/gaps/test-gaps-report.json && echo "✓ JSON exists" || echo "✗ JSON MISSING"
+test -f .work/test-coverage/gaps/test-gaps-summary.txt && echo "✓ Text exists" || echo "✗ Text MISSING"
+```
+
+**Required:** All three files must exist. If any are missing, regenerate them.
+
+#### 2. Dynamic Feature Extraction Verification
+
+```bash
+# Verify HTML has "Tested Features (Dynamic Feature Extraction)" section
+grep -q "Tested Features (Dynamic Feature Extraction)" .work/test-coverage/gaps/test-gaps-report.html && \
+  echo "✓ Feature extraction section present" || \
+  echo "✗ MISSING: Dynamic Feature Extraction section"
+
+# Verify JSON has feature data
+grep -q '"tested_features"' .work/test-coverage/gaps/test-gaps-report.json && \
+grep -q '"feature_gaps"' .work/test-coverage/gaps/test-gaps-report.json && \
+  echo "✓ Feature data in JSON" || \
+  echo "✗ MISSING: Feature data in JSON"
+
+# Verify Text has feature section
+grep -q "Tested Features" .work/test-coverage/gaps/test-gaps-summary.txt && \
+  echo "✓ Feature section in Text" || \
+  echo "✗ MISSING: Feature section in Text"
+```
+
+**Required:** Dynamic Feature Extraction must be present in all three reports. This is a critical requirement from Step 5a (lines 163-280).
+
+#### 3. HTML Coverage Dimension Verification
+
+**CRITICAL:** The HTML report must display ALL coverage dimension tables based on component type.
+
+```bash
+# For networking components, verify ALL 8 dimension tables exist
+grep -c "<h3>Platforms</h3>" .work/test-coverage/gaps/test-gaps-report.html
+grep -c "<h3>Protocols</h3>" .work/test-coverage/gaps/test-gaps-report.html
+grep -c "<h3>Service Types</h3>" .work/test-coverage/gaps/test-gaps-report.html
+grep -c "<h3>IP Stacks</h3>" .work/test-coverage/gaps/test-gaps-report.html
+grep -c "<h3>Network Layers</h3>" .work/test-coverage/gaps/test-gaps-report.html
+grep -c "<h3>Gateway Modes</h3>" .work/test-coverage/gaps/test-gaps-report.html
+grep -c "<h3>Topologies</h3>" .work/test-coverage/gaps/test-gaps-report.html
+grep -c "<h3>Scenarios</h3>" .work/test-coverage/gaps/test-gaps-report.html
+```
+
+**Expected Results:**
+- **Networking components:** 8 dimension tables (Platforms, Protocols, Service Types, IP Stacks, Network Layers, Gateway Modes, Topologies, Scenarios)
+- **Storage components:** 5 dimension tables (Platforms, Storage Classes, Volume Modes, Provisioners, Scenarios)
+- **Other components:** 2 dimension tables (Platforms, Scenarios)
+
+**Verification Command:**
+```bash
+# Count total coverage dimension tables
+TABLE_COUNT=$(grep -E "<h3>(Platforms|Protocols|Service Types|IP Stacks|Network Layers|Gateway Modes|Topologies|Scenarios|Storage Classes|Volume Modes|Provisioners)</h3>" .work/test-coverage/gaps/test-gaps-report.html | wc -l)
+echo "Coverage dimension tables found: $TABLE_COUNT"
+
+# Verify based on component type
+COMPONENT=$(grep -oP 'Component:</strong> \K[^<]+' .work/test-coverage/gaps/test-gaps-report.html | head -1 | tr -d '</p>')
+echo "Component type: $COMPONENT"
+
+case "$COMPONENT" in
+  Networking)
+    [ "$TABLE_COUNT" -eq 8 ] && echo "✓ All 8 networking dimensions present" || echo "✗ INCOMPLETE: Expected 8 tables, found $TABLE_COUNT"
+    ;;
+  Storage)
+    [ "$TABLE_COUNT" -eq 5 ] && echo "✓ All 5 storage dimensions present" || echo "✗ INCOMPLETE: Expected 5 tables, found $TABLE_COUNT"
+    ;;
+  *)
+    [ "$TABLE_COUNT" -eq 2 ] && echo "✓ All 2 generic dimensions present" || echo "✗ INCOMPLETE: Expected 2 tables, found $TABLE_COUNT"
+    ;;
+esac
+```
+
+**Required:** All component-specific dimension tables must be present. Missing tables indicate incomplete HTML generation.
+
+#### 4. Effort Estimates Verification
+
+```bash
+# Verify gaps include effort estimates
+grep -q "Effort Required" .work/test-coverage/gaps/test-gaps-report.html && \
+  echo "✓ Effort estimates in HTML" || \
+  echo "✗ MISSING: Effort estimates"
+```
+
+**Required:** Gaps must include effort estimates (Low, Medium, High) as specified in Step 5a.
+
+#### 5. Gap Analyzer Implementation Verification
+
+```bash
+# Verify analyzer has feature extraction function
+grep -q "def extract_features_from_tests" .work/test-coverage/gaps/gap_analyzer.py && \
+  echo "✓ Feature extraction function exists" || \
+  echo "✗ MISSING: extract_features_from_tests() function"
+
+# Verify all 5 feature categories are defined
+grep -q "Configuration Patterns" .work/test-coverage/gaps/gap_analyzer.py && \
+grep -q "Network Topology" .work/test-coverage/gaps/gap_analyzer.py && \
+grep -q "Lifecycle Operations" .work/test-coverage/gaps/gap_analyzer.py && \
+grep -q "Network Features" .work/test-coverage/gaps/gap_analyzer.py && \
+grep -q "Resilience & Recovery" .work/test-coverage/gaps/gap_analyzer.py && \
+  echo "✓ All 5 feature categories defined" || \
+  echo "✗ MISSING: Some feature categories not implemented"
+```
+
+**Required:** The gap analyzer must implement Dynamic Feature Extraction with all 5 categories.
+
+#### 6. JSON Structure Verification
+
+```python
+# Verify JSON has all required fields
+python3 << 'EOF'
+import json
+try:
+    with open('.work/test-coverage/gaps/test-gaps-report.json', 'r') as f:
+        data = json.load(f)
+
+    required_fields = [
+        ('analysis.file', lambda d: d['analysis']['file']),
+        ('analysis.component_type', lambda d: d['analysis']['component_type']),
+        ('analysis.test_count', lambda d: d['analysis']['test_count']),
+        ('analysis.tested_features', lambda d: d['analysis']['tested_features']),
+        ('analysis.feature_gaps', lambda d: d['analysis']['feature_gaps']),
+        ('scores.overall', lambda d: d['scores']['overall']),
+    ]
+
+    missing = []
+    for name, getter in required_fields:
+        try:
+            getter(data)
+            print(f"✓ {name}")
+        except (KeyError, TypeError):
+            print(f"✗ MISSING: {name}")
+            missing.append(name)
+
+    if not missing:
+        print("\n✓ All required JSON fields present")
+    else:
+        print(f"\n✗ INCOMPLETE: Missing {len(missing)} required fields")
+        exit(1)
+except Exception as e:
+    print(f"✗ ERROR: {e}")
+    exit(1)
+EOF
+```
+
+**Required:** All required JSON fields must be present.
+
+### Validation Summary
+
+**Before declaring this skill complete:**
+
+1. ✓ All three report files exist
+2. ✓ Dynamic Feature Extraction present in all reports
+3. ✓ HTML shows ALL component-specific coverage dimension tables
+4. ✓ Effort estimates included in gaps
+5. ✓ Gap analyzer implements feature extraction function
+6. ✓ JSON contains all required fields
+
+**If ANY check fails:** Fix the issue and re-run all validation checks. Do NOT declare the skill complete until ALL checks pass.
+
 ## Error Handling
 
 ### Common Issues and Solutions
@@ -791,7 +1055,7 @@ high_priority_gaps = [
 ```bash
 # Run gap analyzer on a networking test file
 cd /home/anusaxen/git/ai-helpers/plugins/test-coverage
-python3 skills/gaps/gap_analyzer.py \
+python3 .work/test-coverage/gaps/gap_analyzer.py \
   /path/to/test/extended/networking/egressip_test.go \
   --output .work/gaps/
 
@@ -811,7 +1075,7 @@ python3 skills/gaps/gap_analyzer.py \
 
 ```bash
 # Run gap analyzer on a storage test file
-python3 skills/gaps/gap_analyzer.py \
+python3 .work/test-coverage/gaps/gap_analyzer.py \
   /path/to/test/extended/storage/persistent_volumes_test.go \
   --output .work/gaps/
 
@@ -822,16 +1086,16 @@ python3 skills/gaps/gap_analyzer.py \
 # High-priority gaps: ReadWriteMany volumes, CSI storage class, Snapshot scenarios
 ```
 
-### Example 3: Analyze Local Test File
+### Example 3: Analyze from GitHub URL
 
 ```bash
-# Provide a local path to the test file
-python3 skills/gaps/gap_analyzer.py \
-  /path/to/local/test/extended/networking/egressip.go \
+# Analyze file from GitHub raw URL
+python3 .work/test-coverage/gaps/gap_analyzer.py \
+  https://raw.githubusercontent.com/openshift/origin/master/test/extended/networking/egressip.go \
   --output .work/gaps/
 ```
 
-**Note:** URL support (e.g., analyzing files directly from GitHub URLs) is not yet implemented. The script currently requires a local file path. URL resolution via PathHandler can be added in the future when gap_analyzer.py is updated to support it.
+The analyzer automatically detects URLs and downloads the file for analysis.
 
 ## Integration with Claude Code Commands
 
@@ -843,4 +1107,3 @@ The command invokes this skill to perform component-aware gap analysis on the sp
 ## See Also
 
 - [Test Coverage Plugin README](../../README.md) - User guide and installation
-- [gap_analyzer.py](gap_analyzer.py) - Analyzer implementation
