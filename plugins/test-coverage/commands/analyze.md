@@ -56,7 +56,7 @@ This command is the foundation for QE or Dev teams to understand their e2e test 
     - Test markers (e.g., [Serial], [Disruptive] for Ginkgo)
 
 - `--test-pattern <pattern>`: Custom test file pattern (optional)
-  - Example: `--test-pattern "**/*Test.java,**/Test*.java"`
+  - Example: `--test-pattern "**/*_test.go,**/test_*.go"`
 
 - `--test-structure-only`: Analyze only test file structure, skip source file analysis (optional)
   - When enabled, analyzes ONLY test files to document what tests exist and what they cover
