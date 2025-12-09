@@ -1,1 +1,0 @@
-"""Coverage analysis skill module"""

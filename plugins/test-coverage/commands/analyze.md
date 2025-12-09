@@ -191,7 +191,7 @@ For each source file:
    - Recommendations section
    - Best viewed in a web browser
 
-2. **JSON Report** (`test-structure-gaps.json`):
+2. **JSON Report** (`test-structure-report.json`):
    - Complete gap data with file paths, functions, priorities
    - Machine-readable format for automation and CI/CD integration
 
@@ -239,7 +239,7 @@ High Priority Gaps:
 
 Reports Generated:
   HTML Report:    .work/test-coverage/analyze/test-coverage-report.html
-  JSON Report:    .work/test-coverage/analyze/test-structure-gaps.json
+  JSON Report:    .work/test-coverage/analyze/test-structure-report.json
   Text Summary:   .work/test-coverage/analyze/test-structure-summary.txt
 
 Recommendations:

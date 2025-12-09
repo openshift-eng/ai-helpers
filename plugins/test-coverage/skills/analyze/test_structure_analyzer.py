@@ -657,7 +657,9 @@ def main():
     parser.add_argument('--priority', choices=['all', 'high', 'medium', 'low'], default='all',
                         help='Filter gaps by priority level')
     parser.add_argument('--output', default='.work/test-coverage/analyze',
-                        help='Output directory for reports')
+                        help='Output directory for reports (ignored with --output-json)')
+    parser.add_argument('--output-json', action='store_true',
+                        help='Output structured JSON to stdout instead of writing report files (for Claude Code runtime report generation)')
     parser.add_argument('--include-test-utils', action='store_true',
                         help='Include test utility/helper files in analysis (excluded by default)')
     parser.add_argument('--include-unit-tests', action='store_true',
@@ -794,14 +796,7 @@ def main():
             mapping = {}
             gaps = {'untested_files': [], 'untested_functions': [], 'partially_tested_files': []}
 
-        # Create output directory
-        os.makedirs(args.output, exist_ok=True)
-
-        # Generate reports
-        print("Generating reports...")
-
-        # JSON report
-        json_path = os.path.join(args.output, 'test-structure-gaps.json')
+        # Build report data structure
         report_data = {
             'language': language,
             'source_dir': args.source_dir,
@@ -836,51 +831,46 @@ def main():
                 'imports': test_file.imports
             }
 
-        with open(json_path, 'w') as f:
-            json.dump(report_data, f, indent=2)
-
-        # Text summary
-        text_path = os.path.join(args.output, 'test-structure-summary.txt')
-        if test_only_mode:
-            summary = generate_test_only_summary(test_files)
+        # Output mode: JSON to stdout or write report files
+        if args.output_json:
+            # Output structured JSON to stdout for Claude Code runtime report generation
+            print(json.dumps(report_data, indent=2))
+            return 0
         else:
-            summary = generate_summary_report(gaps, mapping)
-        with open(text_path, 'w') as f:
-            f.write(summary)
+            # Traditional mode: write report files
+            # Create output directory
+            os.makedirs(args.output, exist_ok=True)
 
-        # HTML report
-        html_path = os.path.join(args.output, 'test-structure-report.html')
-        try:
-            # Try relative import first (when run as module)
-            try:
-                from .test_structure_reports import generate_test_structure_html
-            except ImportError:
-                # Fallback to absolute import (when run as script)
-                from skills.analyze.test_structure_reports import generate_test_structure_html
+            # Generate reports
+            print("Generating reports...")
 
-            with open(json_path, 'r') as f:
-                json_data = json.load(f)
-            generate_test_structure_html(json_data, html_path)
-        except ImportError as e:
-            print(f"Warning: Could not import HTML report generator: {e}")
-            print("Skipping HTML report generation")
-        except Exception as e:
-            print(f"Warning: Failed to generate HTML report: {e}")
-            import traceback
-            traceback.print_exc()
+            # JSON report
+            json_path = os.path.join(args.output, 'test-structure-report.json')
+            with open(json_path, 'w') as f:
+                json.dump(report_data, f, indent=2)
 
-        # Print summary to console
-        print()
-        print(summary)
-        print()
-        print("Reports Generated:")
-        print(f"  JSON Report:   {json_path}")
-        print(f"  Text Summary:  {text_path}")
-        if os.path.exists(html_path):
-            print(f"  HTML Report:   {html_path}")
-        print()
+            # Text summary
+            text_path = os.path.join(args.output, 'test-structure-summary.txt')
+            if test_only_mode:
+                summary = generate_test_only_summary(test_files)
+            else:
+                summary = generate_summary_report(gaps, mapping)
+            with open(text_path, 'w') as f:
+                f.write(summary)
 
-        return 0
+            # Print summary to console
+            print()
+            print(summary)
+            print()
+            print("Reports Generated:")
+            print(f"  JSON Report:   {json_path}")
+            print(f"  Text Summary:  {text_path}")
+            print()
+            print("Note: HTML report generation is handled by Claude Code at runtime.")
+            print("      See SKILL.md for HTML report structure and styling.")
+            print()
+
+            return 0
 
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)

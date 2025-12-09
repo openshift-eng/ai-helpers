@@ -118,7 +118,7 @@ Generate all three report formats:
    - Priority-sorted gap list with recommendations
    - Visual charts for protocol/platform coverage
 
-2. **JSON Report** (`test-gaps.json`):
+2. **JSON Report** (`test-gaps-report.json`):
    - Test case metadata
    - Coverage matrices
    - Gap list with priorities
@@ -159,7 +159,7 @@ High Priority Gaps (5):
 
 Reports Generated:
   ✓ HTML:  .work/test-coverage/gaps/test-gaps-report.html
-  ✓ JSON:  .work/test-coverage/gaps/test-gaps.json
+  ✓ JSON:  .work/test-coverage/gaps/test-gaps-report.json
   ✓ Text:  .work/test-coverage/gaps/test-gaps-summary.txt
 
 Recommendation:

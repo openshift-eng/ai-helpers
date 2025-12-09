@@ -22,10 +22,11 @@ python3 gap_analyzer.py /path/to/test_file.go --output ./reports/
 
 ## Output
 
-Generates three report formats:
-- **HTML Report** (`test-gaps-report.html`) - Interactive visualization with coverage scores
-- **JSON Report** (`test-gaps.json`) - Machine-readable gap data
+The analyzer generates two report formats:
+- **JSON Report** (`test-gaps-report.json`) - Machine-readable gap data
 - **Text Summary** (`test-gaps-summary.txt`) - Terminal-friendly summary
+
+Claude Code generates the HTML report at runtime based on the JSON data and SKILL.md specifications.
 
 See [SKILL.md](SKILL.md) for detailed implementation guide.
 

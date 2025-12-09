@@ -11,6 +11,7 @@ import sys
 import argparse
 from datetime import datetime
 from typing import Dict, List, Tuple, Set
+from collections import defaultdict
 
 # Component type constants - shared across analyzer and reports
 NETWORK_COMPONENTS = {'networking', 'router', 'dns', 'network-observability'}
@@ -18,6 +19,311 @@ STORAGE_COMPONENTS = {'storage', 'csi'}
 CONTROL_PLANE_COMPONENTS = {'apiserver', 'etcd'}
 OPERATOR_COMPONENTS = {'operators', 'mco', 'installer'}
 
+
+# ============================================================================
+# Dynamic Feature Extractor - Runtime analysis of test features
+# ============================================================================
+
+class DynamicFeatureExtractor:
+    """Dynamically extract features from test names at runtime"""
+
+    def __init__(self, test_cases: List[Dict]):
+        """
+        Args:
+            test_cases: List of test case dicts with 'name' field
+        """
+        self.test_cases = test_cases
+        self.test_names = [test.get('name', '') for test in test_cases]
+        self.all_test_text = ' '.join(self.test_names).lower()
+
+    def extract_features(self) -> Dict[str, List[str]]:
+        """
+        Extract features from test names dynamically
+
+        Returns:
+            Dict mapping category to list of tested features
+        """
+        features = defaultdict(list)
+
+        # Extract various feature patterns
+        features.update(self._extract_configuration_features())
+        features.update(self._extract_topology_features())
+        features.update(self._extract_lifecycle_features())
+        features.update(self._extract_network_features())
+        features.update(self._extract_resilience_features())
+
+        # Remove empty categories
+        return {k: v for k, v in features.items() if v}
+
+    def _extract_configuration_features(self) -> Dict[str, List[str]]:
+        """Extract configuration-related features (overlapping, single, multiple, etc.)"""
+        features = []
+
+        # Overlapping/Non-overlapping patterns
+        if re.search(r'non[-\s]?overlapping', self.all_test_text):
+            features.append('Non-overlapping configuration')
+        if re.search(r'overlapping(?!\s+control)', self.all_test_text):  # Not "overlapping control plane"
+            features.append('Overlapping configuration')
+
+        # Single/Multiple patterns
+        if re.search(r'\bsingle\b.*(?:ip|eip|address|instance|resource)', self.all_test_text):
+            features.append('Single resource configuration')
+        if re.search(r'\bmultiple\b.*(?:ip|eip|address|instance|resource)', self.all_test_text):
+            features.append('Multiple resource configuration')
+
+        # Mixed configurations
+        if re.search(r'mixed', self.all_test_text):
+            features.append('Mixed configuration')
+
+        return {'Configuration Patterns': features} if features else {}
+
+    def _extract_topology_features(self) -> Dict[str, List[str]]:
+        """Extract network topology features (UDN, network modes, etc.)"""
+        features = []
+
+        # UDN (User Defined Network) patterns
+        if re.search(r'udn|user.defined.network', self.all_test_text):
+            features.append('User Defined Networks (UDN)')
+
+        # Default network
+        if re.search(r'default.network', self.all_test_text):
+            features.append('Default network')
+
+        # Layer2/Layer3
+        if re.search(r'layer\s*2|layer2|l2', self.all_test_text):
+            features.append('Layer 2 networking')
+        if re.search(r'layer\s*3|layer3|l3', self.all_test_text):
+            features.append('Layer 3 networking')
+
+        # Gateway modes
+        if re.search(r'shared.gateway', self.all_test_text):
+            features.append('Shared gateway mode')
+        if re.search(r'local.gateway', self.all_test_text):
+            features.append('Local gateway mode')
+
+        return {'Network Topology': features} if features else {}
+
+    def _extract_lifecycle_features(self) -> Dict[str, List[str]]:
+        """Extract lifecycle operation features (creation, deletion, recreation, etc.)"""
+        features = []
+
+        # Creation/Deletion/Recreation patterns
+        if re.search(r'creat(?:e|ion)', self.all_test_text):
+            features.append('Resource creation')
+        if re.search(r'delet(?:e|ion)', self.all_test_text):
+            features.append('Resource deletion')
+        if re.search(r'recreat(?:e|ion)', self.all_test_text):
+            features.append('Resource recreation')
+
+        # Modification/Update
+        if re.search(r'modif(?:y|ication)|update', self.all_test_text):
+            features.append('Resource modification')
+
+        # Assignment/Reassignment
+        if re.search(r'reassign', self.all_test_text):
+            features.append('Resource reassignment')
+        elif re.search(r'assign', self.all_test_text):
+            features.append('Resource assignment')
+
+        return {'Lifecycle Operations': features} if features else {}
+
+    def _extract_network_features(self) -> Dict[str, List[str]]:
+        """Extract network-specific features (failover, load balancing, isolation, etc.)"""
+        features = []
+
+        # Failover
+        if re.search(r'failover|fail.over', self.all_test_text):
+            features.append('Failover')
+
+        # Load balancing
+        if re.search(r'load.balanc', self.all_test_text):
+            features.append('Load balancing')
+
+        # Traffic isolation
+        if re.search(r'isolat', self.all_test_text):
+            features.append('Network isolation')
+
+        # Traffic policies
+        if re.search(r'traffic.policy|external.traffic|internal.traffic', self.all_test_text):
+            features.append('Traffic policies')
+
+        return {'Network Features': features} if features else {}
+
+    def _extract_resilience_features(self) -> Dict[str, List[str]]:
+        """Extract resilience/recovery features (reboot, restart, node deletion, etc.)"""
+        features = []
+
+        # Node operations
+        if re.search(r'node.reboot|reboot.node', self.all_test_text):
+            features.append('Node reboot')
+        if re.search(r'node.delet|delet.node', self.all_test_text):
+            features.append('Node deletion')
+
+        # Component restarts
+        if re.search(r'ovnk.restart|restart.ovnk', self.all_test_text):
+            features.append('OVN-Kubernetes restart')
+        if re.search(r'operator.restart|restart.operator', self.all_test_text):
+            features.append('Operator restart')
+        if re.search(r'pod.restart|restart.pod', self.all_test_text):
+            features.append('Pod restart')
+
+        # General restart (if not covered above)
+        if re.search(r'\brestart\b', self.all_test_text) and not features:
+            features.append('Component restart')
+
+        return {'Resilience & Recovery': features} if features else {}
+
+    def infer_missing_features(self, tested_features: Dict[str, List[str]]) -> List[Dict]:
+        """
+        Infer missing features based on patterns in tested features
+
+        Args:
+            tested_features: Dict of category -> list of tested features
+
+        Returns:
+            List of gap dicts with inferred missing features
+        """
+        gaps = []
+
+        # Check for opposite patterns (overlapping vs non-overlapping)
+        config_features = tested_features.get('Configuration Patterns', [])
+        if any('overlapping' in f.lower() for f in config_features):
+            if not any('non-overlapping' in f.lower() for f in config_features):
+                gaps.append({
+                    'feature': 'Non-overlapping configuration',
+                    'category': 'Configuration Patterns',
+                    'priority': 'high',
+                    'impact': 'Non-overlapping scenarios not tested - incomplete coverage of configuration patterns',
+                    'recommendation': 'Add test cases for non-overlapping configurations',
+                    'inferred': True,
+                })
+            if not any('mixed' in f.lower() for f in config_features):
+                gaps.append({
+                    'feature': 'Mixed overlapping/non-overlapping configuration',
+                    'category': 'Configuration Patterns',
+                    'priority': 'medium',
+                    'impact': 'Mixed configuration scenarios not tested',
+                    'recommendation': 'Add test cases combining overlapping and non-overlapping configurations',
+                    'inferred': True,
+                })
+
+        # Check for single vs multiple patterns
+        if any('single' in f.lower() for f in config_features):
+            if not any('multiple' in f.lower() for f in config_features):
+                gaps.append({
+                    'feature': 'Multiple resource configuration',
+                    'category': 'Configuration Patterns',
+                    'priority': 'high',
+                    'impact': 'Multiple resources per entity not tested - production HA scenarios missing',
+                    'recommendation': 'Add test cases with multiple resources (IPs, instances, etc.) per namespace/pod',
+                    'inferred': True,
+                })
+
+        # Check for lifecycle completeness (creation but no deletion, etc.)
+        lifecycle_features = tested_features.get('Lifecycle Operations', [])
+        if any('deletion' in f.lower() for f in lifecycle_features):
+            if not any('recreation' in f.lower() for f in lifecycle_features):
+                gaps.append({
+                    'feature': 'Resource recreation after deletion',
+                    'category': 'Lifecycle Operations',
+                    'priority': 'medium',
+                    'impact': 'Recreation scenarios not tested - recovery workflows incomplete',
+                    'recommendation': 'Add test cases that delete and recreate resources',
+                    'inferred': True,
+                })
+
+        # Check for layer coverage (Layer2 but no Layer3, or vice versa)
+        topology_features = tested_features.get('Network Topology', [])
+        if any('layer 2' in f.lower() for f in topology_features):
+            if not any('layer 3' in f.lower() for f in topology_features):
+                gaps.append({
+                    'feature': 'Layer 3 networking',
+                    'category': 'Network Topology',
+                    'priority': 'high',
+                    'impact': 'Layer 3 topology not tested - routed network scenarios missing',
+                    'recommendation': 'Add test cases for Layer 3 networking configurations',
+                    'inferred': True,
+                })
+        elif any('layer 3' in f.lower() for f in topology_features):
+            if not any('layer 2' in f.lower() for f in topology_features):
+                gaps.append({
+                    'feature': 'Layer 2 networking',
+                    'category': 'Network Topology',
+                    'priority': 'high',
+                    'impact': 'Layer 2 topology not tested - bridged network scenarios missing',
+                    'recommendation': 'Add test cases for Layer 2 networking configurations',
+                    'inferred': True,
+                })
+
+        # Check for gateway mode coverage
+        if any('shared gateway' in f.lower() for f in topology_features):
+            if not any('local gateway' in f.lower() for f in topology_features):
+                gaps.append({
+                    'feature': 'Local gateway mode',
+                    'category': 'Network Topology',
+                    'priority': 'high',
+                    'impact': 'Local gateway mode not tested - per-node gateway scenarios missing',
+                    'recommendation': 'Add test cases for local gateway mode configuration',
+                    'inferred': True,
+                })
+
+        # Check for network feature completeness
+        network_features = tested_features.get('Network Features', [])
+        if any('failover' in f.lower() for f in network_features):
+            if not any('load balancing' in f.lower() for f in network_features):
+                gaps.append({
+                    'feature': 'Load balancing',
+                    'category': 'Network Features',
+                    'priority': 'medium',
+                    'impact': 'Load balancing not tested - traffic distribution scenarios missing',
+                    'recommendation': 'Add test cases for traffic load balancing across resources',
+                    'inferred': True,
+                })
+
+        return gaps
+
+    def generate_feature_summary(self) -> Dict:
+        """
+        Generate complete feature analysis summary
+
+        Returns:
+            Dict with tested_features, feature_gaps, coverage_stats
+        """
+        tested_features = self.extract_features()
+        inferred_gaps = self.infer_missing_features(tested_features)
+
+        # Calculate coverage stats
+        total_tested = sum(len(features) for features in tested_features.values())
+        total_gaps = len(inferred_gaps)
+
+        return {
+            'tested_features': tested_features,
+            'feature_gaps': inferred_gaps,
+            'coverage_stats': {
+                'features_tested': total_tested,
+                'features_missing': total_gaps,
+                'categories': len(tested_features),
+            }
+        }
+
+
+def extract_features_from_tests(test_cases: List[Dict]) -> Dict:
+    """
+    Main entry point for dynamic feature extraction
+
+    Args:
+        test_cases: List of test case dicts with 'name' field
+
+    Returns:
+        Complete feature analysis
+    """
+    extractor = DynamicFeatureExtractor(test_cases)
+    return extractor.generate_feature_summary()
+
+
+# ============================================================================
+# Gap Analyzer - Main analysis class
+# ============================================================================
 
 class GapAnalyzer:
     """Analyzes OpenShift/Kubernetes test files to identify coverage gaps (component-agnostic)"""
@@ -178,6 +484,22 @@ class GapAnalyzer:
         # Filter gaps based on component type
         gaps = self._filter_component_gaps(gaps)
 
+        # Runtime feature extraction (dynamic, no hardcoding)
+        tested_features = {}
+        feature_gaps = []
+        if test_cases:
+            try:
+                feature_analysis = extract_features_from_tests(test_cases)
+                tested_features = feature_analysis.get('tested_features', {})
+                feature_gaps = feature_analysis.get('feature_gaps', [])
+            except Exception as e:
+                # Gracefully handle feature extraction errors
+                print(f"Warning: Feature extraction failed: {e}", file=sys.stderr)
+
+        # Add feature gaps to gaps dict
+        if feature_gaps:
+            gaps['features'] = feature_gaps
+
         return {
             'file': self.file_path,
             'component_type': self.component_type,
@@ -185,6 +507,7 @@ class GapAnalyzer:
             'test_cases': test_cases,
             'coverage': coverage,
             'gaps': gaps,
+            'tested_features': tested_features,  # NEW: Runtime-extracted features
             'analysis_date': datetime.now().isoformat()
         }
 
@@ -1228,29 +1551,256 @@ class GapAnalyzer:
         return scores
 
 
+def generate_gap_json_report(analysis: Dict, scores: Dict, output_path: str):
+    """Generate JSON report for E2E test gap analysis"""
+    report = {
+        'analysis': analysis,
+        'scores': scores,
+        'generated_at': datetime.now().isoformat()
+    }
+
+    with open(output_path, 'w') as f:
+        json.dump(report, f, indent=2)
+
+
+def generate_gap_text_report(analysis: Dict, scores: Dict, output_path: str):
+    """Generate text summary report for E2E test gap analysis"""
+
+    file_name = os.path.basename(analysis['file'])
+    coverage = analysis['coverage']
+    gaps = analysis['gaps']
+
+    component_type = analysis.get('component_type', 'generic')
+
+    lines = [
+        "=" * 60,
+        "Test Coverage Gap Analysis",
+        "=" * 60,
+        "",
+        f"File: {file_name}",
+        f"Component: {component_type}",
+        f"Test Cases: {analysis['test_count']}",
+        f"Analysis Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+        "",
+        "=" * 60,
+        "Coverage Scores",
+        "=" * 60,
+        "",
+        f"Overall Coverage:          {scores['overall']:.1f}%",
+    ]
+
+    # Component-specific scores
+    lines.append(f"Platform Coverage:         {scores.get('platform_coverage', 0):.1f}%")
+
+    if component_type in NETWORK_COMPONENTS:
+        lines.extend([
+            f"Protocol Coverage:         {scores.get('protocol_coverage', 0):.1f}%",
+            f"Service Type Coverage:     {scores.get('service_type_coverage', 0):.1f}%",
+            f"IP Stack Coverage:         {scores.get('ip_stack_coverage', 0):.1f}%",
+            f"Topology Coverage:         {scores.get('topology_coverage', 0):.1f}%",
+        ])
+    elif component_type in STORAGE_COMPONENTS:
+        lines.extend([
+            f"Storage Class Coverage:    {scores.get('storage_class_coverage', 0):.1f}%",
+            f"Volume Mode Coverage:      {scores.get('volume_mode_coverage', 0):.1f}%",
+        ])
+
+    lines.append(f"Scenario Coverage:         {scores.get('scenario_coverage', 0):.1f}%")
+
+    # Add network layer coverage if present (UDN tests)
+    if 'network_layer_coverage' in scores:
+        lines.append(f"Network Layer Coverage:    {scores.get('network_layer_coverage', 0):.1f}%")
+
+    # Add gateway mode coverage if present (OVN gateway tests)
+    if 'gateway_mode_coverage' in scores:
+        lines.append(f"Gateway Mode Coverage:     {scores.get('gateway_mode_coverage', 0):.1f}%")
+
+    lines.extend([
+        "",
+        "=" * 60,
+        "What's Tested",
+        "=" * 60,
+        "",
+    ])
+
+    # Component-agnostic tested items
+    lines.extend([
+        "Platforms:",
+        *[f"  ✓ {p}" for p in coverage.get('platforms', {}).get('tested', [])],
+    ])
+
+    # Add tested topologies if any
+    tested_topologies = coverage.get('topologies', {}).get('tested', [])
+    if tested_topologies:
+        lines.extend([
+            "",
+            "Topologies:",
+            *[f"  ✓ {t}" for t in tested_topologies],
+        ])
+
+    # Add tested network layers if any (UDN tests)
+    tested_network_layers = coverage.get('network_layers', {}).get('tested', [])
+    if tested_network_layers:
+        lines.extend([
+            "",
+            "Network Layers:",
+            *[f"  ✓ {l}" for l in tested_network_layers],
+        ])
+
+    # Add tested gateway modes if any (OVN gateway tests)
+    tested_gateway_modes = coverage.get('gateway_modes', {}).get('tested', [])
+    if tested_gateway_modes:
+        lines.extend([
+            "",
+            "Gateway Modes:",
+            *[f"  ✓ {m}" for m in tested_gateway_modes],
+        ])
+
+    # Add tested scenarios if any
+    tested_scenarios = coverage.get('scenarios', {}).get('tested', [])
+    if tested_scenarios:
+        lines.extend([
+            "",
+            "Scenarios:",
+            *[f"  ✓ {s}" for s in tested_scenarios],
+        ])
+
+    lines.extend([
+        "",
+        "=" * 60,
+        "Identified Gaps",
+        "=" * 60,
+        "",
+    ])
+
+    # Component-agnostic gaps
+    if gaps.get('platforms'):
+        lines.append("PLATFORM GAPS:")
+        for gap in gaps['platforms']:
+            lines.extend([
+                f"  [{gap['priority'].upper()}] {gap['platform']}",
+                f"    Impact: {gap['impact']}",
+                f"    Recommendation: {gap['recommendation']}",
+                ""
+            ])
+
+    if gaps.get('protocols'):
+        lines.append("PROTOCOL GAPS:")
+        for gap in gaps['protocols']:
+            lines.extend([
+                f"  [{gap['priority'].upper()}] {gap['protocol']}",
+                f"    Impact: {gap['impact']}",
+                f"    Recommendation: {gap['recommendation']}",
+                ""
+            ])
+
+    if gaps.get('service_types'):
+        lines.append("SERVICE TYPE GAPS:")
+        for gap in gaps['service_types']:
+            lines.extend([
+                f"  [{gap['priority'].upper()}] {gap['service_type']}",
+                f"    Impact: {gap['impact']}",
+                f"    Recommendation: {gap['recommendation']}",
+                ""
+            ])
+
+    if gaps.get('ip_stacks'):
+        lines.append("IP STACK GAPS:")
+        for gap in gaps['ip_stacks']:
+            lines.extend([
+                f"  [{gap['priority'].upper()}] {gap['ip_stack']}",
+                f"    Impact: {gap['impact']}",
+                f"    Recommendation: {gap['recommendation']}",
+                ""
+            ])
+
+    if gaps.get('topologies'):
+        lines.append("TOPOLOGY GAPS:")
+        for gap in gaps['topologies']:
+            lines.extend([
+                f"  [{gap['priority'].upper()}] {gap['topology']}",
+                f"    Impact: {gap['impact']}",
+                f"    Recommendation: {gap['recommendation']}",
+                ""
+            ])
+
+    if gaps.get('network_layers'):
+        lines.append("NETWORK LAYER GAPS:")
+        for gap in gaps['network_layers']:
+            lines.extend([
+                f"  [{gap['priority'].upper()}] {gap['network_layer']}",
+                f"    Impact: {gap['impact']}",
+                f"    Recommendation: {gap['recommendation']}",
+                ""
+            ])
+
+    if gaps.get('gateway_modes'):
+        lines.append("GATEWAY MODE GAPS:")
+        for gap in gaps['gateway_modes']:
+            lines.extend([
+                f"  [{gap['priority'].upper()}] {gap['gateway_mode']}",
+                f"    Impact: {gap['impact']}",
+                f"    Recommendation: {gap['recommendation']}",
+                ""
+            ])
+
+    if gaps.get('storage_classes'):
+        lines.append("STORAGE CLASS GAPS:")
+        for gap in gaps['storage_classes']:
+            lines.extend([
+                f"  [{gap['priority'].upper()}] {gap['storage_class']}",
+                f"    Impact: {gap['impact']}",
+                f"    Recommendation: {gap['recommendation']}",
+                ""
+            ])
+
+    if gaps.get('volume_modes'):
+        lines.append("VOLUME MODE GAPS:")
+        for gap in gaps['volume_modes']:
+            lines.extend([
+                f"  [{gap['priority'].upper()}] {gap['volume_mode']}",
+                f"    Impact: {gap['impact']}",
+                f"    Recommendation: {gap['recommendation']}",
+                ""
+            ])
+
+    if gaps.get('scenarios'):
+        lines.append("SCENARIO GAPS:")
+        for gap in gaps['scenarios']:
+            lines.extend([
+                f"  [{gap['priority'].upper()}] {gap['scenario']}",
+                f"    Impact: {gap['impact']}",
+                f"    Recommendation: {gap['recommendation']}",
+                ""
+            ])
+
+    lines.extend([
+        "=" * 60,
+        "Recommendations",
+        "=" * 60,
+        "",
+        f"Current Coverage: {scores['overall']:.0f}%",
+        f"Target Coverage: {min(95, scores['overall'] + 20):.0f}%",
+        "",
+        "Focus on addressing HIGH priority gaps first to maximize",
+        "test coverage and ensure production readiness.",
+    ])
+
+    with open(output_path, 'w') as f:
+        f.write('\n'.join(lines))
+
+
 def main():
     """Main entry point for e2e test gap analysis CLI"""
-    # Import report generators (late import to avoid circular dependencies)
-    try:
-        from .reports import (
-            generate_gap_json_report,
-            generate_gap_text_report
-        )
-        from .report_template import generate_custom_gap_report
-    except ImportError:
-        from reports import (
-            generate_gap_json_report,
-            generate_gap_text_report
-        )
-        from report_template import generate_custom_gap_report
-
     parser = argparse.ArgumentParser(
         description='Analyze e2e test files for coverage gaps'
     )
 
     parser.add_argument('test_file', help='Path to OpenShift/Kubernetes e2e test file')
     parser.add_argument('--output', default='.work/test-coverage/gaps/',
-                        help='Output directory for reports')
+                        help='Output directory for reports (ignored with --output-json)')
+    parser.add_argument('--output-json', action='store_true',
+                        help='Output structured JSON to stdout instead of writing report files (for Claude Code runtime report generation)')
 
     args = parser.parse_args()
 
@@ -1259,92 +1809,109 @@ def main():
         print(f"Error: Test file not found: {args.test_file}", file=sys.stderr)
         return 1
 
-    # Create output directory
-    os.makedirs(args.output, exist_ok=True)
-
-    print(f"Analyzing test file: {os.path.basename(args.test_file)}")
-    print()
-
     # Run gap analysis (Go only, component-agnostic)
     analyzer = GapAnalyzer(args.test_file, 'go')
     analysis = analyzer.analyze_ginkgo_tests()
     scores = analyzer.calculate_coverage_score(analysis)
 
-    # Show detected component for informational purposes
+    # Build report data structure
     component = analysis['component_type']
-    if component != 'unknown':
-        print(f"Detected component: {component}")
-    print()
+    report_data = {
+        'analysis': analysis,
+        'scores': scores,
+        'generated_at': datetime.now().isoformat()
+    }
 
-    # Generate reports
-    print("Generating reports...")
+    # Output mode: JSON to stdout or write report files
+    if args.output_json:
+        # Output structured JSON to stdout for Claude Code runtime report generation
+        print(json.dumps(report_data, indent=2))
+        return 0
+    else:
+        # Traditional mode: write report files
+        # Create output directory
+        os.makedirs(args.output, exist_ok=True)
 
-    html_path = os.path.join(args.output, 'test-gaps-report.html')
-    json_path = os.path.join(args.output, 'test-gaps.json')
-    text_path = os.path.join(args.output, 'test-gaps-summary.txt')
-
-    generate_custom_gap_report(analysis, scores, html_path)
-    generate_gap_json_report(analysis, scores, json_path)
-    generate_gap_text_report(analysis, scores, text_path)
-
-    print(f"✓ HTML report generated: {html_path}")
-    print()
-
-    # Print summary
-    print("=" * 60)
-    print("OpenShift/Kubernetes Test Coverage Gap Analysis")
-    print("=" * 60)
-    print()
-    print(f"File: {os.path.basename(args.test_file)}")
-    print(f"Test Cases: {analysis['test_count']}")
-    if component != 'unknown':
-        print(f"Component: {component}")
-    print()
-    print("Coverage Scores:")
-    print(f"  Overall:               {scores['overall']:.1f}%")
-    print(f"  Platform Coverage:     {scores['platform_coverage']:.1f}%")
-    print(f"  Scenario Coverage:     {scores['scenario_coverage']:.1f}%")
-    print()
-
-    # Show high priority gaps (component-agnostic)
-    all_gaps = []
-    for entries in analysis['gaps'].values():
-        if entries:
-            all_gaps.extend(entries)
-    high_priority = [g for g in all_gaps if g.get('priority') == 'high']
-
-    if high_priority:
-        print(f"High Priority Gaps ({len(high_priority)}):")
-        for i, gap in enumerate(high_priority[:5], 1):
-            name = (
-                gap.get('platform')
-                or gap.get('scenario')
-                or gap.get('protocol')
-                or gap.get('topology')
-                or gap.get('storage_class')
-                or gap.get('service_type')
-                or gap.get('volume_mode')
-                or gap.get('ip_stack')
-                or gap.get('network_layer')
-                or gap.get('gateway_mode')
-                or "Unknown gap"
-            )
-            impact = gap.get('impact', 'Unknown impact')
-            print(f"  {i}. {name} - {impact}")
+        print(f"Analyzing test file: {os.path.basename(args.test_file)}")
         print()
 
-    print("Reports Generated:")
-    print(f"  HTML:  {html_path}")
-    print(f"  JSON:  {json_path}")
-    print(f"  Text:  {text_path}")
-    print()
+        # Show detected component for informational purposes
+        if component != 'unknown':
+            print(f"Detected component: {component}")
+        print()
 
-    target_score = min(95, scores['overall'] + 20)
-    print("Recommendation:")
-    print(f"  Add 5-7 test cases to address high-priority gaps")
-    print(f"  Target: Improve coverage from {scores['overall']:.0f}% to {target_score:.0f}%")
+        # Generate reports
+        print("Generating reports...")
 
-    return 0
+        json_path = os.path.join(args.output, 'test-gaps-report.json')
+        text_path = os.path.join(args.output, 'test-gaps-summary.txt')
+
+        generate_gap_json_report(analysis, scores, json_path)
+        generate_gap_text_report(analysis, scores, text_path)
+
+        print(f"✓ JSON report: {json_path}")
+        print(f"✓ Text report: {text_path}")
+        print()
+        print("Note: HTML report generation is handled by Claude Code at runtime.")
+        print("      See SKILL.md for HTML report structure and styling.")
+        print()
+
+        # Print summary
+        print("=" * 60)
+        print("OpenShift/Kubernetes Test Coverage Gap Analysis")
+        print("=" * 60)
+        print()
+        print(f"File: {os.path.basename(args.test_file)}")
+        print(f"Test Cases: {analysis['test_count']}")
+        if component != 'unknown':
+            print(f"Component: {component}")
+        print()
+        print("Coverage Scores:")
+        print(f"  Overall:               {scores['overall']:.1f}%")
+        print(f"  Platform Coverage:     {scores['platform_coverage']:.1f}%")
+        print(f"  Scenario Coverage:     {scores['scenario_coverage']:.1f}%")
+        print()
+
+        # Show high priority gaps (component-agnostic)
+        all_gaps = []
+        for entries in analysis['gaps'].values():
+            if entries:
+                all_gaps.extend(entries)
+        high_priority = [g for g in all_gaps if g.get('priority') == 'high']
+
+        if high_priority:
+            print(f"High Priority Gaps ({len(high_priority)}):")
+            for i, gap in enumerate(high_priority[:5], 1):
+                name = (
+                    gap.get('platform')
+                    or gap.get('scenario')
+                    or gap.get('protocol')
+                    or gap.get('topology')
+                    or gap.get('storage_class')
+                    or gap.get('service_type')
+                    or gap.get('volume_mode')
+                    or gap.get('ip_stack')
+                    or gap.get('network_layer')
+                    or gap.get('gateway_mode')
+                    or "Unknown gap"
+                )
+                impact = gap.get('impact', 'Unknown impact')
+                print(f"  {i}. {name} - {impact}")
+            print()
+
+        print("Reports Generated:")
+        print(f"  ✓ JSON:  {json_path}")
+        print(f"  ✓ Text:  {text_path}")
+        print()
+        print("Note: HTML report will be generated by Claude Code at runtime from the JSON data.")
+        print()
+
+        target_score = min(95, scores['overall'] + 20)
+        print("Recommendation:")
+        print(f"  Add 5-7 test cases to address high-priority gaps")
+        print(f"  Target: Improve coverage from {scores['overall']:.0f}% to {target_score:.0f}%")
+
+        return 0
 
 
 if __name__ == '__main__':
