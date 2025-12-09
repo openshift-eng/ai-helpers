@@ -5,6 +5,12 @@
     {
       "commands": [
         {
+          "argument_hint": "<commit> <branch1> [branch2...] [--new-branch]",
+          "description": "Backport commits to multiple branches",
+          "name": "backport",
+          "synopsis": "/git:backport <commit> <branch1> [branch2...] [--new-branch|-b]"
+        },
+        {
           "argument_hint": "[--dry-run] [--merged-only] [--remote]",
           "description": "Clean up old and defunct branches that are no longer needed",
           "name": "branch-cleanup",
