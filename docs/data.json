@@ -8,7 +8,7 @@
           "argument_hint": "<commit> <branch1> [branch2...] [--new-branch]",
           "description": "Backport commits to multiple branches",
           "name": "backport",
-          "synopsis": "bash"
+          "synopsis": "/git:backport <commit> <branch1> [branch2...] [--new-branch|-b]"
         },
         {
           "argument_hint": "[--dry-run] [--merged-only] [--remote]",

@@ -7,7 +7,7 @@ argument-hint: <commit> <branch1> [branch2...] [--new-branch]
 git:backport
 
 ## Synopsis
-```bash
+```
 /git:backport <commit> <branch1> [branch2...] [--new-branch|-b]
 ```
 
