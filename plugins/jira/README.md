@@ -56,6 +56,44 @@ Ensure you have the ai-helpers marketplace enabled, via [the instructions here](
 /plugin install jira@ai-helpers
 ```
 
+## Common Conventions
+
+### Jira Formatting: MCP vs Direct API
+
+**CRITICAL:** The formatting for section headers differs depending on whether you use MCP tools or the Jira REST API directly.
+
+**When using MCP tools** (`mcp__atlassian__jira_create_issue`, `mcp__atlassian__jira_update_issue`):
+- Section headers: Use **double asterisks** (`**Header**`)
+- MCP tools automatically convert Markdown to Jira Wiki markup
+
+**When using Jira REST API directly** (curl commands):
+- Section headers: Use **single asterisks** (`*Header*`)
+- API requires native Jira Wiki markup (no conversion)
+
+**For all methods:**
+- Sub-headers: Use underscores (`_Sub-header_`)
+- Bullet lists: Use single asterisk (`* Item`)
+
+**Always check before creating/updating issues:**
+1. Are you using an MCP tool? → Use `**Header**`
+2. Are you using the API directly? → Use `*Header*`
+
+**Example comparison:**
+
+MCP tools:
+```
+**Acceptance Criteria**
+* Item 1
+* Item 2
+```
+
+Direct API:
+```
+*Acceptance Criteria*
+* Item 1
+* Item 2
+```
+
 ## Available Commands
 
 ### `/jira:solve` - Analyze and Solve JIRA Issues
@@ -158,10 +196,11 @@ Create well-formed Jira issues (stories, epics, features, tasks, bugs, feature r
 ```
 
 **Key Features:**
-- **Universal requirements** - All tickets MUST include Security Level: Red Hat Employee and label: ai-generated-jira
-- **Smart defaults** - Project and team-specific conventions applied automatically
+- **Universal requirements** - All tickets MUST include label: ai-generated-jira
+- **Smart defaults** - Project and team-specific conventions applied automatically (including security level from global config or template)
 - **Interactive templates** - Guides you through user story format, acceptance criteria, bug templates
 - **Security validation** - Scans for credentials and secrets before submission
+- **Security workflow** - Prompts for global security default on first use, supports template overrides
 - **Extensible** - Supports project-specific and team-specific skills for custom workflows
 - **Hybrid workflow** - Required fields as arguments, optional fields as interactive prompts
 

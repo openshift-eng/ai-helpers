@@ -1,6 +1,6 @@
 ---
 description: Create Jira issues (story, epic, feature, task, bug, feature-request) with proper formatting
-argument-hint: <type> [project-key] <summary> [--component <name>] [--version <version>] [--parent <key>]
+argument-hint: <type> [project-key] <summary> [--component <name>] [--version <version>] [--parent <key>] [--template <name>]
 ---
 
 ## Name
@@ -8,7 +8,7 @@ jira:create
 
 ## Synopsis
 ```
-/jira:create <type> [project-key] <summary> [options]
+/jira:create <type> [project-key] <summary> [--component <name>] [--version <version>] [--parent <key>] [--template <name>]
 ```
 
 ## Description
@@ -75,7 +75,7 @@ mcp__atlassian__jira_create_issue(
     additional_fields={
         "customfield_12311140": "CNTRLPLANE-456",  # Epic Link - links to parent epic
         "labels": ["ai-generated-jira"],
-        "security": {"name": "Red Hat Employee"}
+        "security": {"name": "Red Hat Employee"}  # Set according to template or global default (Phase 5)
     }
 )
 ```
@@ -93,7 +93,7 @@ mcp__atlassian__jira_create_issue(
         "customfield_12311141": "Multi-cluster metrics aggregation",  # Epic Name (same as summary)
         "customfield_12313140": "CNTRLPLANE-100",  # Parent Link - links to parent feature (STRING, not object!)
         "labels": ["ai-generated-jira"],
-        "security": {"name": "Red Hat Employee"}
+        "security": {"name": "Red Hat Employee"}  # Set according to template or global default (Phase 5)
     }
 )
 ```
@@ -109,7 +109,7 @@ mcp__atlassian__jira_create_issue(
     additional_fields={
         "customfield_12311140": "CNTRLPLANE-456",  # Epic Link - links to parent epic
         "labels": ["ai-generated-jira"],
-        "security": {"name": "Red Hat Employee"}
+        "security": {"name": "Red Hat Employee"}  # Set according to template or global default (Phase 5)
     }
 )
 ```
@@ -218,42 +218,127 @@ URL: https://issues.redhat.com/browse/CNTRLPLANE-789
 
 The `jira:create` command runs in multiple phases:
 
-### 🎯 Phase 1: Load Implementation Guidance
+### 🎨 Phase 1: Template Discovery and Loading (IF APPLICABLE)
 
-Invoke the appropriate skill based on issue type using the Skill tool:
+**CRITICAL: This phase runs BEFORE loading implementation skills.**
 
-- **Type: `story`** → Invoke `jira:create-story` skill
-  - Loads user story template guidance
-  - Provides acceptance criteria formats
-  - Offers story quality validation
+#### Step 1: Check for Template Specification
 
-- **Type: `epic`** → Invoke `jira:create-epic` skill
-  - Loads epic structure guidance
-  - Provides epic name field handling
-  - Offers parent feature linking workflow
+Check if user specified `--template <name>` flag:
+- If specified: Load that template
+- If NOT specified: Auto-detect template based on project + issue type
 
-- **Type: `feature`** → Invoke `jira:create-feature` skill
-  - Loads strategic planning guidance
-  - Provides market problem framework
-  - Offers success criteria templates
+#### Step 2: Auto-Detect Template (if --template not provided)
 
-- **Type: `task`** → Invoke `jira:create-task` skill
-  - Loads technical task guidance
-  - Provides task vs story differentiation
-  - Offers acceptance criteria for technical work
+Search for templates in priority order:
+1. **User templates**: `~/.jira-templates/<project>-<type>.yaml` or `.jira-templates/user/<project>-<type>.yaml`
+2. **Project templates**: `plugins/jira/templates/<project>/<type>.yaml`
+3. **Common templates**: `plugins/jira/templates/common/<type>.yaml`
 
-- **Type: `bug`** → Invoke `jira:create-bug` skill
-  - Loads bug report template
-  - Provides structured reproduction steps
-  - Offers severity and reproducibility guidance
+**Example auto-detection:**
+```
+Command: /jira:create epic OCPEDGE "My Epic"
 
-- **Type: `feature-request`** → Invoke `jira:create-feature-request` skill
-  - Loads customer-driven feature request guidance
-  - Provides 4-question workflow (title, description, business requirements, components)
-  - Offers component mapping from teams/operators
-  - Targets RFE project
+Search order:
+1. ~/.jira-templates/ocpedge-epic.yaml
+2. plugins/jira/templates/ocpedge/epic.yaml
+3. plugins/jira/templates/common/epic.yaml  ✓ FOUND
+```
 
-### 🏢 Phase 2: Apply Project-Specific Conventions
+#### Step 3: Load Template Defaults
+
+If template found, extract and store ALL defaults:
+- `defaults.priority`
+- `defaults.components`
+- `defaults.labels`
+- `defaults.security_level` (or absence of security field)
+- `defaults.target_version`
+- Any other custom fields defined in `defaults`
+
+**CRITICAL: Template defaults take precedence over hardcoded values in later phases.**
+
+#### Step 4: Note Template Inheritance
+
+Templates may inherit from `_base.yaml`. Merge defaults in order:
+1. Start with `_base.yaml` defaults
+2. Override with template-specific defaults
+3. User flags override both
+
+**Example:**
+```yaml
+# _base.yaml
+defaults:
+  priority: Normal
+  labels:
+    - ai-generated-jira
+
+# common/epic.yaml (inherits _base.yaml)
+defaults:
+  labels:
+    - ai-generated-jira
+    - template:common-epic
+
+# Final merged defaults:
+priority: Normal
+labels: [ai-generated-jira, template:common-epic]
+# Note: No security field = public/no security level
+```
+
+#### Step 5: Store Template Context
+
+Save template information for use in later phases:
+- Template name
+- Template path
+- Template defaults (merged with inheritance)
+- Template placeholders
+- Template description_template
+
+This context will be used in:
+- Phase 5 (Apply Smart Defaults) - use template security/priority/components
+- Phase 6 (Interactive Prompts) - use template placeholders
+- Phase 9 (Create Issue) - add template attribution label
+
+#### Step 6: Inform User of Template Selection (REQUIRED)
+
+**CRITICAL: Always inform the user which template is being used or that no template was found.**
+
+If template was found:
+```
+Using template: <template-name>
+Location: <template-path>
+Description: <template-description>
+
+Template defaults:
+- Priority: <priority>
+- Labels: <labels>
+- Security Level: <security_level or "Not set (will use global default)">
+- Components: <components or "None">
+```
+
+If no template was found:
+```
+No template found for <project>-<type>.
+Using type-specific guidance from jira:create-<type> skill.
+```
+
+**This ensures transparency about what defaults are being applied and from where.**
+
+### 🎯 Phase 2: Load Implementation Guidance
+
+**NOTE: If a template was loaded in Phase 1, skills provide supplementary guidance but template defaults take precedence.**
+
+Invoke the unified `jira:create-issue` skill using the Skill tool:
+
+**All issue types** → Invoke `jira:create-issue` skill
+  - Loads appropriate template based on project + issue type
+  - Displays educational guide reference (if template has documentation field)
+  - Generates interactive prompts dynamically from template placeholder metadata
+  - Applies validation rules defined in template
+  - Creates issue via MCP with all collected information
+
+The skill handles all issue types (story, epic, feature, task, bug, spike, feature-request) using a template-driven approach. Each type references its own educational guide for best practices.
+
+### 🏢 Phase 3: Apply Project-Specific Conventions
 
 Invoke project-specific and team-specific skills using the Skill tool as needed:
 
@@ -268,9 +353,9 @@ Invoke project-specific and team-specific skills using the Skill tool as needed:
 - Layer on top of project-specific conventions
 - Example: HyperShift team → invoke `hypershift` skill
 
-**General projects** use only the type-specific skills (create-story, create-bug, etc.) for best practices.
+**General projects** use only the unified `create-issue` skill for best practices.
 
-### 📝 Phase 3: Parse Arguments & Detect Context
+### 📝 Phase 4: Parse Arguments & Detect Context
 
 Parse command arguments:
 - **Required:** `type`, `summary`
@@ -282,10 +367,65 @@ Analyze summary text for context clues:
 - Pass context to project-specific and team-specific skills for interpretation
 - Skills handle keyword detection and component/field suggestions
 
-### ⚙️ Phase 4: Apply Smart Defaults
+### ⚙️ Phase 5: Apply Smart Defaults
+
+**STEP 1: Check/Prompt for Global Security Default (ALWAYS FIRST)**
+
+Check if `~/.claude/jira-config.json` exists and has `default_security_level` set.
+
+If NOT set, prompt user:
+```
+No global security default is set. This will be used for all JIRA issues unless overridden.
+
+Common options:
+1. Red Hat Employee (internal issues)
+2. Public (no security level)
+3. Custom (specify your own)
+
+Select default security level (1-3):
+```
+
+Save selection to `~/.claude/jira-config.json`:
+```json
+{
+  "default_security_level": "Red Hat Employee",  // or null for public
+  "skip_security_confirmation": false  // prompt for confirmation when security differs
+}
+```
+
+**STEP 2: Determine Final Security Level**
+
+Apply in priority order (highest to lowest):
+1. **User-specified override** - `--security-level` flag
+2. **Template value** - If template specifies security_level in defaults (loaded in Phase 1)
+   - **If template has no security field**: Final value = null (Public)
+   - **If template specifies security_level**: Final value = template's security_level
+   - Templates loaded in Phase 1 take precedence over global defaults
+3. **Global default** - From `~/.claude/jira-config.json` (set in Step 1)
+
+**STEP 3: Confirm if Final Value Differs from Global Default**
+
+If final security level ≠ global default AND `skip_security_confirmation` is false:
+
+Display confirmation prompt:
+```
+⚠️  Security level will be set to: <final value>
+    (Your default is: <global default>)
+
+Reason: <why it's different - e.g., "Template override" or "User flag">
+
+Proceed with this security level? (yes/no/always)
+```
+
+- **yes**: Continue with issue creation
+- **no**: Cancel issue creation
+- **always**: Continue and set `skip_security_confirmation: true` in config
+
+This happens when:
+- User provides `--security-level` flag
+- Template overrides with different security level
 
 **Universal requirements (MUST be applied to ALL tickets):**
-- **Security level:** Red Hat Employee (required)
 - **Labels:** ai-generated-jira (required)
 
 **Project defaults:**
@@ -298,11 +438,100 @@ Analyze summary text for context clues:
 - Custom field values
 - Workflow-specific requirements
 
+**Template defaults:**
+- Templates may specify security level (takes priority over global default)
+- Templates may specify priority, components, labels, etc.
+
 **General projects:**
 - Use type-specific skills for issue structure
 - Prompt for required fields as needed
 
-### 💬 Phase 5: Interactive Prompts (Hybrid Approach)
+### 💬 Phase 6: Interactive Prompts (Hybrid Approach)
+
+**CRITICAL: Writing Guidelines for All Long-Form Fields**
+
+When collecting or generating descriptions, objectives, acceptance criteria, or any long-form text:
+
+1. **Be concise**: Remove unnecessary adjectives and adverbs
+2. **Be direct**: State facts, not opinions or emphasis
+3. **Be specific**: Use concrete nouns and verbs
+4. **Avoid filler words**: "really", "very", "easily", "simply", "just", "actually", "comprehensive", "powerful", "beautiful", "significant"
+
+**Example (Good - concise, direct):**
+```
+Manage clusters from a single dashboard. Provides metrics, alerting, and visualization.
+```
+
+**Example (Bad - wordy, with unnecessary modifiers):**
+```
+Enable administrators to easily manage clusters from a single, unified dashboard. Provides comprehensive metrics, powerful alerting, and beautiful visualization.
+```
+
+**CRITICAL: Jira Formatting for Section Headers**
+
+**IMPORTANT DISTINCTION:**
+- **When using MCP tools** (`mcp__atlassian__jira_create_issue`, `mcp__atlassian__jira_update_issue`):
+  - Use double asterisks for section headers: `**Header**`
+  - MCP tools automatically convert Markdown to Jira Wiki markup
+
+- **When using Jira REST API directly** (curl commands):
+  - Use single asterisks for section headers: `*Header*`
+  - API requires native Jira Wiki markup (no conversion)
+
+**Always check before creating/updating issues:**
+1. Are you using an MCP tool? → Use double asterisks `**Header**`
+2. Are you using the API directly? → Use single asterisks `*Header*`
+
+**For all methods (MCP and API):**
+- **Sub-headers:** Use underscores (`_Sub-header_`)
+- **Bullet lists:** Use single asterisk (`* Item`)
+
+**Example for MCP tools:**
+```
+**Acceptance Criteria**
+
+* Criterion 1
+* Criterion 2
+
+**Scope**
+
+_In Scope_
+* Item 1
+
+_Out of Scope_
+* Item 2
+```
+
+**Example for direct API:**
+```
+*Acceptance Criteria*
+
+* Criterion 1
+* Criterion 2
+
+*Scope*
+
+_In Scope_
+* Item 1
+
+_Out of Scope_
+* Item 2
+```
+
+**For All Issue Types: Priority Prompt**
+
+Priority is important for all issues. Always prompt unless user specified `--priority`:
+
+**Prompt:** "What is the priority for this issue?"
+
+**Common values:**
+- Blocker, Urgent, Critical, Must Have, High
+- Major, Should Have
+- **Normal** (default)
+- Medium, Minor, Low, Could Have
+- Trivial, Optional
+
+**Default:** Normal
 
 Prompt for missing required information based on issue type:
 
@@ -314,9 +543,11 @@ Prompt for missing required information based on issue type:
 **For Epics:**
 - Collect epic objective and scope
 - Collect epic acceptance criteria
+- **Prompt for Size** (XS/S/M/L/XL based on estimated sprints, default: M)
 - Collect timeline/target release
 - Set epic name field (same as summary)
 - Optional parent feature link (via `--parent` or prompt)
+- **Prompt for additional context** (optional, default empty - omit section if empty)
 
 **For Features:**
 - Collect market problem description
@@ -348,7 +579,7 @@ Prompt for missing required information based on issue type:
   3. Business requirements (customer impact, regulatory drivers, justification)
   4. Affected packages and components (teams, operators, component mapping)
 
-### ✅ Phase 5.5: Summary Validation
+### ✅ Phase 7: Summary Validation
 
 Before security validation, validate the summary format to catch common mistakes:
 
@@ -378,7 +609,7 @@ Before security validation, validate the summary format to catch common mistakes
 
 **Note:** This validation should happen BEFORE creating the issue, to avoid having to update the summary afterward.
 
-### 🔒 Phase 6: Security Validation
+### 🔒 Phase 8: Security Validation
 
 Scan all content (summary, description, comments) for sensitive data:
 
@@ -396,15 +627,21 @@ Scan all content (summary, description, comments) for sensitive data:
 - Ask user to redact sensitive information
 - Provide guidance on safe alternatives (placeholder values)
 
-### ✅ Phase 7: Create Issue via MCP
+### ✅ Phase 9: Create Issue via MCP
 
 Use the `mcp__atlassian__jira_create_issue` MCP tool with collected parameters.
 
 **Build additional_fields:**
 
 **Required fields (MUST be included):**
-- `security`: `{"name": "Red Hat Employee"}`
 - `labels`: `["ai-generated-jira"]` (may be combined with additional labels)
+
+**Security level (determined in Phase 4, applied here):**
+- Final value determined by priority: user override > template > global default
+- If final value differs from global default, warn user:
+  ```
+  ⚠️  Security level: <final value> (differs from your default: <global default>)
+  ```
 
 **Project-specific and team-specific fields:**
 - Custom field mappings
@@ -418,7 +655,7 @@ The MCP tool parameters come from the combined guidance of type-specific, projec
 
 **Note:** Project-specific skills (e.g., CNTRLPLANE) may implement fallback strategies for handling creation failures (such as epic linking). Refer to the project-specific skill documentation for these strategies.
 
-### 📤 Phase 8: Return Result
+### 📤 Phase 10: Return Result
 
 Display to user:
 - **Issue Key** (e.g., PROJECT-1234)
@@ -539,6 +776,46 @@ Applied defaults:
   - Epics: Link to parent Feature
   - Tasks: Link to parent Story or Epic
   - Stories: Link to parent Epic (less common)
+
+- **--template** *(optional)*
+  Template name to use for issue creation (e.g., `team-story`, `user/my-bug-template`).
+
+  **Template sources:**
+  - Published templates: `ocpedge-spike`, `ocpbugs-bug`, `common-story`
+  - User templates: `user/my-template`
+
+  **Behavior:**
+  - Loads template defaults (priority, components, labels, etc.)
+  - Uses template description format with placeholders
+  - Prompts for template-specific placeholders
+  - Adds `template:<name>` label automatically
+  - **Validates template issue type matches command** (warns if mismatch)
+
+  **Template validation:**
+  If the template's `issue_type` doesn't match the command type (e.g., `bug` template for `story` command):
+  ```
+  ⚠️  WARNING: Template mismatch detected!
+
+  Command issue type: Story
+  Template issue type: Bug (from ocpbugs-bug.yaml)
+
+  This may result in incorrect field mappings and validation errors.
+
+  Do you want to proceed anyway? (y/N)
+  ```
+  - **y** - Proceed with mismatched template (may cause errors)
+  - **N** - Abort and allow template correction
+
+  **Examples:**
+  ```bash
+  /jira:create story OCPEDGE "Add feature" --template ocpedge-story
+  /jira:create bug "Fix crash" --template user/debug-bug
+
+  # This will warn about mismatch:
+  /jira:create bug --template ocpedge-spike
+  ```
+
+  **See also:** `/jira:template list` to view available templates
 
 ## Return Value
 
@@ -751,13 +1028,21 @@ Steps to reproduce:
 
 The following skills are automatically invoked by this command:
 
-**Type-specific skills:**
-- **create-story** - User story creation guidance
-- **create-epic** - Epic creation and structure
-- **create-feature** - Feature planning and strategy
-- **create-task** - Technical task creation
-- **create-bug** - Bug report templates
-- **create-feature-request** - Customer-driven feature request workflow for RFE project
+**Unified creation skill:**
+- **create-issue** - Template-driven workflow for all issue types (story, epic, feature, task, bug, spike, feature-request)
+  - Loads appropriate template based on project + issue type
+  - Displays educational guide reference
+  - Generates interactive prompts from template metadata
+  - Applies validation rules from template
+  - See `plugins/jira/skills/create-issue/SKILL.md` for details
+
+**Educational guides:**
+- `plugins/jira/docs/issue-types/epic.md` - Epic best practices
+- `plugins/jira/docs/issue-types/story.md` - User story guide
+- `plugins/jira/docs/issue-types/task.md` - Task guide
+- `plugins/jira/docs/issue-types/bug.md` - Bug report guide
+- `plugins/jira/docs/issue-types/spike.md` - Spike guide
+- `plugins/jira/docs/issue-types/feature.md` - Feature guide
 
 **Project-specific skills:**
 - **cntrlplane** - CNTRLPLANE project conventions (stories, epics, features, tasks)
@@ -768,9 +1053,8 @@ The following skills are automatically invoked by this command:
 
 To view skill details:
 ```bash
-ls plugins/jira/skills/
-cat plugins/jira/skills/create-story/SKILL.md
-cat plugins/jira/skills/create-feature-request/SKILL.md
+cat plugins/jira/skills/create-issue/SKILL.md
+cat plugins/jira/docs/issue-types/epic.md
 cat plugins/jira/skills/cntrlplane/SKILL.md
 cat plugins/jira/skills/ocpbugs/SKILL.md
 cat plugins/jira/skills/hypershift/SKILL.md

@@ -91,10 +91,10 @@
           "synopsis": "/jira:create-release-note <issue-key>"
         },
         {
-          "argument_hint": "<type> [project-key] <summary> [--component <name>] [--version <version>] [--parent <key>]",
+          "argument_hint": "<type> [project-key] <summary> [--component <name>] [--version <version>] [--parent <key>] [--template <name>]",
           "description": "Create Jira issues (story, epic, feature, task, bug, feature-request) with proper formatting",
           "name": "create",
-          "synopsis": "/jira:create <type> [project-key] <summary> [options]"
+          "synopsis": "/jira:create <type> [project-key] <summary> [--component <name>] [--version <version>] [--parent <key>] [--template <name>]"
         },
         {
           "argument_hint": "<feature-key>",
@@ -115,6 +115,12 @@
           "synopsis": "/jira:grooming [project-filter] [time-period] [--component component-name] [--label label-name] [--type issue-type] [--status status] [--story-points]"
         },
         {
+          "argument_hint": "<jql-query> [--display-format template|full|custom:fields] [--display-template template-name] [--created-with-template template-name]",
+          "description": "Search JIRA issues with customizable display formats",
+          "name": "search",
+          "synopsis": "/jira:search <jql-query> [--display-format template|full|custom:fields] [--display-template template-name]"
+        },
+        {
           "argument_hint": "",
           "description": "Analyze a JIRA issue and create a pull request to solve it.",
           "name": "solve",
@@ -125,6 +131,12 @@
           "description": "Generate a status rollup comment for any JIRA issue based on all child issues and a given date range",
           "name": "status-rollup",
           "synopsis": "/jira:status-rollup issue-id [--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD]"
+        },
+        {
+          "argument_hint": "<action> [template-name]",
+          "description": "Manage Jira issue templates (create, list, edit, delete, validate)",
+          "name": "template",
+          "synopsis": "/jira:template <action> [template-name]"
         },
         {
           "argument_hint": "[target-version] [component-filter] [--bug issue-key]",
@@ -194,6 +206,11 @@
           "name": "Jira Feature Documentation Generator"
         },
         {
+          "description": "Implementation guide for searching JIRA issues with customizable template-based display formats",
+          "id": "jira-search",
+          "name": "JIRA Search with Display Formats"
+        },
+        {
           "description": "Detailed implementation guide for validating proposed release blockers",
           "id": "jira-validate-blockers",
           "name": "JIRA Release Blocker Validator"
@@ -202,6 +219,11 @@
           "description": "Jira conventions and bug templates for the OCPBUGS project",
           "id": "ocpbugs",
           "name": "OCPBUGS Jira Conventions"
+        },
+        {
+          "description": "Implementation guide for Jira issue templates",
+          "id": "template-management",
+          "name": "Template Management"
         }
       ],
       "version": "0.0.1"

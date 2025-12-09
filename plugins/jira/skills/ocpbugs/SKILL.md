@@ -28,7 +28,7 @@ This skill is automatically invoked by the `/jira:create` command when the proje
 
 ## Version Requirements
 
-**Note:** Universal requirements (Security Level: Red Hat Employee, Labels: ai-generated-jira) are defined in the `/jira:create` command and automatically applied to all tickets.
+**Note:** Universal requirements (Labels: ai-generated-jira) are defined in the `/jira:create` command and automatically applied to all tickets. Security level is handled by the global security workflow (prompts on first use, saves to config, supports template overrides).
 
 ### Affects Version/s (`versions`)
 **Purpose:** Version where the bug was found
