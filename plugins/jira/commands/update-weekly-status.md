@@ -23,16 +23,38 @@ This command is particularly useful for:
 Key capabilities:
 - Interactive component selection from available project components
 - User filtering by email or display name (with auto-resolution)
-- Intelligent activity analysis (comments, child issues, linked PRs/MRs)
+- Intelligent activity analysis using `childIssuesOf()` for full hierarchy traversal
+- GitHub PR and GitLab MR integration via external links
 - Recent update warnings to prevent duplicate updates
 - Batch processing with selective skip options
-- Formatted status summaries with color-coded health indicators
+- Formatted status summaries with color-coded health indicators (Red/Yellow/Green)
+
+This command uses the **Status Analysis Engine** skill for core analysis logic. See `plugins/jira/skills/status-analysis/SKILL.md` for detailed implementation.
+
+**IMPORTANT - Skill Loading Requirement:**
+Before processing any issues, you MUST invoke `Skill(jira:status-analysis)` to load the Status Analysis Engine skill. This ensures proper use of `childIssuesOf()` for hierarchy traversal and consistent analysis methodology. Do NOT rely on conversation summaries or memory - always load the skill explicitly at the start of execution.
 
 [Extended thinking: This command streamlines weekly status update workflows by automating data gathering from Jira, GitHub, and GitLab, then intelligently drafting status summaries that encode team knowledge about how to analyze ticket activity. It ensures consistent formatting while allowing human oversight and refinement.]
 
 ## Implementation
 
 The command executes the following workflow:
+
+### 0. Load Required Skills (MANDATORY)
+
+**This step is non-negotiable and must be performed first:**
+
+```
+Skill(jira:status-analysis)
+```
+
+This loads the Status Analysis Engine skill which provides:
+- Proper `childIssuesOf()` usage for hierarchy traversal
+- Activity analysis methodology
+- External links processing (GitHub PRs, GitLab MRs)
+- R/Y/G status formatting rules
+
+**Do NOT skip this step even in continued sessions.** Session summaries do not preserve skill context.
 
 ### 1. Parse Arguments and Determine Target Project
 
@@ -52,51 +74,33 @@ The command executes the following workflow:
 3. **Validate project access:**
    - Use `mcp__atlassian-mcp__jira_search` with JQL: `project = "{project-key}" AND status != Closed`
    - Verify the project exists and is accessible
-   - Extract project name for display purposes
 
 ### 2. Determine Target Component(s)
 
 1. **If `--component` parameter is provided:**
-   - Extract the component name from the parameter value
-   - Use it directly in the JQL query
+   - Use the component name directly in the JQL query
 
 2. **If `--component` is NOT provided:**
    - Use `mcp__atlassian-mcp__jira_search_fields` with keyword "component" to find the component field ID
    - Use `mcp__atlassian-mcp__jira_search` with JQL: `project = "{project-key}" AND status != Closed` and `fields=components`
    - Extract all unique component names from the search results
-   - Present components in a numbered list:
-     ```text
-     Available components for {project-key}:
-     1. Component Name 1
-     2. Component Name 2
-     3. Component Name 3
-     ...
-     ```
-   - Ask: "Please enter the number(s) of the component(s) you want to update (space-separated, e.g., '1 3 5'), or press Enter to skip component filtering:"
-   - Parse the user's response and map the numbers back to component names
-   - If user presses Enter without selection, skip component filtering
-   - If multiple components are selected, process each component separately (run steps 3-6 for each component)
+   - Present components in a numbered list
+   - Ask: "Please enter the number(s) of the component(s) you want to update (space-separated), or press Enter to skip:"
+   - If multiple components selected, process each separately
 
 ### 3. Resolve User Identifiers
 
-For each user filter parameter provided:
+For each user filter parameter:
 
-1. **Check if it's an email** (contains `@`):
-   - Use as-is for JQL query
+1. **Check if it's an email** (contains `@`): Use as-is for JQL query
 
 2. **If it's a display name** (doesn't contain `@`):
    - Use `mcp__atlassian-mcp__jira_get_user_profile` with the name as the `user_identifier` parameter
-   - The tool accepts display names, usernames, email addresses, or account IDs
-   - When the user profile is returned, show:
-     - Display name
-     - Email address
-     - Account ID
-   - Ask for confirmation: "Found user: [Display Name] ([Email]). Is this correct?"
-   - If confirmed, use the email address for the JQL query
-   - If not confirmed or lookup fails, ask user to provide the email address directly
+   - Show found user details and ask for confirmation
+   - If confirmed, use the email address for JQL; if not, ask for email directly
 
 3. **Handle exclusion prefix** (exclamation mark):
-   - Strip the exclamation mark prefix before doing the lookup
+   - Strip the prefix before lookup
    - Remember to apply exclusion logic when building JQL
 
 ### 4. Find Status Summary Custom Field
@@ -104,17 +108,13 @@ For each user filter parameter provided:
 1. **Auto-detect Status Summary field:**
    - Use `mcp__atlassian-mcp__jira_search_fields` with keyword "status summary"
    - Look for fields matching "Status Summary" (case-insensitive)
-   - If multiple matches found, present options to user for selection
-   - If no matches found, ask user to provide the custom field ID (e.g., `customfield_12320841`)
-   - Store the field ID for use in step 6
+   - If multiple matches, present options for selection
+   - If no matches, ask user to provide the custom field ID (e.g., `customfield_12320841`)
 
 2. **Validate field access:**
    - Fetch a sample issue with this field to verify it's accessible
-   - Confirm the field accepts text input
 
 ### 5. Build JQL Query and Find Issues
-
-Build a JQL query based on the determined parameters:
 
 **Base query:**
 ```jql
@@ -128,117 +128,79 @@ status != "Release Pending"
 - If `--label` provided: Add `AND labels = "<LABEL-NAME>"`
 
 **Add user filters:**
-- If no user parameters provided: No assignee filter (process all issues)
 - If specific users provided (no exclusion prefix): Add `AND assignee IN (email1, email2, ...)`
 - If excluded users provided (with exclusion prefix): Add `AND assignee NOT IN (email1, email2, ...)`
-- If mixed: Combine appropriately with `AND assignee IN (...) AND assignee NOT IN (...)`
 
-**Final query:**
-```jql
-ORDER BY rank ASC
-```
+**Final query:** `ORDER BY rank ASC`
 
-Use `mcp__atlassian-mcp__jira_search` with this JQL to find all matching issues.
+Use `mcp__atlassian-mcp__jira_search` to find all matching issues.
 
 ### 6. Process Each Issue
 
-For each issue found, execute the following steps:
+For each root issue found, execute the Status Analysis Engine:
 
-#### a. Gather Information Efficiently
+#### a. Initialize Analysis Configuration
 
-**IMPORTANT**: Only fetch the fields you need to save context and API calls:
-- Use `fields=summary,status,assignee,issuelinks,comment,{status-summary-field-id}` when getting issue details
-- Use `expand=changelog` to get field update history
-- Set `comment_limit=20` to limit comment history to recent activity
-
-For each issue:
-
-1. **Check when Status Summary was last updated:**
-   - Look in the changelog for the most recent update to the Status Summary field
-   - Calculate hours since last update
-   - If updated within last 24 hours, flag for warning
-
-2. **Check recent non-automation comments** (last 7 days):
-   - Fetch comments with `expand=renderedFields`
-   - Filter comments to those created in the last 7 days
-   - Exclude automated comments (bot accounts, system updates)
-   - Extract key information and blockers from comments
-
-3. **Check child issues updated in last 7 days:**
-   - Use JQL: `parent = {ISSUE-KEY} AND updated >= -7d`
-   - Fetch child issue summaries and status transitions
-   - Note any completed, started, or blocked child issues
-
-4. **Check linked GitHub PRs and GitLab MRs:**
-   - First get all child issues: `parent = {ISSUE-KEY}`
-   - For each child issue, check the `issuelinks` field for external links
-   - Look for issue link types pointing to GitHub PRs or GitLab MRs
-   - **For GitHub PRs found:**
-     - Extract repo and PR number from URL
-     - Use `gh pr view {PR-NUMBER} --repo {REPO} --json state,updatedAt,mergedAt,title` to check activity
-     - Check if PRs were updated or merged in the last 7 days
-     - Note PR state (open, merged, closed)
-   - **For GitLab MRs found:**
-     - Note MR URLs for manual checking (GitLab CLI integration is optional)
-   - **If no child issues exist:**
-     - Check the parent issue's `issuelinks` field directly for PR/MR references
-
-5. **Check current status summary value:**
-   - Fetch `fields={status-summary-field-id}` to get existing status text
-   - Parse existing color status if present (Red/Yellow/Green)
-
-#### b. Analyze and Draft Update
-
-Based on the gathered information, draft a status update following this template:
-
-```text
-* Color Status: {Red, Yellow, Green}
- * Status summary:
-     ** Thing 1 that happened since last week
-     ** Thing 2 that happened since last week
-     ** Thing N that happened since last week
- * Risks:
-     ** Risk 1 that might affect delivery
-     ** Risk 2 that might affect delivery
+```json
+{
+  "root_issues": ["{issue-key}"],
+  "date_range": {
+    "start": "{today - 7 days}",
+    "end": "{today}"
+  },
+  "output_format": "ryg_field",
+  "output_target": "field",
+  "external_links_enabled": true,
+  "cache_to_file": false
+}
 ```
 
-**Color Status Guidelines:**
-- **Green**: On track, good progress, PRs merged or in review, no blockers
-- **Yellow**: Minor concerns, some blockers but manageable, slow progress
-- **Red**: Significant blockers, no progress, major risks, dependencies blocking work
+#### b. Execute Status Analysis Engine
 
-**Status Summary Guidelines:**
-- Be specific: Reference PR numbers, child issue keys, specific accomplishments
-- Focus on changes since last week: New PRs, merged changes, completed tasks
-- Include context: Why things are blocked, what dependencies are needed
-- Avoid vague phrases: Use "PR #123 merged adding feature X" not "ongoing work"
+Follow the skill documentation in `plugins/jira/skills/status-analysis/`:
 
-**Risks Section Guidelines:**
-- Only include if there are actual risks
-- Be specific about what might go wrong
-- Include dependencies, blockers, resource constraints
-- If no risks, you can omit this section or use "** None at this time"
+1. **Data Collection** (`data-collection.md`):
+   - Fetch root issue with `fields=summary,status,assignee,issuelinks,comment,{status-summary-field-id}`
+   - Use `expand=changelog` to get field update history
+   - Set `comment_limit=20` to limit comment history
+   - Discover descendants via JQL: `issue in childIssuesOf({issue-key})`
+   - Check when Status Summary was last updated (for recent update warning)
+
+2. **Activity Analysis** (`activity-analysis.md`):
+   - Filter changelog and comments to last 7 days
+   - Exclude automated comments (bot accounts, system updates)
+   - Identify status transitions, blockers, risks, achievements
+   - Determine health status (Green/Yellow/Red)
+
+3. **External Links** (`external-links.md`):
+   - Extract GitHub PRs from root and descendant issue links
+   - Use `gh pr view {PR-NUMBER} --repo {REPO} --json state,updatedAt,mergedAt,title`
+   - Track PRs merged/updated in last 7 days
+   - Note GitLab MR URLs for manual checking
+
+4. **Formatting** (`formatting.md`):
+   - Generate R/Y/G template using `ryg_field` format:
+     ```
+     * Color Status: {Red, Yellow, Green}
+      * Status summary:
+          ** Thing 1 that happened since last week
+          ** Thing 2 that happened since last week
+      * Risks:
+          ** Risk 1 (or "None at this time")
+     ```
 
 #### c. Present to User for Review
 
-Before updating, check if the Status Summary was updated in the last 24 hours:
+**If Status Summary was updated within last 24 hours:**
+```text
+⚠️  WARNING: This issue's Status Summary was last updated X hours ago (on YYYY-MM-DD at HH:MM).
 
-**If updated within last 24 hours:**
-- Show a warning:
-  ```text
-  ⚠️  WARNING: This issue's Status Summary was last updated X hours ago (on YYYY-MM-DD at HH:MM).
-
-  Current Status Summary:
-  {current-status-text}
-  ```
-- Ask: "This issue was recently updated. Do you want to skip it? (yes/no/show-proposed)"
-  - `yes` or `skip`: Move to next issue
-  - `no` or `continue`: Proceed with showing proposed update
-  - `show-proposed`: Show the proposed update and ask again
+Current Status Summary:
+{current-status-text}
+```
+Ask: "This issue was recently updated. Do you want to skip it? (yes/no/show-proposed)"
 
 **For all issues (or if proceeding after warning):**
-
-Show the user:
 ```text
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Issue: {ISSUE-KEY} - {Summary}
@@ -248,7 +210,7 @@ Current Status: {Current Issue Status}
 
 Recent Activity Analysis:
 • Comments: {count} new comments in last 7 days
-• Child Issues: {count} updated in last 7 days ({X} completed, {Y} in progress)
+• Descendants: {count} updated in last 7 days ({X} completed, {Y} in progress)
 • GitHub PRs: {count} active ({X} merged, {Y} open)
 • GitLab MRs: {count} active
 
@@ -261,7 +223,7 @@ Proposed Status Update:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
-Ask the user to choose:
+Options:
 - `approve` or `a`: Proceed with the proposed update
 - `modify` or `m`: Modify the text (prompt for new text)
 - `skip` or `s`: Skip this issue and move to next
@@ -270,13 +232,12 @@ Ask the user to choose:
 **If user chooses `modify`:**
 - Show the proposed text in an editable format
 - Ask: "Please provide your updated status text (maintain the bullet format):"
-- Accept multi-line input
 - Validate format (should start with `* Color Status:`)
-- Show the modified version and ask for final confirmation
+- Show modified version and ask for final confirmation
 
 #### d. Update the Issue
 
-Once approved, use `mcp__atlassian-mcp__jira_update_issue` with:
+Use `mcp__atlassian-mcp__jira_update_issue`:
 ```json
 {
   "issue_key": "{ISSUE-KEY}",
@@ -286,15 +247,11 @@ Once approved, use `mcp__atlassian-mcp__jira_update_issue` with:
 }
 ```
 
-**IMPORTANT**: The Status Summary field requires exact formatting with bullet points as shown in the template above.
-
-After successful update:
-- Display confirmation: `✓ Updated {ISSUE-KEY}`
-- Continue to next issue
+Display confirmation: `✓ Updated {ISSUE-KEY}`
 
 ### 7. Summary Report
 
-After processing all issues (or if user quits early), provide a summary:
+After processing all issues (or if user quits early):
 
 ```text
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -382,63 +339,6 @@ Updated Issues:
    Then select: `1 3 5` when prompted for components
    Output: Processes each selected component separately
 
-**Example Output:**
-```text
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Issue: OCPSTRAT-1234 - Implement API authentication
-Assignee: Antoni Segura
-Current Status: In Progress
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Recent Activity Analysis:
-• Comments: 3 new comments in last 7 days
-• Child Issues: 2 updated in last 7 days (1 completed, 1 in progress)
-• GitHub PRs: 2 active (1 merged, 1 open)
-
-Current Status Summary:
-None
-
-Proposed Status Update:
-* Color Status: Green
- * Status summary:
-     ** PR #456 merged adding OAuth2 token validation with comprehensive unit tests
-     ** AUTH-102 completed: token refresh mechanism implemented
-     ** AUTH-103 in progress: session handling refactor, draft PR submitted for review
- * Risks:
-     ** None at this time
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Choose: [a]pprove, [m]odify, [s]kip, [q]uit: a
-
-✓ Updated OCPSTRAT-1234
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Weekly Status Update Summary
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Project: OCPSTRAT
-Component: Control Plane
-Label Filter: strategic-work
-
-Total Issues Found: 5
-Issues Updated: 4
-  • Green: 3
-  • Yellow: 1
-  • Red: 0
-Issues Skipped: 1
-  • Recently updated: 1
-  • User skipped: 0
-
-Updated Issues:
-• OCPSTRAT-1234: https://issues.redhat.com/browse/OCPSTRAT-1234
-• OCPSTRAT-1235: https://issues.redhat.com/browse/OCPSTRAT-1235
-• OCPSTRAT-1236: https://issues.redhat.com/browse/OCPSTRAT-1236
-• OCPSTRAT-1237: https://issues.redhat.com/browse/OCPSTRAT-1237
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-```
-
 ## Arguments
 - `project-key` (optional): The Jira project key (e.g., `OCPSTRAT`, `OCPBUGS`). If not provided, prompts for selection
 - `--component <name>` (optional): Filter by specific component name. If not provided, prompts for selection
@@ -469,7 +369,7 @@ Updated Issues:
    - Detect GitHub repo from issue links (don't hardcode)
    - Use `gh` CLI for PR information (check if installed first)
    - Handle cases where `gh` is not available gracefully
-   - Look for PRs in child issues, not just parent issues
+   - Look for PRs in descendant issues, not just root issues
 
 4. **GitLab Integration**:
    - GitLab CLI (`glab`) integration is optional
@@ -519,3 +419,8 @@ Teams can customize this command by:
 4. Adding team-specific keywords for risk/blocker detection
 
 See the Jira plugin's skills directory for examples of project-specific customizations.
+
+## Related
+
+- **Shared skill**: `plugins/jira/skills/status-analysis/SKILL.md`
+- **Single-issue rollup**: `/jira:status-rollup` - Generate comprehensive status comment for one issue
