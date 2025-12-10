@@ -611,6 +611,12 @@
     {
       "commands": [
         {
+          "argument_hint": "[--cpu-threshold <percentage>] [--memory-threshold <percentage>] [--min-nodes <count>] [--max-nodes <count>] [--dry-run]",
+          "description": "Configure cluster autoscaling based on CPU and memory usage",
+          "name": "autoscale-cluster",
+          "synopsis": "/openshift:autoscale-cluster [--cpu-threshold <percentage>] [--memory-threshold <percentage>] [--min-nodes <count>] [--max-nodes <count>] [--dry-run]"
+        },
+        {
           "argument_hint": "<dependency> [version] [--create-jira] [--create-pr]",
           "description": "Bump dependencies in OpenShift projects with automated analysis and PR creation",
           "name": "bump-deps",
