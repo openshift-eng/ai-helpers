@@ -15,6 +15,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Hello World](#hello-world-plugin)
 - [Jira](#jira-plugin)
 - [Lvms](#lvms-plugin)
+- [K8S Bumpup](#k8s-bumpup-plugin)
 - [Must Gather](#must-gather-plugin)
 - [Node](#node-plugin)
 - [Node Tuning](#node-tuning-plugin)
@@ -175,6 +176,16 @@ LVMS (Logical Volume Manager Storage) plugin for troubleshooting and debugging s
 - **`/lvms:analyze` `[must-gather-path|--live] [--component storage|operator|volumes]`** - Comprehensive LVMS troubleshooting - analyzes LVMCluster, volume groups, PVCs, and storage issues on live clusters or must-gather
 
 See [plugins/lvms/README.md](plugins/lvms/README.md) for detailed documentation.
+
+### K8S Bumpup Plugin
+
+Automate Kubernetes version bumping and dependency updates across repositories
+
+**Commands:**
+- **`/k8s-bumpup:batch-by-group` `<group-name> [--workspace-dir] [--create-pr] [--create-jira]`** - Rebase Kubernetes dependencies across a group of related repositories
+- **`/k8s-bumpup:rebase-repo` `<target-version> <repository-path> [additional-repos...]`** - Complete workflow to rebase Kubernetes dependencies across repositories
+
+See [plugins/k8s-bumpup/README.md](plugins/k8s-bumpup/README.md) for detailed documentation.
 
 ### Must Gather Plugin
 

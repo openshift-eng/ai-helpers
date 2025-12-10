@@ -1,0 +1,88 @@
+{
+  "groups": {
+    "corenet": {
+      "description": "Core networking OpenShift repositories",
+      "repos": [
+        {
+          "name": "multus-cni",
+          "url": "git@github.com:k8snetworkplumbingwg/multus-cni.git"
+        },
+        {
+          "name": "multi-networkpolicy-iptables",
+          "url": "git@github.com:k8snetworkplumbingwg/multi-networkpolicy-iptables.git"
+        },
+        {
+          "name": "ovn-kubernetes",
+          "url": "git@github.com:ovn-kubernetes/ovn-kubernetes.git"
+        },
+        {
+          "name": "cluster-network-operator",
+          "url": "git@github.com:openshift/cluster-network-operator.git"
+        },
+        {
+          "name": "cloud-network-config-controller",
+          "url": "git@github.com:openshift/cloud-network-config-controller.git"
+        },
+        {
+          "name": "whereabouts",
+          "url": "git@github.com:k8snetworkplumbingwg/whereabouts.git"
+        },
+        {
+          "name": "net-attach-def-admission-controller",
+          "url": "git@github.com:k8snetworkplumbingwg/net-attach-def-admission-controller.git"
+        },
+        {
+          "name": "network-metrics-daemon",
+          "url": "git@github.com:openshift/network-metrics-daemon.git"
+        }
+      ]
+    },
+    "storage": {
+      "description": "Storage-related OpenShift repositories",
+      "repos": [
+        {
+          "name": "local-storage-operator",
+          "url": "git@github.com:openshift/local-storage-operator.git"
+        },
+        {
+          "name": "csi-driver-manila-operator",
+          "url": "git@github.com:openshift/csi-driver-manila-operator.git"
+        },
+        {
+          "name": "cluster-storage-operator",
+          "url": "git@github.com:openshift/cluster-storage-operator.git"
+        }
+      ]
+    },
+    "operators": {
+      "description": "Core operator repositories",
+      "repos": [
+        {
+          "name": "cluster-etcd-operator",
+          "url": "git@github.com:openshift/cluster-etcd-operator.git"
+        },
+        {
+          "name": "cluster-kube-apiserver-operator",
+          "url": "git@github.com:openshift/cluster-kube-apiserver-operator.git"
+        },
+        {
+          "name": "cluster-kube-controller-manager-operator",
+          "url": "git@github.com:openshift/cluster-kube-controller-manager-operator.git"
+        }
+      ]
+    },
+    "monitoring": {
+      "description": "Monitoring and observability repositories",
+      "repos": [
+        {
+          "name": "cluster-monitoring-operator",
+          "url": "git@github.com:openshift/cluster-monitoring-operator.git"
+        },
+        {
+          "name": "prometheus-operator",
+          "url": "git@github.com:openshift/prometheus-operator.git"
+        }
+      ]
+    }
+  }
+}

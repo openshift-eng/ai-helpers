@@ -133,6 +133,11 @@
       "name": "workspaces",
       "source": "./plugins/workspaces",
       "description": "Manage isolated git worktree workspaces for multi-repo development"
+    },
+    {
+      "name": "k8s-bumpup",
+      "source": "./plugins/k8s-bumpup",
+      "description": "Automate Kubernetes version bumping and dependency updates across repositories"
     }
   ]
 }
