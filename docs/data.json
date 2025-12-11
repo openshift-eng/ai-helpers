@@ -987,6 +987,22 @@
         }
       ],
       "version": "0.0.1"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "\"[filter-pattern]\"",
+          "description": "Lists upgrade jobs from openshift-tests-private CI configurations",
+          "name": "list-qe-jobs",
+          "synopsis": ""
+        }
+      ],
+      "description": "List and manage OpenShift QE Prow jobs from CI configurations",
+      "has_readme": true,
+      "hooks": [],
+      "name": "prow-qe-jobs",
+      "skills": [],
+      "version": "0.0.1"
     }
   ]
 }
