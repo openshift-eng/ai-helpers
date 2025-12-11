@@ -248,120 +248,8 @@ echo "✓ Fetching complete: ${TOTAL_FETCHED} issues downloaded in $((BATCH_NUM 
 - Faster - no intermediate serialization through MCP protocol
 - More reliable for large datasets
 
-### 5. Process Batches with Python to Group by Component and Apply Search
 
-Create a Python script (`.work/jira-issues-by-component/{project-key}/process_batches.py`) that:
-
-**Inputs:**
-- All batch files: `.work/jira-issues-by-component/{project-key}/batch-*.json`
-- Search parameters from command-line arguments
-
-**Processing Logic:**
-```python
-import json
-import glob
-import sys
-from collections import defaultdict
-from datetime import datetime
-
-# Parse command-line arguments
-search_terms = sys.argv[1] if len(sys.argv) > 1 else None
-search_description = sys.argv[2] == "true" if len(sys.argv) > 2 else False
-
-# Load all batches
-all_issues = []
-for batch_file in sorted(glob.glob('.work/jira-issues-by-component/{project-key}/batch-*.json')):
-    with open(batch_file) as f:
-        data = json.load(f)
-        all_issues.extend(data['issues'])
-
-# Apply text search filter if provided
-if search_terms:
-    keywords = [k.strip().lower() for k in search_terms.replace(',', ' ').split()]
-    filtered_issues = []
-
-    for issue in all_issues:
-        summary = issue['fields'].get('summary', '').lower()
-        description = issue['fields'].get('description', '').lower() if search_description else ''
-
-        # Check if any keyword matches
-        match = any(keyword in summary or (search_description and keyword in description)
-                   for keyword in keywords)
-
-        if match:
-            filtered_issues.append(issue)
-
-    all_issues = filtered_issues
-
-# Group by component
-component_buckets = defaultdict(list)
-no_component = []
-
-for issue in all_issues:
-    components = issue['fields'].get('components', [])
-
-    if not components:
-        no_component.append(issue)
-    else:
-        # If issue has multiple components, add to each
-        for component in components:
-            component_name = component['name']
-            component_buckets[component_name].append(issue)
-
-# Sort components by issue count (descending)
-sorted_components = sorted(component_buckets.items(), key=lambda x: len(x[1]), reverse=True)
-
-# Calculate statistics per component
-component_stats = {}
-for comp_name, issues in sorted_components:
-    statuses = defaultdict(int)
-    priorities = defaultdict(int)
-    types = defaultdict(int)
-
-    for issue in issues:
-        status = issue['fields']['status']['name']
-        priority = issue['fields']['priority']['name']
-        issue_type = issue['fields']['issuetype']['name']
-
-        statuses[status] += 1
-        priorities[priority] += 1
-        types[issue_type] += 1
-
-    component_stats[comp_name] = {
-        'total': len(issues),
-        'statuses': dict(statuses),
-        'priorities': dict(priorities),
-        'types': dict(types)
-    }
-
-# Save grouped data
-output = {
-    'components': dict(sorted_components),
-    'no_component': no_component,
-    'stats': component_stats
-}
-
-with open('.work/jira-issues-by-component/{project-key}/grouped.json', 'w') as f:
-    json.dump(output, f, indent=2)
-
-# Print summary
-print(f"Processed {len(all_issues)} issues")
-print(f"Found {len(sorted_components)} components")
-print(f"Issues without component: {len(no_component)}")
-```
-
-**Outputs:**
-- `.work/jira-issues-by-component/{project-key}/grouped.json` - All issues grouped by component with statistics
-
-**Run the script:**
-```bash
-SEARCH_TERMS="${SEARCH_FLAG_VALUE:-}"
-SEARCH_DESC="${SEARCH_DESCRIPTION_FLAG:-false}"
-
-python .work/jira-issues-by-component/${PROJECT_KEY}/process_batches.py "$SEARCH_TERMS" "$SEARCH_DESC"
-```
-
-### 6. Generate Output Report
+### 5. Generate Output Report
 
 Load the grouped data and generate the appropriate report based on mode:
 
@@ -467,7 +355,7 @@ Load the grouped data and generate the appropriate report based on mode:
 ...
 ```
 
-### 7. Display Report to User
+### 6. Display Report to User
 
 - Show the formatted report (overview or detail mode)
 - Provide guidance on next steps:
@@ -475,7 +363,7 @@ Load the grouped data and generate the appropriate report based on mode:
   - Suggest using `/jira:solve {issue-key}` to start working on an issue
   - Suggest refining filters if too many/too few results
 
-### 8. Save Report (Optional)
+### 7. Save Report (Optional)
 
 - Offer to save report to `.work/jira-issues-by-component/{project-key}-{component-name}-{timestamp}.md`
 - Useful for documentation and tracking
