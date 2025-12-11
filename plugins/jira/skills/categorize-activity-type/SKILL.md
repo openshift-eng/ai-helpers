@@ -148,7 +148,7 @@ Scan the combined text (summary + description) for these keyword patterns:
 - "team offsite"
 - "knowledge transfer"
 
-**Scoring:** 1+ match = High confidence (usually very clear)
+**Scoring:** 1+ match = High confidence (usually clear and unambiguous)
 
 ### 4. Parent Context Inheritance
 
@@ -399,9 +399,9 @@ if not final_category and parent_key:
                     final_confidence = "Low" if score == 1 else "Medium"
                     reasoning_notes.append(f"Inferred from parent Epic title: {parent_summary}")
                     break
-    except Exception:
-        # Parent fetch failed, continue without inheritance
-        pass
+    except Exception as e:
+        # Parent fetch failed, log and continue without inheritance
+        reasoning_notes.append(f"Could not fetch parent Epic {parent_key}: {str(e)}")
 ```
 
 ### Step 6: Confidence Adjustment
@@ -533,7 +533,7 @@ except Exception as e:
 
 ### Example 1: High Confidence Bug Fix
 
-```
+```text
 Activity Type: Quality / Stability / Reliability
 Confidence: High
 
@@ -551,7 +551,7 @@ Key Evidence:
 
 ### Example 2: Medium Confidence with Parent Inheritance
 
-```
+```text
 Activity Type: Future Sustainability
 Confidence: Medium
 
@@ -568,7 +568,7 @@ Key Evidence:
 
 ### Example 3: Security Vulnerability (Always High)
 
-```
+```text
 Activity Type: Security & Compliance
 Confidence: High
 
@@ -584,7 +584,7 @@ Key Evidence:
 
 ### Example 4: Low Confidence (Needs Clarification)
 
-```
+```text
 Activity Type: Product / Portfolio Work
 Confidence: Low
 
