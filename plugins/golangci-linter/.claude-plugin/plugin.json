@@ -1,0 +1,8 @@
+{
+  "name": "golangci-linter",
+  "description": "Run golangci-lint to check and fix code quality issues in Go projects",
+  "version": "0.1.0",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}

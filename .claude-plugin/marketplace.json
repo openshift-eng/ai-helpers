@@ -128,6 +128,11 @@
       "name": "bigquery",
       "source": "./plugins/bigquery",
       "description": "BigQuery analysis utilities"
+    },
+    {
+      "name": "golangci-linter",
+      "source": "./plugins/golangci-linter",
+      "description": "Run golangci-lint to check and fix code quality issues in Go projects"
     }
   ]
 }
