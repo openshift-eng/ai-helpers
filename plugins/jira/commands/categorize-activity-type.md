@@ -7,7 +7,7 @@ argument-hint: <issue-key> [--auto-apply]
 jira:categorize-activity-type
 
 ## Synopsis
-```
+```bash
 /jira:categorize-activity-type <issue-key> [--auto-apply]
 ```
 
@@ -82,7 +82,7 @@ See [skills/categorize-activity-type/SKILL.md](../skills/categorize-activity-typ
 
 Display categorization analysis to user:
 
-```
+```text
 Activity Type: Quality / Stability / Reliability
 Confidence: High
 
@@ -129,7 +129,7 @@ mcp__atlassian__jira_update_issue(
 
 **Success confirmation:**
 
-```
+```text
 ✓ Updated ROX-12345: Activity Type set to "Quality / Stability / Reliability"
   View at: https://issues.redhat.com/browse/ROX-12345
 ```
@@ -174,28 +174,28 @@ mcp__atlassian__jira_update_issue(
 ## Examples
 
 1. **Basic categorization (manual confirmation):**
-   ```
+   ```bash
    /jira:categorize-activity-type ROX-12345
    ```
 
    Result: Displays categorization analysis, prompts user to confirm before updating
 
 2. **Auto-apply for high confidence:**
-   ```
+   ```bash
    /jira:categorize-activity-type ROX-12345 --auto-apply
    ```
 
    Result: If confidence is High, automatically updates Activity Type without prompting
 
 3. **Process security vulnerability:**
-   ```
+   ```bash
    /jira:categorize-activity-type ROX-28072 --auto-apply
    ```
 
    Expected: Issue Type = Vulnerability → "Security & Compliance" (High confidence, auto-applied)
 
 4. **Process bug with unclear context:**
-   ```
+   ```bash
    /jira:categorize-activity-type OCPBUGS-45678
    ```
 

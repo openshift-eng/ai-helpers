@@ -82,7 +82,7 @@
           "argument_hint": "<issue-key> [--auto-apply]",
           "description": "Categorize JIRA tickets into activity types using AI",
           "name": "categorize-activity-type",
-          "synopsis": "/jira:categorize-activity-type <issue-key> [--auto-apply]"
+          "synopsis": "bash"
         },
         {
           "argument_hint": "<issue-key>",
