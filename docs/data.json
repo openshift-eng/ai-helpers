@@ -617,6 +617,12 @@
     {
       "commands": [
         {
+          "argument_hint": "<pr-url> [quay-repo]",
+          "description": "Pull unmerged PR, build operator image with podman, and optionally push to Quay",
+          "name": "3rd-operator-imagebuild",
+          "synopsis": "/openshift:3rd-operator-imagebuild <pr-url> [quay-repo]"
+        },
+        {
           "argument_hint": "<dependency> [version] [--create-jira] [--create-pr]",
           "description": "Bump dependencies in OpenShift projects with automated analysis and PR creation",
           "name": "bump-deps",
