@@ -1,6 +1,6 @@
 ---
 description: Analyze OVN databases from a must-gather using ovsdb-tool
-argument-hint: [must-gather-path]
+argument-hint: "[must-gather-path]"
 ---
 
 ## Name

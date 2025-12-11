@@ -1,6 +1,6 @@
 ---
 description: Comprehensive LVMS troubleshooting - analyzes LVMCluster, volume groups, PVCs, and storage issues on live clusters or must-gather
-argument-hint: [must-gather-path|--live] [--component storage|operator|volumes]
+argument-hint: "[must-gather-path|--live] [--component storage|operator|volumes]"
 ---
 
 ## Name
