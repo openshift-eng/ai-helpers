@@ -453,6 +453,12 @@
           "description": "Process Renovate dependency PR(s) to meet repository contribution standards",
           "name": "process-renovate-pr",
           "synopsis": "/utils:process-renovate-pr <PR_NUMBER|open> [JIRA_PROJECT] [COMPONENT]"
+        },
+        {
+          "argument_hint": "[file-paths-or-patterns]",
+          "description": "Review code for common security vulnerabilities and issues",
+          "name": "review-security",
+          "synopsis": "/utils:review-security [file-paths-or-patterns]"
         }
       ],
       "description": "A generic utilities plugin serving as a catch-all for various helper commands",
