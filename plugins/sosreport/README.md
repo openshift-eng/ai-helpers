@@ -93,6 +93,45 @@ The analysis is organized into four specialized areas, each with detailed implem
 
 The command automatically extracts compressed archives to `.work/sosreport-analyze/` and performs the selected analysis.
 
+### `/sosreport:ovs-db`
+
+Analyzes Open vSwitch (OVS) database files (`conf.db`) collected in sosreports using `ovsdb-tool`.
+
+**Usage:**
+```bash
+/sosreport:ovs-db <sosreport-path> [--query <json>]
+```
+
+**What it analyzes:**
+- System information (OVS version, DPDK settings)
+- Bridges with datapath type, fail mode, STP status
+- Ports including VLAN tags, bonding, LACP configuration
+- Interfaces with types, link state, MTU, errors
+- Special interfaces (VXLAN, Geneve, GRE tunnels, DPDK ports)
+- Controllers and managers
+
+**Prerequisites:**
+- `ovsdb-tool` must be installed (from openvswitch package)
+  - Fedora/RHEL: `sudo dnf install openvswitch`
+  - Ubuntu/Debian: `sudo apt install openvswitch-common`
+
+**Examples:**
+```bash
+# Analyze from sosreport archive
+/sosreport:ovs-db /tmp/sosreport-server01-2024-01-15.tar.xz
+
+# Analyze conf.db directly
+/sosreport:ovs-db /var/lib/openvswitch/conf.db
+
+# Query VXLAN tunnels
+/sosreport:ovs-db /tmp/sosreport/ --query '["Open_vSwitch", {"op":"select", "table":"Interface", "where":[["type","==","vxlan"]], "columns":["name","options"]}]'
+
+# Check for interface errors
+/sosreport:ovs-db /tmp/sosreport/ --query '["Open_vSwitch", {"op":"select", "table":"Interface", "where":[], "columns":["name","error","link_state"]}]'
+```
+
+See [`commands/ovs-db.md`](commands/ovs-db.md) for full documentation.
+
 ## Analysis Skills
 
 The sosreport plugin uses specialized analysis skills for each area. Each skill contains detailed implementation guidance with bash commands, parsing logic, error handling, and output formats.
@@ -103,6 +142,7 @@ The sosreport plugin uses specialized analysis skills for each area. Each skill 
 | **Resource Analysis** | Analyzes memory, CPU, disk usage, and processes. Identifies resource exhaustion and performance bottlenecks. | [`skills/resource-analysis/SKILL.md`](skills/resource-analysis/SKILL.md) |
 | **Network Analysis** | Analyzes network interfaces, routing, connections, firewall rules, and DNS configuration. | [`skills/network-analysis/SKILL.md`](skills/network-analysis/SKILL.md) |
 | **System Config Analysis** | Analyzes OS info, packages, systemd services, SELinux/AppArmor, and kernel parameters. | [`skills/system-config-analysis/SKILL.md`](skills/system-config-analysis/SKILL.md) |
+| **OVS DB Analysis** | Analyzes Open vSwitch database (conf.db) for bridges, ports, interfaces, tunnels, and DPDK configuration. | [`skills/ovs-db-analysis/SKILL.md`](skills/ovs-db-analysis/SKILL.md) |
 
 Each skill document includes:
 - Step-by-step implementation instructions
