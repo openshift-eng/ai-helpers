@@ -11,6 +11,12 @@
           "synopsis": "/git:backport <commit> <branch1> [branch2...] [--new-branch|-b]"
         },
         {
+          "argument_hint": "[good-commit] [bad-commit]",
+          "description": "Interactive git bisect assistant with pattern detection and automation",
+          "name": "bisect",
+          "synopsis": "/git:bisect                       # Fully interactive - will ask for all inputs"
+        },
+        {
           "argument_hint": "[--dry-run] [--merged-only] [--remote]",
           "description": "Clean up old and defunct branches that are no longer needed",
           "name": "branch-cleanup",

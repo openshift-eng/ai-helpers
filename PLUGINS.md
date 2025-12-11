@@ -120,6 +120,7 @@ Git workflow automation and utilities
 
 **Commands:**
 - **`/git:backport` `<commit> <branch1> [branch2...] [--new-branch]`** - Backport commits to multiple branches
+- **`/git:bisect` `[good-commit] [bad-commit]`** - Interactive git bisect assistant with pattern detection and automation
 - **`/git:branch-cleanup` `[--dry-run] [--merged-only] [--remote]`** - Clean up old and defunct branches that are no longer needed
 - **`/git:cherry-pick-by-patch` `<commit_hash>`** - Cherry-pick git commit into current branch by "patch" command
 - **`/git:commit-suggest` `[N]`** - Generate Conventional Commits style commit messages or summarize existing commits
