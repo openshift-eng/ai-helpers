@@ -1,6 +1,6 @@
 ---
 description: Configure cluster autoscaling based on CPU and memory usage
-argument-hint: [--cpu-threshold <percentage>] [--memory-threshold <percentage>] [--min-nodes <count>] [--max-nodes <count>] [--dry-run]
+argument-hint: "[--cpu-threshold <percentage>] [--memory-threshold <percentage>] [--min-nodes <count>] [--max-nodes <count>] [--dry-run]"
 ---
 
 ## Name
