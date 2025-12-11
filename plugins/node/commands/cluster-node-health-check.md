@@ -1,6 +1,6 @@
 ---
 description: Perform comprehensive health check on cluster nodes and report kubelet, CRI-O, and node-level issues
-argument-hint: [--node <node-name>] [--verbose] [--output-format json|text]
+argument-hint: "[--node <node-name>] [--verbose] [--output-format json|text]"
 ---
 
 ## Name

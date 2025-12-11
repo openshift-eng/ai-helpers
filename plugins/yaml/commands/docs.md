@@ -1,6 +1,6 @@
 ---
 description: Generate comprehensive YAML documentation from Go struct definitions with sensible default values
-argument-hint: [file:StructName] [output.md]
+argument-hint: "[file:StructName] [output.md]"
 ---
 
 ## Name
