@@ -52,7 +52,10 @@ Miscellaenous tools for working with OpenShift CI
 **Commands:**
 - **`/ci:add-debug-wait` `<workflow-or-job-name> [timeout]`** - Add a wait step to a CI workflow for debugging test failures
 - **`/ci:ask-sippy` `[question]`** - Ask the Sippy AI agent questions about OpenShift CI payloads, jobs, and test results
+- **`/ci:e2e-retest` `[repo] <pr-number>`** - Find and retest failed e2e CI jobs on a PR
 - **`/ci:list-unstable-tests` `<version> <keywords> [sippy-url]`** - List unstable tests with pass rate below 95%
+- **`/ci:payload-retest` `[repo] <pr-number>`** - Find and retest failed payload jobs on a PR
+- **`/ci:pr-retest` `[repo] <pr-number>`** - Find and retest failed e2e CI jobs and payload jobs on a PR
 - **`/ci:query-job-status` `<execution-id>`** - Query the status of a gangway job execution by ID
 - **`/ci:query-test-result` `<version> <keywords> [sippy-url]`** - Query test results from Sippy by version and test keywords
 - **`/ci:trigger-periodic` `<job-name> [ENV_VAR=value ...]`** - Trigger a periodic gangway job with optional environment variable overrides
