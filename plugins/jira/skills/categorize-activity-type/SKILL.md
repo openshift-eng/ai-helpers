@@ -206,24 +206,26 @@ When multiple categories seem applicable, use this priority order:
 5. **Parent Inheritance** - Use parent Epic category when keywords weak
 6. **Low Confidence + User Clarification** - When completely unclear, report Low confidence
 
+**Tie-breaking:** When multiple categories have equal keyword scores, use the priority order above to select deterministically. For example, if both "Security & Compliance" and "Quality / Stability / Reliability" have 2 keyword matches each, choose "Security & Compliance" as it has higher priority.
+
 #### Common Ambiguity Cases
 
-**Case 1: Bug that improves infrastructure**
+##### Case 1: Bug that improves infrastructure
 - Example: "Fix slow build times in CI pipeline"
 - Resolution: **Future Sustainability** (primary intent is infrastructure improvement, not fixing user-facing bug)
 - Confidence: Medium-High
 
-**Case 2: Feature that addresses security**
+##### Case 2: Feature that addresses security
 - Example: "Add two-factor authentication support"
 - Resolution: **Security & Compliance** (security always wins)
 - Confidence: High
 
-**Case 3: Task with no Epic and minimal description**
+##### Case 3: Task with no Epic and minimal description
 - Example: "Update documentation"
 - Resolution: Analyze what documentation (user-facing → Product, developer → Sustainability)
 - Confidence: Low or Medium (depends on available context)
 
-**Case 4: Operational story vs. product story**
+##### Case 4: Operational story vs. product story
 - Example: "Improve database query performance"
 - Resolution: If user-facing performance → **Product Work**, if backend optimization → **Future Sustainability**
 - Confidence: Medium (requires careful reading)
@@ -324,9 +326,24 @@ for category, keywords in keyword_categories.items():
     score = sum(1 for kw in keywords if kw in combined_text)
     keyword_scores[category] = score
 
-# Find dominant category based on keywords
-dominant_category = max(keyword_scores, key=keyword_scores.get)
-dominant_score = keyword_scores[dominant_category]
+# Find dominant category based on keywords with tie-breaking
+# Priority order for tie-breaking (highest to lowest)
+category_priority = [
+    "Security & Compliance",
+    "Incidents & Support",
+    "Quality / Stability / Reliability",
+    "Future Sustainability",
+    "Product / Portfolio Work",
+    "Associate Wellness & Development"
+]
+
+# Find max score
+max_score = max(keyword_scores.values()) if keyword_scores else 0
+
+# Find all categories with max score, then select by priority
+candidates = [cat for cat in category_priority if keyword_scores.get(cat, 0) == max_score]
+dominant_category = candidates[0] if candidates else "Product / Portfolio Work"
+dominant_score = max_score
 ```
 
 ### Step 4: Determine Final Category

@@ -209,7 +209,11 @@ mcp__atlassian__jira_update_issue(
 
 ## Notes
 
-- **Activity Type field ID**: `customfield_12320040` - **This is specific to Red Hat JIRA instances**. Other JIRA instances will have different custom field IDs for Activity Type. To find your instance's field ID, use MCP to inspect an issue and look for the Activity Type field.
+- **Activity Type field ID**: `customfield_12320040` - **This is specific to Red Hat JIRA instances**. Other JIRA instances will have different custom field IDs for Activity Type. To find your instance's field ID:
+  1. Use MCP to fetch any issue: `mcp__atlassian__jira_get_issue(issue_key="YOUR-ISSUE-KEY")`
+  2. Search the response for "Activity Type" or your custom field name
+  3. Note the field ID (e.g., `customfield_12345`) associated with that field
+  4. Update the command implementation and skill to use your field ID instead of `customfield_12320040`
 - **Requires MCP**: Jira MCP server must be configured (see [plugin README](../README.md))
 - **Read and write permissions**: User must have permission to view and edit the specified JIRA issue
 - **AI-powered**: Categorization uses LLM reasoning, not simple rule matching
