@@ -79,6 +79,12 @@
           "synopsis": "/jira:backlog [project-key] [--assignee username] [--days-inactive N]"
         },
         {
+          "argument_hint": "<issue-key> [--auto-apply]",
+          "description": "Categorize JIRA tickets into activity types using AI",
+          "name": "categorize-activity-type",
+          "synopsis": "/jira:categorize-activity-type <issue-key> [--auto-apply]"
+        },
+        {
           "argument_hint": "<issue-key>",
           "description": "Generate bug fix release notes from Jira tickets and linked GitHub PRs",
           "name": "create-release-note",
@@ -132,6 +138,11 @@
       "hooks": [],
       "name": "jira",
       "skills": [
+        {
+          "description": "Detailed categorization logic for assigning JIRA tickets to activity type categories",
+          "id": "categorize-activity-type",
+          "name": "JIRA Activity Type Categorizer"
+        },
         {
           "description": "Jira conventions for the CNTRLPLANE project used by OpenShift teams",
           "id": "cntrlplane",
