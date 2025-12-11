@@ -128,6 +128,11 @@
       "name": "bigquery",
       "source": "./plugins/bigquery",
       "description": "BigQuery analysis utilities"
+    },
+    {
+      "name": "github",
+      "source": "./plugins/github",
+      "description": "GitHub workflow automation and utilities"
     }
   ]
 }
