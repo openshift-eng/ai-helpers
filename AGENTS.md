@@ -403,7 +403,7 @@ Example: `.work/prow-job-analyze-resource/1234567890/etcd-0.html`
 | `prow-job` | Prow CI analysis | `/prow-job:analyze-test-failure`, `/prow-job:analyze-resource` |
 | `ci` | OpenShift CI integration | `/ci:trigger-presubmit`, `/ci:ask-sippy` |
 | `utils` | General utilities | `/utils:generate-test-plan`, `/utils:address-reviews` |
-| `git` | Git workflows | `/git:summary` |
+| `git` | Git workflows | `/git:bisect`, `/git:commit-suggest`, `/git:summary` |
 | `session` | Session management | `/session:save-session` |
 
 ## Additional Resources
