@@ -137,6 +137,12 @@
           "description": "Validate proposed release blockers using Red Hat OpenShift release blocker criteria",
           "name": "validate-blockers",
           "synopsis": "/jira:validate-blockers [target-version] [component-filter] [--bug issue-key]"
+        },
+        {
+          "argument_hint": "<assignee> <sprint-name>",
+          "description": "Retrieve and analyze an associate's workload for a given sprint",
+          "name": "workload",
+          "synopsis": "/jira:workload <assignee> <sprint-name>"
         }
       ],
       "description": "A plugin to automate tasks with Jira",
@@ -208,6 +214,11 @@
           "description": "Jira conventions and bug templates for the OCPBUGS project",
           "id": "ocpbugs",
           "name": "OCPBUGS Jira Conventions"
+        },
+        {
+          "description": "Analyze sprint workload using JIRA MCP server integration",
+          "id": "workload",
+          "name": "Workload Analysis with MCP"
         }
       ],
       "version": "0.0.1"
