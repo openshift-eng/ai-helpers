@@ -617,6 +617,12 @@
     {
       "commands": [
         {
+          "argument_hint": "<area> <name> <description> <jira>",
+          "description": "Create a new OpenShift Enhancement Proposal",
+          "name": "add-enhancement",
+          "synopsis": "/openshift:add-enhancement <area> <name> <description> <jira>"
+        },
+        {
           "argument_hint": "<dependency> [version] [--create-jira] [--create-pr]",
           "description": "Bump dependencies in OpenShift projects with automated analysis and PR creation",
           "name": "bump-deps",
