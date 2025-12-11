@@ -1,6 +1,6 @@
 ---
 description: Analyze new bugs and cards added over a time period and generate grooming meeting agenda
-argument-hint: [project-filter] [time-period] [--component component-name] [--label label-name] [--type issue-type]
+argument-hint: "[project-filter] [time-period] [--component component-name] [--label label-name] [--type issue-type] [--status status] [--story-points]"
 ---
 
 ## Name
@@ -8,7 +8,7 @@ jira:grooming
 
 ## Synopsis
 ```
-/jira:grooming [project-filter] [time-period] [--component component-name] [--label label-name] [--type issue-type]
+/jira:grooming [project-filter] [time-period] [--component component-name] [--label label-name] [--type issue-type] [--status status] [--story-points]
 ```
 
 ## Description
@@ -17,6 +17,8 @@ The `jira:grooming` command helps teams prepare for backlog grooming meetings. I
 This command is particularly useful for:
 - Backlog organization before sprint planning
 - Sprint-specific grooming sessions
+- Sprint-specific grooming sessions with story point summaries
+- Sprint retrospectives analyzing completed work
 - Regular requirement grooming meetings
 - Priority assessment of new bugs
 - Technical debt organization and planning
@@ -24,6 +26,10 @@ This command is particularly useful for:
 ## Key Features
 
 - **Automated Data Collection** – Collect and categorize issues within specified time periods or sprints by type (Bug, Story, Task, Epic), extract key information (priority, components, labels), and identify unassigned or incomplete issues.
+
+- **Story Point Analysis** – When `--story-points` flag is used, extract and analyze story points for all issues, calculate totals by status, priority, and type, and provide velocity metrics for sprint retrospectives.
+
+- **Status Filtering** – Filter issues by status (e.g., Closed, Done, In Progress, Open) using the `--status` flag to focus on specific workflow states for sprint reviews or retrospectives.
 
 - **Intelligent Analysis** – Evaluate issue complexity based on historical data, identify related or duplicate issues, analyze business value and technical impact, and detect potential dependencies.
 
@@ -38,12 +44,17 @@ The `jira:grooming` command runs in three main phases:
   - **Time range mode**: Filters issues by creation date within the specified period (e.g., `last-week`, `2024-01-01:2024-01-31`)
   - **Sprint mode**: Filters issues by JIRA Sprint without time constraints (e.g., `"OTA 277"`)
   - Sprint detection: If the time-period parameter doesn't match known time range formats, it's treated as a sprint name
-- Supports complex JQL filters, including multi-project, component-based, label-based, and issue-type queries.
-- Extracts key fields such as title, type, priority, component, reporter, and assignee.
+- Supports complex JQL filters, including multi-project, component-based, label-based, issue-type and status filtering.
+- Extracts key fields such as title, type, priority, component, reporter, story points and assignee.
 - Detects related or duplicate issues to provide better context.
 
 ### 🧠 Phase 2: Analysis & Processing
 - Groups collected issues by type and priority (e.g., Critical Bugs, High Priority Stories).
+- When `--story-points` flag is used:
+  - Calculates total story points by status (Closed, In Progress, Open, etc.)
+  - Calculates story points by priority and type
+  - Identifies issues missing story point estimates
+  - Computes velocity metrics for sprint retrospectives
 - Identifies incomplete or unclear issues that need clarification.
 - Estimates complexity and effort based on similar historical data.
 - Highlights risks, dependencies, and recommended next actions.
@@ -51,6 +62,11 @@ The `jira:grooming` command runs in three main phases:
 ### 📋 Phase 3: Report Generation
 - Automatically generates a **structured grooming meeting agenda** in Markdown format.
 - Includes discussion points, decision checklists, and action items.
+- When `--story-points` flag is used, includes:
+  - Story point summary section with totals by status
+  - Velocity metrics and completion percentages
+  - Breakdown by priority and issue type
+  - List of issues missing story point estimates
 - Output can be copied directly into Confluence or shared with the team.
 
 ## Usage Examples
@@ -105,6 +121,16 @@ The `jira:grooming` command runs in three main phases:
     /jira:grooming OCPSTRAT last-week --component "Control Plane" --label "performance" --type Story
     ```
 
+11. **Sprint retrospective with closed issues and story points**:
+   ```bash
+   /jira:grooming "CORENET" "Sprint 276" --status Closed --story-points
+   ```
+
+12. **Combine Label and status filters**:
+    ```bash
+    /jira:grooming OCPBUGS last-week --label "performance" --status "NEW"
+
+
 ## Output Format
 
 ### Grooming Meeting Agenda
@@ -114,6 +140,27 @@ The command outputs a ready-to-use Markdown document that can be copied into Con
 ```markdown
 # Backlog Grooming Agenda
 **Project**: [project-key] | **Period**: [time-period] | **New Issues**: [count]
+
+## 📊 Summary
+
+## 📊 Story Point Summary (when --story-points is used)
+
+**Total Story Points**: 89
+
+### By Status
+- **Closed**: 55 points (61.8%)
+- **In Progress**: 21 points (23.6%)
+- **Open**: 13 points (14.6%)
+
+### By Type
+- **Story**: 55 points
+- **Bug**: 21 points
+- **Task**: 13 points
+
+### Issues Missing Story Points (3)
+- PROJ-1240 - Performance optimization needed
+- PROJ-1241 - Update documentation
+- PROJ-1242 - Refactor authentication module
 
 ## 🚨 Critical Issues ([count])
 - **[PROJ-1234]** System crashes on login - *Critical, needs immediate attention*
@@ -131,6 +178,7 @@ The command outputs a ready-to-use Markdown document that can be copied into Con
 - [ ] Assign PROJ-1234 to senior developer (immediate)
 - [ ] Schedule design review for PROJ-1237 (this week)
 - [ ] Clarify requirements for PROJ-1238,1239 (before next grooming)
+- [ ] Add story point estimates to 3 issues
 ```
 
 ## Configuration
@@ -192,6 +240,22 @@ The command outputs a ready-to-use Markdown document that can be copied into Con
 
   Common issue types: `Bug`, `Story`, `Task`, `Epic`, `Feature`, `Sub-task`
 
+- **--status** *(optional)*
+  Filter by JIRA issue status (single or comma-separated).
+  Examples:
+    - `--status Closed`
+    - `--status "POST,ON_QA"`
+    - `--status "In Progress"`
+
+- **--story-points** *(optional)*
+  Include story point analysis in the grooming report.
+  When this flag is present:
+    - Extracts story points from JIRA issues
+    - Calculates total story points by status, and type
+    - Identifies issues missing story point estimates
+    - Generates velocity metrics for sprint retrospectives
+    - Includes story point summary section in the report
+    
 ## Return Value
 - **Markdown Report**: Ready-to-use grooming agenda with categorized issues and action items
 

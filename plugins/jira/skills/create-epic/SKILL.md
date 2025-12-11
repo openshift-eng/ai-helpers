@@ -337,20 +337,32 @@ h2. Dependencies
 )
 ```
 
-### With Parent Feature
+### With Parent Feature Link
+
+When linking an epic to a parent feature via `--parent` flag, use the **Parent Link** custom field (NOT Epic Link, NOT standard `parent` field):
 
 ```python
 mcp__atlassian__jira_create_issue(
-    project_key="MYPROJECT",
+    project_key="CNTRLPLANE",
     summary="Multi-cluster monitoring dashboard",
     issue_type="Epic",
-    description="<epic content>",
+    description="<epic content with scope and AC>",
+    components="HyperShift",
     additional_fields={
-        "customfield_epicname": "Multi-cluster monitoring dashboard",
-        "parent": {"key": "MYPROJECT-100"}  # link to parent feature
+        "customfield_12311141": "Multi-cluster monitoring dashboard",  # Epic Name (required)
+        "customfield_12313140": "CNTRLPLANE-100",  # Parent Link - links to parent FEATURE (STRING!)
+        "labels": ["ai-generated-jira"],
+        "security": {"name": "Red Hat Employee"}
     }
 )
 ```
+
+**IMPORTANT:**
+- Epic→Feature uses **Parent Link** (`customfield_12313140`) - value is a STRING
+- Story→Epic uses **Epic Link** (`customfield_12311140`) - value is a STRING
+- The standard `parent` field does NOT work for these relationships
+
+**See:** `/jira:create` command documentation for complete parent linking hierarchy and implementation strategy.
 
 ## Jira Description Formatting
 
@@ -523,11 +535,11 @@ Example: "Administrators can view aggregated metrics from all clusters"
 
 ## Examples
 
-### Example 1: Epic with Full Details
+### Example 1: Epic with Parent Feature
 
 **Input:**
 ```bash
-/jira:create epic CNTRLPLANE "Multi-cluster metrics aggregation"
+/jira:create epic CNTRLPLANE "Multi-cluster metrics aggregation" --parent CNTRLPLANE-100
 ```
 
 **Interactive prompts:**
@@ -549,14 +561,24 @@ Epic acceptance criteria?
 
 Timeframe?
 > Q1 2025, estimate 6 sprints
-
-Parent feature? (optional)
-> CNTRLPLANE-100
 ```
+
+**Implementation:**
+1. Pre-validate that CNTRLPLANE-100 exists and is a Feature
+2. Create epic with Parent Link field:
+   ```python
+   additional_fields={
+       "customfield_12311141": "Multi-cluster metrics aggregation",  # Epic Name
+       "customfield_12313140": "CNTRLPLANE-100",  # Parent Link (STRING, not object!)
+       "labels": ["ai-generated-jira"],
+       "security": {"name": "Red Hat Employee"}
+   }
+   ```
+3. If creation fails, use fallback: create without parent, then update to add parent link
 
 **Result:**
 - Epic created with complete description
-- Linked to parent feature
+- Linked to parent feature CNTRLPLANE-100 via Parent Link field (`customfield_12313140`)
 - All CNTRLPLANE conventions applied
 
 ### Example 2: Epic with Auto-Detection
@@ -654,8 +676,8 @@ Description: "Improve monitoring"
 
 ## See Also
 
-- `/jira:create` - Main command that invokes this skill
-- `create-feature` skill - For larger strategic initiatives
-- `create-story` skill - For stories within epics
+- `/jira:create` - Main command that invokes this skill (includes Issue Hierarchy and Parent Linking documentation)
+- `create-feature` skill - For creating parent features
+- `create-story` skill - For stories within epics (uses Epic Link field, NOT parent field)
 - `cntrlplane` skill - CNTRLPLANE specific conventions
 - Agile epic management best practices

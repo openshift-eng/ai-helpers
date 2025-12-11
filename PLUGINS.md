@@ -110,8 +110,8 @@ See [plugins/doc/README.md](plugins/doc/README.md) for detailed documentation.
 Etcd cluster health monitoring and performance analysis utilities
 
 **Commands:**
-- **`/etcd:analyze-performance` `"[--duration <minutes>]"`** - Analyze etcd performance metrics, latency, and identify bottlenecks
-- **`/etcd:health-check` `"[--verbose]"`** - Check etcd cluster health, member status, and identify issues
+- **`/etcd:analyze-performance` `[--duration <minutes>]`** - Analyze etcd performance metrics, latency, and identify bottlenecks
+- **`/etcd:health-check` `[--verbose]`** - Check etcd cluster health, member status, and identify issues
 
 See [plugins/etcd/README.md](plugins/etcd/README.md) for detailed documentation.
 
@@ -120,6 +120,7 @@ See [plugins/etcd/README.md](plugins/etcd/README.md) for detailed documentation.
 Git workflow automation and utilities
 
 **Commands:**
+- **`/git:backport` `<commit> <branch1> [branch2...] [--new-branch]`** - Backport commits to multiple branches
 - **`/git:branch-cleanup` `[--dry-run] [--merged-only] [--remote]`** - Clean up old and defunct branches that are no longer needed
 - **`/git:cherry-pick-by-patch` `<commit_hash>`** - Cherry-pick git commit into current branch by "patch" command
 - **`/git:commit-suggest` `[N]`** - Generate Conventional Commits style commit messages or summarize existing commits
@@ -158,7 +159,7 @@ A plugin to automate tasks with Jira
 - **`/jira:create` `<type> [project-key] <summary> [--component <name>] [--version <version>] [--parent <key>]`** - Create Jira issues (story, epic, feature, task, bug, feature-request) with proper formatting
 - **`/jira:generate-feature-doc` `<feature-key>`** - Generate comprehensive feature documentation from Jira feature and all related issues and PRs
 - **`/jira:generate-test-plan` `[JIRA issue key] [GitHub PR URLs]`** - Generate test steps for a JIRA issue
-- **`/jira:grooming` `[project-filter] [time-period] [--component component-name] [--label label-name] [--type issue-type]`** - Analyze new bugs and cards added over a time period and generate grooming meeting agenda
+- **`/jira:grooming` `[project-filter] [time-period] [--component component-name] [--label label-name] [--type issue-type] [--status status] [--story-points]`** - Analyze new bugs and cards added over a time period and generate grooming meeting agenda
 - **`/jira:solve`** - Analyze a JIRA issue and create a pull request to solve it.
 - **`/jira:status-rollup` `issue-id [--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD]`** - Generate a status rollup comment for any JIRA issue based on all child issues and a given date range
 - **`/jira:validate-blockers` `[target-version] [component-filter] [--bug issue-key]`** - Validate proposed release blockers using Red Hat OpenShift release blocker criteria
@@ -198,8 +199,8 @@ See [plugins/node/README.md](plugins/node/README.md) for detailed documentation.
 Automatically create and apply tuned profile
 
 **Commands:**
-- **`/node-tuning:analyze-node-tuning` `"[--sosreport PATH] [--format json|markdown] [--max-irq-samples N]"`** - Analyze kernel/sysctl tuning from a live node or sosreport snapshot and propose NTO recommendations
-- **`/node-tuning:generate-tuned-profile` `"[profile-name] [--summary ...] [--sysctl ...] [options]"`** - Generate a Tuned (tuned.openshift.io/v1) profile manifest for the Node Tuning Operator
+- **`/node-tuning:analyze-node-tuning` `[--sosreport PATH] [--format json|markdown] [--max-irq-samples N]`** - Analyze kernel/sysctl tuning from a live node or sosreport snapshot and propose NTO recommendations
+- **`/node-tuning:generate-tuned-profile` `[profile-name] [--summary ...] [--sysctl ...] [options]`** - Generate a Tuned (tuned.openshift.io/v1) profile manifest for the Node Tuning Operator
 
 See [plugins/node-tuning/README.md](plugins/node-tuning/README.md) for detailed documentation.
 
@@ -228,10 +229,10 @@ OpenShift development utilities and helpers
 
 **Commands:**
 - **`/openshift:bump-deps` `<dependency> [version] [--create-jira] [--create-pr]`** - Bump dependencies in OpenShift projects with automated analysis and PR creation
-- **`/openshift:cluster-health-check` `"[--verbose] [--output-format]"`** - Perform comprehensive health check on OpenShift cluster and report issues
+- **`/openshift:cluster-health-check` `[--verbose] [--output-format]`** - Perform comprehensive health check on OpenShift cluster and report issues
 - **`/openshift:crd-review` `[repository-path]`** - Review Kubernetes CRDs against Kubernetes and OpenShift API conventions
-- **`/openshift:create-cluster` `"[release-image] [platform] [options]"`** - Extract OpenShift installer from release image and create an OCP cluster
-- **`/openshift:destroy-cluster` `"[install-dir]"`** - Destroy an OpenShift cluster created by create-cluster command
+- **`/openshift:create-cluster` `[release-image] [platform] [options]`** - Extract OpenShift installer from release image and create an OCP cluster
+- **`/openshift:destroy-cluster` `[install-dir]`** - Destroy an OpenShift cluster created by create-cluster command
 - **`/openshift:expand-test-case` `[test-idea-or-file-or-commands] [format]`** - Expand basic test ideas or existing oc commands into comprehensive test scenarios with edge cases in oc CLI or Ginkgo format
 - **`/openshift:ironic-status`** - Check status of Ironic baremetal nodes in OpenShift cluster
 - **`/openshift:new-e2e-test` `[test-specification]`** - Write and validate new OpenShift E2E tests using Ginkgo framework
