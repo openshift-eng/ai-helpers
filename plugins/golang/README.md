@@ -1,6 +1,6 @@
 # Golang Plugin
 
-A Claude Code plugin for running [golangci-lint](https://golangci-lint.run/) to check and fix code quality issues in Go projects.
+A Claude Code plugin for Go code quality analysis, linting, and modernization.
 
 
 ## Installation
@@ -14,6 +14,7 @@ A Claude Code plugin for running [golangci-lint](https://golangci-lint.run/) to 
 | Command | Description |
 |---------|-------------|
 | `/golang:lint-fix` | Run golangci-lint and automatically fix all reported issues |
+| `/golang:improve` | Analyze and fix Go code quality issues using gopls and go vet |
 
 ## Skills
 
@@ -26,6 +27,8 @@ A Claude Code plugin for running [golangci-lint](https://golangci-lint.run/) to 
 - go compiler (available in $PATH)
 
 - **Optional**: `make lint` target configured in Makefile, if not present the command will run `golangci-lint` directly.
+
+- **Optional**: `gopls` (Go language server) for `/golang:improve`: `go install golang.org/x/tools/gopls@latest`
 
 ## Recommended Permissions
 
@@ -60,20 +63,18 @@ To allow Claude Code to run the linter commands without prompting for approval, 
 
 ## Usage
 
-### `/golang:lint`: check for linter issues
-
-This will:
-1. Run golangci-lint using available methods (via the "Go Lint" skill)
-2. Report total number of issues found
-3. Summarize issues by category (goconst, gocyclo, staticcheck, etc.)
-4. Show example issues
-
-The "Go Lint" skill is also loaded automatically when the agent detects that linting is needed (e.g., the user says "run the linter" or "check for lint issues").
-
 ### `/golang:lint-fix`: check for linter issues and fix them
 
 This will:
-1. Run the "Go Lint" skill to identify all issues
+1. Run golangci-lint using available methods (via the "Go Lint" skill)
 2. Systematically fix each category of issues
 3. Re-run linter after each fix to verify
 4. Continue until all issues are resolved
+
+### `/golang:improve`: analyze and fix code quality issues
+
+This will:
+1. Run `gopls check` and `go vet` to find issues
+2. Categorize findings by severity (critical bugs, deprecated APIs, modernization, code quality)
+3. Automatically apply all fixes
+4. Verify changes with build and tests

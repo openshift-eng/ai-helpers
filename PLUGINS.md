@@ -155,6 +155,7 @@ See [plugins/git/README.md](plugins/git/README.md) for detailed documentation.
 Run golang codebase related commands and tools
 
 **Commands:**
+- **`/golang:improve` `[path]`** - Analyze and fix Go code quality issues using gopls and go vet
 - **`/golang:lint-fix`** - Run golangci-lint tool and fix all reported issues
 
 See [plugins/golang/README.md](plugins/golang/README.md) for detailed documentation.
