@@ -1,0 +1,8 @@
+{
+	"name": "go",
+	"description": "A claude plugin for various Go related tasks and code generation",
+	"version": "0.0.1",
+	"author": {
+		"name": "github.com/openshift-eng"
+	}
+}

@@ -128,6 +128,11 @@
       "name": "bigquery",
       "source": "./plugins/bigquery",
       "description": "BigQuery analysis utilities"
+    },
+    {
+      "name": "go",
+      "source": "./plugins/go",
+      "description": "Go code quality and modernization utilities"
     }
   ]
 }
