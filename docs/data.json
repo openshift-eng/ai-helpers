@@ -91,6 +91,12 @@
           "synopsis": "/jira:backlog [project-key] [--assignee username] [--days-inactive N]"
         },
         {
+          "argument_hint": "<issue-number> [issue-number...] [--github-project <org/repo>] [--jira-project <key>] [--dryrun]",
+          "description": "Clone GitHub issues to Jira with proper formatting and linking",
+          "name": "clone-from-github",
+          "synopsis": "/jira:clone-from-github <issue-number> [issue-number...] [options]"
+        },
+        {
           "argument_hint": "<issue-key>",
           "description": "Generate bug fix release notes from Jira tickets and linked GitHub PRs",
           "name": "create-release-note",
@@ -119,6 +125,18 @@
           "description": "Analyze new bugs and cards added over a time period and generate grooming meeting agenda",
           "name": "grooming",
           "synopsis": "/jira:grooming [project-filter] [time-period] [--component component-name] [--label label-name] [--type issue-type] [--status status] [--story-points]"
+        },
+        {
+          "argument_hint": "[--github-project <org/repo>] [--jira-project <key>] [--profile <name>] [--porcelain] [--output json|yaml]",
+          "description": "Reconcile state mismatches between GitHub and Jira issues",
+          "name": "reconcile-github",
+          "synopsis": "/jira:reconcile-github [options]"
+        },
+        {
+          "argument_hint": "",
+          "description": "Install and configure the gh2jira utility with all required tools and credentials",
+          "name": "setup-gh2jira",
+          "synopsis": "/jira:setup-gh2jira"
         },
         {
           "argument_hint": "",
@@ -504,7 +522,7 @@
           "argument_hint": "<action> [arguments...]",
           "description": "Execute opm (Operator Package Manager) commands for building and managing operator catalogs",
           "name": "opm",
-          "synopsis": "bash"
+          "synopsis": "/olm:opm <action> [arguments...]"
         },
         {
           "argument_hint": "[query] [--catalog <catalog-name>]",
@@ -884,13 +902,13 @@
           "argument_hint": "[--sosreport PATH] [--format json|markdown] [--max-irq-samples N]",
           "description": "Analyze kernel/sysctl tuning from a live node or sosreport snapshot and propose NTO recommendations",
           "name": "analyze-node-tuning",
-          "synopsis": "text"
+          "synopsis": "/node-tuning:analyze-node-tuning [--sosreport PATH] [--collect-sosreport|--no-collect-sosreport] [--sosreport-output PATH] [--node NODE] [--kubeconfig PATH] [--oc-binary PATH] [--format json|markdown] [--max-irq-samples N] [--keep-snapshot]"
         },
         {
           "argument_hint": "[profile-name] [--summary ...] [--sysctl ...] [options]",
           "description": "Generate a Tuned (tuned.openshift.io/v1) profile manifest for the Node Tuning Operator",
           "name": "generate-tuned-profile",
-          "synopsis": "text"
+          "synopsis": "/node-tuning:generate-tuned-profile [profile-name] [--summary TEXT] [--include VALUE ...] [--sysctl KEY=VALUE ...] [--match-label KEY[=VALUE] ...] [options]"
         }
       ],
       "description": "Generate and analyze OpenShift node tuning profiles",
