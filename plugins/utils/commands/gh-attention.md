@@ -12,7 +12,7 @@ utils:gh-attention
 ```
 
 ## Description
-The `utils:gh-attention` command identifies pull requests and issues that are waiting for your action. It scans for specific states where you are the blocker: unresolved review comments on your PRs, unanswered PR conversation comments, change requests you haven't addressed, merge conflicts, and unanswered questions on assigned issues.
+The `utils:gh-attention` command identifies pull requests and issues that are waiting for your action. It scans PRs you've authored, PRs where you're requested as a reviewer, and PRs where you've participated in discussions. For each, it detects specific states where you are the blocker: unresolved review comments, unanswered PR conversation comments, change requests you haven't addressed, merge conflicts, and unanswered questions on assigned issues.
 
 This command helps cut through notification noise by focusing only on actionable items where others are waiting for your input.
 
@@ -43,9 +43,21 @@ This command helps cut through notification noise by focusing only on actionable
 
 **If no `--repo` argument**:
 
-1. **Find all open PRs authored by current user**:
+1. **Find all open PRs where you're involved**:
+
+   a. **PRs authored by you**:
    ```bash
    gh search prs --author=@me --state=open --json number,repository,title,url,isDraft --limit 100
+   ```
+
+   b. **PRs where you're requested as reviewer**:
+   ```bash
+   gh search prs --review-requested=@me --state=open --json number,repository,title,url,isDraft --limit 100
+   ```
+
+   c. **PRs where you've commented/reviewed**:
+   ```bash
+   gh search prs --commenter=@me --state=open --json number,repository,title,url,isDraft --limit 100
    ```
 
 2. **Find all open issues assigned to current user**:
@@ -53,9 +65,11 @@ This command helps cut through notification noise by focusing only on actionable
    gh search issues --assignee=@me --state=open --json number,repository,title,url --limit 100
    ```
 
-3. **Filter out draft PRs immediately** to reduce API calls
+3. **Combine and deduplicate PRs** from steps 1a, 1b, and 1c
 
-4. **Extract unique repositories** from the results
+4. **Filter out draft PRs immediately** to reduce API calls
+
+5. **Extract unique repositories** from the results
 
 ### Step 2: Data Collection
 
@@ -76,6 +90,7 @@ For each PR (non-draft only):
          title
          url
          createdAt
+         author { login }
          mergeable
          reviewThreads(first: 100) {
            nodes {
@@ -120,11 +135,15 @@ For each PR (non-draft only):
    ```
 
 2. **Parse the GraphQL response** to extract:
-   - PR metadata (number, title, url, mergeable)
+   - PR metadata (number, title, url, mergeable, author)
    - Review threads with resolution status
    - Reviews with state and timestamp
    - PR comments (general conversation comments)
    - Commit timestamps
+
+3. **Determine your role in the PR**:
+   - If `author.login == CURRENT_USER`: You are the PR author
+   - Otherwise: You are a reviewer/commenter
 
 For each issue:
 
@@ -155,10 +174,12 @@ For each issue:
 
 ### Step 3: Analysis and Detection
 
-#### A. Detect Merge Conflicts (CRITICAL Priority)
+**Detection logic differs based on your role** (determined in Step 2.3):
 
-For each PR:
-- Check `mergeable` field from Step 2.1
+#### A. Detect Merge Conflicts (CRITICAL Priority) - **Only for PRs you authored**
+
+For each PR where `author.login == CURRENT_USER`:
+- Check `mergeable` field from Step 2
 - If `mergeable == "CONFLICTING"`, flag as CRITICAL
 - Record: `Merge conflict needs resolution`
 
@@ -176,12 +197,13 @@ For each PR (from GraphQL data), check for any pending review feedback:
      - If `last_comment.author.login == CURRENT_USER`, skip (you already responded)
      - Otherwise, record: `path:line - @author commented (X days ago)` with snippet (first 80 chars)
 
-2. **Check for unaddressed change request reviews**:
-   - Filter reviews where `state == "CHANGES_REQUESTED"`
-   - For each change request:
-     - Compare review `submittedAt` with commit dates (`commits.nodes[].commit.committedDate`)
-     - If NO commits after the review, record: `@reviewer requested changes (X days ago)`
-     - If multiple from same reviewer, use most recent
+2. **Check for unaddressed change request reviews** - **Only for PRs you authored**:
+   - **If `author.login == CURRENT_USER`**:
+     - Filter reviews where `state == "CHANGES_REQUESTED"`
+     - For each change request:
+       - Compare review `submittedAt` with commit dates (`commits.nodes[].commit.committedDate`)
+       - If NO commits after the review, record: `@reviewer requested changes (X days ago)`
+       - If multiple from same reviewer, use most recent
 
 3. **Check for unanswered PR comments** (general conversation comments):
    - Get PR comments from GraphQL response
@@ -192,7 +214,7 @@ For each PR (from GraphQL data), check for any pending review feedback:
      - `body` contains `@{CURRENT_USER}` OR `body` contains `?`
    - Record: `@author commented in PR conversation (X days ago)` with snippet (first 80 chars)
 
-4. **Combine and flag as HIGH priority** if any of: unresolved threads, unaddressed change requests, or unanswered PR comments exist
+4. **Combine and flag as HIGH priority** if any of: unresolved threads, unaddressed change requests (if you're the author), or unanswered PR comments exist
 
 #### C. Detect Unanswered Issue Questions (LOW Priority)
 
