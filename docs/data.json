@@ -1279,6 +1279,22 @@
         }
       ],
       "version": "0.0.4"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "",
+          "description": "Automate OpenShift Tests Extension (OTE) migration for component repositories",
+          "name": "migrate",
+          "synopsis": "/ote-migration:migrate"
+        }
+      ],
+      "description": "Automate OpenShift Tests Extension (OTE) migration for component repositories",
+      "has_readme": true,
+      "hooks": [],
+      "name": "ote-migration",
+      "skills": [],
+      "version": "0.0.1"
     }
   ]
 }

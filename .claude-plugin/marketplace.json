@@ -183,6 +183,12 @@
       "source": "./plugins/code-review",
       "description": "Automated code quality review with language-aware analysis for pre-commit verification",
       "version": "0.0.4"
+    },
+    {
+      "name": "ote-migration",
+      "source": "./plugins/ote-migration",
+      "description": "Automate OpenShift Tests Extension (OTE) migration for component repositories",
+      "version": "0.0.1"
     }
   ]
 }
