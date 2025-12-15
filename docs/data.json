@@ -59,6 +59,11 @@
       "name": "git",
       "skills": [
         {
+          "description": "Edit a series of existing commits in a Git branch using fixup commits or interactive rebase, resolving any merge conflicts that result. Use when you need to reorder commits or amend commits other than the current branch HEAD. This will often occur e.g. when fixing errors in previous local commits, or when addressing review feedback.",
+          "id": "edit-commits",
+          "name": "git-edit-commits"
+        },
+        {
           "description": "Git blame analysis helper for the suggest-reviewers command",
           "id": "suggest-reviewers",
           "name": "Suggest Reviewers Helper"
