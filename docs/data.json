@@ -665,6 +665,12 @@
           "synopsis": "/openshift:review-test-cases [file-path-or-test-code-or-commands]"
         },
         {
+          "argument_hint": "[--run]",
+          "description": "Find and run e2e tests in a container",
+          "name": "run-e2e-tests-in-container",
+          "synopsis": "/openshift:run-e2e-tests-in-container [--run]"
+        },
+        {
           "argument_hint": "",
           "description": "Generate and visualize OVN-Kubernetes network topology diagram",
           "name": "visualize-ovn-topology",
@@ -676,6 +682,21 @@
       "hooks": [],
       "name": "openshift",
       "skills": [
+        {
+          "description": "Detect whether podman or docker is available on the system and configure appropriate runtime settings",
+          "id": "detect-container-runtime",
+          "name": "Detect Container Runtime"
+        },
+        {
+          "description": "Find e2e test directories in OpenShift repositories following common conventions",
+          "id": "discover-e2e-tests",
+          "name": "Discover E2E Tests"
+        },
+        {
+          "description": "Generate or locate a Dockerfile for running e2e tests in a container",
+          "id": "generate-e2e-dockerfile",
+          "name": "Generate E2E Dockerfile"
+        },
         {
           "description": "Generates and displays OVN-Kubernetes network topology diagrams showing logical switches, routers, ports with IP/MAC addresses in Mermaid format",
           "id": "generating-ovn-topology",
