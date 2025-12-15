@@ -1,5 +1,6 @@
 ---
 description: Find and run e2e tests in a container
+argument-hint: [--run]
 ---
 
 ## Name
@@ -7,91 +8,29 @@ openshift:run-e2e-tests-in-container
 
 ## Synopsis
 ```
-/openshift:run-e2e-tests-in-container
+/openshift:run-e2e-tests-in-container [--run]
 ```
 
 ## Description
 
-The `/openshift:run-e2e-tests-in-container` command finds e2e tests in the current repository and prepare them to run in a container using podman or docker.
+The `/openshift:run-e2e-tests-in-container` command finds e2e tests in the current repository and prepares them to run in a container using podman or docker.
 
-## Workflow
+## Arguments
 
-This command will:
-1. Auto-detect whether podman or docker is available (prefers podman if both exist)
-2. Search for e2e test directories in common OpenShift repository locations (test/e2e, tests/e2e, e2e, pkg/e2e)
-3. Look for an existing Dockerfile.ci or create a generic one if needed
-4. Build a container image with the e2e tests
-5. Show the user the command to run the tests and ask if they would like agent to run them or if they will run them themselves
+- `--run`: Optional. If provided, automatically run the tests after building the container instead of asking for user confirmation.
 
-The container will:
-- Use the appropriate Go builder image
-- Copy the source code and dependencies
-- Mount kubeconfig from $KUBECONFIG to /kubeconfig in the container
-- Run go test on the e2e test directory
-- Support common OpenShift e2e test environment variables
+## Implementation
 
-### Pre-requisites:
-1. Set `$KUBECONFIG` environment variable to point to your cluster's kubeconfig file
-2. The `TEST_OPERATOR_NAMESPACE` can be set at runtime using `-e` flag
+This command uses three skills that can be found in `plugins/openshift/skills/`:
 
-Common patterns for OpenShift e2e tests:
-- Test location: test/e2e/, tests/e2e/, e2e/, pkg/e2e/
-- Kubeconfig: mounted at /kubeconfig/config
-- Test command: `go test -timeout 0 ./test/e2e/... -kubeconfig=/kubeconfig/config -v`
+1. **detect-container-runtime**: Detects whether podman or docker is available
+2. **discover-e2e-tests**: Finds e2e test directories in the repository
+3. **generate-e2e-dockerfile**: Locates or creates a Dockerfile for e2e tests
 
-Container runtime detection:
-```bash
-CONTAINER_RUNTIME=$(command -v podman || command -v docker)
-```
+### Step 1: Detect Container Runtime
 
-Build command:
-```bash
-$CONTAINER_RUNTIME build -t <repo-name>-e2e:latest -f Dockerfile.ci .
-```
+Use the `detect-container-runtime` skill to determine the available container runtime:
 
-Run command (podman with SELinux):
-```bash
-podman run --rm -v $KUBECONFIG:/kubeconfig/config:Z <repo-name>-e2e:latest
-```
-
-Run command with custom namespace (podman):
-```bash
-podman run --rm -e TEST_OPERATOR_NAMESPACE=my-namespace -v $KUBECONFIG:/kubeconfig/config:Z <repo-name>-e2e:latest
-```
-
-Run command (docker):
-```bash
-docker run --rm -v $KUBECONFIG:/kubeconfig/config <repo-name>-e2e:latest
-```
-
-Run command with custom namespace (docker):
-```bash
-docker run --rm -e TEST_OPERATOR_NAMESPACE=my-namespace -v $KUBECONFIG:/kubeconfig/config <repo-name>-e2e:latest
-```
-
-If no Dockerfile.ci exists, a generic one will be created based on:
-- Detected Go module path from go.mod
-- Detected e2e test location
-- Standard OpenShift builder image
-
-Environment variables that are commonly supported:
-- TEST_OPERATOR_NAMESPACE
-- TEST_WATCH_NAMESPACE
-- KUBECONFIG path (typically /kubeconfig/config)
-
-For custom test runs or specific test selection, the container can be run with custom commands:
-```bash
-$CONTAINER_RUNTIME run --rm -v $KUBECONFIG:/kubeconfig/config$([ "$CONTAINER_RUNTIME" = "podman" ] && echo ":Z" || echo "") <repo-name>-e2e:latest \
-  go test -timeout 0 ./test/e2e/... -kubeconfig=/kubeconfig/config -v -run TestSpecificTest
-```
-
-To override environment variables at runtime:
-```bash
-$CONTAINER_RUNTIME run --rm -e TEST_OPERATOR_NAMESPACE=custom-namespace -e TEST_WATCH_NAMESPACE=custom-namespace \
-  -v $KUBECONFIG:/kubeconfig/config$([ "$CONTAINER_RUNTIME" = "podman" ] && echo ":Z" || echo "") <repo-name>-e2e:latest
-```
-
-IMPORTANT: When executing, first detect the container runtime with:
 ```bash
 if command -v podman &> /dev/null; then
     CONTAINER_RUNTIME="podman"
@@ -105,15 +44,116 @@ else
 fi
 ```
 
-WORKFLOW:
-1. Detect the container runtime (podman or docker)
-2. Search for e2e tests in the repository
-3. Build the container image using the detected runtime
-4. Display the command to run the tests to the user, including:
-   - Basic run command using $KUBECONFIG
-   - Example with custom TEST_OPERATOR_NAMESPACE using -e flag
-5. Use AskUserQuestion to ask the user if they would like Claude to run the tests now or if they will run them manually
-6. If the user chooses to have Claude run them, execute the run command
-7. If the user chooses to run manually, show them the commands and remind them to:
-   - Ensure $KUBECONFIG is set to their cluster's kubeconfig
-   - Override TEST_OPERATOR_NAMESPACE with -e flag if needed
+See: `plugins/openshift/skills/detect-container-runtime/SKILL.md`
+
+### Step 2: Discover E2E Tests
+
+Use the `discover-e2e-tests` skill to find the e2e test directory:
+
+1. Extract the Go module path from `go.mod`
+2. Search common e2e test locations: `test/e2e`, `tests/e2e`, `e2e`, `pkg/e2e`, `test/e2e-test`
+3. Validate that test files exist in the found directory
+
+See: `plugins/openshift/skills/discover-e2e-tests/SKILL.md`
+
+### Step 3: Generate or Locate Dockerfile
+
+Use the `generate-e2e-dockerfile` skill:
+
+1. Check for existing Dockerfiles: `Dockerfile.ci`, `Dockerfile.e2e`, `Dockerfile.test`
+2. If none found, generate a `Dockerfile.ci` with:
+   - Openshift Go toolset base image
+   - Multi-stage build for efficiency
+   - Correct e2e test path
+   - Kubeconfig mount support
+
+See: `plugins/openshift/skills/generate-e2e-dockerfile/SKILL.md`
+
+### Step 4: Build Container Image
+
+Build the container image:
+
+```bash
+REPO_NAME=$(basename "$(head -1 go.mod | awk '{print $2}')")
+IMAGE_NAME="${REPO_NAME}-e2e:latest"
+
+$CONTAINER_RUNTIME build -t "$IMAGE_NAME" -f "$DOCKERFILE" .
+```
+
+### Step 5: Show Run Commands
+
+Display the commands to run the tests:
+
+**Basic run command:**
+```bash
+$CONTAINER_RUNTIME run --rm \
+  -v $KUBECONFIG:/kubeconfig/config${SELINUX_FLAG} \
+  ${IMAGE_NAME}
+```
+
+**With custom namespace:**
+```bash
+$CONTAINER_RUNTIME run --rm \
+  -e TEST_OPERATOR_NAMESPACE=my-namespace \
+  -v $KUBECONFIG:/kubeconfig/config${SELINUX_FLAG} \
+  ${IMAGE_NAME}
+```
+
+**Running specific tests:**
+```bash
+$CONTAINER_RUNTIME run --rm \
+  -v $KUBECONFIG:/kubeconfig/config${SELINUX_FLAG} \
+  ${IMAGE_NAME} \
+  go test -timeout 0 -v ./${E2E_PATH}/... -run TestSpecificTest
+```
+
+### Step 6: Ask User or Execute
+
+If `--run` argument was provided, execute the run command automatically.
+
+Otherwise, use AskUserQuestion to ask:
+- "Would you like me to run the tests now, or will you run them manually?"
+
+Options:
+- **Run now**: Execute the container run command
+- **Manual**: Show the commands and remind user about prerequisites
+
+## Prerequisites
+
+1. **$KUBECONFIG**: Environment variable must be set to point to your cluster's kubeconfig file
+2. **Container runtime**: Either podman or docker must be installed
+3. **Go module**: Repository must have a `go.mod` file
+4. **E2E tests**: At least one `*_test.go` file in an e2e directory
+
+## Environment Variables
+
+Variables that can be passed to the container with `-e`:
+
+| Variable | Description |
+|----------|-------------|
+| `TEST_OPERATOR_NAMESPACE` | Namespace for operator testing |
+| `TEST_WATCH_NAMESPACE` | Namespace to watch |
+| `KUBECONFIG` | Path to kubeconfig (default: `/kubeconfig/config`) |
+
+## Return Value
+
+- **Success**: Container image built and test run command displayed (or tests executed)
+- **Failure**: Error message indicating what went wrong (no runtime, no tests found, build failed)
+
+## Examples
+
+1. **Basic usage** - discover, build, and show run commands:
+   ```
+   /openshift:run-e2e-tests-in-container
+   ```
+
+2. **Auto-run** - discover, build, and run tests automatically:
+   ```
+   /openshift:run-e2e-tests-in-container --run
+   ```
+
+## Related Skills
+
+- `plugins/openshift/skills/detect-container-runtime/SKILL.md`
+- `plugins/openshift/skills/discover-e2e-tests/SKILL.md`
+- `plugins/openshift/skills/generate-e2e-dockerfile/SKILL.md`
