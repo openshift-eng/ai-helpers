@@ -1,10 +1,13 @@
-# Must-Gather Analyzer Plugin
+# Must-Gather Plugin
 
-Claude Code plugin for analyzing OpenShift must-gather diagnostic data.
+Claude Code plugin for generating and analyzing OpenShift must-gather diagnostic data.
 
 ## Overview
 
-This plugin provides tools to analyze must-gather data collected from OpenShift clusters, displaying resource status in familiar `oc`-like format and identifying cluster issues.
+This plugin provides tools to generate and analyze must-gather data from OpenShift clusters, displaying resource status in familiar `oc`-like format and identifying cluster issues.
+- `/must-gather:generate`: collect data from a live cluster
+- `/must-gather:analyze`: analyze must-gather archives
+- `/prow-job:extract-must-gather` (from the `prow-job` plugin): extract and analyze must-gather data from CI job artifacts
 
 ## Features
 
@@ -252,6 +255,34 @@ Active alerts: 2 total (0 pending, 2 firing)
 ```
 
 ### Slash Commands
+
+#### `/must-gather:generate [image] [--dest-dir path]`
+Generates must-gather diagnostic data from an OpenShift cluster.
+
+```
+# Generate with default image
+/must-gather:generate
+
+# Use specific must-gather image
+/must-gather:generate registry.redhat.io/openshift4/ose-must-gather:v4.14
+
+# Specify output directory
+/must-gather:generate --dest-dir /tmp/my-must-gather
+```
+
+Collects diagnostic information including:
+- Cluster resource definitions
+- Operator logs and status
+- Pod logs and events
+- Network configuration
+- Storage information
+
+Requires:
+- `oc` CLI installed and configured
+- Active connection to an OpenShift cluster
+- Cluster-admin or appropriate permissions
+
+Output is saved to `/tmp/must-gather-<timestamp>/` by default. After collection, you can use `/must-gather:analyze` to analyze the data.
 
 #### `/must-gather:analyze [path] [component]`
 Runs comprehensive analysis of must-gather data.
