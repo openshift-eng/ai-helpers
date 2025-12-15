@@ -64,6 +64,52 @@ export ASK_SIPPY_API_TOKEN='your-token-here'
    /ask-sippy Why is the test "sig-network Feature:SCTP should create a Pod with SCTP HostPort" failing?
    ```
 
+### analyze-test-coverage
+
+Analyze whether specific tests will be executed in OpenShift CI jobs by examining test suite configurations, test tags, and job definitions.
+
+**Usage:**
+```bash
+/ci:analyze-test-coverage <job-names> [test-tags]
+```
+
+**What it does:**
+- Determines if tests will run in specified CI jobs
+- Identifies missing conformance suite tags
+- Explains why tests are excluded from jobs
+- Provides actionable recommendations for test coverage
+
+**Prerequisites:**
+- Local clones of openshift/origin and openshift/release repositories
+- Repositories are auto-detected or can be specified via environment variables
+
+**Arguments:**
+- `<job-names>`: Comma-separated job names or file path containing job names
+- `[test-tags]` (optional): Test tags to analyze or path to test file
+
+**Examples:**
+
+1. **Check if must-gather tests run in 4.21 nightly jobs:**
+   ```bash
+   /ci:analyze-test-coverage 4.21-nightly-blocking-ci-jobs test/extended/cli/mustgather.go
+   ```
+
+2. **Analyze specific test tags for a job:**
+   ```bash
+   /ci:analyze-test-coverage periodic-ci-openshift-release-master-nightly-4.21-e2e-aws-ovn-serial "[sig-cli]"
+   ```
+
+3. **Check multiple jobs from a list:**
+   ```bash
+   /ci:analyze-test-coverage periodic-ci-openshift-release-master-ci-4.21-e2e-aws-ovn,periodic-ci-openshift-release-master-nightly-4.21-e2e-aws-ovn-serial
+   ```
+
+**Output:**
+- Detailed analysis showing which jobs will/won't run the tests
+- Specific reasons based on test suite filters
+- Suite tag requirements and recommendations
+- Example code snippets for adding required tags
+
 ### trigger-periodic
 
 Trigger a periodic gangway job with optional environment variable overrides.
