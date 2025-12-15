@@ -19,9 +19,9 @@ The `/openshift:run-e2e-tests-in-container` command finds e2e tests in the curre
 This command will:
 1. Auto-detect whether podman or docker is available (prefers podman if both exist)
 2. Search for e2e test directories in common OpenShift repository locations (test/e2e, tests/e2e, e2e, pkg/e2e)
-3. Look for an existing Dockerfile.e2e or create a generic one if needed
+3. Look for an existing Dockerfile.ci or create a generic one if needed
 4. Build a container image with the e2e tests
-5. Show the user the command to run the tests and ask if they would like Claude to run them or if they will run them themselves
+5. Show the user the command to run the tests and ask if they would like agent to run them or if they will run them themselves
 
 The container will:
 - Use the appropriate Go builder image
@@ -46,7 +46,7 @@ CONTAINER_RUNTIME=$(command -v podman || command -v docker)
 
 Build command:
 ```bash
-$CONTAINER_RUNTIME build -t <repo-name>-e2e:latest -f Dockerfile.e2e .
+$CONTAINER_RUNTIME build -t <repo-name>-e2e:latest -f Dockerfile.ci .
 ```
 
 Run command (podman with SELinux):
@@ -69,7 +69,7 @@ Run command with custom namespace (docker):
 docker run --rm -e TEST_OPERATOR_NAMESPACE=my-namespace -v $KUBECONFIG:/kubeconfig/config <repo-name>-e2e:latest
 ```
 
-If no Dockerfile.e2e exists, a generic one will be created based on:
+If no Dockerfile.ci exists, a generic one will be created based on:
 - Detected Go module path from go.mod
 - Detected e2e test location
 - Standard OpenShift builder image
