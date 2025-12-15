@@ -193,6 +193,12 @@
           "synopsis": "/ci:add-debug-wait <workflow-or-job-name> [timeout]"
         },
         {
+          "argument_hint": "<job-names> [test-tags]",
+          "description": "Analyze whether specific tests will be executed in OpenShift CI jobs",
+          "name": "analyze-test-coverage",
+          "synopsis": "/ci:analyze-test-coverage <job-names> [test-tags]"
+        },
+        {
           "argument_hint": "[question]",
           "description": "Ask the Sippy AI agent questions about OpenShift CI payloads, jobs, and test results",
           "name": "ask-sippy",
