@@ -1,6 +1,6 @@
 ---
 description: Ask the Sippy AI agent questions about OpenShift CI payloads, jobs, and test results
-argument-hint: [question]
+argument-hint: "[question]"
 ---
 
 ## Name

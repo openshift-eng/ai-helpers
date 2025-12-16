@@ -1,6 +1,6 @@
 ---
 description: Hello world plugin implementation
-argument-hint: [name]
+argument-hint: "[name]"
 ---
 
 ## Name

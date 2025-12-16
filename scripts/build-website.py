@@ -20,7 +20,12 @@ def parse_frontmatter(content: str) -> Dict[str, str]:
             for line in fm_lines:
                 if ':' in line:
                     key, value = line.split(':', 1)
-                    frontmatter[key.strip()] = value.strip()
+                    value = value.strip()
+                    # Strip surrounding quotes if present (both single and double)
+                    if (value.startswith('"') and value.endswith('"')) or \
+                       (value.startswith("'") and value.endswith("'")):
+                        value = value[1:-1]
+                    frontmatter[key.strip()] = value
     return frontmatter
 
 def extract_synopsis(content: str) -> str:

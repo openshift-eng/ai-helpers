@@ -35,19 +35,24 @@ class PluginInfo:
 def parse_frontmatter(content: str) -> Dict[str, str]:
     """Parse YAML frontmatter from a markdown file."""
     frontmatter = {}
-    
+
     # Match frontmatter between --- markers
     match = re.match(r'^---\s*\n(.*?)\n---\s*\n', content, re.DOTALL)
     if match:
         frontmatter_text = match.group(1)
-        
+
         # Parse simple YAML key-value pairs
         for line in frontmatter_text.split('\n'):
             line = line.strip()
             if ':' in line:
                 key, value = line.split(':', 1)
-                frontmatter[key.strip()] = value.strip()
-    
+                value = value.strip()
+                # Strip surrounding quotes if present (both single and double)
+                if (value.startswith('"') and value.endswith('"')) or \
+                   (value.startswith("'") and value.endswith("'")):
+                    value = value[1:-1]
+                frontmatter[key.strip()] = value
+
     return frontmatter
 
 

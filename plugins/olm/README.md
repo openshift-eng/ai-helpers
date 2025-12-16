@@ -11,7 +11,7 @@ This plugin provides comprehensive OLM capabilities:
 - **Health Monitoring**: List and check detailed operator health status
 - **Update Management**: Check for and install operator updates with approval workflows
 - **Troubleshooting**: Diagnose and fix common OLM issues automatically
-- **Catalog Management**: Add, remove, and manage custom catalog sources
+- **Catalog Management**: Add, remove, and manage custom catalog sources; build and publish catalog indexes
 - **Advanced Debugging**: Troubleshoot OLM issues by correlating must-gather logs with source code and known bugs in Jira
 - **Safety Features**: Orphaned resource cleanup, stuck namespace detection, and confirmation prompts
 - **Context-Aware**: Automatic channel discovery, namespace auto-detection, and smart recommendations
@@ -24,6 +24,7 @@ The plugin supports both OLMv0 (traditional OLM) and OLMv1 (next-generation) arc
 - OpenShift CLI (`oc`) installed and configured
 - Access to an OpenShift cluster with cluster-admin or sufficient RBAC permissions
 - `git` (required for debug command)
+- `opm` and `podman` (required for opm command to build catalogs)
 - Network access to GitHub and Jira (for debug command)
 
 ## Commands
@@ -291,6 +292,46 @@ See [commands/catalog.md](commands/catalog.md) for full documentation.
 
 ---
 
+#### `/olm:opm` - Build and Manage Operator Catalogs
+
+Execute opm (Operator Package Manager) commands for building and managing operator catalogs.
+
+**Usage:**
+```bash
+/olm:opm build-index-image catalog quay.io/myorg/mycatalog:v1.0.0
+/olm:opm build-semver-index-image catalog-config.yaml quay.io/myorg/mycatalog:v1.0.0
+/olm:opm generate-semver-template quay.io/org/bundle:v1.0.0,quay.io/org/bundle:v1.0.1
+/olm:opm list packages quay.io/olmqe/nginx8518-index-test:v1
+/olm:opm list channels quay.io/olmqe/nginx8518-index-test:v1 nginx85187
+/olm:opm list bundles quay.io/olmqe/nginx8518-index-test:v1
+```
+
+**What it does:**
+- Builds operator catalog index images from catalog directories
+- Creates multi-architecture catalog indexes using semver templates
+- Generates semver template configuration files for operator catalogs
+- Lists packages, channels, and bundles in catalog indexes
+- Supports both cacheless and normal builds
+- Validates catalog configurations before building
+
+**Subcommands:**
+- `build-index-image`: Build an index from an existing catalog directory
+- `build-semver-index-image`: Build an index from a semver template
+- `generate-semver-template`: Generate a semver template file
+- `list packages`: List all packages in a catalog index
+- `list channels`: List channels for packages
+- `list bundles`: List bundles for packages
+
+**Common Options:**
+- `--cacheless`: Build cacheless image (uses scratch as base)
+- `--arch=<arch>`: Specify architecture (default: multi for multi-arch)
+- `--base-image=<image>`: Custom base image for the index
+- `--builder-image=<image>`: Custom builder image
+
+See [commands/opm.md](commands/opm.md) for full documentation.
+
+---
+
 ### Debugging Commands
 
 #### `/olm:debug` - Debug OLM Issues
@@ -417,8 +458,12 @@ See [commands/debug.md](commands/debug.md) for full documentation.
 # List available catalogs
 /olm:catalog list
 
+# Build a custom catalog index
+/olm:opm generate-semver-template quay.io/org/bundle:v1.0.0,quay.io/org/bundle:v1.1.0 --output=my-catalog.yaml
+/olm:opm build-semver-index-image my-catalog.yaml quay.io/myorg/my-catalog:v1.0
+
 # Add custom catalog
-/olm:catalog add my-operators registry.internal.com/operators:v1.0
+/olm:catalog add my-operators quay.io/myorg/my-catalog:v1.0
 
 # Search for operators in new catalog
 /olm:search --catalog my-operators

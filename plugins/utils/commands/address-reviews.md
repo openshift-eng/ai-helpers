@@ -1,6 +1,6 @@
 ---
 description: Fetch and address all PR review comments
-argument-hint: [PR number (optional - uses current branch if omitted)]
+argument-hint: "[PR number (optional - uses current branch if omitted)]"
 ---
 
 ## Name

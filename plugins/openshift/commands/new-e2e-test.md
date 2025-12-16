@@ -1,6 +1,6 @@
 ---
 description: Write and validate new OpenShift E2E tests using Ginkgo framework
-argument-hint: [test-specification]
+argument-hint: "[test-specification]"
 ---
 
 ## Name

@@ -1,6 +1,6 @@
 ---
 description: Search for available operators in catalog sources
-argument-hint: [query] [--catalog <catalog-name>]
+argument-hint: "[query] [--catalog <catalog-name>]"
 ---
 
 ## Name

@@ -1,6 +1,6 @@
 ---
 description: Find suitable JIRA tickets from the backlog to work on based on priority and activity
-argument-hint: [project-key] [--assignee username] [--days-inactive N]
+argument-hint: "[project-key] [--assignee username] [--days-inactive N]"
 ---
 
 ## Name

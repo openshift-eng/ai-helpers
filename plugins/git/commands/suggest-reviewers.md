@@ -1,6 +1,6 @@
 ---
 description: Suggest appropriate reviewers for a PR based on git blame and OWNERS files
-argument-hint: [base-branch]
+argument-hint: "[base-branch]"
 ---
 
 ## Name

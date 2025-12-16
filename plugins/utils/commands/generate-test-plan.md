@@ -1,6 +1,6 @@
 ---
 description: Generate test steps for one or more related PRs
-argument-hint: [GitHub PR URLs]
+argument-hint: "[GitHub PR URLs]"
 ---
 
 ## Name

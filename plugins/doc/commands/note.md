@@ -1,6 +1,6 @@
 ---
 description: Generate professional engineering notes and append them to a log file
-argument-hint: [task description]
+argument-hint: "[task description]"
 ---
 
 ## Name

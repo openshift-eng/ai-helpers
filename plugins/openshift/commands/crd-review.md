@@ -1,6 +1,6 @@
 ---
 description: Review Kubernetes CRDs against Kubernetes and OpenShift API conventions
-argument-hint: [repository-path]
+argument-hint: "[repository-path]"
 ---
 
 ## Name

@@ -1,6 +1,6 @@
 ---
 description: Generate test steps for a JIRA issue
-argument-hint: [JIRA issue key] [GitHub PR URLs]
+argument-hint: "[JIRA issue key] [GitHub PR URLs]"
 ---
 
 ## Name

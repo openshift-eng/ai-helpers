@@ -104,6 +104,29 @@ Metal jobs produce several diagnostic archives:
 - **Contains**: Console output from bootstrap and master VMs/nodes
 - **Critical for**: Boot failures, Ignition errors, kernel panics, network configuration issues
 
+### log-bundle-*.tar (from gather or post-installation)
+- **Location**: `{target}/baremetalds-devscripts-gather/artifacts/`
+- **Purpose**: Cluster-level diagnostics including Ironic/Metal3 logs
+- **Contains**:
+  - **Bootstrap Ironic logs**: Located at `bootstrap/journals/ironic.log` and `bootstrap/journals/metal3-baremetal-operator.log`
+    - Shows master node provisioning during bootstrap phase
+    - Contains Redfish/IPMI BMC communication for masters
+  - **Control-plane Ironic logs**: Located at `control-plane/{node-ip}/containers/metal3-ironic-*.log` and `control-plane/{node-ip}/containers/metal3-baremetal-operator-*.log`
+    - Shows worker node provisioning
+  - Bootstrap node journals (bootkube, kubelet, crio)
+  - Control plane container logs
+  - Cluster API resources
+- **Critical for**: BareMetalHost registration failures, BMC connectivity issues (IPMI/Redfish), provisioning state problems, power management errors
+- **Key Ironic errors to look for**:
+  - BMC (IPMI, Redfish) errors
+  - Node registration failures in Ironic
+  - Power state query failures
+  - Provisioning state transitions stuck
+- **IMPORTANT**:
+  - Bootstrap Ironic logs only show master provisioning
+  - Control-plane Ironic logs show worker provisioning
+  - Always check control-plane logs when investigating worker issues
+
 ### sosreport
 - **Location**: `{target}/baremetalds-devscripts-gather/artifacts/`
 - **Purpose**: Hypervisor system diagnostics
@@ -208,7 +231,61 @@ Metal jobs produce several diagnostic archives:
 4. **Save dev-scripts analysis**:
    - Save findings to: `.work/prow-job-analyze-install-failure/{build_id}/analysis/devscripts-summary.txt`
 
-### Step 5: Analyze libvirt Console Logs
+### Step 5: Analyze Ironic Logs (from log-bundle)
+
+**CRITICAL: Check the RIGHT Ironic logs based on what failed**
+
+The log bundle contains TWO sets of Ironic logs in different locations:
+- **Bootstrap Ironic logs**: For master node provisioning
+- **Control-plane Ironic logs**: For worker node provisioning
+
+**Which logs to check:**
+- Masters failed to provision → Check `bootstrap/journals/ironic.log`
+- Workers failed to provision → Check `control-plane/{ip}/containers/metal3-ironic-*.log`
+- Unsure which failed → Check all
+
+1. **Download and extract log bundle**
+   ```bash
+   gcloud storage ls -r gs://test-platform-results/{bucket-path}/artifacts/ 2>&1 | grep "log-bundle.*\.tar$"
+   gcloud storage cp {full-gcs-path-to-log-bundle.tar} .work/prow-job-analyze-install-failure/{build_id}/logs/ --no-user-output-enabled
+   tar -xf .work/prow-job-analyze-install-failure/{build_id}/logs/log-bundle-*.tar -C .work/prow-job-analyze-install-failure/{build_id}/logs/
+   ```
+
+2. **Find ALL Ironic logs**
+   ```bash
+   # Bootstrap Ironic (master provisioning)
+   find .work/prow-job-analyze-install-failure/{build_id}/logs/ -path "*/bootstrap/journals/ironic.log"
+   find .work/prow-job-analyze-install-failure/{build_id}/logs/ -path "*/bootstrap/journals/metal3-baremetal-operator.log"
+
+   # Control-plane Ironic (worker provisioning) - CRITICAL for worker failures
+   find .work/prow-job-analyze-install-failure/{build_id}/logs/ -path "*/control-plane/*/containers/metal3-ironic-*.log"
+   find .work/prow-job-analyze-install-failure/{build_id}/logs/ -path "*/control-plane/*/containers/metal3-baremetal-operator-*.log"
+   ```
+
+3. **Analyze the Ironic logs**:
+
+   **For Master Provisioning Issues** (check bootstrap logs):
+   - Location: `bootstrap/journals/ironic.log` and `bootstrap/journals/metal3-baremetal-operator.log`
+   - What to search: Master node UUIDs, master BareMetalHost names
+
+   **For Worker Provisioning Issues** (check control-plane logs):
+   - Location: `control-plane/{node-ip}/containers/metal3-ironic-*.log`
+   - What to search: Worker node UUIDs, worker BareMetalHost names
+
+4. **Map node UUIDs to BareMetalHost names**:
+   - Ironic logs use node UUIDs (e.g., `b7fa5b83-91d0-46ee-acd2-e4b33e9ac983`)
+   - Find the corresponding BareMetalHost name from installer logs or must-gather
+   - This helps identify which specific worker or master failed
+
+5. **Save Ironic analysis**:
+   - Save findings to: `.work/prow-job-analyze-install-failure/{build_id}/analysis/ironic-summary.txt`
+   - Include:
+     - Which Ironic logs were checked (bootstrap vs control-plane)
+     - Node UUIDs with errors
+     - Specific error messages (SSL, BMC connection, etc.)
+     - Whether masters or workers were affected
+
+### Step 6: Analyze libvirt Console Logs
 
 **Console logs are CRITICAL for metal failures during cluster creation.**
 
@@ -233,7 +310,7 @@ Metal jobs produce several diagnostic archives:
 4. **Save console log analysis**:
    - Save findings to: `.work/prow-job-analyze-install-failure/{build_id}/analysis/console-summary.txt`
 
-### Step 6: Analyze sosreport (If Downloaded)
+### Step 7: Analyze sosreport
 
 **Only needed for hypervisor-level issues.**
 
@@ -247,7 +324,7 @@ Metal jobs produce several diagnostic archives:
    - Network configuration problems on hypervisor
    - Resource constraints (CPU, memory, disk)
 
-### Step 7: Analyze squid-logs (If Downloaded)
+### Step 8: Analyze squid-logs (If Downloaded)
 
 **Important for debugging CI access to the cluster.**
 
@@ -262,7 +339,7 @@ Metal jobs produce several diagnostic archives:
    - Network routing issues between CI and cluster
    - **Note**: These logs are for INBOUND access (CI → cluster), not for cluster's outbound access to registries
 
-### Step 8: Generate Metal-Specific Analysis Report
+### Step 9: Generate Metal-Specific Analysis Report
 
 1. **Create comprehensive metal analysis report**:
    ```
@@ -349,7 +426,7 @@ Metal jobs produce several diagnostic archives:
 2. **Save report**:
    - Save to: `.work/prow-job-analyze-install-failure/{build_id}/analysis/metal-analysis.txt`
 
-### Step 9: Return Metal Analysis to Main Skill
+### Step 10: Return Metal Analysis to Main Skill
 
 1. **Provide summary to main skill**:
    - Brief summary of metal-specific findings
@@ -361,7 +438,8 @@ Metal jobs produce several diagnostic archives:
 | Issue | Symptoms | Where to Look |
 |-------|----------|---------------|
 | **Dev-scripts host config** | Early failure before cluster creation | Dev-scripts logs (host configuration step) |
-| **Ironic/Metal3 setup** | Provisioning failures, BMC errors | Dev-scripts logs (Ironic setup), Ironic logs |
+| **Ironic/Metal3 setup** | Provisioning failures, BMC errors | Dev-scripts logs (Ironic setup) |
+| **BMC communication** | BareMetalHost stuck registering, power state failures | Ironic logs (in log-bundle), BareMetalHost status |
 | **Node boot failure** | VMs/nodes won't boot | Console logs (kernel, boot sequence) |
 | **Ignition failure** | Nodes boot but don't provision | Console logs (Ignition messages) |
 | **Network config** | DHCP failures, DNS issues | Console logs (network messages), dev-scripts host config |
@@ -372,8 +450,10 @@ Metal jobs produce several diagnostic archives:
 
 - **Check dev-scripts logs FIRST**: They show setup and installation (dev-scripts invokes the installer)
 - **Installer logs in devscripts**: Look for `.openshift_install*.log` files in devscripts directories
+- **Check Ironic logs for BMC issues**: BareMetalHost provisioning failures usually show detailed errors in Ironic logs
 - **Console logs are critical**: They show the actual boot sequence like a physical console
-- **Ironic/Metal3 errors** often appear in dev-scripts setup logs
+- **Ironic/Metal3 setup errors** often appear in dev-scripts setup logs
+- **BMC communication errors** appear in Ironic container logs in the log-bundle
 - **Squid logs are for CI access**: They show inbound CI → cluster access, not outbound cluster → registry
 - **Boot vs. provisioning**: Boot failures appear in console logs, provisioning failures in Ironic logs
 - **Layer distinction**: Separate dev-scripts setup from Ironic provisioning from OpenShift installation

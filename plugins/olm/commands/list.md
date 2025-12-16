@@ -1,6 +1,6 @@
 ---
 description: List installed operators in the cluster
-argument-hint: [namespace] [--all-namespaces]
+argument-hint: "[namespace] [--all-namespaces]"
 ---
 
 ## Name

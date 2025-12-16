@@ -1,6 +1,6 @@
 ---
 description: Validate proposed release blockers using Red Hat OpenShift release blocker criteria
-argument-hint: [target-version] [component-filter] [--bug issue-key]
+argument-hint: "[target-version] [component-filter] [--bug issue-key]"
 ---
 
 ## Name

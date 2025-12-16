@@ -1,6 +1,6 @@
 ---
 description: Clean up old and defunct branches that are no longer needed
-argument-hint: [--dry-run] [--merged-only] [--remote]
+argument-hint: "[--dry-run] [--merged-only] [--remote]"
 ---
 
 ## Name
