@@ -251,6 +251,65 @@ Active alerts: 2 total (0 pending, 2 firing)
 ================================================================================
 ```
 
+#### `analyze_windows_logs.py`
+
+Analyzes Windows node logs from must-gather data.
+
+```bash
+# Analyze all Windows logs
+./analyze_windows_logs.py <must-gather-path>
+
+# Analyze specific component
+./analyze_windows_logs.py <must-gather-path> --component kubelet
+
+# Summary only
+./analyze_windows_logs.py <must-gather-path> --errors-only
+```
+
+**Analyzes logs from:**
+- `kube-proxy` - Windows networking service
+- `hybrid-overlay` - OVN-Kubernetes hybrid networking
+- `kubelet` - Windows node agent
+- `containerd` - Container runtime for Windows
+- `WICD` - Windows Instance Config Daemon
+- `csi-proxy` - Storage plugin for Windows
+
+Output format:
+```
+================================================================================
+WINDOWS NODE LOGS ANALYSIS
+================================================================================
+
+Components analyzed: 6/8
+Total log lines:     125,432
+Total errors found:  23
+Total warnings:      15
+
+COMPONENT STATUS:
+COMPONENT                 LINES      ERRORS     WARNINGS   STATUS
+--------------------------------------------------------------------------------
+kubelet                   45,123     12         5          ❌ ERRORS
+containerd                32,456     6          4          ❌ ERRORS
+hybrid-overlay            8,912      5          3          ❌ ERRORS
+kube-proxy                15,234     0          2          ✅ OK
+
+================================================================================
+DETECTED ISSUES
+================================================================================
+
+1. [CRITICAL] HNS (Host Network Service) Failures Detected
+   Found 5 HNS-related errors. This typically causes pods to fail in ContainerCreating state.
+   → Check Windows node networking configuration. May need to restart HNS service or reboot node.
+```
+
+**Common Issues Detected:**
+- HNS failures (pods stuck in ContainerCreating)
+- Containerd runtime errors
+- Hybrid-overlay networking issues
+- Kubelet pod management failures
+- WICD configuration errors
+- CSI-Proxy storage mount failures
+
 ### Slash Commands
 
 #### `/must-gather:analyze [path] [component]`
@@ -296,6 +355,34 @@ Provides detailed analysis of:
 - Node filtering with partial name matching
 
 **Requirements:** `ovsdb-tool` installed
+
+#### `/must-gather:windows [path] [--component COMPONENT]`
+Analyzes Windows node logs and issues from must-gather data.
+
+```
+# Analyze all Windows logs
+/must-gather:windows ./must-gather.local.123456789
+
+# Analyze specific component
+/must-gather:windows ./must-gather.local.123456789 --component kubelet
+
+# Analyze hybrid-overlay networking
+/must-gather:windows ./must-gather.local.123456789 --component hybrid-overlay
+```
+
+Provides analysis of:
+- Windows component status (kubelet, containerd, hybrid-overlay, kube-proxy, WICD, csi-proxy)
+- Error and warning counts per component
+- Detected Windows-specific issues (HNS failures, runtime errors, networking problems)
+- Recommendations for remediation
+- Detailed error messages categorized by type
+
+**Use Cases:**
+- Troubleshooting Windows node issues
+- Investigating Windows pod failures
+- Analyzing hybrid-overlay networking between Linux and Windows nodes
+- Debugging HNS (Host Network Service) failures
+- Reviewing container runtime issues on Windows
 
 ## Installation
 
