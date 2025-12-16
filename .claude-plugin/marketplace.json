@@ -128,6 +128,11 @@
       "name": "bigquery",
       "source": "./plugins/bigquery",
       "description": "BigQuery analysis utilities"
+    },
+    {
+      "name": "crypto-inventory",
+      "source": "./plugins/crypto-inventory",
+      "description": "Find and inventory cryptographic usage across codebases"
     }
   ]
 }
