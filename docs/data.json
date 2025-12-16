@@ -498,7 +498,7 @@
           "argument_hint": "<action> [arguments...]",
           "description": "Execute opm (Operator Package Manager) commands for building and managing operator catalogs",
           "name": "opm",
-          "synopsis": "bash"
+          "synopsis": "/olm:opm build-index-image <catalog-path> <index-image-tag> [--cacheless] [--arch=<arch>] [--base-image=<image>] [--builder-image=<image>]"
         },
         {
           "argument_hint": "[query] [--catalog <catalog-name>]",
@@ -878,13 +878,13 @@
           "argument_hint": "\"[--sosreport PATH] [--format json|markdown] [--max-irq-samples N]\"",
           "description": "Analyze kernel/sysctl tuning from a live node or sosreport snapshot and propose NTO recommendations",
           "name": "analyze-node-tuning",
-          "synopsis": "text"
+          "synopsis": "/node-tuning:analyze-node-tuning [--sosreport PATH] [--collect-sosreport|--no-collect-sosreport] [--sosreport-output PATH] [--node NODE] [--kubeconfig PATH] [--oc-binary PATH] [--format json|markdown] [--max-irq-samples N] [--keep-snapshot]"
         },
         {
           "argument_hint": "\"[profile-name] [--summary ...] [--sysctl ...] [options]\"",
           "description": "Generate a Tuned (tuned.openshift.io/v1) profile manifest for the Node Tuning Operator",
           "name": "generate-tuned-profile",
-          "synopsis": "text"
+          "synopsis": "/node-tuning:generate-tuned-profile [profile-name] [--summary TEXT] [--include VALUE ...] [--sysctl KEY=VALUE ...] [--match-label KEY[=VALUE] ...] [options]"
         }
       ],
       "description": "Generate and analyze OpenShift node tuning profiles",
