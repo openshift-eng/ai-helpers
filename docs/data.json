@@ -193,10 +193,10 @@
           "synopsis": "/ci:add-debug-wait <workflow-or-job-name> [timeout]"
         },
         {
-          "argument_hint": "<job-names> [test-tags]",
-          "description": "Analyze whether specific tests will be executed in OpenShift CI jobs",
+          "argument_hint": "<test-input> [job-filter]",
+          "description": "Discover which OpenShift CI jobs will run tests based on test labels",
           "name": "analyze-test-coverage",
-          "synopsis": "/ci:analyze-test-coverage <job-names> [test-tags]"
+          "synopsis": "/ci:analyze-test-coverage <test-input> [job-filter]"
         },
         {
           "argument_hint": "[question]",
@@ -246,6 +246,11 @@
       "hooks": [],
       "name": "ci",
       "skills": [
+        {
+          "description": "Determine which OpenShift CI jobs will execute specific tests based on test labels",
+          "id": "analyze-test-coverage",
+          "name": "Analyze Test Coverage"
+        },
         {
           "description": "Helper skill to retrieve OAuth tokens from the correct OpenShift cluster context when multiple clusters are configured",
           "id": "oc-auth",

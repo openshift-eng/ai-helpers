@@ -66,49 +66,92 @@ export ASK_SIPPY_API_TOKEN='your-token-here'
 
 ### analyze-test-coverage
 
-Analyze whether specific tests will be executed in OpenShift CI jobs by examining test suite configurations, test tags, and job definitions.
+**Discover which OpenShift CI jobs** will run your tests based on test labels (Ginkgo tags).
+
+**Goal:** Help developers and QE engineers determine which CI jobs their tests will be executed in by analyzing test labels. **Important:** For new tests, it is NOT recommended to add them to blocking jobs immediately. New tests should start in optional jobs, prove stability (>98% pass rate over 2-4 weeks), and only then be promoted to blocking jobs.
 
 **Usage:**
 ```bash
-/ci:analyze-test-coverage <job-names> [test-tags]
+/ci:analyze-test-coverage <test-input> [job-filter]
 ```
 
 **What it does:**
-- Determines if tests will run in specified CI jobs
+- Extracts test labels from Go test files
+- **Discovers which CI jobs** will run the tests (default: all blocking jobs)
 - Identifies missing conformance suite tags
-- Explains why tests are excluded from jobs
-- Provides actionable recommendations for test coverage
+- Explains why tests are excluded from specific jobs
+- Provides actionable recommendations (emphasizing optional jobs for new tests)
 
 **Prerequisites:**
+- Python 3.6+ with PyYAML (`pip install pyyaml`)
 - Local clones of openshift/origin and openshift/release repositories
-- Repositories are auto-detected or can be specified via environment variables
+  - Auto-detected from common locations
+  - Can be specified via `ORIGIN_REPO` and `RELEASE_REPO` environment variables
 
 **Arguments:**
-- `<job-names>`: Comma-separated job names or file path containing job names
-- `[test-tags]` (optional): Test tags to analyze or path to test file
+- `<test-input>`: **Required.** PR URL/number, test file path, or test labels
+  - **PR URL:** `https://github.com/openshift/origin/pull/12345` (analyzes all test files in PR)
+  - **PR shorthand:** `openshift/origin#12345` or `#12345` (assumes openshift/origin)
+  - **Test file:** `test/extended/cli/mustgather.go` (extracts labels from file)
+  - **Test labels:** `"[sig-cli][Feature:CLI]"` (uses labels directly)
+- `[job-filter]`: **Optional.** Filter to narrow down job discovery
+  - **If omitted:** Analyzes all blocking jobs (default)
+  - Example: `4.21` (all 4.21 jobs)
+  - Example: `nightly-blocking` (only nightly blocking jobs)
+  - Example: `periodic-ci-openshift-release-master-nightly-4.21-e2e-aws-ovn` (specific job)
+  - Example: `jobs.txt` (file with job names, one per line)
 
 **Examples:**
 
-1. **Check if must-gather tests run in 4.21 nightly jobs:**
+1. **Analyze a PR to discover which jobs will run its tests:**
    ```bash
-   /ci:analyze-test-coverage 4.21-nightly-blocking-ci-jobs test/extended/cli/mustgather.go
+   /ci:analyze-test-coverage https://github.com/openshift/origin/pull/12345
    ```
+   Output: Fetches test files from PR, extracts labels, shows which blocking jobs will run them
 
-2. **Analyze specific test tags for a job:**
+2. **Analyze PR with shorthand syntax:**
    ```bash
-   /ci:analyze-test-coverage periodic-ci-openshift-release-master-nightly-4.21-e2e-aws-ovn-serial "[sig-cli]"
+   /ci:analyze-test-coverage openshift/origin#12345
+   # or simply:
+   /ci:analyze-test-coverage #12345
    ```
+   Output: Same as example 1, assumes openshift/origin repo
 
-3. **Check multiple jobs from a list:**
+3. **Analyze PR for specific release version:**
    ```bash
-   /ci:analyze-test-coverage periodic-ci-openshift-release-master-ci-4.21-e2e-aws-ovn,periodic-ci-openshift-release-master-nightly-4.21-e2e-aws-ovn-serial
+   /ci:analyze-test-coverage https://github.com/openshift/origin/pull/12345 4.21
    ```
+   Output: Shows which 4.21 jobs will run the PR's tests
+
+4. **Discover which blocking jobs will run your test file:**
+   ```bash
+   /ci:analyze-test-coverage test/extended/cli/mustgather.go
+   ```
+   Output: Lists all blocking jobs that will/won't run the test
+
+5. **Discover which 4.21 jobs will run your test:**
+   ```bash
+   /ci:analyze-test-coverage "[sig-cli][Feature:CLI]" 4.21
+   ```
+   Output: Shows all 4.21 jobs and whether they'll run the test
+
+6. **Check if a specific job will run your test:**
+   ```bash
+   /ci:analyze-test-coverage test/extended/builds/build.go periodic-ci-openshift-release-master-nightly-4.21-e2e-aws-ovn
+   ```
+   Output: Analyzes just that one job
 
 **Output:**
-- Detailed analysis showing which jobs will/won't run the tests
-- Specific reasons based on test suite filters
-- Suite tag requirements and recommendations
-- Example code snippets for adding required tags
+- Comprehensive markdown report showing:
+  - **Jobs that WILL run the test** (with reasons)
+  - **Jobs that WON'T run the test** (with reasons)
+  - Test labels found
+  - Missing tags needed for coverage
+  - Recommendations (emphasizing optional jobs for new tests)
+  - Suite reference guide
+
+**Key Recommendation:**
+If tests won't run in any blocking jobs, the command recommends creating or using **optional CI jobs** for new tests rather than adding conformance tags immediately. Only add conformance tags to run in blocking jobs after tests have proven stable.
 
 ### trigger-periodic
 
