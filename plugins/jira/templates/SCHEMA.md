@@ -635,29 +635,67 @@ description: HyperShift project-wide conventions
 version: 1.0.0
 project_key: CNTRLPLANE
 
-# Specify which templates this applies to
+# Top-level applies_to: default for all fields
 applies_to:
-  - "common/*.yaml"        # All common templates
-  # Or be specific:
-  # - "common/story.yaml"
-  # - "common/epic.yaml"
-  # - "common/bug.yaml"
+  - "common/bug.yaml"
+  - "common/epic.yaml"
+  - "common/spike.yaml"
+  - "common/task.yaml"
+  - "common/story.yaml"
 
-# Add project-specific placeholders
-placeholders:
-  - name: hypershift_component
+# Component requirements inherit top-level applies_to
+jira_fields:
+  components:
     required: true
-    prompt_type: options
-    # ... placeholder configuration
+    prompt_if_missing: true
 
-# Add project-specific defaults
+# Labels override with field-specific applies_to
 defaults:
   labels:
+    - ai-generated-jira
     - hypershift
-
-# Map component field
-component_field: "{{hypershift_component}}"
+  applies_to:  # Field-specific: apply to ALL common templates
+    - "common/*.yaml"
 ```
+
+### Cascading `applies_to`
+
+Overrides support **cascading `applies_to` patterns**:
+
+1. **Top-level `applies_to`**: Default pattern for all fields
+2. **Field-specific `applies_to`**: Overrides the top-level pattern for that field
+
+**Example use case:** You want to add a label to all common templates (including product templates like `ocpbugs-bug`), but only require components for base templates:
+
+```yaml
+# Top-level: most overrides apply only to base templates
+applies_to:
+  - "common/bug.yaml"
+  - "common/epic.yaml"
+  - "common/spike.yaml"
+  - "common/task.yaml"
+  - "common/story.yaml"
+
+# Component requirement uses top-level applies_to
+# Will NOT apply to ocpbugs-bug (not in top-level list)
+jira_fields:
+  components:
+    required: true
+
+# Label override uses field-specific applies_to
+# WILL apply to ocpbugs-bug (matches common/*.yaml)
+defaults:
+  labels:
+    - ai-generated-jira
+    - hypershift
+  applies_to:
+    - "common/*.yaml"
+```
+
+**Result:**
+- `common/bug.yaml` gets: component requirement + hypershift label
+- `common/ocpbugs-bug.yaml` gets: hypershift label only (already has component logic)
+- `common/feature.yaml` gets: nothing (excluded by both patterns)
 
 ### Template Loading with Overrides
 

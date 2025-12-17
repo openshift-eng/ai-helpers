@@ -118,7 +118,7 @@ Templates are organized by issue type. Each issue type has an educational guide 
 **Usage:**
 ```bash
 # Create with auto-selected template
-/jira:create story OCPEDGE "Add authentication"
+/jira:create story <PROJECT> "Add authentication"
 
 # List available templates
 /jira:template list
@@ -136,11 +136,11 @@ Templates are organized by issue type. Each issue type has an educational guide 
 When creating an issue with `/jira:create <type> <PROJECT> "..."`, the system:
 
 1. **Selects template** based on project and issue type (see Template Selection below)
-   - Example: `/jira:create story OCPEDGE "..."` → `common/story.yaml`
+   - Example: `/jira:create story <PROJECT> "..."` → `common/story.yaml`
 
 2. **Checks for overrides** using the project key from the command
    - Looks for `{project-lowercase}/overrides.yaml`
-   - Example: `OCPEDGE` → checks for `ocpedge/overrides.yaml`
+   - Example: `<PROJECT>` → checks for `<project>/overrides.yaml`
 
 3. **Applies overrides** if the template matches the `applies_to` glob patterns
    - If `applies_to: ["common/*.yaml"]` and template is `common/story.yaml` → match!
@@ -197,17 +197,62 @@ defaults:
 
 **Usage:**
 ```bash
-# Uses common/story.yaml + ocpedge/overrides.yaml
+# OCPEDGE engineer creating story in OCPEDGE project
 /jira:create story OCPEDGE "Add authentication"
+  → Uses common/story.yaml + ocpedge/overrides.yaml (auto-detected)
   → Component selection required
   → Simplified display format applied
 
-# Uses ocpedge/spike.yaml (custom template, no overrides)
+# CNTRLPLANE engineer filing bug in OCPBUGS with team conventions
+/jira:create bug OCPBUGS "API server crash" --overrides cntrlplane/overrides.yaml
+  → Uses common/ocpbugs-bug.yaml + cntrlplane/overrides.yaml
+  → Adds "hypershift" label (labels have field-specific applies_to: common/*.yaml)
+  → Component requirements NOT applied (base applies_to excludes ocpbugs-bug)
+
+# Using custom team template (no overrides applied)
 /jira:create spike OCPEDGE "Research authentication"
-  → Overrides NOT applied (must include conventions in spike.yaml directly)
+  → Uses ocpedge/spike.yaml (custom template)
+  → Overrides NOT applied (spike.yaml doesn't match applies_to patterns)
 ```
 
-**Key Limitation:** Overrides only apply to templates matching the `applies_to` glob patterns (typically `common/*.yaml`). Custom team templates like `ocpedge/spike.yaml` must include all project conventions directly in the template file.
+**The --overrides Flag:**
+Use `--overrides <path>` to specify which overrides file to apply:
+- `--overrides ocpedge/overrides.yaml` → project-relative path
+- `--overrides ~/.jira-overrides/my-team.yaml` → user-specific path
+- `--overrides none` → explicitly skip overrides
+
+**Auto-detection:**
+- **Project match**: Creating in OCPEDGE → `ocpedge/overrides.yaml` applied automatically
+- **No match**: Creating in OCPBUGS → prompted to select overrides (None is first option)
+
+**Cascading applies_to:** Overrides use a cascading pattern where top-level `applies_to` is the default, but individual fields can override:
+```yaml
+# Top-level: default for all fields
+applies_to:
+  - "common/bug.yaml"
+  - "common/epic.yaml"
+  - "common/spike.yaml"
+  - "common/task.yaml"
+  - "common/story.yaml"
+
+# Most fields inherit top-level applies_to
+jira_fields:
+  components:
+    required: true  # Uses top-level applies_to
+
+# Individual fields can override
+defaults:
+  labels:
+    - ai-generated-jira
+    - hypershift
+  applies_to:  # Override: apply to ALL common templates
+    - "common/*.yaml"
+```
+
+This pattern allows:
+- **Base templates** (bug, epic, story, task, spike) get most overrides (component requirements, display format)
+- **Product templates** (ocpbugs-bug, rhel-bug, osdocs-bug) only get specific overrides (like labels)
+- **Workflow templates** (feature, rfe) excluded entirely to prevent incorrect application
 
 ## Directory Structure
 
