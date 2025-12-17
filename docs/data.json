@@ -127,6 +127,12 @@
           "synopsis": "/jira:status-rollup issue-id [--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD]"
         },
         {
+          "argument_hint": "<action> [template-name]",
+          "description": "Manage Jira issue templates (create, list, edit, delete, validate)",
+          "name": "template",
+          "synopsis": "/jira:template <action> [template-name]"
+        },
+        {
           "argument_hint": "[target-version] [component-filter] [--bug issue-key]",
           "description": "Validate proposed release blockers using Red Hat OpenShift release blocker criteria",
           "name": "validate-blockers",
@@ -162,6 +168,11 @@
           "description": "Implementation guide for creating Feature Requests in the RFE project",
           "id": "create-feature-request",
           "name": "Create Jira Feature Request"
+        },
+        {
+          "description": "Unified skill for creating all Jira issue types using template-driven workflows",
+          "id": "create-issue",
+          "name": "Create Jira Issue (Template-Driven)"
         },
         {
           "description": "Detailed implementation guide for generating bug fix release notes from Jira and GitHub PRs",
@@ -202,6 +213,11 @@
           "description": "Jira conventions and bug templates for the OCPBUGS project",
           "id": "ocpbugs",
           "name": "OCPBUGS Jira Conventions"
+        },
+        {
+          "description": "Implementation guide for Jira issue templates",
+          "id": "template-management",
+          "name": "Template Management"
         }
       ],
       "version": "0.0.1"
