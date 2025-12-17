@@ -1,13 +1,15 @@
 # Jira Plugin
 
-Comprehensive Jira integration for Claude Code, providing AI-powered tools to analyze issues, create solutions, and generate status rollups.
+Jira integration for Claude Code. Analyze issues, create solutions, and generate status rollups.
+
+**Note:** This plugin is configured for Red Hat's Jira instance (issues.redhat.com) with templates and workflows designed for Red Hat product teams. Templates use Red Hat-specific custom fields and project conventions.
 
 ## Features
 
 - 🔍 **Issue Analysis and Solutions** - Analyze JIRA issues and create pull requests to solve them
-- 📊 **Status Rollups** - Generate comprehensive status rollup comments for any Jira issue given a date range
+- 📊 **Status Rollups** - Generate status rollup comments for any Jira issue given a date range
 - 📋 **Backlog Grooming** - Analyze new bugs and cards for grooming meetings
-- 🧪 **Test Generation** - Generate comprehensive test steps for JIRA issues by analyzing related PRs
+- 🧪 **Test Generation** - Generate test steps for JIRA issues by analyzing related PRs
 - ✨ **Issue Creation** - Create well-formed stories, epics, features, tasks, bugs, and feature requests with guided workflows
 - 📝 **Release Note Generation** - Automatically generate bug fix release notes from Jira and linked GitHub PRs
 - 🤖 **Automated Workflows** - From issue analysis to PR creation, fully automated
@@ -16,36 +18,86 @@ Comprehensive Jira integration for Claude Code, providing AI-powered tools to an
 ## Prerequisites
 
 - Claude Code installed
-- Jira MCP server configured
-- Optional: `gh` CLI tools installed and configured, for GitHub access.
+- Jira MCP server configured (see Setup below)
+- Optional: `gh` CLI tools installed and configured, for GitHub access
 
-### Setting up Jira MCP Server
+## Setup
 
-```bash
-# Start the atlassian mcp server using podman
-podman run -i --rm -p 8080:8080 -e "JIRA_URL=https://issues.redhat.com" -e "JIRA_USERNAME" -e "JIRA_PERSONAL_TOKEN" -e "JIRA_SSL_VERIFY" ghcr.io/sooperset/mcp-atlassian:latest --transport sse --port 8080 -vv
+### First-Time MCP Server Setup
+
+**The Jira plugin will guide you through MCP server setup automatically** the first time you use a Jira command.
+
+When you run a command like `/jira:create`, the plugin will:
+1. Check if the Atlassian MCP server is available
+2. If not configured, offer to walk you through setup step-by-step
+3. Guide you through obtaining a Jira token, setting environment variables, and configuring mcp.json
+4. Save setup status so you're not prompted again
+
+**For manual setup or troubleshooting**, see the [MCP Setup Guide](docs/MCP_SETUP.md).
+
+### Quick Setup (If You Want to Configure Manually)
+
+1. **Get a Jira Personal Access Token:**
+   - Visit: https://issues.redhat.com/secure/ViewProfile.jspa?selectedTab=com.atlassian.pats.pats-plugin:jira-user-personal-access-tokens
+   - Create token with 1-year expiration
+
+2. **Set environment variable** for token in `~/.bashrc` or `~/.zshrc`:
+   ```bash
+   export JIRA_PERSONAL_TOKEN="your-token-here"
+   source ~/.bashrc  # or ~/.zshrc
+   ```
+
+3. **Edit `~/.claude/mcp.json`** and add:
+   ```json
+   {
+     "mcpServers": {
+       "atlassian": {
+         "command": "podman",
+         "args": [
+           "run",
+           "--rm",
+           "-i",
+           "-e",
+           "JIRA_URL",
+           "-e",
+           "JIRA_USERNAME",
+           "-e",
+           "JIRA_PERSONAL_TOKEN",
+           "ghcr.io/sooperset/mcp-atlassian:latest",
+           "--transport",
+           "stdio"
+         ],
+         "env": {
+           "JIRA_URL": "https://issues.redhat.com",
+           "JIRA_USERNAME": "your-email@example.com"
+         }
+       }
+     }
+   }
+   ```
+
+   Replace with your Jira URL and username.
+   If using Docker, change `"command": "podman"` to `"command": "docker"`.
+
+4. **Restart Claude Code**
+
+Claude Code will automatically start the MCP server container when needed.
+
+See [docs/MCP_SETUP.md](docs/MCP_SETUP.md) for detailed instructions, troubleshooting, and running as a service.
+
+### Configuration File
+
+The plugin stores settings in `~/.claude/jira-config.json`:
+
+```json
+{
+  "default_security_level": "Red Hat Employee",
+  "skip_security_confirmation": false,
+  "mcp_setup_complete": false
+}
 ```
 
-Add the MCP server to Claude:
-
-```bash
-# Add the Atlassian MCP server
-claude mcp add --transport sse atlassian http://localhost:8080/sse
-```
-
-#### Getting Tokens
-
-For your Jira token, use https://issues.redhat.com/secure/ViewProfile.jspa?selectedTab=com.atlassian.pats.pats-plugin:jira-user-personal-access-tokens
-
-### Notes and tips
-
-- Do not commit real tokens. If you must keep a project-local file, prefer committing a `mcp.json.sample` with placeholders, and keep your real `mcp.json` untracked.
-- Consider using the [rh-pre-commit](https://source.redhat.com/departments/it/it_information_security/leaktk/leaktk_components/rh_pre_commit) hook to scan for secrets accidentally left in commits.
-- The `atlassian` server example uses an MCP container image: `ghcr.io/sooperset/mcp-atlassian:latest`.
-- If you prefer Docker, replace the `podman` command with `docker` (arguments are typically the same).
-- If Podman is installed via Podman Machine on macOS, ensure it is running: `podman machine start`.
-- Keep `JIRA_SSL_VERIFY` as "true" unless you have a specific reason to disable TLS verification.
-- Limit active MCP servers: running too many at once can degrade performance or hit limits. Use Cursor's MCP panel to disable those you don't need for the current session.
+This file is managed automatically - you don't need to edit it manually.
 
 ## Installation
 
@@ -55,6 +107,33 @@ Ensure you have the ai-helpers marketplace enabled, via [the instructions here](
 # Install the plugin
 /plugin install jira@ai-helpers
 ```
+
+## Common Conventions
+
+### Jira Formatting
+
+**Heading Standards:**
+
+Templates use Jira Wiki markup headings:
+- Main headings: `h4.`
+- Subheadings: `h5.`
+- Bullet lists: `* Item`
+
+**MCP vs Direct API:**
+
+**CRITICAL:** When using bold text in descriptions, formatting differs based on tool used.
+
+**When using MCP tools** (`mcp__atlassian__jira_create_issue`, `mcp__atlassian__jira_update_issue`):
+- Bold text: `**text**` (double asterisks)
+- MCP tools automatically convert Markdown to Jira Wiki markup
+
+**When using Jira REST API directly** (curl commands):
+- Bold text: `*text*` (single asterisks)
+- API requires native Jira Wiki markup (no conversion)
+
+**Always check before creating/updating issues:**
+1. Are you using an MCP tool? → Use `**text**` for bold
+2. Are you using the API directly? → Use `*text*` for bold
 
 ## Available Commands
 
@@ -73,7 +152,7 @@ See [commands/solve.md](commands/solve.md) for full documentation.
 
 ### `/jira:status-rollup` - Generate Weekly Status Rollups
 
-Generate comprehensive status rollup comments for any Jira issue by recursively analyzing all child issues and their activity within a date range. The command extracts insights from changelogs and comments to create well-formatted status summaries.
+Generate status rollup comments for any Jira issue by recursively analyzing all child issues and their activity within a date range. The command extracts insights from changelogs and comments to create well-formatted status summaries.
 
 **Usage:**
 ```bash
@@ -111,7 +190,7 @@ See [commands/grooming.md](commands/grooming.md) for full documentation.
 
 ### `/jira:generate-test-plan` - Generate Test Steps
 
-Generate comprehensive test steps for a JIRA issue by analyzing related pull requests. The command supports auto-discovery of PRs from the JIRA issue or manual specification of specific PRs to analyze.
+Generate test steps for a JIRA issue by analyzing related pull requests. The command supports auto-discovery of PRs from the JIRA issue or manual specification of specific PRs to analyze.
 
 **Usage:**
 ```bash
@@ -158,10 +237,11 @@ Create well-formed Jira issues (stories, epics, features, tasks, bugs, feature r
 ```
 
 **Key Features:**
-- **Universal requirements** - All tickets MUST include Security Level: Red Hat Employee and label: ai-generated-jira
-- **Smart defaults** - Project and team-specific conventions applied automatically
+- **Universal requirements** - All tickets MUST include label: ai-generated-jira
+- **Smart defaults** - Project and team-specific conventions applied automatically (including security level from global config or template)
 - **Interactive templates** - Guides you through user story format, acceptance criteria, bug templates
 - **Security validation** - Scans for credentials and secrets before submission
+- **Security workflow** - Prompts for global security default on first use, supports template overrides
 - **Extensible** - Supports project-specific and team-specific skills for custom workflows
 - **Hybrid workflow** - Required fields as arguments, optional fields as interactive prompts
 
@@ -237,6 +317,41 @@ Updated: https://issues.redhat.com/browse/OCPBUGS-38358
 ```
 
 See [commands/create-release-note.md](commands/create-release-note.md) for full documentation.
+
+---
+
+## Available Templates
+
+The Jira plugin includes templates for consistent issue creation.
+
+**Common templates** (work with any project):
+- `common-story` - User stories with acceptance criteria
+- `common-epic` - Epics with scope and timeline
+- `common-bug` - Bug reports with reproduction steps
+- `common-spike` - Research and investigation
+- `common-task` - Technical work and operational tasks
+- `common-feature` - Strategic features with market analysis
+
+**Product-specific templates:**
+- Templates for OCPBUGS, RHEL, and other product organizations
+- Includes specialized bug formats and feature request workflows
+
+**Team-specific templates:**
+- Teams can publish custom templates (e.g., `ocpedge-spike` demonstrates OCPEDGE team format)
+
+**Usage:**
+```bash
+# List all available templates
+/jira:template list
+
+# Create issue with specific template
+/jira:create story MYPROJECT "My Story" --template common-story
+
+# Create your own template
+/jira:template create my-custom-template
+```
+
+See [Template Documentation](templates/README.md) for creating custom templates.
 
 ---
 

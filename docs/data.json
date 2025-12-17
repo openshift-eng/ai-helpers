@@ -91,10 +91,10 @@
           "synopsis": "/jira:create-release-note <issue-key>"
         },
         {
-          "argument_hint": "<type> [project-key] <summary> [--component <name>] [--version <version>] [--parent <key>]",
+          "argument_hint": "<type> [project-key] <summary> [--component <name>] [--version <version>] [--parent <key>] [--template <name>] [--overrides <path>] [--priority <value>] [--security-level <value>]",
           "description": "Create Jira issues (story, epic, feature, task, bug, feature-request) with proper formatting",
           "name": "create",
-          "synopsis": "/jira:create <type> [project-key] <summary> [options]"
+          "synopsis": "/jira:create <type> [project-key] <summary> [--component <name>] [--version <version>] [--parent <key>] [--template <name>] [--overrides <path>] [--priority <value>] [--security-level <value>]"
         },
         {
           "argument_hint": "<feature-key>",
@@ -145,31 +145,6 @@
       "name": "jira",
       "skills": [
         {
-          "description": "Jira conventions for the CNTRLPLANE project used by OpenShift teams",
-          "id": "cntrlplane",
-          "name": "CNTRLPLANE Jira Conventions"
-        },
-        {
-          "description": "Implementation guide for creating well-formed Jira bug reports",
-          "id": "create-bug",
-          "name": "Create Jira Bug"
-        },
-        {
-          "description": "Implementation guide for creating Jira epics with proper scope and parent linking",
-          "id": "create-epic",
-          "name": "Create Jira Epic"
-        },
-        {
-          "description": "Implementation guide for creating Jira features representing strategic objectives and market problems",
-          "id": "create-feature",
-          "name": "Create Jira Feature"
-        },
-        {
-          "description": "Implementation guide for creating Feature Requests in the RFE project",
-          "id": "create-feature-request",
-          "name": "Create Jira Feature Request"
-        },
-        {
           "description": "Unified skill for creating all Jira issue types using template-driven workflows",
           "id": "create-issue",
           "name": "Create Jira Issue (Template-Driven)"
@@ -180,24 +155,9 @@
           "name": "Create Release Note"
         },
         {
-          "description": "Implementation guide for creating well-formed Jira user stories with acceptance criteria",
-          "id": "create-story",
-          "name": "Create Jira Story"
-        },
-        {
-          "description": "Implementation guide for creating Jira tasks for technical and operational work",
-          "id": "create-task",
-          "name": "Create Jira Task"
-        },
-        {
           "description": "Recursively extract GitHub Pull Request links from Jira issues",
           "id": "extract-prs",
           "name": "Jira Pull Request Extractor"
-        },
-        {
-          "description": "HyperShift team-specific Jira requirements for component selection and conventions",
-          "id": "hypershift",
-          "name": "HyperShift Jira Conventions"
         },
         {
           "description": "Detailed implementation guide for recursively analyzing Jira features and generating comprehensive documentation",
@@ -208,11 +168,6 @@
           "description": "Detailed implementation guide for validating proposed release blockers",
           "id": "jira-validate-blockers",
           "name": "JIRA Release Blocker Validator"
-        },
-        {
-          "description": "Jira conventions and bug templates for the OCPBUGS project",
-          "id": "ocpbugs",
-          "name": "OCPBUGS Jira Conventions"
         },
         {
           "description": "Implementation guide for Jira issue templates",

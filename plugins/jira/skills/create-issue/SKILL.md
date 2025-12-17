@@ -71,7 +71,7 @@ documentation:
 
 **At workflow start**, display the guide reference:
 ```
-Creating Epic issue for OCPEDGE
+Creating Epic issue for <PROJECT>
 
 📖 For guidance, see: docs/issue-types/epic.md
    "Comprehensive guide on epics: what they are, best practices, and anti-patterns"
@@ -282,73 +282,6 @@ What is the estimated size?
 Select option (1-3):
 > [user selects]
 ```
-
-### Options Prompt with Auto-Detection
-
-When `auto_detect` is enabled, the system searches for keywords in the summary/description and automatically selects matching options.
-
-```yaml
-placeholders:
-  - name: platform
-    prompt_type: options
-    prompt_with_options:
-      - value: "HyperShift / ARO"
-        description: "ARO HCP (Azure)"
-        keywords:
-          - pattern: ["aro", "azure"]
-            # confirm: false is default
-      - value: "HyperShift / ROSA"
-        description: "ROSA HCP (AWS)"
-        keywords:
-          - pattern: ["rosa", "aws"]
-      - value: "HyperShift"
-        description: "Platform-agnostic"
-        keywords:
-          - pattern: ["multi-cloud", "all platforms"]
-            confirm: true  # Ask user to confirm
-    auto_detect:
-      enabled: true
-```
-
-**Execution Examples:**
-
-**Scenario 1: High-confidence auto-detection (confirm: false)**
-```
-Summary: "Fix ROSA HCP autoscaling bug"
-
-[Auto-detects "HyperShift / ROSA" based on keyword "rosa"]
-[Skips prompting - auto-selected silently]
-```
-
-**Scenario 2: Low-confidence auto-detection (confirm: true)**
-```
-Summary: "Multi-cloud metrics dashboard"
-
-Auto-detected 'HyperShift' based on keywords. Is this correct? (yes/no)
-> [user confirms or corrects]
-```
-
-**Scenario 3: No keyword match**
-```
-Summary: "Improve control plane scheduling"
-
-Which HyperShift platform does this affect?
-1. HyperShift / ARO - ARO HCP (Azure)
-2. HyperShift / ROSA - ROSA HCP (AWS)
-3. HyperShift - Platform-agnostic
-
-Select option (1-3):
-> [user selects]
-```
-
-**Behavior:**
-- Keywords with `confirm: false` (default) → Auto-select silently
-- Keywords with `confirm: true` → Auto-detect and prompt for confirmation
-- No keywords match → Show all options (default behavior)
-- Matching is case-insensitive
-- First match wins (options evaluated in order)
-- `search_in` defaults to ["summary", "description"]
-- `prompt_on_no_match` defaults to true
 
 ### Guided Prompt
 
@@ -723,136 +656,61 @@ For detailed guidance on each issue type, see:
 
 ### Template Loading
 
-```python
-def load_template(project_key, issue_type):
-    """Load template with inheritance."""
-    search_paths = [
-        f"~/.jira-templates/{project_key.lower()}-{issue_type.lower()}.yaml",
-        f"plugins/jira/templates/{project_key.lower()}/{issue_type.lower()}.yaml",
-        f"plugins/jira/templates/common/{issue_type.lower()}.yaml"
-    ]
+Templates are loaded using a search path strategy:
 
-    for path in search_paths:
-        if exists(path):
-            template = load_yaml(path)
-            if template.get('inherits'):
-                parent = load_template_by_path(template['inherits'])
-                template = merge_templates(parent, template)
-            return template
+1. **Search paths** (in priority order):
+   - `~/.jira-templates/{project}-{type}.yaml` (user overrides)
+   - `plugins/jira/templates/{project}/{type}.yaml` (project-specific)
+   - `plugins/jira/templates/common/{type}.yaml` (common fallback)
 
-    raise TemplateNotFoundError(f"No template found for {project_key} {issue_type}")
-```
+2. **Override application**: If using a common template, check for `{project}/overrides.yaml` and apply if the `applies_to` field matches the template path
+
+3. **Inheritance resolution**: If template has `inherits` field, recursively load parent template and merge
+
+4. **Security protections**:
+   - Path traversal protection (templates must be within approved directory)
+   - File size limit: 1MB max
+   - Inheritance depth limit: 10 levels max
 
 ### Template Merging
 
-The `merge_templates` function implements field-level merging for placeholders:
+When merging child templates into parent templates:
 
-```python
-def merge_templates(parent, child):
-    """Merge child template into parent template."""
-    merged = copy.deepcopy(parent)
-
-    # Merge top-level fields (child overrides parent)
-    for key, value in child.items():
-        if key == 'placeholders':
-            # Special handling: merge placeholders by name
-            merged['placeholders'] = merge_placeholders(
-                parent.get('placeholders', []),
-                child.get('placeholders', [])
-            )
-        elif key == 'defaults':
-            # Special handling: merge defaults
-            merged['defaults'] = {**parent.get('defaults', {}), **child.get('defaults', {})}
-        else:
-            # Regular fields: child replaces parent
-            merged[key] = value
-
-    return merged
-
-def merge_placeholders(parent_placeholders, child_placeholders):
-    """Merge placeholder lists, with field-level merging for same-named placeholders."""
-    # Index parent placeholders by name
-    parent_by_name = {p['name']: p for p in parent_placeholders}
-
-    # Index child placeholders by name
-    child_by_name = {p['name']: p for p in child_placeholders}
-
-    # Start with all parent placeholders
-    merged = []
-    for parent_ph in parent_placeholders:
-        name = parent_ph['name']
-        if name in child_by_name:
-            # Field-level merge: child fields override parent fields
-            merged_ph = {**parent_ph, **child_by_name[name]}
-            merged.append(merged_ph)
-        else:
-            # Keep parent placeholder as-is
-            merged.append(parent_ph)
-
-    # Add any child-only placeholders
-    for child_ph in child_placeholders:
-        if child_ph['name'] not in parent_by_name:
-            merged.append(child_ph)
-
-    return merged
-```
-
-**Key behaviors:**
-- Placeholders are matched by `name` field
-- When names match, fields are merged (child overrides parent)
-- Unspecified fields in child are inherited from parent
-- Example: Child specifies `description` and `prompt_text`, inherits `type`, `required`, `default` from parent
+- **Top-level fields**: Child values replace parent values
+- **Placeholders**: Merged by name with field-level overrides
+  - Same-named placeholders: child fields override parent fields
+  - Unspecified fields in child inherit from parent
+  - Child-only placeholders are added
+- **Defaults**: Shallow merge (child defaults extend parent defaults)
 
 See [Template Schema - Placeholder Field Merging](../../templates/SCHEMA.md#placeholder-field-merging) for details.
 
 ### Dynamic Prompting
 
-```python
-def collect_placeholder(placeholder, context):
-    """Collect value for a placeholder based on its metadata."""
-    prompt_type = placeholder.get('prompt_type', 'simple')
+Prompts are generated based on placeholder metadata:
 
-    if prompt_type == 'suggestion':
-        return collect_with_suggestion(placeholder, context)
-    elif prompt_type == 'options':
-        return collect_with_options(placeholder)
-    elif prompt_type == 'guided':
-        return collect_with_guided_questions(placeholder)
-    else:  # simple
-        return collect_simple(placeholder)
-```
+- **`prompt_type: suggestion`**: Generate suggestion, ask for confirmation
+- **`prompt_type: options`**: Present list of options to choose from
+- **`prompt_type: guided`**: Ask sub-questions, assemble answer
+- **`prompt_type: simple`**: Direct text prompt (default)
 
 ### Validation
 
-```python
-def validate_placeholder(name, value, placeholder):
-    """Validate placeholder value against rules."""
-    validation = placeholder.get('validation', {})
+Validation is applied at multiple levels:
 
-    # Required check
-    if placeholder.get('required') and not value:
-        raise ValidationError(f"Required field '{name}' has no value")
+1. **Placeholder validation**: Each placeholder value is validated against rules in its `validation` field:
+   - `required`: Must have a value
+   - `min_length`/`max_length`: Length constraints for text
+   - `min_items`/`max_items`: Count constraints for lists
+   - `pattern`: Regex pattern matching
+   - `allowed_values`: Enum validation
 
-    # Length checks (for text)
-    if 'min_length' in validation:
-        if len(value) < validation['min_length']:
-            raise ValidationError(f"Must be at least {validation['min_length']} characters")
-
-    # Item count checks (for lists)
-    if 'min_items' in validation:
-        if len(value) < validation['min_items']:
-            raise ValidationError(f"Must have at least {validation['min_items']} items")
-
-    # Pattern matching
-    if 'pattern' in validation:
-        if not re.match(validation['pattern'], value):
-            raise ValidationError(f"Does not match required pattern")
-
-    # Allowed values
-    if 'allowed_values' in validation:
-        if value not in validation['allowed_values']:
-            raise ValidationError(f"Must be one of: {', '.join(validation['allowed_values'])}")
-```
+2. **Template validation**: Template structure and references are validated by `validate_template.py`:
+   - YAML syntax
+   - Required fields presence
+   - Placeholder references (all placeholders used in `description_template` must be defined)
+   - Inheritance cycles
+   - Redundant overrides
 
 ## See Also
 
