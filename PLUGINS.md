@@ -279,6 +279,7 @@ Analyze sosreport archives for system diagnostics and troubleshooting
 
 **Commands:**
 - **`/sosreport:analyze` `<path-to-sosreport> [--only <areas>] [--skip <areas>]`** - Analyze sosreport archive for system diagnostics and issues
+- **`/sosreport:ovs-db` `[sosreport-path] [--db] [--flows-only] [--query <json>]`** - Analyze OVS data from sosreport (text files or database)
 
 See [plugins/sosreport/README.md](plugins/sosreport/README.md) for detailed documentation.
 
