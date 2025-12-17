@@ -229,6 +229,7 @@ See [plugins/olm/README.md](plugins/olm/README.md) for detailed documentation.
 OpenShift development utilities and helpers
 
 **Commands:**
+- **`/openshift:3rd-operator-imagebuild` `<pr-url> [quay-repo]`** - Pull unmerged PR, build operator image with podman, and optionally push to Quay
 - **`/openshift:bump-deps` `<dependency> [version] [--create-jira] [--create-pr]`** - Bump dependencies in OpenShift projects with automated analysis and PR creation
 - **`/openshift:cluster-health-check` `[--verbose] [--output-format]`** - Perform comprehensive health check on OpenShift cluster and report issues
 - **`/openshift:crd-review` `[repository-path]`** - Review Kubernetes CRDs against Kubernetes and OpenShift API conventions
