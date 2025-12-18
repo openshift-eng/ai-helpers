@@ -1602,6 +1602,22 @@
         }
       ],
       "version": "0.0.1"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "[--fix] [--registry=<registry>] [--base-release=<release-image>]",
+          "description": "Automate compilation of OpenShift operators from source to target OKD SCOS",
+          "name": "build-operators",
+          "synopsis": "/okd-build:build-operators [--fix] [--registry=<registry>] [--base-release=<release-image>]"
+        }
+      ],
+      "description": "Automate compilation of OpenShift operators from source to target OKD (Stream CoreOS - SCOS)",
+      "has_readme": true,
+      "hooks": [],
+      "name": "okd-build",
+      "skills": [],
+      "version": "0.0.1"
     }
   ]
 }
