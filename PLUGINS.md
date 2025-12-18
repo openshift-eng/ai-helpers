@@ -211,7 +211,7 @@ See [plugins/node-tuning/README.md](plugins/node-tuning/README.md) for detailed 
 Automate compilation of OpenShift operators from source to target OKD (Stream CoreOS - SCOS)
 
 **Commands:**
-- **`/okd-build:build-operators` `[--fix] [--registry=<registry>] [--base-release=<release-image>]`** - Automate compilation of OpenShift operators from source to target OKD SCOS
+- **`/okd-build:build-operators` `[--fix] [--registry=<registry>] [--base-release=<release-image>] [--bash]`** - Automate compilation of OpenShift operators from source to target OKD SCOS
 
 See [plugins/okd-build/README.md](plugins/okd-build/README.md) for detailed documentation.
 

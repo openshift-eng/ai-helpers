@@ -1,6 +1,6 @@
 ---
 description: Automate compilation of OpenShift operators from source to target OKD SCOS
-argument-hint: [--fix] [--registry=<registry>] [--base-release=<release-image>]
+argument-hint: [--fix] [--registry=<registry>] [--base-release=<release-image>] [--bash]
 ---
 
 ## Name
@@ -8,7 +8,7 @@ okd-build:build-operators
 
 ## Synopsis
 ```
-/okd-build:build-operators [--fix] [--registry=<registry>] [--base-release=<release-image>]
+/okd-build:build-operators [--fix] [--registry=<registry>] [--base-release=<release-image>] [--bash]
 ```
 
 ## Description
@@ -19,6 +19,7 @@ This command streamlines the process of building multiple operators in a workspa
 - Converting base images from RHEL to SCOS variants
 - Building operators with appropriate SCOS tags
 - Optionally creating a custom release payload using `oc adm release new`
+- Optionally generating a bash script for manual execution with `--bash` flag
 
 ## Implementation
 
@@ -57,21 +58,19 @@ This command streamlines the process of building multiple operators in a workspa
      - Also handle variants like `base-rhel8`, `builder`, etc.
    - Use the Edit tool to perform the replacement
 
-3. **Determine SCOS build arguments**
-   - Check if the operator supports SCOS builds:
-     - Examine `Makefile` for `TAGS` or `scos` references
-     - Check `OWNERS` file or repository documentation
-   - If SCOS is supported, prepare build arg: `--build-arg TAGS=scos`
+3. **Prepare SCOS build arguments**
+   - All operators will be built with SCOS tags
+   - Prepare build arg: `--build-arg TAGS=scos` for all builds
 
 ### Phase 3: Build Execution (Podman)
 
 1. **Prepare build command**
    - Extract operator name from directory name
-   - Construct Podman build command:
+   - Construct Podman build command with SCOS build argument:
      ```bash
-     podman build -t test-[OPERATOR-NAME]:latest -f [DOCKERFILE_PATH] [BUILD_ARGS] [CONTEXT_DIR]
+     podman build -t test-[OPERATOR-NAME]:latest -f [DOCKERFILE_PATH] --build-arg TAGS=scos [CONTEXT_DIR]
      ```
-   - Include `--build-arg TAGS=scos` if applicable
+   - The `--build-arg TAGS=scos` is always included for all operator builds
 
 2. **Execute builds**
    - Run the Podman build command for each operator
@@ -96,14 +95,15 @@ This command streamlines the process of building multiple operators in a workspa
      - Determine user's registry namespace (from `--registry` or default to `quay.io/${USER}`)
      - Tag images: `podman tag test-[OPERATOR-NAME]:latest [REGISTRY]/[OPERATOR-NAME]:latest`
      - Push images: `podman push [REGISTRY]/[OPERATOR-NAME]:latest`
-     - Capture image digests for release orchestration
+     - Capture image digests using `skopeo inspect docker://[REGISTRY]/[OPERATOR-NAME]:latest`
+     - Store digests for release orchestration
 
 ### Phase 4: Release Orchestration
 
 1. **Verify prerequisites**
    - Check if `oc` CLI is installed and available
    - Verify all operator images were successfully pushed to registry
-   - Collect image digests from push operation
+   - Use the image digests captured from `skopeo inspect` in Phase 3
 
 2. **Map operators to release components**
    - For each built operator, determine its component name in the release:
@@ -136,11 +136,86 @@ This command streamlines the process of building multiple operators in a workspa
    - If confirmed, execute and monitor progress
    - Provide the final release image reference
 
+### Bash Script Generation Mode (--bash flag)
+
+When the `--bash` flag is provided, the command operates in script generation mode instead of direct execution:
+
+1. **Perform Discovery and Transformation**
+   - Execute Phase 1 (Discovery & Selection) normally
+   - Execute Phase 2 (SCOS Transformation) to update Dockerfiles
+   - Do NOT execute the actual builds
+
+2. **Generate Build Script**
+   - Create a bash script file: `build-okd-operators.sh`
+   - For each discovered operator, add commands to:
+     - Change directory to the operator location
+     - Execute the podman build command with SCOS tags
+     - Tag the image for the target registry (if `--registry` provided)
+     - Push the image to the registry (if `--registry` provided)
+     - Capture image digest using `skopeo inspect` and store in variable
+   - Add error handling: `set -e` at the top to exit on errors
+   - Add informational echo statements between operations
+   - Make script executable: `chmod +x build-okd-operators.sh`
+
+3. **Generate Release Command**
+   - At the end of the script, add the `oc adm release new` command
+   - Use the digest variables captured from `skopeo inspect` commands
+   - Execute the release command automatically in the script
+
+4. **Output Script Location**
+   - Display the script location to the user
+   - Provide instructions on how to execute it
+   - Explain that they should review and customize the script before running
+
+**Example Generated Script Structure:**
+```bash
+#!/bin/bash
+set -e
+
+echo "Building OKD Operators for SCOS"
+echo "================================"
+
+# Build cluster-monitoring-operator
+echo "Building cluster-monitoring-operator..."
+cd /path/to/cluster-monitoring-operator
+podman build -t test-cluster-monitoring-operator:latest -f openshift/Dockerfile --build-arg TAGS=scos .
+podman tag test-cluster-monitoring-operator:latest quay.io/user/cluster-monitoring-operator:latest
+podman push quay.io/user/cluster-monitoring-operator:latest
+CMO_DIGEST=$(skopeo inspect docker://quay.io/user/cluster-monitoring-operator:latest | jq -r '.Digest')
+echo "cluster-monitoring-operator digest: ${CMO_DIGEST}"
+
+# Build cluster-ingress-operator
+echo "Building cluster-ingress-operator..."
+cd /path/to/cluster-ingress-operator
+podman build -t test-cluster-ingress-operator:latest -f Dockerfile --build-arg TAGS=scos .
+podman tag test-cluster-ingress-operator:latest quay.io/user/cluster-ingress-operator:latest
+podman push quay.io/user/cluster-ingress-operator:latest
+CIO_DIGEST=$(skopeo inspect docker://quay.io/user/cluster-ingress-operator:latest | jq -r '.Digest')
+echo "cluster-ingress-operator digest: ${CIO_DIGEST}"
+
+echo ""
+echo "All builds completed!"
+echo ""
+echo "Creating custom OKD release..."
+oc adm release new \
+  --from-release=quay.io/okd/scos-release:4.21.0-okd-scos.ec.3 \
+  cluster-monitoring-operator=quay.io/user/cluster-monitoring-operator@${CMO_DIGEST} \
+  cluster-ingress-operator=quay.io/user/cluster-ingress-operator@${CIO_DIGEST} \
+  --to-image=quay.io/user/openshift-release:4.21-custom \
+  --keep-manifest-list \
+  --allow-missing-images
+
+echo ""
+echo "Release creation complete!"
+```
+
 ## Return Value
 
-- **Format**: Summary report with build status and optional release command
+- **Format**: Summary report with build status and optional release command, or bash script location
 
-The command outputs:
+The command outputs depend on the execution mode:
+
+### Normal Execution Mode (without --bash)
 
 1. **Discovery Summary**:
    - List of discovered operators
@@ -155,7 +230,18 @@ The command outputs:
    - Complete `oc adm release new` command
    - Target release image reference
 
-Example output:
+### Bash Script Generation Mode (with --bash)
+
+1. **Discovery Summary**:
+   - List of discovered operators
+   - Selected Dockerfiles for each operator
+
+2. **Script Location**:
+   - Path to generated script: `build-okd-operators.sh`
+   - Instructions to review and execute the script
+   - Note about SCOS transformations applied to Dockerfiles
+
+**Example output (Normal Mode):**
 ```
 Discovered Operators:
   1. cluster-monitoring-operator → openshift/Dockerfile
@@ -175,6 +261,32 @@ oc adm release new \
   --to-image=quay.io/user/openshift-release:4.21-custom \
   --keep-manifest-list \
   --allow-missing-images
+```
+
+**Example output (Bash Script Mode):**
+```
+Discovered Operators:
+  1. cluster-monitoring-operator → openshift/Dockerfile
+  2. cluster-ingress-operator → Dockerfile
+  3. cluster-network-operator → build/Dockerfile
+
+SCOS Transformations Applied:
+  ✓ cluster-monitoring-operator: Updated base images to SCOS
+  ✓ cluster-ingress-operator: Updated base images to SCOS
+  ✓ cluster-network-operator: Updated base images to SCOS
+
+Generated Script: ./build-okd-operators.sh
+
+The script has been created and is ready to execute.
+Review the script before running to ensure it meets your requirements.
+
+To execute:
+  ./build-okd-operators.sh
+
+The script will:
+  - Build all operators with SCOS tags
+  - Push images to quay.io/user
+  - Create custom OKD release with built operators
 ```
 
 ## Examples
@@ -215,6 +327,18 @@ oc adm release new \
    ```
    Uses all available options for maximum flexibility.
 
+7. **Generate bash script instead of executing**:
+   ```
+   /okd-build:build-operators --bash
+   ```
+   Creates `build-okd-operators.sh` script for manual review and execution.
+
+8. **Generate bash script with custom registry**:
+   ```
+   /okd-build:build-operators --bash --registry=quay.io/myuser --base-release=quay.io/okd/scos-release:4.22.0-okd-scos.ec.1
+   ```
+   Creates a customized build script with specified registry and base release.
+
 ## Arguments
 
 - `--fix` (Optional): Boolean flag. When present, automatically attempts to fix common build errors such as missing dependencies or architecture mismatches. Will retry failed builds once after applying fixes.
@@ -225,6 +349,8 @@ oc adm release new \
   - `quay.io/okd/scos-release:4.21.0-okd-scos.ec.3`
   - `quay.io/okd/scos-release:4.22.0-okd-scos.ec.1`
   - Custom release images from your registry
+
+- `--bash` (Optional): Boolean flag. When present, generates a bash script (`build-okd-operators.sh`) instead of executing builds directly. The script will include all build commands, image tagging/pushing, digest extraction using `skopeo inspect`, and the final `oc adm release new` command. This allows for manual review and customization before execution. Note: The `--fix` flag is ignored in bash script mode.
 
 ## Prerequisites
 
@@ -238,6 +364,16 @@ oc adm release new \
 
 3. **Registry Authentication**: Credentials for target registry
    - Login: `podman login quay.io`
+
+4. **skopeo** (for bash script mode): Container image inspection tool
+   - Check if installed: `which skopeo`
+   - Installation: https://github.com/containers/skopeo/blob/main/install.md
+   - Required for extracting image digests in generated scripts
+
+5. **jq** (for bash script mode): JSON processor
+   - Check if installed: `which jq`
+   - Installation: https://stedolan.github.io/jq/download/
+   - Required for parsing image digest from skopeo output
 
 ## Notes
 

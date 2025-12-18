@@ -40,13 +40,14 @@ Discovers, builds, and orchestrates OpenShift operators for OKD SCOS.
 
 **Syntax:**
 ```
-/okd-build:build-operators [--fix] [--registry=<registry>] [--base-release=<release-image>]
+/okd-build:build-operators [--fix] [--registry=<registry>] [--base-release=<release-image>] [--bash]
 ```
 
 **Options:**
 - `--fix`: Automatically attempt to fix common build errors
 - `--registry=<registry>`: Target registry for images (default: `quay.io/${USER}`)
 - `--base-release=<release-image>`: Base OKD release image (default: `quay.io/okd/scos-release:4.21.0-okd-scos.ec.3`)
+- `--bash`: Generate a bash script instead of executing builds directly
 
 **Examples:**
 
@@ -73,6 +74,16 @@ Discovers, builds, and orchestrates OpenShift operators for OKD SCOS.
 5. Build with all options:
    ```
    /okd-build:build-operators --fix --registry=quay.io/myuser --base-release=quay.io/okd/scos-release:4.22.0-okd-scos.ec.1
+   ```
+
+6. Generate bash script for manual execution:
+   ```
+   /okd-build:build-operators --bash
+   ```
+
+7. Generate bash script with custom configuration:
+   ```
+   /okd-build:build-operators --bash --registry=quay.io/myuser --base-release=quay.io/okd/scos-release:4.22.0-okd-scos.ec.1
    ```
 
 ## Workflow
@@ -108,6 +119,18 @@ Generates a custom OKD release payload:
 - Maps operator images to release components
 - Provides ready-to-execute `oc adm release new` command
 
+### Bash Script Mode (--bash flag)
+When using the `--bash` flag, the workflow changes:
+- Phases 1 & 2 execute normally (Discovery and SCOS Transformation)
+- Instead of building, a bash script is generated: `build-okd-operators.sh`
+- The script includes:
+  - `cd` commands to navigate to each operator directory
+  - `podman build` commands with SCOS tags
+  - Image tagging and pushing to registry
+  - `skopeo inspect` commands to extract image digests
+  - Final `oc adm release new` command with captured digests
+- You can review, customize, and execute the script manually
+
 ## Prerequisites
 
 ### Required Tools
@@ -132,6 +155,22 @@ Generates a custom OKD release payload:
    ```bash
    # Login to your container registry
    podman login quay.io
+   ```
+
+4. **skopeo** - Container image inspection (required for `--bash` mode)
+   ```bash
+   # Check installation
+   which skopeo
+
+   # Install: https://github.com/containers/skopeo/blob/main/install.md
+   ```
+
+5. **jq** - JSON processor (required for `--bash` mode)
+   ```bash
+   # Check installation
+   which jq
+
+   # Install: https://stedolan.github.io/jq/download/
    ```
 
 ## Use Cases
@@ -169,11 +208,8 @@ The command searches common locations. If your Dockerfile is in an unusual locat
 1. Create a symlink: `ln -s path/to/Dockerfile Dockerfile`
 2. Or move the Dockerfile to a standard location
 
-### SCOS Compatibility
-Not all operators may support SCOS builds. The command checks for SCOS support by examining:
-- `Makefile` for SCOS tags
-- `OWNERS` file
-- Repository documentation
+### SCOS Build Tags
+All operators are built with `--build-arg TAGS=scos` to ensure SCOS compatibility. This build argument is automatically included in all podman build commands executed by the plugin.
 
 ## Advanced Usage
 
