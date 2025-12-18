@@ -40,6 +40,7 @@ Miscellaenous tools for working with OpenShift CI
 - **`/ci:add-debug-wait` `<workflow-or-job-name> [timeout]`** - Add a wait step to a CI workflow for debugging test failures
 - **`/ci:ask-sippy` `[question]`** - Ask the Sippy AI agent questions about OpenShift CI payloads, jobs, and test results
 - **`/ci:list-unstable-tests` `<version> <keywords> [sippy-url]`** - List unstable tests with pass rate below 95%
+- **`/ci:pr-review` `[base-branch-or-pr-url]`** - Review Ginkgo test code changes in current branch or PR for naming violations and best practices
 - **`/ci:query-job-status` `<execution-id>`** - Query the status of a gangway job execution by ID
 - **`/ci:query-test-result` `<version> <keywords> [sippy-url]`** - Query test results from Sippy by version and test keywords
 - **`/ci:trigger-periodic` `<job-name> [ENV_VAR=value ...]`** - Trigger a periodic gangway job with optional environment variable overrides
@@ -203,7 +204,6 @@ OpenShift development utilities and helpers
 - **`/openshift:new-e2e-test` `[test-specification]`** - Write and validate new OpenShift E2E tests using Ginkgo framework
 - **`/openshift:rebase` `<tag>`** - Rebase OpenShift fork of an upstream repository to a new upstream release.
 - **`/openshift:review-test-cases` `[file-path-or-test-code-or-commands]`** - Review test cases for completeness, quality, and best practices - accepts file path or direct oc commands/test code
-- **`/openshift:test-review` `[base-branch-or-pr-url]`** - Review Ginkgo test code changes in current branch or PR for naming violations and best practices
 
 See [plugins/openshift/README.md](plugins/openshift/README.md) for detailed documentation.
 
