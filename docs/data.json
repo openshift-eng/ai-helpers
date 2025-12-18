@@ -1010,6 +1010,21 @@
         }
       ],
       "version": "0.0.1"
+    },
+    {
+      "commands": [],
+      "description": "Expert diagram creation skills for Mermaid and other formats",
+      "has_readme": true,
+      "hooks": [],
+      "name": "diagrams",
+      "skills": [
+        {
+          "description": "Expert guidance for creating Mermaid diagrams with correct syntax",
+          "id": "mermaid",
+          "name": "Mermaid Diagram Expert"
+        }
+      ],
+      "version": "0.0.1"
     }
   ]
 }

@@ -1,0 +1,8 @@
+{
+  "name": "diagrams",
+  "description": "Expert diagram creation skills for Mermaid and other formats",
+  "version": "0.0.1",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}
