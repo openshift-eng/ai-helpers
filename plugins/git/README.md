@@ -24,6 +24,10 @@ Generate Conventional Commits style commit messages for staged changes or recent
 
 Scan the codebase for technical debt markers and generate a report.
 
+### `/git:pr-history`
+
+Show the essential history of a PR - merges, reverts, and re-applications with reasons.
+
 ### `/git:summary`
 
 Generate a summary of git repository changes and activity.

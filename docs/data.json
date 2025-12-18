@@ -47,6 +47,12 @@
           "synopsis": "/git:fix-cherrypick-robot-pr <pr-url> [error-messages]"
         },
         {
+          "argument_hint": "<pr-number> [repository]",
+          "description": "Show the essential history of a PR - merges, reverts, and re-applications with reasons",
+          "name": "pr-history",
+          "synopsis": "/git:pr-history <pr-number> [repository]"
+        },
+        {
           "argument_hint": "[base-branch]",
           "description": "Suggest appropriate reviewers for a PR based on git blame and OWNERS files",
           "name": "suggest-reviewers",
