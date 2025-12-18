@@ -74,11 +74,11 @@ The command performs the following steps:
        - Located in directories containing test code
      - Read commit messages from the current branch using `git log <base-branch>..HEAD --oneline`
 
-4. **Detect New Tests**:
+4. **Detect New and Modified Tests**:
    - **If PR Mode**:
      - For each changed Go file, use `gh api` to get the diff:
        - `gh api repos/<owner>/<repo>/pulls/<pr-number>/files --jq '.[] | select(.filename == "<file>") | .patch'`
-     - Parse the unified diff to find additions
+     - Parse the unified diff to find additions and modifications
    - **If Branch/Auto-detect Mode**:
      - For each changed Go file, run `git diff <base-branch>...HEAD -- <file>` to see the actual changes
    - Look for lines that are additions (start with `+`) containing Ginkgo test functions:
@@ -86,8 +86,14 @@ The command performs the following steps:
      - `Context(`
      - `When(`
      - `It(`
+   - **Determine if test is NEW or MODIFIED**:
+     - Examine the diff context (lines starting with ` ` that don't have `+` or `-`)
+     - **NEW test**: The test definition line (e.g., `It("test name"`) is on a `+` line AND there's no corresponding `-` line removing a similar test in the same hunk
+     - **MODIFIED test**: The test definition exists in context lines (unchanged) OR there's a `-` line removing the old version and a `+` line adding the modified version in the same diff hunk
+     - This works because:
+       - A brand new test only appears as `+` lines in the diff
+       - A modified test will show context with the test structure already existing, or show `-` and `+` pairs for the changes
    - **Note**: In OpenShift test projects (e.g., openshift/origin), Ginkgo tests often appear in `.go` files without the `_test.go` suffix, particularly in `test/extended/` and similar directories
-   - These indicate new or modified test cases
    - Extract the full test name by combining all nested blocks (Describe/Context/When/It)
 
 5. **Validate Component Mapping**:
@@ -124,18 +130,6 @@ The command performs the following steps:
      - Examples: `[sig-network]`, `[bz-storage]`
      - Note in report: "Consider migrating to `[Jira:"component"]` format"
    - **Missing component tag**: Flag as violation if no component tag found
-
-   **Determining if a test is new or modified:**
-   - **If PR Mode**:
-     - Fetch the file content from base branch using `gh api repos/<owner>/<repo>/contents/<file>?ref=<base-branch>`
-     - Parse the file to extract existing test names
-     - Compare against tests found in the head branch
-     - If a test name exists in base, it's modified; otherwise it's new
-   - **If Branch Mode**:
-     - Use `git show <base-branch>:<file>` to get the file content from base branch
-     - Parse to extract existing test names
-     - Compare against current file
-     - If a test name exists in base, it's modified; otherwise it's new
 
 6. **Analyze Test Names for Dynamic Content and Deprecated Conventions**:
    For each detected test definition, check if the test name contains potentially random or dynamic strings, and validate against deprecated conventions:
@@ -532,9 +526,10 @@ The command performs the following steps:
     - If not in the matching repository during PR review, tag validation will be skipped with a note
 - **Component tag format**: The `[Jira:"component"]` tag can appear anywhere in the test name (typically at the end)
 - **New vs Modified detection**:
-  - The command determines if a test is new or modified by comparing the test name against the base branch
-  - **NEW**: Test name does not exist in the base branch version of the file
-  - **MODIFIED**: Test name exists in base branch but the test code or location has changed
+  - The command determines if a test is new or modified by analyzing the diff context
+  - **NEW**: Test appears only on `+` (added) lines with no corresponding `-` (removed) lines in the same hunk
+  - **MODIFIED**: Test definition appears in context lines (unchanged portions) OR shows as `-` and `+` pairs indicating changes
+  - This approach is simple and accurate because it uses the diff structure that's already being parsed
   - This distinction is critical because new tests have stricter requirements for component tags
 - **Parallel safety validation**:
   - Analyzes actual test code (not just the name) to detect cluster-wide operations
