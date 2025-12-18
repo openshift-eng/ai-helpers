@@ -1,0 +1,8 @@
+{
+    "name": "ote-migration",
+    "description": "Automate OpenShift Tests Extension (OTE) migration for component repositories",
+    "version": "1.0.0",
+    "author": {
+      "name": "minl@redhat.com"
+    }
+  }
