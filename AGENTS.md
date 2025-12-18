@@ -480,7 +480,7 @@ Example: `.work/prow-job-analyze-resource/1234567890/etcd-0.html`
 | `jira` | JIRA automation | `/jira:solve`, `/jira:status-rollup`, `/jira:grooming`, `/jira:outcome-refinement` |
 | `ci` | OpenShift CI integration & Prow job analysis | `/ci:trigger-presubmit`, `/ci:ask-sippy`, `/ci:analyze-prow-job-test-failure`, `/ci:analyze-prow-job-resource` |
 | `utils` | General utilities | `/utils:generate-test-plan`, `/utils:address-reviews` |
-| `git` | Git workflows | `/git:bisect`, `/git:commit-suggest`, `/git:summary` |
+| `git` | Git workflows | `/git:bisect`, `/git:commit-suggest`, `/git:pr-history`, `/git:summary` |
 | `session` | Session management | `/session:save-session` |
 
 ## Additional Resources
