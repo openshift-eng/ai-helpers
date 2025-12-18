@@ -233,6 +233,12 @@
           "synopsis": "/ci:list-unstable-tests <version> <keywords> [sippy-url]"
         },
         {
+          "argument_hint": "<version> <test-keywords> [release-repo-path]",
+          "description": "List all workflows/jobs configured to execute a specific test",
+          "name": "list-workflows-for-test",
+          "synopsis": "/ci:list-workflows-for-test <version> <test-keywords> [release-repo-path]"
+        },
+        {
           "argument_hint": "<execution-id>",
           "description": "Query the status of a gangway job execution by ID",
           "name": "query-job-status",
