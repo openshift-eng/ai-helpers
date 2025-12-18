@@ -1010,6 +1010,22 @@
         }
       ],
       "version": "0.0.1"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "[path]",
+          "description": "Analyze and fix Go code quality issues using gopls and go vet",
+          "name": "improve",
+          "synopsis": "/go:improve [path]"
+        }
+      ],
+      "description": "Go code quality and modernization utilities",
+      "has_readme": true,
+      "hooks": [],
+      "name": "go",
+      "skills": [],
+      "version": "0.0.1"
     }
   ]
 }
