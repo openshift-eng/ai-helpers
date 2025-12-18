@@ -26,12 +26,12 @@ This command is designed for reviewing test changes in OpenShift repositories (c
 The command performs the following steps:
 
 1. **Load OpenShift Testing Guidelines**:
-   - Fetch the latest guidelines for landing a feature in OpenShift from the enhancements repository
-   - Use `curl` to download: `https://raw.githubusercontent.com/openshift/enhancements/refs/heads/master/dev-guide/feature-zero-to-hero.md`
+   - Fetch the latest guidelines for OpenShift test conventions from the enhancements repository
+   - Use `curl --connect-timeout 5 --max-time 10` to download: `https://github.com/openshift/enhancements/blob/master/dev-guide/test-conventions.md`
    - Parse the document to extract:
      - Testing requirements for OpenShift features
      - Best practices for test organization
-     - Feature lifecycle requirements
+     - Test naming conventions
      - Quality criteria and standards
    - Keep this context available throughout the review to validate against official OpenShift standards
    - If fetch fails, continue with review but note that latest guidelines are unavailable
@@ -228,10 +228,10 @@ The command performs the following steps:
    - Suggest adding `[Jira:"component"]` tags for tests missing component mapping
    - Suggest adding or removing `[Serial]` tags based on test behavior analysis
    - Suggest rewriting test names to be static and descriptive
-   - Cross-reference findings with the OpenShift feature-zero-to-hero guidelines loaded in step 1
+   - Cross-reference findings with the OpenShift test conventions guidelines loaded in step 1
    - Provide context-aware recommendations based on official OpenShift testing standards
    - Reference the test naming guidelines from openshift/origin
-   - Link to relevant documentation including the feature-zero-to-hero guide
+   - Link to relevant documentation including the test conventions guide
 
 ## Return Value
 
@@ -294,7 +294,7 @@ The command performs the following steps:
    ### Summary
    - Source: PR #305390 (openshift/origin)
    - Comparing: base branch `master` vs head branch `my-feature`
-   - OpenShift feature development guidelines: Loaded from feature-zero-to-hero.md
+   - OpenShift test conventions guidelines: Loaded from test-conventions.md
    - Test files changed: 3
    - New tests detected: 6
    - Component mapping violations: 2
@@ -433,7 +433,7 @@ The command performs the following steps:
    - If using legacy `[sig-*]` or `[bz-*]` tags, ensure they exist elsewhere in the repository
    - Remove dynamic content from test names (variables, timestamps, specific values)
    - Use the Jira plugin to verify valid component names: `/component-health:list-components`
-   - See official OpenShift feature development guidelines: https://github.com/openshift/enhancements/blob/master/dev-guide/feature-zero-to-hero.md
+   - See official OpenShift test conventions: https://github.com/openshift/enhancements/blob/master/dev-guide/test-conventions.md
    - See test naming guidelines: https://github.com/openshift/origin/blob/master/test/extended/README.md
    ```
 
@@ -464,7 +464,7 @@ The command performs the following steps:
   - For example: `Describe("[sig-node] Pods") + Context("basic operations") + It("should create pod")` → `[sig-node] Pods basic operations should create pod`
   - This makes it easy to see exactly which tests are being added or changed
 - **OpenShift guidelines integration**:
-  - Automatically fetches the latest feature-zero-to-hero guide from openshift/enhancements at the start of execution
+  - Automatically fetches the latest test-conventions guide from openshift/enhancements at the start of execution
   - Uses these official guidelines to validate test quality and completeness
   - Provides context-aware recommendations based on OpenShift testing standards
   - If the guidelines cannot be fetched, the review continues but recommendations may be more generic
