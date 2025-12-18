@@ -1010,6 +1010,22 @@
         }
       ],
       "version": "0.0.1"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "[--contributing path]",
+          "description": "Identify what to focus on next based on PRs, issues, and milestones",
+          "name": "what-next",
+          "synopsis": "/github:what-next [--contributing path]"
+        }
+      ],
+      "description": "GitHub workflow automation and utilities",
+      "has_readme": true,
+      "hooks": [],
+      "name": "github",
+      "skills": [],
+      "version": "0.0.1"
     }
   ]
 }
