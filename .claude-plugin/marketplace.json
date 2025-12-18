@@ -110,6 +110,11 @@
       "description": "Generate and analyze OpenShift node tuning profiles"
     },
     {
+      "name": "okd-build",
+      "source": "./plugins/okd-build",
+      "description": "Automate compilation of OpenShift operators from source to target OKD (Stream CoreOS - SCOS)"
+    },
+    {
       "name": "origin",
       "source": "./plugins/origin",
       "description": "Helpers for openshift/origin development."
