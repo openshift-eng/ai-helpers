@@ -15,7 +15,9 @@ openshift:test-review
 
 The `test-review` command analyzes test code changes in the current git branch or a GitHub pull request to identify potential issues with Ginkgo test naming and structure. It performs three main types of validation:
 
-1. **Component Mapping**: Ensures new tests have proper component tags (preferably `[Jira:"component"]`) to map test failures to the correct team
+1. **Component Mapping**: Ensures tests have proper component tags to map test failures to the correct team
+   - **NEW tests**: Must use `[Jira:"component"]` tags (required)
+   - **MODIFIED tests**: May use existing `[sig-*]` or `[bz-*]` tags, but migration to `[Jira:"component"]` is encouraged
 2. **Test Name Stability**: Ensures test names are stable and deterministic by detecting potentially random or dynamic strings
 3. **Parallel Safety**: Validates that tests requiring serial execution have the `[Serial]` tag, and that tests with `[Serial]` actually need it
 
@@ -89,30 +91,51 @@ The command performs the following steps:
    - Extract the full test name by combining all nested blocks (Describe/Context/When/It)
 
 5. **Validate Component Mapping**:
-   For each new test detected, verify it has proper component tagging:
+   For each test detected, verify it has proper component tagging based on whether it's a new test or a modified test:
 
-   **Preferred: [Jira:"component"] tag**
-   - Look for `[Jira:"component-name"]` tag in the test name
-   - If Jira MCP plugin is enabled, validate the component exists:
-     - Query OCPBUGS project components using the Jira MCP search
-     - Verify the component name matches exactly (case-sensitive)
-     - If component doesn't exist, flag as violation
-   - Example: `It("should create pod [Jira:\"kube-apiserver\"]")`
+   **For NEW tests (test didn't exist in base branch):**
+   - **REQUIRED: [Jira:"component"] tag**
+     - Look for `[Jira:"component-name"]` tag in the test name
+     - If Jira MCP plugin is enabled, validate the component exists:
+       - Query OCPBUGS project components using the Jira MCP search
+       - Verify the component name matches exactly (case-sensitive)
+       - If component doesn't exist, flag as violation
+     - Example: `It("should create pod [Jira:\"kube-apiserver\"]")`
+   - **NOT ALLOWED: [sig-*] or [bz-*] tags**
+     - If a new test uses `[sig-<name>]` or `[bz-<name>]` tags instead of `[Jira:"component"]`, flag as violation
+     - New tests must use the modern `[Jira:"component"]` format
+   - **Missing component tag**: Flag as violation if no `[Jira:"component"]` tag found
 
-   **Alternative: [sig-*] or [bz-*] tags**
-   - Look for `[sig-<name>]` or `[bz-<name>]` tags
-   - Verify the tag is used elsewhere in the repository:
-     - **If PR Mode**: Check if we're in the target repository locally
-       - Parse PR URL to extract org/repo (e.g., `openshift/origin`)
-       - Check if current directory is that repository: `git remote -v | grep "github.com[:/]<org>/<repo>"`
-       - If local repo matches PR target: Run `git grep -r "\[sig-<name>\]" test/` locally
-       - If not in matching repo: Note that tag validation requires local checkout and skip validation
-     - **If Branch Mode**: Run `git grep -r "\[sig-<name>\]" test/` or `git grep -r "\[bz-<name>\]" test/`
-     - If tag exists in other tests, it's valid
-     - If tag is unique to this test, flag as potential made-up tag
-   - Examples: `[sig-network]`, `[bz-storage]`
+   **For MODIFIED tests (test existed in base branch but was changed):**
+   - **PREFERRED: [Jira:"component"] tag**
+     - Encourage migration to `[Jira:"component"]` format
+     - If Jira MCP plugin is enabled and component exists, validate it
+   - **ALLOWED: Existing [sig-*] or [bz-*] tags**
+     - If the test already had `[sig-<name>]` or `[bz-<name>]` tags, they are acceptable
+     - Verify the tag is used elsewhere in the repository:
+       - **If PR Mode**: Check if we're in the target repository locally
+         - Parse PR URL to extract org/repo (e.g., `openshift/origin`)
+         - Check if current directory is that repository: `git remote -v | grep "github.com[:/]<org>/<repo>"`
+         - If local repo matches PR target: Run `git grep -r "\[sig-<name>\]" test/` locally
+         - If not in matching repo: Note that tag validation requires local checkout and skip validation
+       - **If Branch Mode**: Run `git grep -r "\[sig-<name>\]" test/` or `git grep -r "\[bz-<name>\]" test/`
+       - If tag exists in other tests, it's valid
+       - If tag is unique to this test, flag as potential made-up tag
+     - Examples: `[sig-network]`, `[bz-storage]`
+     - Note in report: "Consider migrating to `[Jira:"component"]` format"
+   - **Missing component tag**: Flag as violation if no component tag found
 
-   **Missing component tag**: Flag as violation if no component tag found
+   **Determining if a test is new or modified:**
+   - **If PR Mode**:
+     - Fetch the file content from base branch using `gh api repos/<owner>/<repo>/contents/<file>?ref=<base-branch>`
+     - Parse the file to extract existing test names
+     - Compare against tests found in the head branch
+     - If a test name exists in base, it's modified; otherwise it's new
+   - **If Branch Mode**:
+     - Use `git show <base-branch>:<file>` to get the file content from base branch
+     - Parse to extract existing test names
+     - Compare against current file
+     - If a test name exists in base, it's modified; otherwise it's new
 
 6. **Analyze Test Names for Dynamic Content and Deprecated Conventions**:
    For each detected test definition, check if the test name contains potentially random or dynamic strings, and validate against deprecated conventions:
@@ -237,14 +260,14 @@ The command performs the following steps:
 
 **Format**: Markdown report with the following sections:
 
-1. **Summary**: Number of test files changed, new tests added, violations found (component mapping, parallel safety, and naming)
-2. **Tests Detected**: Full list of all new or modified test names (complete paths assembled from nested Ginkgo blocks)
+1. **Summary**: Number of test files changed, new tests added, modified tests, violations found (component mapping, parallel safety, and naming)
+2. **Tests Detected**: Full list of all new or modified test names (complete paths assembled from nested Ginkgo blocks), clearly indicating which are new vs modified
 3. **Commit Context**: List of commit messages in the branch
 4. **Test Files Changed**: List of all test files modified
 5. **Component Mapping Violations** (if any):
    - File path and line number
-   - Test name
-   - Issue: Missing tag, invalid component, or unverified legacy tag
+   - Test name and status (NEW or MODIFIED)
+   - Issue: Missing tag, invalid component, use of sig-/bz- tags in new tests, or unverified legacy tag
    - Suggested fix
 6. **Parallel Safety Violations** (if any):
    - File path and line number
@@ -296,8 +319,9 @@ The command performs the following steps:
    - Comparing: base branch `master` vs head branch `my-feature`
    - OpenShift test conventions guidelines: Loaded from test-conventions.md
    - Test files changed: 3
-   - New tests detected: 6
-   - Component mapping violations: 2
+   - New tests detected: 4
+   - Modified tests detected: 2
+   - Component mapping violations: 3
    - Parallel safety violations: 2
    - Naming violations: 3 (1 dynamic content, 2 deprecated conventions)
 
@@ -305,12 +329,15 @@ The command performs the following steps:
 
    The following new or modified tests were found:
 
-   1. `[sig-node] Pods should create pod successfully` (test/extended/pods/creation_test.go:32)
+   **New Tests:**
+   1. `[sig-node] Pods should create pod successfully` (test/extended/pods/creation_test.go:32) ⚠️
    2. `[sig-network] Networking should isolate traffic between namespaces [Jira:"network-edge"]` (test/extended/networking/isolation_test.go:78)
    3. `[sig-machineconfig] MachineConfig should apply custom MachineConfig and wait for rollout [Jira:"MachineConfig"]` (test/extended/machineconfig/rollout_test.go:56)
    4. `[sig-node] Pods should create and delete a simple pod [Serial] [Jira:"kube-apiserver"]` (test/extended/pods/simple_test.go:23)
-   5. `[sig-auth] RBAC Author:jdoe-OCP-54321 should verify RBAC permissions` (test/extended/auth/rbac_test.go:67)
-   6. `[sig-storage] LEVEL0 persistent volume provisioning` (test/extended/storage/volume_test.go:123)
+
+   **Modified Tests:**
+   5. `[sig-auth] RBAC Author:jdoe-OCP-54321 should verify RBAC permissions` (test/extended/auth/rbac_test.go:67) ⚠️
+   6. `[sig-storage] LEVEL0 persistent volume provisioning` (test/extended/storage/volume_test.go:123) ⚠️
 
    ### Commit Context
    - abc123 Add new pod creation tests
@@ -327,22 +354,32 @@ The command performs the following steps:
 
    ### Component Mapping Violations
 
-   #### test/extended/pods/creation_test.go:32
+   #### test/extended/pods/creation_test.go:32 (NEW TEST)
    Test name: "should create pod successfully"
 
-   **Issue**: Test is missing a component mapping tag. Tests should include a `[Jira:"component"]` tag to map failures to the appropriate team.
+   **Issue**: New test is missing required `[Jira:"component"]` tag. All new tests must include a `[Jira:"component"]` tag to map failures to the appropriate team.
 
    **Suggested fix**:
    ```go
    It("should create pod successfully [Jira:\"kube-apiserver\"]")
    ```
 
-   #### test/extended/networking/isolation_test.go:78
+   #### test/extended/networking/isolation_test.go:78 (NEW TEST)
    Test name: "should isolate traffic between namespaces [Jira:\"network-edge\"]"
 
    **Issue**: Component "network-edge" does not exist in OCPBUGS project. Valid components can be found using the Jira plugin.
 
    **Suggested fix**: Verify the correct component name (e.g., `[Jira:"Networking"]` or similar).
+
+   #### test/extended/auth/rbac_test.go:67 (MODIFIED TEST)
+   Test name: "[sig-auth] RBAC should verify RBAC permissions"
+
+   **Issue**: Test uses legacy `[sig-auth]` tag. While this is acceptable for modified tests, consider migrating to the modern `[Jira:"component"]` format.
+
+   **Suggested fix**:
+   ```go
+   It("should verify RBAC permissions [Jira:\"kube-apiserver\"]")
+   ```
 
    ### Parallel Safety Violations
 
@@ -423,14 +460,17 @@ The command performs the following steps:
    - test/extended/auth/rbac_test.go:89 - `Describe(fmt.Sprintf("[sig-%s] RBAC permissions", "auth"))`
 
    ### Recommendations
-   - Add `[Jira:"component"]` tags to all tests for proper component mapping (preferred)
+   - **NEW TESTS**: All new tests MUST use `[Jira:"component"]` tags for proper component mapping
+     - Legacy `[sig-*]` and `[bz-*]` tags are not acceptable for new tests
+     - Use `/component-health:list-components` to find valid component names
+   - **MODIFIED TESTS**: Consider migrating legacy `[sig-*]` and `[bz-*]` tags to `[Jira:"component"]` format
+     - Existing legacy tags are acceptable but migration is encouraged
    - Review parallel safety violations and add/remove `[Serial]` tags as needed:
      - Add `[Serial]` for tests that modify cluster-wide resources (MachineConfigs, nodes, cluster operators)
      - Remove `[Serial]` from tests that only operate within their namespace
    - Remove deprecated openshift-tests-private conventions:
      - Remove "Author:" and "Owner:" prefixes from test names (git history tracks authorship)
      - Convert untagged "LEVEL0" to proper tag format: `[Level0]` (preserve the tag - it indicates an important ported test)
-   - If using legacy `[sig-*]` or `[bz-*]` tags, ensure they exist elsewhere in the repository
    - Remove dynamic content from test names (variables, timestamps, specific values)
    - Use the Jira plugin to verify valid component names: `/component-health:list-components`
    - See official OpenShift test conventions: https://github.com/openshift/enhancements/blob/master/dev-guide/test-conventions.md
@@ -482,13 +522,20 @@ The command performs the following steps:
   - Use base branch name when reviewing your local working branch
   - If you have multiple remotes or stale branches, explicitly specify the base branch (e.g., `/openshift:test-review up/main`)
 - **Component validation**:
+  - **NEW TESTS**: Must use `[Jira:"component"]` tags - legacy `[sig-*]` and `[bz-*]` tags will be flagged as violations
+  - **MODIFIED TESTS**: May use existing `[sig-*]` and `[bz-*]` tags, but migration to `[Jira:"component"]` is encouraged
   - If the Jira MCP plugin is enabled, the command will validate `[Jira:"component"]` tags against actual OCPBUGS components
   - If Jira plugin is not available, the command will still check for the presence of component tags but cannot validate them
-  - Legacy `[sig-*]` and `[bz-*]` tags are verified by checking if they exist elsewhere in the repository:
+  - Legacy `[sig-*]` and `[bz-*]` tags (when allowed for modified tests) are verified by checking if they exist elsewhere in the repository:
     - **In PR mode**: If you're in the target repository locally (checked via `git remote -v`), the command will use local code to validate sig- tags
     - **In branch mode**: Always uses local repository for tag validation
     - If not in the matching repository during PR review, tag validation will be skipped with a note
 - **Component tag format**: The `[Jira:"component"]` tag can appear anywhere in the test name (typically at the end)
+- **New vs Modified detection**:
+  - The command determines if a test is new or modified by comparing the test name against the base branch
+  - **NEW**: Test name does not exist in the base branch version of the file
+  - **MODIFIED**: Test name exists in base branch but the test code or location has changed
+  - This distinction is critical because new tests have stricter requirements for component tags
 - **Parallel safety validation**:
   - Analyzes actual test code (not just the name) to detect cluster-wide operations
   - Flags tests missing `[Serial]` when they perform operations that could affect other tests
