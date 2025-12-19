@@ -1,6 +1,6 @@
 ---
 description: Expand basic test ideas or existing oc commands into comprehensive test scenarios with edge cases in oc CLI or Ginkgo format
-argument-hint: [test-idea-or-file-or-commands] [format]
+argument-hint: "[test-idea-or-file-or-commands] [format]"
 ---
 
 ## Name

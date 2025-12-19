@@ -1,6 +1,6 @@
 ---
 description: Diagnose and optionally fix common OLM and operator issues
-argument-hint: [operator-name] [namespace] [--fix] [--cluster]
+argument-hint: "[operator-name] [namespace] [--fix] [--cluster]"
 ---
 
 ## Name

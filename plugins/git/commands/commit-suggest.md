@@ -1,6 +1,6 @@
 ---
 description: Generate Conventional Commits style commit messages or summarize existing commits
-argument-hint: [N]
+argument-hint: "[N]"
 ---
 
 ## Name

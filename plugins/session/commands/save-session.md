@@ -1,6 +1,6 @@
 ---
 description: Save current conversation session to markdown file for future continuation
-argument-hint: [optional-description]
+argument-hint: "[optional-description]"
 ---
 
 ## Name

@@ -85,6 +85,11 @@
       "description": "A plugin to analyze and report on must-gather data"
     },
     {
+      "name": "lvms",
+      "source": "./plugins/lvms",
+      "description": "LVMS (Logical Volume Manager Storage) plugin for troubleshooting and debugging storage issues"
+    },
+    {
       "name": "metrics",
       "source": "./plugins/metrics",
       "description": "Anonymous metrics usage for ai-helpers"
@@ -105,9 +110,24 @@
       "description": "Generate and analyze OpenShift node tuning profiles"
     },
     {
+      "name": "origin",
+      "source": "./plugins/origin",
+      "description": "Helpers for openshift/origin development."
+    },
+    {
       "name": "container-image",
       "source": "./plugins/container-image",
       "description": "Container image inspection and analysis using skopeo and podman"
+    },
+    {
+      "name": "node",
+      "source": "./plugins/node",
+      "description": "Kubernetes and OpenShift node health monitoring and diagnostics"
+    },
+    {
+      "name": "bigquery",
+      "source": "./plugins/bigquery",
+      "description": "BigQuery analysis utilities"
     }
   ]
 }

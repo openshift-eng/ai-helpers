@@ -3,6 +3,7 @@
 This document lists all available Claude Code plugins and their commands in the ai-helpers repository.
 
 - [Agendas](#agendas-plugin)
+- [Bigquery](#bigquery-plugin)
 - [Ci](#ci-plugin)
 - [Compliance](#compliance-plugin)
 - [Component Health](#component-health-plugin)
@@ -13,10 +14,13 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Hcp](#hcp-plugin)
 - [Hello World](#hello-world-plugin)
 - [Jira](#jira-plugin)
+- [Lvms](#lvms-plugin)
 - [Must Gather](#must-gather-plugin)
+- [Node](#node-plugin)
 - [Node Tuning](#node-tuning-plugin)
 - [Olm](#olm-plugin)
 - [Openshift](#openshift-plugin)
+- [Origin](#origin-plugin)
 - [Prow Job](#prow-job-plugin)
 - [Session](#session-plugin)
 - [Sosreport](#sosreport-plugin)
@@ -31,6 +35,15 @@ A plugin to create various meeting agendas
 - **`/agendas:outcome-refinement`** - Analyze the list of JIRA outcome issues to prepare an outcome refinement meeting agenda.
 
 See [plugins/agendas/README.md](plugins/agendas/README.md) for detailed documentation.
+
+### Bigquery Plugin
+
+BigQuery cost analysis and optimization utilities
+
+**Commands:**
+- **`/bigquery:analyze-usage` `<project-id> <timeframe>`** - Analyze BigQuery usage and costs for a project
+
+See [plugins/bigquery/README.md](plugins/bigquery/README.md) for detailed documentation.
 
 ### Ci Plugin
 
@@ -97,8 +110,8 @@ See [plugins/doc/README.md](plugins/doc/README.md) for detailed documentation.
 Etcd cluster health monitoring and performance analysis utilities
 
 **Commands:**
-- **`/etcd:analyze-performance` `"[--duration <minutes>]"`** - Analyze etcd performance metrics, latency, and identify bottlenecks
-- **`/etcd:health-check` `"[--verbose]"`** - Check etcd cluster health, member status, and identify issues
+- **`/etcd:analyze-performance` `[--duration <minutes>]`** - Analyze etcd performance metrics, latency, and identify bottlenecks
+- **`/etcd:health-check` `[--verbose]`** - Check etcd cluster health, member status, and identify issues
 
 See [plugins/etcd/README.md](plugins/etcd/README.md) for detailed documentation.
 
@@ -107,6 +120,8 @@ See [plugins/etcd/README.md](plugins/etcd/README.md) for detailed documentation.
 Git workflow automation and utilities
 
 **Commands:**
+- **`/git:backport` `<commit> <branch1> [branch2...] [--new-branch]`** - Backport commits to multiple branches
+- **`/git:bisect` `[good-commit] [bad-commit]`** - Interactive git bisect assistant with pattern detection and automation
 - **`/git:branch-cleanup` `[--dry-run] [--merged-only] [--remote]`** - Clean up old and defunct branches that are no longer needed
 - **`/git:cherry-pick-by-patch` `<commit_hash>`** - Cherry-pick git commit into current branch by "patch" command
 - **`/git:commit-suggest` `[N]`** - Generate Conventional Commits style commit messages or summarize existing commits
@@ -143,13 +158,23 @@ A plugin to automate tasks with Jira
 - **`/jira:backlog` `[project-key] [--assignee username] [--days-inactive N]`** - Find suitable JIRA tickets from the backlog to work on based on priority and activity
 - **`/jira:create-release-note` `<issue-key>`** - Generate bug fix release notes from Jira tickets and linked GitHub PRs
 - **`/jira:create` `<type> [project-key] <summary> [--component <name>] [--version <version>] [--parent <key>]`** - Create Jira issues (story, epic, feature, task, bug, feature-request) with proper formatting
+- **`/jira:generate-feature-doc` `<feature-key>`** - Generate comprehensive feature documentation from Jira feature and all related issues and PRs
 - **`/jira:generate-test-plan` `[JIRA issue key] [GitHub PR URLs]`** - Generate test steps for a JIRA issue
-- **`/jira:grooming` `[project-filter] [time-period] [--component component-name] [--label label-name] [--type issue-type]`** - Analyze new bugs and cards added over a time period and generate grooming meeting agenda
+- **`/jira:grooming` `[project-filter] [time-period] [--component component-name] [--label label-name] [--type issue-type] [--status status] [--story-points]`** - Analyze new bugs and cards added over a time period and generate grooming meeting agenda
 - **`/jira:solve`** - Analyze a JIRA issue and create a pull request to solve it.
 - **`/jira:status-rollup` `issue-id [--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD]`** - Generate a status rollup comment for any JIRA issue based on all child issues and a given date range
 - **`/jira:validate-blockers` `[target-version] [component-filter] [--bug issue-key]`** - Validate proposed release blockers using Red Hat OpenShift release blocker criteria
 
 See [plugins/jira/README.md](plugins/jira/README.md) for detailed documentation.
+
+### Lvms Plugin
+
+LVMS (Logical Volume Manager Storage) plugin for troubleshooting and debugging storage issues
+
+**Commands:**
+- **`/lvms:analyze` `[must-gather-path|--live] [--component storage|operator|volumes]`** - Comprehensive LVMS troubleshooting - analyzes LVMCluster, volume groups, PVCs, and storage issues on live clusters or must-gather
+
+See [plugins/lvms/README.md](plugins/lvms/README.md) for detailed documentation.
 
 ### Must Gather Plugin
 
@@ -158,16 +183,26 @@ A plugin to analyze and report on must-gather data
 **Commands:**
 - **`/must-gather:analyze` `[must-gather-path] [component]`** - Quick analysis of must-gather data - runs all analysis scripts and provides comprehensive cluster diagnostics
 - **`/must-gather:ovn-dbs` `[must-gather-path]`** - Analyze OVN databases from a must-gather using ovsdb-tool
+- **`/must-gather:windows` `[must-gather-path] [--component COMPONENT]`** - Analyze Windows node logs and issues in must-gather data
 
 See [plugins/must-gather/README.md](plugins/must-gather/README.md) for detailed documentation.
+
+### Node Plugin
+
+Kubernetes and OpenShift node health monitoring and diagnostics
+
+**Commands:**
+- **`/node:cluster-node-health-check` `[--node <node-name>] [--verbose] [--output-format json|text]`** - Perform comprehensive health check on cluster nodes and report kubelet, CRI-O, and node-level issues
+
+See [plugins/node/README.md](plugins/node/README.md) for detailed documentation.
 
 ### Node Tuning Plugin
 
 Automatically create and apply tuned profile
 
 **Commands:**
-- **`/node-tuning:analyze-node-tuning` `"[--sosreport PATH] [--format json|markdown] [--max-irq-samples N]"`** - Analyze kernel/sysctl tuning from a live node or sosreport snapshot and propose NTO recommendations
-- **`/node-tuning:generate-tuned-profile` `"[profile-name] [--summary ...] [--sysctl ...] [options]"`** - Generate a Tuned (tuned.openshift.io/v1) profile manifest for the Node Tuning Operator
+- **`/node-tuning:analyze-node-tuning` `[--sosreport PATH] [--format json|markdown] [--max-irq-samples N]`** - Analyze kernel/sysctl tuning from a live node or sosreport snapshot and propose NTO recommendations
+- **`/node-tuning:generate-tuned-profile` `[profile-name] [--summary ...] [--sysctl ...] [options]`** - Generate a Tuned (tuned.openshift.io/v1) profile manifest for the Node Tuning Operator
 
 See [plugins/node-tuning/README.md](plugins/node-tuning/README.md) for detailed documentation.
 
@@ -195,17 +230,29 @@ See [plugins/olm/README.md](plugins/olm/README.md) for detailed documentation.
 OpenShift development utilities and helpers
 
 **Commands:**
+- **`/openshift:bootstrap-om` `""`** - Bootstrap OpenShift Manager (OM) integration for OpenShift operators with automated resource discovery
 - **`/openshift:bump-deps` `<dependency> [version] [--create-jira] [--create-pr]`** - Bump dependencies in OpenShift projects with automated analysis and PR creation
-- **`/openshift:cluster-health-check` `"[--verbose] [--output-format]"`** - Perform comprehensive health check on OpenShift cluster and report issues
+- **`/openshift:cluster-health-check` `[--verbose] [--output-format]`** - Perform comprehensive health check on OpenShift cluster and report issues
 - **`/openshift:crd-review` `[repository-path]`** - Review Kubernetes CRDs against Kubernetes and OpenShift API conventions
-- **`/openshift:create-cluster` `"[release-image] [platform] [options]"`** - Extract OpenShift installer from release image and create an OCP cluster
-- **`/openshift:destroy-cluster` `"[install-dir]"`** - Destroy an OpenShift cluster created by create-cluster command
+- **`/openshift:create-cluster` `[release-image] [platform] [options]`** - Extract OpenShift installer from release image and create an OCP cluster
+- **`/openshift:destroy-cluster` `[install-dir]`** - Destroy an OpenShift cluster created by create-cluster command
 - **`/openshift:expand-test-case` `[test-idea-or-file-or-commands] [format]`** - Expand basic test ideas or existing oc commands into comprehensive test scenarios with edge cases in oc CLI or Ginkgo format
+- **`/openshift:ironic-status`** - Check status of Ironic baremetal nodes in OpenShift cluster
 - **`/openshift:new-e2e-test` `[test-specification]`** - Write and validate new OpenShift E2E tests using Ginkgo framework
 - **`/openshift:rebase` `<tag>`** - Rebase OpenShift fork of an upstream repository to a new upstream release.
 - **`/openshift:review-test-cases` `[file-path-or-test-code-or-commands]`** - Review test cases for completeness, quality, and best practices - accepts file path or direct oc commands/test code
+- **`/openshift:visualize-ovn-topology`** - Generate and visualize OVN-Kubernetes network topology diagram
 
 See [plugins/openshift/README.md](plugins/openshift/README.md) for detailed documentation.
+
+### Origin Plugin
+
+Helpers for openshift/origin development.
+
+**Commands:**
+- **`/origin:two-node-origin-pr-helper` `[--url PR_URL] [<pr>] [--depth quick|full]`** - Expert review tool for PRs that add or modify Two Node (Fencing or Arbiter) tests under test/extended/two_node/ in openshift/origin.
+
+See [plugins/origin/README.md](plugins/origin/README.md) for detailed documentation.
 
 ### Prow Job Plugin
 
@@ -234,6 +281,7 @@ Analyze sosreport archives for system diagnostics and troubleshooting
 
 **Commands:**
 - **`/sosreport:analyze` `<path-to-sosreport> [--only <areas>] [--skip <areas>]`** - Analyze sosreport archive for system diagnostics and issues
+- **`/sosreport:ovs-db` `[sosreport-path] [--db] [--flows-only] [--query <json>]`** - Analyze OVS data from sosreport (text files or database)
 
 See [plugins/sosreport/README.md](plugins/sosreport/README.md) for detailed documentation.
 

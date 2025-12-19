@@ -1,6 +1,6 @@
 ---
 description: Quick analysis of must-gather data - runs all analysis scripts and provides comprehensive cluster diagnostics
-argument-hint: [must-gather-path] [component]
+argument-hint: "[must-gather-path] [component]"
 ---
 
 ## Name
@@ -122,6 +122,7 @@ The command performs the following steps:
    - "events", "warnings", "errors" → `analyze_events.py` ONLY
    - "storage", "pv", "pvc", "volumes", "persistent" → `analyze_pvs.py` ONLY
    - "alerts", "prometheus", "monitoring" → `analyze_prometheus.py` ONLY
+   - "windows", "windows nodes", "windows logs", "hns", "containerd", "hybrid-overlay" → `analyze_windows_logs.py` ONLY
 
    **STEP 2: No specific component mentioned**
 
@@ -135,6 +136,10 @@ The command performs the following steps:
    7. etcd (`analyze_etcd.py`)
    8. Storage (`analyze_pvs.py`)
    9. Monitoring (`analyze_prometheus.py`)
+   10. Windows Logs - ONLY if Windows nodes detected:
+       - First check if `host_service_logs/windows/` directory exists in the must-gather
+       - If directory exists, run: `analyze_windows_logs.py <must-gather-path>`
+       - If directory does not exist, skip silently (cluster has no Windows nodes)
 
 3. **Locate Plugin Scripts**:
    - Use the script availability check from the Error Handling section to find the plugin root

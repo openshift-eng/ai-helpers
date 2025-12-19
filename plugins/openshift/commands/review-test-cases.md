@@ -1,6 +1,6 @@
 ---
 description: Review test cases for completeness, quality, and best practices - accepts file path or direct oc commands/test code
-argument-hint: [file-path-or-test-code-or-commands]
+argument-hint: "[file-path-or-test-code-or-commands]"
 ---
 
 ## Name

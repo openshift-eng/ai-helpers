@@ -5,6 +5,18 @@
     {
       "commands": [
         {
+          "argument_hint": "<commit> <branch1> [branch2...] [--new-branch]",
+          "description": "Backport commits to multiple branches",
+          "name": "backport",
+          "synopsis": "/git:backport <commit> <branch1> [branch2...] [--new-branch|-b]"
+        },
+        {
+          "argument_hint": "[good-commit] [bad-commit]",
+          "description": "Interactive git bisect assistant with pattern detection and automation",
+          "name": "bisect",
+          "synopsis": "/git:bisect                       # Fully interactive - will ask for all inputs"
+        },
+        {
           "argument_hint": "[--dry-run] [--merged-only] [--remote]",
           "description": "Clean up old and defunct branches that are no longer needed",
           "name": "branch-cleanup",
@@ -91,16 +103,22 @@
           "synopsis": "/jira:create <type> [project-key] <summary> [options]"
         },
         {
+          "argument_hint": "<feature-key>",
+          "description": "Generate comprehensive feature documentation from Jira feature and all related issues and PRs",
+          "name": "generate-feature-doc",
+          "synopsis": "/jira:generate-feature-doc <feature-key>"
+        },
+        {
           "argument_hint": "[JIRA issue key] [GitHub PR URLs]",
           "description": "Generate test steps for a JIRA issue",
           "name": "generate-test-plan",
           "synopsis": ""
         },
         {
-          "argument_hint": "[project-filter] [time-period] [--component component-name] [--label label-name] [--type issue-type]",
+          "argument_hint": "[project-filter] [time-period] [--component component-name] [--label label-name] [--type issue-type] [--status status] [--story-points]",
           "description": "Analyze new bugs and cards added over a time period and generate grooming meeting agenda",
           "name": "grooming",
-          "synopsis": "/jira:grooming [project-filter] [time-period] [--component component-name] [--label label-name] [--type issue-type]"
+          "synopsis": "/jira:grooming [project-filter] [time-period] [--component component-name] [--label label-name] [--type issue-type] [--status status] [--story-points]"
         },
         {
           "argument_hint": "",
@@ -167,9 +185,19 @@
           "name": "Create Jira Task"
         },
         {
+          "description": "Recursively extract GitHub Pull Request links from Jira issues",
+          "id": "extract-prs",
+          "name": "Jira Pull Request Extractor"
+        },
+        {
           "description": "HyperShift team-specific Jira requirements for component selection and conventions",
           "id": "hypershift",
           "name": "HyperShift Jira Conventions"
+        },
+        {
+          "description": "Detailed implementation guide for recursively analyzing Jira features and generating comprehensive documentation",
+          "id": "jira-doc-generator",
+          "name": "Jira Feature Documentation Generator"
         },
         {
           "description": "Detailed implementation guide for validating proposed release blockers",
@@ -370,6 +398,12 @@
           "description": "Analyze sosreport archive for system diagnostics and issues",
           "name": "analyze",
           "synopsis": "/sosreport:analyze <path-to-sosreport> [--only <areas>] [--skip <areas>]"
+        },
+        {
+          "argument_hint": "[sosreport-path] [--db] [--flows-only] [--query <json>]",
+          "description": "Analyze OVS data from sosreport (text files or database)",
+          "name": "ovs-db",
+          "synopsis": "/sosreport:ovs-db [sosreport-path] [--db] [--flows-only] [--query <json>]"
         }
       ],
       "description": "Analyze sosreport archives for system diagnostics and troubleshooting",
@@ -386,6 +420,11 @@
           "description": "Analyze network configuration data from sosreport archives, extracting interface configurations, routing tables, active connections, firewall rules (firewalld/iptables), and DNS settings from the sosreport directory structure to diagnose network connectivity and configuration issues",
           "id": "network-analysis",
           "name": "Network Analysis"
+        },
+        {
+          "description": "Analyze Open vSwitch data from sosreport",
+          "id": "ovs-db-analysis",
+          "name": "OVS Database and Flow Analysis"
         },
         {
           "description": "Analyze system resource usage data from sosreport archives, extracting memory statistics, CPU load averages, disk space utilization, and process information from the sosreport directory structure to diagnose resource exhaustion, performance bottlenecks, and capacity issues",
@@ -595,13 +634,19 @@
     {
       "commands": [
         {
+          "argument_hint": "\"\"",
+          "description": "Bootstrap OpenShift Manager (OM) integration for OpenShift operators with automated resource discovery",
+          "name": "bootstrap-om",
+          "synopsis": "bash"
+        },
+        {
           "argument_hint": "<dependency> [version] [--create-jira] [--create-pr]",
           "description": "Bump dependencies in OpenShift projects with automated analysis and PR creation",
           "name": "bump-deps",
           "synopsis": "/openshift:bump-deps <dependency> [version] [--create-jira] [--create-pr]"
         },
         {
-          "argument_hint": "\"[--verbose] [--output-format]\"",
+          "argument_hint": "[--verbose] [--output-format]",
           "description": "Perform comprehensive health check on OpenShift cluster and report issues",
           "name": "cluster-health-check",
           "synopsis": "/openshift:cluster-health-check [--verbose] [--output-format json|text]"
@@ -613,13 +658,13 @@
           "synopsis": "/openshift:crd-review [repository-path]"
         },
         {
-          "argument_hint": "\"[release-image] [platform] [options]\"",
+          "argument_hint": "[release-image] [platform] [options]",
           "description": "Extract OpenShift installer from release image and create an OCP cluster",
           "name": "create-cluster",
           "synopsis": "/openshift:create-cluster [release-image] [platform] [options]"
         },
         {
-          "argument_hint": "\"[install-dir]\"",
+          "argument_hint": "[install-dir]",
           "description": "Destroy an OpenShift cluster created by create-cluster command",
           "name": "destroy-cluster",
           "synopsis": "/openshift:destroy-cluster [install-dir]"
@@ -629,6 +674,12 @@
           "description": "Expand basic test ideas or existing oc commands into comprehensive test scenarios with edge cases in oc CLI or Ginkgo format",
           "name": "expand-test-case",
           "synopsis": "/openshift:expand-test-case [test-idea-or-file-or-commands] [format]"
+        },
+        {
+          "argument_hint": "",
+          "description": "Check status of Ironic baremetal nodes in OpenShift cluster",
+          "name": "ironic-status",
+          "synopsis": "/openshift:ironic-status"
         },
         {
           "argument_hint": "[test-specification]",
@@ -647,25 +698,37 @@
           "description": "Review test cases for completeness, quality, and best practices - accepts file path or direct oc commands/test code",
           "name": "review-test-cases",
           "synopsis": "/openshift:review-test-cases [file-path-or-test-code-or-commands]"
+        },
+        {
+          "argument_hint": "",
+          "description": "Generate and visualize OVN-Kubernetes network topology diagram",
+          "name": "visualize-ovn-topology",
+          "synopsis": "/openshift:visualize-ovn-topology"
         }
       ],
       "description": "OpenShift development utilities and helpers",
       "has_readme": true,
       "hooks": [],
       "name": "openshift",
-      "skills": [],
+      "skills": [
+        {
+          "description": "Generates and displays OVN-Kubernetes network topology diagrams showing logical switches, routers, ports with IP/MAC addresses in Mermaid format",
+          "id": "generating-ovn-topology",
+          "name": "generating-ovn-topology"
+        }
+      ],
       "version": "0.0.1"
     },
     {
       "commands": [
         {
-          "argument_hint": "\"[--duration <minutes>]\"",
+          "argument_hint": "[--duration <minutes>]",
           "description": "Analyze etcd performance metrics, latency, and identify bottlenecks",
           "name": "analyze-performance",
           "synopsis": "/etcd:analyze-performance [--duration <minutes>]"
         },
         {
-          "argument_hint": "\"[--verbose]\"",
+          "argument_hint": "[--verbose]",
           "description": "Check etcd cluster health, member status, and identify issues",
           "name": "health-check",
           "synopsis": "/etcd:health-check [--verbose]"
@@ -707,6 +770,12 @@
           "description": "Analyze OVN databases from a must-gather using ovsdb-tool",
           "name": "ovn-dbs",
           "synopsis": "/must-gather:ovn-dbs [must-gather-path] [--node <node-name>] [--query <json>]"
+        },
+        {
+          "argument_hint": "[must-gather-path] [--component COMPONENT]",
+          "description": "Analyze Windows node logs and issues in must-gather data",
+          "name": "windows",
+          "synopsis": "/must-gather:windows [must-gather-path] [--component COMPONENT] [--errors-only]"
         }
       ],
       "description": "A plugin to analyze and report on must-gather data",
@@ -721,6 +790,28 @@
         }
       ],
       "version": "0.0.1"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "[must-gather-path|--live] [--component storage|operator|volumes]",
+          "description": "Comprehensive LVMS troubleshooting - analyzes LVMCluster, volume groups, PVCs, and storage issues on live clusters or must-gather",
+          "name": "analyze",
+          "synopsis": "/lvms:analyze [must-gather-path] [--live] [--component <component>]"
+        }
+      ],
+      "description": "LVMS (Logical Volume Manager Storage) plugin for troubleshooting and debugging storage issues",
+      "has_readme": true,
+      "hooks": [],
+      "name": "lvms",
+      "skills": [
+        {
+          "description": "Analyzes LVMS must-gather data to diagnose storage issues",
+          "id": "lvms-analyzer",
+          "name": "LVMS Analyzer"
+        }
+      ],
+      "version": "0.1.0"
     },
     {
       "commands": [],
@@ -819,13 +910,13 @@
     {
       "commands": [
         {
-          "argument_hint": "\"[--sosreport PATH] [--format json|markdown] [--max-irq-samples N]\"",
+          "argument_hint": "[--sosreport PATH] [--format json|markdown] [--max-irq-samples N]",
           "description": "Analyze kernel/sysctl tuning from a live node or sosreport snapshot and propose NTO recommendations",
           "name": "analyze-node-tuning",
           "synopsis": "text"
         },
         {
-          "argument_hint": "\"[profile-name] [--summary ...] [--sysctl ...] [options]\"",
+          "argument_hint": "[profile-name] [--summary ...] [--sysctl ...] [options]",
           "description": "Generate a Tuned (tuned.openshift.io/v1) profile manifest for the Node Tuning Operator",
           "name": "generate-tuned-profile",
           "synopsis": "text"
@@ -843,6 +934,22 @@
         }
       ],
       "version": "1.0.0"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "[--url PR_URL] [<pr>] [--depth quick|full]",
+          "description": "Expert review tool for PRs that add or modify Two Node (Fencing or Arbiter) tests under test/extended/two_node/ in openshift/origin.",
+          "name": "two-node-origin-pr-helper",
+          "synopsis": "/origin:two-node-origin-pr-helper [--url PR_URL] [<pr>] [--depth quick|full]"
+        }
+      ],
+      "description": "Helpers for openshift/origin development.",
+      "has_readme": true,
+      "hooks": [],
+      "name": "origin",
+      "skills": [],
+      "version": "0.0.1"
     },
     {
       "commands": [
@@ -870,6 +977,44 @@
       "hooks": [],
       "name": "container-image",
       "skills": [],
+      "version": "0.0.1"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "[--node <node-name>] [--verbose] [--output-format json|text]",
+          "description": "Perform comprehensive health check on cluster nodes and report kubelet, CRI-O, and node-level issues",
+          "name": "cluster-node-health-check",
+          "synopsis": "/node:cluster-node-health-check [--node <node-name>] [--verbose] [--output-format json|text]"
+        }
+      ],
+      "description": "Kubernetes and OpenShift node health monitoring and diagnostics",
+      "has_readme": true,
+      "hooks": [],
+      "name": "node",
+      "skills": [],
+      "version": "0.0.1"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "<project-id> <timeframe>",
+          "description": "Analyze BigQuery usage and costs for a project",
+          "name": "analyze-usage",
+          "synopsis": "/bigquery:analyze-usage <project-id> <timeframe>"
+        }
+      ],
+      "description": "BigQuery analysis utilities",
+      "has_readme": true,
+      "hooks": [],
+      "name": "bigquery",
+      "skills": [
+        {
+          "description": "Comprehensive analysis of BigQuery usage patterns, costs, and query performance",
+          "id": "analyze-usage",
+          "name": "Analyze BigQuery Usage"
+        }
+      ],
       "version": "0.0.1"
     }
   ]
