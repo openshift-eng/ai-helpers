@@ -249,6 +249,11 @@ The command performs the following steps:
    - Provide context-aware recommendations based on official OpenShift testing standards
    - Reference the test naming guidelines from openshift/origin
    - Link to relevant documentation including the test conventions guide
+   - **Include additional testing guidance**:
+     - If reviewing a PR (not just a local branch), include information about running additional CI jobs
+     - Reference the pull request testing documentation: https://docs.ci.openshift.org/docs/release-oversight/pull-request-testing/
+     - Explain that users can trigger additional jobs beyond configured presubmits using `/payload` commands
+     - Note: This is useful for high-risk changes or when more comprehensive testing is needed
 
 ## Return Value
 
@@ -276,6 +281,7 @@ The command performs the following steps:
    - Suggested fix
 8. **Clean Tests** (if any): List of new tests with no violations
 9. **Recommendations**: Best practices and next steps
+10. **Additional Testing** (if reviewing a PR): Information about triggering additional CI jobs using `/payload` commands
 
 ## Examples
 
@@ -469,6 +475,16 @@ The command performs the following steps:
    - Use the Jira plugin to verify valid component names: `/component-health:list-components`
    - See official OpenShift test conventions: https://github.com/openshift/enhancements/blob/master/dev-guide/test-conventions.md
    - See test naming guidelines: https://github.com/openshift/origin/blob/master/test/extended/README.md
+
+   ### Additional Testing
+   - **Want to run more comprehensive testing on this PR?**
+     - You can trigger additional CI jobs beyond the configured presubmits using `/payload` commands
+     - Useful for high-risk changes like Kubernetes rebases, network upgrades, or major refactoring
+     - Examples:
+       - `/payload 4.21 nightly informing` - Run all informing jobs for 4.21
+       - `/payload-job periodic_ci_openshift_release_some_job` - Run a specific job
+       - `/payload-aggregate periodic_job 5` - Run a job 5 times for statistical analysis
+     - See full documentation: https://docs.ci.openshift.org/docs/release-oversight/pull-request-testing/
    ```
 
 ## Arguments
