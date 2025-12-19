@@ -442,9 +442,8 @@ OpenShift installations exhibit "eventual consistency" behavior, which means:
    First Error:
    {First error message with timestamp}
 
-   Cluster Diagnostics Analysis (`gather-extra` and `gather-must-gather`)
-   --------------------------------------------------------------------
-   {Findings from `gather-extra` (e.g., machine/node status) and `gather-must-gather` (e.g., operator logs and machine-api logs). Prioritize machine/node health analysis.}
+   Context:
+   {Surrounding log lines}
 
    Log Bundle Analysis
    -------------------
@@ -486,11 +485,21 @@ OpenShift installations exhibit "eventual consistency" behavior, which means:
    - Examine kube-apiserver startup in kube-apiserver.log
    - Review bootstrap VM serial console for boot issues
 
-   For "cluster creation" or "cluster operator stability" failures:
-   - **First, report on machine and node health from `gather-extra`**. State if the expected number of nodes are ready.
-   - If nodes are not ready, suggest debugging the machine provisioning process. Check the `machine-api` controller logs in `gather-must-gather`.
-   - **If nodes are healthy**, then report on which operators are failing based on `gather-must-gather` and suggest checking their logs.
-   - If `gather-extra` or `gather-must-gather` were not available, state that the cluster was likely too unstable to collect diagnostics.
+   For "cluster creation" failures:
+   - report on machine and node health. State if the expected number of nodes are ready.
+     - If nodes are not ready, suggest debugging the machine provisioning process. Check the `machine-api` controller logs
+   - Identify which operators failed to deploy
+   - Check if must-gather was collected (look for must-gather*.tar files)
+   - If must-gather exists: Review specific operator logs in gather-must-gather
+   - If must-gather doesn't exist: Cluster was too unstable to collect diagnostics; rely on installer log and log bundle
+   - Check for resource conflicts or missing dependencies
+
+   For "cluster operator stability" failures:
+   - Identify operators not reaching stable state
+   - Check operator conditions (available, progressing, degraded)
+   - Check if must-gather exists before suggesting to review it
+   - Review operator logs for stuck operations (if must-gather available)
+   - Look for time-series of operator status changes
 
    For "other" failures:
    - Perform comprehensive log review
