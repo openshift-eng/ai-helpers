@@ -4,16 +4,16 @@ argument-hint: [base-branch-or-pr-url]
 ---
 
 ## Name
-ci:pr-review
+ci:pr-test-analysis
 
 ## Synopsis
 ```
-/ci:pr-review [base-branch-or-pr-url]
+/ci:pr-test-analysis [base-branch-or-pr-url]
 ```
 
 ## Description
 
-The `ci:pr-review` command analyzes test code changes in the current git branch or a GitHub pull request to identify potential issues with Ginkgo test naming and structure. It performs three main types of validation:
+The `ci:pr-test-analysis` command analyzes test code changes in the current git branch or a GitHub pull request to identify potential issues with Ginkgo test naming and structure. It performs three main types of validation:
 
 1. **Component Mapping**: Ensures tests have proper component tags to map test failures to the correct team
    - **NEW tests**: Must use `[Jira:"component"]` tags (required)
@@ -281,27 +281,27 @@ The command performs the following steps:
 
 1. **Review current branch with auto-detection**:
    ```
-   /ci:pr-review
+   /ci:pr-test-analysis
    ```
 
 2. **Review current branch against specific base branch**:
    ```
-   /ci:pr-review up/main
+   /ci:pr-test-analysis up/main
    ```
 
 3. **Review against a different upstream remote**:
    ```
-   /ci:pr-review upstream/master
+   /ci:pr-test-analysis upstream/master
    ```
 
 4. **Review a GitHub pull request**:
    ```
-   /ci:pr-review https://github.com/openshift/origin/pull/305390
+   /ci:pr-test-analysis https://github.com/openshift/origin/pull/305390
    ```
 
 5. **Review a PR from a different repository**:
    ```
-   /ci:pr-review https://github.com/openshift/kubernetes/pull/12345
+   /ci:pr-test-analysis https://github.com/openshift/kubernetes/pull/12345
    ```
 
    Expected output when violations are found:
@@ -514,7 +514,7 @@ The command performs the following steps:
 - **Recommended usage**:
   - Use PR URL when reviewing someone else's PR or when you don't have the code locally
   - Use base branch name when reviewing your local working branch
-  - If you have multiple remotes or stale branches, explicitly specify the base branch (e.g., `/ci:pr-review up/main`)
+  - If you have multiple remotes or stale branches, explicitly specify the base branch (e.g., `/ci:pr-test-analysis up/main`)
 - **Component validation**:
   - **NEW TESTS**: Must use `[Jira:"component"]` tags - legacy `[sig-*]` and `[bz-*]` tags will be flagged as violations
   - **MODIFIED TESTS**: May use existing `[sig-*]` and `[bz-*]` tags, but migration to `[Jira:"component"]` is encouraged

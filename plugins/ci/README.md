@@ -6,13 +6,13 @@ release quality.
 
 ## Commands
 
-### pr-review
+### pr-test-analysis
 
 Review Ginkgo test code changes in current branch or PR for naming violations and best practices.
 
 **Usage:**
 ```bash
-/ci:pr-review [base-branch-or-pr-url]
+/ci:pr-test-analysis [base-branch-or-pr-url]
 ```
 
 **What it does:**
@@ -26,17 +26,17 @@ Review Ginkgo test code changes in current branch or PR for naming violations an
 
 1. **Review current branch with auto-detection:**
    ```bash
-   /ci:pr-review
+   /ci:pr-test-analysis
    ```
 
 2. **Review against specific base branch:**
    ```bash
-   /ci:pr-review up/main
+   /ci:pr-test-analysis up/main
    ```
 
 3. **Review a GitHub pull request:**
    ```bash
-   /ci:pr-review https://github.com/openshift/origin/pull/305390
+   /ci:pr-test-analysis https://github.com/openshift/origin/pull/305390
    ```
 
 **Key Features:**
@@ -45,7 +45,7 @@ Review Ginkgo test code changes in current branch or PR for naming violations an
 - Automatic OpenShift test conventions validation
 - Works with both local branches and remote PRs
 
-See [commands/pr-review.md](commands/pr-review.md) for full documentation.
+See [commands/pr-test-analysis.md](commands/pr-test-analysis.md) for full documentation.
 
 ### ask-sippy
 
