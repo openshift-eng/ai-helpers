@@ -398,6 +398,12 @@
           "description": "Analyze sosreport archive for system diagnostics and issues",
           "name": "analyze",
           "synopsis": "/sosreport:analyze <path-to-sosreport> [--only <areas>] [--skip <areas>]"
+        },
+        {
+          "argument_hint": "[sosreport-path] [--db] [--flows-only] [--query <json>]",
+          "description": "Analyze OVS data from sosreport (text files or database)",
+          "name": "ovs-db",
+          "synopsis": "/sosreport:ovs-db [sosreport-path] [--db] [--flows-only] [--query <json>]"
         }
       ],
       "description": "Analyze sosreport archives for system diagnostics and troubleshooting",
@@ -414,6 +420,11 @@
           "description": "Analyze network configuration data from sosreport archives, extracting interface configurations, routing tables, active connections, firewall rules (firewalld/iptables), and DNS settings from the sosreport directory structure to diagnose network connectivity and configuration issues",
           "id": "network-analysis",
           "name": "Network Analysis"
+        },
+        {
+          "description": "Analyze Open vSwitch data from sosreport",
+          "id": "ovs-db-analysis",
+          "name": "OVS Database and Flow Analysis"
         },
         {
           "description": "Analyze system resource usage data from sosreport archives, extracting memory statistics, CPU load averages, disk space utilization, and process information from the sosreport directory structure to diagnose resource exhaustion, performance bottlenecks, and capacity issues",
@@ -623,6 +634,12 @@
     {
       "commands": [
         {
+          "argument_hint": "\"\"",
+          "description": "Bootstrap OpenShift Manager (OM) integration for OpenShift operators with automated resource discovery",
+          "name": "bootstrap-om",
+          "synopsis": "bash"
+        },
+        {
           "argument_hint": "<dependency> [version] [--create-jira] [--create-pr]",
           "description": "Bump dependencies in OpenShift projects with automated analysis and PR creation",
           "name": "bump-deps",
@@ -753,6 +770,12 @@
           "description": "Analyze OVN databases from a must-gather using ovsdb-tool",
           "name": "ovn-dbs",
           "synopsis": "/must-gather:ovn-dbs [must-gather-path] [--node <node-name>] [--query <json>]"
+        },
+        {
+          "argument_hint": "[must-gather-path] [--component COMPONENT]",
+          "description": "Analyze Windows node logs and issues in must-gather data",
+          "name": "windows",
+          "synopsis": "/must-gather:windows [must-gather-path] [--component COMPONENT] [--errors-only]"
         }
       ],
       "description": "A plugin to analyze and report on must-gather data",

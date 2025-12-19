@@ -183,6 +183,7 @@ A plugin to analyze and report on must-gather data
 **Commands:**
 - **`/must-gather:analyze` `[must-gather-path] [component]`** - Quick analysis of must-gather data - runs all analysis scripts and provides comprehensive cluster diagnostics
 - **`/must-gather:ovn-dbs` `[must-gather-path]`** - Analyze OVN databases from a must-gather using ovsdb-tool
+- **`/must-gather:windows` `[must-gather-path] [--component COMPONENT]`** - Analyze Windows node logs and issues in must-gather data
 
 See [plugins/must-gather/README.md](plugins/must-gather/README.md) for detailed documentation.
 
@@ -229,6 +230,7 @@ See [plugins/olm/README.md](plugins/olm/README.md) for detailed documentation.
 OpenShift development utilities and helpers
 
 **Commands:**
+- **`/openshift:bootstrap-om` `""`** - Bootstrap OpenShift Manager (OM) integration for OpenShift operators with automated resource discovery
 - **`/openshift:bump-deps` `<dependency> [version] [--create-jira] [--create-pr]`** - Bump dependencies in OpenShift projects with automated analysis and PR creation
 - **`/openshift:cluster-health-check` `[--verbose] [--output-format]`** - Perform comprehensive health check on OpenShift cluster and report issues
 - **`/openshift:crd-review` `[repository-path]`** - Review Kubernetes CRDs against Kubernetes and OpenShift API conventions
@@ -279,6 +281,7 @@ Analyze sosreport archives for system diagnostics and troubleshooting
 
 **Commands:**
 - **`/sosreport:analyze` `<path-to-sosreport> [--only <areas>] [--skip <areas>]`** - Analyze sosreport archive for system diagnostics and issues
+- **`/sosreport:ovs-db` `[sosreport-path] [--db] [--flows-only] [--query <json>]`** - Analyze OVS data from sosreport (text files or database)
 
 See [plugins/sosreport/README.md](plugins/sosreport/README.md) for detailed documentation.
 
