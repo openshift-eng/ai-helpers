@@ -628,7 +628,7 @@
     {
       "commands": [
         {
-          "argument_hint": "\"\"",
+          "argument_hint": "",
           "description": "Bootstrap OpenShift Manager (OM) integration for OpenShift operators with automated resource discovery",
           "name": "bootstrap-om",
           "synopsis": "bash"
@@ -1010,6 +1010,28 @@
         }
       ],
       "version": "0.0.1"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "<short-description> <repo1|url> [repo2...]",
+          "description": "Create a workspace with git worktrees for multi-repository development",
+          "name": "create",
+          "synopsis": "/workspaces:create <short-description> <repo1|url> [repo2...]"
+        },
+        {
+          "argument_hint": "<workspace-name>",
+          "description": "Delete a workspace and its git worktrees",
+          "name": "delete",
+          "synopsis": "/workspaces:delete <workspace-name>"
+        }
+      ],
+      "description": "Manage isolated git worktree workspaces for multi-repo development",
+      "has_readme": true,
+      "hooks": [],
+      "name": "workspaces",
+      "skills": [],
+      "version": "1.0.0"
     }
   ]
 }
