@@ -56,6 +56,19 @@ if [ "$RECONFIGURE" = true ] || [ ! -f "${CONFIG_FILE}" ]; then
         exit 1
     fi
 
+    # Validate paths before saving configuration
+    if [ ! -d "$REPOS_ROOT" ]; then
+        echo "ERROR: Git repositories root directory does not exist: $REPOS_ROOT"
+        echo "Please provide a valid directory path."
+        exit 1
+    fi
+
+    if [ ! -d "$WORKSPACES_ROOT" ]; then
+        echo "ERROR: Workspaces root directory does not exist: $WORKSPACES_ROOT"
+        echo "Please provide a valid directory path or create it first with: mkdir -p $WORKSPACES_ROOT"
+        exit 1
+    fi
+
     # Save configuration
     mkdir -p "${CONFIG_DIR}"
     cat > "${CONFIG_FILE}" <<EOF
@@ -67,45 +80,6 @@ EOF
     echo "CONFIG_FILE: ${CONFIG_FILE}"
     echo "REPOS_ROOT: ${REPOS_ROOT}"
     echo "WORKSPACES_ROOT: ${WORKSPACES_ROOT}"
-
-    # Create custom-prompt.md during first-time setup
-    CUSTOM_PROMPT_FILE="${CONFIG_DIR}/custom-prompt.md"
-    cat > "${CUSTOM_PROMPT_FILE}" <<'CUSTOM_PROMPT_EOF'
-# DISABLED - Remove this line to enable custom workspace rules
-
-## Aliases
-
-Example format:
-- `FE` → `frontend`
-- `BE` → `backend`
-- `API` → `api-service`
-
-## Auto-detect Rules
-
-Example format:
-- When `frontend` is selected → add `shared-components`
-- When `api-service` is selected → add `api-client`
-
-## Workspace Naming
-
-Directory name priority:
-1. Jira key (e.g., `BOARD-1234`)
-2. PR review format: `review-{repo}-{pr-number}`
-3. Custom feature name: `feature-{description}`
-
-CUSTOM_PROMPT_EOF
-    echo "CUSTOM_PROMPT_FILE_CREATED: ${CUSTOM_PROMPT_FILE}"
-    echo ""
-    echo "=== AGENT_INSTRUCTION ==="
-    echo "IMPORTANT: You must inform the user about the custom prompt file."
-    echo ""
-    echo "ACTION REQUIRED: Tell the user they can customize ${CUSTOM_PROMPT_FILE} to add:"
-    echo "  - Repository aliases for shorter names (e.g., FE → frontend)"
-    echo "  - Auto-detect rules to automatically include dependent repositories"
-    echo "  - Workspace naming preferences"
-    echo ""
-    echo "Explain that this will make workspace creation smarter and tailored to their team's workflow."
-    echo "=== END_AGENT_INSTRUCTION ==="
 fi
 
 # Source and export
