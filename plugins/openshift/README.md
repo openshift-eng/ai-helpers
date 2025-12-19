@@ -228,6 +228,20 @@ Analyze how OpenShift and Kubernetes repositories implement specific design patt
 - References to best implementations
 - Cached results in `.work/design-patterns/<pattern>/`
 
+**Cache Management:**
+```bash
+# View cache size
+du -sh .work/design-patterns/
+
+# Clean up a specific pattern's cache
+rm -rf .work/design-patterns/NetworkPolicy/
+
+# Clean up all pattern analysis cache
+rm -rf .work/design-patterns/
+
+# Cache auto-expires after 7 days (forces re-analysis)
+```
+
 **Use Cases:**
 - Learning how to implement a new pattern
 - Understanding common approaches vs unique ones

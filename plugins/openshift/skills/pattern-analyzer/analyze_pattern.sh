@@ -186,11 +186,12 @@ def clone_repo(repo_info):
     idx, total, repo = repo_info
     repo_name = repo['name']
     clone_url = repo['clone_url']
+    full_name = repo.get('full_name', repo_name)
     repo_path = Path('$WORK_DIR/repos') / repo_name
     
     # Check if already exists
     if repo_path.exists():
-        return (idx, total, repo_name, 'cached', None)
+        return (idx, total, repo_name, full_name, 'cached', None)
     
     # Clone the repo
     try:
@@ -200,13 +201,14 @@ def clone_repo(repo_info):
             timeout=120
         )
         if result.returncode == 0:
-            return (idx, total, repo_name, 'success', None)
+            return (idx, total, repo_name, full_name, 'success', None)
         else:
-            return (idx, total, repo_name, 'error', 'git error')
+            error_msg = result.stderr.decode()[:50] if result.stderr else 'git error'
+            return (idx, total, repo_name, full_name, 'error', error_msg)
     except subprocess.TimeoutExpired:
-        return (idx, total, repo_name, 'error', 'timeout')
+        return (idx, total, repo_name, full_name, 'error', 'timeout (>120s)')
     except Exception as e:
-        return (idx, total, repo_name, 'error', str(e)[:20])
+        return (idx, total, repo_name, full_name, 'error', str(e)[:30])
 
 # Load repos
 with open('$WORK_DIR/repos.json') as f:
@@ -233,7 +235,7 @@ with ThreadPoolExecutor(max_workers=max_workers) as executor:
     
     # Process results as they complete
     for future in as_completed(futures):
-        idx, total, repo_name, status, error = future.result()
+        idx, total, repo_name, full_name, status, error = future.result()
         
         with print_lock:
             if status == 'cached':
@@ -245,15 +247,28 @@ with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 cloned += 1
             else:
                 print(f'  [{idx:2d}/{total}] ✗ {repo_name:40s} ({error})', flush=True)
-                failed.append(repo_name)
+                failed.append({'name': repo_name, 'full_name': full_name, 'error': error})
 
 print()
 print(f'Summary:')
 print(f'  • Successfully cloned: {cloned - skipped} new repos')
 print(f'  • Already cached: {skipped} repos')
 print(f'  • Total available: {cloned} repos')
+
+# Report and save failed repos for user visibility
 if failed:
     print(f'  • Failed: {len(failed)} repos')
+    print()
+    print('Failed repositories:')
+    for f in failed:
+        print(f'    - {f[\"full_name\"]}: {f[\"error\"]}')
+    
+    # Save failed repos to a file for reference
+    failed_file = Path('$WORK_DIR/clone_failures.json')
+    with open(failed_file, 'w') as ff:
+        json.dump({'failed_count': len(failed), 'failures': failed}, ff, indent=2)
+    print()
+    print(f'  ℹ️  Failed repos saved to: $WORK_DIR/clone_failures.json')
 
 if cloned < 3:
     print()

@@ -628,16 +628,16 @@
     {
       "commands": [
         {
-          "argument_hint": "\"\"",
-          "description": "Bootstrap OpenShift Manager (OM) integration for OpenShift operators with automated resource discovery",
-          "name": "bootstrap-om",
-          "synopsis": "bash"
-        },
-        {
           "argument_hint": "<pattern-name> [--orgs org1,org2] [--repos N] [--language LANG]",
           "description": "Analyze how OpenShift repos implement a design pattern and get custom recommendations",
           "name": "analyze-pattern",
           "synopsis": "/openshift:analyze-pattern <pattern> [--orgs org1,org2] [--repos N] [--language LANG] [--refresh] [--skip-clone]"
+        },
+        {
+          "argument_hint": "",
+          "description": "Bootstrap OpenShift Manager (OM) integration for OpenShift operators with automated resource discovery",
+          "name": "bootstrap-om",
+          "synopsis": "bash"
         },
         {
           "argument_hint": "<dependency> [version] [--create-jira] [--create-pr]",

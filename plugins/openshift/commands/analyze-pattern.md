@@ -24,6 +24,13 @@ The `openshift:analyze-pattern` command analyzes how OpenShift and Kubernetes re
 - Provides complete, copy-paste-ready code examples
 - Explains WHY certain approaches are recommended
 
+**Context-Aware Analysis Strategy:**
+To avoid context window exhaustion when analyzing many repos, Claude uses a tiered approach:
+1. **Tier 1 (Deep analysis):** Top 3-5 repos most similar to user's project - full code review
+2. **Tier 2 (Pattern extraction):** Next 10 repos - extract struct definitions and key patterns only
+3. **Tier 3 (Statistical):** Remaining repos - count approaches, skip full code review
+This ensures comprehensive statistics without overwhelming the context window.
+
 **Use cases:**
 - Learning how to implement NetworkPolicy, ValidatingWebhook, etc.
 - Understanding ecosystem-wide best practices

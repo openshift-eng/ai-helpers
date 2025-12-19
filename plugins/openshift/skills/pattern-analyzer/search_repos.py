@@ -169,6 +169,11 @@ def score_repository(repo_details, match_count):
     """
     Score repository based on quality signals.
     
+    Scoring Philosophy:
+    - We balance "trusted sources" with "pattern richness"
+    - Low-star repos with many pattern matches can still score well
+    - This ensures we don't miss hidden gems with good implementations
+    
     Args:
         repo_details: Repository details from GitHub API
         match_count: Number of times pattern appears in repo
@@ -182,6 +187,7 @@ def score_repository(repo_details, match_count):
     score = 0.0
     
     # Stars (popularity/quality signal) - max 5 points
+    # Note: Low stars doesn't mean bad patterns, just less popular
     stars = repo_details.get('stargazers_count', 0)
     score += min(stars / 10, 5.0)
     
@@ -200,13 +206,17 @@ def score_repository(repo_details, match_count):
         except:
             pass
     
-    # OpenShift org (trusted source) - 5 points
-    if repo_details.get('owner', {}).get('login') == 'openshift':
-        score += 5.0
-    
-    # Kubernetes org (trusted source) - 4 points
-    elif repo_details.get('owner', {}).get('login') == 'kubernetes':
-        score += 4.0
+    # Trusted organizations bonus (additive, not exclusive)
+    # Note: Non-trusted orgs can still rank high via match_count and activity
+    owner_login = repo_details.get('owner', {}).get('login', '')
+    trusted_orgs = {
+        'openshift': 5.0,
+        'kubernetes': 4.0,
+        'kubernetes-sigs': 3.5,
+        'operator-framework': 3.0,
+        'redhat-developer': 2.5,
+    }
+    score += trusted_orgs.get(owner_login, 0.0)
     
     # Not archived - 2 points
     if not repo_details.get('archived', False):
@@ -218,8 +228,10 @@ def score_repository(repo_details, match_count):
     if not repo_details.get('fork', False):
         score += 1.0
     
-    # Match count relevance - max 3 points
-    score += min(match_count / 5, 3.0)
+    # Match count relevance - max 5 points (INCREASED from 3)
+    # This allows repos with many pattern matches to rank higher
+    # even if they're from lesser-known orgs or have fewer stars
+    score += min(match_count / 3, 5.0)
     
     return score
 

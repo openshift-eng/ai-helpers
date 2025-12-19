@@ -96,17 +96,31 @@ $ANALYZER_SCRIPT \
 
 ### Step 2: Read the Repository Data
 
-**CRITICAL: Read this file to understand what was found**
+**MANDATORY: Execute this exact command to read the data**
 
 ```bash
-cat .work/design-patterns/<pattern>/repos.json
+# REQUIRED: Read the repos.json file - DO NOT SKIP THIS STEP
+python3 -c "
+import json
+with open('.work/design-patterns/<pattern>/repos.json') as f:
+    data = json.load(f)
+print(f'Pattern: {data[\"pattern\"]}')
+print(f'Total repos found: {data[\"repos_found\"]}')
+print(f'Repos selected: {data[\"repos_selected\"]}')
+print()
+print('Top 10 repositories:')
+for i, repo in enumerate(data['repos'][:10], 1):
+    print(f'  {i}. {repo[\"full_name\"]:40s} ⭐{repo[\"stars\"]:4d}  score:{repo[\"relevance_score\"]}')
+print()
+print('Repos most similar to your project (pick 3-5 for deep analysis):')
+# TODO: Claude should identify which repos match user's project type
+"
 ```
 
-**Extract:**
-- How many repos were found
-- Which repos have highest quality (stars, activity)
-- Repository descriptions (understand what each does)
-- URLs for reference
+**After running this command, extract:**
+- Total repos found (for statistics)
+- Top 5 repos by score (candidates for deep analysis)
+- Repos matching user's project type (operators → pick operators)
 
 **Example data structure:**
 ```json
@@ -131,7 +145,20 @@ cat .work/design-patterns/<pattern>/repos.json
 
 **The repos are cloned to:** `.work/design-patterns/<pattern>/repos/`
 
-**Your task:** Explore these repos to understand how the pattern is implemented.
+**IMPORTANT - Context Window Management:**
+To avoid exhausting the context window when analyzing 50+ repos, use this tiered approach:
+
+| Tier | Repos | Analysis Depth | Purpose |
+|------|-------|----------------|---------|
+| **Tier 1** | Top 3-5 (most similar) | Full code review | Deep understanding |
+| **Tier 2** | Next 10 repos | Struct definitions only | Pattern extraction |
+| **Tier 3** | Remaining repos | Count occurrences | Statistics only |
+
+**NEVER load all 50 repos into context at once.** Instead:
+1. Read `repos.json` to get the list (small file)
+2. Identify top 3-5 repos similar to user's project
+3. Deep-dive only into those 3-5 repos
+4. For statistics, use grep/find commands to count patterns without reading full files
 
 #### A. Find Similar Repos to User's Project
 
@@ -148,6 +175,22 @@ find . -name "*webhook*.go" -o -name "*controller*.go"
 ```
 
 Then find repos with similar structure from the cloned set.
+
+#### B. Identify Top 3-5 Repos for Deep Analysis
+
+Based on user's project type, select 3-5 repos to analyze deeply:
+```bash
+# List all cloned repos with their characteristics
+for repo in .work/design-patterns/<pattern>/repos/*/; do
+  echo "=== $(basename $repo) ==="
+  ls "$repo" | head -5
+done
+```
+
+**Selection criteria:**
+- Same project type (operator → pick operators)
+- Similar directory structure
+- Active/well-maintained (from repos.json scores)
 
 #### B. Analyze Pattern Implementation
 
@@ -423,14 +466,24 @@ User: /openshift:analyze-pattern "/usr/bin/gather"
    → Successfully clones 24 repos (3 failures due to permissions)
    → Saves to .work/design-patterns/usr/bin/gather/repos/
 
-3. YOU (Claude) take over:
-   - Read repos.json (see 27 ranked repos)
-   - Explore must-gather, oadp-operator (similar to user's project)
-   - Find Dockerfiles with /usr/bin/gather
-   - Extract shell script patterns
-   - Understand user is building must-gather-operator
-   - Generate specific guide for their operator
-   - Create ANALYSIS.md with everything
+3. Claude executes the following MANDATORY steps (in order):
+
+   **Step 3a: Read repos.json** (REQUIRED)
+   ```bash
+   cat .work/design-patterns/usr/bin/gather/repos.json | head -100
+   ```
+   
+   **Step 3b: Identify top 3 similar repos** (REQUIRED)
+   From repos.json, select the 3 repos most similar to user's project type.
+   For this example: must-gather, oadp-operator, ocs-operator
+   
+   **Step 3c: Extract patterns from each** (REQUIRED for top 3 only)
+   ```bash
+   grep -r "gather" .work/design-patterns/usr/bin/gather/repos/must-gather/ --include="*.sh" | head -20
+   ```
+   
+   **Step 3d: Generate ANALYSIS.md** (REQUIRED)
+   Create `.work/design-patterns/usr/bin/gather/ANALYSIS.md` with findings
 ```
 
 ## Output Structure
