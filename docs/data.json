@@ -634,7 +634,7 @@
     {
       "commands": [
         {
-          "argument_hint": "\"\"",
+          "argument_hint": "",
           "description": "Bootstrap OpenShift Manager (OM) integration for OpenShift operators with automated resource discovery",
           "name": "bootstrap-om",
           "synopsis": "bash"
