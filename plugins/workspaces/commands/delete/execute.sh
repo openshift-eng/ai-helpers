@@ -15,15 +15,16 @@ if [ ! -f "${CONFIG_FILE}" ]; then
 fi
 # shellcheck disable=SC1090
 source "${CONFIG_FILE}"
-
-WORKSPACE_DIR="$1"
-BRANCH_ACTION="${2:---keep-branches}"
+WORKSPACE_DIR="${1:-}"
+BRANCH_ACTION="${2:---delete-branches}"
 
 if [ -z "$WORKSPACE_DIR" ]; then
     echo "=== ERROR ==="
     echo "Usage: execute.sh <workspace-dir> [--keep-branches|--delete-branches]"
     exit 1
 fi
+
+FULL_PATH="${CLAUDE_WORKSPACES_ROOT}/$WORKSPACE_DIR"
 
 # Handle both absolute paths and relative workspace names
 if [[ "$WORKSPACE_DIR" == /* ]]; then

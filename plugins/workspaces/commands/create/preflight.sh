@@ -191,7 +191,7 @@ if [ ! -d "${TEMPLATE_DIR}" ]; then
     mkdir -p "${TEMPLATE_DIR}"
 
     # Create default CLAUDE.md
-    cat > "${TEMPLATE_DIR}/CLAUDE.md" <<'TEMPLATE_EOF'
+    cat > "${TEMPLATE_DIR}/CLAUDE.md" <<TEMPLATE_EOF
 # Workspace Context
 
 This is a multi-repository workspace managed by git worktrees.
