@@ -1,0 +1,9 @@
+{
+  "name": "workspaces",
+  "description": "Manage isolated git worktree workspaces for multi-repo development",
+  "version": "1.0.0",
+  "author": {
+    "name": "github.com/openshift-eng"
+  },
+  "keywords": ["git", "worktree", "workspace", "multi-repo"]
+}

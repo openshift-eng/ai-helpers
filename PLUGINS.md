@@ -25,6 +25,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Session](#session-plugin)
 - [Sosreport](#sosreport-plugin)
 - [Utils](#utils-plugin)
+- [Workspaces](#workspaces-plugin)
 - [Yaml](#yaml-plugin)
 
 ### Agendas Plugin
@@ -229,7 +230,7 @@ See [plugins/olm/README.md](plugins/olm/README.md) for detailed documentation.
 OpenShift development utilities and helpers
 
 **Commands:**
-- **`/openshift:bootstrap-om` `""`** - Bootstrap OpenShift Manager (OM) integration for OpenShift operators with automated resource discovery
+- **`/openshift:bootstrap-om`** - Bootstrap OpenShift Manager (OM) integration for OpenShift operators with automated resource discovery
 - **`/openshift:bump-deps` `<dependency> [version] [--create-jira] [--create-pr]`** - Bump dependencies in OpenShift projects with automated analysis and PR creation
 - **`/openshift:cluster-health-check` `[--verbose] [--output-format]`** - Perform comprehensive health check on OpenShift cluster and report issues
 - **`/openshift:crd-review` `[repository-path]`** - Review Kubernetes CRDs against Kubernetes and OpenShift API conventions
@@ -296,6 +297,16 @@ A generic utilities plugin serving as a catch-all for various helper commands an
 - **`/utils:process-renovate-pr` `<PR_NUMBER|open> [JIRA_PROJECT] [COMPONENT]`** - Process Renovate dependency PR(s) to meet repository contribution standards
 
 See [plugins/utils/README.md](plugins/utils/README.md) for detailed documentation.
+
+### Workspaces Plugin
+
+Manage isolated git worktree workspaces for multi-repo development
+
+**Commands:**
+- **`/workspaces:create` `<short-description> <repo1|url> [repo2...]`** - Create a workspace with git worktrees for multi-repository development
+- **`/workspaces:delete` `<workspace-name>`** - Delete a workspace and its git worktrees
+
+See [plugins/workspaces/README.md](plugins/workspaces/README.md) for detailed documentation.
 
 ### Yaml Plugin
 
