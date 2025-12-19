@@ -368,29 +368,41 @@ OpenShift installations exhibit "eventual consistency" behavior, which means:
        - Search for terraform-related error messages
    - Log bundle may not exist or be incomplete for this failure mode
 
-   **For "cluster creation" and "cluster operator stability" failures:**
-   - **Step 1: Check Machine and Node Health first.** The most common cause for these failures is that the required nodes (especially workers) never joined the cluster.
-     - **Check `gather-extra` if it exists**:
-       - Analyze `gather-extra/artifacts/machines.json`: Look for machines stuck in "Provisioning" or a "Failed" phase. Note the error messages.
-       - Analyze `gather-extra/artifacts/nodes.json`: Check if the expected number of master and worker nodes are in a "Ready" state.
-     - **If machine/node issues are found**:
-        - Conclude that this is the likely root cause. The helper should then focus on debugging why machines failed.
-        - The `machine-api` logs within `gather-must-gather` might contain clues (e.g., `.../namespaces/openshift-machine-api/pods/...`).
-   - **Step 2: If machines and nodes are healthy, then analyze operators.**
-     - **Check `gather-must-gather`**:
-       - Analyze `cluster-operators.json` to identify which operators are degraded or not available.
-       - Dive into the logs for those specific operators to understand the failure. For example, if the `ingress` operator is failing, check its logs in `gather-must-gather/namespaces/openshift-ingress-operator/pods/...`.
-   **For "other" failures:**
-   - Perform comprehensive analysis of all available logs
-   - Check installer log for any errors or fatal messages
-   - Review log bundle if available
-   - Look for unusual patterns or timeout messages
+   **For "cluster creation" failures:**
+   - Check gather-extra if it exists:
+     - Analyze `gather-extra/artifacts/machines.json`: Look for machines stuck in "Provisioning" or a "Failed" phase. Note the error messages.
+     - Analyze `gather-extra/artifacts/nodes.json`: Check if the expected number of master and worker nodes are in "Ready" state.
+   - Check if must-gather was successfully collected:
+     - Look for `must-gather*.tar` files in the gather-must-gather step directory
+     - If NO .tar file exists, must-gather collection failed (cluster was too unstable)
+     - Do NOT suggest downloading must-gather if the .tar file doesn't exist
+   - If must-gather exists, check for operator logs
+   - Look for degraded cluster operators
+   - Check operator-specific logs to see why they couldn't stabilize
+   - Review cluster operator status conditions
+   - This indicates cluster bootstrapped but operators failed to deploy
+
    **For "configuration" failures:**
    - Focus entirely on installer log
    - Look for install-config.yaml validation errors
    - Check for missing required fields or invalid values
    - This is a very early failure before any infrastructure is created
    - Log bundle will not exist for this failure mode
+
+   **For "cluster operator stability" failures:**
+   - Similar to "cluster creation" but operators are stuck in unstable state
+   - Check if must-gather was successfully collected (look for `must-gather*.tar` files)
+   - If must-gather doesn't exist, rely on installer log and log bundle only
+   - Check for operators with available=False, progressing=True, or degraded=True
+   - Review operator logs in gather-must-gather (if it exists)
+   - Check for resource conflicts or dependency issues
+   - Look at time-series of operator status changes
+
+   **For "other" failures:**
+   - Perform comprehensive analysis of all available logs
+   - Check installer log for any errors or fatal messages
+   - Review log bundle if available
+   - Look for unusual patterns or timeout messages
 
 3. **Extract key information**
    - If `failed-units.txt` exists, read it to find failed services
