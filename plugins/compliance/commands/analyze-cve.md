@@ -22,103 +22,124 @@ This command helps developers:
 
 ## Implementation
 
+### Phase 0: Setup and Tool Validation
+
+1. **Check Required Tools**
+   
+   Check for all required tools and collect missing ones:
+   
+   ```bash
+   # Check Go toolchain
+   go version 2>/dev/null || echo "MISSING: go"
+   
+   # Check for go.mod in workspace
+   [ -f go.mod ] || echo "MISSING: go.mod"
+   
+   # Check govulncheck
+   which govulncheck 2>/dev/null || echo "MISSING: govulncheck"
+   
+   # Check callgraph
+   which callgraph 2>/dev/null || echo "MISSING: callgraph"
+   
+   # Check digraph
+   which digraph 2>/dev/null || echo "MISSING: digraph"
+   ```
+
+2. **If ANY Tool is Missing**
+   
+   Display error message with installation instructions:
+   
+   ```
+   ❌ ERROR: Missing required tools for CVE analysis
+   
+   The following tools are required but not found:
+   
+   [ ] Go toolchain
+       Install: https://go.dev/doc/install
+   
+   [ ] go.mod in workspace
+       Initialize: cd <your-project> && go mod init <module-name>
+   
+   [ ] govulncheck (Go vulnerability scanner)
+       Install: go install golang.org/x/vuln/cmd/govulncheck@latest
+   
+   [ ] callgraph (Call graph analysis)
+       Install: go install golang.org/x/tools/cmd/callgraph@latest
+   
+   [ ] digraph (Graph traversal)
+       Install: go install golang.org/x/tools/cmd/digraph@latest
+   
+   Please install the missing tools and try again.
+   
+   Note: All tools are required for comprehensive CVE analysis with high confidence.
+   ```
+   
+   **Exit with error code** - Do NOT proceed with analysis
+
+3. **If All Tools Present**
+   
+   Display confirmation and proceed:
+   
+   ```
+   ✅ All required tools found:
+   - Go toolchain: <version>
+   - govulncheck: <version>
+   - callgraph: available
+   - digraph: available
+   
+   Proceeding with full-confidence CVE analysis...
+   ```
+
+**Decision Point:**
+- IF ANY tool missing → Display installation instructions → Exit with error
+- IF ALL tools present → Continue to Phase 1
+
+---
+
 ### Phase 1: CVE Intelligence Gathering
+
+**Note**: This is a complex information gathering process - see skill documentation for full details  
+**Skill**: [cve-intelligence-gathering](../../skills/cve-intelligence-gathering/SKILL.md)
+
+**Summary**:
 
 1. **Validate CVE Format**
    - Verify CVE ID follows standard format (e.g., CVE-2024-1234)
    - Extract year and number components
+   
+**Decision Point:**
+- IF invalid format → Exit with error message
+- OTHERWISE → Continue with CVE lookup
 
 2. **Fetch CVE Details from Multiple Sources**
    
    Use web_search tool to gather information from these sources:
    
-   - **Primary Sources**:
-     - **NVD**: Search for "CVE-{ID} site:nvd.nist.gov"
-       - URL pattern: https://nvd.nist.gov/vuln/detail/{CVE-ID}
-       - Extract: CVSS score, severity, affected versions, vulnerability type
-     
-     - **MITRE**: Search for "CVE-{ID} site:cve.mitre.org"
-       - URL pattern: https://cve.mitre.org/cgi-bin/cvename.cgi?name={CVE-ID}
-       - Extract: Description, references, CWE classification
+   - **Primary Sources**: NVD, MITRE
+   - **Go-Specific Sources**: Go vulnerability database, GitHub Security Advisories
+   - **Remediation Sources**: Security advisories, fix commits, release notes
    
-   - **Go-Specific Sources**:
-     - **Go Vulnerability Database**: Search for "CVE-{ID} golang vulnerability"
-       - Check: https://go.dev/security/vuln/
-       - Search GitHub: "CVE-{ID} site:github.com/golang/vulndb"
-       - Extract: Affected Go packages, versions, fix versions
-     
-     - **GitHub Security Advisories**: Search for "CVE-{ID} golang GHSA"
-       - May have GHSA-* aliases
-       - Often contains detailed remediation steps
-   
-   - **General Go Security**: 
-     - Search: "CVE-{ID} golang fix" or "CVE-{ID} go security"
-     - Look for blog posts, security advisories, and discussions
-
 3. **Handle Search Issues and Limited Results**
+   - Try alternative search strategies
+   - Check if govulncheck knows about it
+   - Request user input as fallback
+   - Document information sources
    
-   - **If CVE details cannot be fetched** (network error, search failure, insufficient results):
-     - Inform user about the lookup issue
-     - Try alternative search strategies:
-       - Search for package name + "vulnerability" + year
-       - Search for GHSA (GitHub Security Advisory) aliases
-       - Check if govulncheck finds it (most reliable for Go CVEs)
-     - If still unsuccessful, ask user to provide available information:
-       - CVE description and severity
-       - Affected Go packages/modules
-       - Vulnerable version ranges
-       - Fixed versions (if known)
-       - Any relevant links or references
-     - Document the source as "User-provided information"
-     - Note limitations in final report
-   
-   - **If CVE is very new** (e.g., CVE-2025-xxxxx):
-     - May not be in NVD or Go vulndb yet
-     - Search for: "CVE-{ID} disclosure" or "CVE-{ID} advisory"
-     - Check vendor security pages directly
-     - Run govulncheck anyway - it may know about it via GHSA
-   
-   - **If suggested fixes cannot be found**:
-     - Check the package's GitHub releases for recent security fixes
-     - Look for security-related commits in the repository
-     - Ask user if they have:
-       - Official security advisories
-       - Patch information
-       - Workaround documentation
-       - Any relevant fix details
-     - Proceed with available information
-     - Clearly mark sections as "Based on user input" vs "Verified online"
+4. **Compile Vulnerability Profile**
+   - Severity, CVSS scores, affected versions
+   - Fixed versions and remediation guidance
+   - Clearly mark information sources (verified vs user-provided)
+   - Assess information completeness and Go relevance
 
-4. **Gather Remediation Intelligence**
-   - Search for:
-     - Official security advisories
-     - GitHub Security Advisories (GHSA)
-     - Vendor patches and updates
-     - Community discussions on GitHub, Go forums
-   - Follow hyperlinks to:
-     - Pull requests with fixes
-     - Security mailing list threads
-     - Blog posts with analysis
-     - Proof-of-concept exploits (for context)
-   - If searches fail or return insufficient results:
-     - Request user input for any known fixes or workarounds
-     - Accept partial information and document gaps
+**For detailed implementation of CVE gathering**, refer to the [cve-intelligence-gathering skill](../../skills/cve-intelligence-gathering/SKILL.md).
 
-5. **Compile Vulnerability Profile**
-   - Create structured summary with:
-     - CVE ID and aliases (GHSA-*, etc.)
-     - Severity and CVSS metrics
-     - Affected packages/modules
-     - Vulnerable version ranges
-     - Fixed versions
-     - Attack vectors and prerequisites
-     - Impact assessment (confidentiality, integrity, availability)
-     - Recommended mitigations
-   - **Clearly distinguish**:
-     - Information from authoritative sources (NVD, MITRE, etc.)
-     - Information from web searches
-     - Information provided by user
-     - Information gaps or uncertainties
+**Decision Point After Phase 1:**
+- IF CVE details NOT found (no web results + user declined to provide info) → Exit with error
+- IF CVE is not Go-related (affects other languages/platforms only) → Generate "Not Applicable" report and exit
+- IF CVE details found (from any source) → Continue to Phase 2
+- IF only partial information available → Note limitations and continue
+
+---
 
 ### Phase 2: Codebase Impact Analysis
 
@@ -143,42 +164,27 @@ This command helps developers:
    - **Method 3: Direct Dependency Check**
      - Use `go list` to verify package presence
      - Command: `go list -mod=mod <vulnerable-package>`
-     - Example: `go list -mod=mod golang.org/x/net/html`
      - Confirms package is included (directly or transitively)
      - Note: This alone doesn't prove vulnerable functions are called
    
    - **Method 4: Call Graph Reachability Analysis** (Highest Confidence)
-     - Build complete program call graph using `callgraph` tool
-     - Search for vulnerable function signatures in the graph
-     - Commands:
-       ```bash
-       # Check if vulnerable function exists in call graph
-       callgraph -format=digraph . | digraph nodes | grep "<vulnerable-function-signature>"
-       
-       # Find execution path from main to vulnerable function
-       callgraph -format=digraph . | digraph somepath command-line-arguments.main <vulnerable-function> | digraph to dot
-       ```
-     - Example (for CVE-2024-45338 affecting `golang.org/x/net/html.Parse`):
-       ```bash
-       # Step 1: Check if Parse is called anywhere
-       callgraph -format=digraph . | digraph nodes | grep "golang.org/x/net/html.Parse$"
-       
-       # Step 2: Find path from main() to Parse()
-       callgraph -format=digraph . | digraph somepath command-line-arguments.main golang.org/x/net/html.Parse
-       ```
-     - **Interpretation**:
-       - If path exists: Code is DEFINITELY vulnerable (reachable code path)
-       - If no path: Function may be dead code or only called conditionally
-       - Generates DOT graph showing exact call chain
-     - **Visualization** (optional):
-       ```bash
-       callgraph -format=digraph . | digraph somepath <entrypoint> <vulnerable-func> | digraph to dot | sfdp -Tsvg -o callgraph.svg
-       ```
-     - Prerequisites: Install tools if missing
-       ```bash
-       go install golang.org/x/tools/cmd/callgraph@latest
-       go install golang.org/x/tools/cmd/digraph@latest
-       ```
+     - **Note**: This is a complex analysis - see skill documentation for full details
+     - **Skill**: [call-graph-analysis](../../skills/call-graph-analysis/SKILL.md)
+     - **Summary**:
+       - Build complete program call graph using `callgraph` tool
+       - Search for vulnerable function in graph nodes
+       - Trace execution paths from main() to vulnerable function
+       - Generate visual DOT/SVG graphs showing call chains
+       - Provides definitive proof of reachability
+     - **Only run if**:
+       - `callgraph` and `digraph` tools are available (checked in Phase 0)
+       - Codebase compiles successfully
+       - Highest confidence assessment is needed
+     - **Output**:
+       - Reachability verdict (reachable/not reachable/uncertain)
+       - Call chain text (e.g., "main → handler → parse → VULN")
+       - Visual graph file: `callgraph.svg`
+     - **For detailed implementation**, refer to the skill documentation
    
    - **Method 5: Source Code Analysis**
      - Search for import statements of vulnerable packages
@@ -213,10 +219,7 @@ This command helps developers:
      - Trace from `main()` (or test entry points) to vulnerable function
      - Generate visual call graph showing exact path
      - ✓ Advantage: Provides definitive proof with traceable evidence
-     - Example output shows complete call chain:
-       ```
-       main → MyHandler → ParseHTML → html.Parse (VULNERABLE)
-       ```
+     - Shows complete call chain from entry points to vulnerable functions
    
    - **Level 5: Configuration & Context Analysis**
      - Review if vulnerable features are actually enabled
@@ -224,17 +227,19 @@ This command helps developers:
      - Verify if inputs can reach vulnerable functions
      - Consider security controls (input validation, sandboxing)
    
-   **Recommended Approach**: Use multiple methods and assign confidence:
-   - **High Confidence (DEFINITELY AFFECTED)**: 
-     - Call graph shows reachable path AND version is vulnerable
-     - OR govulncheck explicitly reports the CVE
-   - **Medium Confidence (LIKELY AFFECTED)**:
-     - Package present + vulnerable version + function calls found
-     - But no call graph or reachability proof
-   - **Low Confidence (POSSIBLY AFFECTED)**:
-     - Vulnerable package present but no direct usage evidence
-   - **Not Affected**:
-     - Package not present OR version not vulnerable OR dead code
+   **Recommended Approach**: Use multiple methods and determine confidence level based on:
+   - **Quality of evidence**: How definitive is the proof?
+   - **Number of verification methods**: More methods = higher confidence
+   - **Reachability analysis**: Can vulnerable code actually execute?
+   - **Context factors**: Configuration, feature flags, input paths
+   
+   **Assign confidence level by evaluating:**
+   - What evidence do we have? (presence, usage, reachability)
+   - How strong is each piece of evidence?
+   - Are there mitigating factors? (dead code, disabled features)
+   - What are the gaps in our analysis?
+   
+   **Confidence determination should be data-driven, not formula-based.**
 
 4. **Build Evidence Package**
    
@@ -271,92 +276,101 @@ This command helps developers:
      - Assign overall confidence level based on evidence
      - Note any gaps in analysis or areas needing manual review
 
+**Decision Point After Phase 2:**
+- IF clearly NOT AFFECTED:
+  - Package not in dependencies → Generate "Not Affected" report (Phase 3) → Exit
+  - Package present but version not vulnerable → Generate "Not Affected" report (Phase 3) → Exit
+  - Dead code (no reachable path found) → Generate "Not Affected" report (Phase 3) → Exit
+
+- IF clearly AFFECTED:
+  - High confidence (call graph shows reachable path OR govulncheck confirms) → Generate "Affected" report (Phase 3) → Proceed to Phase 4 (Remediation)
+  - Medium confidence (package + version + usage found) → Generate "Likely Affected" report (Phase 3) → Proceed to Phase 4 (Remediation)
+
+- IF UNCLEAR:
+  - Low confidence (package present but no usage evidence) → Generate "Possibly Affected - Manual Review Needed" report (Phase 3) → Offer to continue to Phase 4 or exit
+  - Conflicting signals → Generate "Unclear - Manual Review Needed" report (Phase 3) → Offer to continue to Phase 4 or exit
+
+---
+
 ### Phase 3: Report Generation
 
 1. **Create Analysis Report**
    - Location: `.work/compliance/analyze-cve/{CVE-ID}/report.md`
-   - Additional artifacts: 
-     - `callgraph.svg` (if generated)
-     - `govulncheck-output.txt` (if run)
+   - Additional artifacts as generated: 
+     - `callgraph.svg` (if call graph analysis was performed)
+     - `govulncheck-output.txt` (if scanner was run)
      - `evidence.json` (structured evidence data)
    
-   - Include sections:
-     - **Executive Summary**: 
-       - Impact verdict (AFFECTED/NOT AFFECTED/UNKNOWN)
-       - Confidence level badge (HIGH/MEDIUM/LOW)
-       - Quick summary of findings
-     
-     - **CVE Details**: 
-       - Full vulnerability information
-       - Tag information sources (e.g., "Source: NVD", "Source: User-provided")
-       - Affected package/function signatures
-       - Vulnerability type and attack vector
-     
-     - **Analysis Methodology**:
-       - List all verification methods used
-       - Note which tools were available (callgraph, govulncheck, etc.)
-       - Explain confidence level determination
-       - Example:
-         ```
-         ✓ Method 1: Dependency check (go list) - POSITIVE
-         ✓ Method 2: Version analysis - VULNERABLE VERSION FOUND
-         ✓ Method 3: govulncheck scan - CVE REPORTED
-         ✓ Method 4: Call graph analysis - REACHABLE PATH FOUND
-         → Confidence: HIGH
-         ```
-     
-     - **Dependency Analysis**: 
-       - Package versions from go.mod
-       - Direct vs. transitive dependencies
-       - Vulnerable package version range
-     
-     - **Impact Assessment**: 
-       - Specific findings in codebase
-       - File paths and line numbers
-       - Code snippets showing vulnerable usage
-       - **Reachability Analysis** (if performed):
-         - Call chain from entry points to vulnerable functions
-         - Visual call graph (link to SVG)
-         - Interpretation of findings
-     
-     - **Risk Level**: 
-       - Based on exploitability, exposure, and reachability
-       - Consider CVSS score + actual codebase context
-     
-     - **Evidence**: 
-       - All collected evidence organized by type
-       - Terminal output from tools
-       - Screenshots or links to visualizations
-     
-     - **Confidence Assessment**:
-       - Final confidence: High/Medium/Low
-       - Justification based on methods used
-       - Gaps or limitations noted
-       - Recommendations for additional verification if needed
-     
-     - **Remediation Steps**: 
-       - Specific fixes needed (version updates, code changes)
-       - Verification commands (prefer make targets, fallback to go commands)
-       - Note which make targets are available in the project
-       - Priority based on confidence level and risk
-     
-     - **References**: 
-       - All sources consulted (automated + user-provided)
-       - Tool versions used
-       - Timestamp of analysis
+   **Design the report structure based on the analysis performed:**
+   
+   - **Start with Executive Summary**:
+     - What's the bottom-line conclusion? (AFFECTED/NOT AFFECTED/UNKNOWN)
+     - What's the confidence level and why?
+     - What should the reader know immediately?
+   
+   - **Present CVE Context**:
+     - What is this vulnerability?
+     - Where did the information come from?
+     - Tag information sources clearly (verified vs. user-provided)
+     - What packages/functions are affected?
+   
+   - **Explain the Analysis**:
+     - What methods were used to assess impact?
+     - Why were those methods chosen?
+     - What tools were available and used?
+     - How was confidence determined?
+     - Show the reasoning, not just the results
+   
+   - **Present Findings**:
+     - What was found in the codebase?
+     - Include specific evidence (file paths, versions, code snippets)
+     - If reachability was analyzed, explain the findings
+     - Connect evidence to conclusions
+   
+   - **Assess Risk**:
+     - Consider: severity + actual exposure + exploitability in THIS context
+     - Don't just repeat CVSS score - interpret it for this codebase
+     - Account for mitigating factors
+   
+   - **Provide Next Steps**:
+     - If affected: specific remediation guidance
+     - If not affected: explain why and suggest monitoring
+     - If unclear: recommend manual review steps
+     - Prioritize based on risk assessment
+   
+   - **Document Sources and Limitations**:
+     - What sources were consulted?
+     - What tools/versions were used?
+     - What are the gaps or limitations?
+     - When was this analysis performed?
 
-2. **Format Report**
-   - Use clear markdown formatting
-   - Include severity badges
-   - Add code blocks for examples
+2. **Format Report for Clarity**
+   - Use clear, readable markdown
+   - Add visual indicators (badges, icons) for key information
+   - Include code blocks for evidence
    - Link to external references
-   - Provide actionable recommendations
-   - **Clearly mark user-provided information** with labels like:
-     - "⚠️ Based on user-provided information"
-     - "✓ Verified from authoritative sources"
-     - "⚠️ Partial information - manual verification recommended"
+   - Make recommendations actionable
+   - **Distinguish information quality**:
+     - Verified from authoritative sources
+     - Based on user-provided information
+     - Inferred or uncertain information
 
-### Phase 4: Remediation Guidance
+**Decision Point After Phase 3:**
+- IF verdict is "NOT AFFECTED" → Exit (no remediation needed)
+- IF verdict is "AFFECTED" or "LIKELY AFFECTED" → Continue to Phase 4 (Remediation Guidance)
+- IF verdict is "UNCLEAR" or "POSSIBLY AFFECTED":
+  - Ask user: "Manual review is recommended. Would you like remediation guidance anyway?"
+  - IF yes → Continue to Phase 4
+  - IF no → Exit
+
+---
+
+### Phase 4: Remediation Guidance (Conditional - Only for Affected Code)
+
+**Note**: This is a complex planning process - see skill documentation for full details  
+**Skill**: [remediation-planning](../../skills/remediation-planning/SKILL.md)
+
+**Summary**:
 
 1. **If Codebase is NOT Affected**
    - Explain why (version not vulnerable, package not used, etc.)
@@ -364,36 +378,53 @@ This command helps developers:
    - Recommend ongoing monitoring
 
 2. **If Codebase IS Affected**
-   - Provide specific remediation steps:
-     1. **Update Dependencies**
-        - Exact `go get` commands to upgrade packages
-        - Target version that fixes the CVE
-        - Consider semantic versioning compatibility
-        - Note: Use `go mod tidy` after updates
-     
-     2. **Code Changes** (if needed)
-        - Identify functions that need modification
-        - Provide before/after code examples
-        - Explain breaking changes if any
-     
-     3. **Workarounds** (if no fix available)
-        - Suggest temporary mitigations
-        - Configuration changes to reduce risk
-        - Input validation or sanitization
-     
-     4. **Verification Commands**
-        - Check for project's Makefile first
-        - Prefer project-specific make targets: `make verify`, `make build`, `make test`
-        - Fall back to standard Go commands if no Makefile
-        - Command to check for make targets: `make -qp | grep "^[a-zA-Z]" | head -20`
-     
-     5. **Testing Recommendations**
-        - Suggest tests to verify the fix
-        - Security test cases to add
-        - Regression testing guidance
-        - Re-run `govulncheck` to confirm vulnerability is resolved
+   
+   Generate comprehensive remediation plan including:
+   
+   - **Dependency Update Strategy**
+     - Direct vs indirect dependency handling
+     - Exact `go get` commands
+     - Version compatibility assessment
+     - Breaking change analysis
+   
+   - **Code Changes** (if required)
+     - API migration steps
+     - Before/after examples
+     - Files requiring updates
+   
+   - **Workarounds** (if no fix available)
+     - Input validation
+     - Rate limiting
+     - Feature disabling
+     - Alternative libraries
+   
+   - **Project-Specific Build Commands**
+     - Detect Makefile targets
+     - Prefer `make verify`, `make build`, `make test`
+     - Fall back to standard Go commands
+   
+   - **Verification Plan**
+     - Dependency verification
+     - Build verification
+     - Test execution
+     - Vulnerability re-check with govulncheck
+   
+   - **Risk Assessment**
+     - Update complexity (LOW/MEDIUM/HIGH)
+     - Estimated effort
+     - Rollback plan
 
-### Phase 5: Interactive Fix Application
+**For detailed implementation of remediation planning**, refer to the [remediation-planning skill](../../skills/remediation-planning/SKILL.md).
+
+**Decision Point After Phase 4:**
+- Present remediation guidance to user
+- Ask: "Would you like me to apply these fixes automatically?"
+- IF yes → Continue to Phase 5 (Apply Fixes)
+- IF no → Exit with report and manual instructions
+
+---
+
+### Phase 5: Interactive Fix Application (Conditional - Only with User Approval)
 
 1. **Present Remediation Plan**
    - Show complete analysis report
@@ -479,36 +510,58 @@ This command helps developers:
 
 ## Prerequisites
 
-- **Required**:
-  - Go toolchain installed (`go version` should work)
-  - Read access to `go.mod` and source files in the workspace
+All tools listed below are **REQUIRED**. The command will exit with an error if any are missing.
 
-- **Recommended** (for comprehensive analysis):
-  - Internet connectivity for automatic CVE data fetching
-  - `govulncheck` - Go's official vulnerability checker
-    ```bash
-    go install golang.org/x/vuln/cmd/govulncheck@latest
-    ```
-  - `callgraph` & `digraph` - For reachability analysis (highest confidence)
-    ```bash
-    go install golang.org/x/tools/cmd/callgraph@latest
-    go install golang.org/x/tools/cmd/digraph@latest
-    ```
-  - `sfdp` or `graphviz` - For call graph visualization (optional)
-    ```bash
-    # macOS
-    brew install graphviz
-    # Linux
-    sudo apt-get install graphviz
-    ```
+### Required Tools
 
-- **Alternative**: If internet access is unavailable, be prepared to provide:
-  - CVE description and details
-  - Affected package information
-  - Specific vulnerable function signatures
-  - Remediation guidance from other sources
+1. **Go toolchain**
+   - Check: `go version`
+   - Install: https://go.dev/doc/install
 
-**Tool Availability Check**: The command will automatically detect which tools are available and use the most comprehensive methods possible. Missing tools will result in lower confidence levels but analysis will still proceed.
+2. **go.mod file**
+   - Must exist in the workspace root
+   - Create: `go mod init <module-name>`
+
+3. **govulncheck** - Go's official vulnerability scanner
+   ```bash
+   go install golang.org/x/vuln/cmd/govulncheck@latest
+   ```
+
+4. **callgraph** - Call graph analysis
+   ```bash
+   go install golang.org/x/tools/cmd/callgraph@latest
+   ```
+
+5. **digraph** - Graph traversal tool
+   ```bash
+   go install golang.org/x/tools/cmd/digraph@latest
+   ```
+
+### Optional Tools
+
+- **graphviz** - For visual call graph generation (recommended but not required)
+  ```bash
+  # macOS
+  brew install graphviz
+  # Linux
+  sudo apt-get install graphviz
+  ```
+
+### Installation Quick Start
+
+Install all required Go tools at once:
+```bash
+go install golang.org/x/vuln/cmd/govulncheck@latest
+go install golang.org/x/tools/cmd/callgraph@latest
+go install golang.org/x/tools/cmd/digraph@latest
+```
+
+### Internet Access
+
+- **Recommended** for automatic CVE data fetching
+- **Not required** if you can provide CVE details manually
+
+**Note**: The command performs comprehensive tool validation in Phase 0. If any required tool is missing, you'll receive clear installation instructions and the command will exit without proceeding.
 
 ## Exit Conditions
 

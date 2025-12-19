@@ -1029,7 +1029,23 @@
       "has_readme": true,
       "hooks": [],
       "name": "compliance",
-      "skills": [],
+      "skills": [
+        {
+          "description": "Perform definitive call graph analysis to prove whether vulnerable functions are reachable from program entry points",
+          "id": "call-graph-analysis",
+          "name": "Call Graph Reachability Analysis"
+        },
+        {
+          "description": "Gather comprehensive vulnerability information from multiple authoritative sources with fallback strategies",
+          "id": "cve-intelligence-gathering",
+          "name": "CVE Intelligence Gathering"
+        },
+        {
+          "description": "Generate comprehensive remediation guidance including dependency updates, code changes, workarounds, and verification steps",
+          "id": "remediation-planning",
+          "name": "Remediation Planning"
+        }
+      ],
       "version": "0.0.2"
     },
     {
