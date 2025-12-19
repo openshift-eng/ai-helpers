@@ -464,6 +464,12 @@
           "description": "Process Renovate dependency PR(s) to meet repository contribution standards",
           "name": "process-renovate-pr",
           "synopsis": "/utils:process-renovate-pr <PR_NUMBER|open> [JIRA_PROJECT] [COMPONENT]"
+        },
+        {
+          "argument_hint": "",
+          "description": "Generate quarterly connections responses based on GitHub activity and brief answers",
+          "name": "quarterly-connections",
+          "synopsis": "/utils:quarterly-connections"
         }
       ],
       "description": "A generic utilities plugin serving as a catch-all for various helper commands",

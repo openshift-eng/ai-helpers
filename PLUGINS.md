@@ -295,6 +295,7 @@ A generic utilities plugin serving as a catch-all for various helper commands an
 - **`/utils:generate-test-plan` `[GitHub PR URLs]`** - Generate test steps for one or more related PRs
 - **`/utils:placeholder`** - Placeholder command for the utils plugin
 - **`/utils:process-renovate-pr` `<PR_NUMBER|open> [JIRA_PROJECT] [COMPONENT]`** - Process Renovate dependency PR(s) to meet repository contribution standards
+- **`/utils:quarterly-connections`** - Generate quarterly connections responses based on GitHub activity and brief answers
 
 See [plugins/utils/README.md](plugins/utils/README.md) for detailed documentation.
 
