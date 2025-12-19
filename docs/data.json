@@ -628,7 +628,13 @@
     {
       "commands": [
         {
-          "argument_hint": "\"\"",
+          "argument_hint": "<pattern-name> [--orgs org1,org2] [--repos N] [--language LANG]",
+          "description": "Analyze how OpenShift repos implement a design pattern and get custom recommendations",
+          "name": "analyze-pattern",
+          "synopsis": "/openshift:analyze-pattern <pattern> [--orgs org1,org2] [--repos N] [--language LANG] [--refresh] [--skip-clone]"
+        },
+        {
+          "argument_hint": "",
           "description": "Bootstrap OpenShift Manager (OM) integration for OpenShift operators with automated resource discovery",
           "name": "bootstrap-om",
           "synopsis": "bash"
@@ -709,6 +715,11 @@
           "description": "Generates and displays OVN-Kubernetes network topology diagrams showing logical switches, routers, ports with IP/MAC addresses in Mermaid format",
           "id": "generating-ovn-topology",
           "name": "generating-ovn-topology"
+        },
+        {
+          "description": "Analyze design pattern implementations across OpenShift/Kubernetes repositories using AI",
+          "id": "pattern-analyzer",
+          "name": "Pattern Analyzer"
         }
       ],
       "version": "0.0.1"
