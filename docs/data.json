@@ -682,6 +682,12 @@
           "synopsis": "/new-e2e-test [test-specification]"
         },
         {
+          "argument_hint": "<commit-message>",
+          "description": "Compare rebase commits (commits with the same message) between current branch and master",
+          "name": "rb-compare",
+          "synopsis": "/openshift:rb-compare <commit-message>"
+        },
+        {
           "argument_hint": "<tag>",
           "description": "Rebase OpenShift fork of an upstream repository to a new upstream release.",
           "name": "rebase",
