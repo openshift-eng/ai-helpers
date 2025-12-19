@@ -253,7 +253,13 @@ The command performs the following steps:
      - If reviewing a PR (not just a local branch), include information about running additional CI jobs
      - Reference the pull request testing documentation: https://docs.ci.openshift.org/docs/release-oversight/pull-request-testing/
      - Explain that users can trigger additional jobs beyond configured presubmits using `/payload` commands
-     - Note: This is useful for high-risk changes or when more comprehensive testing is needed
+     - Note: This is useful for high-risk changes that could destabilize CI (e.g., major Kubernetes rebases, core networking changes, scheduler modifications)
+     - **Important**: `/payload <version> nightly blocking|informing` is expensive (runs ALL blocking or informing jobs - consumes significant CI resources) but very worth it for high-risk changes
+     - Other commands like `/payload-job` (specific job) and `/payload-aggregate` (statistical runs) are not nearly as expensive
+     - Explain the difference between `blocking` and `informing`:
+       - `blocking` jobs must pass for the payload to be accepted - this is what most people want
+       - `informing` jobs provide additional signal but don't block acceptance
+       - Use `blocking` when you want comprehensive validation before merge
 
 ## Return Value
 
@@ -479,12 +485,25 @@ The command performs the following steps:
    ### Additional Testing
    - **Want to run more comprehensive testing on this PR?**
      - You can trigger additional CI jobs beyond the configured presubmits using `/payload` commands
-     - Useful for high-risk changes like Kubernetes rebases, network upgrades, or major refactoring
-     - Examples:
-       - `/payload 4.21 nightly informing` - Run all informing jobs for 4.21
-       - `/payload-job periodic_ci_openshift_release_some_job` - Run a specific job
-       - `/payload-aggregate periodic_job 5` - Run a job 5 times for statistical analysis
-     - See full documentation: https://docs.ci.openshift.org/docs/release-oversight/pull-request-testing/
+     - Useful for high-risk changes that could destabilize CI
+     - Examples of high-risk changes: Kubernetes rebases, core networking changes, scheduler modifications, API changes
+
+     **Command Options:**
+     - `/payload 4.21 nightly blocking` - Run ALL blocking jobs for 4.21 (recommended - jobs must pass)
+       - **⚠️ Expensive**: Runs all blocking jobs - consumes significant CI resources
+       - **Very worth it** for high-risk changes that need comprehensive validation
+     - `/payload 4.21 nightly informing` - Run ALL informing jobs for 4.21 (provides signal but doesn't block)
+       - **⚠️ Expensive**: Runs all informing jobs - consumes significant CI resources
+     - `/payload-job periodic_ci_openshift_release_some_job` - Run a specific job (not expensive)
+     - `/payload-aggregate periodic_job 5` - Run a job 5 times for statistical analysis (not expensive)
+     - `/payload-abort` - Stop all running payload jobs for this PR
+
+     **Blocking vs Informing:**
+     - `blocking` - Jobs must pass for the payload to be accepted (use this for comprehensive validation)
+     - `informing` - Jobs provide additional signal but don't block acceptance
+     - Most people want `blocking` when running comprehensive tests
+
+     See full documentation: https://docs.ci.openshift.org/docs/release-oversight/pull-request-testing/
    ```
 
 ## Arguments
