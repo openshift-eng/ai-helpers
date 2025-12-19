@@ -13,13 +13,17 @@ ci:pr-test-analysis
 
 ## Description
 
-The `ci:pr-test-analysis` command analyzes test code changes in the current git branch or a GitHub pull request to identify potential issues with Ginkgo test naming and structure. It performs three main types of validation:
+The `ci:pr-test-analysis` command analyzes test code changes in the current git branch or a GitHub pull request to identify potential issues with Ginkgo test naming and structure, and detects changes that could break CI in different OpenShift topologies. It performs four main types of validation:
 
-1. **Component Mapping**: Ensures tests have proper component tags to map test failures to the correct team
+1. **Topology-Specific Risk Detection**: Identifies changes that could break CI in different OpenShift topologies
+   - Detects memory/resource changes that could impact Single Node OpenShift, MicroShift, etc.
+   - Flags high-risk changes and recommends comprehensive `/payload` testing
+   - Extensible framework for teams to add topology-specific edge case detection
+2. **Component Mapping**: Ensures tests have proper component tags to map test failures to the correct team
    - **NEW tests**: Must use `[Jira:"component"]` tags (required)
    - **MODIFIED tests**: May use existing `[sig-*]` or `[bz-*]` tags, but migration to `[Jira:"component"]` is encouraged
-2. **Test Name Stability**: Ensures test names are stable and deterministic by detecting potentially random or dynamic strings
-3. **Parallel Safety**: Validates that tests requiring serial execution have the `[Serial]` tag, and that tests with `[Serial]` actually need it
+3. **Test Name Stability**: Ensures test names are stable and deterministic by detecting potentially random or dynamic strings
+4. **Parallel Safety**: Validates that tests requiring serial execution have the `[Serial]` tag, and that tests with `[Serial]` actually need it
 
 This command is designed for reviewing test changes in OpenShift repositories (commonly openshift/origin) that use the Ginkgo testing framework, where test names are constructed using nested blocks of `Describe()`, `Context()`, `When()`, and `It()` functions.
 
@@ -229,7 +233,30 @@ The command performs the following steps:
      - Test performs cluster-wide operations but lacks `[Serial]` tag
      - Test has `[Serial]` tag but only operates in its namespace
 
-8. **Generate Report**:
+8. **Detect Topology-Specific Risks and Edge Cases**:
+   OpenShift runs in radically different topologies (HyperShift, MicroShift, Single Node OpenShift, standard clusters, etc.). Analyze the PR changes for common issues that break CI in these topologies:
+
+   **Memory/Resource Changes (HIGH RISK):**
+   - **Detection**: Look for changes that might affect memory or CPU available to control plane pods
+   - **Patterns to detect**:
+     - Changes to resource requests/limits in manifests or code
+     - Memory-related constants or configuration values
+     - Pod memory settings in operators or controllers
+     - Buffer sizes, cache sizes, or data structures that grow with cluster size
+     - CPU-intensive operations added to hot paths
+   - **Risk**: OpenShift CI runs intense workloads that stress both CPU and memory across ALL topologies
+     - Standard HA clusters can hit resource limits during heavy testing
+     - Single Node OpenShift, MicroShift, and edge deployments are even more constrained
+     - Resource increases that seem minor can cause cascading failures under CI load
+   - **Recommendation**: Flag as HIGH RISK and recommend `/payload <release> nightly blocking` for comprehensive validation across dozens of different job configurations
+   - **Example violation**: "Increased default cache size from 100MB to 500MB - this could exhaust memory under CI test load"
+
+   **Other Topology Risks (will be expanded by teams over time):**
+   - This section is designed to grow as teams identify common gotchas
+   - Teams can add new edge case patterns specific to their components
+   - Each pattern should include: detection logic, affected topologies, risk level, and recommended testing
+
+9. **Generate Report**:
    - **Assemble Full Test Names**: For each new or modified test detected, construct the complete test name by combining all nested Ginkgo blocks (Describe/Context/When/It)
    - List all test files with changes
    - For each file, show:
@@ -238,10 +265,11 @@ The command performs the following steps:
      - Parallel safety status and any violations
      - Any naming violations found with specific line numbers and code snippets
      - Suggested fixes for each violation
+     - **Topology-specific risks detected** (if any)
    - If no new tests found, report that clearly
    - If tests found but no violations, provide a summary of tests reviewed
 
-9. **Provide Recommendations**:
+10. **Provide Recommendations**:
    - Suggest adding `[Jira:"component"]` tags for tests missing component mapping
    - Suggest adding or removing `[Serial]` tags based on test behavior analysis
    - Suggest rewriting test names to be static and descriptive
@@ -265,29 +293,36 @@ The command performs the following steps:
 
 **Format**: Markdown report with the following sections:
 
-1. **Summary**: Number of test files changed, new tests added, modified tests, violations found (component mapping, parallel safety, and naming)
+1. **Summary**: Number of test files changed, new tests added, modified tests, violations found (component mapping, parallel safety, naming, and topology risks)
 2. **Tests Detected**: Full list of all new or modified test names (complete paths assembled from nested Ginkgo blocks), clearly indicating which are new vs modified
 3. **Commit Context**: List of commit messages in the branch
 4. **Test Files Changed**: List of all test files modified
-5. **Component Mapping Violations** (if any):
+5. **Topology-Specific Risks** (if any):
+   - Risk level (HIGH, MEDIUM, LOW)
+   - File path and line number
+   - Type of risk (e.g., "Memory/Resource Change")
+   - Description of the change detected
+   - Affected topologies (e.g., "Single Node OpenShift, MicroShift")
+   - Recommended testing (e.g., "/payload 4.21 nightly blocking")
+6. **Component Mapping Violations** (if any):
    - File path and line number
    - Test name and status (NEW or MODIFIED)
    - Issue: Missing tag, invalid component, use of sig-/bz- tags in new tests, or unverified legacy tag
    - Suggested fix
-6. **Parallel Safety Violations** (if any):
+7. **Parallel Safety Violations** (if any):
    - File path and line number
    - Test name
    - Issue: Missing `[Serial]` tag when needed, or unnecessary `[Serial]` tag
    - Evidence from code analysis (cluster-wide operations detected)
    - Suggested fix
-7. **Naming Violations** (if any):
+8. **Naming Violations** (if any):
    - File path and line number
    - Original test name code
    - Explanation of the violation
    - Suggested fix
-8. **Clean Tests** (if any): List of new tests with no violations
-9. **Recommendations**: Best practices and next steps
-10. **Additional Testing** (if reviewing a PR): Information about triggering additional CI jobs using `/payload` commands
+9. **Clean Tests** (if any): List of new tests with no violations
+10. **Recommendations**: Best practices and next steps
+11. **Additional Testing** (if reviewing a PR): Information about triggering additional CI jobs using `/payload` commands
 
 ## Examples
 
@@ -327,6 +362,7 @@ The command performs the following steps:
    - Test files changed: 3
    - New tests detected: 4
    - Modified tests detected: 2
+   - **Topology-specific risks: 1 HIGH RISK** ⚠️
    - Component mapping violations: 3
    - Parallel safety violations: 2
    - Naming violations: 3 (1 dynamic content, 2 deprecated conventions)
@@ -357,6 +393,43 @@ The command performs the following steps:
    - test/extended/machineconfig/rollout_test.go
    - test/extended/auth/rbac_test.go
    - test/extended/storage/volume_test.go
+   - pkg/apiserver/controller/config.go (non-test file with topology risks)
+
+   ### Topology-Specific Risks
+
+   #### pkg/apiserver/controller/config.go:145 (HIGH RISK) ⚠️
+
+   **Risk Type**: Memory/Resource Change
+
+   **Change Detected**:
+   ```go
+   -    DefaultCacheSize: 100 * 1024 * 1024,  // 100MB
+   +    DefaultCacheSize: 500 * 1024 * 1024,  // 500MB
+   ```
+
+   **Issue**: This change increases the default cache size from 100MB to 500MB, which significantly increases memory requirements for the kube-apiserver control plane pod.
+
+   **Affected Topologies**:
+   - **ALL topologies** - OpenShift CI runs intense workloads that stress resources
+   - Standard HA clusters can hit limits during heavy test execution
+   - Single Node OpenShift (SNO) - very memory constrained
+   - MicroShift - extremely memory constrained
+   - HyperShift hosted control planes - shared resource pools
+   - Resource-constrained edge deployments
+
+   **Why This Matters**: OpenShift CI runs extremely intensive test workloads that push clusters hard. A 400MB increase in cache size could:
+   - Cause OOMKills during CI test execution even on HA clusters
+   - Exhaust memory on Single Node OpenShift preventing cluster functionality
+   - Create cascading failures as pods compete for limited resources under load
+   - Break dozens of different CI job configurations across different topologies
+
+   **Recommended Testing**:
+   ```
+   /payload 4.21 nightly blocking
+   ```
+   This will run dozens of comprehensive tests across all topologies including standard HA, SNO, MicroShift, and HyperShift to ensure this change doesn't break CI under heavy test load.
+
+   **Alternative**: If this is an optional/configurable cache size, ensure it has appropriate defaults for different topologies and can be tuned down for constrained environments.
 
    ### Component Mapping Violations
 
@@ -490,10 +563,10 @@ The command performs the following steps:
 
      **Command Options:**
      - `/payload 4.21 nightly blocking` - Run ALL blocking jobs for 4.21 (recommended - jobs must pass)
-       - **⚠️ Expensive**: Runs all blocking jobs - consumes significant CI resources
+       - **⚠️ Expensive**: Runs dozens of blocking jobs across different topologies - consumes significant CI resources
        - **Very worth it** for high-risk changes that need comprehensive validation
      - `/payload 4.21 nightly informing` - Run ALL informing jobs for 4.21 (provides signal but doesn't block)
-       - **⚠️ Expensive**: Runs all informing jobs - consumes significant CI resources
+       - **⚠️ Expensive**: Runs dozens of informing jobs across different topologies - consumes significant CI resources
      - `/payload-job periodic_ci_openshift_release_some_job` - Run a specific job (not expensive)
      - `/payload-aggregate periodic_job 5` - Run a job 5 times for statistical analysis (not expensive)
      - `/payload-abort` - Stop all running payload jobs for this PR
