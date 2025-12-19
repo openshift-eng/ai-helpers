@@ -13,7 +13,7 @@ prow-job:analyze-install-failure
 
 ## Description
 
-The `prow-job:analyze-install-failure` command analyzes OpenShift installation failures in Prow CI jobs by downloading and examining installer logs, log bundles, and sosreports (for metal jobs). This command is specifically designed to debug failures in the **"install should succeed: overall"** test, which indicates that the installation process failed at some stage.
+The `prow-job:analyze-install-failure` command analyzes OpenShift installation failures in Prow CI jobs by downloading and examining installer logs, log bundles, `gather-extra`, `gather-must-gather`, and sosreports (for metal jobs). This command is specifically designed to debug failures in the **"install should succeed: overall"** test, which indicates that the installation process failed at some stage.
 
 **Important**: All "install should succeed" tests have a specific suffix indicating the failure stage (configuration, infrastructure, cluster bootstrap, cluster creation, cluster operator stability, or other). The JUnit XML contains both the specific failure reason test (which fails) and the overall test (which also fails when any stage fails). This command analyzes the specific failure stage to provide targeted diagnostics.
 
@@ -29,8 +29,8 @@ The command identifies the failure mode from `junit_install.xml` and tailors its
 - **"install should succeed: configuration"** - Extremely rare failure where install-config.yaml validation failed. Focus on installer log only.
 - **"install should succeed: infrastructure"** - Failed to create cloud resources. Usually due to cloud quota, rate limiting, or outages. Log bundle may not exist.
 - **"install should succeed: cluster bootstrap"** - Bootstrap node failed to start temporary control plane. Check bootkube logs in the bundle.
-- **"install should succeed: cluster creation"** - One or more operators unable to deploy. Check operator logs in gather-must-gather.
-- **"install should succeed: cluster operator stability"** - Operators never stabilized (stuck progressing/degraded). Check operator status and logs.
+- **"install should succeed: cluster creation"** - One or more operators were unable to deploy, often because the required machines (e.g., workers) failed to provision. The analysis will first check machine and node health in `gather-extra` before checking operator logs in `gather-must-gather`.
+- **"install should succeed: cluster operator stability"** - Operators never stabilized. Similar to "cluster creation" failures, this is often caused by a lack of healthy nodes. The analysis prioritizes checking machine and node health.
 - **"install should succeed: other"** - Unknown failure requiring comprehensive analysis of all available logs.
 
 ## Implementation
@@ -62,7 +62,11 @@ The command performs the following steps by invoking the "Prow Job Analyze Insta
    - **infrastructure**: Cloud quota/rate limit/API errors
    - **cluster bootstrap**: bootkube/etcd/API server failures
    - **cluster creation**: Operator deployment failures
+     1.  **Analyze Machine/Node Health**: First, check `gather-extra` to see if the expected number of machines were provisioned and nodes became ready. This is the most common root cause.
+     2.  **Analyze Operator Logs**: If machines and nodes are healthy, then analyze operator logs in `gather-must-gather` to find the failing component.
    - **cluster operator stability**: Operators stuck in unstable state
+     1.  **Analyze Machine/Node Health**: First, check `gather-extra` to see if the expected number of machines were provisioned and nodes became ready. This is the most common root cause.
+     2.  **Analyze Operator Logs**: If machines and nodes are healthy, then analyze operator logs in `gather-must-gather` to find the failing component.
    - **other**: Comprehensive analysis of all logs
 
 8. **Generate Report**: Create comprehensive analysis with:
@@ -131,10 +135,21 @@ The skill handles all the implementation details including URL parsing, artifact
    - Reports: "kube-apiserver operator stuck progressing"
    - Provides operator logs and status conditions
 
+5. **Analyze a cluster creation failure**:
+   ```
+   /prow-job:analyze-install-failure https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-multiarch-master-nightly-4.21-ocp-e2e-aws-ovn-multi-day-0-x-a/2001109383609585664
+   ```
+   Expected output:
+   - Identifies "install should succeed: cluster creation" failure
+   - Checks gather-extra or gather-must-gather for worker machines status
+   - Reports: "worker machines are in Failed status"
+   - Provides worker machines status conditions and error message
+
 ## Notes
 
 - **Failure Modes**: The installer has multiple failure modes detected from junit_install.xml. Each mode requires different analysis approaches.
 - **Log Bundle**: Contains detailed node-level diagnostics including journals, serial consoles, and cluster API resources
+- **gather-extra / gather-must-gather**: Contains useful info and logs for `cluster creation` and `cluster operator stability` failures. It contains machine and node status, which is the first thing to check in these scenarios.
 - **Metal Jobs**: Identified by "metal" in the job name. These jobs automatically invoke the specialized `prow-job-analyze-metal-install-failure` skill.
 - **Metal Artifacts**: Metal jobs analyze dev-scripts logs, libvirt console logs, sosreport, and squid logs
 - **Artifacts Location**: All downloaded artifacts are cached in `.work/prow-job-analyze-install-failure/{build_id}/` for faster re-analysis

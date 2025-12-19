@@ -217,7 +217,32 @@ Job names contain important clues about the test environment and what to look fo
    tar -xf .work/prow-job-analyze-install-failure/{build_id}/logs/log-bundle-{timestamp}.tar -C .work/prow-job-analyze-install-failure/{build_id}/logs/
    ```
 
-### Step 7: Invoke Metal Install Failure Skill (Metal Jobs Only)
+### Step 7: Locate and Download gather-extra and gather-must-gather
+
+**This step is critical for "cluster creation" and "cluster operator stability" failures.** These artifacts contain the state of the cluster, including node status, machine details, and operator logs.
+
+1.  **Locate `gather-extra` and `gather-must-gather` directories**
+    -   These are typically located under `artifacts/{target}/`. The exact path may vary.
+    -   Use `gcloud storage ls` to find them:
+        ```bash
+        gcloud storage ls -d gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-extra/
+        gcloud storage ls -d gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-must-gather/
+        ```
+    -   If these directories do not exist, the installation likely failed before the cluster was sufficiently stable to collect these diagnostics. Note this in the analysis.
+
+2.  **Download `gather-extra` if it exists**
+    -   Recursively copy the entire directory.
+        ```bash
+        gcloud storage cp -r gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-extra .work/prow-job-analyze-install-failure/{build_id}/logs/gather-extra --no-user-output-enabled
+        ```
+
+3.  **Download `gather-must-gather` if it exists**
+    -   Recursively copy the entire directory.
+        ```bash
+        gcloud storage cp -r gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-must-gather .work/prow-job-analyze-install-failure/{build_id}/logs/gather-must-gather --no-user-output-enabled
+        ```
+
+### Step 8: Invoke Metal Install Failure Skill (Metal Jobs Only)
 
 **IMPORTANT: Only perform this step if `is_metal_job = true`**
 
@@ -239,11 +264,11 @@ Metal IPI jobs use **dev-scripts** with **Metal3** and **Ironic** to install Ope
    - Generate metal-specific analysis report
 
 3. **Continue with standard analysis**:
-   - After metal skill completes, continue with Step 8 (Analyze Installer Logs)
+   - After metal skill completes, continue with Step 9 (Analyze Installer Logs)
    - The metal skill provides additional context about dev-scripts and console logs
    - Standard installer log analysis is still relevant for understanding cluster creation failures
 
-### Step 8: Analyze Installer Logs
+### Step 9: Analyze Installer Logs
 
 **CRITICAL: Understanding OpenShift's Eventual Consistency**
 
@@ -290,7 +315,7 @@ OpenShift installations exhibit "eventual consistency" behavior, which means:
    - Optionally note early errors only if they relate to the final failure
    - Save to: `.work/prow-job-analyze-install-failure/{build_id}/analysis/installer-summary.txt`
 
-### Step 9: Analyze Log Bundle
+### Step 10: Analyze Log Bundle
 
 **Skip this step if no log bundle was downloaded**
 
@@ -343,17 +368,23 @@ OpenShift installations exhibit "eventual consistency" behavior, which means:
        - Search for terraform-related error messages
    - Log bundle may not exist or be incomplete for this failure mode
 
-   **For "cluster creation" failures:**
-   - Check if must-gather was successfully collected:
-     - Look for `must-gather*.tar` files in the gather-must-gather step directory
-     - If NO .tar file exists, must-gather collection failed (cluster was too unstable)
-     - Do NOT suggest downloading must-gather if the .tar file doesn't exist
-   - If must-gather exists, check for operator logs
-   - Look for degraded cluster operators
-   - Check operator-specific logs to see why they couldn't stabilize
-   - Review cluster operator status conditions
-   - This indicates cluster bootstrapped but operators failed to deploy
-
+   **For "cluster creation" and "cluster operator stability" failures:**
+   - **Step 1: Check Machine and Node Health first.** The most common cause for these failures is that the required nodes (especially workers) never joined the cluster.
+     - **Check `gather-extra` if it exists**:
+       - Analyze `gather-extra/artifacts/machines.json`: Look for machines stuck in "Provisioning" or a "Failed" phase. Note the error messages.
+       - Analyze `gather-extra/artifacts/nodes.json`: Check if the expected number of master and worker nodes are in a "Ready" state.
+     - **If machine/node issues are found**:
+        - Conclude that this is the likely root cause. The helper should then focus on debugging why machines failed.
+        - The `machine-api` logs within `gather-must-gather` might contain clues (e.g., `.../namespaces/openshift-machine-api/pods/...`).
+   - **Step 2: If machines and nodes are healthy, then analyze operators.**
+     - **Check `gather-must-gather`**:
+       - Analyze `cluster-operators.json` to identify which operators are degraded or not available.
+       - Dive into the logs for those specific operators to understand the failure. For example, if the `ingress` operator is failing, check its logs in `gather-must-gather/namespaces/openshift-ingress-operator/pods/...`.
+   **For "other" failures:**
+   - Perform comprehensive analysis of all available logs
+   - Check installer log for any errors or fatal messages
+   - Review log bundle if available
+   - Look for unusual patterns or timeout messages
    **For "configuration" failures:**
    - Focus entirely on installer log
    - Look for install-config.yaml validation errors
@@ -361,33 +392,19 @@ OpenShift installations exhibit "eventual consistency" behavior, which means:
    - This is a very early failure before any infrastructure is created
    - Log bundle will not exist for this failure mode
 
-   **For "cluster operator stability" failures:**
-   - Similar to "cluster creation" but operators are stuck in unstable state
-   - Check if must-gather was successfully collected (look for `must-gather*.tar` files)
-   - If must-gather doesn't exist, rely on installer log and log bundle only
-   - Check for operators with available=False, progressing=True, or degraded=True
-   - Review operator logs in gather-must-gather (if it exists)
-   - Check for resource conflicts or dependency issues
-   - Look at time-series of operator status changes
-
-   **For "other" failures:**
-   - Perform comprehensive analysis of all available logs
-   - Check installer log for any errors or fatal messages
-   - Review log bundle if available
-   - Look for unusual patterns or timeout messages
-
 3. **Extract key information**
    - If `failed-units.txt` exists, read it to find failed services
    - For each failed service, find corresponding journal log
    - Extract error messages from journal logs
    - Save findings to: `.work/prow-job-analyze-install-failure/{build_id}/analysis/log-bundle-summary.txt`
 
-### Step 10: Generate Analysis Report
+### Step 11: Generate Analysis Report
 
 1. **Create comprehensive analysis report**
    - Combine findings from all sources:
      - Installer log analysis
      - Log bundle analysis
+     - `gather-extra` and `gather-must-gather` analysis
      - sosreport analysis (if applicable)
 
 2. **Report structure**
@@ -413,8 +430,9 @@ OpenShift installations exhibit "eventual consistency" behavior, which means:
    First Error:
    {First error message with timestamp}
 
-   Context:
-   {Surrounding log lines}
+   Cluster Diagnostics Analysis (`gather-extra` and `gather-must-gather`)
+   --------------------------------------------------------------------
+   {Findings from `gather-extra` (e.g., machine/node status) and `gather-must-gather` (e.g., operator logs and machine-api logs). Prioritize machine/node health analysis.}
 
    Log Bundle Analysis
    -------------------
@@ -456,19 +474,11 @@ OpenShift installations exhibit "eventual consistency" behavior, which means:
    - Examine kube-apiserver startup in kube-apiserver.log
    - Review bootstrap VM serial console for boot issues
 
-   For "cluster creation" failures:
-   - Identify which operators failed to deploy
-   - Check if must-gather was collected (look for must-gather*.tar files)
-   - If must-gather exists: Review specific operator logs in gather-must-gather
-   - If must-gather doesn't exist: Cluster was too unstable to collect diagnostics; rely on installer log and log bundle
-   - Check for resource conflicts or missing dependencies
-
-   For "cluster operator stability" failures:
-   - Identify operators not reaching stable state
-   - Check operator conditions (available, progressing, degraded)
-   - Check if must-gather exists before suggesting to review it
-   - Review operator logs for stuck operations (if must-gather available)
-   - Look for time-series of operator status changes
+   For "cluster creation" or "cluster operator stability" failures:
+   - **First, report on machine and node health from `gather-extra`**. State if the expected number of nodes are ready.
+   - If nodes are not ready, suggest debugging the machine provisioning process. Check the `machine-api` controller logs in `gather-must-gather`.
+   - **If nodes are healthy**, then report on which operators are failing based on `gather-must-gather` and suggest checking their logs.
+   - If `gather-extra` or `gather-must-gather` were not available, state that the cluster was likely too unstable to collect diagnostics.
 
    For "other" failures:
    - Perform comprehensive log review
@@ -489,7 +499,7 @@ OpenShift installations exhibit "eventual consistency" behavior, which means:
 3. **Save report**
    - Save to: `.work/prow-job-analyze-install-failure/{build_id}/analysis/report.txt`
 
-### Step 11: Present Results to User
+### Step 12: Present Results to User
 
 1. **Display summary**
    - Show the analysis report to the user
