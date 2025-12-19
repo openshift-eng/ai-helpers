@@ -22,6 +22,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Openshift](#openshift-plugin)
 - [Origin](#origin-plugin)
 - [Prow Job](#prow-job-plugin)
+- [Research](#research-plugin)
 - [Session](#session-plugin)
 - [Sosreport](#sosreport-plugin)
 - [Test Coverage](#test-coverage-plugin)
@@ -267,6 +268,17 @@ A plugin to analyze and inspect Prow CI job results
 - **`/prow-job:extract-must-gather` `prowjob-url`** - Extract and decompress must-gather archives from Prow job artifacts
 
 See [plugins/prow-job/README.md](plugins/prow-job/README.md) for detailed documentation.
+
+### Research Plugin
+
+Build and query a personal knowledge base from URLs, YouTube, GitHub repos, and documents using vector search
+
+**Commands:**
+- **`/research:add` `<project-name> <source-url-or-path> [--single] [--depth N] [--max-pages N]`** - Add sources (URLs, YouTube, GitHub repos, local files) to a research project
+- **`/research:list` `[project-name]`** - List all sources in a research project
+- **`/research:query` `<project-name> <question>`** - Ask questions about your research project's indexed content
+
+See [plugins/research/README.md](plugins/research/README.md) for detailed documentation.
 
 ### Session Plugin
 

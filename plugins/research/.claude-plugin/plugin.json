@@ -1,0 +1,10 @@
+{
+  "name": "research",
+  "description": "Build and query a personal knowledge base from URLs, YouTube, GitHub repos, and documents using vector search",
+  "version": "0.0.1",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}
+
+

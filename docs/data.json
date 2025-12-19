@@ -1053,6 +1053,40 @@
     {
       "commands": [
         {
+          "argument_hint": "<project-name> <source-url-or-path> [--single] [--depth N] [--max-pages N]",
+          "description": "Add sources (URLs, YouTube, GitHub repos, local files) to a research project",
+          "name": "add",
+          "synopsis": "/research:add <project-name> <source> [options]"
+        },
+        {
+          "argument_hint": "[project-name]",
+          "description": "List all sources in a research project",
+          "name": "list",
+          "synopsis": "/research:list [project-name]"
+        },
+        {
+          "argument_hint": "<project-name> <question>",
+          "description": "Ask questions about your research project's indexed content",
+          "name": "query",
+          "synopsis": "/research:query <project-name> <question>"
+        }
+      ],
+      "description": "Build and query a personal knowledge base from URLs, YouTube, GitHub repos, and documents using vector search",
+      "has_readme": true,
+      "hooks": [],
+      "name": "research",
+      "skills": [
+        {
+          "description": "|",
+          "id": "research-engine",
+          "name": "Research Engine"
+        }
+      ],
+      "version": "0.0.1"
+    },
+    {
+      "commands": [
+        {
           "argument_hint": "<short-description> <repo1|url> [repo2...]",
           "description": "Create a workspace with git worktrees for multi-repository development",
           "name": "create",

@@ -138,6 +138,11 @@
       "name": "workspaces",
       "source": "./plugins/workspaces",
       "description": "Manage isolated git worktree workspaces for multi-repo development"
+    },
+    {
+      "name": "research",
+      "source": "./plugins/research",
+      "description": "Build and query a personal knowledge base from URLs, YouTube, GitHub repos, and documents using vector search"
     }
   ]
 }
