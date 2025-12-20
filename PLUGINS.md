@@ -16,6 +16,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Jira](#jira-plugin)
 - [Lvms](#lvms-plugin)
 - [Must Gather](#must-gather-plugin)
+- [Myga](#myga-plugin)
 - [Node](#node-plugin)
 - [Node Tuning](#node-tuning-plugin)
 - [Olm](#olm-plugin)
@@ -186,6 +187,18 @@ A plugin to analyze and report on must-gather data
 - **`/must-gather:windows` `[must-gather-path] [--component COMPONENT]`** - Analyze Windows node logs and issues in must-gather data
 
 See [plugins/must-gather/README.md](plugins/must-gather/README.md) for detailed documentation.
+
+### Myga Plugin
+
+Make Yourself Great Again - Interactive code tutoring and learning commands for mastering codebases and frameworks
+
+**Commands:**
+- **`/myga:assess` `[topic]`** - Take a comprehensive knowledge assessment to evaluate your understanding of the codebase and frameworks
+- **`/myga:challenge` `[topic-or-difficulty]`** - Get coding challenges based on the current codebase to practice and test your skills
+- **`/myga:path`** - View and manage your personalized learning roadmap with progress tracking
+- **`/myga:start` `[topic]`** - Start an interactive learning session on a topic in the current codebase
+
+See [plugins/myga/README.md](plugins/myga/README.md) for detailed documentation.
 
 ### Node Plugin
 

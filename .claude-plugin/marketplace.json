@@ -133,6 +133,11 @@
       "name": "workspaces",
       "source": "./plugins/workspaces",
       "description": "Manage isolated git worktree workspaces for multi-repo development"
+    },
+    {
+      "name": "myga",
+      "source": "./plugins/myga",
+      "description": "Make Yourself Great Again - Interactive code tutoring and learning commands for mastering codebases and frameworks"
     }
   ]
 }
