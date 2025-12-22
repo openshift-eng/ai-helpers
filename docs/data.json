@@ -915,10 +915,10 @@
     {
       "commands": [
         {
-          "argument_hint": "[--fix] [--registry=<registry>] [--base-release=<release-image>] [--bash]",
+          "argument_hint": "[--registry=<registry>] [--base-release=<release-image>] [--bash]",
           "description": "Automate compilation of OpenShift operators from source to target OKD SCOS",
           "name": "build-operators",
-          "synopsis": "/okd-build:build-operators [--fix] [--registry=<registry>] [--base-release=<release-image>] [--bash]"
+          "synopsis": "/okd-build:build-operators [--registry=<registry>] [--base-release=<release-image>] [--bash]"
         }
       ],
       "description": "Automate compilation of OpenShift operators from source to target OKD (Stream CoreOS - SCOS)",
