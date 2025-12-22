@@ -52,11 +52,30 @@ This command streamlines the process of building multiple operators in a workspa
    - Identify base image references
 
 2. **Replace base images**
-   - Find and replace any OpenShift base image with SCOS equivalent:
-     - Pattern: `FROM registry.ci.openshift.org/ocp/4.21:base-rhel9`
-     - Replacement: `FROM registry.ci.openshift.org/origin/scos-4.21:base-stream9`
-     - Also handle variants like `base-rhel8`, `builder`, etc.
+   - **ONLY replace base image lines** matching the pattern `FROM registry.ci.openshift.org/ocp/X.XX:base-rhel[89]`
+   - **DO NOT replace** builder images (e.g., `FROM registry.ci.openshift.org/ocp/builder:rhel-9-golang-...`)
+   - **DO NOT replace** golang images
+   - Replacement pattern:
+     - Pattern: `FROM registry.ci.openshift.org/ocp/4.XX:base-rhel9`
+     - Replacement: `FROM registry.ci.openshift.org/origin/scos-4.XX:base-stream9`
+   - Also handle RHEL 8 variants:
+     - Pattern: `FROM registry.ci.openshift.org/ocp/4.XX:base-rhel8`
+     - Replacement: `FROM registry.ci.openshift.org/origin/scos-4.XX:base-stream8`
    - Use the Edit tool to perform the replacement
+   - Example Dockerfile (before):
+     ```dockerfile
+     FROM registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.23-openshift-4.19 AS builder
+     # ... build steps ...
+     FROM registry.ci.openshift.org/ocp/4.19:base-rhel9
+     # ... final image steps ...
+     ```
+   - Example Dockerfile (after):
+     ```dockerfile
+     FROM registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.23-openshift-4.19 AS builder  # NOT CHANGED
+     # ... build steps ...
+     FROM registry.ci.openshift.org/origin/scos-4.19:base-stream9  # CHANGED
+     # ... final image steps ...
+     ```
 
 3. **Prepare SCOS build arguments**
    - All operators will be built with SCOS tags
