@@ -83,7 +83,7 @@ Act as an experienced software architect to create a comprehensive enhancement p
 
 4. **Ask Clarifying Questions** (if needed): Use the AskUserQuestion tool to gather:
    - Specific user stories or motivations if not clear from the description
-   - Explicit Goals or Non-Goals the user wants included
+   - Explicit Goals or Non-Goals the user wants to be included
    - Any specific technical constraints or requirements
    - Topology considerations (Hypershift, SNO, MicroShift, OKE relevance)
    - Whether this proposal adds/changes CRDs, admission and conversion webhooks, ValidatingAdmissionPlugin, MutatingAdmissionPlugin, aggregated API servers, or finalizers (needed for API Extensions section)
@@ -122,7 +122,7 @@ Act as an experienced software architect to create a comprehensive enhancement p
    - Avoid unnecessary verbosity
    - **Line Length**: Keep lines in the generated enhancement at a maximum of 80 characters, but prioritize validity over line length limits. Only break lines at 80 characters if doing so will NOT create:
      - Invalid or broken URLs (URLs themselves should never be split, but the line CAN and SHOULD be broken before or after the URL)
-     - Invalid markdown syntax (e.g., breaking Markdown links, code blocks, or formatting)
+     - Invalid Markdown syntax (e.g., breaking Markdown links, code blocks, or formatting)
      - Invalid code examples (e.g., breaking code in the middle of statements)
      If breaking at 80 characters would split a URL, code, or Markdown syntax, find the nearest valid break point such as: after a sentence, before a URL starts, after a URL ends, or at a natural paragraph break. For regular prose, it is acceptable to exceed 80 characters by 10-15 characters to avoid breaking words mid-word. Only allow lines >95 characters when the line contains a single unbreakable element (like a standalone URL with no surrounding text, or a single line of code).
 
