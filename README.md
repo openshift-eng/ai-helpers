@@ -120,6 +120,14 @@ When you identify a desirable characteristic (clarity, brevity, formality, humor
 
 ### Adding New Commands
 
+**Check for overlaps first** - Before coding, validate your idea:
+
+```bash
+/utils:review-ai-helpers-overlap --idea "brief description of your command"
+```
+
+Collaborating on existing work instead of duplicating parallel efforts is always encouraged when overlap is found. This helps maintain a clean, non-redundant plugin collection in such an actively developed project (see [`/utils:review-ai-helpers-overlap`](plugins/utils/commands/review-ai-helpers-overlap.md) for detailed usage).
+
 When contributing new commands:
 
 1. **If your command fits an existing plugin**: Add it to the appropriate plugin's `commands/` directory
