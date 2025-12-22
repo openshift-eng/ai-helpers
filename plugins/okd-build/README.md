@@ -91,15 +91,19 @@ The command scans your workspace for operator directories and identifies the app
 
 ### 2. SCOS Transformation
 Automatically converts Dockerfiles for SCOS compatibility:
-- Replaces RHEL base images with SCOS equivalents
-- Adds SCOS build arguments when applicable
+- **ONLY replaces base image lines** matching `FROM registry.ci.openshift.org/ocp/X.XX:base-rhel[89]`
+- **Does NOT replace builder or golang images**
 - Example transformation:
   ```dockerfile
   # Before
-  FROM registry.ci.openshift.org/ocp/4.21:base-rhel9
+  FROM registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.23-openshift-4.19 AS builder
+  # ... build steps ...
+  FROM registry.ci.openshift.org/ocp/4.19:base-rhel9
 
   # After
-  FROM registry.ci.openshift.org/origin/scos-4.21:base-stream9
+  FROM registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.23-openshift-4.19 AS builder  # NOT CHANGED
+  # ... build steps ...
+  FROM registry.ci.openshift.org/origin/scos-4.19:base-stream9  # CHANGED
   ```
 
 ### 3. Build Execution

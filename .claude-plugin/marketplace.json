@@ -151,7 +151,8 @@
     {
       "name": "okd-build",
       "source": "./plugins/okd-build",
-      "description": "Automate compilation of OpenShift operators from source to target OKD (Stream CoreOS - SCOS)"
+      "description": "Automate compilation of OpenShift operators from source to target OKD (Stream CoreOS - SCOS)",
+      "version": "0.0.1"
     },
     {
       "name": "origin",
