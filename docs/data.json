@@ -250,6 +250,12 @@
           "synopsis": "/ci:list-unstable-tests <version> <keywords> [sippy-url]"
         },
         {
+          "argument_hint": "[repo-path]",
+          "description": "Run make update in OpenShift repos with proper Podman setup (macOS only)",
+          "name": "make-update",
+          "synopsis": "/ci:make-update [repo-path]"
+        },
+        {
           "argument_hint": "<execution-id>",
           "description": "Query the status of a gangway job execution by ID",
           "name": "query-job-status",
