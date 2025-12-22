@@ -40,13 +40,12 @@ Discovers, builds, and orchestrates OpenShift operators for OKD SCOS.
 
 **Syntax:**
 ```
-/okd-build:build-operators [--fix] [--registry=<registry>] [--base-release=<release-image>] [--bash]
+/okd-build:build-operators [--registry=<registry>] [--base-release=<release-image>] [--bash]
 ```
 
 **Options:**
-- `--fix`: Automatically attempt to fix common build errors
 - `--registry=<registry>`: Target registry for images (default: `quay.io/${USER}`)
-- `--base-release=<release-image>`: Base OKD release image (default: `quay.io/okd/scos-release:4.21.0-okd-scos.ec.3`)
+- `--base-release=<release-image>`: Base OKD release image (default: auto-fetched from OKD release stream API)
 - `--bash`: Generate a bash script instead of executing builds directly
 
 **Examples:**
@@ -55,33 +54,29 @@ Discovers, builds, and orchestrates OpenShift operators for OKD SCOS.
    ```
    /okd-build:build-operators
    ```
+   Automatically attempts to fix build errors if they occur.
 
-2. Build with automatic error fixing:
-   ```
-   /okd-build:build-operators --fix
-   ```
-
-3. Build and push to custom registry:
+2. Build and push to custom registry:
    ```
    /okd-build:build-operators --registry=quay.io/myuser
    ```
 
-4. Build with custom base release:
+3. Build with custom base release:
    ```
    /okd-build:build-operators --base-release=quay.io/okd/scos-release:4.22.0-okd-scos.ec.1
    ```
 
-5. Build with all options:
+4. Build with all options:
    ```
-   /okd-build:build-operators --fix --registry=quay.io/myuser --base-release=quay.io/okd/scos-release:4.22.0-okd-scos.ec.1
+   /okd-build:build-operators --registry=quay.io/myuser --base-release=quay.io/okd/scos-release:4.22.0-okd-scos.ec.1
    ```
 
-6. Generate bash script for manual execution:
+5. Generate bash script for manual execution:
    ```
    /okd-build:build-operators --bash
    ```
 
-7. Generate bash script with custom configuration:
+6. Generate bash script with custom configuration:
    ```
    /okd-build:build-operators --bash --registry=quay.io/myuser --base-release=quay.io/okd/scos-release:4.22.0-okd-scos.ec.1
    ```
@@ -111,11 +106,13 @@ Automatically converts Dockerfiles for SCOS compatibility:
 Builds each operator using Podman:
 - Constructs appropriate build commands
 - Handles SCOS-specific build flags
-- Optionally attempts to fix build errors with `--fix`
+- Automatically attempts to fix build errors if they occur
 
 ### 4. Release Orchestration
 Generates a custom OKD release payload:
-- Uses base release (configurable via `--base-release`, default: `quay.io/okd/scos-release:4.21.0-okd-scos.ec.3`)
+- Fetches latest SCOS release automatically from OKD release stream API (unless `--base-release` is specified)
+- API: `https://amd64.origin.releases.ci.openshift.org/api/v1/releasestreams/accepted`
+- Extracts: First element from `4-scos-next` array (e.g., `4.21.0-okd-scos.ec.13`)
 - Maps operator images to release components
 - Provides ready-to-execute `oc adm release new` command
 
@@ -157,20 +154,31 @@ When using the `--bash` flag, the workflow changes:
    podman login quay.io
    ```
 
-4. **skopeo** - Container image inspection (required for `--bash` mode)
+4. **curl** - HTTP client
    ```bash
    # Check installation
-   which skopeo
+   which curl
 
-   # Install: https://github.com/containers/skopeo/blob/main/install.md
+   # Usually pre-installed on most systems
+   # Required for fetching latest SCOS release when --base-release is not specified
    ```
 
-5. **jq** - JSON processor (required for `--bash` mode)
+5. **jq** - JSON processor
    ```bash
    # Check installation
    which jq
 
    # Install: https://stedolan.github.io/jq/download/
+   # Required for parsing API responses and image digests
+   ```
+
+6. **skopeo** - Container image inspection
+   ```bash
+   # Check installation
+   which skopeo
+
+   # Install: https://github.com/containers/skopeo/blob/main/install.md
+   # Required for extracting image digests from registry
    ```
 
 ## Use Cases
@@ -193,13 +201,13 @@ After building operators, you can create a custom OKD release that includes your
 ### Testing Operator Changes
 When developing operator changes for OKD:
 1. Make your code changes
-2. Run `/okd-build:build-operators --fix` to build and test
+2. Run `/okd-build:build-operators` to build and test
 3. Use the generated release command to deploy to a test cluster
 
 ## Troubleshooting
 
 ### Build Failures
-- **Missing dependencies**: Use `--fix` flag to attempt automatic resolution
+- **Missing dependencies**: The command automatically attempts to resolve common issues
 - **Architecture mismatches**: Ensure you're building for the correct architecture
 - **Registry access**: Verify registry authentication with `podman login`
 
@@ -214,12 +222,17 @@ All operators are built with `--build-arg TAGS=scos` to ensure SCOS compatibilit
 ## Advanced Usage
 
 ### Targeting Specific OKD Versions
-To target a different OKD version, use the `--base-release` flag with your desired release:
+By default, the plugin automatically fetches the latest SCOS release from the OKD release stream API. To target a specific version instead, use the `--base-release` flag:
 ```bash
 /okd-build:build-operators --base-release=quay.io/okd/scos-release:4.22.0-okd-scos.ec.1
 ```
 
-Note: You may also need to update the base image transformations in Dockerfiles if targeting versions other than 4.21 (e.g., `ocp/4.22:base-rhel9` → `origin/scos-4.22:base-stream9`)
+The automatic fetch queries:
+- API: `https://amd64.origin.releases.ci.openshift.org/api/v1/releasestreams/accepted`
+- Extracts: First element from `4-scos-next` array
+- Result: Always uses the latest accepted SCOS release
+
+Note: You may need to update base image transformations in Dockerfiles if targeting versions other than the auto-detected version (e.g., `ocp/4.22:base-rhel9` → `origin/scos-4.22:base-stream9`)
 
 ### Custom Build Arguments
 If you need additional build arguments beyond `--build-arg TAGS=scos`, you can:

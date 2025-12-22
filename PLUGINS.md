@@ -20,7 +20,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Must Gather](#must-gather-plugin)
 - [Node](#node-plugin)
 - [Node Tuning](#node-tuning-plugin)
-- [OKD Build](#okd-build-plugin)
+- [Okd Build](#okd-build-plugin)
 - [Olm](#olm-plugin)
 - [Olm Team](#olm-team-plugin)
 - [Openshift](#openshift-plugin)
@@ -253,12 +253,12 @@ Automatically create and apply tuned profile
 
 See [plugins/node-tuning/README.md](plugins/node-tuning/README.md) for detailed documentation.
 
-### OKD Build Plugin
+### Okd Build Plugin
 
 Automate compilation of OpenShift operators from source to target OKD (Stream CoreOS - SCOS)
 
 **Commands:**
-- **`/okd-build:build-operators` `[--fix] [--registry=<registry>] [--base-release=<release-image>] [--bash]`** - Automate compilation of OpenShift operators from source to target OKD SCOS
+- **`/okd-build:build-operators` `[--registry=<registry>] [--base-release=<release-image>] [--bash]`** - Automate compilation of OpenShift operators from source to target OKD SCOS
 
 See [plugins/okd-build/README.md](plugins/okd-build/README.md) for detailed documentation.
 
