@@ -227,10 +227,28 @@
           "synopsis": "/ask-sippy [question]"
         },
         {
+          "argument_hint": "[repo] <pr-number>",
+          "description": "Find and retest failed e2e CI jobs on a PR",
+          "name": "e2e-retest",
+          "synopsis": "/ci:e2e-retest <pr-number>"
+        },
+        {
           "argument_hint": "<version> <keywords> [sippy-url]",
           "description": "List unstable tests with pass rate below 95%",
           "name": "list-unstable-tests",
           "synopsis": "/ci:list-unstable-tests <version> <keywords> [sippy-url]"
+        },
+        {
+          "argument_hint": "[repo] <pr-number>",
+          "description": "Find and retest failed payload jobs on a PR",
+          "name": "payload-retest",
+          "synopsis": "/ci:payload-retest <pr-number>"
+        },
+        {
+          "argument_hint": "[repo] <pr-number>",
+          "description": "Find and retest failed e2e CI jobs and payload jobs on a PR",
+          "name": "pr-retest",
+          "synopsis": "/ci:pr-retest <pr-number>"
         },
         {
           "argument_hint": "<execution-id>",
