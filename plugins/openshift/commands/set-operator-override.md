@@ -38,7 +38,7 @@ This command is useful for:
 Before using this command, ensure you have:
 
 1. **OpenShift CLI (`oc`)**: Must be installed and configured
-   - Install from: https://mirror.openshift.com/pub/openshift-v4/clients/ocp/
+   - Install from: [OpenShift download mirror](https://mirror.openshift.com/pub/openshift-v4/clients/ocp/)
    - Verify with: `oc version`
 
 2. **Active cluster connection**: Must be connected to a running OpenShift cluster
@@ -418,12 +418,12 @@ The command provides different outputs based on the operation:
 
 ### Example 1: List current overrides
 
-```
+```bash
 /openshift:set-operator-override --list
 ```
 
 Output:
-```
+```text
 Current ClusterVersion Overrides:
 
 DEPLOYMENT NAME                        NAMESPACE                              UNMANAGED    SCALED DOWN
@@ -434,12 +434,12 @@ network-operator                       openshift-network-operator             tr
 
 ### Example 2: Set operator as unmanaged (without scaling)
 
-```
+```bash
 /openshift:set-operator-override --set-unmanaged authentication
 ```
 
 Output:
-```
+```text
 Found ClusterOperator: authentication
 
 Current status of operator 'authentication':
@@ -463,12 +463,12 @@ clusterversion.config.openshift.io/version patched
 
 ### Example 3: Set operator as unmanaged AND scale down
 
-```
+```bash
 /openshift:set-operator-override --set-unmanaged network --scale-down
 ```
 
 Output:
-```
+```text
 Found ClusterOperator: network
 
 Current status of operator 'network':
@@ -501,12 +501,12 @@ deployment.apps/network-operator scaled
 
 ### Example 4: Set operator back to managed
 
-```
+```bash
 /openshift:set-operator-override --set-managed network
 ```
 
 Output:
-```
+```text
 Finding operator deployment...
 Found deployment: network-operator in namespace openshift-network-operator
 
@@ -524,7 +524,7 @@ network   4.15.2    True        True          False      5s      Progressing: Wo
 
 ### Example 5: Typical workflow for modifying operand configmaps
 
-```
+```bash
 # Step 1: Set operator as unmanaged and scale down
 /openshift:set-operator-override --set-unmanaged dns --scale-down
 
@@ -544,7 +544,7 @@ oc edit configmap dns-default -n openshift-dns
 When you need to change resources managed by an operator:
 
 1. Set as unmanaged and scale down:
-   ```
+   ```bash
    /openshift:set-operator-override --set-unmanaged monitoring --scale-down
    ```
 
@@ -557,7 +557,7 @@ When you need to change resources managed by an operator:
 3. Test the changes
 
 4. Restore to normal operation:
-   ```
+   ```bash
    /openshift:set-operator-override --set-managed monitoring
    ```
 
@@ -566,7 +566,7 @@ When you need to change resources managed by an operator:
 When testing a fix for the operator itself (not its operands):
 
 1. Set as unmanaged (keep operator running):
-   ```
+   ```bash
    /openshift:set-operator-override --set-unmanaged network
    ```
 
@@ -579,7 +579,7 @@ When testing a fix for the operator itself (not its operands):
 3. Test the operator changes
 
 4. Restore to managed state:
-   ```
+   ```bash
    /openshift:set-operator-override --set-managed network
    ```
 
@@ -587,7 +587,7 @@ When testing a fix for the operator itself (not its operands):
 
 Always check for unmanaged operators before upgrading:
 
-```
+```bash
 /openshift:set-operator-override --list
 ```
 
@@ -681,9 +681,9 @@ oc scale deployment <deployment-name> -n <namespace> --replicas=1
 
 ## See Also
 
-- ClusterVersion API: https://docs.openshift.com/container-platform/latest/rest_api/config_apis/clusterversion-config-openshift-io-v1.html
-- Cluster Version Operator: https://github.com/openshift/cluster-version-operator
-- Operator Lifecycle: https://docs.openshift.com/container-platform/latest/operators/understanding/olm/olm-understanding-olm.html
+- [ClusterVersion API](https://docs.openshift.com/container-platform/latest/rest_api/config_apis/clusterversion-config-openshift-io-v1.html)
+- [Cluster Version Operator](https://github.com/openshift/cluster-version-operator)
+- [Operator Lifecycle](https://docs.openshift.com/container-platform/latest/operators/understanding/olm/olm-understanding-olm.html)
 - Related commands: `/openshift:cluster-health-check`
 
 ## Notes
@@ -694,5 +694,5 @@ oc scale deployment <deployment-name> -n <namespace> --replicas=1
 - Scaling changes are immediate once the deployment is patched
 - Setting critical operators as unmanaged (e.g., `kube-apiserver`) can destabilize the cluster
 - Scaling critical operators to 0 can cause cluster outages
-- Always consult with Red Hat support before using this in production environments
+- Always consult Red Hat support before using this in production environments
 - When setting an operator back to managed, the CVO automatically scales it to the correct replica count
