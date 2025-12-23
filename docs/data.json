@@ -904,6 +904,39 @@
     {
       "commands": [
         {
+          "argument_hint": "<path-or-url> [--output <path>] [--priority <level>] [--test-structure-only]",
+          "description": "Analyze test code structure without running tests to identify coverage gaps",
+          "name": "analyze",
+          "synopsis": "/test-coverage:analyze <path-or-url> [--output <path>] [--priority <level>] [--test-structure-only]"
+        },
+        {
+          "argument_hint": "<test-file-or-url> [--output <path>]",
+          "description": "Identify E2E test scenario gaps in OpenShift/Kubernetes tests (component-agnostic)",
+          "name": "gaps",
+          "synopsis": "bash"
+        }
+      ],
+      "description": "Analyze test coverage and identify gaps in test scenarios",
+      "has_readme": true,
+      "hooks": [],
+      "name": "test-coverage",
+      "skills": [
+        {
+          "description": "Analyze test code structure directly to provide coverage analysis",
+          "id": "analyze",
+          "name": "Test Structure Analysis"
+        },
+        {
+          "description": "Intelligently identify missing test coverage based on component type",
+          "id": "gaps",
+          "name": "Component-Aware Test Gap Analysis"
+        }
+      ],
+      "version": "0.0.1"
+    },
+    {
+      "commands": [
+        {
           "argument_hint": "[--sosreport PATH] [--format json|markdown] [--max-irq-samples N]",
           "description": "Analyze kernel/sysctl tuning from a live node or sosreport snapshot and propose NTO recommendations",
           "name": "analyze-node-tuning",

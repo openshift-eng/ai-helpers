@@ -24,6 +24,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Prow Job](#prow-job-plugin)
 - [Session](#session-plugin)
 - [Sosreport](#sosreport-plugin)
+- [Test Coverage](#test-coverage-plugin)
 - [Utils](#utils-plugin)
 - [Workspaces](#workspaces-plugin)
 - [Yaml](#yaml-plugin)
@@ -284,6 +285,16 @@ Analyze sosreport archives for system diagnostics and troubleshooting
 - **`/sosreport:ovs-db` `[sosreport-path] [--db] [--flows-only] [--query <json>]`** - Analyze OVS data from sosreport (text files or database)
 
 See [plugins/sosreport/README.md](plugins/sosreport/README.md) for detailed documentation.
+
+### Test Coverage Plugin
+
+Analyze code coverage and identify untested paths
+
+**Commands:**
+- **`/test-coverage:analyze` `<path-or-url> [--output <path>] [--priority <level>] [--test-structure-only]`** - Analyze test code structure without running tests to identify coverage gaps
+- **`/test-coverage:gaps` `<test-file-or-url> [--output <path>]`** - Identify E2E test scenario gaps in OpenShift/Kubernetes tests (component-agnostic)
+
+See [plugins/test-coverage/README.md](plugins/test-coverage/README.md) for detailed documentation.
 
 ### Utils Plugin
 
