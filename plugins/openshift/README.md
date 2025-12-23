@@ -261,6 +261,8 @@ See [commands/destroy-cluster.md](commands/destroy-cluster.md) for full document
 
 Set cluster operators as managed or unmanaged for troubleshooting and testing. This command manages ClusterVersion overrides and optionally scales operator deployments to prevent reconciliation of operands.
 
+**Scope**: This command applies **only to CVO-managed payload operators** (core platform operators in the release payload like `network`, `authentication`, `dns`, `monitoring`, `ingress`). It does not work with OLM-managed operators from OperatorHub or custom operators.
+
 **⚠️ WARNING**: Setting operators as unmanaged should only be done for troubleshooting and testing. This may cause cluster instability, upgrade failures, or support issues.
 
 **Basic Usage:**
@@ -292,8 +294,8 @@ Set cluster operators as managed or unmanaged for troubleshooting and testing. T
 - CVO automatically restores operators to correct replica count when set back to managed
 
 **Arguments:**
-- `--set-unmanaged <operator>` - Set operator as unmanaged
-- `--set-managed <operator>` - Set operator back to managed (CVO automatically scales it up)
+- `--set-unmanaged <operator-name>` - Set operator as unmanaged
+- `--set-managed <operator-name>` - Set operator back to managed (CVO automatically scales it up)
 - `--scale-down` - Scale operator deployment to 0 replicas (with --set-unmanaged)
 - `--list` - Display current overrides and scale status
 

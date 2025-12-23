@@ -734,6 +734,12 @@
           "synopsis": "/openshift:review-test-cases [file-path-or-test-code-or-commands]"
         },
         {
+          "argument_hint": "(--set-unmanaged <operator-name> [--scale-down] | --set-managed <operator-name> | --list)",
+          "description": "Set cluster operators as managed or unmanaged for troubleshooting",
+          "name": "set-operator-override",
+          "synopsis": "/openshift:set-operator-override --set-unmanaged <operator-name> [--scale-down]"
+        },
+        {
           "argument_hint": "",
           "description": "Generate and visualize OVN-Kubernetes network topology diagram",
           "name": "visualize-ovn-topology",
@@ -749,9 +755,14 @@
           "description": "Generates and displays OVN-Kubernetes network topology diagrams showing logical switches, routers, ports with IP/MAC addresses in Mermaid format",
           "id": "generating-ovn-topology",
           "name": "generating-ovn-topology"
+        },
+        {
+          "description": "Detailed implementation guide for managing ClusterVersion overrides to set cluster operators as managed or unmanaged with optional deployment scaling",
+          "id": "openshift-set-operator-override",
+          "name": "OpenShift Set Operator Override"
         }
       ],
-      "version": "0.0.2"
+      "version": "0.0.3"
     },
     {
       "commands": [

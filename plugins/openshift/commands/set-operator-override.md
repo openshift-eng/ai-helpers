@@ -1,6 +1,6 @@
 ---
 description: Set cluster operators as managed or unmanaged for troubleshooting
-argument-hint: "[--set-unmanaged <operator> [--scale-down]] [--set-managed <operator>] [--list]"
+argument-hint: "(--set-unmanaged <operator-name> [--scale-down] | --set-managed <operator-name> | --list)"
 ---
 
 ## Name
@@ -16,6 +16,13 @@ openshift:set-operator-override
 ## Description
 
 The `set-operator-override` command manages ClusterVersion overrides to set cluster operators as managed or unmanaged. This is primarily used for troubleshooting and testing scenarios where you need to prevent the Cluster Version Operator (CVO) from managing specific operators.
+
+**Scope**: ClusterVersion overrides **only apply to CVO-managed payload operators** - core platform operators delivered in the OpenShift release payload (e.g., `network`, `authentication`, `dns`, `monitoring`, `ingress`).
+
+**Throughout this document, the term "operator" refers exclusively to these core platform operators in the release payload.** This command does **not** work with:
+- Operators installed or managed by OLM (Operator Lifecycle Manager) via OperatorHub
+- Custom operators or arbitrary ClusterOperator resources not part of the release payload
+- User-installed operators outside the CVO's management scope
 
 When an operator is set as unmanaged, the CVO will not:
 - Update the operator to match the cluster version
@@ -38,7 +45,7 @@ This command is useful for:
 Before using this command, ensure you have:
 
 1. **OpenShift CLI (`oc`)**: Must be installed and configured
-   - Install from: https://mirror.openshift.com/pub/openshift-v4/clients/ocp/
+   - Install from: [OpenShift download mirror](https://mirror.openshift.com/pub/openshift-v4/clients/ocp/)
    - Verify with: `oc version`
 
 2. **Active cluster connection**: Must be connected to a running OpenShift cluster
@@ -77,328 +84,53 @@ The command accepts one of the following options:
 
 - **--list**: Display current ClusterVersion overrides
   - Shows all operators currently set as unmanaged
-  - Shows which operators have been scaled down
+  - Shows which operators have been scaled-down
 
 **Note:** The `--scale-up` flag is not required when setting an operator back to managed. The Cluster Version Operator (CVO) automatically resumes managing the operator and scales it up to the appropriate replica count.
 
 ## Implementation
 
-The command performs the following operations:
+This command uses the `openshift-set-operator-override` skill to manage ClusterVersion overrides. The skill performs the following operations:
 
 ### 1. Verify Prerequisites
-
-Check that `oc` is available and connected to a cluster:
-
-```bash
-# Check if oc is installed
-if ! command -v oc &> /dev/null; then
-    echo "Error: 'oc' CLI not found. Please install OpenShift CLI."
-    exit 1
-fi
-
-# Check cluster connectivity
-if ! oc whoami &> /dev/null; then
-    echo "Error: Not connected to a cluster. Please login with 'oc login'."
-    exit 1
-fi
-
-# Check permissions
-if ! oc auth can-i patch clusterversion &> /dev/null; then
-    echo "Error: Insufficient permissions. cluster-admin role required."
-    exit 1
-fi
-```
+- Check that `oc` CLI is installed and available
+- Verify cluster connectivity via `oc whoami`
+- Confirm cluster-admin permissions via `oc auth can-i patch clusterversion`
 
 ### 2. Validate Operator Name
-
-Verify that the operator exists in the cluster:
-
-```bash
-# Get operator name from argument
-OPERATOR_NAME="$1"
-
-# Check if the ClusterOperator exists
-if ! oc get clusteroperator "$OPERATOR_NAME" &> /dev/null; then
-    echo "Error: ClusterOperator '$OPERATOR_NAME' not found."
-    echo ""
-    echo "Available cluster operators:"
-    oc get clusteroperators -o name | sed 's|clusteroperator.config.openshift.io/||'
-    exit 1
-fi
-
-echo "Found ClusterOperator: $OPERATOR_NAME"
-```
+- Verify the ClusterOperator resource exists
+- Display available operators if validation fails
 
 ### 3. Find Operator Deployment
-
-Locate the operator's deployment for scaling operations:
-
-```bash
-# Function to find operator deployment
-find_operator_deployment() {
-    local operator_name="$1"
-    local deployment_name=""
-    local namespace=""
-
-    # Common patterns for operator namespaces
-    # Pattern 1: openshift-<operator>-operator
-    namespace="openshift-${operator_name}-operator"
-    if oc get namespace "$namespace" &> /dev/null; then
-        # Try common deployment names
-        for deploy_name in "${operator_name}-operator" "cluster-${operator_name}-operator"; do
-            if oc get deployment "$deploy_name" -n "$namespace" &> /dev/null; then
-                deployment_name="$deploy_name"
-                break
-            fi
-        done
-
-        # If not found, get the first deployment
-        if [ -z "$deployment_name" ]; then
-            deployment_name=$(oc get deployment -n "$namespace" -o name | head -1 | sed 's|deployment.apps/||')
-        fi
-    fi
-
-    # Pattern 2: openshift-<operator>
-    if [ -z "$deployment_name" ]; then
-        namespace="openshift-${operator_name}"
-        if oc get namespace "$namespace" &> /dev/null; then
-            deployment_name=$(oc get deployment -n "$namespace" -o name | head -1 | sed 's|deployment.apps/||')
-        fi
-    fi
-
-    # Pattern 3: Search by label
-    if [ -z "$deployment_name" ]; then
-        result=$(oc get deployment --all-namespaces -l "app=${operator_name}" -o jsonpath='{.items[0].metadata.namespace} {.items[0].metadata.name}' 2>/dev/null)
-        if [ -n "$result" ]; then
-            namespace=$(echo "$result" | awk '{print $1}')
-            deployment_name=$(echo "$result" | awk '{print $2}')
-        fi
-    fi
-
-    if [ -n "$deployment_name" ] && [ -n "$namespace" ]; then
-        echo "$namespace $deployment_name"
-        return 0
-    else
-        return 1
-    fi
-}
-```
+- Discover the operator deployment using common OpenShift namespace patterns
+- Try multiple patterns: `openshift-{operator}-operator`, `openshift-{operator}`, label-based search
+- Return both deployment name and namespace for override operations
 
 ### 4. List Current Overrides (--list option)
+- Query ClusterVersion `spec.overrides` field
+- Display table showing deployment name, namespace, unmanaged status, and scaled-down status
+- Check each deployment's replica count to determine if scaled-down
 
-Display all current overrides in the ClusterVersion:
+### 5. Set Operator as Unmanaged (--set-unmanaged option)
+- Display current operator status
+- Find operator deployment using discovery function
+- Add override entry to ClusterVersion `spec.overrides` with correct deployment name and namespace
+- Optionally scale deployment to 0 replicas if `--scale-down` specified
+- Display warnings and restoration instructions
 
-```bash
-echo "Current ClusterVersion Overrides:"
-echo ""
-
-# Get overrides from ClusterVersion
-OVERRIDES=$(oc get clusterversion version -o json | jq -r '.spec.overrides[]? | "\(.name)\t\(.namespace)\t\(.unmanaged)"')
-
-if [ -z "$OVERRIDES" ]; then
-    echo "  No overrides configured (all operators are managed)"
-else
-    echo "DEPLOYMENT NAME                        NAMESPACE                              UNMANAGED    SCALED DOWN"
-    echo "----------------------------------------------------------------------------------------------------"
-    echo "$OVERRIDES" | while IFS=$'\t' read -r name namespace unmanaged; do
-        # Check if deployment is scaled to 0
-        replicas=$(oc get deployment "$name" -n "$namespace" -o jsonpath='{.spec.replicas}' 2>/dev/null)
-        if [ $? -eq 0 ]; then
-            if [ "$replicas" = "0" ]; then
-                scaled_down="Yes"
-            else
-                scaled_down="No"
-            fi
-        else
-            scaled_down="Unknown"
-        fi
-        printf "%-40s %-40s %-12s %s\n" "$name" "$namespace" "$unmanaged" "$scaled_down"
-    done
-fi
-```
-
-### 5. Set Operator as Unmanaged with Optional Scale Down
-
-Add the operator to ClusterVersion spec.overrides and optionally scale down:
-
-```bash
-OPERATOR_NAME="$1"
-SCALE_DOWN="$2"  # "true" if --scale-down is specified
-
-# Show current status
-echo "Current status of operator '$OPERATOR_NAME':"
-oc get clusteroperator "$OPERATOR_NAME"
-echo ""
-
-# Find the operator deployment to get correct name and namespace
-echo "Finding operator deployment..."
-deployment_info=$(find_operator_deployment "$OPERATOR_NAME")
-if [ $? -ne 0 ]; then
-    echo "❌ Error: Could not find operator deployment for '$OPERATOR_NAME'"
-    echo "   Cannot determine the correct deployment name and namespace for the override"
-    exit 1
-fi
-
-namespace=$(echo "$deployment_info" | awk '{print $1}')
-deploy_name=$(echo "$deployment_info" | awk '{print $2}')
-echo "Found deployment: $deploy_name in namespace $namespace"
-echo ""
-
-# Check if already unmanaged
-ALREADY_UNMANAGED=$(oc get clusterversion version -o json | jq -r ".spec.overrides[]? | select(.name==\"$deploy_name\" and .namespace==\"$namespace\") | .unmanaged")
-
-if [ "$ALREADY_UNMANAGED" = "true" ]; then
-    echo "⚠️  Warning: Operator '$OPERATOR_NAME' is already unmanaged."
-else
-    # Get existing overrides
-    EXISTING_OVERRIDES=$(oc get clusterversion version -o json | jq -c '.spec.overrides // []')
-
-    # Add new override to existing list with actual deployment name and namespace
-    # Use -c flag to output compact JSON for reliable embedding in patch command
-    NEW_OVERRIDES=$(echo "$EXISTING_OVERRIDES" | jq -c --arg name "$deploy_name" --arg ns "$namespace" '. + [{"kind": "Deployment", "group": "apps", "name": $name, "namespace": $ns, "unmanaged": true}]')
-
-    # Apply patch - use compact JSON to avoid embedding issues
-    echo "Setting operator '$OPERATOR_NAME' as unmanaged..."
-    oc patch clusterversion version --type=merge --patch "{\"spec\":{\"overrides\":$NEW_OVERRIDES}}"
-
-    if [ $? -eq 0 ]; then
-        echo "✅ Successfully set operator '$OPERATOR_NAME' as unmanaged"
-    else
-        echo "❌ Failed to set operator as unmanaged"
-        exit 1
-    fi
-fi
-
-# Handle scale down if requested
-if [ "$SCALE_DOWN" = "true" ]; then
-    echo ""
-    echo "Finding operator deployment to scale down..."
-
-    deployment_info=$(find_operator_deployment "$OPERATOR_NAME")
-    if [ $? -eq 0 ]; then
-        namespace=$(echo "$deployment_info" | awk '{print $1}')
-        deploy_name=$(echo "$deployment_info" | awk '{print $2}')
-
-        echo "Found deployment: $deploy_name in namespace $namespace"
-
-        # Get current replica count
-        current_replicas=$(oc get deployment "$deploy_name" -n "$namespace" -o jsonpath='{.spec.replicas}')
-
-        if [ "$current_replicas" = "0" ]; then
-            echo "⚠️  Deployment is already scaled to 0 replicas"
-        else
-            # Scale down to 0
-            echo "Scaling deployment to 0 replicas..."
-            oc scale deployment "$deploy_name" -n "$namespace" --replicas=0
-
-            if [ $? -eq 0 ]; then
-                echo "✅ Successfully scaled down operator deployment to 0 replicas"
-            else
-                echo "❌ Failed to scale down operator deployment"
-                exit 1
-            fi
-        fi
-    else
-        echo "⚠️  Warning: Could not find operator deployment for '$OPERATOR_NAME'"
-        echo "   You may need to manually scale down the operator deployment if needed"
-    fi
-fi
-
-echo ""
-echo "⚠️  IMPORTANT REMINDERS:"
-echo "  - The CVO will no longer manage this operator"
-if [ "$SCALE_DOWN" = "true" ]; then
-    echo "  - The operator is scaled to 0 and will NOT reconcile its operands"
-    echo "  - You can now safely modify operand deployments and configmaps"
-fi
-echo "  - This may cause cluster upgrade issues"
-echo "  - Remember to restore when done:"
-echo "    /openshift:set-operator-override --set-managed $OPERATOR_NAME"
-```
-
-### 6. Set Operator as Managed
-
-Remove the operator from ClusterVersion spec.overrides:
-
-```bash
-OPERATOR_NAME="$1"
-
-# Find the operator deployment to get correct name and namespace
-echo "Finding operator deployment..."
-deployment_info=$(find_operator_deployment "$OPERATOR_NAME")
-if [ $? -ne 0 ]; then
-    echo "❌ Error: Could not find operator deployment for '$OPERATOR_NAME'"
-    echo "   Cannot determine the correct deployment name and namespace to remove from overrides"
-    exit 1
-fi
-
-namespace=$(echo "$deployment_info" | awk '{print $1}')
-deploy_name=$(echo "$deployment_info" | awk '{print $2}')
-echo "Found deployment: $deploy_name in namespace $namespace"
-echo ""
-
-# Check if currently unmanaged
-CURRENTLY_UNMANAGED=$(oc get clusterversion version -o json | jq -r ".spec.overrides[]? | select(.name==\"$deploy_name\" and .namespace==\"$namespace\") | .unmanaged")
-
-if [ "$CURRENTLY_UNMANAGED" != "true" ]; then
-    echo "⚠️  Warning: Operator '$OPERATOR_NAME' is not currently unmanaged."
-else
-    # Get existing overrides
-    EXISTING_OVERRIDES=$(oc get clusterversion version -o json | jq -c '.spec.overrides // []')
-
-    # Remove the override for this operator by matching both name and namespace
-    # Use positive matching with 'not' to avoid shell escaping issues with !=
-    NEW_OVERRIDES=$(echo "$EXISTING_OVERRIDES" | jq -c --arg name "$deploy_name" --arg ns "$namespace" 'map(select((.name == $name and .namespace == $ns) | not))')
-
-    # Apply patch - use compact JSON to avoid embedding issues
-    echo "Setting operator '$OPERATOR_NAME' back to managed..."
-    oc patch clusterversion version --type=merge --patch "{\"spec\":{\"overrides\":$NEW_OVERRIDES}}"
-
-    if [ $? -eq 0 ]; then
-        echo "✅ Successfully set operator '$OPERATOR_NAME' back to managed"
-        echo ""
-        echo "The CVO will now resume managing this operator and scale it up automatically."
-    else
-        echo "❌ Failed to set operator as managed"
-        exit 1
-    fi
-fi
-
-# Wait a moment and show updated status
-echo ""
-echo "Updated status of operator '$OPERATOR_NAME':"
-sleep 2
-oc get clusteroperator "$OPERATOR_NAME"
-```
+### 6. Set Operator as Managed (--set-managed option)
+- Find operator deployment to identify correct override entry
+- Remove override from ClusterVersion `spec.overrides`
+- CVO automatically resumes management and scales operator back up
+- Display updated operator status after reconciliation
 
 ### 7. Error Handling
+- Handle missing prerequisites (oc not installed, not connected, insufficient permissions)
+- Validate operator exists before operations
+- Detect deployment discovery failures
+- Provide helpful error messages with actionable solutions
 
-Handle common error scenarios:
-
-```bash
-# Invalid argument
-if [ $# -eq 0 ]; then
-    echo "Error: No arguments provided."
-    echo ""
-    echo "Usage:"
-    echo "  /openshift:set-operator-override --set-unmanaged <operator> [--scale-down]"
-    echo "  /openshift:set-operator-override --set-managed <operator>"
-    echo "  /openshift:set-operator-override --list"
-    exit 1
-fi
-
-# Check for conflicts (e.g., trying to patch a non-existent ClusterVersion)
-if ! oc get clusterversion version &> /dev/null; then
-    echo "Error: ClusterVersion 'version' not found. Is this an OpenShift cluster?"
-    exit 1
-fi
-
-# Validate --scale-down is only used with --set-unmanaged
-if [ "$ARG1" = "--scale-down" ] && [ "$ARG2" != "--set-unmanaged" ]; then
-    echo "Error: --scale-down can only be used with --set-unmanaged"
-    exit 1
-fi
-```
+**Note**: The skill contains detailed bash implementation including JSON manipulation with `jq`, deployment discovery logic, and ClusterVersion patch operations. See the skill for complete implementation details.
 
 ## Return Value
 
@@ -418,12 +150,12 @@ The command provides different outputs based on the operation:
 
 ### Example 1: List current overrides
 
-```
+```bash
 /openshift:set-operator-override --list
 ```
 
 Output:
-```
+```text
 Current ClusterVersion Overrides:
 
 DEPLOYMENT NAME                        NAMESPACE                              UNMANAGED    SCALED DOWN
@@ -434,12 +166,12 @@ network-operator                       openshift-network-operator             tr
 
 ### Example 2: Set operator as unmanaged (without scaling)
 
-```
+```bash
 /openshift:set-operator-override --set-unmanaged authentication
 ```
 
 Output:
-```
+```text
 Found ClusterOperator: authentication
 
 Current status of operator 'authentication':
@@ -463,12 +195,12 @@ clusterversion.config.openshift.io/version patched
 
 ### Example 3: Set operator as unmanaged AND scale down
 
-```
+```bash
 /openshift:set-operator-override --set-unmanaged network --scale-down
 ```
 
 Output:
-```
+```text
 Found ClusterOperator: network
 
 Current status of operator 'network':
@@ -501,12 +233,12 @@ deployment.apps/network-operator scaled
 
 ### Example 4: Set operator back to managed
 
-```
+```bash
 /openshift:set-operator-override --set-managed network
 ```
 
 Output:
-```
+```text
 Finding operator deployment...
 Found deployment: network-operator in namespace openshift-network-operator
 
@@ -524,7 +256,7 @@ network   4.15.2    True        True          False      5s      Progressing: Wo
 
 ### Example 5: Typical workflow for modifying operand configmaps
 
-```
+```bash
 # Step 1: Set operator as unmanaged and scale down
 /openshift:set-operator-override --set-unmanaged dns --scale-down
 
@@ -544,7 +276,7 @@ oc edit configmap dns-default -n openshift-dns
 When you need to change resources managed by an operator:
 
 1. Set as unmanaged and scale down:
-   ```
+   ```bash
    /openshift:set-operator-override --set-unmanaged monitoring --scale-down
    ```
 
@@ -557,7 +289,7 @@ When you need to change resources managed by an operator:
 3. Test the changes
 
 4. Restore to normal operation:
-   ```
+   ```bash
    /openshift:set-operator-override --set-managed monitoring
    ```
 
@@ -566,7 +298,7 @@ When you need to change resources managed by an operator:
 When testing a fix for the operator itself (not its operands):
 
 1. Set as unmanaged (keep operator running):
-   ```
+   ```bash
    /openshift:set-operator-override --set-unmanaged network
    ```
 
@@ -579,7 +311,7 @@ When testing a fix for the operator itself (not its operands):
 3. Test the operator changes
 
 4. Restore to managed state:
-   ```
+   ```bash
    /openshift:set-operator-override --set-managed network
    ```
 
@@ -587,7 +319,7 @@ When testing a fix for the operator itself (not its operands):
 
 Always check for unmanaged operators before upgrading:
 
-```
+```bash
 /openshift:set-operator-override --list
 ```
 
@@ -662,7 +394,7 @@ oc scale deployment <deployment-name> -n <namespace> --replicas=0
 
 **Solution**:
 - Wait 30-60 seconds for pods to terminate
-- Verify pods are gone: `oc get pods -n openshift-<operator>-operator`
+- Verify pods are gone: `oc get pods -n openshift-<operator-name>-operator`
 - Check if there are multiple operator deployments
 
 ### Operator Not Scaling Up After Setting to Managed
@@ -675,15 +407,15 @@ Wait for the CVO to reconcile (typically 1-2 minutes). If the operator still doe
 # Check if the deployment was scaled down
 oc get deployment <deployment-name> -n <namespace>
 
-# Manually scale if needed
+# Manually scale the deployment
 oc scale deployment <deployment-name> -n <namespace> --replicas=1
 ```
 
 ## See Also
 
-- ClusterVersion API: https://docs.openshift.com/container-platform/latest/rest_api/config_apis/clusterversion-config-openshift-io-v1.html
-- Cluster Version Operator: https://github.com/openshift/cluster-version-operator
-- Operator Lifecycle: https://docs.openshift.com/container-platform/latest/operators/understanding/olm/olm-understanding-olm.html
+- [ClusterVersion API](https://docs.openshift.com/container-platform/latest/rest_api/config_apis/clusterversion-config-openshift-io-v1.html)
+- [Cluster Version Operator](https://github.com/openshift/cluster-version-operator)
+- [Operator Lifecycle](https://docs.openshift.com/container-platform/latest/operators/understanding/olm/olm-understanding-olm.html)
 - Related commands: `/openshift:cluster-health-check`
 
 ## Notes
@@ -694,5 +426,5 @@ oc scale deployment <deployment-name> -n <namespace> --replicas=1
 - Scaling changes are immediate once the deployment is patched
 - Setting critical operators as unmanaged (e.g., `kube-apiserver`) can destabilize the cluster
 - Scaling critical operators to 0 can cause cluster outages
-- Always consult with Red Hat support before using this in production environments
+- Always consult Red Hat support before using this in production environments
 - When setting an operator back to managed, the CVO automatically scales it to the correct replica count
