@@ -11,6 +11,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Doc](#doc-plugin)
 - [Etcd](#etcd-plugin)
 - [Git](#git-plugin)
+- [Github](#github-plugin)
 - [Hcp](#hcp-plugin)
 - [Hello World](#hello-world-plugin)
 - [Jira](#jira-plugin)
@@ -130,6 +131,15 @@ Git workflow automation and utilities
 - **`/git:summary`** - Show current branch, git status, and recent commits for quick context
 
 See [plugins/git/README.md](plugins/git/README.md) for detailed documentation.
+
+### Github Plugin
+
+GitHub automation and workflow utilities
+
+**Commands:**
+- **`/github:issue-triage` `<owner/repo> [issue-number]`** - Automatically triage and label GitHub issues using AI analysis
+
+See [plugins/github/README.md](plugins/github/README.md) for detailed documentation.
 
 ### Hcp Plugin
 
