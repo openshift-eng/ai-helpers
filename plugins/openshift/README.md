@@ -36,6 +36,10 @@ This command safely destroys a cluster and cleans up all cloud resources. Includ
 
 Check status of Ironic baremetal nodes in OpenShift cluster.
 
+### `/openshift:set-operator-override`
+
+Set cluster operators as managed or unmanaged for troubleshooting. Optionally scale operator deployments to prevent reconciliation of operands when modifying operand deployments or configmaps.
+
 See the [commands/](commands/) directory for full documentation of each command.
 
 ## Installation
@@ -250,6 +254,76 @@ Safely destroy an OpenShift Container Platform cluster that was created using `/
    ```
 
 See [commands/destroy-cluster.md](commands/destroy-cluster.md) for full documentation.
+
+### Troubleshooting
+
+#### `/openshift:set-operator-override` - Manage Operator Overrides
+
+Set cluster operators as managed or unmanaged for troubleshooting and testing. This command manages ClusterVersion overrides and optionally scales operator deployments to prevent reconciliation of operands.
+
+**⚠️ WARNING**: Setting operators as unmanaged should only be done for troubleshooting and testing. This may cause cluster instability, upgrade failures, or support issues.
+
+**Basic Usage:**
+```bash
+# List current overrides
+/openshift:set-operator-override --list
+
+# Set operator as unmanaged
+/openshift:set-operator-override --set-unmanaged authentication
+
+# Set operator as unmanaged AND scale down (to modify operands)
+/openshift:set-operator-override --set-unmanaged network --scale-down
+
+# Set operator back to managed
+/openshift:set-operator-override --set-managed authentication
+```
+
+**When to Use:**
+- Testing operator patches or fixes without CVO interference
+- Modifying operand deployments/configmaps without operator reconciliation
+- Temporarily preventing operator updates during troubleshooting
+- Investigating operator-specific issues in isolation
+
+**Key Features:**
+- Sets operators as managed/unmanaged via ClusterVersion overrides
+- Optionally scales operator deployments to 0 replicas (with `--scale-down`)
+- Prevents CVO from managing specified operators
+- Prevents operator from reconciling operands when scaled down
+- CVO automatically restores operators to correct replica count when set back to managed
+
+**Arguments:**
+- `--set-unmanaged <operator>` - Set operator as unmanaged
+- `--set-managed <operator>` - Set operator back to managed (CVO automatically scales it up)
+- `--scale-down` - Scale operator deployment to 0 replicas (with --set-unmanaged)
+- `--list` - Display current overrides and scale status
+
+**Note:** The `--scale-up` flag is not required when setting an operator back to managed. The Cluster Version Operator (CVO) automatically resumes managing the operator and scales it up to the appropriate replica count.
+
+**Common Workflow:**
+```bash
+# 1. Set as unmanaged and scale down to modify operands
+/openshift:set-operator-override --set-unmanaged dns --scale-down
+
+# 2. Modify operand configmap (operator won't reconcile it back)
+oc -n openshift-dns edit configmaps/dns-default
+
+# 3. Test your changes
+
+# 4. Restore to normal operation
+/openshift:set-operator-override --set-managed dns
+```
+
+**Use --scale-down when:**
+- ✅ Modifying operand deployments without the operator reverting changes
+- ✅ Editing operand configmaps without the operator overwriting them
+- ✅ Testing operand behavior without operator interference
+
+**Do NOT use --scale-down when:**
+- ❌ Only patching/updating the operator itself
+- ❌ Preventing CVO updates but keeping operator running
+- ❌ The operator needs to continue managing its operands
+
+See [commands/set-operator-override.md](commands/set-operator-override.md) for full documentation.
 
 ## Development
 
