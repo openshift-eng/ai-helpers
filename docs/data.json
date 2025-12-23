@@ -221,6 +221,12 @@
           "synopsis": "/ci:add-debug-wait <workflow-or-job-name> [timeout]"
         },
         {
+          "argument_hint": "<payload-image>",
+          "description": "Analyze an OpenShift CI payload image to extract component images, metadata and PRs included in the CI payload",
+          "name": "analyze-payload",
+          "synopsis": "/ci:analyze-payload <payload-image>"
+        },
+        {
           "argument_hint": "[question]",
           "description": "Ask the Sippy AI agent questions about OpenShift CI payloads, jobs, and test results",
           "name": "ask-sippy",

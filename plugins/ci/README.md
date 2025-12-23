@@ -64,6 +64,43 @@ export ASK_SIPPY_API_TOKEN='your-token-here'
    /ask-sippy Why is the test "sig-network Feature:SCTP should create a Pod with SCTP HostPort" failing?
    ```
 
+### analyze-payload
+
+Analyze an OpenShift CI payload image to display component data and PRs included in the payload.
+
+**Usage:**
+```bash
+/ci:analyze-payload <payload-image>
+```
+
+**What it does:**
+- Extracts release version and metadata
+- Lists all component versions (operators, controllers, etc.)
+- Shows all images included in the payload with digests
+- Displays architecture information
+- Identifies pull requests (PRs) included in the payload via Sippy
+- Provides release notes and upgrade information (if available)
+
+**Prerequisites:**
+- OpenShift CLI (`oc`) must be installed
+- Network access to the registry containing the payload
+- Network access to Sippy API (no authentication required)
+- **For CI payloads** (registry.ci.openshift.org):
+  - `oc login` to the app.ci cluster (required)
+  - `oc registry login` to authenticate with the registry (required)
+
+**Examples:**
+
+1. **Analyze a standard release payload:**
+   ```bash
+   /ci:analyze-payload registry.ci.openshift.org/ocp/release:4.22.0-0.nightly-2025-12-23-042336
+   ```
+
+2. **Analyze a multi-arch payload:**
+   ```bash
+   /ci:analyze-payload quay.io/openshift-release-dev/ocp-release:4.22.0-0.nightly-multi-2025-12-22-191247
+   ```
+
 ### trigger-periodic
 
 Trigger a periodic gangway job with optional environment variable overrides.
