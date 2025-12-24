@@ -128,7 +128,289 @@ This command helps developers:
    - Extract module versions using `go list -m all`
    - Build dependency tree if needed
 
-2. **Cross-Reference Vulnerable Packages**
+2. **Build Dependency Tree Visualization**
+
+   Create a comprehensive dependency tree showing how the vulnerable package is included:
+
+   - **Method 1: Generate Dependency Graph**
+     - Command: `go mod graph > .work/compliance/analyze-cve/{CVE-ID}/mod-graph.txt`
+     - This produces pairs showing dependency relationships:
+       ```
+       your-module@v1.0.0 github.com/gin-gonic/gin@v1.8.0
+       github.com/gin-gonic/gin@v1.8.0 golang.org/x/net@v0.0.0-20211015210444
+       ```
+     - Each line shows: `dependent-module dependency-module`
+
+   - **Method 2: Find All Paths to Vulnerable Package**
+     - Parse the `go mod graph` output to find all paths from root module to vulnerable package
+     - Algorithm:
+       1. Build directed graph from mod-graph.txt
+       2. Find root module (the first module in graph, usually your project)
+       3. Perform BFS/DFS to find all paths to vulnerable package
+       4. Collect all unique paths
+
+     - Example Python script to parse graph (save to `.work/compliance/analyze-cve/{CVE-ID}/parse_deps.py`):
+       ```python
+       #!/usr/bin/env python3
+       import sys
+       from collections import defaultdict, deque
+
+       def parse_mod_graph(filename):
+           """Parse go mod graph output into adjacency list"""
+           graph = defaultdict(list)
+           all_modules = set()
+
+           with open(filename) as f:
+               for line in f:
+                   if not line.strip():
+                       continue
+                   parts = line.strip().split()
+                   if len(parts) >= 2:
+                       source, target = parts[0], parts[1]
+                       graph[source].append(target)
+                       all_modules.add(source)
+                       all_modules.add(target)
+
+           return graph, all_modules
+
+       def find_all_paths(graph, start, target, max_depth=20):
+           """Find all paths from start to target using BFS"""
+           paths = []
+           queue = deque([(start, [start])])
+
+           while queue:
+               current, path = queue.popleft()
+
+               if len(path) > max_depth:
+                   continue
+
+               if current == target or current.startswith(target.split('@')[0]):
+                   paths.append(path)
+                   continue
+
+               for neighbor in graph.get(current, []):
+                   if neighbor not in path:  # Avoid cycles
+                       queue.append((neighbor, path + [neighbor]))
+
+           return paths
+
+       def extract_package_name(module):
+           """Extract package name without version"""
+           return module.split('@')[0] if '@' in module else module
+
+       def format_tree(path, indent_char="│   ", last_indent="└── ", mid_indent="├── "):
+           """Format a path as a tree structure"""
+           lines = []
+           for i, module in enumerate(path):
+               pkg_name = extract_package_name(module)
+               version = module.split('@')[1] if '@' in module else 'unknown'
+
+               if i == 0:
+                   lines.append(f"{pkg_name} {version}")
+               else:
+                   prefix = indent_char * (i - 1)
+                   branch = last_indent if i == len(path) - 1 else mid_indent
+                   lines.append(f"{prefix}{branch}{pkg_name} {version}")
+
+           return "\n".join(lines)
+
+       if __name__ == "__main__":
+           if len(sys.argv) < 3:
+               print("Usage: parse_deps.py <mod-graph.txt> <vulnerable-package>")
+               sys.exit(1)
+
+           graph_file = sys.argv[1]
+           vulnerable_pkg = sys.argv[2]
+
+           graph, modules = parse_mod_graph(graph_file)
+
+           # Find root module (first line's first module)
+           with open(graph_file) as f:
+               root = f.readline().strip().split()[0]
+
+           # Find all paths to vulnerable package
+           paths = find_all_paths(graph, root, vulnerable_pkg)
+
+           if not paths:
+               print(f"No dependency path found to {vulnerable_pkg}")
+               print("\nSearching for similar packages:")
+               pkg_base = vulnerable_pkg.split('@')[0]
+               similar = [m for m in modules if pkg_base in m]
+               for m in similar[:10]:
+                   print(f"  - {m}")
+               sys.exit(1)
+
+           # Output results
+           print(f"Found {len(paths)} dependency path(s) to {vulnerable_pkg}:\n")
+
+           for i, path in enumerate(paths, 1):
+               print(f"Path {i}:")
+               print(format_tree(path))
+               print(f"\nPath length: {len(path)} modules")
+
+               # Identify dependency type
+               if len(path) == 2:
+                   print("Dependency type: DIRECT")
+               else:
+                   print(f"Dependency type: TRANSITIVE (via {extract_package_name(path[1])})")
+               print()
+       ```
+
+     - Run the script:
+       ```bash
+       python3 .work/compliance/analyze-cve/{CVE-ID}/parse_deps.py \
+         .work/compliance/analyze-cve/{CVE-ID}/mod-graph.txt \
+         "golang.org/x/net@v0.0.0-20211015210444"
+       ```
+
+   - **Method 3: Visual Dependency Tree (Text Format)**
+     - Generate ASCII tree showing dependency chain
+     - Example output format:
+       ```
+       your-app v1.0.0
+       ├── github.com/gin-gonic/gin v1.8.0
+       │   ├── golang.org/x/net v0.0.0-20211015210444 (VULNERABLE - CVE-2024-1234)
+       │   └── github.com/gin-contrib/sse v0.1.0
+       └── github.com/spf13/cobra v1.5.0
+           └── golang.org/x/net v0.0.0-20211015210444 (VULNERABLE - CVE-2024-1234)
+
+       Summary:
+       - 2 paths lead to vulnerable package
+       - Vulnerable package: golang.org/x/net v0.0.0-20211015210444
+       - Dependency type: TRANSITIVE (indirect)
+       - Introduced via: github.com/gin-gonic/gin, github.com/spf13/cobra
+       ```
+     - Save to: `.work/compliance/analyze-cve/{CVE-ID}/dependency-tree.txt`
+
+   - **Method 4: Visual Dependency Graph (SVG Format)**
+     - Use `graphviz` to create visual graph (optional, requires graphviz installed)
+     - Generate DOT format:
+       ```bash
+       # Create DOT file from mod graph
+       cat > .work/compliance/analyze-cve/{CVE-ID}/deps.dot << 'EOF'
+       digraph dependencies {
+         rankdir=LR;
+         node [shape=box, style=rounded];
+
+         // Highlight vulnerable package
+         "vulnerable-pkg" [style=filled, fillcolor=red, fontcolor=white];
+
+         // Add edges from go mod graph
+         "your-app" -> "dep1";
+         "dep1" -> "vulnerable-pkg";
+       }
+       EOF
+
+       # Convert to SVG
+       dot -Tsvg .work/compliance/analyze-cve/{CVE-ID}/deps.dot \
+         -o .work/compliance/analyze-cve/{CVE-ID}/dependency-graph.svg
+       ```
+     - Alternative: Use `go mod graph | modgraphviz` if available
+       ```bash
+       # Install modgraphviz if not present
+       go install golang.org/x/exp/cmd/modgraphviz@latest
+
+       # Generate visual graph
+       go mod graph | modgraphviz | dot -Tsvg \
+         -o .work/compliance/analyze-cve/{CVE-ID}/dependency-graph.svg
+       ```
+
+   - **Method 5: Determine Dependency Classification**
+     - Identify if the vulnerable package is:
+       - **Direct dependency**: Listed in `go.mod` `require` section
+       - **Transitive dependency**: Not in `go.mod` but pulled in by another package
+
+     - Check direct dependencies:
+       ```bash
+       # List direct dependencies only
+       go list -m -f '{{if not .Indirect}}{{.Path}}@{{.Version}}{{end}}' all | grep "<vulnerable-package>"
+
+       # If found → DIRECT
+       # If not found → TRANSITIVE
+       ```
+
+     - For transitive dependencies, identify immediate parent:
+       ```bash
+       # Use go mod why to understand why package is needed
+       go mod why <vulnerable-package>
+       ```
+       Example output:
+       ```
+       # golang.org/x/net
+       your-app
+       github.com/gin-gonic/gin
+       golang.org/x/net/http2
+       ```
+
+   - **Method 6: Analyze Upgrade Impact**
+     - For each path to vulnerable package, check if intermediate dependencies constrain versions
+     - Commands:
+       ```bash
+       # Check what version the parent package requires
+       go mod graph | grep "github.com/gin-gonic/gin.*golang.org/x/net"
+
+       # See if upgrading vulnerable package would break parent
+       go list -m -json github.com/gin-gonic/gin | jq -r '.Require[] | select(.Path == "golang.org/x/net")'
+       ```
+
+     - Identify blockers:
+       - If parent explicitly pins old version → upgrading vulnerable package may require upgrading parent
+       - If multiple parents depend on different versions → version conflict possible
+
+   - **Output Format**
+     - Create structured report section with:
+       ```markdown
+       ## Dependency Tree Analysis
+
+       **Vulnerable Package**: golang.org/x/net v0.0.0-20211015210444
+       **CVE**: CVE-2024-1234
+       **Dependency Type**: TRANSITIVE
+
+       ### Dependency Paths (2 found)
+
+       #### Path 1 (Shortest - Length: 3)
+       ```
+       your-app v1.0.0
+       └── github.com/gin-gonic/gin v1.8.0
+           └── golang.org/x/net v0.0.0-20211015210444 ⚠️ VULNERABLE
+       ```
+
+       #### Path 2 (Length: 3)
+       ```
+       your-app v1.0.0
+       └── github.com/spf13/cobra v1.5.0
+           └── golang.org/x/net v0.0.0-20211015210444 ⚠️ VULNERABLE
+       ```
+
+       ### Upgrade Strategy
+
+       **Option 1: Direct Upgrade** (if possible)
+       ```bash
+       go get golang.org/x/net@v0.23.0  # Fixed version
+       go mod tidy
+       ```
+
+       **Option 2: Upgrade Parent Packages** (recommended for transitive deps)
+       ```bash
+       go get github.com/gin-gonic/gin@latest
+       go get github.com/spf13/cobra@latest
+       go mod tidy
+       ```
+
+       **Blocking Dependencies**: None detected
+
+       **Recommended Approach**:
+       Since this is a transitive dependency, first try Option 1 (direct upgrade).
+       If that causes conflicts, use Option 2 to upgrade parent packages.
+
+       ### Visual Dependency Graph
+
+       See: `.work/compliance/analyze-cve/{CVE-ID}/dependency-graph.svg`
+       ```
+     - Save detailed tree to: `.work/compliance/analyze-cve/{CVE-ID}/dependency-tree.txt`
+     - Include in main report at: `.work/compliance/analyze-cve/{CVE-ID}/report.md`
+
+3. **Cross-Reference Vulnerable Packages**
    - **Method 1: Dependency Matching**
      - Compare CVE-affected packages with `go.mod` dependencies
      - Check if affected package versions are in use
@@ -275,10 +557,14 @@ This command helps developers:
 
 1. **Create Analysis Report**
    - Location: `.work/compliance/analyze-cve/{CVE-ID}/report.md`
-   - Additional artifacts: 
+   - Additional artifacts:
      - `callgraph.svg` (if generated)
      - `govulncheck-output.txt` (if run)
      - `evidence.json` (structured evidence data)
+     - `dependency-tree.txt` (dependency tree visualization)
+     - `dependency-graph.svg` (visual dependency graph, if graphviz available)
+     - `mod-graph.txt` (raw go mod graph output)
+     - `parse_deps.py` (Python script for dependency analysis)
    
    - Include sections:
      - **Executive Summary**: 
@@ -305,11 +591,50 @@ This command helps developers:
          → Confidence: HIGH
          ```
      
-     - **Dependency Analysis**: 
+     - **Dependency Analysis**:
        - Package versions from go.mod
        - Direct vs. transitive dependencies
        - Vulnerable package version range
-     
+       - **Dependency Tree** (enhanced section):
+         - Number of paths to vulnerable package
+         - Visual ASCII tree showing dependency chains
+         - Dependency type classification (DIRECT or TRANSITIVE)
+         - Parent packages that introduce the vulnerability
+         - Upgrade impact analysis (version conflicts, blockers)
+         - Link to visual dependency graph (if generated)
+         - Example format:
+           ```markdown
+           ## Dependency Tree Analysis
+
+           **Vulnerable Package**: golang.org/x/net v0.0.0-20211015210444
+           **Dependency Type**: TRANSITIVE
+           **Number of Dependency Paths**: 2
+
+           ### Path 1 (Shortest - Length: 3)
+           ```
+           your-app v1.0.0
+           └── github.com/gin-gonic/gin v1.8.0
+               └── golang.org/x/net v0.0.0-20211015210444 ⚠️ VULNERABLE
+           ```
+
+           ### Path 2 (Length: 3)
+           ```
+           your-app v1.0.0
+           └── github.com/spf13/cobra v1.5.0
+               └── golang.org/x/net v0.0.0-20211015210444 ⚠️ VULNERABLE
+           ```
+
+           **Introduced via**: github.com/gin-gonic/gin, github.com/spf13/cobra
+           **Blocking Dependencies**: None detected
+
+           ### Upgrade Strategy
+           - **Option 1**: Direct upgrade to golang.org/x/net@v0.23.0
+           - **Option 2**: Upgrade parent packages to latest versions
+           - **Recommended**: Try Option 1 first (simpler, less risk)
+
+           **Visual Graph**: [dependency-graph.svg](./dependency-graph.svg)
+           ```
+
      - **Impact Assessment**: 
        - Specific findings in codebase
        - File paths and line numbers
