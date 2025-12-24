@@ -1,0 +1,8 @@
+{
+  "name": "gwapi",
+  "description": "Gateway API management for Kubernetes/OpenShift clusters",
+  "version": "0.0.1",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}

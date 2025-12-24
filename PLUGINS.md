@@ -11,6 +11,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Doc](#doc-plugin)
 - [Etcd](#etcd-plugin)
 - [Git](#git-plugin)
+- [Gwapi](#gwapi-plugin)
 - [Hcp](#hcp-plugin)
 - [Hello World](#hello-world-plugin)
 - [Jira](#jira-plugin)
@@ -130,6 +131,15 @@ Git workflow automation and utilities
 - **`/git:summary`** - Show current branch, git status, and recent commits for quick context
 
 See [plugins/git/README.md](plugins/git/README.md) for detailed documentation.
+
+### Gwapi Plugin
+
+Gateway API management for Kubernetes/OpenShift clusters
+
+**Commands:**
+- **`/gwapi:install` `[namespace]`** - Install Gateway API resources to a Kubernetes/OpenShift cluster
+
+See [plugins/gwapi/README.md](plugins/gwapi/README.md) for detailed documentation.
 
 ### Hcp Plugin
 
