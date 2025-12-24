@@ -165,6 +165,12 @@
       "source": "./plugins/workspaces",
       "description": "Manage isolated git worktree workspaces for multi-repo development",
       "version": "1.0.0"
+    },
+    {
+      "name": "gwapi",
+      "source": "./plugins/gwapi",
+      "description": "Gateway API installation utilities for Kubernetes/OpenShift clusters",
+      "version": "0.0.1"
     }
   ]
 }
