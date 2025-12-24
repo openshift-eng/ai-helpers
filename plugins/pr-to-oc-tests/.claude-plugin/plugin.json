@@ -1,8 +1,0 @@
-{
-  "name": "pr-to-oc-tests",
-  "description": "Generate executable OpenShift oc test cases from GitHub Pull Requests",
-  "version": "0.0.1",
-  "author": {
-    "name": "github.com/openshift-eng"
-  }
-}
