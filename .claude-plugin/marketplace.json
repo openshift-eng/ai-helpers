@@ -5,6 +5,11 @@
   },
   "plugins": [
     {
+      "name": "agent-gather",
+      "source": "./plugins/agent-gather",
+      "description": "Collect and analyze diagnostic data from OpenShift agent-based installer deployments"
+    },
+    {
       "name": "git",
       "source": "./plugins/git",
       "description": "Git Plugin"
