@@ -41,6 +41,12 @@
           "synopsis": "/git:debt-scan"
         },
         {
+          "argument_hint": "<pr-url> [error-messages]",
+          "description": "Fix a cherrypick-robot PR that needs manual intervention",
+          "name": "fix-cherrypick-robot-pr",
+          "synopsis": "/git:fix-cherrypick-robot-pr <pr-url> [error-messages]"
+        },
+        {
           "argument_hint": "[base-branch]",
           "description": "Suggest appropriate reviewers for a PR based on git blame and OWNERS files",
           "name": "suggest-reviewers",
