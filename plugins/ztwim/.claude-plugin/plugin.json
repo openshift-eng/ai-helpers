@@ -1,8 +1,0 @@
-{
-  "name": "ztwim",
-  "description": "Generate executable oc test cases for Zero Trust Workload Identity Manager (ZTWIM) operator PRs",
-  "version": "0.0.1",
-  "author": {
-    "name": "github.com/openshift-eng"
-  }
-}
