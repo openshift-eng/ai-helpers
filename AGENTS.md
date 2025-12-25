@@ -309,6 +309,24 @@ Good examples:
 
 When you identify a desirable characteristic (clarity, brevity, formality, humor, etc.), describe it explicitly rather than using a person as proxy.
 
+### Before Contributing New Commands
+
+**Check for overlaps first** to avoid duplicate work:
+
+1. **Planning phase** - Validate your idea before coding:
+   ```
+   /utils:review-ai-helpers-overlap --idea "brief description of your command"
+   ```
+   If HIGH/MODERATE overlap found → collaborate on existing PR or wait for it to merge
+
+2. **Before opening PR** - Check your implementation:
+   ```
+   /utils:review-ai-helpers-overlap
+   ```
+   If overlap found → differentiate your approach or consolidate with existing work
+
+This command checks main branch + all open PRs for similar commands, skills, sub-agents, and hooks in the `openshift-eng/ai-helpers` repository. See `plugins/utils/commands/review-ai-helpers-overlap.md` for detailed usage.
+
 ### When Implementing Commands
 
 1. **Follow existing patterns:** Review similar commands before implementing
