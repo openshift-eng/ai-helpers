@@ -441,8 +441,11 @@ fi
 ```bash
 cd <working-dir>
 
-# Create extension binary directory
+# Create cmd directory for main.go
 mkdir -p cmd/extension
+
+# Create bin directory for binary output
+mkdir -p bin
 
 # Create test directories
 mkdir -p test/e2e
@@ -458,8 +461,11 @@ mkdir -p tests-extension
 
 cd tests-extension
 
-# Create cmd directory (main.go will be created directly here)
+# Create cmd directory for main.go
 mkdir -p cmd
+
+# Create bin directory for binary output
+mkdir -p bin
 
 # Create test directories
 mkdir -p test/e2e
@@ -503,8 +509,18 @@ cd <working-dir>
 # Copy testdata if it exists (skip if user specified "none")
 # Use $SOURCE_TESTDATA_PATH variable (set in Phase 3)
 if [ -n "$SOURCE_TESTDATA_PATH" ]; then
-    cp -r "$SOURCE_TESTDATA_PATH"/* test/testdata/
-    echo "Copied testdata files from $SOURCE_TESTDATA_PATH to test/testdata/"
+    # Create subdirectory structure to match bindata paths
+    # Files are organized as testdata/<subfolder>/ to match how tests call FixturePath()
+    if [ -n "<testdata-subfolder>" ]; then
+        mkdir -p "test/testdata/<testdata-subfolder>"
+        cp -r "$SOURCE_TESTDATA_PATH"/* "test/testdata/<testdata-subfolder>/"
+        echo "Copied testdata files from $SOURCE_TESTDATA_PATH to test/testdata/<testdata-subfolder>/"
+        echo "Tests should call: testdata.FixturePath(\"<testdata-subfolder>/filename.yaml\")"
+    else
+        # No subfolder specified, copy directly
+        cp -r "$SOURCE_TESTDATA_PATH"/* test/testdata/
+        echo "Copied testdata files from $SOURCE_TESTDATA_PATH to test/testdata/"
+    fi
 else
     echo "Skipping testdata copy (none specified)"
 fi
@@ -517,241 +533,175 @@ cd <working-dir>/tests-extension
 # Copy testdata if it exists (skip if user specified "none")
 # Use $SOURCE_TESTDATA_PATH variable (set in Phase 3)
 if [ -n "$SOURCE_TESTDATA_PATH" ]; then
-    cp -r "$SOURCE_TESTDATA_PATH"/* test/testdata/
-    echo "Copied testdata files from $SOURCE_TESTDATA_PATH to test/testdata/"
+    # Create subdirectory structure to match bindata paths
+    # Files are organized as testdata/<subfolder>/ to match how tests call FixturePath()
+    if [ -n "<testdata-subfolder>" ]; then
+        mkdir -p "test/testdata/<testdata-subfolder>"
+        cp -r "$SOURCE_TESTDATA_PATH"/* "test/testdata/<testdata-subfolder>/"
+        echo "Copied testdata files from $SOURCE_TESTDATA_PATH to test/testdata/<testdata-subfolder>/"
+        echo "Tests should call: testdata.FixturePath(\"<testdata-subfolder>/filename.yaml\")"
+    else
+        # No subfolder specified, copy directly
+        cp -r "$SOURCE_TESTDATA_PATH"/* test/testdata/
+        echo "Copied testdata files from $SOURCE_TESTDATA_PATH to test/testdata/"
+    fi
 else
     echo "Skipping testdata copy (none specified)"
 fi
 ```
 
-#### Step 4: Initialize Go Modules (Vendoring)
-
-**For Monorepo Strategy:**
-```bash
-cd <working-dir>
-
-# NO separate test/e2e/go.mod - test code is part of the main module
-# Vendor dependencies to make them available for test files
-echo "Vendoring dependencies for test files..."
-go mod vendor
-
-echo "Dependencies vendored to vendor/ directory"
-```
-
-**Note:** For monorepo, test/e2e and test/testdata are regular packages in the main module. No separate go.mod needed.
-
-**For Single-Module Strategy:**
-```bash
-cd <working-dir>/tests-extension
-
-# Initialize go module if not already done
-if [ ! -f "go.mod" ]; then
-    go mod init github.com/<org>/<extension-name>-tests-extension
-fi
-
-# Download dependencies (including compat_otp and other test utilities)
-echo "Downloading Go dependencies for copied test files..."
-go mod download
-
-# Vendor dependencies
-echo "Vendoring dependencies..."
-go mod vendor
-
-echo "Vendored dependencies to vendor/ directory"
-```
-
-**Note:** For single-module, this ensures that dependencies like `compat_otp`, `exutil`, and other test utilities used by the copied test files are available locally.
-
-### Phase 5: Code Generation (7 steps)
+### Phase 5: Code Generation (6 steps)
 
 #### Step 1: Generate/Update go.mod Files
 
 **For Monorepo Strategy:**
 
-Update root go.mod with OTE dependencies and replace directive:
+Create test/e2e/go.mod as a separate module:
 ```bash
 cd <working-dir>
 
-# Extract module name from existing go.mod
-MODULE_NAME=$(grep '^module ' go.mod | awk '{print $2}')
-echo "Module name: $MODULE_NAME"
+# Extract Go version from root go.mod
+GO_VERSION=$(grep '^go ' go.mod | awk '{print $2}')
+echo "Using Go version: $GO_VERSION (from target repo)"
 
 # Get source repo path (set in Phase 3)
-OTP_PATH="$SOURCE_REPO"  # This was set in Phase 3, Step 1
+OTP_PATH="$SOURCE_REPO"
 
-echo "Step 1: Add OTE dependency to root go.mod..."
-# Add OTE dependency if not already present
-if ! grep -q "github.com/openshift-eng/openshift-tests-extension" go.mod; then
-    go get github.com/openshift-eng/openshift-tests-extension@latest
+echo "Step 1: Create test/e2e/go.mod..."
+cd test/e2e
+
+# Initialize go.mod in test/e2e directory
+ROOT_MODULE=$(grep '^module ' ../../go.mod | awk '{print $2}')
+go mod init "$ROOT_MODULE/test/e2e"
+
+echo "Step 2: Set Go version to match target repo..."
+sed -i "s/^go .*/go $GO_VERSION/" go.mod
+
+echo "Step 3: Get latest origin version from main branch..."
+# Get the latest commit hash from origin/main
+ORIGIN_LATEST=$(git ls-remote https://github.com/openshift/origin.git refs/heads/main | awk '{print $1}')
+ORIGIN_SHORT="${ORIGIN_LATEST:0:12}"
+ORIGIN_DATE=$(date -u +%Y%m%d%H%M%S)
+ORIGIN_VERSION="v0.0.0-${ORIGIN_DATE}-${ORIGIN_SHORT}"
+echo "Using latest origin version: $ORIGIN_VERSION"
+
+echo "Step 4: Add required dependencies..."
+go get github.com/openshift-eng/openshift-tests-extension@latest
+go get "github.com/openshift/origin@main"
+go get github.com/onsi/ginkgo/v2@latest
+go get github.com/onsi/gomega@latest
+
+echo "Step 5: Extract and add replace directives from openshift-tests-private..."
+# Extract all replace directives from openshift-tests-private
+grep -A 1000 "^replace" "$OTP_PATH/go.mod" | grep -B 1000 "^)" | grep -v "^replace" | grep -v "^)" > /tmp/replace_directives.txt
+
+# Add replace directives to go.mod
+echo "" >> go.mod
+echo "replace (" >> go.mod
+cat /tmp/replace_directives.txt >> go.mod
+echo ")" >> go.mod
+
+echo "Step 6: Resolve all dependencies..."
+go mod tidy
+
+echo "Step 7: Verify go.mod and go.sum are created..."
+if [ -f "go.mod" ] && [ -f "go.sum" ]; then
+    echo "✅ test/e2e/go.mod and go.sum created successfully"
+    echo "Module: $(grep '^module' go.mod)"
+    echo "Go version: $(grep '^go ' go.mod)"
+
+    # Count replace directives
+    REPLACE_COUNT=$(grep -c "=>" go.mod || echo 0)
+    echo "Replace directives: $REPLACE_COUNT"
+else
+    echo "❌ Error: go.mod or go.sum not created properly"
+    exit 1
 fi
 
-echo "Step 2: Add replace directive for test/e2e package..."
-# Add replace directive to make test/e2e resolve correctly
+cd ../..
+
+echo "Step 8: Update root go.mod to add replace directive for test/e2e..."
+MODULE_NAME=$(grep '^module ' go.mod | awk '{print $2}')
+
 if ! grep -q "replace.*$MODULE_NAME/test/e2e" go.mod; then
-    # Check if replace section exists
     if grep -q "^replace (" go.mod; then
-        # Add to existing replace section (after "replace (" line)
+        # Add to existing replace section
         sed -i "/^replace (/a\\	$MODULE_NAME/test/e2e => ./test/e2e" go.mod
     else
         # Create new replace section
         echo "" >> go.mod
         echo "replace $MODULE_NAME/test/e2e => ./test/e2e" >> go.mod
     fi
-    echo "✅ Replace directive added"
+    echo "✅ Replace directive added to root go.mod"
 fi
 
-echo "Step 3: Vendor dependencies..."
-# Vendor all dependencies (including from test/e2e package)
-go mod vendor
-
-echo "✅ Root go.mod updated with OTE dependency and test/e2e replace directive"
+echo "✅ Monorepo go.mod setup complete"
 ```
 
-**Note:** The monorepo strategy is much simpler:
-- test/e2e and test/testdata are regular packages in the main module
-- NO separate test/e2e/go.mod file
-- Just add OTE dependency to root go.mod
-- Add replace directive for test/e2e => ./test/e2e
-- Vendor all dependencies
+**Note:** For monorepo strategy:
+- test/e2e has its own go.mod (separate module)
+- go.mod/go.sum are in test/e2e/ directory
+- Root go.mod has replace directive pointing to test/e2e
+- Replace directives are dynamically extracted from openshift-tests-private
+- Origin version is fetched from github.com/openshift/origin@main
 
 **For Single-Module Strategy:**
 
-Create `tests-extension/go.mod` following proper Go module initialization sequence:
+Create `tests-extension/go.mod` with dynamic dependencies:
 ```bash
 cd <working-dir>/tests-extension
 
+# Extract Go version from target repo or fallback to openshift-tests-private
+if [ -n "$TARGET_REPO" ] && [ -f "$TARGET_REPO/go.mod" ]; then
+    GO_VERSION=$(grep '^go ' "$TARGET_REPO/go.mod" | awk '{print $2}')
+    echo "Using Go version: $GO_VERSION (from target repo)"
+else
+    GO_VERSION=$(grep '^go ' "$OTP_PATH/go.mod" | awk '{print $2}')
+    echo "Using Go version: $GO_VERSION (from openshift-tests-private)"
+fi
+
 echo "Step 1: Initialize Go module..."
-# Step 1: go mod init - Creates go.mod with module declaration only
-go mod init github.com/<org>/<extension-name>-tests-extension
+go mod init github.com/openshift/<extension-name>-tests-extension
 
-echo "Step 2: Add required dependencies..."
-# Step 2: Add dependencies (go get will update go.mod and create go.sum)
-# Get the correct openshift/origin version from openshift-tests-private
-ORIGIN_VERSION=$(grep "github.com/openshift/origin" "$OTP_PATH/go.mod" | head -1 | awk '{print $2}')
-echo "Using openshift/origin version: $ORIGIN_VERSION (from openshift-tests-private)"
+echo "Step 2: Set Go version to match target repo..."
+sed -i "s/^go .*/go $GO_VERSION/" go.mod
 
-# Add dependencies with retry logic for network issues
-echo "Adding openshift-tests-extension dependency..."
-if ! go get github.com/openshift-eng/openshift-tests-extension@latest; then
-    echo "⚠️  Warning: Failed to download openshift-tests-extension, retrying..."
-    sleep 2
-    go get github.com/openshift-eng/openshift-tests-extension@latest || echo "❌ Failed after retry"
-fi
+echo "Step 3: Get latest origin version from main branch..."
+# Get the latest commit hash from origin/main
+ORIGIN_LATEST=$(git ls-remote https://github.com/openshift/origin.git refs/heads/main | awk '{print $1}')
+ORIGIN_SHORT="${ORIGIN_LATEST:0:12}"
+ORIGIN_DATE=$(date -u +%Y%m%d%H%M%S)
+ORIGIN_VERSION="v0.0.0-${ORIGIN_DATE}-${ORIGIN_SHORT}"
+echo "Using latest origin version: $ORIGIN_VERSION"
 
-echo "Adding openshift/origin dependency..."
-if ! go get "github.com/openshift/origin@$ORIGIN_VERSION"; then
-    echo "⚠️  Warning: Failed to download openshift/origin, retrying..."
-    sleep 2
-    go get "github.com/openshift/origin@$ORIGIN_VERSION" || echo "❌ Failed after retry"
-fi
+echo "Step 4: Add required dependencies..."
+go get github.com/openshift-eng/openshift-tests-extension@latest
+go get "github.com/openshift/origin@main"
+go get github.com/onsi/ginkgo/v2@latest
+go get github.com/onsi/gomega@latest
 
-echo "Adding Ginkgo and Gomega dependencies..."
-if ! go get github.com/onsi/ginkgo/v2@latest; then
-    echo "⚠️  Warning: Failed to download ginkgo, retrying..."
-    sleep 2
-    go get github.com/onsi/ginkgo/v2@latest || echo "❌ Failed after retry"
-fi
+echo "Step 5: Extract and add replace directives from openshift-tests-private..."
+# Extract all replace directives from openshift-tests-private
+grep -A 1000 "^replace" "$OTP_PATH/go.mod" | grep -B 1000 "^)" | grep -v "^replace" | grep -v "^)" > /tmp/replace_directives.txt
 
-if ! go get github.com/onsi/gomega@latest; then
-    echo "⚠️  Warning: Failed to download gomega, retrying..."
-    sleep 2
-    go get github.com/onsi/gomega@latest || echo "❌ Failed after retry"
-fi
+# Add replace directives to go.mod
+echo "" >> go.mod
+echo "replace (" >> go.mod
+cat /tmp/replace_directives.txt >> go.mod
+echo ")" >> go.mod
 
-echo "Step 3: Add k8s.io replace directives..."
-# Add replace directives to pin k8s.io modules to compatible versions
-# This prevents "module found but does not contain package" errors
-K8S_VERSION=$(grep "k8s.io/api " "$OTP_PATH/go.mod" | head -1 | awk '{print $2}')
-echo "Using k8s.io version: $K8S_VERSION (from openshift-tests-private)"
+echo "Step 6: Resolve all dependencies..."
+go mod tidy
 
-# Extract OpenShift Kubernetes fork version from openshift-tests-private
-K8S_FORK=$(grep "k8s.io/kubernetes =>" "$OTP_PATH/go.mod" | awk '{print $4, $5}')
-echo "Using OpenShift Kubernetes fork: $K8S_FORK"
-
-cat >> go.mod <<EOF
-
-replace (
-	k8s.io/api => k8s.io/api $K8S_VERSION
-	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver $K8S_VERSION
-	k8s.io/apimachinery => k8s.io/apimachinery $K8S_VERSION
-	k8s.io/apiserver => k8s.io/apiserver $K8S_VERSION
-	k8s.io/cli-runtime => k8s.io/cli-runtime $K8S_VERSION
-	k8s.io/client-go => k8s.io/client-go $K8S_VERSION
-	k8s.io/cloud-provider => k8s.io/cloud-provider $K8S_VERSION
-	k8s.io/cluster-bootstrap => k8s.io/cluster-bootstrap $K8S_VERSION
-	k8s.io/code-generator => k8s.io/code-generator $K8S_VERSION
-	k8s.io/component-base => k8s.io/component-base $K8S_VERSION
-	k8s.io/component-helpers => k8s.io/component-helpers $K8S_VERSION
-	k8s.io/controller-manager => k8s.io/controller-manager $K8S_VERSION
-	k8s.io/cri-api => k8s.io/cri-api $K8S_VERSION
-	k8s.io/cri-client => k8s.io/cri-client $K8S_VERSION
-	k8s.io/csi-translation-lib => k8s.io/csi-translation-lib $K8S_VERSION
-	k8s.io/dynamic-resource-allocation => k8s.io/dynamic-resource-allocation $K8S_VERSION
-	k8s.io/kms => k8s.io/kms $K8S_VERSION
-	k8s.io/kube-aggregator => k8s.io/kube-aggregator $K8S_VERSION
-	k8s.io/kube-controller-manager => k8s.io/kube-controller-manager $K8S_VERSION
-	k8s.io/kube-proxy => k8s.io/kube-proxy $K8S_VERSION
-	k8s.io/kube-scheduler => k8s.io/kube-scheduler $K8S_VERSION
-	k8s.io/kubectl => k8s.io/kubectl $K8S_VERSION
-	k8s.io/kubelet => k8s.io/kubelet $K8S_VERSION
-	k8s.io/kubernetes => $K8S_FORK
-	k8s.io/legacy-cloud-providers => k8s.io/legacy-cloud-providers $K8S_VERSION
-	k8s.io/metrics => k8s.io/metrics $K8S_VERSION
-	k8s.io/mount-utils => k8s.io/mount-utils $K8S_VERSION
-	k8s.io/pod-security-admission => k8s.io/pod-security-admission $K8S_VERSION
-	k8s.io/sample-apiserver => k8s.io/sample-apiserver $K8S_VERSION
-	k8s.io/sample-cli-plugin => k8s.io/sample-cli-plugin $K8S_VERSION
-	k8s.io/sample-controller => k8s.io/sample-controller $K8S_VERSION
-)
-EOF
-
-echo "Step 4: Resolve all dependencies..."
-# Step 4: go mod tidy - Resolves all transitive dependencies and cleans up
-if ! go mod tidy; then
-    echo "⚠️  Warning: go mod tidy failed, retrying..."
-    sleep 2
-    go mod tidy || {
-        echo "❌ go mod tidy failed after retry"
-        echo "You may need to run it manually later"
-    }
-fi
-
-# IMPORTANT: Check for and remove any invalid local replace directives
-# that might have been added by go mod tidy
-if grep -q "replace.*github.com/openshift/origin.*=>.*/" go.mod; then
-    echo "WARNING: Removing invalid local replace directive for github.com/openshift/origin"
-    sed -i '/replace.*github.com\/openshift\/origin.*=>.*\//d' go.mod
-    go mod tidy
-fi
-
-echo "Step 4.5: Download all dependencies..."
-# Explicitly download all dependencies to catch any network issues early
-if ! go mod download; then
-    echo "⚠️  Warning: go mod download failed, retrying..."
-    sleep 2
-    if ! go mod download; then
-        echo "❌ Dependency download failed after retry"
-        echo "Network interruption detected - you may need to complete manually"
-    fi
-fi
-
-echo "Step 5: Verify go.mod and go.sum are created..."
-# Both go.mod and go.sum should now exist with resolved versions
+echo "Step 7: Verify go.mod and go.sum are created..."
 if [ -f "go.mod" ] && [ -f "go.sum" ]; then
     echo "✅ go.mod and go.sum created successfully"
     echo "Module: $(grep '^module' go.mod)"
-    echo "Dependencies: $(grep -c '^require' go.mod) direct dependencies"
+    echo "Go version: $(grep '^go ' go.mod)"
 
-    # Count k8s.io replace directives (should be 31 total)
-    K8S_REPLACES=$(grep -c '^\sk8s.io.*=>' go.mod || echo 0)
-    echo "K8s replace directives: $K8S_REPLACES"
-
-    # Verify critical replace directive exists
-    if grep -q "k8s.io/kubernetes =>" go.mod; then
-        echo "✅ OpenShift Kubernetes fork replace directive added"
-    else
-        echo "⚠️  Warning: k8s.io/kubernetes replace directive not found"
-    fi
+    # Count replace directives
+    REPLACE_COUNT=$(grep -c "=>" go.mod || echo 0)
+    echo "Replace directives: $REPLACE_COUNT"
 else
     echo "❌ Error: go.mod or go.sum not created properly"
     exit 1
@@ -779,6 +729,7 @@ Then generate main.go with the actual module name (not a placeholder):
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"regexp"
@@ -791,20 +742,29 @@ import (
 	et "github.com/openshift-eng/openshift-tests-extension/pkg/extension/extensiontests"
 	g "github.com/openshift-eng/openshift-tests-extension/pkg/ginkgo"
 
-	// Import testdata package from main module
-	testdata "$MODULE_NAME/test/testdata"
+	// Import test framework packages for initialization
+	"github.com/openshift/origin/test/extended/util"
+	"k8s.io/kubernetes/test/e2e/framework"
 
-	// Import test packages from main module
+	// Import test packages from test module
 	_ "$MODULE_NAME/test/e2e"
 )
 
 func main() {
+	// Initialize test framework
+	// This sets TestContext.KubeConfig from KUBECONFIG env var and initializes the cloud provider
+	util.InitStandardFlags()
+	if err := util.InitTest(false); err != nil {
+		panic(fmt.Sprintf("couldn't initialize test framework: %+v", err.Error()))
+	}
+	framework.AfterReadingAllFlags(&framework.TestContext)
+
 	registry := e.NewRegistry()
-	ext := e.NewExtension("<org>", "payload", "<extension-name>")
+	ext := e.NewExtension("openshift", "payload", "<extension-name>")
 
 	// Add main test suite
 	ext.AddSuite(e.Suite{
-		Name:    "<org>/<extension-name>/tests",
+		Name:    "openshift/<extension-name>/tests",
 		Parents: []string{"openshift/conformance/parallel"},
 	})
 
@@ -833,24 +793,16 @@ func main() {
 		}
 	})
 
-	// Add testdata validation and cleanup hooks
-	specs.AddBeforeAll(func() {
-		// List available fixtures
-		fixtures := testdata.ListFixtures()
-		fmt.Printf("Loaded %d test fixtures\n", len(fixtures))
-
-		// Optional: Validate required fixtures
-		// requiredFixtures := []string{
-		//     "manifests/deployment.yaml",
-		// }
-		// if err := testdata.ValidateFixtures(requiredFixtures); err != nil {
-		//     panic(fmt.Sprintf("Missing required fixtures: %v", err))
-		// }
-	})
-
-	specs.AddAfterAll(func() {
-		if err := testdata.CleanupFixtures(); err != nil {
-			fmt.Printf("Warning: failed to cleanup fixtures: %v\n", err)
+	// Wrap test execution with cleanup handler
+	// This marks tests as started and ensures proper cleanup
+	specs.Walk(func(spec *et.ExtensionTestSpec) {
+		originalRun := spec.Run
+		spec.Run = func(ctx context.Context) *et.ExtensionTestResult {
+			var result *et.ExtensionTestResult
+			util.WithCleanup(func() {
+				result = originalRun(ctx)
+			})
+			return result
 		}
 	})
 
@@ -879,6 +831,7 @@ Create `cmd/main.go`:
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"regexp"
@@ -891,20 +844,29 @@ import (
 	et "github.com/openshift-eng/openshift-tests-extension/pkg/extension/extensiontests"
 	g "github.com/openshift-eng/openshift-tests-extension/pkg/ginkgo"
 
-	// Import testdata package
-	"github.com/<org>/<extension-name>-tests-extension/test/testdata"
+	// Import test framework packages for initialization
+	"github.com/openshift/origin/test/extended/util"
+	"k8s.io/kubernetes/test/e2e/framework"
 
 	// Import test packages
-	_ "github.com/<org>/<extension-name>-tests-extension/test/e2e"
+	_ "github.com/openshift/<extension-name>-tests-extension/test/e2e"
 )
 
 func main() {
+	// Initialize test framework
+	// This sets TestContext.KubeConfig from KUBECONFIG env var and initializes the cloud provider
+	util.InitStandardFlags()
+	if err := util.InitTest(false); err != nil {
+		panic(fmt.Sprintf("couldn't initialize test framework: %+v", err.Error()))
+	}
+	framework.AfterReadingAllFlags(&framework.TestContext)
+
 	registry := e.NewRegistry()
-	ext := e.NewExtension("<org>", "payload", "<extension-name>")
+	ext := e.NewExtension("openshift", "payload", "<extension-name>")
 
 	// Add main test suite
 	ext.AddSuite(e.Suite{
-		Name:    "<org>/<extension-name>/tests",
+		Name:    "openshift/<extension-name>/tests",
 		Parents: []string{"openshift/conformance/parallel"},
 	})
 
@@ -933,24 +895,16 @@ func main() {
 		}
 	})
 
-	// Add testdata validation and cleanup hooks
-	specs.AddBeforeAll(func() {
-		// List available fixtures
-		fixtures := testdata.ListFixtures()
-		fmt.Printf("Loaded %d test fixtures\n", len(fixtures))
-
-		// Optional: Validate required fixtures
-		// requiredFixtures := []string{
-		//     "manifests/deployment.yaml",
-		// }
-		// if err := testdata.ValidateFixtures(requiredFixtures); err != nil {
-		//     panic(fmt.Sprintf("Missing required fixtures: %v", err))
-		// }
-	})
-
-	specs.AddAfterAll(func() {
-		if err := testdata.CleanupFixtures(); err != nil {
-			fmt.Printf("Warning: failed to cleanup fixtures: %v\n", err)
+	// Wrap test execution with cleanup handler
+	// This marks tests as started and ensures proper cleanup
+	specs.Walk(func(spec *et.ExtensionTestSpec) {
+		originalRun := spec.Run
+		spec.Run = func(ctx context.Context) *et.ExtensionTestResult {
+			var result *et.ExtensionTestResult
+			util.WithCleanup(func() {
+				result = originalRun(ctx)
+			})
+			return result
 		}
 	})
 
@@ -971,54 +925,6 @@ func main() {
 }
 ```
 
-#### Step 2.5: Update go.mod to Mark Dependencies as Direct
-
-**IMPORTANT:** Now that cmd/extension/main.go exists with all the imports, we need to run `go mod tidy` again
-to update the dependency declarations from `// indirect` to direct dependencies.
-
-**For Monorepo Strategy:**
-
-```bash
-cd <working-dir>
-
-echo "Updating go.mod after creating main.go..."
-echo "This will change dependencies from '// indirect' to direct dependencies"
-
-# Run go mod tidy to update dependency declarations
-go mod tidy
-
-# Verify dependencies are now marked as direct (no // indirect)
-if grep -q "github.com/openshift-eng/openshift-tests-extension.*// indirect" go.mod; then
-    echo "⚠️  WARNING: OTE dependency still marked as indirect"
-    echo "This may indicate import issues in cmd/extension/main.go"
-else
-    echo "✅ All OTE dependencies correctly marked as direct"
-fi
-```
-
-**For Single-Module Strategy:**
-
-```bash
-cd <working-dir>/tests-extension
-
-echo "Updating go.mod after creating main.go..."
-echo "This will change dependencies from '// indirect' to direct dependencies"
-
-# Run go mod tidy to update dependency declarations
-go mod tidy
-
-# Verify dependencies are now marked as direct (no // indirect)
-if grep -q "github.com/openshift-eng/openshift-tests-extension.*// indirect" go.mod || \
-   grep -q "github.com/openshift/origin.*// indirect" go.mod; then
-    echo "⚠️  WARNING: Some dependencies still marked as indirect"
-    echo "This may indicate import issues in cmd/main.go"
-else
-    echo "✅ All OTE dependencies correctly marked as direct"
-fi
-
-cd ..
-```
-
 #### Step 3: Create bindata.mk
 
 **For Monorepo Strategy:**
@@ -1027,7 +933,6 @@ Create `test/bindata.mk`:
 
 ```makefile
 # Bindata generation for testdata files
-# This file is included by the test Makefile
 
 # Testdata path
 TESTDATA_PATH := testdata
@@ -1044,19 +949,18 @@ $(GO_BINDATA):
 
 # Generate bindata.go from testdata directory
 .PHONY: bindata
-bindata: $(GO_BINDATA) $(TESTDATA_PATH)/bindata.go
-
-$(TESTDATA_PATH)/bindata.go: $(GO_BINDATA) $(shell find $(TESTDATA_PATH) -type f -not -name 'bindata.go' 2>/dev/null)
+bindata: clean-bindata $(GO_BINDATA)
 	@echo "Generating bindata from $(TESTDATA_PATH)..."
-	@mkdir -p $(@D)
+	@mkdir -p $(TESTDATA_PATH)
 	$(GO_BINDATA) -nocompress -nometadata \
-		-pkg testdata -o $@ $(TESTDATA_PATH)/...
-	@gofmt -s -w $@
-	@echo "Bindata generated successfully at $@"
+		-pkg testdata -o $(TESTDATA_PATH)/bindata.go $(TESTDATA_PATH)/...
+	@gofmt -s -w $(TESTDATA_PATH)/bindata.go
+	@echo "Bindata generated successfully at $(TESTDATA_PATH)/bindata.go"
 
 .PHONY: clean-bindata
 clean-bindata:
-	rm -f $(TESTDATA_PATH)/bindata.go
+	@echo "Cleaning bindata..."
+	@rm -f $(TESTDATA_PATH)/bindata.go
 ```
 
 **For Single-Module Strategy:**
@@ -1065,7 +969,6 @@ Create `tests-extension/bindata.mk`:
 
 ```makefile
 # Bindata generation for testdata files
-# This file is included by the main Makefile
 
 # Testdata path
 TESTDATA_PATH := test/testdata
@@ -1082,87 +985,56 @@ $(GO_BINDATA):
 
 # Generate bindata.go from testdata directory
 .PHONY: bindata
-bindata: $(GO_BINDATA) $(TESTDATA_PATH)/bindata.go
-
-$(TESTDATA_PATH)/bindata.go: $(GO_BINDATA) $(shell find $(TESTDATA_PATH) -type f -not -name 'bindata.go' 2>/dev/null)
+bindata: clean-bindata $(GO_BINDATA)
 	@echo "Generating bindata from $(TESTDATA_PATH)..."
-	@mkdir -p $(@D)
+	@mkdir -p $(TESTDATA_PATH)
 	$(GO_BINDATA) -nocompress -nometadata \
-		-pkg testdata -o $@ -prefix "test" $(TESTDATA_PATH)/...
-	@gofmt -s -w $@
-	@echo "Bindata generated successfully at $@"
+		-pkg testdata -o $(TESTDATA_PATH)/bindata.go -prefix "test" $(TESTDATA_PATH)/...
+	@gofmt -s -w $(TESTDATA_PATH)/bindata.go
+	@echo "Bindata generated successfully at $(TESTDATA_PATH)/bindata.go"
 
 .PHONY: clean-bindata
 clean-bindata:
-	rm -f $(TESTDATA_PATH)/bindata.go
+	@echo "Cleaning bindata..."
+	@rm -f $(TESTDATA_PATH)/bindata.go
 ```
 
 #### Step 4: Create Makefile
 
 **For Monorepo Strategy:**
 
-Create `test/Makefile`:
-
-```makefile
-# Include bindata targets
-include bindata.mk
-
-# Build test dependencies
-.PHONY: deps
-deps:
-	cd e2e && go mod download && go mod tidy
-
-# Run tests
-.PHONY: test
-test: bindata
-	cd e2e && go test ./...
-
-.PHONY: help
-help:
-	@echo "Available targets:"
-	@echo "  bindata     - Generate bindata.go from testdata"
-	@echo "  deps        - Download and tidy test dependencies"
-	@echo "  test        - Run Go tests"
-	@echo "  clean       - Remove generated files"
-```
-
-Create root `Makefile` (or add extension target to existing one):
+Update root `Makefile` (or add extension target to existing one):
 
 ```makefile
 # OTE binary configuration
 TESTS_EXT_DIR := ./cmd/extension
-TESTS_EXT_BINARY := <extension-name>-tests-ext
+TESTS_EXT_BINARY := bin/<extension-name>-tests-ext
 
-# Build OTE extension binary (following machine-config-operator PR #4665 pattern)
+# Build OTE extension binary
 .PHONY: tests-ext-build
 tests-ext-build:
 	@echo "Building OTE test extension binary..."
-	@cd test && $(MAKE) bindata
-	go build -mod=vendor -o $(TESTS_EXT_DIR)/$(TESTS_EXT_BINARY) $(TESTS_EXT_DIR)
-	@echo "OTE binary built successfully at $(TESTS_EXT_DIR)/$(TESTS_EXT_BINARY)"
+	@cd test && $(MAKE) -f bindata.mk bindata
+	@mkdir -p bin
+	go build -mod=vendor -o $(TESTS_EXT_BINARY) $(TESTS_EXT_DIR)
+	@echo "OTE binary built successfully at $(TESTS_EXT_BINARY)"
 
 # Alias for backward compatibility
 .PHONY: extension
 extension: tests-ext-build
 
-# List all tests
-.PHONY: list-tests
-list-tests: tests-ext-build
-	$(TESTS_EXT_DIR)/$(TESTS_EXT_BINARY) list
-
 # Clean extension binary
 .PHONY: clean-extension
 clean-extension:
-	rm -f $(TESTS_EXT_DIR)/$(TESTS_EXT_BINARY)
-	@cd test && $(MAKE) clean-bindata
+	@echo "Cleaning extension binary..."
+	@rm -f $(TESTS_EXT_BINARY)
 
 .PHONY: help
 help:
 	@echo "Available targets:"
-	@echo "  tests-ext-build - Build OTE extension binary (recommended)"
+	@echo "  tests-ext-build - Build OTE extension binary"
 	@echo "  extension       - Alias for tests-ext-build"
-	@echo "  list-tests      - List all available tests"
-	@echo "  clean-extension - Remove generated files"
+	@echo "  clean-extension - Remove extension binary"
 ```
 
 **For Single-Module Strategy:**
@@ -1173,34 +1045,29 @@ Create `tests-extension/Makefile`:
 # Include bindata targets
 include bindata.mk
 
+# Binary name and output directory
+BINARY := bin/<extension-name>-tests-ext
+
 # Build extension binary
 .PHONY: build
 build: bindata
-	go build -o <extension-name> ./cmd
-
-# Run tests
-.PHONY: test
-test:
-	go test ./...
-
-# List all tests
-.PHONY: list
-list: build
-	./<extension-name> list
+	@echo "Building extension binary..."
+	@mkdir -p bin
+	go build -o $(BINARY) ./cmd
+	@echo "Binary built successfully at $(BINARY)"
 
 # Clean generated files
 .PHONY: clean
-clean: clean-bindata
-	rm -f <extension-name>
+clean:
+	@echo "Cleaning binaries..."
+	@rm -f $(BINARY)
 
 .PHONY: help
 help:
 	@echo "Available targets:"
 	@echo "  bindata     - Generate bindata.go from test/testdata"
 	@echo "  build       - Build extension binary (includes bindata)"
-	@echo "  test        - Run Go tests"
-	@echo "  list        - List all available tests"
-	@echo "  clean       - Remove generated files"
+	@echo "  clean       - Remove extension binary"
 ```
 
 #### Step 5: Create fixtures.go
@@ -1263,12 +1130,29 @@ func FixturePath(relativePath string) string {
 		panic(fmt.Sprintf("failed to create directory for %s: %v", relativePath, err))
 	}
 
-	// Try to restore single asset
-	if err := RestoreAsset(fixtureDir, relativePath); err != nil {
+	// Bindata stores assets with "testdata/" prefix
+	// e.g., bindata has "testdata/router/file.yaml" but tests call FixturePath("router/file.yaml")
+	bindataPath := filepath.Join("testdata", relativePath)
+
+	// Extract to temp directory first to handle path mismatch
+	tempDir, err := os.MkdirTemp("", "bindata-extract-")
+	if err != nil {
+		panic(fmt.Sprintf("failed to create temp directory: %v", err))
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Try to restore single asset or directory to temp location
+	if err := RestoreAsset(tempDir, bindataPath); err != nil {
 		// If single file fails, try restoring as directory
-		if err := RestoreAssets(fixtureDir, relativePath); err != nil {
+		if err := RestoreAssets(tempDir, bindataPath); err != nil {
 			panic(fmt.Sprintf("failed to restore fixture %s: %v", relativePath, err))
 		}
+	}
+
+	// Move extracted files from temp location to target location
+	extractedPath := filepath.Join(tempDir, bindataPath)
+	if err := os.Rename(extractedPath, targetPath); err != nil {
+		panic(fmt.Sprintf("failed to move extracted files from %s to %s: %v", extractedPath, targetPath, err))
 	}
 
 	// Set appropriate permissions for directories
@@ -1616,7 +1500,7 @@ TEST_FILES=$(grep -rl "testdata\.FixturePath" test/e2e/ --include="*_test.go" 2>
 if [ -z "$TEST_FILES" ]; then
     echo "No test files need testdata import"
 else
-    TESTDATA_IMPORT="github.com/<org>/<extension-name>-tests-extension/test/testdata"
+    TESTDATA_IMPORT="github.com/openshift/<extension-name>-tests-extension/test/testdata"
 
     for file in $TEST_FILES; do
         # Check if import already exists
@@ -1717,70 +1601,9 @@ done
 echo "✅ Old imports cleaned up"
 ```
 
-### Phase 7: Dependency Resolution and Verification (3 steps)
+### Phase 7: Dependency Resolution and Verification (1 step)
 
-**Note:** Steps 1-2 of the proper Go module sequence (go mod init, go get) were completed in Phase 5.
-This phase handles Step 3 (go mod tidy for final cleanup) and Step 4 (verification before commit).
-
-#### Step 1: Final go mod tidy (if needed)
-
-**For Monorepo Strategy:**
-
-```bash
-cd <working-dir>
-
-# Final tidy for root module (in case any changes were made after Phase 5)
-echo "Final dependency resolution for root module..."
-go mod tidy
-
-# Final tidy for test module
-echo "Final dependency resolution for test module..."
-cd test/e2e
-go mod tidy
-cd ../..
-
-echo "✅ Dependencies resolved and go.sum updated"
-```
-
-**For Single-Module Strategy:**
-
-```bash
-cd <working-dir>/tests-extension
-
-echo "Final dependency resolution for tests-extension module..."
-go mod tidy
-
-echo "Downloading all dependencies..."
-go mod download
-
-echo "✅ Dependencies resolved and go.sum updated"
-```
-
-#### Step 2: Download and Verify Dependencies
-
-**For Monorepo Strategy:**
-
-```bash
-cd <working-dir>
-
-# Download dependencies for root module
-echo "Downloading dependencies for root module..."
-go mod download
-
-# Download dependencies for test module
-echo "Downloading dependencies for test module..."
-cd test/e2e
-go mod download
-cd ../..
-
-echo "All dependencies downloaded successfully"
-```
-
-**For Single-Module Strategy:**
-
-This step is combined with Step 1 for single-module strategy (see above).
-
-#### Step 3: Verify Build and Test (Required)
+#### Step 1: Verify Build and Test (Required)
 
 **This is Step 3 of the Go module workflow: Build or test to verify everything works**
 
@@ -1790,24 +1613,19 @@ This step is combined with Step 1 for single-module strategy (see above).
 cd <working-dir>
 
 echo "========================================="
-echo "Step 3: Verifying build and dependencies"
+echo "Verifying build and dependencies"
 echo "========================================="
 
-# Generate bindata first
-echo "Generating bindata..."
-cd test && make bindata
-cd ..
-
-# Build the extension binary
+# Build the extension binary using Makefile
 echo "Building extension binary..."
-go build -mod=vendor -o ./cmd/extension/<extension-name>-tests-ext ./cmd/extension
+make extension
 
 if [ $? -eq 0 ]; then
     echo "✅ Extension binary built successfully!"
 
     # Run a quick test to ensure the binary works
     echo "Testing binary execution..."
-    ./cmd/extension/<extension-name>-tests-ext --help > /dev/null 2>&1
+    ./bin/<extension-name>-tests-ext --help > /dev/null 2>&1
 
     if [ $? -eq 0 ]; then
         echo "✅ Binary executes correctly!"
@@ -1815,29 +1633,27 @@ if [ $? -eq 0 ]; then
         echo "⚠️  Binary built but --help failed"
     fi
 
-    # Clean up test binary (will be rebuilt when needed)
-    rm -f ./cmd/extension/<extension-name>-tests-ext
-
     echo ""
     echo "========================================="
-    echo "Ready for Step 4: Commit go.mod and go.sum"
+    echo "Migration complete - ready to commit"
     echo "========================================="
     echo "Files to commit:"
-    echo "  - go.mod (root module with OTE dependency and test/e2e replace)"
-    echo "  - go.sum (root module)"
+    echo "  - go.mod (root module with test/e2e replace directive)"
     echo "  - cmd/extension/main.go"
+    echo "  - test/e2e/go.mod"
+    echo "  - test/e2e/go.sum"
     echo "  - test/e2e/*.go (test files)"
     echo "  - test/testdata/fixtures.go"
+    echo "  - test/bindata.mk"
     echo "  - Makefile updates"
-    echo "  - Dockerfile updates (if applicable)"
 else
     echo "❌ Build failed - manual intervention required"
     echo "Common issues:"
     echo "  - Check import paths in test files and cmd/extension/main.go"
-    echo "  - Verify all test dependencies are available"
-    echo "  - Run 'go mod tidy' in root directory"
-    echo "  - Check for invalid replace directives in go.mod"
-    echo "  - Ensure test/e2e replace directive exists: replace $MODULE_NAME/test/e2e => ./test/e2e"
+    echo "  - Verify all test dependencies are available in test/e2e/go.mod"
+    echo "  - Run 'go mod tidy' in test/e2e directory"
+    echo "  - Check for invalid replace directives in test/e2e/go.mod"
+    echo "  - Ensure root go.mod has: replace $MODULE_NAME/test/e2e => ./test/e2e"
     exit 1
 fi
 ```
@@ -1848,14 +1664,10 @@ fi
 cd <working-dir>/tests-extension
 
 echo "========================================="
-echo "Step 3: Verifying build and dependencies"
+echo "Verifying build and dependencies"
 echo "========================================="
 
-# Generate bindata first
-echo "Generating bindata..."
-make bindata
-
-# Build the extension binary
+# Build the extension binary using Makefile
 echo "Building extension binary..."
 make build
 
@@ -1864,7 +1676,7 @@ if [ $? -eq 0 ]; then
 
     # Run a quick test to ensure the binary works
     echo "Testing binary execution..."
-    ./<extension-name> --help > /dev/null 2>&1
+    ./bin/<extension-name>-tests-ext --help > /dev/null 2>&1
 
     if [ $? -eq 0 ]; then
         echo "✅ Binary executes correctly!"
@@ -1874,20 +1686,21 @@ if [ $? -eq 0 ]; then
 
     echo ""
     echo "========================================="
-    echo "Ready for Step 4: Commit go.mod and go.sum"
+    echo "Migration complete - ready to commit"
     echo "========================================="
     echo "Files to commit:"
     echo "  - go.mod"
     echo "  - go.sum"
     echo "  - cmd/main.go"
+    echo "  - test/e2e/*.go"
     echo "  - test/testdata/fixtures.go"
     echo "  - Makefile"
     echo "  - bindata.mk"
 else
     echo "❌ Build failed - manual intervention required"
     echo "Common issues:"
-    echo "  - Check import paths in test files"
-    echo "  - Verify all test dependencies are available"
+    echo "  - Check import paths in test files and cmd/main.go"
+    echo "  - Verify all test dependencies are available in go.mod"
     echo "  - Run 'go mod tidy' again"
     echo "  - Check for invalid replace directives in go.mod"
     exit 1
@@ -1921,19 +1734,21 @@ Successfully migrated **<extension-name>** to OpenShift Tests Extension (OTE) fr
 
 ```
 <working-dir>/                        # Target repository root
+├── bin/
+│   └── <extension-name>-tests-ext    # Extension binary
 ├── cmd/
 │   └── extension/
-│       └── main.go                   # OTE extension binary
+│       └── main.go                   # OTE extension entry point
 ├── test/
 │   ├── e2e/                          # Test files
 │   │   ├── go.mod                    # Test module (separate from root)
+│   │   ├── go.sum
 │   │   └── *_test.go
 │   ├── testdata/                     # Testdata files
 │   │   ├── bindata.go                # Generated
 │   │   └── fixtures.go               # Wrapper functions
-│   ├── Makefile                      # Test build targets
 │   └── bindata.mk                    # Bindata generation
-├── go.mod                            # Root module (updated with OTE + replace directive)
+├── go.mod                            # Root module (with replace directive)
 ├── Makefile                          # Root Makefile (extension target added)
 └── repos/                            # Cloned repositories (if not using local)
     └── openshift-tests-private/      # Source repo
@@ -1958,14 +1773,12 @@ Successfully migrated **<extension-name>** to OpenShift Tests Extension (OTE) fr
 ## Files Created/Modified
 
 ### Generated Code
-- ✅ `cmd/extension/main.go` - OTE entry point with filters and hooks
+- ✅ `cmd/extension/main.go` - OTE entry point with platform filters
+- ✅ `test/e2e/go.mod` - Test module with OpenShift replace directives
 - ✅ `test/testdata/fixtures.go` - Testdata wrapper functions
-- ✅ `test/Makefile` - Test build targets
 - ✅ `test/bindata.mk` - Bindata generation rules
-- ✅ `go.mod` (updated) - Added OTE dependency and test/e2e replace directive
+- ✅ `go.mod` (updated) - Added test/e2e replace directive
 - ✅ `Makefile` (updated) - Added extension build target
-
-**Note:** NO test/e2e/go.mod - test code is part of the main module
 
 ### Test Files (Fully Automated)
 - ✅ Copied **X** test files to `test/e2e/`
@@ -1984,43 +1797,36 @@ Successfully migrated **<extension-name>** to OpenShift Tests Extension (OTE) fr
 
 ## Next Steps (Monorepo)
 
-### 1. Generate Bindata
-
-```bash
-cd <working-dir>/test
-make bindata
-```
-
-This creates `testdata/bindata.go` with embedded test data.
-
-### 2. Build Extension
+### 1. Build Extension
 
 ```bash
 cd <working-dir>
 make extension
 ```
 
-### 3. Validate Tests
+This will generate bindata and build the binary to `bin/<extension-name>-tests-ext`
+
+### 2. Validate Tests
 
 ```bash
 # List all discovered tests
-make list-tests
+./bin/<extension-name>-tests-ext list
 
 # Run tests in dry-run mode
-./extension run --dry-run
+./bin/<extension-name>-tests-ext run --dry-run
 
 # Test platform filtering
-./extension run --platform=aws --dry-run
+./bin/<extension-name>-tests-ext run --platform=aws --dry-run
 ```
 
-### 4. Run Tests
+### 3. Run Tests
 
 ```bash
 # Run all tests
-./extension run
+./bin/<extension-name>-tests-ext run
 
 # Run specific test
-./extension run "test name pattern"
+./bin/<extension-name>-tests-ext run "test name pattern"
 ```
 
 ## Troubleshooting
