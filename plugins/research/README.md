@@ -1,149 +1,187 @@
 # Research Plugin
 
-Build and query a personal knowledge base from various sources using semantic vector search.
+Build and query a unified knowledge context from various sources using semantic vector search.
 
 ## Overview
 
-The research plugin allows you to:
-- **Ingest** content from URLs, YouTube videos, GitHub repositories, and local files
-- **Store** content in a local vector database (ChromaDB) with semantic embeddings
-- **Query** your knowledge base with natural language questions
-- **Get accurate answers** based on the indexed content, not hallucinations
+The research plugin creates a **single unified context** that you can incrementally build from:
+- 🌐 **Web URLs** - Documentation sites (recursive crawling)
+- 📺 **YouTube** - Video transcripts
+- 🐙 **GitHub Repos** - Clone → Index → Delete (saves space)
+- 📁 **Current Codebase** - Auto-detect your project
+- 📄 **Local Files** - Markdown, code, docs
 
 ## Commands
 
 | Command | Description |
 |---------|-------------|
-| `/research:add` | Add sources (URLs, YouTube, GitHub, docs) to a project |
-| `/research:query` | Ask questions about the indexed content |
-| `/research:list` | List all sources in a project |
-
-## Prerequisites
-
-### Required Tools
-
-1. **Python 3.9+**
-   ```bash
-   python3 --version
-   ```
-
-2. **yt-dlp** (for YouTube transcripts)
-   ```bash
-   # Install
-   pip install yt-dlp
-   # Or on Fedora/RHEL
-   sudo dnf install yt-dlp
-   ```
-
-3. **git** (for GitHub repos)
-   ```bash
-   git --version
-   ```
-
-### Python Dependencies
-
-Install the required Python packages:
-
-```bash
-pip install chromadb sentence-transformers trafilatura beautifulsoup4 requests
-```
+| `/research:build` | Add sources to your context (incremental) |
+| `/research:ask` | Query your knowledge context |
+| `/research:context` | List indexed sources and stats |
 
 ## Quick Start
 
-### 1. Create a new research project and add sources
-
-```
-/research:add my-k8s-study https://kubernetes.io/docs/concepts/overview/
-```
-
-### 2. Add more sources
-
-```
-/research:add my-k8s-study https://www.youtube.com/watch?v=X48VuDVv0do
-/research:add my-k8s-study https://github.com/kubernetes/kubernetes
-```
-
-### 3. Query your knowledge base
-
-```
-/research:query my-k8s-study How do pods communicate with each other?
-```
-
-### 4. List all sources
-
-```
-/research:list my-k8s-study
-```
-
-## Supported Source Types
-
-| Source Type | Example | Extraction Method |
-|-------------|---------|-------------------|
-| Web URLs | `https://docs.example.com/guide` | **Recursive crawling** (follows links within same domain) |
-| YouTube | `https://youtube.com/watch?v=...` | yt-dlp (auto-generated captions) |
-| GitHub Repos | `https://github.com/owner/repo` | git clone + file traversal |
-| Local Files | `/path/to/document.md` | Direct file read |
-| Google Docs | `https://docs.google.com/...` | Export as text (public docs) |
-
-### Web Crawling Options
-
-By default, web URLs are crawled recursively (follows all links within the same domain):
-
-| Option | Default | Description |
-|--------|---------|-------------|
-| (none) | recursive | Follows links within same domain |
-| `--single` | - | Only extract the single provided URL |
-| `--depth N` | 3 | Maximum crawl depth |
-| `--max-pages N` | 50 | Maximum pages to extract |
-| `--allow-external` | - | Follow links to external domains |
-
-**Examples:**
 ```bash
-# Crawl entire docs site (up to 50 pages, depth 3)
-/research:add my-study https://kubernetes.io/docs/concepts/
+# 1. Add your current codebase to context
+/research:build --include-cwd
 
-# Single article only
-/research:add my-study https://blog.example.com/post --single
+# 2. Add some documentation
+/research:build https://kubernetes.io/docs/concepts/
 
-# Deep crawl with more pages
-/research:add my-study https://docs.example.com/ --depth 5 --max-pages 100
+# 3. Add a YouTube tutorial
+/research:build https://www.youtube.com/watch?v=X48VuDVv0do
+
+# 4. Add a GitHub repo (clones, indexes, then deletes clone)
+/research:build --repo https://github.com/etcd-io/etcd
+
+# 5. Ask questions!
+/research:ask How does etcd handle leader election?
 ```
 
-## Storage Location
+## Key Features
 
-All research projects are stored in:
+### Incremental Building
+
+Each `/research:build` call **appends** to the existing context:
+
+```bash
+/research:build https://docs.example.com/   # Adds docs
+/research:build https://youtube.com/...      # Adds video (keeps docs)
+/research:build --include-cwd                # Adds codebase (keeps all)
 ```
-.work/research/{project-name}/
-├── manifest.json      # Source tracking and metadata
-├── sources/           # Raw extracted content
-│   ├── web/
-│   ├── youtube/
-│   ├── github/
-│   └── local/
-└── vectordb/          # ChromaDB database
-    └── chroma.sqlite3
+
+### GitHub Repo Handling
+
+GitHub repos are handled efficiently:
+1. **Clone** - Shallow clone to temp directory
+2. **Extract** - Key files (README, docs, API types, controllers)
+3. **Index** - Chunk, embed, store in VectorDB
+4. **Delete** - Remove clone (only embeddings remain)
+
+```bash
+# Index a repo without keeping it on disk
+/research:build --repo https://github.com/kubernetes/client-go
+```
+
+### Current Codebase Auto-Detection
+
+Automatically detects and indexes your project:
+
+```bash
+/research:build --include-cwd
+```
+
+Detects:
+- Project type (Go operator, Node.js, Python, etc.)
+- Dependencies (go.mod, package.json, requirements.txt)
+- Key files (README, API types, controllers, configs)
+
+### Build Modes
+
+| Mode | Flag | Behavior |
+|------|------|----------|
+| **Append** | (default) | Add new sources, keep existing |
+| **Clear** | `--clear` | Wipe everything, start fresh |
+| **Refresh** | `--refresh` | Re-fetch and update a source |
+
+## Prerequisites
+
+### Automatic Installation (Recommended)
+
+**Dependencies are automatically installed when you first run a command!** No manual setup required.
+
+When you run `/research:build`, the plugin will:
+1. Check for missing packages
+2. Auto-install them via pip
+3. Continue with the operation
+
+### Manual Installation (Optional)
+
+If you prefer to install manually:
+
+```bash
+pip install chromadb sentence-transformers trafilatura beautifulsoup4 requests yt-dlp
+```
+
+## Storage
+
+**Content goes directly into VectorDB** - no intermediate files:
+
+```
+.work/research/
+├── context.db/          # ChromaDB vector database (embeddings + metadata)
+│   └── chroma.sqlite3   # SQLite database with vectors
+└── manifest.json        # Source tracking and stats
+```
+
+**What's stored:**
+- **Embeddings** - Numerical vectors for semantic search
+- **Chunks** - Original text chunks (~500 tokens each)
+- **Metadata** - Source URL, title, type, timestamps
+
+## Examples
+
+### Build Context for Learning Kubernetes
+
+```bash
+# Add official docs
+/research:build https://kubernetes.io/docs/concepts/
+
+# Add a tutorial video
+/research:build https://www.youtube.com/watch?v=X48VuDVv0do
+
+# Add the client-go library (index only, delete clone)
+/research:build --repo https://github.com/kubernetes/client-go
+
+# Now ask questions!
+/research:ask How do I create a pod using client-go?
+```
+
+### Build Context for Your Project
+
+```bash
+# Index your current codebase
+/research:build --include-cwd
+
+# Add related upstream repos
+/research:build --repo https://github.com/operator-framework/operator-sdk
+
+# Add relevant docs
+/research:build https://sdk.operatorframework.io/docs/
+
+# Ask about your project!
+/research:ask How should I implement a validating webhook in my operator?
+```
+
+### Manage Context
+
+```bash
+# View what's indexed
+/research:context
+
+# View with stats
+/research:context --stats
+
+# Clear and rebuild
+/research:build --clear https://new-docs.example.com/
 ```
 
 ## How It Works
 
-1. **Content Extraction**: Each source type has a specialized extractor
-2. **Chunking**: Content is split into semantic chunks (~500 tokens each)
-3. **Embedding**: Chunks are converted to vectors using sentence-transformers
-4. **Storage**: Vectors are stored in ChromaDB for fast similarity search
-5. **Query**: Your question is embedded and matched against stored chunks
-6. **Answer**: Claude receives the most relevant chunks and generates an accurate answer
+**Building (single unified step):**
+1. **Extract** - Content fetched from source (web, YouTube, GitHub, etc.)
+2. **Chunk** - Split into ~500 token chunks with overlap
+3. **Embed** - Chunks converted to 384-dim vectors (MiniLM-L6-v2)
+4. **Store** - Vectors + chunks saved to ChromaDB (no intermediate files!)
+
+**Querying:**
+1. **Embed** - Your question converted to vector
+2. **Search** - Find top-N similar chunks (semantic search)
+3. **Answer** - Claude receives relevant chunks and generates answer
 
 ## Tips
 
-- **Be specific with project names**: Use descriptive names like `openshift-networking` instead of `study1`
-- **Add diverse sources**: Mix documentation, videos, and code for comprehensive coverage
-- **Refresh periodically**: Use `/research:add` with the same URL to update content
-- **Query naturally**: Ask questions as you would ask a colleague
-
-## Limitations
-
-- YouTube requires auto-generated captions (most videos have them)
-- Google Docs must be publicly accessible or shared with "anyone with link"
-- Very large repositories may take time to ingest
-- Embedding model runs locally (first run downloads ~90MB model)
-
+- **Start with your codebase** - Always add `--include-cwd` for context-aware answers
+- **Add relevant docs** - Documentation helps answer "how to" questions
+- **Add reference repos** - Similar projects provide implementation examples
+- **Refresh after changes** - Use `--refresh --include-cwd` after code changes

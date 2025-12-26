@@ -1,13 +1,26 @@
 #!/usr/bin/env python3
 """Extract transcripts from YouTube videos using yt-dlp."""
 
+import subprocess
+import sys
+import shutil
+
+# Auto-install yt-dlp if missing
+def ensure_deps():
+    if not shutil.which("yt-dlp"):
+        try:
+            import yt_dlp
+        except ImportError:
+            print("📦 Installing: yt-dlp", file=sys.stderr)
+            subprocess.check_call([sys.executable, "-m", "pip", "install", "--quiet", "yt-dlp"])
+            print("✅ yt-dlp installed!", file=sys.stderr)
+
+ensure_deps()
+
 import argparse
 import json
 import os
 import re
-import shutil
-import subprocess
-import sys
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path

@@ -271,12 +271,12 @@ See [plugins/prow-job/README.md](plugins/prow-job/README.md) for detailed docume
 
 ### Research Plugin
 
-Build and query a personal knowledge base from URLs, YouTube, GitHub repos, and documents using vector search
+Build and query a unified knowledge context from URLs, YouTube, GitHub repos, and your current codebase using vector search
 
 **Commands:**
-- **`/research:add` `<project-name> <source-url-or-path> [--single] [--depth N] [--max-pages N]`** - Add sources (URLs, YouTube, GitHub repos, local files) to a research project
-- **`/research:list` `[project-name]`** - List all sources in a research project
-- **`/research:query` `<project-name> <question>`** - Ask questions about your research project's indexed content
+- **`/research:ask` `<question>`** - Ask questions about your indexed knowledge context
+- **`/research:build` `[sources...] [--include-cwd] [--repo URL] [--clear]`** - Build knowledge context from URLs, repos, and files - stores directly in VectorDB
+- **`/research:context` `[--stats]`** - View indexed sources and context statistics
 
 See [plugins/research/README.md](plugins/research/README.md) for detailed documentation.
 

@@ -1,12 +1,30 @@
 #!/usr/bin/env python3
 """Extract content from web pages with recursive crawling support."""
 
+import subprocess
+import sys
+
+# Auto-install missing dependencies
+def ensure_deps():
+    required = [("trafilatura", "trafilatura"), ("bs4", "beautifulsoup4"), ("requests", "requests")]
+    missing = []
+    for imp, pip in required:
+        try:
+            __import__(imp)
+        except ImportError:
+            missing.append(pip)
+    if missing:
+        print(f"📦 Installing: {', '.join(missing)}", file=sys.stderr)
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "--quiet"] + missing)
+        print("✅ Dependencies installed!", file=sys.stderr)
+
+ensure_deps()
+
 import argparse
 import hashlib
 import json
 import os
 import re
-import sys
 import time
 from collections import deque
 from datetime import datetime, timezone
@@ -39,6 +57,38 @@ def is_same_domain(url1: str, url2: str) -> bool:
     domain2 = domain2.removeprefix('www.')
     
     return domain1 == domain2
+
+
+def get_url_prefix(url: str) -> str:
+    """Get the base URL prefix for prefix-based crawling.
+    
+    Examples:
+        https://spiffe.io/docs/ -> https://spiffe.io/docs/
+        https://kubernetes.io/docs/concepts/ -> https://kubernetes.io/docs/concepts/
+        https://example.com/ -> https://example.com/
+    """
+    parsed = urlparse(url)
+    # Normalize: ensure path ends with / for prefix matching
+    path = parsed.path.rstrip('/') + '/'
+    # If path is just /, use domain-only matching
+    if path == '/':
+        return f"{parsed.scheme}://{parsed.netloc}/"
+    return f"{parsed.scheme}://{parsed.netloc}{path}"
+
+
+def is_under_prefix(url: str, prefix: str) -> bool:
+    """Check if URL is under the given prefix.
+    
+    Examples:
+        is_under_prefix("https://spiffe.io/docs/concepts/", "https://spiffe.io/docs/") -> True
+        is_under_prefix("https://spiffe.io/blog/", "https://spiffe.io/docs/") -> False
+    """
+    # Normalize both URLs
+    url_normalized = url.lower().rstrip('/')
+    prefix_normalized = prefix.lower().rstrip('/')
+    
+    # Check if URL starts with prefix
+    return url_normalized.startswith(prefix_normalized)
 
 
 def is_valid_page_url(url: str) -> bool:
@@ -182,6 +232,7 @@ def extract_web(
     max_depth: int = 3,
     max_pages: int = 50,
     same_domain_only: bool = True,
+    prefix_only: bool = True,
 ) -> dict:
     """Extract content from web pages with optional recursive crawling.
     
@@ -192,6 +243,8 @@ def extract_web(
         max_depth: Maximum depth for recursive crawling
         max_pages: Maximum number of pages to crawl
         same_domain_only: Only follow links on the same domain
+        prefix_only: Only follow links under the same URL prefix (default: True)
+                     e.g., https://spiffe.io/docs/ only crawls /docs/* pages
         
     Returns:
         dict with extraction result
@@ -220,9 +273,12 @@ def extract_web(
     failed_pages = []
     
     start_domain = urlparse(url).netloc.lower().removeprefix('www.')
+    start_prefix = get_url_prefix(url)
     
     print(f"Starting crawl from: {url}", file=sys.stderr)
     print(f"Mode: {'recursive (depth={}, max={})'.format(max_depth, max_pages) if recursive else 'single page'}", file=sys.stderr)
+    if prefix_only and recursive:
+        print(f"Prefix filter: {start_prefix}*", file=sys.stderr)
     
     while queue and len(extracted_pages) < max_pages:
         current_url, depth = queue.popleft()
@@ -294,8 +350,12 @@ extracted_at: {datetime.now(timezone.utc).isoformat()}
                 link_normalized = normalize_url(link)
                 
                 if link_normalized not in visited:
-                    # Check domain restriction
-                    if same_domain_only:
+                    # Check prefix restriction (default: only crawl under same path prefix)
+                    if prefix_only:
+                        if not is_under_prefix(link, start_prefix):
+                            continue
+                    # Check domain restriction (fallback if prefix_only is False)
+                    elif same_domain_only:
                         link_domain = urlparse(link).netloc.lower().removeprefix('www.')
                         if link_domain != start_domain:
                             continue
@@ -335,6 +395,8 @@ def main():
                         help="Maximum pages to crawl (default: 50)")
     parser.add_argument("--allow-external", action="store_true",
                         help="Allow following links to external domains")
+    parser.add_argument("--full-domain", action="store_true",
+                        help="Crawl entire domain instead of just the URL prefix path")
     
     args = parser.parse_args()
     
@@ -345,6 +407,7 @@ def main():
         max_depth=args.depth,
         max_pages=args.max_pages,
         same_domain_only=not args.allow_external,
+        prefix_only=not args.full_domain,  # Default: only crawl under same prefix
     )
     
     print(json.dumps(result, indent=2))

@@ -1,10 +1,8 @@
 {
   "name": "research",
-  "description": "Build and query a personal knowledge base from URLs, YouTube, GitHub repos, and documents using vector search",
-  "version": "0.0.1",
+  "description": "Build and query a unified knowledge context from URLs, YouTube, GitHub repos, and your current codebase using vector search",
+  "version": "0.2.0",
   "author": {
     "name": "github.com/openshift-eng"
   }
 }
-
-
