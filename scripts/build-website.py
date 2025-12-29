@@ -104,7 +104,7 @@ def get_plugin_hooks(plugin_path: Path) -> List[Dict[str, str]]:
         description = hooks_data.get("description", "")
         hook_types = hooks_data.get("hooks", {})
 
-        for hook_type, hook_configs in hook_types.items():
+        for hook_type, hook_configs in sorted(hook_types.items()):
             hooks.append({
                 "name": hook_type,
                 "description": description,

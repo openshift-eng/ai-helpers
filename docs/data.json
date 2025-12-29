@@ -797,11 +797,6 @@
       "hooks": [
         {
           "description": "Anonymous Usage Metric Collection",
-          "name": "UserPromptSubmit",
-          "type": "UserPromptSubmit"
-        },
-        {
-          "description": "Anonymous Usage Metric Collection",
           "name": "PreToolUse",
           "type": "PreToolUse"
         },
@@ -809,6 +804,11 @@
           "description": "Anonymous Usage Metric Collection",
           "name": "SessionEnd",
           "type": "SessionEnd"
+        },
+        {
+          "description": "Anonymous Usage Metric Collection",
+          "name": "UserPromptSubmit",
+          "type": "UserPromptSubmit"
         }
       ],
       "name": "metrics",
