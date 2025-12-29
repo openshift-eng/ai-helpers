@@ -84,16 +84,21 @@ class MutationGenerator:
         
         for pattern in patterns:
             for file_path in self.operator_path.glob(pattern):
-                if '_test.go' not in str(file_path):
+                # Skip test files and vendor directories
+                if '_test.go' not in str(file_path) and 'vendor' not in file_path.parts:
                     controller_files.append(file_path)
         
         return list(set(controller_files))  # Remove duplicates
     
     def _generate_mutations_for_file(self, file_path: Path):
         """Generate mutations for a single controller file."""
-        with open(file_path, 'r') as f:
-            content = f.read()
-            lines = content.split('\n')
+        try:
+            with open(file_path, 'r') as f:
+                content = f.read()
+                lines = content.split('\n')
+        except (OSError, IOError) as e:
+            print(f"Error: Unable to read file {file_path}: {e}")
+            return  # Skip this file and continue with others
         
         # Apply each mutation type
         if 'conditionals' in self.mutation_types or 'all' in self.mutation_types:
@@ -283,11 +288,12 @@ class MutationGenerator:
                     )
     
     def _mutate_api_calls(self, file_path: Path, lines: List[str]):
-        """Generate API call mutations."""
+        """Generate API call mutations with signature-compatible replacements."""
+        # Only include mutations with compatible signatures and option types
+        # Removed Get→List and Update→Patch due to signature incompatibility
         api_mutations = [
-            ('r.Get(', 'r.List(', 'Change Get to List'),
-            ('r.Update(', 'r.Patch(', 'Change Update to Patch'),
             ('r.Create(', 'r.Update(', 'Change Create to Update'),
+            ('r.Update(', 'r.Create(', 'Change Update to Create'),
         ]
         
         for line_num, line in enumerate(lines, 1):
@@ -348,22 +354,35 @@ class MutationGenerator:
     
     def _apply_mutation_to_file(self, file_path: Path, mutation: Dict[str, Any]):
         """Apply mutation to a specific file."""
-        with open(file_path, 'r') as f:
-            lines = f.readlines()
+        try:
+            with open(file_path, 'r') as f:
+                lines = f.readlines()
+        except (OSError, IOError) as e:
+            print(f"Error: Unable to read file {file_path}: {e}")
+            return  # Skip this file and continue
         
         target_line = mutation['line'] - 1
         
         if target_line < len(lines):
             # Replace the line
-            original_content = lines[target_line].strip()
             mutated_content = mutation['mutated']
             
             # Preserve indentation
             indent = len(lines[target_line]) - len(lines[target_line].lstrip())
             lines[target_line] = ' ' * indent + mutated_content + '\n'
+        else:
+            # Out of bounds - log error and skip writing
+            print(f"Error: Line {mutation['line']} out of bounds in {file_path} "
+                  f"(file has {len(lines)} lines)")
+            return  # Skip writing unmodified file
         
-        with open(file_path, 'w') as f:
-            f.writelines(lines)
+        # Only write if mutation was actually applied
+        try:
+            with open(file_path, 'w') as f:
+                f.writelines(lines)
+        except (OSError, IOError) as e:
+            print(f"Error: Unable to write file {file_path}: {e}")
+            return  # Skip this file and continue
     
     def _generate_summary(self) -> Dict[str, Any]:
         """Generate summary of mutations."""

@@ -19,7 +19,7 @@ def apply_mutation(mutation: dict, operator_path: Path) -> bool:
         with open(file_path, 'r', encoding='utf-8') as f:
             lines = f.readlines()
         
-        if line_num <= len(lines):
+        if 1 <= line_num <= len(lines):
             # Replace the specific line
             lines[line_num - 1] = mutation['mutated'] + '\n'
             
@@ -45,7 +45,7 @@ def revert_mutation(mutation: dict, operator_path: Path) -> bool:
         with open(file_path, 'r', encoding='utf-8') as f:
             lines = f.readlines()
         
-        if line_num <= len(lines):
+        if 1 <= line_num <= len(lines):
             # Restore original line
             lines[line_num - 1] = mutation['original'] + '\n'
             

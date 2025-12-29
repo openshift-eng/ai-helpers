@@ -475,27 +475,19 @@ def mutate_api_call(node):
 
 ---
 
-### Step 7: Apply Mutations and Create Mutants
+### Step 7: Apply Mutations In-Place (No Copies!)
 
-**7.1 Create Mutant Copy**
+**7.1 Generate Mutation Metadata Only**
 
-For each mutation:
+For each mutation, generate metadata WITHOUT copying files:
 
 ```python
-def create_mutant(mutation, operator_path, output_dir):
-    """Create a mutant copy of the operator with mutation applied."""
+def generate_mutation_metadata(mutation, operator_path, output_file):
+    """Generate mutation metadata for in-place application."""
     
     mutant_id = mutation['id']
-    mutant_dir = os.path.join(output_dir, f'mutant-{mutant_id}')
     
-    # Copy entire operator
-    shutil.copytree(operator_path, mutant_dir)
-    
-    # Apply mutation to specific file
-    mutated_file = os.path.join(mutant_dir, mutation['file'])
-    apply_mutation_to_file(mutated_file, mutation)
-    
-    # Save mutation metadata
+    # Save mutation metadata only (no file copies)
     metadata = {
         'id': mutant_id,
         'type': mutation['type'],
@@ -507,17 +499,25 @@ def create_mutant(mutation, operator_path, output_dir):
         'pattern': mutation['pattern']
     }
     
-    with open(os.path.join(mutant_dir, 'MUTATION.json'), 'w') as f:
-        json.dump(metadata, f, indent=2)
+    return metadata
+
+def save_all_mutations(mutations, output_file):
+    """Save all mutation definitions to a single JSON file."""
     
-    return mutant_dir
+    with open(output_file, 'w') as f:
+        json.dump({
+            'total_mutations': len(mutations),
+            'mutations': mutations
+        }, f, indent=2)
 ```
 
-**7.2 Apply Single Mutation to File**
+**Note**: The mutation testing workflow will apply each mutation in-place to the original file, run tests, then immediately revert the change. This avoids creating GB of repository copies.
+
+**7.2 Apply and Revert Mutations In-Place**
 
 ```python
 def apply_mutation_to_file(file_path, mutation):
-    """Apply mutation to a specific file."""
+    """Apply mutation in-place to the original file."""
     
     with open(file_path, 'r') as f:
         lines = f.readlines()
@@ -533,10 +533,31 @@ def apply_mutation_to_file(file_path, mutation):
             1  # Replace only first occurrence
         )
     
-    # Write back
+    # Write back to the ORIGINAL file
+    with open(file_path, 'w') as f:
+        f.writelines(lines)
+
+def revert_mutation(file_path, mutation):
+    """Revert mutation by restoring the original code."""
+    
+    with open(file_path, 'r') as f:
+        lines = f.readlines()
+    
+    target_line = mutation['line'] - 1
+    
+    if target_line < len(lines):
+        # Restore original code
+        lines[target_line] = lines[target_line].replace(
+            mutation['mutated'],
+            mutation['original'],
+            1
+        )
+    
     with open(file_path, 'w') as f:
         f.writelines(lines)
 ```
+
+**Usage Pattern**: Apply mutation → Run tests → Immediately revert. No file copies needed!
 
 ---
 
@@ -573,47 +594,50 @@ The mutation generator produces:
 }
 ```
 
-**2. Mutant Directories**
+**2. Mutation Metadata Storage**
 
 ```
-.work/mutation-testing/mutants/
-├── mutant-001/           # Full operator copy with mutation applied
-│   ├── MUTATION.json     # Metadata about this mutation
-│   ├── controllers/
-│   ├── api/
-│   └── ...
-├── mutant-002/
-├── mutant-003/
+.work/mutation-testing/
+├── mutations.json        # All mutation definitions
+├── results/
+│   ├── mutant-001-result.json     # Metadata about this mutation
+│   ├── mutant-001-output.txt      # Test output
+│   ├── mutant-002-result.json
+│   └── mutant-002-output.txt
 ...
 ```
+
+**Note**: Mutations are applied **in-place** to the original files, tested, then immediately reverted. No full repository copies are created, keeping disk usage minimal (<1MB).
 
 ## Error Handling
 
 - **No controllers found**: Warn user and provide suggestions
 - **Parse errors**: Skip files with syntax errors, report them
 - **Invalid mutations**: Validate mutations don't break Go syntax
-- **Disk space**: Check available space before creating mutants (can be GB of data)
+- **Disk space**: Mutations are applied in-place with minimal disk usage (<1MB for metadata); verify sufficient temporary storage and available inodes if needed
 
 ## Best Practices
 
 1. **Focus on High-Value Mutations**: Prioritize error handling and conditionals
 2. **Avoid Equivalent Mutants**: Don't generate mutations that don't change behavior
 3. **Limit Mutations**: For large controllers, consider sampling strategy
-4. **Validate Syntax**: Ensure mutated code compiles before creating mutant
+4. **Validate Syntax**: Ensure mutated code is syntactically valid before including in mutation list
 5. **Track Coverage**: Keep mapping of which mutations test which behavior
+6. **In-Place Efficiency**: Generate metadata only; apply/revert mutations during testing to minimize disk usage
 
 ## Example Usage
 
 ```python
-# Generate mutations for all controllers
+# Generate mutation metadata (no file copies!)
 mutations = generate_mutations(
     operator_path="/path/to/operator",
     mutation_types=["error-handling", "conditional", "requeue"],
-    output_dir=".work/mutation-testing/mutants"
+    output_file=".work/mutation-testing/mutations.json"
 )
 
-print(f"Generated {len(mutations)} mutations")
-print(f"Mutants created in: {output_dir}")
+print(f"Generated {len(mutations)} mutation definitions")
+print(f"Metadata saved to: {output_file} (Total: <1MB)")
+print(f"No repository copies created - mutations applied in-place during testing")
 ```
 
 ## See Also

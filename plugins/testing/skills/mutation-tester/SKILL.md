@@ -135,16 +135,20 @@ for mutant_dir in "$MUTANTS_DIR"/mutant-*; do
     STATUS="survived"
   fi
   
-  # Save result metadata
-  cat > "$RESULTS_DIR/${MUTANT_ID}-result.json" << EOF
-{
-  "mutant_id": "$MUTANT_ID",
-  "status": "$STATUS",
-  "exit_code": $TEST_EXIT,
-  "mutation": $(cat "$MUTATION_FILE"),
-  "output_file": "$RESULTS_DIR/${MUTANT_ID}-output.txt"
-}
-EOF
+  # Save result metadata (using jq for safe JSON construction)
+  jq -n \
+    --arg mutant_id "$MUTANT_ID" \
+    --arg status "$STATUS" \
+    --argjson exit_code "$TEST_EXIT" \
+    --arg output_file "$RESULTS_DIR/${MUTANT_ID}-output.txt" \
+    --slurpfile mutation "$MUTATION_FILE" \
+    '{
+      mutant_id: $mutant_id,
+      status: $status,
+      exit_code: $exit_code,
+      mutation: $mutation[0],
+      output_file: $output_file
+    }' > "$RESULTS_DIR/${MUTANT_ID}-result.json"
   
 done
 
@@ -157,7 +161,7 @@ For long-running mutation testing, show periodic updates:
 
 ```bash
 # Every 10 mutants, show summary
-if [ $((CURRENT % 10)) -eq 0 ]; then
+if [ $((CURRENT % 10)) -eq 0 ] && [ "$CURRENT" -gt 0 ]; then
   MUTATION_SCORE=$(awk "BEGIN {printf \"%.1f\", ($KILLED_MUTANTS / $CURRENT) * 100}")
   echo ""
   echo "   Progress: $CURRENT/$TOTAL_MUTANTS ($MUTATION_SCORE% killed so far)"
@@ -173,6 +177,12 @@ fi
 
 ```bash
 # Mutation Score = (Killed / Total) * 100
+# Check for zero or unset TOTAL_MUTANTS to avoid division by zero
+if [ -z "$TOTAL_MUTANTS" ] || [ "$TOTAL_MUTANTS" -eq 0 ]; then
+  echo "❌ ERROR: No mutants generated (TOTAL_MUTANTS=$TOTAL_MUTANTS)"
+  exit 1
+fi
+
 MUTATION_SCORE=$(awk "BEGIN {printf \"%.2f\", ($KILLED_MUTANTS / $TOTAL_MUTANTS) * 100}")
 
 echo ""
@@ -336,31 +346,39 @@ done
 **5.1 Create JSON Report**
 
 ```bash
-# Compile all results into single JSON
-cat > "$RESULTS_DIR/mutation-report.json" << EOF
-{
-  "summary": {
-    "total_mutants": $TOTAL_MUTANTS,
-    "killed": $KILLED_MUTANTS,
-    "survived": $SURVIVED_MUTANTS,
-    "timeout": $TIMEOUT_MUTANTS,
-    "mutation_score": $MUTATION_SCORE,
-    "verdict": "$VERDICT",
-    "test_duration_seconds": $TEST_DURATION,
-    "timestamp": "$(date -Iseconds)"
-  },
-  "survived_mutants": [
-$(
-  for mutant_id in "${SURVIVED_MUTANTS_LIST[@]}"; do
-    cat "$RESULTS_DIR/${mutant_id}-result.json"
-    if [ "$mutant_id" != "${SURVIVED_MUTANTS_LIST[-1]}" ]; then
-      echo ","
-    fi
-  done
-)
-  ]
-}
-EOF
+# Compile all results into single JSON (using jq for safe construction)
+# First, collect survived mutant result files
+SURVIVED_JSON_FILES=()
+for mutant_id in "${SURVIVED_MUTANTS_LIST[@]}"; do
+  if [ -f "$RESULTS_DIR/${mutant_id}-result.json" ]; then
+    SURVIVED_JSON_FILES+=("$RESULTS_DIR/${mutant_id}-result.json")
+  fi
+done
+
+# Build report with jq
+jq -n \
+  --argjson total "$TOTAL_MUTANTS" \
+  --argjson killed "$KILLED_MUTANTS" \
+  --argjson survived "$SURVIVED_MUTANTS" \
+  --argjson timeout "$TIMEOUT_MUTANTS" \
+  --argjson score "$MUTATION_SCORE" \
+  --arg verdict "$VERDICT" \
+  --argjson duration "$TEST_DURATION" \
+  --arg timestamp "$(date -Iseconds)" \
+  --slurpfile survived_mutants <(jq -s '.' "${SURVIVED_JSON_FILES[@]}" 2>/dev/null || echo '[]') \
+  '{
+    summary: {
+      total_mutants: $total,
+      killed: $killed,
+      survived: $survived,
+      timeout: $timeout,
+      mutation_score: $score,
+      verdict: $verdict,
+      test_duration_seconds: $duration,
+      timestamp: $timestamp
+    },
+    survived_mutants: $survived_mutants[0]
+  }' > "$RESULTS_DIR/mutation-report.json"
 ```
 
 **5.2 Generate HTML Report**

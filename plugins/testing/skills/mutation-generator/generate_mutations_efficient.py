@@ -71,7 +71,8 @@ class EfficientMutationGenerator:
         
         for pattern in patterns:
             for file_path in self.operator_path.glob(pattern):
-                if '_test.go' not in str(file_path) and file_path.is_file():
+                # Skip test files and vendor directories
+                if '_test.go' not in str(file_path) and 'vendor' not in file_path.parts and file_path.is_file():
                     controller_files.append(file_path)
         
         return list(set(controller_files))
@@ -111,11 +112,10 @@ class EfficientMutationGenerator:
                 continue
             
             for old_op, new_ops in self.CONDITIONAL_OPS.items():
-                # Need word boundaries to avoid partial matches
-                pattern = r'\b' + re.escape(old_op) + r'\b'
-                if re.search(pattern, line) and ('if ' in line or 'for ' in line):
+                # Simple substring check for reliable operator detection
+                if old_op in line and ('if ' in line or 'for ' in line):
                     for new_op in new_ops:
-                        mutated = re.sub(pattern, new_op, line, count=1)
+                        mutated = line.replace(old_op, new_op, 1)
                         self._add_mutation(
                             file_path=file_path,
                             line_num=line_num,
@@ -252,12 +252,27 @@ class EfficientMutationGenerator:
                     description='Change condition to False',
                     pattern='condition-value'
                 )
+            
+            if 'corev1.ConditionFalse' in stripped:
+                mutated = line.replace('corev1.ConditionFalse', 'corev1.ConditionTrue', 1)
+                self._add_mutation(
+                    file_path=file_path,
+                    line_num=line_num,
+                    original_line=line,
+                    mutated_line=mutated,
+                    mutation_type='status',
+                    description='Change condition to True',
+                    pattern='condition-value'
+                )
     
     def _mutate_api_calls(self, file_path: Path, lines: List[str]):
-        """Generate API call mutations."""
+        """Generate API call mutations with signature-compatible replacements."""
+        # Only include mutations with compatible signatures and option types
+        # Note: Delete→DeleteAllOf removed due to option type incompatibility
+        # (DeleteOption vs DeleteAllOfOption) and semantic mismatch
         api_mutations = [
-            ('r.Get(', 'r.List(', 'Change Get to List'),
-            ('r.Update(', 'r.Patch(', 'Change Update to Patch'),
+            ('r.Create(', 'r.Update(', 'Change Create to Update'),
+            ('r.Update(', 'r.Create(', 'Change Update to Create'),
         ]
         
         for line_num, line in enumerate(lines, 1):

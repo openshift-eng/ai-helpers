@@ -187,8 +187,8 @@ echo ""
 Apply mutation → Test → Revert (no copying!):
 
 ```bash
-# Extract mutations array
-jq -c '.mutations[]' "$MUTATIONS_JSON" | while IFS= read -r mutation; do
+# Extract mutations array (using process substitution to preserve variable scope)
+while IFS= read -r mutation; do
   MUTANT_ID=$(echo "$mutation" | jq -r '.id')
   MUTATION_TYPE=$(echo "$mutation" | jq -r '.type')
   MUTATION_DESC=$(echo "$mutation" | jq -r '.description')
@@ -241,7 +241,7 @@ jq -c '.mutations[]' "$MUTATIONS_JSON" | while IFS= read -r mutation; do
     '. + {status: $status, exit_code: ($exit | tonumber)}' \
     > "$RESULTS_DIR/${MUTANT_ID}-result.json"
   
-done
+done < <(jq -c '.mutations[]' "$MUTATIONS_JSON")
 ```
 
 **3.3 Calculate Mutation Score**
@@ -259,23 +259,21 @@ echo "  - By timeout:       $TIMEOUT_MUTANTS"
 echo "Survived (Bad):       $SURVIVED_MUTANTS"
 echo ""
 
-if [ "$TOTAL_MUTANTS" -gt 0 ]; then
-  MUTATION_SCORE=$(awk "BEGIN {printf \"%.2f\", ($KILLED_MUTANTS / $TOTAL_MUTANTS) * 100}")
-else
-  MUTATION_SCORE="0.00"
-fi
+MUTATION_SCORE=$(awk "BEGIN {printf \"%.2f\", ($KILLED_MUTANTS / $TOTAL_MUTANTS) * 100}")
 
 echo "Mutation Score:       ${MUTATION_SCORE}%"
 echo ""
 
-# Interpret score
-if (( $(echo "$MUTATION_SCORE >= 90" | bc -l 2>/dev/null || echo "0") )); then
+# Interpret score using integer comparison (no bc dependency)
+SCORE_INT=$(awk "BEGIN {printf \"%.0f\", ($KILLED_MUTANTS * 100 / $TOTAL_MUTANTS)}")
+
+if [ "$SCORE_INT" -ge 90 ]; then
   echo "✓✓ EXCELLENT - Strong test suite!"
   VERDICT="excellent"
-elif (( $(echo "$MUTATION_SCORE >= 80" | bc -l 2>/dev/null || echo "0") )); then
+elif [ "$SCORE_INT" -ge 80 ]; then
   echo "✓  GOOD - Solid test coverage"
   VERDICT="good"
-elif (( $(echo "$MUTATION_SCORE >= 70" | bc -l 2>/dev/null || echo "0") )); then
+elif [ "$SCORE_INT" -ge 70 ]; then
   echo "⚠️  FAIR - Room for improvement"
   VERDICT="fair"
 else
@@ -486,14 +484,13 @@ EOF
     ;;
     
   json)
-    # JSON report already exists from results
-    jq -n \
+    # JSON report from all result files
+    jq -n -s \
       --arg score "$MUTATION_SCORE" \
       --arg verdict "$VERDICT" \
       --argjson killed "$KILLED_MUTANTS" \
       --argjson survived "$SURVIVED_MUTANTS" \
       --argjson total "$TOTAL_MUTANTS" \
-      --slurpfile results "$RESULTS_DIR"/*-result.json \
       '{
         summary: {
           mutation_score: ($score | tonumber),
@@ -502,250 +499,14 @@ EOF
           survived: $survived,
           total: $total
         },
-        results: $results[0]
-      }' > "$WORK_DIR/mutation-report.json"
+        results: .
+      }' "$RESULTS_DIR"/*-result.json > "$WORK_DIR/mutation-report.json"
     
     echo "📊 JSON Report: $(pwd)/$WORK_DIR/mutation-report.json"
     ;;
 esac
 
 echo ""
-```
-
----
-
-### Step 2 now generates mutation metadata ONLY (no file copies)Refer to the [mutation-generator skill](../skills/mutation-generator/SKILL.md) for detailed mutation generation logic.
-
-**2.2 Mutation Types Generated**
-
-The following mutation types are applied based on `--mutation-types`:
-
-**Conditionals Mutations:**
-- Change `==` to `!=`, `<` to `>`, `<=` to `>=`, etc.
-- Negate boolean expressions: `if condition` → `if !condition`
-- Remove condition branches
-- Example: `if err != nil` → `if err == nil`
-
-**Returns Mutations:**
-- Change `return ctrl.Result{}, nil` to `return ctrl.Result{Requeue: true}, nil`
-- Swap error returns: `return err` → `return nil`
-- Modify requeue timing: `RequeueAfter: 1*time.Minute` → `RequeueAfter: 0`
-
-**Arithmetic Mutations:**
-- Change `+` to `-`, `*` to `/`, etc.
-- Change increment/decrement: `i++` → `i--`
-- Modify constants: `MaxRetries = 3` → `MaxRetries = 5`
-
-**Error Handling Mutations:**
-- Remove error checks: `if err != nil { return err }` → ` /* removed */ `
-- Change error creation: `errors.New("msg")` → `nil`
-- Skip error logging
-
-**Requeue Mutations:**
-- Remove requeue requests
-- Change requeue timing
-- Remove rate limiting
-
-**Status Mutations:**
-- Skip status updates
-- Change condition types/reasons
-- Modify condition status (True → False)
-
-**API Calls Mutations:**
-- Change Get to List
-- Remove API call error handling
-- Change Update to Patch
-
-**2.3 Create Mutant Copies**
-
-For each mutation:
-```bash
-# Create temporary directory with mutated code
-cp -r "$OPERATOR_PATH" ".work/mutation-testing/mutants/mutant-$MUTANT_ID/"
-# Apply specific mutation to the copy
-# Keep track of mutation details for reporting
-```
-
----
-
-### Step 3: Run Tests Against Each Mutation
-
-**3.1 Baseline Test Run**
-
-First, run tests against original (non-mutated) code to ensure tests pass:
-
-```bash
-echo "Running baseline tests..."
-cd "$OPERATOR_PATH"
-# Test all controller files (controller/controllers dirs and *controller.go files)
-go test ./... -v -timeout 10m > .work/mutation-testing/baseline-results.txt 2>&1
-BASELINE_EXIT=$?
-
-if [ $BASELINE_EXIT -ne 0 ]; then
-  echo "ERROR: Baseline tests failed. Fix tests before running mutation testing."
-  exit 1
-fi
-
-echo "✓ Baseline tests passed. Proceeding with mutation testing..."
-```
-
-**3.2 Test Each Mutant**
-
-For each generated mutant:
-
-```bash
-TOTAL_MUTANTS=$(ls .work/mutation-testing/mutants/ | wc -l)
-KILLED_MUTANTS=0
-SURVIVED_MUTANTS=0
-TIMEOUT_MUTANTS=0
-
-for mutant_dir in .work/mutation-testing/mutants/mutant-*; do
-  MUTANT_ID=$(basename "$mutant_dir")
-  
-  echo "Testing $MUTANT_ID..."
-  
-  # Run tests against mutated code (controller/controllers dirs and *controller.go files)
-  cd "$mutant_dir"
-  timeout 5m go test ./... -v > "../${MUTANT_ID}-results.txt" 2>&1
-  TEST_EXIT=$?
-  cd - > /dev/null
-  
-  # Analyze result
-  if [ $TEST_EXIT -eq 124 ]; then
-    # Timeout - mutant caused infinite loop or hang
-    echo "  ⏱️  Timeout (killed by timeout)"
-    TIMEOUT_MUTANTS=$((TIMEOUT_MUTANTS + 1))
-    KILLED_MUTANTS=$((KILLED_MUTANTS + 1))
-  elif [ $TEST_EXIT -ne 0 ]; then
-    # Test failed - mutant was killed (GOOD)
-    echo "  ✓ Killed (test suite caught the mutation)"
-    KILLED_MUTANTS=$((KILLED_MUTANTS + 1))
-  else
-    # Test passed - mutant survived (BAD - indicates weak tests)
-    echo "  ⚠️  SURVIVED (test suite did NOT catch the mutation)"
-    SURVIVED_MUTANTS=$((SURVIVED_MUTANTS + 1))
-  fi
-done
-```
-
-**3.3 Track Mutation Score**
-
-Calculate mutation score:
-```bash
-# Mutation Score = (Killed Mutants / Total Mutants) * 100
-MUTATION_SCORE=$(awk "BEGIN {printf \"%.2f\", ($KILLED_MUTANTS / $TOTAL_MUTANTS) * 100}")
-
-echo ""
-echo "================================"
-echo "Mutation Testing Results"
-echo "================================"
-echo "Total Mutants:    $TOTAL_MUTANTS"
-echo "Killed:           $KILLED_MUTANTS (tests caught the bug)"
-echo "Survived:         $SURVIVED_MUTANTS (tests missed the bug)"
-echo "Mutation Score:   ${MUTATION_SCORE}%"
-echo ""
-```
-
----
-
-### Step 4: Analyze Results and Generate Report
-
-**4.1 Identify Weak Test Areas**
-
-Analyze survived mutants to identify patterns:
-```bash
-# Group survived mutants by:
-# - Controller name
-# - Mutation type
-# - Code location (reconcile, helper functions, error handling)
-
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/mutation-tester/analyze_results.py \
-  --results-dir .work/mutation-testing/ \
-  --output .work/mutation-testing/analysis.json
-```
-
-**4.2 Generate Recommendations**
-
-For each survived mutant, suggest missing test cases:
-```bash
-# Example output:
-# Survived Mutant #42: Changed `if err != nil` to `if err == nil` in controller.go:156
-# → Recommendation: Add test case that verifies error handling when API call fails
-# → Suggested test: TestReconcile_APICallError
-```
-
-**4.3 Create Visual Report**
-
-Generate report based on `--report-format`:
-
-**HTML Report (default):**
-```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/mutation-tester/generate_report.py \
-  --format html \
-  --analysis .work/mutation-testing/analysis.json \
-  --output .work/mutation-testing/mutation-report.html
-
-echo ""
-echo "📊 Mutation testing report generated:"
-echo "   file://$(pwd)/.work/mutation-testing/mutation-report.html"
-echo ""
-```
-
-**Markdown Report:**
-```bash
-# Generate markdown with tables and recommendations
-cat > .work/mutation-testing/mutation-report.md << 'EOF'
-# Mutation Testing Report
-
-## Summary
-- **Mutation Score:** 85.5%
-- **Total Mutants:** 120
-- **Killed:** 102
-- **Survived:** 18
-
-## Survived Mutants (Need Attention)
-
-### Controller: PodController
-
-| Mutant ID | Type | Location | Mutation | Recommendation |
-|-----------|------|----------|----------|----------------|
-| #042 | Error Handling | controller.go:156 | Removed `if err != nil` check | Add test for API call failure |
-...
-EOF
-```
-
-**4.4 Display Summary**
-
-Show actionable summary in terminal:
-```bash
-echo "════════════════════════════════════════════════"
-echo "  Mutation Testing Complete"
-echo "════════════════════════════════════════════════"
-echo ""
-echo "Mutation Score: ${MUTATION_SCORE}% (Industry good: >80%, Excellent: >90%)"
-echo ""
-if [ $MUTATION_SCORE -lt 80 ]; then
-  echo "⚠️  Mutation score below 80% - test suite needs improvement"
-elif [ $MUTATION_SCORE -lt 90 ]; then
-  echo "✓ Good mutation score, but room for improvement"
-else
-  echo "✓✓ Excellent mutation score! Strong test suite"
-fi
-echo ""
-echo "Top Issues to Address:"
-echo "  • $SURVIVED_MUTANTS survived mutants indicate weak test coverage"
-echo "  • Focus on: $(most_common_mutation_type)"
-echo ""
-echo "Full report: .work/mutation-testing/mutation-report.${REPORT_FORMAT}"
-echo ""
-```
-
-**4.5 Cleanup Mutants (Optional)**
-
-Ask user if they want to keep mutant copies:
-```bash
-echo "Cleanup mutant directories? (y/N)"
-# Keep by default for investigation, but offer cleanup
 ```
 
 ---
@@ -779,7 +540,7 @@ echo "Cleanup mutant directories? (y/N)"
 5. **File Locations:**
    - HTML/Markdown report path
    - JSON analysis data path
-   - Individual mutant directories (for investigation)
+   - Individual mutation result files in `.work/mutation-testing/results/`
 
 **Exit Codes:**
 - `0`: Mutation testing completed successfully

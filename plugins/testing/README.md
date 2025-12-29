@@ -276,6 +276,8 @@ on:
   schedule:
     - cron: '0 2 * * 0'  # Weekly on Sunday
   workflow_dispatch:
+  pull_request:
+    branches: [main]
 
 jobs:
   mutation-test:
@@ -286,12 +288,28 @@ jobs:
         with:
           go-version: '1.21'
       
+      - name: Install mutation testing tools
+        run: |
+          # Install your mutation testing script/binary
+          # Example: go install github.com/your-org/mutation-tester@latest
+          # Or use the Python scripts from this plugin
+          pip install -r plugins/testing/skills/mutation-generator/requirements.txt
+      
       - name: Run Mutation Testing
         run: |
-          /testing:mutation-test \
+          # Run the actual mutation testing script
+          python3 plugins/testing/skills/mutation-generator/generate_mutations_efficient.py \
+            --operator-path . \
+            --mutation-types error-handling,conditionals \
+            --output .work/mutations.json
+          
+          # Execute tests for each mutation
+          bash plugins/testing/skills/mutation-tester/run_mutations.sh \
+            --mutations .work/mutations.json \
             --report-format markdown > mutation-report.md
       
       - name: Comment on PR
+        if: github.event_name == 'pull_request'
         uses: actions/github-script@v6
         with:
           script: |
@@ -301,9 +319,19 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: report
+              body: '## Mutation Testing Results\n\n' + report
             });
+      
+      - name: Upload Report
+        uses: actions/upload-artifact@v3
+        with:
+          name: mutation-report
+          path: |
+            mutation-report.md
+            .work/mutation-testing/
 ```
+
+**Note**: The `/testing:mutation-test` command is a Claude Code slash command meant for interactive development. For CI/CD, use the underlying scripts directly as shown above, or create a wrapper script that implements the mutation testing workflow.
 
 ## Best Practices
 
