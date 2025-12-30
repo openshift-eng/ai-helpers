@@ -4,7 +4,7 @@ Install and configure Gateway API resources on Kubernetes and OpenShift clusters
 
 ## Overview
 
-The Gateway API plugin provides utilities for installing Gateway API resources with automatic cluster configuration. It simplifies the deployment of GatewayClass and Gateway resources by automatically detecting your cluster's ingress domain and applying the appropriate configuration.
+This Gateway API plugin provides utilities for installing Gateway API resources with automatic cluster configuration. It simplifies the deployment of GatewayClass and Gateway resources by applying the appropriate configuration.
 
 ## Commands
 
@@ -12,9 +12,25 @@ The Gateway API plugin provides utilities for installing Gateway API resources w
 
 Install Gateway API resources to a Kubernetes/OpenShift cluster.
 
+See [commands/install.md](commands/install.md) for complete documentation.
+
+### `/gwapi:check`
+
+Check the installed Gateway API resources in the connected cluster.
+
+See [commands/check.md](commands/check.md) for complete documentation.
+
+### `/gwapi:delete`
+
+Delete Gateway API resources in the Kubernetes/OpenShift cluster.
+
+See [commands/delete.md](commands/delete.md) for complete documentation.
+
 **Synopsis:**
 ```
 /gwapi:install [namespace]
+/gwapi:check [namespace]
+/gwapi:delete [namespace]
 ```
 
 **Features:**
@@ -22,18 +38,9 @@ Install Gateway API resources to a Kubernetes/OpenShift cluster.
 - Installs GatewayClass and Gateway resources
 - Supports both OpenShift (`oc`) and Kubernetes (`kubectl`)
 - Optional namespace targeting
+- Check installed Gateway API resources
+- Delete Gateway API resources
 - Idempotent installation (safe to run multiple times)
-
-**Example:**
-```bash
-# Install to default namespace
-/gwapi:install
-
-# Install to specific namespace
-/gwapi:install gateway-system
-```
-
-See [commands/install.md](commands/install.md) for complete documentation.
 
 ## Installation
 
@@ -49,7 +56,7 @@ See [commands/install.md](commands/install.md) for complete documentation.
 
 ## Resources Installed
 
-The plugin installs the following Gateway API resources:
+The plugin installs, checks and deletes the following Gateway API resources:
 
 1. **GatewayClass** (`openshift-default`)
    - Controller: `openshift.io/gateway-controller/v1`
@@ -69,9 +76,12 @@ The plugin installs the following Gateway API resources:
 4. Applies GatewayClass resource
 5. Substitutes cluster domain into Gateway resource and applies it
 6. Verifies installation success
+7. Checks the installed and other related Gateway API resources
+8. Deletes all related resources after prompting the user
 
 ## Notes
 
 - The Gateway resource uses `${DOMAIN}` as a placeholder that gets replaced with your cluster's actual ingress domain
 - Resources are applied idempotently - you can run the command multiple times safely
 - Original YAML files are not modified; domain substitution happens in-memory during application
+- Deleting the Gateway API resources provides warnings and disclaimers
