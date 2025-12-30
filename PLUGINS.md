@@ -137,6 +137,8 @@ See [plugins/git/README.md](plugins/git/README.md) for detailed documentation.
 Gateway API management for Kubernetes/OpenShift clusters
 
 **Commands:**
+- **`/gwapi:check` `[namespace]`** - Check Gateway API resources status in the cluster
+- **`/gwapi:delete` `[namespace]`** - Delete Gateway API resources from a Kubernetes/OpenShift cluster
 - **`/gwapi:install` `[namespace]`** - Install Gateway API resources to a Kubernetes/OpenShift cluster
 
 See [plugins/gwapi/README.md](plugins/gwapi/README.md) for detailed documentation.

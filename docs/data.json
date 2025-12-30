@@ -1037,6 +1037,18 @@
       "commands": [
         {
           "argument_hint": "[namespace]",
+          "description": "Check Gateway API resources status in the cluster",
+          "name": "check",
+          "synopsis": "/gwapi:check [namespace]"
+        },
+        {
+          "argument_hint": "[namespace]",
+          "description": "Delete Gateway API resources from a Kubernetes/OpenShift cluster",
+          "name": "delete",
+          "synopsis": "/gwapi:delete [namespace]"
+        },
+        {
+          "argument_hint": "[namespace]",
           "description": "Install Gateway API resources to a Kubernetes/OpenShift cluster",
           "name": "install",
           "synopsis": "/gwapi:install [namespace]"
