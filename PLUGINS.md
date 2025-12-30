@@ -130,6 +130,7 @@ Git workflow automation and utilities
 - **`/git:fix-cherrypick-robot-pr` `<pr-url> [error-messages]`** - Fix a cherrypick-robot PR that needs manual intervention
 - **`/git:suggest-reviewers` `[base-branch]`** - Suggest appropriate reviewers for a PR based on git blame and OWNERS files
 - **`/git:summary`** - Show current branch, git status, and recent commits for quick context
+- **`/git:track-prs` `[--all | --current]`** - Display a status dashboard of your open Pull Requests across GitHub repositories
 
 See [plugins/git/README.md](plugins/git/README.md) for detailed documentation.
 
