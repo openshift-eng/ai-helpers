@@ -1,0 +1,15 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: gateway
+  namespace: openshift-ingress
+spec:
+  gatewayClassName: openshift-default
+  listeners:
+  - name: demo
+    hostname: "*.gwapi.${DOMAIN}"
+    port: 80
+    protocol: HTTP
+    allowedRoutes:
+      namespaces:
+        from: All

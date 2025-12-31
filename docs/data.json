@@ -1071,6 +1071,34 @@
       "name": "workspaces",
       "skills": [],
       "version": "1.0.0"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "[namespace]",
+          "description": "Check Gateway API resources status in the cluster",
+          "name": "check",
+          "synopsis": "/gwapi:check [namespace]"
+        },
+        {
+          "argument_hint": "[namespace]",
+          "description": "Delete Gateway API resources from a Kubernetes/OpenShift cluster",
+          "name": "delete",
+          "synopsis": "/gwapi:delete [namespace]"
+        },
+        {
+          "argument_hint": "[namespace]",
+          "description": "Install Gateway API resources to a Kubernetes/OpenShift cluster",
+          "name": "install",
+          "synopsis": "/gwapi:install [namespace]"
+        }
+      ],
+      "description": "Gateway API installation utilities for Kubernetes/OpenShift clusters",
+      "has_readme": true,
+      "hooks": [],
+      "name": "gwapi",
+      "skills": [],
+      "version": "0.0.1"
     }
   ]
 }
