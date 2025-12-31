@@ -7,7 +7,7 @@ argument-hint: [namespace]
 gwapi:install
 
 ## Synopsis
-```
+```bash
 /gwapi:install [namespace]
 ```
 
@@ -27,8 +27,8 @@ The command automatically retrieves the cluster's ingress domain and substitutes
    - Check if `oc` is available: `which oc`
    - If not available, check for `kubectl`: `which kubectl`
    - If neither is available, inform the user to install one of these tools:
-     - OpenShift CLI: https://docs.openshift.com/container-platform/latest/cli_reference/openshift_cli/getting-started-cli.html
-     - Kubernetes CLI: https://kubernetes.io/docs/tasks/tools/
+     - OpenShift CLI: <https://docs.openshift.com/container-platform/latest/cli_reference/openshift_cli/getting-started-cli.html>
+     - Kubernetes CLI: <https://kubernetes.io/docs/tasks/tools/>
 
 2. **Cluster Connection Verification**
    - Verify cluster connectivity: `oc whoami` or `kubectl cluster-info`
@@ -88,13 +88,13 @@ The command automatically retrieves the cluster's ingress domain and substitutes
 ## Examples
 
 1. **Install to default namespace**:
-   ```
+   ```bash
    /gwapi:install
    ```
    Installs `gatewayclass.yaml` and `gateway.yaml` with the cluster's ingress domain automatically configured.
 
 2. **Install to specific namespace**:
-   ```
+   ```bash
    /gwapi:install gateway-system
    ```
    Installs both resources to the `gateway-system` namespace with domain substitution.

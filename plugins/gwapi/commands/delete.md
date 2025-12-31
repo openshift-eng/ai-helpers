@@ -7,7 +7,7 @@ argument-hint: [namespace]
 gwapi:delete
 
 ## Synopsis
-```
+```bash
 /gwapi:delete [namespace]
 ```
 
@@ -27,8 +27,8 @@ The command uses `oc` (preferred) or `kubectl` to delete the resources safely. I
    - Check if `oc` is available: `which oc`
    - If not available, check for `kubectl`: `which kubectl`
    - If neither is available, inform the user to install one of these tools:
-     - OpenShift CLI: https://docs.openshift.com/container-platform/latest/cli_reference/openshift_cli/getting-started-cli.html
-     - Kubernetes CLI: https://kubernetes.io/docs/tasks/tools/
+     - OpenShift CLI: <https://docs.openshift.com/container-platform/latest/cli_reference/openshift_cli/getting-started-cli.html>
+     - Kubernetes CLI: <https://kubernetes.io/docs/tasks/tools/>
 
 2. **Cluster Connection Verification**
    - Verify cluster connectivity: `oc whoami` or `kubectl cluster-info`
@@ -47,7 +47,7 @@ The command uses `oc` (preferred) or `kubectl` to delete the resources safely. I
 
 4. **Display Resources to be Deleted**
    - Show a clear list of resources that will be deleted:
-     ```
+     ```text
      The following resources will be deleted:
 
      GatewayClass:
@@ -118,13 +118,13 @@ The command uses `oc` (preferred) or `kubectl` to delete the resources safely. I
 ## Examples
 
 1. **Delete all Gateway API resources**:
-   ```
+   ```bash
    /gwapi:delete
    ```
    Prompts for confirmation, then deletes Gateway from `openshift-ingress` namespace and the GatewayClass.
 
 2. **Delete Gateway from specific namespace**:
-   ```
+   ```bash
    /gwapi:delete gateway-system
    ```
    Deletes Gateway resources only from the `gateway-system` namespace and the cluster-scoped GatewayClass (after confirmation).
