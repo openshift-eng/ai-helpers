@@ -682,6 +682,12 @@
           "synopsis": "/openshift:ironic-status"
         },
         {
+          "argument_hint": "[--to-cluster [namespace]]",
+          "description": "Check wether the ingress canary route is accessable or not",
+          "name": "is-canary-route-accessible",
+          "synopsis": "/openshift:is-canary-route-accessible"
+        },
+        {
           "argument_hint": "[test-specification]",
           "description": "Write and validate new OpenShift E2E tests using Ginkgo framework",
           "name": "new-e2e-test",
