@@ -1,0 +1,8 @@
+{
+  "name": "k8s-bumpup",
+  "description": "Automate Kubernetes version bumping and dependency updates across repositories",
+  "version": "0.0.1",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}
