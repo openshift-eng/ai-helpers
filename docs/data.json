@@ -470,6 +470,12 @@
           "description": "Process Renovate dependency PR(s) to meet repository contribution standards",
           "name": "process-renovate-pr",
           "synopsis": "/utils:process-renovate-pr <PR_NUMBER|open> [JIRA_PROJECT] [COMPONENT]"
+        },
+        {
+          "argument_hint": "[issue-type]",
+          "description": "Generate debugging commands for Windows container issues",
+          "name": "winc-debug",
+          "synopsis": "/utils:winc-debug [issue-type]"
         }
       ],
       "description": "A generic utilities plugin serving as a catch-all for various helper commands",
