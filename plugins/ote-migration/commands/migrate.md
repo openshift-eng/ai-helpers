@@ -591,18 +591,69 @@ go get "github.com/openshift/origin@main"
 go get github.com/onsi/ginkgo/v2@latest
 go get github.com/onsi/gomega@latest
 
-echo "Step 5: Extract and add replace directives from openshift-tests-private..."
-# Extract all replace directives from openshift-tests-private
-grep -A 1000 "^replace" "$OTP_PATH/go.mod" | grep -B 1000 "^)" | grep -v "^replace" | grep -v "^)" > /tmp/replace_directives.txt
+echo "Step 5: Add replace directives with latest versions to avoid stale dependencies..."
+# Fetch latest versions from upstream to avoid outdated dependencies from openshift-tests-private
 
-# Add replace directives to go.mod
+# Get the latest Kubernetes commit from openshift/kubernetes
+echo "Fetching latest openshift/kubernetes version..."
+K8S_LATEST=$(git ls-remote https://github.com/openshift/kubernetes.git refs/heads/master | awk '{print $1}')
+K8S_SHORT="${K8S_LATEST:0:12}"
+K8S_DATE=$(date -u +%Y%m%d%H%M%S)
+K8S_VERSION="v1.30.1-0.${K8S_DATE}-${K8S_SHORT}"
+echo "Using Kubernetes version: $K8S_VERSION"
+
+# Get the latest openshift ginkgo fork for OpenShift 4.22+
+echo "Fetching latest openshift ginkgo fork..."
+GINKGO_LATEST=$(git ls-remote https://github.com/openshift/onsi-ginkgo.git refs/heads/v2.27.2-openshift-4.22 | awk '{print $1}')
+GINKGO_SHORT="${GINKGO_LATEST:0:12}"
+GINKGO_DATE=$(date -u +%Y%m%d%H%M%S)
+GINKGO_VERSION="v2.6.1-0.${GINKGO_DATE}-${GINKGO_SHORT}"
+echo "Using ginkgo version: $GINKGO_VERSION"
+
+# Add replace directives to go.mod with fresh versions
 echo "" >> go.mod
 echo "replace (" >> go.mod
-cat /tmp/replace_directives.txt >> go.mod
+echo "	bitbucket.org/ww/goautoneg => github.com/munnerz/goautoneg v0.0.0-20120707110453-a547fc61f48d" >> go.mod
+echo "	github.com/jteeuwen/go-bindata => github.com/jteeuwen/go-bindata v3.0.8-0.20151023091102-a0ff2567cfb7+incompatible" >> go.mod
+echo "	github.com/onsi/ginkgo/v2 => github.com/openshift/onsi-ginkgo/v2 $GINKGO_VERSION" >> go.mod
+echo "	k8s.io/api => github.com/openshift/kubernetes/staging/src/k8s.io/api v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/apiextensions-apiserver => github.com/openshift/kubernetes/staging/src/k8s.io/apiextensions-apiserver v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/apimachinery => github.com/openshift/kubernetes/staging/src/k8s.io/apimachinery v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/apiserver => github.com/openshift/kubernetes/staging/src/k8s.io/apiserver v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/cli-runtime => github.com/openshift/kubernetes/staging/src/k8s.io/cli-runtime v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/client-go => github.com/openshift/kubernetes/staging/src/k8s.io/client-go v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/cloud-provider => github.com/openshift/kubernetes/staging/src/k8s.io/cloud-provider v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/cluster-bootstrap => github.com/openshift/kubernetes/staging/src/k8s.io/cluster-bootstrap v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/code-generator => github.com/openshift/kubernetes/staging/src/k8s.io/code-generator v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/component-base => github.com/openshift/kubernetes/staging/src/k8s.io/component-base v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/component-helpers => github.com/openshift/kubernetes/staging/src/k8s.io/component-helpers v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/controller-manager => github.com/openshift/kubernetes/staging/src/k8s.io/controller-manager v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/cri-api => github.com/openshift/kubernetes/staging/src/k8s.io/cri-api v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/cri-client => github.com/openshift/kubernetes/staging/src/k8s.io/cri-client v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/csi-translation-lib => github.com/openshift/kubernetes/staging/src/k8s.io/csi-translation-lib v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/dynamic-resource-allocation => github.com/openshift/kubernetes/staging/src/k8s.io/dynamic-resource-allocation v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/endpointslice => github.com/openshift/kubernetes/staging/src/k8s.io/endpointslice v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/kube-aggregator => github.com/openshift/kubernetes/staging/src/k8s.io/kube-aggregator v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/kube-controller-manager => github.com/openshift/kubernetes/staging/src/k8s.io/kube-controller-manager v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/kube-proxy => github.com/openshift/kubernetes/staging/src/k8s.io/kube-proxy v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/kube-scheduler => github.com/openshift/kubernetes/staging/src/k8s.io/kube-scheduler v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/kubectl => github.com/openshift/kubernetes/staging/src/k8s.io/kubectl v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/kubelet => github.com/openshift/kubernetes/staging/src/k8s.io/kubelet v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/kubernetes => github.com/openshift/kubernetes $K8S_VERSION" >> go.mod
+echo "	k8s.io/legacy-cloud-providers => github.com/openshift/kubernetes/staging/src/k8s.io/legacy-cloud-providers v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/metrics => github.com/openshift/kubernetes/staging/src/k8s.io/metrics v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/mount-utils => github.com/openshift/kubernetes/staging/src/k8s.io/mount-utils v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/pod-security-admission => github.com/openshift/kubernetes/staging/src/k8s.io/pod-security-admission v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/sample-apiserver => github.com/openshift/kubernetes/staging/src/k8s.io/sample-apiserver v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/sample-cli-plugin => github.com/openshift/kubernetes/staging/src/k8s.io/sample-cli-plugin v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/sample-controller => github.com/openshift/kubernetes/staging/src/k8s.io/sample-controller v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
 echo ")" >> go.mod
 
 echo "Step 6: Resolve all dependencies..."
-go mod tidy
+# Use GOTOOLCHAIN=auto to allow automatic download of required Go toolchain version
+# Use GOSUMDB=sum.golang.org to enable checksum verification for toolchain downloads
+# This prevents errors when dependencies require a newer Go version than what's installed
+GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go mod tidy
 
 echo "Step 7: Verify go.mod and go.sum are created..."
 if [ -f "go.mod" ] && [ -f "go.sum" ]; then
@@ -680,18 +731,69 @@ go get "github.com/openshift/origin@main"
 go get github.com/onsi/ginkgo/v2@latest
 go get github.com/onsi/gomega@latest
 
-echo "Step 5: Extract and add replace directives from openshift-tests-private..."
-# Extract all replace directives from openshift-tests-private
-grep -A 1000 "^replace" "$OTP_PATH/go.mod" | grep -B 1000 "^)" | grep -v "^replace" | grep -v "^)" > /tmp/replace_directives.txt
+echo "Step 5: Add replace directives with latest versions to avoid stale dependencies..."
+# Fetch latest versions from upstream to avoid outdated dependencies from openshift-tests-private
 
-# Add replace directives to go.mod
+# Get the latest Kubernetes commit from openshift/kubernetes
+echo "Fetching latest openshift/kubernetes version..."
+K8S_LATEST=$(git ls-remote https://github.com/openshift/kubernetes.git refs/heads/master | awk '{print $1}')
+K8S_SHORT="${K8S_LATEST:0:12}"
+K8S_DATE=$(date -u +%Y%m%d%H%M%S)
+K8S_VERSION="v1.30.1-0.${K8S_DATE}-${K8S_SHORT}"
+echo "Using Kubernetes version: $K8S_VERSION"
+
+# Get the latest openshift ginkgo fork for OpenShift 4.22+
+echo "Fetching latest openshift ginkgo fork..."
+GINKGO_LATEST=$(git ls-remote https://github.com/openshift/onsi-ginkgo.git refs/heads/v2.27.2-openshift-4.22 | awk '{print $1}')
+GINKGO_SHORT="${GINKGO_LATEST:0:12}"
+GINKGO_DATE=$(date -u +%Y%m%d%H%M%S)
+GINKGO_VERSION="v2.6.1-0.${GINKGO_DATE}-${GINKGO_SHORT}"
+echo "Using ginkgo version: $GINKGO_VERSION"
+
+# Add replace directives to go.mod with fresh versions
 echo "" >> go.mod
 echo "replace (" >> go.mod
-cat /tmp/replace_directives.txt >> go.mod
+echo "	bitbucket.org/ww/goautoneg => github.com/munnerz/goautoneg v0.0.0-20120707110453-a547fc61f48d" >> go.mod
+echo "	github.com/jteeuwen/go-bindata => github.com/jteeuwen/go-bindata v3.0.8-0.20151023091102-a0ff2567cfb7+incompatible" >> go.mod
+echo "	github.com/onsi/ginkgo/v2 => github.com/openshift/onsi-ginkgo/v2 $GINKGO_VERSION" >> go.mod
+echo "	k8s.io/api => github.com/openshift/kubernetes/staging/src/k8s.io/api v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/apiextensions-apiserver => github.com/openshift/kubernetes/staging/src/k8s.io/apiextensions-apiserver v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/apimachinery => github.com/openshift/kubernetes/staging/src/k8s.io/apimachinery v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/apiserver => github.com/openshift/kubernetes/staging/src/k8s.io/apiserver v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/cli-runtime => github.com/openshift/kubernetes/staging/src/k8s.io/cli-runtime v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/client-go => github.com/openshift/kubernetes/staging/src/k8s.io/client-go v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/cloud-provider => github.com/openshift/kubernetes/staging/src/k8s.io/cloud-provider v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/cluster-bootstrap => github.com/openshift/kubernetes/staging/src/k8s.io/cluster-bootstrap v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/code-generator => github.com/openshift/kubernetes/staging/src/k8s.io/code-generator v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/component-base => github.com/openshift/kubernetes/staging/src/k8s.io/component-base v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/component-helpers => github.com/openshift/kubernetes/staging/src/k8s.io/component-helpers v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/controller-manager => github.com/openshift/kubernetes/staging/src/k8s.io/controller-manager v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/cri-api => github.com/openshift/kubernetes/staging/src/k8s.io/cri-api v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/cri-client => github.com/openshift/kubernetes/staging/src/k8s.io/cri-client v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/csi-translation-lib => github.com/openshift/kubernetes/staging/src/k8s.io/csi-translation-lib v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/dynamic-resource-allocation => github.com/openshift/kubernetes/staging/src/k8s.io/dynamic-resource-allocation v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/endpointslice => github.com/openshift/kubernetes/staging/src/k8s.io/endpointslice v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/kube-aggregator => github.com/openshift/kubernetes/staging/src/k8s.io/kube-aggregator v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/kube-controller-manager => github.com/openshift/kubernetes/staging/src/k8s.io/kube-controller-manager v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/kube-proxy => github.com/openshift/kubernetes/staging/src/k8s.io/kube-proxy v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/kube-scheduler => github.com/openshift/kubernetes/staging/src/k8s.io/kube-scheduler v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/kubectl => github.com/openshift/kubernetes/staging/src/k8s.io/kubectl v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/kubelet => github.com/openshift/kubernetes/staging/src/k8s.io/kubelet v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/kubernetes => github.com/openshift/kubernetes $K8S_VERSION" >> go.mod
+echo "	k8s.io/legacy-cloud-providers => github.com/openshift/kubernetes/staging/src/k8s.io/legacy-cloud-providers v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/metrics => github.com/openshift/kubernetes/staging/src/k8s.io/metrics v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/mount-utils => github.com/openshift/kubernetes/staging/src/k8s.io/mount-utils v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/pod-security-admission => github.com/openshift/kubernetes/staging/src/k8s.io/pod-security-admission v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/sample-apiserver => github.com/openshift/kubernetes/staging/src/k8s.io/sample-apiserver v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/sample-cli-plugin => github.com/openshift/kubernetes/staging/src/k8s.io/sample-cli-plugin v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "	k8s.io/sample-controller => github.com/openshift/kubernetes/staging/src/k8s.io/sample-controller v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
 echo ")" >> go.mod
 
 echo "Step 6: Resolve all dependencies..."
-go mod tidy
+# Use GOTOOLCHAIN=auto to allow automatic download of required Go toolchain version
+# Use GOSUMDB=sum.golang.org to enable checksum verification for toolchain downloads
+# This prevents errors when dependencies require a newer Go version than what's installed
+GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go mod tidy
 
 echo "Step 7: Verify go.mod and go.sum are created..."
 if [ -f "go.mod" ] && [ -f "go.sum" ]; then
@@ -1070,6 +1172,55 @@ help:
 	@echo "  clean       - Remove extension binary"
 ```
 
+**Update Root Makefile (Target Repository):**
+
+For single-module strategy, also update the root Makefile in the target repository to add a target for building the OTE extension:
+
+```bash
+cd $TARGET_REPO
+
+# Check if Makefile exists
+if [ -f "Makefile" ]; then
+    echo "Updating root Makefile with OTE extension target..."
+
+    # Add OTE extension build target
+    cat >> Makefile << 'EOF'
+
+# OTE test extension binary configuration
+TESTS_EXT_DIR := ./tests-extension
+TESTS_EXT_BINARY := tests-extension/bin/<extension-name>-tests-ext
+
+# Build OTE extension binary
+.PHONY: tests-ext-build
+tests-ext-build:
+	@echo "Building OTE test extension binary..."
+	@cd $(TESTS_EXT_DIR) && $(MAKE) build
+	@echo "OTE binary built successfully at $(TESTS_EXT_BINARY)"
+
+# Alias for backward compatibility
+.PHONY: extension
+extension: tests-ext-build
+
+# Clean extension binary
+.PHONY: clean-extension
+clean-extension:
+	@echo "Cleaning extension binary..."
+	@cd $(TESTS_EXT_DIR) && $(MAKE) clean
+EOF
+
+    echo "✅ Root Makefile updated with OTE targets"
+else
+    echo "⚠️  No root Makefile found in target repository"
+    echo "You may need to create one or integrate the build manually"
+fi
+```
+
+**Key Points:**
+- The root Makefile delegates to `tests-extension/Makefile` for building
+- Binary is built to `tests-extension/bin/<extension-name>-tests-ext`
+- Provides `make tests-ext-build` and `make extension` targets at repo root
+- Can be called from Dockerfile to build the extension binary
+
 #### Step 5: Create fixtures.go
 
 **For Monorepo Strategy:**
@@ -1337,13 +1488,13 @@ RUN cd test && make bindata
 RUN make tests-ext-build
 
 # Compress the binary (following OpenShift pattern)
-RUN gzip cmd/extension/<extension-name>-tests-ext
+RUN gzip bin/<extension-name>-tests-ext
 
 # Final stage - Runtime image
 FROM registry.ci.openshift.org/ocp/4.17:base-rhel9
 
 # Copy the compressed OTE binary to /usr/bin/
-COPY --from=builder /go/src/github.com/<org>/<component-name>/cmd/extension/<extension-name>-tests-ext.gz /usr/bin/
+COPY --from=builder /go/src/github.com/<org>/<component-name>/bin/<extension-name>-tests-ext.gz /usr/bin/
 
 # ... rest of your Dockerfile (copy other binaries, set entrypoint, etc.)
 ```
@@ -1357,7 +1508,42 @@ COPY --from=builder /go/src/github.com/<org>/<component-name>/cmd/extension/<ext
 
 **For Single-Module Strategy:**
 
-For single-module strategy, refer to the Dockerfile integration section in the migration summary (Phase 8).
+Following the same pattern, update the target repository's Dockerfile to build and include the OTE binary:
+
+```dockerfile
+# Example multi-stage Dockerfile update for single-module strategy
+# Add this to your existing Dockerfile in the target repository
+
+# Build stage - Build the OTE test extension binary
+FROM registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.21-openshift-4.17 AS builder
+WORKDIR /go/src/github.com/<org>/<component-name>
+
+# Copy source code
+COPY . .
+
+# Build the OTE extension binary using the root Makefile target
+# This delegates to tests-extension/Makefile
+RUN make tests-ext-build
+
+# Compress the binary (following OpenShift pattern)
+RUN gzip tests-extension/bin/<extension-name>-tests-ext
+
+# Final stage - Runtime image
+FROM registry.ci.openshift.org/ocp/4.17:base-rhel9
+
+# Copy the compressed OTE binary to /usr/bin/
+COPY --from=builder /go/src/github.com/<org>/<component-name>/tests-extension/bin/<extension-name>-tests-ext.gz /usr/bin/
+
+# ... rest of your Dockerfile (copy other binaries, set entrypoint, etc.)
+```
+
+**Key Points:**
+- The Dockerfile uses the root Makefile target `make tests-ext-build`
+- The root Makefile delegates to `tests-extension/Makefile`
+- Binary is compressed from `tests-extension/bin/<extension-name>-tests-ext`
+- The compressed binary (.gz) is copied to `/usr/bin/` in the final image
+- The build happens in a builder stage with the Go toolchain
+- The final runtime image only contains the compressed binary
 
 ### Phase 6: Test Migration (3 steps - AUTOMATED)
 
@@ -1831,6 +2017,58 @@ This will generate bindata and build the binary to `bin/<extension-name>-tests-e
 
 ## Troubleshooting
 
+### Dependency Version Management (IMPORTANT)
+
+**The migration tool now fetches latest versions** of critical dependencies (Kubernetes and ginkgo) directly from their repositories instead of copying from `openshift-tests-private`. This prevents stale dependency issues.
+
+**What changed:**
+- ✅ **Old behavior**: Copied all replace directives from `openshift-tests-private/go.mod` (could be outdated)
+- ✅ **New behavior**: Dynamically fetches latest commits from:
+  - `github.com/openshift/kubernetes` (master branch)
+  - `github.com/openshift/onsi-ginkgo` (v2.27.2-openshift-4.22 branch)
+
+**Why this matters:**
+Prevents API incompatibility errors such as:
+- `undefined: ginkgo.NewWriter`
+- `undefined: diff.Diff` (library-go)
+- `undefined: otelgrpc.UnaryClientInterceptor` (cri-client)
+- `structured-merge-diff/v6 vs v4` type mismatches
+- `too many arguments in call to testdata.FixturePath`
+
+**If you encounter version issues:**
+1. Check the git ls-remote outputs in Step 5 to verify latest commits are being used
+2. Manually update replace directives in `go.mod` if a specific version is required
+3. Run `go mod tidy` after any manual changes
+
+**Go Version Compatibility:**
+
+The migration automatically uses `GOTOOLCHAIN=auto GOSUMDB=sum.golang.org` when running `go mod tidy`. This allows Go to automatically download and use a newer toolchain version if required by dependencies.
+
+**If you see errors like:**
+```
+go: go.mod requires go >= 1.24.6 (running go 1.24.3; GOTOOLCHAIN=local)
+```
+
+**This is automatically handled by the migration.** The `GOTOOLCHAIN=auto` setting allows Go to download the required version (e.g., go1.24.11) without requiring you to manually upgrade your system Go installation.
+
+**What happens:**
+- Your system Go: 1.24.3
+- Dependencies require: 1.24.6+
+- `GOTOOLCHAIN=auto` downloads: 1.24.11 (as specified in go.mod's toolchain directive)
+- Build succeeds using the downloaded toolchain
+
+**If you need to manually run go mod tidy later:**
+```bash
+cd ~/router/tests-extension
+GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go mod tidy
+```
+
+**Or set it globally in your environment:**
+```bash
+export GOTOOLCHAIN=auto
+export GOSUMDB=sum.golang.org
+```
+
 ### If Dependency Download Was Interrupted
 
 If you see warnings about failed dependency downloads during migration, complete the process manually:
@@ -1846,8 +2084,8 @@ go get "github.com/openshift/origin@$ORIGIN_VERSION"
 go get github.com/onsi/ginkgo/v2@latest
 go get github.com/onsi/gomega@latest
 
-# Resolve all dependencies
-go mod tidy
+# Resolve all dependencies (auto-download required Go version if needed)
+GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go mod tidy
 
 # Download all modules
 go mod download
@@ -1864,7 +2102,7 @@ cd ../..
 ```bash
 cd <working-dir>
 
-go mod tidy
+GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go mod tidy
 go mod download
 ```
 
@@ -1966,7 +2204,7 @@ This creates `test/testdata/bindata.go` with embedded test data.
 
 ```bash
 go get github.com/openshift-eng/openshift-tests-extension@latest
-go mod tidy
+GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go mod tidy
 ```
 
 ### 3. Build Extension
@@ -2070,6 +2308,58 @@ docker-extension: docker-build
 
 ## Troubleshooting
 
+### Dependency Version Management (IMPORTANT)
+
+**The migration tool now fetches latest versions** of critical dependencies (Kubernetes and ginkgo) directly from their repositories instead of copying from `openshift-tests-private`. This prevents stale dependency issues.
+
+**What changed:**
+- ✅ **Old behavior**: Copied all replace directives from `openshift-tests-private/go.mod` (could be outdated)
+- ✅ **New behavior**: Dynamically fetches latest commits from:
+  - `github.com/openshift/kubernetes` (master branch)
+  - `github.com/openshift/onsi-ginkgo` (v2.27.2-openshift-4.22 branch)
+
+**Why this matters:**
+Prevents API incompatibility errors such as:
+- `undefined: ginkgo.NewWriter`
+- `undefined: diff.Diff` (library-go)
+- `undefined: otelgrpc.UnaryClientInterceptor` (cri-client)
+- `structured-merge-diff/v6 vs v4` type mismatches
+- `too many arguments in call to testdata.FixturePath`
+
+**If you encounter version issues:**
+1. Check the git ls-remote outputs in Step 5 to verify latest commits are being used
+2. Manually update replace directives in `go.mod` if a specific version is required
+3. Run `go mod tidy` after any manual changes
+
+**Go Version Compatibility:**
+
+The migration automatically uses `GOTOOLCHAIN=auto GOSUMDB=sum.golang.org` when running `go mod tidy`. This allows Go to automatically download and use a newer toolchain version if required by dependencies.
+
+**If you see errors like:**
+```
+go: go.mod requires go >= 1.24.6 (running go 1.24.3; GOTOOLCHAIN=local)
+```
+
+**This is automatically handled by the migration.** The `GOTOOLCHAIN=auto` setting allows Go to download the required version (e.g., go1.24.11) without requiring you to manually upgrade your system Go installation.
+
+**What happens:**
+- Your system Go: 1.24.3
+- Dependencies require: 1.24.6+
+- `GOTOOLCHAIN=auto` downloads: 1.24.11 (as specified in go.mod's toolchain directive)
+- Build succeeds using the downloaded toolchain
+
+**If you need to manually run go mod tidy later:**
+```bash
+cd ~/router/tests-extension
+GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go mod tidy
+```
+
+**Or set it globally in your environment:**
+```bash
+export GOTOOLCHAIN=auto
+export GOSUMDB=sum.golang.org
+```
+
 ### If Dependency Download Was Interrupted
 
 If you see warnings about failed dependency downloads during migration, complete the process manually:
@@ -2088,8 +2378,8 @@ go get "github.com/openshift/origin@$ORIGIN_VERSION"
 go get github.com/onsi/ginkgo/v2@latest
 go get github.com/onsi/gomega@latest
 
-# Resolve all dependencies
-go mod tidy
+# Resolve all dependencies (auto-download required Go version if needed)
+GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go mod tidy
 
 # Download all modules
 go mod download
@@ -2244,6 +2534,224 @@ After migration, guide the user through validation:
    # Run specific test
    ./<extension-name> run "test name"
    ```
+
+## Testing Docker Image Integration
+
+After updating the Dockerfile to include the OTE extension binary, you should test that the build process works correctly and the binary is properly included in the image.
+
+### Testing Monorepo Strategy
+
+**For Monorepo Strategy (binary in `bin/`):**
+
+```bash
+cd <target-repo-root>
+
+# Step 1: Build the Docker image
+docker build -t <component-name>:test .
+
+# Step 2: Verify the compressed binary exists in the image
+docker run --rm <component-name>:test ls -lh /usr/bin/<extension-name>-tests-ext.gz
+
+# Expected output:
+# -rw-r--r-- 1 root root 15M <date> /usr/bin/<extension-name>-tests-ext.gz
+
+# Step 3: Extract and decompress the binary for inspection
+docker run --rm <component-name>:test sh -c "gzip -dc /usr/bin/<extension-name>-tests-ext.gz | file -"
+
+# Expected output:
+# /dev/stdin: ELF 64-bit LSB executable, x86-64, version 1 (SYSV), statically linked, Go BuildID=...
+
+# Step 4: Test the binary executes correctly
+docker run --rm <component-name>:test sh -c "gzip -dc /usr/bin/<extension-name>-tests-ext.gz > /tmp/ext && chmod +x /tmp/ext && /tmp/ext --help"
+
+# Expected output: Help message from the OTE extension binary
+
+# Step 5: Verify binary size (compressed vs uncompressed)
+echo "Compressed size:"
+docker run --rm <component-name>:test ls -lh /usr/bin/<extension-name>-tests-ext.gz | awk '{print $5}'
+
+echo "Uncompressed size:"
+docker run --rm <component-name>:test sh -c "gzip -dc /usr/bin/<extension-name>-tests-ext.gz | wc -c | numfmt --to=iec-i --suffix=B"
+
+# Step 6: Extract the binary locally for testing
+docker run --rm <component-name>:test cat /usr/bin/<extension-name>-tests-ext.gz > /tmp/<extension-name>-tests-ext.gz
+gzip -d /tmp/<extension-name>-tests-ext.gz
+chmod +x /tmp/<extension-name>-tests-ext
+/tmp/<extension-name>-tests-ext list
+
+# Cleanup
+rm -f /tmp/<extension-name>-tests-ext
+```
+
+### Testing Single-Module Strategy
+
+**For Single-Module Strategy (binary in `tests-extension/bin/`):**
+
+```bash
+cd <target-repo-root>
+
+# Step 1: Verify the root Makefile target works
+make tests-ext-build
+
+# Expected output:
+# Building OTE test extension binary...
+# Binary built successfully at tests-extension/bin/<extension-name>-tests-ext
+
+# Step 2: Test local compression
+gzip -c tests-extension/bin/<extension-name>-tests-ext > /tmp/<extension-name>-tests-ext.gz
+ls -lh /tmp/<extension-name>-tests-ext.gz
+
+# Step 3: Verify the compressed binary can be decompressed and executed
+gzip -dc /tmp/<extension-name>-tests-ext.gz > /tmp/<extension-name>-tests-ext
+chmod +x /tmp/<extension-name>-tests-ext
+/tmp/<extension-name>-tests-ext --help
+
+# Step 4: Build the Docker image
+docker build -t <component-name>:test .
+
+# Step 5: Verify the compressed binary exists in the image
+docker run --rm <component-name>:test ls -lh /usr/bin/<extension-name>-tests-ext.gz
+
+# Step 6: Test the binary executes correctly in the container
+docker run --rm <component-name>:test sh -c "gzip -dc /usr/bin/<extension-name>-tests-ext.gz > /tmp/ext && chmod +x /tmp/ext && /tmp/ext --help"
+
+# Step 7: Compare image size with and without compression
+docker images <component-name>:test
+
+# Cleanup
+rm -f /tmp/<extension-name>-tests-ext /tmp/<extension-name>-tests-ext.gz
+```
+
+### Common Validation Checks
+
+**1. Verify Build Process:**
+```bash
+# Check that the Makefile target is called correctly in Dockerfile
+docker build --progress=plain -t <component-name>:test . 2>&1 | grep -A 5 "tests-ext-build"
+
+# Expected output should show:
+# RUN make tests-ext-build
+# Building OTE test extension binary...
+# Binary built successfully
+```
+
+**2. Verify Compression Ratio:**
+```bash
+# Compare sizes - compression should reduce size by 60-70%
+ORIGINAL_SIZE=$(docker run --rm <component-name>:test sh -c "gzip -dc /usr/bin/<extension-name>-tests-ext.gz | wc -c")
+COMPRESSED_SIZE=$(docker run --rm <component-name>:test stat -c%s /usr/bin/<extension-name>-tests-ext.gz)
+
+echo "Original size: $(numfmt --to=iec-i --suffix=B $ORIGINAL_SIZE)"
+echo "Compressed size: $(numfmt --to=iec-i --suffix=B $COMPRESSED_SIZE)"
+echo "Compression ratio: $(echo "scale=2; 100 - ($COMPRESSED_SIZE * 100 / $ORIGINAL_SIZE)" | bc)%"
+```
+
+**3. Test Binary Functionality in Container:**
+```bash
+# Create a test container
+docker run -it --rm <component-name>:test sh
+
+# Inside the container:
+cd /tmp
+gzip -dc /usr/bin/<extension-name>-tests-ext.gz > extension
+chmod +x extension
+
+# List available tests
+./extension list
+
+# Run tests in dry-run mode
+./extension run --dry-run
+
+# Exit container
+exit
+```
+
+**4. Verify Binary Architecture:**
+```bash
+# Ensure binary matches container architecture
+docker run --rm <component-name>:test sh -c "gzip -dc /usr/bin/<extension-name>-tests-ext.gz | file -"
+
+# Expected: ELF 64-bit LSB executable, x86-64 (or arm64 for ARM images)
+```
+
+### Troubleshooting Docker Build
+
+**Problem: Binary not found in builder stage**
+```bash
+# Debug the builder stage
+docker build --target builder -t <component-name>:builder .
+docker run --rm <component-name>:builder ls -la bin/
+docker run --rm <component-name>:builder ls -la tests-extension/bin/
+```
+
+**Problem: Compression fails**
+```bash
+# Check if binary exists before compression
+docker build --target builder -t <component-name>:builder .
+docker run --rm <component-name>:builder sh -c "ls -la bin/<extension-name>-tests-ext || ls -la tests-extension/bin/<extension-name>-tests-ext"
+```
+
+**Problem: Binary path mismatch in COPY command**
+```bash
+# Inspect builder image to find correct path
+docker build --target builder -t <component-name>:builder .
+docker run --rm <component-name>:builder find /go/src -name "<extension-name>-tests-ext.gz"
+```
+
+**Problem: Binary won't execute in final image**
+```bash
+# Check binary permissions and dependencies
+docker run --rm <component-name>:test sh -c "gzip -dc /usr/bin/<extension-name>-tests-ext.gz > /tmp/ext && chmod +x /tmp/ext && ldd /tmp/ext"
+
+# If you see "not a dynamic executable", the binary is statically linked (good!)
+# If you see missing libraries, check CGO_ENABLED settings in build
+```
+
+### CI/CD Integration Testing
+
+**Test in OpenShift CI Environment:**
+
+```bash
+# Example: Test with podman (used in OpenShift CI)
+podman build -t <component-name>:test .
+podman run --rm <component-name>:test ls -lh /usr/bin/<extension-name>-tests-ext.gz
+
+# Test with specific builder image versions
+podman build --build-arg BUILDER_IMAGE=registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.22-openshift-4.18 -t <component-name>:test .
+```
+
+**Create a Simple Test Script:**
+
+```bash
+#!/bin/bash
+# test-docker-ote.sh
+
+set -e
+
+IMAGE_NAME="${1:-<component-name>:test}"
+EXTENSION_NAME="${2:-<extension-name>}"
+
+echo "Building Docker image: $IMAGE_NAME"
+docker build -t "$IMAGE_NAME" .
+
+echo "Checking binary exists..."
+docker run --rm "$IMAGE_NAME" ls -lh /usr/bin/${EXTENSION_NAME}-tests-ext.gz
+
+echo "Testing binary extraction and execution..."
+docker run --rm "$IMAGE_NAME" sh -c "
+    gzip -dc /usr/bin/${EXTENSION_NAME}-tests-ext.gz > /tmp/ext && \
+    chmod +x /tmp/ext && \
+    /tmp/ext --help
+"
+
+echo "✅ Docker image validation complete!"
+```
+
+**Usage:**
+```bash
+chmod +x test-docker-ote.sh
+./test-docker-ote.sh <component-name>:test <extension-name>
+```
 
 ## Important Implementation Notes
 
