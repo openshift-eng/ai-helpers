@@ -138,6 +138,11 @@
       "name": "workspaces",
       "source": "./plugins/workspaces",
       "description": "Manage isolated git worktree workspaces for multi-repo development"
+    },
+    {
+      "name": "github",
+      "source": "./plugins/github",
+      "description": "GitHub automation and workflow utilities for issue management and triage"
     }
   ]
 }
