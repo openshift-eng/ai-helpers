@@ -19,7 +19,7 @@ The `gwapi:delete` command removes Gateway API resources from a Kubernetes or Op
 The command uses `oc` (preferred) or `kubectl` to delete the resources safely. It provides confirmation before deletion and verifies successful removal.
 
 ## Arguments
-- `$1` (optional): Target namespace for deleting Gateway resources. If not specified, deletes from the namespace defined in the original YAML files (`openshift-ingress`) or all namespaces.
+- `$1` (optional): Target namespace for deleting Gateway resources. If not specified, deletes Gateway resources from the `openshift-ingress` namespace (as defined in the YAML files) and the cluster-scoped GatewayClass."
 
 ## Implementation
 

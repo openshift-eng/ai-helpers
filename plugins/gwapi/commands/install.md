@@ -51,7 +51,7 @@ The command automatically retrieves the cluster's ingress domain and substitutes
    - Locate `plugins/gwapi/resources/gatewayclass.yaml`
    - Display: "Installing GatewayClass..."
    - Apply the resource: `oc apply -f plugins/gwapi/resources/gatewayclass.yaml` or `kubectl apply -f plugins/gwapi/resources/gatewayclass.yaml`
-   - If namespace argument was provided, add `-n <namespace>` flag
+   - Note: GatewayClass is cluster-scoped, so it does not require a namespace flag
    - Capture and display any errors or warnings
 
 6. **Install Gateway with Domain Substitution**
