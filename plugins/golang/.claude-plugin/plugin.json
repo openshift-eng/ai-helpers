@@ -1,0 +1,8 @@
+{
+  "name": "golang",
+  "description": "Run golang codebase related commands and tools",
+  "version": "0.1.0",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}
