@@ -30,7 +30,8 @@ def parse_frontmatter(content: str) -> Dict[str, str]:
 
 def extract_synopsis(content: str) -> str:
     """Extract synopsis from command markdown"""
-    match = re.search(r'## Synopsis\s*```\s*([^\n]+)', content, re.MULTILINE)
+    # Match ## Synopsis followed by code block, capturing the actual command (not the language identifier)
+    match = re.search(r'## Synopsis\s*```[^\n]*\n([^\n]+)', content, re.MULTILINE)
     if match:
         return match.group(1).strip()
     return ""
@@ -108,7 +109,7 @@ def get_plugin_hooks(plugin_path: Path) -> List[Dict[str, str]]:
         description = hooks_data.get("description", "")
         hook_types = hooks_data.get("hooks", {})
 
-        for hook_type, hook_configs in hook_types.items():
+        for hook_type, hook_configs in sorted(hook_types.items()):
             hooks.append({
                 "name": hook_type,
                 "description": description,
