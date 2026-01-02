@@ -6,6 +6,9 @@ CONTAINER_RUNTIME ?= $(shell command -v podman 2>/dev/null || echo docker)
 # claudelint image
 CLAUDELINT_IMAGE = ghcr.io/stbenjam/claudelint:main
 
+# Detect if SELinux is enforcing and add security option
+SELINUX_OPT := $(shell if command -v getenforce >/dev/null 2>&1 && [ "$$(getenforce 2>/dev/null)" = "Enforcing" ]; then echo "--security-opt label=disable"; fi)
+
 .PHONY: help
 help: ## Show this help message
 	@echo "Available targets:"
@@ -14,7 +17,7 @@ help: ## Show this help message
 .PHONY: lint
 lint: ## Run plugin linter (verbose, strict mode)
 	@echo "Running claudelint with $(CONTAINER_RUNTIME)..."
-	$(CONTAINER_RUNTIME) run --rm -v $(PWD):/workspace:Z ghcr.io/stbenjam/claudelint:main -v --strict
+	$(CONTAINER_RUNTIME) run --rm $(SELINUX_OPT) -v $(PWD):/workspace:Z ghcr.io/stbenjam/claudelint:main -v --strict
 
 .PHONY: lint-pull
 lint-pull: ## Pull the latest claudelint image
@@ -23,6 +26,8 @@ lint-pull: ## Pull the latest claudelint image
 
 .PHONY: update
 update: ## Update plugin documentation and website data
+	@echo "Fixing frontmatter quotes, if any..."
+	@python3 scripts/fix_frontmatter_quotes.py
 	@echo "Updating plugin documentation..."
 	@python3 scripts/generate_plugin_docs.py
 	@echo "Building website data..."

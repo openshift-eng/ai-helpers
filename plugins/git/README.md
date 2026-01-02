@@ -4,9 +4,17 @@ Git workflow automation and utilities for Claude Code.
 
 ## Commands
 
+### `/git:bisect`
+
+Interactive git bisect assistant with pattern detection and automation. Helps find the exact commit that introduced a specific change using binary search.
+
 ### `/git:cherry-pick-by-patch`
 
 Cherry-pick a git commit into the current branch using the patch command instead of git cherry-pick.
+
+### `/git:fix-robot-pr`
+
+Fix a cherrypick-robot PR that needs manual intervention by creating a replacement PR with all necessary fixes applied.
 
 ### `/git:commit-suggest`
 

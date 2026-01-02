@@ -24,7 +24,9 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Prow Job](#prow-job-plugin)
 - [Session](#session-plugin)
 - [Sosreport](#sosreport-plugin)
+- [Test Coverage](#test-coverage-plugin)
 - [Utils](#utils-plugin)
+- [Workspaces](#workspaces-plugin)
 - [Yaml](#yaml-plugin)
 
 ### Agendas Plugin
@@ -120,10 +122,12 @@ Git workflow automation and utilities
 
 **Commands:**
 - **`/git:backport` `<commit> <branch1> [branch2...] [--new-branch]`** - Backport commits to multiple branches
+- **`/git:bisect` `[good-commit] [bad-commit]`** - Interactive git bisect assistant with pattern detection and automation
 - **`/git:branch-cleanup` `[--dry-run] [--merged-only] [--remote]`** - Clean up old and defunct branches that are no longer needed
 - **`/git:cherry-pick-by-patch` `<commit_hash>`** - Cherry-pick git commit into current branch by "patch" command
 - **`/git:commit-suggest` `[N]`** - Generate Conventional Commits style commit messages or summarize existing commits
 - **`/git:debt-scan`** - Analyze technical debt indicators in the repository
+- **`/git:fix-cherrypick-robot-pr` `<pr-url> [error-messages]`** - Fix a cherrypick-robot PR that needs manual intervention
 - **`/git:suggest-reviewers` `[base-branch]`** - Suggest appropriate reviewers for a PR based on git blame and OWNERS files
 - **`/git:summary`** - Show current branch, git status, and recent commits for quick context
 
@@ -181,6 +185,7 @@ A plugin to analyze and report on must-gather data
 **Commands:**
 - **`/must-gather:analyze` `[must-gather-path] [component]`** - Quick analysis of must-gather data - runs all analysis scripts and provides comprehensive cluster diagnostics
 - **`/must-gather:ovn-dbs` `[must-gather-path]`** - Analyze OVN databases from a must-gather using ovsdb-tool
+- **`/must-gather:windows` `[must-gather-path] [--component COMPONENT]`** - Analyze Windows node logs and issues in must-gather data
 
 See [plugins/must-gather/README.md](plugins/must-gather/README.md) for detailed documentation.
 
@@ -228,6 +233,7 @@ OpenShift development utilities and helpers
 
 **Commands:**
 - **`/openshift:autoscale-cluster` `[--cpu-threshold <percentage>] [--memory-threshold <percentage>] [--min-nodes <count>] [--max-nodes <count>] [--dry-run]`** - Configure cluster autoscaling based on CPU and memory usage
+- **`/openshift:bootstrap-om`** - Bootstrap OpenShift Manager (OM) integration for OpenShift operators with automated resource discovery
 - **`/openshift:bump-deps` `<dependency> [version] [--create-jira] [--create-pr]`** - Bump dependencies in OpenShift projects with automated analysis and PR creation
 - **`/openshift:cluster-health-check` `[--verbose] [--output-format]`** - Perform comprehensive health check on OpenShift cluster and report issues
 - **`/openshift:crd-review` `[repository-path]`** - Review Kubernetes CRDs against Kubernetes and OpenShift API conventions
@@ -278,8 +284,19 @@ Analyze sosreport archives for system diagnostics and troubleshooting
 
 **Commands:**
 - **`/sosreport:analyze` `<path-to-sosreport> [--only <areas>] [--skip <areas>]`** - Analyze sosreport archive for system diagnostics and issues
+- **`/sosreport:ovs-db` `[sosreport-path] [--db] [--flows-only] [--query <json>]`** - Analyze OVS data from sosreport (text files or database)
 
 See [plugins/sosreport/README.md](plugins/sosreport/README.md) for detailed documentation.
+
+### Test Coverage Plugin
+
+Analyze code coverage and identify untested paths
+
+**Commands:**
+- **`/test-coverage:analyze` `<path-or-url> [--output <path>] [--priority <level>] [--test-structure-only]`** - Analyze test code structure without running tests to identify coverage gaps
+- **`/test-coverage:gaps` `<test-file-or-url> [--output <path>]`** - Identify E2E test scenario gaps in OpenShift/Kubernetes tests (component-agnostic)
+
+See [plugins/test-coverage/README.md](plugins/test-coverage/README.md) for detailed documentation.
 
 ### Utils Plugin
 
@@ -293,6 +310,16 @@ A generic utilities plugin serving as a catch-all for various helper commands an
 - **`/utils:process-renovate-pr` `<PR_NUMBER|open> [JIRA_PROJECT] [COMPONENT]`** - Process Renovate dependency PR(s) to meet repository contribution standards
 
 See [plugins/utils/README.md](plugins/utils/README.md) for detailed documentation.
+
+### Workspaces Plugin
+
+Manage isolated git worktree workspaces for multi-repo development
+
+**Commands:**
+- **`/workspaces:create` `<short-description> <repo1|url> [repo2...]`** - Create a workspace with git worktrees for multi-repository development
+- **`/workspaces:delete` `<workspace-name>`** - Delete a workspace and its git worktrees
+
+See [plugins/workspaces/README.md](plugins/workspaces/README.md) for detailed documentation.
 
 ### Yaml Plugin
 

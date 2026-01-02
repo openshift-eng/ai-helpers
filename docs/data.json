@@ -11,6 +11,12 @@
           "synopsis": "/git:backport <commit> <branch1> [branch2...] [--new-branch|-b]"
         },
         {
+          "argument_hint": "[good-commit] [bad-commit]",
+          "description": "Interactive git bisect assistant with pattern detection and automation",
+          "name": "bisect",
+          "synopsis": "/git:bisect                       # Fully interactive - will ask for all inputs"
+        },
+        {
           "argument_hint": "[--dry-run] [--merged-only] [--remote]",
           "description": "Clean up old and defunct branches that are no longer needed",
           "name": "branch-cleanup",
@@ -33,6 +39,12 @@
           "description": "Analyze technical debt indicators in the repository",
           "name": "debt-scan",
           "synopsis": "/git:debt-scan"
+        },
+        {
+          "argument_hint": "<pr-url> [error-messages]",
+          "description": "Fix a cherrypick-robot PR that needs manual intervention",
+          "name": "fix-cherrypick-robot-pr",
+          "synopsis": "/git:fix-cherrypick-robot-pr <pr-url> [error-messages]"
         },
         {
           "argument_hint": "[base-branch]",
@@ -386,6 +398,12 @@
           "description": "Analyze sosreport archive for system diagnostics and issues",
           "name": "analyze",
           "synopsis": "/sosreport:analyze <path-to-sosreport> [--only <areas>] [--skip <areas>]"
+        },
+        {
+          "argument_hint": "[sosreport-path] [--db] [--flows-only] [--query <json>]",
+          "description": "Analyze OVS data from sosreport (text files or database)",
+          "name": "ovs-db",
+          "synopsis": "/sosreport:ovs-db [sosreport-path] [--db] [--flows-only] [--query <json>]"
         }
       ],
       "description": "Analyze sosreport archives for system diagnostics and troubleshooting",
@@ -402,6 +420,11 @@
           "description": "Analyze network configuration data from sosreport archives, extracting interface configurations, routing tables, active connections, firewall rules (firewalld/iptables), and DNS settings from the sosreport directory structure to diagnose network connectivity and configuration issues",
           "id": "network-analysis",
           "name": "Network Analysis"
+        },
+        {
+          "description": "Analyze Open vSwitch data from sosreport",
+          "id": "ovs-db-analysis",
+          "name": "OVS Database and Flow Analysis"
         },
         {
           "description": "Analyze system resource usage data from sosreport archives, extracting memory statistics, CPU load averages, disk space utilization, and process information from the sosreport directory structure to diagnose resource exhaustion, performance bottlenecks, and capacity issues",
@@ -615,6 +638,10 @@
           "description": "Configure cluster autoscaling based on CPU and memory usage",
           "name": "autoscale-cluster",
           "synopsis": "/openshift:autoscale-cluster [--cpu-threshold <percentage>] [--memory-threshold <percentage>] [--min-nodes <count>] [--max-nodes <count>] [--dry-run]"
+          "argument_hint": "",
+          "description": "Bootstrap OpenShift Manager (OM) integration for OpenShift operators with automated resource discovery",
+          "name": "bootstrap-om",
+          "synopsis": "bash"
         },
         {
           "argument_hint": "<dependency> [version] [--create-jira] [--create-pr]",
@@ -747,6 +774,12 @@
           "description": "Analyze OVN databases from a must-gather using ovsdb-tool",
           "name": "ovn-dbs",
           "synopsis": "/must-gather:ovn-dbs [must-gather-path] [--node <node-name>] [--query <json>]"
+        },
+        {
+          "argument_hint": "[must-gather-path] [--component COMPONENT]",
+          "description": "Analyze Windows node logs and issues in must-gather data",
+          "name": "windows",
+          "synopsis": "/must-gather:windows [must-gather-path] [--component COMPONENT] [--errors-only]"
         }
       ],
       "description": "A plugin to analyze and report on must-gather data",
@@ -881,6 +914,39 @@
     {
       "commands": [
         {
+          "argument_hint": "<path-or-url> [--output <path>] [--priority <level>] [--test-structure-only]",
+          "description": "Analyze test code structure without running tests to identify coverage gaps",
+          "name": "analyze",
+          "synopsis": "/test-coverage:analyze <path-or-url> [--output <path>] [--priority <level>] [--test-structure-only]"
+        },
+        {
+          "argument_hint": "<test-file-or-url> [--output <path>]",
+          "description": "Identify E2E test scenario gaps in OpenShift/Kubernetes tests (component-agnostic)",
+          "name": "gaps",
+          "synopsis": "bash"
+        }
+      ],
+      "description": "Analyze test coverage and identify gaps in test scenarios",
+      "has_readme": true,
+      "hooks": [],
+      "name": "test-coverage",
+      "skills": [
+        {
+          "description": "Analyze test code structure directly to provide coverage analysis",
+          "id": "analyze",
+          "name": "Test Structure Analysis"
+        },
+        {
+          "description": "Intelligently identify missing test coverage based on component type",
+          "id": "gaps",
+          "name": "Component-Aware Test Gap Analysis"
+        }
+      ],
+      "version": "0.0.1"
+    },
+    {
+      "commands": [
+        {
           "argument_hint": "[--sosreport PATH] [--format json|markdown] [--max-irq-samples N]",
           "description": "Analyze kernel/sysctl tuning from a live node or sosreport snapshot and propose NTO recommendations",
           "name": "analyze-node-tuning",
@@ -987,6 +1053,28 @@
         }
       ],
       "version": "0.0.1"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "<short-description> <repo1|url> [repo2...]",
+          "description": "Create a workspace with git worktrees for multi-repository development",
+          "name": "create",
+          "synopsis": "/workspaces:create <short-description> <repo1|url> [repo2...]"
+        },
+        {
+          "argument_hint": "<workspace-name>",
+          "description": "Delete a workspace and its git worktrees",
+          "name": "delete",
+          "synopsis": "/workspaces:delete <workspace-name>"
+        }
+      ],
+      "description": "Manage isolated git worktree workspaces for multi-repo development",
+      "has_readme": true,
+      "hooks": [],
+      "name": "workspaces",
+      "skills": [],
+      "version": "1.0.0"
     }
   ]
 }

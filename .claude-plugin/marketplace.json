@@ -105,6 +105,11 @@
       "description": "Security compliance and vulnerability analysis tools for Go projects"
     },
     {
+      "name": "test-coverage",
+      "source": "./plugins/test-coverage",
+      "description": "Analyze test coverage and identify gaps in test scenarios"
+    },
+    {
       "name": "node-tuning",
       "source": "./plugins/node-tuning",
       "description": "Generate and analyze OpenShift node tuning profiles"
@@ -128,6 +133,11 @@
       "name": "bigquery",
       "source": "./plugins/bigquery",
       "description": "BigQuery analysis utilities"
+    },
+    {
+      "name": "workspaces",
+      "source": "./plugins/workspaces",
+      "description": "Manage isolated git worktree workspaces for multi-repo development"
     }
   ]
 }
