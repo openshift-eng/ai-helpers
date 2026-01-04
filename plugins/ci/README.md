@@ -6,6 +6,47 @@ release quality.
 
 ## Commands
 
+### pr-test-analysis
+
+Review Ginkgo test code changes in current branch or PR for naming violations and best practices.
+
+**Usage:**
+```bash
+/ci:pr-test-analysis [base-branch-or-pr-url]
+```
+
+**What it does:**
+- Validates component mapping tags (`[Jira:"component"]` required for new tests)
+- Detects dynamic or unstable test names
+- Checks parallel safety (`[Serial]` tag usage)
+- Identifies deprecated conventions (Author/Owner tags, untagged LEVEL0)
+- Distinguishes between new tests (strict requirements) and modified tests (legacy tags allowed)
+
+**Examples:**
+
+1. **Review current branch with auto-detection:**
+   ```bash
+   /ci:pr-test-analysis
+   ```
+
+2. **Review against specific base branch:**
+   ```bash
+   /ci:pr-test-analysis up/main
+   ```
+
+3. **Review a GitHub pull request:**
+   ```bash
+   /ci:pr-test-analysis https://github.com/openshift/origin/pull/305390
+   ```
+
+**Key Features:**
+- NEW tests must use `[Jira:"component"]` tags
+- MODIFIED tests may keep existing `[sig-*]` or `[bz-*]` tags
+- Automatic OpenShift test conventions validation
+- Works with both local branches and remote PRs
+
+See [commands/pr-test-analysis.md](commands/pr-test-analysis.md) for full documentation.
+
 ### ask-sippy
 
 Query the Sippy Chat AI agent for CI/CD data analysis.  Sippy Chat has a

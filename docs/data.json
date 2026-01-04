@@ -239,6 +239,12 @@
           "synopsis": "/ci:list-unstable-tests <version> <keywords> [sippy-url]"
         },
         {
+          "argument_hint": "[base-branch-or-pr-url]",
+          "description": "Review Ginkgo test code changes in current branch or PR for naming violations and best practices",
+          "name": "pr-test-analysis",
+          "synopsis": "/ci:pr-test-analysis [base-branch-or-pr-url]"
+        },
+        {
           "argument_hint": "<execution-id>",
           "description": "Query the status of a gangway job execution by ID",
           "name": "query-job-status",
