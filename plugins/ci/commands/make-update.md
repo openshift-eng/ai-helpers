@@ -55,9 +55,9 @@ The command performs the following steps:
 
 4. **Initialize Podman Machine** (if needed):
    - Check if a Podman machine exists: `podman machine list`
-   - If no machine exists, create one with 4GB memory:
+   - If no machine exists, create one with 4GB memory and 50GB disk:
      ```bash
-     podman machine init --memory 4096 --disk-size 50
+     podman machine init --memory 4096 --disk-size 50G
      ```
    - Display output to user
 
@@ -198,7 +198,7 @@ If you successfully use this command with other repositories, please update this
   ```bash
   podman machine stop
   podman machine rm
-  podman machine init --memory 4096
+  podman machine init --memory 4096 --disk-size 50G
   podman machine start
   ```
 
@@ -226,7 +226,7 @@ Common issues and solutions on macOS:
 5. **Insufficient memory errors**:
    - Stop machine: `podman machine stop`
    - Remove machine: `podman machine rm`
-   - Recreate with more memory: `podman machine init --memory 8192`
+   - Recreate with more memory: `podman machine init --memory 8192 --disk-size 50G`
 
 ## Arguments
 
