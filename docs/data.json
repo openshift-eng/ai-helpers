@@ -634,6 +634,12 @@
     {
       "commands": [
         {
+          "argument_hint": "[area] <name> <description> <jira>",
+          "description": "Create a new OpenShift Enhancement Proposal",
+          "name": "add-enhancement",
+          "synopsis": "/openshift:add-enhancement [area] <name> <description> <jira>"
+        },
+        {
           "argument_hint": "",
           "description": "Bootstrap OpenShift Manager (OM) integration for OpenShift operators with automated resource discovery",
           "name": "bootstrap-om",
