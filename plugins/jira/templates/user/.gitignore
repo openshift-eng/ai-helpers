@@ -1,0 +1,7 @@
+# User-specific templates
+# These templates are personal customizations and should not be committed to the repo
+*.yaml
+*.yml
+
+# Allow this README to be committed
+!README.md
