@@ -634,6 +634,12 @@
     {
       "commands": [
         {
+          "argument_hint": "[area] <name> <description> <jira>",
+          "description": "Create a new OpenShift Enhancement Proposal",
+          "name": "add-enhancement",
+          "synopsis": "/openshift:add-enhancement [area] <name> <description> <jira>"
+        },
+        {
           "argument_hint": "[--cpu-threshold <percentage>] [--memory-threshold <percentage>] [--min-nodes <count>] [--max-nodes <count>] [--dry-run]",
           "description": "Configure cluster autoscaling based on CPU and memory usage",
           "name": "autoscale-cluster",
