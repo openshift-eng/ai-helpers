@@ -303,7 +303,7 @@ See [plugins/test-coverage/README.md](plugins/test-coverage/README.md) for detai
 A generic utilities plugin serving as a catch-all for various helper commands and agents
 
 **Commands:**
-- **`/utils:address-reviews` `[PR number (optional - uses current branch if omitted)]`** - Fetch and address all PR review comments
+- **`/utils:address-reviews` `<url-or-pr-number>`** - Fetch and address review comments from GitHub PRs or Gerrit changes
 - **`/utils:auto-approve-konflux-prs` `<target-repository>`** - Automate approving Konflux bot PRs for the given repository by adding /lgtm and /approve
 - **`/utils:generate-test-plan` `[GitHub PR URLs]`** - Generate test steps for one or more related PRs
 - **`/utils:placeholder`** - Placeholder command for the utils plugin

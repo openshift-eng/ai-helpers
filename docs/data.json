@@ -442,10 +442,10 @@
     {
       "commands": [
         {
-          "argument_hint": "[PR number (optional - uses current branch if omitted)]",
-          "description": "Fetch and address all PR review comments",
+          "argument_hint": "<url-or-pr-number>",
+          "description": "Fetch and address review comments from GitHub PRs or Gerrit changes",
           "name": "address-reviews",
-          "synopsis": ""
+          "synopsis": "/utils:address-reviews <url-or-pr-number>"
         },
         {
           "argument_hint": "<target-repository>",
@@ -476,7 +476,18 @@
       "has_readme": true,
       "hooks": [],
       "name": "utils",
-      "skills": [],
+      "skills": [
+        {
+          "description": "Fetch and analyze review comments from Gerrit changes to help address code review feedback systematically",
+          "id": "gerrit-review",
+          "name": "Gerrit Review"
+        },
+        {
+          "description": "Fetch and analyze review comments from GitHub pull requests to help address code review feedback systematically",
+          "id": "github-review",
+          "name": "GitHub Review"
+        }
+      ],
       "version": "0.0.1"
     },
     {
