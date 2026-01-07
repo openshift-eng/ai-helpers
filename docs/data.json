@@ -1094,6 +1094,40 @@
       "name": "workspaces",
       "skills": [],
       "version": "1.0.0"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "<question>",
+          "description": "Ask questions about your indexed knowledge context",
+          "name": "ask",
+          "synopsis": "/research:ask <question>"
+        },
+        {
+          "argument_hint": "[sources...] [--include-cwd] [--repo URL] [--clear]",
+          "description": "Build knowledge context from URLs, repos, and files - stores directly in VectorDB",
+          "name": "build",
+          "synopsis": "/research:build [sources...] [--include-cwd] [--repo URL] [--clear] [--depth N] [--max-pages N]"
+        },
+        {
+          "argument_hint": "[--stats]",
+          "description": "View indexed sources and context statistics",
+          "name": "context",
+          "synopsis": "/research:context [--stats]"
+        }
+      ],
+      "description": "Build and query a personal knowledge base from URLs, YouTube, GitHub repos, and documents using vector search",
+      "has_readme": true,
+      "hooks": [],
+      "name": "research",
+      "skills": [
+        {
+          "description": "|",
+          "id": "research-engine",
+          "name": "Research Engine"
+        }
+      ],
+      "version": "0.2.0"
     }
   ]
 }
