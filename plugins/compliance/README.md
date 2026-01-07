@@ -39,20 +39,26 @@ Reports include confidence level (HIGH/MEDIUM/LOW) based on verification methods
 
 ## Prerequisites
 
-**Required:** Go toolchain
+**All tools are REQUIRED.** The command will exit with an error if any are missing.
 
-**Recommended (for higher confidence):**
 ```bash
-# Go vulnerability tools
+# Install all required Go tools
 go install golang.org/x/vuln/cmd/govulncheck@latest
 go install golang.org/x/tools/cmd/callgraph@latest
 go install golang.org/x/tools/cmd/digraph@latest
 
-# Optional: For visual graphs
+# Optional: For visual call graphs
 brew install graphviz  # macOS
 ```
 
-The command auto-detects available tools and uses the most comprehensive methods possible.
+**Required:**
+- Go toolchain (`go version`)
+- `go.mod` file in workspace
+- `govulncheck` - vulnerability scanner
+- `callgraph` - call graph analysis
+- `digraph` - graph traversal
+
+The command validates all tools in Phase 0 and provides installation instructions if any are missing.
 
 ## Fallback Mode
 
