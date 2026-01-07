@@ -14,6 +14,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Hcp](#hcp-plugin)
 - [Hello World](#hello-world-plugin)
 - [Jira](#jira-plugin)
+- [Konflux](#konflux-plugin)
 - [Lvms](#lvms-plugin)
 - [Must Gather](#must-gather-plugin)
 - [Node](#node-plugin)
@@ -168,6 +169,15 @@ A plugin to automate tasks with Jira
 - **`/jira:validate-blockers` `[target-version] [component-filter] [--bug issue-key]`** - Validate proposed release blockers using Red Hat OpenShift release blocker criteria
 
 See [plugins/jira/README.md](plugins/jira/README.md) for detailed documentation.
+
+### Konflux Plugin
+
+Tools for analyzing and debugging Konflux CI/CD pipelines
+
+**Commands:**
+- **`/konflux:analyze-pipeline-logs` `[log-file-path]`** - Analyze Konflux pipeline logs for failures and issues
+
+See [plugins/konflux/README.md](plugins/konflux/README.md) for detailed documentation.
 
 ### Lvms Plugin
 

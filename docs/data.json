@@ -285,6 +285,22 @@
     {
       "commands": [
         {
+          "argument_hint": "[log-file-path]",
+          "description": "Analyze Konflux pipeline logs for failures and issues",
+          "name": "analyze-pipeline-logs",
+          "synopsis": "/konflux:analyze-pipeline-logs [log-file-path]"
+        }
+      ],
+      "description": "Tools for analyzing and debugging Konflux CI/CD pipelines",
+      "has_readme": true,
+      "hooks": [],
+      "name": "konflux",
+      "skills": [],
+      "version": "0.0.1"
+    },
+    {
+      "commands": [
+        {
           "argument_hint": "<release> [--components comp1 comp2 ...] [--project JIRAPROJECT]",
           "description": "Analyze and grade component health based on regression and JIRA bug metrics",
           "name": "analyze",

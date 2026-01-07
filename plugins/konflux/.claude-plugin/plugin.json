@@ -1,0 +1,8 @@
+{
+  "name": "konflux",
+  "description": "Tools for analyzing and debugging Konflux CI/CD pipelines",
+  "version": "0.0.1",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}
