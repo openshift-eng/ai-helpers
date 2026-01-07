@@ -49,7 +49,8 @@ Extracts and lists upgrade jobs from the openshift-tests-private CI operator con
 ## Requirements
 
 - Network access to fetch configurations from GitHub
-- YAML parsing capabilities (handled automatically by Claude Code)
+- Python 3.x
+- PyYAML library (will be installed automatically if needed: `pip3 install PyYAML`)
 
 ## Contributing
 

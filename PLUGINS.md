@@ -264,7 +264,7 @@ See [plugins/prow-job/README.md](plugins/prow-job/README.md) for detailed docume
 
 ### Prow Qe Jobs Plugin
 
-Plugin for listing and managing OpenShift QE Prow jobs
+List and manage OpenShift QE Prow jobs from CI configurations
 
 **Commands:**
 - **`/prow-qe-jobs:list-qe-jobs` `"[filter-pattern]"`** - Lists upgrade jobs from openshift-tests-private CI configurations

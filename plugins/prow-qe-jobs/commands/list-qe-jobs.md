@@ -17,34 +17,39 @@ The `prow-qe-jobs:list-qe-jobs` command extracts upgrade-related job configurati
 
 ## Implementation
 
-1. **Fetch CI Configuration Files**: Access the openshift/release repository
-   - Clone or fetch the latest from `https://github.com/openshift/release`
-   - Navigate to `ci-operator/config/openshift/openshift-tests-private/`
-   - Identify all YAML configuration files
+This command uses a Python helper script to extract upgrade jobs from OpenShift CI configurations.
 
-2. **Parse Configuration Files**: Read and parse each YAML file
-   - Use a YAML parser to read configuration files
-   - Look for job definitions in the `tests` section
-   - Identify upgrade-related jobs by checking:
-     - Job names containing "upgrade"
-     - Test configurations with upgrade-related commands
-     - Workflow references related to upgrades (e.g., `openshift-upgrade-*`)
+1. **Ensure PyYAML is installed**:
+   ```bash
+   pip3 install PyYAML
+   ```
 
-3. **Filter Jobs** (if filter pattern provided): Apply optional filtering
-   - Filter job names by the provided pattern (substring or regex)
-   - Examples: "gcp", "aws", "4.15", "ovn", etc.
+2. **Clone or update the openshift/release repository**:
+   ```bash
+   mkdir -p .work/prow-qe-jobs
+   cd .work/prow-qe-jobs
+   if [ -d "release" ]; then
+     cd release && git pull
+   else
+     git clone --depth 1 https://github.com/openshift/release.git
+   fi
+   ```
 
-4. **Display Results**: Present the upgrade jobs in a clear format
-   - List job names
-   - Show relevant metadata (platform, version, workflow type)
-   - Group by configuration file or platform if helpful
-   - Include counts and summary statistics
+3. **Run the Python script to extract and display upgrade jobs**:
+   ```bash
+   python3 plugins/prow-qe-jobs/skills/list-qe-jobs/parse_upgrade_jobs.py \
+     .work/prow-qe-jobs/release/ci-operator/config/openshift/openshift-tests-private/ \
+     [filter-pattern]
+   ```
 
-5. **Error Handling**: Handle repository access and parsing errors
-   - Check if repository is accessible
-   - Handle YAML parsing errors gracefully
-   - Report files that cannot be processed
-   - Continue processing remaining files
+The script performs the following:
+- **Parses YAML files**: Reads all configuration files from the openshift-tests-private directory
+- **Identifies upgrade jobs**: Detects jobs by checking:
+  - Job names containing "upgrade", "update", or "migration"
+  - Workflow references with upgrade-related keywords
+  - Step references with upgrade-related content
+- **Filters results**: If a filter pattern is provided, matches against both configuration filenames and job names
+- **Displays results**: Groups jobs by configuration file, extracts platform information, and provides summary statistics
 
 ## Return Value
 

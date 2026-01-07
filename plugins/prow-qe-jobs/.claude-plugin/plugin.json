@@ -1,6 +1,6 @@
 {
   "name": "prow-qe-jobs",
-  "description": "Plugin for listing and managing OpenShift QE Prow jobs",
+  "description": "List and manage OpenShift QE Prow jobs from CI configurations",
   "version": "0.0.1",
   "author": {
     "name": "github.com/openshift-eng"
