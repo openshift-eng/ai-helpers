@@ -7,6 +7,7 @@ Comprehensive Jira integration for Claude Code, providing AI-powered tools to an
 - 🔍 **Issue Analysis and Solutions** - Analyze JIRA issues and create pull requests to solve them
 - 📊 **Status Rollups** - Generate comprehensive status rollup comments for any Jira issue given a date range
 - 📋 **Backlog Grooming** - Analyze new bugs and cards for grooming meetings
+- 📈 **Sprint Reviews** - Generate comprehensive sprint review reports with custom date ranges and flexible filtering
 - 🧪 **Test Generation** - Generate comprehensive test steps for JIRA issues by analyzing related PRs
 - ✨ **Issue Creation** - Create well-formed stories, epics, features, tasks, bugs, and feature requests with guided workflows
 - 📝 **Release Note Generation** - Automatically generate bug fix release notes from Jira and linked GitHub PRs
@@ -237,6 +238,60 @@ Updated: https://issues.redhat.com/browse/OCPBUGS-38358
 ```
 
 See [commands/create-release-note.md](commands/create-release-note.md) for full documentation.
+
+---
+
+### `/jira:sprint-review` - Generate Sprint Review Reports
+
+Generate comprehensive sprint review reports for any project or component with custom date ranges. The command analyzes blockers, new work items, closed issues, activity trends, and generates actionable insights with team accomplishments, metrics, and recommendations.
+
+**Usage:**
+```bash
+# Single project sprint review
+/jira:sprint-review --project OCPSTRAT --start-date 2024-12-01 --end-date 2024-12-15
+
+# Project with specific component
+/jira:sprint-review --project OCM --component "Multicluster Networking" --start-date 2024-12-01
+
+# Multiple components
+/jira:sprint-review --project OCPSTRAT --component "Control Plane,Storage" --start-date 2024-12-01 --end-date 2024-12-15
+
+# Custom JQL filter
+/jira:sprint-review --jql "project=OCM AND component='ARO HCP'" --start-date 2024-12-01 --end-date 2024-12-15
+
+# Custom output filename
+/jira:sprint-review --project OCPBUGS --start-date 2024-12-01 --output "q4-sprint-3-review.md"
+```
+
+**What it does:**
+1. Collects user parameters (scope, date range, output settings)
+2. Builds JQL queries for blocker bugs, new work, closed issues, and activity
+3. Executes queries and collects issue data
+4. Analyzes data across multiple dimensions (blockers, completion, activity, metrics)
+5. Generates comprehensive Markdown report with 10 sections
+6. Saves report to current directory
+
+**Report Sections:**
+- **Executive Summary** - Key metrics and sprint health
+- **Blocker Bugs** - Open blocker-priority issues with status
+- **New Work Items** - Issues created during sprint, grouped by type
+- **Closed Issues** - Issues resolved during sprint with details
+- **Activity Summary** - Issues updated during sprint by status
+- **Work Breakdown** - Analysis by type and work area
+- **Key Metrics** - Counts, trends, and velocity statistics
+- **Risks & Concerns** - Blockers and issues requiring attention
+- **Recommendations** - Actionable next steps
+- **Team Accomplishments** - Highlights of completed work
+
+**Key Features:**
+- Flexible scope filtering (project, component, or custom JQL)
+- Custom date range with smart defaults (end date = today)
+- Multi-dimensional analysis and metrics
+- Markdown output for easy sharing
+- Automatic trend identification
+- Risk assessment and recommendations
+
+See [commands/sprint-review.md](commands/sprint-review.md) for full documentation.
 
 ---
 
