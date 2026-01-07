@@ -7,6 +7,7 @@ Comprehensive Jira integration for Claude Code, providing AI-powered tools to an
 - 🔍 **Issue Analysis and Solutions** - Analyze JIRA issues and create pull requests to solve them
 - 📊 **Status Rollups** - Generate comprehensive status rollup comments for any Jira issue given a date range
 - 📋 **Backlog Grooming** - Analyze new bugs and cards for grooming meetings
+- 🏷️ **Activity Type Categorization** - AI-powered categorization of JIRA tickets into activity types with confidence scoring
 - 🧪 **Test Generation** - Generate comprehensive test steps for JIRA issues by analyzing related PRs
 - ✨ **Issue Creation** - Create well-formed stories, epics, features, tasks, bugs, and feature requests with guided workflows
 - 📝 **Release Note Generation** - Automatically generate bug fix release notes from Jira and linked GitHub PRs
@@ -106,6 +107,23 @@ Analyze and organize new bugs and cards added over a specified time period to pr
 /jira:grooming OCPSTRAT last-week --component "Control Plane" --label "security"
 ```
 See [commands/grooming.md](commands/grooming.md) for full documentation.
+
+---
+
+### `/jira:categorize-activity-type` - AI-Powered Activity Type Categorization
+
+Analyze JIRA tickets and automatically assign Activity Type categories based on ticket content, issue type, labels, and parent Epic context. Uses AI-powered analysis with confidence scoring to ensure accurate categorizations.
+
+**Usage:**
+```bash
+# Basic usage (prompts for confirmation)
+/jira:categorize-activity-type ROX-12345
+
+# Auto-apply for high confidence categorizations
+/jira:categorize-activity-type ROX-12345 --auto-apply
+```
+
+See [commands/categorize-activity-type.md](commands/categorize-activity-type.md) for full documentation.
 
 ---
 
