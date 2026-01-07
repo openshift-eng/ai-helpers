@@ -1094,6 +1094,40 @@
       "name": "workspaces",
       "skills": [],
       "version": "1.0.0"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "[topic]",
+          "description": "Take a comprehensive knowledge assessment to evaluate your understanding of the codebase and frameworks",
+          "name": "assess",
+          "synopsis": "/myga:assess [topic]"
+        },
+        {
+          "argument_hint": "[topic-or-difficulty]",
+          "description": "Get coding challenges based on the current codebase to practice and test your skills",
+          "name": "challenge",
+          "synopsis": "/myga:challenge [topic-or-difficulty]"
+        },
+        {
+          "argument_hint": "",
+          "description": "View and manage your personalized learning roadmap with progress tracking",
+          "name": "path",
+          "synopsis": "/myga:path"
+        },
+        {
+          "argument_hint": "[topic]",
+          "description": "Start an interactive learning session on a topic in the current codebase",
+          "name": "start",
+          "synopsis": "/myga:start [topic]"
+        }
+      ],
+      "description": "Make Yourself Great Again - Interactive code tutoring and learning commands for mastering codebases and frameworks",
+      "has_readme": true,
+      "hooks": [],
+      "name": "myga",
+      "skills": [],
+      "version": "0.0.1"
     }
   ]
 }
