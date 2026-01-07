@@ -138,6 +138,11 @@
       "name": "workspaces",
       "source": "./plugins/workspaces",
       "description": "Manage isolated git worktree workspaces for multi-repo development"
+    },
+    {
+      "name": "incidents",
+      "source": "./plugins/incidents",
+      "description": "Incident management and historical analysis tools for faster incident resolution"
     }
   ]
 }
