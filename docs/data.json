@@ -470,6 +470,12 @@
           "description": "Process Renovate dependency PR(s) to meet repository contribution standards",
           "name": "process-renovate-pr",
           "synopsis": "/utils:process-renovate-pr <PR_NUMBER|open> [JIRA_PROJECT] [COMPONENT]"
+        },
+        {
+          "argument_hint": "[--idea TEXT] [--pr NUMBER] [--verbose]",
+          "description": "Review potential overlaps with existing ai-helpers (Claude Code Plugins, Commands, Skills, Sub-agents, or Hooks) and open PRs",
+          "name": "review-ai-helpers-overlap",
+          "synopsis": "/utils:review-ai-helpers-overlap [--idea \"description\"] [--pr NUMBER] [--verbose]"
         }
       ],
       "description": "A generic utilities plugin serving as a catch-all for various helper commands",

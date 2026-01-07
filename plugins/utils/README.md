@@ -24,6 +24,10 @@ Automate approving Konflux bot PRs for the given repository by adding /lgtm and 
 
 A placeholder command for testing and development.
 
+### `/utils:review-ai-helpers-overlap`
+
+Review potential overlaps with existing ai-helpers (Claude Code Plugins, Commands, Skills, Sub-agents, or Hooks) and open PRs.
+
 ## Purpose
 
 The utils plugin serves as a catch-all for commands that don't fit into existing specialized plugins. Once we accumulate several related commands, they can be segregated into a new targeted plugin.
