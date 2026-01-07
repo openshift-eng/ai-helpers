@@ -5,6 +5,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Agendas](#agendas-plugin)
 - [Bigquery](#bigquery-plugin)
 - [Ci](#ci-plugin)
+- [Codebase](#codebase-plugin)
 - [Compliance](#compliance-plugin)
 - [Component Health](#component-health-plugin)
 - [Container Image](#container-image-plugin)
@@ -62,6 +63,15 @@ Miscellaenous tools for working with OpenShift CI
 - **`/ci:trigger-presubmit` `<job-name> <org> <repo> <base-ref> <base-sha> <pr-number> <pr-sha> [ENV_VAR=value ...]`** - Trigger a presubmit gangway job (typically use GitHub Prow commands instead)
 
 See [plugins/ci/README.md](plugins/ci/README.md) for detailed documentation.
+
+### Codebase Plugin
+
+Codebase analysis and improvement suggestions
+
+**Commands:**
+- **`/codebase:suggest-improvements` `[output-file]`** - Review codebase and generate a file with summarized improvement suggestions
+
+See [plugins/codebase/README.md](plugins/codebase/README.md) for detailed documentation.
 
 ### Compliance Plugin
 
