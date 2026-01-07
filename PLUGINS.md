@@ -10,6 +10,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Container Image](#container-image-plugin)
 - [Doc](#doc-plugin)
 - [Etcd](#etcd-plugin)
+- [External Secrets Operator](#external-secrets-operator-plugin)
 - [Git](#git-plugin)
 - [Hcp](#hcp-plugin)
 - [Hello World](#hello-world-plugin)
@@ -115,6 +116,21 @@ Etcd cluster health monitoring and performance analysis utilities
 - **`/etcd:health-check` `[--verbose]`** - Check etcd cluster health, member status, and identify issues
 
 See [plugins/etcd/README.md](plugins/etcd/README.md) for detailed documentation.
+
+### External Secrets Operator Plugin
+
+External Secrets Operator for Red Hat OpenShift - installation, debugging, and management
+
+**Commands:**
+- **`/external-secrets-operator:diagnose` `[--namespace <namespace>] [--external-secret <name>] [--store <name>] [--cluster-wide]`** - Diagnose issues with External Secrets Operator, SecretStores, and ExternalSecrets
+- **`/external-secrets-operator:guide` `<provider>`** - Get step-by-step configuration guides for specific secret providers
+- **`/external-secrets-operator:install` `[--namespace <namespace>] [--channel <channel>] [--store-type <provider>]`** - Install the External Secrets Operator for Red Hat OpenShift and optionally configure a secret store
+- **`/external-secrets-operator:list` `[externalsecrets|secretstores|clustersecretstores|all] [--namespace <namespace>] [--store <name>] [--status <synced|failed|pending>]`** - List ExternalSecrets, SecretStores, and ClusterSecretStores with filtering options
+- **`/external-secrets-operator:status` `[--namespace <namespace>] [--external-secret <name>] [--watch]`** - Check External Secrets Operator health and ExternalSecret sync status
+- **`/external-secrets-operator:sync` `<name> --namespace <namespace> | --all [--namespace <namespace>] | --store <store-name>`** - Force refresh ExternalSecrets to sync from external providers
+- **`/external-secrets-operator:uninstall` `[--namespace <namespace>] [--remove-crds] [--remove-namespace] [--force]`** - Uninstall the External Secrets Operator and optionally clean up all related resources
+
+See [plugins/external-secrets-operator/README.md](plugins/external-secrets-operator/README.md) for detailed documentation.
 
 ### Git Plugin
 

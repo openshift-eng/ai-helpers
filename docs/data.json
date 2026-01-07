@@ -1094,6 +1094,58 @@
       "name": "workspaces",
       "skills": [],
       "version": "1.0.0"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "[--namespace <namespace>] [--external-secret <name>] [--store <name>] [--cluster-wide]",
+          "description": "Diagnose issues with External Secrets Operator, SecretStores, and ExternalSecrets",
+          "name": "diagnose",
+          "synopsis": "/external-secrets-operator:diagnose [--namespace <namespace>] [--external-secret <name>] [--store <name>] [--cluster-wide]"
+        },
+        {
+          "argument_hint": "<provider>",
+          "description": "Get step-by-step configuration guides for specific secret providers",
+          "name": "guide",
+          "synopsis": "/external-secrets-operator:guide <provider>"
+        },
+        {
+          "argument_hint": "[--namespace <namespace>] [--channel <channel>] [--store-type <provider>]",
+          "description": "Install the External Secrets Operator for Red Hat OpenShift and optionally configure a secret store",
+          "name": "install",
+          "synopsis": "/external-secrets-operator:install [--namespace <namespace>] [--channel <channel>] [--store-type <provider>]"
+        },
+        {
+          "argument_hint": "[externalsecrets|secretstores|clustersecretstores|all] [--namespace <namespace>] [--store <name>] [--status <synced|failed|pending>]",
+          "description": "List ExternalSecrets, SecretStores, and ClusterSecretStores with filtering options",
+          "name": "list",
+          "synopsis": "/external-secrets-operator:list [resource-type] [--namespace <namespace>] [--store <name>] [--status <synced|failed|pending>] [--output <table|wide|yaml|json>]"
+        },
+        {
+          "argument_hint": "[--namespace <namespace>] [--external-secret <name>] [--watch]",
+          "description": "Check External Secrets Operator health and ExternalSecret sync status",
+          "name": "status",
+          "synopsis": "/external-secrets-operator:status [--namespace <namespace>] [--external-secret <name>] [--watch]"
+        },
+        {
+          "argument_hint": "<name> --namespace <namespace> | --all [--namespace <namespace>] | --store <store-name>",
+          "description": "Force refresh ExternalSecrets to sync from external providers",
+          "name": "sync",
+          "synopsis": "/external-secrets-operator:sync <name> --namespace <namespace>"
+        },
+        {
+          "argument_hint": "[--namespace <namespace>] [--remove-crds] [--remove-namespace] [--force]",
+          "description": "Uninstall the External Secrets Operator and optionally clean up all related resources",
+          "name": "uninstall",
+          "synopsis": "/external-secrets-operator:uninstall [--namespace <namespace>] [--remove-crds] [--remove-namespace] [--force]"
+        }
+      ],
+      "description": "External Secrets Operator for Red Hat OpenShift - installation, debugging, and management",
+      "has_readme": true,
+      "hooks": [],
+      "name": "external-secrets-operator",
+      "skills": [],
+      "version": "0.0.1"
     }
   ]
 }
