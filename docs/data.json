@@ -723,6 +723,12 @@
           "synopsis": "/openshift:review-test-cases [file-path-or-test-code-or-commands]"
         },
         {
+          "argument_hint": "<file|commit>",
+          "description": "Review code for quality issues, bad patterns, and code smells.",
+          "name": "sniff-test",
+          "synopsis": "/openshift:sniff-test <file|commit>"
+        },
+        {
           "argument_hint": "",
           "description": "Generate and visualize OVN-Kubernetes network topology diagram",
           "name": "visualize-ovn-topology",
