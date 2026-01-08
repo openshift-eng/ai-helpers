@@ -1094,6 +1094,28 @@
       "name": "workspaces",
       "skills": [],
       "version": "1.0.0"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "",
+          "description": "Run golangci-lint tool and fix all reported issues",
+          "name": "lint-fix",
+          "synopsis": "/golang:lint-fix"
+        },
+        {
+          "argument_hint": "",
+          "description": "Run golangci-lint tool to check for code quality issues",
+          "name": "lint",
+          "synopsis": "/golang:lint"
+        }
+      ],
+      "description": "Go code quality checking and linting using golangci-lint",
+      "has_readme": true,
+      "hooks": [],
+      "name": "golang",
+      "skills": [],
+      "version": "0.1.0"
     }
   ]
 }
