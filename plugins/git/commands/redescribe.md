@@ -32,7 +32,8 @@ The command ensures the description accurately reflects:
 Determine which PR to operate on:
 - **If `<pr-url>` is provided**: Use that PR.
 - **If no argument**:
-  - Run `gh pr view --json url` to find the PR associated with the current branch.
+  - **Context Discovery**: Run `git remote -v` to identify the repository (prefer `upstream`, then `origin`).
+  - Run `gh pr view --repo <owner>/<repo> --json url` to find the PR associated with the current branch. This proactively avoids "No default remote" errors.
   - If no PR is found, error out and ask the user to provide a URL or push the branch/open a PR.
 
 ### 2. Gather Context
