@@ -103,6 +103,12 @@
           "synopsis": "bash"
         },
         {
+          "argument_hint": "<issue-number> [issue-number...] [--github-project <org/repo>] [--jira-project <key>] [--dryrun]",
+          "description": "Clone GitHub issues to Jira with proper formatting and linking",
+          "name": "clone-from-github",
+          "synopsis": "/jira:clone-from-github <issue-number> [issue-number...] [options]"
+        },
+        {
           "argument_hint": "<issue-key>",
           "description": "Generate bug fix release notes from Jira tickets and linked GitHub PRs",
           "name": "create-release-note",
@@ -131,6 +137,18 @@
           "description": "Analyze new bugs and cards added over a time period and generate grooming meeting agenda",
           "name": "grooming",
           "synopsis": "/jira:grooming [project-filter] [time-period] [--component component-name] [--label label-name] [--type issue-type] [--status status] [--story-points]"
+        },
+        {
+          "argument_hint": "[--github-project <org/repo>] [--jira-project <key>] [--profile <name>] [--porcelain] [--output json|yaml]",
+          "description": "Reconcile state mismatches between GitHub and Jira issues",
+          "name": "reconcile-github",
+          "synopsis": "bash"
+        },
+        {
+          "argument_hint": "",
+          "description": "Install and configure the gh2jira utility with all required tools and credentials",
+          "name": "setup-gh2jira",
+          "synopsis": "/jira:setup-gh2jira"
         },
         {
           "argument_hint": "",
