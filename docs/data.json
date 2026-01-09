@@ -133,6 +133,12 @@
           "synopsis": "/jira:grooming [project-filter] [time-period] [--component component-name] [--label label-name] [--type issue-type] [--status status] [--story-points]"
         },
         {
+          "argument_hint": "<issue-key> [<issue-key>...]",
+          "description": "Refine partially defined JIRA issues with complete descriptions and acceptance criteria",
+          "name": "refine",
+          "synopsis": "bash"
+        },
+        {
           "argument_hint": "",
           "description": "Analyze a JIRA issue and create a pull request to solve it.",
           "name": "solve",
@@ -225,6 +231,11 @@
           "description": "Jira conventions and bug templates for the OCPBUGS project",
           "id": "ocpbugs",
           "name": "OCPBUGS Jira Conventions"
+        },
+        {
+          "description": "Implementation guide for refining partially defined stories, tasks, and bugs with complete descriptions and acceptance criteria",
+          "id": "refine-issue",
+          "name": "Refine Jira Issue"
         }
       ],
       "version": "0.0.1"
