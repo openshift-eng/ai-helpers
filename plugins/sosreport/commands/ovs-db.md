@@ -1,6 +1,6 @@
 ---
 description: Analyze OVS data from sosreport (text files or database)
-argument-hint: [sosreport-path] [--db] [--flows-only] [--query <json>]
+argument-hint: "[sosreport-path] [--db] [--flows-only] [--query <json>]"
 ---
 
 ## Name

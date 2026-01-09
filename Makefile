@@ -26,6 +26,8 @@ lint-pull: ## Pull the latest claudelint image
 
 .PHONY: update
 update: ## Update plugin documentation and website data
+	@echo "Fixing frontmatter quotes, if any..."
+	@python3 scripts/fix_frontmatter_quotes.py
 	@echo "Updating plugin documentation..."
 	@python3 scripts/generate_plugin_docs.py
 	@echo "Building website data..."

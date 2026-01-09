@@ -97,6 +97,12 @@
           "synopsis": "/jira:backlog [project-key] [--assignee username] [--days-inactive N]"
         },
         {
+          "argument_hint": "<issue-key> [--auto-apply]",
+          "description": "Categorize JIRA tickets into activity types using AI",
+          "name": "categorize-activity-type",
+          "synopsis": "bash"
+        },
+        {
           "argument_hint": "<issue-key>",
           "description": "Generate bug fix release notes from Jira tickets and linked GitHub PRs",
           "name": "create-release-note",
@@ -150,6 +156,11 @@
       "hooks": [],
       "name": "jira",
       "skills": [
+        {
+          "description": "Detailed categorization logic for assigning JIRA tickets to activity type categories",
+          "id": "categorize-activity-type",
+          "name": "JIRA Activity Type Categorizer"
+        },
         {
           "description": "Jira conventions for the CNTRLPLANE project used by OpenShift teams",
           "id": "cntrlplane",
@@ -470,6 +481,12 @@
           "description": "Process Renovate dependency PR(s) to meet repository contribution standards",
           "name": "process-renovate-pr",
           "synopsis": "/utils:process-renovate-pr <PR_NUMBER|open> [JIRA_PROJECT] [COMPONENT]"
+        },
+        {
+          "argument_hint": "[--idea TEXT] [--pr NUMBER] [--verbose]",
+          "description": "Review potential overlaps with existing ai-helpers (Claude Code Plugins, Commands, Skills, Sub-agents, or Hooks) and open PRs",
+          "name": "review-ai-helpers-overlap",
+          "synopsis": "/utils:review-ai-helpers-overlap [--idea \"description\"] [--pr NUMBER] [--verbose]"
         }
       ],
       "description": "A generic utilities plugin serving as a catch-all for various helper commands",
@@ -633,6 +650,12 @@
     },
     {
       "commands": [
+        {
+          "argument_hint": "[area] <name> <description> <jira>",
+          "description": "Create a new OpenShift Enhancement Proposal",
+          "name": "add-enhancement",
+          "synopsis": "/openshift:add-enhancement [area] <name> <description> <jira>"
+        },
         {
           "argument_hint": "",
           "description": "Bootstrap OpenShift Manager (OM) integration for OpenShift operators with automated resource discovery",
