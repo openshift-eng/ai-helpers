@@ -1094,6 +1094,34 @@
       "name": "workspaces",
       "skills": [],
       "version": "1.0.0"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "<group-name> [--workspace-dir] [--create-pr] [--create-jira]",
+          "description": "Rebase Kubernetes dependencies across a group of related repositories",
+          "name": "batch-by-group",
+          "synopsis": "/k8s-bumpup:batch-by-group <group-name> [options]"
+        },
+        {
+          "argument_hint": "<target-version> <repository-path> [additional-repos...]",
+          "description": "Complete workflow to rebase Kubernetes dependencies across repositories",
+          "name": "rebase-repo",
+          "synopsis": "/k8s-bumpup:rebase-repo <target-version> <repository-path> [additional-repos...]"
+        }
+      ],
+      "description": "Automate Kubernetes version bumping and dependency updates across repositories",
+      "has_readme": true,
+      "hooks": [],
+      "name": "k8s-bumpup",
+      "skills": [
+        {
+          "description": "Deep analysis of Kubernetes API usage and breaking changes between versions",
+          "id": "dependency-analysis",
+          "name": "Kubernetes Dependency Analysis"
+        }
+      ],
+      "version": "0.0.1"
     }
   ]
 }
