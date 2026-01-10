@@ -373,6 +373,12 @@
     {
       "commands": [
         {
+          "argument_hint": "",
+          "description": "Generate comprehensive design documentation for Kubernetes operators and controllers",
+          "name": "controller-design",
+          "synopsis": "/doc:controller-design"
+        },
+        {
           "argument_hint": "[task description]",
           "description": "Generate professional engineering notes and append them to a log file",
           "name": "note",
@@ -383,7 +389,13 @@
       "has_readme": true,
       "hooks": [],
       "name": "doc",
-      "skills": [],
+      "skills": [
+        {
+          "description": "Detailed implementation guide for analyzing Kubernetes operators and generating comprehensive design documentation",
+          "id": "controller-design",
+          "name": "Controller Design Documentation Generator"
+        }
+      ],
       "version": "0.0.1"
     },
     {

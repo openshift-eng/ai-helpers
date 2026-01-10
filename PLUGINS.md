@@ -102,6 +102,7 @@ See [plugins/container-image/README.md](plugins/container-image/README.md) for d
 A plugin for engineering documentation and notes
 
 **Commands:**
+- **`/doc:controller-design`** - Generate comprehensive design documentation for Kubernetes operators and controllers
 - **`/doc:note` `[task description]`** - Generate professional engineering notes and append them to a log file
 
 See [plugins/doc/README.md](plugins/doc/README.md) for detailed documentation.
