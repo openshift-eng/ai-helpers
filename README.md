@@ -23,6 +23,37 @@ A collection of Claude Code plugins to automate and assist with various developm
    /jira:solve OCPBUGS-12345 origin
    ```
 
+## Updating Plugins
+
+To get the latest plugin versions:
+
+1. **Update the marketplace** (fetches latest plugin catalog):
+   ```bash
+   /plugin marketplace update ai-helpers
+   ```
+
+2. **Reinstall the plugin** (downloads new version):
+   ```bash
+   /plugin install <plugin>@ai-helpers
+   ```
+
+### Automatic Updates
+
+Add a SessionStart hook to auto-update on each session. In your project's `.claude/settings.json`:
+
+```json
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "command": "claude plugin marketplace update ai-helpers",
+        "timeout": 30000
+      }
+    ]
+  }
+}
+```
+
 ### Using Cursor
 
 Cursor is able to find the various commands defined in this repo by
@@ -171,6 +202,7 @@ This automatically scans all plugins and regenerates the complete plugin/command
 ## Additional Documentation
 
 - **[PLUGINS.md](PLUGINS.md)** - Complete list of all available plugins and commands
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** - Guidelines for contributing plugins, including versioning policy
 - **[AGENTS.md](AGENTS.md)** - Complete guide for AI agents working with this repository
 - **[CLAUDE.md](CLAUDE.md)** - Claude-specific configuration and notes
 

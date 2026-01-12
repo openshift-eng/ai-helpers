@@ -1,7 +1,7 @@
 {
   "name": "doc",
   "description": "A plugin for engineering documentation and notes",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "author": {
     "name": "OpenShift Engineering"
   }

@@ -70,7 +70,7 @@
           "name": "Suggest Reviewers Helper"
         }
       ],
-      "version": "0.0.1"
+      "version": "0.0.2"
     },
     {
       "commands": [
@@ -227,7 +227,7 @@
           "name": "OCPBUGS Jira Conventions"
         }
       ],
-      "version": "0.0.1"
+      "version": "0.0.2"
     },
     {
       "commands": [
@@ -291,7 +291,7 @@
           "name": "OC Authentication Helper"
         }
       ],
-      "version": "0.0.1"
+      "version": "0.0.2"
     },
     {
       "commands": [
@@ -368,7 +368,7 @@
           "name": "Summarize JIRAs"
         }
       ],
-      "version": "0.0.1"
+      "version": "0.0.2"
     },
     {
       "commands": [
@@ -384,7 +384,7 @@
       "hooks": [],
       "name": "doc",
       "skills": [],
-      "version": "0.0.1"
+      "version": "0.0.2"
     },
     {
       "commands": [
@@ -400,7 +400,7 @@
       "hooks": [],
       "name": "session",
       "skills": [],
-      "version": "0.0.1"
+      "version": "0.0.2"
     },
     {
       "commands": [
@@ -448,7 +448,7 @@
           "name": "System Configuration Analysis"
         }
       ],
-      "version": "0.0.1"
+      "version": "0.0.2"
     },
     {
       "commands": [
@@ -494,7 +494,7 @@
       "hooks": [],
       "name": "utils",
       "skills": [],
-      "version": "0.0.1"
+      "version": "0.0.2"
     },
     {
       "commands": [
@@ -630,7 +630,7 @@
           "name": "Prow Job Extract Must-Gather"
         }
       ],
-      "version": "0.0.1"
+      "version": "0.0.2"
     },
     {
       "commands": [
@@ -646,7 +646,7 @@
       "hooks": [],
       "name": "agendas",
       "skills": [],
-      "version": "0.0.1"
+      "version": "0.0.2"
     },
     {
       "commands": [
@@ -740,7 +740,7 @@
           "name": "generating-ovn-topology"
         }
       ],
-      "version": "0.0.1"
+      "version": "0.0.2"
     },
     {
       "commands": [
@@ -762,7 +762,7 @@
       "hooks": [],
       "name": "etcd",
       "skills": [],
-      "version": "0.0.1"
+      "version": "0.0.2"
     },
     {
       "commands": [
@@ -778,7 +778,7 @@
       "hooks": [],
       "name": "yaml",
       "skills": [],
-      "version": "0.0.1"
+      "version": "0.0.2"
     },
     {
       "commands": [
@@ -812,7 +812,7 @@
           "name": "Must-Gather Analyzer"
         }
       ],
-      "version": "0.0.1"
+      "version": "0.0.2"
     },
     {
       "commands": [
@@ -859,7 +859,7 @@
       ],
       "name": "metrics",
       "skills": [],
-      "version": "0.0.1"
+      "version": "0.0.2"
     },
     {
       "commands": [
@@ -912,7 +912,7 @@
           "name": "HyperShift PowerVS Provider"
         }
       ],
-      "version": "0.0.1"
+      "version": "0.0.2"
     },
     {
       "commands": [
@@ -928,7 +928,7 @@
       "hooks": [],
       "name": "compliance",
       "skills": [],
-      "version": "0.0.1"
+      "version": "0.0.2"
     },
     {
       "commands": [
@@ -961,7 +961,7 @@
           "name": "Component-Aware Test Gap Analysis"
         }
       ],
-      "version": "0.0.1"
+      "version": "0.0.2"
     },
     {
       "commands": [
@@ -1005,7 +1005,7 @@
       "hooks": [],
       "name": "origin",
       "skills": [],
-      "version": "0.0.1"
+      "version": "0.0.2"
     },
     {
       "commands": [
@@ -1033,7 +1033,7 @@
       "hooks": [],
       "name": "container-image",
       "skills": [],
-      "version": "0.0.1"
+      "version": "0.0.2"
     },
     {
       "commands": [
@@ -1049,7 +1049,7 @@
       "hooks": [],
       "name": "node",
       "skills": [],
-      "version": "0.0.1"
+      "version": "0.0.2"
     },
     {
       "commands": [
@@ -1071,7 +1071,7 @@
           "name": "Analyze BigQuery Usage"
         }
       ],
-      "version": "0.0.1"
+      "version": "0.0.2"
     },
     {
       "commands": [

@@ -1,7 +1,7 @@
 {
   "name": "node",
   "description": "Kubernetes and OpenShift node health monitoring and diagnostics",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "author": {
     "name": "github.com/openshift-eng"
   }

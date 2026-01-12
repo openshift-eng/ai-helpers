@@ -1,7 +1,7 @@
 {
   "name": "hcp",
   "description": "Generate HyperShift cluster creation commands via hcp CLI from natural language descriptions",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "author": {
     "name": "github.com/openshift-eng"
   }

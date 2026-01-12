@@ -1,0 +1,64 @@
+name: Validate Plugin Versions
+
+on:
+  pull_request:
+    paths:
+      - 'plugins/**'
+
+jobs:
+  check-version-bump:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check version bumps for changed plugins
+        run: |
+          set -e
+          base="${{ github.event.pull_request.base.sha }}"
+
+          # Find plugins with changes (excluding README.md and SKILL.md description files)
+          changed_plugins=$(git diff --name-only "$base" HEAD -- 'plugins/' | \
+            grep -v 'README.md$' | \
+            grep -v 'SKILL.md$' | \
+            cut -d'/' -f2 | sort -u)
+
+          if [ -z "$changed_plugins" ]; then
+            echo "No plugin code changes detected"
+            exit 0
+          fi
+
+          errors=0
+          for plugin in $changed_plugins; do
+            plugin_json="plugins/$plugin/.claude-plugin/plugin.json"
+
+            if [ ! -f "$plugin_json" ]; then
+              echo "SKIP: $plugin - no plugin.json"
+              continue
+            fi
+
+            # Get current version
+            current=$(jq -r '.version' "$plugin_json")
+
+            # Get base version
+            if git show "$base:$plugin_json" > /tmp/old_plugin.json 2>/dev/null; then
+              old=$(jq -r '.version' /tmp/old_plugin.json)
+            else
+              old="0.0.0"  # New plugin
+            fi
+
+            if [ "$current" = "$old" ]; then
+              echo "::error file=$plugin_json::Plugin '$plugin' has code changes but version not bumped ($old)"
+              errors=$((errors + 1))
+            else
+              echo "OK: $plugin version bumped $old -> $current"
+            fi
+          done
+
+          if [ $errors -gt 0 ]; then
+            echo ""
+            echo "::error::$errors plugin(s) need version bumps. Update .claude-plugin/plugin.json for each."
+            exit 1
+          fi
