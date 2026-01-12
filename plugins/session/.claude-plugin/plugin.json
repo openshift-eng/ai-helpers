@@ -1,7 +1,7 @@
 {
   "name": "session",
   "description": "A plugin to save and resume conversation sessions across long time intervals",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "author": {
     "name": "github.com/kuiwang02"
   }

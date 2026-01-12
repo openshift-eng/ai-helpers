@@ -1,9 +1,9 @@
 {
-    "name": "yaml",
-    "version": "0.0.1",
-    "description": "Generate comprehensive YAML documentation from Go struct definitions with sensible default values",
-    "author": {
-      "name": "saswatamcode"
-    },
-    "license": "Apache-2.0"
+  "name": "yaml",
+  "version": "0.0.2",
+  "description": "Generate comprehensive YAML documentation from Go struct definitions with sensible default values",
+  "author": {
+    "name": "saswatamcode"
+  },
+  "license": "Apache-2.0"
 }

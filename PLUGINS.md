@@ -49,7 +49,7 @@ See [plugins/bigquery/README.md](plugins/bigquery/README.md) for detailed docume
 
 ### Ci Plugin
 
-Miscellaenous tools for working with OpenShift CI
+Miscellaneous tools for working with OpenShift CI
 
 **Commands:**
 - **`/ci:add-debug-wait` `<workflow-or-job-name> [timeout]`** - Add a wait step to a CI workflow for debugging test failures

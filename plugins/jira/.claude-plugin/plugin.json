@@ -1,7 +1,7 @@
 {
   "name": "jira",
   "description": "A plugin to automate tasks with Jira",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "author": {
     "name": "github.com/openshift-eng"
   }

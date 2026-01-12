@@ -1,7 +1,7 @@
 {
   "name": "test-coverage",
   "description": "Analyze code coverage and identify untested paths",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "author": {
     "name": "github.com/openshift-eng"
   }

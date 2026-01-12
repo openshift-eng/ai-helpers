@@ -1,7 +1,7 @@
 {
   "name": "container-image",
   "description": "Container image inspection and analysis using skopeo and podman",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "author": {
     "name": "github.com/openshift-eng"
   }

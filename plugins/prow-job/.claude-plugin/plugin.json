@@ -1,7 +1,7 @@
 {
   "name": "prow-job",
   "description": "A plugin to analyze and inspect Prow CI job results",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "author": {
     "name": "jupierce"
   }
