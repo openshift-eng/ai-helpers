@@ -28,6 +28,8 @@ lint-pull: ## Pull the latest claudelint image
 update: ## Update plugin documentation and website data
 	@echo "Fixing frontmatter quotes, if any..."
 	@python3 scripts/fix_frontmatter_quotes.py
+	@echo "Syncing marketplace versions..."
+	@python3 scripts/sync_marketplace_versions.py
 	@echo "Updating plugin documentation..."
 	@python3 scripts/generate_plugin_docs.py
 	@echo "Building website data..."

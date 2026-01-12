@@ -1,4 +1,5 @@
 {
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "ai-helpers",
   "owner": {
     "name": "openshift-eng"
@@ -7,137 +8,164 @@
     {
       "name": "git",
       "source": "./plugins/git",
-      "description": "Git Plugin"
+      "description": "Git Plugin",
+      "version": "0.0.2"
     },
     {
       "name": "hello-world",
       "source": "./plugins/hello-world",
-      "description": "Hello World Plugin"
+      "description": "Hello World Plugin",
+      "version": "1.0.0"
     },
     {
       "name": "jira",
       "source": "./plugins/jira",
-      "description": "A plugin to automate tasks with Jira"
+      "description": "A plugin to automate tasks with Jira",
+      "version": "0.0.2"
     },
     {
       "name": "ci",
       "source": "./plugins/ci",
-      "description": "A plugin to work with OpenShift CI"
+      "description": "A plugin to work with OpenShift CI",
+      "version": "0.0.2"
     },
     {
       "name": "component-health",
       "source": "./plugins/component-health",
-      "description": "Analyze component health and track regressions across OpenShift releases"
+      "description": "Analyze component health and track regressions across OpenShift releases",
+      "version": "0.0.2"
     },
     {
       "name": "doc",
       "source": "./plugins/doc",
-      "description": "A plugin for engineering documentation and notes"
+      "description": "A plugin for engineering documentation and notes",
+      "version": "0.0.2"
     },
     {
       "name": "session",
       "source": "./plugins/session",
-      "description": "A plugin for Claude session management and persistence"
+      "description": "A plugin for Claude session management and persistence",
+      "version": "0.0.2"
     },
     {
       "name": "sosreport",
       "source": "./plugins/sosreport",
-      "description": "Analyze sosreport archives for system diagnostics and troubleshooting"
+      "description": "Analyze sosreport archives for system diagnostics and troubleshooting",
+      "version": "0.0.2"
     },
     {
       "name": "utils",
       "source": "./plugins/utils",
-      "description": "A generic utilities plugin serving as a catch-all for various helper commands"
+      "description": "A generic utilities plugin serving as a catch-all for various helper commands",
+      "version": "0.0.2"
     },
     {
       "name": "olm",
       "source": "./plugins/olm",
-      "description": "OLM (Operator Lifecycle Manager) plugin for operator management and debugging"
+      "description": "OLM (Operator Lifecycle Manager) plugin for operator management and debugging",
+      "version": "0.1.0"
     },
     {
       "name": "prow-job",
       "source": "./plugins/prow-job",
-      "description": "A plugin to analyze and inspect Prow CI job results"
+      "description": "A plugin to analyze and inspect Prow CI job results",
+      "version": "0.0.2"
     },
     {
       "name": "agendas",
       "source": "./plugins/agendas",
-      "description": "A plugin to create various meeting agendas"
+      "description": "A plugin to create various meeting agendas",
+      "version": "0.0.2"
     },
     {
       "name": "openshift",
       "source": "./plugins/openshift",
-      "description": "OpenShift development utilities and helpers"
+      "description": "OpenShift development utilities and helpers",
+      "version": "0.0.2"
     },
     {
       "name": "etcd",
       "source": "./plugins/etcd",
-      "description": "Etcd cluster health monitoring and performance analysis utilities"
+      "description": "Etcd cluster health monitoring and performance analysis utilities",
+      "version": "0.0.2"
     },
     {
       "name": "yaml",
       "source": "./plugins/yaml",
-      "description": "YAML documentation and utilities"
+      "description": "YAML documentation and utilities",
+      "version": "0.0.2"
     },
     {
       "name": "must-gather",
       "source": "./plugins/must-gather",
-      "description": "A plugin to analyze and report on must-gather data"
+      "description": "A plugin to analyze and report on must-gather data",
+      "version": "0.0.2"
     },
     {
       "name": "lvms",
       "source": "./plugins/lvms",
-      "description": "LVMS (Logical Volume Manager Storage) plugin for troubleshooting and debugging storage issues"
+      "description": "LVMS (Logical Volume Manager Storage) plugin for troubleshooting and debugging storage issues",
+      "version": "0.1.0"
     },
     {
       "name": "metrics",
       "source": "./plugins/metrics",
-      "description": "Anonymous metrics usage for ai-helpers"
+      "description": "Anonymous metrics usage for ai-helpers",
+      "version": "0.0.2"
     },
     {
       "name": "hcp",
       "source": "./plugins/hcp",
-      "description": "Generate HyperShift cluster creation commands via hcp CLI from natural language descriptions"
+      "description": "Generate HyperShift cluster creation commands via hcp CLI from natural language descriptions",
+      "version": "0.0.2"
     },
     {
       "name": "compliance",
       "source": "./plugins/compliance",
-      "description": "Security compliance and vulnerability analysis tools for Go projects"
+      "description": "Security compliance and vulnerability analysis tools for Go projects",
+      "version": "0.0.2"
     },
     {
       "name": "test-coverage",
       "source": "./plugins/test-coverage",
-      "description": "Analyze test coverage and identify gaps in test scenarios"
+      "description": "Analyze test coverage and identify gaps in test scenarios",
+      "version": "0.0.2"
     },
     {
       "name": "node-tuning",
       "source": "./plugins/node-tuning",
-      "description": "Generate and analyze OpenShift node tuning profiles"
+      "description": "Generate and analyze OpenShift node tuning profiles",
+      "version": "1.0.0"
     },
     {
       "name": "origin",
       "source": "./plugins/origin",
-      "description": "Helpers for openshift/origin development."
+      "description": "Helpers for openshift/origin development.",
+      "version": "0.0.2"
     },
     {
       "name": "container-image",
       "source": "./plugins/container-image",
-      "description": "Container image inspection and analysis using skopeo and podman"
+      "description": "Container image inspection and analysis using skopeo and podman",
+      "version": "0.0.2"
     },
     {
       "name": "node",
       "source": "./plugins/node",
-      "description": "Kubernetes and OpenShift node health monitoring and diagnostics"
+      "description": "Kubernetes and OpenShift node health monitoring and diagnostics",
+      "version": "0.0.2"
     },
     {
       "name": "bigquery",
       "source": "./plugins/bigquery",
-      "description": "BigQuery analysis utilities"
+      "description": "BigQuery analysis utilities",
+      "version": "0.0.2"
     },
     {
       "name": "workspaces",
       "source": "./plugins/workspaces",
-      "description": "Manage isolated git worktree workspaces for multi-repo development"
+      "description": "Manage isolated git worktree workspaces for multi-repo development",
+      "version": "1.0.0"
     }
   ]
 }
