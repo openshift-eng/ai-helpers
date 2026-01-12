@@ -1100,6 +1100,22 @@
       "name": "workspaces",
       "skills": [],
       "version": "1.0.0"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "<owner/repo> [issue-number]",
+          "description": "Automatically triage and label GitHub issues using AI analysis",
+          "name": "issue-triage",
+          "synopsis": "/github:issue-triage <owner/repo> [issue-number]"
+        }
+      ],
+      "description": "GitHub automation and workflow utilities for issue management and triage",
+      "has_readme": true,
+      "hooks": [],
+      "name": "github",
+      "skills": [],
+      "version": "0.0.1"
     }
   ]
 }
