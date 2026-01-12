@@ -1,11 +1,16 @@
 FROM registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.24-openshift-4.21
 
-# Install Python 3 and development tools
+# Install Python 3, development tools, and kubectl
 RUN dnf install -y \
     python3 \
     python3-pip \
     python3-devel \
     && dnf clean all
+
+# Install kubectl for Kubernetes cluster interactions
+RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" \
+    && chmod +x kubectl \
+    && mv kubectl /usr/local/bin/kubectl
 
 # Install common Python tools
 RUN pip3 install --no-cache-dir \
