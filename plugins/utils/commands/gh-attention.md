@@ -256,12 +256,12 @@ For each detected item:
 ### Step 6: Generate Output
 
 **Header**:
-```
+```text
 Found X items requiring attention across Y repositories
 ```
 
 **For each item, display**:
-```
+```text
 [PRIORITY_LEVEL] Repository: org/repo
   PR #123: Title of the pull request
   URL: https://github.com/org/repo/pull/123
@@ -276,7 +276,7 @@ Found X items requiring attention across Y repositories
 ```
 
 **Footer summary**:
-```
+```text
 Summary:
   1 PR with merge conflicts
   3 PRs with review feedback
@@ -284,32 +284,32 @@ Summary:
 ```
 
 **If no items found**:
-```
+```text
 ✓ No items requiring attention! All caught up.
 ```
 
 ### Step 7: Error Handling
 
 **No repositories found**:
-```
+```text
 No open PRs or assigned issues found.
 ```
 
 **API rate limit hit**:
-```
+```text
 ⚠️  GitHub API rate limit reached after checking X items.
 Try using --repo <org/repo> to narrow the scope.
 Rate limit resets at: [timestamp from gh api rate_limit]
 ```
 
 **Authentication failure**:
-```
+```text
 ❌ GitHub CLI not authenticated.
 Run: gh auth login
 ```
 
 **Repository access denied**:
-```
+```text
 ⚠️  Unable to access repository <org/repo> (private or insufficient permissions)
 Skipping...
 ```
@@ -333,12 +333,12 @@ Exit codes:
 
 ### Example 1: Check all repositories
 
-```
+```text
 /utils:gh-attention
 ```
 
 Output:
-```
+```text
 Found 3 items requiring attention across 2 repositories
 
 [HIGH] Repository: openshift/console
@@ -382,12 +382,12 @@ Summary:
 
 ### Example 2: Check specific repository
 
-```
+```text
 /utils:gh-attention --repo openshift/origin
 ```
 
 Output:
-```
+```text
 Found 1 item requiring attention in openshift/origin
 
 [HIGH] Repository: openshift/origin
@@ -406,12 +406,12 @@ Summary:
 
 ### Example 3: No items requiring attention
 
-```
+```text
 /utils:gh-attention
 ```
 
 Output:
-```
+```text
 ✓ No items requiring attention! All caught up.
 ```
 
