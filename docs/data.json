@@ -139,6 +139,12 @@
           "synopsis": "/jira:solve <jira-issue-id> [remote]"
         },
         {
+          "argument_hint": "<board-id-or-name> [sprint-name] [--text]",
+          "description": "Generate a sprint report",
+          "name": "sprint",
+          "synopsis": "/jira:sprint <board-id-or-name> [sprint-name] [--text]"
+        },
+        {
           "argument_hint": "issue-id [--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD]",
           "description": "Generate a status rollup comment for any JIRA issue based on all child issues and a given date range",
           "name": "status-rollup",

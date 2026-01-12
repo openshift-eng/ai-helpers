@@ -13,6 +13,7 @@ Comprehensive Jira integration for Claude Code, providing AI-powered tools to an
 - 📝 **Release Note Generation** - Automatically generate bug fix release notes from Jira and linked GitHub PRs
 - 🤖 **Automated Workflows** - From issue analysis to PR creation, fully automated
 - 💬 **Smart Comment Analysis** - Extracts blockers, risks, and key insights from comments
+- 🏃 **Sprint Report** - Display a list of Jira issues for a specific sprint
 
 ## Prerequisites
 
@@ -255,6 +256,23 @@ Updated: https://issues.redhat.com/browse/OCPBUGS-38358
 ```
 
 See [commands/create-release-note.md](commands/create-release-note.md) for full documentation.
+
+---
+
+### `/jira:sprint` - Generate a sprint report
+
+Display a list of Jira issues for a specific sprint, given a scrum-type Jira board ID or board name.  The results can be displayed either on a web page or as plain text.  When displayed on a web page, you can sort on any column and view additional details about each issue.  When displayed as plain text, it is recommended to increase the width of your terminal.
+
+**Usage:**
+```bash
+# Display Jira issues for the latest sprint in the "Network Observability" board on a web page
+/jira:sprint "Network Observability"
+
+# Display Jira issues for sprint 281 in board 15335 as plain text
+/jira:sprint 15335 281 --text
+```
+
+See [commands/sprint.md](commands/sprint.md) for full documentation.
 
 ---
 
