@@ -24,14 +24,16 @@ Documentation-only changes (README.md files) do not require version bumps.
 
 Adding a new command to the `git` plugin:
 
+**Before:**
 ```json
-// Before
 {
   "name": "git",
   "version": "0.1.0"
 }
+```
 
-// After
+**After:**
+```json
 {
   "name": "git",
   "version": "0.2.0"

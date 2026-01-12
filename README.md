@@ -37,9 +37,9 @@ To get the latest plugin versions:
    /plugin install <plugin>@ai-helpers
    ```
 
-### Automatic Updates
+### Automatic Catalog Sync
 
-Add a SessionStart hook to auto-update on each session. In your project's `.claude/settings.json`:
+Add a SessionStart hook to automatically sync the marketplace catalog on each session. In your project's `.claude/settings.json`:
 
 ```json
 {
@@ -53,6 +53,8 @@ Add a SessionStart hook to auto-update on each session. In your project's `.clau
   }
 }
 ```
+
+**Note:** This only refreshes the catalog (what's available). To actually update an installed plugin to a newer version, you still need to reinstall it with `/plugin install <plugin>@ai-helpers`.
 
 ### Using Cursor
 

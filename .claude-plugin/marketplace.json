@@ -1,5 +1,4 @@
 {
-  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "ai-helpers",
   "owner": {
     "name": "openshift-eng"

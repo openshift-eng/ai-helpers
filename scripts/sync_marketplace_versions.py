@@ -9,15 +9,16 @@ and updates the corresponding entry in .claude-plugin/marketplace.json.
 import json
 import sys
 from pathlib import Path
+from typing import Optional
 
 
-def get_plugin_version(plugins_dir: Path, plugin_name: str) -> str:
+def get_plugin_version(plugins_dir: Path, plugin_name: str) -> Optional[str]:
     """Get the version from a plugin's plugin.json file."""
     plugin_json_path = plugins_dir / plugin_name / '.claude-plugin' / 'plugin.json'
     if not plugin_json_path.exists():
         return None
 
-    with open(plugin_json_path, 'r') as f:
+    with open(plugin_json_path, 'r', encoding='utf-8') as f:
         data = json.load(f)
 
     return data.get('version')
@@ -36,15 +37,8 @@ def sync_marketplace_versions(repo_root: Path) -> bool:
         print(f"Error: Marketplace file not found: {marketplace_path}", file=sys.stderr)
         sys.exit(1)
 
-    with open(marketplace_path, 'r') as f:
+    with open(marketplace_path, 'r', encoding='utf-8') as f:
         marketplace = json.load(f)
-
-    # Add schema if missing
-    if '$schema' not in marketplace:
-        marketplace = {
-            '$schema': 'https://anthropic.com/claude-code/marketplace.schema.json',
-            **marketplace
-        }
 
     changes_made = False
 
@@ -67,7 +61,7 @@ def sync_marketplace_versions(repo_root: Path) -> bool:
             print(f"OK: {plugin_name} @ {version}")
 
     if changes_made:
-        with open(marketplace_path, 'w') as f:
+        with open(marketplace_path, 'w', encoding='utf-8') as f:
             json.dump(marketplace, f, indent=2)
             f.write('\n')
         print(f"\n✓ Updated {marketplace_path}")
