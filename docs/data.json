@@ -471,6 +471,12 @@
           "synopsis": ""
         },
         {
+          "argument_hint": "[--repo <org/repo>]",
+          "description": "List PRs and issues requiring your attention",
+          "name": "gh-attention",
+          "synopsis": "/utils:gh-attention [--repo <org/repo>]"
+        },
+        {
           "argument_hint": "",
           "description": "Placeholder command for the utils plugin",
           "name": "placeholder",
