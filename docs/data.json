@@ -1,5 +1,5 @@
 {
-  "name": "ai-helpers",
+  "name": "ai-helpers-local",
   "owner": "openshift-eng",
   "plugins": [
     {
@@ -459,6 +459,12 @@
           "synopsis": ""
         },
         {
+          "argument_hint": "<dir1> [dir2 ...]",
+          "description": "Aggregate and analyze CPU profiles from one or more pprof directories",
+          "name": "analyze-pprof",
+          "synopsis": "/utils:analyze-pprof <directory1> [directory2 ...]"
+        },
+        {
           "argument_hint": "<target-repository>",
           "description": "Automate approving Konflux bot PRs for the given repository by adding /lgtm and /approve",
           "name": "auto-approve-konflux-prs",
@@ -499,7 +505,13 @@
       "has_readme": true,
       "hooks": [],
       "name": "utils",
-      "skills": [],
+      "skills": [
+        {
+          "description": "Aggregate and analyze CPU profiles from pprof files with comparative analysis support",
+          "id": "analyze-pprof",
+          "name": "Analyze Pprof"
+        }
+      ],
       "version": "0.0.1"
     },
     {

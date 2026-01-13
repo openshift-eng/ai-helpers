@@ -1,6 +1,6 @@
 ---
 description: Create a new OpenShift Enhancement Proposal
-argument-hint: [area] <name> <description> <jira>
+argument-hint: "[area] <name> <description> <jira>"
 ---
 
 ## Name
