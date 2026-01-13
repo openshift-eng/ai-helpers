@@ -764,6 +764,7 @@ The following skills are automatically invoked by this command:
 - **ocpbugs** - OCPBUGS project conventions (bugs only)
 
 **Team-specific skills:**
+- **gcp-hcp** - GCP HCP team conventions (GCP project for Hypershift on GKE)
 - **hypershift** - HyperShift team conventions (component selection for ARO/ROSA/HyperShift)
 
 To view skill details:

@@ -207,6 +207,11 @@
           "name": "Jira Pull Request Extractor"
         },
         {
+          "description": "GCP HCP team-specific Jira requirements for creating issues in the GCP project (Hypershift on GKE)",
+          "id": "gcp-hcp",
+          "name": "GCP HCP Jira Conventions"
+        },
+        {
           "description": "HyperShift team-specific Jira requirements for component selection and conventions",
           "id": "hypershift",
           "name": "HyperShift Jira Conventions"
@@ -227,7 +232,7 @@
           "name": "OCPBUGS Jira Conventions"
         }
       ],
-      "version": "0.0.2"
+      "version": "0.0.3"
     },
     {
       "commands": [
