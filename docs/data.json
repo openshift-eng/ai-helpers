@@ -142,7 +142,7 @@
           "argument_hint": "[--github-project <org/repo>] [--jira-project <key>] [--profile <name>] [--porcelain] [--output json|yaml]",
           "description": "Reconcile state mismatches between GitHub and Jira issues",
           "name": "reconcile-github",
-          "synopsis": "bash"
+          "synopsis": "/jira:reconcile-github [--github-project <org/repo>] [--jira-project <key>] [options]"
         },
         {
           "argument_hint": "",
