@@ -21,7 +21,7 @@ The command implements an interactive 8-phase migration workflow:
 3. **Repository Setup** - Clone/update source (openshift-tests-private) and target repositories
 4. **Structure Creation** - Create directory layout (supports both monorepo and single-module strategies)
 5. **Code Generation** - Generate main.go, Makefile, go.mod, fixtures.go, and bindata configuration
-6. **Test Migration** - Automatically replace FixturePath calls and update imports
+6. **Test Migration** - Automatically replace FixturePath calls, update imports, and add OTP/Level0 annotations
 7. **Dependency Resolution** - Run go mod tidy, vendor dependencies, and verify build
 8. **Documentation** - Generate comprehensive migration summary with next steps
 
@@ -36,8 +36,15 @@ The openshift-tests-extension framework allows external repositories to contribu
 3. Clone/update source and target repositories
 4. Copy test files and testdata to customizable destinations
 5. Generate all necessary boilerplate code
-6. Apply environment selectors and filters
-7. Set up test suites and registrations
+6. Apply test filtering (only tests with `[sig-<extension-name>]` tag)
+7. Add tracking annotations ([OTP] for all ported tests, [Level0] for Level0 tests)
+8. Apply environment selectors and platform filters
+9. Set up test suites and registrations
+
+**Important:**
+- The generated code will filter tests to only include those with `[sig-<extension-name>]` in their test names, ensuring only component-specific tests are registered.
+- All ported tests will be annotated with `[OTP]` at the Describe block level for tracking purposes.
+- Describe blocks containing at least one test with "-LEVEL0-" in its name will be annotated with `[Level0]` (placed after `[OTP]`) for future conformance suite integration.
 
 ## Migration Workflow
 
@@ -871,10 +878,19 @@ func main() {
 	})
 
 	// Build test specs from Ginkgo
-	specs, err := g.BuildExtensionTestSpecsFromOpenShiftGinkgoSuite()
+	allSpecs, err := g.BuildExtensionTestSpecsFromOpenShiftGinkgoSuite()
 	if err != nil {
 		panic(fmt.Sprintf("couldn't build extension test specs from ginkgo: %+v", err.Error()))
 	}
+
+	// Filter to only include component-specific tests (tests with [sig-<extension-name>] in name)
+	var filteredSpecs []*et.ExtensionTestSpec
+	allSpecs.Walk(func(spec *et.ExtensionTestSpec) {
+		if strings.Contains(spec.Name, "[sig-<extension-name>]") {
+			filteredSpecs = append(filteredSpecs, spec)
+		}
+	})
+	specs := et.ExtensionTestSpecs(filteredSpecs)
 
 	// Apply platform filters based on Platform: labels
 	specs.Walk(func(spec *et.ExtensionTestSpec) {
@@ -973,10 +989,19 @@ func main() {
 	})
 
 	// Build test specs from Ginkgo
-	specs, err := g.BuildExtensionTestSpecsFromOpenShiftGinkgoSuite()
+	allSpecs, err := g.BuildExtensionTestSpecsFromOpenShiftGinkgoSuite()
 	if err != nil {
 		panic(fmt.Sprintf("couldn't build extension test specs from ginkgo: %+v", err.Error()))
 	}
+
+	// Filter to only include component-specific tests (tests with [sig-<extension-name>] in name)
+	var filteredSpecs []*et.ExtensionTestSpec
+	allSpecs.Walk(func(spec *et.ExtensionTestSpec) {
+		if strings.Contains(spec.Name, "[sig-<extension-name>]") {
+			filteredSpecs = append(filteredSpecs, spec)
+		}
+	})
+	specs := et.ExtensionTestSpecs(filteredSpecs)
 
 	// Apply platform filters based on Platform: labels
 	specs.Walk(func(spec *et.ExtensionTestSpec) {
@@ -1545,7 +1570,7 @@ COPY --from=builder /go/src/github.com/<org>/<component-name>/tests-extension/bi
 - The build happens in a builder stage with the Go toolchain
 - The final runtime image only contains the compressed binary
 
-### Phase 6: Test Migration (3 steps - AUTOMATED)
+### Phase 6: Test Migration (4 steps - AUTOMATED)
 
 #### Step 1: Replace FixturePath Calls
 
@@ -1787,6 +1812,149 @@ done
 echo "✅ Old imports cleaned up"
 ```
 
+#### Step 4: Add OTP and Level0 Annotations
+
+**Purpose:** Add tracking annotations to ported tests:
+- **[OTP]**: Marks tests that have been ported (for tracking how many tests migrated)
+- **[Level0]**: Marks individual It() test cases that contain "-LEVEL0-" in their name (appears as `[sig-<extension-name>][OTP] [Level0]` in full test name)
+
+**Important:** This process restructures test names by:
+1. Simplifying Describe blocks to just `[sig-<extension-name>][OTP]`
+2. Moving Describe text into It() descriptions
+3. Prepending `[Level0] ` to It() for tests with "-LEVEL0-"
+
+**Note:** The automated script below is a simplified version. For complex test files with multiple Describe blocks, manual adjustment may be needed. The CCO repository required manual restructuring to properly handle multiple Describe blocks ("CCO is enabled" and "CCO is disabled").
+
+**For Monorepo Strategy:**
+
+```bash
+cd <working-dir>
+
+echo "========================================="
+echo "Adding [OTP] and [Level0] annotations..."
+echo "========================================="
+
+# Find all test files
+TEST_FILES=$(find test/e2e -name '*.go' -type f)
+
+for file in $TEST_FILES; do
+    CHANGED=0
+
+    # Step 1: Extract Describe block text and simplify to just tags
+    # This requires processing each file individually
+    if grep -q 'g\.Describe.*\[sig-<extension-name>\]' "$file"; then
+        # Extract the Describe text (everything after the tags)
+        # Example: "[sig-<extension-name>] Some Description" -> extract "Some Description"
+        DESCRIBE_TEXT=$(grep 'g\.Describe.*\[sig-<extension-name>\]' "$file" | sed 's/.*\[sig-<extension-name>\] \(.*\)".*/\1/' | head -1)
+
+        if [ -n "$DESCRIBE_TEXT" ]; then
+            # First, add [OTP] to Describe blocks
+            sed -i 's/\(\[sig-<extension-name>\]\)\s*/\1[OTP] /g' "$file"
+
+            # Extract describe text for prepending to It()
+            # Then simplify Describe to just tags
+            sed -i 's/g\.Describe("\[sig-<extension-name>\]\[OTP\] [^"]*"/g.Describe("[sig-<extension-name>][OTP]"/' "$file"
+
+            # Prepend the Describe text to all It() in this file
+            # This is approximate - in practice, need to track which Describe block each It belongs to
+            sed -i '/g\.It/ s/g\.It("/g.It("'"$DESCRIBE_TEXT"' /' "$file"
+
+            CHANGED=1
+            echo "  ✓ Restructured Describe/It in $file"
+        else
+            # Just add [OTP]
+            sed -i 's/\(\[sig-<extension-name>\]\)\s*/\1[OTP] /g' "$file"
+            CHANGED=1
+            echo "  ✓ Added [OTP] to $file"
+        fi
+    fi
+
+    # Step 2: Add [Level0] to individual It() test cases that contain "-LEVEL0-"
+    if grep -q 'g\.It.*-LEVEL0-' "$file"; then
+        # Add [Level0] at the beginning of It() descriptions that contain "-LEVEL0-"
+        sed -i '/g\.It.*-LEVEL0-/s/g\.It("\([^"]*\)"/g.It("[Level0] \1"/' "$file"
+        CHANGED=1
+        echo "  ✓ Added [Level0] to individual test cases with -LEVEL0- in $file"
+    fi
+
+    if [ $CHANGED -eq 0 ]; then
+        echo "  - No annotations needed for $file"
+    fi
+done
+
+echo "✅ Annotations added successfully"
+echo ""
+echo "Summary of annotations:"
+echo "  [OTP]       - Added to all Describe blocks (tracking)"
+echo "  [Level0]    - Added to individual It() test cases with -LEVEL0- (conformance)"
+echo "  Test names  - Restructured: Describe text moved into It() descriptions"
+```
+
+**For Single-Module Strategy:**
+
+```bash
+cd <working-dir>/tests-extension
+
+echo "========================================="
+echo "Adding [OTP] and [Level0] annotations..."
+echo "========================================="
+
+# Find all test files
+TEST_FILES=$(find test/e2e -name '*.go' -type f)
+
+for file in $TEST_FILES; do
+    CHANGED=0
+
+    # Step 1: Extract Describe block text and simplify to just tags
+    # This requires processing each file individually
+    if grep -q 'g\.Describe.*\[sig-<extension-name>\]' "$file"; then
+        # Extract the Describe text (everything after the tags)
+        # Example: "[sig-<extension-name>] Some Description" -> extract "Some Description"
+        DESCRIBE_TEXT=$(grep 'g\.Describe.*\[sig-<extension-name>\]' "$file" | sed 's/.*\[sig-<extension-name>\] \(.*\)".*/\1/' | head -1)
+
+        if [ -n "$DESCRIBE_TEXT" ]; then
+            # First, add [OTP] to Describe blocks
+            sed -i 's/\(\[sig-<extension-name>\]\)\s*/\1[OTP] /g' "$file"
+
+            # Extract describe text for prepending to It()
+            # Then simplify Describe to just tags
+            sed -i 's/g\.Describe("\[sig-<extension-name>\]\[OTP\] [^"]*"/g.Describe("[sig-<extension-name>][OTP]"/' "$file"
+
+            # Prepend the Describe text to all It() in this file
+            # This is approximate - in practice, need to track which Describe block each It belongs to
+            sed -i '/g\.It/ s/g\.It("/g.It("'"$DESCRIBE_TEXT"' /' "$file"
+
+            CHANGED=1
+            echo "  ✓ Restructured Describe/It in $file"
+        else
+            # Just add [OTP]
+            sed -i 's/\(\[sig-<extension-name>\]\)\s*/\1[OTP] /g' "$file"
+            CHANGED=1
+            echo "  ✓ Added [OTP] to $file"
+        fi
+    fi
+
+    # Step 2: Add [Level0] to individual It() test cases that contain "-LEVEL0-"
+    if grep -q 'g\.It.*-LEVEL0-' "$file"; then
+        # Add [Level0] at the beginning of It() descriptions that contain "-LEVEL0-"
+        sed -i '/g\.It.*-LEVEL0-/s/g\.It("\([^"]*\)"/g.It("[Level0] \1"/' "$file"
+        CHANGED=1
+        echo "  ✓ Added [Level0] to individual test cases with -LEVEL0- in $file"
+    fi
+
+    if [ $CHANGED -eq 0 ]; then
+        echo "  - No annotations needed for $file"
+    fi
+done
+
+echo "✅ Annotations added successfully"
+echo ""
+echo "Summary of annotations:"
+echo "  [OTP]       - Added to all Describe blocks (tracking)"
+echo "  [Level0]    - Added to individual It() test cases with -LEVEL0- (conformance)"
+echo "  Test names  - Restructured: Describe text moved into It() descriptions"
+```
+
 ### Phase 7: Dependency Resolution and Verification (1 step)
 
 #### Step 1: Verify Build and Test (Required)
@@ -1978,6 +2146,7 @@ Successfully migrated **<extension-name>** to OpenShift Tests Extension (OTE) fr
 
 - **Test files:** X files
 - **Testdata files:** Y files (or "none" if not applicable)
+- **Test filtering:** Only tests with `[sig-<extension-name>]` tag in name are included
 - **Platform filters:** Detected from labels and test names
 - **Test suites:** 1 main suite (`<org>/<extension-name>/tests`)
 
@@ -2186,6 +2355,7 @@ Successfully migrated **<extension-name>** to OpenShift Tests Extension (OTE) fr
 
 - **Test files:** X files
 - **Testdata files:** Y files (or "none" if not applicable)
+- **Test filtering:** Only tests with `[sig-<extension-name>]` tag in name are included
 - **Platform filters:** Detected from labels and test names
 - **Test suites:** 1 main suite (`<org>/<extension-name>/tests`)
 
