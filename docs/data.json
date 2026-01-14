@@ -136,7 +136,7 @@
           "argument_hint": "",
           "description": "Analyze a JIRA issue and create a pull request to solve it.",
           "name": "solve",
-          "synopsis": "/jira:solve <jira-issue-id> [remote]"
+          "synopsis": "/jira:solve <jira-issue-id> [remote] [--ci]"
         },
         {
           "argument_hint": "issue-id [--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD]",
