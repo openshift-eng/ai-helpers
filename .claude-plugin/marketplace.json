@@ -20,7 +20,7 @@
       "name": "jira",
       "source": "./plugins/jira",
       "description": "A plugin to automate tasks with Jira",
-      "version": "0.0.3"
+      "version": "0.0.4"
     },
     {
       "name": "ci",
