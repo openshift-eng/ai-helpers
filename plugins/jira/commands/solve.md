@@ -7,7 +7,7 @@ jira:solve
 
 ## Synopsis
 ```
-/jira:solve <jira-issue-id> [remote]
+/jira:solve <jira-issue-id> [remote] [--ci]
 ```
 
 ## Description
@@ -44,7 +44,8 @@ This command takes a JIRA URL, fetches the issue description and requirements, a
          - Optional
             - Steps to reproduce (for bugs)
             - Expected vs actual behavior
-   - Ask the user for further issue grooming if the requried sections are missing
+   - If `--ci` flag ($3) is NOT set: Ask the user for further issue grooming if the required sections are missing
+   - If `--ci` flag ($3) IS set: Proceed with available information, making reasonable assumptions where needed
 
 2. **Codebase Analysis**: Search and analyze relevant code:
    - Find related files and functions
@@ -58,7 +59,8 @@ This command takes a JIRA URL, fetches the issue description and requirements, a
 
 3. **Solution Implementation**:
    - Think hard and create a detailed, step-by-step plan to implement this feature. Save it to spec-$1.md within the .work/jira/solve folder, for example .work/jira/solve/spec-OCPBUGS-12345.md
-   - Always ask the user to review the plan and give them the choice to modify it before start the implementation
+   - If `--ci` flag ($3) is NOT set: Ask the user to review the plan and give them the choice to modify it before starting the implementation
+   - If `--ci` flag ($3) IS set: Proceed immediately with implementation without waiting for approval
    - Implement the plan:
     - Make necessary code changes using Edit/MultiEdit tools
     - Follow existing code patterns and conventions
@@ -118,16 +120,19 @@ This command takes a JIRA URL, fetches the issue description and requirements, a
 
 6. **PR Description Review**:
    - After creating the PR, display the PR URL and description to the user
-   - Ask the user: "Please review the PR description. Would you like me to update it? (yes/no)"
-   - If the user says yes or requests changes:
-     - Ask what changes they'd like to make
-     - Update the PR description using `gh pr edit {PR_NUMBER} --body "{new_description}"`
-     - Repeat this review step until the user is satisfied
-   - If the user says no or is satisfied, acknowledge and provide next steps
+   - If `--ci` flag ($3) is NOT set:
+     - Ask the user: "Please review the PR description. Would you like me to update it? (yes/no)"
+     - If the user says yes or requests changes:
+       - Ask what changes they'd like to make
+       - Update the PR description using `gh pr edit {PR_NUMBER} --body "{new_description}"`
+       - Repeat this review step until the user is satisfied
+     - If the user says no or is satisfied, acknowledge and provide next steps
+   - If `--ci` flag ($3) IS set: Skip the review step and proceed to completion
 
 
 ## Arguments:
 - $1: The JIRA issue to solve (required)
 - $2: The remote repository to push the branch. Defaults to "origin".
+- $3: Optional `--ci` flag for non-interactive CI automation mode. When set, skips all user prompts and proceeds automatically.
 
 The command will provide progress updates and create a comprehensive solution addressing all requirements from the JIRA issue.
