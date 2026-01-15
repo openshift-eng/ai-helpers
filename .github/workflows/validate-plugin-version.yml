@@ -2,8 +2,6 @@ name: Validate Plugin Versions
 
 on:
   pull_request:
-    paths:
-      - 'plugins/**'
 
 jobs:
   check-version-bump:
