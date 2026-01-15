@@ -13,6 +13,12 @@ RUN pip3 install --no-cache-dir \
     requests \
     pyyaml
 
+# Install GitHub CLI
+RUN dnf install -y 'dnf-command(config-manager)' \
+    && dnf config-manager --add-repo https://cli.github.com/packages/rpm/gh-cli.repo \
+    && dnf install -y gh \
+    && dnf clean all
+
 # Create claude user with root group for OpenShift compatibility
 RUN useradd -m -u 1000 -g 0 -s /bin/bash claude
 
