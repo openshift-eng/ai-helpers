@@ -18,6 +18,11 @@ This skill is automatically invoked by the `/jira:create feature-request RFE` co
 - Understanding of the customer need and business justification
 - Knowledge of affected components/teams
 
+**Reference Documentation:**
+- [Wiki Markup Reference](../../reference/wiki-markup.md) - JIRA formatting syntax
+- [MCP Tools Reference](../../reference/mcp-tools.md) - MCP tool signatures and custom fields
+- [CLI Fallback Reference](../../reference/cli-fallback.md) - jira-cli commands (only if MCP unavailable)
+
 ## What is a Feature Request?
 
 A Feature Request (RFE) is:

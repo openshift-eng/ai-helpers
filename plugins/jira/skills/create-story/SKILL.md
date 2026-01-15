@@ -17,6 +17,11 @@ This skill is automatically invoked by the `/jira:create story` command to guide
 - User has permissions to create issues in the target project
 - Understanding of the user story and acceptance criteria to be created
 
+**Reference Documentation:**
+- [Wiki Markup Reference](../../reference/wiki-markup.md) - JIRA formatting syntax
+- [MCP Tools Reference](../../reference/mcp-tools.md) - MCP tool signatures and custom fields
+- [CLI Fallback Reference](../../reference/cli-fallback.md) - jira-cli commands (only if MCP unavailable)
+
 ## ⚠️ Summary vs Description: CRITICAL DISTINCTION
 
 **This is the #1 mistake when creating stories. The summary field and description field serve different purposes:**
@@ -480,44 +485,7 @@ h3. Out of Scope
 * Platform Y support (future release)
 ```
 
-### Formatting Elements
-
-**Headings:**
-```
-h1. Main Heading
-h2. Subheading
-h3. Sub-subheading
-```
-
-**Lists:**
-```
-* Bullet item 1
-* Bullet item 2
-** Nested bullet
-
-# Numbered item 1
-# Numbered item 2
-```
-
-**Text Formatting:**
-```
-*bold text*
-_italic text_
-{{monospace}}
-```
-
-**Code Blocks:**
-```
-{code}
-rosa create cluster --autoscaling-min 3 --autoscaling-max 10
-{code}
-```
-
-**Links:**
-```
-[Design doc|https://docs.example.com/design]
-[PROJ-123]  // Auto-links to Jira issue
-```
+For complete JIRA Wiki Markup formatting reference, see [Wiki Markup Reference](../../reference/wiki-markup.md).
 
 ## Error Handling
 
