@@ -47,6 +47,12 @@
           "synopsis": "/git:fix-cherrypick-robot-pr <pr-url> [error-messages]"
         },
         {
+          "argument_hint": "[--title PR_TITLE] [--fixes PR_ISSUE] [--related RELATED_PR] [--draft true|false] [--base BRANCH]",
+          "description": "Creates a pull request with analyzed change description",
+          "name": "submit-pr",
+          "synopsis": "/git:submit-pr [--title PR_TITLE] [--fixes PR_ISSUE] [--related RELATED_PR] [--draft true|false] [--base BRANCH]"
+        },
+        {
           "argument_hint": "[base-branch]",
           "description": "Suggest appropriate reviewers for a PR based on git blame and OWNERS files",
           "name": "suggest-reviewers",
