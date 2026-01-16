@@ -1,7 +1,7 @@
 {
   "name": "utils",
   "description": "A generic utilities plugin serving as a catch-all for various helper commands and agents",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "author": {
     "name": "github.com/openshift-eng"
   }

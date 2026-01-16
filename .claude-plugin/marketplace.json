@@ -56,7 +56,7 @@
       "name": "utils",
       "source": "./plugins/utils",
       "description": "A generic utilities plugin serving as a catch-all for various helper commands",
-      "version": "0.0.2"
+      "version": "0.0.3"
     },
     {
       "name": "olm",
