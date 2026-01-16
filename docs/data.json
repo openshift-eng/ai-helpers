@@ -301,6 +301,22 @@
     {
       "commands": [
         {
+          "argument_hint": "[output-file]",
+          "description": "Review codebase and generate a file with summarized improvement suggestions",
+          "name": "suggest-improvements",
+          "synopsis": "/codebase:suggest-improvements [output-file]"
+        }
+      ],
+      "description": "Codebase analysis and improvement suggestions",
+      "has_readme": true,
+      "hooks": [],
+      "name": "codebase",
+      "skills": [],
+      "version": "0.0.1"
+    },
+    {
+      "commands": [
+        {
           "argument_hint": "<release> [--components comp1 comp2 ...] [--project JIRAPROJECT]",
           "description": "Analyze and grade component health based on regression and JIRA bug metrics",
           "name": "analyze",

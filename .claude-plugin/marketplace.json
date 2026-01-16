@@ -29,6 +29,11 @@
       "version": "0.0.2"
     },
     {
+      "name": "codebase",
+      "source": "./plugins/codebase",
+      "description": "Codebase analysis and improvement suggestions"
+    },
+    {
       "name": "component-health",
       "source": "./plugins/component-health",
       "description": "Analyze component health and track regressions across OpenShift releases",

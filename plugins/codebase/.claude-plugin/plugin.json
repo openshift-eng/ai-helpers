@@ -1,0 +1,9 @@
+{
+  "name": "codebase",
+  "description": "Codebase analysis and improvement suggestions",
+  "version": "0.0.1",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}
+
