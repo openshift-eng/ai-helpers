@@ -17,6 +17,11 @@ This skill is automatically invoked by the `/jira:create epic` command to guide 
 - User has permissions to create issues in the target project
 - Understanding of the epic scope and related work
 
+**Reference Documentation:**
+- [Wiki Markup Reference](../../reference/wiki-markup.md) - JIRA formatting syntax
+- [MCP Tools Reference](../../reference/mcp-tools.md) - MCP tool signatures and custom fields
+- [CLI Fallback Reference](../../reference/cli-fallback.md) - jira-cli commands (only if MCP unavailable)
+
 ## What is an Epic?
 
 An agile epic is:

@@ -57,6 +57,20 @@ Ensure you have the ai-helpers marketplace enabled, via [the instructions here](
 /plugin install jira@ai-helpers
 ```
 
+## Reference Files
+
+This plugin uses shared reference files for progressive disclosure, following [Claude Code best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#progressive-disclosure-patterns).
+
+Skills reference these files rather than duplicating content:
+
+| File | Purpose |
+|------|---------|
+| [reference/wiki-markup.md](reference/wiki-markup.md) | JIRA Wiki Markup formatting guide |
+| [reference/mcp-tools.md](reference/mcp-tools.md) | MCP tool signatures and custom fields |
+| [reference/cli-fallback.md](reference/cli-fallback.md) | jira-cli commands when MCP unavailable |
+
+**Best Practice:** Keep references one level deep. Link directly from SKILL.md to reference files. Deeply nested references may result in partial file reads.
+
 ## Available Commands
 
 ### `/jira:solve` - Analyze and Solve JIRA Issues
