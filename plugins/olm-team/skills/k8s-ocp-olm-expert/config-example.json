@@ -1,0 +1,24 @@
+{
+  "repositories": {
+    "openshift_docs": "/path/to/openshift-docs",
+    "olm_v0_upstream": {
+      "operator_lifecycle_manager": "/path/to/operator-lifecycle-manager",
+      "operator_registry": "/path/to/operator-registry",
+      "api": "/path/to/api"
+    },
+    "olm_v0_downstream": {
+      "operator_framework_olm": "/path/to/operator-framework-olm",
+      "operator_marketplace": "/path/to/operator-marketplace"
+    },
+    "olm_v1_upstream": {
+      "operator_controller": "/path/to/operator-controller"
+    },
+    "olm_v1_downstream": {
+      "operator_framework_operator_controller": "/path/to/operator-framework-operator-controller",
+      "cluster_olm_operator": "/path/to/cluster-olm-operator"
+    },
+    "openshift_api": {
+      "openshift_api": "/path/to/openshift-api"
+    }
+  }
+}
