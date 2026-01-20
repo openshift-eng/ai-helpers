@@ -399,8 +399,8 @@ Output:
 ```
 Repository Detection Results
 =============================
-✓ Found 6/10 repositories
-✗ Missing 4 repositories
+✓ Found 6/9 repositories
+✗ Missing 3 repositories
 
 ⚠️  RECOMMENDATION: Run /olm-team:dev-setup
 
