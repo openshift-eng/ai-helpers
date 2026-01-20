@@ -9,7 +9,7 @@ Comprehensive Jira integration for Claude Code, providing AI-powered tools to an
 - 📝 **Weekly Status Updates** - Automate weekly status summary updates with intelligent activity analysis and color-coded health indicators
 - 📋 **Backlog Grooming** - Analyze new bugs and cards for grooming meetings
 - 🏷️ **Activity Type Categorization** - AI-powered categorization of JIRA tickets into activity types with confidence scoring
-- 🧪 **Test Generation** - Generate comprehensive test steps for JIRA issues by analyzing related PRs
+- 🧪 **Test Plan Generation** - Generate comprehensive manual test plans and automated E2E test code by analyzing related PRs
 - ✨ **Issue Creation** - Create well-formed stories, epics, features, tasks, bugs, and feature requests with guided workflows
 - 📝 **Release Note Generation** - Automatically generate bug fix release notes from Jira and linked GitHub PRs
 - 🤖 **Automated Workflows** - From issue analysis to PR creation, fully automated
@@ -142,18 +142,36 @@ See [commands/categorize-activity-type.md](commands/categorize-activity-type.md)
 
 ---
 
-### `/jira:generate-test-plan` - Generate Test Steps
+### `/jira:generate-test-plan` - Generate Test Plans and E2E Tests
 
-Generate comprehensive test steps for a JIRA issue by analyzing related pull requests. The command supports auto-discovery of PRs from the JIRA issue or manual specification of specific PRs to analyze.
+Generate comprehensive test plans for JIRA issues by analyzing related pull requests. The command supports auto-discovery of PRs from the JIRA issue or manual specification of specific PRs to analyze. Optionally generates automated E2E test code that matches your project's existing test style.
 
 **Usage:**
 ```bash
-# Auto-discover all PRs from JIRA
+# Generate manual test plan only (auto-discover PRs)
 /jira:generate-test-plan CNTRLPLANE-205
 
-# Test only specific PRs
+# Generate manual test plan for specific PRs
 /jira:generate-test-plan CNTRLPLANE-205 https://github.com/openshift/hypershift/pull/6888
+
+# Generate manual test plan + E2E test code (auto-detect test directory)
+/jira:generate-test-plan CNTRLPLANE-205 --generate-e2e
+
+# Generate E2E tests with specific test directory
+/jira:generate-test-plan CNTRLPLANE-205 --generate-e2e --test-dir test/e2e/
+
+# Generate only test skeleton (structure without implementation)
+/jira:generate-test-plan CNTRLPLANE-205 --generate-e2e --skeleton-only
 ```
+
+**Key Features:**
+- **Automatic PR Discovery** - Scans JIRA for all related PRs or uses specific PR URLs
+- **Comprehensive Test Scenarios** - Maps JIRA acceptance criteria to test scenarios
+- **E2E Test Code Generation** - Generates Ginkgo/Gomega tests matching your project's style
+- **Code Style Analysis** - Analyzes existing tests and replicates patterns, naming, and structure
+- **Smart Directory Detection** - Auto-detects test directories or accepts custom paths
+- **TODO Guidance** - Partial implementation with clear markers for manual completion
+- **Interactive Confirmation** - Asks for confirmation before generating files
 
 See [commands/generate-test-plan.md](commands/generate-test-plan.md) for full documentation.
 

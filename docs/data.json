@@ -133,7 +133,7 @@
           "synopsis": "/jira:generate-feature-doc <feature-key>"
         },
         {
-          "argument_hint": "[JIRA issue key] [GitHub PR URLs]",
+          "argument_hint": "[JIRA issue key] [GitHub PR URLs] [--generate-e2e] [--test-dir path] [--skeleton-only]",
           "description": "Generate test steps for a JIRA issue",
           "name": "generate-test-plan",
           "synopsis": ""
@@ -278,7 +278,7 @@
           "name": "Jira Status Analysis Engine"
         }
       ],
-      "version": "0.3.1"
+      "version": "0.3.2"
     },
     {
       "commands": [
