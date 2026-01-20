@@ -63,9 +63,6 @@ The agent expects a configuration file at: `~/.config/claude-code/olm-agent-conf
     "olm_v1_downstream": {
       "operator_framework_operator_controller": "/path/to/operator-framework-operator-controller",
       "cluster_olm_operator": "/path/to/cluster-olm-operator"
-    },
-    "openshift_api": {
-      "openshift_api": "/path/to/openshift-api"
     }
   }
 }
@@ -93,9 +90,6 @@ The agent requires access to these repositories:
 **OLM v1 Downstream:**
 - `operator-framework-operator-controller` - OpenShift distribution of OLM v1
 - `cluster-olm-operator` - OLM cluster operator
-
-**OpenShift API:**
-- `openshift-api` - OpenShift API definitions
 
 ## Features
 
@@ -198,7 +192,13 @@ The agent uses your local checkouts. To get latest changes:
 ```bash
 cd /path/to/repository
 git fetch upstream
-git merge upstream/main
+git merge upstream/HEAD  # Uses the default branch (main or master)
+```
+
+Or if you need to specify the branch explicitly:
+```bash
+git merge upstream/main   # For repos using main
+git merge upstream/master # For repos using master
 ```
 
 ## Related Commands

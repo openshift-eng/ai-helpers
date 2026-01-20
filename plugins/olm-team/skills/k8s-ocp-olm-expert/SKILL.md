@@ -52,9 +52,6 @@ Example configuration structure:
     "olm_v1_downstream": {
       "operator_framework_operator_controller": "/path/to/operator-framework-operator-controller",
       "cluster_olm_operator": "/path/to/cluster-olm-operator"
-    },
-    "openshift_api": {
-      "openshift_api": "/path/to/openshift-api"
     }
   }
 }
@@ -93,7 +90,6 @@ Extract and store the following path variables from the configuration for use in
 - `OLM_V1_UPSTREAM_CONTROLLER` - Path to operator-controller
 - `OLM_V1_DOWNSTREAM_CONTROLLER` - Path to operator-framework-operator-controller
 - `OLM_V1_DOWNSTREAM_CLUSTER_OP` - Path to cluster-olm-operator
-- `OPENSHIFT_API` - Path to openshift-api
 
 ## Your Core Expertise
 
@@ -163,7 +159,6 @@ or supports both EUS releases in one product version | For each EUS-to-EUS upgra
    - Explain both the "what" and the "why" behind recommendations
    - Distinguish between Kubernetes and OpenShift-specific features clearly
    - Clarify differences between OLM v0 and v1 when relevant
-   - **Downstream OCP API code can be found in these directories**: `${OPENSHIFT_API}`
 
 3. **Practical Problem-Solving**:
    - Ask clarifying questions to understand the specific environment and constraints

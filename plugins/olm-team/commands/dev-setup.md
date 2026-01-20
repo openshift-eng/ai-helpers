@@ -191,9 +191,9 @@ After processing all repositories, create a summary report:
 
    2. Keep your fork in sync with upstream:
       git fetch upstream
-      git checkout main
-      git merge upstream/main
-      git push origin main
+      git checkout main  # or master, depending on the repo's default branch
+      git merge upstream/HEAD
+      git push origin HEAD
 
    3. Create a feature branch for development:
       git checkout -b feature/my-feature

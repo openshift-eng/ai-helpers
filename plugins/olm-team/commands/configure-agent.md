@@ -20,7 +20,6 @@ The agent requires access to:
 - **OLM v0 Downstream**: operator-framework-olm, operator-marketplace
 - **OLM v1 Upstream**: operator-controller
 - **OLM v1 Downstream**: operator-framework-operator-controller, cluster-olm-operator
-- **OpenShift API**: openshift-api
 
 If you don't have these repositories cloned yet, the command will recommend using `/olm-team:dev-setup` to automatically fork and clone all required repositories.
 
@@ -67,7 +66,6 @@ REPOS=(
   "operator-controller"
   "operator-framework-operator-controller"
   "cluster-olm-operator"
-  "openshift-api"
 )
 
 # Search for repositories and store found paths
@@ -107,12 +105,12 @@ Repository Detection Results
 
 ### Step 4: Recommend dev-setup if Repositories are Missing
 
-If fewer than 8 out of 10 repositories are found, recommend using dev-setup:
+If fewer than 7 out of 9 repositories are found, recommend using dev-setup:
 
 ```
 ⚠️  Missing Repositories Detected
 
-You're missing X out of 10 required repositories.
+You're missing X out of 9 required repositories.
 
 RECOMMENDATION: Run /olm-team:dev-setup
 
@@ -215,9 +213,6 @@ build_config() {
     "olm_v1_downstream": {
       "operator_framework_operator_controller": "${FOUND_REPOS[operator-framework-operator-controller]:-/path/to/operator-framework-operator-controller}",
       "cluster_olm_operator": "${FOUND_REPOS[cluster-olm-operator]:-/path/to/cluster-olm-operator}"
-    },
-    "openshift_api": {
-      "openshift_api": "${FOUND_REPOS[openshift-api]:-/path/to/openshift-api}"
     }
   }
 }
@@ -317,7 +312,6 @@ Repository Paths Configured:
   ✓ operator-controller
   ✓ operator-framework-operator-controller
   ✓ cluster-olm-operator
-  ✓ openshift-api
 
 The k8s-ocp-olm-expert agent is now configured and will automatically use these
 repositories when providing documentation references and code analysis.
@@ -331,7 +325,7 @@ Next Steps:
 2. Keep repositories updated:
    cd /path/to/repository
    git fetch upstream
-   git merge upstream/main
+   git merge upstream/HEAD  # Uses the default branch (main or master)
 
 3. Update configuration anytime:
    /olm-team:configure-agent
@@ -430,7 +424,7 @@ Output:
 ```
 Repository Detection Results
 =============================
-✓ Found all 10 repositories
+✓ Found all 9 repositories
 
 Creating configuration...
 ✓ Configuration saved: ~/.config/claude-code/olm-agent-config.json

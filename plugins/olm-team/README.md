@@ -52,7 +52,6 @@ Creates or updates the configuration file for the k8s-ocp-olm-expert agent with 
 - operator-framework-olm, operator-marketplace (OLM v0 downstream)
 - operator-controller (OLM v1 upstream)
 - operator-framework-operator-controller, cluster-olm-operator (OLM v1 downstream)
-- openshift-api
 
 See [commands/configure-agent.md](commands/configure-agent.md) for full documentation.
 
@@ -180,9 +179,9 @@ gh pr create --web
 
 # Keep your fork in sync with upstream
 git fetch upstream
-git checkout main
-git merge upstream/main
-git push origin main
+git checkout main  # or master, depending on the repo's default branch
+git merge upstream/HEAD
+git push origin HEAD
 ```
 
 ## Development Resources

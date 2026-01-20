@@ -72,16 +72,40 @@ for repo_entry in "${REPOS[@]}"; do
   # Determine clone directory
   clone_dir="$TARGET_DIR/$GITHUB_USER/$repo_name"
 
+  # Ensure parent directory exists
+  parent_dir="$TARGET_DIR/$GITHUB_USER"
+  if [ ! -d "$parent_dir" ]; then
+    echo "  Creating parent directory: $parent_dir"
+    if ! mkdir -p "$parent_dir" 2>/dev/null; then
+      echo "  ✗ Failed to create directory: $parent_dir"
+      echo "    Check permissions for $TARGET_DIR"
+      FAILED_REPOS+=("$repo_full (directory creation failed)")
+      echo ""
+      continue
+    fi
+  fi
+
   # Clone repository if not already cloned
   if [ -d "$clone_dir" ]; then
     echo "  ⊙ Repository already cloned at: $clone_dir"
     echo "  Skipping clone (directory exists)"
   else
     echo "  Cloning to: $clone_dir"
-    if git clone "git@github.com:$GITHUB_USER/$repo_name.git" "$clone_dir" 2>&1 | grep -v "^Cloning"; then
+    # Capture git clone output and exit code
+    clone_output=$(git clone "git@github.com:$GITHUB_USER/$repo_name.git" "$clone_dir" 2>&1)
+    clone_exit=$?
+
+    if [ $clone_exit -eq 0 ]; then
+      # Filter out "Cloning into..." line and show remaining output if any
+      filtered_output=$(echo "$clone_output" | grep -v "^Cloning")
+      if [ -n "$filtered_output" ]; then
+        echo "$filtered_output"
+      fi
       echo "  ✓ Repository cloned"
     else
       echo "  ✗ Failed to clone $GITHUB_USER/$repo_name"
+      # Show error output indented
+      echo "$clone_output" | sed 's/^/    /'
       FAILED_REPOS+=("$repo_full (clone failed)")
       echo ""
       continue

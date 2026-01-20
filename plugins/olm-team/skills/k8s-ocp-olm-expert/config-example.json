@@ -16,9 +16,6 @@
     "olm_v1_downstream": {
       "operator_framework_operator_controller": "/path/to/operator-framework-operator-controller",
       "cluster_olm_operator": "/path/to/cluster-olm-operator"
-    },
-    "openshift_api": {
-      "openshift_api": "/path/to/openshift-api"
     }
   }
 }

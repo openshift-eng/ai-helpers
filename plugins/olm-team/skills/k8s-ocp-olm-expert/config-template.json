@@ -66,16 +66,6 @@
             }
           },
           "required": ["operator_framework_operator_controller", "cluster_olm_operator"]
-        },
-        "openshift_api": {
-          "type": "object",
-          "properties": {
-            "openshift_api": {
-              "type": "string",
-              "description": "Path to openshift/openshift-api"
-            }
-          },
-          "required": ["openshift_api"]
         }
       },
       "required": [
@@ -83,8 +73,7 @@
         "olm_v0_upstream",
         "olm_v0_downstream",
         "olm_v1_upstream",
-        "olm_v1_downstream",
-        "openshift_api"
+        "olm_v1_downstream"
       ]
     }
   },
