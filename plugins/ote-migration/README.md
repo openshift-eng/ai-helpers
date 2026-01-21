@@ -1,144 +1,197 @@
 # OTE Migration Plugin
 
-  Automated migration tools for integrating OpenShift component repositories with the openshift-tests-extension (OTE) framework.
+Automated migration tools for integrating OpenShift component repositories with the openshift-tests-extension (OTE) framework.
 
-  ## Overview
+## Overview
 
-  This plugin automates the complete process of migrating OpenShift component repositories to use the OTE framework. The tool handles everything from repository setup to code generation with customizable destination paths.
+This plugin automates the complete process of migrating OpenShift component repositories to use the OTE framework. The tool handles everything from repository setup to code generation with customizable destination paths.
 
-  ## Commands
+## Commands
 
-  ### `/ote-migration:migrate`
+### `/ote-migration:migrate`
 
-  Performs the complete OTE migration in one workflow.
+Performs the complete OTE migration in one workflow.
 
-  **What it does:**
-  1. Collects user inputs - Extension name, directories, repository URLs
-  2. Sets up repositories - Clones/updates source and target repositories
-  3. Creates structure - Builds test/e2e and test/testdata directories
-  4. Copies files - Moves test files and testdata to destinations
-  5. Vendors dependencies - Automatically vendors Go dependencies
-  6. Generates code - Creates go.mod, cmd/main.go, Makefile, fixtures.go
-  7. Migrates tests - Automatically replaces FixturePath() calls and updates imports
-  8. Provides validation - Gives comprehensive next steps and validation guide
+**What it does:**
 
-  **Key Features:**
-  - **Complete automation** - One command handles the entire migration
-  - **Two directory strategies** - Monorepo (integrated) or single-module (isolated)
-  - **Smart repository management** - Remote detection and update capabilities
-  - **Dynamic dependency resolution** - Fetches latest Kubernetes and ginkgo versions from upstream
-  - **Automatic Go toolchain management** - Uses `GOTOOLCHAIN=auto` to download required Go version
-  - **Automatic test migration** - Replaces FixturePath() calls and updates imports
-  - **Component-specific test filtering** - Generated main.go filters tests by `[sig-<extension-name>]` tag
-  - **Test tracking annotations** - Automatically adds [OTP] and [Level0] tags to test cases
-  - **Build verification** - Validates successful compilation before completion
-  - **Git status validation** - Ensures clean working directory
-  - **Auto-install go-bindata** - For generating embedded testdata
-  - **Dockerfile integration** - Provides templates for both strategies
+1. Auto-detects extension name - From repository name for infrastructure naming
+2. Collects sig filter tags - User provides sig tag(s) for test filtering
+3. Sets up repositories - Clones/updates source and target repositories
+4. Creates structure - Builds test/e2e and test/testdata directories
+5. Copies files - Moves test files and testdata to destinations
+6. Generates code - Creates go.mod, cmd/main.go, Makefile, fixtures.go with multi-tag filtering
+7. Migrates tests - Automatically replaces FixturePath() calls and updates imports
+8. Provides validation - Gives comprehensive next steps and validation guide
 
-  ## Installation
+**Key Features:**
 
-  This plugin is available through the ai-helpers marketplace:
+- **Complete automation** - One command handles the entire migration
+- **Smart extension name detection** - Auto-detects from repository name for binary/module naming
+- **Flexible sig tag filtering** - Support single or multiple sig tags for test filtering (e.g., `router` or `router,network-edge`)
+- **Two directory strategies** - Monorepo (integrated) or single-module (isolated)
+- **Custom test directory support** - Handles existing test/e2e directories with configurable alternatives
+- **Dynamic git remote discovery** - No assumptions about remote names (no hardcoded 'origin')
+- **Smart repository management** - Remote detection and update capabilities
+- **Dynamic dependency resolution** - Fetches latest Kubernetes and ginkgo versions from upstream
+- **Automatic Go toolchain management** - Uses `GOTOOLCHAIN=auto` to download required Go version
+- **Automatic test migration** - Replaces FixturePath() calls and updates imports
+- **Multi-tag test filtering** - Generated main.go filters tests by user-specified sig tags
+- **Test tracking annotations** - Automatically adds [OTP] and [Level0] tags, removes duplicate `-LEVEL0-` suffixes
+- **Tag validation** - Validates all required tags are present before build
+- **Informing lifecycle by default** - All migrated tests set to informing (won't block CI on failure)
+- **Enhanced Makefile targets** - Includes compress and copy targets for CI/CD workflows
+- **Build verification** - Validates successful compilation before completion
+- **Git status validation** - Ensures clean working directory
+- **Auto-install go-bindata** - For generating embedded testdata
+- **Dockerfile integration** - Provides templates for both strategies
 
-  ```bash
-  /plugin marketplace add openshift-eng/ai-helpers
-  /plugin install ote-migration@ai-helpers
+## Installation
 
-  Usage
+This plugin is available through the ai-helpers marketplace:
 
-  /ote-migration:migrate
+```bash
+/plugin marketplace add openshift-eng/ai-helpers
+/plugin install ote-migration@ai-helpers
+```
 
-  Follow the prompts to provide:
-  - Extension name (e.g., "sdn", "router", "storage")
-  - Directory structure strategy (monorepo or single-module)
-  - Working directory
-  - Local openshift-tests-private path (optional)
-  - Test subfolder under test/extended/
-  - Testdata subfolder under test/extended/testdata/
-  - Local target repository path (optional)
-  - Target repository URL (if not using local)
+## Usage
 
-  ## Directory Structure Strategies
+**IMPORTANT: Identify Your Sig Tags**
 
-  The migration tool supports two directory strategies to fit different repository layouts:
+Before running the migration, identify the sig tag(s) used in your test files:
 
-  ### Option 1: Monorepo Strategy (Recommended for Component Repositories)
+```bash
+# Find your sig tags from test files in openshift-tests-private
+grep -r "g\.Describe" test/extended/<your-subfolder>/ --include="*.go" | grep -o '\[sig-[^]]*\]' | sort -u
 
-  Integrates OTE into existing repository structure with **separate test module**.
+# Example output:
+# [sig-network-edge]
+# [sig-router]
+```
 
-  **Structure created:**
-  ```
-  <repo-root>/
-  ├── cmd/
-  │   └── extension/
-  │       └── main.go                # OTE entry point
-  ├── test/
-  │   ├── e2e/
-  │   │   ├── go.mod                 # Separate test module
-  │   │   ├── go.sum
-  │   │   └── *_test.go              # Test files
-  │   ├── testdata/
-  │   │   ├── bindata.go             # Generated
-  │   │   └── fixtures.go
-  │   └── bindata.mk
-  ├── go.mod                         # Root module (with replace directive)
-  └── Makefile                       # Extension target added
-  ```
+Run the migration command:
 
-  **Key characteristics:**
-  - **Separate test module**: `test/e2e/go.mod` is independent from root `go.mod`
-  - **Replace directive**: Root `go.mod` includes `replace <module>/test/e2e => ./test/e2e`
-  - **Integrated build**: Makefile target `tests-ext-build` added to root
-  - **Binary location**: `bin/<extension-name>-tests-ext`
+```bash
+/ote-migration:migrate
+```
 
-  **Best for:**
-  - Component repos with existing `cmd/` and `test/` structure
-  - Teams wanting OTE tests alongside production code
-  - Repos that already use multi-module layout
+The plugin will:
 
-  **Example repositories:**
-  - machine-config-operator
-  - cluster-network-operator
-  - router
+1. **Auto-detect extension name** from repository name
+   - Used for binary name (`router-tests-ext`), module paths, directory structure
+   - Example: In ~/router directory → extension name: `router`
 
-  ### Option 2: Single-Module Strategy (For Standalone Test Extensions)
+2. **Prompt for sig filter tag(s)** to filter tests
+   - Enter single tag: `router` → filters for `[sig-router]`
+   - Enter multiple tags: `router,network-edge` → filters for `[sig-router]` OR `[sig-network-edge]`
+   - **Why this matters:** The generated binary uses these tags to filter which tests to include. If the tags don't match your test files, `./bin/<extension-name>-tests-ext list` will show 0 tests because the filtering logic won't find your tests
 
-  Creates isolated `tests-extension/` directory with **single go.mod**.
+3. **Directory structure strategy**
+   - Monorepo (integrate into existing repo)
+   - Single-module (isolated tests-extension/ directory)
 
-  **Structure created:**
-  ```
-  <working-dir>/
-  └── tests-extension/
-      ├── cmd/
-      │   └── main.go                # OTE entry point
-      ├── test/
-      │   ├── e2e/
-      │   │   └── *_test.go
-      │   └── testdata/
-      │       ├── bindata.go
-      │       └── fixtures.go
-      ├── go.mod                     # Single module
-      ├── go.sum
-      ├── Makefile
-      └── bindata.mk
-  ```
+4. **Working directory path**
+   - For monorepo: Path to target repo root
+   - For single-module: Path where tests-extension/ will be created
 
-  **Key characteristics:**
-  - **Single module**: All code in one `go.mod`
-  - **Self-contained**: No changes to existing repo structure
-  - **Standalone binary**: `tests-extension/bin/<extension-name>-tests-ext`
+5. **Test directory name** (monorepo only, if test/e2e exists)
+   - Alternative name like `e2e-ote` or `ote-tests`
 
-  **Best for:**
-  - Standalone test extensions
-  - Prototyping OTE migrations
-  - Repos without existing test structure
-  - Separate test repositories
+6. **Additional repository details:**
+   - Local openshift-tests-private path (optional)
+   - Test subfolder under test/extended/
+   - Testdata subfolder under test/extended/testdata/
+   - Local target repository path (optional)
+   - Target repository URL (if not using local)
 
-  ## Important Notes
+## Directory Structure Strategies
 
-  ### Test Filtering in Generated main.go
+The migration tool supports two directory strategies to fit different repository layouts:
 
-  The generated `cmd/main.go` (or `cmd/extension/main.go` for monorepo) includes **component-specific test filtering** using the `[sig-<extension-name>]` tag. This ensures only your component's tests are registered with the OTE framework.
+### Option 1: Monorepo Strategy (Recommended for Component Repositories)
+
+Integrates OTE into existing repository structure with **separate test module**.
+
+**Structure created:**
+
+```text
+<repo-root>/
+├── cmd/
+│   └── extension/
+│       └── main.go                # OTE entry point
+├── test/
+│   ├── e2e/
+│   │   ├── go.mod                 # Separate test module
+│   │   ├── go.sum
+│   │   └── *_test.go              # Test files
+│   ├── testdata/
+│   │   ├── bindata.go             # Generated
+│   │   └── fixtures.go
+│   └── bindata.mk
+├── go.mod                         # Root module (with replace directive)
+└── Makefile                       # Extension target added
+```
+
+**Key characteristics:**
+
+- **Separate test module**: `test/e2e/go.mod` is independent from root `go.mod`
+- **Replace directive**: Root `go.mod` includes `replace <module>/test/e2e => ./test/e2e`
+- **Integrated build**: Makefile target `tests-ext-build` added to root
+- **Binary location**: `bin/<extension-name>-tests-ext`
+
+**Best for:**
+
+- Component repos with existing `cmd/` and `test/` structure
+- Teams wanting OTE tests alongside production code
+- Repos that already use multi-module layout
+
+**Example repositories:**
+
+- machine-config-operator
+- cluster-network-operator
+- router
+
+### Option 2: Single-Module Strategy (For Standalone Test Extensions)
+
+Creates isolated `tests-extension/` directory with **single go.mod**.
+
+**Structure created:**
+
+```text
+<working-dir>/
+└── tests-extension/
+    ├── cmd/
+    │   └── main.go                # OTE entry point
+    ├── test/
+    │   ├── e2e/
+    │   │   └── *_test.go
+    │   └── testdata/
+    │       ├── bindata.go
+    │       └── fixtures.go
+    ├── go.mod                     # Single module
+    ├── go.sum
+    ├── Makefile
+    └── bindata.mk
+```
+
+**Key characteristics:**
+
+- **Single module**: All code in one `go.mod`
+- **Self-contained**: No changes to existing repo structure
+- **Standalone binary**: `tests-extension/bin/<extension-name>-tests-ext`
+
+**Best for:**
+
+- Standalone test extensions
+- Prototyping OTE migrations
+- Repos without existing test structure
+- Separate test repositories
+
+## Important Notes
+
+### Test Filtering in Generated main.go
+
+The generated `cmd/main.go` (or `cmd/extension/main.go` for monorepo) includes **component-specific test filtering** using the `[sig-<extension-name>]` tag. This ensures only your component's tests are registered with the OTE framework.
 
   **Filter implementation:**
   ```go
@@ -159,9 +212,9 @@
   ```
 
   **Why this matters:**
-  - Without this filter, you'd see **5,000+ upstream Kubernetes tests** in addition to your component tests
-  - The filter ensures `./bin/<extension-name>-tests-ext list` shows only tests tagged with `[sig-<extension-name>]`
-  - Tests must have the `[sig-<extension-name>]` tag in their name to be included
+- Without this filter, you'd see **5,000+ upstream Kubernetes tests** in addition to your component tests
+- The filter ensures `./bin/<extension-name>-tests-ext list` shows only tests tagged with `[sig-<extension-name>]`
+- Tests must have the `[sig-<extension-name>]` tag in their name to be included
 
   **Verification after migration:**
   ```bash
@@ -172,7 +225,7 @@
   ./bin/<extension-name>-tests-ext list | grep -c "\[sig-<extension-name>\]"
   ```
 
-  ### Test Tracking Annotations
+### Test Tracking Annotations
 
   The migration **automatically modifies test files** to add tracking annotations. This happens in Phase 6 (Test Migration) and restructures test names for better organization.
 
@@ -185,17 +238,20 @@
      - Example: `g.Describe("[sig-router][OTP]", func() { ... })`
 
   2. **[Level0]** - Added to individual It() test cases with "-LEVEL0-" in name
-     - Identifies level0 conformance tests
+     - Identifies Level0 conformance tests
      - Auto-detected by searching for "-LEVEL0-" string in It() descriptions
      - Placement: At the beginning of It() descriptions
+     - **Automatically removes `-LEVEL0-` suffix** to prevent duplication
      - Example: `g.It("[Level0] Router should handle basic routing", func() { ... })`
+     - Before: `"...Author:john-LEVEL0-Critical..."`
+     - After: `"[Level0] ...Author:john-Critical..."`
 
   **Test restructuring performed:**
 
   The migration simplifies test structure by:
-  - Moving Describe block text into It() descriptions
-  - Simplifying Describe to just tags: `[sig-<extension-name>][OTP]`
-  - Prepending `[Level0]` to It() for tests with "-LEVEL0-"
+- Moving Describe block text into It() descriptions
+- Simplifying Describe to just tags: `[sig-<extension-name>][OTP]`
+- Prepending `[Level0]` to It() for tests with "-LEVEL0-"
 
   **Before migration:**
   ```go
@@ -221,24 +277,24 @@
   ```
 
   **Benefits:**
-  - **Track migration progress** - Count tests with `[OTP]` tag
-  - **Identify level0 tests** - Filter by `[Level0]` tag
-  - **Cleaner test hierarchy** - Describe blocks use tags only
-  - **Flexibility for test execution** - Run level0 tests separately or in conformance suites
+- **Track migration progress** - Count tests with `[OTP]` tag
+- **Identify Level0 tests** - Filter by `[Level0]` tag
+- **Cleaner test hierarchy** - Describe blocks use tags only
+- **Flexibility for test execution** - Run Level0 tests separately or in conformance suites
 
   **Verification after migration:**
   ```bash
   # Count total ported tests (all should have [OTP])
   ./bin/<extension-name>-tests-ext list | grep -c "\[OTP\]"
 
-  # Count level0 conformance tests
+  # Count Level0 conformance tests
   ./bin/<extension-name>-tests-ext list | grep -c "\[Level0\]"
 
   # View restructured test names
   ./bin/<extension-name>-tests-ext list | head -10
   ```
 
-  ### Dynamic Dependency Resolution
+### Dynamic Dependency Resolution
 
   The migration tool **fetches latest versions** of critical dependencies directly from upstream repositories instead of copying potentially stale versions from openshift-tests-private.
 
@@ -263,22 +319,22 @@
   **Why this matters:**
 
   Prevents common API incompatibility errors:
-  - ❌ `undefined: ginkgo.NewWriter`
-  - ❌ `undefined: diff.Diff` (library-go)
-  - ❌ `undefined: otelgrpc.UnaryClientInterceptor` (cri-client)
-  - ❌ `structured-merge-diff/v6 vs v4` type mismatches
+- ❌ `undefined: ginkgo.NewWriter`
+- ❌ `undefined: diff.Diff` (library-go)
+- ❌ `undefined: otelgrpc.UnaryClientInterceptor` (cri-client)
+- ❌ `structured-merge-diff/v6 vs v4` type mismatches
 
   **Old behavior (problematic):**
-  - Copied all replace directives from `openshift-tests-private/go.mod`
-  - Could be weeks or months out of date
-  - Led to build failures with newer dependencies
+- Copied all replace directives from `openshift-tests-private/go.mod`
+- Could be weeks or months out of date
+- Led to build failures with newer dependencies
 
   **New behavior (reliable):**
-  - Fetches latest commit hashes at migration time
-  - Generates fresh pseudo-versions
-  - Ensures compatibility with current OpenShift ecosystem
+- Fetches latest commit hashes at migration time
+- Generates fresh pseudo-versions
+- Ensures compatibility with current OpenShift ecosystem
 
-  ### Automatic Go Toolchain Management
+### Automatic Go Toolchain Management
 
   The migration uses `GOTOOLCHAIN=auto` and `GOSUMDB=sum.golang.org` to automatically download required Go versions.
 
@@ -295,10 +351,10 @@
   ```
 
   **How it works:**
-  - Your system Go: 1.24.3
-  - Dependencies require: 1.24.6+
-  - `GOTOOLCHAIN=auto` downloads: 1.24.11 (from go.mod's toolchain directive)
-  - Build succeeds using the downloaded toolchain
+- Your system Go: 1.24.3
+- Dependencies require: 1.24.6+
+- `GOTOOLCHAIN=auto` downloads: 1.24.11 (from go.mod's toolchain directive)
+- Build succeeds using the downloaded toolchain
 
   **Used in these migration steps:**
   ```bash
@@ -319,8 +375,80 @@
   GOTOOLCHAIN=auto go mod tidy
   ```
 
-  ## Resources
+### Enhanced Makefile Targets
 
-  - [OTE Framework Enhancement](https://github.com/openshift/enhancements/pull/1676)
-  - [OTE Framework Repository](https://github.com/openshift-eng/openshift-tests-extension)
-  - [Example Implementation](https://github.com/openshift-eng/openshift-tests-extension/blob/main/cmd/example-tests/main.go)
+The migration creates Makefile targets optimized for CI/CD workflows:
+
+**Available targets:**
+
+```bash
+make tests-ext-build     # Build the OTE binary
+make tests-ext-compress  # Build and compress with gzip
+make tests-ext-copy      # Build, compress, and copy to _output/
+make extension           # Alias for tests-ext-build
+make clean-extension     # Clean all generated binaries and artifacts
+```
+
+**Output locations:**
+
+- **Monorepo:** `bin/<extension-name>-tests-ext`
+- **Single-module:** `tests-extension/bin/<extension-name>-tests-ext`
+- **Compressed:** Same location with `.gz` extension
+- **Copy destination:** `_output/<extension-name>-tests-ext.gz`
+
+**CI/CD Integration:**
+
+The `tests-ext-copy` target is designed for CI pipelines that collect build artifacts from the `_output/` directory.
+
+### Test Lifecycle (Informing by Default)
+
+All migrated tests are automatically set to **Informing** lifecycle - they will run but won't block CI on failure.
+
+```go
+// Set lifecycle for all migrated tests to Informing
+// Tests will run but won't block CI on failure
+specs.Walk(func(spec *et.ExtensionTestSpec) {
+	spec.Lifecycle = et.LifecycleInforming
+})
+```
+
+**Lifecycle options:**
+
+- `et.LifecycleInforming` - Test failures don't block CI (default for migrated tests)
+- `et.LifecycleBlocking` - Test failures block CI
+
+**To make tests blocking:**
+
+If you want certain tests to block CI, modify the generated `main.go` or `cmd/extension/main.go`:
+
+```go
+// Example: Make Level0 tests blocking, others informing
+specs.Walk(func(spec *et.ExtensionTestSpec) {
+	if strings.Contains(spec.Name, "[Level0]") {
+		spec.Lifecycle = et.LifecycleBlocking
+	} else {
+		spec.Lifecycle = et.LifecycleInforming
+	}
+})
+```
+
+### Tag Validation
+
+Before build verification, the migration validates that all required tags are properly applied:
+
+**Validation checks:**
+
+1. All test files have `[sig-<extension-name>]` tag
+2. All Describe blocks have `[OTP]` tag
+3. Tests with `[Level0]` don't have duplicate `-LEVEL0-` suffixes
+4. Files using `testdata.FixturePath` have proper imports
+
+**On validation failure:**
+
+The migration stops and provides specific guidance on which files need fixing, preventing incomplete migrations.
+
+## Resources
+
+- [OTE Framework Enhancement](https://github.com/openshift/enhancements/pull/1676)
+- [OTE Framework Repository](https://github.com/openshift-eng/openshift-tests-extension)
+- [Example Implementation](https://github.com/openshift-eng/openshift-tests-extension/blob/main/cmd/example-tests/main.go)

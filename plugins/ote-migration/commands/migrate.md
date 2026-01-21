@@ -56,15 +56,108 @@ No files to delete in this phase.
 
 Collect all necessary information from the user before starting the migration.
 
-**Note:** Source repository is always `git@github.com:openshift/openshift-tests-private.git`
+**CRITICAL INSTRUCTION FOR AI AGENT:**
+- **Extension name (Input 1)**: AUTO-DETECT from git remote or directory name - do NOT ask user
+- **Sig filter tags (Input 2)**: MUST ask user explicitly - do NOT auto-detect or infer
+- **All other inputs**: Ask user explicitly using AskUserQuestion tool or direct prompts
+- **WAIT for user response** before proceeding to the next input or phase
 
-#### Input 1: Extension Name
+**Important Notes:**
+- Source repository is always `git@github.com:openshift/openshift-tests-private.git`
+- Variables collected (shown as `<variable-name>`) will be used throughout the migration:
+  - `<extension-name>` - Extension name (auto-detected from Input 1)
+  - `<sig-filter-tags>` - Comma-separated sig tags for test filtering (from Input 2)
+  - `<structure-strategy>` - "monorepo" or "single-module" (from Input 3)
+  - `<working-dir>` - Working directory path (from Input 4)
+  - `<test-dir-name>` - Test directory name, defaults to "e2e" (from Input 5a, monorepo only)
+  - All file paths and code templates use these variables
 
-Ask: "What is the name of your extension?"
-- Example: "sdn", "router", "storage", "cluster-network-operator"
-- This will be used for the binary name and identifiers
+#### Input 1: Extension Name (Auto-detected)
 
-#### Input 2: Directory Structure Strategy
+**Auto-detect the extension name from the repository or directory context:**
+
+```bash
+# Try to detect from git remote URL first
+if [ -d .git ]; then
+    REMOTE_URL=$(git remote get-url origin 2>/dev/null || git remote get-url $(git remote | head -1) 2>/dev/null)
+    if [ -n "$REMOTE_URL" ]; then
+        # Extract repo name from URL (e.g., git@github.com:openshift/router.git -> router)
+        EXTENSION_NAME=$(echo "$REMOTE_URL" | sed 's/.*\/\([^/]*\)\.git$/\1/' | sed 's/.*\/\([^/]*\)$/\1/')
+    fi
+fi
+
+# Fallback to directory name if git detection fails
+if [ -z "$EXTENSION_NAME" ]; then
+    EXTENSION_NAME=$(basename "$PWD")
+fi
+
+echo "Detected extension name: $EXTENSION_NAME"
+```
+
+**This extension name will be used for:**
+- Binary name: `<extension-name>-tests-ext`
+- Module paths and directory structure
+- Suite name: `openshift/<extension-name>/tests`
+
+**Store in variable:** `<extension-name>`
+
+#### Input 2: Sig Filter Tags
+
+**IMPORTANT:** The sig filter tags control which tests are included in the generated binary. The binary will filter tests by searching for these tags in test names.
+
+**Why sig filter tags matter:**
+
+The generated `main.go` includes filtering logic that searches for tests containing the specified sig tags:
+
+```go
+// Filter to only include component-specific tests
+var filteredSpecs []*et.ExtensionTestSpec
+allSpecs.Walk(func(spec *et.ExtensionTestSpec) {
+    // Check if test name contains any of the specified sig tags
+    if strings.Contains(spec.Name, "[sig-router]") ||
+       strings.Contains(spec.Name, "[sig-network-edge]") {
+        filteredSpecs = append(filteredSpecs, spec)
+    }
+})
+```
+
+**Without correct sig filter tags:**
+- `./bin/<extension-name>-tests-ext list` will show 0 tests (or wrong tests)
+- Your component tests won't be registered with the OTE framework
+- The binary won't be able to discover or run your tests
+
+**With correct sig filter tags:**
+- `./bin/<extension-name>-tests-ext list` shows only your component's tests
+- Tests are properly filtered from the 5000+ upstream Kubernetes tests
+- Binary correctly discovers and runs component-specific tests
+
+**To find your sig tags:**
+```bash
+# Search your test files for sig tags
+grep -r "g\.Describe" test/extended/<your-subfolder>/ --include="*.go" | grep -o '\[sig-[^]]*\]' | sort -u
+
+# Example output:
+# [sig-network-edge]
+# [sig-router]
+```
+
+**Ask the user for sig filter tags:**
+
+Question: "What sig tag(s) should be used to filter tests? (e.g., 'router' for [sig-router], or 'router,network-edge' for multiple tags. This will be used in main.go to filter test names when running './bin/<extension-name>-tests-ext list')"
+- Provide a text input field for the user to enter sig tag(s)
+- User can enter single tag: `router`
+- User can enter multiple tags separated by comma: `router,network-edge`
+- Tags should be entered without the `[sig-` prefix and `]` suffix
+
+**Wait for user to provide the sig filter tags. Do not proceed until the user has provided this input.**
+
+**User provides the sig filter tags:**
+- Single tag example: `router` → will filter for `[sig-router]`
+- Multiple tags example: `router,network-edge` → will filter for `[sig-router]` OR `[sig-network-edge]`
+
+**Store in variable:** `<sig-filter-tags>`
+
+#### Input 3: Directory Structure Strategy
 
 Ask: "Which directory structure strategy do you want to use?"
 
@@ -94,17 +187,28 @@ User selects: **1** or **2**
 
 Store the selection in variable: `<structure-strategy>` (value: "monorepo" or "single-module")
 
-#### Input 3: Working Directory
+#### Input 4: Working Directory
 
 Ask: "What is the working directory path?"
-- **If monorepo strategy**: This should be the root of the target component repository
-- **If single-module strategy**: This is where we'll create the `tests-extension/` directory
-- Options:
-  - Provide an existing directory path
-  - Provide a new directory path (we'll create it)
-- Example: `/home/user/repos/sdn` (for monorepo) or `/home/user/workspace/sdn-migration` (for single-module)
 
-#### Input 4: Validate Git Status (if existing directory)
+- **If monorepo strategy**:
+  - This should be the root of the target component repository
+  - Example: `/home/user/repos/router`, `/home/user/openshift/sdn`
+  - The tool will create `cmd/extension/`, `test/e2e/`, etc. in this directory
+
+- **If single-module strategy**:
+  - This is where we'll create the `tests-extension/` directory
+  - Example: `/home/user/workspace`, `/home/user/projects`
+  - The tool will create `tests-extension/` in this directory
+
+**User provides the path:**
+- Can provide an existing directory path
+- Can provide a new directory path (we'll create it)
+- Path can be absolute or relative
+
+**Store in variable:** `<working-dir>`
+
+#### Input 5: Validate Git Status (if existing directory)
 
 If the working directory already exists:
 - Check if it's a git repository
@@ -112,14 +216,53 @@ If the working directory already exists:
 - If there are uncommitted changes, ask user to commit or stash them first
 - If no, continue without git validation
 
-#### Input 5: Local Source Repository (Optional)
+#### Input 5a: Test Directory Name (conditional - monorepo strategy only)
+
+**Skip this input if single-module strategy** - single-module uses `tests-extension/test/e2e`
+
+**For monorepo strategy only:**
+
+Check if the default test directory already exists:
+
+```bash
+cd <working-dir>
+
+# Check if test/e2e already exists
+if [ -d "test/e2e" ]; then
+    echo "⚠️  Warning: test/e2e directory already exists in the target repository"
+    TEST_DIR_EXISTS=true
+else
+    TEST_DIR_EXISTS=false
+fi
+```
+
+**If test/e2e exists:**
+Ask: "The directory 'test/e2e' already exists. Please specify a subdirectory name under test/e2e/ (default: 'extension'):"
+- User can provide a custom name or press Enter for default "extension"
+- Example: "extension", "ote", "openshift-tests"
+- Default: "extension"
+- This will be used as a **subfolder**: `test/e2e/<subdirectory-name>/`
+- Store in variable: `<test-dir-name>` = "e2e/<subdirectory-name>" (e.g., "e2e/extension")
+
+**If test/e2e does not exist:**
+- Use default: `test/e2e`
+- Store in variable: `<test-dir-name>` = "e2e"
+
+**Important:** Throughout the rest of the migration, use `test/<test-dir-name>` instead of hardcoded `test/e2e`
+
+**Examples:**
+- If test/e2e doesn't exist: `test/e2e/` (standard layout)
+- If test/e2e exists and user accepts default: `test/e2e/extension/`
+- If test/e2e exists and user specifies "ote": `test/e2e/ote/`
+
+#### Input 6: Local Source Repository (Optional)
 
 Ask: "Do you have a local clone of openshift-tests-private? If yes, provide the path (or press Enter to clone it):"
 - If provided: Use this existing local repository
 - If empty: Will clone `git@github.com:openshift/openshift-tests-private.git`
 - Example: `/home/user/repos/openshift-tests-private`
 
-#### Input 6: Update Local Source Repository (if local source provided)
+#### Input 7: Update Local Source Repository (if local source provided)
 
 If a local source repository path was provided:
 Ask: "Do you want to update the local source repository? (git fetch && git pull) [Y/n]:"
@@ -127,14 +270,14 @@ Ask: "Do you want to update the local source repository? (git fetch && git pull)
 - If yes: Run `git fetch && git pull` in the local repo
 - If no: Use current state
 
-#### Input 7: Source Test Subfolder
+#### Input 8: Source Test Subfolder
 
 Ask: "What is the test subfolder name under test/extended/?"
 - Example: "networking", "router", "storage", "templates"
 - This will be used as: `test/extended/<subfolder>/`
 - Leave empty to use all of `test/extended/`
 
-#### Input 8: Source Testdata Subfolder (Optional)
+#### Input 9: Source Testdata Subfolder (Optional)
 
 Ask: "What is the testdata subfolder name under test/extended/testdata/? (or press Enter to use same as test subfolder)"
 - Default: Same as Input 7 (test subfolder)
@@ -142,7 +285,7 @@ Ask: "What is the testdata subfolder name under test/extended/testdata/? (or pre
 - This will be used as: `test/extended/testdata/<subfolder>/`
 - Enter "none" if no testdata exists
 
-#### Input 9: Local Target Repository (Optional - skip for monorepo)
+#### Input 10: Local Target Repository (Optional - skip for monorepo)
 
 **Skip this input if monorepo strategy** - the working directory IS the target repo.
 
@@ -186,7 +329,13 @@ If a local target repository path was provided in Input 9:
 - User pressed Enter in Input 9 → Skip this question (will clone instead)
 
 **Action:**
-- If yes: Run `cd <target-path> && git fetch origin && git pull`
+- If yes: Discover the remote and update
+  ```bash
+  cd <target-path>
+  TARGET_REMOTE=$(git remote -v | awk '{print $1}' | head -1)
+  git fetch "$TARGET_REMOTE"
+  git pull "$TARGET_REMOTE" "$(git branch --show-current)"
+  ```
 - If no: Use current state without updating
 
 **Display all collected inputs** for user confirmation:
@@ -207,9 +356,13 @@ Source Repository (openshift-tests-private):
 
 Destination Structure (in target repo):
   Extension Binary: cmd/extension/main.go
-  Test Files: test/e2e/*.go (regular package in main module)
+  Test Files: test/<test-dir-name>/*.go (separate module)
   Testdata: test/testdata/ (regular package in main module)
-  Root go.mod: Will be updated with OTE dependency and replace directive for test/e2e
+  Root go.mod: Will be updated with replace directive for test/<test-dir-name>
+
+Note: <test-dir-name> examples:
+  - "e2e" if test/e2e doesn't exist (standard layout)
+  - "e2e/extension" if test/e2e exists (subfolder layout)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
@@ -286,8 +439,15 @@ if [ "<update-source>" = "yes" ]; then
     fi
 
     echo "On branch $TARGET_BRANCH, updating..."
-    git fetch origin
-    git pull origin "$TARGET_BRANCH"
+    # Discover remote name (don't assume 'origin')
+    SOURCE_REMOTE=$(git remote -v | awk '{print $1}' | head -1)
+    if [ -z "$SOURCE_REMOTE" ]; then
+        echo "Error: No git remote found"
+        cd - > /dev/null
+        exit 1
+    fi
+    git fetch "$SOURCE_REMOTE"
+    git pull "$SOURCE_REMOTE" "$TARGET_BRANCH"
     cd - > /dev/null
 fi
 ```
@@ -396,8 +556,15 @@ if [ -d "$TARGET_REPO/.git" ]; then
         fi
 
         echo "On branch $TARGET_BRANCH, updating..."
-        git fetch origin
-        git pull origin "$TARGET_BRANCH"
+        # Discover remote name (don't assume 'origin')
+        TARGET_REMOTE=$(git remote -v | awk '{print $1}' | head -1)
+        if [ -z "$TARGET_REMOTE" ]; then
+            echo "Error: No git remote found"
+            cd - > /dev/null
+            exit 1
+        fi
+        git fetch "$TARGET_REMOTE"
+        git pull "$TARGET_REMOTE" "$TARGET_BRANCH"
         echo "Target repository updated successfully"
 
         cd - > /dev/null
@@ -454,11 +621,12 @@ mkdir -p cmd/extension
 # Create bin directory for binary output
 mkdir -p bin
 
-# Create test directories
-mkdir -p test/e2e
+# Create test directories (use custom test directory name from Input 4a)
+mkdir -p test/<test-dir-name>
 mkdir -p test/testdata
 
 echo "Created monorepo structure in existing repository"
+echo "Test directory: test/<test-dir-name>"
 ```
 
 **For Single-Module Strategy:**
@@ -487,12 +655,12 @@ echo "Created single-module structure in tests-extension/"
 ```bash
 cd <working-dir>
 
-# Copy test files from source to test/e2e/
+# Copy test files from source to test/<test-dir-name>/
 # Use $SOURCE_TEST_PATH variable (set in Phase 3)
-cp -r "$SOURCE_TEST_PATH"/* test/e2e/
+cp -r "$SOURCE_TEST_PATH"/* test/<test-dir-name>/
 
 # Count and display copied files
-echo "Copied $(find test/e2e -name '*_test.go' | wc -l) test files from $SOURCE_TEST_PATH"
+echo "Copied $(find test/<test-dir-name> -name '*_test.go' | wc -l) test files from $SOURCE_TEST_PATH"
 ```
 
 **For Single-Module Strategy:**
@@ -563,7 +731,7 @@ fi
 
 **For Monorepo Strategy:**
 
-Create test/e2e/go.mod as a separate module:
+Create test/<test-dir-name>/go.mod as a separate module:
 ```bash
 cd <working-dir>
 
@@ -574,12 +742,12 @@ echo "Using Go version: $GO_VERSION (from target repo)"
 # Get source repo path (set in Phase 3)
 OTP_PATH="$SOURCE_REPO"
 
-echo "Step 1: Create test/e2e/go.mod..."
-cd test/e2e
+echo "Step 1: Create test/<test-dir-name>/go.mod..."
+cd test/<test-dir-name>
 
-# Initialize go.mod in test/e2e directory
+# Initialize go.mod in test/<test-dir-name> directory
 ROOT_MODULE=$(grep '^module ' ../../go.mod | awk '{print $2}')
-go mod init "$ROOT_MODULE/test/e2e"
+go mod init "$ROOT_MODULE/test/<test-dir-name>"
 
 echo "Step 2: Set Go version to match target repo..."
 sed -i "s/^go .*/go $GO_VERSION/" go.mod
@@ -664,7 +832,7 @@ GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go mod tidy
 
 echo "Step 7: Verify go.mod and go.sum are created..."
 if [ -f "go.mod" ] && [ -f "go.sum" ]; then
-    echo "✅ test/e2e/go.mod and go.sum created successfully"
+    echo "✅ test/<test-dir-name>/go.mod and go.sum created successfully"
     echo "Module: $(grep '^module' go.mod)"
     echo "Go version: $(grep '^go ' go.mod)"
 
@@ -678,17 +846,17 @@ fi
 
 cd ../..
 
-echo "Step 8: Update root go.mod to add replace directive for test/e2e..."
+echo "Step 8: Update root go.mod to add replace directive for test/<test-dir-name>..."
 MODULE_NAME=$(grep '^module ' go.mod | awk '{print $2}')
 
-if ! grep -q "replace.*$MODULE_NAME/test/e2e" go.mod; then
+if ! grep -q "replace.*$MODULE_NAME/test/<test-dir-name>" go.mod; then
     if grep -q "^replace (" go.mod; then
         # Add to existing replace section
-        sed -i "/^replace (/a\\	$MODULE_NAME/test/e2e => ./test/e2e" go.mod
+        sed -i "/^replace (/a\\	$MODULE_NAME/test/<test-dir-name> => ./test/<test-dir-name>" go.mod
     else
         # Create new replace section
         echo "" >> go.mod
-        echo "replace $MODULE_NAME/test/e2e => ./test/e2e" >> go.mod
+        echo "replace $MODULE_NAME/test/<test-dir-name> => ./test/<test-dir-name>" >> go.mod
     fi
     echo "✅ Replace directive added to root go.mod"
 fi
@@ -856,7 +1024,7 @@ import (
 	"k8s.io/kubernetes/test/e2e/framework"
 
 	// Import test packages from test module
-	_ "$MODULE_NAME/test/e2e"
+	_ "$MODULE_NAME/test/<test-dir-name>"
 )
 
 func main() {
@@ -883,11 +1051,17 @@ func main() {
 		panic(fmt.Sprintf("couldn't build extension test specs from ginkgo: %+v", err.Error()))
 	}
 
-	// Filter to only include component-specific tests (tests with [sig-<extension-name>] in name)
+	// Filter to only include component-specific tests (tests with specified sig tags)
+	// Parse sig filter tags from comma-separated list
+	sigTags := strings.Split("<sig-filter-tags>", ",")
 	var filteredSpecs []*et.ExtensionTestSpec
 	allSpecs.Walk(func(spec *et.ExtensionTestSpec) {
-		if strings.Contains(spec.Name, "[sig-<extension-name>]") {
-			filteredSpecs = append(filteredSpecs, spec)
+		for _, tag := range sigTags {
+			tag = strings.TrimSpace(tag)
+			if strings.Contains(spec.Name, "[sig-"+tag+"]") {
+				filteredSpecs = append(filteredSpecs, spec)
+				return // Found a match, no need to check other tags
+			}
 		}
 	})
 	specs := et.ExtensionTestSpecs(filteredSpecs)
@@ -909,6 +1083,12 @@ func main() {
 			platform := match[1]
 			spec.Include(et.PlatformEquals(platform))
 		}
+	})
+
+	// Set lifecycle for all migrated tests to Informing
+	// Tests will run but won't block CI on failure
+	specs.Walk(func(spec *et.ExtensionTestSpec) {
+		spec.Lifecycle = et.LifecycleInforming
 	})
 
 	// Wrap test execution with cleanup handler
@@ -994,11 +1174,17 @@ func main() {
 		panic(fmt.Sprintf("couldn't build extension test specs from ginkgo: %+v", err.Error()))
 	}
 
-	// Filter to only include component-specific tests (tests with [sig-<extension-name>] in name)
+	// Filter to only include component-specific tests (tests with specified sig tags)
+	// Parse sig filter tags from comma-separated list
+	sigTags := strings.Split("<sig-filter-tags>", ",")
 	var filteredSpecs []*et.ExtensionTestSpec
 	allSpecs.Walk(func(spec *et.ExtensionTestSpec) {
-		if strings.Contains(spec.Name, "[sig-<extension-name>]") {
-			filteredSpecs = append(filteredSpecs, spec)
+		for _, tag := range sigTags {
+			tag = strings.TrimSpace(tag)
+			if strings.Contains(spec.Name, "[sig-"+tag+"]") {
+				filteredSpecs = append(filteredSpecs, spec)
+				return // Found a match, no need to check other tags
+			}
 		}
 	})
 	specs := et.ExtensionTestSpecs(filteredSpecs)
@@ -1020,6 +1206,12 @@ func main() {
 			platform := match[1]
 			spec.Include(et.PlatformEquals(platform))
 		}
+	})
+
+	// Set lifecycle for all migrated tests to Informing
+	// Tests will run but won't block CI on failure
+	specs.Walk(func(spec *et.ExtensionTestSpec) {
+		spec.Lifecycle = et.LifecycleInforming
 	})
 
 	// Wrap test execution with cleanup handler
@@ -1150,18 +1342,35 @@ tests-ext-build:
 .PHONY: extension
 extension: tests-ext-build
 
+# Compress OTE extension binary (for CI/CD and container builds)
+.PHONY: tests-ext-compress
+tests-ext-compress: tests-ext-build
+	@echo "Compressing OTE extension binary..."
+	@gzip -f $(TESTS_EXT_BINARY)
+	@echo "Compressed binary created at $(TESTS_EXT_BINARY).gz"
+
+# Copy compressed binary to _output directory (for CI/CD)
+.PHONY: tests-ext-copy
+tests-ext-copy: tests-ext-compress
+	@echo "Copying compressed binary to _output..."
+	@mkdir -p _output
+	@cp $(TESTS_EXT_BINARY).gz _output/
+	@echo "Binary copied to _output/<extension-name>-tests-ext.gz"
+
 # Clean extension binary
 .PHONY: clean-extension
 clean-extension:
 	@echo "Cleaning extension binary..."
-	@rm -f $(TESTS_EXT_BINARY)
+	@rm -f $(TESTS_EXT_BINARY) $(TESTS_EXT_BINARY).gz _output/<extension-name>-tests-ext.gz
 
 .PHONY: help
 help:
 	@echo "Available targets:"
-	@echo "  tests-ext-build - Build OTE extension binary"
-	@echo "  extension       - Alias for tests-ext-build"
-	@echo "  clean-extension - Remove extension binary"
+	@echo "  tests-ext-build    - Build OTE extension binary"
+	@echo "  tests-ext-compress - Build and compress OTE extension binary"
+	@echo "  tests-ext-copy     - Build, compress, and copy to _output/"
+	@echo "  extension          - Alias for tests-ext-build"
+	@echo "  clean-extension    - Remove extension binary and compressed versions"
 ```
 
 **For Single-Module Strategy:**
@@ -1180,7 +1389,7 @@ BINARY := bin/<extension-name>-tests-ext
 build: bindata
 	@echo "Building extension binary..."
 	@mkdir -p bin
-	go build -o $(BINARY) ./cmd
+	GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go build -o $(BINARY) ./cmd
 	@echo "Binary built successfully at $(BINARY)"
 
 # Clean generated files
@@ -1222,6 +1431,21 @@ tests-ext-build:
 	@cd $(TESTS_EXT_DIR) && $(MAKE) build
 	@echo "OTE binary built successfully at $(TESTS_EXT_BINARY)"
 
+# Compress OTE extension binary (for CI/CD and container builds)
+.PHONY: tests-ext-compress
+tests-ext-compress: tests-ext-build
+	@echo "Compressing OTE extension binary..."
+	@gzip -f $(TESTS_EXT_BINARY)
+	@echo "Compressed binary created at $(TESTS_EXT_BINARY).gz"
+
+# Copy compressed binary to _output directory (for CI/CD)
+.PHONY: tests-ext-copy
+tests-ext-copy: tests-ext-compress
+	@echo "Copying compressed binary to _output..."
+	@mkdir -p _output
+	@cp $(TESTS_EXT_BINARY).gz _output/
+	@echo "Binary copied to _output/<extension-name>-tests-ext.gz"
+
 # Alias for backward compatibility
 .PHONY: extension
 extension: tests-ext-build
@@ -1230,6 +1454,7 @@ extension: tests-ext-build
 .PHONY: clean-extension
 clean-extension:
 	@echo "Cleaning extension binary..."
+	@rm -f $(TESTS_EXT_BINARY) $(TESTS_EXT_BINARY).gz _output/<extension-name>-tests-ext.gz
 	@cd $(TESTS_EXT_DIR) && $(MAKE) clean
 EOF
 
@@ -1243,8 +1468,12 @@ fi
 **Key Points:**
 - The root Makefile delegates to `tests-extension/Makefile` for building
 - Binary is built to `tests-extension/bin/<extension-name>-tests-ext`
-- Provides `make tests-ext-build` and `make extension` targets at repo root
-- Can be called from Dockerfile to build the extension binary
+- Provides compression and copy targets for CI/CD workflows:
+  - `make tests-ext-build` - Build the binary
+  - `make tests-ext-compress` - Build and compress with gzip
+  - `make tests-ext-copy` - Build, compress, and copy to `_output/`
+  - `make extension` - Alias for tests-ext-build
+- Can be called from Dockerfile or CI/CD scripts
 
 #### Step 5: Create fixtures.go
 
@@ -1285,15 +1514,19 @@ func init() {
 }
 
 // FixturePath returns the filesystem path to a test fixture file.
-// This replaces functions like compat_otp.FixturePath().
+// This replaces functions like compat_otp.FixturePath() and exutil.FixturePath().
 //
 // The file is extracted from embedded bindata to the filesystem on first access.
 // Files are extracted to a temporary directory that persists for the test run.
 //
+// Accepts multiple path elements that will be joined together.
+//
 // Example:
-//   configPath := testdata.FixturePath("manifests/config.yaml")
+//   configPath := testdata.FixturePath("manifests", "config.yaml")
 //   data, err := os.ReadFile(configPath)
-func FixturePath(relativePath string) string {
+func FixturePath(elem ...string) string {
+	// Join all path elements
+	relativePath := filepath.Join(elem...)
 	targetPath := filepath.Join(fixtureDir, relativePath)
 
 	// Check if already extracted
@@ -1361,9 +1594,14 @@ func CleanupFixtures() error {
 // GetFixtureData reads and returns the contents of a fixture file directly from bindata.
 // Use this for small files that don't need to be written to disk.
 //
+// Accepts multiple path elements that will be joined together.
+//
 // Example:
-//   data, err := testdata.GetFixtureData("config.yaml")
-func GetFixtureData(relativePath string) ([]byte, error) {
+//   data, err := testdata.GetFixtureData("manifests", "config.yaml")
+func GetFixtureData(elem ...string) ([]byte, error) {
+	// Join all path elements
+	relativePath := filepath.Join(elem...)
+
 	// Normalize path - bindata uses "testdata/" prefix
 	cleanPath := relativePath
 	if len(cleanPath) > 0 && cleanPath[0] == '/' {
@@ -1375,10 +1613,12 @@ func GetFixtureData(relativePath string) ([]byte, error) {
 
 // MustGetFixtureData is like GetFixtureData but panics on error.
 // Useful in test initialization code.
-func MustGetFixtureData(relativePath string) []byte {
-	data, err := GetFixtureData(relativePath)
+//
+// Accepts multiple path elements that will be joined together.
+func MustGetFixtureData(elem ...string) []byte {
+	data, err := GetFixtureData(elem...)
 	if err != nil {
-		panic(fmt.Sprintf("failed to get fixture data for %s: %v", relativePath, err))
+		panic(fmt.Sprintf("failed to get fixture data for %s: %v", filepath.Join(elem...), err))
 	}
 	return data
 }
@@ -1388,11 +1628,16 @@ func MustGetFixtureData(relativePath string) []byte {
 // FixtureExists checks if a fixture exists in the embedded bindata.
 // Use this to validate fixtures before accessing them.
 //
+// Accepts multiple path elements that will be joined together.
+//
 // Example:
-//   if testdata.FixtureExists("manifests/deployment.yaml") {
-//       path := testdata.FixturePath("manifests/deployment.yaml")
+//   if testdata.FixtureExists("manifests", "deployment.yaml") {
+//       path := testdata.FixturePath("manifests", "deployment.yaml")
 //   }
-func FixtureExists(relativePath string) bool {
+func FixtureExists(elem ...string) bool {
+	// Join all path elements
+	relativePath := filepath.Join(elem...)
+
 	cleanPath := relativePath
 	if len(cleanPath) > 0 && cleanPath[0] == '/' {
 		cleanPath = cleanPath[1:]
@@ -1816,65 +2061,107 @@ echo "✅ Old imports cleaned up"
 
 **Purpose:** Add tracking annotations to ported tests:
 - **[OTP]**: Marks tests that have been ported (for tracking how many tests migrated)
-- **[Level0]**: Marks individual It() test cases that contain "-LEVEL0-" in their name (appears as `[sig-<extension-name>][OTP] [Level0]` in full test name)
+- **[Level0]**: Marks Describe blocks for test files containing "-LEVEL0-" tests (appears as `[sig-<extension-name>][OTP][Level0]` in full test name)
 
 **Important:** This process restructures test names by:
-1. Simplifying Describe blocks to just `[sig-<extension-name>][OTP]`
+1. Simplifying Describe blocks to just `[sig-<extension-name>][OTP]` or `[sig-<extension-name>][OTP][Level0]`
 2. Moving Describe text into It() descriptions
-3. Prepending `[Level0] ` to It() for tests with "-LEVEL0-"
+3. Adding `[Level0]` to Describe block (after `[OTP]`) if file contains any tests with "-LEVEL0-"
+4. **Removing `-LEVEL0-` suffix** from test names to avoid duplication
+   - Before: `"...Author:<author>-LEVEL0-Critical..."`
+   - After (in a file with [Level0]): Full test name becomes `"[sig-network-edge][OTP][Level0] ...Author:<author>-Critical..."`
 
 **Note:** The automated script below is a simplified version. For complex test files with multiple Describe blocks, manual adjustment may be needed. The CCO repository required manual restructuring to properly handle multiple Describe blocks ("CCO is enabled" and "CCO is disabled").
 
 **For Monorepo Strategy:**
 
+**IMPORTANT:** Use the actual extension name and test directory name from user inputs.
+
 ```bash
 cd <working-dir>
 
+# Set variables from user inputs collected in Phase 2
+SIG_FILTER_TAGS="<sig-filter-tags>"  # From Input 2 (comma-separated)
+TEST_DIR_NAME="<test-dir-name>"       # From Input 5a (defaults to "e2e")
+
 echo "========================================="
 echo "Adding [OTP] and [Level0] annotations..."
+echo "Sig filter tags: $SIG_FILTER_TAGS"
+echo "Test directory: test/$TEST_DIR_NAME"
 echo "========================================="
 
+# Convert comma-separated tags to array
+IFS=',' read -ra SIG_TAGS <<< "$SIG_FILTER_TAGS"
+
 # Find all test files
-TEST_FILES=$(find test/e2e -name '*.go' -type f)
+TEST_FILES=$(find "test/$TEST_DIR_NAME" -name '*.go' -type f)
 
 for file in $TEST_FILES; do
     CHANGED=0
 
     # Step 1: Extract Describe block text and simplify to just tags
-    # This requires processing each file individually
-    if grep -q 'g\.Describe.*\[sig-<extension-name>\]' "$file"; then
-        # Extract the Describe text (everything after the tags)
-        # Example: "[sig-<extension-name>] Some Description" -> extract "Some Description"
-        DESCRIBE_TEXT=$(grep 'g\.Describe.*\[sig-<extension-name>\]' "$file" | sed 's/.*\[sig-<extension-name>\] \(.*\)".*/\1/' | head -1)
+    # Process each sig tag
+    for sig_tag in "${SIG_TAGS[@]}"; do
+        sig_tag=$(echo "$sig_tag" | xargs)  # Trim whitespace
 
-        if [ -n "$DESCRIBE_TEXT" ]; then
-            # First, add [OTP] to Describe blocks
-            sed -i 's/\(\[sig-<extension-name>\]\)\s*/\1[OTP] /g' "$file"
+        # Check if this file uses this sig tag
+        if grep -q "g\.Describe.*\[sig-$sig_tag\]" "$file"; then
+            # Extract the Describe text (everything after the tags)
+            # Example: "[sig-network-edge] Some Description" -> extract "Some Description"
+            DESCRIBE_TEXT=$(grep "g\.Describe.*\[sig-$sig_tag\]" "$file" | sed "s/.*\[sig-$sig_tag\] \(.*\)\".*/\1/" | head -1)
 
-            # Extract describe text for prepending to It()
-            # Then simplify Describe to just tags
-            sed -i 's/g\.Describe("\[sig-<extension-name>\]\[OTP\] [^"]*"/g.Describe("[sig-<extension-name>][OTP]"/' "$file"
+            # Check if file contains any Level0 tests
+            HAS_LEVEL0=false
+            if grep -q -- '-LEVEL0-' "$file"; then
+                HAS_LEVEL0=true
+            fi
 
-            # Prepend the Describe text to all It() in this file
-            # This is approximate - in practice, need to track which Describe block each It belongs to
-            sed -i '/g\.It/ s/g\.It("/g.It("'"$DESCRIBE_TEXT"' /' "$file"
+            if [ -n "$DESCRIBE_TEXT" ]; then
+                # Add [OTP] and [Level0] (if needed) to Describe blocks
+                if [ "$HAS_LEVEL0" = true ]; then
+                    sed -i "s/\(\[sig-$sig_tag\]\)\s*/\1[OTP][Level0] /g" "$file"
+                    echo "  ✓ Added [OTP][Level0] to [sig-$sig_tag] in $file"
+                else
+                    sed -i "s/\(\[sig-$sig_tag\]\)\s*/\1[OTP] /g" "$file"
+                    echo "  ✓ Added [OTP] to [sig-$sig_tag] in $file"
+                fi
 
-            CHANGED=1
-            echo "  ✓ Restructured Describe/It in $file"
-        else
-            # Just add [OTP]
-            sed -i 's/\(\[sig-<extension-name>\]\)\s*/\1[OTP] /g' "$file"
-            CHANGED=1
-            echo "  ✓ Added [OTP] to $file"
+                # Extract describe text for prepending to It()
+                # Then simplify Describe to just tags
+                if [ "$HAS_LEVEL0" = true ]; then
+                    sed -i "s/g\.Describe(\"\[sig-$sig_tag\]\[OTP\]\[Level0\] [^\"]*\"/g.Describe(\"[sig-$sig_tag][OTP][Level0]\"/" "$file"
+                else
+                    sed -i "s/g\.Describe(\"\[sig-$sig_tag\]\[OTP\] [^\"]*\"/g.Describe(\"[sig-$sig_tag][OTP]\"/" "$file"
+                fi
+
+                # Prepend the Describe text to all It() in this file
+                # This is approximate - in practice, need to track which Describe block each It belongs to
+                sed -i "/g\.It/ s/g\.It(\"/g.It(\"$DESCRIBE_TEXT /" "$file"
+
+                CHANGED=1
+                echo "  ✓ Restructured Describe/It for [sig-$sig_tag] in $file"
+            else
+                # Just add [OTP] and [Level0] (if needed)
+                if [ "$HAS_LEVEL0" = true ]; then
+                    sed -i "s/\(\[sig-$sig_tag\]\)\s*/\1[OTP][Level0] /g" "$file"
+                    echo "  ✓ Added [OTP][Level0] to [sig-$sig_tag] in $file"
+                else
+                    sed -i "s/\(\[sig-$sig_tag\]\)\s*/\1[OTP] /g" "$file"
+                    echo "  ✓ Added [OTP] to [sig-$sig_tag] in $file"
+                fi
+                CHANGED=1
+            fi
         fi
-    fi
+    done
 
-    # Step 2: Add [Level0] to individual It() test cases that contain "-LEVEL0-"
-    if grep -q 'g\.It.*-LEVEL0-' "$file"; then
-        # Add [Level0] at the beginning of It() descriptions that contain "-LEVEL0-"
-        sed -i '/g\.It.*-LEVEL0-/s/g\.It("\([^"]*\)"/g.It("[Level0] \1"/' "$file"
+    # Step 2: Remove the "-LEVEL0-" suffix from test names to avoid duplication
+    if grep -q -- '-LEVEL0-' "$file"; then
+        # Remove the "-LEVEL0-" suffix from the test name
+        # Example: "...Author:<author>-LEVEL0-Critical..." → "...Author:<author>-Critical..."
+        sed -i 's/-LEVEL0-/-/g' "$file"
+
         CHANGED=1
-        echo "  ✓ Added [Level0] to individual test cases with -LEVEL0- in $file"
+        echo "  ✓ Removed -LEVEL0- suffix in $file"
     fi
 
     if [ $CHANGED -eq 0 ]; then
@@ -1886,8 +2173,240 @@ echo "✅ Annotations added successfully"
 echo ""
 echo "Summary of annotations:"
 echo "  [OTP]       - Added to all Describe blocks (tracking)"
-echo "  [Level0]    - Added to individual It() test cases with -LEVEL0- (conformance)"
+echo "  [Level0]    - Added to Describe blocks for files containing -LEVEL0- tests (conformance)"
+echo "  -LEVEL0-    - Removed from test names to avoid duplication"
 echo "  Test names  - Restructured: Describe text moved into It() descriptions"
+```
+
+**For Single-Module Strategy:**
+
+**IMPORTANT:** Use sig filter tags from user input. Single-module always uses `test/e2e` directory.
+
+```bash
+cd <working-dir>/tests-extension
+
+# Set variables from user inputs collected in Phase 2
+SIG_FILTER_TAGS="<sig-filter-tags>"  # From Input 2 (comma-separated)
+
+echo "========================================="
+echo "Adding [OTP] and [Level0] annotations..."
+echo "Sig filter tags: $SIG_FILTER_TAGS"
+echo "Test directory: test/e2e"
+echo "========================================="
+
+# Convert comma-separated tags to array
+IFS=',' read -ra SIG_TAGS <<< "$SIG_FILTER_TAGS"
+
+# Find all test files (single-module always uses test/e2e)
+TEST_FILES=$(find test/e2e -name '*.go' -type f)
+
+for file in $TEST_FILES; do
+    CHANGED=0
+
+    # Step 1: Extract Describe block text and simplify to just tags
+    # Process each sig tag
+    for sig_tag in "${SIG_TAGS[@]}"; do
+        sig_tag=$(echo "$sig_tag" | xargs)  # Trim whitespace
+
+        # Check if this file uses this sig tag
+        if grep -q "g\.Describe.*\[sig-$sig_tag\]" "$file"; then
+            # Extract the Describe text (everything after the tags)
+            # Example: "[sig-network-edge] Some Description" -> extract "Some Description"
+            DESCRIBE_TEXT=$(grep "g\.Describe.*\[sig-$sig_tag\]" "$file" | sed "s/.*\[sig-$sig_tag\] \(.*\)\".*/\1/" | head -1)
+
+            # Check if file contains any Level0 tests
+            HAS_LEVEL0=false
+            if grep -q -- '-LEVEL0-' "$file"; then
+                HAS_LEVEL0=true
+            fi
+
+            if [ -n "$DESCRIBE_TEXT" ]; then
+                # Add [OTP] and [Level0] (if needed) to Describe blocks
+                if [ "$HAS_LEVEL0" = true ]; then
+                    sed -i "s/\(\[sig-$sig_tag\]\)\s*/\1[OTP][Level0] /g" "$file"
+                    echo "  ✓ Added [OTP][Level0] to [sig-$sig_tag] in $file"
+                else
+                    sed -i "s/\(\[sig-$sig_tag\]\)\s*/\1[OTP] /g" "$file"
+                    echo "  ✓ Added [OTP] to [sig-$sig_tag] in $file"
+                fi
+
+                # Extract describe text for prepending to It()
+                # Then simplify Describe to just tags
+                if [ "$HAS_LEVEL0" = true ]; then
+                    sed -i "s/g\.Describe(\"\[sig-$sig_tag\]\[OTP\]\[Level0\] [^\"]*\"/g.Describe(\"[sig-$sig_tag][OTP][Level0]\"/" "$file"
+                else
+                    sed -i "s/g\.Describe(\"\[sig-$sig_tag\]\[OTP\] [^\"]*\"/g.Describe(\"[sig-$sig_tag][OTP]\"/" "$file"
+                fi
+
+                # Prepend the Describe text to all It() in this file
+                # This is approximate - in practice, need to track which Describe block each It belongs to
+                sed -i "/g\.It/ s/g\.It(\"/g.It(\"$DESCRIBE_TEXT /" "$file"
+
+                CHANGED=1
+                echo "  ✓ Restructured Describe/It for [sig-$sig_tag] in $file"
+            else
+                # Just add [OTP] and [Level0] (if needed)
+                if [ "$HAS_LEVEL0" = true ]; then
+                    sed -i "s/\(\[sig-$sig_tag\]\)\s*/\1[OTP][Level0] /g" "$file"
+                    echo "  ✓ Added [OTP][Level0] to [sig-$sig_tag] in $file"
+                else
+                    sed -i "s/\(\[sig-$sig_tag\]\)\s*/\1[OTP] /g" "$file"
+                    echo "  ✓ Added [OTP] to [sig-$sig_tag] in $file"
+                fi
+                CHANGED=1
+            fi
+        fi
+    done
+
+    # Step 2: Remove the "-LEVEL0-" suffix from test names to avoid duplication
+    if grep -q -- '-LEVEL0-' "$file"; then
+        # Remove the "-LEVEL0-" suffix from the test name
+        # Example: "...Author:<author>-LEVEL0-Critical..." → "...Author:<author>-Critical..."
+        sed -i 's/-LEVEL0-/-/g' "$file"
+
+        CHANGED=1
+        echo "  ✓ Removed -LEVEL0- suffix in $file"
+    fi
+
+    if [ $CHANGED -eq 0 ]; then
+        echo "  - No annotations needed for $file"
+    fi
+done
+
+echo "✅ Annotations added successfully"
+echo ""
+echo "Summary of annotations:"
+echo "  [OTP]       - Added to all Describe blocks (tracking)"
+echo "  [Level0]    - Added to Describe blocks for files containing -LEVEL0- tests (conformance)"
+echo "  -LEVEL0-    - Removed from test names to avoid duplication"
+echo "  Test names  - Restructured: Describe text moved into It() descriptions"
+```
+
+
+#### Step 5: Validate Tags and Annotations
+
+**Purpose:** Verify that all required tags are properly applied before proceeding to build verification.
+
+**For Monorepo Strategy:**
+
+```bash
+cd <working-dir>
+
+echo ""
+echo "========================================="
+echo "Validating tags and annotations..."
+echo "========================================="
+
+VALIDATION_FAILED=0
+
+# Find all test files
+TEST_FILES=$(find test/<test-dir-name> -name '*_test.go' -type f)
+TOTAL_FILES=$(echo "$TEST_FILES" | wc -l)
+
+echo "Found $TOTAL_FILES test files to validate"
+
+# Validation 1: Check for [sig-<extension-name>] tag in all test files
+echo ""
+echo "Validation 1: Checking for [sig-<extension-name>] tags..."
+MISSING_SIG_TAG=0
+for file in $TEST_FILES; do
+    if ! grep -q '\[sig-<extension-name>\]' "$file"; then
+        echo "  ❌ Missing [sig-<extension-name>] tag in: $file"
+        MISSING_SIG_TAG=$((MISSING_SIG_TAG + 1))
+        VALIDATION_FAILED=1
+    fi
+done
+
+if [ $MISSING_SIG_TAG -eq 0 ]; then
+    echo "  ✅ All test files have [sig-<extension-name>] tag"
+else
+    echo "  ❌ $MISSING_SIG_TAG file(s) missing [sig-<extension-name>] tag"
+fi
+
+# Validation 2: Check for [OTP] tag in Describe blocks
+echo ""
+echo "Validation 2: Checking for [OTP] tags in Describe blocks..."
+MISSING_OTP_TAG=0
+for file in $TEST_FILES; do
+    if grep -q 'g\.Describe.*\[sig-<extension-name>\]' "$file"; then
+        if ! grep -q 'g\.Describe.*\[sig-<extension-name>\]\[OTP\]' "$file"; then
+            echo "  ❌ Missing [OTP] tag in: $file"
+            MISSING_OTP_TAG=$((MISSING_OTP_TAG + 1))
+            VALIDATION_FAILED=1
+        fi
+    fi
+done
+
+if [ $MISSING_OTP_TAG -eq 0 ]; then
+    echo "  ✅ All Describe blocks have [OTP] tag"
+else
+    echo "  ❌ $MISSING_OTP_TAG file(s) missing [OTP] tag"
+fi
+
+# Validation 3: Check that -LEVEL0- suffix is removed from tests with [Level0] tag
+echo ""
+echo "Validation 3: Checking for -LEVEL0- suffix removal..."
+LEVEL0_NOT_REMOVED=0
+for file in $TEST_FILES; do
+    # Check if file has [Level0] tag and still contains -LEVEL0-
+    if grep -q '\[Level0\]' "$file" && grep -q -- '-LEVEL0-' "$file"; then
+        echo "  ⚠️  File has [Level0] tag but still contains -LEVEL0- suffix: $file"
+        LEVEL0_NOT_REMOVED=$((LEVEL0_NOT_REMOVED + 1))
+        VALIDATION_FAILED=1
+    fi
+done
+
+if [ $LEVEL0_NOT_REMOVED -eq 0 ]; then
+    echo "  ✅ No duplicate -LEVEL0- suffixes found"
+else
+    echo "  ❌ $LEVEL0_NOT_REMOVED file(s) have [Level0] tag but still contain -LEVEL0- suffix"
+fi
+
+# Validation 4: Verify testdata imports are present
+echo ""
+echo "Validation 4: Checking for testdata imports..."
+MISSING_TESTDATA_IMPORT=0
+for file in $TEST_FILES; do
+    # Only check files that use testdata.FixturePath
+    if grep -q 'testdata\.FixturePath' "$file"; then
+        if ! grep -q "\"$MODULE_NAME/test/testdata\"" "$file" && \
+           ! grep -q 'testdata "' "$file"; then
+            echo "  ❌ Missing testdata import in: $file"
+            MISSING_TESTDATA_IMPORT=$((MISSING_TESTDATA_IMPORT + 1))
+            VALIDATION_FAILED=1
+        fi
+    fi
+done
+
+if [ $MISSING_TESTDATA_IMPORT -eq 0 ]; then
+    echo "  ✅ All files using testdata.FixturePath have proper imports"
+else
+    echo "  ❌ $MISSING_TESTDATA_IMPORT file(s) missing testdata import"
+fi
+
+# Summary
+echo ""
+echo "========================================="
+echo "Validation Summary"
+echo "========================================="
+echo "Total test files validated: $TOTAL_FILES"
+echo ""
+
+if [ $VALIDATION_FAILED -eq 0 ]; then
+    echo "✅ All validations passed!"
+    echo "Migration is ready to proceed to build verification"
+else
+    echo "❌ Validation failed!"
+    echo ""
+    echo "Please review and fix the issues above before proceeding."
+    echo "Common fixes:"
+    echo "  - Re-run Step 4 (Add OTP and Level0 Annotations)"
+    echo "  - Manually add missing tags to affected files"
+    echo "  - Check that sed commands executed successfully"
+    echo ""
+    echo "After fixing, you can re-run this validation step."
+    exit 1
+fi
 ```
 
 **For Single-Module Strategy:**
@@ -1895,64 +2414,121 @@ echo "  Test names  - Restructured: Describe text moved into It() descriptions"
 ```bash
 cd <working-dir>/tests-extension
 
+echo ""
 echo "========================================="
-echo "Adding [OTP] and [Level0] annotations..."
+echo "Validating tags and annotations..."
 echo "========================================="
+
+VALIDATION_FAILED=0
 
 # Find all test files
-TEST_FILES=$(find test/e2e -name '*.go' -type f)
+TEST_FILES=$(find test/e2e -name '*_test.go' -type f)
+TOTAL_FILES=$(echo "$TEST_FILES" | wc -l)
 
+echo "Found $TOTAL_FILES test files to validate"
+
+# Validation 1: Check for [sig-<extension-name>] tag in all test files
+echo ""
+echo "Validation 1: Checking for [sig-<extension-name>] tags..."
+MISSING_SIG_TAG=0
 for file in $TEST_FILES; do
-    CHANGED=0
-
-    # Step 1: Extract Describe block text and simplify to just tags
-    # This requires processing each file individually
-    if grep -q 'g\.Describe.*\[sig-<extension-name>\]' "$file"; then
-        # Extract the Describe text (everything after the tags)
-        # Example: "[sig-<extension-name>] Some Description" -> extract "Some Description"
-        DESCRIBE_TEXT=$(grep 'g\.Describe.*\[sig-<extension-name>\]' "$file" | sed 's/.*\[sig-<extension-name>\] \(.*\)".*/\1/' | head -1)
-
-        if [ -n "$DESCRIBE_TEXT" ]; then
-            # First, add [OTP] to Describe blocks
-            sed -i 's/\(\[sig-<extension-name>\]\)\s*/\1[OTP] /g' "$file"
-
-            # Extract describe text for prepending to It()
-            # Then simplify Describe to just tags
-            sed -i 's/g\.Describe("\[sig-<extension-name>\]\[OTP\] [^"]*"/g.Describe("[sig-<extension-name>][OTP]"/' "$file"
-
-            # Prepend the Describe text to all It() in this file
-            # This is approximate - in practice, need to track which Describe block each It belongs to
-            sed -i '/g\.It/ s/g\.It("/g.It("'"$DESCRIBE_TEXT"' /' "$file"
-
-            CHANGED=1
-            echo "  ✓ Restructured Describe/It in $file"
-        else
-            # Just add [OTP]
-            sed -i 's/\(\[sig-<extension-name>\]\)\s*/\1[OTP] /g' "$file"
-            CHANGED=1
-            echo "  ✓ Added [OTP] to $file"
-        fi
-    fi
-
-    # Step 2: Add [Level0] to individual It() test cases that contain "-LEVEL0-"
-    if grep -q 'g\.It.*-LEVEL0-' "$file"; then
-        # Add [Level0] at the beginning of It() descriptions that contain "-LEVEL0-"
-        sed -i '/g\.It.*-LEVEL0-/s/g\.It("\([^"]*\)"/g.It("[Level0] \1"/' "$file"
-        CHANGED=1
-        echo "  ✓ Added [Level0] to individual test cases with -LEVEL0- in $file"
-    fi
-
-    if [ $CHANGED -eq 0 ]; then
-        echo "  - No annotations needed for $file"
+    if ! grep -q '\[sig-<extension-name>\]' "$file"; then
+        echo "  ❌ Missing [sig-<extension-name>] tag in: $file"
+        MISSING_SIG_TAG=$((MISSING_SIG_TAG + 1))
+        VALIDATION_FAILED=1
     fi
 done
 
-echo "✅ Annotations added successfully"
+if [ $MISSING_SIG_TAG -eq 0 ]; then
+    echo "  ✅ All test files have [sig-<extension-name>] tag"
+else
+    echo "  ❌ $MISSING_SIG_TAG file(s) missing [sig-<extension-name>] tag"
+fi
+
+# Validation 2: Check for [OTP] tag in Describe blocks
 echo ""
-echo "Summary of annotations:"
-echo "  [OTP]       - Added to all Describe blocks (tracking)"
-echo "  [Level0]    - Added to individual It() test cases with -LEVEL0- (conformance)"
-echo "  Test names  - Restructured: Describe text moved into It() descriptions"
+echo "Validation 2: Checking for [OTP] tags in Describe blocks..."
+MISSING_OTP_TAG=0
+for file in $TEST_FILES; do
+    if grep -q 'g\.Describe.*\[sig-<extension-name>\]' "$file"; then
+        if ! grep -q 'g\.Describe.*\[sig-<extension-name>\]\[OTP\]' "$file"; then
+            echo "  ❌ Missing [OTP] tag in: $file"
+            MISSING_OTP_TAG=$((MISSING_OTP_TAG + 1))
+            VALIDATION_FAILED=1
+        fi
+    fi
+done
+
+if [ $MISSING_OTP_TAG -eq 0 ]; then
+    echo "  ✅ All Describe blocks have [OTP] tag"
+else
+    echo "  ❌ $MISSING_OTP_TAG file(s) missing [OTP] tag"
+fi
+
+# Validation 3: Check that -LEVEL0- suffix is removed from tests with [Level0] tag
+echo ""
+echo "Validation 3: Checking for -LEVEL0- suffix removal..."
+LEVEL0_NOT_REMOVED=0
+for file in $TEST_FILES; do
+    # Check if file has [Level0] tag and still contains -LEVEL0-
+    if grep -q '\[Level0\]' "$file" && grep -q -- '-LEVEL0-' "$file"; then
+        echo "  ⚠️  File has [Level0] tag but still contains -LEVEL0- suffix: $file"
+        LEVEL0_NOT_REMOVED=$((LEVEL0_NOT_REMOVED + 1))
+        VALIDATION_FAILED=1
+    fi
+done
+
+if [ $LEVEL0_NOT_REMOVED -eq 0 ]; then
+    echo "  ✅ No duplicate -LEVEL0- suffixes found"
+else
+    echo "  ❌ $LEVEL0_NOT_REMOVED file(s) have [Level0] tag but still contain -LEVEL0- suffix"
+fi
+
+# Validation 4: Verify testdata imports are present
+echo ""
+echo "Validation 4: Checking for testdata imports..."
+MISSING_TESTDATA_IMPORT=0
+for file in $TEST_FILES; do
+    # Only check files that use testdata.FixturePath
+    if grep -q 'testdata\.FixturePath' "$file"; then
+        if ! grep -q '"github.com/openshift/<extension-name>-tests-extension/test/testdata"' "$file" && \
+           ! grep -q 'testdata "' "$file"; then
+            echo "  ❌ Missing testdata import in: $file"
+            MISSING_TESTDATA_IMPORT=$((MISSING_TESTDATA_IMPORT + 1))
+            VALIDATION_FAILED=1
+        fi
+    fi
+done
+
+if [ $MISSING_TESTDATA_IMPORT -eq 0 ]; then
+    echo "  ✅ All files using testdata.FixturePath have proper imports"
+else
+    echo "  ❌ $MISSING_TESTDATA_IMPORT file(s) missing testdata import"
+fi
+
+# Summary
+echo ""
+echo "========================================="
+echo "Validation Summary"
+echo "========================================="
+echo "Total test files validated: $TOTAL_FILES"
+echo ""
+
+if [ $VALIDATION_FAILED -eq 0 ]; then
+    echo "✅ All validations passed!"
+    echo "Migration is ready to proceed to build verification"
+else
+    echo "❌ Validation failed!"
+    echo ""
+    echo "Please review and fix the issues above before proceeding."
+    echo "Common fixes:"
+    echo "  - Re-run Step 4 (Add OTP and Level0 Annotations)"
+    echo "  - Manually add missing tags to affected files"
+    echo "  - Check that sed commands executed successfully"
+    echo ""
+    echo "After fixing, you can re-run this validation step."
+    exit 1
+fi
 ```
 
 ### Phase 7: Dependency Resolution and Verification (1 step)
@@ -1992,11 +2568,11 @@ if [ $? -eq 0 ]; then
     echo "Migration complete - ready to commit"
     echo "========================================="
     echo "Files to commit:"
-    echo "  - go.mod (root module with test/e2e replace directive)"
+    echo "  - go.mod (root module with test/<test-dir-name> replace directive)"
     echo "  - cmd/extension/main.go"
-    echo "  - test/e2e/go.mod"
-    echo "  - test/e2e/go.sum"
-    echo "  - test/e2e/*.go (test files)"
+    echo "  - test/<test-dir-name>/go.mod"
+    echo "  - test/<test-dir-name>/go.sum"
+    echo "  - test/<test-dir-name>/*.go (test files)"
     echo "  - test/testdata/fixtures.go"
     echo "  - test/bindata.mk"
     echo "  - Makefile updates"
@@ -2004,10 +2580,10 @@ else
     echo "❌ Build failed - manual intervention required"
     echo "Common issues:"
     echo "  - Check import paths in test files and cmd/extension/main.go"
-    echo "  - Verify all test dependencies are available in test/e2e/go.mod"
-    echo "  - Run 'go mod tidy' in test/e2e directory"
-    echo "  - Check for invalid replace directives in test/e2e/go.mod"
-    echo "  - Ensure root go.mod has: replace $MODULE_NAME/test/e2e => ./test/e2e"
+    echo "  - Verify all test dependencies are available in test/<test-dir-name>/go.mod"
+    echo "  - Run 'go mod tidy' in test/<test-dir-name> directory"
+    echo "  - Check for invalid replace directives in test/<test-dir-name>/go.mod"
+    echo "  - Ensure root go.mod has: replace $MODULE_NAME/test/<test-dir-name> => ./test/<test-dir-name>"
     exit 1
 fi
 ```
@@ -2578,6 +3154,43 @@ make build
 ```
 
 ## Customization Options
+
+### Test Lifecycle (Informing by Default)
+
+**By default, all migrated tests are set to "informing"** - they will run but won't block CI builds on failure. This is the recommended setting for newly migrated tests to avoid breaking CI while tests are being stabilized.
+
+The generated `main.go` includes this enabled by default:
+
+```go
+// Set lifecycle for all migrated tests to Informing
+// Tests will run but won't block CI on failure
+specs.Walk(func(spec *et.ExtensionTestSpec) {
+	spec.Lifecycle = et.LifecycleInforming
+})
+```
+
+**Available lifecycle values:**
+- `et.LifecycleInforming` - Test failures won't block CI (default for migrated tests)
+- `et.LifecycleBlocking` - Test failures will block CI
+
+**To make specific tests blocking:**
+
+Edit `cmd/main.go` (for single-module) or `cmd/extension/main.go` (for monorepo) to customize:
+
+```go
+// Make Level0 tests blocking, all others informing
+specs.Walk(func(spec *et.ExtensionTestSpec) {
+	if strings.Contains(spec.Name, "[Level0]") {
+		spec.Lifecycle = et.LifecycleBlocking
+	} else {
+		spec.Lifecycle = et.LifecycleInforming
+	}
+})
+```
+
+**To make ALL tests blocking:**
+
+Comment out or remove the informing lifecycle code if you want all tests to block CI.
 
 ### Add More Environment Filters
 
