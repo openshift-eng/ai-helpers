@@ -172,8 +172,6 @@ AND reporter = {username}
 AND status IN ({status1}, {status2}, ...)
 ```
 
-**Note:** Text search (`--search`) is applied post-fetch in Python for better performance and flexibility.
-
 **Example JQL:**
 ```jql
 project = OCPBUGS
@@ -459,7 +457,6 @@ Available components:
 - **Console Output**: Formatted report showing issues organized by component
 - **Intermediate Files** (created during processing):
   - `.work/jira-issues-by-component/{project-key}/batch-*.json` - Raw JIRA API responses
-  - `.work/jira-issues-by-component/{project-key}/process_batches.py` - Python processing script
   - `.work/jira-issues-by-component/{project-key}/grouped.json` - Issues grouped by component with statistics
 - **Optional Final Report**: `.work/jira-issues-by-component/{project-key}-{component-name}-{timestamp}.md`
 
