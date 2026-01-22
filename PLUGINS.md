@@ -54,6 +54,7 @@ Miscellaneous tools for working with OpenShift CI
 
 **Commands:**
 - **`/ci:add-debug-wait` `<workflow-or-job-name> [timeout]`** - Add a wait step to a CI workflow for debugging test failures
+- **`/ci:analyze-payload` `<payload-image>`** - Analyze an OpenShift CI payload image to extract component images, metadata and PRs included in the CI payload
 - **`/ci:ask-sippy` `[question]`** - Ask the Sippy AI agent questions about OpenShift CI payloads, jobs, and test results
 - **`/ci:list-unstable-tests` `<version> <keywords> [sippy-url]`** - List unstable tests with pass rate below 95%
 - **`/ci:query-job-status` `<execution-id>`** - Query the status of a gangway job execution by ID
