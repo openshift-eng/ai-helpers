@@ -24,6 +24,10 @@ Generate Conventional Commits style commit messages for staged changes or recent
 
 Scan the codebase for technical debt markers and generate a report.
 
+### `/git:diff-summary`
+
+Generate a human-readable summary of changes between branches or commits. Perfect for PR descriptions and understanding scope of changes.
+
 ### `/git:summary`
 
 Generate a summary of git repository changes and activity.
