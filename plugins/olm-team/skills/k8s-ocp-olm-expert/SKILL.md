@@ -122,16 +122,17 @@ Extract and store the following path variables from the configuration for use in
 
 ### OCP Layered Products
 - Layered products are operators that ship in the default catalogs in OCP
+
 #### Layered Product Lifecycle Categories
 (From https://docs.google.com/presentation/d/1GD29PRJwYckO6zw73fw3eVUu1hmsdMYhNuKxx4uX7SM/edit?slide=id.g1ccea862d8c_46_0#slide=id.g1ccea862d8c_46_0)
+
 |                  | Tier 1 - Platform Aligned | Tier 2 - Platform Agnostic | Tier 3 - Rolling Stream |
 |------------------|---------------------------|----------------------------|-------------------------|
 | Release strategy | Multiple minor versions supported in parallel | Multiple minor versions supported in parallel | A single rolling release (minor or major) |
 | Versioning       | [Semantic versioning](https://semver.org/) | [Semantic versioning](https://semver.org/) | [Semantic versioning](https://semver.org/) |
 | OCP coverage     | Different operator versions support different OCP releases. There is always at least one supported operator release for each OCP version still in support. | Different operator versions support different OCP releases. There is always at least one supported operator release for each OCP version still in support. | A single latest stable version is supported on all non-EOL OCP releases |
 | Support length   | For each OCP version there is an aligned operator release that has the same support lifecycle. (Additional shorter-lived releases are optionally possible.) | Custom length, generally shorter support cycle than OCP | Determined by the release cadence |
-| EUS-to-EUS       | For each EUS-to-EUS upgrade path the layered product offers an update path
-or supports both EUS releases in one product version | For each EUS-to-EUS upgrade path the layered product offers an update path or supports both EUS releases in one product version |  Does not support EUS-to-EUS upgrades|
+| EUS-to-EUS       | For each EUS-to-EUS upgrade path the layered product offers an update path or supports both EUS releases in one product version | For each EUS-to-EUS upgrade path the layered product offers an update path or supports both EUS releases in one product version | Does not support EUS-to-EUS upgrades |
 | Release cadence  | The aligned release within 1 month after OCP minor release GA, further releases are independent of OCP dates | Releases independently of OCP minor releases | Releases independently of OCP minor releases |
 | Release delivery | OLM channels are named 'stable', optionally 'fast' and 'candidate' for the aligned version, optionally one OLM release channels per minor-version of your product | One OLM release channels per minor-version and a 'stable' channel containing the preferred minor version for each OCP version | OLM channels are named 'stable' and optionally  'fast' and 'candidate' |
 | Lifecycle phases | "Full Support" and "Maintenance" and they align with the aligned OCP release | "Full Support" and "Maintenance" | Not applicable |
@@ -170,47 +171,47 @@ or supports both EUS releases in one product version | For each EUS-to-EUS upgra
    - Identify potential gotchas and edge cases
 
 3a. **Documentation Search and Citation**:
-   - **When users ask where documentation can be found** (e.g., "where in openshift-docs is X documented?"), use a structured search approach:
-     1. Use Grep with multiple search patterns to find relevant files in `${OPENSHIFT_DOCS}`
-     2. Read the most promising files to verify relevance and extract specific content
-     3. Note line numbers where key information appears
-   - **REQUIRED OUTPUT FORMAT for documentation queries**:
-     ```
-     ## Documentation Found
+  - **When users ask where documentation can be found** (e.g., "where in openshift-docs is X documented?"), use a structured search approach:
+    1. Use Grep with multiple search patterns to find relevant files in `${OPENSHIFT_DOCS}`
+    2. Read the most promising files to verify relevance and extract specific content
+    3. Note line numbers where key information appears
+  - **REQUIRED OUTPUT FORMAT for documentation queries**:
+    ```
+    ## Documentation Found
 
-     **Topic Name:** (Brief description from file)
-     - **File:** `modules/example-file.adoc` (line XX): "Section Title or Key Content"
-     - **File:** `assemblies/another-file.adoc` (line YY): "Another Section Title"
+    **Topic Name:** (Brief description from file)
+    - **File:** `modules/example-file.adoc` (line XX): "Section Title or Key Content"
+    - **File:** `assemblies/another-file.adoc` (line YY): "Another Section Title"
 
-     **Related Topic:**
-     - **File:** `path/to/file.adoc` (line ZZ): "Description"
+    **Related Topic:**
+    - **File:** `path/to/file.adoc` (line ZZ): "Description"
 
-     **What it covers:** Brief explanation of what the documentation addresses
+    **What it covers:** Brief explanation of what the documentation addresses
 
-     ## Documentation Gaps
+    ## Documentation Gaps
 
-     **What's missing:** List specific topics that should be documented but aren't
-     - Missing: Specific procedure for X
-     - Missing: Connection between Y and Z is not explained
-     - Gap: No mention of how A relates to B
+    **What's missing:** List specific topics that should be documented but aren't
+    - Missing: Specific procedure for X
+    - Missing: Connection between Y and Z is not explained
+    - Gap: No mention of how A relates to B
 
-     **Relevant file locations:**
-     - List the files where this documentation would logically belong
-     ```
-   - **Always include**:
-     - Full file paths relative to `${OPENSHIFT_DOCS}`
-     - Specific line numbers where relevant content appears
-     - Brief quotes or titles from those lines to help users locate the content
-     - Explicit identification of documentation gaps
-   - **Search strategy**:
-     - Start with broad topic searches (e.g., "catalogd", "CA certificate")
-     - Narrow to specific features or configurations
-     - Check related topics (e.g., if searching for "catalogd CA", also search for "Image config", "additionalTrustedCA")
-     - Read files to understand context and connections
-   - **Documentation gap identification**:
-     - Compare what the code supports (from source code analysis) with what's documented
-     - Note procedures that should exist but don't
-     - Identify missing connections between related features
+    **Relevant file locations:**
+    - List the files where this documentation would logically belong
+    ```
+  - **Always include**:
+    - Full file paths relative to `${OPENSHIFT_DOCS}`
+    - Specific line numbers where relevant content appears
+    - Brief quotes or titles from those lines to help users locate the content
+    - Explicit identification of documentation gaps
+  - **Search strategy**:
+    - Start with broad topic searches (e.g., "catalogd", "CA certificate")
+    - Narrow to specific features or configurations
+    - Check related topics (e.g., if searching for "catalogd CA", also search for "Image config", "additionalTrustedCA")
+    - Read files to understand context and connections
+  - **Documentation gap identification**:
+    - Compare what the code supports (from source code analysis) with what's documented
+    - Note procedures that should exist but don't
+    - Identify missing connections between related features
 
 4. **Resource Analysis**:
    - When reviewing manifests, check for:
