@@ -84,6 +84,7 @@ Analyze component health using regression and jira data
 - **`/component-health:list-regressions` `<release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]`** - Fetch and list raw regression data for OpenShift releases
 - **`/component-health:summarize-jiras` `--project <project> [--component comp1 comp2 ...] [--status status1 status2 ...] [--include-closed] [--limit N]`** - Query and summarize JIRA bugs for a specific project with counts by component
 - **`/component-health:summarize-regressions` `<release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]`** - Query and summarize regression data for OpenShift releases with counts and metrics
+- **`/component-health:triage` `<test-name> <release> [--variant <variant>]`** - Analyze root cause of a specific regressed test case from Component Readiness
 
 See [plugins/component-health/README.md](plugins/component-health/README.md) for detailed documentation.
 

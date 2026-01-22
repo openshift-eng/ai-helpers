@@ -353,6 +353,12 @@
           "description": "Query and summarize regression data for OpenShift releases with counts and metrics",
           "name": "summarize-regressions",
           "synopsis": "/component-health:summarize-regressions <release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]"
+        },
+        {
+          "argument_hint": "<test-name> <release> [--variant <variant>]",
+          "description": "Analyze root cause of a specific regressed test case from Component Readiness",
+          "name": "triage",
+          "synopsis": "/component-health:triage <test-name> <release> [--variant <variant>]"
         }
       ],
       "description": "Analyze component health and track regressions across OpenShift releases",
@@ -391,7 +397,7 @@
           "name": "Summarize JIRAs"
         }
       ],
-      "version": "0.0.2"
+      "version": "0.0.3"
     },
     {
       "commands": [

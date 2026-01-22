@@ -1,7 +1,7 @@
 {
   "name": "component-health",
   "description": "Analyze component health using regression and jira data",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "author": {
     "name": "github.com/openshift-eng"
   }

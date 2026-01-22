@@ -32,7 +32,7 @@
       "name": "component-health",
       "source": "./plugins/component-health",
       "description": "Analyze component health and track regressions across OpenShift releases",
-      "version": "0.0.2"
+      "version": "0.0.3"
     },
     {
       "name": "doc",
