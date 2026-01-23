@@ -29,6 +29,11 @@
       "version": "0.0.2"
     },
     {
+      "name": "konflux",
+      "source": "./plugins/konflux",
+      "description": "Tools for analyzing and debugging Konflux CI/CD pipelines"
+    },
+    {
       "name": "component-health",
       "source": "./plugins/component-health",
       "description": "Analyze component health and track regressions across OpenShift releases",
