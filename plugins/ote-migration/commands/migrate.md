@@ -7,7 +7,7 @@ argument-hint: ""
 ote-migration:migrate
 
 ## Synopsis
-```
+```text
 /ote-migration:migrate
 ```
 
@@ -92,7 +92,7 @@ if [ -z "$EXTENSION_NAME" ]; then
 fi
 
 echo "Detected extension name: $EXTENSION_NAME"
-```
+```bash
 
 **This extension name will be used for:**
 - Binary name: `<extension-name>-tests-ext`
@@ -139,7 +139,7 @@ grep -r "g\.Describe" test/extended/<your-subfolder>/ --include="*.go" | grep -o
 # Example output:
 # [sig-network-edge]
 # [sig-router]
-```
+```bash
 
 **Ask the user for sig filter tags:**
 
@@ -335,7 +335,7 @@ If a local target repository path was provided in Input 9:
   TARGET_REMOTE=$(git remote -v | awk '{print $1}' | head -1)
   git fetch "$TARGET_REMOTE"
   git pull "$TARGET_REMOTE" "$(git branch --show-current)"
-  ```
+```bash
 - If no: Use current state without updating
 
 **Display all collected inputs** for user confirmation:
@@ -364,7 +364,7 @@ Note: <test-dir-name> examples:
   - "e2e" if test/e2e doesn't exist (standard layout)
   - "e2e/extension" if test/e2e exists (subfolder layout)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-```
+```bash
 
 **For Single-Module Strategy:**
 ```
@@ -390,7 +390,7 @@ Destination Structure (in tests-extension/):
   Testdata: tests-extension/test/testdata/
   Module: tests-extension/go.mod (single module)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-```
+```bash
 
 Ask for confirmation before proceeding.
 
@@ -479,7 +479,7 @@ else
     git clone git@github.com:openshift/openshift-tests-private.git repos/openshift-tests-private
     SOURCE_REPO="repos/openshift-tests-private"
 fi
-```
+```bash
 
 **Set source paths based on subfolder inputs:**
 ```bash
@@ -515,7 +515,7 @@ else
     echo "Warning: No go.mod found in target repository"
     echo "Will create test/go.mod for test dependencies"
 fi
-```
+```bash
 
 **For Single-Module Strategy:**
 
@@ -603,7 +603,7 @@ else
     git clone <target-repo-url> repos/target
     TARGET_REPO="repos/target"
 fi
-```
+```bash
 
 **Note:** In subsequent phases, use `$SOURCE_REPO` and `$TARGET_REPO` variables instead of hardcoded `repos/source` and `repos/target` paths.
 
@@ -647,7 +647,7 @@ mkdir -p test/e2e
 mkdir -p test/testdata
 
 echo "Created single-module structure in tests-extension/"
-```
+```bash
 
 #### Step 2: Copy Test Files
 
@@ -673,7 +673,7 @@ cp -r "$SOURCE_TEST_PATH"/* test/e2e/
 
 # Count and display copied files
 echo "Copied $(find test/e2e -name '*_test.go' | wc -l) test files from $SOURCE_TEST_PATH"
-```
+```bash
 
 #### Step 3: Copy Testdata
 
@@ -723,7 +723,7 @@ if [ -n "$SOURCE_TESTDATA_PATH" ]; then
 else
     echo "Skipping testdata copy (none specified)"
 fi
-```
+```bash
 
 ### Phase 5: Code Generation (6 steps)
 
@@ -788,40 +788,40 @@ echo "Using ginkgo version: $GINKGO_VERSION"
 # Add replace directives to go.mod with fresh versions
 echo "" >> go.mod
 echo "replace (" >> go.mod
-echo "	bitbucket.org/ww/goautoneg => github.com/munnerz/goautoneg v0.0.0-20120707110453-a547fc61f48d" >> go.mod
-echo "	github.com/jteeuwen/go-bindata => github.com/jteeuwen/go-bindata v3.0.8-0.20151023091102-a0ff2567cfb7+incompatible" >> go.mod
-echo "	github.com/onsi/ginkgo/v2 => github.com/openshift/onsi-ginkgo/v2 $GINKGO_VERSION" >> go.mod
-echo "	k8s.io/api => github.com/openshift/kubernetes/staging/src/k8s.io/api v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/apiextensions-apiserver => github.com/openshift/kubernetes/staging/src/k8s.io/apiextensions-apiserver v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/apimachinery => github.com/openshift/kubernetes/staging/src/k8s.io/apimachinery v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/apiserver => github.com/openshift/kubernetes/staging/src/k8s.io/apiserver v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/cli-runtime => github.com/openshift/kubernetes/staging/src/k8s.io/cli-runtime v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/client-go => github.com/openshift/kubernetes/staging/src/k8s.io/client-go v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/cloud-provider => github.com/openshift/kubernetes/staging/src/k8s.io/cloud-provider v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/cluster-bootstrap => github.com/openshift/kubernetes/staging/src/k8s.io/cluster-bootstrap v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/code-generator => github.com/openshift/kubernetes/staging/src/k8s.io/code-generator v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/component-base => github.com/openshift/kubernetes/staging/src/k8s.io/component-base v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/component-helpers => github.com/openshift/kubernetes/staging/src/k8s.io/component-helpers v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/controller-manager => github.com/openshift/kubernetes/staging/src/k8s.io/controller-manager v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/cri-api => github.com/openshift/kubernetes/staging/src/k8s.io/cri-api v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/cri-client => github.com/openshift/kubernetes/staging/src/k8s.io/cri-client v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/csi-translation-lib => github.com/openshift/kubernetes/staging/src/k8s.io/csi-translation-lib v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/dynamic-resource-allocation => github.com/openshift/kubernetes/staging/src/k8s.io/dynamic-resource-allocation v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/endpointslice => github.com/openshift/kubernetes/staging/src/k8s.io/endpointslice v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/kube-aggregator => github.com/openshift/kubernetes/staging/src/k8s.io/kube-aggregator v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/kube-controller-manager => github.com/openshift/kubernetes/staging/src/k8s.io/kube-controller-manager v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/kube-proxy => github.com/openshift/kubernetes/staging/src/k8s.io/kube-proxy v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/kube-scheduler => github.com/openshift/kubernetes/staging/src/k8s.io/kube-scheduler v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/kubectl => github.com/openshift/kubernetes/staging/src/k8s.io/kubectl v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/kubelet => github.com/openshift/kubernetes/staging/src/k8s.io/kubelet v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/kubernetes => github.com/openshift/kubernetes $K8S_VERSION" >> go.mod
-echo "	k8s.io/legacy-cloud-providers => github.com/openshift/kubernetes/staging/src/k8s.io/legacy-cloud-providers v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/metrics => github.com/openshift/kubernetes/staging/src/k8s.io/metrics v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/mount-utils => github.com/openshift/kubernetes/staging/src/k8s.io/mount-utils v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/pod-security-admission => github.com/openshift/kubernetes/staging/src/k8s.io/pod-security-admission v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/sample-apiserver => github.com/openshift/kubernetes/staging/src/k8s.io/sample-apiserver v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/sample-cli-plugin => github.com/openshift/kubernetes/staging/src/k8s.io/sample-cli-plugin v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/sample-controller => github.com/openshift/kubernetes/staging/src/k8s.io/sample-controller v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    bitbucket.org/ww/goautoneg => github.com/munnerz/goautoneg v0.0.0-20120707110453-a547fc61f48d" >> go.mod
+echo "    github.com/jteeuwen/go-bindata => github.com/jteeuwen/go-bindata v3.0.8-0.20151023091102-a0ff2567cfb7+incompatible" >> go.mod
+echo "    github.com/onsi/ginkgo/v2 => github.com/openshift/onsi-ginkgo/v2 $GINKGO_VERSION" >> go.mod
+echo "    k8s.io/api => github.com/openshift/kubernetes/staging/src/k8s.io/api v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/apiextensions-apiserver => github.com/openshift/kubernetes/staging/src/k8s.io/apiextensions-apiserver v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/apimachinery => github.com/openshift/kubernetes/staging/src/k8s.io/apimachinery v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/apiserver => github.com/openshift/kubernetes/staging/src/k8s.io/apiserver v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/cli-runtime => github.com/openshift/kubernetes/staging/src/k8s.io/cli-runtime v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/client-go => github.com/openshift/kubernetes/staging/src/k8s.io/client-go v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/cloud-provider => github.com/openshift/kubernetes/staging/src/k8s.io/cloud-provider v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/cluster-bootstrap => github.com/openshift/kubernetes/staging/src/k8s.io/cluster-bootstrap v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/code-generator => github.com/openshift/kubernetes/staging/src/k8s.io/code-generator v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/component-base => github.com/openshift/kubernetes/staging/src/k8s.io/component-base v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/component-helpers => github.com/openshift/kubernetes/staging/src/k8s.io/component-helpers v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/controller-manager => github.com/openshift/kubernetes/staging/src/k8s.io/controller-manager v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/cri-api => github.com/openshift/kubernetes/staging/src/k8s.io/cri-api v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/cri-client => github.com/openshift/kubernetes/staging/src/k8s.io/cri-client v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/csi-translation-lib => github.com/openshift/kubernetes/staging/src/k8s.io/csi-translation-lib v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/dynamic-resource-allocation => github.com/openshift/kubernetes/staging/src/k8s.io/dynamic-resource-allocation v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/endpointslice => github.com/openshift/kubernetes/staging/src/k8s.io/endpointslice v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/kube-aggregator => github.com/openshift/kubernetes/staging/src/k8s.io/kube-aggregator v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/kube-controller-manager => github.com/openshift/kubernetes/staging/src/k8s.io/kube-controller-manager v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/kube-proxy => github.com/openshift/kubernetes/staging/src/k8s.io/kube-proxy v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/kube-scheduler => github.com/openshift/kubernetes/staging/src/k8s.io/kube-scheduler v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/kubectl => github.com/openshift/kubernetes/staging/src/k8s.io/kubectl v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/kubelet => github.com/openshift/kubernetes/staging/src/k8s.io/kubelet v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/kubernetes => github.com/openshift/kubernetes $K8S_VERSION" >> go.mod
+echo "    k8s.io/legacy-cloud-providers => github.com/openshift/kubernetes/staging/src/k8s.io/legacy-cloud-providers v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/metrics => github.com/openshift/kubernetes/staging/src/k8s.io/metrics v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/mount-utils => github.com/openshift/kubernetes/staging/src/k8s.io/mount-utils v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/pod-security-admission => github.com/openshift/kubernetes/staging/src/k8s.io/pod-security-admission v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/sample-apiserver => github.com/openshift/kubernetes/staging/src/k8s.io/sample-apiserver v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/sample-cli-plugin => github.com/openshift/kubernetes/staging/src/k8s.io/sample-cli-plugin v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/sample-controller => github.com/openshift/kubernetes/staging/src/k8s.io/sample-controller v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
 echo ")" >> go.mod
 
 echo "Step 6: Resolve all dependencies..."
@@ -852,7 +852,7 @@ MODULE_NAME=$(grep '^module ' go.mod | awk '{print $2}')
 if ! grep -q "replace.*$MODULE_NAME/test/<test-dir-name>" go.mod; then
     if grep -q "^replace (" go.mod; then
         # Add to existing replace section
-        sed -i "/^replace (/a\\	$MODULE_NAME/test/<test-dir-name> => ./test/<test-dir-name>" go.mod
+        sed -i "/^replace (/a\\    $MODULE_NAME/test/<test-dir-name> => ./test/<test-dir-name>" go.mod
     else
         # Create new replace section
         echo "" >> go.mod
@@ -928,40 +928,40 @@ echo "Using ginkgo version: $GINKGO_VERSION"
 # Add replace directives to go.mod with fresh versions
 echo "" >> go.mod
 echo "replace (" >> go.mod
-echo "	bitbucket.org/ww/goautoneg => github.com/munnerz/goautoneg v0.0.0-20120707110453-a547fc61f48d" >> go.mod
-echo "	github.com/jteeuwen/go-bindata => github.com/jteeuwen/go-bindata v3.0.8-0.20151023091102-a0ff2567cfb7+incompatible" >> go.mod
-echo "	github.com/onsi/ginkgo/v2 => github.com/openshift/onsi-ginkgo/v2 $GINKGO_VERSION" >> go.mod
-echo "	k8s.io/api => github.com/openshift/kubernetes/staging/src/k8s.io/api v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/apiextensions-apiserver => github.com/openshift/kubernetes/staging/src/k8s.io/apiextensions-apiserver v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/apimachinery => github.com/openshift/kubernetes/staging/src/k8s.io/apimachinery v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/apiserver => github.com/openshift/kubernetes/staging/src/k8s.io/apiserver v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/cli-runtime => github.com/openshift/kubernetes/staging/src/k8s.io/cli-runtime v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/client-go => github.com/openshift/kubernetes/staging/src/k8s.io/client-go v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/cloud-provider => github.com/openshift/kubernetes/staging/src/k8s.io/cloud-provider v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/cluster-bootstrap => github.com/openshift/kubernetes/staging/src/k8s.io/cluster-bootstrap v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/code-generator => github.com/openshift/kubernetes/staging/src/k8s.io/code-generator v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/component-base => github.com/openshift/kubernetes/staging/src/k8s.io/component-base v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/component-helpers => github.com/openshift/kubernetes/staging/src/k8s.io/component-helpers v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/controller-manager => github.com/openshift/kubernetes/staging/src/k8s.io/controller-manager v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/cri-api => github.com/openshift/kubernetes/staging/src/k8s.io/cri-api v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/cri-client => github.com/openshift/kubernetes/staging/src/k8s.io/cri-client v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/csi-translation-lib => github.com/openshift/kubernetes/staging/src/k8s.io/csi-translation-lib v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/dynamic-resource-allocation => github.com/openshift/kubernetes/staging/src/k8s.io/dynamic-resource-allocation v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/endpointslice => github.com/openshift/kubernetes/staging/src/k8s.io/endpointslice v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/kube-aggregator => github.com/openshift/kubernetes/staging/src/k8s.io/kube-aggregator v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/kube-controller-manager => github.com/openshift/kubernetes/staging/src/k8s.io/kube-controller-manager v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/kube-proxy => github.com/openshift/kubernetes/staging/src/k8s.io/kube-proxy v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/kube-scheduler => github.com/openshift/kubernetes/staging/src/k8s.io/kube-scheduler v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/kubectl => github.com/openshift/kubernetes/staging/src/k8s.io/kubectl v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/kubelet => github.com/openshift/kubernetes/staging/src/k8s.io/kubelet v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/kubernetes => github.com/openshift/kubernetes $K8S_VERSION" >> go.mod
-echo "	k8s.io/legacy-cloud-providers => github.com/openshift/kubernetes/staging/src/k8s.io/legacy-cloud-providers v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/metrics => github.com/openshift/kubernetes/staging/src/k8s.io/metrics v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/mount-utils => github.com/openshift/kubernetes/staging/src/k8s.io/mount-utils v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/pod-security-admission => github.com/openshift/kubernetes/staging/src/k8s.io/pod-security-admission v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/sample-apiserver => github.com/openshift/kubernetes/staging/src/k8s.io/sample-apiserver v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/sample-cli-plugin => github.com/openshift/kubernetes/staging/src/k8s.io/sample-cli-plugin v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "	k8s.io/sample-controller => github.com/openshift/kubernetes/staging/src/k8s.io/sample-controller v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    bitbucket.org/ww/goautoneg => github.com/munnerz/goautoneg v0.0.0-20120707110453-a547fc61f48d" >> go.mod
+echo "    github.com/jteeuwen/go-bindata => github.com/jteeuwen/go-bindata v3.0.8-0.20151023091102-a0ff2567cfb7+incompatible" >> go.mod
+echo "    github.com/onsi/ginkgo/v2 => github.com/openshift/onsi-ginkgo/v2 $GINKGO_VERSION" >> go.mod
+echo "    k8s.io/api => github.com/openshift/kubernetes/staging/src/k8s.io/api v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/apiextensions-apiserver => github.com/openshift/kubernetes/staging/src/k8s.io/apiextensions-apiserver v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/apimachinery => github.com/openshift/kubernetes/staging/src/k8s.io/apimachinery v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/apiserver => github.com/openshift/kubernetes/staging/src/k8s.io/apiserver v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/cli-runtime => github.com/openshift/kubernetes/staging/src/k8s.io/cli-runtime v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/client-go => github.com/openshift/kubernetes/staging/src/k8s.io/client-go v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/cloud-provider => github.com/openshift/kubernetes/staging/src/k8s.io/cloud-provider v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/cluster-bootstrap => github.com/openshift/kubernetes/staging/src/k8s.io/cluster-bootstrap v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/code-generator => github.com/openshift/kubernetes/staging/src/k8s.io/code-generator v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/component-base => github.com/openshift/kubernetes/staging/src/k8s.io/component-base v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/component-helpers => github.com/openshift/kubernetes/staging/src/k8s.io/component-helpers v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/controller-manager => github.com/openshift/kubernetes/staging/src/k8s.io/controller-manager v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/cri-api => github.com/openshift/kubernetes/staging/src/k8s.io/cri-api v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/cri-client => github.com/openshift/kubernetes/staging/src/k8s.io/cri-client v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/csi-translation-lib => github.com/openshift/kubernetes/staging/src/k8s.io/csi-translation-lib v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/dynamic-resource-allocation => github.com/openshift/kubernetes/staging/src/k8s.io/dynamic-resource-allocation v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/endpointslice => github.com/openshift/kubernetes/staging/src/k8s.io/endpointslice v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/kube-aggregator => github.com/openshift/kubernetes/staging/src/k8s.io/kube-aggregator v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/kube-controller-manager => github.com/openshift/kubernetes/staging/src/k8s.io/kube-controller-manager v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/kube-proxy => github.com/openshift/kubernetes/staging/src/k8s.io/kube-proxy v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/kube-scheduler => github.com/openshift/kubernetes/staging/src/k8s.io/kube-scheduler v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/kubectl => github.com/openshift/kubernetes/staging/src/k8s.io/kubectl v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/kubelet => github.com/openshift/kubernetes/staging/src/k8s.io/kubelet v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/kubernetes => github.com/openshift/kubernetes $K8S_VERSION" >> go.mod
+echo "    k8s.io/legacy-cloud-providers => github.com/openshift/kubernetes/staging/src/k8s.io/legacy-cloud-providers v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/metrics => github.com/openshift/kubernetes/staging/src/k8s.io/metrics v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/mount-utils => github.com/openshift/kubernetes/staging/src/k8s.io/mount-utils v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/pod-security-admission => github.com/openshift/kubernetes/staging/src/k8s.io/pod-security-admission v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/sample-apiserver => github.com/openshift/kubernetes/staging/src/k8s.io/sample-apiserver v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/sample-cli-plugin => github.com/openshift/kubernetes/staging/src/k8s.io/sample-cli-plugin v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+echo "    k8s.io/sample-controller => github.com/openshift/kubernetes/staging/src/k8s.io/sample-controller v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
 echo ")" >> go.mod
 
 echo "Step 6: Resolve all dependencies..."
@@ -985,7 +985,7 @@ else
 fi
 
 cd ..
-```
+```bash
 
 #### Step 2: Generate Extension Binary (main.go)
 
@@ -1006,120 +1006,120 @@ Then generate main.go with the actual module name (not a placeholder):
 package main
 
 import (
-	"context"
-	"fmt"
-	"os"
-	"regexp"
-	"strings"
+    "context"
+    "fmt"
+    "os"
+    "regexp"
+    "strings"
 
-	"github.com/spf13/cobra"
+    "github.com/spf13/cobra"
 
-	"github.com/openshift-eng/openshift-tests-extension/pkg/cmd"
-	e "github.com/openshift-eng/openshift-tests-extension/pkg/extension"
-	et "github.com/openshift-eng/openshift-tests-extension/pkg/extension/extensiontests"
-	g "github.com/openshift-eng/openshift-tests-extension/pkg/ginkgo"
+    "github.com/openshift-eng/openshift-tests-extension/pkg/cmd"
+    e "github.com/openshift-eng/openshift-tests-extension/pkg/extension"
+    et "github.com/openshift-eng/openshift-tests-extension/pkg/extension/extensiontests"
+    g "github.com/openshift-eng/openshift-tests-extension/pkg/ginkgo"
 
-	// Import test framework packages for initialization
-	"github.com/openshift/origin/test/extended/util"
-	"k8s.io/kubernetes/test/e2e/framework"
+    // Import test framework packages for initialization
+    "github.com/openshift/origin/test/extended/util"
+    "k8s.io/kubernetes/test/e2e/framework"
 
-	// Import test packages from test module
-	_ "$MODULE_NAME/test/<test-dir-name>"
+    // Import test packages from test module
+    _ "$MODULE_NAME/test/<test-dir-name>"
 )
 
 func main() {
-	// Initialize test framework
-	// This sets TestContext.KubeConfig from KUBECONFIG env var and initializes the cloud provider
-	util.InitStandardFlags()
-	if err := util.InitTest(false); err != nil {
-		panic(fmt.Sprintf("couldn't initialize test framework: %+v", err.Error()))
-	}
-	framework.AfterReadingAllFlags(&framework.TestContext)
+    // Initialize test framework
+    // This sets TestContext.KubeConfig from KUBECONFIG env var and initializes the cloud provider
+    util.InitStandardFlags()
+    if err := util.InitTest(false); err != nil {
+        panic(fmt.Sprintf("couldn't initialize test framework: %+v", err.Error()))
+    }
+    framework.AfterReadingAllFlags(&framework.TestContext)
 
-	registry := e.NewRegistry()
-	ext := e.NewExtension("openshift", "payload", "<extension-name>")
+    registry := e.NewRegistry()
+    ext := e.NewExtension("openshift", "payload", "<extension-name>")
 
-	// Add main test suite
-	ext.AddSuite(e.Suite{
-		Name:    "openshift/<extension-name>/tests",
-		Parents: []string{"openshift/conformance/parallel"},
-	})
+    // Add main test suite
+    ext.AddSuite(e.Suite{
+        Name:    "openshift/<extension-name>/tests",
+        Parents: []string{"openshift/conformance/parallel"},
+    })
 
-	// Build test specs from Ginkgo
-	allSpecs, err := g.BuildExtensionTestSpecsFromOpenShiftGinkgoSuite()
-	if err != nil {
-		panic(fmt.Sprintf("couldn't build extension test specs from ginkgo: %+v", err.Error()))
-	}
+    // Build test specs from Ginkgo
+    allSpecs, err := g.BuildExtensionTestSpecsFromOpenShiftGinkgoSuite()
+    if err != nil {
+        panic(fmt.Sprintf("couldn't build extension test specs from ginkgo: %+v", err.Error()))
+    }
 
-	// Filter to only include component-specific tests (tests with specified sig tags)
-	// Parse sig filter tags from comma-separated list
-	sigTags := strings.Split("<sig-filter-tags>", ",")
-	var filteredSpecs []*et.ExtensionTestSpec
-	allSpecs.Walk(func(spec *et.ExtensionTestSpec) {
-		for _, tag := range sigTags {
-			tag = strings.TrimSpace(tag)
-			if strings.Contains(spec.Name, "[sig-"+tag+"]") {
-				filteredSpecs = append(filteredSpecs, spec)
-				return // Found a match, no need to check other tags
-			}
-		}
-	})
-	specs := et.ExtensionTestSpecs(filteredSpecs)
+    // Filter to only include component-specific tests (tests with specified sig tags)
+    // Parse sig filter tags from comma-separated list
+    sigTags := strings.Split("<sig-filter-tags>", ",")
+    var filteredSpecs []*et.ExtensionTestSpec
+    allSpecs.Walk(func(spec *et.ExtensionTestSpec) {
+        for _, tag := range sigTags {
+            tag = strings.TrimSpace(tag)
+            if strings.Contains(spec.Name, "[sig-"+tag+"]") {
+                filteredSpecs = append(filteredSpecs, spec)
+                return // Found a match, no need to check other tags
+            }
+        }
+    })
+    specs := et.ExtensionTestSpecs(filteredSpecs)
 
-	// Apply platform filters based on Platform: labels
-	specs.Walk(func(spec *et.ExtensionTestSpec) {
-		for label := range spec.Labels {
-			if strings.HasPrefix(label, "Platform:") {
-				platformName := strings.TrimPrefix(label, "Platform:")
-				spec.Include(et.PlatformEquals(platformName))
-			}
-		}
-	})
+    // Apply platform filters based on Platform: labels
+    specs.Walk(func(spec *et.ExtensionTestSpec) {
+        for label := range spec.Labels {
+            if strings.HasPrefix(label, "Platform:") {
+                platformName := strings.TrimPrefix(label, "Platform:")
+                spec.Include(et.PlatformEquals(platformName))
+            }
+        }
+    })
 
-	// Apply platform filters based on [platform:xxx] in test names
-	specs.Walk(func(spec *et.ExtensionTestSpec) {
-		re := regexp.MustCompile(` + "`\\[platform:([a-z]+)\\]`" + `)
-		if match := re.FindStringSubmatch(spec.Name); match != nil {
-			platform := match[1]
-			spec.Include(et.PlatformEquals(platform))
-		}
-	})
+    // Apply platform filters based on [platform:xxx] in test names
+    specs.Walk(func(spec *et.ExtensionTestSpec) {
+        re := regexp.MustCompile(` + "`\\[platform:([a-z]+)\\]`" + `)
+        if match := re.FindStringSubmatch(spec.Name); match != nil {
+            platform := match[1]
+            spec.Include(et.PlatformEquals(platform))
+        }
+    })
 
-	// Set lifecycle for all migrated tests to Informing
-	// Tests will run but won't block CI on failure
-	specs.Walk(func(spec *et.ExtensionTestSpec) {
-		spec.Lifecycle = et.LifecycleInforming
-	})
+    // Set lifecycle for all migrated tests to Informing
+    // Tests will run but won't block CI on failure
+    specs.Walk(func(spec *et.ExtensionTestSpec) {
+        spec.Lifecycle = et.LifecycleInforming
+    })
 
-	// Wrap test execution with cleanup handler
-	// This marks tests as started and ensures proper cleanup
-	specs.Walk(func(spec *et.ExtensionTestSpec) {
-		originalRun := spec.Run
-		spec.Run = func(ctx context.Context) *et.ExtensionTestResult {
-			var result *et.ExtensionTestResult
-			util.WithCleanup(func() {
-				result = originalRun(ctx)
-			})
-			return result
-		}
-	})
+    // Wrap test execution with cleanup handler
+    // This marks tests as started and ensures proper cleanup
+    specs.Walk(func(spec *et.ExtensionTestSpec) {
+        originalRun := spec.Run
+        spec.Run = func(ctx context.Context) *et.ExtensionTestResult {
+            var result *et.ExtensionTestResult
+            util.WithCleanup(func() {
+                result = originalRun(ctx)
+            })
+            return result
+        }
+    })
 
-	ext.AddSpecs(specs)
-	registry.Register(ext)
+    ext.AddSpecs(specs)
+    registry.Register(ext)
 
-	root := &cobra.Command{
-		Long: "<Extension Name> Tests",
-	}
+    root := &cobra.Command{
+        Long: "<Extension Name> Tests",
+    }
 
-	root.AddCommand(cmd.DefaultExtensionCommands(registry)...)
+    root.AddCommand(cmd.DefaultExtensionCommands(registry)...)
 
-	if err := func() error {
-		return root.Execute()
-	}(); err != nil {
-		os.Exit(1)
-	}
+    if err := func() error {
+        return root.Execute()
+    }(); err != nil {
+        os.Exit(1)
+    }
 }
-```
+```bash
 
 **For Single-Module Strategy:**
 
@@ -1129,118 +1129,118 @@ Create `cmd/main.go`:
 package main
 
 import (
-	"context"
-	"fmt"
-	"os"
-	"regexp"
-	"strings"
+    "context"
+    "fmt"
+    "os"
+    "regexp"
+    "strings"
 
-	"github.com/spf13/cobra"
+    "github.com/spf13/cobra"
 
-	"github.com/openshift-eng/openshift-tests-extension/pkg/cmd"
-	e "github.com/openshift-eng/openshift-tests-extension/pkg/extension"
-	et "github.com/openshift-eng/openshift-tests-extension/pkg/extension/extensiontests"
-	g "github.com/openshift-eng/openshift-tests-extension/pkg/ginkgo"
+    "github.com/openshift-eng/openshift-tests-extension/pkg/cmd"
+    e "github.com/openshift-eng/openshift-tests-extension/pkg/extension"
+    et "github.com/openshift-eng/openshift-tests-extension/pkg/extension/extensiontests"
+    g "github.com/openshift-eng/openshift-tests-extension/pkg/ginkgo"
 
-	// Import test framework packages for initialization
-	"github.com/openshift/origin/test/extended/util"
-	"k8s.io/kubernetes/test/e2e/framework"
+    // Import test framework packages for initialization
+    "github.com/openshift/origin/test/extended/util"
+    "k8s.io/kubernetes/test/e2e/framework"
 
-	// Import test packages
-	_ "github.com/openshift/<extension-name>-tests-extension/test/e2e"
+    // Import test packages
+    _ "github.com/openshift/<extension-name>-tests-extension/test/e2e"
 )
 
 func main() {
-	// Initialize test framework
-	// This sets TestContext.KubeConfig from KUBECONFIG env var and initializes the cloud provider
-	util.InitStandardFlags()
-	if err := util.InitTest(false); err != nil {
-		panic(fmt.Sprintf("couldn't initialize test framework: %+v", err.Error()))
-	}
-	framework.AfterReadingAllFlags(&framework.TestContext)
+    // Initialize test framework
+    // This sets TestContext.KubeConfig from KUBECONFIG env var and initializes the cloud provider
+    util.InitStandardFlags()
+    if err := util.InitTest(false); err != nil {
+        panic(fmt.Sprintf("couldn't initialize test framework: %+v", err.Error()))
+    }
+    framework.AfterReadingAllFlags(&framework.TestContext)
 
-	registry := e.NewRegistry()
-	ext := e.NewExtension("openshift", "payload", "<extension-name>")
+    registry := e.NewRegistry()
+    ext := e.NewExtension("openshift", "payload", "<extension-name>")
 
-	// Add main test suite
-	ext.AddSuite(e.Suite{
-		Name:    "openshift/<extension-name>/tests",
-		Parents: []string{"openshift/conformance/parallel"},
-	})
+    // Add main test suite
+    ext.AddSuite(e.Suite{
+        Name:    "openshift/<extension-name>/tests",
+        Parents: []string{"openshift/conformance/parallel"},
+    })
 
-	// Build test specs from Ginkgo
-	allSpecs, err := g.BuildExtensionTestSpecsFromOpenShiftGinkgoSuite()
-	if err != nil {
-		panic(fmt.Sprintf("couldn't build extension test specs from ginkgo: %+v", err.Error()))
-	}
+    // Build test specs from Ginkgo
+    allSpecs, err := g.BuildExtensionTestSpecsFromOpenShiftGinkgoSuite()
+    if err != nil {
+        panic(fmt.Sprintf("couldn't build extension test specs from ginkgo: %+v", err.Error()))
+    }
 
-	// Filter to only include component-specific tests (tests with specified sig tags)
-	// Parse sig filter tags from comma-separated list
-	sigTags := strings.Split("<sig-filter-tags>", ",")
-	var filteredSpecs []*et.ExtensionTestSpec
-	allSpecs.Walk(func(spec *et.ExtensionTestSpec) {
-		for _, tag := range sigTags {
-			tag = strings.TrimSpace(tag)
-			if strings.Contains(spec.Name, "[sig-"+tag+"]") {
-				filteredSpecs = append(filteredSpecs, spec)
-				return // Found a match, no need to check other tags
-			}
-		}
-	})
-	specs := et.ExtensionTestSpecs(filteredSpecs)
+    // Filter to only include component-specific tests (tests with specified sig tags)
+    // Parse sig filter tags from comma-separated list
+    sigTags := strings.Split("<sig-filter-tags>", ",")
+    var filteredSpecs []*et.ExtensionTestSpec
+    allSpecs.Walk(func(spec *et.ExtensionTestSpec) {
+        for _, tag := range sigTags {
+            tag = strings.TrimSpace(tag)
+            if strings.Contains(spec.Name, "[sig-"+tag+"]") {
+                filteredSpecs = append(filteredSpecs, spec)
+                return // Found a match, no need to check other tags
+            }
+        }
+    })
+    specs := et.ExtensionTestSpecs(filteredSpecs)
 
-	// Apply platform filters based on Platform: labels
-	specs.Walk(func(spec *et.ExtensionTestSpec) {
-		for label := range spec.Labels {
-			if strings.HasPrefix(label, "Platform:") {
-				platformName := strings.TrimPrefix(label, "Platform:")
-				spec.Include(et.PlatformEquals(platformName))
-			}
-		}
-	})
+    // Apply platform filters based on Platform: labels
+    specs.Walk(func(spec *et.ExtensionTestSpec) {
+        for label := range spec.Labels {
+            if strings.HasPrefix(label, "Platform:") {
+                platformName := strings.TrimPrefix(label, "Platform:")
+                spec.Include(et.PlatformEquals(platformName))
+            }
+        }
+    })
 
-	// Apply platform filters based on [platform:xxx] in test names
-	specs.Walk(func(spec *et.ExtensionTestSpec) {
-		re := regexp.MustCompile(` + "`\\[platform:([a-z]+)\\]`" + `)
-		if match := re.FindStringSubmatch(spec.Name); match != nil {
-			platform := match[1]
-			spec.Include(et.PlatformEquals(platform))
-		}
-	})
+    // Apply platform filters based on [platform:xxx] in test names
+    specs.Walk(func(spec *et.ExtensionTestSpec) {
+        re := regexp.MustCompile(` + "`\\[platform:([a-z]+)\\]`" + `)
+        if match := re.FindStringSubmatch(spec.Name); match != nil {
+            platform := match[1]
+            spec.Include(et.PlatformEquals(platform))
+        }
+    })
 
-	// Set lifecycle for all migrated tests to Informing
-	// Tests will run but won't block CI on failure
-	specs.Walk(func(spec *et.ExtensionTestSpec) {
-		spec.Lifecycle = et.LifecycleInforming
-	})
+    // Set lifecycle for all migrated tests to Informing
+    // Tests will run but won't block CI on failure
+    specs.Walk(func(spec *et.ExtensionTestSpec) {
+        spec.Lifecycle = et.LifecycleInforming
+    })
 
-	// Wrap test execution with cleanup handler
-	// This marks tests as started and ensures proper cleanup
-	specs.Walk(func(spec *et.ExtensionTestSpec) {
-		originalRun := spec.Run
-		spec.Run = func(ctx context.Context) *et.ExtensionTestResult {
-			var result *et.ExtensionTestResult
-			util.WithCleanup(func() {
-				result = originalRun(ctx)
-			})
-			return result
-		}
-	})
+    // Wrap test execution with cleanup handler
+    // This marks tests as started and ensures proper cleanup
+    specs.Walk(func(spec *et.ExtensionTestSpec) {
+        originalRun := spec.Run
+        spec.Run = func(ctx context.Context) *et.ExtensionTestResult {
+            var result *et.ExtensionTestResult
+            util.WithCleanup(func() {
+                result = originalRun(ctx)
+            })
+            return result
+        }
+    })
 
-	ext.AddSpecs(specs)
-	registry.Register(ext)
+    ext.AddSpecs(specs)
+    registry.Register(ext)
 
-	root := &cobra.Command{
-		Long: "<Extension Name> Tests",
-	}
+    root := &cobra.Command{
+        Long: "<Extension Name> Tests",
+    }
 
-	root.AddCommand(cmd.DefaultExtensionCommands(registry)...)
+    root.AddCommand(cmd.DefaultExtensionCommands(registry)...)
 
-	if err := func() error {
-		return root.Execute()
-	}(); err != nil {
-		os.Exit(1)
-	}
+    if err := func() error {
+        return root.Execute()
+    }(); err != nil {
+        os.Exit(1)
+    }
 }
 ```
 
@@ -1262,25 +1262,25 @@ GO_BINDATA := $(GOPATH)/bin/go-bindata
 
 # Install go-bindata if not present
 $(GO_BINDATA):
-	@echo "Installing go-bindata to $(GO_BINDATA)..."
-	@go install github.com/go-bindata/go-bindata/v3/go-bindata@latest
-	@echo "go-bindata installed successfully"
+    @echo "Installing go-bindata to $(GO_BINDATA)..."
+    @go install github.com/go-bindata/go-bindata/v3/go-bindata@latest
+    @echo "go-bindata installed successfully"
 
 # Generate bindata.go from testdata directory
 .PHONY: bindata
 bindata: clean-bindata $(GO_BINDATA)
-	@echo "Generating bindata from $(TESTDATA_PATH)..."
-	@mkdir -p $(TESTDATA_PATH)
-	$(GO_BINDATA) -nocompress -nometadata \
-		-pkg testdata -o $(TESTDATA_PATH)/bindata.go $(TESTDATA_PATH)/...
-	@gofmt -s -w $(TESTDATA_PATH)/bindata.go
-	@echo "Bindata generated successfully at $(TESTDATA_PATH)/bindata.go"
+    @echo "Generating bindata from $(TESTDATA_PATH)..."
+    @mkdir -p $(TESTDATA_PATH)
+    $(GO_BINDATA) -nocompress -nometadata \
+        -pkg testdata -o $(TESTDATA_PATH)/bindata.go $(TESTDATA_PATH)/...
+    @gofmt -s -w $(TESTDATA_PATH)/bindata.go
+    @echo "Bindata generated successfully at $(TESTDATA_PATH)/bindata.go"
 
 .PHONY: clean-bindata
 clean-bindata:
-	@echo "Cleaning bindata..."
-	@rm -f $(TESTDATA_PATH)/bindata.go
-```
+    @echo "Cleaning bindata..."
+    @rm -f $(TESTDATA_PATH)/bindata.go
+```bash
 
 **For Single-Module Strategy:**
 
@@ -1298,24 +1298,24 @@ GO_BINDATA := $(GOPATH)/bin/go-bindata
 
 # Install go-bindata if not present
 $(GO_BINDATA):
-	@echo "Installing go-bindata to $(GO_BINDATA)..."
-	@go install github.com/go-bindata/go-bindata/v3/go-bindata@latest
-	@echo "go-bindata installed successfully"
+    @echo "Installing go-bindata to $(GO_BINDATA)..."
+    @go install github.com/go-bindata/go-bindata/v3/go-bindata@latest
+    @echo "go-bindata installed successfully"
 
 # Generate bindata.go from testdata directory
 .PHONY: bindata
 bindata: clean-bindata $(GO_BINDATA)
-	@echo "Generating bindata from $(TESTDATA_PATH)..."
-	@mkdir -p $(TESTDATA_PATH)
-	$(GO_BINDATA) -nocompress -nometadata \
-		-pkg testdata -o $(TESTDATA_PATH)/bindata.go -prefix "test" $(TESTDATA_PATH)/...
-	@gofmt -s -w $(TESTDATA_PATH)/bindata.go
-	@echo "Bindata generated successfully at $(TESTDATA_PATH)/bindata.go"
+    @echo "Generating bindata from $(TESTDATA_PATH)..."
+    @mkdir -p $(TESTDATA_PATH)
+    $(GO_BINDATA) -nocompress -nometadata \
+        -pkg testdata -o $(TESTDATA_PATH)/bindata.go -prefix "test" $(TESTDATA_PATH)/...
+    @gofmt -s -w $(TESTDATA_PATH)/bindata.go
+    @echo "Bindata generated successfully at $(TESTDATA_PATH)/bindata.go"
 
 .PHONY: clean-bindata
 clean-bindata:
-	@echo "Cleaning bindata..."
-	@rm -f $(TESTDATA_PATH)/bindata.go
+    @echo "Cleaning bindata..."
+    @rm -f $(TESTDATA_PATH)/bindata.go
 ```
 
 #### Step 4: Create Makefile
@@ -1332,11 +1332,11 @@ TESTS_EXT_BINARY := bin/<extension-name>-tests-ext
 # Build OTE extension binary
 .PHONY: tests-ext-build
 tests-ext-build:
-	@echo "Building OTE test extension binary..."
-	@cd test && $(MAKE) -f bindata.mk bindata
-	@mkdir -p bin
-	go build -mod=vendor -o $(TESTS_EXT_BINARY) $(TESTS_EXT_DIR)
-	@echo "OTE binary built successfully at $(TESTS_EXT_BINARY)"
+    @echo "Building OTE test extension binary..."
+    @cd test && $(MAKE) -f bindata.mk bindata
+    @mkdir -p bin
+    go build -mod=vendor -o $(TESTS_EXT_BINARY) $(TESTS_EXT_DIR)
+    @echo "OTE binary built successfully at $(TESTS_EXT_BINARY)"
 
 # Alias for backward compatibility
 .PHONY: extension
@@ -1345,33 +1345,33 @@ extension: tests-ext-build
 # Compress OTE extension binary (for CI/CD and container builds)
 .PHONY: tests-ext-compress
 tests-ext-compress: tests-ext-build
-	@echo "Compressing OTE extension binary..."
-	@gzip -f $(TESTS_EXT_BINARY)
-	@echo "Compressed binary created at $(TESTS_EXT_BINARY).gz"
+    @echo "Compressing OTE extension binary..."
+    @gzip -f $(TESTS_EXT_BINARY)
+    @echo "Compressed binary created at $(TESTS_EXT_BINARY).gz"
 
 # Copy compressed binary to _output directory (for CI/CD)
 .PHONY: tests-ext-copy
 tests-ext-copy: tests-ext-compress
-	@echo "Copying compressed binary to _output..."
-	@mkdir -p _output
-	@cp $(TESTS_EXT_BINARY).gz _output/
-	@echo "Binary copied to _output/<extension-name>-tests-ext.gz"
+    @echo "Copying compressed binary to _output..."
+    @mkdir -p _output
+    @cp $(TESTS_EXT_BINARY).gz _output/
+    @echo "Binary copied to _output/<extension-name>-tests-ext.gz"
 
 # Clean extension binary
 .PHONY: clean-extension
 clean-extension:
-	@echo "Cleaning extension binary..."
-	@rm -f $(TESTS_EXT_BINARY) $(TESTS_EXT_BINARY).gz _output/<extension-name>-tests-ext.gz
+    @echo "Cleaning extension binary..."
+    @rm -f $(TESTS_EXT_BINARY) $(TESTS_EXT_BINARY).gz _output/<extension-name>-tests-ext.gz
 
 .PHONY: help
 help:
-	@echo "Available targets:"
-	@echo "  tests-ext-build    - Build OTE extension binary"
-	@echo "  tests-ext-compress - Build and compress OTE extension binary"
-	@echo "  tests-ext-copy     - Build, compress, and copy to _output/"
-	@echo "  extension          - Alias for tests-ext-build"
-	@echo "  clean-extension    - Remove extension binary and compressed versions"
-```
+    @echo "Available targets:"
+    @echo "  tests-ext-build    - Build OTE extension binary"
+    @echo "  tests-ext-compress - Build and compress OTE extension binary"
+    @echo "  tests-ext-copy     - Build, compress, and copy to _output/"
+    @echo "  extension          - Alias for tests-ext-build"
+    @echo "  clean-extension    - Remove extension binary and compressed versions"
+```bash
 
 **For Single-Module Strategy:**
 
@@ -1387,23 +1387,23 @@ BINARY := bin/<extension-name>-tests-ext
 # Build extension binary
 .PHONY: build
 build: bindata
-	@echo "Building extension binary..."
-	@mkdir -p bin
-	GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go build -o $(BINARY) ./cmd
-	@echo "Binary built successfully at $(BINARY)"
+    @echo "Building extension binary..."
+    @mkdir -p bin
+    GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go build -o $(BINARY) ./cmd
+    @echo "Binary built successfully at $(BINARY)"
 
 # Clean generated files
 .PHONY: clean
 clean:
-	@echo "Cleaning binaries..."
-	@rm -f $(BINARY)
+    @echo "Cleaning binaries..."
+    @rm -f $(BINARY)
 
 .PHONY: help
 help:
-	@echo "Available targets:"
-	@echo "  bindata     - Generate bindata.go from test/testdata"
-	@echo "  build       - Build extension binary (includes bindata)"
-	@echo "  clean       - Remove extension binary"
+    @echo "Available targets:"
+    @echo "  bindata     - Generate bindata.go from test/testdata"
+    @echo "  build       - Build extension binary (includes bindata)"
+    @echo "  clean       - Remove extension binary"
 ```
 
 **Update Root Makefile (Target Repository):**
@@ -1427,24 +1427,24 @@ TESTS_EXT_BINARY := tests-extension/bin/<extension-name>-tests-ext
 # Build OTE extension binary
 .PHONY: tests-ext-build
 tests-ext-build:
-	@echo "Building OTE test extension binary..."
-	@cd $(TESTS_EXT_DIR) && $(MAKE) build
-	@echo "OTE binary built successfully at $(TESTS_EXT_BINARY)"
+    @echo "Building OTE test extension binary..."
+    @cd $(TESTS_EXT_DIR) && $(MAKE) build
+    @echo "OTE binary built successfully at $(TESTS_EXT_BINARY)"
 
 # Compress OTE extension binary (for CI/CD and container builds)
 .PHONY: tests-ext-compress
 tests-ext-compress: tests-ext-build
-	@echo "Compressing OTE extension binary..."
-	@gzip -f $(TESTS_EXT_BINARY)
-	@echo "Compressed binary created at $(TESTS_EXT_BINARY).gz"
+    @echo "Compressing OTE extension binary..."
+    @gzip -f $(TESTS_EXT_BINARY)
+    @echo "Compressed binary created at $(TESTS_EXT_BINARY).gz"
 
 # Copy compressed binary to _output directory (for CI/CD)
 .PHONY: tests-ext-copy
 tests-ext-copy: tests-ext-compress
-	@echo "Copying compressed binary to _output..."
-	@mkdir -p _output
-	@cp $(TESTS_EXT_BINARY).gz _output/
-	@echo "Binary copied to _output/<extension-name>-tests-ext.gz"
+    @echo "Copying compressed binary to _output..."
+    @mkdir -p _output
+    @cp $(TESTS_EXT_BINARY).gz _output/
+    @echo "Binary copied to _output/<extension-name>-tests-ext.gz"
 
 # Alias for backward compatibility
 .PHONY: extension
@@ -1453,9 +1453,9 @@ extension: tests-ext-build
 # Clean extension binary
 .PHONY: clean-extension
 clean-extension:
-	@echo "Cleaning extension binary..."
-	@rm -f $(TESTS_EXT_BINARY) $(TESTS_EXT_BINARY).gz _output/<extension-name>-tests-ext.gz
-	@cd $(TESTS_EXT_DIR) && $(MAKE) clean
+    @echo "Cleaning extension binary..."
+    @rm -f $(TESTS_EXT_BINARY) $(TESTS_EXT_BINARY).gz _output/<extension-name>-tests-ext.gz
+    @cd $(TESTS_EXT_DIR) && $(MAKE) clean
 EOF
 
     echo "✅ Root Makefile updated with OTE targets"
@@ -1463,7 +1463,7 @@ else
     echo "⚠️  No root Makefile found in target repository"
     echo "You may need to create one or integrate the build manually"
 fi
-```
+```bash
 
 **Key Points:**
 - The root Makefile delegates to `tests-extension/Makefile` for building
@@ -1491,26 +1491,26 @@ Create `tests-extension/test/testdata/fixtures.go`:
 package testdata
 
 import (
-	"fmt"
-	"io/ioutil"
-	"os"
-	"path/filepath"
-	"sort"
-	"strings"
+    "fmt"
+    "io/ioutil"
+    "os"
+    "path/filepath"
+    "sort"
+    "strings"
 )
 
 var (
-	// fixtureDir is where extracted fixtures are stored
-	fixtureDir string
+    // fixtureDir is where extracted fixtures are stored
+    fixtureDir string
 )
 
 // init sets up the temporary directory for fixtures
 func init() {
-	var err error
-	fixtureDir, err = ioutil.TempDir("", "testdata-fixtures-")
-	if err != nil {
-		panic(fmt.Sprintf("failed to create fixture directory: %v", err))
-	}
+    var err error
+    fixtureDir, err = ioutil.TempDir("", "testdata-fixtures-")
+    if err != nil {
+        panic(fmt.Sprintf("failed to create fixture directory: %v", err))
+    }
 }
 
 // FixturePath returns the filesystem path to a test fixture file.
@@ -1525,70 +1525,70 @@ func init() {
 //   configPath := testdata.FixturePath("manifests", "config.yaml")
 //   data, err := os.ReadFile(configPath)
 func FixturePath(elem ...string) string {
-	// Join all path elements
-	relativePath := filepath.Join(elem...)
-	targetPath := filepath.Join(fixtureDir, relativePath)
+    // Join all path elements
+    relativePath := filepath.Join(elem...)
+    targetPath := filepath.Join(fixtureDir, relativePath)
 
-	// Check if already extracted
-	if _, err := os.Stat(targetPath); err == nil {
-		return targetPath
-	}
+    // Check if already extracted
+    if _, err := os.Stat(targetPath); err == nil {
+        return targetPath
+    }
 
-	// Create parent directory
-	if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
-		panic(fmt.Sprintf("failed to create directory for %s: %v", relativePath, err))
-	}
+    // Create parent directory
+    if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
+        panic(fmt.Sprintf("failed to create directory for %s: %v", relativePath, err))
+    }
 
-	// Bindata stores assets with "testdata/" prefix
-	// e.g., bindata has "testdata/router/file.yaml" but tests call FixturePath("router/file.yaml")
-	bindataPath := filepath.Join("testdata", relativePath)
+    // Bindata stores assets with "testdata/" prefix
+    // e.g., bindata has "testdata/router/file.yaml" but tests call FixturePath("router/file.yaml")
+    bindataPath := filepath.Join("testdata", relativePath)
 
-	// Extract to temp directory first to handle path mismatch
-	tempDir, err := os.MkdirTemp("", "bindata-extract-")
-	if err != nil {
-		panic(fmt.Sprintf("failed to create temp directory: %v", err))
-	}
-	defer os.RemoveAll(tempDir)
+    // Extract to temp directory first to handle path mismatch
+    tempDir, err := os.MkdirTemp("", "bindata-extract-")
+    if err != nil {
+        panic(fmt.Sprintf("failed to create temp directory: %v", err))
+    }
+    defer os.RemoveAll(tempDir)
 
-	// Try to restore single asset or directory to temp location
-	if err := RestoreAsset(tempDir, bindataPath); err != nil {
-		// If single file fails, try restoring as directory
-		if err := RestoreAssets(tempDir, bindataPath); err != nil {
-			panic(fmt.Sprintf("failed to restore fixture %s: %v", relativePath, err))
-		}
-	}
+    // Try to restore single asset or directory to temp location
+    if err := RestoreAsset(tempDir, bindataPath); err != nil {
+        // If single file fails, try restoring as directory
+        if err := RestoreAssets(tempDir, bindataPath); err != nil {
+            panic(fmt.Sprintf("failed to restore fixture %s: %v", relativePath, err))
+        }
+    }
 
-	// Move extracted files from temp location to target location
-	extractedPath := filepath.Join(tempDir, bindataPath)
-	if err := os.Rename(extractedPath, targetPath); err != nil {
-		panic(fmt.Sprintf("failed to move extracted files from %s to %s: %v", extractedPath, targetPath, err))
-	}
+    // Move extracted files from temp location to target location
+    extractedPath := filepath.Join(tempDir, bindataPath)
+    if err := os.Rename(extractedPath, targetPath); err != nil {
+        panic(fmt.Sprintf("failed to move extracted files from %s to %s: %v", extractedPath, targetPath, err))
+    }
 
-	// Set appropriate permissions for directories
-	if info, err := os.Stat(targetPath); err == nil && info.IsDir() {
-		filepath.Walk(targetPath, func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				return err
-			}
-			if info.IsDir() {
-				os.Chmod(path, 0755)
-			} else {
-				os.Chmod(path, 0644)
-			}
-			return nil
-		})
-	}
+    // Set appropriate permissions for directories
+    if info, err := os.Stat(targetPath); err == nil && info.IsDir() {
+        filepath.Walk(targetPath, func(path string, info os.FileInfo, err error) error {
+            if err != nil {
+                return err
+            }
+            if info.IsDir() {
+                os.Chmod(path, 0755)
+            } else {
+                os.Chmod(path, 0644)
+            }
+            return nil
+        })
+    }
 
-	return targetPath
+    return targetPath
 }
 
 // CleanupFixtures removes all extracted fixture files.
 // Call this in test cleanup (e.g., AfterAll hook).
 func CleanupFixtures() error {
-	if fixtureDir != "" {
-		return os.RemoveAll(fixtureDir)
-	}
-	return nil
+    if fixtureDir != "" {
+        return os.RemoveAll(fixtureDir)
+    }
+    return nil
 }
 
 // GetFixtureData reads and returns the contents of a fixture file directly from bindata.
@@ -1599,16 +1599,16 @@ func CleanupFixtures() error {
 // Example:
 //   data, err := testdata.GetFixtureData("manifests", "config.yaml")
 func GetFixtureData(elem ...string) ([]byte, error) {
-	// Join all path elements
-	relativePath := filepath.Join(elem...)
+    // Join all path elements
+    relativePath := filepath.Join(elem...)
 
-	// Normalize path - bindata uses "testdata/" prefix
-	cleanPath := relativePath
-	if len(cleanPath) > 0 && cleanPath[0] == '/' {
-		cleanPath = cleanPath[1:]
-	}
+    // Normalize path - bindata uses "testdata/" prefix
+    cleanPath := relativePath
+    if len(cleanPath) > 0 && cleanPath[0] == '/' {
+        cleanPath = cleanPath[1:]
+    }
 
-	return Asset(filepath.Join("testdata", cleanPath))
+    return Asset(filepath.Join("testdata", cleanPath))
 }
 
 // MustGetFixtureData is like GetFixtureData but panics on error.
@@ -1616,11 +1616,11 @@ func GetFixtureData(elem ...string) ([]byte, error) {
 //
 // Accepts multiple path elements that will be joined together.
 func MustGetFixtureData(elem ...string) []byte {
-	data, err := GetFixtureData(elem...)
-	if err != nil {
-		panic(fmt.Sprintf("failed to get fixture data for %s: %v", filepath.Join(elem...), err))
-	}
-	return data
+    data, err := GetFixtureData(elem...)
+    if err != nil {
+        panic(fmt.Sprintf("failed to get fixture data for %s: %v", filepath.Join(elem...), err))
+    }
+    return data
 }
 
 // Component-specific helper functions
@@ -1635,15 +1635,15 @@ func MustGetFixtureData(elem ...string) []byte {
 //       path := testdata.FixturePath("manifests", "deployment.yaml")
 //   }
 func FixtureExists(elem ...string) bool {
-	// Join all path elements
-	relativePath := filepath.Join(elem...)
+    // Join all path elements
+    relativePath := filepath.Join(elem...)
 
-	cleanPath := relativePath
-	if len(cleanPath) > 0 && cleanPath[0] == '/' {
-		cleanPath = cleanPath[1:]
-	}
-	_, err := Asset(filepath.Join("testdata", cleanPath))
-	return err == nil
+    cleanPath := relativePath
+    if len(cleanPath) > 0 && cleanPath[0] == '/' {
+        cleanPath = cleanPath[1:]
+    }
+    _, err := Asset(filepath.Join("testdata", cleanPath))
+    return err == nil
 }
 
 // ListFixtures returns all available fixture paths in the embedded bindata.
@@ -1653,16 +1653,16 @@ func FixtureExists(elem ...string) bool {
 //   fixtures := testdata.ListFixtures()
 //   fmt.Printf("Available fixtures: %v\n", fixtures)
 func ListFixtures() []string {
-	names := AssetNames()
-	fixtures := make([]string, 0, len(names))
-	for _, name := range names {
-		// Remove "testdata/" prefix for cleaner paths
-		if strings.HasPrefix(name, "testdata/") {
-			fixtures = append(fixtures, strings.TrimPrefix(name, "testdata/"))
-		}
-	}
-	sort.Strings(fixtures)
-	return fixtures
+    names := AssetNames()
+    fixtures := make([]string, 0, len(names))
+    for _, name := range names {
+        // Remove "testdata/" prefix for cleaner paths
+        if strings.HasPrefix(name, "testdata/") {
+            fixtures = append(fixtures, strings.TrimPrefix(name, "testdata/"))
+        }
+    }
+    sort.Strings(fixtures)
+    return fixtures
 }
 
 // ListFixturesInDir returns all fixtures within a specific directory.
@@ -1671,18 +1671,18 @@ func ListFixtures() []string {
 //   manifests := testdata.ListFixturesInDir("manifests")
 //   // Returns: ["manifests/deployment.yaml", "manifests/service.yaml", ...]
 func ListFixturesInDir(dir string) []string {
-	allFixtures := ListFixtures()
-	var matching []string
-	prefix := dir
-	if !strings.HasSuffix(prefix, "/") {
-		prefix = prefix + "/"
-	}
-	for _, fixture := range allFixtures {
-		if strings.HasPrefix(fixture, prefix) {
-			matching = append(matching, fixture)
-		}
-	}
-	return matching
+    allFixtures := ListFixtures()
+    var matching []string
+    prefix := dir
+    if !strings.HasSuffix(prefix, "/") {
+        prefix = prefix + "/"
+    }
+    for _, fixture := range allFixtures {
+        if strings.HasPrefix(fixture, prefix) {
+            matching = append(matching, fixture)
+        }
+    }
+    return matching
 }
 
 // GetManifest is a convenience function for accessing manifest files.
@@ -1691,7 +1691,7 @@ func ListFixturesInDir(dir string) []string {
 // Example:
 //   deploymentPath := testdata.GetManifest("deployment.yaml")
 func GetManifest(name string) string {
-	return FixturePath(filepath.Join("manifests", name))
+    return FixturePath(filepath.Join("manifests", name))
 }
 
 // GetConfig is a convenience function for accessing config files.
@@ -1700,7 +1700,7 @@ func GetManifest(name string) string {
 // Example:
 //   configPath := testdata.GetConfig("settings.yaml")
 func GetConfig(name string) string {
-	return FixturePath(filepath.Join("configs", name))
+    return FixturePath(filepath.Join("configs", name))
 }
 
 // ValidateFixtures checks that all expected fixtures are present in bindata.
@@ -1712,16 +1712,16 @@ func GetConfig(name string) string {
 //       panic(err)
 //   }
 func ValidateFixtures(required []string) error {
-	var missing []string
-	for _, fixture := range required {
-		if !FixtureExists(fixture) {
-			missing = append(missing, fixture)
-		}
-	}
-	if len(missing) > 0 {
-		return fmt.Errorf("missing required fixtures: %v", missing)
-	}
-	return nil
+    var missing []string
+    for _, fixture := range required {
+        if !FixtureExists(fixture) {
+            missing = append(missing, fixture)
+        }
+    }
+    if len(missing) > 0 {
+        return fmt.Errorf("missing required fixtures: %v", missing)
+    }
+    return nil
 }
 
 // GetFixtureDir returns the temporary directory where fixtures are extracted.
@@ -1730,7 +1730,7 @@ func ValidateFixtures(required []string) error {
 // Example:
 //   fixtureRoot := testdata.GetFixtureDir()
 func GetFixtureDir() string {
-	return fixtureDir
+    return fixtureDir
 }
 ```
 
@@ -1767,7 +1767,7 @@ FROM registry.ci.openshift.org/ocp/4.17:base-rhel9
 COPY --from=builder /go/src/github.com/<org>/<component-name>/bin/<extension-name>-tests-ext.gz /usr/bin/
 
 # ... rest of your Dockerfile (copy other binaries, set entrypoint, etc.)
-```
+```bash
 
 **Key Points:**
 - The Dockerfile builds the OTE binary using the `tests-ext-build` Makefile target
@@ -1856,7 +1856,7 @@ else
 
     echo "✅ FixturePath calls replaced successfully"
 fi
-```
+```bash
 
 **For Single-Module Strategy:**
 
@@ -1925,12 +1925,12 @@ else
         # Look for existing import block
         if grep -q "^import (" "$file"; then
             # Add to existing import block (after "import (" line)
-            sed -i "/^import (/a\\	\"$TESTDATA_IMPORT\"" "$file"
+            sed -i "/^import (/a\\    \"$TESTDATA_IMPORT\"" "$file"
             echo "  ✓ Added import to $file (existing import block)"
         elif grep -q "^import \"" "$file"; then
             # Convert single import to multi-import block
             sed -i '0,/^import "/s/^import "/import (\n\t"/' "$file"
-            sed -i "/^import (/a\\	\"$TESTDATA_IMPORT\"\n)" "$file"
+            sed -i "/^import (/a\\    \"$TESTDATA_IMPORT\"\n)" "$file"
             echo "  ✓ Added import to $file (created import block)"
         else
             # No imports yet, add after package line
@@ -1941,7 +1941,7 @@ else
 
     echo "✅ Testdata imports added successfully"
 fi
-```
+```bash
 
 **For Single-Module Strategy:**
 
@@ -1969,12 +1969,12 @@ else
         # Look for existing import block
         if grep -q "^import (" "$file"; then
             # Add to existing import block (after "import (" line)
-            sed -i "/^import (/a\\	\"$TESTDATA_IMPORT\"" "$file"
+            sed -i "/^import (/a\\    \"$TESTDATA_IMPORT\"" "$file"
             echo "  ✓ Added import to $file (existing import block)"
         elif grep -q "^import \"" "$file"; then
             # Convert single import to multi-import block
             sed -i '0,/^import "/s/^import "/import (\n\t"/' "$file"
-            sed -i "/^import (/a\\	\"$TESTDATA_IMPORT\"\n)" "$file"
+            sed -i "/^import (/a\\    \"$TESTDATA_IMPORT\"\n)" "$file"
             echo "  ✓ Added import to $file (created import block)"
         else
             # No imports yet, add after package line
@@ -2021,7 +2021,7 @@ for file in $TEST_FILES; do
 done
 
 echo "✅ Old imports cleaned up"
-```
+```bash
 
 **For Single-Module Strategy:**
 
@@ -2176,7 +2176,7 @@ echo "  [OTP]       - Added to all Describe blocks (tracking)"
 echo "  [Level0]    - Added to Describe blocks for files containing -LEVEL0- tests (conformance)"
 echo "  -LEVEL0-    - Removed from test names to avoid duplication"
 echo "  Test names  - Restructured: Describe text moved into It() descriptions"
-```
+```bash
 
 **For Single-Module Strategy:**
 
@@ -2407,7 +2407,7 @@ else
     echo "After fixing, you can re-run this validation step."
     exit 1
 fi
-```
+```bash
 
 **For Single-Module Strategy:**
 
@@ -2586,7 +2586,7 @@ else
     echo "  - Ensure root go.mod has: replace $MODULE_NAME/test/<test-dir-name> => ./test/<test-dir-name>"
     exit 1
 fi
-```
+```bash
 
 **For Single-Module Strategy:**
 
@@ -2662,7 +2662,7 @@ Successfully migrated **<extension-name>** to OpenShift Tests Extension (OTE) fr
 
 ## Created Structure
 
-```
+```bash
 <working-dir>/                        # Target repository root
 ├── bin/
 │   └── <extension-name>-tests-ext    # Extension binary
@@ -2733,7 +2733,7 @@ Successfully migrated **<extension-name>** to OpenShift Tests Extension (OTE) fr
 ```bash
 cd <working-dir>
 make extension
-```
+```bash
 
 This will generate bindata and build the binary to `bin/<extension-name>-tests-ext`
 
@@ -2758,7 +2758,7 @@ This will generate bindata and build the binary to `bin/<extension-name>-tests-e
 
 # Run specific test
 ./bin/<extension-name>-tests-ext run "test name pattern"
-```
+```bash
 
 ## Troubleshooting
 
@@ -2792,7 +2792,7 @@ The migration automatically uses `GOTOOLCHAIN=auto GOSUMDB=sum.golang.org` when 
 **If you see errors like:**
 ```
 go: go.mod requires go >= 1.24.6 (running go 1.24.3; GOTOOLCHAIN=local)
-```
+```bash
 
 **This is automatically handled by the migration.** The `GOTOOLCHAIN=auto` setting allows Go to download the required version (e.g., go1.24.11) without requiring you to manually upgrade your system Go installation.
 
@@ -2812,7 +2812,7 @@ GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go mod tidy
 ```bash
 export GOTOOLCHAIN=auto
 export GOSUMDB=sum.golang.org
-```
+```bash
 
 ### If Dependency Download Was Interrupted
 
@@ -2849,7 +2849,7 @@ cd <working-dir>
 
 GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go mod tidy
 go mod download
-```
+```bash
 
 ### If Build Fails
 
@@ -2876,7 +2876,7 @@ Successfully migrated **<extension-name>** to OpenShift Tests Extension (OTE) fr
 
 ## Created Structure
 
-```
+```bash
 <working-dir>/
 └── tests-extension/                   # Isolated test extension directory
     ├── cmd/
@@ -2942,7 +2942,7 @@ Successfully migrated **<extension-name>** to OpenShift Tests Extension (OTE) fr
 ```bash
 cd <working-dir>/tests-extension
 make bindata
-```
+```bash
 
 This creates `test/testdata/bindata.go` with embedded test data.
 
@@ -2957,7 +2957,7 @@ GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go mod tidy
 
 ```bash
 make build
-```
+```bash
 
 ### 4. Validate Tests
 
@@ -2983,7 +2983,7 @@ make list
 
 # Run with platform filter
 ./<extension-name> run --platform=aws
-```
+```bash
 
 ### 6. Integrate into Component Dockerfile
 
@@ -3029,7 +3029,7 @@ FROM registry.ci.openshift.org/ocp/4.17:base-rhel9
 COPY --from=builder /go/src/github.com/<org>/<component-name>/extension /usr/bin/extension
 
 # ... rest of your Dockerfile
-```
+```bash
 
 **Key points:**
 - Build happens in the builder stage with Go toolchain
@@ -3045,112 +3045,11 @@ Add a docker-build target to your root Makefile:
 ```makefile
 .PHONY: docker-build
 docker-build:
-	docker build -t <component-name>:latest .
+    docker build -t <component-name>:latest .
 
 .PHONY: docker-extension
 docker-extension: docker-build
-	docker run --rm <component-name>:latest /usr/bin/extension list
-```
-
-## Troubleshooting
-
-### Dependency Version Management (IMPORTANT)
-
-**The migration tool now fetches latest versions** of critical dependencies (Kubernetes and ginkgo) directly from their repositories instead of copying from `openshift-tests-private`. This prevents stale dependency issues.
-
-**What changed:**
-- ✅ **Old behavior**: Copied all replace directives from `openshift-tests-private/go.mod` (could be outdated)
-- ✅ **New behavior**: Dynamically fetches latest commits from:
-  - `github.com/openshift/kubernetes` (master branch)
-  - `github.com/openshift/onsi-ginkgo` (v2.27.2-openshift-4.22 branch)
-
-**Why this matters:**
-Prevents API incompatibility errors such as:
-- `undefined: ginkgo.NewWriter`
-- `undefined: diff.Diff` (library-go)
-- `undefined: otelgrpc.UnaryClientInterceptor` (cri-client)
-- `structured-merge-diff/v6 vs v4` type mismatches
-- `too many arguments in call to testdata.FixturePath`
-
-**If you encounter version issues:**
-1. Check the git ls-remote outputs in Step 5 to verify latest commits are being used
-2. Manually update replace directives in `go.mod` if a specific version is required
-3. Run `go mod tidy` after any manual changes
-
-**Go Version Compatibility:**
-
-The migration automatically uses `GOTOOLCHAIN=auto GOSUMDB=sum.golang.org` when running `go mod tidy`. This allows Go to automatically download and use a newer toolchain version if required by dependencies.
-
-**If you see errors like:**
-```
-go: go.mod requires go >= 1.24.6 (running go 1.24.3; GOTOOLCHAIN=local)
-```
-
-**This is automatically handled by the migration.** The `GOTOOLCHAIN=auto` setting allows Go to download the required version (e.g., go1.24.11) without requiring you to manually upgrade your system Go installation.
-
-**What happens:**
-- Your system Go: 1.24.3
-- Dependencies require: 1.24.6+
-- `GOTOOLCHAIN=auto` downloads: 1.24.11 (as specified in go.mod's toolchain directive)
-- Build succeeds using the downloaded toolchain
-
-**If you need to manually run go mod tidy later:**
-```bash
-cd ~/router/tests-extension
-GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go mod tidy
-```
-
-**Or set it globally in your environment:**
-```bash
-export GOTOOLCHAIN=auto
-export GOSUMDB=sum.golang.org
-```
-
-### If Dependency Download Was Interrupted
-
-If you see warnings about failed dependency downloads during migration, complete the process manually:
-
-```bash
-cd <working-dir>/tests-extension
-
-# Get the correct openshift/origin version from openshift-tests-private
-OTP_PATH="<path-to-openshift-tests-private>"
-ORIGIN_VERSION=$(grep "github.com/openshift/origin" "$OTP_PATH/go.mod" | head -1 | awk '{print $2}')
-echo "Using openshift/origin version: $ORIGIN_VERSION"
-
-# Complete dependency resolution
-go get github.com/openshift-eng/openshift-tests-extension@latest
-go get "github.com/openshift/origin@$ORIGIN_VERSION"
-go get github.com/onsi/ginkgo/v2@latest
-go get github.com/onsi/gomega@latest
-
-# Resolve all dependencies (auto-download required Go version if needed)
-GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go mod tidy
-
-# Download all modules
-go mod download
-
-# Verify files are created
-ls -la go.mod go.sum
-```
-
-### If Build Fails
-
-```bash
-cd <working-dir>/tests-extension
-
-# Check import paths in test files
-grep -r "import" test/e2e/*.go
-
-# Verify all dependencies are available
-go mod verify
-
-# Re-vendor dependencies
-go mod vendor
-
-# Clean and rebuild
-make clean
-make build
+    docker run --rm <component-name>:latest /usr/bin/extension list
 ```
 
 ## Customization Options
@@ -3165,9 +3064,9 @@ The generated `main.go` includes this enabled by default:
 // Set lifecycle for all migrated tests to Informing
 // Tests will run but won't block CI on failure
 specs.Walk(func(spec *et.ExtensionTestSpec) {
-	spec.Lifecycle = et.LifecycleInforming
+    spec.Lifecycle = et.LifecycleInforming
 })
-```
+```bash
 
 **Available lifecycle values:**
 - `et.LifecycleInforming` - Test failures won't block CI (default for migrated tests)
@@ -3180,11 +3079,11 @@ Edit `cmd/main.go` (for single-module) or `cmd/extension/main.go` (for monorepo)
 ```go
 // Make Level0 tests blocking, all others informing
 specs.Walk(func(spec *et.ExtensionTestSpec) {
-	if strings.Contains(spec.Name, "[Level0]") {
-		spec.Lifecycle = et.LifecycleBlocking
-	} else {
-		spec.Lifecycle = et.LifecycleInforming
-	}
+    if strings.Contains(spec.Name, "[Level0]") {
+        spec.Lifecycle = et.LifecycleBlocking
+    } else {
+        spec.Lifecycle = et.LifecycleInforming
+    }
 })
 ```
 
@@ -3211,7 +3110,7 @@ specs.Walk(func(spec *et.ExtensionTestSpec) {
         spec.Include(et.TopologyEquals(match[1]))
     }
 })
-```
+```bash
 
 ### Add Custom Test Suites
 
@@ -3247,7 +3146,7 @@ specs.AddAfterEach(func(res *et.ExtensionTestResult) {
         // Collect diagnostics on failure
     }
 })
-```
+```bash
 
 ## Important Notes
 
@@ -3291,7 +3190,7 @@ After migration, guide the user through validation:
    ```bash
    cd <working-dir>/tests-extension
    make build
-   ```
+```bash
 
 2. **List tests:**
    ```bash
@@ -3301,7 +3200,7 @@ After migration, guide the user through validation:
 3. **Run dry-run:**
    ```bash
    ./<extension-name> run --dry-run
-   ```
+```bash
 
 4. **Verify environment filtering:**
    ```bash
@@ -3316,7 +3215,7 @@ After migration, guide the user through validation:
 
    # Run specific test
    ./<extension-name> run "test name"
-   ```
+```bash
 
 ## Testing Docker Image Integration
 
@@ -3403,7 +3302,7 @@ docker images <component-name>:test
 
 # Cleanup
 rm -f /tmp/<extension-name>-tests-ext /tmp/<extension-name>-tests-ext.gz
-```
+```bash
 
 ### Common Validation Checks
 
@@ -3427,7 +3326,7 @@ COMPRESSED_SIZE=$(docker run --rm <component-name>:test stat -c%s /usr/bin/<exte
 echo "Original size: $(numfmt --to=iec-i --suffix=B $ORIGINAL_SIZE)"
 echo "Compressed size: $(numfmt --to=iec-i --suffix=B $COMPRESSED_SIZE)"
 echo "Compression ratio: $(echo "scale=2; 100 - ($COMPRESSED_SIZE * 100 / $ORIGINAL_SIZE)" | bc)%"
-```
+```bash
 
 **3. Test Binary Functionality in Container:**
 ```bash
@@ -3455,7 +3354,7 @@ exit
 docker run --rm <component-name>:test sh -c "gzip -dc /usr/bin/<extension-name>-tests-ext.gz | file -"
 
 # Expected: ELF 64-bit LSB executable, x86-64 (or arm64 for ARM images)
-```
+```bash
 
 ### Troubleshooting Docker Build
 
@@ -3472,7 +3371,7 @@ docker run --rm <component-name>:builder ls -la tests-extension/bin/
 # Check if binary exists before compression
 docker build --target builder -t <component-name>:builder .
 docker run --rm <component-name>:builder sh -c "ls -la bin/<extension-name>-tests-ext || ls -la tests-extension/bin/<extension-name>-tests-ext"
-```
+```bash
 
 **Problem: Binary path mismatch in COPY command**
 ```bash
@@ -3488,7 +3387,7 @@ docker run --rm <component-name>:test sh -c "gzip -dc /usr/bin/<extension-name>-
 
 # If you see "not a dynamic executable", the binary is statically linked (good!)
 # If you see missing libraries, check CGO_ENABLED settings in build
-```
+```bash
 
 ### CI/CD Integration Testing
 
@@ -3528,7 +3427,7 @@ docker run --rm "$IMAGE_NAME" sh -c "
 "
 
 echo "✅ Docker image validation complete!"
-```
+```bash
 
 **Usage:**
 ```bash
