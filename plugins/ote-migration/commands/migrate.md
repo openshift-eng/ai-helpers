@@ -7,9 +7,9 @@ argument-hint: ""
 ote-migration:migrate
 
 ## Synopsis
-```
+```bash
 /ote-migration:migrate
-```
+```bash
 
 ## Description
 The `ote-migration:migrate` command automates the migration of component repositories to use the openshift-tests-extension (OTE) framework. It guides users through the entire migration process, from collecting configuration information to generating all necessary boilerplate code, copying test files, and setting up the build infrastructure.
@@ -85,7 +85,7 @@ fi
 
 If a previous migration state is found, ask the user:
 
-```
+```bash
 A previous migration was found (last completed: Phase X).
 
 What would you like to do?
@@ -126,7 +126,7 @@ cat > .ote-migration-state.json << 'EOF'
 EOF
 
 echo "Created migration state file: $STATE_FILE"
-```
+```bash
 
 #### State File Structure
 
@@ -184,7 +184,7 @@ mark_phase_completed() {
 
 # Example: After completing Phase 2
 mark_phase_completed 2
-```
+```bash
 
 #### Save Configuration During Phase 2
 
@@ -240,7 +240,7 @@ load_config() {
     echo "  Strategy: $STRUCTURE_STRATEGY"
     echo "  Working directory: $WORKING_DIR"
 }
-```
+```bash
 
 #### Determine Starting Phase
 
@@ -265,7 +265,7 @@ No files to delete in this phase.
 **At the end of Phase 1:**
 ```bash
 mark_phase_completed 1
-```
+```bash
 
 ### Phase 2: User Input Collection (up to 10 inputs, some conditional)
 
@@ -449,7 +449,7 @@ if [ -d "test/e2e" ]; then
 else
     TEST_DIR_EXISTS=false
 fi
-```
+```bash
 
 **If test/e2e exists:**
 Ask: "The directory 'test/e2e' already exists. Please specify a subdirectory name under test/e2e/ (default: 'extension'):"
@@ -582,7 +582,7 @@ Note: <test-dir-name> examples:
 ```bash
 
 **For Single-Module Strategy:**
-```
+```makefile
 Migration Configuration:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Extension: <extension-name>
@@ -614,7 +614,7 @@ Ask for confirmation before proceeding.
 # Save all collected configuration
 save_config
 mark_phase_completed 2
-```
+```bash
 
 ### Phase 3: Repository Setup (2 steps)
 
@@ -689,10 +689,11 @@ if [ -d "repos/openshift-tests-private" ]; then
         git fetch "$SOURCE_REMOTE"
         git pull "$SOURCE_REMOTE" master || git pull "$SOURCE_REMOTE" main
     else
-        echo "No remote found for openshift-tests-private, adding origin..."
-        git remote add origin git@github.com:openshift/openshift-tests-private.git
-        git fetch origin
-        git pull origin master || git pull origin main
+        echo "No remote found for openshift-tests-private, adding upstream..."
+        SOURCE_REMOTE="upstream"
+        git remote add "$SOURCE_REMOTE" git@github.com:openshift/openshift-tests-private.git
+        git fetch "$SOURCE_REMOTE"
+        git pull "$SOURCE_REMOTE" master || git pull "$SOURCE_REMOTE" main
     fi
     cd ../..
     SOURCE_REPO="repos/openshift-tests-private"
@@ -719,7 +720,7 @@ elif [ -z "<testdata-subfolder>" ]; then
 else
     SOURCE_TESTDATA_PATH="$SOURCE_REPO/test/extended/testdata/<testdata-subfolder>"
 fi
-```
+```bash
 
 #### Step 2: Setup Target Repository
 
@@ -813,10 +814,11 @@ if [ -d "repos/target" ]; then
         git fetch "$TARGET_REMOTE"
         git pull "$TARGET_REMOTE" master || git pull "$TARGET_REMOTE" main
     else
-        echo "No remote found for target repository, adding origin..."
-        git remote add origin <target-repo-url>
-        git fetch origin
-        git pull origin master || git pull origin main
+        echo "No remote found for target repository, adding upstream..."
+        TARGET_REMOTE="upstream"
+        git remote add "$TARGET_REMOTE" <target-repo-url>
+        git fetch "$TARGET_REMOTE"
+        git pull "$TARGET_REMOTE" master || git pull "$TARGET_REMOTE" main
     fi
     cd ../..
     TARGET_REPO="repos/target"
@@ -825,7 +827,7 @@ else
     git clone <target-repo-url> repos/target
     TARGET_REPO="repos/target"
 fi
-```
+```bash
 
 **Note:** In subsequent phases, use `$SOURCE_REPO` and `$TARGET_REPO` variables instead of hardcoded `repos/source` and `repos/target` paths.
 
@@ -854,7 +856,7 @@ mkdir -p test/testdata
 
 echo "Created monorepo structure in existing repository"
 echo "Test directory: test/<test-dir-name>"
-```
+```bash
 
 **For Single-Module Strategy:**
 ```bash
@@ -926,7 +928,7 @@ if [ -n "$SOURCE_TESTDATA_PATH" ]; then
 else
     echo "Skipping testdata copy (none specified)"
 fi
-```
+```bash
 
 **For Single-Module Strategy:**
 ```bash
@@ -955,7 +957,7 @@ fi
 **At the end of Phase 4:**
 ```bash
 mark_phase_completed 4
-```
+```bash
 
 ### Phase 5: Code Generation (6 steps)
 
@@ -1054,6 +1056,29 @@ echo "    k8s.io/pod-security-admission => github.com/openshift/kubernetes/stagi
 echo "    k8s.io/sample-apiserver => github.com/openshift/kubernetes/staging/src/k8s.io/sample-apiserver v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
 echo "    k8s.io/sample-cli-plugin => github.com/openshift/kubernetes/staging/src/k8s.io/sample-cli-plugin v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
 echo "    k8s.io/sample-controller => github.com/openshift/kubernetes/staging/src/k8s.io/sample-controller v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+
+echo "Step 5a: Extract additional replace directives from openshift-tests-private..."
+# Extract replace directives from openshift-tests-private that aren't k8s.io/* or ginkgo
+# This captures other important dependencies
+cd ../../$SOURCE_REPO
+if [ -f "go.mod" ]; then
+    echo "Extracting non-k8s replace directives from openshift-tests-private..."
+    # Extract replace directives, excluding k8s.io/*, github.com/onsi/ginkgo, and already added ones
+    grep "^ *[a-z].*=>" go.mod | \
+        grep -v "k8s.io/" | \
+        grep -v "github.com/onsi/ginkgo" | \
+        grep -v "bitbucket.org/ww/goautoneg" | \
+        grep -v "github.com/jteeuwen/go-bindata" | \
+        while read -r line; do
+            echo "    $line" >> "$OLDPWD/go.mod"
+            echo "  Added: $line"
+        done
+    cd "$OLDPWD"
+else
+    echo "Warning: openshift-tests-private go.mod not found, skipping additional replace directives"
+    cd "$OLDPWD"
+fi
+
 echo ")" >> go.mod
 
 echo "Step 6: Resolve all dependencies..."
@@ -1194,6 +1219,29 @@ echo "    k8s.io/pod-security-admission => github.com/openshift/kubernetes/stagi
 echo "    k8s.io/sample-apiserver => github.com/openshift/kubernetes/staging/src/k8s.io/sample-apiserver v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
 echo "    k8s.io/sample-cli-plugin => github.com/openshift/kubernetes/staging/src/k8s.io/sample-cli-plugin v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
 echo "    k8s.io/sample-controller => github.com/openshift/kubernetes/staging/src/k8s.io/sample-controller v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
+
+echo "Step 5a: Extract additional replace directives from openshift-tests-private..."
+# Extract replace directives from openshift-tests-private that aren't k8s.io/* or ginkgo
+# This captures other important dependencies
+cd ../../$SOURCE_REPO
+if [ -f "go.mod" ]; then
+    echo "Extracting non-k8s replace directives from openshift-tests-private..."
+    # Extract replace directives, excluding k8s.io/*, github.com/onsi/ginkgo, and already added ones
+    grep "^ *[a-z].*=>" go.mod | \
+        grep -v "k8s.io/" | \
+        grep -v "github.com/onsi/ginkgo" | \
+        grep -v "bitbucket.org/ww/goautoneg" | \
+        grep -v "github.com/jteeuwen/go-bindata" | \
+        while read -r line; do
+            echo "    $line" >> "$OLDPWD/go.mod"
+            echo "  Added: $line"
+        done
+    cd "$OLDPWD"
+else
+    echo "Warning: openshift-tests-private go.mod not found, skipping additional replace directives"
+    cd "$OLDPWD"
+fi
+
 echo ")" >> go.mod
 
 echo "Step 6: Resolve all dependencies..."
@@ -1230,7 +1278,7 @@ Create `cmd/extension/main.go`:
 cd <working-dir>
 MODULE_NAME=$(grep '^module ' go.mod | awk '{print $2}')
 echo "Using module name: $MODULE_NAME"
-```
+```go
 
 Then generate main.go with the actual module name (not a placeholder):
 
@@ -1548,7 +1596,7 @@ bindata: clean-bindata $(GO_BINDATA)
 clean-bindata:
     @echo "Cleaning bindata..."
     @rm -f $(TESTDATA_PATH)/bindata.go
-```
+```makefile
 
 #### Step 4: Create Makefile
 
@@ -1964,7 +2012,7 @@ func ValidateFixtures(required []string) error {
 func GetFixtureDir() string {
     return fixtureDir
 }
-```
+```bash
 
 #### Step 6: Update Dockerfile (Monorepo Strategy Only)
 
@@ -2050,7 +2098,7 @@ COPY --from=builder /go/src/github.com/<org>/<component-name>/tests-extension/bi
 **At the end of Phase 5:**
 ```bash
 mark_phase_completed 5
-```
+```bash
 
 ### Phase 6: Test Migration (4 steps - AUTOMATED)
 
@@ -2222,7 +2270,7 @@ else
 
     echo "✅ Testdata imports added successfully"
 fi
-```
+```bash
 
 #### Step 3: Remove Old Imports (Optional Cleanup)
 
@@ -2517,7 +2565,7 @@ echo "  [OTP]       - Added to all Describe blocks (tracking)"
 echo "  [Level0]    - Added to Describe blocks for files containing -LEVEL0- tests (conformance)"
 echo "  -LEVEL0-    - Removed from test names to avoid duplication"
 echo "  Test names  - Restructured: Describe text moved into It() descriptions"
-```
+```bash
 
 
 #### Step 5: Validate Tags and Annotations
@@ -2771,7 +2819,7 @@ fi
 **At the end of Phase 6:**
 ```bash
 mark_phase_completed 6
-```
+```bash
 
 ### Phase 7: Dependency Resolution and Verification (1 step)
 
@@ -2890,7 +2938,7 @@ After successful verification, you're ready to commit both go.mod and go.sum fil
 **At the end of Phase 7:**
 ```bash
 mark_phase_completed 7
-```
+```bash
 
 ### Phase 8: Documentation (1 step)
 
@@ -2995,7 +3043,7 @@ This will generate bindata and build the binary to `bin/<extension-name>-tests-e
 
 # Test platform filtering
 ./bin/<extension-name>-tests-ext run --platform=aws --dry-run
-```
+```bash
 
 ### 3. Run Tests
 
@@ -3053,7 +3101,7 @@ go: go.mod requires go >= 1.24.6 (running go 1.24.3; GOTOOLCHAIN=local)
 ```bash
 cd ~/router/tests-extension
 GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go mod tidy
-```
+```bash
 
 **Or set it globally in your environment:**
 ```bash
@@ -3110,7 +3158,7 @@ cd test/e2e && go mod verify
 # Clean and rebuild
 make clean-extension
 make tests-ext-build
-```
+```bash
 
 **For Single-Module Strategy:**
 
@@ -3198,7 +3246,7 @@ This creates `test/testdata/bindata.go` with embedded test data.
 ```bash
 go get github.com/openshift-eng/openshift-tests-extension@latest
 GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go mod tidy
-```
+```bash
 
 ### 3. Build Extension
 
@@ -3257,7 +3305,7 @@ FROM registry.ci.openshift.org/ocp/4.17:base-rhel9
 COPY --from=builder /go/bin/extension /usr/bin/extension
 
 # ... rest of your Dockerfile
-```
+```makefile
 
 **For repos using `make` targets:**
 
@@ -3332,7 +3380,7 @@ specs.Walk(func(spec *et.ExtensionTestSpec) {
         spec.Lifecycle = et.LifecycleInforming
     }
 })
-```
+```bash
 
 **To make ALL tests blocking:**
 
@@ -3437,7 +3485,7 @@ echo ""
 echo "To remove the state file:"
 echo "  rm .ote-migration-state.json"
 echo ""
-```
+```bash
 
 ## Resources
 
@@ -3528,7 +3576,7 @@ chmod +x /tmp/<extension-name>-tests-ext
 
 # Cleanup
 rm -f /tmp/<extension-name>-tests-ext
-```
+```bash
 
 ### Testing Single-Module Strategy
 
@@ -3611,7 +3659,7 @@ chmod +x extension
 
 # Exit container
 exit
-```
+```bash
 
 **4. Verify Binary Architecture:**
 ```bash
@@ -3643,7 +3691,7 @@ docker run --rm <component-name>:builder sh -c "ls -la bin/<extension-name>-test
 # Inspect builder image to find correct path
 docker build --target builder -t <component-name>:builder .
 docker run --rm <component-name>:builder find /go/src -name "<extension-name>-tests-ext.gz"
-```
+```bash
 
 **Problem: Binary won't execute in final image**
 ```bash
@@ -3698,7 +3746,7 @@ echo "✅ Docker image validation complete!"
 ```bash
 chmod +x test-docker-ote.sh
 ./test-docker-ote.sh <component-name>:test <extension-name>
-```
+```bash
 
 ## Important Implementation Notes
 
