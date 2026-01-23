@@ -26,6 +26,7 @@ Performs the complete OTE migration in one workflow.
 **Key Features:**
 
 - **Complete automation** - One command handles the entire migration
+- **Checkpoint/resume support** - Resume from any phase after interruption (Ctrl+C, timeout, etc.)
 - **Smart extension name detection** - Auto-detects from repository name for binary/module naming
 - **Flexible sig tag filtering** - Support single or multiple sig tags for test filtering (e.g., `router` or `router,network-edge`)
 - **Two directory strategies** - Monorepo (integrated) or single-module (isolated)
@@ -56,7 +57,7 @@ This plugin is available through the ai-helpers marketplace:
 
 ## Usage
 
-**IMPORTANT: Identify Your Sig Tags**
+### Important: Identify Your Sig Tags
 
 Before running the migration, identify the sig tag(s) used in your test files:
 
@@ -73,6 +74,34 @@ Run the migration command:
 
 ```bash
 /ote-migration:migrate
+```
+
+### Resume Support
+
+The migration automatically saves progress after each phase to `.ote-migration-state.json`. If the migration is interrupted (Ctrl+C, session timeout, network error, etc.), you can resume from where it left off:
+
+1. **Navigate to the same directory** where you started the migration
+2. **Run the command again**: `/ote-migration:migrate`
+3. **Choose to resume** when prompted:
+   ```
+   Previous Migration Detected
+   Extension: router
+   Last completed phase: 5
+
+   What would you like to do?
+   1. Resume from Phase 6 (recommended)
+   2. Start fresh (will delete state and start over)
+   3. Exit and review manually
+   ```
+
+The state file tracks:
+- All configuration inputs (extension name, sig tags, directory strategy, etc.)
+- Completed phases (0-8)
+- Timestamps for each phase
+
+**After successful migration**, you can optionally delete the state file:
+```bash
+rm .ote-migration-state.json
 ```
 
 The plugin will:
@@ -272,7 +301,7 @@ The generated `cmd/main.go` (or `cmd/extension/main.go` for monorepo) includes *
   ```
 
   **Full test name visible in list:**
-  ```
+  ```text
   [sig-router][OTP] [Level0] Router functionality should handle basic routing -LEVEL0-
   ```
 
@@ -408,7 +437,7 @@ All migrated tests are automatically set to **Informing** lifecycle - they will 
 // Set lifecycle for all migrated tests to Informing
 // Tests will run but won't block CI on failure
 specs.Walk(func(spec *et.ExtensionTestSpec) {
-	spec.Lifecycle = et.LifecycleInforming
+    spec.Lifecycle = et.LifecycleInforming
 })
 ```
 
@@ -424,11 +453,11 @@ If you want certain tests to block CI, modify the generated `main.go` or `cmd/ex
 ```go
 // Example: Make Level0 tests blocking, others informing
 specs.Walk(func(spec *et.ExtensionTestSpec) {
-	if strings.Contains(spec.Name, "[Level0]") {
-		spec.Lifecycle = et.LifecycleBlocking
-	} else {
-		spec.Lifecycle = et.LifecycleInforming
-	}
+    if strings.Contains(spec.Name, "[Level0]") {
+        spec.Lifecycle = et.LifecycleBlocking
+    } else {
+        spec.Lifecycle = et.LifecycleInforming
+    }
 })
 ```
 
