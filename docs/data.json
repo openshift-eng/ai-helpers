@@ -343,6 +343,12 @@
           "synopsis": "/component-health:list-regressions <release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]"
         },
         {
+          "argument_hint": "",
+          "description": "List all teams from the org data cache",
+          "name": "list-teams",
+          "synopsis": "/component-health:list-teams"
+        },
+        {
           "argument_hint": "--project <project> [--component comp1 comp2 ...] [--status status1 status2 ...] [--include-closed] [--limit N]",
           "description": "Query and summarize JIRA bugs for a specific project with counts by component",
           "name": "summarize-jiras",
@@ -384,6 +390,11 @@
           "description": "Fetch and analyze component health regressions for OpenShift releases",
           "id": "list-regressions",
           "name": "List Regressions"
+        },
+        {
+          "description": "List all teams from the org data cache",
+          "id": "list-teams",
+          "name": "List Teams"
         },
         {
           "description": "Safely manage a local cache of OpenShift org data from GCS",
