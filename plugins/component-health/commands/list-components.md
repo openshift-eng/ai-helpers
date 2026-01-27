@@ -1,6 +1,6 @@
 ---
-description: List all components tracked in Sippy for a release
-argument-hint: <release>
+description: List all components from the org data cache
+argument-hint: ""
 ---
 
 ## Name
@@ -10,16 +10,16 @@ component-health:list-components
 ## Synopsis
 
 ```
-/component-health:list-components <release>
+/component-health:list-components
 ```
 
 ## Description
 
-The `component-health:list-components` command fetches and displays all component names tracked in the Sippy component readiness system for a specified OpenShift release.
+The `component-health:list-components` command displays all component names from the local org data cache.
 
 This command is useful for:
 
-- Discovering available components for a release
+- Discovering available components
 - Validating component names before analysis
 - Understanding which teams/components are tracked
 - Generating component lists for reports
@@ -27,39 +27,34 @@ This command is useful for:
 
 ## Implementation
 
-1. **Verify Prerequisites**: Check that Python 3 is installed
+1. **Use org-data-cache Skill**: Ensure the cache is fresh
 
-   - Run: `python3 --version`
-   - Verify version 3.6 or later is available
+   - **IMPORTANT**: This command does NOT use the Skill tool. Instead, run the Python script directly.
+   - **Working Directory**: Ensure you are in the repository root directory before running the script
+   - Verify working directory: Run `pwd` and confirm you are in the `ai-helpers` repository root
+   - Run the cache script:
+     ```bash
+     python3 plugins/component-health/skills/org-data-cache/org_data_cache.py
+     ```
+   - This ensures the cache is up to date (refreshes if > 7 days old)
+   - **DO NOT** run this script from within the `plugins/component-health/skills/org-data-cache/` directory
 
-2. **Parse Arguments**: Extract release version from arguments
+2. **Extract Component Names**: Read components from cache
 
-   - Release format: "X.Y" (e.g., "4.17", "4.21")
+   - Cache location: `~/.cache/ai-helpers/org_data.json`
+   - Extract component keys from `.lookups.components`
+   - Command: `jq '.lookups.components | keys' ~/.cache/ai-helpers/org_data.json`
 
-3. **Execute Python Script**: Run the list_components.py script
-
-   - Script location: `plugins/component-health/skills/list-components/list_components.py`
-   - Pass release as `--release` argument
-   - The script automatically appends "-main" suffix to construct the view
-   - Capture JSON output from stdout
-
-4. **Parse Output**: Process the JSON response
-
-   - Extract component count and component list
-   - Components are returned alphabetically sorted and unique
-
-5. **Present Results**: Display components in a readable format
+3. **Present Results**: Display components in a readable format
 
    - Show total count
-   - Display components in a numbered or bulleted list
-   - Optionally group by category (e.g., Networking, Storage, etc.)
+   - Display components in alphabetical order (already sorted by jq)
+   - Components can be displayed in a numbered or bulleted list
 
-6. **Error Handling**: Handle common error scenarios
+4. **Error Handling**: Handle common error scenarios
 
-   - Network connectivity issues
-   - Invalid release format
-   - API errors (400, 404, 500, etc.)
-   - Empty results
+   - Cache file missing or corrupted
+   - org-data-cache skill failures (network, authentication, etc.)
 
 ## Return Value
 
@@ -67,81 +62,71 @@ The command outputs a **Component List** with the following information:
 
 ### Component Summary
 
-- **Release**: The release version queried
-- **View**: The constructed view parameter (release + "-main")
 - **Total Components**: Count of unique components found
+- **Cache Age**: How old the cache is (if relevant)
 
 ### Component List
 
 An alphabetically sorted list of all components, for example:
 
 ```
-1. Bare Metal Hardware Provisioning
-2. Build
-3. Cloud Compute / Cloud Controller Manager
-4. Cluster Version Operator
-5. Etcd
-6. HyperShift
-7. Image Registry
-8. Installer / openshift-installer
-9. kube-apiserver
-10. Machine Config Operator
-11. Management Console
-12. Monitoring
-13. Networking / ovn-kubernetes
-14. OLM
-15. Storage
+1. COO
+2. Openshift Advisor
+3. access-transparency
+4. account-manager
+5. addons
+6. alibaba-disk-csi-driver-operator
+7. ansible-operator-plugins
+8. aws-ebs-csi-driver-operator
+9. aws-efs-csi-driver-operator
+10. aws-load-balancer-operator
 ...
 ```
 
 ## Examples
 
-1. **List all components for release 4.21**:
+1. **List all components**:
 
    ```
-   /component-health:list-components 4.21
+   /component-health:list-components
    ```
 
-   Displays all components tracked in Sippy for release 4.21.
-
-2. **List components for release 4.20**:
-
-   ```
-   /component-health:list-components 4.20
-   ```
-
-   Displays all components for the 4.20 release.
+   Displays all components from the org data cache.
 
 ## Arguments
 
-- `$1` (required): Release version
-  - Format: "X.Y" (e.g., "4.17", "4.21")
-  - Must be a valid OpenShift release number
+None
 
 ## Prerequisites
 
-1. **Python 3**: Required to run the data fetching script
+1. **Python 3**: Required to run the cache management script
 
    - Check: `which python3`
    - Version: 3.6 or later
 
-2. **Network Access**: Must be able to reach the Sippy API
+2. **Google Cloud CLI (gsutil)**: Required for initial cache download
 
-   - Ensure HTTPS requests can be made to `sippy.dptools.openshift.org`
+   - Check: `which gsutil`
+   - Installation: https://cloud.google.com/sdk/docs/install
+   - Only needed if cache is missing or stale
+
+3. **jq**: Required for JSON parsing
+
+   - Check: `which jq`
+   - Most systems have this installed by default
 
 ## Notes
 
-- The script automatically appends "-main" to the release version
 - Component names are case-sensitive
 - Component names are returned in alphabetical order
-- Some components use hierarchical names with "/" separator (e.g., "Networking / ovn-kubernetes")
-- The script has a 30-second timeout for HTTP requests
+- The cache is automatically refreshed if older than 7 days
 - Component names returned can be used directly in other component-health commands
+- The cache is stored at `~/.cache/ai-helpers/org_data.json`
 
 ## See Also
 
-- Skill Documentation: `plugins/component-health/skills/list-components/SKILL.md`
-- Script: `plugins/component-health/skills/list-components/list_components.py`
+- Skill Documentation: `plugins/component-health/skills/org-data-cache/SKILL.md`
+- Script: `plugins/component-health/skills/org-data-cache/org_data_cache.py`
 - Related Command: `/component-health:list-regressions` (for regression data)
 - Related Command: `/component-health:summarize-jiras` (for bug data)
 - Related Command: `/component-health:analyze` (for health analysis)

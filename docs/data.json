@@ -325,10 +325,10 @@
           "synopsis": "/component-health:analyze <release> [--components comp1 comp2 ...] [--project JIRAPROJECT]"
         },
         {
-          "argument_hint": "<release>",
-          "description": "List all components tracked in Sippy for a release",
+          "argument_hint": "",
+          "description": "List all components from the org data cache",
           "name": "list-components",
-          "synopsis": "/component-health:list-components <release>"
+          "synopsis": "/component-health:list-components"
         },
         {
           "argument_hint": "<project> [--component comp1 comp2 ...] [--status status1 status2 ...] [--include-closed] [--limit N]",
@@ -371,11 +371,6 @@
           "name": "Get Release Dates"
         },
         {
-          "description": "Fetch component names from Sippy component readiness API",
-          "id": "list-components",
-          "name": "List Components"
-        },
-        {
           "description": "Query and return raw JIRA bug data for a specific project",
           "id": "list-jiras",
           "name": "List JIRAs"
@@ -384,6 +379,11 @@
           "description": "Fetch and analyze component health regressions for OpenShift releases",
           "id": "list-regressions",
           "name": "List Regressions"
+        },
+        {
+          "description": "Safely manage a local cache of OpenShift org data from GCS",
+          "id": "org-data-cache",
+          "name": "Org Data Cache"
         },
         {
           "description": "Query and summarize JIRA bugs for a specific project with counts by component",
