@@ -26,7 +26,6 @@ Performs the complete OTE migration in one workflow.
 **Key Features:**
 
 - **Complete automation** - One command handles the entire migration
-- **Checkpoint/resume support** - Resume from any phase after interruption (Ctrl+C, timeout, etc.)
 - **Smart extension name detection** - Auto-detects from repository name for binary/module naming
 - **Flexible sig tag filtering** - Support single or multiple sig tags for test filtering (e.g., `router` or `router,network-edge`)
 - **Two directory strategies** - Monorepo (integrated) or single-module (isolated)
@@ -74,34 +73,6 @@ Run the migration command:
 
 ```bash
 /ote-migration:migrate
-```
-
-### Resume Support
-
-The migration automatically saves progress after each phase to `.ote-migration-state.json`. If the migration is interrupted (Ctrl+C, session timeout, network error, etc.), you can resume from where it left off:
-
-1. **Navigate to the same directory** where you started the migration
-2. **Run the command again**: `/ote-migration:migrate`
-3. **Choose to resume** when prompted:
-   ```
-   Previous Migration Detected
-   Extension: router
-   Last completed phase: 5
-
-   What would you like to do?
-   1. Resume from Phase 6 (recommended)
-   2. Start fresh (will delete state and start over)
-   3. Exit and review manually
-   ```
-
-The state file tracks:
-- All configuration inputs (extension name, sig tags, directory strategy, etc.)
-- Completed phases (0-8)
-- Timestamps for each phase
-
-**After successful migration**, you can optionally delete the state file:
-```bash
-rm .ote-migration-state.json
 ```
 
 The plugin will:
