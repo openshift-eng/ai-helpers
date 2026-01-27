@@ -1,20 +1,21 @@
 ---
 name: List Components
-description: List all OCPBUGS components from the org data cache
+description: List all OCPBUGS components from the org data cache, optionally filtered by team
 ---
 
 # List Components
 
-This skill provides functionality to list all OCPBUGS component names from the local org data cache.
+This skill provides functionality to list all OCPBUGS component names from the local org data cache, with optional filtering by team.
 
 ## When to Use This Skill
 
 Use this skill when you need to:
 
 - Display all OCPBUGS component names
+- Display OCPBUGS components for a specific team
 - Validate OCPBUGS component names before using them in other commands
 - Get a complete list of OCPBUGS-tracked components
-- Count how many OCPBUGS components are in the system
+- Count how many OCPBUGS components are in the system or per team
 - Find component names for filing or querying OCPBUGS issues
 
 ## Prerequisites
@@ -64,14 +65,23 @@ This step will:
 
 After ensuring the cache is available, run the list-components script:
 
+**List all OCPBUGS components:**
 ```bash
 python3 plugins/component-health/skills/list-components/list_components.py
 ```
+
+**List OCPBUGS components for a specific team:**
+```bash
+python3 plugins/component-health/skills/list-components/list_components.py --team "API Server"
+```
+
+**Note**: Use the exact team name from the list-teams command output.
 
 ### Step 3: Process the Output
 
 The script outputs JSON with the following structure:
 
+**All components:**
 ```json
 {
   "total_components": 95,
@@ -85,10 +95,29 @@ The script outputs JSON with the following structure:
 }
 ```
 
+**Components filtered by team:**
+```json
+{
+  "total_components": 8,
+  "components": [
+    "apiserver-auth",
+    "config-operator",
+    "kube-apiserver",
+    "kube-controller-manager",
+    "kube-storage-version-migrator",
+    "openshift-apiserver",
+    "openshift-controller-manager / controller-manager",
+    "service-ca"
+  ],
+  "team": "API Server"
+}
+```
+
 **Field Descriptions**:
 
 - `total_components`: Total number of OCPBUGS components found
 - `components`: Alphabetically sorted list of OCPBUGS component names
+- `team`: (Optional) The team name used for filtering
 
 **Note**: Only components with `project: "OCPBUGS"` in their jiras array are included.
 
@@ -140,6 +169,22 @@ The script handles several error scenarios:
 
    **Solution**: Refresh the cache using org-data-cache skill
 
+5. **Team not found**:
+   ```
+   Error: Team 'Invalid Team' not found in cache.
+   Use list-teams to see available teams.
+   ```
+
+   **Solution**: Run list-teams to get correct team name, ensure exact match (case-sensitive)
+
+6. **No OCPBUGS components for team**:
+   ```
+   Warning: No OCPBUGS components found for team 'Team Name'.
+   The team may not have any OCPBUGS components assigned.
+   ```
+
+   **Note**: This is a warning, not an error. Some teams may not have OCPBUGS components.
+
 ## Output Format
 
 The script outputs JSON to stdout:
@@ -155,7 +200,7 @@ The script outputs JSON to stdout:
 # Ensure cache is fresh first
 python3 plugins/component-health/skills/org-data-cache/org_data_cache.py
 
-# Then list components
+# Then list all components
 python3 plugins/component-health/skills/list-components/list_components.py
 ```
 
@@ -170,6 +215,31 @@ Output:
     "Build",
     "..."
   ]
+}
+```
+
+### Example 1b: List Components for a Specific Team
+
+```bash
+# Ensure cache is fresh first
+python3 plugins/component-health/skills/org-data-cache/org_data_cache.py
+
+# List components for API Server team
+python3 plugins/component-health/skills/list-components/list_components.py --team "API Server"
+```
+
+Output:
+
+```json
+{
+  "total_components": 8,
+  "components": [
+    "apiserver-auth",
+    "config-operator",
+    "kube-apiserver",
+    "..."
+  ],
+  "team": "API Server"
 }
 ```
 
@@ -218,13 +288,15 @@ This skill depends on the org-data-cache skill to maintain the cache:
 ## Notes
 
 - Only OCPBUGS components are returned (filtered by `project: "OCPBUGS"` in jiras array)
+- Team names must match exactly (case-sensitive) - use list-teams to get correct names
+- When filtering by team, the script uses the team's `group.component_list` to filter components
 - Component names are case-sensitive
 - Components are returned in alphabetical order
 - The script reads directly from the cache file (no network calls)
 - Very fast execution (< 100ms typically)
 - Cache location is fixed at `~/.cache/ai-helpers/org_data.json`
 - Component names can be used directly in OCPBUGS JIRA queries and other component-health commands
-- Typical count: ~95 components (may vary as components are added/removed)
+- Typical count: ~95 total components, varies per team (may vary as components are added/removed)
 
 ## See Also
 

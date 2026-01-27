@@ -79,7 +79,7 @@ Analyze component health using regression and jira data
 
 **Commands:**
 - **`/component-health:analyze` `<release> [--components comp1 comp2 ...] [--project JIRAPROJECT]`** - Analyze and grade component health based on regression and JIRA bug metrics
-- **`/component-health:list-components`** - List all OCPBUGS components from the org data cache
+- **`/component-health:list-components` `[--team <team-name>]`** - List all OCPBUGS components from the org data cache, optionally filtered by team
 - **`/component-health:list-jiras` `<project> [--component comp1 comp2 ...] [--status status1 status2 ...] [--include-closed] [--limit N]`** - Query and list raw JIRA bug data for a specific project
 - **`/component-health:list-regressions` `<release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]`** - Fetch and list raw regression data for OpenShift releases
 - **`/component-health:list-teams`** - List all teams from the org data cache

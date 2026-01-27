@@ -325,10 +325,10 @@
           "synopsis": "/component-health:analyze <release> [--components comp1 comp2 ...] [--project JIRAPROJECT]"
         },
         {
-          "argument_hint": "",
-          "description": "List all OCPBUGS components from the org data cache",
+          "argument_hint": "[--team <team-name>]",
+          "description": "List all OCPBUGS components from the org data cache, optionally filtered by team",
           "name": "list-components",
-          "synopsis": "/component-health:list-components"
+          "synopsis": "/component-health:list-components [--team <team-name>]"
         },
         {
           "argument_hint": "<project> [--component comp1 comp2 ...] [--status status1 status2 ...] [--include-closed] [--limit N]",
@@ -377,7 +377,7 @@
           "name": "Get Release Dates"
         },
         {
-          "description": "List all OCPBUGS components from the org data cache",
+          "description": "List all OCPBUGS components from the org data cache, optionally filtered by team",
           "id": "list-components",
           "name": "List Components"
         },

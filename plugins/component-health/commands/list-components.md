@@ -1,6 +1,6 @@
 ---
-description: List all OCPBUGS components from the org data cache
-argument-hint: ""
+description: List all OCPBUGS components from the org data cache, optionally filtered by team
+argument-hint: "[--team <team-name>]"
 ---
 
 ## Name
@@ -10,18 +10,19 @@ component-health:list-components
 ## Synopsis
 
 ```
-/component-health:list-components
+/component-health:list-components [--team <team-name>]
 ```
 
 ## Description
 
-The `component-health:list-components` command displays all OCPBUGS component names from the local org data cache.
+The `component-health:list-components` command displays all OCPBUGS component names from the local org data cache, with optional filtering by team.
 
 This command is useful for:
 
 - Discovering available OCPBUGS components
+- Discovering OCPBUGS components for a specific team
 - Validating OCPBUGS component names before filing or querying bugs
-- Understanding which components are tracked in OCPBUGS
+- Understanding which components are tracked in OCPBUGS per team
 - Generating component lists for OCPBUGS-related reports
 - Finding exact component names for use in JIRA queries and other commands
 
@@ -44,13 +45,23 @@ This command is useful for:
 2. **Run the list-components Script**
 
    - After ensuring cache is available, run the script:
+
+     **For all OCPBUGS components:**
      ```bash
      python3 plugins/component-health/skills/list-components/list_components.py
      ```
+
+     **For components owned by a specific team:**
+     ```bash
+     python3 plugins/component-health/skills/list-components/list_components.py --team "API Server"
+     ```
+
    - The script will:
      - Read from the org data cache
-     - Extract OCPBUGS component names
+     - Extract OCPBUGS component names (optionally filtered by team)
      - Output JSON with total count and component list
+
+   - **Note**: Team names must match exactly (case-sensitive). Use `/component-health:list-teams` to get exact team names.
 
 3. **Parse and Display Results**
 
@@ -112,9 +123,30 @@ An alphabetically sorted list of all OCPBUGS components, for example:
 
    Displays all OCPBUGS components from the org data cache.
 
+2. **List OCPBUGS components for a specific team**:
+
+   ```
+   /component-health:list-components --team "API Server"
+   ```
+
+   Displays OCPBUGS components owned by the API Server team.
+
+3. **Get team name first, then list components**:
+
+   ```
+   # First, list teams to find the exact name
+   /component-health:list-teams
+
+   # Then use the exact team name
+   /component-health:list-components --team "Hypershift"
+   ```
+
 ## Arguments
 
-None
+- `--team` (optional): Filter components by team name
+  - Team name must match exactly (case-sensitive)
+  - Use `/component-health:list-teams` to get available team names
+  - Example: `--team "API Server"`
 
 ## Prerequisites
 
@@ -137,18 +169,21 @@ None
 ## Notes
 
 - Only OCPBUGS components are returned (filtered by `project: "OCPBUGS"` in jiras array)
+- Team names must match exactly (case-sensitive) - use `/component-health:list-teams` to get correct names
+- When filtering by team, only components in that team's `group.component_list` are included
 - Component names are case-sensitive
 - Component names are returned in alphabetical order
 - The cache is automatically refreshed if older than 7 days
 - Component names returned can be used directly in OCPBUGS JIRA queries and other component-health commands
 - The cache is stored at `~/.cache/ai-helpers/org_data.json`
-- Typical count: ~95 OCPBUGS components (may vary as components are added/removed)
+- Typical count: ~95 total OCPBUGS components, varies per team (may vary as components are added/removed)
 
 ## See Also
 
 - Skill Documentation: `plugins/component-health/skills/list-components/SKILL.md`
 - Script: `plugins/component-health/skills/list-components/list_components.py`
 - Related Skill: `plugins/component-health/skills/org-data-cache/SKILL.md`
+- Related Command: `/component-health:list-teams` (to get team names for filtering)
 - Related Command: `/component-health:list-regressions` (for regression data)
 - Related Command: `/component-health:summarize-jiras` (for bug data)
 - Related Command: `/component-health:analyze` (for health analysis)
