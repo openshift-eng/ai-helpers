@@ -1372,7 +1372,20 @@ clean-bindata:
 
 Update root `Makefile` (or add extension target to existing one):
 
-```makefile
+```bash
+cd <working-dir>
+
+# Check if Makefile exists
+if [ -f "Makefile" ]; then
+    echo "Updating root Makefile with OTE extension target..."
+
+    # Check if OTE targets already exist
+    if grep -q "tests-ext-build" Makefile; then
+        echo "⚠️  OTE targets already exist in Makefile, skipping..."
+    else
+        # Add OTE extension build target
+        cat >> Makefile << 'EOF'
+
 # OTE binary configuration
 TESTS_EXT_DIR := ./cmd/extension
 TESTS_EXT_BINARY := bin/<extension-name>-tests-ext
@@ -1419,6 +1432,67 @@ help:
     @echo "  tests-ext-copy     - Build, compress, and copy to _output/"
     @echo "  extension          - Alias for tests-ext-build"
     @echo "  clean-extension    - Remove extension binary and compressed versions"
+EOF
+
+        echo "✅ Root Makefile updated with OTE targets"
+    fi
+else
+    echo "⚠️  No root Makefile found in target repository"
+    echo "Creating a basic Makefile with OTE targets..."
+    cat > Makefile << 'EOF'
+.PHONY: all
+all: tests-ext-build
+
+# OTE binary configuration
+TESTS_EXT_DIR := ./cmd/extension
+TESTS_EXT_BINARY := bin/<extension-name>-tests-ext
+
+# Build OTE extension binary
+.PHONY: tests-ext-build
+tests-ext-build:
+	@echo "Building OTE test extension binary..."
+	@cd test && $(MAKE) -f bindata.mk bindata
+	@mkdir -p bin
+	go build -mod=vendor -o $(TESTS_EXT_BINARY) $(TESTS_EXT_DIR)
+	@echo "OTE binary built successfully at $(TESTS_EXT_BINARY)"
+
+# Alias for backward compatibility
+.PHONY: extension
+extension: tests-ext-build
+
+# Compress OTE extension binary (for CI/CD and container builds)
+.PHONY: tests-ext-compress
+tests-ext-compress: tests-ext-build
+	@echo "Compressing OTE extension binary..."
+	@gzip -f $(TESTS_EXT_BINARY)
+	@echo "Compressed binary created at $(TESTS_EXT_BINARY).gz"
+
+# Copy compressed binary to _output directory (for CI/CD)
+.PHONY: tests-ext-copy
+tests-ext-copy: tests-ext-compress
+	@echo "Copying compressed binary to _output..."
+	@mkdir -p _output
+	@cp $(TESTS_EXT_BINARY).gz _output/
+	@echo "Binary copied to _output/<extension-name>-tests-ext.gz"
+
+# Clean extension binary
+.PHONY: clean-extension
+clean-extension:
+	@echo "Cleaning extension binary..."
+	@rm -f $(TESTS_EXT_BINARY) $(TESTS_EXT_BINARY).gz _output/<extension-name>-tests-ext.gz
+
+.PHONY: help
+help:
+	@echo "Available targets:"
+	@echo "  tests-ext-build    - Build OTE extension binary"
+	@echo "  tests-ext-compress - Build and compress OTE extension binary"
+	@echo "  tests-ext-copy     - Build, compress, and copy to _output/"
+	@echo "  extension          - Alias for tests-ext-build"
+	@echo "  clean-extension    - Remove extension binary and compressed versions"
+EOF
+
+    echo "✅ Root Makefile created with OTE targets"
+fi
 ```bash
 
 **For Single-Module Strategy:**
@@ -1459,14 +1533,18 @@ help:
 For single-module strategy, also update the root Makefile in the target repository to add a target for building the OTE extension:
 
 ```bash
-cd $TARGET_REPO
+cd <working-dir>
 
 # Check if Makefile exists
 if [ -f "Makefile" ]; then
     echo "Updating root Makefile with OTE extension target..."
 
-    # Add OTE extension build target
-    cat >> Makefile << 'EOF'
+    # Check if OTE targets already exist
+    if grep -q "tests-ext-build" Makefile; then
+        echo "⚠️  OTE targets already exist in Makefile, skipping..."
+    else
+        # Add OTE extension build target
+        cat >> Makefile << 'EOF'
 
 # OTE test extension binary configuration
 TESTS_EXT_DIR := ./tests-extension
@@ -1506,7 +1584,8 @@ clean-extension:
     @cd $(TESTS_EXT_DIR) && $(MAKE) clean
 EOF
 
-    echo "✅ Root Makefile updated with OTE targets"
+        echo "✅ Root Makefile updated with OTE targets"
+    fi
 else
     echo "⚠️  No root Makefile found in target repository"
     echo "You may need to create one or integrate the build manually"
