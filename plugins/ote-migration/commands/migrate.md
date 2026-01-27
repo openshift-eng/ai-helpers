@@ -15,8 +15,7 @@ ote-migration:migrate
 The `ote-migration:migrate` command automates the migration of component repositories to use the openshift-tests-extension (OTE) framework. It guides users through the entire migration process, from collecting configuration information to generating all necessary boilerplate code, copying test files, and setting up the build infrastructure.
 
 ## Implementation
-The command implements an interactive 9-phase migration workflow with checkpoint/resume support:
-0. **Migration State Detection** - Check for incomplete migrations and offer to resume
+The command implements an interactive 8-phase migration workflow:
 1. **Cleanup** - Prepare the environment
 2. **User Input Collection** - Gather all configuration (extension name, directory strategy, repository paths, test subfolders)
 3. **Repository Setup** - Clone/update source (openshift-tests-private) and target repositories
@@ -25,8 +24,6 @@ The command implements an interactive 9-phase migration workflow with checkpoint
 6. **Test Migration** - Automatically replace FixturePath calls, update imports, and add OTP/Level0 annotations
 7. **Dependency Resolution** - Run go mod tidy, vendor dependencies, and verify build
 8. **Documentation** - Generate comprehensive migration summary with next steps
-
-**Resume Support:** The migration saves progress after each phase to `.ote-migration-state.json`. If interrupted (Ctrl+C, timeout, etc.), you can resume from the last completed phase.
 
 See the detailed workflow below for step-by-step implementation instructions.
 
@@ -51,221 +48,9 @@ The openshift-tests-extension framework allows external repositories to contribu
 
 ## Migration Workflow
 
-### Phase 0: Migration State Detection and Resume
-
-**IMPORTANT:** This phase MUST run at the very beginning before any other phase.
-
-#### Check for Existing Migration State
-
-Check if a previous migration was started but not completed:
-
-```bash
-# Check for migration state file
-STATE_FILE=".ote-migration-state.json"
-
-if [ -f "$STATE_FILE" ]; then
-    echo "Found existing migration state file: $STATE_FILE"
-
-    # Read the state file
-    LAST_PHASE=$(jq -r '.last_completed_phase' "$STATE_FILE")
-    EXTENSION_NAME=$(jq -r '.config.extension_name' "$STATE_FILE")
-    STARTED_AT=$(jq -r '.started_at' "$STATE_FILE")
-
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "Previous Migration Detected"
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "Extension: $EXTENSION_NAME"
-    echo "Started: $STARTED_AT"
-    echo "Last completed phase: $LAST_PHASE"
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-fi
-```
-
-#### Ask User: Resume or Start Fresh
-
-If a previous migration state is found, ask the user:
-
-```bash
-A previous migration was found (last completed: Phase X).
-
-What would you like to do?
-1. Resume from Phase X+1 (recommended)
-2. Start fresh (will delete state and start over)
-3. Exit and review manually
-```
-
-**User selects option:**
-- **Option 1 (Resume)**: Skip to the next phase after the last completed phase
-- **Option 2 (Start fresh)**: Delete `.ote-migration-state.json` and proceed to Phase 1
-- **Option 3 (Exit)**: Stop execution and let user review the state file
-
-#### Initialize State File (if starting fresh)
-
-If no state file exists or user chose to start fresh:
-
-```bash
-# Create initial state file
-cat > .ote-migration-state.json << 'EOF'
-{
-  "started_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
-  "last_completed_phase": 0,
-  "last_updated": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
-  "config": {},
-  "phases": {
-    "0": {"status": "completed", "completed_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"},
-    "1": {"status": "pending"},
-    "2": {"status": "pending"},
-    "3": {"status": "pending"},
-    "4": {"status": "pending"},
-    "5": {"status": "pending"},
-    "6": {"status": "pending"},
-    "7": {"status": "pending"},
-    "8": {"status": "pending"}
-  }
-}
-EOF
-
-echo "Created migration state file: $STATE_FILE"
-```bash
-
-#### State File Structure
-
-The `.ote-migration-state.json` file tracks:
-
-```json
-{
-  "started_at": "2025-01-23T10:30:00Z",
-  "last_completed_phase": 5,
-  "last_updated": "2025-01-23T11:45:00Z",
-  "config": {
-    "extension_name": "router",
-    "sig_filter_tags": "sig-network,sig-routing",
-    "structure_strategy": "monorepo",
-    "working_dir": "/home/user/router",
-    "test_dir_name": "e2e",
-    "source_repo_path": "/home/user/repos/openshift-tests-private",
-    "test_subfolder": "networking/router",
-    "testdata_subfolder": "networking/router"
-  },
-  "phases": {
-    "0": {"status": "completed", "completed_at": "2025-01-23T10:30:05Z"},
-    "1": {"status": "completed", "completed_at": "2025-01-23T10:30:10Z"},
-    "2": {"status": "completed", "completed_at": "2025-01-23T10:35:00Z"},
-    "3": {"status": "completed", "completed_at": "2025-01-23T10:40:00Z"},
-    "4": {"status": "completed", "completed_at": "2025-01-23T10:50:00Z"},
-    "5": {"status": "completed", "completed_at": "2025-01-23T11:45:00Z"},
-    "6": {"status": "in_progress"},
-    "7": {"status": "pending"},
-    "8": {"status": "pending"}
-  }
-}
-```
-
-#### Update State After Each Phase
-
-**CRITICAL:** After successfully completing each phase (1-8), update the state file:
-
-```bash
-# Function to mark phase as completed
-mark_phase_completed() {
-    local phase=$1
-    local state_file=".ote-migration-state.json"
-
-    # Update the state file
-    jq --arg phase "$phase" --arg timestamp "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" '
-        .last_completed_phase = ($phase | tonumber) |
-        .last_updated = $timestamp |
-        .phases[$phase].status = "completed" |
-        .phases[$phase].completed_at = $timestamp
-    ' "$state_file" > "${state_file}.tmp" && mv "${state_file}.tmp" "$state_file"
-
-    echo "✓ Phase $phase completed and saved to state file"
-}
-
-# Example: After completing Phase 2
-mark_phase_completed 2
-```bash
-
-#### Save Configuration During Phase 2
-
-After collecting all user inputs in Phase 2, save them to the state file:
-
-```bash
-# Save configuration to state file
-save_config() {
-    local state_file=".ote-migration-state.json"
-
-    jq --arg ext_name "$EXTENSION_NAME" \
-       --arg sig_tags "$SIG_FILTER_TAGS" \
-       --arg strategy "$STRUCTURE_STRATEGY" \
-       --arg work_dir "$WORKING_DIR" \
-       --arg test_dir "$TEST_DIR_NAME" \
-       --arg src_repo "$SOURCE_REPO_PATH" \
-       --arg test_sub "$TEST_SUBFOLDER" \
-       --arg data_sub "$TESTDATA_SUBFOLDER" '
-        .config.extension_name = $ext_name |
-        .config.sig_filter_tags = $sig_tags |
-        .config.structure_strategy = $strategy |
-        .config.working_dir = $work_dir |
-        .config.test_dir_name = $test_dir |
-        .config.source_repo_path = $src_repo |
-        .config.test_subfolder = $test_sub |
-        .config.testdata_subfolder = $data_sub
-    ' "$state_file" > "${state_file}.tmp" && mv "${state_file}.tmp" "$state_file"
-
-    echo "✓ Configuration saved to state file"
-}
-```
-
-#### Resume from Saved State
-
-When resuming, load the configuration from the state file:
-
-```bash
-# Load configuration from state file
-load_config() {
-    local state_file=".ote-migration-state.json"
-
-    EXTENSION_NAME=$(jq -r '.config.extension_name' "$state_file")
-    SIG_FILTER_TAGS=$(jq -r '.config.sig_filter_tags' "$state_file")
-    STRUCTURE_STRATEGY=$(jq -r '.config.structure_strategy' "$state_file")
-    WORKING_DIR=$(jq -r '.config.working_dir' "$state_file")
-    TEST_DIR_NAME=$(jq -r '.config.test_dir_name' "$state_file")
-    SOURCE_REPO_PATH=$(jq -r '.config.source_repo_path' "$state_file")
-    TEST_SUBFOLDER=$(jq -r '.config.test_subfolder' "$state_file")
-    TESTDATA_SUBFOLDER=$(jq -r '.config.testdata_subfolder' "$state_file")
-
-    echo "✓ Configuration loaded from state file"
-    echo "  Extension: $EXTENSION_NAME"
-    echo "  Strategy: $STRUCTURE_STRATEGY"
-    echo "  Working directory: $WORKING_DIR"
-}
-```bash
-
-#### Determine Starting Phase
-
-```bash
-# Determine which phase to start from
-if [ -f "$STATE_FILE" ] && [ "$RESUME_MIGRATION" = "yes" ]; then
-    LAST_PHASE=$(jq -r '.last_completed_phase' "$STATE_FILE")
-    START_PHASE=$((LAST_PHASE + 1))
-
-    echo "Resuming migration from Phase $START_PHASE"
-    load_config
-else
-    START_PHASE=1
-    echo "Starting fresh migration from Phase 1"
-fi
-```
-
 ### Phase 1: Cleanup
 
 No files to delete in this phase.
-
-**At the end of Phase 1:**
-```bash
-mark_phase_completed 1
-```bash
 
 ### Phase 2: User Input Collection (up to 10 inputs, some conditional)
 
@@ -609,13 +394,6 @@ Destination Structure (in tests-extension/):
 
 Ask for confirmation before proceeding.
 
-**At the end of Phase 2:**
-```bash
-# Save all collected configuration
-save_config
-mark_phase_completed 2
-```bash
-
 ### Phase 3: Repository Setup (2 steps)
 
 #### Step 1: Setup Source Repository
@@ -831,11 +609,6 @@ fi
 
 **Note:** In subsequent phases, use `$SOURCE_REPO` and `$TARGET_REPO` variables instead of hardcoded `repos/source` and `repos/target` paths.
 
-**At the end of Phase 3:**
-```bash
-mark_phase_completed 3
-```
-
 ### Phase 4: Structure Creation (5 steps)
 
 #### Step 1: Create Directory Structure
@@ -953,11 +726,6 @@ else
     echo "Skipping testdata copy (none specified)"
 fi
 ```
-
-**At the end of Phase 4:**
-```bash
-mark_phase_completed 4
-```bash
 
 ### Phase 5: Code Generation (6 steps)
 
@@ -1801,6 +1569,16 @@ func init() {
 //
 // Accepts multiple path elements that will be joined together.
 //
+// IMPORTANT: Do NOT include "testdata" as the first argument.
+// The function automatically prepends "testdata/" to construct the bindata path.
+//
+// Migration examples:
+//   Origin-tests:        compat_otp.FixturePath("testdata", "router", "config.yaml")
+//   Tests-extension:     testdata.FixturePath("router", "config.yaml")
+//
+//   Origin-tests:        exutil.FixturePath("testdata", "manifests", "pod.yaml")
+//   Tests-extension:     testdata.FixturePath("manifests", "pod.yaml")
+//
 // Example:
 //   configPath := testdata.FixturePath("manifests", "config.yaml")
 //   data, err := os.ReadFile(configPath)
@@ -2095,11 +1873,6 @@ COPY --from=builder /go/src/github.com/<org>/<component-name>/tests-extension/bi
 - The build happens in a builder stage with the Go toolchain
 - The final runtime image only contains the compressed binary
 
-**At the end of Phase 5:**
-```bash
-mark_phase_completed 5
-```bash
-
 ### Phase 6: Test Migration (4 steps - AUTOMATED)
 
 #### Step 1: Replace FixturePath Calls
@@ -2139,6 +1912,17 @@ else
         fi
     done
 
+    # Remove first "testdata" argument from FixturePath calls
+    # In origin-tests: compat_otp.FixturePath("testdata", "router")
+    # In tests-extension: testdata.FixturePath("router")
+    echo "Removing redundant 'testdata' prefix from FixturePath arguments..."
+    for file in $TEST_FILES; do
+        if grep -q 'testdata\.FixturePath("testdata"' "$file"; then
+            sed -i 's/testdata\.FixturePath("testdata", /testdata.FixturePath(/g' "$file"
+            echo "  ✓ Updated $file (removed testdata prefix)"
+        fi
+    done
+
     echo "✅ FixturePath calls replaced successfully"
 fi
 ```bash
@@ -2175,6 +1959,17 @@ else
         if grep -q "exutil\.FixturePath" "$file"; then
             sed -i 's/exutil\.FixturePath/testdata.FixturePath/g' "$file"
             echo "  ✓ Updated $file (exutil)"
+        fi
+    done
+
+    # Remove first "testdata" argument from FixturePath calls
+    # In origin-tests: compat_otp.FixturePath("testdata", "router")
+    # In tests-extension: testdata.FixturePath("router")
+    echo "Removing redundant 'testdata' prefix from FixturePath arguments..."
+    for file in $TEST_FILES; do
+        if grep -q 'testdata\.FixturePath("testdata"' "$file"; then
+            sed -i 's/testdata\.FixturePath("testdata", /testdata.FixturePath(/g' "$file"
+            echo "  ✓ Updated $file (removed testdata prefix)"
         fi
     done
 
@@ -2816,11 +2611,6 @@ else
 fi
 ```
 
-**At the end of Phase 6:**
-```bash
-mark_phase_completed 6
-```bash
-
 ### Phase 7: Dependency Resolution and Verification (1 step)
 
 #### Step 1: Verify Build and Test (Required)
@@ -2934,11 +2724,6 @@ fi
 4. ✅ go build/test to verify (this step)
 
 After successful verification, you're ready to commit both go.mod and go.sum files.
-
-**At the end of Phase 7:**
-```bash
-mark_phase_completed 7
-```bash
 
 ### Phase 8: Documentation (1 step)
 
@@ -3468,24 +3253,6 @@ specs.AddAfterEach(func(res *et.ExtensionTestResult) {
 - Check test name patterns (case-sensitive)
 - Verify label format: `Platform:aws` (capital P)
 - Test with: `./<extension-name> run --platform=aws --dry-run`
-
-**At the end of Phase 8:**
-```bash
-# Mark phase 8 as completed
-mark_phase_completed 8
-
-# Migration complete - clean up state file (optional)
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "🎉 Migration Complete!"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo ""
-echo "State file: .ote-migration-state.json"
-echo "You can keep this file for reference or delete it."
-echo ""
-echo "To remove the state file:"
-echo "  rm .ote-migration-state.json"
-echo ""
-```bash
 
 ## Resources
 
