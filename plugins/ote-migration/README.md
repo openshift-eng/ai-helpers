@@ -337,8 +337,9 @@ The generated `cmd/main.go` (or `cmd/extension/main.go` for monorepo) includes *
 
   **New behavior (reliable):**
 - Fetches latest commit hashes at migration time
-- Generates fresh pseudo-versions
+- Generates fresh pseudo-versions **using actual git commit timestamps** (not current time)
 - Ensures compatibility with current OpenShift ecosystem
+- Prevents `invalid pseudo-version: does not match version-control timestamp` errors
 
 ### Automatic Go Toolchain Management
 
