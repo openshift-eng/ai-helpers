@@ -233,7 +233,7 @@ The generated `cmd/main.go` (or `cmd/extension/main.go` for monorepo) includes *
 
 ### Test Tracking Annotations
 
-  The migration **automatically modifies test files** to add tracking annotations. This happens in Phase 6 (Test Migration) and restructures test names for better organization.
+  The migration **automatically modifies test files** to add tracking annotations. This happens in Phase 5 (Test Migration) and restructures test names for better organization.
 
   **Automatic annotations added:**
 

@@ -48,11 +48,7 @@ The openshift-tests-extension framework allows external repositories to contribu
 
 ## Migration Workflow
 
-### Phase 1: Cleanup
-
-No files to delete in this phase.
-
-### Phase 2: User Input Collection (up to 10 inputs, some conditional)
+### Phase 1: User Input Collection (up to 10 inputs, some conditional)
 
 Collect all necessary information from the user before starting the migration.
 
@@ -394,7 +390,7 @@ Destination Structure (in tests-extension/):
 
 Ask for confirmation before proceeding.
 
-### Phase 3: Repository Setup (2 steps)
+### Phase 2: Repository Setup (2 steps)
 
 #### Step 1: Setup Source Repository
 
@@ -609,7 +605,7 @@ fi
 
 **Note:** In subsequent phases, use `$SOURCE_REPO` and `$TARGET_REPO` variables instead of hardcoded `repos/source` and `repos/target` paths.
 
-### Phase 4: Structure Creation (5 steps)
+### Phase 3: Structure Creation (5 steps)
 
 #### Step 1: Create Directory Structure
 
@@ -658,7 +654,7 @@ echo "Created single-module structure in tests-extension/"
 cd <working-dir>
 
 # Copy test files from source to test/<test-dir-name>/
-# Use $SOURCE_TEST_PATH variable (set in Phase 3)
+# Use $SOURCE_TEST_PATH variable (set in Phase 2)
 cp -r "$SOURCE_TEST_PATH"/* test/<test-dir-name>/
 
 # Count and display copied files
@@ -670,7 +666,7 @@ echo "Copied $(find test/<test-dir-name> -name '*_test.go' | wc -l) test files f
 cd <working-dir>/tests-extension
 
 # Copy test files from source to test/e2e/
-# Use $SOURCE_TEST_PATH variable (set in Phase 3)
+# Use $SOURCE_TEST_PATH variable (set in Phase 2)
 cp -r "$SOURCE_TEST_PATH"/* test/e2e/
 
 # Count and display copied files
@@ -684,7 +680,7 @@ echo "Copied $(find test/e2e -name '*_test.go' | wc -l) test files from $SOURCE_
 cd <working-dir>
 
 # Copy testdata if it exists (skip if user specified "none")
-# Use $SOURCE_TESTDATA_PATH variable (set in Phase 3)
+# Use $SOURCE_TESTDATA_PATH variable (set in Phase 2)
 if [ -n "$SOURCE_TESTDATA_PATH" ]; then
     # Create subdirectory structure to match bindata paths
     # Files are organized as testdata/<subfolder>/ to match how tests call FixturePath()
@@ -708,7 +704,7 @@ fi
 cd <working-dir>/tests-extension
 
 # Copy testdata if it exists (skip if user specified "none")
-# Use $SOURCE_TESTDATA_PATH variable (set in Phase 3)
+# Use $SOURCE_TESTDATA_PATH variable (set in Phase 2)
 if [ -n "$SOURCE_TESTDATA_PATH" ]; then
     # Create subdirectory structure to match bindata paths
     # Files are organized as testdata/<subfolder>/ to match how tests call FixturePath()
@@ -727,7 +723,7 @@ else
 fi
 ```
 
-### Phase 5: Code Generation (6 steps)
+### Phase 4: Code Generation (6 steps)
 
 #### Step 1: Generate/Update go.mod Files
 
@@ -741,7 +737,7 @@ cd <working-dir>
 GO_VERSION=$(grep '^go ' go.mod | awk '{print $2}')
 echo "Using Go version: $GO_VERSION (from target repo)"
 
-# Get source repo path (set in Phase 3)
+# Get source repo path (set in Phase 2)
 OTP_PATH="$SOURCE_REPO"
 
 echo "Step 1: Create test/<test-dir-name>/go.mod..."
@@ -1984,7 +1980,7 @@ COPY --from=builder /go/src/github.com/<org>/<component-name>/tests-extension/bi
 - The build happens in a builder stage with the Go toolchain
 - The final runtime image only contains the compressed binary
 
-### Phase 6: Test Migration (4 steps - AUTOMATED)
+### Phase 5: Test Migration (4 steps - AUTOMATED)
 
 #### Step 1: Replace FixturePath Calls
 
@@ -2271,7 +2267,7 @@ echo "✅ Old imports cleaned up"
 ```bash
 cd <working-dir>
 
-# Set variables from user inputs collected in Phase 2
+# Set variables from user inputs collected in Phase 1
 SIG_FILTER_TAGS="<sig-filter-tags>"  # From Input 2 (comma-separated)
 TEST_DIR_NAME="<test-dir-name>"       # From Input 5a (defaults to "e2e")
 
@@ -2383,7 +2379,7 @@ echo "  Test names  - Restructured: Describe text moved into It() descriptions"
 ```bash
 cd <working-dir>/tests-extension
 
-# Set variables from user inputs collected in Phase 2
+# Set variables from user inputs collected in Phase 1
 SIG_FILTER_TAGS="<sig-filter-tags>"  # From Input 2 (comma-separated)
 
 echo "========================================="
@@ -2736,7 +2732,7 @@ else
 fi
 ```
 
-### Phase 7: Dependency Resolution and Verification (1 step)
+### Phase 6: Dependency Resolution and Verification (1 step)
 
 #### Step 1: Verify Build and Test (Required)
 
@@ -2843,14 +2839,14 @@ fi
 ```
 
 **Note:** This verification step completes the 4-step Go module workflow:
-1. ✅ go mod init (completed in Phase 5)
-2. ✅ go get dependencies (completed in Phase 5)
-3. ✅ go mod tidy (completed in Phase 5 and Step 1 above)
+1. ✅ go mod init (completed in Phase 4)
+2. ✅ go get dependencies (completed in Phase 4)
+3. ✅ go mod tidy (completed in Phase 4 and Step 1 above)
 4. ✅ go build/test to verify (this step)
 
 After successful verification, you're ready to commit both go.mod and go.sum files.
 
-### Phase 8: Documentation (1 step)
+### Phase 7: Documentation (1 step)
 
 #### Generate Migration Summary
 
@@ -3669,4 +3665,4 @@ Replace these placeholders with actual values:
 
 ## Begin Migration
 
-Start by collecting all user inputs from Phase 2, then proceed through each phase systematically!
+Start by collecting all user inputs from Phase 1, then proceed through each phase systematically!
