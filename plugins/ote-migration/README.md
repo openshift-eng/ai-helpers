@@ -201,11 +201,17 @@ The generated `cmd/main.go` (or `cmd/extension/main.go` for monorepo) includes *
       panic(fmt.Sprintf("couldn't build extension test specs from ginkgo: %+v", err.Error()))
   }
 
-  // Filter to only include component-specific tests (tests with [sig-<extension-name>] in name)
+  // Filter to only include component-specific tests (tests with specified sig tags)
+  // Parse sig filter tags from comma-separated list (value from migration step 2)
+  sigTags := strings.Split("router,network-edge", ",") // Tags user provided: "router,network-edge"
   var filteredSpecs []*et.ExtensionTestSpec
   allSpecs.Walk(func(spec *et.ExtensionTestSpec) {
-      if strings.Contains(spec.Name, "[sig-<extension-name>]") {
-          filteredSpecs = append(filteredSpecs, spec)
+      for _, tag := range sigTags {
+          tag = strings.TrimSpace(tag)
+          if strings.Contains(spec.Name, "[sig-"+tag+"]") {
+              filteredSpecs = append(filteredSpecs, spec)
+              return // Found a match, no need to check other tags
+          }
       }
   })
   specs := et.ExtensionTestSpecs(filteredSpecs)
@@ -213,8 +219,8 @@ The generated `cmd/main.go` (or `cmd/extension/main.go` for monorepo) includes *
 
   **Why this matters:**
 - Without this filter, you'd see **5,000+ upstream Kubernetes tests** in addition to your component tests
-- The filter ensures `./bin/<extension-name>-tests-ext list` shows only tests tagged with `[sig-<extension-name>]`
-- Tests must have the `[sig-<extension-name>]` tag in their name to be included
+- The filter ensures `./bin/<extension-name>-tests-ext list` shows only tests tagged with one of your specified sig tags (e.g., `[sig-router]` or `[sig-network-edge]`)
+- Tests must have at least one of your specified sig tags in their name to be included (OR logic for multiple tags)
 
   **Verification after migration:**
   ```bash
@@ -265,7 +271,7 @@ The generated `cmd/main.go` (or `cmd/extension/main.go` for monorepo) includes *
   **After migration:**
   ```go
   g.Describe("[sig-router][OTP]", func() {
-      g.It("[Level0] Router functionality should handle basic routing -LEVEL0-", func() {
+      g.It("[Level0] Router functionality should handle basic routing", func() {
           // test code
       })
   })
@@ -273,7 +279,7 @@ The generated `cmd/main.go` (or `cmd/extension/main.go` for monorepo) includes *
 
   **Full test name visible in list:**
   ```text
-  [sig-router][OTP] [Level0] Router functionality should handle basic routing -LEVEL0-
+  [sig-router][OTP] [Level0] Router functionality should handle basic routing
   ```
 
   **Benefits:**
