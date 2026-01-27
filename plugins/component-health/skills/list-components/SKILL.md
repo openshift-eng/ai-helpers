@@ -41,24 +41,30 @@ Use this skill when you need to:
 
 ## Implementation Steps
 
-### Step 1: Locate the Script
+### Step 1: Ensure Cache is Fresh
 
-The script is located at:
-
-```
-plugins/component-health/skills/list-components/list_components.py
-```
-
-### Step 2: Run the Script from Repository Root
-
-**IMPORTANT**: The script must be run from the repository root directory.
+**IMPORTANT**: Always run org-data-cache first to ensure the cache is available and up-to-date.
 
 ```bash
 # Verify you are in the repository root
 pwd
 # Expected output: /path/to/ai-helpers
 
-# Run the script
+# Ensure cache is fresh (creates/updates if needed)
+python3 plugins/component-health/skills/org-data-cache/org_data_cache.py
+```
+
+This step will:
+- Create the cache if it doesn't exist
+- Update the cache if it's older than 7 days
+- Do nothing if the cache is already fresh
+- Only takes a few seconds if cache exists and is fresh
+
+### Step 2: Run the list-components Script
+
+After ensuring the cache is available, run the list-components script:
+
+```bash
 python3 plugins/component-health/skills/list-components/list_components.py
 ```
 
@@ -146,6 +152,10 @@ The script outputs JSON to stdout:
 ### Example 1: List All Components
 
 ```bash
+# Ensure cache is fresh first
+python3 plugins/component-health/skills/org-data-cache/org_data_cache.py
+
+# Then list components
 python3 plugins/component-health/skills/list-components/list_components.py
 ```
 
@@ -166,6 +176,10 @@ Output:
 ### Example 2: Count Components
 
 ```bash
+# Ensure cache is fresh
+python3 plugins/component-health/skills/org-data-cache/org_data_cache.py
+
+# Count components
 python3 plugins/component-health/skills/list-components/list_components.py | jq '.total_components'
 ```
 
@@ -178,6 +192,10 @@ Output:
 ### Example 3: Search for Specific Component
 
 ```bash
+# Ensure cache is fresh
+python3 plugins/component-health/skills/org-data-cache/org_data_cache.py
+
+# Search for components containing "apiserver"
 python3 plugins/component-health/skills/list-components/list_components.py | jq '.components[] | select(contains("apiserver"))'
 ```
 

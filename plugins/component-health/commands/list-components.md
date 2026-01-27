@@ -27,27 +27,30 @@ This command is useful for:
 
 ## Implementation
 
-1. **Run the list-components Script**
+1. **Ensure Cache is Available and Fresh**
 
    - **Working Directory**: Ensure you are in the repository root directory
    - Verify working directory: Run `pwd` and confirm you are in the `ai-helpers` repository root
-   - Run the script:
+   - **IMPORTANT**: Before running list-components, always ensure cache is fresh by running org-data-cache:
+     ```bash
+     python3 plugins/component-health/skills/org-data-cache/org_data_cache.py
+     ```
+   - This will:
+     - Create cache if it doesn't exist
+     - Update cache if it's older than 7 days
+     - Do nothing if cache is already fresh
+     - Takes only a few seconds if cache is fresh
+
+2. **Run the list-components Script**
+
+   - After ensuring cache is available, run the script:
      ```bash
      python3 plugins/component-health/skills/list-components/list_components.py
      ```
    - The script will:
-     - Check if org data cache exists
-     - If cache is missing, display an error with instructions to run org-data-cache skill
-     - Extract and return all component names from the cache
+     - Read from the org data cache
+     - Extract OCPBUGS component names
      - Output JSON with total count and component list
-
-2. **Handle Cache Missing Error**
-
-   - If the script reports cache is missing, run org-data-cache first:
-     ```bash
-     python3 plugins/component-health/skills/org-data-cache/org_data_cache.py
-     ```
-   - Then retry the list-components script
 
 3. **Parse and Display Results**
 
@@ -66,8 +69,8 @@ This command is useful for:
 
 4. **Error Handling**: The script handles common error scenarios
 
-   - Cache file missing - instructs user to run org-data-cache
-   - Cache file corrupted - suggests deleting and re-downloading
+   - Cache file missing - you should have run org-data-cache first (step 1)
+   - Cache file corrupted - suggests deleting and re-running org-data-cache
    - Missing components data - verifies cache structure
 
 ## Return Value
