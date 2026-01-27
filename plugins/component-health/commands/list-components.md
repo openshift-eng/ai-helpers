@@ -27,34 +27,48 @@ This command is useful for:
 
 ## Implementation
 
-1. **Use org-data-cache Skill**: Ensure the cache is fresh
+1. **Run the list-components Script**
 
-   - **IMPORTANT**: This command does NOT use the Skill tool. Instead, run the Python script directly.
-   - **Working Directory**: Ensure you are in the repository root directory before running the script
+   - **Working Directory**: Ensure you are in the repository root directory
    - Verify working directory: Run `pwd` and confirm you are in the `ai-helpers` repository root
-   - Run the cache script:
+   - Run the script:
+     ```bash
+     python3 plugins/component-health/skills/list-components/list_components.py
+     ```
+   - The script will:
+     - Check if org data cache exists
+     - If cache is missing, display an error with instructions to run org-data-cache skill
+     - Extract and return all component names from the cache
+     - Output JSON with total count and component list
+
+2. **Handle Cache Missing Error**
+
+   - If the script reports cache is missing, run org-data-cache first:
      ```bash
      python3 plugins/component-health/skills/org-data-cache/org_data_cache.py
      ```
-   - This ensures the cache is up to date (refreshes if > 7 days old)
-   - **DO NOT** run this script from within the `plugins/component-health/skills/org-data-cache/` directory
+   - Then retry the list-components script
 
-2. **Extract Component Names**: Read components from cache
+3. **Parse and Display Results**
 
-   - Cache location: `~/.cache/ai-helpers/org_data.json`
-   - Extract component keys from `.lookups.components`
-   - Command: `jq '.lookups.components | keys' ~/.cache/ai-helpers/org_data.json`
+   - The script outputs JSON with:
+     - `total_components`: Number of components found
+     - `components`: Array of component names (alphabetically sorted)
+   - Display results in a user-friendly format:
+     ```
+     Found 431 components:
 
-3. **Present Results**: Display components in a readable format
+     1. COO
+     2. Openshift Advisor
+     3. access-transparency
+     ...
+     ```
 
-   - Show total count
-   - Display components in alphabetical order (already sorted by jq)
-   - Components can be displayed in a numbered or bulleted list
+4. **Error Handling**: The script handles common error scenarios
 
-4. **Error Handling**: Handle common error scenarios
-
-   - Cache file missing or corrupted
-   - org-data-cache skill failures (network, authentication, etc.)
+   - Cache file missing - instructs user to run org-data-cache
+   - Cache file corrupted - suggests deleting and re-downloading
+   - Missing components data - verifies cache structure
 
 ## Return Value
 
@@ -125,8 +139,9 @@ None
 
 ## See Also
 
-- Skill Documentation: `plugins/component-health/skills/org-data-cache/SKILL.md`
-- Script: `plugins/component-health/skills/org-data-cache/org_data_cache.py`
+- Skill Documentation: `plugins/component-health/skills/list-components/SKILL.md`
+- Script: `plugins/component-health/skills/list-components/list_components.py`
+- Related Skill: `plugins/component-health/skills/org-data-cache/SKILL.md`
 - Related Command: `/component-health:list-regressions` (for regression data)
 - Related Command: `/component-health:summarize-jiras` (for bug data)
 - Related Command: `/component-health:analyze` (for health analysis)

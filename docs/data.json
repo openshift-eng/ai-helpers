@@ -371,6 +371,11 @@
           "name": "Get Release Dates"
         },
         {
+          "description": "List all components from the org data cache",
+          "id": "list-components",
+          "name": "List Components"
+        },
+        {
           "description": "Query and return raw JIRA bug data for a specific project",
           "id": "list-jiras",
           "name": "List JIRAs"
