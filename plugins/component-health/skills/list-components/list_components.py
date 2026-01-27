@@ -48,7 +48,7 @@ def read_cache():
 
 
 def extract_components(cache_data):
-    """Extract component names from cache data."""
+    """Extract OCPBUGS component names from cache data."""
     try:
         components = cache_data.get("lookups", {}).get("components", {})
 
@@ -61,8 +61,29 @@ def extract_components(cache_data):
             )
             sys.exit(1)
 
-        # Get all component keys and sort them
-        component_list = sorted(components.keys())
+        # Extract component names from jiras where project == "OCPBUGS"
+        ocpbugs_components = set()
+
+        for key, value in components.items():
+            # Check if this component has jiras defined
+            jiras = value.get("component", {}).get("jiras", [])
+
+            # Look for OCPBUGS project entries
+            for jira in jiras:
+                if jira.get("project") == "OCPBUGS":
+                    component_name = jira.get("component")
+                    if component_name:
+                        ocpbugs_components.add(component_name)
+
+        if not ocpbugs_components:
+            print(
+                "Warning: No OCPBUGS components found in cache file.\n"
+                "This may indicate the cache is outdated or incomplete.",
+                file=sys.stderr
+            )
+
+        # Sort and return as list
+        component_list = sorted(ocpbugs_components)
 
         return component_list
 

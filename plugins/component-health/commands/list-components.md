@@ -1,5 +1,5 @@
 ---
-description: List all components from the org data cache
+description: List all OCPBUGS components from the org data cache
 argument-hint: ""
 ---
 
@@ -15,15 +15,15 @@ component-health:list-components
 
 ## Description
 
-The `component-health:list-components` command displays all component names from the local org data cache.
+The `component-health:list-components` command displays all OCPBUGS component names from the local org data cache.
 
 This command is useful for:
 
-- Discovering available components
-- Validating component names before analysis
-- Understanding which teams/components are tracked
-- Generating component lists for reports
-- Finding exact component names for use in other commands
+- Discovering available OCPBUGS components
+- Validating OCPBUGS component names before filing or querying bugs
+- Understanding which components are tracked in OCPBUGS
+- Generating component lists for OCPBUGS-related reports
+- Finding exact component names for use in JIRA queries and other commands
 
 ## Implementation
 
@@ -52,15 +52,15 @@ This command is useful for:
 3. **Parse and Display Results**
 
    - The script outputs JSON with:
-     - `total_components`: Number of components found
-     - `components`: Array of component names (alphabetically sorted)
+     - `total_components`: Number of OCPBUGS components found
+     - `components`: Array of OCPBUGS component names (alphabetically sorted)
    - Display results in a user-friendly format:
      ```
-     Found 431 components:
+     Found 95 OCPBUGS components:
 
-     1. COO
-     2. Openshift Advisor
-     3. access-transparency
+     1. Auth
+     2. Bare Metal Hardware Provisioning / baremetal-operator
+     3. Bare Metal Hardware Provisioning / cluster-baremetal-operator
      ...
      ```
 
@@ -76,36 +76,38 @@ The command outputs a **Component List** with the following information:
 
 ### Component Summary
 
-- **Total Components**: Count of unique components found
+- **Total Components**: Count of unique OCPBUGS components found (typically ~95)
 - **Cache Age**: How old the cache is (if relevant)
 
 ### Component List
 
-An alphabetically sorted list of all components, for example:
+An alphabetically sorted list of all OCPBUGS components, for example:
 
 ```
-1. COO
-2. Openshift Advisor
-3. access-transparency
-4. account-manager
-5. addons
-6. alibaba-disk-csi-driver-operator
-7. ansible-operator-plugins
-8. aws-ebs-csi-driver-operator
-9. aws-efs-csi-driver-operator
-10. aws-load-balancer-operator
+1. Auth
+2. Bare Metal Hardware Provisioning / baremetal-operator
+3. Bare Metal Hardware Provisioning / cluster-baremetal-operator
+4. Bare Metal Hardware Provisioning / ironic
+5. Bugs for the oc-mirror plugin
+6. Build
+7. Cloud Compute / Cloud Controller Manager
+8. Cloud Compute / Cluster API Providers
+9. Cloud Compute / ControlPlaneMachineSet
+10. Cloud Compute / IBM Provider
 ...
 ```
 
+**Note**: Only components with `project: "OCPBUGS"` in their jiras array are included.
+
 ## Examples
 
-1. **List all components**:
+1. **List all OCPBUGS components**:
 
    ```
    /component-health:list-components
    ```
 
-   Displays all components from the org data cache.
+   Displays all OCPBUGS components from the org data cache.
 
 ## Arguments
 
@@ -131,11 +133,13 @@ None
 
 ## Notes
 
+- Only OCPBUGS components are returned (filtered by `project: "OCPBUGS"` in jiras array)
 - Component names are case-sensitive
 - Component names are returned in alphabetical order
 - The cache is automatically refreshed if older than 7 days
-- Component names returned can be used directly in other component-health commands
+- Component names returned can be used directly in OCPBUGS JIRA queries and other component-health commands
 - The cache is stored at `~/.cache/ai-helpers/org_data.json`
+- Typical count: ~95 OCPBUGS components (may vary as components are added/removed)
 
 ## See Also
 

@@ -1,20 +1,21 @@
 ---
 name: List Components
-description: List all components from the org data cache
+description: List all OCPBUGS components from the org data cache
 ---
 
 # List Components
 
-This skill provides functionality to list all component names from the local org data cache.
+This skill provides functionality to list all OCPBUGS component names from the local org data cache.
 
 ## When to Use This Skill
 
 Use this skill when you need to:
 
-- Display all available component names
-- Validate component names before using them in other commands
-- Get a complete list of tracked components
-- Count how many components are in the system
+- Display all OCPBUGS component names
+- Validate OCPBUGS component names before using them in other commands
+- Get a complete list of OCPBUGS-tracked components
+- Count how many OCPBUGS components are in the system
+- Find component names for filing or querying OCPBUGS issues
 
 ## Prerequisites
 
@@ -67,12 +68,12 @@ The script outputs JSON with the following structure:
 
 ```json
 {
-  "total_components": 150,
+  "total_components": 95,
   "components": [
-    "COO",
-    "Openshift Advisor",
-    "access-transparency",
-    "account-manager",
+    "Auth",
+    "Bare Metal Hardware Provisioning / baremetal-operator",
+    "Bare Metal Hardware Provisioning / cluster-baremetal-operator",
+    "Build",
     "..."
   ]
 }
@@ -80,20 +81,22 @@ The script outputs JSON with the following structure:
 
 **Field Descriptions**:
 
-- `total_components`: Total number of components found
-- `components`: Alphabetically sorted list of component names
+- `total_components`: Total number of OCPBUGS components found
+- `components`: Alphabetically sorted list of OCPBUGS component names
+
+**Note**: Only components with `project: "OCPBUGS"` in their jiras array are included.
 
 ### Step 4: Display Results to User
 
 Present the component list in a user-friendly format:
 
 ```
-Found 150 components:
+Found 95 OCPBUGS components:
 
-1. COO
-2. Openshift Advisor
-3. access-transparency
-4. account-manager
+1. Auth
+2. Bare Metal Hardware Provisioning / baremetal-operator
+3. Bare Metal Hardware Provisioning / cluster-baremetal-operator
+4. Build
 ...
 ```
 
@@ -123,6 +126,14 @@ The script handles several error scenarios:
 
    **Solution**: Verify cache file structure or re-download
 
+4. **No OCPBUGS components found**:
+   ```
+   Warning: No OCPBUGS components found in cache file.
+   This may indicate the cache is outdated or incomplete.
+   ```
+
+   **Solution**: Refresh the cache using org-data-cache skill
+
 ## Output Format
 
 The script outputs JSON to stdout:
@@ -142,11 +153,11 @@ Output:
 
 ```json
 {
-  "total_components": 150,
+  "total_components": 95,
   "components": [
-    "COO",
-    "Openshift Advisor",
-    "access-transparency",
+    "Auth",
+    "Bare Metal Hardware Provisioning / baremetal-operator",
+    "Build",
     "..."
   ]
 }
@@ -161,7 +172,7 @@ python3 plugins/component-health/skills/list-components/list_components.py | jq 
 Output:
 
 ```
-150
+95
 ```
 
 ### Example 3: Search for Specific Component
@@ -188,12 +199,14 @@ This skill depends on the org-data-cache skill to maintain the cache:
 
 ## Notes
 
+- Only OCPBUGS components are returned (filtered by `project: "OCPBUGS"` in jiras array)
 - Component names are case-sensitive
 - Components are returned in alphabetical order
 - The script reads directly from the cache file (no network calls)
 - Very fast execution (< 100ms typically)
 - Cache location is fixed at `~/.cache/ai-helpers/org_data.json`
-- Component names can be used directly in other component-health commands
+- Component names can be used directly in OCPBUGS JIRA queries and other component-health commands
+- Typical count: ~95 components (may vary as components are added/removed)
 
 ## See Also
 

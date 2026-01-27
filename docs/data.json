@@ -326,7 +326,7 @@
         },
         {
           "argument_hint": "",
-          "description": "List all components from the org data cache",
+          "description": "List all OCPBUGS components from the org data cache",
           "name": "list-components",
           "synopsis": "/component-health:list-components"
         },
@@ -371,7 +371,7 @@
           "name": "Get Release Dates"
         },
         {
-          "description": "List all components from the org data cache",
+          "description": "List all OCPBUGS components from the org data cache",
           "id": "list-components",
           "name": "List Components"
         },
