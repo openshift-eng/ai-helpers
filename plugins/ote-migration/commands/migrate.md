@@ -758,7 +758,16 @@ echo "Step 3: Get latest origin version from main branch..."
 # Get the latest commit hash from origin/main
 ORIGIN_LATEST=$(git ls-remote https://github.com/openshift/origin.git refs/heads/main | awk '{print $1}')
 ORIGIN_SHORT="${ORIGIN_LATEST:0:12}"
-ORIGIN_DATE=$(date -u +%Y%m%d%H%M%S)
+# Fetch actual commit timestamp (required for valid pseudo-version)
+ORIGIN_TIMESTAMP=$(git show -s --format=%ct $ORIGIN_LATEST 2>/dev/null || echo "")
+if [ -z "$ORIGIN_TIMESTAMP" ]; then
+    # Fallback: shallow clone to get commit timestamp
+    TEMP_ORIGIN=$(mktemp -d)
+    git clone --depth=1 https://github.com/openshift/origin.git "$TEMP_ORIGIN" >/dev/null 2>&1
+    ORIGIN_TIMESTAMP=$(cd "$TEMP_ORIGIN" && git show -s --format=%ct HEAD)
+    rm -rf "$TEMP_ORIGIN"
+fi
+ORIGIN_DATE=$(date -u -d @${ORIGIN_TIMESTAMP} +%Y%m%d%H%M%S 2>/dev/null || date -u -r ${ORIGIN_TIMESTAMP} +%Y%m%d%H%M%S)
 ORIGIN_VERSION="v0.0.0-${ORIGIN_DATE}-${ORIGIN_SHORT}"
 echo "Using latest origin version: $ORIGIN_VERSION"
 
@@ -775,7 +784,16 @@ echo "Step 5: Add replace directives with latest versions to avoid stale depende
 echo "Fetching latest openshift/kubernetes version..."
 K8S_LATEST=$(git ls-remote https://github.com/openshift/kubernetes.git refs/heads/master | awk '{print $1}')
 K8S_SHORT="${K8S_LATEST:0:12}"
-K8S_DATE=$(date -u +%Y%m%d%H%M%S)
+# Fetch actual commit timestamp (required for valid pseudo-version)
+K8S_TIMESTAMP=$(git show -s --format=%ct $K8S_LATEST 2>/dev/null || echo "")
+if [ -z "$K8S_TIMESTAMP" ]; then
+    # Fallback: shallow clone to get commit timestamp
+    TEMP_K8S=$(mktemp -d)
+    git clone --depth=1 https://github.com/openshift/kubernetes.git "$TEMP_K8S" >/dev/null 2>&1
+    K8S_TIMESTAMP=$(cd "$TEMP_K8S" && git show -s --format=%ct HEAD)
+    rm -rf "$TEMP_K8S"
+fi
+K8S_DATE=$(date -u -d @${K8S_TIMESTAMP} +%Y%m%d%H%M%S 2>/dev/null || date -u -r ${K8S_TIMESTAMP} +%Y%m%d%H%M%S)
 K8S_VERSION="v1.30.1-0.${K8S_DATE}-${K8S_SHORT}"
 echo "Using Kubernetes version: $K8S_VERSION"
 
@@ -783,7 +801,16 @@ echo "Using Kubernetes version: $K8S_VERSION"
 echo "Fetching latest openshift ginkgo fork..."
 GINKGO_LATEST=$(git ls-remote https://github.com/openshift/onsi-ginkgo.git refs/heads/v2.27.2-openshift-4.22 | awk '{print $1}')
 GINKGO_SHORT="${GINKGO_LATEST:0:12}"
-GINKGO_DATE=$(date -u +%Y%m%d%H%M%S)
+# Fetch actual commit timestamp (required for valid pseudo-version)
+GINKGO_TIMESTAMP=$(git show -s --format=%ct $GINKGO_LATEST 2>/dev/null || echo "")
+if [ -z "$GINKGO_TIMESTAMP" ]; then
+    # Fallback: shallow clone to get commit timestamp
+    TEMP_GINKGO=$(mktemp -d)
+    git clone --depth=1 --branch=v2.27.2-openshift-4.22 https://github.com/openshift/onsi-ginkgo.git "$TEMP_GINKGO" >/dev/null 2>&1
+    GINKGO_TIMESTAMP=$(cd "$TEMP_GINKGO" && git show -s --format=%ct HEAD)
+    rm -rf "$TEMP_GINKGO"
+fi
+GINKGO_DATE=$(date -u -d @${GINKGO_TIMESTAMP} +%Y%m%d%H%M%S 2>/dev/null || date -u -r ${GINKGO_TIMESTAMP} +%Y%m%d%H%M%S)
 GINKGO_VERSION="v2.6.1-0.${GINKGO_DATE}-${GINKGO_SHORT}"
 echo "Using ginkgo version: $GINKGO_VERSION"
 
@@ -921,7 +948,16 @@ echo "Step 3: Get latest origin version from main branch..."
 # Get the latest commit hash from origin/main
 ORIGIN_LATEST=$(git ls-remote https://github.com/openshift/origin.git refs/heads/main | awk '{print $1}')
 ORIGIN_SHORT="${ORIGIN_LATEST:0:12}"
-ORIGIN_DATE=$(date -u +%Y%m%d%H%M%S)
+# Fetch actual commit timestamp (required for valid pseudo-version)
+ORIGIN_TIMESTAMP=$(git show -s --format=%ct $ORIGIN_LATEST 2>/dev/null || echo "")
+if [ -z "$ORIGIN_TIMESTAMP" ]; then
+    # Fallback: shallow clone to get commit timestamp
+    TEMP_ORIGIN=$(mktemp -d)
+    git clone --depth=1 https://github.com/openshift/origin.git "$TEMP_ORIGIN" >/dev/null 2>&1
+    ORIGIN_TIMESTAMP=$(cd "$TEMP_ORIGIN" && git show -s --format=%ct HEAD)
+    rm -rf "$TEMP_ORIGIN"
+fi
+ORIGIN_DATE=$(date -u -d @${ORIGIN_TIMESTAMP} +%Y%m%d%H%M%S 2>/dev/null || date -u -r ${ORIGIN_TIMESTAMP} +%Y%m%d%H%M%S)
 ORIGIN_VERSION="v0.0.0-${ORIGIN_DATE}-${ORIGIN_SHORT}"
 echo "Using latest origin version: $ORIGIN_VERSION"
 
@@ -938,7 +974,16 @@ echo "Step 5: Add replace directives with latest versions to avoid stale depende
 echo "Fetching latest openshift/kubernetes version..."
 K8S_LATEST=$(git ls-remote https://github.com/openshift/kubernetes.git refs/heads/master | awk '{print $1}')
 K8S_SHORT="${K8S_LATEST:0:12}"
-K8S_DATE=$(date -u +%Y%m%d%H%M%S)
+# Fetch actual commit timestamp (required for valid pseudo-version)
+K8S_TIMESTAMP=$(git show -s --format=%ct $K8S_LATEST 2>/dev/null || echo "")
+if [ -z "$K8S_TIMESTAMP" ]; then
+    # Fallback: shallow clone to get commit timestamp
+    TEMP_K8S=$(mktemp -d)
+    git clone --depth=1 https://github.com/openshift/kubernetes.git "$TEMP_K8S" >/dev/null 2>&1
+    K8S_TIMESTAMP=$(cd "$TEMP_K8S" && git show -s --format=%ct HEAD)
+    rm -rf "$TEMP_K8S"
+fi
+K8S_DATE=$(date -u -d @${K8S_TIMESTAMP} +%Y%m%d%H%M%S 2>/dev/null || date -u -r ${K8S_TIMESTAMP} +%Y%m%d%H%M%S)
 K8S_VERSION="v1.30.1-0.${K8S_DATE}-${K8S_SHORT}"
 echo "Using Kubernetes version: $K8S_VERSION"
 
@@ -946,7 +991,16 @@ echo "Using Kubernetes version: $K8S_VERSION"
 echo "Fetching latest openshift ginkgo fork..."
 GINKGO_LATEST=$(git ls-remote https://github.com/openshift/onsi-ginkgo.git refs/heads/v2.27.2-openshift-4.22 | awk '{print $1}')
 GINKGO_SHORT="${GINKGO_LATEST:0:12}"
-GINKGO_DATE=$(date -u +%Y%m%d%H%M%S)
+# Fetch actual commit timestamp (required for valid pseudo-version)
+GINKGO_TIMESTAMP=$(git show -s --format=%ct $GINKGO_LATEST 2>/dev/null || echo "")
+if [ -z "$GINKGO_TIMESTAMP" ]; then
+    # Fallback: shallow clone to get commit timestamp
+    TEMP_GINKGO=$(mktemp -d)
+    git clone --depth=1 --branch=v2.27.2-openshift-4.22 https://github.com/openshift/onsi-ginkgo.git "$TEMP_GINKGO" >/dev/null 2>&1
+    GINKGO_TIMESTAMP=$(cd "$TEMP_GINKGO" && git show -s --format=%ct HEAD)
+    rm -rf "$TEMP_GINKGO"
+fi
+GINKGO_DATE=$(date -u -d @${GINKGO_TIMESTAMP} +%Y%m%d%H%M%S 2>/dev/null || date -u -r ${GINKGO_TIMESTAMP} +%Y%m%d%H%M%S)
 GINKGO_VERSION="v2.6.1-0.${GINKGO_DATE}-${GINKGO_SHORT}"
 echo "Using ginkgo version: $GINKGO_VERSION"
 
@@ -1383,82 +1437,19 @@ if [ -f "Makefile" ]; then
     if grep -q "tests-ext-build" Makefile; then
         echo "⚠️  OTE targets already exist in Makefile, skipping..."
     else
-        # Add OTE extension build target
+        # Add OTE extension build targets that delegate to tests-extension/Makefile
         cat >> Makefile << 'EOF'
 
-# OTE binary configuration
-TESTS_EXT_DIR := ./cmd/extension
-TESTS_EXT_BINARY := bin/<extension-name>-tests-ext
-
-# Build OTE extension binary
-.PHONY: tests-ext-build
-tests-ext-build:
-    @echo "Building OTE test extension binary..."
-    @cd test && $(MAKE) -f bindata.mk bindata
-    @mkdir -p bin
-    go build -mod=vendor -o $(TESTS_EXT_BINARY) $(TESTS_EXT_DIR)
-    @echo "OTE binary built successfully at $(TESTS_EXT_BINARY)"
-
-# Alias for backward compatibility
-.PHONY: extension
-extension: tests-ext-build
-
-# Compress OTE extension binary (for CI/CD and container builds)
-.PHONY: tests-ext-compress
-tests-ext-compress: tests-ext-build
-    @echo "Compressing OTE extension binary..."
-    @gzip -f $(TESTS_EXT_BINARY)
-    @echo "Compressed binary created at $(TESTS_EXT_BINARY).gz"
-
-# Copy compressed binary to _output directory (for CI/CD)
-.PHONY: tests-ext-copy
-tests-ext-copy: tests-ext-compress
-    @echo "Copying compressed binary to _output..."
-    @mkdir -p _output
-    @cp $(TESTS_EXT_BINARY).gz _output/
-    @echo "Binary copied to _output/<extension-name>-tests-ext.gz"
-
-# Clean extension binary
-.PHONY: clean-extension
-clean-extension:
-    @echo "Cleaning extension binary..."
-    @rm -f $(TESTS_EXT_BINARY) $(TESTS_EXT_BINARY).gz _output/<extension-name>-tests-ext.gz
-
-.PHONY: help
-help:
-    @echo "Available targets:"
-    @echo "  tests-ext-build    - Build OTE extension binary"
-    @echo "  tests-ext-compress - Build and compress OTE extension binary"
-    @echo "  tests-ext-copy     - Build, compress, and copy to _output/"
-    @echo "  extension          - Alias for tests-ext-build"
-    @echo "  clean-extension    - Remove extension binary and compressed versions"
-EOF
-
-        echo "✅ Root Makefile updated with OTE targets"
-    fi
-else
-    echo "⚠️  No root Makefile found in target repository"
-    echo "Creating a basic Makefile with OTE targets..."
-    cat > Makefile << 'EOF'
-.PHONY: all
-all: tests-ext-build
-
-# OTE binary configuration
-TESTS_EXT_DIR := ./cmd/extension
-TESTS_EXT_BINARY := bin/<extension-name>-tests-ext
+# OTE test extension binary configuration
+TESTS_EXT_DIR := ./tests-extension
+TESTS_EXT_BINARY := tests-extension/bin/<extension-name>-tests-ext
 
 # Build OTE extension binary
 .PHONY: tests-ext-build
 tests-ext-build:
 	@echo "Building OTE test extension binary..."
-	@cd test && $(MAKE) -f bindata.mk bindata
-	@mkdir -p bin
-	go build -mod=vendor -o $(TESTS_EXT_BINARY) $(TESTS_EXT_DIR)
+	@cd $(TESTS_EXT_DIR) && $(MAKE) build
 	@echo "OTE binary built successfully at $(TESTS_EXT_BINARY)"
-
-# Alias for backward compatibility
-.PHONY: extension
-extension: tests-ext-build
 
 # Compress OTE extension binary (for CI/CD and container builds)
 .PHONY: tests-ext-compress
@@ -1475,20 +1466,61 @@ tests-ext-copy: tests-ext-compress
 	@cp $(TESTS_EXT_BINARY).gz _output/
 	@echo "Binary copied to _output/<extension-name>-tests-ext.gz"
 
+# Alias for backward compatibility
+.PHONY: extension
+extension: tests-ext-build
+
 # Clean extension binary
 .PHONY: clean-extension
 clean-extension:
 	@echo "Cleaning extension binary..."
 	@rm -f $(TESTS_EXT_BINARY) $(TESTS_EXT_BINARY).gz _output/<extension-name>-tests-ext.gz
+EOF
 
-.PHONY: help
-help:
-	@echo "Available targets:"
-	@echo "  tests-ext-build    - Build OTE extension binary"
-	@echo "  tests-ext-compress - Build and compress OTE extension binary"
-	@echo "  tests-ext-copy     - Build, compress, and copy to _output/"
-	@echo "  extension          - Alias for tests-ext-build"
-	@echo "  clean-extension    - Remove extension binary and compressed versions"
+        echo "✅ Root Makefile updated with OTE targets"
+    fi
+else
+    echo "⚠️  No root Makefile found in target repository"
+    echo "Creating a basic Makefile with OTE targets..."
+    cat > Makefile << 'EOF'
+# OTE test extension binary configuration
+TESTS_EXT_DIR := ./tests-extension
+TESTS_EXT_BINARY := tests-extension/bin/<extension-name>-tests-ext
+
+.PHONY: all
+all: tests-ext-build
+
+# Build OTE extension binary
+.PHONY: tests-ext-build
+tests-ext-build:
+	@echo "Building OTE test extension binary..."
+	@cd $(TESTS_EXT_DIR) && $(MAKE) build
+	@echo "OTE binary built successfully at $(TESTS_EXT_BINARY)"
+
+# Compress OTE extension binary (for CI/CD and container builds)
+.PHONY: tests-ext-compress
+tests-ext-compress: tests-ext-build
+	@echo "Compressing OTE extension binary..."
+	@gzip -f $(TESTS_EXT_BINARY)
+	@echo "Compressed binary created at $(TESTS_EXT_BINARY).gz"
+
+# Copy compressed binary to _output directory (for CI/CD)
+.PHONY: tests-ext-copy
+tests-ext-copy: tests-ext-compress
+	@echo "Copying compressed binary to _output..."
+	@mkdir -p _output
+	@cp $(TESTS_EXT_BINARY).gz _output/
+	@echo "Binary copied to _output/<extension-name>-tests-ext.gz"
+
+# Alias for backward compatibility
+.PHONY: extension
+extension: tests-ext-build
+
+# Clean extension binary
+.PHONY: clean-extension
+clean-extension:
+	@echo "Cleaning extension binary..."
+	@rm -f $(TESTS_EXT_BINARY) $(TESTS_EXT_BINARY).gz _output/<extension-name>-tests-ext.gz
 EOF
 
     echo "✅ Root Makefile created with OTE targets"
@@ -2313,14 +2345,21 @@ for file in $TEST_FILES; do
         fi
     done
 
-    # Step 2: Remove the "-LEVEL0-" suffix from test names to avoid duplication
+    # Step 2: Handle Level0 test transformations (prepend [Level0] tag and remove suffix)
     if grep -q -- '-LEVEL0-' "$file"; then
-        # Remove the "-LEVEL0-" suffix from the test name
-        # Example: "...Author:<author>-LEVEL0-Critical..." → "...Author:<author>-Critical..."
+        # First, prepend [Level0] to It() descriptions that contain -LEVEL0- (if not already present)
+        # Example: g.It("Author:john-LEVEL0-Critical...") → g.It("[Level0] Author:john-LEVEL0-Critical...")
+        sed -i '/g\.It("[^"]*-LEVEL0-[^"]*"/{/\[Level0\]/!s/g\.It("/g.It("[Level0] /}' "$file"
+
+        # Then remove the -LEVEL0- suffix from test names
+        # Example: "Author:john-LEVEL0-Critical..." → "Author:john-Critical..."
         sed -i 's/-LEVEL0-/-/g' "$file"
 
+        # Clean up any double dashes that might result from suffix removal
+        sed -i 's/--/-/g' "$file"
+
         CHANGED=1
-        echo "  ✓ Removed -LEVEL0- suffix in $file"
+        echo "  ✓ Added [Level0] prefix and removed -LEVEL0- suffix in $file"
     fi
 
     if [ $CHANGED -eq 0 ]; then
@@ -2333,7 +2372,7 @@ echo ""
 echo "Summary of annotations:"
 echo "  [OTP]       - Added to all Describe blocks (tracking)"
 echo "  [Level0]    - Added to Describe blocks for files containing -LEVEL0- tests (conformance)"
-echo "  -LEVEL0-    - Removed from test names to avoid duplication"
+echo "  [Level0]    - Prepended to It() for tests with -LEVEL0-, suffix removed"
 echo "  Test names  - Restructured: Describe text moved into It() descriptions"
 ```bash
 
@@ -2417,14 +2456,21 @@ for file in $TEST_FILES; do
         fi
     done
 
-    # Step 2: Remove the "-LEVEL0-" suffix from test names to avoid duplication
+    # Step 2: Handle Level0 test transformations (prepend [Level0] tag and remove suffix)
     if grep -q -- '-LEVEL0-' "$file"; then
-        # Remove the "-LEVEL0-" suffix from the test name
-        # Example: "...Author:<author>-LEVEL0-Critical..." → "...Author:<author>-Critical..."
+        # First, prepend [Level0] to It() descriptions that contain -LEVEL0- (if not already present)
+        # Example: g.It("Author:john-LEVEL0-Critical...") → g.It("[Level0] Author:john-LEVEL0-Critical...")
+        sed -i '/g\.It("[^"]*-LEVEL0-[^"]*"/{/\[Level0\]/!s/g\.It("/g.It("[Level0] /}' "$file"
+
+        # Then remove the -LEVEL0- suffix from test names
+        # Example: "Author:john-LEVEL0-Critical..." → "Author:john-Critical..."
         sed -i 's/-LEVEL0-/-/g' "$file"
 
+        # Clean up any double dashes that might result from suffix removal
+        sed -i 's/--/-/g' "$file"
+
         CHANGED=1
-        echo "  ✓ Removed -LEVEL0- suffix in $file"
+        echo "  ✓ Added [Level0] prefix and removed -LEVEL0- suffix in $file"
     fi
 
     if [ $CHANGED -eq 0 ]; then
@@ -2437,7 +2483,7 @@ echo ""
 echo "Summary of annotations:"
 echo "  [OTP]       - Added to all Describe blocks (tracking)"
 echo "  [Level0]    - Added to Describe blocks for files containing -LEVEL0- tests (conformance)"
-echo "  -LEVEL0-    - Removed from test names to avoid duplication"
+echo "  [Level0]    - Prepended to It() for tests with -LEVEL0-, suffix removed"
 echo "  Test names  - Restructured: Describe text moved into It() descriptions"
 ```bash
 
