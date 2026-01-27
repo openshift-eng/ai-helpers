@@ -1,0 +1,160 @@
+{
+  "metadata": {
+    "description": "Mapping of team names to their OCPBUGS components",
+    "generated_by": "generate_team_component_map.py",
+    "total_components": 92,
+    "total_teams": 29
+  },
+  "teams": {
+    "API Server": [
+      "apiserver-auth",
+      "config-operator",
+      "kube-apiserver",
+      "kube-controller-manager",
+      "kube-storage-version-migrator",
+      "openshift-apiserver",
+      "openshift-controller-manager / controller-manager",
+      "service-ca"
+    ],
+    "Authentication": [
+      "Auth",
+      "apiserver-auth",
+      "oauth-apiserver",
+      "oauth-proxy",
+      "oauth-server",
+      "service-ca"
+    ],
+    "Automated Release Tooling (ART)": [
+      "Cluster Version Operator",
+      "Release"
+    ],
+    "Autoscaling": [
+      "autoscaling / cluster-autoscaler",
+      "autoscaling / cluster-resource-override-admission-operator",
+      "autoscaling / karpenter",
+      "autoscaling / pod-autoscaler"
+    ],
+    "Bare Metal Networking (On-Prem Networking)": [
+      "Machine Config Operator / platform-baremetal",
+      "Networking / On-Prem DNS",
+      "Networking / On-Prem Host Networking",
+      "Networking / On-Prem Load Balancer",
+      "Networking / kubernetes-nmstate",
+      "Networking / kubernetes-nmstate-operator",
+      "Networking / runtime-cfg"
+    ],
+    "CID": [
+      "Bugs for the oc-mirror plugin"
+    ],
+    "Cluster Infrastructure": [
+      "Cloud Compute / Cloud Controller Manager",
+      "Cloud Compute / Cluster API Providers",
+      "Cloud Compute / ControlPlaneMachineSet",
+      "Cloud Compute / IBM Provider",
+      "Cloud Compute / Libvirt Provider",
+      "Cloud Compute / Machine API Providers",
+      "Cloud Compute / Nutanix Provider",
+      "Cloud Credential Operator"
+    ],
+    "Collection": [
+      "Insights Operator"
+    ],
+    "Console": [
+      "Management Console"
+    ],
+    "Core Networking": [
+      "Networking / cloud-network-config-controller",
+      "Networking / cluster-network-operator",
+      "Networking / multus",
+      "Networking / network-tools",
+      "Networking / openshift-sdn",
+      "Networking / ovn-kubernetes"
+    ],
+    "CoreOS": [
+      "RHCOS"
+    ],
+    "Hive and Cloud Credential Operator team": [
+      "Hive"
+    ],
+    "Hypershift": [
+      "HyperShift"
+    ],
+    "Image Registry": [
+      "Image Registry",
+      "ImageStreams"
+    ],
+    "In-cluster Metrics": [
+      "Monitoring",
+      "Observability UI"
+    ],
+    "Metal Platform": [
+      "Bare Metal Hardware Provisioning / baremetal-operator",
+      "Bare Metal Hardware Provisioning / cluster-baremetal-operator",
+      "Bare Metal Hardware Provisioning / ironic"
+    ],
+    "Multi Architecture": [
+      "Multi-Arch",
+      "Multi-Arch / IBM P and Z",
+      "Multiarch Tuning Operator"
+    ],
+    "Network Observability": [
+      "Networking / NetObs"
+    ],
+    "Node": [
+      "Driver Toolkit",
+      "Machine Config Operator",
+      "Node / CPU manager",
+      "Node / CRI-O",
+      "Node / Device Manage",
+      "Node / Kubelet",
+      "Node / Memory manager",
+      "Node / Numa aware Scheduling",
+      "Node / Pod resource API",
+      "Node / Topology manager"
+    ],
+    "OpenShift Agent Based Installer": [
+      "Installer / Agent based Installer",
+      "oc / node-image"
+    ],
+    "OpenShift BuildConfig": [
+      "Build"
+    ],
+    "OpenShift Builds": [
+      "Build"
+    ],
+    "OpenShift Jenkins": [
+      "Build"
+    ],
+    "Operator Lifecycle Management": [
+      "OLM",
+      "OLM / Registry"
+    ],
+    "Over the Air Updates (OTA)": [
+      "Cluster Version Operator",
+      "OpenShift Update Service / operand",
+      "OpenShift Update Service / operator",
+      "oc / update"
+    ],
+    "Shift on Stack": [
+      "Cloud Compute / OpenStack Provider",
+      "Installer / OpenShift on OpenStack",
+      "Networking / Kuryr",
+      "Storage / OpenStack CSI Drivers"
+    ],
+    "Storage": [
+      "Storage",
+      "Storage /  Local Storage Operator",
+      "Storage / Kubernetes",
+      "Storage / Kubernetes External Components",
+      "Storage / Operators"
+    ],
+    "Windows Container": [
+      "windows-containers"
+    ],
+    "Workloads": [
+      "Samples Operator",
+      "kube-scheduler",
+      "oc"
+    ]
+  }
+}
