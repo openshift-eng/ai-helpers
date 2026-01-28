@@ -326,7 +326,7 @@
         },
         {
           "argument_hint": "[--team <team-name>]",
-          "description": "List all OCPBUGS components from the org data cache, optionally filtered by team",
+          "description": "List all OCPBUGS components, optionally filtered by team",
           "name": "list-components",
           "synopsis": "/component-health:list-components [--team <team-name>]"
         },
@@ -344,7 +344,7 @@
         },
         {
           "argument_hint": "",
-          "description": "List all teams from the org data cache",
+          "description": "List all teams from the team component mapping",
           "name": "list-teams",
           "synopsis": "/component-health:list-teams"
         },
@@ -377,7 +377,7 @@
           "name": "Get Release Dates"
         },
         {
-          "description": "List all OCPBUGS components from the org data cache, optionally filtered by team",
+          "description": "List all OCPBUGS components, optionally filtered by team",
           "id": "list-components",
           "name": "List Components"
         },
@@ -392,14 +392,9 @@
           "name": "List Regressions"
         },
         {
-          "description": "List all teams from the org data cache",
+          "description": "List all teams from the team component mapping",
           "id": "list-teams",
           "name": "List Teams"
-        },
-        {
-          "description": "Safely manage a local cache of OpenShift org data from GCS",
-          "id": "org-data-cache",
-          "name": "Org Data Cache"
         },
         {
           "description": "Query and summarize JIRA bugs for a specific project with counts by component",

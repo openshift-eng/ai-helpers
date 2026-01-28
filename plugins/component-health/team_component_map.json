@@ -2,8 +2,8 @@
   "metadata": {
     "description": "Mapping of team names to their OCPBUGS components",
     "generated_by": "generate_team_component_map.py",
-    "total_components": 92,
-    "total_teams": 29
+    "total_components": 98,
+    "total_teams": 33
   },
   "teams": {
     "API Server": [
@@ -13,6 +13,7 @@
       "kube-controller-manager",
       "kube-storage-version-migrator",
       "openshift-apiserver",
+      "openshift-controller-manager / apps",
       "openshift-controller-manager / controller-manager",
       "service-ca"
     ],
@@ -29,7 +30,7 @@
       "Release"
     ],
     "Autoscaling": [
-      "autoscaling / cluster-autoscaler",
+      "Cluster Autoscaler",
       "autoscaling / cluster-resource-override-admission-operator",
       "autoscaling / karpenter",
       "autoscaling / pod-autoscaler"
@@ -97,6 +98,10 @@
       "Multi-Arch / IBM P and Z",
       "Multiarch Tuning Operator"
     ],
+    "Network Ingress and DNS": [
+      "Networking / DNS",
+      "Networking / router"
+    ],
     "Network Observability": [
       "Networking / NetObs"
     ],
@@ -121,6 +126,9 @@
     ],
     "OpenShift Builds": [
       "Build"
+    ],
+    "OpenShift Installer": [
+      "Installer / openshift-installer"
     ],
     "OpenShift Jenkins": [
       "Build"
@@ -148,6 +156,9 @@
       "Storage / Kubernetes External Components",
       "Storage / Operators"
     ],
+    "Technical Release Team (TRT)": [
+      "Test Framework"
+    ],
     "Windows Container": [
       "windows-containers"
     ],
@@ -155,6 +166,9 @@
       "Samples Operator",
       "kube-scheduler",
       "oc"
+    ],
+    "etcd": [
+      "Etcd"
     ]
   }
 }

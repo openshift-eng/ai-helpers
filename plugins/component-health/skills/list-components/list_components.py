@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 
 """
-List all OCPBUGS components from the org data cache.
+List all OCPBUGS components from the team component mapping.
 
-This script reads the org data cache and extracts OCPBUGS component names.
+This script reads the team_component_map.json file and extracts OCPBUGS component names.
 Optionally filters by team using the --team argument.
-It depends on the org-data-cache skill to maintain the cache file.
 """
 
 import argparse
@@ -15,113 +14,91 @@ import sys
 from pathlib import Path
 
 
-def get_cache_path():
-    """Get the absolute path to the cache file."""
-    return Path.home() / ".cache" / "ai-helpers" / "org_data.json"
+def get_mapping_path():
+    """Get the absolute path to the team component mapping file."""
+    # Get the script's directory (should be plugins/component-health/skills/list-components/)
+    script_dir = Path(__file__).parent
+    # Go up two levels to plugins/component-health/
+    plugin_dir = script_dir.parent.parent
+    return plugin_dir / "team_component_map.json"
 
 
-def read_cache():
-    """Read and parse the org data cache file."""
-    cache_path = get_cache_path()
+def read_mapping():
+    """Read and parse the team component mapping file."""
+    mapping_path = get_mapping_path()
 
-    if not cache_path.exists():
+    if not mapping_path.exists():
         print(
-            f"Error: Cache file not found at {cache_path}\n"
-            "Please run the org-data-cache skill first to create the cache:\n"
-            "  python3 plugins/component-health/skills/org-data-cache/org_data_cache.py",
+            f"Error: Team component mapping file not found at {mapping_path}\n"
+            "This file should be in the repository. Please check your installation.",
             file=sys.stderr
         )
         sys.exit(1)
 
     try:
-        with open(cache_path, 'r') as f:
+        with open(mapping_path, 'r') as f:
             return json.load(f)
     except json.JSONDecodeError as e:
         print(
-            f"Error: Failed to parse cache file. Cache may be corrupted.\n"
+            f"Error: Failed to parse mapping file. File may be corrupted.\n"
             f"Details: {e}\n"
-            f"Try deleting {cache_path} and re-running org-data-cache skill.",
+            f"Try regenerating with: python3 plugins/component-health/generate_team_component_map.py",
             file=sys.stderr
         )
         sys.exit(1)
     except Exception as e:
-        print(f"Error reading cache file: {e}", file=sys.stderr)
+        print(f"Error reading mapping file: {e}", file=sys.stderr)
         sys.exit(1)
 
 
-def get_team_component_keys(cache_data, team_name):
-    """Get component keys for a specific team."""
-    teams = cache_data.get("lookups", {}).get("teams", {})
-
-    if team_name not in teams:
-        print(
-            f"Error: Team '{team_name}' not found in cache.\n"
-            f"Use list-teams to see available teams.",
-            file=sys.stderr
-        )
-        sys.exit(1)
-
-    team_data = teams[team_name]
-    component_keys = team_data.get("group", {}).get("component_list", [])
-
-    return set(component_keys)
-
-
-def extract_components(cache_data, team_name=None):
-    """Extract OCPBUGS component names from cache data, optionally filtered by team."""
+def extract_components(mapping_data, team_name=None):
+    """Extract OCPBUGS component names from mapping data, optionally filtered by team."""
     try:
-        components = cache_data.get("lookups", {}).get("components", {})
+        teams = mapping_data.get("teams", {})
 
-        if not components:
+        if not teams:
             print(
-                "Error: No components found in cache file.\n"
-                "Expected structure: .lookups.components\n"
-                "Cache file may be corrupted or outdated.",
+                "Error: No teams found in mapping file.\n"
+                "Expected structure: {teams: {...}}\n"
+                "Mapping file may be corrupted.",
                 file=sys.stderr
             )
             sys.exit(1)
 
-        # If team filter is specified, get the team's component keys
-        team_component_keys = None
+        # If team filter is specified, return that team's components
         if team_name:
-            team_component_keys = get_team_component_keys(cache_data, team_name)
+            if team_name not in teams:
+                print(
+                    f"Error: Team '{team_name}' not found in mapping.\n"
+                    f"Use list-teams to see available teams.",
+                    file=sys.stderr
+                )
+                sys.exit(1)
 
-        # Extract component names from jiras where project == "OCPBUGS"
-        ocpbugs_components = set()
+            components = teams[team_name]
 
-        for key, value in components.items():
-            # If filtering by team, only process components in the team's component_list
-            if team_component_keys is not None and key not in team_component_keys:
-                continue
-
-            # Check if this component has jiras defined
-            jiras = value.get("component", {}).get("jiras", [])
-
-            # Look for OCPBUGS project entries
-            for jira in jiras:
-                if jira.get("project") == "OCPBUGS":
-                    component_name = jira.get("component")
-                    if component_name:
-                        ocpbugs_components.add(component_name)
-
-        if not ocpbugs_components:
-            if team_name:
+            if not components:
                 print(
                     f"Warning: No OCPBUGS components found for team '{team_name}'.\n"
                     f"The team may not have any OCPBUGS components assigned.",
                     file=sys.stderr
                 )
-            else:
-                print(
-                    "Warning: No OCPBUGS components found in cache file.\n"
-                    "This may indicate the cache is outdated or incomplete.",
-                    file=sys.stderr
-                )
 
-        # Sort and return as list
-        component_list = sorted(ocpbugs_components)
+            return sorted(components)
 
-        return component_list
+        # If no team filter, return all unique components across all teams
+        all_components = set()
+        for team_components in teams.values():
+            all_components.update(team_components)
+
+        if not all_components:
+            print(
+                "Warning: No OCPBUGS components found in mapping file.\n"
+                "This may indicate the mapping is empty or outdated.",
+                file=sys.stderr
+            )
+
+        return sorted(all_components)
 
     except Exception as e:
         print(f"Error extracting components: {e}", file=sys.stderr)
@@ -132,7 +109,7 @@ def main():
     """Main function."""
     # Parse arguments
     parser = argparse.ArgumentParser(
-        description="List OCPBUGS components from org data cache"
+        description="List OCPBUGS components from team component mapping"
     )
     parser.add_argument(
         "--team",
@@ -141,11 +118,11 @@ def main():
     )
     args = parser.parse_args()
 
-    # Read cache
-    cache_data = read_cache()
+    # Read mapping
+    mapping_data = read_mapping()
 
     # Extract components (optionally filtered by team)
-    components = extract_components(cache_data, team_name=args.team)
+    components = extract_components(mapping_data, team_name=args.team)
 
     # Output JSON
     output = {
