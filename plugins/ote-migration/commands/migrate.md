@@ -357,12 +357,12 @@ Source Repository (openshift-tests-private):
 Destination Structure (in target repo):
   Extension Binary: cmd/extension/main.go
   Test Files: test/<test-dir-name>/*.go (separate module)
-  Testdata: test/testdata/ (regular package in main module)
+  Testdata: test/<flattened-test-dir-name>-testdata/ (regular package in main module)
   Root go.mod: Will be updated with replace directive for test/<test-dir-name>
 
 Note: <test-dir-name> examples:
-  - "e2e" if test/e2e doesn't exist (standard layout)
-  - "e2e/extension" if test/e2e exists (subfolder layout)
+  - "e2e" → testdata at test/e2e-testdata/ (standard layout)
+  - "e2e/extension" → testdata at test/e2e-extension-testdata/ (nested path flattened)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```bash
 
@@ -625,10 +625,14 @@ mkdir -p bin
 
 # Create test directories (use custom test directory name from Input 4a)
 mkdir -p test/<test-dir-name>
-mkdir -p test/testdata
+
+# Create testdata directory (flatten path: e2e/extension → e2e-extension-testdata)
+TESTDATA_DIR_NAME=$(echo "<test-dir-name>" | tr '/' '-')
+mkdir -p test/${TESTDATA_DIR_NAME}-testdata
 
 echo "Created monorepo structure in existing repository"
 echo "Test directory: test/<test-dir-name>"
+echo "Testdata directory: test/${TESTDATA_DIR_NAME}-testdata"
 ```bash
 
 **For Single-Module Strategy:**
@@ -683,20 +687,23 @@ echo "Copied $(find test/e2e -name '*_test.go' | wc -l) test files from $SOURCE_
 ```bash
 cd <working-dir>
 
+# Flatten test directory path for testdata (e.g., e2e/extension → e2e-extension)
+TESTDATA_DIR_NAME=$(echo "<test-dir-name>" | tr '/' '-')
+
 # Copy testdata if it exists (skip if user specified "none")
 # Use $SOURCE_TESTDATA_PATH variable (set in Phase 2)
 if [ -n "$SOURCE_TESTDATA_PATH" ]; then
     # Create subdirectory structure to match bindata paths
     # Files are organized as testdata/<subfolder>/ to match how tests call FixturePath()
     if [ -n "<testdata-subfolder>" ]; then
-        mkdir -p "test/testdata/<testdata-subfolder>"
-        cp -r "$SOURCE_TESTDATA_PATH"/* "test/testdata/<testdata-subfolder>/"
-        echo "Copied testdata files from $SOURCE_TESTDATA_PATH to test/testdata/<testdata-subfolder>/"
+        mkdir -p "test/${TESTDATA_DIR_NAME}-testdata/<testdata-subfolder>"
+        cp -r "$SOURCE_TESTDATA_PATH"/* "test/${TESTDATA_DIR_NAME}-testdata/<testdata-subfolder>/"
+        echo "Copied testdata files from $SOURCE_TESTDATA_PATH to test/${TESTDATA_DIR_NAME}-testdata/<testdata-subfolder>/"
         echo "Tests should call: testdata.FixturePath(\"<testdata-subfolder>/filename.yaml\")"
     else
         # No subfolder specified, copy directly
-        cp -r "$SOURCE_TESTDATA_PATH"/* test/testdata/
-        echo "Copied testdata files from $SOURCE_TESTDATA_PATH to test/testdata/"
+        cp -r "$SOURCE_TESTDATA_PATH"/* test/${TESTDATA_DIR_NAME}-testdata/
+        echo "Copied testdata files from $SOURCE_TESTDATA_PATH to test/${TESTDATA_DIR_NAME}-testdata/"
     fi
 else
     echo "Skipping testdata copy (none specified)"
@@ -1431,8 +1438,10 @@ Create `test/bindata.mk`:
 ```makefile
 # Bindata generation for testdata files
 
-# Testdata path
-TESTDATA_PATH := testdata
+# Testdata path (relative to test/ directory)
+# Flattened from test path: e2e/extension → e2e-extension-testdata
+TESTDATA_DIR_NAME := $(shell echo "<test-dir-name>" | tr '/' '-')
+TESTDATA_PATH := $(TESTDATA_DIR_NAME)-testdata
 
 # go-bindata tool path
 GOPATH ?= $(shell go env GOPATH)
@@ -1714,7 +1723,10 @@ fi
 
 **For Monorepo Strategy:**
 
-Create `test/testdata/fixtures.go`:
+Create `test/<flattened-test-dir-name>-testdata/fixtures.go`:
+
+(Where `<flattened-test-dir-name>` = `<test-dir-name>` with `/` replaced by `-`)
+Example: `test/e2e/extension/` → `test/e2e-extension-testdata/fixtures.go`
 
 **For Single-Module Strategy:**
 
@@ -2251,13 +2263,16 @@ cd <working-dir>
 
 echo "Adding testdata import to test files..."
 
+# Flatten test directory path for import (e.g., e2e/extension → e2e-extension)
+TESTDATA_DIR_NAME=$(echo "<test-dir-name>" | tr '/' '-')
+
 # Find all test files that now use testdata.FixturePath
-TEST_FILES=$(grep -rl "testdata\.FixturePath" test/e2e/ --include="*_test.go" 2>/dev/null || true)
+TEST_FILES=$(grep -rl "testdata\.FixturePath" test/<test-dir-name>/ --include="*_test.go" 2>/dev/null || true)
 
 if [ -z "$TEST_FILES" ]; then
     echo "No test files need testdata import"
 else
-    TESTDATA_IMPORT="$MODULE_NAME/test/testdata"
+    TESTDATA_IMPORT="$MODULE_NAME/test/${TESTDATA_DIR_NAME}-testdata"
 
     for file in $TEST_FILES; do
         # Check if import already exists
@@ -2724,11 +2739,15 @@ fi
 # Validation 4: Verify testdata imports are present
 echo ""
 echo "Validation 4: Checking for testdata imports..."
+
+# Flatten test directory path for import validation (e.g., e2e/extension → e2e-extension)
+TESTDATA_DIR_NAME=$(echo "<test-dir-name>" | tr '/' '-')
+
 MISSING_TESTDATA_IMPORT=0
 for file in $TEST_FILES; do
     # Only check files that use testdata.FixturePath
     if grep -q 'testdata\.FixturePath' "$file"; then
-        if ! grep -q "\"$MODULE_NAME/test/testdata\"" "$file" && \
+        if ! grep -q "\"$MODULE_NAME/test/${TESTDATA_DIR_NAME}-testdata\"" "$file" && \
            ! grep -q 'testdata "' "$file"; then
             echo "  ❌ Missing testdata import in: $file"
             MISSING_TESTDATA_IMPORT=$((MISSING_TESTDATA_IMPORT + 1))
@@ -2996,10 +3015,13 @@ if [ $? -eq 0 ]; then
     echo "Files to commit:"
     echo "  - go.mod (root module with test/<test-dir-name> replace directive)"
     echo "  - cmd/extension/main.go"
+    # Flatten test directory path for display (e.g., e2e/extension → e2e-extension)
+    TESTDATA_DISPLAY=$(echo "<test-dir-name>" | tr '/' '-')
+
     echo "  - test/<test-dir-name>/go.mod"
     echo "  - test/<test-dir-name>/go.sum"
     echo "  - test/<test-dir-name>/*.go (test files)"
-    echo "  - test/testdata/fixtures.go"
+    echo "  - test/${TESTDATA_DISPLAY}-testdata/fixtures.go"
     echo "  - test/bindata.mk"
     echo "  - Makefile updates"
 else
@@ -3130,18 +3152,20 @@ Successfully migrated **<extension-name>** to OpenShift Tests Extension (OTE) fr
 
 ### Generated Code
 - ✅ `cmd/extension/main.go` - OTE entry point with platform filters
-- ✅ `test/e2e/go.mod` - Test module with OpenShift replace directives
-- ✅ `test/testdata/fixtures.go` - Testdata wrapper functions
+- ✅ `test/<test-dir-name>/go.mod` - Test module with OpenShift replace directives
+- ✅ `test/<flattened-test-dir-name>-testdata/fixtures.go` - Testdata wrapper functions (path flattened)
 - ✅ `test/bindata.mk` - Bindata generation rules
-- ✅ `go.mod` (updated) - Added test/e2e replace directive
+- ✅ `go.mod` (updated) - Added test/<test-dir-name> replace directive
 - ✅ `Makefile` (updated) - Added extension build target
 
+Note: `<flattened-test-dir-name>` = `<test-dir-name>` with `/` → `-` (e.g., `e2e/extension` → `e2e-extension`)
+
 ### Test Files (Fully Automated)
-- ✅ Copied **X** test files to `test/e2e/`
-- ✅ Copied **Y** testdata files to `test/testdata/`
+- ✅ Copied **X** test files to `test/<test-dir-name>/`
+- ✅ Copied **Y** testdata files to `test/<flattened-test-dir-name>-testdata/`
 - ✅ Automatically replaced `compat_otp.FixturePath()` → `testdata.FixturePath()`
 - ✅ Automatically replaced `exutil.FixturePath()` → `testdata.FixturePath()`
-- ✅ Automatically added imports: `$MODULE_NAME/test/testdata`
+- ✅ Automatically added imports: `$MODULE_NAME/test/<flattened-test-dir-name>-testdata`
 - ✅ Automatically cleaned up old compat_otp/exutil imports
 
 ## Statistics
