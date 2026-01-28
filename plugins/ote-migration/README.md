@@ -230,6 +230,7 @@ Integrates OTE into existing repository structure with **separate test module**.
 - **Separate test module**: `test/e2e/go.mod` is independent from root `go.mod`
 - **Replace directive**: Root `go.mod` includes `replace <module>/test/e2e => ./test/e2e`
 - **Automatic upstream replace directives**: k8s.io/* and other replace directives are automatically copied from test/e2e/go.mod to root go.mod
+- **Smart testdata path handling**: Nested test paths are flattened for testdata (e.g., `test/e2e/extension/` → testdata at `test/e2e-extension-testdata/`)
 - **Integrated build**: Makefile target `tests-ext-build` added to root
 - **Binary location**: `bin/<extension-name>-tests-ext`
 
