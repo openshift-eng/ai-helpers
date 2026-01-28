@@ -916,9 +916,10 @@ fi
 
 cd ../..
 
-echo "Step 8: Update root go.mod to add replace directive for test/<test-dir-name>..."
+echo "Step 8: Update root go.mod with replace directives..."
 MODULE_NAME=$(grep '^module ' go.mod | awk '{print $2}')
 
+# Step 8a: Add replace directive for test module
 if ! grep -q "replace.*$MODULE_NAME/test/<test-dir-name>" go.mod; then
     if grep -q "^replace (" go.mod; then
         # Add to existing replace section
@@ -928,7 +929,45 @@ if ! grep -q "replace.*$MODULE_NAME/test/<test-dir-name>" go.mod; then
         echo "" >> go.mod
         echo "replace $MODULE_NAME/test/<test-dir-name> => ./test/<test-dir-name>" >> go.mod
     fi
-    echo "✅ Replace directive added to root go.mod"
+    echo "✅ Test module replace directive added to root go.mod"
+fi
+
+# Step 8b: Copy k8s.io and other upstream replace directives from test module to root
+echo "Copying k8s.io and upstream replace directives from test/<test-dir-name>/go.mod to root go.mod..."
+
+# Extract replace directives from test module (excluding the self-reference)
+TEST_REPLACES=$(grep -A 1000 "^replace (" test/<test-dir-name>/go.mod | grep -v "^replace (" | grep "=>" | grep -v "^)" || echo "")
+
+if [ -n "$TEST_REPLACES" ]; then
+    # Ensure root go.mod has a replace block
+    if ! grep -q "^replace (" go.mod; then
+        echo "" >> go.mod
+        echo "replace (" >> go.mod
+        echo ")" >> go.mod
+    fi
+
+    # Add each replace directive if it doesn't already exist
+    ADDED_COUNT=0
+    while IFS= read -r replace_line; do
+        # Extract the package being replaced (e.g., "k8s.io/api")
+        PACKAGE=$(echo "$replace_line" | awk '{print $1}')
+
+        # Skip empty lines
+        if [ -z "$PACKAGE" ]; then
+            continue
+        fi
+
+        # Check if this replace directive already exists in root go.mod
+        if ! grep -q "^[[:space:]]*$PACKAGE " go.mod; then
+            # Add the replace directive to the replace block
+            sed -i "/^replace (/a\\    $replace_line" go.mod
+            ADDED_COUNT=$((ADDED_COUNT + 1))
+        fi
+    done <<< "$TEST_REPLACES"
+
+    echo "✅ Copied $ADDED_COUNT replace directives from test module to root go.mod"
+else
+    echo "⚠️  No replace directives found in test module"
 fi
 
 echo "✅ Monorepo go.mod setup complete"
@@ -938,6 +977,7 @@ echo "✅ Monorepo go.mod setup complete"
 - test/e2e has its own go.mod (separate module)
 - go.mod/go.sum are in test/e2e/ directory
 - Root go.mod has replace directive pointing to test/e2e
+- k8s.io/* and upstream replace directives are automatically copied from test/e2e/go.mod to root go.mod
 - Replace directives are dynamically extracted from openshift-tests-private
 - Origin version is fetched from github.com/openshift/origin@main
 
