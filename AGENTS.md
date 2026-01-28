@@ -217,6 +217,66 @@ ln -s ai-helpers ~/.cursor/commands/ai-helpers
 2. **Utils Plugin:** If your command doesn't have a clear parent plugin, add it to `plugins/utils/commands/`
 3. **New Plugin:** If you have multiple related commands that warrant their own plugin, create a new plugin
 
+### Commands Must Leverage AI Reasoning
+
+**IMPORTANT: Plugin commands must require AI reasoning and cannot be just purely scripted.**
+
+Slash commands exist to leverage Claude's AI capabilities. If a task can be accomplished with shell commands or scripts or aliases, it should NOT be a plugin command.
+
+**❌ Bad examples (script-only, no AI reasoning):**
+- Running predefined grep/git/oc and similar commands and dumping raw output
+- Wrapping a fixed sequence of shell commands or python scripts with no analysis
+- Formatting or parsing that could be done with jq/awk/sed and similar tools
+- Collecting metrics without interpreting or prioritizing them
+
+**✅ Good examples (leverages AI):**
+- Analyzing test failures to diagnose root causes (`/prow-job:analyze-test-failure`)
+- Understanding JIRA issues and proposing code changes (`/jira:solve`)
+- Interpreting complex data and providing actionable recommendations
+- Making contextual decisions based on codebase analysis
+- Suggesting reviewers by analyzing git blame and OWNERS files (`/git:suggest-reviewers`)
+
+**How to tell if your command adds value:**
+
+1. **The "script alias test"**: If your entire Implementation section could be replaced with a script, shell alias, or Makefile target, it's not suitable for a plugin command.
+
+2. **The "AI reasoning test"**: Does the command require Claude to:
+   - Understand context and make decisions?
+   - Analyze and interpret data?
+   - Provide recommendations or insights?
+   - Adapt behavior based on what it finds?
+
+   If **NO** → Use a bash or python script, git alias, or Makefile target, etc. instead
+   If **YES** → It's a good candidate for a plugin command
+
+**What to do instead of creating a plugin command:**
+- **Scripts**: Add to a `scripts/` directory in your repo
+- **Git aliases**: Document in `.gitconfig` or team README
+- **Makefile targets**: Add to the project Makefile
+- **Shell functions**: Share in team documentation or dotfiles
+
+**Example of the difference:**
+
+```markdown
+# ❌ BAD: Just runs commands, no AI reasoning
+## Implementation
+1. Run `git log --all --grep="TODO"`
+2. Run `git grep -c "FIXME"`
+3. Output the results
+
+# ✅ GOOD: Uses AI to analyze and provide insights
+## Implementation
+1. Gather technical debt indicators (TODOs, FIXMEs, etc.)
+2. **Analyze the results** to identify patterns and concentrations
+3. **Prioritize recommendations** based on:
+   - Density of debt in specific files/modules
+   - Age of TODO comments (from git blame)
+   - Correlation with recent bug reports
+4. **Suggest concrete next steps** (e.g., "Create tickets for the 5 oldest TODOs in payment-processor.js")
+```
+
+This keeps the plugin ecosystem focused on tasks that truly benefit from AI assistance.
+
 ### Creating a New Command
 
 1. **Create the command file:**
