@@ -68,8 +68,24 @@ This command is useful for:
 - Typical count: ~87 total components across 29 teams
 - Reads from committed mapping file (no download needed)
 
+## Data Source
+
+The team and component mapping data originates from:
+- **Source**: https://gitlab.cee.redhat.com/hybrid-platforms/org
+- **Access**: Requires Red Hat VPN connection
+- **Privacy**: The full org data is considered somewhat private, so this project extracts only the team and component mapping
+
+**If data looks wrong or missing**:
+1. Submit a PR to https://gitlab.cee.redhat.com/hybrid-platforms/org to correct the source data
+2. After the PR merges, regenerate the mapping file in this repository:
+   ```
+   python3 plugins/component-health/generate_team_component_map.py
+   ```
+3. Commit the updated `team_component_map.json` file
+
 ## See Also
 
 - Skill: `plugins/component-health/skills/list-components/SKILL.md`
 - Related Command: `/component-health:list-teams`
 - Mapping File: `plugins/component-health/team_component_map.json`
+- Generator Script: `plugins/component-health/generate_team_component_map.py`
