@@ -15,7 +15,7 @@ olm-team:configure-agent
 The `olm-team:configure-agent` command helps you create or update the configuration file for the k8s-ocp-olm-expert agent. This configuration specifies the local paths to OLM development repositories that the agent uses to provide code-aware responses and documentation references.
 
 The agent requires access to:
-- **Documentation**: openshift-docs
+- **Documentation**: openshift-docs, olm-docs
 - **OLM v0 Upstream**: operator-lifecycle-manager, operator-registry, api
 - **OLM v0 Downstream**: operator-framework-olm, operator-marketplace
 - **OLM v1 Upstream**: operator-controller
@@ -58,6 +58,7 @@ SEARCH_DIRS=(
 # Repository names to search for
 REPOS=(
   "openshift-docs"
+  "olm-docs"
   "operator-lifecycle-manager"
   "operator-registry"
   "api"
@@ -105,12 +106,12 @@ Repository Detection Results
 
 ### Step 4: Recommend dev-setup if Repositories are Missing
 
-If fewer than 7 out of 9 repositories are found, recommend using dev-setup:
+If fewer than 8 out of 10 repositories are found, recommend using dev-setup:
 
 ```
 ⚠️  Missing Repositories Detected
 
-You're missing X out of 9 required repositories.
+You're missing X out of 10 required repositories.
 
 RECOMMENDATION: Run /olm-team:dev-setup
 
@@ -198,6 +199,7 @@ build_config() {
 {
   "repositories": {
     "openshift_docs": "${FOUND_REPOS[openshift-docs]:-/path/to/openshift-docs}",
+    "olm_docs": "${FOUND_REPOS[olm-docs]:-/path/to/olm-docs}",
     "olm_v0_upstream": {
       "operator_lifecycle_manager": "${FOUND_REPOS[operator-lifecycle-manager]:-/path/to/operator-lifecycle-manager}",
       "operator_registry": "${FOUND_REPOS[operator-registry]:-/path/to/operator-registry}",
@@ -304,6 +306,7 @@ Configuration Complete
 
 Repository Paths Configured:
   ✓ openshift-docs
+  ✓ olm-docs
   ✓ operator-lifecycle-manager
   ✓ operator-registry
   ✓ api
@@ -399,7 +402,7 @@ Output:
 ```
 Repository Detection Results
 =============================
-✓ Found 6/9 repositories
+✓ Found 7/10 repositories
 ✗ Missing 3 repositories
 
 ⚠️  RECOMMENDATION: Run /olm-team:dev-setup
@@ -424,7 +427,7 @@ Output:
 ```
 Repository Detection Results
 =============================
-✓ Found all 9 repositories
+✓ Found all 10 repositories
 
 Creating configuration...
 ✓ Configuration saved: ~/.config/claude-code/olm-agent-config.json

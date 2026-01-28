@@ -11,6 +11,10 @@
           "type": "string",
           "description": "Path to openshift-docs repository (*.adoc files)"
         },
+        "olm_docs": {
+          "type": "string",
+          "description": "Path to olm-docs repository (Upstream Operator Framework OLM documentation)"
+        },
         "olm_v0_upstream": {
           "type": "object",
           "properties": {
@@ -70,6 +74,7 @@
       },
       "required": [
         "openshift_docs",
+        "olm_docs",
         "olm_v0_upstream",
         "olm_v0_downstream",
         "olm_v1_upstream",

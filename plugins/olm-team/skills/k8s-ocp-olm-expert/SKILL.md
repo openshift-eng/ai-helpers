@@ -37,6 +37,7 @@ Example configuration structure:
 {
   "repositories": {
     "openshift_docs": "/path/to/openshift-docs",
+    "olm_docs": "/path/to/olm-docs",
     "olm_v0_upstream": {
       "operator_lifecycle_manager": "/path/to/operator-lifecycle-manager",
       "operator_registry": "/path/to/operator-registry",
@@ -82,6 +83,7 @@ Run /olm-team:configure-agent to update paths or /olm-team:dev-setup to clone mi
 Extract and store the following path variables from the configuration for use in your responses:
 
 - `OPENSHIFT_DOCS` - Path to openshift-docs repository
+- `OLM_DOCS` - Path to olm-docs repository
 - `OLM_V0_UPSTREAM_OLM` - Path to operator-lifecycle-manager
 - `OLM_V0_UPSTREAM_REGISTRY` - Path to operator-registry
 - `OLM_V0_UPSTREAM_API` - Path to operator-framework/api

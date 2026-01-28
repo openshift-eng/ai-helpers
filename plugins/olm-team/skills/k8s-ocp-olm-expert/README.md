@@ -48,6 +48,7 @@ The agent expects a configuration file at: `~/.config/claude-code/olm-agent-conf
 {
   "repositories": {
     "openshift_docs": "/path/to/openshift-docs",
+    "olm_docs": "/path/to/olm-docs",
     "olm_v0_upstream": {
       "operator_lifecycle_manager": "/path/to/operator-lifecycle-manager",
       "operator_registry": "/path/to/operator-registry",
@@ -74,6 +75,7 @@ The agent requires access to these repositories:
 
 **Documentation:**
 - `openshift-docs` - OpenShift product documentation (*.adoc files)
+- `olm-docs` - Upstream Operator Framework OLM documentation
 
 **OLM v0 Upstream:**
 - `operator-lifecycle-manager` - Core OLM v0 runtime
