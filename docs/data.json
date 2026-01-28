@@ -641,7 +641,7 @@
           "name": "Prow Job Extract Must-Gather"
         }
       ],
-      "version": "0.0.2"
+      "version": "0.0.3"
     },
     {
       "commands": [
