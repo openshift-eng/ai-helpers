@@ -75,10 +75,14 @@ Collect all necessary information from the user before starting the migration.
 ```bash
 # Try to detect from git remote URL first
 if [ -d .git ]; then
-    REMOTE_URL=$(git remote get-url origin 2>/dev/null || git remote get-url $(git remote | head -1) 2>/dev/null)
-    if [ -n "$REMOTE_URL" ]; then
-        # Extract repo name from URL (e.g., git@github.com:openshift/router.git -> router)
-        EXTENSION_NAME=$(echo "$REMOTE_URL" | sed 's/.*\/\([^/]*\)\.git$/\1/' | sed 's/.*\/\([^/]*\)$/\1/')
+    # Discover actual remote names first (don't assume 'origin')
+    FIRST_REMOTE=$(git remote | head -1)
+    if [ -n "$FIRST_REMOTE" ]; then
+        REMOTE_URL=$(git remote get-url "$FIRST_REMOTE" 2>/dev/null)
+        if [ -n "$REMOTE_URL" ]; then
+            # Extract repo name from URL (e.g., git@github.com:openshift/router.git -> router)
+            EXTENSION_NAME=$(echo "$REMOTE_URL" | sed 's/.*\/\([^/]*\)\.git$/\1/' | sed 's/.*\/\([^/]*\)$/\1/')
+        fi
     fi
 fi
 
