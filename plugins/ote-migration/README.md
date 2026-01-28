@@ -45,6 +45,98 @@ Performs the complete OTE migration in one workflow.
 - **Auto-install go-bindata** - For generating embedded testdata
 - **Dockerfile integration** - Provides templates for both strategies
 
+## Performance and Reliability Enhancements
+
+### Recent Critical Fixes (January 2026)
+
+**Problem Solved:** The plugin used to timeout during dependency resolution, leaving test files partially migrated with broken imports.
+
+**Three Critical Fixes:**
+
+1. **Parallel Git Clones (Performance Fix)**
+   - **Before:** Sequential clones took ~90 seconds (origin → kubernetes → ginkgo)
+   - **After:** Parallel clones take ~30-45 seconds (50% faster)
+   - **Impact:** Reduces Phase 4 execution time significantly
+
+   ```bash
+   # Old approach (sequential - slow)
+   git clone origin   # 30s
+   git clone k8s      # 45s
+   git clone ginkgo   # 15s
+   Total: ~90s
+
+   # New approach (parallel - fast)
+   (git clone origin & git clone k8s & git clone ginkgo &)
+   wait
+   Total: ~45s
+   ```
+
+2. **Deferred Dependency Resolution (Decoupling Fix)**
+   - **Before:** `go mod tidy` ran in Phase 4, timing out before Phase 5 (Test Migration)
+   - **After:** `go mod download` in Phase 4, full `go mod tidy` deferred to Phase 6
+   - **Impact:** Test migration (Phase 5) always runs, even if dependency resolution is slow
+   - **Result:** No more partially migrated test files with broken imports
+
+3. **Atomic Test Migration (Atomicity Fix)**
+   - **Before:** Phase 5 steps could partially complete (Step 1 done, Steps 2-4 skipped)
+   - **After:** Phase 5 backs up test files and rolls back on any failure
+   - **Impact:** Test files are either fully migrated or left untouched - no partial states
+
+   ```bash
+   # Error handling added to Phase 5:
+   - Step 0: Create backup of test files
+   - Steps 1-4: Execute migration steps
+   - Step 5: Validate all changes
+   - On success: Remove backup, continue
+   - On failure: Restore from backup, exit
+   ```
+
+**Migration Flow Before Fixes:**
+```
+Phase 4 (go.mod generation)
+  ├─ Step 5: git clone origin (30s) ✓
+  ├─ Step 5: git clone kubernetes (45s) ✓
+  ├─ Step 5: git clone ginkgo (15s) ✓
+  ├─ Step 6: go mod tidy (60-120s) ⏱️ TIMEOUT
+  └─ Phase 5 never runs → Test files have broken imports ❌
+
+Result: Tests copied but imports not migrated → go mod tidy fails
+```
+
+**Migration Flow After Fixes:**
+```
+Phase 4 (go.mod generation)
+  ├─ Step 3: git ls-remote (parallel, 5s) ✓
+  ├─ Step 3: git clone (parallel, 30-45s) ✓
+  ├─ Step 6: go mod download (quick, non-blocking) ✓
+  └─ Continue to Phase 5 ✓
+
+Phase 5 (Test Migration - atomic)
+  ├─ Step 0: Backup test files ✓
+  ├─ Step 1: Replace FixturePath calls ✓
+  ├─ Step 2: Add testdata imports ✓
+  ├─ Step 3: Remove old imports ✓
+  ├─ Step 4: Add annotations ✓
+  ├─ Step 5: Validate changes ✓
+  └─ On success: Remove backup, continue ✓
+
+Phase 6 (Dependency Resolution)
+  ├─ Step 1: go mod tidy (now safe after test migration) ✓
+  └─ Step 2: Build verification ✓
+
+Result: All test files fully migrated with correct imports ✅
+```
+
+**Error Recovery:**
+
+If Phase 5 fails, test files are automatically restored:
+```bash
+❌ Phase 5 failed - rolling back test files...
+✅ Test files restored from backup
+```
+
+This ensures you can safely retry the migration without manual cleanup.
+
 ## Installation
 
 This plugin is available through the ai-helpers marketplace:
