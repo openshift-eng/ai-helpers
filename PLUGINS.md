@@ -54,6 +54,7 @@ Miscellaneous tools for working with OpenShift CI
 
 **Commands:**
 - **`/ci:add-debug-wait` `<workflow-or-job-name> [timeout]`** - Add a wait step to a CI workflow for debugging test failures
+- **`/ci:analyze-regression` `<regression id> <release> [--variant <variant>]`** - Analyze root cause of a specific regressed test case from Component Readiness
 - **`/ci:ask-sippy` `[question]`** - Ask the Sippy AI agent questions about OpenShift CI payloads, jobs, and test results
 - **`/ci:list-unstable-tests` `<version> <keywords> [sippy-url]`** - List unstable tests with pass rate below 95%
 - **`/ci:query-job-status` `<execution-id>`** - Query the status of a gangway job execution by ID
@@ -84,7 +85,6 @@ Analyze component health using regression and jira data
 - **`/component-health:list-regressions` `<release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]`** - Fetch and list raw regression data for OpenShift releases
 - **`/component-health:summarize-jiras` `--project <project> [--component comp1 comp2 ...] [--status status1 status2 ...] [--include-closed] [--limit N]`** - Query and summarize JIRA bugs for a specific project with counts by component
 - **`/component-health:summarize-regressions` `<release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]`** - Query and summarize regression data for OpenShift releases with counts and metrics
-- **`/component-health:triage` `<test-name> <release> [--variant <variant>]`** - Analyze root cause of a specific regressed test case from Component Readiness
 
 See [plugins/component-health/README.md](plugins/component-health/README.md) for detailed documentation.
 
