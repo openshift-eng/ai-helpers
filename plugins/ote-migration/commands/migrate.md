@@ -187,19 +187,15 @@ User selects: **1** or **2**
 
 Store the selection in variable: `<structure-strategy>` (value: "monorepo" or "single-module")
 
-#### Input 4: Working Directory
+#### Input 4: Working Directory (Workspace)
 
-Ask: "What is the working directory path?"
+Ask: "What is the working directory path for migration workspace?"
 
-- **If monorepo strategy**:
-  - This should be the root of the target component repository
-  - Example: `/home/user/repos/router`, `/home/user/openshift/sdn`
-  - The tool will create `cmd/extension/`, `test/e2e/`, etc. in this directory
-
-- **If single-module strategy**:
-  - This is where we'll create the `tests-extension/` directory
-  - Example: `/home/user/workspace`, `/home/user/projects`
-  - The tool will create `tests-extension/` in this directory
+**For both strategies**:
+- This is the workspace directory for migration operations
+- Used for cloning openshift-tests-private (if needed)
+- Used for temporary migration operations
+- Example: `/home/user/workspace`, `/tmp/migration-workspace`
 
 **User provides the path:**
 - Can provide an existing directory path
@@ -208,24 +204,20 @@ Ask: "What is the working directory path?"
 
 **Store in variable:** `<working-dir>`
 
-#### Input 5: Validate Git Status (if existing directory)
+**Note**: This is NOT where files will be created. The target repository path will be collected separately.
 
-If the working directory already exists:
-- Check if it's a git repository
-- If yes, run `git status` and verify it's clean
-- If there are uncommitted changes, ask user to commit or stash them first
-- If no, continue without git validation
-
-#### Input 5a: Test Directory Name (conditional - monorepo strategy only)
+#### Input 5: Test Directory Name (conditional - monorepo strategy only)
 
 **Skip this input if single-module strategy** - single-module uses `tests-extension/test/e2e`
 
 **For monorepo strategy only:**
 
+**Note**: This input is collected AFTER Input 9b (target repo validation) so we can check the target repository structure.
+
 Check if the default test directory already exists:
 
 ```bash
-cd <working-dir>
+cd <target-repo-path>
 
 # Check if test/e2e already exists
 if [ -d "test/e2e" ]; then
@@ -285,9 +277,37 @@ Ask: "What is the testdata subfolder name under test/extended/testdata/? (or pre
 - This will be used as: `test/extended/testdata/<subfolder>/`
 - Enter "none" if no testdata exists
 
-#### Input 10: Local Target Repository (Optional - skip for monorepo)
+#### Input 9a: Target Repository Path (monorepo only)
 
-**Skip this input if monorepo strategy** - the working directory IS the target repo.
+**Skip this input if single-module strategy.**
+
+**For monorepo strategy only:**
+Ask: "What is the path to your component repository (target repo) where OTE integration will be added?"
+- This is the repository where `cmd/extension/`, `test/e2e/`, etc. will be created
+- Can be absolute path: `/home/user/repos/router`
+- Can be relative path: `~/openshift/cloud-credential-operator`
+- Example: `/home/user/repos/router`, `/home/user/openshift/sdn`
+
+**User provides the path:**
+- Must be an existing directory
+- Should be a git repository (will be validated in next input)
+
+**Store in variable:** `<target-repo-path>` (for monorepo)
+
+#### Input 9b: Validate Target Repository Git Status (monorepo only)
+
+**Skip this input if single-module strategy.**
+
+**For monorepo strategy only:**
+If the target repository path was provided in Input 9a:
+1. First, check if it's a git repository (has `.git` directory)
+2. If it IS a git repository, run `git status` and verify it's clean
+3. If there are uncommitted changes, ask user to commit or stash them first
+4. If it is NOT a git repository, show warning and continue
+
+#### Input 10: Local Target Repository (Optional - single-module only)
+
+**Skip this input if monorepo strategy** - target repo was already collected in Input 9a.
 
 **For single-module strategy only:**
 Ask: "Do you have a local clone of the target repository? If yes, provide the path (or press Enter to clone from URL):"
@@ -298,12 +318,12 @@ Ask: "Do you have a local clone of the target repository? If yes, provide the pa
 - If empty: Will ask for URL to clone (Input 10)
 - After providing a path, you will be asked in Input 11 if you want to update it
 
-#### Input 10: Target Repository URL (if no local target provided and single-module)
+#### Input 10b: Target Repository URL (if no local target provided and single-module)
 
 **Skip this input if monorepo strategy.**
 
 **For single-module strategy only:**
-If no local target repository was provided in Input 9:
+If no local target repository was provided in Input 10:
 Ask: "What is the Git URL of the target repository (component repository)?"
 - Example: `git@github.com:openshift/sdn.git`
 - This is where the OTE integration will be added
@@ -346,11 +366,12 @@ Migration Configuration:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Extension: <extension-name>
 Strategy: Multi-module (integrate into existing repo)
-Working Directory: <working-dir> (target repo root)
+Working Directory (workspace): <working-dir>
+Target Repository: <target-repo-path>
 
 Source Repository (openshift-tests-private):
   URL: git@github.com:openshift/openshift-tests-private.git
-  Local Path: <local-source-path> (or "Will clone")
+  Local Path: <local-source-path> (or "Will clone to <working-dir>/repos/")
   Test Subfolder: test/extended/<test-subfolder>/
   Testdata Subfolder: test/extended/testdata/<testdata-subfolder>/
 
@@ -372,19 +393,19 @@ Migration Configuration:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Extension: <extension-name>
 Strategy: Single-module (isolated directory)
-Working Directory: <working-dir>
+Working Directory (workspace): <working-dir>
 
 Source Repository (openshift-tests-private):
   URL: git@github.com:openshift/openshift-tests-private.git
-  Local Path: <local-source-path> (or "Will clone")
+  Local Path: <local-source-path> (or "Will clone to <working-dir>/repos/")
   Test Subfolder: test/extended/<test-subfolder>/
   Testdata Subfolder: test/extended/testdata/<testdata-subfolder>/
 
 Target Repository:
-  Local Path: <local-target-path> (or "Will clone from URL")
+  Local Path: <local-target-path> (or "Will clone to <working-dir>/repos/target")
   URL: <target-repo-url> (if cloning)
 
-Destination Structure (in tests-extension/):
+Destination Structure (in target repo):
   Extension Binary: tests-extension/cmd/main.go
   Test Files: tests-extension/test/e2e/*.go
   Testdata: tests-extension/test/testdata/
@@ -393,6 +414,120 @@ Destination Structure (in tests-extension/):
 ```
 
 Ask for confirmation before proceeding.
+
+#### Phase 1 Validation Checkpoint (CRITICAL - DO NOT SKIP)
+
+**MANDATORY VALIDATION BEFORE PROCEEDING TO PHASE 2:**
+
+This checkpoint prevents incomplete input collection that causes files to be created in wrong locations.
+
+**For ALL strategies (monorepo and single-module):**
+
+1. **Verify extension name was detected:**
+   ```bash
+   if [ -z "$EXTENSION_NAME" ]; then
+       echo "❌ ERROR: Extension name not detected"
+       echo "Required: Auto-detect from git remote or directory name"
+       exit 1
+   fi
+   ```
+
+2. **Verify sig filter tags were provided:**
+   ```bash
+   if [ -z "$SIG_FILTER_TAGS" ]; then
+       echo "❌ ERROR: Sig filter tags not provided"
+       echo "Required: User must specify sig tag(s) for test filtering"
+       echo "Example: router,network-edge"
+       exit 1
+   fi
+   ```
+
+3. **Verify strategy was selected:**
+   ```bash
+   if [ -z "$STRUCTURE_STRATEGY" ]; then
+       echo "❌ ERROR: Directory structure strategy not selected"
+       echo "Required: Choose 'monorepo' or 'single-module'"
+       exit 1
+   fi
+   ```
+
+4. **Verify working directory was provided:**
+   ```bash
+   if [ -z "$WORKING_DIR" ]; then
+       echo "❌ ERROR: Working directory not provided"
+       echo "Required: Specify working directory path"
+       exit 1
+   fi
+   ```
+
+**For monorepo strategy:**
+
+5. **Verify target repository path was collected:**
+   ```bash
+   if [ "$STRUCTURE_STRATEGY" = "monorepo" ]; then
+       if [ -z "$TARGET_REPO_PATH" ]; then
+           echo "❌ ERROR: Target repository path not provided for monorepo strategy"
+           echo "Required: Specify target repository path (Input 9a)"
+           echo "Example: /home/user/repos/router"
+           exit 1
+       fi
+
+       echo "✅ Target repository path provided: $TARGET_REPO_PATH"
+   fi
+   ```
+
+**For single-module strategy:**
+
+6. **Verify target repository information was collected:**
+   ```bash
+   if [ "$STRUCTURE_STRATEGY" = "single-module" ]; then
+       if [ -z "$TARGET_REPO_PATH" ] && [ -z "$TARGET_REPO_URL" ]; then
+           echo "❌ ERROR: Target repository information missing for single-module strategy"
+           echo ""
+           echo "For single-module strategy, you must provide EITHER:"
+           echo "  1. Local target repository path (Input 10), OR"
+           echo "  2. Target repository Git URL (Input 10b)"
+           echo ""
+           echo "Without this, files will be created in the wrong location."
+           echo "Please restart migration and provide target repository information."
+           exit 1
+       fi
+
+       if [ -n "$TARGET_REPO_PATH" ]; then
+           echo "✅ Target repository path provided: $TARGET_REPO_PATH"
+       else
+           echo "✅ Target repository URL provided: $TARGET_REPO_URL"
+       fi
+   fi
+   ```
+
+**Checkpoint Summary:**
+
+```bash
+echo ""
+echo "========================================="
+echo "Phase 1 Validation Complete"
+echo "========================================="
+echo "✅ Extension name: $EXTENSION_NAME"
+echo "✅ Sig filter tags: $SIG_FILTER_TAGS"
+echo "✅ Strategy: $STRUCTURE_STRATEGY"
+echo "✅ Working directory (workspace): $WORKING_DIR"
+
+# Show target repository for both strategies
+if [ "$STRUCTURE_STRATEGY" = "monorepo" ]; then
+    echo "✅ Target repository: $TARGET_REPO_PATH"
+elif [ "$STRUCTURE_STRATEGY" = "single-module" ]; then
+    if [ -n "$TARGET_REPO_PATH" ]; then
+        echo "✅ Target repository: $TARGET_REPO_PATH (local)"
+    else
+        echo "✅ Target repository: $TARGET_REPO_URL (will clone)"
+    fi
+fi
+
+echo ""
+echo "All required inputs collected - proceeding to Phase 2"
+echo "========================================="
+```
 
 ### Phase 2: Repository Setup (2 steps)
 
@@ -504,9 +639,15 @@ fi
 
 **For Monorepo Strategy:**
 ```bash
-# Working directory IS the target repository
-TARGET_REPO="<working-dir>"
+# Use the target repository path from Input 9a
+TARGET_REPO="<target-repo-path>"
 echo "Using target repository at: $TARGET_REPO"
+
+# Validate target repository exists
+if [ ! -d "$TARGET_REPO" ]; then
+    echo "❌ ERROR: Target repository does not exist at: $TARGET_REPO"
+    exit 1
+fi
 
 # Extract module name from go.mod if it exists
 if [ -f "$TARGET_REPO/go.mod" ]; then
@@ -516,6 +657,12 @@ else
     echo "Warning: No go.mod found in target repository"
     echo "Will create test/go.mod for test dependencies"
 fi
+
+# Switch working directory to target repository for file creation
+echo "Switching working directory to target repository..."
+cd "$TARGET_REPO"
+WORKING_DIR="$TARGET_REPO"
+echo "Working directory is now: $WORKING_DIR"
 ```bash
 
 **For Single-Module Strategy:**
@@ -605,6 +752,18 @@ else
     git clone <target-repo-url> repos/target
     TARGET_REPO="repos/target"
 fi
+```
+
+**After setting up target repository (both scenarios):**
+```bash
+# Switch working directory to target repository for file creation
+echo "Switching working directory to target repository..."
+cd "$TARGET_REPO"
+WORKING_DIR="$TARGET_REPO"
+echo "Working directory is now: $WORKING_DIR"
+
+# Now we'll create tests-extension/ in this directory
+echo "tests-extension/ will be created in: $WORKING_DIR/tests-extension/"
 ```bash
 
 **Note:** In subsequent phases, use `$SOURCE_REPO` and `$TARGET_REPO` variables instead of hardcoded `repos/source` and `repos/target` paths.

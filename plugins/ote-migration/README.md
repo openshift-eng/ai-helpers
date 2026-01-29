@@ -183,19 +183,43 @@ The plugin will:
    - Monorepo (integrate into existing repo)
    - Single-module (isolated tests-extension/ directory)
 
-4. **Working directory path**
-   - For monorepo: Path to target repo root
-   - For single-module: Path where tests-extension/ will be created
+4. **Working directory (workspace)**
+   - For both strategies: Temporary workspace for migration operations
+   - Used for cloning openshift-tests-private (if needed)
+   - Example: `/home/user/workspace`, `/tmp/migration-workspace`
 
 5. **Test directory name** (monorepo only, if test/e2e exists)
    - Alternative name like `e2e-ote` or `ote-tests`
 
-6. **Additional repository details:**
+6. **Source repository details:**
    - Local openshift-tests-private path (optional)
    - Test subfolder under test/extended/
    - Testdata subfolder under test/extended/testdata/
-   - Local target repository path (optional)
-   - Target repository URL (if not using local)
+
+7. **Target repository** (where files will be created)
+   - For monorepo: Local path to component repository
+   - For single-module: Local path or Git URL of target repository
+
+## Workspace vs Target Repository
+
+The migration uses a clear separation between workspace and target repository:
+
+**Workspace (Working Directory)**:
+- Temporary directory for migration operations
+- Used to clone/update `openshift-tests-private` (if needed)
+- Collected in Input 4 for both strategies
+- Example: `/tmp/migration-workspace`, `/home/user/workspace`
+
+**Target Repository**:
+- The actual component repository where OTE files will be created
+- For **monorepo**: Collected in Input 9a (local path to component repo)
+- For **single-module**: Collected in Input 10/10b (local path or Git URL)
+- Example: `/home/user/repos/router`, `/home/user/openshift/sdn`
+
+**Automatic Directory Switch**:
+- After repository setup (Phase 2), the working directory **automatically switches** to the target repository
+- All file creation (Phase 3+) happens in the target repository
+- This ensures files are never created in the temporary workspace
 
 ## Directory Structure Strategies
 
@@ -248,12 +272,12 @@ Integrates OTE into existing repository structure with **separate test module**.
 
 ### Option 2: Single-Module Strategy (For Standalone Test Extensions)
 
-Creates isolated `tests-extension/` directory with **single go.mod**.
+Creates isolated `tests-extension/` directory with **single go.mod** in the target repository.
 
 **Structure created:**
 
 ```text
-<working-dir>/
+<target-repo>/
 └── tests-extension/
     ├── cmd/
     │   └── main.go                # OTE entry point
@@ -268,6 +292,8 @@ Creates isolated `tests-extension/` directory with **single go.mod**.
     ├── Makefile
     └── bindata.mk
 ```
+
+**Note:** The `<working-dir>` is used as a temporary workspace during migration. After repository setup, the working directory automatically switches to `<target-repo>` where all files are created.
 
 **Key characteristics:**
 
