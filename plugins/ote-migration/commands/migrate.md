@@ -48,116 +48,30 @@ The openshift-tests-extension framework allows external repositories to contribu
 
 ## Migration Workflow
 
-### Phase 1: User Input Collection (up to 10 inputs, some conditional)
+### Phase 1: User Input Collection (up to 11 inputs, some conditional)
 
 Collect all necessary information from the user before starting the migration.
 
 **CRITICAL INSTRUCTION FOR AI AGENT:**
-- **Extension name (Input 1)**: AUTO-DETECT from git remote or directory name - do NOT ask user
-- **Sig filter tags (Input 2)**: MUST ask user explicitly - do NOT auto-detect or infer
+- **Input Collection Order is IMPORTANT**: Follow the exact order below
+- **Extension name (Input 4)**: AUTO-DETECT from target repository - do NOT ask user
+- **Sig filter tags (Input 5)**: MUST ask user explicitly - do NOT auto-detect or infer
 - **All other inputs**: Ask user explicitly using AskUserQuestion tool or direct prompts
 - **WAIT for user response** before proceeding to the next input or phase
+- **Switch to target repository** happens after Input 3 (before auto-detecting extension name)
 
 **Important Notes:**
 - Source repository is always `git@github.com:openshift/openshift-tests-private.git`
 - Variables collected (shown as `<variable-name>`) will be used throughout the migration:
-  - `<extension-name>` - Extension name (auto-detected from Input 1)
-  - `<sig-filter-tags>` - Comma-separated sig tags for test filtering (from Input 2)
-  - `<structure-strategy>` - "monorepo" or "single-module" (from Input 3)
-  - `<working-dir>` - Working directory path (from Input 4)
-  - `<test-dir-name>` - Test directory name, defaults to "e2e" (from Input 5a, monorepo only)
+  - `<structure-strategy>` - "monorepo" or "single-module" (from Input 1)
+  - `<working-dir>` - Working directory path (workspace) (from Input 2)
+  - `<target-repo-path>` or `<target-repo-url>` - Target repository (from Input 3)
+  - `<extension-name>` - Extension name (auto-detected from Input 4, AFTER switching to target repo)
+  - `<sig-filter-tags>` - Comma-separated sig tags for test filtering (from Input 5)
+  - `<test-dir-name>` - Test directory name, defaults to "e2e" (from Input 6, monorepo only)
   - All file paths and code templates use these variables
 
-#### Input 1: Extension Name (Auto-detected)
-
-**Auto-detect the extension name from the repository or directory context:**
-
-```bash
-# Try to detect from git remote URL first
-if [ -d .git ]; then
-    # Discover actual remote names first (don't assume 'origin')
-    FIRST_REMOTE=$(git remote | head -1)
-    if [ -n "$FIRST_REMOTE" ]; then
-        REMOTE_URL=$(git remote get-url "$FIRST_REMOTE" 2>/dev/null)
-        if [ -n "$REMOTE_URL" ]; then
-            # Extract repo name from URL (e.g., git@github.com:openshift/router.git -> router)
-            EXTENSION_NAME=$(echo "$REMOTE_URL" | sed 's/.*\/\([^/]*\)\.git$/\1/' | sed 's/.*\/\([^/]*\)$/\1/')
-        fi
-    fi
-fi
-
-# Fallback to directory name if git detection fails
-if [ -z "$EXTENSION_NAME" ]; then
-    EXTENSION_NAME=$(basename "$PWD")
-fi
-
-echo "Detected extension name: $EXTENSION_NAME"
-```bash
-
-**This extension name will be used for:**
-- Binary name: `<extension-name>-tests-ext`
-- Module paths and directory structure
-- Suite name: `openshift/<extension-name>/tests`
-
-**Store in variable:** `<extension-name>`
-
-#### Input 2: Sig Filter Tags
-
-**IMPORTANT:** The sig filter tags control which tests are included in the generated binary. The binary will filter tests by searching for these tags in test names.
-
-**Why sig filter tags matter:**
-
-The generated `main.go` includes filtering logic that searches for tests containing the specified sig tags:
-
-```go
-// Filter to only include component-specific tests
-var filteredSpecs []*et.ExtensionTestSpec
-allSpecs.Walk(func(spec *et.ExtensionTestSpec) {
-    // Check if test name contains any of the specified sig tags
-    if strings.Contains(spec.Name, "[sig-router]") ||
-       strings.Contains(spec.Name, "[sig-network-edge]") {
-        filteredSpecs = append(filteredSpecs, spec)
-    }
-})
-```
-
-**Without correct sig filter tags:**
-- `./bin/<extension-name>-tests-ext list` will show 0 tests (or wrong tests)
-- Your component tests won't be registered with the OTE framework
-- The binary won't be able to discover or run your tests
-
-**With correct sig filter tags:**
-- `./bin/<extension-name>-tests-ext list` shows only your component's tests
-- Tests are properly filtered from the 5000+ upstream Kubernetes tests
-- Binary correctly discovers and runs component-specific tests
-
-**To find your sig tags:**
-```bash
-# Search your test files for sig tags
-grep -r "g\.Describe" test/extended/<your-subfolder>/ --include="*.go" | grep -o '\[sig-[^]]*\]' | sort -u
-
-# Example output:
-# [sig-network-edge]
-# [sig-router]
-```bash
-
-**Ask the user for sig filter tags:**
-
-Question: "What sig tag(s) should be used to filter tests? (e.g., 'router' for [sig-router], or 'router,network-edge' for multiple tags. This will be used in main.go to filter test names when running './bin/<extension-name>-tests-ext list')"
-- Provide a text input field for the user to enter sig tag(s)
-- User can enter single tag: `router`
-- User can enter multiple tags separated by comma: `router,network-edge`
-- Tags should be entered without the `[sig-` prefix and `]` suffix
-
-**Wait for user to provide the sig filter tags. Do not proceed until the user has provided this input.**
-
-**User provides the sig filter tags:**
-- Single tag example: `router` → will filter for `[sig-router]`
-- Multiple tags example: `router,network-edge` → will filter for `[sig-router]` OR `[sig-network-edge]`
-
-**Store in variable:** `<sig-filter-tags>`
-
-#### Input 3: Directory Structure Strategy
+#### Input 1: Directory Structure Strategy
 
 Ask: "Which directory structure strategy do you want to use?"
 
@@ -187,7 +101,7 @@ User selects: **1** or **2**
 
 Store the selection in variable: `<structure-strategy>` (value: "monorepo" or "single-module")
 
-#### Input 4: Working Directory (Workspace)
+#### Input 2: Working Directory (Workspace)
 
 Ask: "What is the working directory path for migration workspace?"
 
@@ -204,20 +118,245 @@ Ask: "What is the working directory path for migration workspace?"
 
 **Store in variable:** `<working-dir>`
 
-**Note**: This is NOT where files will be created. The target repository path will be collected separately.
+**Note**: This is NOT where files will be created. The target repository path will be collected next.
 
-#### Input 5: Test Directory Name (conditional - monorepo strategy only)
+#### Input 3: Target Repository
+
+This input collects the target repository information and then **immediately switches** to it.
+
+**CRITICAL**: After this input, the working directory becomes the target repository. All subsequent inputs and operations happen in the target repository context.
+
+**For Monorepo Strategy:**
+
+Ask: "What is the path to your component repository (target repo) where OTE integration will be added?"
+
+- This is the repository where `cmd/extension/`, `test/e2e/`, etc. will be created
+- Can be absolute path: `/home/user/repos/router`
+- Can be relative path: `~/openshift/cloud-credential-operator`
+- Must be an existing directory
+- Should be a git repository (will be validated below)
+
+**User provides the path** and store in variable: `<target-repo-path>`
+
+**For Single-Module Strategy:**
+
+Ask: "Do you have a local clone of the target repository? If yes, provide the path (or press Enter to clone from URL):"
+
+- If provided: Use this existing local repository
+  - Can be absolute path: `/home/user/repos/sdn`
+  - Can be relative path: `../sdn`
+  - Can be current directory: `.`
+  - Store in variable: `<target-repo-path>`
+- If empty: Ask for Git URL (see Input 3b below)
+
+#### Input 3a: Target Repository URL (if no local target provided and single-module)
+
+**Skip this if monorepo strategy OR if single-module user provided local path.**
+
+**For single-module strategy only:**
+
+If no local target repository was provided in Input 3:
+
+Ask: "What is the Git URL of the target repository (component repository)?"
+
+- Example: `git@github.com:openshift/sdn.git`
+- Store in variable: `<target-repo-url>`
+
+#### Input 3b: Validate and Switch to Target Repository
+
+**For both strategies**, after collecting target repo information:
+
+**Step 1: Validate target repository**
+
+For monorepo or if single-module provided local path:
+```bash
+# Validate target repository exists
+if [ ! -d "$TARGET_REPO_PATH" ]; then
+    echo "❌ ERROR: Target repository does not exist at: $TARGET_REPO_PATH"
+    exit 1
+fi
+
+# Check if it's a git repository
+if [ -d "$TARGET_REPO_PATH/.git" ]; then
+    cd "$TARGET_REPO_PATH"
+
+    # Check git status
+    if ! git diff-index --quiet HEAD --; then
+        echo "⚠️  WARNING: Target repository has uncommitted changes"
+        echo "Please commit or stash changes before proceeding"
+        # Ask user if they want to continue anyway
+        read -p "Continue anyway? [y/N]: " CONTINUE
+        if [[ ! "$CONTINUE" =~ ^[Yy]$ ]]; then
+            exit 1
+        fi
+    fi
+
+    echo "✅ Target repository validated: $TARGET_REPO_PATH"
+else
+    echo "⚠️  WARNING: Target repository is not a git repository: $TARGET_REPO_PATH"
+    echo "Proceeding with migration..."
+fi
+```
+
+For single-module if URL provided (need to clone):
+```bash
+# Clone to workspace
+cd "$WORKING_DIR"
+mkdir -p repos
+git clone "$TARGET_REPO_URL" repos/target
+TARGET_REPO_PATH="$WORKING_DIR/repos/target"
+echo "✅ Target repository cloned to: $TARGET_REPO_PATH"
+```
+
+**Step 2: Switch working directory to target repository**
+
+**CRITICAL - This switch happens NOW, before extension name detection:**
+
+```bash
+cd "$TARGET_REPO_PATH"
+WORKING_DIR="$TARGET_REPO_PATH"
+
+echo ""
+echo "========================================="
+echo "Switched to target repository"
+echo "========================================="
+echo "Working directory is now: $WORKING_DIR"
+echo ""
+echo "All subsequent operations will happen in this directory."
+echo "Extension name will be auto-detected from this repository."
+echo "========================================="
+```
+
+**Store the final values:**
+- `<target-repo-path>` = absolute path to target repository
+- `<working-dir>` = same as `<target-repo-path>` (switched)
+
+**From this point forward, all operations use `$WORKING_DIR` which is now the target repository.**
+
+#### Input 4: Extension Name (Auto-Detection)
+
+**DO NOT ask the user for this - auto-detect it from the target repository.**
+
+Now that we're in the target repository, auto-detect the extension name from the repository:
+
+```bash
+# We're now in target repository ($WORKING_DIR)
+cd "$WORKING_DIR"
+
+# Try to detect from git remote first
+if [ -d ".git" ]; then
+    # Get the repository name from git remote
+    REMOTE_URL=$(git remote get-url origin 2>/dev/null || git remote get-url upstream 2>/dev/null || git remote -v | head -1 | awk '{print $2}')
+
+    if [ -n "$REMOTE_URL" ]; then
+        # Extract repo name from URL
+        # Handle both git@github.com:org/repo.git and https://github.com/org/repo formats
+        EXTENSION_NAME=$(echo "$REMOTE_URL" | sed 's/.*[:/]\([^/]*\)\/\([^/]*\)\.git$/\2/' | sed 's/.*\/\([^/]*\)$/\1/' | sed 's/\.git$//')
+        echo "Detected extension name from git remote: $EXTENSION_NAME"
+    else
+        # Fallback to directory name
+        EXTENSION_NAME=$(basename "$WORKING_DIR")
+        echo "Detected extension name from directory: $EXTENSION_NAME"
+    fi
+else
+    # Not a git repo, use directory name
+    EXTENSION_NAME=$(basename "$WORKING_DIR")
+    echo "Detected extension name from directory: $EXTENSION_NAME"
+fi
+
+# Validate the detected name
+if [ -z "$EXTENSION_NAME" ]; then
+    echo "❌ ERROR: Could not auto-detect extension name"
+    exit 1
+fi
+
+echo "Extension name: $EXTENSION_NAME"
+```
+
+**Store in variable:** `<extension-name>`
+
+**Examples:**
+- Target repo URL: `git@github.com:openshift/router.git` → Extension name: `router`
+- Target repo URL: `https://github.com/openshift/machine-config-operator` → Extension name: `machine-config-operator`
+- Target repo directory: `/home/user/repos/sdn` → Extension name: `sdn`
+
+**Important:** This name will be used for:
+- Binary name: `bin/<extension-name>-tests-ext`
+- Module paths in generated code
+- Test suite names: `openshift/<extension-name>/tests`
+
+#### Input 5: Sig Filter Tags
+
+**MUST ask the user explicitly - do NOT auto-detect or infer this.**
+
+Ask: "What are the sig tag(s) used in your test files for filtering? (comma-separated if multiple)"
+
+**What are sig filter tags:**
+
+Sig tags are used in test names like `[sig-router]` or `[sig-network-edge]` to categorize tests by component. The migration generates code that filters tests to include ONLY those matching your specified tags.
+
+**How to find your sig tags:**
+
+If you're unsure which sig tags your tests use, you can check the source repository:
+
+```bash
+# Find sig tags in your test files
+cd <source-repo-path>
+grep -r "g\.Describe" test/extended/<your-subfolder>/ --include="*.go" | grep -o '\[sig-[^]]*\]' | sort -u
+
+# Example output:
+# [sig-network-edge]
+# [sig-router]
+```
+
+**User provides:**
+- Single tag: `router` (will filter for `[sig-router]`)
+- Multiple tags: `router,network-edge` (will filter for `[sig-router]` OR `[sig-network-edge]`)
+- Tags are comma-separated with no spaces (or with spaces - we'll trim them)
+
+**Store in variable:** `<sig-filter-tags>`
+
+**Why this is critical:**
+
+The generated `main.go` file will use these tags to filter which tests are registered:
+
+```go
+// Filter to only include component-specific tests
+sigTags := strings.Split("<sig-filter-tags>", ",")
+var filteredSpecs []*et.ExtensionTestSpec
+allSpecs.Walk(func(spec *et.ExtensionTestSpec) {
+    for _, tag := range sigTags {
+        tag = strings.TrimSpace(tag)
+        if strings.Contains(spec.Name, "[sig-"+tag+"]") {
+            filteredSpecs = append(filteredSpecs, spec)
+            return
+        }
+    }
+})
+```
+
+**If tags don't match:**
+
+If the tags you provide don't match the actual tags in your test files, the binary will show 0 tests when you run `./bin/<extension-name>-tests-ext list` because no tests will pass the filter.
+
+**Examples:**
+- Router tests: `router`
+- Network edge tests: `network-edge`
+- Multiple components: `router,network-edge`
+
+#### Input 6: Test Directory Name (conditional - monorepo strategy only)
 
 **Skip this input if single-module strategy** - single-module uses `tests-extension/test/e2e`
 
 **For monorepo strategy only:**
 
-**Note**: This input is collected AFTER Input 9b (target repo validation) so we can check the target repository structure.
+**Note**: Since we're already in the target repository (switched in Input 3b), we can now check the repository structure.
 
 Check if the default test directory already exists:
 
 ```bash
-cd <target-repo-path>
+# We're already in target repository ($WORKING_DIR)
+cd "$WORKING_DIR"
 
 # Check if test/e2e already exists
 if [ -d "test/e2e" ]; then
@@ -226,7 +365,7 @@ if [ -d "test/e2e" ]; then
 else
     TEST_DIR_EXISTS=false
 fi
-```bash
+```
 
 **If test/e2e exists:**
 Ask: "The directory 'test/e2e' already exists. Please specify a subdirectory name under test/e2e/ (default: 'extension'):"
@@ -247,14 +386,14 @@ Ask: "The directory 'test/e2e' already exists. Please specify a subdirectory nam
 - If test/e2e exists and user accepts default: `test/e2e/extension/`
 - If test/e2e exists and user specifies "ote": `test/e2e/ote/`
 
-#### Input 6: Local Source Repository (Optional)
+#### Input 7: Local Source Repository (Optional)
 
 Ask: "Do you have a local clone of openshift-tests-private? If yes, provide the path (or press Enter to clone it):"
 - If provided: Use this existing local repository
 - If empty: Will clone `git@github.com:openshift/openshift-tests-private.git`
 - Example: `/home/user/repos/openshift-tests-private`
 
-#### Input 7: Update Local Source Repository (if local source provided)
+#### Input 8: Update Local Source Repository (if local source provided)
 
 If a local source repository path was provided:
 Ask: "Do you want to update the local source repository? (git fetch && git pull) [Y/n]:"
@@ -262,101 +401,20 @@ Ask: "Do you want to update the local source repository? (git fetch && git pull)
 - If yes: Run `git fetch && git pull` in the local repo
 - If no: Use current state
 
-#### Input 8: Source Test Subfolder
+#### Input 9: Source Test Subfolder
 
 Ask: "What is the test subfolder name under test/extended/?"
 - Example: "networking", "router", "storage", "templates"
 - This will be used as: `test/extended/<subfolder>/`
 - Leave empty to use all of `test/extended/`
 
-#### Input 9: Source Testdata Subfolder (Optional)
+#### Input 10: Source Testdata Subfolder (Optional)
 
 Ask: "What is the testdata subfolder name under test/extended/testdata/? (or press Enter to use same as test subfolder)"
-- Default: Same as Input 7 (test subfolder)
+- Default: Same as Input 9 (test subfolder)
 - Example: "networking", "router", etc.
 - This will be used as: `test/extended/testdata/<subfolder>/`
 - Enter "none" if no testdata exists
-
-#### Input 9a: Target Repository Path (monorepo only)
-
-**Skip this input if single-module strategy.**
-
-**For monorepo strategy only:**
-Ask: "What is the path to your component repository (target repo) where OTE integration will be added?"
-- This is the repository where `cmd/extension/`, `test/e2e/`, etc. will be created
-- Can be absolute path: `/home/user/repos/router`
-- Can be relative path: `~/openshift/cloud-credential-operator`
-- Example: `/home/user/repos/router`, `/home/user/openshift/sdn`
-
-**User provides the path:**
-- Must be an existing directory
-- Should be a git repository (will be validated in next input)
-
-**Store in variable:** `<target-repo-path>` (for monorepo)
-
-#### Input 9b: Validate Target Repository Git Status (monorepo only)
-
-**Skip this input if single-module strategy.**
-
-**For monorepo strategy only:**
-If the target repository path was provided in Input 9a:
-1. First, check if it's a git repository (has `.git` directory)
-2. If it IS a git repository, run `git status` and verify it's clean
-3. If there are uncommitted changes, ask user to commit or stash them first
-4. If it is NOT a git repository, show warning and continue
-
-#### Input 10: Local Target Repository (Optional - single-module only)
-
-**Skip this input if monorepo strategy** - target repo was already collected in Input 9a.
-
-**For single-module strategy only:**
-Ask: "Do you have a local clone of the target repository? If yes, provide the path (or press Enter to clone from URL):"
-- If provided: Use this existing local repository
-  - Can be absolute path: `/home/user/repos/sdn`
-  - Can be relative path: `../sdn`
-  - Can be current directory: `.`
-- If empty: Will ask for URL to clone (Input 10)
-- After providing a path, you will be asked in Input 11 if you want to update it
-
-#### Input 10b: Target Repository URL (if no local target provided and single-module)
-
-**Skip this input if monorepo strategy.**
-
-**For single-module strategy only:**
-If no local target repository was provided in Input 10:
-Ask: "What is the Git URL of the target repository (component repository)?"
-- Example: `git@github.com:openshift/sdn.git`
-- This is where the OTE integration will be added
-
-#### Input 11: Update Local Target Repository (if local target provided and single-module)
-
-**Skip this input if monorepo strategy.**
-
-**For single-module strategy only:**
-**IMPORTANT:** This input is REQUIRED when Input 9 provided a local path.
-
-If a local target repository path was provided in Input 9:
-1. First, check if the path is a git repository (has `.git` directory)
-2. If it IS a git repository, ask:
-   "Do you want to update the local target repository? (git fetch && git pull) [Y/n]:"
-   - Default: Yes
-   - User can answer: Y (yes) or N (no)
-3. If it is NOT a git repository, skip this question and show warning
-
-**Examples:**
-- User provided: `/home/user/repos/sdn` → Ask this question
-- User provided: `.` (current directory) → Ask this question if it's a git repo
-- User pressed Enter in Input 9 → Skip this question (will clone instead)
-
-**Action:**
-- If yes: Discover the remote and update
-  ```bash
-  cd <target-path>
-  TARGET_REMOTE=$(git remote -v | awk '{print $1}' | head -1)
-  git fetch "$TARGET_REMOTE"
-  git pull "$TARGET_REMOTE" "$(git branch --show-current)"
-```bash
-- If no: Use current state without updating
 
 **Display all collected inputs** for user confirmation:
 
@@ -451,54 +509,30 @@ This checkpoint prevents incomplete input collection that causes files to be cre
    fi
    ```
 
-4. **Verify working directory was provided:**
+4. **Verify target repository path was collected:**
    ```bash
-   if [ -z "$WORKING_DIR" ]; then
-       echo "❌ ERROR: Working directory not provided"
-       echo "Required: Specify working directory path"
+   if [ -z "$TARGET_REPO_PATH" ]; then
+       echo "❌ ERROR: Target repository path not collected"
+       echo "Required: Specify target repository (Input 3)"
+       echo "Example: /home/user/repos/router"
        exit 1
    fi
+
+   echo "✅ Target repository: $TARGET_REPO_PATH"
    ```
 
-**For monorepo strategy:**
-
-5. **Verify target repository path was collected:**
+5. **Verify we're in the target repository:**
    ```bash
-   if [ "$STRUCTURE_STRATEGY" = "monorepo" ]; then
-       if [ -z "$TARGET_REPO_PATH" ]; then
-           echo "❌ ERROR: Target repository path not provided for monorepo strategy"
-           echo "Required: Specify target repository path (Input 9a)"
-           echo "Example: /home/user/repos/router"
-           exit 1
-       fi
-
-       echo "✅ Target repository path provided: $TARGET_REPO_PATH"
+   # After Input 3b, WORKING_DIR should be same as TARGET_REPO_PATH
+   if [ "$WORKING_DIR" != "$TARGET_REPO_PATH" ]; then
+       echo "❌ ERROR: Working directory not switched to target repository"
+       echo "Current working directory: $WORKING_DIR"
+       echo "Expected (target repo): $TARGET_REPO_PATH"
+       echo "Required: Input 3b should have switched directory"
+       exit 1
    fi
-   ```
 
-**For single-module strategy:**
-
-6. **Verify target repository information was collected:**
-   ```bash
-   if [ "$STRUCTURE_STRATEGY" = "single-module" ]; then
-       if [ -z "$TARGET_REPO_PATH" ] && [ -z "$TARGET_REPO_URL" ]; then
-           echo "❌ ERROR: Target repository information missing for single-module strategy"
-           echo ""
-           echo "For single-module strategy, you must provide EITHER:"
-           echo "  1. Local target repository path (Input 10), OR"
-           echo "  2. Target repository Git URL (Input 10b)"
-           echo ""
-           echo "Without this, files will be created in the wrong location."
-           echo "Please restart migration and provide target repository information."
-           exit 1
-       fi
-
-       if [ -n "$TARGET_REPO_PATH" ]; then
-           echo "✅ Target repository path provided: $TARGET_REPO_PATH"
-       else
-           echo "✅ Target repository URL provided: $TARGET_REPO_URL"
-       fi
-   fi
+   echo "✅ Working directory switched to target repository: $WORKING_DIR"
    ```
 
 **Checkpoint Summary:**
@@ -508,22 +542,15 @@ echo ""
 echo "========================================="
 echo "Phase 1 Validation Complete"
 echo "========================================="
-echo "✅ Extension name: $EXTENSION_NAME"
-echo "✅ Sig filter tags: $SIG_FILTER_TAGS"
 echo "✅ Strategy: $STRUCTURE_STRATEGY"
-echo "✅ Working directory (workspace): $WORKING_DIR"
+echo "✅ Extension name: $EXTENSION_NAME (auto-detected from target repo)"
+echo "✅ Sig filter tags: $SIG_FILTER_TAGS"
+echo "✅ Target repository: $TARGET_REPO_PATH"
+echo "✅ Working directory: $WORKING_DIR (switched to target repo)"
 
-# Show target repository for both strategies
-if [ "$STRUCTURE_STRATEGY" = "monorepo" ]; then
-    echo "✅ Target repository: $TARGET_REPO_PATH"
-elif [ "$STRUCTURE_STRATEGY" = "single-module" ]; then
-    if [ -n "$TARGET_REPO_PATH" ]; then
-        echo "✅ Target repository: $TARGET_REPO_PATH (local)"
-    else
-        echo "✅ Target repository: $TARGET_REPO_URL (will clone)"
-    fi
-fi
-
+echo ""
+echo "NOTE: We are now in the target repository."
+echo "      All file creation operations will happen in: $WORKING_DIR"
 echo ""
 echo "All required inputs collected - proceeding to Phase 2"
 echo "========================================="
@@ -633,140 +660,9 @@ elif [ -z "<testdata-subfolder>" ]; then
 else
     SOURCE_TESTDATA_PATH="$SOURCE_REPO/test/extended/testdata/<testdata-subfolder>"
 fi
-```bash
-
-#### Step 2: Setup Target Repository
-
-**For Monorepo Strategy:**
-```bash
-# Use the target repository path from Input 9a
-TARGET_REPO="<target-repo-path>"
-echo "Using target repository at: $TARGET_REPO"
-
-# Validate target repository exists
-if [ ! -d "$TARGET_REPO" ]; then
-    echo "❌ ERROR: Target repository does not exist at: $TARGET_REPO"
-    exit 1
-fi
-
-# Extract module name from go.mod if it exists
-if [ -f "$TARGET_REPO/go.mod" ]; then
-    MODULE_NAME=$(grep '^module ' "$TARGET_REPO/go.mod" | awk '{print $2}')
-    echo "Found existing module: $MODULE_NAME"
-else
-    echo "Warning: No go.mod found in target repository"
-    echo "Will create test/go.mod for test dependencies"
-fi
-
-# Switch working directory to target repository for file creation
-echo "Switching working directory to target repository..."
-cd "$TARGET_REPO"
-WORKING_DIR="$TARGET_REPO"
-echo "Working directory is now: $WORKING_DIR"
-```bash
-
-**For Single-Module Strategy:**
-
-Two scenarios:
-
-**A) If user provided local target repository path:**
-```bash
-# Use the local repo path directly in subsequent steps
-TARGET_REPO="<local-target-path>"
-
-# Check if it's a git repository and update if user requested
-if [ -d "$TARGET_REPO/.git" ]; then
-    if [ "<update-target>" = "yes" ]; then
-        echo "Updating target repository at $TARGET_REPO..."
-        cd "$TARGET_REPO"
-
-        # Check current branch and checkout to main/master if needed
-        CURRENT_BRANCH=$(git branch --show-current)
-        if [ "$CURRENT_BRANCH" != "main" ] && [ "$CURRENT_BRANCH" != "master" ]; then
-            echo "Repository is currently on branch '$CURRENT_BRANCH'"
-
-            # Try to checkout main first, fall back to master
-            if git show-ref --verify --quiet refs/heads/main; then
-                echo "Checking out main branch..."
-                git checkout main
-                TARGET_BRANCH="main"
-            elif git show-ref --verify --quiet refs/heads/master; then
-                echo "Checking out master branch..."
-                git checkout master
-                TARGET_BRANCH="master"
-            else
-                echo "Error: Neither 'main' nor 'master' branch exists"
-                cd - > /dev/null
-                exit 1
-            fi
-        else
-            TARGET_BRANCH="$CURRENT_BRANCH"
-        fi
-
-        echo "On branch $TARGET_BRANCH, updating..."
-        # Discover remote name (don't assume 'origin')
-        TARGET_REMOTE=$(git remote -v | awk '{print $1}' | head -1)
-        if [ -z "$TARGET_REMOTE" ]; then
-            echo "Error: No git remote found"
-            cd - > /dev/null
-            exit 1
-        fi
-        git fetch "$TARGET_REMOTE"
-        git pull "$TARGET_REMOTE" "$TARGET_BRANCH"
-        echo "Target repository updated successfully"
-
-        cd - > /dev/null
-    else
-        echo "Using target repository at $TARGET_REPO (not updating)"
-    fi
-else
-    echo "Warning: $TARGET_REPO is not a git repository"
-fi
 ```
 
-**B) If no local target repository (need to clone):**
-```bash
-# Extract repository name from URL for remote detection
-TARGET_REPO_NAME=$(echo "<target-repo-url>" | sed 's/.*\/\([^/]*\)\.git/\1/' | sed 's/.*\/\([^/]*\)$/\1/')
-
-# Clone or update target repo
-if [ -d "repos/target" ]; then
-    cd repos/target
-    TARGET_REMOTE=$(git remote -v | grep "$TARGET_REPO_NAME" | head -1 | awk '{print $1}')
-
-    if [ -n "$TARGET_REMOTE" ]; then
-        echo "Updating target repository from remote: $TARGET_REMOTE"
-        git fetch "$TARGET_REMOTE"
-        git pull "$TARGET_REMOTE" master || git pull "$TARGET_REMOTE" main
-    else
-        echo "No remote found for target repository, adding upstream..."
-        TARGET_REMOTE="upstream"
-        git remote add "$TARGET_REMOTE" <target-repo-url>
-        git fetch "$TARGET_REMOTE"
-        git pull "$TARGET_REMOTE" master || git pull "$TARGET_REMOTE" main
-    fi
-    cd ../..
-    TARGET_REPO="repos/target"
-else
-    echo "Cloning target repository..."
-    git clone <target-repo-url> repos/target
-    TARGET_REPO="repos/target"
-fi
-```
-
-**After setting up target repository (both scenarios):**
-```bash
-# Switch working directory to target repository for file creation
-echo "Switching working directory to target repository..."
-cd "$TARGET_REPO"
-WORKING_DIR="$TARGET_REPO"
-echo "Working directory is now: $WORKING_DIR"
-
-# Now we'll create tests-extension/ in this directory
-echo "tests-extension/ will be created in: $WORKING_DIR/tests-extension/"
-```bash
-
-**Note:** In subsequent phases, use `$SOURCE_REPO` and `$TARGET_REPO` variables instead of hardcoded `repos/source` and `repos/target` paths.
+**Note:** Phase 2 only handles source repository setup. Target repository was already set up and switched to in Phase 1 (Input 3b). We are now in the target repository ($WORKING_DIR = $TARGET_REPO_PATH).
 
 ### Phase 3: Structure Creation (5 steps)
 

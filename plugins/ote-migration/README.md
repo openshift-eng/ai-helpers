@@ -14,14 +14,17 @@ Performs the complete OTE migration in one workflow.
 
 **What it does:**
 
-1. Auto-detects extension name - From repository name for infrastructure naming
-2. Collects sig filter tags - User provides sig tag(s) for test filtering
-3. Sets up repositories - Clones/updates source and target repositories
-4. Creates structure - Builds test/e2e and test/testdata directories
-5. Copies files - Moves test files and testdata to destinations
-6. Generates code - Creates go.mod, cmd/main.go, Makefile, fixtures.go with multi-tag filtering
-7. Migrates tests - Automatically replaces FixturePath() calls and updates imports
-8. Provides validation - Gives comprehensive next steps and validation guide
+1. Collects directory structure strategy - Monorepo or single-module
+2. Collects workspace directory - For migration operations
+3. Collects target repository - Then **immediately switches to it**
+4. Auto-detects extension name - From target repository (AFTER switching to it)
+5. Collects sig filter tags - User provides sig tag(s) for test filtering
+6. Sets up source repository - Clones/updates openshift-tests-private
+7. Creates structure - Builds test/e2e and test/testdata directories
+8. Copies files - Moves test files and testdata to destinations
+9. Generates code - Creates go.mod, cmd/main.go, Makefile, fixtures.go with multi-tag filtering
+10. Migrates tests - Automatically replaces FixturePath() calls and updates imports
+11. Provides validation - Gives comprehensive next steps and validation guide
 
 **Key Features:**
 
@@ -170,35 +173,40 @@ Run the migration command:
 
 The plugin will:
 
-1. **Auto-detect extension name** from repository name
-   - Used for binary name (`router-tests-ext`), module paths, directory structure
-   - Example: In ~/router directory → extension name: `router`
-
-2. **Prompt for sig filter tag(s)** to filter tests
-   - Enter single tag: `router` → filters for `[sig-router]`
-   - Enter multiple tags: `router,network-edge` → filters for `[sig-router]` OR `[sig-network-edge]`
-   - **Why this matters:** The generated binary uses these tags to filter which tests to include. If the tags don't match your test files, `./bin/<extension-name>-tests-ext list` will show 0 tests because the filtering logic won't find your tests
-
-3. **Directory structure strategy**
+1. **Directory structure strategy**
    - Monorepo (integrate into existing repo)
    - Single-module (isolated tests-extension/ directory)
 
-4. **Working directory (workspace)**
+2. **Working directory (workspace)**
    - For both strategies: Temporary workspace for migration operations
    - Used for cloning openshift-tests-private (if needed)
    - Example: `/home/user/workspace`, `/tmp/migration-workspace`
 
-5. **Test directory name** (monorepo only, if test/e2e exists)
+3. **Target repository** (where files will be created)
+   - For monorepo: Local path to component repository
+   - For single-module: Local path or Git URL of target repository
+   - **CRITICAL:** The migration immediately switches to this directory after collecting it
+
+4. **Auto-detect extension name** from target repository
+   - Detection happens AFTER switching to target repository
+   - Detects from git remote URL or directory name
+   - Used for binary name (`router-tests-ext`), module paths, directory structure
+   - Example: Target repo `git@github.com:openshift/router.git` → extension name: `router`
+
+5. **Prompt for sig filter tag(s)** to filter tests
+   - Enter single tag: `router` → filters for `[sig-router]`
+   - Enter multiple tags: `router,network-edge` → filters for `[sig-router]` OR `[sig-network-edge]`
+   - **Why this matters:** The generated binary uses these tags to filter which tests to include. If the tags don't match your test files, `./bin/<extension-name>-tests-ext list` will show 0 tests because the filtering logic won't find your tests
+
+6. **Test directory name** (monorepo only, if test/e2e exists)
    - Alternative name like `e2e-ote` or `ote-tests`
 
-6. **Source repository details:**
+7. **Source repository details:**
    - Local openshift-tests-private path (optional)
    - Test subfolder under test/extended/
    - Testdata subfolder under test/extended/testdata/
 
-7. **Target repository** (where files will be created)
-   - For monorepo: Local path to component repository
-   - For single-module: Local path or Git URL of target repository
+Then the migration proceeds with structure creation, file copying, code generation, and test migration.
 
 ## Workspace vs Target Repository
 
@@ -207,19 +215,21 @@ The migration uses a clear separation between workspace and target repository:
 **Workspace (Working Directory)**:
 - Temporary directory for migration operations
 - Used to clone/update `openshift-tests-private` (if needed)
-- Collected in Input 4 for both strategies
+- Collected in Input 2 for both strategies
 - Example: `/tmp/migration-workspace`, `/home/user/workspace`
 
 **Target Repository**:
 - The actual component repository where OTE files will be created
-- For **monorepo**: Collected in Input 9a (local path to component repo)
-- For **single-module**: Collected in Input 10/10b (local path or Git URL)
+- For **both strategies**: Collected in Input 3 (local path or Git URL)
 - Example: `/home/user/repos/router`, `/home/user/openshift/sdn`
 
 **Automatic Directory Switch**:
-- After repository setup (Phase 2), the working directory **automatically switches** to the target repository
-- All file creation (Phase 3+) happens in the target repository
-- This ensures files are never created in the temporary workspace
+- **IMMEDIATELY after Input 3** (before extension name detection), the working directory switches to the target repository
+- Extension name is auto-detected from the target repository (Input 4)
+- All subsequent inputs and file creation happen in the target repository
+- This ensures:
+  - Extension name is detected from the correct repository
+  - Files are never created in the temporary workspace
 
 ## Directory Structure Strategies
 
