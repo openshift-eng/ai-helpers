@@ -177,10 +177,11 @@ The plugin will:
    - Monorepo (integrate into existing repo)
    - Single-module (isolated tests-extension/ directory)
 
-2. **Working directory (workspace)**
-   - For both strategies: Temporary workspace for migration operations
-   - Used for cloning openshift-tests-private (if needed)
+2. **Workspace directory (temporary)**
+   - For both strategies: Temporary workspace for migration preparation
+   - Used ONLY for cloning openshift-tests-private (if needed)
    - Example: `/home/user/workspace`, `/tmp/migration-workspace`
+   - **Note**: The working directory will switch to the target repository in step 3
 
 3. **Target repository** (where files will be created)
    - For monorepo: Local path to component repository
@@ -212,11 +213,12 @@ Then the migration proceeds with structure creation, file copying, code generati
 
 The migration uses a clear separation between workspace and target repository:
 
-**Workspace (Working Directory)**:
-- Temporary directory for migration operations
-- Used to clone/update `openshift-tests-private` (if needed)
+**Workspace (Temporary)**:
+- Temporary directory for migration preparation
+- Used ONLY to clone/update `openshift-tests-private` (if needed)
 - Collected in Input 2 for both strategies
 - Example: `/tmp/migration-workspace`, `/home/user/workspace`
+- **Note**: This is NOT the final working directory
 
 **Target Repository**:
 - The actual component repository where OTE files will be created
@@ -224,12 +226,15 @@ The migration uses a clear separation between workspace and target repository:
 - Example: `/home/user/repos/router`, `/home/user/openshift/sdn`
 
 **Automatic Directory Switch**:
-- **IMMEDIATELY after Input 3** (before extension name detection), the working directory switches to the target repository
-- Extension name is auto-detected from the target repository (Input 4)
-- All subsequent inputs and file creation happen in the target repository
+- **IMMEDIATELY after Input 3** (before extension name detection), the working directory BECOMES the target repository
+- From this point forward, all operations happen in the target repository:
+  - Extension name is auto-detected from the target repository (Input 4)
+  - All remaining inputs collected in target repository context
+  - All OTE files created in target repository
 - This ensures:
   - Extension name is detected from the correct repository
   - Files are never created in the temporary workspace
+  - The workspace is only used for cloning openshift-tests-private
 
 ## Directory Structure Strategies
 
