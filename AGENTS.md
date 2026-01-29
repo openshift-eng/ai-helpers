@@ -352,7 +352,9 @@ This command checks main branch + all open PRs for similar commands, skills, sub
 - **Command files:** Use kebab-case: `analyze-test-failure.md`
 - **Skill directories:** Use kebab-case: `prow-job-analyze-resource/`
 - **Plugin names:** Use kebab-case: `prow-job`, `hello-world`
-- **Working directories:** Use `.work/{feature-name}/` for temporary files (already in .gitignore)
+- **Working directories:** Use `.work/{plugin-name}/{command-name}/` for command output and temporary files (already in .gitignore)
+  - Pattern: `.work/{plugin-name}/{command-name}/{identifier}/`
+  - See "File Creation Patterns" section for detailed guidance
 
 ## Common Patterns
 
@@ -399,18 +401,152 @@ Always check for required tools and provide installation instructions:
    - Installation guide: https://cloud.google.com/sdk/docs/install
 ```
 
-### Commands that Generate Reports
+### File Creation Patterns
 
-Use consistent output locations:
+Commands that create files should follow one of these standardized patterns based on their use case:
 
+#### Pattern 1: Commands that Generate Reports/Artifacts (Default Pattern)
+
+**Use case**: Analysis commands producing output files (HTML reports, JSON summaries, diagrams)
+
+**Pattern**: `.work/{plugin-name}/{command-name}/{identifier}/`
+
+**Example**:
 ```markdown
-## Output Format
-
-The command generates a report at:
-`.work/{command-name}/{identifier}/report.html`
-
-Example: `.work/prow-job-analyze-resource/1234567890/etcd-0.html`
+## Return Value
+- **Format**: HTML report with analysis results
+- **Location**: `.work/prow-job/analyze-resource/1234567890/report.html`
 ```
+
+**When to use**:
+- Commands generating analysis reports
+- Commands creating visualization artifacts
+- Commands downloading and processing external data
+- Any command producing output files for user review
+
+**Reference implementation**: `plugins/prow-job/skills/prow-job-analyze-resource/SKILL.md`
+
+#### Pattern 2: Commands with Cached Data
+
+**Use case**: Commands that download/cache external data for reuse
+
+**Pattern**: Check if `.work/{plugin}/{command}/{id}/` exists, ask user to reuse or re-download
+
+**Key behavior**:
+```markdown
+## Implementation
+1. Check if `.work/{plugin}/{command}/{id}/` exists
+2. If exists, use AskUserQuestion to prompt: "Cached data found. Reuse existing data or re-download?"
+3. If user chooses reuse, skip download and use cached files
+4. If user chooses re-download, download fresh data to same location
+```
+
+**When to use**:
+- Commands downloading large files (CI logs, cluster data)
+- Commands with expensive API calls
+- Commands where cached data remains valid
+
+**Reference implementation**: `plugins/prow-job/skills/prow-job-analyze-resource/SKILL.md` lines 94-108
+
+#### Pattern 3: Commands with User-Specified Output Paths
+
+**Use case**: User needs custom output locations (config files, YAML docs, scripts)
+
+**Pattern**: Accept user path argument OR default to `.work/{plugin}/{command}/output.{ext}`
+
+**Key behavior**:
+```markdown
+## Arguments
+- $1: Required input parameter
+- $2: (Optional) Output file path where the generated content will be written
+
+## Implementation
+1. Generate content based on $1
+2. If $2 provided: Write to specified path using Write tool
+3. If $2 omitted: Either write to `.work/{plugin}/{command}/output.{ext}` OR display to terminal
+```
+
+**When to use**:
+- Commands generating configuration files
+- Commands creating documentation
+- Commands where user may want files in specific repository locations
+
+**Reference implementations**:
+- `plugins/yaml/commands/docs.md` - Displays to terminal when no output path specified
+- `plugins/test-coverage/commands/gaps.md` - Writes to multiple format options
+
+#### Pattern 4: Commands that Modify Repository Files
+
+**Use case**: Files that must persist in repository root (session files, persistent logs)
+
+**Pattern**: `{prefix}-{timestamp}-{description}.{ext}` in repository root
+
+**Example**:
+```markdown
+## Return Value
+- **Format**: Markdown session file
+- **Location**: `session-2025-01-29-investigating-bug.md` (repository root)
+```
+
+**When to use**:
+- Session save/restore functionality
+- Persistent documentation that should be committed
+- Files that need to be part of repository history
+
+**Key characteristics**:
+- Include timestamp for uniqueness
+- Use descriptive names
+- Place in repository root or specified subdirectory
+- NOT temporary - intended to be committed
+
+**Reference implementation**: `plugins/session/commands/save-session.md`
+
+#### Pattern 5: Workspace and Configuration Directories
+
+**Use case**: Commands creating workspaces outside repository
+
+**Pattern**: Use configured workspace root, NOT `.work/`
+
+**When to use**:
+- Commands creating entire project workspaces
+- Commands managing external environments
+- Commands working with system-level configuration
+
+**Key characteristic**: These commands manage directories outside the current repository
+
+**Reference implementation**: `plugins/workspaces/commands/create.md`
+
+#### Quick Reference Table
+
+| Scenario | Pattern | Example Path | Display/File |
+|----------|---------|--------------|--------------|
+| Analysis report | Pattern 1 | `.work/prow-job/analyze-resource/123/report.html` | File |
+| Cached CI logs | Pattern 2 | `.work/prow-job/analyze-resource/123/logs/` | File (with reuse prompt) |
+| YAML documentation | Pattern 3 | `.work/yaml/docs/output.yaml` OR user-specified | File or terminal |
+| Session save | Pattern 4 | `session-2025-01-29-investigating.md` | File (repo root) |
+| External workspace | Pattern 5 | `~/workspaces/my-project/` | Directory (external) |
+
+#### Best Practices
+
+1. **Always use `.work/` for command output** (unless Pattern 4 or 5 applies)
+2. **Include unique identifiers** in paths (timestamps, IDs, names) to avoid collisions
+3. **Ask before overwriting** existing files - use AskUserQuestion
+4. **Document output location** explicitly in Return Value section
+5. **Show actual paths** in Examples section
+6. **Never use `/tmp/`** for command output generation (only for user input examples)
+7. **Preserve `.work/` in .gitignore** - output files should not be committed
+
+#### Validation Checklist
+
+When creating a new command or updating existing ones, verify:
+
+- [ ] Return Value section documents exact output location
+- [ ] Implementation section specifies which pattern is used
+- [ ] Examples show actual file paths, not placeholders
+- [ ] If generating files, uses appropriate pattern (1-5)
+- [ ] If caching data, implements reuse prompt (Pattern 2)
+- [ ] If accepting output path argument, documents default behavior (Pattern 3)
+- [ ] No usage of `/tmp/` for output generation
 
 ## Available Plugins
 
