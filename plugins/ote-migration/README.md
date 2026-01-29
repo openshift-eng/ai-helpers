@@ -327,7 +327,7 @@ Creates isolated `tests-extension/` directory with **single go.mod** in the targ
 
 ### Test Filtering in Generated main.go
 
-The generated `cmd/main.go` (or `cmd/extension/main.go` for monorepo) includes **component-specific test filtering** using the `[sig-<extension-name>]` tag. This ensures only your component's tests are registered with the OTE framework.
+The generated `cmd/main.go` (or `cmd/extension/main.go` for monorepo) includes **component-specific test filtering** using the sig tags you provide during migration (Input 5). This ensures only your component's tests are registered with the OTE framework.
 
   **Filter implementation:**
   ```go
@@ -355,16 +355,22 @@ The generated `cmd/main.go` (or `cmd/extension/main.go` for monorepo) includes *
 
   **Why this matters:**
 - Without this filter, you'd see **5,000+ upstream Kubernetes tests** in addition to your component tests
-- The filter ensures `./bin/<extension-name>-tests-ext list` shows only tests tagged with one of your specified sig tags (e.g., `[sig-router]` or `[sig-network-edge]`)
-- Tests must have at least one of your specified sig tags in their name to be included (OR logic for multiple tags)
+- The `sigTags` variable holds the comma-separated tags you provided during migration (e.g., `"router,network-edge"`)
+- The filter uses **OR logic**: tests matching ANY of your specified sig tags are included
+- Example: If you provided `router,network-edge`, tests with either `[sig-router]` OR `[sig-network-edge]` will be registered
 
   **Verification after migration:**
   ```bash
-  # Should show only component-specific tests with [sig-<extension-name>] tag
+  # Should show only tests matching your specified sig tags
   ./bin/<extension-name>-tests-ext list
 
-  # Count filtered tests
-  ./bin/<extension-name>-tests-ext list | grep -c "\[sig-<extension-name>\]"
+  # Count tests for each sig tag you provided
+  # Example: If you provided "router,network-edge"
+  ./bin/<extension-name>-tests-ext list | grep -c "\[sig-router\]"
+  ./bin/<extension-name>-tests-ext list | grep -c "\[sig-network-edge\]"
+
+  # Count all filtered tests (matching ANY of your sig tags)
+  ./bin/<extension-name>-tests-ext list | wc -l
   ```
 
 ### Test Tracking Annotations
