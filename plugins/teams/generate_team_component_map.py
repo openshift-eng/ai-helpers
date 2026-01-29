@@ -63,8 +63,8 @@ def download_org_data():
 
 
 def extract_team_component_mapping(org_data_path):
-    """Extract team-to-components mapping from org data."""
-    print("Parsing org data and extracting team-component mapping...", file=sys.stderr)
+    """Extract team-to-components mapping and team metadata from org data."""
+    print("Parsing org data and extracting team information...", file=sys.stderr)
 
     # Load org data
     try:
@@ -89,8 +89,8 @@ def extract_team_component_mapping(org_data_path):
         print("Error: No components found in org data", file=sys.stderr)
         sys.exit(1)
 
-    # Build team-to-components mapping
-    team_component_map = {}
+    # Build team information map
+    team_info_map = {}
 
     for team_name, team_data in teams.items():
         # Get component keys from team's component_list
@@ -116,34 +116,51 @@ def extract_team_component_mapping(org_data_path):
 
         # Only include teams with at least one OCPBUGS component
         if ocpbugs_components:
-            team_component_map[team_name] = ocpbugs_components
+            # Extract additional team information
+            team_info = {
+                "components": ocpbugs_components,
+                "description": team_data.get("description", ""),
+                "team_size": len(team_data.get("group", {}).get("resolved_people_uid_list", [])),
+                "repos": team_data.get("group", {}).get("repos", []),
+                "slack_channels": []
+            }
 
-    print(f"Extracted {len(team_component_map)} teams with OCPBUGS components", file=sys.stderr)
+            # Extract slack channels (only "forum" type, channel name only)
+            slack_channels = team_data.get("group", {}).get("slack", {}).get("channels", [])
+            for channel in slack_channels:
+                if channel.get("types")[0] == "forum":
+                    channel_name = channel.get("channel")
+                    if channel_name:
+                        team_info["slack_channels"].append(channel_name)
+
+            team_info_map[team_name] = team_info
+
+    print(f"Extracted {len(team_info_map)} teams with OCPBUGS components", file=sys.stderr)
 
     # Count total components
-    total_components = sum(len(comps) for comps in team_component_map.values())
+    total_components = sum(len(team["components"]) for team in team_info_map.values())
     print(f"Total OCPBUGS components across all teams: {total_components}", file=sys.stderr)
 
-    return team_component_map
+    return team_info_map
 
 
-def save_mapping(team_component_map):
-    """Save the mapping to the component-health plugin directory."""
-    # Get script directory (should be plugins/component-health/)
+def save_mapping(team_info_map):
+    """Save the team information to the teams plugin directory."""
+    # Get script directory (should be plugins/teams/)
     script_dir = Path(__file__).parent
     output_path = script_dir / "team_component_map.json"
 
-    print(f"Saving mapping to: {output_path}", file=sys.stderr)
+    print(f"Saving team information to: {output_path}", file=sys.stderr)
 
     # Create output with metadata
     output_data = {
         "metadata": {
-            "description": "Mapping of team names to their OCPBUGS components",
+            "description": "Team information including components, repos, and communication channels",
             "generated_by": "generate_team_component_map.py",
-            "total_teams": len(team_component_map),
-            "total_components": sum(len(comps) for comps in team_component_map.values())
+            "total_teams": len(team_info_map),
+            "total_components": sum(len(team["components"]) for team in team_info_map.values())
         },
-        "teams": team_component_map
+        "teams": team_info_map
     }
 
     # Write to file with pretty formatting
@@ -153,7 +170,7 @@ def save_mapping(team_component_map):
     # Set readable permissions
     os.chmod(output_path, 0o644)
 
-    print(f"Successfully saved mapping to {output_path}", file=sys.stderr)
+    print(f"Successfully saved team information to {output_path}", file=sys.stderr)
     return output_path
 
 

@@ -75,7 +75,13 @@ def extract_components(mapping_data, team_name=None):
                 )
                 sys.exit(1)
 
-            components = teams[team_name]
+            team_data = teams[team_name]
+            # Extract components from team object
+            if isinstance(team_data, dict):
+                components = team_data.get("components", [])
+            else:
+                # Fallback for old format (simple array)
+                components = team_data
 
             if not components:
                 print(
@@ -88,7 +94,13 @@ def extract_components(mapping_data, team_name=None):
 
         # If no team filter, return all unique components across all teams
         all_components = set()
-        for team_components in teams.values():
+        for team_data in teams.values():
+            # Extract components from team object
+            if isinstance(team_data, dict):
+                team_components = team_data.get("components", [])
+            else:
+                # Fallback for old format (simple array)
+                team_components = team_data
             all_components.update(team_components)
 
         if not all_components:

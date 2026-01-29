@@ -58,7 +58,13 @@ def get_team_components(team_name: str) -> list:
         available_teams = sorted(teams.keys())
         raise KeyError(f"Team '{team_name}' not found in mapping. Available teams: {', '.join(available_teams)}")
 
-    return teams[team_name]
+    # Extract components from team object
+    team_data = teams[team_name]
+    if isinstance(team_data, dict):
+        return team_data.get("components", [])
+    else:
+        # Fallback for old format (simple array)
+        return team_data
 
 
 def calculate_hours_between(start_timestamp: str, end_timestamp: str) -> int:

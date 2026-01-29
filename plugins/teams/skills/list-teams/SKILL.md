@@ -5,7 +5,7 @@ description: List all teams from the team component mapping
 
 # List Teams
 
-This skill provides functionality to list all team names from the team component mapping.
+This skill provides functionality to list all teams from the team component mapping, including rich metadata about each team (components, description, repos, team size, slack channels).
 
 ## When to Use This Skill
 
@@ -38,8 +38,32 @@ python3 plugins/teams/skills/list-teams/list_teams.py
 
 ### Step 2: Process the Output
 
-The script outputs JSON:
+The script outputs JSON in one of two formats:
 
+**New Format** (after regeneration with updated script):
+```json
+{
+  "total_teams": 29,
+  "teams": {
+    "API Server": {
+      "components": ["kube-apiserver", "openshift-apiserver", "..."],
+      "description": "Team responsible for API server components",
+      "team_size": 15,
+      "repos": ["openshift/origin", "openshift/kubernetes"],
+      "slack_channels": ["forum-apiserver"]
+    },
+    "Authentication": {
+      "components": ["oauth-apiserver", "..."],
+      "description": "...",
+      "team_size": 10,
+      "repos": ["..."],
+      "slack_channels": ["..."]
+    }
+  }
+}
+```
+
+**Old Format** (before regeneration):
 ```json
 {
   "total_teams": 29,
@@ -50,6 +74,18 @@ The script outputs JSON:
   ]
 }
 ```
+
+### Step 3: Display to User
+
+**Important**: When displaying results to the user via the `/teams:list-teams` command:
+- Show only a concise list of team names
+- Do NOT display the full team metadata unless the user specifically asks for it
+- Keep the output brief and scannable
+
+**For AI Agent Use**:
+- Full team metadata is available for answering follow-up questions
+- Can use components, repos, slack_channels to provide context
+- Can use team_size and description for additional insights
 
 ## Examples
 
@@ -67,11 +103,18 @@ python3 plugins/teams/skills/list-teams/list_teams.py | jq '.total_teams'
 
 ## Notes
 
-- Team names are extracted from the committed mapping file
+- Team data is extracted from the committed mapping file
 - Team names are case-sensitive
-- Teams are returned in alphabetical order
+- Teams are returned in alphabetical order by team name
 - Very fast execution (< 100ms)
 - Typical count: ~29 teams (teams with OCPBUGS components only)
+- Script automatically detects format (new vs old) and handles both
+- Rich metadata includes:
+  - **components**: List of OCPBUGS components owned by the team
+  - **description**: Team's purpose/responsibility
+  - **team_size**: Number of team members (count only, no personal info)
+  - **repos**: GitHub repositories the team owns
+  - **slack_channels**: Forum-type Slack channels (names only)
 
 ## Data Source
 

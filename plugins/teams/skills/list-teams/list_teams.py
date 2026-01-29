@@ -3,7 +3,8 @@
 """
 List all teams from the team component mapping.
 
-This script reads the team_component_map.json file and extracts all team names.
+This script reads the team_component_map.json file and returns team information
+including components, description, repos, team size, and slack channels.
 """
 
 import json
@@ -50,11 +51,17 @@ def read_mapping():
 
 
 def extract_teams(mapping_data):
-    """Extract team names from mapping data."""
-    try:
-        teams = mapping_data.get("teams", {})
+    """
+    Extract team information from mapping data.
 
-        if not teams:
+    Returns:
+        Dictionary mapping team names to team information objects, or
+        list of team names if old format detected.
+    """
+    try:
+        teams_data = mapping_data.get("teams", {})
+
+        if not teams_data:
             print(
                 "Error: No teams found in mapping file.\n"
                 "Expected structure: {teams: {...}}\n"
@@ -63,17 +70,23 @@ def extract_teams(mapping_data):
             )
             sys.exit(1)
 
-        # Get all team keys (team names) and sort them
-        team_list = sorted(teams.keys())
-
-        if not team_list:
+        if not teams_data:
             print(
                 "Warning: No teams found in mapping file.\n"
                 "This may indicate the mapping is empty or outdated.",
                 file=sys.stderr
             )
 
-        return team_list
+        # Check if we have new format (team objects) or old format (simple arrays)
+        first_team_data = next(iter(teams_data.values()), None)
+        is_new_format = isinstance(first_team_data, dict) and "components" in first_team_data
+
+        if is_new_format:
+            # Return full team data dictionary (sorted by team name)
+            return dict(sorted(teams_data.items()))
+        else:
+            # Old format: just return sorted team names for backwards compatibility
+            return sorted(teams_data.keys())
 
     except Exception as e:
         print(f"Error extracting teams: {e}", file=sys.stderr)
@@ -85,14 +98,22 @@ def main():
     # Read mapping
     mapping_data = read_mapping()
 
-    # Extract teams
-    teams = extract_teams(mapping_data)
+    # Extract teams (either dict of team objects or list of team names)
+    teams_data = extract_teams(mapping_data)
 
-    # Output JSON
-    output = {
-        "total_teams": len(teams),
-        "teams": teams
-    }
+    # Build output based on format
+    if isinstance(teams_data, dict):
+        # New format: teams_data is a dict mapping team names to team info objects
+        output = {
+            "total_teams": len(teams_data),
+            "teams": teams_data
+        }
+    else:
+        # Old format: teams_data is a list of team names
+        output = {
+            "total_teams": len(teams_data),
+            "teams": teams_data
+        }
 
     print(json.dumps(output, indent=2))
 

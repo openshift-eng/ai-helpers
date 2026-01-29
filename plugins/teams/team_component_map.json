@@ -1,174 +1,1523 @@
 {
   "metadata": {
-    "description": "Mapping of team names to their OCPBUGS components",
+    "description": "Team information including components, repos, and communication channels",
     "generated_by": "generate_team_component_map.py",
     "total_components": 98,
     "total_teams": 33
   },
   "teams": {
-    "API Server": [
-      "apiserver-auth",
-      "config-operator",
-      "kube-apiserver",
-      "kube-controller-manager",
-      "kube-storage-version-migrator",
-      "openshift-apiserver",
-      "openshift-controller-manager / apps",
-      "openshift-controller-manager / controller-manager",
-      "service-ca"
-    ],
-    "Authentication": [
-      "Auth",
-      "apiserver-auth",
-      "oauth-apiserver",
-      "oauth-proxy",
-      "oauth-server",
-      "service-ca"
-    ],
-    "Automated Release Tooling (ART)": [
-      "Cluster Version Operator",
-      "Release"
-    ],
-    "Autoscaling": [
-      "Cluster Autoscaler",
-      "autoscaling / cluster-resource-override-admission-operator",
-      "autoscaling / karpenter",
-      "autoscaling / pod-autoscaler"
-    ],
-    "Bare Metal Networking (On-Prem Networking)": [
-      "Machine Config Operator / platform-baremetal",
-      "Networking / On-Prem DNS",
-      "Networking / On-Prem Host Networking",
-      "Networking / On-Prem Load Balancer",
-      "Networking / kubernetes-nmstate",
-      "Networking / kubernetes-nmstate-operator",
-      "Networking / runtime-cfg"
-    ],
-    "CID": [
-      "Bugs for the oc-mirror plugin"
-    ],
-    "Cluster Infrastructure": [
-      "Cloud Compute / Cloud Controller Manager",
-      "Cloud Compute / Cluster API Providers",
-      "Cloud Compute / ControlPlaneMachineSet",
-      "Cloud Compute / IBM Provider",
-      "Cloud Compute / Libvirt Provider",
-      "Cloud Compute / Machine API Providers",
-      "Cloud Compute / Nutanix Provider",
-      "Cloud Credential Operator"
-    ],
-    "Collection": [
-      "Insights Operator"
-    ],
-    "Console": [
-      "Management Console"
-    ],
-    "Core Networking": [
-      "Networking / cloud-network-config-controller",
-      "Networking / cluster-network-operator",
-      "Networking / multus",
-      "Networking / network-tools",
-      "Networking / openshift-sdn",
-      "Networking / ovn-kubernetes"
-    ],
-    "CoreOS": [
-      "RHCOS"
-    ],
-    "Hive and Cloud Credential Operator team": [
-      "Hive"
-    ],
-    "Hypershift": [
-      "HyperShift"
-    ],
-    "Image Registry": [
-      "Image Registry",
-      "ImageStreams"
-    ],
-    "In-cluster Metrics": [
-      "Monitoring",
-      "Observability UI"
-    ],
-    "Metal Platform": [
-      "Bare Metal Hardware Provisioning / baremetal-operator",
-      "Bare Metal Hardware Provisioning / cluster-baremetal-operator",
-      "Bare Metal Hardware Provisioning / ironic"
-    ],
-    "Multi Architecture": [
-      "Multi-Arch",
-      "Multi-Arch / IBM P and Z",
-      "Multiarch Tuning Operator"
-    ],
-    "Network Ingress and DNS": [
-      "Networking / DNS",
-      "Networking / router"
-    ],
-    "Network Observability": [
-      "Networking / NetObs"
-    ],
-    "Node": [
-      "Driver Toolkit",
-      "Machine Config Operator",
-      "Node / CPU manager",
-      "Node / CRI-O",
-      "Node / Device Manage",
-      "Node / Kubelet",
-      "Node / Memory manager",
-      "Node / Numa aware Scheduling",
-      "Node / Pod resource API",
-      "Node / Topology manager"
-    ],
-    "OpenShift Agent Based Installer": [
-      "Installer / Agent based Installer",
-      "oc / node-image"
-    ],
-    "OpenShift BuildConfig": [
-      "Build"
-    ],
-    "OpenShift Builds": [
-      "Build"
-    ],
-    "OpenShift Installer": [
-      "Installer / openshift-installer"
-    ],
-    "OpenShift Jenkins": [
-      "Build"
-    ],
-    "Operator Lifecycle Management": [
-      "OLM",
-      "OLM / Registry"
-    ],
-    "Over the Air Updates (OTA)": [
-      "Cluster Version Operator",
-      "OpenShift Update Service / operand",
-      "OpenShift Update Service / operator",
-      "oc / update"
-    ],
-    "Shift on Stack": [
-      "Cloud Compute / OpenStack Provider",
-      "Installer / OpenShift on OpenStack",
-      "Networking / Kuryr",
-      "Storage / OpenStack CSI Drivers"
-    ],
-    "Storage": [
-      "Storage",
-      "Storage /  Local Storage Operator",
-      "Storage / Kubernetes",
-      "Storage / Kubernetes External Components",
-      "Storage / Operators"
-    ],
-    "Technical Release Team (TRT)": [
-      "Test Framework"
-    ],
-    "Windows Container": [
-      "windows-containers"
-    ],
-    "Workloads": [
-      "Samples Operator",
-      "kube-scheduler",
-      "oc"
-    ],
-    "etcd": [
-      "Etcd"
-    ]
+    "API Server": {
+      "components": [
+        "apiserver-auth",
+        "config-operator",
+        "kube-apiserver",
+        "kube-controller-manager",
+        "kube-storage-version-migrator",
+        "openshift-apiserver",
+        "openshift-controller-manager / apps",
+        "openshift-controller-manager / controller-manager",
+        "service-ca"
+      ],
+      "description": "OpenShift and Kube API Server, Service CA,",
+      "repos": [
+        {
+          "description": "Library for writing a Kubernetes-style API server.",
+          "repo_name": "https://github.com/openshift/kubernetes-apiserver"
+        },
+        {
+          "description": "Coming soon.  Do not import.",
+          "repo_name": "https://github.com/openshift/openshift-apiserver"
+        },
+        {
+          "description": "Resource API endpoints and WebhookTokenAuthenticator endpoints for the openshift/oauth-server",
+          "repo_name": "https://github.com/openshift/oauth-apiserver"
+        },
+        {
+          "repo_name": "https://github.com/openshift/kubernetes-kube-storage-version-migrator"
+        },
+        {
+          "description": "k/k dependent helpers for kube-apiserver and openshift-apiserver",
+          "repo_name": "https://github.com/openshift/apiserver-library-go"
+        }
+      ],
+      "slack_channels": [
+        "forum-ocp-apiserver"
+      ],
+      "team_size": 7
+    },
+    "Authentication": {
+      "components": [
+        "Auth",
+        "apiserver-auth",
+        "oauth-apiserver",
+        "oauth-proxy",
+        "oauth-server",
+        "service-ca"
+      ],
+      "description": "OpenShift Authentication, OAuth, Service CA, Authentication Operator",
+      "repos": [
+        {
+          "description": "Kubernetes RBAC authorizing HTTP proxy for a single upstream.",
+          "repo_name": "https://github.com/openshift/kube-rbac-proxy"
+        },
+        {
+          "description": "A reverse proxy that provides authentication with OpenShift via OAuth and Kubernetes service accounts",
+          "repo_name": "https://github.com/openshift/oauth-proxy"
+        },
+        {
+          "description": "Resource API endpoints and WebhookTokenAuthenticator endpoints for the openshift/oauth-server",
+          "repo_name": "https://github.com/openshift/oauth-apiserver"
+        },
+        {
+          "description": "Coming soon.  Do not import.",
+          "repo_name": "https://github.com/openshift/oauth-server"
+        },
+        {
+          "repo_name": "https://github.com/openshift/openldap"
+        },
+        {
+          "description": "Golang OAuth2 server library",
+          "repo_name": "https://github.com/openshift/osin"
+        },
+        {
+          "description": "Golang OAuth2 client library",
+          "repo_name": "https://github.com/openshift/osincli"
+        }
+      ],
+      "slack_channels": [
+        "forum-ocp-apiserver"
+      ],
+      "team_size": 6
+    },
+    "Automated Release Tooling (ART)": {
+      "components": [
+        "Cluster Version Operator",
+        "Release"
+      ],
+      "description": "The ART team manages OpenShift build and release processes, builds nightly releases, promotes nightly builds to Engineering/Release Candidates, creates z-stream releases for versions, and addresses build issues. Key responsibilities include evolving build automation, coordinating golang version bumps, migrating from legacy Brew/OSBS to Konflux build system, addressing CVEs, implementing hermetic builds, and providing support through the #forum-ocp-art Slack channel",
+      "repos": [
+        {
+          "description": "Backing for ART Jenkins jobs and pipelines",
+          "repo_name": "https://github.com/openshift-eng/aos-cd-jobs"
+        },
+        {
+          "description": "Bot for slack-based access to build and release information",
+          "repo_name": "https://github.com/openshift-eng/art-bot"
+        },
+        {
+          "description": "Automated Release Team tooling",
+          "repo_name": "https://github.com/openshift-eng/art-tools"
+        },
+        {
+          "description": "Configuration data used to build OCP images",
+          "repo_name": "https://github.com/openshift-eng/ocp-build-data"
+        },
+        {
+          "description": "Validation of ocp-build-data Image & RPM declarations",
+          "repo_name": "https://github.com/openshift-eng/ocp-build-data-validator"
+        },
+        {
+          "description": "React/NextJS Web dashboard for tracking and managing ART build and releases processes",
+          "repo_name": "https://github.com/openshift-eng/art-dashboard-ui"
+        },
+        {
+          "description": "Backend for dashboard to track and manage ART build and releases processes",
+          "repo_name": "https://github.com/openshift-eng/art-dashboard-server"
+        },
+        {
+          "description": "Automated Release Team documentation",
+          "repo_name": "https://github.com/openshift-eng/art-docs"
+        }
+      ],
+      "slack_channels": [
+        "forum-ocp-art",
+        "forum-ocp-release"
+      ],
+      "team_size": 24
+    },
+    "Autoscaling": {
+      "components": [
+        "Cluster Autoscaler",
+        "autoscaling / cluster-resource-override-admission-operator",
+        "autoscaling / karpenter",
+        "autoscaling / pod-autoscaler"
+      ],
+      "description": "Support and maintain pod and node autoscaling operators for OpenShift",
+      "repos": [
+        {
+          "description": "Horizontal Pod Autoscaler (HPA)",
+          "path": "pkg/controller/podautoscaler",
+          "repo_name": "https://github.com/openshift/kubernetes"
+        },
+        {
+          "description": "Vertical Pod Autoscaler (VPA)",
+          "path": "vertical-pod-autoscaler",
+          "repo_name": "https://github.com/openshift/kubernetes-autoscaler"
+        },
+        {
+          "description": "Manages deployments and configurations of the OpenShift Vertical Pod Autoscaler",
+          "repo_name": "https://github.com/openshift/vertical-pod-autoscaler-operator/"
+        },
+        {
+          "description": "Custom Metrics Autoscaler (CMA), downstream fork of kedacore/keda",
+          "repo_name": "https://github.com/openshift/kedacore-keda"
+        },
+        {
+          "description": "Operator for deploying KEDA (Kubernetes Event-driven Autoscaling) controller on OpenShift",
+          "repo_name": "https://github.com/openshift/custom-metrics-autoscaler-operator"
+        },
+        {
+          "description": "Cluster Resource Override (CRO)",
+          "repo_name": "https://github.com/openshift/cluster-resource-override-admission"
+        },
+        {
+          "description": "This operator manages OpenShift ClusterResourceOverride Admission Webhook Server.",
+          "repo_name": "https://github.com/openshift/cluster-resource-override-admission-operator/"
+        },
+        {
+          "description": "Research and proofs-of-concept",
+          "repo_name": "https://github.com/openshift/predictive-vpa-recommenders",
+          "tags": [
+            "okr-ignore"
+          ]
+        },
+        {
+          "description": "Cluster Autoscaler is a tool that automatically adjusts the size of the Kubernetes cluster",
+          "path": "cluster-autoscaler",
+          "repo_name": "https://github.com/openshift/kubernetes-autoscaler"
+        },
+        {
+          "description": "The cluster-autoscaler-operator manages deployments of the OpenShift Cluster Autoscaler using the cluster-api provider",
+          "repo_name": "https://github.com/openshift/cluster-autoscaler-operator"
+        },
+        {
+          "description": "Autoscaling-related components",
+          "repo_name": "https://github.com/openshift/kubernetes-autoscaler"
+        },
+        {
+          "description": "AWS provider for Karpenter",
+          "repo_name": "https://github.com/openshift/aws-karpenter-provider-aws"
+        },
+        {
+          "description": "Karpenter is a Kubernetes Node Autoscaler built for flexibility, performance, and simplicity.",
+          "repo_name": "https://github.com/openshift/kubernetes-sigs-karpenter"
+        }
+      ],
+      "slack_channels": [
+        "forum-ocp-autoscaling"
+      ],
+      "team_size": 8
+    },
+    "Bare Metal Networking (On-Prem Networking)": {
+      "components": [
+        "Machine Config Operator / platform-baremetal",
+        "Networking / On-Prem DNS",
+        "Networking / On-Prem Host Networking",
+        "Networking / On-Prem Load Balancer",
+        "Networking / kubernetes-nmstate",
+        "Networking / kubernetes-nmstate-operator",
+        "Networking / runtime-cfg"
+      ],
+      "description": "Description and Mission:  The On-Prem networking team is responsible for the networking components\nrequired to install, configure and administer OpenShift in on premise environments such as\nbare metal, VMWare, OpenShift Virtualization and OpenStack.  This team also owns the Kubernetes\nNMState Operator which is used to observe and update the node network state and network configuration.\nThis team also provides networking services not present in non-cloud environments (API and ingress\nload balancing, DNS, VIPs, etc)\n\nGoals:  Our goal is to deliver a consistent networking experience across public cloud and on-premise\nenvironments.\n\nChallenges:  Customer on-premise environments are extremely heterogeneous with many advanced\nfeatures (multi-NIC, NIC bonding, complex VLAN configuration, external load balancing, etc).\nDetermining what configurations are supportable and best-practices for configuring OpenShift on-prem\nnetworking in these environments is a major challenge.",
+      "repos": [
+        {
+          "description": "Runtime configuration renderer for OpenShift in platforms without Cloud DNSaaS",
+          "repo_name": "https://github.com/openshift/baremetal-runtimecfg"
+        },
+        {
+          "description": "Declarative node network configuration driven through Kubernetes API.",
+          "repo_name": "https://github.com/openshift/kubernetes-nmstate"
+        },
+        {
+          "description": "Declarative node network configuration driven through Kubernetes API.",
+          "repo_name": "https://github.com/nmstate/kubernetes-nmstate"
+        }
+      ],
+      "slack_channels": [
+        "forum-ocp-on-prem-networking"
+      ],
+      "team_size": 5
+    },
+    "CID": {
+      "components": [
+        "Bugs for the oc-mirror plugin"
+      ],
+      "description": "The team is the owner of oc-mirror, an OpenShift CLI plugin responsible to mirror container images needed to install and upgrade Openshift, Operators, Helm Charts and Individual Images on Disconnected environments.",
+      "repos": [
+        {
+          "description": "Lifecycle manager for internet-disconnected OpenShift environments",
+          "repo_name": "https://github.com/openshift/oc-mirror"
+        }
+      ],
+      "slack_channels": [
+        "forum-oc-mirror"
+      ],
+      "team_size": 6
+    },
+    "Cluster Infrastructure": {
+      "components": [
+        "Cloud Compute / Cloud Controller Manager",
+        "Cloud Compute / Cluster API Providers",
+        "Cloud Compute / ControlPlaneMachineSet",
+        "Cloud Compute / IBM Provider",
+        "Cloud Compute / Libvirt Provider",
+        "Cloud Compute / Machine API Providers",
+        "Cloud Compute / Nutanix Provider",
+        "Cloud Credential Operator"
+      ],
+      "description": "The OpenShift Cluster Infrastructure team is responsible for the foundational compute infrastructure\nand lifecycle management of OpenShift clusters across multiple cloud providers (AWS, Azure, GCP, vSphere, Nutanix, IBMCloud). The team owns and maintains the core APIs and operators\nthat enable declarative infrastructure provisioning, scaling, and management through both the Machine API\nand Cluster API frameworks.\n\nKey areas of responsibility include:\n- Cloud Controller Managers (CCM) for all supported cloud platforms\n- Machine API operators and cloud-specific providers for node lifecycle management\n- Cluster API operators and cloud-specific providers for modern infrastructure management\n- Control Plane Machine Set Operator (CPMSO) for HA control plane management\n- Machine Health Check for automated node remediation\n- Machine CSR Approver for automated certificate signing\n\nThis team ensures that OpenShift clusters can be deployed, scaled, and maintained reliably across\ndiverse infrastructure environments while providing consistent Kubernetes-native APIs for infrastructure management.",
+      "repos": [
+        {
+          "description": "AWS Cloud Controller Manager - Implements cloud provider interface for AWS,\nmanaging load balancers, node lifecycle, and cloud-specific resources in Kubernetes.\nPart of the shift from in-tree to external cloud providers.",
+          "repo_name": "https://github.com/openshift/cloud-provider-aws"
+        },
+        {
+          "description": "Azure Cloud Controller Manager - Implements cloud provider interface for Azure,\nmanaging Azure-specific resources like load balancers, storage, and node metadata.\nEnables seamless integration between Kubernetes and Azure infrastructure.",
+          "repo_name": "https://github.com/openshift/cloud-provider-azure"
+        },
+        {
+          "description": "Azure Service Operator (ASO) - Manages Azure resources (databases, caches, VNets, etc.)\nusing Kubernetes-native CRDs. Allows declarative Azure resource provisioning directly\nfrom Kubernetes manifests without leaving the cluster API.",
+          "repo_name": "https://github.com/openshift/azure-service-operator"
+        },
+        {
+          "description": "GCP Cloud Controller Manager - Implements cloud provider interface for Google Cloud Platform,\nmanaging GCP load balancers, persistent disks, and node topology. Handles cloud-specific\noperations for OpenShift clusters running on GCP.",
+          "repo_name": "https://github.com/openshift/cloud-provider-gcp"
+        },
+        {
+          "description": "IBM Cloud Controller Manager - Implements cloud provider interface for IBM Cloud,\nintegrating OpenShift with IBM Cloud infrastructure services including VPC networking\nand storage resources.",
+          "repo_name": "https://github.com/openshift/cloud-provider-ibm"
+        },
+        {
+          "description": "IBM Cloud VPC Load Balancer Controller - Specialized controller for managing IBM Cloud\nVPC load balancers, handling service type LoadBalancer resources in IBM Cloud environments.\nWorks in conjunction with the IBM Cloud Controller Manager.",
+          "repo_name": "https://github.com/openshift/cloud-provider-vpc-controller"
+        },
+        {
+          "description": "vSphere Cloud Controller Manager - Implements cloud provider interface for VMware vSphere,\nmanaging vSphere-specific resources, storage volumes, and virtual machine lifecycle\nfor OpenShift clusters running on vSphere infrastructure.",
+          "repo_name": "https://github.com/openshift/cloud-provider-vsphere"
+        },
+        {
+          "description": "Nutanix Cloud Controller Manager - Implements cloud provider interface for Nutanix AHV,\nintegrating OpenShift with Nutanix infrastructure for storage, networking, and compute resources.\nEnables OpenShift to leverage Nutanix platform capabilities.",
+          "repo_name": "https://github.com/openshift/cloud-provider-nutanix"
+        },
+        {
+          "description": "Cluster API Core - Upstream Kubernetes Cluster API bringing declarative, Kubernetes-style\nAPIs to cluster creation, configuration, and management. Provides the foundation for\ninfrastructure-as-code using custom resources like Cluster, Machine, and MachineDeployment.",
+          "repo_name": "https://github.com/openshift/cluster-api"
+        },
+        {
+          "description": "Cluster CAPI Operator - Manages the installation, configuration, and lifecycle of Cluster API\ncomponents on OpenShift clusters. Handles deployment of CAPI controllers and ensures proper\nintegration with OpenShift platform services.",
+          "repo_name": "https://github.com/openshift/cluster-capi-operator"
+        },
+        {
+          "description": "Cluster API Actuator Package - Shared end-to-end test framework and common utilities\nfor Cluster API and Machine API providers. Provides standardized testing infrastructure\nto ensure consistency and reliability across different cloud provider implementations.",
+          "repo_name": "https://github.com/openshift/cluster-api-actuator-pkg"
+        },
+        {
+          "description": "Cluster API Provider AWS (CAPA) - Implements Cluster API infrastructure provider for AWS,\nenabling declarative management of AWS resources (EC2, VPC, ELB, etc.) through Kubernetes CRDs.\nSupports both cluster provisioning and day-2 machine lifecycle operations.",
+          "repo_name": "https://github.com/openshift/cluster-api-provider-aws"
+        },
+        {
+          "description": "Cluster API Provider Azure (CAPZ) - Implements Cluster API infrastructure provider for Azure,\nmanaging Azure VMs, networking, and resource groups through Kubernetes-native APIs.\nProvides declarative infrastructure management for Azure-based OpenShift clusters.",
+          "repo_name": "https://github.com/openshift/cluster-api-provider-azure"
+        },
+        {
+          "description": "Cluster API Provider GCP (CAPG) - Implements Cluster API infrastructure provider for Google Cloud,\nmanaging GCP Compute Engine instances, VPCs, and cloud resources using declarative CRDs.\nHandles both initial provisioning and ongoing machine lifecycle management.",
+          "repo_name": "https://github.com/openshift/cluster-api-provider-gcp"
+        },
+        {
+          "description": "Cluster API Provider IBM Cloud (CAPIBM) - Implements Cluster API infrastructure provider for IBM Cloud,\nenabling declarative management of IBM Cloud VPC infrastructure, virtual servers, and networking\nthrough Kubernetes-native APIs.",
+          "repo_name": "https://github.com/openshift/cluster-api-provider-ibmcloud"
+        },
+        {
+          "description": "Cluster API Provider vSphere (CAPV) - Implements Cluster API infrastructure provider for VMware vSphere,\nmanaging virtual machines, storage, and networking in vSphere environments through Kubernetes CRDs.",
+          "repo_name": "https://github.com/openshift/cluster-api-provider-vsphere"
+        },
+        {
+          "description": "Machine API Operator (MAO) - Core operator managing the Machine API framework, including custom resource\ndefinitions (Machine, MachineSet, MachineDeployment), controllers, and RBAC. Orchestrates machine\nlifecycle and delegates cloud-specific operations to provider-specific actuators.",
+          "repo_name": "https://github.com/openshift/machine-api-operator"
+        },
+        {
+          "description": "Machine API Provider AWS - Implements Machine API actuator for AWS, translating Machine resources\ninto EC2 instances with proper networking, IAM, and security group configuration. Handles creation,\ndeletion, and status reporting of worker and control plane machines on AWS.",
+          "repo_name": "https://github.com/openshift/machine-api-provider-aws"
+        },
+        {
+          "description": "Machine API Provider Azure - Implements Machine API actuator for Azure, managing Azure VM lifecycle,\navailability sets, and managed disks based on Machine resource specifications. Integrates with\nAzure APIs for compute resource provisioning and deprovisioning.",
+          "repo_name": "https://github.com/openshift/machine-api-provider-azure"
+        },
+        {
+          "description": "Machine API Provider GCP - Implements Machine API actuator for Google Cloud Platform, creating and\nmanaging Compute Engine instances with appropriate machine types, disks, and networking based on\nMachine resource definitions. Handles GCP-specific configuration and lifecycle.",
+          "repo_name": "https://github.com/openshift/machine-api-provider-gcp"
+        },
+        {
+          "description": "Machine API Provider Nutanix - Implements Machine API actuator for Nutanix AHV platform, managing\nvirtual machine lifecycle on Nutanix infrastructure. Integrates with Nutanix Prism APIs for VM\nprovisioning, configuration, and cleanup operations.",
+          "repo_name": "https://github.com/openshift/machine-api-provider-nutanix"
+        },
+        {
+          "description": "Machine API Provider IBM Cloud - Implements Machine API actuator for IBM Cloud, managing virtual\nserver instances in IBM Cloud VPC environments. Handles VPC-specific networking, storage, and\ncompute provisioning through IBM Cloud APIs.",
+          "repo_name": "https://github.com/openshift/machine-api-provider-ibmcloud"
+        },
+        {
+          "description": "Cluster Cloud Controller Manager Operator (CCCMO) - Platform operator that manages the deployment,\nconfiguration, and lifecycle of cloud-specific Cloud Controller Managers. Ensures the appropriate\nCCM is deployed based on the underlying infrastructure platform and handles upgrades.",
+          "repo_name": "https://github.com/openshift/cluster-cloud-controller-manager-operator"
+        },
+        {
+          "description": "Cluster Control Plane Machine Set Operator (CPMSO) - Manages control plane machine lifecycle in\nhighly available OpenShift clusters. Enables declarative control plane scaling, automated recovery,\nand rolling updates of control plane machines across availability zones.",
+          "repo_name": "https://github.com/openshift/cluster-control-plane-machine-set-operator"
+        },
+        {
+          "description": "Cluster Machine Approver - Automatically validates and approves Certificate Signing Requests (CSRs)\nfrom nodes attempting to join the cluster. Performs security checks against Machine API and Cluster API\nresources to ensure only legitimate nodes receive certificates for cluster access.",
+          "repo_name": "https://github.com/openshift/cluster-machine-approver"
+        },
+        {
+          "description": "Infrastructure Provider Onboarding Guide - Comprehensive documentation and best practices for\nintegrating new infrastructure providers (cloud or on-premises) into OpenShift. Covers implementing\nMachine API actuators, Cluster API providers, and Cloud Controller Managers.",
+          "repo_name": "https://github.com/openshift/infrastructure-provider-onboarding-guide",
+          "tags": [
+            "okr-ignore"
+          ]
+        }
+      ],
+      "slack_channels": [
+        "forum-ocp-cloud",
+        "forum-cloud-alerts",
+        "forum-ocp-capi"
+      ],
+      "team_size": 11
+    },
+    "Collection": {
+      "components": [
+        "Insights Operator"
+      ],
+      "description": "Collection",
+      "repos": [
+        {
+          "description": "Insights Operator",
+          "repo_name": "https://github.com/openshift/insights-operator"
+        },
+        {
+          "description": "Deployment Validation Operator",
+          "repo_name": "https://github.com/app-sre/deployment-validation-operator"
+        }
+      ],
+      "slack_channels": [
+        "forum-observability-intelligence"
+      ],
+      "team_size": 5
+    },
+    "Console": {
+      "components": [
+        "Management Console"
+      ],
+      "description": "Console builds the OCP Console which is a friendly `kubectl` interface in the form of a single page webapp.  It also integrates with other services like monitoring, chargeback, and OLM.  In addition to the OCP Console webapp, the Console team provides a set of backend services to support the webapp and a Dynamic Plugins SDK, a set of libraries to support the creation of UI plugins which can be designed, developed, and released independently of the OCP team release cadence.",
+      "repos": [],
+      "slack_channels": [
+        "forum-ocp-console"
+      ],
+      "team_size": 12
+    },
+    "Core Networking": {
+      "components": [
+        "Networking / cloud-network-config-controller",
+        "Networking / cluster-network-operator",
+        "Networking / multus",
+        "Networking / network-tools",
+        "Networking / openshift-sdn",
+        "Networking / ovn-kubernetes"
+      ],
+      "description": "The OpenShift Core Networking team is dedicated to providing reliable, scalable, and high-performance connectivity for all OpenShift platforms and form factors. We are responsible for the core Kubernetes networking (SDN) layer, including routing, service connectivity, encapsulation, and network policy, as well as advanced networking features. A key part of our mission is ensuring seamless internal cluster communication and smooth integration with external provider networks through advanced mechanisms like BGP. Our work involves both maintaining the foundational components and developing enterprise-grade, real-world network features that satisfy diverse customer infrastructure requirements.",
+      "repos": [
+        {
+          "description": "Multus CNI is a container network interface (CNI) plugin for Kubernetes that enables attaching multiple network interfaces to pods. Typically, in Kubernetes each pod only has one network interface (apart from a loopback) -- with Multus you can create a multi-homed pod that has multiple interfaces. This is accomplished by Multus acting as a \"meta-plugin\", a CNI plugin that can call multiple other CNI plugins.",
+          "repo_name": "https://github.com/openshift/multus-cni"
+        },
+        {
+          "description": "An admission controller to check resources as defined by the Network Plumbing Working Group de-facto CRD specification upon their creation. This admission controller is aware of some of the aspects of what's required when you create NetworkAttachmentDefinition custom resources, and can report back to the user that those resources are well formatted, to improve their experience.",
+          "repo_name": "https://github.com/openshift/multus-admission-controller"
+        },
+        {
+          "description": "Kubernetes provides Network Policies for network security. Currently net-attach-def does not support Network Policies because net-attach-def is CRD, user defined resources, outside of Kubernetes. multi-network policy implements Network Policiy functionality for net-attach-def, by iptables and provies network security for net-attach-def networks.",
+          "repo_name": "https://github.com/openshift/multus-networkpolicy"
+        },
+        {
+          "description": "An IP Address Management (IPAM) CNI plugin that assigns IP addresses cluster-wide.",
+          "repo_name": "https://github.com/openshift/whereabouts-cni"
+        },
+        {
+          "description": "network-metrics-daemon is a daemon component that collects and publishes network related metrics",
+          "repo_name": "https://github.com/openshift/network-metrics-daemon"
+        },
+        {
+          "description": "CNI (Container Network Interface) consists of a specification and libraries for writing plugins to configure network interfaces in Linux and Windows containers, along with a number of supported plugins. CNI concerns itself only with network connectivity of containers and removing allocated resources when the container is deleted.",
+          "repo_name": "https://github.com/openshift/containernetworking-plugins"
+        },
+        {
+          "description": "route-override IPAM works as meta CNI plugin to override IP route given by previous CNI plugins.",
+          "repo_name": "https://github.com/openshift/route-override-cni"
+        },
+        {
+          "description": "OVN-Kubernetes (Open Virtual Networking - Kubernetes) is an open-source project that provides a robust networking solution for Kubernetes clusters with OVN (Open Virtual Networking) and Open vSwitch (Open Virtual Switch) at its core. It is a Kubernetes networking conformant plugin written according to the CNI (Container Network Interface) specifications.",
+          "repo_name": "https://github.com/ovn-kubernetes/ovn-kubernetes"
+        },
+        {
+          "description": "The CNCC is a controller/operator which interfaces with the cloud API endpoints to execute and perform the set up required on behalf of the user creating / updating / deleting the CRs this controller manages. The user in the OpenShift use-case are the network plugins (openshift-sdn / OVN-Kubernetes) which interface with this component using its CRDs.",
+          "repo_name": "https://github.com/openshift/cloud-network-config-controller"
+        },
+        {
+          "description": "The Cluster Network Operator installs and upgrades the networking components on an OpenShift Kubernetes cluster.",
+          "repo_name": "https://github.com/openshift/cluster-network-operator",
+          "roles": [
+            "qe",
+            "advisory"
+          ]
+        },
+        {
+          "description": "The egress-router plugin creates some sort of cluster-network-external network interface and assigns a user-provided static public IP address to it. It is designed for use by the OpenShift egress-router feature, but may have other uses as well.",
+          "repo_name": "https://github.com/openshift/egress-router-cni",
+          "roles": [
+            "qe",
+            "advisory"
+          ]
+        },
+        {
+          "description": "Ingress node firewall implements Kubernetes operator to provision stateless ingress node level firewall rules, stateless ingress node firewall implementation is done using eBPF XDP kernel plugin",
+          "repo_name": "https://github.com/openshift/ingress-node-firewall",
+          "roles": [
+            "qe",
+            "advisory"
+          ]
+        },
+        {
+          "description": "network-tools is a collection of tools for debugging OpenShift cluster network issues. It contains both debugging scripts (described in the next section) and useful tools to get information from the cluster. This repo is supposed to be used by network engineers and support to debug and diagnose issues. Customers can also be advised to use commands from this image to help get required information.",
+          "repo_name": "https://github.com/openshift/network-tools",
+          "roles": [
+            "qe",
+            "advisory"
+          ]
+        }
+      ],
+      "slack_channels": [
+        "forum-ocp-sdn"
+      ],
+      "team_size": 32
+    },
+    "CoreOS": {
+      "components": [
+        "RHCOS"
+      ],
+      "description": "Develop, build, and maintain Red Hat CoreOS for OpenShift",
+      "repos": [
+        {
+          "repo_name": "https://www.github.com/openshift/os"
+        },
+        {
+          "repo_name": "https://www.github.com/coreos/coreos-assembler",
+          "tags": [
+            "okr-ignore"
+          ]
+        },
+        {
+          "repo_name": "https://www.github.com/coreos/fedora-coreos-config",
+          "tags": [
+            "okr-ignore"
+          ]
+        },
+        {
+          "repo_name": "https://www.github.com/coreos/fedora-coreos-pipeline",
+          "tags": [
+            "okr-ignore"
+          ]
+        },
+        {
+          "repo_name": "https://gitlab.cee.redhat.com/coreos/redhat-coreos",
+          "tags": [
+            "okr-ignore"
+          ]
+        },
+        {
+          "repo_name": "https://gitlab.cee.redhat.com/coreos/rhcos-art-pipecfg",
+          "tags": [
+            "okr-ignore"
+          ]
+        }
+      ],
+      "slack_channels": [
+        "forum-rhel-coreos",
+        "dev-os-integration",
+        "dev-pipeline-delivery",
+        "dev-bootc-rpm-ostree"
+      ],
+      "team_size": 29
+    },
+    "Hive and Cloud Credential Operator team": {
+      "components": [
+        "Hive"
+      ],
+      "description": "Hive provides centralized, declarative management of multiple OpenShift clusters through a single control plane. CCO encompaces a legacy controller and command line based capability to create cloud credentials currently supporting passthough, mint, and token based authentication. Token based authentication utilizes mutating admission webhooks to automatically configure pod authentication.",
+      "repos": [
+        {
+          "description": "Hive automates OpenShift cluster creation and deletion via ClusterDeployment CRs using the OpenShift Installer, scales worker nodes through MachinePools/MachineSets with autoscaling and multi-AZ support, and pauses idle clusters for cost savings with fast restart through hibernation. It enables Day 2 operations (CRUD) on resources across managed clusters using SyncSets, accesses clusters on private networks via Private Link, and automates DNS zone delegation and validation through Managed DNS. Additionally, it maintains pre-provisioned clusters ready for immediate claim and use in Cluster Pools, syncs control plane certificates and ingress configs from hub to spokes, and provides HiveUtil as an internal CLI for cluster interaction and debugging.",
+          "repo_name": "https://github.com/openshift/hive"
+        },
+        {
+          "description": "Standard Operating Procedure Documents for OpenShift Hive",
+          "repo_name": "https://github.com/openshift/hive-sops"
+        },
+        {
+          "description": "Cloud Credential Operator",
+          "repo_name": "https://github.com/openshift/cloud-credential-operator"
+        },
+        {
+          "description": "Google Pod identity webhook is a Kubernetes mutating admission webhook that automatically configures pods to use IAM roles for service accounts.",
+          "repo_name": "https://github.com/openshift/gcp-workload-identity-federation-webhook"
+        },
+        {
+          "description": "The Amazon EKS Pod Identity Webhook is a Kubernetes mutating admission webhook that automatically configures pods to use IAM roles for service accounts",
+          "repo_name": "https://github.com/openshift/aws-pod-identity-webhook"
+        },
+        {
+          "description": "Azure Pod identity webhook is a Kubernetes mutating admission webhook that automatically configures pods to use IAM roles for service accounts",
+          "repo_name": "https://github.com/openshift/azure-workload-identity"
+        }
+      ],
+      "slack_channels": [
+        "forum-ocp-hive",
+        "forum-cloud-credential-operator"
+      ],
+      "team_size": 4
+    },
+    "Hypershift": {
+      "components": [
+        "HyperShift"
+      ],
+      "description": "HyperShift / Hosted Control Planes (guest clusters)",
+      "repos": [
+        {
+          "description": "Hyperscale OpenShift - clusters with hosted control planes",
+          "repo_name": "https://github.com/openshift/hypershift"
+        },
+        {
+          "description": "APIServer encryption provider, backed by AWS KMS",
+          "repo_name": "https://github.com/openshift/aws-encryption-provider"
+        },
+        {
+          "repo_name": "https://github.com/openshift/apiserver-network-proxy"
+        },
+        {
+          "repo_name": "https://github.com/openshift/azure-kubernetes-kms"
+        },
+        {
+          "description": "HyperShift's OADP plugin for back up and restore",
+          "repo_name": "https://github.com/openshift/hypershift-oadp-plugin"
+        }
+      ],
+      "slack_channels": [
+        "project-hypershift"
+      ],
+      "team_size": 17
+    },
+    "Image Registry": {
+      "components": [
+        "Image Registry",
+        "ImageStreams"
+      ],
+      "description": "OpenShift Internal Image Registry, Image Streams",
+      "repos": [
+        {
+          "description": "OpenShift cluster image registry",
+          "repo_name": "https://github.com/openshift/image-registry"
+        }
+      ],
+      "slack_channels": [
+        "forum-ocp-imageregistry"
+      ],
+      "team_size": 5
+    },
+    "In-cluster Metrics": {
+      "components": [
+        "Monitoring",
+        "Observability UI"
+      ],
+      "description": "",
+      "repos": [
+        {
+          "description": "Cluster Monitoring Operator to provide monitoring stacks on top of OpenShift",
+          "repo_name": "https://github.com/openshift/cluster-monitoring-operator"
+        },
+        {
+          "description": "Prometheus Alertmanager",
+          "repo_name": "https://github.com/openshift/prometheus-alertmanager"
+        },
+        {
+          "description": "Add-on agent to generate and expose cluster-level metrics.",
+          "repo_name": "https://github.com/openshift/kube-state-metrics"
+        },
+        {
+          "description": "Metrics server for Kubernetes autoscaling pipelines",
+          "repo_name": "https://github.com/openshift/kubernetes-metrics-server"
+        },
+        {
+          "description": "Exporter for machine metrics",
+          "repo_name": "https://github.com/openshift/node_exporter"
+        },
+        {
+          "description": "A proxy that enforces a given label in a given PromQL query",
+          "repo_name": "https://github.com/openshift/prom-label-proxy"
+        },
+        {
+          "description": "The Prometheus monitoring system and time series database",
+          "repo_name": "https://github.com/openshift/prometheus"
+        },
+        {
+          "description": "The Prometheus Operator to deploy and manage Prometheus and related monitoring components",
+          "repo_name": "https://github.com/openshift/prometheus-operator"
+        },
+        {
+          "description": "An implementation of the custom.metrics.k8s.io API using Prometheus",
+          "repo_name": "https://github.com/openshift/k8s-prometheus-adapter"
+        },
+        {
+          "description": "Highly available Prometheus setup with long term storage capabilities",
+          "repo_name": "https://github.com/openshift/thanos"
+        },
+        {
+          "description": "Cluster Observability Operator to create standalone Monitoring stacks",
+          "repo_name": "https://github.com/rhobs/observability-operator"
+        },
+        {
+          "description": "Cluster Observability Operator Konflux pipeline",
+          "repo_name": "https://github.com/rhobs/konflux-coo"
+        }
+      ],
+      "slack_channels": [
+        "forum-openshift-monitoring"
+      ],
+      "team_size": 12
+    },
+    "Metal Platform": {
+      "components": [
+        "Bare Metal Hardware Provisioning / baremetal-operator",
+        "Bare Metal Hardware Provisioning / cluster-baremetal-operator",
+        "Bare Metal Hardware Provisioning / ironic"
+      ],
+      "description": "Automated deployments and hardware management for bare-metal IPI, ZTP, as well as recently introduced\nBareMetal-as-a-Service. The team is working with the Metal\u00b3 and Ironic upstreams.\n\nThe main entry point of the Metal platform is the BareMetalHost CRD provided by BareMetal Operator.\nBareMetalHost API is used by OpenShift Installer, Machine and Cluster API and by assisted service\nas part of ZTP. It can also be used by customers directly as part of the BMaaS feature.\n\nIronic is used as a backend for all bare-metal features, but it is not directly exposed to customers.\n\nThis team is not responsible for bare-metal UPI or MetalLB.",
+      "repos": [
+        {
+          "description": "Install an OpenShift 4.x cluster",
+          "repo_name": "https://github.com/openshift/installer/tree/master/images/baremetal"
+        },
+        {
+          "description": "OpenShift fork of the container image for Ironic provided by Metal\u00b3.\n\nThis image provides entry points for Ironic and its auxiliary services:\nhttpd, dnsmasq, ironic-prometheus-exporter and ramdisk logs downloader.",
+          "repo_name": "https://github.com/openshift/ironic-image"
+        },
+        {
+          "description": "Container image for Ironic Python Agent.\n\nThis image provides a way to run Ironic Python Agent inside a CoreOS based ramdisk.\nIt also features an OpenShift-specific plug-in for Ironic Python Agent that\nintegrates with CoreOS Installer and Assisted Agent.",
+          "repo_name": "https://github.com/openshift/ironic-agent-image"
+        },
+        {
+          "description": "Sidecar container to download CoreOS for Ironic.\n\nThis container is no longer used for new installations.",
+          "repo_name": "https://github.com/openshift/ironic-rhcos-downloader"
+        },
+        {
+          "description": "OpenShift Machine API provider that integrates with Metal\u00b3.\n\nMachines are provided by selecting an available BareMetalHost resource and\ninstructing BareMetal Operator to provision it.",
+          "repo_name": "https://github.com/openshift/cluster-api-provider-baremetal"
+        },
+        {
+          "description": "Cluster API infrastructure provider that integrates with Metal\u00b3.\n\nMachines are provided by selecting an available BareMetalHost resource and\ninstructing BareMetal Operator to provision it.",
+          "repo_name": "https://github.com/openshift/cluster-api-provider-metal3"
+        },
+        {
+          "description": "OpenShift cluster operator that manages bare-metal resources.\n\nThis cluster operator is reponsible for installing and managing Metal\u00b3 and Ironic\nin an OpenShift cluster. The installation is controlled by a Provisioning CR.\n\nCluster BareMetal Operator is not the same as BareMetal Operator.",
+          "repo_name": "https://github.com/openshift/cluster-baremetal-operator"
+        },
+        {
+          "description": "OpenShift fork of Metal\u00b3 BareMetal Operator.\n\nBareMetal Operator is a controller for BareMetalHost and associated Kubernetes resources.\nBareMetalHost is the main API in Metal\u00b3 responsible for bare-metal enrollment,\ninspection, preparation, provisioning and deprovisioning.\nBareMetal Operator uses Ironic as the backend.",
+          "repo_name": "https://github.com/openshift/baremetal-operator"
+        },
+        {
+          "description": "OpenShift fork of Metal\u00b3 Ironic Standalone Operator.\n\nIronic Standalone Operator is a controller for Ironic resources.\nIt is responsible for provisioning and managing Ironic itself.\n\nThe plan is for Ironic Standalone Operator to replace parts of\nCluster BareMetal Operator in OpenShift 4.22.",
+          "repo_name": "https://github.com/openshift/ironic-standalone-operator"
+        },
+        {
+          "description": "Builds a container image containing the current Machine OS ISO",
+          "repo_name": "https://github.com/openshift/machine-os-images"
+        },
+        {
+          "description": "OpenShift specific controller for Metal\u00b3 PreprovisioningImage resources.\n\nThis controller is responsible for building CoreOS based ramdisks that launch\nIronic Python Agent on start-up. It also injects networking configuration\ninto the ramdisk.",
+          "repo_name": "https://github.com/openshift/image-customization-controller"
+        },
+        {
+          "description": "OpenShift fork of Sushy: Python client library for Redfish protocol.",
+          "repo_name": "https://github.com/openshift/openstack-sushy",
+          "tags": [
+            "mirrored-repo"
+          ]
+        },
+        {
+          "description": "OpenShift fork of Ironic: service for managing and provisioning Bare Metal servers.",
+          "repo_name": "https://github.com/openshift/openstack-ironic",
+          "tags": [
+            "mirrored-repo"
+          ]
+        },
+        {
+          "description": "OpenShift fork of ironic-lib: python library of common ironic utilities.\n\nThis library is no longer used by current versions of Ironic and OpenShift.",
+          "repo_name": "https://github.com/openshift/openstack-ironic-lib",
+          "tags": [
+            "mirrored-repo"
+          ]
+        },
+        {
+          "description": "OpenShift fork of Ironic Python Agent: in-ramdisk agent for Ironic.",
+          "repo_name": "https://github.com/openshift/openstack-ironic-python-agent",
+          "tags": [
+            "mirrored-repo"
+          ]
+        },
+        {
+          "description": "OpenShift fork of Ironic Inspector: hardware introspection daemon for OpenStack Ironic\n\nIronic Inspector is no longer used by recent versions of OpenShift.",
+          "repo_name": "https://github.com/openshift/openstack-ironic-inspector",
+          "tags": [
+            "mirrored-repo"
+          ]
+        },
+        {
+          "description": "Scripts to automate development/test setup for openshift integration with https://github.com/metal3-io/",
+          "repo_name": "https://github.com/openshift-metal3/dev-scripts"
+        },
+        {
+          "description": "Terraform provider for Ironic.\n\nThe provider is no longer used by recent versions of OpenShift.",
+          "repo_name": "https://github.com/openshift-metal3/terraform-provider-ironic"
+        }
+      ],
+      "slack_channels": [
+        "forum-ocp-ironic-images",
+        "forum-ocp-metal-platform"
+      ],
+      "team_size": 14
+    },
+    "Multi Architecture": {
+      "components": [
+        "Multi-Arch",
+        "Multi-Arch / IBM P and Z",
+        "Multiarch Tuning Operator"
+      ],
+      "description": "Improve and enable the use of OpenShift clusters with compute hosts from multiple architectures.",
+      "repos": [
+        {
+          "description": "Install an OpenShift 4.x cluster",
+          "repo_name": "https://github.com/openshift/installer",
+          "roles": [
+            "reviewer"
+          ]
+        },
+        {
+          "description": "Hyperscale OpenShift - clusters with hosted control planes",
+          "repo_name": "https://github.com/openshift/hypershift",
+          "roles": [
+            "reviewer"
+          ]
+        },
+        {
+          "description": "Multi-Arch Tuning Operator for OpenShift",
+          "repo_name": "https://github.com/openshift/multiarch-tuning-operator/",
+          "roles": [
+            "owner"
+          ]
+        }
+      ],
+      "slack_channels": [
+        "forum-ocp-multi-arch",
+        "forum-ocp-arm",
+        "forum-ocp-multi-arch-ci",
+        "forum-ocp-multiarch-tuning-operator"
+      ],
+      "team_size": 135
+    },
+    "Network Ingress and DNS": {
+      "components": [
+        "Networking / DNS",
+        "Networking / router"
+      ],
+      "description": "Provide the best solutions for network ingress and DNS in OpenShift, including HAProxy router, Gateway API, CoreDNS, AWS Load Balancer, and External DNS.",
+      "repos": [
+        {
+          "description": "A Kubernetes controller for Elastic Load Balancers",
+          "repo_name": "https://github.com/openshift/aws-load-balancer-controller"
+        },
+        {
+          "description": "The Cluster DNS Operator manages cluster DNS services for OpenShift",
+          "repo_name": "https://github.com/openshift/cluster-dns-operator"
+        },
+        {
+          "description": "The Cluster Ingress Operator manages cluster ingress services for OpenShift",
+          "repo_name": "https://github.com/openshift/cluster-ingress-operator"
+        },
+        {
+          "description": "CoreDNS is a DNS server that chains plugins",
+          "repo_name": "https://github.com/openshift/coredns"
+        },
+        {
+          "description": "CoreDNS plugin that updates the status of the DNSNameResolver custom resources with IP addresses of matching resolved DNS names",
+          "repo_name": "https://github.com/openshift/coredns-ocp-dnsnameresolver"
+        },
+        {
+          "description": "Configure external DNS servers (AWS Route53, Google CloudDNS and others) for Kubernetes Ingresses and Services",
+          "repo_name": "https://github.com/openshift/external-dns"
+        },
+        {
+          "description": "A guide on how to bring a new infrastructure provider to OpenShift Container Platform",
+          "repo_name": "https://github.com/openshift/infrastructure-provider-onboarding-guide"
+        },
+        {
+          "description": "OpenShift Images for ipfailover and egress",
+          "repo_name": "https://github.com/openshift/images"
+        },
+        {
+          "description": "Unsupported debug tools used by the Network Edge Team",
+          "repo_name": "https://github.com/openshift/network-edge-tools"
+        },
+        {
+          "description": "Ingress controller for OpenShift",
+          "repo_name": "https://github.com/openshift/router"
+        },
+        {
+          "description": "The route-controller-manager provides additional management of ingress and Route resources",
+          "repo_name": "https://github.com/openshift/route-controller-manager"
+        }
+      ],
+      "slack_channels": [
+        "forum-ocp-network-edge",
+        "forum-k8s-gateway-api"
+      ],
+      "team_size": 15
+    },
+    "Network Observability": {
+      "components": [
+        "Networking / NetObs"
+      ],
+      "description": "Description and Mission: The Network Observability team provides solutions to visualize\nand analyze network traffic flows in a Kubernetes or OpenShift cluster.  Network flows\nare captured using an eBPF agent and flows are enriched with Kubernetes metadata in a\npipeline which stores the flows in Loki and metrics in Prometheus for advanced query,\nfiltering and topology visualization.   Advanced functionality is provided in OpenShift\nfor observability of core networking features such as network policy, UDN and BGP.\n\nGoals: Our goal is to provide rich observability for general networking in a Kubernetes cluster.\nBeyond that we want to provide observability as a Day 0 experience for OpenShift networking and\nto provide observability for new OpenShift core networking features as they are delivered.\n\nChallenges: The fast-paced feature development in core networking often means that observability\nlags by one or more releases.  Our goal is to close this gap and deliver observability alongside\nthe core features.",
+      "repos": [
+        {
+          "description": "Network Observability plugin for the Openshift Console",
+          "repo_name": "https://github.com/netobserv/network-observability-console-plugin"
+        },
+        {
+          "description": "Transform flow logs into metrics",
+          "repo_name": "https://github.com/netobserv/flowlogs-pipeline"
+        },
+        {
+          "description": "Network Observability eBPF Agent",
+          "repo_name": "https://github.com/netobserv/netobserv-ebpf-agent"
+        },
+        {
+          "description": "Network Observability CLI Plugin",
+          "repo_name": "https://github.com/netobserv/network-observability-cli"
+        }
+      ],
+      "slack_channels": [
+        "forum-ocp-network-observability"
+      ],
+      "team_size": 12
+    },
+    "Node": {
+      "components": [
+        "Driver Toolkit",
+        "Machine Config Operator",
+        "Node / CPU manager",
+        "Node / CRI-O",
+        "Node / Device Manage",
+        "Node / Kubelet",
+        "Node / Memory manager",
+        "Node / Numa aware Scheduling",
+        "Node / Pod resource API",
+        "Node / Topology manager"
+      ],
+      "description": "sig-node, CRI-O, runc, crun",
+      "repos": [
+        {
+          "description": "A pod level OCI container runtime monitor written in rust",
+          "repo_name": "https://github.com/openshift/conmon-rs"
+        },
+        {
+          "description": "An OCI container runtime monitor.",
+          "repo_name": "https://github.com/containers/conmon"
+        },
+        {
+          "description": "A pod level OCI container runtime monitor written in rust",
+          "repo_name": "https://github.com/containers/conmon-rs"
+        },
+        {
+          "description": "About Open Container Initiative-based implementation of Kubernetes Container Runtime Interface",
+          "repo_name": "https://github.com/cri-o/cri-o"
+        },
+        {
+          "description": "This is the repo that tracks all patches to the OpenShift distribution of Kubernetes on branches corresponding to OpenShift releases.  See https://github.com/openshift/kubernetes/blob/master/README.openshift.md for more",
+          "repo_name": "https://github.com/kubernetes/kubernetes"
+        },
+        {
+          "description": "Analyzes resource usage and performance characteristics of running containers.",
+          "repo_name": "https://github.com/openshift/google-cadvisor"
+        }
+      ],
+      "slack_channels": [
+        "forum-ocp-node"
+      ],
+      "team_size": 21
+    },
+    "OpenShift Agent Based Installer": {
+      "components": [
+        "Installer / Agent based Installer",
+        "oc / node-image"
+      ],
+      "description": "OpenShift Agent Based Installation",
+      "repos": [
+        {
+          "description": "Agent Based Installation tools",
+          "repo_name": "https://github.com/openshift/agent-installer-utils",
+          "roles": [
+            "owner"
+          ]
+        },
+        {
+          "description": "Assisted Installer Agent",
+          "repo_name": "https://github.com/openshift/assisted-installer-agent",
+          "roles": [
+            "qe",
+            "reviewer"
+          ]
+        },
+        {
+          "description": "OpenShift Assisted Installer",
+          "repo_name": "https://github.com/openshift/assisted-installer",
+          "roles": [
+            "qe",
+            "reviewer"
+          ]
+        },
+        {
+          "description": "Assisted Service",
+          "repo_name": "https://github.com/openshift/assisted-service",
+          "roles": [
+            "qe",
+            "reviewer"
+          ]
+        },
+        {
+          "description": "Assisted Service - Agent Based Installer",
+          "path": "https://github.com/openshift/assisted-service/tree/master/cmd/agentbasedinstaller",
+          "repo_name": "https://github.com/openshift/assisted-service",
+          "roles": [
+            "owner"
+          ]
+        },
+        {
+          "description": "OpenShift Assisted Installer",
+          "repo_name": "https://github.com/openshift/assisted-installer",
+          "roles": [
+            "qe",
+            "reviewer"
+          ]
+        },
+        {
+          "description": "OpenShift Installer",
+          "repo_name": "https://github.com/openshift/installer",
+          "roles": [
+            "owner"
+          ]
+        }
+      ],
+      "slack_channels": [
+        "forum-ocp-agent"
+      ],
+      "team_size": 8
+    },
+    "OpenShift BuildConfig": {
+      "components": [
+        "Build"
+      ],
+      "description": "The OpenShift BuildConfig team is part of sustaining engineering team who now owns BuildConfigs module of OpenShift which is feature complete.Earlier this was owned by Openshift Builds team.",
+      "repos": [
+        {
+          "repo_name": "https://github.com/openshift/builder"
+        },
+        {
+          "description": "We own only openshift-controller-manager build controller code and functionality.\nBut not other controllers like service account, image reg etc.",
+          "repo_name": "https://github.com/openshift/openshift-controller-manager"
+        }
+      ],
+      "slack_channels": [
+        "forum-ocp-buildconfig"
+      ],
+      "team_size": 0
+    },
+    "OpenShift Builds": {
+      "components": [
+        "Build"
+      ],
+      "description": "The OpenShift Builds team owns BuildConfigs, s2i, Shared Resources, Shipwright, the Builds for OpenShift layered product, and Jenkins.",
+      "repos": [
+        {
+          "repo_name": "https://github.com/openshift/builder"
+        },
+        {
+          "repo_name": "https://github.com/openshift/csi-driver-shared-resource"
+        },
+        {
+          "repo_name": "https://github.com/openshift/jenkins",
+          "tags": [
+            "okr-ignore"
+          ]
+        },
+        {
+          "repo_name": "https://github.com/openshift/jenkins-client-plugin",
+          "tags": [
+            "okr-ignore"
+          ]
+        },
+        {
+          "repo_name": "https://github.com/openshift/jenkins-openshift-login-plugin",
+          "tags": [
+            "okr-ignore"
+          ]
+        },
+        {
+          "repo_name": "https://github.com/openshift/jenkins-plugin",
+          "tags": [
+            "okr-ignore"
+          ]
+        },
+        {
+          "repo_name": "https://github.com/openshift/jenkins-sync-plugin",
+          "tags": [
+            "okr-ignore"
+          ]
+        },
+        {
+          "repo_name": "https://github.com/openshift/openshift-controller-manager"
+        }
+      ],
+      "slack_channels": [
+        "forum-openshift-builds",
+        "forum-openshift-jenkins"
+      ],
+      "team_size": 12
+    },
+    "OpenShift Installer": {
+      "components": [
+        "Installer / openshift-installer"
+      ],
+      "description": "Managing Core Installation for OpenShift",
+      "repos": [],
+      "slack_channels": [
+        "forum-ocp-installer"
+      ],
+      "team_size": 14
+    },
+    "OpenShift Jenkins": {
+      "components": [
+        "Build"
+      ],
+      "description": "The OpenShift Jenkins team is part of sustaining engineering team who now owns Jenkins module of OpenShift which is feature complete. Earlier this was owned by Openshift Builds team.",
+      "repos": [
+        {
+          "repo_name": "https://github.com/openshift/jenkins",
+          "tags": [
+            "okr-ignore"
+          ]
+        },
+        {
+          "repo_name": "https://github.com/openshift/jenkins-client-plugin",
+          "tags": [
+            "okr-ignore"
+          ]
+        },
+        {
+          "repo_name": "https://github.com/openshift/jenkins-openshift-login-plugin",
+          "tags": [
+            "okr-ignore"
+          ]
+        },
+        {
+          "repo_name": "https://github.com/openshift/jenkins-sync-plugin",
+          "tags": [
+            "okr-ignore"
+          ]
+        }
+      ],
+      "slack_channels": [
+        "forum-openshift-jenkins"
+      ],
+      "team_size": 0
+    },
+    "Operator Lifecycle Management": {
+      "components": [
+        "OLM",
+        "OLM / Registry"
+      ],
+      "description": "Operator Lifecycle Manager (OLM) extends Kubernetes to provide a declarative way to install, manage,\nand upgrade Operators and their dependencies in a cluster. The team maintains the add-on operator\nmanagement infrastructure for OpenShift.\n\nOLMv0 includes the original on-cluster operator lifecycle manager, the Marketplace operator for\ncatalog management, and operator-registry/opm for off-cluster catalog generation and management\ntooling. Operators managed by OLMv0 can be installed from multiple catalog sources including\nRed Hat certified operators, community operators, and custom catalogs. For more information\nabout upstream OLMv0, see https://olm.operatorframework.io.\n\nOLMv1 represents the next generation of operator management with components like\ncluster-olm-operator (which manages installation and upgrade of OLMv1 within OpenShift), catalogd\nand operator-controller that provide improved architecture, performance, and flexibility for\nmanaging operators in Kubernetes environments. For more information about upstream OLMv1, see\nhttps://operator-framework.github.io/operator-controller.\n\nThe team plays a key role in defining and driving the overall layered product strategy within\nRed Hat. This includes close collaboration with the Konflux team and with all layered product\nteams through the Operator Framework Program and mailing list (operatorframework-pgm@redhat.com).\n\nThe team are core maintainers of the Operator Framework upstream community and maintains the\nstandards and tooling for operator packaging, distribution, and lifecycle management. The team\nalso collaborates frequently with upstream Kubernetes projects including\nsigs.k8s.io/controller-runtime, k8s.io/apimachinery, and sigs.k8s.io/crdify.",
+      "repos": [],
+      "slack_channels": [
+        "forum-ocp-operator-fw"
+      ],
+      "team_size": 17
+    },
+    "Over the Air Updates (OTA)": {
+      "components": [
+        "Cluster Version Operator",
+        "OpenShift Update Service / operand",
+        "OpenShift Update Service / operator",
+        "oc / update"
+      ],
+      "description": "The Over the Air Updates(OTA) team is responsible for the entire OpenShift cluster update ecosystem, managing how OpenShift clusters discover, validate, and apply updates across all supported versions and channels. The team's primary functions include managing the update service with cincinnati, managing the upgrade graph curation with cincinnati-graph-data, track success/failure rates across the global OpenShift fleet, respond to update-related service disruptions and upgrade blockers.",
+      "repos": [
+        {
+          "description": "An update protocol system designed for OpenShift cluster lifecycle management. It uses a sophisticated directed acyclic graph (DAG) based approach for managing software updates. The architecture is composed of Graph Builder and Policy Engine, where Graph Builder constructs DAG from release metadata, ensures acyclic properties and Policy Engine applies filtering logic and policies to update graphs.",
+          "repo_name": "https://github.com/openshift/cincinnati"
+        },
+        {
+          "description": "Cincinnati Graph Data is the configuration repository for OpenShift's update management system. It defines which OpenShift releases are available through different update channels and specifies restrictions on update paths between releases. The core functions include validing upgrade paths between OpenShift releases, managing candidate \u2192 fast \u2192 stable release promotions, blocking problematic updates through conditional or absolute restrictions, providing additional metadata for older releases.",
+          "repo_name": "https://github.com/openshift/cincinnati-graph-data"
+        },
+        {
+          "description": "A core OpenShift component that manages cluster upgrades by reconciling release payload images containing core resources and cluster operators. It implements systematic rollout of cluster operator updates, manages ClusterVersion custom resource with upgrade status and conditions, queries Cincinnati update service for available upgrade paths, validates and applies Kubernetes manifests in dependency order.",
+          "repo_name": "https://github.com/openshift/cluster-version-operator"
+        },
+        {
+          "description": "An operator that manages OpenShift Update Service (Cincinnati) lifecycle.",
+          "repo_name": "https://github.com/openshift/cincinnati-operator"
+        }
+      ],
+      "slack_channels": [
+        "forum-ocp-updates",
+        "osus-graph-data-automation"
+      ],
+      "team_size": 9
+    },
+    "Shift on Stack": {
+      "components": [
+        "Cloud Compute / OpenStack Provider",
+        "Installer / OpenShift on OpenStack",
+        "Networking / Kuryr",
+        "Storage / OpenStack CSI Drivers"
+      ],
+      "description": "The Shift on Stack team develops the integration between OpenShift and OpenStack.",
+      "repos": [
+        {
+          "repo_name": "https://github.com/openshift/cloud-provider-openstack"
+        },
+        {
+          "repo_name": "https://github.com/openshift/cluster-api-provider-openstack"
+        },
+        {
+          "repo_name": "https://github.com/openshift/csi-driver-nfs"
+        },
+        {
+          "description": "An OpenStack Implementation of Machine API using upstream cluster-api-provider-openstack functions as a backend",
+          "repo_name": "https://github.com/openshift/machine-api-provider-openstack"
+        },
+        {
+          "description": "A set of Kubernetes controllers to manage your OpenStack infrastructure",
+          "repo_name": "https://github.com/openshift/openstack-resource-controller"
+        },
+        {
+          "description": "OpenStack-specific tests for OpenShift",
+          "repo_name": "https://github.com/openshift/openstack-test"
+        },
+        {
+          "description": "kuryr-kubernetes - CNI plugin using OpenStack Neutron and Octavia to provide networking for pods and services.",
+          "repo_name": "https://github.com/openshift/kuryr-kubernetes"
+        }
+      ],
+      "slack_channels": [
+        "forum-ocp-openstack",
+        "forum-ocp-kuryr",
+        "shiftstack-bot",
+        "openstack-test"
+      ],
+      "team_size": 10
+    },
+    "Storage": {
+      "components": [
+        "Storage",
+        "Storage /  Local Storage Operator",
+        "Storage / Kubernetes",
+        "Storage / Kubernetes External Components",
+        "Storage / Operators"
+      ],
+      "description": "OCP Storage team is responsible for development and maintenance of the internal\nOpenShift and Kuberentes storage APIs, built-in volume plugins, CSI drivers and\nall the CSI sidecars shipped in the core OpenShift payloads and some additonal\nOLM managed CSI drivers and operators: AWS EFS, Samba, GCP Filestore and Local\nStorage Operator.\n\nThe team does not maintain or develop any ODF related CSI drivers or operators,\nOpenStack CSI drivers or KubeVirt CSI driver and operator.",
+      "repos": [
+        {
+          "description": "CSI driver for AWS EBS https://aws.amazon.com/ebs/",
+          "repo_name": "https://github.com/openshift/aws-ebs-csi-driver"
+        },
+        {
+          "description": "CSI Driver for Amazon EFS https://aws.amazon.com/efs/",
+          "repo_name": "https://github.com/openshift/aws-efs-csi-driver"
+        },
+        {
+          "description": "Utilities for Amazon Elastic File System (EFS)",
+          "repo_name": "https://github.com/openshift/aws-efs-utils"
+        },
+        {
+          "description": "Azure Disk Container Storage Interface (CSI) Storage Plugin",
+          "repo_name": "https://github.com/openshift/azure-disk-csi-driver"
+        },
+        {
+          "description": "Azure File CSI Driver",
+          "repo_name": "https://github.com/openshift/azure-file-csi-driver"
+        },
+        {
+          "description": "Sidecar container that registers the CSI driver with the Kubernetes cluster",
+          "repo_name": "https://github.com/openshift/csi-cluster-driver-registrar"
+        },
+        {
+          "description": "Sidecar container that 1) registers the CSI driver with kubelet, and 2) adds the drivers custom NodeId to a label on the Kubernetes Node API Object",
+          "repo_name": "https://github.com/openshift/csi-driver-registrar"
+        },
+        {
+          "description": "Sidecar container that watches Kubernetes VolumeAttachment objects and triggers ControllerPublish/Unpublish against a CSI endpoint",
+          "repo_name": "https://github.com/openshift/csi-external-attacher"
+        },
+        {
+          "description": "Sidecar container that watches Kubernetes PersistentVolumeClaim objects and triggers CreateVolume/DeleteVolume against a CSI endpoint",
+          "repo_name": "https://github.com/openshift/csi-external-provisioner"
+        },
+        {
+          "description": "Sidecar container that watches Kubernetes PersistentVolumeClaims objects and triggers controller side expansion operation against a CSI endpoint",
+          "repo_name": "https://github.com/openshift/csi-external-resizer"
+        },
+        {
+          "description": "Sidecar container that watches Kubernetes Snapshot CRD objects and triggers CreateSnapshot/DeleteSnapshot against a CSI endpoint.",
+          "repo_name": "https://github.com/openshift/csi-external-snapshotter"
+        },
+        {
+          "description": "A sidecar container that can be included in a CSI plugin pod to enable integration with Kubernetes Liveness Probe.",
+          "repo_name": "https://github.com/openshift/csi-livenessprobe"
+        },
+        {
+          "description": "Sidecar container that registers a CSI driver with the kubelet using the kubelet plugin registration mechanism.",
+          "repo_name": "https://github.com/openshift/csi-node-driver-registrar"
+        },
+        {
+          "description": "The Google Compute Engine Filestore Container Storage Interface (CSI) Storage Plugin.",
+          "repo_name": "https://github.com/openshift/gcp-filestore-csi-driver"
+        },
+        {
+          "description": "The Google Compute Engine Persistent Disk (GCE PD) Container Storage Interface (CSI) Storage Plugin.",
+          "repo_name": "https://github.com/openshift/gcp-pd-csi-driver"
+        },
+        {
+          "description": "Static provisioner of local volumes",
+          "repo_name": "https://github.com/openshift/sig-storage-local-static-provisioner"
+        },
+        {
+          "description": "vSphere storage Container Storage Interface (CSI) plugin",
+          "repo_name": "https://github.com/openshift/vmware-vsphere-csi-driver"
+        },
+        {
+          "description": "OpenShift operator that monitors & reports issues with vSphere cluster",
+          "repo_name": "https://github.com/openshift/vsphere-problem-detector"
+        },
+        {
+          "description": "The CSI driver is owned by Alibaba, however, storage team maintains this OpenShift fork and cherry-picks bugfixes made by Alibaba and does regular rebases.",
+          "repo_name": "https://github.com/openshift/alibaba-cloud-csi-driver",
+          "roles": [
+            "owner"
+          ]
+        },
+        {
+          "description": "The CSI driver is owned by IBM, however, storage team maintains this OpenShift fork and cherry-picks bugfixes made by IBM and does regular rebases.",
+          "repo_name": "https://github.com/openshift/ibm-vpc-block-csi-driver",
+          "roles": [
+            "owner"
+          ]
+        },
+        {
+          "description": "The label updater is owned by IBM, however, storage team maintains this OpenShift fork and cherry-picks bugfixes made by IBM and does regular rebases.",
+          "repo_name": "https://github.com/openshift/ibm-vpc-node-label-updater",
+          "roles": [
+            "owner"
+          ]
+        },
+        {
+          "description": "The CIFS/SMB CSI Driver.",
+          "repo_name": "https://github.com/openshift/csi-driver-smb",
+          "roles": [
+            "owner"
+          ]
+        },
+        {
+          "description": "Base image with azcopy tool, which is a command-line utility that can be used to copy data to and from containers and file shares in Azure Storage accounts.",
+          "repo_name": "https://github.com/openshift/azure-storage-azcopy",
+          "roles": [
+            "owner"
+          ]
+        },
+        {
+          "description": "Controller responsible for validating PVC data sources",
+          "repo_name": "https://github.com/openshift/volume-data-source-validator",
+          "roles": [
+            "owner"
+          ]
+        },
+        {
+          "description": "This repo contains sidecar controller for the snapshot metadata service.",
+          "repo_name": "https://github.com/openshift/csi-external-snapshot-metadata",
+          "roles": [
+            "owner"
+          ]
+        }
+      ],
+      "slack_channels": [
+        "forum-ocp-storage"
+      ],
+      "team_size": 13
+    },
+    "Technical Release Team (TRT)": {
+      "components": [
+        "Test Framework"
+      ],
+      "description": "Technical release oversight",
+      "repos": [
+        {
+          "description": "Conformance test suite for OpenShift",
+          "repo_name": "https://github.com/openshift/origin"
+        },
+        {
+          "description": "Release tooling for OpenShift",
+          "repo_name": "https://github.com/openshift/release"
+        },
+        {
+          "description": "CI Private Investigator and Component Readiness",
+          "repo_name": "https://github.com/openshift/sippy"
+        },
+        {
+          "description": "Configs for CR Jobs and the DPCR Cluster",
+          "repo_name": "https://github.com/openshift/continuous-release-jobs"
+        },
+        {
+          "description": "Status and Availability Dashboard for SHIP components",
+          "repo_name": "https://github.com/openshift-eng/ship-status-dash"
+        },
+        {
+          "description": "Component Readiness Test Mapping",
+          "repo_name": "https://github.com/openshift-eng/ci-test-mapping"
+        },
+        {
+          "description": "SHIP's AI help bot",
+          "repo_name": "https://github.com/openshift-eng/ship-help"
+        },
+        {
+          "description": "OpenShift tests extension",
+          "repo_name": "https://github.com/openshift-eng/openshift-tests-extension"
+        },
+        {
+          "description": "Cloud Functions for processing CI data",
+          "repo_name": "https://github.com/openshift-eng/ci-cloud-functions"
+        }
+      ],
+      "slack_channels": [
+        "forum-ocp-release-oversight"
+      ],
+      "team_size": 11
+    },
+    "Windows Container": {
+      "components": [
+        "windows-containers"
+      ],
+      "description": "Support and maintain the Windows Machine Config Operator (WMCO) to enable Windows Server workloads on OpenShift.",
+      "repos": [
+        {
+          "description": "An open and reliable container runtime",
+          "repo_name": "https://github.com/openshift/containerd",
+          "tags": [
+            "mirrored-repo"
+          ]
+        },
+        {
+          "description": "CSI Proxy utility to enable CSI Plugins on Windows",
+          "repo_name": "https://github.com/openshift/csi-proxy",
+          "tags": [
+            "mirrored-repo"
+          ]
+        },
+        {
+          "description": "Windows - Host Compute Service Shim",
+          "repo_name": "https://github.com/openshift/hcsshim",
+          "tags": [
+            "mirrored-repo"
+          ]
+        },
+        {
+          "description": "Prometheus exporter for Windows machines",
+          "repo_name": "https://github.com/openshift/prometheus-community-windows_exporter"
+        },
+        {
+          "description": "The Windows Machine Config Operator configures Windows instances into nodes, enabling Windows container workloads to be ran within OKD/OCP clusters.",
+          "repo_name": "https://github.com/openshift/windows-machine-config-operator"
+        }
+      ],
+      "slack_channels": [
+        "forum-ocp-winc",
+        "forum-qe-winc"
+      ],
+      "team_size": 7
+    },
+    "Workloads": {
+      "components": [
+        "Samples Operator",
+        "kube-scheduler",
+        "oc"
+      ],
+      "description": "kubectl/oc, scheduler, workload controllers (kube-controller-manager)",
+      "repos": [
+        {
+          "description": "Manage CLI plugins for disconnected environments",
+          "repo_name": "https://github.com/openshift/cli-manager"
+        },
+        {
+          "description": "Centralized plugin index for installing OpenShift CLI plugins",
+          "repo_name": "https://github.com/openshift/krew-index"
+        },
+        {
+          "description": "Kubernetes-native Job Queueing",
+          "repo_name": "https://github.com/openshift/kubernetes-sigs-kueue"
+        },
+        {
+          "description": "The route-controller-manager provides additional management of ingress and Route resources",
+          "repo_name": "https://github.com/openshift/route-controller-manager"
+        },
+        {
+          "description": "Webhook that makes it possible to override activeDeadlineSecondsOverride field during pod admission",
+          "repo_name": "https://github.com/openshift/run-once-duration-override"
+        }
+      ],
+      "slack_channels": [
+        "forum-ocp-workloads"
+      ],
+      "team_size": 7
+    },
+    "etcd": {
+      "components": [
+        "Etcd"
+      ],
+      "description": "Control Plane etcd, cluster-etcd-operator",
+      "repos": [
+        {
+          "description": "Distributed reliable key-value store for the most critical data of a distributed system",
+          "repo_name": "https://github.com/openshift/etcd"
+        },
+        {
+          "description": "Raft library for maintaining a replicated state machine",
+          "repo_name": "https://github.com/openshift/raft"
+        },
+        {
+          "description": "An embedded key/value database for Go.",
+          "repo_name": "https://github.com/openshift/bbolt"
+        }
+      ],
+      "slack_channels": [
+        "forum-ocp-etcd"
+      ],
+      "team_size": 5
+    }
   }
 }
