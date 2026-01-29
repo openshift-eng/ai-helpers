@@ -5,6 +5,34 @@
     {
       "commands": [
         {
+          "argument_hint": "[path] [--component name] [--attach-logs]",
+          "description": "Analyze agent-gather data for common installation issues",
+          "name": "analyze",
+          "synopsis": "/agent-gather:analyze [path] [--component name] [--attach-logs]"
+        },
+        {
+          "argument_hint": "<node-ip> [--output path] [--all-nodes]",
+          "description": "Collect diagnostic data from agent-based installer nodes",
+          "name": "collect",
+          "synopsis": "/agent-gather:collect <node-ip> [--output path] [--all-nodes]"
+        },
+        {
+          "argument_hint": "[path] [--service name] [--priority level]",
+          "description": "Decode systemd journal export files to human-readable format",
+          "name": "decode-journal",
+          "synopsis": "/agent-gather:decode-journal [path] [--service name] [--priority level]"
+        }
+      ],
+      "description": "Collect and analyze diagnostic data from OpenShift agent-based installer deployments",
+      "has_readme": true,
+      "hooks": [],
+      "name": "agent-gather",
+      "skills": [],
+      "version": "0.0.1"
+    },
+    {
+      "commands": [
+        {
           "argument_hint": "<commit> <branch1> [branch2...] [--new-branch]",
           "description": "Backport commits to multiple branches",
           "name": "backport",
