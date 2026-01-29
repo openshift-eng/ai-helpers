@@ -73,7 +73,7 @@ export JIRA_PERSONAL_TOKEN="your-token-here"
 The script is located at:
 
 ```
-plugins/component-health/skills/list-jiras/list_jiras.py
+plugins/teams/skills/list-jiras/list_jiras.py
 ```
 
 ### Step 4: Run the Script
@@ -82,31 +82,31 @@ Execute the script with appropriate arguments:
 
 ```bash
 # Basic usage - all open bugs in a project
-python3 plugins/component-health/skills/list-jiras/list_jiras.py \
+python3 plugins/teams/skills/list-jiras/list_jiras.py \
   --project OCPBUGS
 
 # Filter by component
-python3 plugins/component-health/skills/list-jiras/list_jiras.py \
+python3 plugins/teams/skills/list-jiras/list_jiras.py \
   --project OCPBUGS \
   --component "kube-apiserver"
 
 # Filter by multiple components
-python3 plugins/component-health/skills/list-jiras/list_jiras.py \
+python3 plugins/teams/skills/list-jiras/list_jiras.py \
   --project OCPBUGS \
   --component "kube-apiserver" "Management Console"
 
 # Include closed bugs
-python3 plugins/component-health/skills/list-jiras/list_jiras.py \
+python3 plugins/teams/skills/list-jiras/list_jiras.py \
   --project OCPBUGS \
   --include-closed
 
 # Filter by status
-python3 plugins/component-health/skills/list-jiras/list_jiras.py \
+python3 plugins/teams/skills/list-jiras/list_jiras.py \
   --project OCPBUGS \
   --status New "In Progress"
 
 # Set maximum results limit (default 100)
-python3 plugins/component-health/skills/list-jiras/list_jiras.py \
+python3 plugins/teams/skills/list-jiras/list_jiras.py \
   --project OCPBUGS \
   --limit 500
 ```
@@ -206,7 +206,7 @@ Based on the raw JIRA data:
 
 1. Inform the user about the total count vs fetched count
 2. Explain that the raw data includes all JIRA fields
-3. Suggest using `/component-health:summarize-jiras` if they need summary statistics
+3. Suggest using `/teams:summarize-jiras` if they need summary statistics
 4. The raw issue data can be passed to other commands for further processing
 5. Highlight any truncation and suggest increasing --limit if needed
 
@@ -245,7 +245,7 @@ Based on the raw JIRA data:
 Enable verbose output by examining stderr:
 
 ```bash
-python3 plugins/component-health/skills/list-jiras/list_jiras.py \
+python3 plugins/teams/skills/list-jiras/list_jiras.py \
   --project OCPBUGS 2>&1 | tee debug.log
 ```
 
@@ -321,7 +321,7 @@ The script outputs JSON with metadata and raw issue data:
 ### Example 1: List All Open Bugs
 
 ```bash
-python3 plugins/component-health/skills/list-jiras/list_jiras.py \
+python3 plugins/teams/skills/list-jiras/list_jiras.py \
   --project OCPBUGS
 ```
 
@@ -330,7 +330,7 @@ python3 plugins/component-health/skills/list-jiras/list_jiras.py \
 ### Example 2: Filter by Component
 
 ```bash
-python3 plugins/component-health/skills/list-jiras/list_jiras.py \
+python3 plugins/teams/skills/list-jiras/list_jiras.py \
   --project OCPBUGS \
   --component "kube-apiserver"
 ```
@@ -340,7 +340,7 @@ python3 plugins/component-health/skills/list-jiras/list_jiras.py \
 ### Example 3: Include Closed Bugs
 
 ```bash
-python3 plugins/component-health/skills/list-jiras/list_jiras.py \
+python3 plugins/teams/skills/list-jiras/list_jiras.py \
   --project OCPBUGS \
   --include-closed \
   --limit 500
@@ -351,7 +351,7 @@ python3 plugins/component-health/skills/list-jiras/list_jiras.py \
 ### Example 4: Filter by Multiple Components
 
 ```bash
-python3 plugins/component-health/skills/list-jiras/list_jiras.py \
+python3 plugins/teams/skills/list-jiras/list_jiras.py \
   --project OCPBUGS \
   --component "kube-apiserver" "etcd" "Networking"
 ```
@@ -382,4 +382,4 @@ This skill is designed to:
 - The script has a 30-second timeout for HTTP requests
 - For large projects, consider using component filters to reduce query size
 - The returned data includes ALL JIRA fields for complete information
-- Use `/component-health:summarize-jiras` if you need summary statistics instead of raw data
+- Use `/teams:summarize-jiras` if you need summary statistics instead of raw data

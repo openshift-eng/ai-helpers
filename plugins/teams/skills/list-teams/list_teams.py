@@ -14,9 +14,9 @@ from pathlib import Path
 
 def get_mapping_path():
     """Get the absolute path to the team component mapping file."""
-    # Get the script's directory (should be plugins/component-health/skills/list-teams/)
+    # Get the script's directory (should be plugins/teams/skills/list-teams/)
     script_dir = Path(__file__).parent
-    # Go up two levels to plugins/component-health/
+    # Go up two levels to plugins/teams/
     plugin_dir = script_dir.parent.parent
     return plugin_dir / "team_component_map.json"
 
@@ -40,7 +40,7 @@ def read_mapping():
         print(
             f"Error: Failed to parse mapping file. File may be corrupted.\n"
             f"Details: {e}\n"
-            f"Try regenerating with: python3 plugins/component-health/generate_team_component_map.py",
+            f"Try regenerating with: python3 plugins/teams/generate_team_component_map.py",
             file=sys.stderr
         )
         sys.exit(1)

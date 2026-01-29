@@ -5,23 +5,23 @@ argument-hint: ""
 
 ## Name
 
-component-health:list-teams
+teams:list-teams
 
 ## Synopsis
 
 ```
-/component-health:list-teams
+/teams:list-teams
 ```
 
 ## Description
 
-The `component-health:list-teams` command displays all team names from the team component mapping.
+The `teams:list-teams` command displays all team names from the team component mapping.
 
 This command is useful for:
 
 - Discovering available teams
 - Validating team names before using them in other commands
-- Finding team names for use with `/component-health:list-components --team`
+- Finding team names for use with `/teams:list-components --team`
 
 ## Implementation
 
@@ -38,7 +38,7 @@ This command is useful for:
 
 1. **List all teams**:
    ```
-   /component-health:list-teams
+   /teams:list-teams
    ```
 
 ## Arguments
@@ -74,6 +74,6 @@ The team and component mapping data originates from:
 ## See Also
 
 - Skill: `plugins/component-health/skills/list-teams/SKILL.md`
-- Related Command: `/component-health:list-components`
+- Related Command: `/teams:list-components`
 - Mapping File: `plugins/component-health/team_component_map.json`
 - Generator Script: `plugins/component-health/generate_team_component_map.py`

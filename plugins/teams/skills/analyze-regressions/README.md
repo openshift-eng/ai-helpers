@@ -86,7 +86,7 @@ When generating reports directly in Claude Code without the Python script:
 2. Replace all `{{VARIABLE}}` placeholders with actual values
 3. Generate component rows dynamically
 4. Build attention sections based on the data
-5. Write the final HTML to `.work/component-health-{release}/report.html`
+5. Write the final HTML to `.work/teams-{release}/report.html`
 6. Open with `open` command (macOS) or equivalent
 
 ## Grading Criteria

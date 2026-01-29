@@ -29,9 +29,9 @@
       "version": "0.0.2"
     },
     {
-      "name": "component-health",
-      "source": "./plugins/component-health",
-      "description": "Analyze component health and track regressions across OpenShift releases",
+      "name": "teams",
+      "source": "./plugins/teams",
+      "description": "Team structure knowledge and health analysis commands for OpenShift teams",
       "version": "0.0.2"
     },
     {

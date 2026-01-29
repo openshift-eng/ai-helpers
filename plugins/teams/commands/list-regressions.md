@@ -5,17 +5,17 @@ argument-hint: <release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--
 
 ## Name
 
-component-health:list-regressions
+teams:list-regressions
 
 ## Synopsis
 
 ```
-/component-health:list-regressions <release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]
+/teams:list-regressions <release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]
 ```
 
 ## Description
 
-The `component-health:list-regressions` command fetches regression data for a specified OpenShift release and returns raw regression details without performing any summarization or analysis. It provides complete regression information including test names, timestamps, triages, and metadata.
+The `teams:list-regressions` command fetches regression data for a specified OpenShift release and returns raw regression details without performing any summarization or analysis. It provides complete regression information including test names, timestamps, triages, and metadata.
 
 This command is useful for:
 
@@ -90,8 +90,8 @@ This command is useful for:
    - The command returns the complete JSON response with metadata and raw regressions
    - Inform the user about overall counts from the summary
    - The raw regression data can be passed to other commands for analysis
-   - Suggest using `/component-health:summarize-regressions` for summary statistics
-   - Suggest using `/component-health:analyze` for health grading
+   - Suggest using `/teams:summarize-regressions` for summary statistics
+   - Suggest using `/teams:analyze` for health grading
 
 8. **Error Handling**: Handle common error scenarios
 
@@ -208,7 +208,7 @@ Each regression object (in `components.*.open` or `components.*.closed` arrays) 
 1. **List all regressions for a release**:
 
    ```
-   /component-health:list-regressions 4.17
+   /teams:list-regressions 4.17
    ```
 
    Fetches all regression data for release 4.17, including all components.
@@ -216,7 +216,7 @@ Each regression object (in `components.*.open` or `components.*.closed` arrays) 
 2. **Filter by specific component (exact match)**:
 
    ```
-   /component-health:list-regressions 4.21 --components Monitoring
+   /teams:list-regressions 4.21 --components Monitoring
    ```
 
    Returns regression data for only the Monitoring component.
@@ -224,7 +224,7 @@ Each regression object (in `components.*.open` or `components.*.closed` arrays) 
 3. **Filter by fuzzy search**:
 
    ```
-   /component-health:list-regressions 4.21 --components network
+   /teams:list-regressions 4.21 --components network
    ```
 
    Finds all components containing "network" (case-insensitive):
@@ -237,7 +237,7 @@ Each regression object (in `components.*.open` or `components.*.closed` arrays) 
 4. **Filter by multiple search strings**:
 
    ```
-   /component-health:list-regressions 4.21 --components etcd kube-
+   /teams:list-regressions 4.21 --components etcd kube-
    ```
 
    Finds all components containing "etcd" OR "kube-":
@@ -250,7 +250,7 @@ Each regression object (in `components.*.open` or `components.*.closed` arrays) 
 5. **Filter by development window** (GA'd release):
 
    ```
-   /component-health:list-regressions 4.17 --start 2024-05-17 --end 2024-10-29
+   /teams:list-regressions 4.17 --start 2024-05-17 --end 2024-10-29
    ```
 
    Fetches regressions within the development window:
@@ -260,7 +260,7 @@ Each regression object (in `components.*.open` or `components.*.closed` arrays) 
 6. **Filter for in-development release**:
 
    ```
-   /component-health:list-regressions 4.21 --start 2025-09-02
+   /teams:list-regressions 4.21 --start 2025-09-02
    ```
 
    Fetches regressions for an in-development release:
@@ -270,7 +270,7 @@ Each regression object (in `components.*.open` or `components.*.closed` arrays) 
 7. **Combine fuzzy component search and date filters**:
 
    ```
-   /component-health:list-regressions 4.21 --components network --start 2025-09-02
+   /teams:list-regressions 4.21 --components network --start 2025-09-02
    ```
 
    Returns regressions for all networking components from the development window.
@@ -330,13 +330,13 @@ Each regression object (in `components.*.open` or `components.*.closed` arrays) 
 - Date filtering helps focus on relevant regressions within the development window
 - Infrastructure regressions (closed quickly on high-volume days) are automatically filtered
 - The returned data includes complete regression information, not summaries
-- If you need summary statistics, use `/component-health:summarize-regressions` instead
-- If you need health grading, use `/component-health:analyze` instead
+- If you need summary statistics, use `/teams:summarize-regressions` instead
+- If you need health grading, use `/teams:analyze` instead
 
 ## See Also
 
 - Skill Documentation: `plugins/component-health/skills/list-regressions/SKILL.md`
 - Script: `plugins/component-health/skills/list-regressions/list_regressions.py`
-- Related Command: `/component-health:summarize-regressions` (for summary statistics)
-- Related Command: `/component-health:analyze` (for health grading and analysis)
+- Related Command: `/teams:summarize-regressions` (for summary statistics)
+- Related Command: `/teams:analyze` (for health grading and analysis)
 - Related Skill: `get-release-dates` (for fetching development window dates)

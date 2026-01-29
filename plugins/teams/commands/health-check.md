@@ -5,22 +5,22 @@ argument-hint: <release> [--components comp1 comp2 ...] [--team <team-name>] [--
 
 ## Name
 
-component-health:analyze
+teams:health-check
 
 ## Synopsis
 
 ```
-/component-health:analyze <release> [--components comp1 comp2 ...] [--project JIRAPROJECT]
-/component-health:analyze <release> --team <team-name> [--project JIRAPROJECT]
+/teams:health-check <release> [--components comp1 comp2 ...] [--project JIRAPROJECT]
+/teams:health-check <release> --team <team-name> [--project JIRAPROJECT]
 ```
 
 ## Description
 
-The `component-health:analyze` command provides comprehensive component health analysis for a specified OpenShift release by **automatically combining** regression management metrics with JIRA bug backlog data.
+The `teams:health-check` command provides comprehensive component health analysis for a specified OpenShift release by **automatically combining** regression management metrics with JIRA bug backlog data.
 
 **CRITICAL**: This command REQUIRES and AUTOMATICALLY fetches BOTH data sources:
-1. Regression data (via summarize-regressions)
-2. JIRA bug data (via summarize-jiras)
+1. Regression data (via health-check-regressions)
+2. JIRA bug data (via health-check-jiras)
 
 The analysis is INCOMPLETE without both data sources. Both are fetched automatically without user prompting.
 
@@ -70,8 +70,8 @@ Grading is subjective and not meant to be a critique of team performance. This i
      - Exit with error
    - If `--team` was provided:
      - Look up all components for that team from `team_component_map.json`
-     - Use `/component-health:list-components --team "<team>"` to get the component list
-     - If team not found, display available teams (via `/component-health:list-teams`) and exit
+     - Use `/teams:list-components --team "<team>"` to get the component list
+     - If team not found, display available teams (via `/teams:list-teams`) and exit
    - Else if `--components` was provided:
      - Run list_components.py to get all available components:
        ```bash
@@ -82,15 +82,15 @@ Grading is subjective and not meant to be a critique of team performance. This i
      - Remove duplicates
      - If no matches found for a search string, warn the user and show available components
 
-3. **Fetch Regression Summary**: REQUIRED - Always call the summarize-regressions command
+3. **Fetch Regression Summary**: REQUIRED - Always call the health-check-regressions command
 
    **IMPORTANT**: This step is REQUIRED for the analyze command. Regression data must ALWAYS be fetched automatically without user prompting. The analyze command combines both regression and bug metrics - it is incomplete without both data sources.
 
    - **ALWAYS execute this step** - do not skip or wait for user to request it
    - If `--team` was provided:
-     - Execute: `/component-health:summarize-regressions <release> --team "<team>"`
+     - Execute: `/teams:health-check-regressions <release> --team "<team>"`
    - Else (if `--components` was provided):
-     - Execute: `/component-health:summarize-regressions <release> --components <resolved-components>`
+     - Execute: `/teams:health-check-regressions <release> --components <resolved-components>`
    - Extract regression metrics:
      - Total regressions, triage percentages, timing metrics
      - Per-component breakdowns
@@ -98,13 +98,13 @@ Grading is subjective and not meant to be a critique of team performance. This i
    - Note development window dates for context
    - If regression API is unreachable, inform the user and note this in the report but continue with bug-only analysis
 
-4. **Fetch JIRA Bug Summary**: REQUIRED - Always call the summarize-jiras command
+4. **Fetch JIRA Bug Summary**: REQUIRED - Always call the health-check-jiras command
 
    **IMPORTANT**: This step is REQUIRED for the analyze command. JIRA bug data must ALWAYS be fetched automatically without user prompting. The analyze command combines both regression and bug metrics - it is incomplete without both data sources.
 
    - **ALWAYS execute this step** - do not skip or wait for user to request it
    - For each resolved component name:
-     - Execute: `/component-health:summarize-jiras --project <project> --component "<component>" --limit 1000`
+     - Execute: `/teams:health-check-jiras --project <project> --component "<component>" --limit 1000`
      - Note: Must iterate over components because JIRA queries can be too large otherwise
    - Aggregate bug metrics across all components:
      - Total open bugs by component
@@ -120,7 +120,7 @@ Grading is subjective and not meant to be a critique of team performance. This i
 
    **For each component, grade based on:**
 
-   a. **Regression Health** (from step 3: summarize-regressions):
+   a. **Regression Health** (from step 3: health-check-regressions):
       - Triage Coverage: % of regressions triaged
         - 90-100%: Excellent ✅
         - 70-89%: Good ⚠️
@@ -137,7 +137,7 @@ Grading is subjective and not meant to be a critique of team performance. This i
         - 336-720 hours (2-4 weeks): Needs Improvement ⚠️
         - >720 hours (4+ weeks): Poor ❌
 
-   b. **Bug Backlog Health** (from step 4: summarize-jiras):
+   b. **Bug Backlog Health** (from step 4: health-check-jiras):
       - Open Bug Count: Total open bugs
         - Component-relative thresholds (compare across components)
       - Bug Age: Average/maximum age of open bugs
@@ -163,9 +163,9 @@ Grading is subjective and not meant to be a critique of team performance. This i
 
    **Section 1: Overall Release Health**
    - Release version and development window
-   - Overall regression metrics (from summarize-regressions):
+   - Overall regression metrics (from health-check-regressions):
      - Total regressions, triage %, timing metrics
-   - Overall bug metrics (from summarize-jiras):
+   - Overall bug metrics (from health-check-jiras):
      - Total open bugs, opened/closed last 30 days, priority breakdown
    - High-level combined health grade
 
@@ -275,7 +275,7 @@ If requested:
 1. **Analyze team health (recommended)**:
 
    ```
-   /component-health:analyze 4.21 --team "API Server"
+   /teams:health-check 4.21 --team "API Server"
    ```
 
    Automatically fetches BOTH data sources for all components owned by the "API Server" team:
@@ -285,12 +285,12 @@ If requested:
    - Provides comprehensive team-level health analysis
    - Shows per-component breakdowns within the team
    - Identifies which team components need attention
-   - Use `/component-health:list-teams` to see available team names
+   - Use `/teams:list-teams` to see available team names
 
 2. **Analyze specific components (exact match)**:
 
    ```
-   /component-health:analyze 4.21 --components Monitoring Etcd
+   /teams:health-check 4.21 --components Monitoring Etcd
    ```
 
    Automatically fetches BOTH regression and bug data for Monitoring and Etcd:
@@ -302,7 +302,7 @@ If requested:
 3. **Analyze by fuzzy search**:
 
    ```
-   /component-health:analyze 4.21 --components network
+   /teams:health-check 4.21 --components network
    ```
 
    Automatically fetches BOTH data sources for all components containing "network":
@@ -315,7 +315,7 @@ If requested:
 4. **Team analysis with custom JIRA project**:
 
    ```
-   /component-health:analyze 4.21 --team "Networking" --project OCPBUGS
+   /teams:health-check 4.21 --team "Networking" --project OCPBUGS
    ```
 
    Analyzes health for the Networking team using bugs from OCPBUGS project
@@ -341,7 +341,7 @@ If requested:
     - Looks up all components for the team from team_component_map.json
     - Applied to both regression and bug queries
     - Team-level health analysis with per-component breakdowns
-    - Use `/component-health:list-teams` to see available team names
+    - Use `/teams:list-teams` to see available team names
     - Team names are case-sensitive
     - Mutually exclusive with `--components`
     - Required if `--components` is not provided
@@ -362,7 +362,7 @@ If requested:
 
    - `JIRA_URL`: Your JIRA instance URL
    - `JIRA_PERSONAL_TOKEN`: Your JIRA bearer token or personal access token
-   - See `/component-health:summarize-jiras` for setup instructions
+   - See `/teams:health-check-jiras` for setup instructions
 
 3. **Network Access**: Must be able to reach both component health API and JIRA
 
@@ -372,8 +372,8 @@ If requested:
 ## Notes
 
 - **CRITICAL**: This command AUTOMATICALLY fetches data from TWO sources:
-  1. Regression API (via `/component-health:summarize-regressions`)
-  2. JIRA API (via `/component-health:summarize-jiras`)
+  1. Regression API (via `/teams:health-check-regressions`)
+  2. JIRA API (via `/teams:health-check-jiras`)
 - Both data sources are REQUIRED and fetched automatically without user prompting
 - The analysis is incomplete without both regression and bug data
 - Health grades are subjective and intended as guidance, not criticism
@@ -382,16 +382,16 @@ If requested:
 - JIRA queries default to open bugs + bugs closed in last 30 days
 - HTML reports provide interactive visualizations combining both data sources
 - If one data source fails, the command continues with the available data and notes the failure
-- For detailed regression data only, use `/component-health:list-regressions`
-- For detailed JIRA data only, use `/component-health:list-jiras`
+- For detailed regression data only, use `/teams:list-regressions`
+- For detailed JIRA data only, use `/teams:list-jiras`
 - This command provides the most comprehensive view by combining both sources
 
 ## See Also
 
-- Related Command: `/component-health:summarize-regressions` (regression metrics)
-- Related Command: `/component-health:summarize-jiras` (bug backlog metrics)
-- Related Command: `/component-health:list-regressions` (raw regression data)
-- Related Command: `/component-health:list-jiras` (raw JIRA data)
+- Related Command: `/teams:health-check-regressions` (regression metrics)
+- Related Command: `/teams:health-check-jiras` (bug backlog metrics)
+- Related Command: `/teams:list-regressions` (raw regression data)
+- Related Command: `/teams:list-jiras` (raw JIRA data)
 - Skill Documentation: `plugins/component-health/skills/analyze-regressions/SKILL.md`
 - Script: `plugins/component-health/skills/list-regressions/list_regressions.py`
-- Script: `plugins/component-health/skills/summarize-jiras/summarize_jiras.py`
+- Script: `plugins/component-health/skills/health-check-jiras/summarize_jiras.py`

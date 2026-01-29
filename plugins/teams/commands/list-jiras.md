@@ -5,17 +5,17 @@ argument-hint: <project> [--component comp1 comp2 ...] [--status status1 status2
 
 ## Name
 
-component-health:list-jiras
+teams:list-jiras
 
 ## Synopsis
 
 ```
-/component-health:list-jiras <project> [--component comp1 comp2 ...] [--status status1 status2 ...] [--include-closed] [--limit N]
+/teams:list-jiras <project> [--component comp1 comp2 ...] [--status status1 status2 ...] [--include-closed] [--limit N]
 ```
 
 ## Description
 
-The `component-health:list-jiras` command queries JIRA bugs for a specified project and returns raw issue data. It fetches JIRA issues with all their fields and metadata without performing any summarization or aggregation.
+The `teams:list-jiras` command queries JIRA bugs for a specified project and returns raw issue data. It fetches JIRA issues with all their fields and metadata without performing any summarization or aggregation.
 
 By default, the command includes:
 - All currently open bugs
@@ -103,7 +103,7 @@ This command is useful for:
    - The command returns the aggregated JSON response with metadata and raw issues from all components
    - Inform the user about total count vs fetched count per component
    - The raw issue data can be passed to other commands for analysis
-   - Suggest using `/component-health:summarize-jiras` for summary statistics
+   - Suggest using `/teams:summarize-jiras` for summary statistics
    - Highlight any truncation (if fetched_count < total_count for any component)
    - Suggest increasing --limit if results are truncated
 
@@ -209,7 +209,7 @@ The command outputs **raw JIRA issue data** in JSON format with the following st
 1. **List all open bugs for a project**:
 
    ```
-   /component-health:list-jiras OCPBUGS
+   /teams:list-jiras OCPBUGS
    ```
 
    Fetches all open bugs in the OCPBUGS project (up to default limit of 1000) and returns raw issue data.
@@ -217,7 +217,7 @@ The command outputs **raw JIRA issue data** in JSON format with the following st
 2. **Filter by specific component (exact match)**:
 
    ```
-   /component-health:list-jiras OCPBUGS --component "kube-apiserver"
+   /teams:list-jiras OCPBUGS --component "kube-apiserver"
    ```
 
    Returns raw data for bugs in the kube-apiserver component only.
@@ -225,7 +225,7 @@ The command outputs **raw JIRA issue data** in JSON format with the following st
 3. **Filter by fuzzy search**:
 
    ```
-   /component-health:list-jiras OCPBUGS --component network
+   /teams:list-jiras OCPBUGS --component network
    ```
 
    Finds all components containing "network" (case-insensitive) and returns bugs for all matches (e.g., "Networking / ovn-kubernetes", "Networking / DNS", etc.).
@@ -234,7 +234,7 @@ The command outputs **raw JIRA issue data** in JSON format with the following st
 4. **Filter by multiple search strings**:
 
    ```
-   /component-health:list-jiras OCPBUGS --component etcd kube-
+   /teams:list-jiras OCPBUGS --component etcd kube-
    ```
 
    Finds all components containing "etcd" OR "kube-" and returns combined bug data.
@@ -243,7 +243,7 @@ The command outputs **raw JIRA issue data** in JSON format with the following st
 5. **Include closed bugs**:
 
    ```
-   /component-health:list-jiras OCPBUGS --include-closed --limit 500
+   /teams:list-jiras OCPBUGS --include-closed --limit 500
    ```
 
    Returns both open and closed bugs, fetching up to 500 issues per component.
@@ -251,7 +251,7 @@ The command outputs **raw JIRA issue data** in JSON format with the following st
 6. **Filter by status**:
 
    ```
-   /component-health:list-jiras OCPBUGS --status New "In Progress" Verified
+   /teams:list-jiras OCPBUGS --status New "In Progress" Verified
    ```
 
    Returns only bugs in New, In Progress, or Verified status.
@@ -259,7 +259,7 @@ The command outputs **raw JIRA issue data** in JSON format with the following st
 7. **Combine fuzzy search with other filters**:
 
    ```
-   /component-health:list-jiras OCPBUGS --component network --status New Assigned --limit 200
+   /teams:list-jiras OCPBUGS --component network --status New Assigned --limit 200
    ```
 
    Returns bugs for all networking components that are in New or Assigned status.
@@ -324,12 +324,12 @@ The command outputs **raw JIRA issue data** in JSON format with the following st
 - The script has a 30-second timeout for HTTP requests
 - For large projects, consider using component filters to reduce query size
 - The returned data includes ALL JIRA fields for each issue, providing complete information
-- If you need summary statistics, use `/component-health:summarize-jiras` instead
+- If you need summary statistics, use `/teams:summarize-jiras` instead
 - If results show truncation, increase the --limit parameter to fetch more issues
 
 ## See Also
 
 - Skill Documentation: `plugins/component-health/skills/list-jiras/SKILL.md`
 - Script: `plugins/component-health/skills/list-jiras/list_jiras.py`
-- Related Command: `/component-health:summarize-jiras` (for summary statistics)
-- Related Command: `/component-health:analyze`
+- Related Command: `/teams:summarize-jiras` (for summary statistics)
+- Related Command: `/teams:analyze`

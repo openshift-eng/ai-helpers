@@ -5,17 +5,17 @@ argument-hint: "[--team <team-name>]"
 
 ## Name
 
-component-health:list-components
+teams:list-components
 
 ## Synopsis
 
 ```
-/component-health:list-components [--team <team-name>]
+/teams:list-components [--team <team-name>]
 ```
 
 ## Description
 
-The `component-health:list-components` command displays all OCPBUGS component names, with optional filtering by team.
+The `teams:list-components` command displays all OCPBUGS component names, with optional filtering by team.
 
 This command is useful for:
 
@@ -43,18 +43,18 @@ This command is useful for:
 
 1. **List all OCPBUGS components**:
    ```
-   /component-health:list-components
+   /teams:list-components
    ```
 
 2. **List OCPBUGS components for a specific team**:
    ```
-   /component-health:list-components --team "API Server"
+   /teams:list-components --team "API Server"
    ```
 
 ## Arguments
 
 - `--team` (optional): Filter components by team name
-  - Use `/component-health:list-teams` to get available team names
+  - Use `/teams:list-teams` to get available team names
   - Example: `--team "API Server"`
 
 ## Prerequisites
@@ -64,7 +64,7 @@ This command is useful for:
 ## Notes
 
 - Only OCPBUGS components are returned
-- Team names are case-sensitive - use `/component-health:list-teams` to get correct names
+- Team names are case-sensitive - use `/teams:list-teams` to get correct names
 - Typical count: ~87 total components across 29 teams
 - Reads from committed mapping file (no download needed)
 
@@ -86,6 +86,6 @@ The team and component mapping data originates from:
 ## See Also
 
 - Skill: `plugins/component-health/skills/list-components/SKILL.md`
-- Related Command: `/component-health:list-teams`
+- Related Command: `/teams:list-teams`
 - Mapping File: `plugins/component-health/team_component_map.json`
 - Generator Script: `plugins/component-health/generate_team_component_map.py`

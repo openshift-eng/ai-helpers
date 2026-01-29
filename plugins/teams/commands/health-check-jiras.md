@@ -5,18 +5,18 @@ argument-hint: --project <project> [--component comp1 comp2 ...] [--team <team-n
 
 ## Name
 
-component-health:summarize-jiras
+teams:health-check-jiras
 
 ## Synopsis
 
 ```
-/component-health:summarize-jiras --project <project> [--component comp1 comp2 ...] [--status status1 status2 ...] [--include-closed] [--limit N]
-/component-health:summarize-jiras --project <project> --team <team-name> [--status status1 status2 ...] [--include-closed] [--limit N]
+/teams:health-check-jiras --project <project> [--component comp1 comp2 ...] [--status status1 status2 ...] [--include-closed] [--limit N]
+/teams:health-check-jiras --project <project> --team <team-name> [--status status1 status2 ...] [--include-closed] [--limit N]
 ```
 
 ## Description
 
-The `component-health:summarize-jiras` command queries JIRA bugs for a specified project and generates summary statistics. It leverages the `list-jiras` command to fetch raw JIRA data and then calculates counts by status, priority, and component to help understand the bug backlog at a glance.
+The `teams:health-check-jiras` command queries JIRA bugs for a specified project and generates summary statistics. It leverages the `list-jiras` command to fetch raw JIRA data and then calculates counts by status, priority, and component to help understand the bug backlog at a glance.
 
 By default, the command includes:
 - All currently open bugs
@@ -87,7 +87,7 @@ This command is useful for:
 
 5. **Execute Python Script**: Run the summarize_jiras.py script
 
-   - Script location: `plugins/component-health/skills/summarize-jiras/summarize_jiras.py`
+   - Script location: `plugins/component-health/skills/health-check-jiras/summarize_jiras.py`
    - The script internally calls `list_jiras.py` to fetch raw data and handles all components in one invocation
    - If `--team` was provided:
      - Execute: `python3 summarize_jiras.py --project <project> --team "<team>" [other args]`
@@ -200,7 +200,7 @@ For each component:
 1. **Summarize all open bugs for a project**:
 
    ```
-   /component-health:summarize-jiras --project OCPBUGS
+   /teams:health-check-jiras --project OCPBUGS
    ```
 
    Fetches all open bugs in the OCPBUGS project (up to default limit of 1000) and displays summary statistics.
@@ -208,7 +208,7 @@ For each component:
 2. **Filter by specific component**:
 
    ```
-   /component-health:summarize-jiras --project OCPBUGS --component "kube-apiserver"
+   /teams:health-check-jiras --project OCPBUGS --component "kube-apiserver"
    ```
 
    Shows bug counts for only the kube-apiserver component.
@@ -216,7 +216,7 @@ For each component:
 3. **Filter by multiple components**:
 
    ```
-   /component-health:summarize-jiras --project OCPBUGS --component "kube-apiserver" "etcd" "Networking"
+   /teams:health-check-jiras --project OCPBUGS --component "kube-apiserver" "etcd" "Networking"
    ```
 
    Shows bug counts for kube-apiserver, etcd, and Networking components.
@@ -224,7 +224,7 @@ For each component:
 4. **Include closed bugs**:
 
    ```
-   /component-health:summarize-jiras --project OCPBUGS --include-closed --limit 500
+   /teams:health-check-jiras --project OCPBUGS --include-closed --limit 500
    ```
 
    Includes both open and closed bugs, fetching up to 500 issues.
@@ -232,7 +232,7 @@ For each component:
 5. **Filter by status**:
 
    ```
-   /component-health:summarize-jiras --project OCPBUGS --status New "In Progress" Verified
+   /teams:health-check-jiras --project OCPBUGS --status New "In Progress" Verified
    ```
 
    Shows only bugs in New, In Progress, or Verified status.
@@ -240,19 +240,19 @@ For each component:
 6. **Filter by team**:
 
    ```
-   /component-health:summarize-jiras --project OCPBUGS --team "API Server"
+   /teams:health-check-jiras --project OCPBUGS --team "API Server"
    ```
 
    Automatically looks up all components for the "API Server" team and shows bug counts:
    - Queries all team components in one invocation
    - Returns overall team summary
    - Includes per-component breakdowns
-   - Use `/component-health:list-teams` to see available team names
+   - Use `/teams:list-teams` to see available team names
 
 7. **Combine multiple filters**:
 
    ```
-   /component-health:summarize-jiras --project OCPBUGS --component "Management Console" --status New Assigned --limit 200
+   /teams:health-check-jiras --project OCPBUGS --component "Management Console" --status New Assigned --limit 200
    ```
 
    Shows bugs for Management Console component that are in New or Assigned status.
@@ -277,7 +277,7 @@ For each component:
     - Looks up all components for the team from team_component_map.json
     - Handles all team components in one invocation
     - Returns overall team summary and per-component breakdowns
-    - Use `/component-health:list-teams` to see available team names
+    - Use `/teams:list-teams` to see available team names
     - Team names are case-sensitive
     - Mutually exclusive with `--component`
 
@@ -326,11 +326,11 @@ For each component:
 - For large projects, consider using component filters to reduce query size
 - Summary statistics are based on fetched issues (controlled by --limit), not total matching issues
 - If results show truncation, increase the --limit parameter for more accurate statistics
-- This command internally uses `/component-health:list-jiras` to fetch raw data
+- This command internally uses `/teams:list-jiras` to fetch raw data
 
 ## See Also
 
-- Skill Documentation: `plugins/component-health/skills/summarize-jiras/SKILL.md`
-- Script: `plugins/component-health/skills/summarize-jiras/summarize_jiras.py`
-- Related Command: `/component-health:list-jiras` (for raw JIRA data)
-- Related Command: `/component-health:analyze`
+- Skill Documentation: `plugins/component-health/skills/health-check-jiras/SKILL.md`
+- Script: `plugins/component-health/skills/health-check-jiras/summarize_jiras.py`
+- Related Command: `/teams:list-jiras` (for raw JIRA data)
+- Related Command: `/teams:analyze`

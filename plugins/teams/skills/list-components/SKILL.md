@@ -37,9 +37,9 @@ Use this skill when you need to:
 3. **Team Component Mapping File**
 
    - The mapping file `team_component_map.json` should be in the repository
-   - Located at: `plugins/component-health/team_component_map.json`
+   - Located at: `plugins/teams/team_component_map.json`
    - This file is committed to the repository - no download needed
-   - To regenerate: `python3 plugins/component-health/generate_team_component_map.py`
+   - To regenerate: `python3 plugins/teams/generate_team_component_map.py`
 
 ## Implementation Steps
 
@@ -57,12 +57,12 @@ pwd
 
 **List all OCPBUGS components:**
 ```bash
-python3 plugins/component-health/skills/list-components/list_components.py
+python3 plugins/teams/skills/list-components/list_components.py
 ```
 
 **List OCPBUGS components for a specific team:**
 ```bash
-python3 plugins/component-health/skills/list-components/list_components.py --team "API Server"
+python3 plugins/teams/skills/list-components/list_components.py --team "API Server"
 ```
 
 **Note**: Use the exact team name from the list-teams command output.
@@ -155,7 +155,7 @@ The script outputs JSON to stdout:
 ### Example 1: List All Components
 
 ```bash
-python3 plugins/component-health/skills/list-components/list_components.py
+python3 plugins/teams/skills/list-components/list_components.py
 ```
 
 Output:
@@ -174,7 +174,7 @@ Output:
 ### Example 2: List Components for a Specific Team
 
 ```bash
-python3 plugins/component-health/skills/list-components/list_components.py --team "API Server"
+python3 plugins/teams/skills/list-components/list_components.py --team "API Server"
 ```
 
 Output:
@@ -195,7 +195,7 @@ Output:
 ### Example 3: Count Components
 
 ```bash
-python3 plugins/component-health/skills/list-components/list_components.py | jq '.total_components'
+python3 plugins/teams/skills/list-components/list_components.py | jq '.total_components'
 ```
 
 Output:
@@ -207,7 +207,7 @@ Output:
 ### Example 4: Search for Specific Component
 
 ```bash
-python3 plugins/component-health/skills/list-components/list_components.py | jq '.components[] | select(contains("apiserver"))'
+python3 plugins/teams/skills/list-components/list_components.py | jq '.components[] | select(contains("apiserver"))'
 ```
 
 Output:
@@ -227,10 +227,10 @@ Output:
 - Components are returned in alphabetical order
 - The script reads from the committed mapping file (no network calls)
 - Very fast execution (< 100ms typically)
-- Mapping file location: `plugins/component-health/team_component_map.json`
-- Component names can be used directly in OCPBUGS JIRA queries and other component-health commands
+- Mapping file location: `plugins/teams/team_component_map.json`
+- Component names can be used directly in OCPBUGS JIRA queries and other teams commands
 - Typical count: ~87 total components across 29 teams (may vary as components are added/removed)
-- To refresh mapping: Run `python3 plugins/component-health/generate_team_component_map.py`
+- To refresh mapping: Run `python3 plugins/teams/generate_team_component_map.py`
 
 ## Data Source
 
@@ -243,13 +243,13 @@ The team and component mapping data originates from:
 1. Submit a PR to https://gitlab.cee.redhat.com/hybrid-platforms/org to correct the source data
 2. After the PR merges, regenerate the mapping file in this repository:
    ```
-   python3 plugins/component-health/generate_team_component_map.py
+   python3 plugins/teams/generate_team_component_map.py
    ```
 3. Commit the updated `team_component_map.json` file
 
 ## See Also
 
-- Related Skill: `plugins/component-health/skills/list-teams/SKILL.md`
-- Related Command: `/component-health:list-components`
-- Mapping File: `plugins/component-health/team_component_map.json`
-- Generator Script: `plugins/component-health/generate_team_component_map.py`
+- Related Skill: `plugins/teams/skills/list-teams/SKILL.md`
+- Related Command: `/teams:list-components`
+- Mapping File: `plugins/teams/team_component_map.json`
+- Generator Script: `plugins/teams/generate_team_component_map.py`

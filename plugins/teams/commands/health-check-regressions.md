@@ -5,18 +5,18 @@ argument-hint: <release> [--components comp1 comp2 ...] [--team <team-name>] [--
 
 ## Name
 
-component-health:summarize-regressions
+teams:health-check-regressions
 
 ## Synopsis
 
 ```
-/component-health:summarize-regressions <release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]
-/component-health:summarize-regressions <release> --team <team-name> [--start YYYY-MM-DD] [--end YYYY-MM-DD]
+/teams:health-check-regressions <release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]
+/teams:health-check-regressions <release> --team <team-name> [--start YYYY-MM-DD] [--end YYYY-MM-DD]
 ```
 
 ## Description
 
-The `component-health:summarize-regressions` command queries regression data for a specified OpenShift release and generates summary statistics. It leverages the `list-regressions` command to fetch raw regression data and then presents counts, percentages, and timing metrics to help understand regression trends at a glance.
+The `teams:health-check-regressions` command queries regression data for a specified OpenShift release and generates summary statistics. It leverages the `list-regressions` command to fetch raw regression data and then presents counts, percentages, and timing metrics to help understand regression trends at a glance.
 
 By default, the command analyzes:
 - All regressions within the release development window
@@ -181,7 +181,7 @@ For each component (from `components.*.summary`):
 1. **Summarize all regressions for a release**:
 
    ```
-   /component-health:summarize-regressions 4.17
+   /teams:health-check-regressions 4.17
    ```
 
    Fetches and summarizes all regressions for release 4.17, automatically applying development window date filtering.
@@ -189,7 +189,7 @@ For each component (from `components.*.summary`):
 2. **Filter by specific component (exact match)**:
 
    ```
-   /component-health:summarize-regressions 4.21 --components Monitoring
+   /teams:health-check-regressions 4.21 --components Monitoring
    ```
 
    Shows summary statistics for only the Monitoring component in release 4.21.
@@ -197,7 +197,7 @@ For each component (from `components.*.summary`):
 3. **Filter by fuzzy search**:
 
    ```
-   /component-health:summarize-regressions 4.21 --components network
+   /teams:health-check-regressions 4.21 --components network
    ```
 
    Finds all components containing "network" (case-insensitive) and shows summary statistics for all matches (e.g., "Networking / ovn-kubernetes", "Networking / DNS", etc.).
@@ -205,7 +205,7 @@ For each component (from `components.*.summary`):
 4. **Filter by multiple search strings**:
 
    ```
-   /component-health:summarize-regressions 4.21 --components etcd kube-
+   /teams:health-check-regressions 4.21 --components etcd kube-
    ```
 
    Finds all components containing "etcd" OR "kube-" and shows combined summary statistics.
@@ -213,7 +213,7 @@ For each component (from `components.*.summary`):
 5. **Specify custom date range**:
 
    ```
-   /component-health:summarize-regressions 4.17 --start 2024-05-17 --end 2024-10-29
+   /teams:health-check-regressions 4.17 --start 2024-05-17 --end 2024-10-29
    ```
 
    Summarizes regressions within a specific date range:
@@ -223,7 +223,7 @@ For each component (from `components.*.summary`):
 6. **In-development release**:
 
    ```
-   /component-health:summarize-regressions 4.21
+   /teams:health-check-regressions 4.21
    ```
 
    Summarizes regressions for an in-development release:
@@ -234,18 +234,18 @@ For each component (from `components.*.summary`):
 7. **Filter by team**:
 
    ```
-   /component-health:summarize-regressions 4.21 --team "API Server"
+   /teams:health-check-regressions 4.21 --team "API Server"
    ```
 
    Summarizes regressions for all components owned by the "API Server" team:
    - Automatically looks up all team components from team_component_map.json
    - Provides overall team-level summary (not per-component breakdown)
-   - Use `/component-health:list-teams` to see available team names
+   - Use `/teams:list-teams` to see available team names
 
 8. **Team summary with custom date range**:
 
    ```
-   /component-health:summarize-regressions 4.17 --team "Networking" --start 2024-05-17 --end 2024-10-29
+   /teams:health-check-regressions 4.17 --team "Networking" --start 2024-05-17 --end 2024-10-29
    ```
 
    Summarizes regressions for the Networking team within a specific date range
@@ -270,7 +270,7 @@ For each component (from `components.*.summary`):
     - Looks up all components for the team from team_component_map.json
     - Returns overall team summary as well as per-component breakdowns in JSON
     - Command presentation should focus on overall team summary
-    - Use `/component-health:list-teams` to see available team names
+    - Use `/teams:list-teams` to see available team names
     - Team names are case-sensitive
     - Mutually exclusive with `--components`
 
@@ -309,14 +309,14 @@ For each component (from `components.*.summary`):
 - The `--short` flag is always used internally to optimize performance
 - Infrastructure regressions are automatically filtered from counts
 - Date filtering focuses analysis on the development window for accuracy
-- This command internally uses `/component-health:list-regressions` to fetch data
-- For raw regression data, use `/component-health:list-regressions` instead
-- For health grading and analysis, use `/component-health:analyze` instead
+- This command internally uses `/teams:list-regressions` to fetch data
+- For raw regression data, use `/teams:list-regressions` instead
+- For health grading and analysis, use `/teams:analyze` instead
 
 ## See Also
 
 - Skill Documentation: `plugins/component-health/skills/list-regressions/SKILL.md`
 - Script: `plugins/component-health/skills/list-regressions/list_regressions.py`
-- Related Command: `/component-health:list-regressions` (for raw regression data)
-- Related Command: `/component-health:analyze` (for health grading and analysis)
+- Related Command: `/teams:list-regressions` (for raw regression data)
+- Related Command: `/teams:analyze` (for health grading and analysis)
 - Related Skill: `get-release-dates` (for fetching development window dates)

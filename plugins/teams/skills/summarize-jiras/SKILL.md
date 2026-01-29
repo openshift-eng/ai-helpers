@@ -73,7 +73,7 @@ export JIRA_PERSONAL_TOKEN="your-token-here"
 The script is located at:
 
 ```
-plugins/component-health/skills/summarize-jiras/summarize_jiras.py
+plugins/teams/skills/summarize-jiras/summarize_jiras.py
 ```
 
 ### Step 4: Run the Script
@@ -82,36 +82,36 @@ Execute the script with appropriate arguments:
 
 ```bash
 # Basic usage - summarize all open bugs in a project
-python3 plugins/component-health/skills/summarize-jiras/summarize_jiras.py \
+python3 plugins/teams/skills/summarize-jiras/summarize_jiras.py \
   --project OCPBUGS
 
 # Filter by component
-python3 plugins/component-health/skills/summarize-jiras/summarize_jiras.py \
+python3 plugins/teams/skills/summarize-jiras/summarize_jiras.py \
   --project OCPBUGS \
   --component "kube-apiserver"
 
 # Filter by multiple components
-python3 plugins/component-health/skills/summarize-jiras/summarize_jiras.py \
+python3 plugins/teams/skills/summarize-jiras/summarize_jiras.py \
   --project OCPBUGS \
   --component "kube-apiserver" "Management Console"
 
 # Filter by team
-python3 plugins/component-health/skills/summarize-jiras/summarize_jiras.py \
+python3 plugins/teams/skills/summarize-jiras/summarize_jiras.py \
   --project OCPBUGS \
   --team "API Server"
 
 # Include closed bugs
-python3 plugins/component-health/skills/summarize-jiras/summarize_jiras.py \
+python3 plugins/teams/skills/summarize-jiras/summarize_jiras.py \
   --project OCPBUGS \
   --include-closed
 
 # Filter by status
-python3 plugins/component-health/skills/summarize-jiras/summarize_jiras.py \
+python3 plugins/teams/skills/summarize-jiras/summarize_jiras.py \
   --project OCPBUGS \
   --status New "In Progress"
 
 # Set maximum results limit (default 100)
-python3 plugins/component-health/skills/summarize-jiras/summarize_jiras.py \
+python3 plugins/teams/skills/summarize-jiras/summarize_jiras.py \
   --project OCPBUGS \
   --limit 500
 ```
@@ -294,7 +294,7 @@ Based on the summary data:
 Enable verbose output by examining stderr:
 
 ```bash
-python3 plugins/component-health/skills/summarize-jiras/summarize_jiras.py \
+python3 plugins/teams/skills/summarize-jiras/summarize_jiras.py \
   --project OCPBUGS 2>&1 | tee debug.log
 ```
 
@@ -381,7 +381,7 @@ The script outputs JSON with summary statistics and per-component breakdowns:
 ### Example 1: Summarize All Open Bugs
 
 ```bash
-python3 plugins/component-health/skills/summarize-jiras/summarize_jiras.py \
+python3 plugins/teams/skills/summarize-jiras/summarize_jiras.py \
   --project OCPBUGS
 ```
 
@@ -390,7 +390,7 @@ python3 plugins/component-health/skills/summarize-jiras/summarize_jiras.py \
 ### Example 2: Filter by Component
 
 ```bash
-python3 plugins/component-health/skills/summarize-jiras/summarize_jiras.py \
+python3 plugins/teams/skills/summarize-jiras/summarize_jiras.py \
   --project OCPBUGS \
   --component "kube-apiserver"
 ```
@@ -400,7 +400,7 @@ python3 plugins/component-health/skills/summarize-jiras/summarize_jiras.py \
 ### Example 3: Include Closed Bugs
 
 ```bash
-python3 plugins/component-health/skills/summarize-jiras/summarize_jiras.py \
+python3 plugins/teams/skills/summarize-jiras/summarize_jiras.py \
   --project OCPBUGS \
   --include-closed \
   --limit 500
@@ -411,7 +411,7 @@ python3 plugins/component-health/skills/summarize-jiras/summarize_jiras.py \
 ### Example 4: Filter by Multiple Components
 
 ```bash
-python3 plugins/component-health/skills/summarize-jiras/summarize_jiras.py \
+python3 plugins/teams/skills/summarize-jiras/summarize_jiras.py \
   --project OCPBUGS \
   --component "kube-apiserver" "etcd" "Networking"
 ```
@@ -443,4 +443,4 @@ This skill is designed to:
 - The script has a 30-second timeout for HTTP requests (inherited from list_jiras.py)
 - For large projects, consider using component filters to reduce query size
 - Summary statistics are based on fetched issues (controlled by --limit), not total matching issues
-- For raw JIRA data without summarization, use `/component-health:list-jiras` instead
+- For raw JIRA data without summarization, use `/teams:list-jiras` instead

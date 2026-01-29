@@ -14,7 +14,7 @@ This skill retrieves release information for OpenShift releases, including:
 ## Usage
 
 ```bash
-python3 plugins/component-health/skills/get-release-dates/get_release_dates.py \
+python3 plugins/teams/skills/get-release-dates/get_release_dates.py \
   --release <release>
 ```
 
@@ -27,14 +27,14 @@ python3 plugins/component-health/skills/get-release-dates/get_release_dates.py \
 ### Get information for release 4.21
 
 ```bash
-python3 plugins/component-health/skills/get-release-dates/get_release_dates.py \
+python3 plugins/teams/skills/get-release-dates/get_release_dates.py \
   --release 4.21
 ```
 
 ### Get information for release 4.17
 
 ```bash
-python3 plugins/component-health/skills/get-release-dates/get_release_dates.py \
+python3 plugins/teams/skills/get-release-dates/get_release_dates.py \
   --release 4.17
 ```
 
@@ -131,5 +131,5 @@ The script handles:
 ## See Also
 
 - SKILL.md: Detailed implementation guide
-- Component Health Plugin: `plugins/component-health/README.md`
-- List Regressions Skill: `plugins/component-health/skills/list-regressions/`
+- Component Health Plugin: `plugins/teams/README.md`
+- List Regressions Skill: `plugins/teams/skills/list-regressions/`

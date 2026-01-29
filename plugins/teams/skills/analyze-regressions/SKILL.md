@@ -34,10 +34,10 @@ Use this skill when you need to:
 
 3. **Required Scripts**
 
-   - `plugins/component-health/skills/get-release-dates/get_release_dates.py`
-   - `plugins/component-health/skills/list-regressions/list_regressions.py`
-   - `plugins/component-health/skills/analyze-regressions/generate_html_report.py` (for HTML reports)
-   - `plugins/component-health/skills/analyze-regressions/report_template.html` (for HTML reports)
+   - `plugins/teams/skills/get-release-dates/get_release_dates.py`
+   - `plugins/teams/skills/list-regressions/list_regressions.py`
+   - `plugins/teams/skills/analyze-regressions/generate_html_report.py` (for HTML reports)
+   - `plugins/teams/skills/analyze-regressions/report_template.html` (for HTML reports)
 
 ## Implementation Steps
 
@@ -51,8 +51,8 @@ Extract the release version and optional component filter from the command argum
 **Example argument parsing**:
 
 ```
-/component-health:analyze-regressions 4.17
-/component-health:analyze-regressions 4.21 --components Monitoring etcd
+/teams:analyze-regressions 4.17
+/teams:analyze-regressions 4.21 --components Monitoring etcd
 ```
 
 ### Step 2: Fetch Release Dates
@@ -60,7 +60,7 @@ Extract the release version and optional component filter from the command argum
 Run the `get_release_dates.py` script to determine the development window for the release:
 
 ```bash
-python3 plugins/component-health/skills/get-release-dates/get_release_dates.py \
+python3 plugins/teams/skills/get-release-dates/get_release_dates.py \
   --release 4.17
 ```
 
@@ -97,7 +97,7 @@ null → do not use this parameter
 Run the `list_regressions.py` script with the appropriate arguments:
 
 ```bash
-python3 plugins/component-health/skills/list-regressions/list_regressions.py \
+python3 plugins/teams/skills/list-regressions/list_regressions.py \
   --release 4.17 \
   --start 2024-05-17 \
   --end 2024-10-29 \
@@ -123,7 +123,7 @@ python3 plugins/component-health/skills/list-regressions/list_regressions.py \
 **Example for GA'd release** (4.17):
 
 ```bash
-python3 plugins/component-health/skills/list-regressions/list_regressions.py \
+python3 plugins/teams/skills/list-regressions/list_regressions.py \
   --release 4.17 \
   --start 2024-05-17 \
   --end 2024-10-29 \
@@ -133,7 +133,7 @@ python3 plugins/component-health/skills/list-regressions/list_regressions.py \
 **Example for in-development release** (4.21 with null GA):
 
 ```bash
-python3 plugins/component-health/skills/list-regressions/list_regressions.py \
+python3 plugins/teams/skills/list-regressions/list_regressions.py \
   --release 4.21 \
   --start 2025-09-02 \
   --short
@@ -142,7 +142,7 @@ python3 plugins/component-health/skills/list-regressions/list_regressions.py \
 **Example with component filter**:
 
 ```bash
-python3 plugins/component-health/skills/list-regressions/list_regressions.py \
+python3 plugins/teams/skills/list-regressions/list_regressions.py \
   --release 4.21 \
   --components Monitoring etcd \
   --start 2025-09-02 \
@@ -402,10 +402,10 @@ for component_name, component_obj in components.items():
 Use the `generate_html_report.py` script (or inline Python code):
 
 ```bash
-python3 plugins/component-health/skills/analyze-regressions/generate_html_report.py \
+python3 plugins/teams/skills/analyze-regressions/generate_html_report.py \
   --release 4.17 \
   --data regression_data.json \
-  --output .work/component-health-4.17/report.html
+  --output .work/teams-4.17/report.html
 ```
 
 Or use inline Python with the template:
@@ -415,7 +415,7 @@ import json
 from datetime import datetime
 
 # Load template
-with open('plugins/component-health/skills/analyze-regressions/report_template.html', 'r') as f:
+with open('plugins/teams/skills/analyze-regressions/report_template.html', 'r') as f:
     template = f.read()
 
 # Replace placeholders
@@ -425,7 +425,7 @@ template = template.replace('{{SUMMARY_DATA}}', json.dumps(summary))
 template = template.replace('{{COMPONENT_DATA}}', json.dumps(component_data))
 
 # Write output
-output_path = '.work/component-health-4.17/report.html'
+output_path = '.work/teams-4.17/report.html'
 os.makedirs(os.path.dirname(output_path), exist_ok=True)
 with open(output_path, 'w') as f:
     f.write(template)
@@ -438,25 +438,25 @@ Open the HTML report in the user's default browser:
 **macOS**:
 
 ```bash
-open .work/component-health-4.17/report.html
+open .work/teams-4.17/report.html
 ```
 
 **Linux**:
 
 ```bash
-xdg-open .work/component-health-4.17/report.html
+xdg-open .work/teams-4.17/report.html
 ```
 
 **Windows**:
 
 ```bash
-start .work/component-health-4.17/report.html
+start .work/teams-4.17/report.html
 ```
 
 Display the file path to the user:
 
 ```
-HTML report generated: .work/component-health-4.17/report.html
+HTML report generated: .work/teams-4.17/report.html
 Opening in your default browser...
 ```
 
@@ -495,7 +495,7 @@ Opening in your default browser...
 
 6. **HTML Template Not Found**
    - **Symptom**: FileNotFoundError when generating HTML report
-   - **Solution**: Verify template exists at `plugins/component-health/skills/analyze-regressions/report_template.html`
+   - **Solution**: Verify template exists at `plugins/teams/skills/analyze-regressions/report_template.html`
    - **Fallback**: Offer text report only
 
 ### Debugging
@@ -503,7 +503,7 @@ Opening in your default browser...
 Enable verbose output by examining stderr:
 
 ```bash
-python3 plugins/component-health/skills/list-regressions/list_regressions.py \
+python3 plugins/teams/skills/list-regressions/list_regressions.py \
   --release 4.17 \
   --short 2>&1 | tee debug.log
 ```
@@ -571,7 +571,7 @@ The HTML report should include:
 ### Example 1: Grade Overall Release Health
 
 ```
-/component-health:analyze-regressions 4.17
+/teams:analyze-regressions 4.17
 ```
 
 **Execution flow**:
@@ -586,7 +586,7 @@ The HTML report should include:
 ### Example 2: Grade Specific Components
 
 ```
-/component-health:analyze-regressions 4.21 --components Monitoring etcd
+/teams:analyze-regressions 4.21 --components Monitoring etcd
 ```
 
 **Execution flow**:
@@ -600,7 +600,7 @@ The HTML report should include:
 ### Example 3: Grade Single Component
 
 ```
-/component-health:analyze-regressions 4.21 --components "kube-apiserver"
+/teams:analyze-regressions 4.21 --components "kube-apiserver"
 ```
 
 **Execution flow**:
@@ -694,7 +694,7 @@ Rank components by priority based on:
 Compare metrics across releases:
 
 ```
-/component-health:analyze-regressions 4.17 --compare 4.16
+/teams:analyze-regressions 4.17 --compare 4.16
 ```
 
 ### Export to CSV
@@ -702,7 +702,7 @@ Compare metrics across releases:
 Generate CSV report for spreadsheet analysis:
 
 ```
-/component-health:analyze-regressions 4.17 --export-csv
+/teams:analyze-regressions 4.17 --export-csv
 ```
 
 ### Custom Thresholds
@@ -710,14 +710,14 @@ Generate CSV report for spreadsheet analysis:
 Allow users to customize health grade thresholds:
 
 ```
-/component-health:analyze-regressions 4.17 --triage-threshold 80
+/teams:analyze-regressions 4.17 --triage-threshold 80
 ```
 
 ## Integration with Other Commands
 
 This skill can be used by:
 
-- `/component-health:analyze-regressions` command (primary)
+- `/teams:analyze-regressions` command (primary)
 - Quality metrics dashboards
 - Release readiness reports
 - Team performance tracking tools
@@ -781,7 +781,7 @@ This skill can be used by:
 
 1. Manually open the file from file explorer
 2. Verify the file was created at the expected path
-3. Check file permissions: `ls -la .work/component-health-*/report.html`
+3. Check file permissions: `ls -la .work/teams-*/report.html`
 
 ## Summary
 

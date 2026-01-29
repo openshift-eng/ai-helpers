@@ -50,7 +50,7 @@ If Python 3 is not installed, guide the user through installation for their plat
 The script is located at:
 
 ```
-plugins/component-health/skills/list-regressions/list_regressions.py
+plugins/teams/skills/list-regressions/list_regressions.py
 ```
 
 ### Step 3: Run the Script
@@ -59,27 +59,27 @@ Execute the script with appropriate arguments:
 
 ```bash
 # Basic usage - all regressions for a release
-python3 plugins/component-health/skills/list-regressions/list_regressions.py \
+python3 plugins/teams/skills/list-regressions/list_regressions.py \
   --release 4.17
 
 # Filter by specific components
-python3 plugins/component-health/skills/list-regressions/list_regressions.py \
+python3 plugins/teams/skills/list-regressions/list_regressions.py \
   --release 4.21 \
   --components Monitoring "kube-apiserver"
 
 # Filter by multiple components
-python3 plugins/component-health/skills/list-regressions/list_regressions.py \
+python3 plugins/teams/skills/list-regressions/list_regressions.py \
   --release 4.21 \
   --components Monitoring etcd "kube-apiserver"
 
 # Filter by development window (GA'd release - both start and end)
-python3 plugins/component-health/skills/list-regressions/list_regressions.py \
+python3 plugins/teams/skills/list-regressions/list_regressions.py \
   --release 4.17 \
   --start 2024-05-17 \
   --end 2024-10-01
 
 # Filter by development window (in-development release - start only)
-python3 plugins/component-health/skills/list-regressions/list_regressions.py \
+python3 plugins/teams/skills/list-regressions/list_regressions.py \
   --release 4.21 \
   --start 2025-09-02
 ```
@@ -301,7 +301,7 @@ Based on the regression data:
 Enable verbose output by examining stderr:
 
 ```bash
-python3 plugins/component-health/skills/list-regressions/list_regressions.py \
+python3 plugins/teams/skills/list-regressions/list_regressions.py \
   --release 4.17 2>&1 | tee debug.log
 ```
 
@@ -505,7 +505,7 @@ The script outputs JSON with summaries and regressions grouped by component:
 ### Example 1: List All Regressions
 
 ```bash
-python3 plugins/component-health/skills/list-regressions/list_regressions.py \
+python3 plugins/teams/skills/list-regressions/list_regressions.py \
   --release 4.17
 ```
 
@@ -514,7 +514,7 @@ python3 plugins/component-health/skills/list-regressions/list_regressions.py \
 ### Example 2: Filter by Component
 
 ```bash
-python3 plugins/component-health/skills/list-regressions/list_regressions.py \
+python3 plugins/teams/skills/list-regressions/list_regressions.py \
   --release 4.21 \
   --components Monitoring etcd
 ```
@@ -524,7 +524,7 @@ python3 plugins/component-health/skills/list-regressions/list_regressions.py \
 ### Example 3: Filter by Single Component
 
 ```bash
-python3 plugins/component-health/skills/list-regressions/list_regressions.py \
+python3 plugins/teams/skills/list-regressions/list_regressions.py \
   --release 4.21 \
   --components "kube-apiserver"
 ```
@@ -539,7 +539,7 @@ The script includes a placeholder API endpoint. Update it in `list_regressions.p
 
 ```python
 # Current placeholder
-base_url = f"https://component-health-api.example.com/api/v1/regressions"
+base_url = f"https://teams-api.example.com/api/v1/regressions"
 
 # Update to actual endpoint
 base_url = f"https://actual-api.example.com/api/v1/regressions"
@@ -562,7 +562,7 @@ def fetch_regressions(release: str, opened: Optional[bool] = None,
 
 ## Integration with Commands
 
-This skill is designed to be used by the `/component-health:analyze-regressions` command, but can also be invoked directly by other commands or scripts that need regression data.
+This skill is designed to be used by the `/teams:analyze-regressions` command, but can also be invoked directly by other commands or scripts that need regression data.
 
 ## Related Skills
 

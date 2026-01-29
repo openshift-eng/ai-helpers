@@ -47,7 +47,7 @@ If Python 3 is not installed, guide the user through installation for their plat
 The script is located at:
 
 ```
-plugins/component-health/skills/get-release-dates/get_release_dates.py
+plugins/teams/skills/get-release-dates/get_release_dates.py
 ```
 
 ### Step 3: Run the Script
@@ -56,11 +56,11 @@ Execute the script with the release parameter:
 
 ```bash
 # Get dates for release 4.21
-python3 plugins/component-health/skills/get-release-dates/get_release_dates.py \
+python3 plugins/teams/skills/get-release-dates/get_release_dates.py \
   --release 4.21
 
 # Get dates for release 4.20
-python3 plugins/component-health/skills/get-release-dates/get_release_dates.py \
+python3 plugins/teams/skills/get-release-dates/get_release_dates.py \
   --release 4.20
 ```
 
@@ -181,7 +181,7 @@ The full API response includes:
 ### Example 1: Get Current Development Release
 
 ```bash
-python3 plugins/component-health/skills/get-release-dates/get_release_dates.py \
+python3 plugins/teams/skills/get-release-dates/get_release_dates.py \
   --release 4.21
 ```
 
@@ -199,7 +199,7 @@ Output:
 ### Example 2: Get GA'd Release
 
 ```bash
-python3 plugins/component-health/skills/get-release-dates/get_release_dates.py \
+python3 plugins/teams/skills/get-release-dates/get_release_dates.py \
   --release 4.17
 ```
 
@@ -218,7 +218,7 @@ Output:
 ### Example 3: Query Non-Existent Release
 
 ```bash
-python3 plugins/component-health/skills/get-release-dates/get_release_dates.py \
+python3 plugins/teams/skills/get-release-dates/get_release_dates.py \
   --release 99.99
 ```
 
@@ -235,7 +235,7 @@ Exit code: 1
 
 ## Integration with Other Commands
 
-This skill can be used in conjunction with other component-health skills:
+This skill can be used in conjunction with other teams skills:
 
 1. **Before analyzing regressions**: Verify the release exists
 2. **Timeline context**: Understand how long a release has been in development
@@ -253,6 +253,6 @@ This skill can be used in conjunction with other component-health skills:
 
 ## See Also
 
-- Skill Documentation: `plugins/component-health/skills/list-regressions/SKILL.md`
+- Skill Documentation: `plugins/teams/skills/list-regressions/SKILL.md`
 - Sippy API: https://sippy.dptools.openshift.org/api/releases
-- Component Health Plugin: `plugins/component-health/README.md`
+- Component Health Plugin: `plugins/teams/README.md`

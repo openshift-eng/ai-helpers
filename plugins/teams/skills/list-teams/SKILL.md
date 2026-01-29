@@ -25,7 +25,7 @@ Use this skill when you need to:
 
 2. **Team Component Mapping File**
    - The mapping file should be in the repository
-   - Located at: `plugins/component-health/team_component_map.json`
+   - Located at: `plugins/teams/team_component_map.json`
    - This file is committed to the repository
 
 ## Implementation Steps
@@ -33,7 +33,7 @@ Use this skill when you need to:
 ### Step 1: Run the list-teams Script
 
 ```bash
-python3 plugins/component-health/skills/list-teams/list_teams.py
+python3 plugins/teams/skills/list-teams/list_teams.py
 ```
 
 ### Step 2: Process the Output
@@ -56,13 +56,13 @@ The script outputs JSON:
 ### Example 1: List All Teams
 
 ```bash
-python3 plugins/component-health/skills/list-teams/list_teams.py
+python3 plugins/teams/skills/list-teams/list_teams.py
 ```
 
 ### Example 2: Count Teams
 
 ```bash
-python3 plugins/component-health/skills/list-teams/list_teams.py | jq '.total_teams'
+python3 plugins/teams/skills/list-teams/list_teams.py | jq '.total_teams'
 ```
 
 ## Notes
@@ -84,13 +84,13 @@ The team and component mapping data originates from:
 1. Submit a PR to https://gitlab.cee.redhat.com/hybrid-platforms/org to correct the source data
 2. After the PR merges, regenerate the mapping file in this repository:
    ```
-   python3 plugins/component-health/generate_team_component_map.py
+   python3 plugins/teams/generate_team_component_map.py
    ```
 3. Commit the updated `team_component_map.json` file
 
 ## See Also
 
-- Related Skill: `plugins/component-health/skills/list-components/SKILL.md`
-- Related Command: `/component-health:list-teams`
-- Mapping File: `plugins/component-health/team_component_map.json`
-- Generator Script: `plugins/component-health/generate_team_component_map.py`
+- Related Skill: `plugins/teams/skills/list-components/SKILL.md`
+- Related Command: `/teams:list-teams`
+- Mapping File: `plugins/teams/team_component_map.json`
+- Generator Script: `plugins/teams/generate_team_component_map.py`
