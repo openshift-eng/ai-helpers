@@ -185,6 +185,10 @@ Grading is subjective and not meant to be a critique of team performance. This i
    - Prioritized list of components with specific issues from BOTH sources
    - Actionable recommendations for each component:
      - "X open untriaged regressions need triage" (only OPEN, not closed)
+       - **IMPORTANT**: Phrase regression triage as a "few hours task", NOT a "sprint"
+       - Triaging regressions typically takes a few hours, not an entire 3-week sprint
+       - Example: "Triage 5 open regressions (typically a few hours)" ✅
+       - Example: "Immediate triage sprint needed" ❌
      - "High bug backlog: X open bugs (Y older than 90 days)" (from JIRA)
      - "Growing bug backlog: +X net bugs in last 30 days" (from JIRA)
      - "Slow regression triage: X hours average"
@@ -253,7 +257,7 @@ Prioritized list with actionable items:
    - 5 open untriaged regressions (urgent triage needed)
    - Slow triage response: 120 hours average
    - Very high bug backlog: 45 open bugs (15 older than 180 days)
-   - Recommendation: Immediate triage sprint needed; consider bug backlog cleanup initiative
+   - Recommendation: Triage 5 open regressions (typically a few hours); consider bug backlog cleanup initiative
 ```
 
 **IMPORTANT**: When listing untriaged regressions:
