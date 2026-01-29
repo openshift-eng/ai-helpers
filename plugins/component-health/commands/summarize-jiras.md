@@ -1,6 +1,6 @@
 ---
 description: Query and summarize JIRA bugs for a specific project with counts by component
-argument-hint: --project <project> [--component comp1 comp2 ...] [--status status1 status2 ...] [--include-closed] [--limit N]
+argument-hint: --project <project> [--component comp1 comp2 ...] [--team <team-name>] [--status status1 status2 ...] [--include-closed] [--limit N]
 ---
 
 ## Name
@@ -11,6 +11,7 @@ component-health:summarize-jiras
 
 ```
 /component-health:summarize-jiras --project <project> [--component comp1 comp2 ...] [--status status1 status2 ...] [--include-closed] [--limit N]
+/component-health:summarize-jiras --project <project> --team <team-name> [--status status1 status2 ...] [--include-closed] [--limit N]
 ```
 
 ## Description
@@ -27,8 +28,9 @@ This command is useful for:
 - Analyzing bug distribution by status, priority, or component
 - Tracking recent bug flow (opened vs closed in last 30 days)
 - Generating summary reports for bug backlog
-- Monitoring bug velocity and closure rates by component
+- Monitoring bug velocity and closure rates by component or team
 - Comparing bug counts across different components
+- Getting team-level bug summaries across all team components
 
 ## Implementation
 
@@ -60,33 +62,45 @@ This command is useful for:
    - Project key: Required `--project` flag (e.g., "OCPBUGS", "OCPSTRAT")
    - Optional filters:
      - `--component`: Space-separated list of component search strings (fuzzy match)
+     - `--team`: Team name (looks up all components for that team)
      - `--status`: Space-separated list of status values
      - `--include-closed`: Flag to include closed bugs
      - `--limit`: Maximum number of issues to fetch per component (default: 1000, max: 1000)
+   - Note: `--component` and `--team` are mutually exclusive
 
-4. **Resolve Component Names** (if component filter provided): Use fuzzy matching to find actual component names
+4. **Resolve Component Names**: Use fuzzy matching or team lookup to find actual component names
 
-   - Extract release from context or ask user for release version
-   - Run list_components.py to get all available components:
-     ```bash
-     python3 plugins/component-health/skills/list-components/list_components.py --release <release>
-     ```
-   - For each search string in `--component`:
-     - Find all components containing that string (case-insensitive)
-     - Combine all matches into a single list
-     - Remove duplicates
-     - If no matches found for a search string, warn the user and show available components
+   - If `--team` was provided:
+     - The script will handle team component lookup internally via `get_team_components()`
+     - If team not found, display available teams and exit
+   - Else if `--component` was provided:
+     - Extract release from context or ask user for release version
+     - Run list_components.py to get all available components:
+       ```bash
+       python3 plugins/component-health/skills/list-components/list_components.py
+       ```
+     - For each search string in `--component`:
+       - Find all components containing that string (case-insensitive)
+       - Combine all matches into a single list
+       - Remove duplicates
+       - If no matches found for a search string, warn the user and show available components
 
-5. **Execute Python Script**: Run the summarize_jiras.py script for each component
+5. **Execute Python Script**: Run the summarize_jiras.py script
 
    - Script location: `plugins/component-health/skills/summarize-jiras/summarize_jiras.py`
-   - The script internally calls `list_jiras.py` to fetch raw data
-   - **Important**: Iterate over each resolved component separately to avoid overly large queries
-   - For each component:
-     - Build command with project, single component, and other filters
-     - Execute: `python3 summarize_jiras.py --project <project> --component "<component>" [other args]`
-     - Capture JSON output from stdout
-   - Aggregate summary statistics from all components into a combined response
+   - The script internally calls `list_jiras.py` to fetch raw data and handles all components in one invocation
+   - If `--team` was provided:
+     - Execute: `python3 summarize_jiras.py --project <project> --team "<team>" [other args]`
+     - Script automatically looks up all team components and queries them
+     - Returns team-level summary and per-component breakdowns
+   - Else if `--component` was provided:
+     - Execute: `python3 summarize_jiras.py --project <project> --component <components> [other args]`
+     - Script handles all components in one invocation
+     - Returns overall summary and per-component breakdowns
+   - Else:
+     - Execute: `python3 summarize_jiras.py --project <project> [other args]`
+     - Queries all bugs in the project
+   - Capture JSON output from stdout
 
 6. **Parse Output**: Process the aggregated JSON response
 
@@ -223,7 +237,19 @@ For each component:
 
    Shows only bugs in New, In Progress, or Verified status.
 
-6. **Combine multiple filters**:
+6. **Filter by team**:
+
+   ```
+   /component-health:summarize-jiras --project OCPBUGS --team "API Server"
+   ```
+
+   Automatically looks up all components for the "API Server" team and shows bug counts:
+   - Queries all team components in one invocation
+   - Returns overall team summary
+   - Includes per-component breakdowns
+   - Use `/component-health:list-teams` to see available team names
+
+7. **Combine multiple filters**:
 
    ```
    /component-health:summarize-jiras --project OCPBUGS --component "Management Console" --status New Assigned --limit 200
@@ -242,10 +268,18 @@ For each component:
     - Space-separated list of component search strings
     - Case-insensitive substring matching
     - Each search string matches all components containing that substring
-    - Makes separate JIRA queries for each matched component to avoid overly large results
+    - Handles all components in one invocation
     - Example: "network" matches "Networking / ovn-kubernetes", "Networking / DNS", etc.
     - Example: "kube-" matches "kube-apiserver", "kube-controller-manager", etc.
-    - Note: Requires release context (inferred from recent commands or specified by user)
+    - Mutually exclusive with `--team`
+
+  - `--team <team-name>`: Filter by team name
+    - Looks up all components for the team from team_component_map.json
+    - Handles all team components in one invocation
+    - Returns overall team summary and per-component breakdowns
+    - Use `/component-health:list-teams` to see available team names
+    - Team names are case-sensitive
+    - Mutually exclusive with `--component`
 
   - `--status <status1> [status2 ...]`: Filter by status values
     - Space-separated list of status names

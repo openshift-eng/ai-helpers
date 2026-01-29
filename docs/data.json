@@ -319,7 +319,7 @@
     {
       "commands": [
         {
-          "argument_hint": "<release> [--components comp1 comp2 ...] [--project JIRAPROJECT]",
+          "argument_hint": "<release> [--components comp1 comp2 ...] [--team <team-name>] [--project JIRAPROJECT]",
           "description": "Analyze and grade component health based on regression and JIRA bug metrics",
           "name": "analyze",
           "synopsis": "/component-health:analyze <release> [--components comp1 comp2 ...] [--project JIRAPROJECT]"
@@ -349,13 +349,13 @@
           "synopsis": "/component-health:list-teams"
         },
         {
-          "argument_hint": "--project <project> [--component comp1 comp2 ...] [--status status1 status2 ...] [--include-closed] [--limit N]",
+          "argument_hint": "--project <project> [--component comp1 comp2 ...] [--team <team-name>] [--status status1 status2 ...] [--include-closed] [--limit N]",
           "description": "Query and summarize JIRA bugs for a specific project with counts by component",
           "name": "summarize-jiras",
           "synopsis": "/component-health:summarize-jiras --project <project> [--component comp1 comp2 ...] [--status status1 status2 ...] [--include-closed] [--limit N]"
         },
         {
-          "argument_hint": "<release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]",
+          "argument_hint": "<release> [--components comp1 comp2 ...] [--team <team-name>] [--start YYYY-MM-DD] [--end YYYY-MM-DD]",
           "description": "Query and summarize regression data for OpenShift releases with counts and metrics",
           "name": "summarize-regressions",
           "synopsis": "/component-health:summarize-regressions <release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]"

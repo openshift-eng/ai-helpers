@@ -15,8 +15,9 @@ Use this skill when you need to:
 - Analyze bug distribution by status, priority, or component
 - Generate summary reports for bug backlog
 - Track bug trends and velocity over time (opened vs closed in last 30 days)
-- Compare bug counts across different components
-- Monitor component health based on bug metrics
+- Compare bug counts across different components or teams
+- Monitor component health or team health based on bug metrics
+- Get team-level bug summaries across all team components
 
 ## Prerequisites
 
@@ -93,6 +94,11 @@ python3 plugins/component-health/skills/summarize-jiras/summarize_jiras.py \
 python3 plugins/component-health/skills/summarize-jiras/summarize_jiras.py \
   --project OCPBUGS \
   --component "kube-apiserver" "Management Console"
+
+# Filter by team
+python3 plugins/component-health/skills/summarize-jiras/summarize_jiras.py \
+  --project OCPBUGS \
+  --team "API Server"
 
 # Include closed bugs
 python3 plugins/component-health/skills/summarize-jiras/summarize_jiras.py \

@@ -1,6 +1,6 @@
 ---
 description: Analyze and grade component health based on regression and JIRA bug metrics
-argument-hint: <release> [--components comp1 comp2 ...] [--project JIRAPROJECT]
+argument-hint: <release> [--components comp1 comp2 ...] [--team <team-name>] [--project JIRAPROJECT]
 ---
 
 ## Name
@@ -11,6 +11,7 @@ component-health:analyze
 
 ```
 /component-health:analyze <release> [--components comp1 comp2 ...] [--project JIRAPROJECT]
+/component-health:analyze <release> --team <team-name> [--project JIRAPROJECT]
 ```
 
 ## Description
@@ -50,34 +51,46 @@ Grading is subjective and not meant to be a critique of team performance. This i
 
 **CRITICAL WORKFLOW**: The analyze command MUST execute steps 3 and 4 (fetch regression data AND fetch JIRA data) automatically without waiting for user prompting. Both data sources are required for a complete analysis.
 
-1. **Parse Arguments**: Extract release version and optional filters from arguments
+1. **Parse Arguments**: Extract release version and required filters from arguments
 
    - Release format: "X.Y" (e.g., "4.17", "4.21")
-   - Optional filters:
+   - Required filter (must provide one):
      - `--components`: Space-separated list of component search strings (fuzzy match)
+     - `--team`: Team name (looks up all components for that team)
+   - Optional filters:
      - `--project`: JIRA project key (default: "OCPBUGS")
+   - Note: `--components` and `--team` are mutually exclusive
+   - Note: One of `--components` or `--team` is REQUIRED (analyzing all components is too much data)
 
-2. **Resolve Component Names**: Use fuzzy matching to find actual component names
+2. **Resolve Component Names**: Use fuzzy matching to find actual component names, or look up by team
 
-   - Run list_components.py to get all available components:
-     ```bash
-     python3 plugins/component-health/skills/list-components/list_components.py --release <release>
-     ```
-   - If `--components` was provided:
+   - **Validate required parameter**: If neither `--team` nor `--components` is provided:
+     - Error: "Either --team or --components is required. Analyzing all components is too much data."
+     - Show usage examples
+     - Exit with error
+   - If `--team` was provided:
+     - Look up all components for that team from `team_component_map.json`
+     - Use `/component-health:list-components --team "<team>"` to get the component list
+     - If team not found, display available teams (via `/component-health:list-teams`) and exit
+   - Else if `--components` was provided:
+     - Run list_components.py to get all available components:
+       ```bash
+       python3 plugins/component-health/skills/list-components/list_components.py
+       ```
      - For each search string, find all components containing that string (case-insensitive)
      - Combine all matches into a single list
      - Remove duplicates
      - If no matches found for a search string, warn the user and show available components
-   - If `--components` was NOT provided:
-     - Use all available components from the list
 
 3. **Fetch Regression Summary**: REQUIRED - Always call the summarize-regressions command
 
    **IMPORTANT**: This step is REQUIRED for the analyze command. Regression data must ALWAYS be fetched automatically without user prompting. The analyze command combines both regression and bug metrics - it is incomplete without both data sources.
 
    - **ALWAYS execute this step** - do not skip or wait for user to request it
-   - Execute: `/component-health:summarize-regressions <release> [--components ...]`
-   - Pass resolved component names
+   - If `--team` was provided:
+     - Execute: `/component-health:summarize-regressions <release> --team "<team>"`
+   - Else (if `--components` was provided):
+     - Execute: `/component-health:summarize-regressions <release> --components <resolved-components>`
    - Extract regression metrics:
      - Total regressions, triage percentages, timing metrics
      - Per-component breakdowns
@@ -259,17 +272,20 @@ If requested:
 
 ## Examples
 
-1. **Analyze overall component health for a release**:
+1. **Analyze team health (recommended)**:
 
    ```
-   /component-health:analyze 4.17
+   /component-health:analyze 4.21 --team "API Server"
    ```
 
-   Automatically fetches and analyzes BOTH data sources for release 4.17:
-   - Regression management metrics (via summarize-regressions)
-   - JIRA bug backlog metrics (via summarize-jiras)
-   - Combined health grades based on both sources
-   - Prioritized recommendations using both regression and bug data
+   Automatically fetches BOTH data sources for all components owned by the "API Server" team:
+   - Looks up all team components from team_component_map.json
+   - Fetches regression metrics for all team components
+   - Fetches JIRA bug metrics for all team components
+   - Provides comprehensive team-level health analysis
+   - Shows per-component breakdowns within the team
+   - Identifies which team components need attention
+   - Use `/component-health:list-teams` to see available team names
 
 2. **Analyze specific components (exact match)**:
 
@@ -296,25 +312,13 @@ If requested:
    - Identifies networking-related quality issues from both sources
    - Provides targeted recommendations
 
-4. **Analyze with custom JIRA project**:
+4. **Team analysis with custom JIRA project**:
 
    ```
-   /component-health:analyze 4.21 --project OCPSTRAT
+   /component-health:analyze 4.21 --team "Networking" --project OCPBUGS
    ```
 
-   Analyzes health using bugs from OCPSTRAT project instead of default OCPBUGS.
-
-5. **In-development release analysis**:
-
-   ```
-   /component-health:analyze 4.21
-   ```
-
-   Automatically fetches BOTH data sources for an in-development release:
-   - Shows current regression management state
-   - Shows current bug backlog state
-   - Tracks bug flow trends (opened vs closed)
-   - Identifies areas to focus on before GA based on both regression and bug metrics
+   Analyzes health for the Networking team using bugs from OCPBUGS project
 
 ## Arguments
 
@@ -322,17 +326,27 @@ If requested:
   - Format: "X.Y" (e.g., "4.17", "4.21")
   - Must be a valid OpenShift release number
 
-- `$2+` (optional): Filter flags
+- `$2+` (required): Filter flags - must provide either --components or --team
   - `--components <search1> [search2 ...]`: Filter by component names using fuzzy search
     - Space-separated list of component search strings
     - Case-insensitive substring matching
     - Each search string matches all components containing that substring
-    - If no components provided, all components are analyzed
     - Applied to both regression and bug queries
     - Example: "network" matches "Networking / ovn-kubernetes", "Networking / DNS", etc.
     - Example: "kube-" matches "kube-apiserver", "kube-controller-manager", etc.
+    - Mutually exclusive with `--team`
+    - Required if `--team` is not provided
 
-  - `--project <PROJECT>`: JIRA project key
+  - `--team <team-name>`: Filter by team name
+    - Looks up all components for the team from team_component_map.json
+    - Applied to both regression and bug queries
+    - Team-level health analysis with per-component breakdowns
+    - Use `/component-health:list-teams` to see available team names
+    - Team names are case-sensitive
+    - Mutually exclusive with `--components`
+    - Required if `--components` is not provided
+
+  - `--project <PROJECT>`: JIRA project key (optional)
     - Default: "OCPBUGS"
     - Use alternative project if component bugs are tracked elsewhere
     - Examples: "OCPSTRAT", "OCPQE"

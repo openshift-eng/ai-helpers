@@ -1,6 +1,6 @@
 ---
 description: Query and summarize regression data for OpenShift releases with counts and metrics
-argument-hint: <release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]
+argument-hint: <release> [--components comp1 comp2 ...] [--team <team-name>] [--start YYYY-MM-DD] [--end YYYY-MM-DD]
 ---
 
 ## Name
@@ -11,6 +11,7 @@ component-health:summarize-regressions
 
 ```
 /component-health:summarize-regressions <release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]
+/component-health:summarize-regressions <release> --team <team-name> [--start YYYY-MM-DD] [--end YYYY-MM-DD]
 ```
 
 ## Description
@@ -26,12 +27,13 @@ By default, the command analyzes:
 This command is useful for:
 
 - Getting a quick count of regressions in a release
-- Analyzing regression distribution by component
+- Analyzing regression distribution by component or team
 - Tracking triage coverage and response times
 - Generating summary reports for regression management
-- Monitoring regression resolution speed by component
+- Monitoring regression resolution speed by component or team
 - Comparing regression metrics across different components
 - Understanding open vs closed regression breakdown
+- Getting team-level regression summaries across all team components
 
 ## Implementation
 
@@ -45,21 +47,27 @@ This command is useful for:
    - Release format: "X.Y" (e.g., "4.17", "4.21")
    - Optional filters:
      - `--components`: Space-separated list of component search strings (fuzzy match)
+     - `--team`: Team name (looks up all components for that team)
      - `--start`: Start date for filtering (YYYY-MM-DD)
      - `--end`: End date for filtering (YYYY-MM-DD)
+   - Note: `--components` and `--team` are mutually exclusive
 
-3. **Resolve Component Names**: Use fuzzy matching to find actual component names
+3. **Resolve Component Names**: Use fuzzy matching to find actual component names, or look up by team
 
-   - Run list_components.py to get all available components:
-     ```bash
-     python3 plugins/component-health/skills/list-components/list_components.py --release <release>
-     ```
+   - If `--team` was provided:
+     - Look up all components for that team from `team_component_map.json`
+     - The script will handle this internally via `get_team_components()`
+     - If team not found, display available teams and exit
    - If `--components` was provided:
+     - Run list_components.py to get all available components:
+       ```bash
+       python3 plugins/component-health/skills/list-components/list_components.py
+       ```
      - For each search string, find all components containing that string (case-insensitive)
      - Combine all matches into a single list
      - Remove duplicates
      - If no matches found for a search string, warn the user and show available components
-   - If `--components` was NOT provided:
+   - If neither `--team` nor `--components` was provided:
      - Use all available components from the list
 
 4. **Fetch Release Dates**: Run the get_release_dates.py script to get development window dates
@@ -96,7 +104,8 @@ This command is useful for:
 
    - Show which components were matched (if fuzzy search was used)
    - Show overall summary statistics
-   - Display per-component breakdowns
+   - **For --team mode**: Focus presentation on the overall team summary, though per-component data is included in JSON
+   - **For --components mode**: Display per-component breakdowns
    - Highlight key metrics:
      - Triage coverage percentages
      - Average time to triage
@@ -222,6 +231,25 @@ For each component (from `components.*.summary`):
    - No end date filtering (release not yet GA'd)
    - Shows current state of regression management
 
+7. **Filter by team**:
+
+   ```
+   /component-health:summarize-regressions 4.21 --team "API Server"
+   ```
+
+   Summarizes regressions for all components owned by the "API Server" team:
+   - Automatically looks up all team components from team_component_map.json
+   - Provides overall team-level summary (not per-component breakdown)
+   - Use `/component-health:list-teams` to see available team names
+
+8. **Team summary with custom date range**:
+
+   ```
+   /component-health:summarize-regressions 4.17 --team "Networking" --start 2024-05-17 --end 2024-10-29
+   ```
+
+   Summarizes regressions for the Networking team within a specific date range
+
 ## Arguments
 
 - `$1` (required): Release version
@@ -236,6 +264,15 @@ For each component (from `components.*.summary`):
     - If no components provided, all components are analyzed
     - Example: "network" matches "Networking / ovn-kubernetes", "Networking / DNS", etc.
     - Example: "kube-" matches "kube-apiserver", "kube-controller-manager", etc.
+    - Mutually exclusive with `--team`
+
+  - `--team <team-name>`: Filter by team name
+    - Looks up all components for the team from team_component_map.json
+    - Returns overall team summary as well as per-component breakdowns in JSON
+    - Command presentation should focus on overall team summary
+    - Use `/component-health:list-teams` to see available team names
+    - Team names are case-sensitive
+    - Mutually exclusive with `--components`
 
   - `--start <YYYY-MM-DD>`: Filter by start date
     - Excludes regressions closed before this date

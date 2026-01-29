@@ -13,6 +13,7 @@ Environment Variables:
 Usage:
     python3 summarize_jiras.py --project OCPBUGS
     python3 summarize_jiras.py --project OCPBUGS --component "kube-apiserver"
+    python3 summarize_jiras.py --project OCPBUGS --team "API Server"
     python3 summarize_jiras.py --project OCPBUGS --status New "In Progress"
     python3 summarize_jiras.py --project OCPBUGS --include-closed --limit 500
 """
@@ -25,6 +26,45 @@ import subprocess
 from typing import List, Dict, Any
 from collections import defaultdict
 from datetime import datetime, timedelta
+from pathlib import Path
+
+
+def get_team_components(team_name: str) -> List[str]:
+    """
+    Get the list of components for a given team from team_component_map.json.
+
+    Args:
+        team_name: Name of the team (case-sensitive)
+
+    Returns:
+        List of component names for the team
+
+    Raises:
+        FileNotFoundError: If the mapping file doesn't exist
+        KeyError: If the team is not found in the mapping
+        ValueError: If the mapping file is invalid
+    """
+    # Get path to team_component_map.json (relative to this script)
+    script_dir = Path(__file__).parent
+    plugin_dir = script_dir.parent.parent
+    mapping_path = plugin_dir / "team_component_map.json"
+
+    if not mapping_path.exists():
+        raise FileNotFoundError(f"Team component mapping file not found at {mapping_path}")
+
+    try:
+        with open(mapping_path, 'r') as f:
+            mapping_data = json.load(f)
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Failed to parse team component mapping file: {e}")
+
+    teams = mapping_data.get("teams", {})
+
+    if team_name not in teams:
+        available_teams = sorted(teams.keys())
+        raise KeyError(f"Team '{team_name}' not found in mapping. Available teams: {', '.join(available_teams)}")
+
+    return teams[team_name]
 
 
 def call_list_jiras(project: str, components: List[str] = None,
@@ -297,6 +337,12 @@ Examples:
     )
 
     parser.add_argument(
+        '--team',
+        type=str,
+        help='Filter by team name (looks up all components for the team). Mutually exclusive with --component.'
+    )
+
+    parser.add_argument(
         '--status',
         nargs='+',
         help='Filter by status values (space-separated)'
@@ -317,16 +363,33 @@ Examples:
 
     args = parser.parse_args()
 
+    # Validate mutually exclusive arguments
+    if args.team and args.component:
+        print("Error: --team and --component are mutually exclusive. Use one or the other.", file=sys.stderr)
+        sys.exit(1)
+
     # Validate limit
     if args.limit < 1 or args.limit > 1000:
         print("Error: --limit must be between 1 and 1000", file=sys.stderr)
         sys.exit(1)
 
+    # If team is specified, look up components for that team
+    components_to_filter = args.component
+    team_name = None
+    if args.team:
+        try:
+            team_name = args.team
+            components_to_filter = get_team_components(args.team)
+            print(f"Team '{args.team}' has {len(components_to_filter)} components: {', '.join(components_to_filter)}", file=sys.stderr)
+        except (FileNotFoundError, KeyError, ValueError) as e:
+            print(f"Error resolving team components: {e}", file=sys.stderr)
+            sys.exit(1)
+
     # Fetch raw JIRA data using list_jiras.py
     print(f"Fetching JIRA data for project {args.project}...", file=sys.stderr)
     raw_data = call_list_jiras(
         project=args.project,
-        components=args.component,
+        components=components_to_filter,
         statuses=args.status,
         include_closed=args.include_closed,
         limit=args.limit
@@ -349,6 +412,10 @@ Examples:
         'summary': summary_data['summary'],
         'components': summary_data['components']
     }
+
+    # Add team name if filtering by team
+    if team_name:
+        output['team'] = team_name
 
     # Add note if present in raw data
     if 'note' in raw_data:

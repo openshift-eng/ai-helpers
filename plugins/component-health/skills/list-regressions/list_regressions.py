@@ -4,10 +4,12 @@ Script to fetch regression data for OpenShift components.
 
 Usage:
     python3 list_regressions.py --release <release> [--components comp1 comp2 ...] [--short]
+    python3 list_regressions.py --release <release> --team "Team Name" [--short]
 
 Example:
     python3 list_regressions.py --release 4.17
     python3 list_regressions.py --release 4.21 --components Monitoring etcd
+    python3 list_regressions.py --release 4.21 --team "API Server"
     python3 list_regressions.py --release 4.21 --short
 """
 
@@ -18,6 +20,45 @@ import sys
 import urllib.request
 import urllib.error
 from datetime import datetime, timezone
+from pathlib import Path
+
+
+def get_team_components(team_name: str) -> list:
+    """
+    Get the list of components for a given team from team_component_map.json.
+
+    Args:
+        team_name: Name of the team (case-sensitive)
+
+    Returns:
+        List of component names for the team
+
+    Raises:
+        FileNotFoundError: If the mapping file doesn't exist
+        KeyError: If the team is not found in the mapping
+        ValueError: If the mapping file is invalid
+    """
+    # Get path to team_component_map.json (relative to this script)
+    script_dir = Path(__file__).parent
+    plugin_dir = script_dir.parent.parent
+    mapping_path = plugin_dir / "team_component_map.json"
+
+    if not mapping_path.exists():
+        raise FileNotFoundError(f"Team component mapping file not found at {mapping_path}")
+
+    try:
+        with open(mapping_path, 'r') as f:
+            mapping_data = json.load(f)
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Failed to parse team component mapping file: {e}")
+
+    teams = mapping_data.get("teams", {})
+
+    if team_name not in teams:
+        available_teams = sorted(teams.keys())
+        raise KeyError(f"Team '{team_name}' not found in mapping. Available teams: {', '.join(available_teams)}")
+
+    return teams[team_name]
 
 
 def calculate_hours_between(start_timestamp: str, end_timestamp: str) -> int:
@@ -566,7 +607,14 @@ Examples:
         default=None,
         help='Filter by component names (space-separated list, case-insensitive)'
     )
-    
+
+    parser.add_argument(
+        '--team',
+        type=str,
+        default=None,
+        help='Filter by team name (looks up all components for the team). Mutually exclusive with --components.'
+    )
+
     parser.add_argument(
         '--start',
         type=str,
@@ -587,16 +635,31 @@ Examples:
         help='Short output mode: exclude regression data, only include summaries'
     )
     args = parser.parse_args()
-    
-  
-    
+
+    # Validate mutually exclusive arguments
+    if args.team and args.components:
+        print("Error: --team and --components are mutually exclusive. Use one or the other.", file=sys.stderr)
+        return 1
+
+    # If team is specified, look up components for that team
+    components_to_filter = args.components
+    team_name = None
+    if args.team:
+        try:
+            team_name = args.team
+            components_to_filter = get_team_components(args.team)
+            print(f"Team '{args.team}' has {len(components_to_filter)} components: {', '.join(components_to_filter)}", file=sys.stderr)
+        except (FileNotFoundError, KeyError, ValueError) as e:
+            print(f"Error resolving team components: {e}", file=sys.stderr)
+            return 1
+
     try:
         # Fetch regressions
         regressions = fetch_regressions(args.release)
 
         # Filter by components (always called to remove empty component names)
         if isinstance(regressions, list):
-            regressions = filter_by_components(regressions, args.components)
+            regressions = filter_by_components(regressions, components_to_filter)
 
         # Simplify time field structures (closed, last_failure)
         if isinstance(regressions, list):
@@ -636,8 +699,20 @@ Examples:
         overall_summary = calculate_summary(all_regressions, filtered_infra_count)
 
         # Construct output with summary and components
+        # If --team is specified, include both team summary and per-component breakdown
+        if team_name:
+            components_short = {}
+            for component_name, component_data in components.items():
+                components_short[component_name] = {
+                    "summary": component_data["summary"]
+                }
+            output_data = {
+                "team": team_name,
+                "summary": overall_summary,
+                "components": components_short
+            }
         # If --short flag is specified, remove regression data from components
-        if args.short:
+        elif args.short:
             # Create a copy of components with only summaries
             components_short = {}
             for component_name, component_data in components.items():
