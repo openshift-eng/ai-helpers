@@ -353,7 +353,8 @@ This command checks main branch + all open PRs for similar commands, skills, sub
 - **Skill directories:** Use kebab-case: `prow-job-analyze-resource/`
 - **Plugin names:** Use kebab-case: `prow-job`, `hello-world`
 - **Working directories:** Use `.work/{plugin-name}/{command-name}/` for command output and temporary files (already in .gitignore)
-  - Pattern: `.work/{plugin-name}/{command-name}/{identifier}/`
+  - Pattern: `.work/{plugin-name}/{command-name}/{identifier}/` for multi-file outputs **or** `.work/{plugin-name}/{command-name}/report-{identifier}.{ext}` for single files
+  - Example: `.work/prow-job/analyze-resource/1234567890/` or `.work/jira/grooming/report-2025-01-29.md`
   - See "File Creation Patterns" section for detailed guidance
 
 ## Common Patterns
