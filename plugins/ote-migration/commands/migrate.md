@@ -824,10 +824,10 @@ echo "Using Kubernetes version: $K8S_VERSION"
 echo "Using ginkgo version: $GINKGO_VERSION"
 
 echo "Step 4: Add required dependencies..."
-go get github.com/openshift-eng/openshift-tests-extension@latest
-go get "github.com/openshift/origin@main"
-go get github.com/onsi/ginkgo/v2@latest
-go get github.com/onsi/gomega@latest
+GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get github.com/openshift-eng/openshift-tests-extension@latest
+GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get "github.com/openshift/origin@main"
+GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get github.com/onsi/ginkgo/v2@latest
+GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get github.com/onsi/gomega@latest
 
 echo "Step 5: Add replace directives with latest versions to avoid stale dependencies..."
 # Fetch latest versions from upstream to avoid outdated dependencies from openshift-tests-private
@@ -901,7 +901,7 @@ echo "Step 6: Generate go.sum (deferred full resolution)..."
 
 # Generate minimal go.sum from go.mod
 echo "Generating minimal go.sum..."
-go mod download || echo "⚠️  Some dependencies failed to download - will retry after test migration"
+GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go mod download || echo "⚠️  Some dependencies failed to download - will retry after test migration"
 
 # Mark that go mod tidy needs to be run later
 echo "⚠️  Note: Full dependency resolution deferred to Phase 6"
