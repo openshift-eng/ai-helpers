@@ -106,9 +106,8 @@ Store the selection in variable: `<structure-strategy>` (value: "monorepo" or "s
 Ask: "What is the working directory path for migration workspace?"
 
 **For both strategies**:
-- This is the workspace directory for migration operations
-- Used for cloning openshift-tests-private (if needed)
-- Used for temporary migration operations
+- This is a TEMPORARY workspace for migration preparation
+- Used ONLY for cloning openshift-tests-private (if needed)
 - Example: `/home/user/workspace`, `/tmp/migration-workspace`
 
 **User provides the path:**
@@ -118,7 +117,7 @@ Ask: "What is the working directory path for migration workspace?"
 
 **Store in variable:** `<working-dir>`
 
-**Note**: This is NOT where files will be created. The target repository path will be collected next.
+**IMPORTANT**: This is NOT the final working directory. After Input 3, the working directory will SWITCH to the target repository where all OTE files will be created.
 
 #### Input 3: Target Repository
 
