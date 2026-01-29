@@ -2933,9 +2933,13 @@ fi
 
 ### Phase 6: Dependency Resolution and Verification (2 steps)
 
+**CRITICAL INSTRUCTION**: Phase 6 must ALWAYS run to completion, even if there are warnings from go mod tidy. Do not stop early or prompt for manual steps. The build verification in Step 2 will determine if there are actual problems. This phase is fully automated.
+
 #### Step 1: Complete Dependency Resolution (Deferred from Phase 4)
 
 **Run the full go mod tidy that was deferred earlier**
+
+**IMPORTANT**: This step should always continue to Step 2 (build verification) even if go mod tidy shows warnings. The build step will verify if dependencies are actually problematic.
 
 **For Monorepo Strategy:**
 
@@ -2943,25 +2947,37 @@ fi
 cd <working-dir>/test/<test-dir-name>
 
 echo "========================================="
-echo "Phase 6: Completing dependency resolution"
+echo "Phase 6 Step 1: Completing dependency resolution"
 echo "========================================="
 
 # Now that test files are migrated (Phase 5), run full go mod tidy
 # This was deferred from Phase 4 Step 6 to prevent timeout before test migration
-echo "Running full go mod tidy (this may take 2-3 minutes)..."
+echo "Running full go mod tidy in test module (this may take 2-3 minutes)..."
 GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go mod tidy
 
 if [ $? -eq 0 ]; then
-    echo "✅ Dependency resolution complete"
+    echo "✅ Test module dependency resolution complete"
 else
-    echo "⚠️  go mod tidy had errors - you may need to fix import issues manually"
-    echo "    Common issues:"
-    echo "    - Missing package imports in test files"
-    echo "    - Old compat_otp imports not removed"
-    echo "    - Check test files for import errors"
+    echo "⚠️  go mod tidy had warnings in test module"
+    echo "    This is normal - continuing to build verification..."
 fi
 
 cd ../..
+
+# Also run go mod tidy in root module to ensure consistency
+echo ""
+echo "Running go mod tidy in root module..."
+GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go mod tidy
+
+if [ $? -eq 0 ]; then
+    echo "✅ Root module dependency resolution complete"
+else
+    echo "⚠️  go mod tidy had warnings in root module"
+    echo "    This is normal - continuing to build verification..."
+fi
+
+echo ""
+echo "✅ Phase 6 Step 1 complete - proceeding to build verification"
 ```
 
 **For Single-Module Strategy:**
@@ -2995,17 +3011,22 @@ cd ..
 
 **This is Step 3 of the Go module workflow: Build or test to verify everything works**
 
+**IMPORTANT**: This step MUST run automatically. The Makefile target handles bindata generation and build. Do not prompt for manual steps.
+
 **For Monorepo Strategy:**
 
 ```bash
 cd <working-dir>
 
 echo "========================================="
-echo "Verifying build and dependencies"
+echo "Phase 6 Step 2: Build verification"
 echo "========================================="
 
 # Build the extension binary using Makefile
-echo "Building extension binary..."
+# This will automatically:
+# 1. Generate bindata from test/<testdata-dir>-testdata/
+# 2. Build the binary to bin/<extension-name>-tests-ext
+echo "Building extension binary (includes bindata generation)..."
 make extension
 
 if [ $? -eq 0 ]; then
@@ -3023,7 +3044,17 @@ if [ $? -eq 0 ]; then
 
     echo ""
     echo "========================================="
-    echo "Migration complete - ready to commit"
+    echo "✅ MIGRATION COMPLETE - FULLY AUTOMATED"
+    echo "========================================="
+    echo "All phases completed successfully:"
+    echo "  ✅ Phase 1: User input collection"
+    echo "  ✅ Phase 2: Repository setup"
+    echo "  ✅ Phase 3: Structure creation"
+    echo "  ✅ Phase 4: Code generation"
+    echo "  ✅ Phase 5: Test migration (atomic)"
+    echo "  ✅ Phase 6: Dependency resolution and build"
+    echo ""
+    echo "Ready to commit - no manual steps required!"
     echo "========================================="
     echo "Files to commit:"
     echo "  - go.mod (root module with test/<test-dir-name> replace directive)"
