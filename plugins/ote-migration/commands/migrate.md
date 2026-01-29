@@ -2962,9 +2962,54 @@ else
     echo "    This is normal - continuing to build verification..."
 fi
 
+# Sync replace directives from test module to root module to prevent dependency conflicts
+echo ""
+echo "Syncing replace directives from test module to root module..."
 cd ../..
 
-# Also run go mod tidy in root module to ensure consistency
+# Extract replace directives from test module (excluding the self-reference)
+TEST_REPLACES=$(grep -A 1000 "^replace (" test/<test-dir-name>/go.mod | grep -v "^replace (" | grep "=>" | grep -v "^)" || echo "")
+
+if [ -n "$TEST_REPLACES" ]; then
+    # Ensure root go.mod has a replace block
+    if ! grep -q "^replace (" go.mod; then
+        echo "" >> go.mod
+        echo "replace (" >> go.mod
+        echo ")" >> go.mod
+    fi
+
+    # Update or add each replace directive
+    UPDATED_COUNT=0
+    while IFS= read -r replace_line; do
+        # Extract the package being replaced (e.g., "k8s.io/api")
+        PACKAGE=$(echo "$replace_line" | awk '{print $1}')
+
+        # Skip empty lines
+        if [ -z "$PACKAGE" ]; then
+            continue
+        fi
+
+        # Check if this replace directive exists in root go.mod
+        if grep -q "^[[:space:]]*$PACKAGE " go.mod; then
+            # Replace existing directive with updated version
+            # First, remove the old line
+            sed -i "/^[[:space:]]*$PACKAGE /d" go.mod
+            # Then add the new line to the replace block
+            sed -i "/^replace (/a\\    $replace_line" go.mod
+            UPDATED_COUNT=$((UPDATED_COUNT + 1))
+        else
+            # Add new replace directive to the replace block
+            sed -i "/^replace (/a\\    $replace_line" go.mod
+            UPDATED_COUNT=$((UPDATED_COUNT + 1))
+        fi
+    done <<< "$TEST_REPLACES"
+
+    echo "✅ Synced $UPDATED_COUNT replace directives from test module to root go.mod"
+else
+    echo "⚠️  No replace directives found in test module"
+fi
+
+# Now run go mod tidy in root module with synced replace directives
 echo ""
 echo "Running go mod tidy in root module..."
 GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go mod tidy
