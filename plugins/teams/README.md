@@ -95,7 +95,7 @@ Analyze and grade team or component health based on regression and JIRA bug metr
 
 #### `/teams:health-check-regressions`
 
-Query and summarize regression data with counts and metrics.
+Query and summarize just regression data with counts and metrics. Part of the overall health-check command.
 
 **Usage:**
 ```
@@ -123,7 +123,7 @@ Query and summarize regression data with counts and metrics.
 
 #### `/teams:health-check-jiras`
 
-Query and summarize JIRA bugs with counts by component, status, and priority.
+Query and summarize JIRA bugs with counts by component, status, and priority. Part of the overall health-check command.
 
 **Usage:**
 ```

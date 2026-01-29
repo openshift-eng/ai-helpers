@@ -16,7 +16,7 @@ teams:health-check
 
 ## Description
 
-The `teams:health-check` command provides comprehensive component health analysis for a specified OpenShift release by **automatically combining** regression management metrics with JIRA bug backlog data.
+The `teams:health-check` command provides comprehensive component health analysis for a specified OpenShift release by combining regression management metrics with JIRA bug backlog data.
 
 **CRITICAL**: This command REQUIRES and AUTOMATICALLY fetches BOTH data sources:
 1. Regression data (via health-check-regressions)
@@ -39,11 +39,10 @@ The command evaluates component health based on:
 
 This command is useful for:
 
+- **Sprint planning** based on data-driven insights
 - **Grading overall component health** using multiple quality metrics
 - **Identifying components** that need help with regression or bug management
 - **Tracking quality trends** across releases
-- **Generating comprehensive quality scorecards** for stakeholders
-- **Prioritizing engineering investment** based on data-driven insights
 
 Grading is subjective and not meant to be a critique of team performance. This is intended to help identify where help is needed and track progress as we improve our quality practices.
 
