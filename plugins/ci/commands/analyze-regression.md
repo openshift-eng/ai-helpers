@@ -1,6 +1,6 @@
 ---
-description: Analyze root cause of a specific regressed test case from Component Readiness
-argument-hint: <regression id> <release> [--variant <variant>]
+description: Analyze details about a Component Readiness regression and suggest next steps
+argument-hint: <regression id>
 ---
 
 ## Name
@@ -10,15 +10,15 @@ ci:analyze-regression
 ## Synopsis
 
 ```
-/ci:analyze-regression <regression id> <release> [--variant <variant>]
+/ci:analyze-regression <regression id>
 ```
 
 ## Description
 
-The `ci:analyze-regression` command automates the root cause analysis workflow for a specific regressed test case as documented in the Component Readiness User Guide. This command helps teams quickly diagnose test failures and prepare for bug filing and triaging.
+The `ci:analyze-regression` command analyzes details for a specific Component Readiness regression and suggests next steps for investigation. 
 
-This command implements the following workflow from the Component Readiness User Guide:
-1. Fetches detailed regression data for the specific test
+This command implements the following workflow:
+1. Fetches detailed regression data 
 2. Retrieves test failure logs and job information
 3. Analyzes failure patterns using `/prow-job:analyze-test-failure`
 4. Identifies potential root causes
@@ -35,17 +35,18 @@ This command is useful for:
 
 ## Implementation
 
-1. **Parse Arguments**: Extract test name, release version, and optional variant
+1. **Parse Arguments**: Extract regression ID
 
-   - Test name format: Full test name as shown in Component Readiness (e.g., "[sig-network] Feature:SCTP...")
-   - Release format: "X.Y" (e.g., "4.21", "4.22")
-   - Optional variant filter: specific platform/topology variant
+   - Regression ID format: Integer ID from Component Readiness
+   - Example: 34446
 
-2. **Fetch Regression Details**: Get regression data from Component Readiness API
+2. **Fetch Regression Details**: Use the `fetch-regression-details` skill
 
-   - Curl https://sippy.dptools.openshift.org/api/component_readiness/regressions/<regression id>
+   - See `plugins/ci/skills/fetch-regression-details/SKILL.md` for implementation
+   - The skill fetches regression data from: https://sippy.dptools.openshift.org/api/component_readiness/regressions/<regression_id>
    - Extract regression metadata:
      - Test Name
+     - Release version
      - Variants where test is failing
      - Regression opened/closed dates
      - Existing triages (if any)
@@ -150,18 +151,9 @@ The command outputs a **Comprehensive Regression Analysis Report**:
 ## Arguments
 
 - `$1` (required): Regression ID
-  - Format: Integer id of the regression to analyze
-  - Example: 12345
-
-- `$2` (required): Release version
-  - Format: "X.Y" (e.g., "4.21", "4.22")
-  - Must be a valid OpenShift release number
-  - Should match the release shown in Component Readiness
-
-- `$3+` (optional): Filter flags
-  - `--variant <variant>`: Filter analysis to specific platform/topology
-    - Examples: `aws`, `gcp`, `azure`, `metal`, `single-node`
-    - Useful when test fails on specific platform only
+  - Format: Integer ID of the regression to analyze
+  - Example: 34446
+  - The regression ID can be found in the Component Readiness UI regressed tests table by hovering over the regressed since column, click to copy.
 
 ## Prerequisites
 
