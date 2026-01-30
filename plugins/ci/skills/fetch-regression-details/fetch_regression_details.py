@@ -229,12 +229,64 @@ class RegressionFetcher:
 
         return failed_jobs
 
+    def parse_pass_sequence(self, test_details: Dict[str, Any]) -> str:
+        """
+        Generate a pass/fail sequence string from test details.
+
+        Creates a string like "SSSSFFFFFFSSSSFFFSSSFF" showing the chronological
+        sequence of test successes (S) and failures (F) across all sample job runs.
+
+        Args:
+            test_details: Raw JSON response from test details API
+
+        Returns:
+            str: Sequence string with S for success, F for fail, sorted by time (newest to oldest)
+        """
+        all_runs = []
+
+        # Navigate to analyses[0].job_stats
+        analyses = test_details.get('analyses', [])
+        if not analyses:
+            return ""
+
+        job_stats = analyses[0].get('job_stats', [])
+
+        # Collect all sample job runs from all jobs
+        for job_stat in job_stats:
+            sample_job_run_stats = job_stat.get('sample_job_run_stats', [])
+
+            for run_stat in sample_job_run_stats:
+                test_stats = run_stat.get('test_stats', {})
+                success_count = test_stats.get('success_count', 0)
+                failure_count = test_stats.get('failure_count', 0)
+                start_time = run_stat.get('start_time', '')
+
+                all_runs.append({
+                    'start_time': start_time,
+                    'success_count': success_count,
+                    'failure_count': failure_count,
+                })
+
+        # Sort by start_time (newest first for chronological sequence)
+        all_runs.sort(key=lambda x: x['start_time'], reverse=True)
+
+        # Build the sequence string
+        sequence = ""
+        for run in all_runs:
+            if run['success_count'] > 0:
+                sequence += "S"
+            elif run['failure_count'] > 0:
+                sequence += "F"
+            # Skip runs with neither pass nor fail (shouldn't happen normally)
+
+        return sequence
+
     def fetch_and_parse(self) -> Dict[str, Any]:
         """
         Fetch and parse regression data in one call.
 
         Returns:
-            dict: Structured regression data with sample failed jobs
+            dict: Structured regression data with sample failed jobs and pass sequence
 
         Raises:
             ValueError: If fetch or parse fails
@@ -242,18 +294,21 @@ class RegressionFetcher:
         raw_data = self.fetch_raw_data()
         regression = self.parse_regression(raw_data)
 
-        # Fetch sample failed jobs from test details
+        # Fetch sample failed jobs and pass sequence from test details
         test_details_url = regression.get('test_details_url', '')
         if test_details_url:
             try:
                 test_details = self.fetch_test_details(test_details_url)
                 regression['sample_failed_jobs'] = self.parse_failed_jobs(test_details)
+                regression['sample_pass_sequence'] = self.parse_pass_sequence(test_details)
             except ValueError as e:
                 # Don't fail entire request if test details fetch fails
                 regression['sample_failed_jobs'] = []
+                regression['sample_pass_sequence'] = ""
                 regression['sample_failed_jobs_error'] = str(e)
         else:
             regression['sample_failed_jobs'] = []
+            regression['sample_pass_sequence'] = ""
 
         return regression
 
@@ -315,6 +370,13 @@ def format_summary(regression: Dict[str, Any]) -> str:
         lines.append("")
     else:
         lines.append("Triages: None - needs investigation")
+        lines.append("")
+
+    # Sample Pass Sequence
+    if 'sample_pass_sequence' in regression and regression['sample_pass_sequence']:
+        sequence = regression['sample_pass_sequence']
+        lines.append(f"Sample Success/Fail Sequence (chronological, newest to oldest):")
+        lines.append(f"  {sequence}")
         lines.append("")
 
     # Sample Failed Jobs (if included)

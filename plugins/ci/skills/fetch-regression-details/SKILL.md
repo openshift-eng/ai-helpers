@@ -100,6 +100,7 @@ The structured data includes all necessary regression details:
       "updated_at": "2026-01-30T13:28:33.429963Z"
     }
   ],
+  "sample_pass_sequence": "FFFFFSFFFSSFFFFSFFFFFFFSSSSSSSSSSSSSSSSS",
   "sample_failed_jobs": [
     {
       "job_url": "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/...",
@@ -113,7 +114,9 @@ The structured data includes all necessary regression details:
 }
 ```
 
-**Note:** The `sample_failed_jobs` field is always included. These are job runs from the sample release (not baseline) where the test failed (failure_count > 0).
+**Note:**
+- `sample_pass_sequence`: Chronological success/fail pattern (newest to oldest). "S" = successful run (success_count > 0), "F" = failing run (failure_count > 0). Example: "FFFFFSSS" shows 5 recent failures, then 3 older successes.
+- `sample_failed_jobs`: Job runs from the sample release (not baseline) where the test failed (failure_count > 0).
 
 ## Error Handling
 
@@ -373,6 +376,7 @@ API URL: https://sippy.dptools.openshift.org/api/...
 - Closed regressions will have `status: "closed"` and a non-null `closed` timestamp
 - The `variants` array shows all platform/topology combinations where the test is failing
 - Default output format is JSON; use `--format summary` for human-readable output
+- `sample_pass_sequence` is a chronological string (newest to oldest) showing "S" for successful runs and "F" for failed runs
 - `sample_failed_jobs` is always included and contains runs where the test failed (failure_count > 0) from the sample release (not baseline)
 - Failed jobs are sorted by start_time (most recent first)
 

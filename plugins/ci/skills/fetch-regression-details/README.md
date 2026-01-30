@@ -37,6 +37,7 @@ Structured JSON data containing:
   "variants": ["Architecture:amd64", "Platform:aws"],
   "test_details_url": "https://sippy.dptools.openshift.org/...",
   "triages": [...],
+  "sample_pass_sequence": "FFFFFSFFFSSFFFFSFFFFFFFSSSSSSSSSSSSSSSSS",
   "sample_failed_jobs": [
     {
       "job_url": "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/...",
@@ -48,7 +49,9 @@ Structured JSON data containing:
 }
 ```
 
-**Note:** `sample_failed_jobs` is always included and contains job runs where the test failed.
+**Note:**
+- `sample_pass_sequence`: Chronological success/fail pattern (newest to oldest). "S" = success, "F" = failure.
+- `sample_failed_jobs`: Always included, contains job runs where the test failed.
 
 ## API Endpoint
 
