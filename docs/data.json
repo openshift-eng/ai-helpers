@@ -47,6 +47,12 @@
           "synopsis": "/git:fix-cherrypick-robot-pr <pr-url> [error-messages]"
         },
         {
+          "argument_hint": "[pr-url]",
+          "description": "Adapt and correct a PR description to match its code diffs and commit messages",
+          "name": "redescribe",
+          "synopsis": "/git:redescribe              # Redescribe the PR for the current branch"
+        },
+        {
           "argument_hint": "[base-branch]",
           "description": "Suggest appropriate reviewers for a PR based on git blame and OWNERS files",
           "name": "suggest-reviewers",
@@ -70,7 +76,7 @@
           "name": "Suggest Reviewers Helper"
         }
       ],
-      "version": "0.0.2"
+      "version": "0.0.3"
     },
     {
       "commands": [

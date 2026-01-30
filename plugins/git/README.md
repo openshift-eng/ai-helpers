@@ -24,6 +24,10 @@ Generate Conventional Commits style commit messages for staged changes or recent
 
 Scan the codebase for technical debt markers and generate a report.
 
+### `/git:redescribe`
+
+Adapt and correct a PR description based on code diffs and commit messages.
+
 ### `/git:summary`
 
 Generate a summary of git repository changes and activity.
