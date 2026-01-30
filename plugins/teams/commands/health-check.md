@@ -198,6 +198,23 @@ Grading is subjective and not meant to be a critique of team performance. This i
    - If yes, generate an HTML report combining both data sources
    - Use template from: `plugins/teams/skills/analyze-regressions/report_template.html`
    - Enhance template to include bug backlog metrics
+   - **Add clickable JIRA links throughout the report:**
+     - In the component table, make all bug counts clickable with JIRA queries
+     - In the "Components Needing Attention" section, link bug counts to JIRA
+     - In the "Key Insights" section, link aging bug counts to JIRA
+     - In the "Recommendations" section, link action items to JIRA
+     - All links should:
+       - Use URL-encoded JQL queries (e.g., `component%20%3D%20%22oauth-apiserver%22`)
+       - Open in new tabs (`target="_blank"`)
+       - Include helpful tooltips (`title` attribute)
+       - Sort oldest bugs first when appropriate (`ORDER BY created ASC`)
+       - Use CSS class `.jira-link` for consistent styling
+     - JIRA link patterns:
+       - All bugs: `project = OCPBUGS AND component = "X" AND (status != Closed OR resolved >= -30d)`
+       - Open bugs: `project = OCPBUGS AND component = "X" AND status != Closed`
+       - Bugs 30-90d: `project = OCPBUGS AND component = "X" AND status != Closed AND created >= -90d AND created <= -30d`
+       - Bugs >180d: `project = OCPBUGS AND component = "X" AND status != Closed AND created <= -180d ORDER BY created ASC`
+       - Multi-component: Use `component IN ("X", "Y", "Z")` for team-wide queries
    - Save report to: `.work/teams-health-{release}/health-report.html`
    - Open the report in the user's default browser
    - Display the file path to the user
@@ -266,11 +283,17 @@ Prioritized list with actionable items:
 
 ### Additional Sections
 
-If requested:
+If HTML report is generated:
 - Detailed regression metrics by component
 - Detailed bug breakdowns by status and priority
+- **Clickable JIRA links** throughout the report:
+  - Component table with clickable bug counts
+  - "Components Needing Attention" section with linked bug counts
+  - "Key Insights" section with linked aging bug counts
+  - "Recommendations" section with linked action items
+  - All links open JIRA queries in new tabs with proper filtering
+- Interactive filtering (search components, filter by health grade)
 - Links to Sippy dashboards for regression analysis
-- Links to JIRA queries for bug investigation
 - Trends compared to previous releases (if available)
 
 ## Examples
@@ -383,7 +406,7 @@ If requested:
 - Recommendations focus on actionable items (open untriaged regressions, not closed)
 - Infrastructure regressions are automatically filtered from regression counts
 - JIRA queries default to open bugs + bugs closed in last 30 days
-- HTML reports provide interactive visualizations combining both data sources
+- HTML reports provide interactive visualizations combining both data sources with clickable JIRA links for all bug counts
 - If one data source fails, the command continues with the available data and notes the failure
 - For detailed regression data only, use `/teams:list-regressions`
 - For detailed JIRA data only, use `/teams:list-jiras`
