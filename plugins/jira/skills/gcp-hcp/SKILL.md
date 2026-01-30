@@ -12,6 +12,7 @@ This skill provides GCP HCP (Hypershift on GKE) team-specific conventions for cr
 - [When to Use This Skill](#when-to-use-this-skill)
 - [Project Information](#project-information)
 - [Custom Fields](#custom-fields)
+- [Components](#components)
 - [MCP Tool Integration](#mcp-tool-integration)
   - [For GCP HCP Stories in GCP Project](#for-gcp-hcp-stories-in-gcp-project)
   - [For GCP HCP Epics in GCP Project](#for-gcp-hcp-epics-in-gcp-project)
@@ -49,6 +50,22 @@ GCP project uses the same instance-wide custom fields as other Red Hat Jira proj
 | **Epic Link** | `customfield_12311140` | Link Story/Task → Epic | `"GCP-456"` |
 | **Parent Link** | `customfield_12313140` | Link Epic → Feature | `"GCP-100"` |
 
+## Components
+
+The GCP project uses these components for organizing work:
+
+| Component | Usage |
+|-----------|-------|
+| `hypershift-operator-gcp` | HyperShift operator, control plane components |
+| `gcp-hcp-automation` | Terraform, ArgoCD, infrastructure automation |
+| `gcp-api-gateway` | API gateway work |
+| `Retrospective action items` | Team retrospective tracking |
+
+**Usage:**
+- Components are **optional** - only specify if the work clearly fits a component
+- Use the direct `components` parameter (NOT in `additional_fields`)
+- If work doesn't fit any existing component, leave empty - do not request new components
+
 ## MCP Tool Integration
 
 ### For GCP HCP Stories in GCP Project
@@ -59,6 +76,7 @@ mcp__atlassian__jira_create_issue(
     summary="<story summary>",
     issue_type="Story",
     description="<formatted story description>",
+    components="<component name>",  # Optional - see Components section
     additional_fields={
         "customfield_12311140": "GCP-456",  # Epic Link - parent epic
         "labels": ["ai-generated-jira"],
@@ -75,6 +93,7 @@ mcp__atlassian__jira_create_issue(
     summary="<epic summary>",
     issue_type="Epic",
     description="<formatted epic description>",
+    components="<component name>",  # Optional - see Components section
     additional_fields={
         "customfield_12311141": "Multi-cluster metrics aggregation",  # Epic Name (required, same as summary)
         "labels": ["ai-generated-jira"],
