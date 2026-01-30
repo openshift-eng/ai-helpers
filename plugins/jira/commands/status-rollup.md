@@ -21,129 +21,130 @@ This command is particularly useful for:
 - Identifying blockers and risks across multiple issues
 
 Key capabilities:
-- Recursively traverses entire issue hierarchies (any depth)
+- Recursively traverses entire issue hierarchies (any depth) via `childIssuesOf()` JQL
 - Analyzes status transitions, assignee changes, and priority shifts
 - Extracts blockers, risks, and completion insights from comments
 - Generates properly formatted Jira wiki markup with nested bullets
 - Caches all data in a temp file for fast iterative refinement
 - Allows review and modification before posting to Jira
 
-[Extended thinking: This command takes any JIRA issue ID (Feature, Epic, Story, etc.) and optional date range, recursively collects all descendant issues, analyzes their changes and comments within the date range, and generates a concise status summary rolled up to the parent issue level. The summary is presented to the user for review and refinement before being posted as a comment.]
+This command uses the **Status Analysis Engine** skill for core analysis logic. See `plugins/jira/skills/status-analysis/SKILL.md` for detailed implementation.
+
+**IMPORTANT - Skill Loading Requirement:**
+Before processing any issues, you MUST invoke `Skill(jira:status-analysis)` to load the Status Analysis Engine skill. This ensures proper use of `childIssuesOf()` for hierarchy traversal and consistent analysis methodology. Do NOT rely on conversation summaries or memory - always load the skill explicitly at the start of execution.
 
 ## Implementation
 
 The command executes the following workflow:
 
-1. **Parse Arguments and Validate**
-   - Extract issue ID from $1
-   - Parse --start-date and --end-date if provided
-   - Validate date format (YYYY-MM-DD)
-   - Default to issue creation date if no start-date provided
-   - Default to today if no end-date provided
+### 0. Load Required Skills (MANDATORY)
 
-2. **Issue Validation**
-   - Use `mcp__atlassian__jira_get_issue` to fetch the issue
-   - Verify the issue exists and is accessible
-   - Extract issue key, summary, type, and basic info
-   - Works with any issue type (Feature, Epic, Story, Task, etc.)
+**This step is non-negotiable and must be performed first:**
 
-3. **Data Collection - Build Issue Hierarchy**
-   - Find direct children using JQL: `parent = {issue-id}`
-   - Recursively find all descendant issues (any depth)
-   - Fetch detailed issue data for each issue (status, summary, assignee, etc.)
-   - Use `mcp__atlassian__jira_batch_get_changelogs` for all issue keys
-   - Filter changelog entries to date range (status transitions, assignee changes, etc.)
-   - Fetch comments using `expand=renderedFields`, filter by date range
-   - Save all data to temp file: `/tmp/jira-rollup-{issue-id}-{timestamp}.md`
+```
+Skill(jira:status-analysis)
+```
 
-4. **Data Analysis - Derive Status**
-   - Calculate completion metrics (total, done, in-progress, blocked, percentage)
-   - Identify issues completed/started/blocked within date range
-   - Extract significant status transitions and key changes
-   - Analyze comments for keywords:
-     - **Blockers**: "blocked", "waiting on", "stuck", "dependency"
-     - **Risks**: "risk", "concern", "problem", "at risk"
-     - **Completion**: "completed", "done", "merged", "delivered"
-     - **Progress**: "started", "working on", "implementing"
-     - **Help needed**: "need", "require", "help", "support"
-   - Extract entities: team mentions, dependencies, PR references, deadlines
-   - Prioritize comments (high/medium/low based on keywords)
-   - Cross-reference comments with status transitions
-   - Assess overall health (on track, at risk, blocked, complete)
-   - Append analysis results to temp file
+This loads the Status Analysis Engine skill which provides:
+- Proper `childIssuesOf()` usage for hierarchy traversal
+- Activity analysis methodology
+- External links processing (GitHub PRs, GitLab MRs)
+- Wiki comment formatting rules
 
-5. **Generate Status Summary**
-   - Read from temp file (NO re-fetching from Jira)
-   - Create formatted summary in Jira wiki markup:
-     ```
-     h2. Status Rollup From: {start-date} to {end-date}
+**Do NOT skip this step even in continued sessions.** Session summaries do not preserve skill context.
 
-     *Overall Status:* [Clear statement about health and progress]
+### 1. Parse Arguments and Validate
 
-     *This Week:*
-     * Completed:
-     *# [ISSUE-ID] - [Specific achievement from comments]
-     *# [ISSUE-ID] - [Specific achievement from comments]
-     * In Progress:
-     *# [ISSUE-ID] - [Current state and specific details]
-     * Blocked:
-     *# [ISSUE-ID] - [Specific reason for blocker]
+1. Extract issue ID from $1
+2. Parse `--start-date` and `--end-date` if provided
+3. Validate date format (YYYY-MM-DD)
+4. Default to issue creation date if no start-date provided
+5. Default to today if no end-date provided
 
-     *Next Week:*
-     * [Planned item based on analysis]
+### 2. Initialize Analysis Configuration
 
-     *Metrics:* X/Y issues complete (Z%)
-     ```
-   - Use specific insights from comments (NOT vague phrases like "ongoing work")
-   - Include PR references, ticket numbers, specific tasks mentioned
-   - Add direct quotes when they provide critical context
-   - Use `*#` syntax for nested bullets (Jira wiki markup)
+Build the configuration for the Status Analysis Engine:
 
-6. **Present to User for Review**
-   - Display temp file location for verification
-   - Show generated summary
-   - Ask if user wants changes
+```json
+{
+  "root_issues": ["{issue-id}"],
+  "date_range": {
+    "start": "{start-date}",
+    "end": "{end-date}"
+  },
+  "output_format": "wiki_comment",
+  "output_target": "comment",
+  "external_links_enabled": false,
+  "cache_to_file": true
+}
+```
 
-7. **Iterative Refinement**
-   - If user requests changes, read from temp file (don't re-fetch)
-   - Support refinement strategies:
-     - Focus more on blockers/risks/completion
-     - Add/remove technical details or quotes
-     - Change grouping (by epic, type, status, assignee)
-     - Adjust level of detail (high-level vs. detailed)
-   - Regenerate only affected sections
-   - Repeat until user satisfied
+### 3. Execute Status Analysis Engine
 
-8. **Post Comment to Issue**
-   - Use `mcp__atlassian__jira_add_comment` to post to parent issue
-   - Append footer: "🤖 Generated with [Claude Code](https://claude.com/claude-code) via `/jira:status-rollup {issue-id} --start-date {date} --end-date {date}`"
-   - Confirm with user and provide issue URL
+Follow the skill documentation in `plugins/jira/skills/status-analysis/`:
 
-9. **Temp File Cleanup**
-   - Ask user if they want to keep `/tmp/jira-rollup-{issue-id}-{timestamp}.md`
-   - Delete if user says no, otherwise keep for reference
+1. **Data Collection** (`data-collection.md`):
+   - Fetch the root issue with `mcp__atlassian-mcp__jira_get_issue`
+   - Discover all descendants via JQL: `issue in childIssuesOf({issue-id})`
+   - Fetch details and changelogs for all issues
+   - Cache data to temp file: `/tmp/jira-status-{issue-id}-{timestamp}.md`
 
-**Error Handling:**
-- Invalid issue ID: Display error with verification instructions
-- No child issues: Offer to generate summary for single issue
-- No activity in date range: Generate summary based on current state
-- Invalid date format: Display error with correct format example
-- Large hierarchies (100+ issues): Show progress indicators
+2. **Activity Analysis** (`activity-analysis.md`):
+   - Filter changelog and comments to date range
+   - Identify status transitions, blockers, risks, achievements
+   - Calculate completion metrics
+   - Determine overall health (green/yellow/red)
 
-**Performance Considerations:**
-- Use batch API endpoints where available
-- Implement appropriate delays to respect rate limits
-- Cache all data in temp file for instant refinement
+3. **Formatting** (`formatting.md`):
+   - Generate Jira wiki markup using `wiki_comment` format
+   - Include sections: Overall Status, This Period, Next Steps, Risks, Metrics
+
+### 4. Present to User for Review
+
+Display:
+- Temp file location for verification
+- Generated summary in formatted output
+- Ask: "Would you like to post this to Jira, modify it, or cancel?"
+
+Options:
+- `post` or `p`: Proceed to post comment
+- `modify` or `m`: Request changes, regenerate from cached data
+- `cancel` or `c`: Abort without posting
+
+### 5. Iterative Refinement
+
+If user requests changes, read from temp file (NO re-fetching from Jira):
+
+Support refinement strategies:
+- Focus more on blockers/risks/completion
+- Add/remove technical details or quotes
+- Change grouping (by epic, type, status, assignee)
+- Adjust level of detail (high-level vs. detailed)
+
+Regenerate only affected sections and present again.
+
+### 6. Post Comment to Issue
+
+Once approved:
+
+1. Use `mcp__atlassian-mcp__jira_add_comment` to post to the root issue
+2. Comment includes footer: `_Generated with [Claude Code|https://claude.com/claude-code] via {{/jira:status-rollup {issue-id} --start-date {date} --end-date {date}}}_`
+3. Confirm success and provide issue URL
+
+### 7. Temp File Cleanup
+
+Ask user if they want to keep `/tmp/jira-status-{issue-id}-{timestamp}.md`:
+- Keep for reference or future refinement
+- Delete if no longer needed
 
 ## Return Value
-- **Posted to Jira**: Formatted status comment on the parent issue
-- **Temp file**: `/tmp/jira-rollup-{issue-id}-{timestamp}.md` containing:
-  - Parent issue details
+- **Posted to Jira**: Formatted status comment on the root issue
+- **Temp file**: `/tmp/jira-status-{issue-id}-{timestamp}.md` containing:
+  - Root issue details
   - Complete issue hierarchy with counts by type
   - Raw changelog data for all issues
   - All comments with metadata (author, date, issue key)
-  - Comment analysis (keywords, priorities, cross-references)
-  - Metrics summary
+  - Analysis results (blockers, risks, achievements, metrics)
 
 ## Examples
 
@@ -173,31 +174,63 @@ The command executes the following workflow:
 
 **Example Output:**
 ```
-h2. Weekly Status: 2025-01-06 to 2025-01-13
+h2. Status Rollup: 2025-01-06 to 2025-01-13
 
-*Overall Status:* Feature is on track. Core authentication work completed this week with 2 PRs merged. UI integration starting with design approved.
+*Overall Status:* (/) Feature is on track. Core authentication work completed this week with 2 PRs merged. UI integration starting with design approved.
 
-*This Week:*
-* Completed:
-*# AUTH-101 - OAuth2 implementation (PR #456 merged, all review feedback addressed)
-*# AUTH-102 - OAuth2 token validation (unit tests added, edge cases handled)
-* In Progress:
-*# UI-201 - Login UI components (design review completed, implementing responsive layout for mobile)
-*# AUTH-103 - Session handling (refactoring cookie storage mechanism, PR in draft)
-* Blocked:
-*# AUTH-104 - Azure AD integration (blocked on subscription approval, escalated to infrastructure team). Per Jane Doe: "Need Azure subscription approved before proceeding - submitted ticket #12345"
+h3. This Period
 
-*Next Week:*
+*Completed:*
+*# [AUTH-101|https://issues.redhat.com/browse/AUTH-101] - OAuth2 implementation (PR #456 merged, all review feedback addressed)
+*# [AUTH-102|https://issues.redhat.com/browse/AUTH-102] - Token validation with comprehensive unit tests
+
+*In Progress:*
+*# [UI-201|https://issues.redhat.com/browse/UI-201] - Login UI components (design review completed, implementing responsive layout)
+*# [AUTH-103|https://issues.redhat.com/browse/AUTH-103] - Session handling refactor (draft PR submitted)
+
+*Blocked:*
+*# [AUTH-104|https://issues.redhat.com/browse/AUTH-104] - Azure AD integration (waiting on subscription approval)
+{quote}Need Azure subscription approved before proceeding - submitted ticket #12345{quote}
+
+h3. Next Steps
+
 * Complete session handling refactor (AUTH-103) and submit for review
-* Finish login UI responsive implementation (UI-201) once design assets are finalized
-* Begin end-to-end testing (AUTH-107) if session handling is merged
+* Finish login UI responsive implementation (UI-201)
+* Begin end-to-end testing (AUTH-107) once session handling is merged
 
-*Metrics:* 8/15 issues complete (53%)
+h3. Risks
 
-🤖 Generated with [Claude Code](https://claude.com/claude-code) via `/jira:status-rollup FEATURE-123 --start-date 2025-01-06 --end-date 2025-01-13`
+* *Medium:* API deprecation in upstream dependency may require refactor in Q2
+
+h3. Metrics
+
+* *Total Issues:* 15
+* *Completed:* 8 (53%)
+* *In Progress:* 4
+* *Blocked:* 1
+* *Updated This Period:* 6
+
+----
+
+_Generated with [Claude Code|https://claude.com/claude-code] via {{/jira:status-rollup FEATURE-123 --start-date 2025-01-06 --end-date 2025-01-13}}_
 ```
 
 ## Arguments
 - `issue-id` (required): The JIRA issue ID to analyze (e.g., FEATURE-123, EPIC-456, STORY-789, CNTRLPLANE-1234)
 - `--start-date` (optional): Start date in YYYY-MM-DD format. Defaults to issue creation date if not provided
 - `--end-date` (optional): End date in YYYY-MM-DD format. Defaults to today if not provided
+
+## Error Handling
+
+| Error | Handling |
+|-------|----------|
+| Invalid issue ID | Display error with verification instructions |
+| No child issues | Generate summary for single issue (root only) |
+| No activity in date range | Generate summary based on current state |
+| Invalid date format | Display error with correct format example |
+| Large hierarchies (100+ issues) | Show progress indicators |
+
+## Related
+
+- **Shared skill**: `plugins/jira/skills/status-analysis/SKILL.md`
+- **Batch updates**: `/jira:update-weekly-status` - Update Status Summary field for multiple issues
