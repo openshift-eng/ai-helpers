@@ -20,6 +20,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Node](#node-plugin)
 - [Node Tuning](#node-tuning-plugin)
 - [Olm](#olm-plugin)
+- [Olm Team](#olm-team-plugin)
 - [Openshift](#openshift-plugin)
 - [Origin](#origin-plugin)
 - [Prow Job](#prow-job-plugin)
@@ -243,6 +244,16 @@ OLM (Operator Lifecycle Manager) plugin for operator management and debugging
 - **`/olm:upgrade` `<operator-name> [namespace] [--channel=<channel>] [--approve]`** - Update an operator to the latest version or switch channels
 
 See [plugins/olm/README.md](plugins/olm/README.md) for detailed documentation.
+
+### Olm Team Plugin
+
+OLM team development utilities and onboarding tools
+
+**Commands:**
+- **`/olm-team:configure-agent`** - Configure the k8s-ocp-olm-expert agent with local repository paths
+- **`/olm-team:dev-setup` `[target-directory]`** - Set up OLM development repositories and onboard to the team
+
+See [plugins/olm-team/README.md](plugins/olm-team/README.md) for detailed documentation.
 
 ### Openshift Plugin
 
