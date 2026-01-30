@@ -15,11 +15,14 @@ ci:analyze-regression
 
 ## Description
 
-The `ci:analyze-regression` command analyzes details for a specific Component Readiness regression and suggests next steps for investigation. 
+The `ci:analyze-regression` command analyzes details for a specific Component Readiness regression and suggests next steps for investigation.
+
+The command first checks if the regression has already been triaged (attributed to a JIRA bug). If triaged, the command reports the triage information and analysis status, then exits without further investigation. If not triaged, it performs a full analysis to help determine the root cause and suggest next steps.
 
 This command is useful for:
 
-- Understanding regression patterns
+- Checking if a regression has already been triaged and attributed to a bug
+- Understanding regression patterns and failure modes for untriaged regressions
 - Identifying related regressions that might be caused by the same issue
 - Getting pointers on where to investigate next
 
@@ -51,6 +54,8 @@ This command is useful for:
    - `variants`: Platform/topology combinations where test is failing
    - `opened` and `closed`: Regression timeline
    - `triages`: Existing JIRA tickets
+   - `analysis_status`: Integer status code (negative indicates problems, -1000 indicates failed fix)
+   - `analysis_explanations`: Human-readable explanations for the status
    - `test_details_url`: Link to Sippy test details
    - `sample_failed_jobs`: Dictionary keyed by job name, each containing:
      - `pass_sequence`: Chronological S/F pattern (newest to oldest)
@@ -58,7 +63,58 @@ This command is useful for:
 
    See `plugins/ci/skills/fetch-regression-details/SKILL.md` for complete implementation details.
 
-3. **Interpret Regression Data**: Analyze failure patterns from `sample_failed_jobs`
+3. **Check Triage Status**: Determine if investigation is needed
+
+   Before proceeding with full analysis, check if the regression has already been triaged:
+
+   ```bash
+   # Check if regression has triages
+   triage_count=$(echo "$regression_data" | jq '.triages | length')
+   ```
+
+   **Decision Logic**:
+
+   - **If `triage_count > 0` (regression is triaged)**:
+
+     This means a human has already attributed this regression to a specific bug. Normally there is only one entry in the triages list, but in rare cases one test might be failing for multiple reasons.
+
+     - Display triage information (JIRA keys, descriptions, resolved status)
+     - Show analysis status and explanations
+     - **If `analysis_status == -1000`**: Note that this is a failed fix scenario
+       - This indicates the test is still failing in jobs AFTER the triage was resolved
+       - Note: "⚠️ FAILED FIX: Test continues to fail after triage was resolved (analysis_status: -1000)"
+       - Note: "Further investigation of failed fixes requires different analysis (future command/skill)"
+     - **Else**: Note: "This regression has been triaged. No further investigation required."
+     - Exit early - skip steps 4-8
+
+   - **If `triage_count == 0` (regression is NOT triaged)**:
+     - Proceed with full investigation (steps 4-8)
+     - The regression needs analysis and bug filing
+
+   **Example Check**:
+
+   ```bash
+   if [ "$triage_count" -gt 0 ]; then
+     echo "Regression already triaged. No further investigation needed."
+     # Display triages and analysis status
+     echo "$regression_data" | jq '{triages, analysis_status, analysis_explanations}'
+
+     # Check for failed fix
+     analysis_status=$(echo "$regression_data" | jq -r '.analysis_status // "null"')
+     if [ "$analysis_status" == "-1000" ]; then
+       echo ""
+       echo "⚠️ FAILED FIX: Test continues to fail after triage was resolved"
+       echo "Further investigation of failed fixes requires different analysis (future command/skill)"
+     fi
+
+     exit 0
+   else
+     echo "Regression is not triaged. Proceeding with analysis..."
+     # Continue to step 4
+   fi
+   ```
+
+4. **Interpret Regression Data**: Analyze failure patterns from `sample_failed_jobs`
 
    Parse the `sample_failed_jobs` dictionary from the regression data:
 
@@ -106,6 +162,8 @@ This command is useful for:
      - Recommended priority level
      - Suggested next steps
 
+   **Note**: Only perform this step if the regression is not triaged (triage_count == 0).
+
    **Example Analysis**:
 
    Given this `sample_failed_jobs` structure:
@@ -132,7 +190,7 @@ This command is useful for:
      - Priority: **Low**
      - Action: "Single recent failure in mostly passing job. Monitor for pattern or investigate if recurring."
 
-4. **Identify Related Regressions**: Search for similar failing tests
+5. **Identify Related Regressions**: Search for similar failing tests
 
    - List all regressions for the release
    - Identify other jobs where this test is failing
@@ -140,14 +198,14 @@ This command is useful for:
    - Summarize the commonalities and differences in job variants
      - For example is this test failing for all jobs of one platform type or upgrade type
 
-5. **Check Existing Triages**: Look for related triage records
+6. **Check Existing Triages**: Look for related triage records
 
    - Query regression data for triages with similar test names
    - Identify triages from same job runs
    - Present existing JIRA tickets that might already cover this regression
    - This implements: "scan for pre-existing triages that look related"
 
-6. **Prepare Bug Filing Recommendations**: Generate actionable information
+7. **Prepare Bug Filing Recommendations**: Generate actionable information
 
    - Component assignment (from test mappings)
    - Bug summary suggestion based on failure pattern (informed by step 3 pattern analysis)
@@ -165,14 +223,17 @@ This command is useful for:
      - `ci-infra`: CI outages
      - `product-infra`: customer-facing outages (e.g., quay)
 
-7. **Display Comprehensive Report**: Present findings in clear format
+8. **Display Comprehensive Report**: Present findings in clear format
+
+   **Note**: This step is only performed for untriaged regressions (no entries in triages list).
 
    **Section 1: Regression Summary**
    - Test name
    - Component
    - Regression opened/closed dates
    - Affected variants
-   - Current triage status
+   - Analysis status and explanations
+   - Current triage status (none for untriaged regressions)
 
    **Section 2: Failure Pattern Analysis**
    - Jobs ranked by number of failures (most to least impacted)
@@ -195,15 +256,43 @@ This command is useful for:
    - Recommendation: "These regressions may be caused by the same issue and could be triaged to one JIRA"
 
    **Section 4: Existing Triages**
-   - Related JIRA tickets already filed
+   - Related JIRA tickets already filed (from other regressions)
 
 ## Return Value
 
-The command outputs a **Comprehensive Regression Analysis Report**:
+The command output varies based on triage status:
 
-### Regression Summary
+### For Already-Triaged Regressions
+
+If the regression has already been triaged by a human, the command outputs a **Triage Status Report**:
 
 - **Test Name**: Full test name
+- **Component**: Component from regression data
+- **Release**: OpenShift release version
+- **Regression Status**: Open/Closed with dates
+- **Analysis Status**: Integer status code with explanations
+  - **-1000**: Failed fix - test continues to fail after triage was resolved
+  - **Other negative values**: Severity of the regression (lower = more severe)
+- **Existing Triages**: List of JIRA tickets this regression has been attributed to:
+  - JIRA key (e.g., OCPBUGS-12345)
+  - Triage type (product/test/ci-infra/product-infra)
+  - Description
+  - Resolved status
+  - Created/Updated timestamps
+- **Note**: "This regression has been triaged. No further investigation required."
+- **If analysis_status == -1000**: Additional note: "⚠️ FAILED FIX: Test continues to fail after triage was resolved. Further investigation of failed fixes requires different analysis (future command/skill)"
+
+### For Untriaged Regressions
+
+For regressions that need investigation, the command outputs a **Comprehensive Regression Analysis Report**:
+
+#### Regression Summary
+
+- **Test Name**: Full test name
+- **Analysis Status**: Integer status code (negative indicates problems)
+  - **-1000**: Failed fix - test continues to fail after triage was resolved
+  - **Other negative values**: Severity of the regression (lower = more severe)
+- **Analysis Explanations**: Human-readable descriptions of the regression status
 - **Component**: Auto-detected component from test mappings
 - **Release**: OpenShift release version
 - **Regression Status**: Open/Closed with dates
@@ -211,7 +300,7 @@ The command outputs a **Comprehensive Regression Analysis Report**:
 - **Current Triage**: Existing JIRA tickets (if any)
 - **Test Details URL**: Direct link to Sippy Test Details report
 
-### Failure Pattern Analysis
+#### Failure Pattern Analysis
 
 - **Jobs Ranked by Impact**: List of jobs sorted by number of failures (descending)
 - **For Each Job**:
@@ -227,20 +316,20 @@ The command outputs a **Comprehensive Regression Analysis Report**:
   - **Recommended Action**: Next steps based on pattern (e.g., "Investigate recent code changes", "Stabilize flaky test", "Verify issue is resolved")
 - **Overall Assessment**: Summary of regression severity across all jobs
 
-### Root Cause Analysis
+#### Root Cause Analysis
 
 - **Failure Patterns**: Common patterns identified across multiple job failures
 - **Suspected Component**: Component/area likely responsible for the failure
 - **Classification**: Whether the issue is infrastructure-related or a product bug
 
-### Related Regressions
+#### Related Regressions
 
 - **Similar Failing Tests**: List of other regressions that appear similar
 - **Common Patterns**: Shared error messages, stack traces, or failure modes
 - **Variant Analysis**: Summary of which job variants are affected (e.g., all AWS jobs, all upgrade jobs)
 - **Triaging Recommendation**: Whether these regressions should be grouped under a single JIRA ticket
 
-### Existing Triages
+#### Existing Triages
 
 - **Related JIRA Tickets**: Previously filed tickets that may already cover this regression
 - **Triage Details**: Test names, job runs, and components from existing triages
@@ -267,6 +356,13 @@ The command outputs a **Comprehensive Regression Analysis Report**:
 
 ## Notes
 
+- **Automatically checks triage status** before performing full investigation:
+  - If regression is triaged, reports triage info and analysis status, then exits
+  - If regression is not triaged, performs full investigation
+- **Analysis Status Codes**:
+  - `-1000`: Failed fix - test continues to fail after triage was resolved (requires different investigation approach)
+  - Other negative values: Severity of regression (lower = more severe)
+  - Negative values indicate problems detected by the regression analysis
 - Uses the `fetch-regression-details` skill to automatically fetch regression data and analyze pass/fail patterns
 - The skill groups failed jobs by job name and provides pass sequences for pattern analysis
 - Follows the guidance: "many regressions can be caused by one bug"

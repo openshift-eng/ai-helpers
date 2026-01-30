@@ -268,7 +268,7 @@
         },
         {
           "argument_hint": "<regression id>",
-          "description": "Analyze root cause of a specific regressed test case from Component Readiness",
+          "description": "Analyze details about a Component Readiness regression and suggest next steps",
           "name": "analyze-regression",
           "synopsis": "/ci:analyze-regression <regression id>"
         },
