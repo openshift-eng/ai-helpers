@@ -32,7 +32,7 @@ Performs the complete OTE migration in one workflow.
 - **Smart extension name detection** - Auto-detects from repository name for binary/module naming
 - **Flexible sig tag filtering** - Support single or multiple sig tags for test filtering (e.g., `router` or `router,network-edge`)
 - **Two directory strategies** - Monorepo (integrated) or single-module (isolated)
-- **Automatic replace directive propagation (monorepo)** - Copies k8s.io/* and upstream replace directives from test module to root go.mod
+- **Automatic replace directive propagation (monorepo)** - Copies k8s.io/* and upstream replace directives from test module to root go.mod, and synchronizes openshift/api and openshift/client-go versions to prevent dependency conflicts
 - **Custom test directory support** - Handles existing test/e2e directories with configurable alternatives
 - **Dynamic git remote discovery** - No assumptions about remote names (no hardcoded 'origin')
 - **Smart repository management** - Remote detection and update capabilities
@@ -269,6 +269,7 @@ Integrates OTE into existing repository structure with **separate test module**.
 - **Separate test module**: `test/e2e/go.mod` is independent from root `go.mod`
 - **Replace directive**: Root `go.mod` includes `replace <module>/test/e2e => ./test/e2e`
 - **Automatic upstream replace directives**: k8s.io/* and other replace directives are automatically copied from test/e2e/go.mod to root go.mod
+- **Automatic dependency synchronization**: openshift/api and openshift/client-go in root go.mod are automatically updated to match the test module's versions (compatible with latest origin)
 - **Smart testdata path handling**: Nested test paths are flattened for testdata (e.g., `test/e2e/extension/` → testdata at `test/e2e-extension-testdata/`)
 - **Integrated build**: Makefile target `tests-ext-build` added to root
 - **Binary location**: `bin/<extension-name>-tests-ext`
