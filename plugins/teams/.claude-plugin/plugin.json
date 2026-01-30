@@ -1,0 +1,8 @@
+{
+  "name": "teams",
+  "description": "Team structure knowledge and health analysis commands for OpenShift teams",
+  "version": "0.0.2",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}

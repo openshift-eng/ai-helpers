@@ -325,46 +325,52 @@
     {
       "commands": [
         {
-          "argument_hint": "<release> [--components comp1 comp2 ...] [--project JIRAPROJECT]",
-          "description": "Analyze and grade component health based on regression and JIRA bug metrics",
-          "name": "analyze",
-          "synopsis": "/component-health:analyze <release> [--components comp1 comp2 ...] [--project JIRAPROJECT]"
+          "argument_hint": "--project <project> [--component comp1 comp2 ...] [--team <team-name>] [--status status1 status2 ...] [--include-closed] [--limit N]",
+          "description": "Query and summarize JIRA bugs for a specific project with counts by component",
+          "name": "health-check-jiras",
+          "synopsis": "/teams:health-check-jiras --project <project> [--component comp1 comp2 ...] [--status status1 status2 ...] [--include-closed] [--limit N]"
         },
         {
-          "argument_hint": "<release>",
-          "description": "List all components tracked in Sippy for a release",
+          "argument_hint": "<release> [--components comp1 comp2 ...] [--team <team-name>] [--start YYYY-MM-DD] [--end YYYY-MM-DD]",
+          "description": "Query and summarize regression data for OpenShift releases with counts and metrics",
+          "name": "health-check-regressions",
+          "synopsis": "/teams:health-check-regressions <release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]"
+        },
+        {
+          "argument_hint": "<release> [--components comp1 comp2 ...] [--team <team-name>] [--project JIRAPROJECT]",
+          "description": "Analyze and grade component health based on regression and JIRA bug metrics",
+          "name": "health-check",
+          "synopsis": "/teams:health-check <release> [--components comp1 comp2 ...] [--project JIRAPROJECT]"
+        },
+        {
+          "argument_hint": "[--team <team-name>]",
+          "description": "List all OCPBUGS components, optionally filtered by team",
           "name": "list-components",
-          "synopsis": "/component-health:list-components <release>"
+          "synopsis": "/teams:list-components [--team <team-name>]"
         },
         {
           "argument_hint": "<project> [--component comp1 comp2 ...] [--status status1 status2 ...] [--include-closed] [--limit N]",
           "description": "Query and list raw JIRA bug data for a specific project",
           "name": "list-jiras",
-          "synopsis": "/component-health:list-jiras <project> [--component comp1 comp2 ...] [--status status1 status2 ...] [--include-closed] [--limit N]"
+          "synopsis": "/teams:list-jiras <project> [--component comp1 comp2 ...] [--status status1 status2 ...] [--include-closed] [--limit N]"
         },
         {
           "argument_hint": "<release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]",
           "description": "Fetch and list raw regression data for OpenShift releases",
           "name": "list-regressions",
-          "synopsis": "/component-health:list-regressions <release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]"
+          "synopsis": "/teams:list-regressions <release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]"
         },
         {
-          "argument_hint": "--project <project> [--component comp1 comp2 ...] [--status status1 status2 ...] [--include-closed] [--limit N]",
-          "description": "Query and summarize JIRA bugs for a specific project with counts by component",
-          "name": "summarize-jiras",
-          "synopsis": "/component-health:summarize-jiras --project <project> [--component comp1 comp2 ...] [--status status1 status2 ...] [--include-closed] [--limit N]"
-        },
-        {
-          "argument_hint": "<release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]",
-          "description": "Query and summarize regression data for OpenShift releases with counts and metrics",
-          "name": "summarize-regressions",
-          "synopsis": "/component-health:summarize-regressions <release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]"
+          "argument_hint": "",
+          "description": "List all teams from the team component mapping",
+          "name": "list-teams",
+          "synopsis": "/teams:list-teams"
         }
       ],
-      "description": "Analyze component health and track regressions across OpenShift releases",
+      "description": "Team structure knowledge and health analysis commands for OpenShift teams",
       "has_readme": true,
       "hooks": [],
-      "name": "component-health",
+      "name": "teams",
       "skills": [
         {
           "description": "Grade component health based on regression triage metrics for OpenShift releases",
@@ -377,7 +383,7 @@
           "name": "Get Release Dates"
         },
         {
-          "description": "Fetch component names from Sippy component readiness API",
+          "description": "List all OCPBUGS components, optionally filtered by team",
           "id": "list-components",
           "name": "List Components"
         },
@@ -390,6 +396,11 @@
           "description": "Fetch and analyze component health regressions for OpenShift releases",
           "id": "list-regressions",
           "name": "List Regressions"
+        },
+        {
+          "description": "List all teams from the team component mapping",
+          "id": "list-teams",
+          "name": "List Teams"
         },
         {
           "description": "Query and summarize JIRA bugs for a specific project with counts by component",

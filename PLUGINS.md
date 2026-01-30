@@ -6,7 +6,6 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Bigquery](#bigquery-plugin)
 - [Ci](#ci-plugin)
 - [Compliance](#compliance-plugin)
-- [Component Health](#component-health-plugin)
 - [Container Image](#container-image-plugin)
 - [Doc](#doc-plugin)
 - [Etcd](#etcd-plugin)
@@ -26,6 +25,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Prow Job](#prow-job-plugin)
 - [Session](#session-plugin)
 - [Sosreport](#sosreport-plugin)
+- [Teams](#teams-plugin)
 - [Test Coverage](#test-coverage-plugin)
 - [Utils](#utils-plugin)
 - [Workspaces](#workspaces-plugin)
@@ -74,20 +74,6 @@ Security compliance and vulnerability analysis tools for Go projects
 - **`/compliance:analyze-cve` `<CVE-ID>`** - Analyze Go codebase for CVE vulnerabilities and suggest fixes
 
 See [plugins/compliance/README.md](plugins/compliance/README.md) for detailed documentation.
-
-### Component Health Plugin
-
-Analyze component health using regression and jira data
-
-**Commands:**
-- **`/component-health:analyze` `<release> [--components comp1 comp2 ...] [--project JIRAPROJECT]`** - Analyze and grade component health based on regression and JIRA bug metrics
-- **`/component-health:list-components` `<release>`** - List all components tracked in Sippy for a release
-- **`/component-health:list-jiras` `<project> [--component comp1 comp2 ...] [--status status1 status2 ...] [--include-closed] [--limit N]`** - Query and list raw JIRA bug data for a specific project
-- **`/component-health:list-regressions` `<release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]`** - Fetch and list raw regression data for OpenShift releases
-- **`/component-health:summarize-jiras` `--project <project> [--component comp1 comp2 ...] [--status status1 status2 ...] [--include-closed] [--limit N]`** - Query and summarize JIRA bugs for a specific project with counts by component
-- **`/component-health:summarize-regressions` `<release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]`** - Query and summarize regression data for OpenShift releases with counts and metrics
-
-See [plugins/component-health/README.md](plugins/component-health/README.md) for detailed documentation.
 
 ### Container Image Plugin
 
@@ -315,6 +301,21 @@ Analyze sosreport archives for system diagnostics and troubleshooting
 - **`/sosreport:ovs-db` `[sosreport-path] [--db] [--flows-only] [--query <json>]`** - Analyze OVS data from sosreport (text files or database)
 
 See [plugins/sosreport/README.md](plugins/sosreport/README.md) for detailed documentation.
+
+### Teams Plugin
+
+Team structure knowledge and health analysis commands for OpenShift teams
+
+**Commands:**
+- **`/teams:health-check-jiras` `--project <project> [--component comp1 comp2 ...] [--team <team-name>] [--status status1 status2 ...] [--include-closed] [--limit N]`** - Query and summarize JIRA bugs for a specific project with counts by component
+- **`/teams:health-check-regressions` `<release> [--components comp1 comp2 ...] [--team <team-name>] [--start YYYY-MM-DD] [--end YYYY-MM-DD]`** - Query and summarize regression data for OpenShift releases with counts and metrics
+- **`/teams:health-check` `<release> [--components comp1 comp2 ...] [--team <team-name>] [--project JIRAPROJECT]`** - Analyze and grade component health based on regression and JIRA bug metrics
+- **`/teams:list-components` `[--team <team-name>]`** - List all OCPBUGS components, optionally filtered by team
+- **`/teams:list-jiras` `<project> [--component comp1 comp2 ...] [--status status1 status2 ...] [--include-closed] [--limit N]`** - Query and list raw JIRA bug data for a specific project
+- **`/teams:list-regressions` `<release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]`** - Fetch and list raw regression data for OpenShift releases
+- **`/teams:list-teams`** - List all teams from the team component mapping
+
+See [plugins/teams/README.md](plugins/teams/README.md) for detailed documentation.
 
 ### Test Coverage Plugin
 
