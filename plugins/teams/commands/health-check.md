@@ -74,7 +74,7 @@ Grading is subjective and not meant to be a critique of team performance. This i
    - Else if `--components` was provided:
      - Run list_components.py to get all available components:
        ```bash
-       python3 plugins/component-health/skills/list-components/list_components.py
+       python3 plugins/teams/skills/list-components/list_components.py
        ```
      - For each search string, find all components containing that string (case-insensitive)
      - Combine all matches into a single list
@@ -196,9 +196,9 @@ Grading is subjective and not meant to be a critique of team performance. This i
 7. **Offer HTML Report Generation** (AFTER displaying the text report):
    - Ask the user if they would like an interactive HTML report
    - If yes, generate an HTML report combining both data sources
-   - Use template from: `plugins/component-health/skills/analyze-regressions/report_template.html`
+   - Use template from: `plugins/teams/skills/analyze-regressions/report_template.html`
    - Enhance template to include bug backlog metrics
-   - Save report to: `.work/component-health-{release}/health-report.html`
+   - Save report to: `.work/teams-health-{release}/health-report.html`
    - Open the report in the user's default browser
    - Display the file path to the user
 
@@ -395,6 +395,6 @@ If requested:
 - Related Command: `/teams:health-check-jiras` (bug backlog metrics)
 - Related Command: `/teams:list-regressions` (raw regression data)
 - Related Command: `/teams:list-jiras` (raw JIRA data)
-- Skill Documentation: `plugins/component-health/skills/analyze-regressions/SKILL.md`
-- Script: `plugins/component-health/skills/list-regressions/list_regressions.py`
-- Script: `plugins/component-health/skills/health-check-jiras/summarize_jiras.py`
+- Skill Documentation: `plugins/teams/skills/analyze-regressions/SKILL.md`
+- Script: `plugins/teams/skills/list-regressions/list_regressions.py`
+- Script: `plugins/teams/skills/summarize-jiras/summarize_jiras.py`

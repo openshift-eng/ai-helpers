@@ -61,7 +61,7 @@ This command is useful for:
    - If `--components` was provided:
      - Run list_components.py to get all available components:
        ```bash
-       python3 plugins/component-health/skills/list-components/list_components.py
+       python3 plugins/teams/skills/list-components/list_components.py
        ```
      - For each search string, find all components containing that string (case-insensitive)
      - Combine all matches into a single list
@@ -72,7 +72,7 @@ This command is useful for:
 
 4. **Fetch Release Dates**: Run the get_release_dates.py script to get development window dates
 
-   - Script location: `plugins/component-health/skills/get-release-dates/get_release_dates.py`
+   - Script location: `plugins/teams/skills/get-release-dates/get_release_dates.py`
    - Pass release as `--release` argument
    - Extract `development_start` and `ga` dates from JSON output
    - Convert timestamps to simple date format (YYYY-MM-DD)
@@ -80,7 +80,7 @@ This command is useful for:
 
 5. **Execute Python Script**: Run the list_regressions.py script with appropriate arguments
 
-   - Script location: `plugins/component-health/skills/list-regressions/list_regressions.py`
+   - Script location: `plugins/teams/skills/list-regressions/list_regressions.py`
    - Pass release as `--release` argument
    - Pass resolved component names as `--components` argument
    - Pass `development_start` date as `--start` argument (if available)
@@ -296,7 +296,7 @@ For each component (from `components.*.summary`):
    - Check firewall and VPN settings if needed
 
 3. **API Configuration**: The API endpoint must be configured in the script
-   - Location: `plugins/component-health/skills/list-regressions/list_regressions.py`
+   - Location: `plugins/teams/skills/list-regressions/list_regressions.py`
    - The script should have the correct API base URL
 
 ## Notes
@@ -311,12 +311,12 @@ For each component (from `components.*.summary`):
 - Date filtering focuses analysis on the development window for accuracy
 - This command internally uses `/teams:list-regressions` to fetch data
 - For raw regression data, use `/teams:list-regressions` instead
-- For health grading and analysis, use `/teams:analyze` instead
+- For health grading and analysis, use `/teams:health-check` instead
 
 ## See Also
 
-- Skill Documentation: `plugins/component-health/skills/list-regressions/SKILL.md`
-- Script: `plugins/component-health/skills/list-regressions/list_regressions.py`
+- Skill Documentation: `plugins/teams/skills/list-regressions/SKILL.md`
+- Script: `plugins/teams/skills/list-regressions/list_regressions.py`
 - Related Command: `/teams:list-regressions` (for raw regression data)
-- Related Command: `/teams:analyze` (for health grading and analysis)
+- Related Command: `/teams:health-check` (for health grading and analysis)
 - Related Skill: `get-release-dates` (for fetching development window dates)

@@ -654,6 +654,10 @@ Examples:
         try:
             team_name = args.team
             components_to_filter = get_team_components(args.team)
+            if not components_to_filter:
+                print(f"Error: Team '{args.team}' has no OCPBUGS components mapped.", file=sys.stderr)
+                print(f"The team may not exist or has no components assigned.", file=sys.stderr)
+                return 1
             print(f"Team '{args.team}' has {len(components_to_filter)} components: {', '.join(components_to_filter)}", file=sys.stderr)
         except (FileNotFoundError, KeyError, ValueError) as e:
             print(f"Error resolving team components: {e}", file=sys.stderr)

@@ -77,7 +77,7 @@ This command is useful for:
      - Extract release from context or ask user for release version
      - Run list_components.py to get all available components:
        ```bash
-       python3 plugins/component-health/skills/list-components/list_components.py
+       python3 plugins/teams/skills/list-components/list_components.py
        ```
      - For each search string in `--component`:
        - Find all components containing that string (case-insensitive)
@@ -87,7 +87,7 @@ This command is useful for:
 
 5. **Execute Python Script**: Run the summarize_jiras.py script
 
-   - Script location: `plugins/component-health/skills/health-check-jiras/summarize_jiras.py`
+   - Script location: `plugins/teams/skills/summarize-jiras/summarize_jiras.py`
    - The script internally calls `list_jiras.py` to fetch raw data and handles all components in one invocation
    - If `--team` was provided:
      - Execute: `python3 summarize_jiras.py --project <project> --team "<team>" [other args]`
@@ -330,7 +330,7 @@ For each component:
 
 ## See Also
 
-- Skill Documentation: `plugins/component-health/skills/health-check-jiras/SKILL.md`
-- Script: `plugins/component-health/skills/health-check-jiras/summarize_jiras.py`
+- Skill Documentation: `plugins/teams/skills/summarize-jiras/SKILL.md`
+- Script: `plugins/teams/skills/summarize-jiras/summarize_jiras.py`
 - Related Command: `/teams:list-jiras` (for raw JIRA data)
-- Related Command: `/teams:analyze`
+- Related Command: `/teams:health-check` (for combined health analysis)

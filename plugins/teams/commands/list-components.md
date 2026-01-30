@@ -32,8 +32,8 @@ This command is useful for:
    - Run `pwd` to confirm
 
 2. **Run the list-components Script**
-   - For all components: `python3 plugins/component-health/skills/list-components/list_components.py`
-   - For team components: `python3 plugins/component-health/skills/list-components/list_components.py --team "API Server"`
+   - For all components: `python3 plugins/teams/skills/list-components/list_components.py`
+   - For team components: `python3 plugins/teams/skills/list-components/list_components.py --team "API Server"`
    - Team names must match exactly (case-sensitive)
 
 3. **Parse and Display Results**
@@ -79,13 +79,13 @@ The team and component mapping data originates from:
 1. Submit a PR to https://gitlab.cee.redhat.com/hybrid-platforms/org to correct the source data
 2. After the PR merges, regenerate the mapping file in this repository:
    ```
-   python3 plugins/component-health/generate_team_component_map.py
+   python3 plugins/teams/generate_team_component_map.py
    ```
 3. Commit the updated `team_component_map.json` file
 
 ## See Also
 
-- Skill: `plugins/component-health/skills/list-components/SKILL.md`
+- Skill: `plugins/teams/skills/list-components/SKILL.md`
 - Related Command: `/teams:list-teams`
-- Mapping File: `plugins/component-health/team_component_map.json`
-- Generator Script: `plugins/component-health/generate_team_component_map.py`
+- Mapping File: `plugins/teams/team_component_map.json`
+- Generator Script: `plugins/teams/generate_team_component_map.py`

@@ -6,11 +6,11 @@ Standalone script to generate a team-to-components mapping from GCS org data.
 This script:
 1. Downloads org data from GCS to a temp file
 2. Extracts team names and their OCPBUGS component mappings
-3. Saves the mapping to plugins/component-health/team_component_map.json
+3. Saves the mapping to plugins/teams/team_component_map.json (next to this script)
 4. Deletes the temp file
 
 Usage:
-    python3 plugins/component-health/generate_team_component_map.py
+    python3 plugins/teams/generate_team_component_map.py
 
 Requirements:
     - gsutil installed and authenticated
@@ -128,7 +128,8 @@ def extract_team_component_mapping(org_data_path):
             # Extract slack channels (only "forum" type, channel name only)
             slack_channels = team_data.get("group", {}).get("slack", {}).get("channels", [])
             for channel in slack_channels:
-                if channel.get("types")[0] == "forum":
+                types = channel.get("types", [])
+                if types and types[0] == "forum":
                     channel_name = channel.get("channel")
                     if channel_name:
                         team_info["slack_channels"].append(channel_name)
@@ -201,7 +202,7 @@ def main():
         print("\n✓ Successfully generated team-component mapping!", file=sys.stderr)
         print(f"  Location: {output_path}", file=sys.stderr)
         print(f"  Teams: {len(team_component_map)}", file=sys.stderr)
-        print(f"  Components: {sum(len(c) for c in team_component_map.values())}", file=sys.stderr)
+        print(f"  Components: {sum(len(team['components']) for team in team_component_map.values())}", file=sys.stderr)
 
     except KeyboardInterrupt:
         print("\n\nInterrupted by user", file=sys.stderr)
