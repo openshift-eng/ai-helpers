@@ -37,21 +37,25 @@ Structured JSON data containing:
   "variants": ["Architecture:amd64", "Platform:aws"],
   "test_details_url": "https://sippy.dptools.openshift.org/...",
   "triages": [...],
-  "sample_pass_sequence": "FFFFFSFFFSSFFFFSFFFFFFFSSSSSSSSSSSSSSSSS",
-  "sample_failed_jobs": [
-    {
-      "job_url": "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/...",
-      "job_run_id": "2017184460591599616",
-      "start_time": "2026-01-30T10:33:47",
-      "job_name": "periodic-ci-openshift-release-master-nightly-4.22-e2e-..."
+  "sample_failed_jobs": {
+    "periodic-ci-openshift-release-master-nightly-4.22-e2e-metal-ipi-ovn-ipv4-rhcos10-techpreview": {
+      "pass_sequence": "FFFFFFFFFFFFFFFFFF",
+      "failed_runs": [
+        {
+          "job_url": "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/...",
+          "job_run_id": "2017184460591599616",
+          "start_time": "2026-01-30T10:33:47"
+        }
+      ]
     }
-  ]
+  }
 }
 ```
 
 **Note:**
-- `sample_pass_sequence`: Chronological success/fail pattern (newest to oldest). "S" = success, "F" = failure.
-- `sample_failed_jobs`: Always included, contains job runs where the test failed.
+- `sample_failed_jobs`: Dictionary keyed by job name. Each job has:
+  - `pass_sequence`: Success/fail pattern for that job (newest to oldest). "S" = success, "F" = failure.
+  - `failed_runs`: List of failed runs for that job.
 
 ## API Endpoint
 

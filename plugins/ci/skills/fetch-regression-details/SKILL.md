@@ -100,23 +100,37 @@ The structured data includes all necessary regression details:
       "updated_at": "2026-01-30T13:28:33.429963Z"
     }
   ],
-  "sample_pass_sequence": "FFFFFSFFFSSFFFFSFFFFFFFSSSSSSSSSSSSSSSSS",
-  "sample_failed_jobs": [
-    {
-      "job_url": "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/...",
-      "job_run_id": "2017184460591599616",
-      "start_time": "2026-01-30T10:33:47",
-      "job_name": "periodic-ci-openshift-release-master-nightly-4.22-e2e-metal-ipi-ovn-ipv4-rhcos10-techpreview"
+  "sample_failed_jobs": {
+    "periodic-ci-openshift-release-master-nightly-4.22-e2e-metal-ipi-ovn-ipv4-rhcos10-techpreview": {
+      "pass_sequence": "FFFFFFFFFFFFFFFFFF",
+      "failed_runs": [
+        {
+          "job_url": "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/...",
+          "job_run_id": "2017184460591599616",
+          "start_time": "2026-01-30T10:33:47"
+        }
+      ]
+    },
+    "periodic-ci-openshift-release-master-nightly-4.22-e2e-metal-ipi-ovn-techpreview": {
+      "pass_sequence": "SSFSSSSSSSS",
+      "failed_runs": [
+        {
+          "job_url": "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/...",
+          "job_run_id": "2016460830022832128",
+          "start_time": "2026-01-28T10:37:27"
+        }
+      ]
     }
-  ],
+  },
   "test_details_url": "https://sippy.dptools.openshift.org/api/component_readiness/test_details?...",
   "api_url": "https://sippy.dptools.openshift.org/api/component_readiness/regressions/34446"
 }
 ```
 
 **Note:**
-- `sample_pass_sequence`: Chronological success/fail pattern (newest to oldest). "S" = successful run (success_count > 0), "F" = failing run (failure_count > 0). Example: "FFFFFSSS" shows 5 recent failures, then 3 older successes.
-- `sample_failed_jobs`: Job runs from the sample release (not baseline) where the test failed (failure_count > 0).
+- `sample_failed_jobs`: Dictionary keyed by job name. Each job contains:
+  - `pass_sequence`: Chronological success/fail pattern for this specific job (newest to oldest). "S" = successful run, "F" = failing run. Example: "FFFFFSSS" shows 5 recent failures, then 3 older successes.
+  - `failed_runs`: List of failed runs for this job, sorted by start_time (newest first).
 
 ## Error Handling
 
@@ -376,9 +390,9 @@ API URL: https://sippy.dptools.openshift.org/api/...
 - Closed regressions will have `status: "closed"` and a non-null `closed` timestamp
 - The `variants` array shows all platform/topology combinations where the test is failing
 - Default output format is JSON; use `--format summary` for human-readable output
-- `sample_pass_sequence` is a chronological string (newest to oldest) showing "S" for successful runs and "F" for failed runs
-- `sample_failed_jobs` is always included and contains runs where the test failed (failure_count > 0) from the sample release (not baseline)
-- Failed jobs are sorted by start_time (most recent first)
+- `sample_failed_jobs` is a dictionary keyed by job name, containing only jobs with at least one failed run
+- Each job includes a `pass_sequence` string (newest to oldest) with "S" for successful runs and "F" for failed runs
+- Each job's `failed_runs` list is sorted by start_time (most recent first)
 
 ## See Also
 
