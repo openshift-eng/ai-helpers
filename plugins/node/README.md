@@ -4,7 +4,7 @@ Kubernetes and OpenShift node health monitoring and diagnostics.
 
 ## Overview
 
-The Node plugin provides comprehensive health checking and diagnostic capabilities for Kubernetes and OpenShift cluster nodes. It automates the inspection of node-level components including kubelet, CRI-O container runtime, system resources, and node conditions to ensure nodes are functioning properly.
+The Node plugin provides comprehensive health checking and diagnostic capabilities for Kubernetes and OpenShift cluster nodes. It automates the inspection of node-level components including kubelet, CRI-O container runtime, system resources, and node conditions to ensure nodes are functioning properly. It also provides network packet capture capabilities for troubleshooting connectivity and performance issues.
 
 ## Commands
 
@@ -97,6 +97,79 @@ The command provides:
 
 See [commands/cluster-node-health-check.md](commands/cluster-node-health-check.md) for detailed documentation.
 
+### `/node:tcpdump`
+
+SSH into OpenShift node and capture network traffic using tcpdump on specified or all interfaces.
+
+**Usage:**
+```bash
+/node:tcpdump <node-name> [--interface <interface>] [--filter <tcpdump-filter>] [--duration <seconds>] [--count <packets>] [--tcpdump-options <options>] [--output <filename>]
+```
+
+**Arguments:**
+- `<node-name>` (required): The name of the OpenShift node to capture traffic from
+- `--interface <interface>` (optional): Network interface to capture packets from. Default: `any` (all interfaces)
+- `--filter <tcpdump-filter>` (optional): tcpdump filter expression for targeted capture. Default: no filter
+- `--duration <seconds>` (optional): Capture duration in seconds. Default: 60
+- `--count <packets>` (optional): Maximum number of packets to capture. Default: unlimited
+- `--tcpdump-options <options>` (optional): Additional tcpdump options like `"-n -s 0"` (no name resolution, full packets)
+- `--output <filename>` (optional): Output filename for the capture file. Default: auto-generated
+
+**Examples:**
+
+Capture all traffic on all interfaces for 60 seconds:
+```bash
+/node:tcpdump ip-10-0-143-232.ec2.internal
+```
+
+Capture HTTPS traffic to API server for 2 minutes:
+```bash
+/node:tcpdump worker-0 --filter "tcp port 6443" --duration 120
+```
+
+Capture DNS queries:
+```bash
+/node:tcpdump worker-0 --filter "udp port 53" --count 100
+```
+
+Capture traffic on specific interface:
+```bash
+/node:tcpdump worker-0 --interface eth0 --duration 300
+```
+
+Capture pod network traffic:
+```bash
+/node:tcpdump worker-0 --filter "net 10.128.0.0/14" --interface ovn-k8s-mp0
+```
+
+Capture with full packet size and no name resolution:
+```bash
+/node:tcpdump worker-0 --tcpdump-options "-n -s 0" --filter "port 443"
+```
+
+**What it captures:**
+
+- Network packets on node interfaces (eth0, br-ex, ovn-k8s-mp0, any, etc.)
+- Filtered traffic based on IP, port, protocol, or custom tcpdump filters
+- Saves capture to local .pcap file for analysis with Wireshark or tcpdump
+
+**Common use cases:**
+
+- Debug pod-to-pod networking issues
+- Analyze traffic between nodes and external services
+- Troubleshoot DNS resolution problems
+- Investigate network performance bottlenecks
+- Debug load balancer or ingress connectivity
+- Analyze CNI plugin behavior (OVN-Kubernetes, etc.)
+
+**Output:**
+
+The command creates a `.pcap` file at `.work/node-tcpdump/<output-filename>.pcap` that can be analyzed with:
+- Wireshark (GUI): `wireshark .work/node-tcpdump/<file>.pcap`
+- tcpdump (CLI): `tcpdump -r .work/node-tcpdump/<file>.pcap`
+
+See [commands/tcpdump.md](commands/tcpdump.md) for detailed documentation.
+
 ## Prerequisites
 
 - **Kubernetes/OpenShift CLI**: Either `oc` or `kubectl` must be installed
@@ -107,9 +180,11 @@ See [commands/cluster-node-health-check.md](commands/cluster-node-health-check.m
 
 - **Pre-deployment validation**: Verify node health before deploying applications
 - **Troubleshooting**: Diagnose node-related issues affecting workload performance
+- **Network debugging**: Capture and analyze network traffic for connectivity issues
 - **Capacity planning**: Understand resource utilization across nodes
 - **Proactive monitoring**: Regular health checks to catch issues early
 - **Post-upgrade validation**: Verify node health after cluster upgrades
+- **Security analysis**: Capture network traffic for security investigation
 - **CI/CD integration**: Automated node health verification in pipelines
 
 ## Common Issues Detected
