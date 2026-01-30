@@ -36,6 +36,10 @@ This command safely destroys a cluster and cleans up all cloud resources. Includ
 
 Check status of Ironic baremetal nodes in OpenShift cluster.
 
+### `/openshift:bmh-ironic-check-redfish-profile`
+
+Check if a BMC is compatible with the ironic redfish profile.
+
 See the [commands/](commands/) directory for full documentation of each command.
 
 ## Installation
