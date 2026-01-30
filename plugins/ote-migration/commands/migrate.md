@@ -1031,6 +1031,53 @@ else
     echo "⚠️  No replace directives found in test module"
 fi
 
+# Step 8c: Update critical OpenShift dependencies in root go.mod to match test module
+echo "Updating critical OpenShift dependencies in root go.mod to match test module..."
+
+# Get the openshift/api and openshift/client-go versions from test module
+# Check both replace directives and require directives
+API_VERSION=$(grep "github.com/openshift/api" test/<test-dir-name>/go.mod | grep "=>" | awk '{print $NF}' || echo "")
+if [ -z "$API_VERSION" ]; then
+    # Try to get from require section (indirect dependency)
+    API_VERSION=$(grep "github.com/openshift/api" test/<test-dir-name>/go.mod | grep -v "=>" | awk '{print $2}' | head -1 || echo "")
+fi
+
+CLIENT_GO_VERSION=$(grep "github.com/openshift/client-go" test/<test-dir-name>/go.mod | grep "=>" | awk '{print $NF}' || echo "")
+if [ -z "$CLIENT_GO_VERSION" ]; then
+    # Try to get from require section (indirect dependency)
+    CLIENT_GO_VERSION=$(grep "github.com/openshift/client-go" test/<test-dir-name>/go.mod | grep -v "=>" | awk '{print $2}' | head -1 || echo "")
+fi
+
+UPDATED_COUNT=0
+
+# Update github.com/openshift/api if version found in test module
+if [ -n "$API_VERSION" ]; then
+    echo "  Found github.com/openshift/api version in test module: $API_VERSION"
+    echo "  Updating root go.mod to use compatible version..."
+    GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get "github.com/openshift/api@$API_VERSION" 2>/dev/null || \
+        GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get "github.com/openshift/api@latest"
+    UPDATED_COUNT=$((UPDATED_COUNT + 1))
+    echo "  ✅ Updated github.com/openshift/api in root go.mod"
+fi
+
+# Update github.com/openshift/client-go if version found in test module
+if [ -n "$CLIENT_GO_VERSION" ]; then
+    echo "  Found github.com/openshift/client-go version in test module: $CLIENT_GO_VERSION"
+    echo "  Updating root go.mod to use compatible version..."
+    GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get "github.com/openshift/client-go@$CLIENT_GO_VERSION" 2>/dev/null || \
+        GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get "github.com/openshift/client-go@latest"
+    UPDATED_COUNT=$((UPDATED_COUNT + 1))
+    echo "  ✅ Updated github.com/openshift/client-go in root go.mod"
+fi
+
+if [ $UPDATED_COUNT -gt 0 ]; then
+    echo "✅ Updated $UPDATED_COUNT critical OpenShift dependencies in root go.mod"
+    echo "  Running go mod tidy to resolve dependencies..."
+    GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go mod tidy
+else
+    echo "⚠️  No critical OpenShift dependencies found in test module to update"
+fi
+
 echo "✅ Monorepo go.mod setup complete"
 ```
 
