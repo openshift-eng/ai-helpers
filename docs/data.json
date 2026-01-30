@@ -326,6 +326,11 @@
           "name": "Fetch Regression Details"
         },
         {
+          "description": "Fetch test failure outputs from Sippy API for AI-based similarity analysis",
+          "id": "fetch-test-failure-outputs",
+          "name": "Fetch Test Failure Outputs"
+        },
+        {
           "description": "Helper skill to retrieve OAuth tokens from the correct OpenShift cluster context when multiple clusters are configured",
           "id": "oc-auth",
           "name": "OC Authentication Helper"

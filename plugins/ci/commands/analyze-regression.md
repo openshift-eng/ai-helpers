@@ -85,10 +85,10 @@ This command is useful for:
        - Note: "⚠️ FAILED FIX: Test continues to fail after triage was resolved (analysis_status: -1000)"
        - Note: "Further investigation of failed fixes requires different analysis (future command/skill)"
      - **Else**: Note: "This regression has been triaged. No further investigation required."
-     - Exit early - skip steps 4-8
+     - Exit early - skip steps 4-9
 
    - **If `triage_count == 0` (regression is NOT triaged)**:
-     - Proceed with full investigation (steps 4-8)
+     - Proceed with full investigation (steps 4-9)
      - The regression needs analysis and bug filing
 
    **Example Check**:
@@ -190,7 +190,98 @@ This command is useful for:
      - Priority: **Low**
      - Action: "Single recent failure in mostly passing job. Monitor for pattern or investigate if recurring."
 
-5. **Identify Related Regressions**: Search for similar failing tests
+5. **Analyze Failure Output Consistency**: Use the `fetch-test-failure-outputs` skill
+
+   **Note**: Only perform this step if the regression is not triaged (triage_count == 0).
+
+   Use the `fetch-test-failure-outputs` skill to fetch and analyze actual test failure outputs from all failed job runs. This helps determine if all failures have the same root cause or if there are multiple issues.
+
+   **Implementation**:
+
+   ```bash
+   # Extract test_id from regression data
+   test_id=$(echo "$regression_data" | jq -r '.test_id')
+
+   # Collect all job_run_ids from sample_failed_jobs
+   # This creates a comma-separated list of all failed job run IDs across all jobs
+   job_run_ids=$(echo "$regression_data" | jq -r '
+     .sample_failed_jobs
+     | to_entries[]
+     | .value.failed_runs[]
+     | .job_run_id
+   ' | tr '\n' ',' | sed 's/,$//')
+
+   # Use the fetch-test-failure-outputs skill
+   script_path="plugins/ci/skills/fetch-test-failure-outputs/fetch_test_failure_outputs.py"
+   output_analysis=$(python3 "$script_path" "$test_id" "$job_run_ids" --format json)
+   ```
+
+   The skill fetches raw test failure outputs from Sippy API (currently localhost:8080, will use production endpoint once code merges).
+
+   See `plugins/ci/skills/fetch-test-failure-outputs/SKILL.md` for complete implementation details.
+
+   **Parse Results and Analyze with AI**:
+
+   ```bash
+   # Check if fetch was successful
+   success=$(echo "$output_analysis" | jq -r '.success')
+
+   if [ "$success" = "true" ]; then
+     # Extract outputs array
+     outputs=$(echo "$output_analysis" | jq -r '.outputs')
+     num_outputs=$(echo "$outputs" | jq 'length')
+
+     echo "Fetched $num_outputs test failure outputs"
+
+     # AI ANALYSIS: Compare the outputs for similarity
+     # Examine each output message to determine:
+     # 1. How many failures show the same or very similar error messages
+     # 2. What percentage of failures are consistent
+     # 3. What the common error pattern is (if any)
+     # 4. Extract file references, API paths, or resource names from error messages
+     #
+     # The outputs are in format: {"url": "...", "output": "error text", "test_name": "..."}
+     #
+     # Classify consistency:
+     # - Highly Consistent (>90%): All/nearly all show same error -> single root cause
+     # - Moderately Consistent (50-90%): Most share patterns -> primary issue with variation
+     # - Inconsistent (<50%): Different errors -> multiple causes or environmental issues
+     #
+     # Extract from error messages:
+     # - File/line references (e.g., "discovery.go:145")
+     # - API/resource paths (e.g., "/apis/stable.e2e-validating-admission-policy-1181/")
+     # - Common error phrases (e.g., "server could not find the requested resource")
+
+   else
+     # API not available - this is acceptable, continue without output analysis
+     error=$(echo "$output_analysis" | jq -r '.error')
+     echo "Note: Test output analysis unavailable - $error"
+     echo "Continuing with other analysis steps..."
+   fi
+   ```
+
+   **How to Analyze Outputs with AI**:
+
+   Read through the failure outputs and identify patterns:
+
+   1. **Compare Error Messages**: Count how many outputs have identical or very similar messages
+      - Example: If 17 out of 18 say "the server could not find the requested resource", that's 94% consistency
+
+   2. **Extract Common Elements**: Look for shared components in the error messages
+      - File references: "k8s.io/kubernetes/test/e2e/apimachinery/discovery.go:145"
+      - API paths: "/apis/stable.e2e-validating-admission-policy-1181/"
+      - Error phrases: "server could not find the requested resource"
+
+   3. **Classify Consistency**:
+      - **Highly Consistent** (>90%): Single root cause - all failures show same error
+      - **Moderately Consistent** (50-90%): Primary issue - most share patterns with some variation
+      - **Inconsistent** (<50%): Multiple causes - failures show different error types
+
+   4. **Determine Root Cause**: Based on the common error message and extracted information, infer what the underlying issue likely is
+      - Example: "API endpoint not available" if errors mention missing API resources
+      - Example: "Timeout issue" if errors mention timeouts or waiting conditions
+
+6. **Identify Related Regressions**: Search for similar failing tests
 
    - List all regressions for the release
    - Identify other jobs where this test is failing
@@ -198,23 +289,27 @@ This command is useful for:
    - Summarize the commonalities and differences in job variants
      - For example is this test failing for all jobs of one platform type or upgrade type
 
-6. **Check Existing Triages**: Look for related triage records
+7. **Check Existing Triages**: Look for related triage records
 
    - Query regression data for triages with similar test names
    - Identify triages from same job runs
    - Present existing JIRA tickets that might already cover this regression
    - This implements: "scan for pre-existing triages that look related"
 
-7. **Prepare Bug Filing Recommendations**: Generate actionable information
+8. **Prepare Bug Filing Recommendations**: Generate actionable information
 
    - Component assignment (from test mappings)
-   - Bug summary suggestion based on failure pattern (informed by step 3 pattern analysis)
+   - Bug summary suggestion based on failure pattern (informed by step 4 pattern analysis)
    - Bug description template including:
      - Test name and release
      - Regression opened date
      - Affected variants
      - Failure patterns identified (permafail/flaky/resolved/recent)
-     - Pass sequence analysis from step 3
+     - Pass sequence analysis from step 4
+     - **Failure output consistency analysis from step 5** (if available):
+       - Common error message
+       - Consistency percentage
+       - Key debugging information (file references, resources, stack traces)
      - Link to Test Details report
      - Related regressions (if any)
    - Triage type recommendation:
@@ -223,7 +318,7 @@ This command is useful for:
      - `ci-infra`: CI outages
      - `product-infra`: customer-facing outages (e.g., quay)
 
-8. **Display Comprehensive Report**: Present findings in clear format
+9. **Display Comprehensive Report**: Present findings in clear format
 
    **Note**: This step is only performed for untriaged regressions (no entries in triages list).
 
@@ -250,12 +345,23 @@ This command is useful for:
      - Recommended action
    - Overall assessment of regression severity
 
-   **Section 3: Related Regressions**
+   **Section 3: Failure Output Analysis** (from `fetch-test-failure-outputs` skill)
+   - Number of test outputs analyzed
+   - Consistency classification (Highly Consistent / Moderately Consistent / Inconsistent)
+   - Most common error message with occurrence count
+   - Key debugging information:
+     - File/line references
+     - Resource or API paths
+     - Error messages
+   - Sample job URLs for manual inspection
+   - **Note**: If the test outputs API is not available, this section will note: "Test output analysis not available"
+
+   **Section 4: Related Regressions**
    - List of potentially related failing tests
    - Common patterns across failures
    - Recommendation: "These regressions may be caused by the same issue and could be triaged to one JIRA"
 
-   **Section 4: Existing Triages**
+   **Section 5: Existing Triages**
    - Related JIRA tickets already filed (from other regressions)
 
 ## Return Value
@@ -316,6 +422,24 @@ For regressions that need investigation, the command outputs a **Comprehensive R
   - **Recommended Action**: Next steps based on pattern (e.g., "Investigate recent code changes", "Stabilize flaky test", "Verify issue is resolved")
 - **Overall Assessment**: Summary of regression severity across all jobs
 
+#### Failure Output Analysis
+
+Generated using the `fetch-test-failure-outputs` skill (see `plugins/ci/skills/fetch-test-failure-outputs/SKILL.md`):
+
+- **Number of Outputs Analyzed**: Total test outputs examined
+- **Consistency Classification**:
+  - **Highly Consistent** (>90% same): All or nearly all failures show identical error messages
+  - **Moderately Consistent** (50-90% same): Most failures share common patterns
+  - **Inconsistent** (<50% same): Failures show different error messages
+- **Common Error Message**: Most frequent error message with occurrence count (e.g., "17/18 failures")
+- **Key Debugging Information**:
+  - File and line references where failure occurred
+  - Resource or API endpoints being accessed
+  - Extracted error messages
+- **Sample URLs**: Links to representative failed job runs for manual inspection
+- **Assessment**: Interpretation of consistency (e.g., "Single root cause - API endpoint not available")
+- **Note**: If the test outputs API is not available, this section will note that the analysis could not be performed
+
 #### Root Cause Analysis
 
 - **Failure Patterns**: Common patterns identified across multiple job failures
@@ -363,8 +487,11 @@ For regressions that need investigation, the command outputs a **Comprehensive R
   - `-1000`: Failed fix - test continues to fail after triage was resolved (requires different investigation approach)
   - Other negative values: Severity of regression (lower = more severe)
   - Negative values indicate problems detected by the regression analysis
-- Uses the `fetch-regression-details` skill to automatically fetch regression data and analyze pass/fail patterns
-- The skill groups failed jobs by job name and provides pass sequences for pattern analysis
+- **Skills Used**:
+  - `fetch-regression-details`: Fetches regression data and analyzes pass/fail patterns
+  - `fetch-test-failure-outputs`: Fetches actual test outputs and analyzes error message consistency (TEMPORARY: uses localhost:8080)
+- The regression details skill groups failed jobs by job name and provides pass sequences for pattern analysis
+- The test failure outputs skill compares error messages to determine if failures have a single root cause
 - Follows the guidance: "many regressions can be caused by one bug"
 - Helps teams consistently follow the documented triage procedure
 - Pattern analysis (permafail/resolved/flaky/recent) helps prioritize investigation efforts
@@ -375,6 +502,7 @@ For regressions that need investigation, the command outputs a **Comprehensive R
 ## See Also
 
 - Related Skill: `fetch-regression-details` - Fetches regression data with pass sequences (`plugins/ci/skills/fetch-regression-details/SKILL.md`)
+- Related Skill: `fetch-test-failure-outputs` - Fetches and analyzes test failure outputs (`plugins/ci/skills/fetch-test-failure-outputs/SKILL.md`)
 - Related Command: `/component-health:list-regressions` (for bulk regression data)
 - Related Command: `/component-health:analyze-regressions` (for overall component health)
 - Component Readiness: https://sippy-auth.dptools.openshift.org/sippy-ng/component_readiness/main
