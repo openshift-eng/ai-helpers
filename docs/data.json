@@ -65,6 +65,11 @@
       "name": "git",
       "skills": [
         {
+          "description": "Search GitHub issues across configured repositories. Supports searching issue titles, bodies, and comments. Use for finding bugs, errors, or discussions.",
+          "id": "search-issues",
+          "name": "search-issues"
+        },
+        {
           "description": "Git blame analysis helper for the suggest-reviewers command",
           "id": "suggest-reviewers",
           "name": "Suggest Reviewers Helper"
