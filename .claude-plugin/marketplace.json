@@ -177,6 +177,12 @@
       "source": "./plugins/gwapi",
       "description": "Gateway API installation utilities for Kubernetes/OpenShift clusters",
       "version": "0.0.1"
+    },
+    {
+      "name": "report-writer",
+      "source": "./plugins/report-writer",
+      "description": "A plugin to generate reports",
+      "version": "0.0.1"
     }
   ]
 }
