@@ -100,6 +100,11 @@ The structured data includes all necessary regression details:
       "updated_at": "2026-01-30T13:28:33.429963Z"
     }
   ],
+  "analysis_status": -2,
+  "analysis_explanations": [
+    "Test is failing consistently across multiple job runs",
+    "Regression detected compared to baseline release"
+  ],
   "sample_failed_jobs": {
     "periodic-ci-openshift-release-master-nightly-4.22-e2e-metal-ipi-ovn-ipv4-rhcos10-techpreview": {
       "pass_sequence": "FFFFFFFFFFFFFFFFFF",
@@ -128,6 +133,8 @@ The structured data includes all necessary regression details:
 ```
 
 **Note:**
+- `analysis_status`: Integer status code from the regression analysis. Negative numbers indicate problems, with lower numbers representing more severe issues.
+- `analysis_explanations`: List of human-readable explanations describing the status of the regression.
 - `sample_failed_jobs`: Dictionary keyed by job name. Each job contains:
   - `pass_sequence`: Chronological success/fail pattern for this specific job (newest to oldest). "S" = successful run, "F" = failing run. Example: "FFFFFSSS" shows 5 recent failures, then 3 older successes.
   - `failed_runs`: List of failed runs for this job, sorted by start_time (newest first).
@@ -263,14 +270,23 @@ python3 plugins/ci/skills/fetch-regression-details/fetch_regression_details.py 3
       "resolved": false
     }
   ],
-  "sample_failed_jobs": [
-    {
-      "job_url": "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/...",
-      "job_run_id": "2017184460591599616",
-      "start_time": "2026-01-30T10:33:47",
-      "job_name": "periodic-ci-openshift-release-master-nightly-4.22-e2e-metal-ipi-ovn-ipv4-rhcos10-techpreview"
+  "analysis_status": -2,
+  "analysis_explanations": [
+    "Test is failing consistently across multiple job runs",
+    "Regression detected compared to baseline release"
+  ],
+  "sample_failed_jobs": {
+    "periodic-ci-openshift-release-master-nightly-4.22-e2e-metal-ipi-ovn-ipv4-rhcos10-techpreview": {
+      "pass_sequence": "FFFFFFFFFFFFFFFFFF",
+      "failed_runs": [
+        {
+          "job_url": "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/...",
+          "job_run_id": "2017184460591599616",
+          "start_time": "2026-01-30T10:33:47"
+        }
+      ]
     }
-  ]
+  }
 }
 ```
 
@@ -346,6 +362,9 @@ Returns structured JSON data with all regression fields:
   "variants": [...],
   "max_failures": 19,
   "triages": [...],
+  "analysis_status": -2,
+  "analysis_explanations": ["...", "..."],
+  "sample_failed_jobs": {...},
   "test_details_url": "...",
   "api_url": "..."
 }
@@ -367,6 +386,12 @@ Capability: Builds
 Status: Open (opened: 2026-01-28)
 Last Failure: 2026-01-30
 Max Failures: 19
+
+Analysis Status: -2
+  (Negative status indicates a problem - lower is more severe)
+Analysis Explanations:
+  - Test is failing consistently across multiple job runs
+  - Regression detected compared to baseline release
 
 Affected Variants:
   - Architecture:amd64
@@ -390,6 +415,8 @@ API URL: https://sippy.dptools.openshift.org/api/...
 - Closed regressions will have `status: "closed"` and a non-null `closed` timestamp
 - The `variants` array shows all platform/topology combinations where the test is failing
 - Default output format is JSON; use `--format summary` for human-readable output
+- `analysis_status` is an integer where negative values indicate problems (lower = more severe)
+- `analysis_explanations` provides human-readable context for the analysis status
 - `sample_failed_jobs` is a dictionary keyed by job name, containing only jobs with at least one failed run
 - Each job includes a `pass_sequence` string (newest to oldest) with "S" for successful runs and "F" for failed runs
 - Each job's `failed_runs` list is sorted by start_time (most recent first)

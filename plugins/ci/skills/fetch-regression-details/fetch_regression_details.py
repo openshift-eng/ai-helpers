@@ -185,6 +185,28 @@ class RegressionFetcher:
         except urllib.error.URLError as e:
             raise ValueError(f"Failed to fetch test details: {e.reason}")
 
+    def parse_analyses_metadata(self, test_details: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Parse analysis metadata from test details response.
+
+        Extracts status and explanations from analyses[0].
+
+        Args:
+            test_details: Raw JSON response from test details API
+
+        Returns:
+            dict: Dictionary containing status and explanations (empty dict if not found)
+        """
+        analyses = test_details.get('analyses', [])
+        if not analyses:
+            return {}
+
+        analysis = analyses[0]
+        return {
+            'status': analysis.get('status'),
+            'explanations': analysis.get('explanations', [])
+        }
+
     def parse_failed_jobs_by_job(self, test_details: Dict[str, Any]) -> Dict[str, Any]:
         """
         Parse sample job runs grouped by job name.
@@ -270,12 +292,18 @@ class RegressionFetcher:
         raw_data = self.fetch_raw_data()
         regression = self.parse_regression(raw_data)
 
-        # Fetch sample failed jobs grouped by job name from test details
+        # Fetch sample failed jobs and analysis metadata from test details
         test_details_url = regression.get('test_details_url', '')
         if test_details_url:
             try:
                 test_details = self.fetch_test_details(test_details_url)
                 regression['sample_failed_jobs'] = self.parse_failed_jobs_by_job(test_details)
+
+                # Extract analysis metadata (status and explanations)
+                analysis_metadata = self.parse_analyses_metadata(test_details)
+                if analysis_metadata:
+                    regression['analysis_status'] = analysis_metadata.get('status')
+                    regression['analysis_explanations'] = analysis_metadata.get('explanations', [])
             except ValueError as e:
                 # Don't fail entire request if test details fetch fails
                 regression['sample_failed_jobs'] = {}
@@ -324,6 +352,18 @@ def format_summary(regression: Dict[str, Any]) -> str:
 
     lines.append(f"Max Failures: {regression['max_failures']}")
     lines.append("")
+
+    # Analysis metadata
+    if 'analysis_status' in regression and regression['analysis_status'] is not None:
+        lines.append(f"Analysis Status: {regression['analysis_status']}")
+        if regression['analysis_status'] < 0:
+            lines.append("  (Negative status indicates a problem - lower is more severe)")
+
+    if 'analysis_explanations' in regression and regression['analysis_explanations']:
+        lines.append("Analysis Explanations:")
+        for explanation in regression['analysis_explanations']:
+            lines.append(f"  - {explanation}")
+        lines.append("")
 
     # Variants
     if regression['variants']:
