@@ -96,7 +96,7 @@ Performs the complete OTE migration in one workflow.
    ```
 
 **Migration Flow Before Fixes:**
-```
+```text
 Phase 4 (go.mod generation)
   ├─ Step 5: git clone origin (30s) ✓
   ├─ Step 5: git clone kubernetes (45s) ✓
@@ -108,7 +108,7 @@ Result: Tests copied but imports not migrated → go mod tidy fails
 ```
 
 **Migration Flow After Fixes:**
-```
+```text
 Phase 4 (go.mod generation)
   ├─ Step 3: git ls-remote (parallel, 5s) ✓
   ├─ Step 3: git clone (parallel, 30-45s) ✓
