@@ -131,9 +131,13 @@ Use progressive disclosure (3 layers):
 - **Layer 2 (if overlaps)**: Detailed findings with severity ([HIGH/MODERATE/LOW OVERLAP]), PR links, and recommendations for joint effort
 - **Layer 3 (`--verbose`)**: Side-by-side comparison with differentiation suggestions
 
-### Step 7: Save Report (Optional)
+### Step 7: Save Report
 
-If overlaps found, save detailed report to `.work/review-ai-helpers-overlap/report-{timestamp}.md` with summary, PRs compared, findings, and recommendations. Display file path to user.
+When overlaps are found (HIGH or MODERATE severity), save detailed report to `.work/utils/review-ai-helpers-overlap/report-{timestamp}.md` with summary, PRs compared, findings, and recommendations. Display file path to user.
+
+If no overlaps found, report is displayed to terminal only (no file created).
+
+This follows Pattern 1 (Commands that Generate Reports/Artifacts) - see CLAUDE.md File Creation Patterns.
 
 ## Examples
 
@@ -164,7 +168,11 @@ Structured overlap analysis with progressive disclosure:
 - **Findings** (if overlaps): Severity ratings (HIGH/MODERATE/LOW), PR links, recommendations
 - **Verbose details** (`--verbose`): Side-by-side comparisons with differentiation suggestions
 
-Optionally saves report to `.work/review-ai-helpers-overlap/report-{timestamp}.md` when overlaps found.
+**File output** (when HIGH/MODERATE overlaps found):
+- **Location**: `.work/utils/review-ai-helpers-overlap/report-{timestamp}.md`
+- **Format**: Markdown report with summary, PRs compared, findings, and recommendations
+
+**Terminal output only** (when no overlaps or LOW severity): Report displayed without creating file
 
 ## Notes
 
