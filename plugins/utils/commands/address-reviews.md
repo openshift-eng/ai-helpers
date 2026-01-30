@@ -189,6 +189,29 @@ Show user:
 - When in doubt, ask the user
 - Use TodoWrite to track progress through multiple comments
 
+## Duplicate Prevention
+
+Before posting ANY reply, verify you haven't already responded:
+
+```bash
+python3 plugins/utils/scripts/check_replied.py <owner> <repo> <pr_number> <comment_id> --type <type>
+```
+
+Where `<type>` is one of: `issue_comment`, `review_thread`, or `review_comment`
+
+**If the script returns exit code 1**: Skip that comment - you've already replied.
+
+### Response Rules
+
+1. **One response per feedback**: For each piece of feedback, choose ONE response mechanism:
+   - Inline review comments → reply inline only
+   - General PR comments → reply as general comment only
+   - NEVER respond to the same feedback via both mechanisms
+
+2. **Code changes require explicit request**: Only modify code when the reviewer explicitly asks using imperative language like "change", "fix", "remove", "update", "add". For questions, clarifications, or observations - reply with explanation only, do not change code.
+
+3. **Check before acting**: If a comment is phrased as a question ("Why did you...?", "What about...?"), provide an explanation. Only make code changes for direct requests ("Please change...", "This should be...", "Remove this...").
+
 
 ## Arguments:
 - $1: [PR number to address reviews (optional - uses current branch if omitted)]
