@@ -410,6 +410,7 @@ The generated `cmd/main.go` (or `cmd/extension/main.go` for monorepo) includes *
   **Test restructuring performed:**
 
   The migration simplifies test structure by:
+
 - Moving Describe block text into It() descriptions
 - Simplifying Describe to just tags: `[sig-<extension-name>][OTP]`
 - Prepending `[Level0]` to It() for tests with "-LEVEL0-"
@@ -542,10 +543,11 @@ The generated `cmd/main.go` (or `cmd/extension/main.go` for monorepo) includes *
   ```
 
   **Benefits:**
-  - ✅ Prevents `undefined: <type>` errors from API mismatches
-  - ✅ Ensures both test module and root module use compatible versions
-  - ✅ Automatically adapts to origin's requirements
-  - ✅ Includes fallback to test module versions if origin's go.mod is unreachable
+
+- ✅ Prevents `undefined: <type>` errors from API mismatches
+- ✅ Ensures both test module and root module use compatible versions
+- ✅ Automatically adapts to origin's requirements
+- ✅ Includes fallback to test module versions if origin's go.mod is unreachable
 
 ### Automatic Go Toolchain Management
 
