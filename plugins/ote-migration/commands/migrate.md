@@ -103,21 +103,26 @@ Store the selection in variable: `<structure-strategy>` (value: "monorepo" or "s
 
 #### Input 2: Working Directory (Workspace)
 
-Ask: "What is the working directory path for migration workspace?"
+Ask: "What is the working directory path for migration workspace?
 
-**For both strategies**:
-- This is a TEMPORARY workspace for migration preparation
-- Used ONLY for cloning openshift-tests-private (if needed)
-- Example: `/home/user/workspace`, `/tmp/migration-workspace`
+**IMPORTANT**: If your target repository already exists locally, provide its path here. Otherwise, provide a workspace path where repositories will be cloned."
+
+**Purpose of this directory**:
+- **If target repo exists locally**: Provide the target repo path (recommended - will ask about git update in Input 3a)
+- **If target repo doesn't exist locally**: Provide workspace directory where target repo will be cloned (in Input 3b)
+- Also used for cloning openshift-tests-private (source repo) if not available locally
+- Example: `/home/user/repos/router` (existing target), `.` (current dir), `/home/user/workspace` (workspace)
 
 **User provides the path:**
+- Can provide existing target repository path (recommended if available)
+- Can provide current directory (`.`) as workspace for cloning
 - Can provide an existing directory path
 - Can provide a new directory path (we'll create it)
 - Path can be absolute or relative
 
 **Store in variable:** `<working-dir>`
 
-**IMPORTANT**: This is NOT the final working directory. After Input 3, the working directory will SWITCH to the target repository where all OTE files will be created.
+**IMPORTANT**: After Input 3c (Target Repository validation), the working directory will become the target repository where all OTE files will be created.
 
 #### Input 3: Target Repository
 
@@ -125,30 +130,48 @@ This input collects the target repository information and then **immediately swi
 
 **CRITICAL**: After this input, the working directory becomes the target repository. All subsequent inputs and operations happen in the target repository context.
 
+**Note**: BOTH strategies require the target repository. The difference is HOW we collect it:
+- **Monorepo**: Must provide local path (integrating into existing repo)
+- **Single-module**: Can provide local path OR Git URL to clone
+
 **For Monorepo Strategy:**
 
-Ask: "What is the path to your component repository (target repo) where OTE integration will be added?"
+Ask: "What is the path to your target repository where OTE will be integrated?"
 
 - This is the repository where `cmd/extension/`, `test/e2e/`, etc. will be created
+- Must be an existing local directory (cannot clone because we're integrating into existing structure)
 - Can be absolute path: `/home/user/repos/router`
 - Can be relative path: `~/openshift/cloud-credential-operator`
-- Must be an existing directory
+- Can be current directory if you're already in the target repo: `.`
 - Should be a git repository (will be validated below)
 
 **User provides the path** and store in variable: `<target-repo-path>`
 
 **For Single-Module Strategy:**
 
-Ask: "Do you have a local clone of the target repository? If yes, provide the path (or press Enter to clone from URL):"
+Ask: "What is the path to your target repository? (Press Enter if you need to clone it from a URL)"
 
 - If provided: Use this existing local repository
   - Can be absolute path: `/home/user/repos/sdn`
   - Can be relative path: `../sdn`
   - Can be current directory: `.`
   - Store in variable: `<target-repo-path>`
-- If empty: Ask for Git URL (see Input 3b below)
+- If empty: Will ask for Git URL to clone (see Input 3b below)
 
-#### Input 3a: Target Repository URL (if no local target provided and single-module)
+#### Input 3a: Update Local Target Repository (if local target provided)
+
+**Skip this if target repository was not provided as local path (will be cloned instead).**
+
+If a local target repository path was provided in Input 3:
+
+Ask: "Do you want to update the local target repository? (git fetch && git pull) [Y/n]:"
+- Default: Yes
+- If yes: Run `git fetch && git pull` in the target repo
+- If no: Use current state
+
+**Store user's choice.**
+
+#### Input 3b: Target Repository URL (if no local target provided and single-module)
 
 **Skip this if monorepo strategy OR if single-module user provided local path.**
 
@@ -161,11 +184,11 @@ Ask: "What is the Git URL of the target repository (component repository)?"
 - Example: `git@github.com:openshift/sdn.git`
 - Store in variable: `<target-repo-url>`
 
-#### Input 3b: Validate and Switch to Target Repository
+#### Input 3c: Validate and Switch to Target Repository
 
 **For both strategies**, after collecting target repo information:
 
-**Step 1: Validate target repository**
+**Step 1: Validate and update target repository**
 
 For monorepo or if single-module provided local path:
 ```bash
@@ -178,6 +201,25 @@ fi
 # Check if it's a git repository
 if [ -d "$TARGET_REPO_PATH/.git" ]; then
     cd "$TARGET_REPO_PATH"
+
+    # Update repository if user requested (from Input 3a)
+    if [ "<update-target>" = "yes" ]; then
+        echo "Updating target repository..."
+
+        # Check current branch
+        CURRENT_BRANCH=$(git branch --show-current)
+        echo "Repository is on branch '$CURRENT_BRANCH'"
+
+        # Discover remote name (don't assume 'origin')
+        TARGET_REMOTE=$(git remote -v | awk '{print $1}' | head -1)
+        if [ -z "$TARGET_REMOTE" ]; then
+            echo "⚠️  WARNING: No git remote found, skipping update"
+        else
+            echo "Updating from remote: $TARGET_REMOTE"
+            git fetch "$TARGET_REMOTE"
+            git pull "$TARGET_REMOTE" "$CURRENT_BRANCH"
+        fi
+    fi
 
     # Check git status
     if ! git diff-index --quiet HEAD --; then
@@ -948,7 +990,44 @@ fi
 
 echo ")" >> go.mod
 
-echo "Step 6: Generate go.sum (deferred full resolution)..."
+echo "Step 6: Ensure api and client-go versions match origin requirements..."
+# Get the exact versions that origin requires by fetching its go.mod
+# This prevents API mismatches where origin uses newer APIs than available in client-go
+echo "Fetching origin's go.mod to get compatible api and client-go versions..."
+
+# Extract origin commit hash (last part after last dash in pseudo-version)
+ORIGIN_COMMIT=$(echo "$ORIGIN_VERSION" | sed 's/.*-//')
+echo "Origin commit: $ORIGIN_COMMIT"
+
+# Fetch origin's go.mod
+ORIGIN_GOMOD=$(curl -s "https://raw.githubusercontent.com/openshift/origin/${ORIGIN_COMMIT}/go.mod" || echo "")
+
+if [ -n "$ORIGIN_GOMOD" ]; then
+    # Extract required versions from origin's go.mod
+    ORIGIN_API_VERSION=$(echo "$ORIGIN_GOMOD" | grep "github.com/openshift/api " | grep -v "=>" | awk '{print $2}' | head -1)
+    ORIGIN_CLIENT_GO_VERSION=$(echo "$ORIGIN_GOMOD" | grep "github.com/openshift/client-go " | grep -v "=>" | awk '{print $2}' | head -1)
+
+    echo "Origin requires:"
+    echo "  - github.com/openshift/api: $ORIGIN_API_VERSION"
+    echo "  - github.com/openshift/client-go: $ORIGIN_CLIENT_GO_VERSION"
+
+    # Update to exact versions that origin requires
+    if [ -n "$ORIGIN_API_VERSION" ]; then
+        echo "Updating api to version required by origin..."
+        GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get "github.com/openshift/api@$ORIGIN_API_VERSION" || \
+            echo "⚠️  Failed to update api, using existing version"
+    fi
+
+    if [ -n "$ORIGIN_CLIENT_GO_VERSION" ]; then
+        echo "Updating client-go to version required by origin..."
+        GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get "github.com/openshift/client-go@$ORIGIN_CLIENT_GO_VERSION" || \
+            echo "⚠️  Failed to update client-go, using existing version"
+    fi
+else
+    echo "⚠️  Could not fetch origin's go.mod, using default dependency resolution"
+fi
+
+echo "Step 7: Generate go.sum (deferred full resolution)..."
 # PERFORMANCE FIX: Don't run full 'go mod tidy' here - it can timeout (60-120s)
 # Instead, generate minimal go.sum and defer full resolution until after test migration
 # This ensures Phase 5 (Test Migration) runs even if dependency resolution is slow
@@ -961,7 +1040,7 @@ GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go mod download || echo "⚠️  Some de
 echo "⚠️  Note: Full dependency resolution deferred to Phase 6"
 echo "    This prevents timeout before test migration completes"
 
-echo "Step 7: Verify go.mod and go.sum are created..."
+echo "Step 8: Verify go.mod and go.sum are created..."
 if [ -f "go.mod" ] && [ -f "go.sum" ]; then
     echo "✅ test/<test-dir-name>/go.mod and go.sum created successfully"
     echo "Module: $(grep '^module' go.mod)"
@@ -980,7 +1059,10 @@ cd ../..
 echo "Step 8: Update root go.mod with replace directives..."
 MODULE_NAME=$(grep '^module ' go.mod | awk '{print $2}')
 
-# Step 8a: Add replace directive for test module
+# Flatten test directory path for testdata (e.g., e2e/extension → e2e-extension)
+TESTDATA_DIR_NAME=$(echo "<test-dir-name>" | tr '/' '-')
+
+# Step 8a: Add replace directives for test module AND testdata module
 if ! grep -q "replace.*$MODULE_NAME/test/<test-dir-name>" go.mod; then
     if grep -q "^replace (" go.mod; then
         # Add to existing replace section
@@ -991,6 +1073,19 @@ if ! grep -q "replace.*$MODULE_NAME/test/<test-dir-name>" go.mod; then
         echo "replace $MODULE_NAME/test/<test-dir-name> => ./test/<test-dir-name>" >> go.mod
     fi
     echo "✅ Test module replace directive added to root go.mod"
+fi
+
+# Also add replace directive for testdata module to prevent go mod tidy from creating go.mod in testdata directory
+if ! grep -q "replace.*$MODULE_NAME/test/${TESTDATA_DIR_NAME}-testdata" go.mod; then
+    if grep -q "^replace (" go.mod; then
+        # Add to existing replace section
+        sed -i "/^replace (/a\\    $MODULE_NAME/test/${TESTDATA_DIR_NAME}-testdata => ./test/${TESTDATA_DIR_NAME}-testdata" go.mod
+    else
+        # Create new replace section (should not happen since test module replace was just added)
+        echo "" >> go.mod
+        echo "replace $MODULE_NAME/test/${TESTDATA_DIR_NAME}-testdata => ./test/${TESTDATA_DIR_NAME}-testdata" >> go.mod
+    fi
+    echo "✅ Testdata module replace directive added to root go.mod"
 fi
 
 # Step 8b: Copy k8s.io and other upstream replace directives from test module to root
@@ -1034,36 +1129,72 @@ fi
 # Step 8c: Update critical OpenShift dependencies in root go.mod to match test module
 echo "Updating critical OpenShift dependencies in root go.mod to match test module..."
 
-# Get the openshift/api and openshift/client-go versions from test module
-# Check both replace directives and require directives
-API_VERSION=$(grep "github.com/openshift/api" test/<test-dir-name>/go.mod | grep "=>" | awk '{print $NF}' || echo "")
-if [ -z "$API_VERSION" ]; then
-    # Try to get from require section (indirect dependency)
-    API_VERSION=$(grep "github.com/openshift/api" test/<test-dir-name>/go.mod | grep -v "=>" | awk '{print $2}' | head -1 || echo "")
+# First, get origin version from test module
+ORIGIN_VERSION=$(grep "github.com/openshift/origin" test/<test-dir-name>/go.mod | grep "=>" | awk '{print $NF}' || echo "")
+if [ -z "$ORIGIN_VERSION" ]; then
+    # Try to get from require section
+    ORIGIN_VERSION=$(grep "github.com/openshift/origin" test/<test-dir-name>/go.mod | grep -v "=>" | awk '{print $2}' | head -1 || echo "")
 fi
 
-CLIENT_GO_VERSION=$(grep "github.com/openshift/client-go" test/<test-dir-name>/go.mod | grep "=>" | awk '{print $NF}' || echo "")
-if [ -z "$CLIENT_GO_VERSION" ]; then
-    # Try to get from require section (indirect dependency)
-    CLIENT_GO_VERSION=$(grep "github.com/openshift/client-go" test/<test-dir-name>/go.mod | grep -v "=>" | awk '{print $2}' | head -1 || echo "")
+# Fetch origin's go.mod to get compatible client-go and api versions
+if [ -n "$ORIGIN_VERSION" ]; then
+    echo "  Found origin version in test module: $ORIGIN_VERSION"
+
+    # Extract commit hash from pseudo-version (format: v0.0.0-20260130020739-e713d4ecc0db)
+    ORIGIN_COMMIT=$(echo "$ORIGIN_VERSION" | sed 's/.*-//')
+
+    echo "  Fetching origin's go.mod to get compatible dependency versions..."
+    ORIGIN_GOMOD=$(curl -s "https://raw.githubusercontent.com/openshift/origin/${ORIGIN_COMMIT}/go.mod" || echo "")
+
+    if [ -n "$ORIGIN_GOMOD" ]; then
+        # Extract api and client-go versions from origin's go.mod
+        API_VERSION=$(echo "$ORIGIN_GOMOD" | grep "github.com/openshift/api " | grep -v "=>" | awk '{print $2}' | head -1)
+        CLIENT_GO_VERSION=$(echo "$ORIGIN_GOMOD" | grep "github.com/openshift/client-go " | grep -v "=>" | awk '{print $2}' | head -1)
+
+        echo "  Origin requires:"
+        echo "    - github.com/openshift/api: $API_VERSION"
+        echo "    - github.com/openshift/client-go: $CLIENT_GO_VERSION"
+    else
+        echo "  ⚠️  Could not fetch origin's go.mod, falling back to test module versions"
+        # Fallback to test module versions
+        API_VERSION=$(grep "github.com/openshift/api" test/<test-dir-name>/go.mod | grep "=>" | awk '{print $NF}' || echo "")
+        if [ -z "$API_VERSION" ]; then
+            API_VERSION=$(grep "github.com/openshift/api" test/<test-dir-name>/go.mod | grep -v "=>" | awk '{print $2}' | head -1 || echo "")
+        fi
+
+        CLIENT_GO_VERSION=$(grep "github.com/openshift/client-go" test/<test-dir-name>/go.mod | grep "=>" | awk '{print $NF}' || echo "")
+        if [ -z "$CLIENT_GO_VERSION" ]; then
+            CLIENT_GO_VERSION=$(grep "github.com/openshift/client-go" test/<test-dir-name>/go.mod | grep -v "=>" | awk '{print $2}' | head -1 || echo "")
+        fi
+    fi
+else
+    echo "  ⚠️  Origin version not found in test module, using test module dependency versions"
+    # Fallback to test module versions
+    API_VERSION=$(grep "github.com/openshift/api" test/<test-dir-name>/go.mod | grep "=>" | awk '{print $NF}' || echo "")
+    if [ -z "$API_VERSION" ]; then
+        API_VERSION=$(grep "github.com/openshift/api" test/<test-dir-name>/go.mod | grep -v "=>" | awk '{print $2}' | head -1 || echo "")
+    fi
+
+    CLIENT_GO_VERSION=$(grep "github.com/openshift/client-go" test/<test-dir-name>/go.mod | grep "=>" | awk '{print $NF}' || echo "")
+    if [ -z "$CLIENT_GO_VERSION" ]; then
+        CLIENT_GO_VERSION=$(grep "github.com/openshift/client-go" test/<test-dir-name>/go.mod | grep -v "=>" | awk '{print $2}' | head -1 || echo "")
+    fi
 fi
 
 UPDATED_COUNT=0
 
-# Update github.com/openshift/api if version found in test module
+# Update github.com/openshift/api if version found
 if [ -n "$API_VERSION" ]; then
-    echo "  Found github.com/openshift/api version in test module: $API_VERSION"
-    echo "  Updating root go.mod to use compatible version..."
+    echo "  Updating root go.mod github.com/openshift/api to: $API_VERSION"
     GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get "github.com/openshift/api@$API_VERSION" 2>/dev/null || \
         GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get "github.com/openshift/api@latest"
     UPDATED_COUNT=$((UPDATED_COUNT + 1))
     echo "  ✅ Updated github.com/openshift/api in root go.mod"
 fi
 
-# Update github.com/openshift/client-go if version found in test module
+# Update github.com/openshift/client-go if version found
 if [ -n "$CLIENT_GO_VERSION" ]; then
-    echo "  Found github.com/openshift/client-go version in test module: $CLIENT_GO_VERSION"
-    echo "  Updating root go.mod to use compatible version..."
+    echo "  Updating root go.mod github.com/openshift/client-go to: $CLIENT_GO_VERSION"
     GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get "github.com/openshift/client-go@$CLIENT_GO_VERSION" 2>/dev/null || \
         GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get "github.com/openshift/client-go@latest"
     UPDATED_COUNT=$((UPDATED_COUNT + 1))
@@ -1075,7 +1206,7 @@ if [ $UPDATED_COUNT -gt 0 ]; then
     echo "  Running go mod tidy to resolve dependencies..."
     GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go mod tidy
 else
-    echo "⚠️  No critical OpenShift dependencies found in test module to update"
+    echo "⚠️  No critical OpenShift dependencies found to update"
 fi
 
 echo "✅ Monorepo go.mod setup complete"

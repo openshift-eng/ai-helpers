@@ -177,15 +177,19 @@ The plugin will:
    - Monorepo (integrate into existing repo)
    - Single-module (isolated tests-extension/ directory)
 
-2. **Workspace directory (temporary)**
-   - For both strategies: Temporary workspace for migration preparation
-   - Used ONLY for cloning openshift-tests-private (if needed)
-   - Example: `/home/user/workspace`, `/tmp/migration-workspace`
+2. **Workspace directory**
+   - **Recommendation**: If target repo exists locally, provide its path here
+   - **Purpose**: Workspace for cloning repositories that don't exist locally:
+     - Target repository (if not local)
+     - openshift-tests-private source repo (if not local)
+   - Example: `/home/user/repos/router` (existing target), `.` (current dir), `/tmp/workspace`
    - **Note**: The working directory will switch to the target repository in step 3
 
 3. **Target repository** (where files will be created)
-   - For monorepo: Local path to component repository
-   - For single-module: Local path or Git URL of target repository
+   - **BOTH strategies require the target repository**
+   - For monorepo: Must provide local path (integrating into existing repo structure)
+   - For single-module: Can provide local path OR Git URL to clone
+   - **If local path provided**: Will ask if you want to update it (git pull)
    - **CRITICAL:** The migration immediately switches to this directory after collecting it
 
 4. **Auto-detect extension name** from target repository
@@ -215,14 +219,20 @@ The migration uses a clear separation between workspace and target repository:
 
 **Workspace (Temporary)**:
 - Temporary directory for migration preparation
-- Used ONLY to clone/update `openshift-tests-private` (if needed)
+- Used to clone repositories that don't exist locally:
+  - `openshift-tests-private` (source repo) - if not available locally
+  - Target repository - if not available locally (single-module only)
 - Collected in Input 2 for both strategies
 - Example: `/tmp/migration-workspace`, `/home/user/workspace`
+- **Recommendation**: If target repo exists locally, provide its path here
 - **Note**: This is NOT the final working directory
 
 **Target Repository**:
 - The actual component repository where OTE files will be created
-- For **both strategies**: Collected in Input 3 (local path or Git URL)
+- **Both strategies require the target repository**:
+  - Monorepo: Must provide local path (integrating into existing repo)
+  - Single-module: Can provide local path OR Git URL to clone
+- Collected in Input 3 (local path for monorepo, local path or Git URL for single-module)
 - Example: `/home/user/repos/router`, `/home/user/openshift/sdn`
 
 **Automatic Directory Switch**:
@@ -234,7 +244,7 @@ The migration uses a clear separation between workspace and target repository:
 - This ensures:
   - Extension name is detected from the correct repository
   - Files are never created in the temporary workspace
-  - The workspace is only used for cloning openshift-tests-private
+  - The workspace is only used for cloning repositories that don't exist locally
 
 ## Directory Structure Strategies
 
@@ -267,7 +277,9 @@ Integrates OTE into existing repository structure with **separate test module**.
 **Key characteristics:**
 
 - **Separate test module**: `test/e2e/go.mod` is independent from root `go.mod`
-- **Replace directive**: Root `go.mod` includes `replace <module>/test/e2e => ./test/e2e`
+- **Replace directives**: Root `go.mod` includes replace directives for both test module and testdata module:
+  - `replace <module>/test/e2e => ./test/e2e`
+  - `replace <module>/test/e2e-testdata => ./test/e2e-testdata` (prevents go mod tidy from creating go.mod in testdata directory)
 - **Automatic upstream replace directives**: k8s.io/* and other replace directives are automatically copied from test/e2e/go.mod to root go.mod
 - **Automatic dependency synchronization**: openshift/api and openshift/client-go in root go.mod are automatically updated to match the test module's versions (compatible with latest origin)
 - **Smart testdata path handling**: Nested test paths are flattened for testdata (e.g., `test/e2e/extension/` → testdata at `test/e2e-extension-testdata/`)
@@ -483,6 +495,57 @@ The generated `cmd/main.go` (or `cmd/extension/main.go` for monorepo) includes *
 - Generates fresh pseudo-versions **using actual git commit timestamps** (not current time)
 - Ensures compatibility with current OpenShift ecosystem
 - Prevents `invalid pseudo-version: does not match version-control timestamp` errors
+
+### API Version Synchronization
+
+  The migration **ensures API compatibility** by synchronizing `github.com/openshift/api` and `github.com/openshift/client-go` versions to match what `github.com/openshift/origin` requires.
+
+  **The problem this solves:**
+
+  When origin is updated to a newer version, it may use APIs that don't exist in older versions of client-go or api. For example:
+
+  ```bash
+  # Build error from version mismatch:
+  undefined: configv1.InsightsDataGatherInterface
+
+  # Root cause:
+  # - Origin (Jan 30, 2026) uses newer APIs
+  # - client-go (Dec 5, 2025) doesn't have those APIs yet
+  # - Origin requires client-go from Oct 15, 2025
+  ```
+
+  **How it works:**
+
+  1. **During test module creation** (Phase 4, Step 6):
+     - Fetches origin's `go.mod` from GitHub using curl
+     - Extracts exact versions origin requires for api and client-go
+     - Updates test module dependencies to match: `go get github.com/openshift/api@<origin-version>`
+
+  2. **During root module update** (Phase 4, Step 8c):
+     - Reads origin version from test module's go.mod
+     - Fetches origin's `go.mod` to get compatible versions
+     - Updates root module to use same api and client-go versions
+
+  **Example:**
+
+  ```bash
+  # Origin's go.mod specifies:
+  github.com/openshift/api v0.0.0-20251015095338-264e80a2b6e7
+  github.com/openshift/client-go v0.0.0-20251015124057-db0dee36e235
+
+  # Migration automatically updates both modules to use these versions
+  echo "Step 6: Ensure api and client-go versions match origin requirements..."
+  ORIGIN_COMMIT=$(echo "$ORIGIN_VERSION" | sed 's/.*-//')
+  ORIGIN_GOMOD=$(curl -s "https://raw.githubusercontent.com/openshift/origin/${ORIGIN_COMMIT}/go.mod")
+  ORIGIN_API_VERSION=$(echo "$ORIGIN_GOMOD" | grep "github.com/openshift/api " | awk '{print $2}')
+  go get "github.com/openshift/api@$ORIGIN_API_VERSION"
+  ```
+
+  **Benefits:**
+  - ✅ Prevents `undefined: <type>` errors from API mismatches
+  - ✅ Ensures both test module and root module use compatible versions
+  - ✅ Automatically adapts to origin's requirements
+  - ✅ Includes fallback to test module versions if origin's go.mod is unreachable
 
 ### Automatic Go Toolchain Management
 
