@@ -154,7 +154,7 @@
           "argument_hint": "",
           "description": "Analyze a JIRA issue and create a pull request to solve it.",
           "name": "solve",
-          "synopsis": "/jira:solve <jira-issue-id> [remote] [--ci]"
+          "synopsis": "/jira:solve <jira-issue-id> [remote] [--ci] [--jira-token <token>]"
         },
         {
           "argument_hint": "issue-id [--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD]",
@@ -250,7 +250,7 @@
           "name": "OCPBUGS Jira Conventions"
         }
       ],
-      "version": "0.1.1"
+      "version": "0.1.2"
     },
     {
       "commands": [

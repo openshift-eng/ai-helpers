@@ -7,7 +7,7 @@ jira:solve
 
 ## Synopsis
 ```
-/jira:solve <jira-issue-id> [remote] [--ci]
+/jira:solve <jira-issue-id> [remote] [--ci] [--jira-token <token>]
 ```
 
 ## Description
@@ -26,9 +26,11 @@ This command takes a JIRA URL, fetches the issue description and requirements, a
 ## Implementation
 
 - The command uses curl to fetch JIRA data via REST API: https://issues.redhat.com/rest/api/2/issue/{$1}
+- If `--jira-token` is provided, include authentication header:
+  `curl -s -H "Authorization: Bearer <token>" "https://issues.redhat.com/rest/api/2/issue/{$1}"`
+- Otherwise, attempt unauthenticated request (works for public issues only)
 - Parses JSON response using jq or text processing
 - Extracts key fields: summary, description, components, labels
-- No authentication required for public Red Hat JIRA issues
 - Creates a PR with the solution
 
 ### Process Flow
@@ -85,7 +87,7 @@ This command takes a JIRA URL, fetches the issue description and requirements, a
     - **Never assume make targets exist** - always verify first
     - **You must ensure verification passes** before proceeding to "Commit Creation"
 
-4. **Commit Creation**: 
+4. **Commit Creation**:
    - Create feature branch using the jira-key $1 as the branch name. For example: "git checkout -b fix-{jira-key}"
    - Break commits into logical components based on the nature of the changes
    - Each commit should honor https://www.conventionalcommits.org/en/v1.0.0/ and always include a commit message body articulating the "why"
@@ -108,7 +110,7 @@ This command takes a JIRA URL, fetches the issue description and requirements, a
      - Documentation: Changes in `docs/` directory
        - Example: `git commit -m"docs: Document X feature" -m"Help users understand how to configure and use the new capability"`
 
-5. **PR Creation**: 
+5. **PR Creation**:
    - Push the branch with all commits against the remote specified in argument $2
    - Create pull request with:
      - Clear title referencing JIRA issue as a prefix. For example: "OCPBUGS-12345: ..."
@@ -134,5 +136,6 @@ This command takes a JIRA URL, fetches the issue description and requirements, a
 - $1: The JIRA issue to solve (required)
 - $2: The remote repository to push the branch. Defaults to "origin".
 - $3: Optional `--ci` flag for non-interactive CI automation mode. When set, skips all user prompts and proceeds automatically.
+- --jira-token: Optional Jira Personal Access Token for authenticated API access. Required for issues with restricted visibility.
 
 The command will provide progress updates and create a comprehensive solution addressing all requirements from the JIRA issue.
