@@ -407,35 +407,51 @@ The generated `cmd/main.go` (or `cmd/extension/main.go` for monorepo) includes *
      - Before: `"...Author:john-LEVEL0-Critical..."`
      - After: `"[Level0] ...Author:john-Critical..."`
 
-  **Test restructuring performed:**
+  **Annotation logic:**
 
-  The migration simplifies test structure by:
+  The migration adds annotations based on file content:
 
-- Moving Describe block text into It() descriptions
-- Simplifying Describe to just tags: `[sig-<extension-name>][OTP]`
-- Prepending `[Level0]` to It() for tests with "-LEVEL0-"
+  - **All files**: Add `[OTP]` to Describe blocks (right after `[sig-xxx]`)
+  - **Files with Level0 tests**:
+    - Add `[Level0]` to Describe block (after `[OTP]`) if **entire file** contains only Level0 tests
+    - OR prepend `[Level0]` to individual It() descriptions for mixed files
+    - Remove `-LEVEL0-` suffix from test names
 
   **Before migration:**
   ```go
   g.Describe("[sig-router] Router functionality", func() {
-      g.It("should handle basic routing -LEVEL0-", func() {
+      g.It("Author:john-LEVEL0-Critical-12345-Basic routing test", func() {
           // test code
       })
   })
   ```
 
-  **After migration:**
+  **After migration (file with only Level0 tests):**
   ```go
-  g.Describe("[sig-router][OTP]", func() {
-      g.It("[Level0] Router functionality should handle basic routing", func() {
+  g.Describe("[sig-router][OTP][Level0] Router functionality", func() {
+      g.It("Author:john-Critical-12345-Basic routing test", func() {
           // test code
       })
   })
   ```
 
-  **Full test name visible in list:**
+  **After migration (mixed file with Level0 and regular tests):**
+  ```go
+  g.Describe("[sig-router][OTP] Router functionality", func() {
+      g.It("[Level0] Author:john-Critical-12345-Basic routing test", func() {
+          // Level0 test
+      })
+      g.It("Author:jane-High-67890-Advanced routing test", func() {
+          // Regular test
+      })
+  })
+  ```
+
+  **Full test names visible in list:**
   ```text
-  [sig-router][OTP] [Level0] Router functionality should handle basic routing
+  [sig-router][OTP][Level0] Router functionality Author:john-Critical-12345-Basic routing test
+  [sig-router][OTP] Router functionality [Level0] Author:john-Critical-12345-Basic routing test
+  [sig-router][OTP] Router functionality Author:jane-High-67890-Advanced routing test
   ```
 
   **Benefits:**
@@ -497,57 +513,57 @@ The generated `cmd/main.go` (or `cmd/extension/main.go` for monorepo) includes *
 - Ensures compatibility with current OpenShift ecosystem
 - Prevents `invalid pseudo-version: does not match version-control timestamp` errors
 
-### API Version Synchronization
+### API Version Upgrades
 
-  The migration **ensures API compatibility** by synchronizing `github.com/openshift/api` and `github.com/openshift/client-go` versions to match what `github.com/openshift/origin` requires.
+  The migration **ensures API compatibility** by upgrading `github.com/openshift/api` and `github.com/openshift/client-go` to the latest versions from their master branches.
 
   **The problem this solves:**
 
-  When origin is updated to a newer version, it may use APIs that don't exist in older versions of client-go or api. For example:
+  Origin's go.mod often specifies outdated versions that are incompatible with origin's actual code. For example:
 
   ```bash
   # Build error from version mismatch:
   undefined: configv1.InsightsDataGatherInterface
 
   # Root cause:
-  # - Origin (Jan 30, 2026) uses newer APIs
-  # - client-go (Dec 5, 2025) doesn't have those APIs yet
-  # - Origin requires client-go from Oct 15, 2025
+  # - Origin (latest) uses newer APIs
+  # - Origin's go.mod specifies old client-go from 3 months ago
+  # - Old client-go doesn't have the new APIs
   ```
 
   **How it works:**
 
-  1. **During test module creation** (Phase 4, Step 6):
-     - Fetches origin's `go.mod` from GitHub using curl
-     - Extracts exact versions origin requires for api and client-go
-     - Updates test module dependencies to match: `go get github.com/openshift/api@<origin-version>`
+  1. **During test module creation** (Phase 4, Step 6a):
+     - Fetches latest client-go commit from master branch: `git ls-remote https://github.com/openshift/client-go.git refs/heads/master`
+     - Upgrades to latest version: `go get github.com/openshift/client-go@<latest-commit>`
+     - This pulls in compatible api version automatically
 
-  2. **During root module update** (Phase 4, Step 8c):
-     - Reads origin version from test module's go.mod
-     - Fetches origin's `go.mod` to get compatible versions
-     - Updates root module to use same api and client-go versions
+  2. **Deferred full resolution** (Phase 6, Step 1):
+     - Runs full `go mod tidy` after test migration completes
+     - Resolves any remaining dependency conflicts
+     - Ensures all transitive dependencies are compatible
 
   **Example:**
 
   ```bash
-  # Origin's go.mod specifies:
-  github.com/openshift/api v0.0.0-20251015095338-264e80a2b6e7
-  github.com/openshift/client-go v0.0.0-20251015124057-db0dee36e235
+  # Fetch latest client-go commit (fast - just git ls-remote)
+  CLIENT_GO_LATEST=$(git ls-remote https://github.com/openshift/client-go.git refs/heads/master | awk '{print $1}')
+  # CLIENT_GO_LATEST=a1b2c3d4e5f6...
 
-  # Migration automatically updates both modules to use these versions
-  echo "Step 6: Ensure api and client-go versions match origin requirements..."
-  ORIGIN_COMMIT=$(echo "$ORIGIN_VERSION" | sed 's/.*-//')
-  ORIGIN_GOMOD=$(curl -s "https://raw.githubusercontent.com/openshift/origin/${ORIGIN_COMMIT}/go.mod")
-  ORIGIN_API_VERSION=$(echo "$ORIGIN_GOMOD" | grep "github.com/openshift/api " | awk '{print $2}')
-  go get "github.com/openshift/api@$ORIGIN_API_VERSION"
+  # Upgrade to latest (may take 30-60 seconds)
+  GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get "github.com/openshift/client-go@$CLIENT_GO_LATEST"
+
+  # This automatically pulls in compatible api version
+  # e.g., github.com/openshift/api v0.0.0-20260201123456-abc123def456
   ```
 
   **Benefits:**
 
 - ✅ Prevents `undefined: <type>` errors from API mismatches
-- ✅ Ensures both test module and root module use compatible versions
-- ✅ Automatically adapts to origin's requirements
-- ✅ Includes fallback to test module versions if origin's go.mod is unreachable
+- ✅ Uses latest APIs compatible with current origin
+- ✅ Avoids stale versions from origin's go.mod
+- ✅ Includes timeout protection and fallback to go mod tidy
+- ✅ Both test module and root module get compatible versions via go mod tidy
 
 ### Automatic Go Toolchain Management
 

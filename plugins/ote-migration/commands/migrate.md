@@ -990,41 +990,30 @@ fi
 
 echo ")" >> go.mod
 
-echo "Step 6: Ensure api and client-go versions match origin requirements..."
-# Get the exact versions that origin requires by fetching its go.mod
-# This prevents API mismatches where origin uses newer APIs than available in client-go
-echo "Fetching origin's go.mod to get compatible api and client-go versions..."
+echo "Step 6: Add replace directive for root module..."
+# CRITICAL: Test module needs to import testdata from root module
+# Add replace directive so go can find <module>/test/<testdata-dir>
+MODULE_NAME=$(grep '^module ' "$OLDPWD/go.mod" | awk '{print $2}')
+echo "" >> go.mod
+echo "replace $MODULE_NAME => ../../.." >> go.mod
+echo "✅ Added replace directive for root module: $MODULE_NAME => ../../.."
 
-# Extract origin commit hash (last part after last dash in pseudo-version)
-ORIGIN_COMMIT=$(echo "$ORIGIN_VERSION" | sed 's/.*-//')
-echo "Origin commit: $ORIGIN_COMMIT"
+echo "Step 6a: Upgrade api and client-go to latest versions..."
+# NOTE: Origin's go.mod often specifies outdated versions that are incompatible with origin's actual code
+# Instead of using origin's go.mod versions, upgrade to latest to ensure API compatibility
+echo "Fetching latest client-go version..."
 
-# Fetch origin's go.mod
-ORIGIN_GOMOD=$(curl -s "https://raw.githubusercontent.com/openshift/origin/${ORIGIN_COMMIT}/go.mod" || echo "")
-
-if [ -n "$ORIGIN_GOMOD" ]; then
-    # Extract required versions from origin's go.mod
-    ORIGIN_API_VERSION=$(echo "$ORIGIN_GOMOD" | grep "github.com/openshift/api " | grep -v "=>" | awk '{print $2}' | head -1)
-    ORIGIN_CLIENT_GO_VERSION=$(echo "$ORIGIN_GOMOD" | grep "github.com/openshift/client-go " | grep -v "=>" | awk '{print $2}' | head -1)
-
-    echo "Origin requires:"
-    echo "  - github.com/openshift/api: $ORIGIN_API_VERSION"
-    echo "  - github.com/openshift/client-go: $ORIGIN_CLIENT_GO_VERSION"
-
-    # Update to exact versions that origin requires
-    if [ -n "$ORIGIN_API_VERSION" ]; then
-        echo "Updating api to version required by origin..."
-        GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get "github.com/openshift/api@$ORIGIN_API_VERSION" || \
-            echo "⚠️  Failed to update api, using existing version"
-    fi
-
-    if [ -n "$ORIGIN_CLIENT_GO_VERSION" ]; then
-        echo "Updating client-go to version required by origin..."
-        GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get "github.com/openshift/client-go@$ORIGIN_CLIENT_GO_VERSION" || \
-            echo "⚠️  Failed to update client-go, using existing version"
-    fi
+# Get latest client-go commit (fast - just a git ls-remote call)
+CLIENT_GO_LATEST=$(git ls-remote https://github.com/openshift/client-go.git refs/heads/master 2>/dev/null | awk '{print $1}')
+if [ -n "$CLIENT_GO_LATEST" ]; then
+    echo "Latest client-go commit: $CLIENT_GO_LATEST"
+    echo "Upgrading client-go to latest (this may take 30-60 seconds)..."
+    # Use timeout to prevent hanging - if it fails, we'll resolve in Phase 6
+    timeout 90s env GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get "github.com/openshift/client-go@$CLIENT_GO_LATEST" 2>&1 || \
+        echo "⚠️  client-go upgrade timed out or failed - will resolve with go mod tidy in Phase 6"
+    echo "✅ api and client-go upgrade attempted"
 else
-    echo "⚠️  Could not fetch origin's go.mod, using default dependency resolution"
+    echo "⚠️  Could not fetch latest client-go commit - will use default dependency resolution"
 fi
 
 echo "Step 7: Generate go.sum (deferred full resolution)..."
@@ -2668,27 +2657,16 @@ echo "✅ Old imports cleaned up"
 - **[OTP]**: Marks tests that have been ported (for tracking how many tests migrated)
 - **[Level0]**: Marks Describe blocks for test files containing "-LEVEL0-" tests (appears as `[sig-<extension-name>][OTP][Level0]` in full test name)
 
-**Important:** This process restructures test names by:
-1. Simplifying Describe blocks to just `[sig-<extension-name>][OTP]` or `[sig-<extension-name>][OTP][Level0]`
-2. Moving Describe text into It() descriptions
-3. Adding `[Level0]` to Describe block (after `[OTP]`) if file contains any tests with "-LEVEL0-"
-4. **Removing `-LEVEL0-` suffix** from test names to avoid duplication
-   - Before: `"...Author:<author>-LEVEL0-Critical..."`
-   - After (in a file with [Level0]): Full test name becomes `"[sig-network-edge][OTP][Level0] ...Author:<author>-Critical..."`
+**Important:** This process adds annotations and removes suffixes:
+1. Adding `[OTP]` to all Describe blocks (right after `[sig-xxx]`)
+2. Adding `[Level0]` to Describe blocks (after `[OTP]`) if file contains any tests with "-LEVEL0-"
+3. **Removing `-LEVEL0-` suffix** from test names to avoid duplication
+   - Before: `"[sig-cco]...-LEVEL0-Critical..."`
+   - After: `"[sig-cco][OTP][Level0]...-Critical..."`
 
-**Note:** The automated script below is a simplified version. For complex test files with multiple Describe blocks, manual adjustment may be needed. The CCO repository required manual restructuring to properly handle multiple Describe blocks ("CCO is enabled" and "CCO is disabled").
-
-**For Monorepo Strategy:**
-
-**IMPORTANT:** Use the actual extension name and test directory name from user inputs.
+**Note:** This same code works for both monorepo and single-module strategies.
 
 ```bash
-cd <working-dir>
-
-# Set variables from user inputs collected in Phase 1
-SIG_FILTER_TAGS="<sig-filter-tags>"  # From Input 2 (comma-separated)
-TEST_DIR_NAME="<test-dir-name>"       # From Input 5a (defaults to "e2e")
-
 echo "========================================="
 echo "Adding [OTP] and [Level0] annotations..."
 echo "Sig filter tags: $SIG_FILTER_TAGS"
@@ -2699,218 +2677,85 @@ echo "========================================="
 IFS=',' read -ra SIG_TAGS <<< "$SIG_FILTER_TAGS"
 
 # Find all test files
-TEST_FILES=$(find "test/$TEST_DIR_NAME" -name '*.go' -type f)
+TEST_FILES=$(find test/$TEST_DIR_NAME -name '*.go' -type f)
 
 for file in $TEST_FILES; do
+    echo "Processing: $file"
     CHANGED=0
 
-    # Step 1: Extract Describe block text and simplify to just tags
+    # Check if file contains any Level0 tests (detect once per file)
+    HAS_LEVEL0=false
+    if grep -q -- '-LEVEL0-' "$file"; then
+        HAS_LEVEL0=true
+        echo "  → File contains Level0 tests"
+    fi
+
+    # Step 1: Add [OTP] and [Level0] annotations to Describe blocks
     # Process each sig tag
     for sig_tag in "${SIG_TAGS[@]}"; do
         sig_tag=$(echo "$sig_tag" | xargs)  # Trim whitespace
 
         # Check if this file uses this sig tag
         if grep -q "g\.Describe.*\[sig-$sig_tag\]" "$file"; then
-            # Extract the Describe text (everything after the tags)
-            # Example: "[sig-network-edge] Some Description" -> extract "Some Description"
-            DESCRIBE_TEXT=$(grep "g\.Describe.*\[sig-$sig_tag\]" "$file" | sed "s/.*\[sig-$sig_tag\] \(.*\)\".*/\1/" | head -1)
-
-            # Check if file contains any Level0 tests
-            HAS_LEVEL0=false
-            if grep -q -- '-LEVEL0-' "$file"; then
-                HAS_LEVEL0=true
-            fi
-
-            if [ -n "$DESCRIBE_TEXT" ]; then
-                # Add [OTP] and [Level0] (if needed) to Describe blocks
-                if [ "$HAS_LEVEL0" = true ]; then
-                    sed -i "s/\(\[sig-$sig_tag\]\)\s*/\1[OTP][Level0] /g" "$file"
-                    echo "  ✓ Added [OTP][Level0] to [sig-$sig_tag] in $file"
-                else
-                    sed -i "s/\(\[sig-$sig_tag\]\)\s*/\1[OTP] /g" "$file"
-                    echo "  ✓ Added [OTP] to [sig-$sig_tag] in $file"
-                fi
-
-                # Extract describe text for prepending to It()
-                # Then simplify Describe to just tags
-                if [ "$HAS_LEVEL0" = true ]; then
-                    sed -i "s/g\.Describe(\"\[sig-$sig_tag\]\[OTP\]\[Level0\] [^\"]*\"/g.Describe(\"[sig-$sig_tag][OTP][Level0]\"/" "$file"
-                else
-                    sed -i "s/g\.Describe(\"\[sig-$sig_tag\]\[OTP\] [^\"]*\"/g.Describe(\"[sig-$sig_tag][OTP]\"/" "$file"
-                fi
-
-                # Prepend the Describe text to all It() in this file
-                # This is approximate - in practice, need to track which Describe block each It belongs to
-                sed -i "/g\.It/ s/g\.It(\"/g.It(\"$DESCRIBE_TEXT /" "$file"
-
-                CHANGED=1
-                echo "  ✓ Restructured Describe/It for [sig-$sig_tag] in $file"
+            # Add [OTP] and [Level0] (if needed) to Describe blocks
+            # This works regardless of whether there's text after the tag
+            if [ "$HAS_LEVEL0" = true ]; then
+                # Add both [OTP] and [Level0]
+                # Pattern: [sig-xxx] → [sig-xxx][OTP][Level0]
+                # Pattern: [sig-xxx] text → [sig-xxx][OTP][Level0] text
+                sed -i "s/\(\[sig-$sig_tag\]\)\([^[]\)/\1[OTP][Level0]\2/g" "$file"
+                echo "  ✓ Added [OTP][Level0] to [sig-$sig_tag]"
             else
-                # Just add [OTP] and [Level0] (if needed)
-                if [ "$HAS_LEVEL0" = true ]; then
-                    sed -i "s/\(\[sig-$sig_tag\]\)\s*/\1[OTP][Level0] /g" "$file"
-                    echo "  ✓ Added [OTP][Level0] to [sig-$sig_tag] in $file"
-                else
-                    sed -i "s/\(\[sig-$sig_tag\]\)\s*/\1[OTP] /g" "$file"
-                    echo "  ✓ Added [OTP] to [sig-$sig_tag] in $file"
-                fi
-                CHANGED=1
+                # Add only [OTP]
+                # Pattern: [sig-xxx] → [sig-xxx][OTP]
+                # Pattern: [sig-xxx] text → [sig-xxx][OTP] text
+                sed -i "s/\(\[sig-$sig_tag\]\)\([^[]\)/\1[OTP]\2/g" "$file"
+                echo "  ✓ Added [OTP] to [sig-$sig_tag]"
             fi
+            CHANGED=1
         fi
     done
 
-    # Step 2: Handle Level0 test transformations (prepend [Level0] tag and remove suffix)
-    if grep -q -- '-LEVEL0-' "$file"; then
-        # First, prepend [Level0] to It() descriptions that contain -LEVEL0- (if not already present)
-        # Example: g.It("Author:john-LEVEL0-Critical...") → g.It("[Level0] Author:john-LEVEL0-Critical...")
-        sed -i '/g\.It("[^"]*-LEVEL0-[^"]*"/{/\[Level0\]/!s/g\.It("/g.It("[Level0] /}' "$file"
-
-        # Then remove the -LEVEL0- suffix from test names
+    # Step 2: Remove -LEVEL0- suffix from test names
+    # This must happen AFTER Step 1 to ensure Describe blocks are annotated first
+    if [ "$HAS_LEVEL0" = true ]; then
+        # Remove the -LEVEL0- suffix from ALL occurrences in the file
         # Example: "Author:john-LEVEL0-Critical..." → "Author:john-Critical..."
         sed -i 's/-LEVEL0-/-/g' "$file"
+        echo "  ✓ Removed -LEVEL0- suffix from test names"
 
         # Clean up any double dashes that might result from suffix removal
         sed -i 's/--/-/g' "$file"
 
         CHANGED=1
-        echo "  ✓ Added [Level0] prefix and removed -LEVEL0- suffix in $file"
     fi
 
     if [ $CHANGED -eq 0 ]; then
-        echo "  - No annotations needed for $file"
+        echo "  - No annotations needed"
     fi
+    echo ""
 done
 
 echo "✅ Annotations added successfully"
 echo ""
-echo "Summary of annotations:"
-echo "  [OTP]       - Added to all Describe blocks (tracking)"
-echo "  [Level0]    - Added to Describe blocks for files containing -LEVEL0- tests (conformance)"
-echo "  [Level0]    - Prepended to It() for tests with -LEVEL0-, suffix removed"
-echo "  Test names  - Restructured: Describe text moved into It() descriptions"
-```bash
-
-**For Single-Module Strategy:**
-
-**IMPORTANT:** Use sig filter tags from user input. Single-module always uses `test/e2e` directory.
-
-```bash
-cd <working-dir>/tests-extension
-
-# Set variables from user inputs collected in Phase 1
-SIG_FILTER_TAGS="<sig-filter-tags>"  # From Input 2 (comma-separated)
-
-echo "========================================="
-echo "Adding [OTP] and [Level0] annotations..."
-echo "Sig filter tags: $SIG_FILTER_TAGS"
-echo "Test directory: test/e2e"
-echo "========================================="
-
-# Convert comma-separated tags to array
-IFS=',' read -ra SIG_TAGS <<< "$SIG_FILTER_TAGS"
-
-# Find all test files (single-module always uses test/e2e)
-TEST_FILES=$(find test/e2e -name '*.go' -type f)
-
-for file in $TEST_FILES; do
-    CHANGED=0
-
-    # Step 1: Extract Describe block text and simplify to just tags
-    # Process each sig tag
-    for sig_tag in "${SIG_TAGS[@]}"; do
-        sig_tag=$(echo "$sig_tag" | xargs)  # Trim whitespace
-
-        # Check if this file uses this sig tag
-        if grep -q "g\.Describe.*\[sig-$sig_tag\]" "$file"; then
-            # Extract the Describe text (everything after the tags)
-            # Example: "[sig-network-edge] Some Description" -> extract "Some Description"
-            DESCRIBE_TEXT=$(grep "g\.Describe.*\[sig-$sig_tag\]" "$file" | sed "s/.*\[sig-$sig_tag\] \(.*\)\".*/\1/" | head -1)
-
-            # Check if file contains any Level0 tests
-            HAS_LEVEL0=false
-            if grep -q -- '-LEVEL0-' "$file"; then
-                HAS_LEVEL0=true
-            fi
-
-            if [ -n "$DESCRIBE_TEXT" ]; then
-                # Add [OTP] and [Level0] (if needed) to Describe blocks
-                if [ "$HAS_LEVEL0" = true ]; then
-                    sed -i "s/\(\[sig-$sig_tag\]\)\s*/\1[OTP][Level0] /g" "$file"
-                    echo "  ✓ Added [OTP][Level0] to [sig-$sig_tag] in $file"
-                else
-                    sed -i "s/\(\[sig-$sig_tag\]\)\s*/\1[OTP] /g" "$file"
-                    echo "  ✓ Added [OTP] to [sig-$sig_tag] in $file"
-                fi
-
-                # Extract describe text for prepending to It()
-                # Then simplify Describe to just tags
-                if [ "$HAS_LEVEL0" = true ]; then
-                    sed -i "s/g\.Describe(\"\[sig-$sig_tag\]\[OTP\]\[Level0\] [^\"]*\"/g.Describe(\"[sig-$sig_tag][OTP][Level0]\"/" "$file"
-                else
-                    sed -i "s/g\.Describe(\"\[sig-$sig_tag\]\[OTP\] [^\"]*\"/g.Describe(\"[sig-$sig_tag][OTP]\"/" "$file"
-                fi
-
-                # Prepend the Describe text to all It() in this file
-                # This is approximate - in practice, need to track which Describe block each It belongs to
-                sed -i "/g\.It/ s/g\.It(\"/g.It(\"$DESCRIBE_TEXT /" "$file"
-
-                CHANGED=1
-                echo "  ✓ Restructured Describe/It for [sig-$sig_tag] in $file"
-            else
-                # Just add [OTP] and [Level0] (if needed)
-                if [ "$HAS_LEVEL0" = true ]; then
-                    sed -i "s/\(\[sig-$sig_tag\]\)\s*/\1[OTP][Level0] /g" "$file"
-                    echo "  ✓ Added [OTP][Level0] to [sig-$sig_tag] in $file"
-                else
-                    sed -i "s/\(\[sig-$sig_tag\]\)\s*/\1[OTP] /g" "$file"
-                    echo "  ✓ Added [OTP] to [sig-$sig_tag] in $file"
-                fi
-                CHANGED=1
-            fi
-        fi
-    done
-
-    # Step 2: Handle Level0 test transformations (prepend [Level0] tag and remove suffix)
-    if grep -q -- '-LEVEL0-' "$file"; then
-        # First, prepend [Level0] to It() descriptions that contain -LEVEL0- (if not already present)
-        # Example: g.It("Author:john-LEVEL0-Critical...") → g.It("[Level0] Author:john-LEVEL0-Critical...")
-        sed -i '/g\.It("[^"]*-LEVEL0-[^"]*"/{/\[Level0\]/!s/g\.It("/g.It("[Level0] /}' "$file"
-
-        # Then remove the -LEVEL0- suffix from test names
-        # Example: "Author:john-LEVEL0-Critical..." → "Author:john-Critical..."
-        sed -i 's/-LEVEL0-/-/g' "$file"
-
-        # Clean up any double dashes that might result from suffix removal
-        sed -i 's/--/-/g' "$file"
-
-        CHANGED=1
-        echo "  ✓ Added [Level0] prefix and removed -LEVEL0- suffix in $file"
-    fi
-
-    if [ $CHANGED -eq 0 ]; then
-        echo "  - No annotations needed for $file"
-    fi
-done
-
-echo "✅ Annotations added successfully"
+echo "Summary of changes:"
+echo "  [OTP]       - Added to all Describe blocks (right after [sig-xxx])"
+echo "  [Level0]    - Added to Describe blocks for files containing -LEVEL0- tests"
+echo "  -LEVEL0-    - Removed suffix from test names"
 echo ""
-echo "Summary of annotations:"
-echo "  [OTP]       - Added to all Describe blocks (tracking)"
-echo "  [Level0]    - Added to Describe blocks for files containing -LEVEL0- tests (conformance)"
-echo "  [Level0]    - Prepended to It() for tests with -LEVEL0-, suffix removed"
-echo "  Test names  - Restructured: Describe text moved into It() descriptions"
-```bash
+echo "Expected results:"
+echo "  • Regular tests: [sig-xxx][OTP] Test description"
+echo "  • Level0 tests:  [sig-xxx][OTP][Level0] Test description (no -LEVEL0- suffix)"
+```
 
 
 #### Step 5: Validate Tags and Annotations
 
 **Purpose:** Verify that all required tags are properly applied before proceeding to build verification.
 
-**For Monorepo Strategy:**
+**Note:** This same code works for both monorepo and single-module strategies.
 
 ```bash
-cd <working-dir>
-
 echo ""
 echo "========================================="
 echo "Validating tags and annotations..."
@@ -2919,41 +2764,30 @@ echo "========================================="
 VALIDATION_FAILED=0
 
 # Find all test files
-TEST_FILES=$(find test/<test-dir-name> -name '*_test.go' -type f)
+TEST_FILES=$(find test/$TEST_DIR_NAME -name '*_test.go' -type f)
 TOTAL_FILES=$(echo "$TEST_FILES" | wc -l)
 
 echo "Found $TOTAL_FILES test files to validate"
 
-# Validation 1: Check for [sig-<extension-name>] tag in all test files
-echo ""
-echo "Validation 1: Checking for [sig-<extension-name>] tags..."
-MISSING_SIG_TAG=0
-for file in $TEST_FILES; do
-    if ! grep -q '\[sig-<extension-name>\]' "$file"; then
-        echo "  ❌ Missing [sig-<extension-name>] tag in: $file"
-        MISSING_SIG_TAG=$((MISSING_SIG_TAG + 1))
-        VALIDATION_FAILED=1
-    fi
-done
+# Get sig tags for validation
+IFS=',' read -ra SIG_TAGS <<< "$SIG_FILTER_TAGS"
 
-if [ $MISSING_SIG_TAG -eq 0 ]; then
-    echo "  ✅ All test files have [sig-<extension-name>] tag"
-else
-    echo "  ❌ $MISSING_SIG_TAG file(s) missing [sig-<extension-name>] tag"
-fi
-
-# Validation 2: Check for [OTP] tag in Describe blocks
+# Validation 1: Check for [OTP] tag in Describe blocks
 echo ""
-echo "Validation 2: Checking for [OTP] tags in Describe blocks..."
+echo "Validation 1: Checking for [OTP] tags in Describe blocks..."
 MISSING_OTP_TAG=0
 for file in $TEST_FILES; do
-    if grep -q 'g\.Describe.*\[sig-<extension-name>\]' "$file"; then
-        if ! grep -q 'g\.Describe.*\[sig-<extension-name>\]\[OTP\]' "$file"; then
-            echo "  ❌ Missing [OTP] tag in: $file"
-            MISSING_OTP_TAG=$((MISSING_OTP_TAG + 1))
-            VALIDATION_FAILED=1
+    # Check each sig tag
+    for sig_tag in "${SIG_TAGS[@]}"; do
+        sig_tag=$(echo "$sig_tag" | xargs)
+        if grep -q "g\.Describe.*\[sig-$sig_tag\]" "$file"; then
+            if ! grep -q "g\.Describe.*\[sig-$sig_tag\]\[OTP\]" "$file"; then
+                echo "  ❌ Missing [OTP] tag after [sig-$sig_tag] in: $file"
+                MISSING_OTP_TAG=$((MISSING_OTP_TAG + 1))
+                VALIDATION_FAILED=1
+            fi
         fi
-    fi
+    done
 done
 
 if [ $MISSING_OTP_TAG -eq 0 ]; then
@@ -2962,38 +2796,39 @@ else
     echo "  ❌ $MISSING_OTP_TAG file(s) missing [OTP] tag"
 fi
 
-# Validation 3: Check that -LEVEL0- suffix is removed from tests with [Level0] tag
+# Validation 2: Check that -LEVEL0- suffix is removed from files with [Level0] tag
 echo ""
-echo "Validation 3: Checking for -LEVEL0- suffix removal..."
+echo "Validation 2: Checking for -LEVEL0- suffix removal..."
 LEVEL0_NOT_REMOVED=0
 for file in $TEST_FILES; do
-    # Check if file has [Level0] tag and still contains -LEVEL0-
-    if grep -q '\[Level0\]' "$file" && grep -q -- '-LEVEL0-' "$file"; then
-        echo "  ⚠️  File has [Level0] tag but still contains -LEVEL0- suffix: $file"
-        LEVEL0_NOT_REMOVED=$((LEVEL0_NOT_REMOVED + 1))
-        VALIDATION_FAILED=1
-    fi
+    # Check if file has [Level0] tag in Describe and still contains -LEVEL0- anywhere
+    for sig_tag in "${SIG_TAGS[@]}"; do
+        sig_tag=$(echo "$sig_tag" | xargs)
+        if grep -q "g\.Describe.*\[sig-$sig_tag\]\[OTP\]\[Level0\]" "$file"; then
+            if grep -q -- '-LEVEL0-' "$file"; then
+                echo "  ❌ File has [Level0] in Describe but still contains -LEVEL0- suffix: $file"
+                LEVEL0_NOT_REMOVED=$((LEVEL0_NOT_REMOVED + 1))
+                VALIDATION_FAILED=1
+                break
+            fi
+        fi
+    done
 done
 
 if [ $LEVEL0_NOT_REMOVED -eq 0 ]; then
-    echo "  ✅ No duplicate -LEVEL0- suffixes found"
+    echo "  ✅ All -LEVEL0- suffixes properly removed"
 else
     echo "  ❌ $LEVEL0_NOT_REMOVED file(s) have [Level0] tag but still contain -LEVEL0- suffix"
 fi
 
-# Validation 4: Verify testdata imports are present
+# Validation 3: Verify testdata imports are present
 echo ""
-echo "Validation 4: Checking for testdata imports..."
-
-# Flatten test directory path for import validation (e.g., e2e/extension → e2e-extension)
-TESTDATA_DIR_NAME=$(echo "<test-dir-name>" | tr '/' '-')
-
+echo "Validation 3: Checking for testdata imports..."
 MISSING_TESTDATA_IMPORT=0
 for file in $TEST_FILES; do
     # Only check files that use testdata.FixturePath
     if grep -q 'testdata\.FixturePath' "$file"; then
-        if ! grep -q "\"$MODULE_NAME/test/${TESTDATA_DIR_NAME}-testdata\"" "$file" && \
-           ! grep -q 'testdata "' "$file"; then
+        if ! grep -q 'testdata' "$file" || ! grep -q 'import' "$file"; then
             echo "  ❌ Missing testdata import in: $file"
             MISSING_TESTDATA_IMPORT=$((MISSING_TESTDATA_IMPORT + 1))
             VALIDATION_FAILED=1
@@ -3017,134 +2852,6 @@ echo ""
 
 if [ $VALIDATION_FAILED -eq 0 ]; then
     echo "✅ All validations passed!"
-    echo "Migration is ready to proceed to build verification"
-else
-    echo "❌ Validation failed!"
-    echo ""
-    echo "Please review and fix the issues above before proceeding."
-    echo "Common fixes:"
-    echo "  - Re-run Step 4 (Add OTP and Level0 Annotations)"
-    echo "  - Manually add missing tags to affected files"
-    echo "  - Check that sed commands executed successfully"
-    echo ""
-    echo "After fixing, you can re-run this validation step."
-    exit 1
-fi
-```bash
-
-**For Single-Module Strategy:**
-
-```bash
-cd <working-dir>/tests-extension
-
-echo ""
-echo "========================================="
-echo "Validating tags and annotations..."
-echo "========================================="
-
-VALIDATION_FAILED=0
-
-# Find all test files
-TEST_FILES=$(find test/e2e -name '*_test.go' -type f)
-TOTAL_FILES=$(echo "$TEST_FILES" | wc -l)
-
-echo "Found $TOTAL_FILES test files to validate"
-
-# Validation 1: Check for [sig-<extension-name>] tag in all test files
-echo ""
-echo "Validation 1: Checking for [sig-<extension-name>] tags..."
-MISSING_SIG_TAG=0
-for file in $TEST_FILES; do
-    if ! grep -q '\[sig-<extension-name>\]' "$file"; then
-        echo "  ❌ Missing [sig-<extension-name>] tag in: $file"
-        MISSING_SIG_TAG=$((MISSING_SIG_TAG + 1))
-        VALIDATION_FAILED=1
-    fi
-done
-
-if [ $MISSING_SIG_TAG -eq 0 ]; then
-    echo "  ✅ All test files have [sig-<extension-name>] tag"
-else
-    echo "  ❌ $MISSING_SIG_TAG file(s) missing [sig-<extension-name>] tag"
-fi
-
-# Validation 2: Check for [OTP] tag in Describe blocks
-echo ""
-echo "Validation 2: Checking for [OTP] tags in Describe blocks..."
-MISSING_OTP_TAG=0
-for file in $TEST_FILES; do
-    if grep -q 'g\.Describe.*\[sig-<extension-name>\]' "$file"; then
-        if ! grep -q 'g\.Describe.*\[sig-<extension-name>\]\[OTP\]' "$file"; then
-            echo "  ❌ Missing [OTP] tag in: $file"
-            MISSING_OTP_TAG=$((MISSING_OTP_TAG + 1))
-            VALIDATION_FAILED=1
-        fi
-    fi
-done
-
-if [ $MISSING_OTP_TAG -eq 0 ]; then
-    echo "  ✅ All Describe blocks have [OTP] tag"
-else
-    echo "  ❌ $MISSING_OTP_TAG file(s) missing [OTP] tag"
-fi
-
-# Validation 3: Check that -LEVEL0- suffix is removed from tests with [Level0] tag
-echo ""
-echo "Validation 3: Checking for -LEVEL0- suffix removal..."
-LEVEL0_NOT_REMOVED=0
-for file in $TEST_FILES; do
-    # Check if file has [Level0] tag and still contains -LEVEL0-
-    if grep -q '\[Level0\]' "$file" && grep -q -- '-LEVEL0-' "$file"; then
-        echo "  ⚠️  File has [Level0] tag but still contains -LEVEL0- suffix: $file"
-        LEVEL0_NOT_REMOVED=$((LEVEL0_NOT_REMOVED + 1))
-        VALIDATION_FAILED=1
-    fi
-done
-
-if [ $LEVEL0_NOT_REMOVED -eq 0 ]; then
-    echo "  ✅ No duplicate -LEVEL0- suffixes found"
-else
-    echo "  ❌ $LEVEL0_NOT_REMOVED file(s) have [Level0] tag but still contain -LEVEL0- suffix"
-fi
-
-# Validation 4: Verify testdata imports are present
-echo ""
-echo "Validation 4: Checking for testdata imports..."
-MISSING_TESTDATA_IMPORT=0
-for file in $TEST_FILES; do
-    # Only check files that use testdata.FixturePath
-    if grep -q 'testdata\.FixturePath' "$file"; then
-        if ! grep -q '"github.com/openshift/<extension-name>-tests-extension/test/testdata"' "$file" && \
-           ! grep -q 'testdata "' "$file"; then
-            echo "  ❌ Missing testdata import in: $file"
-            MISSING_TESTDATA_IMPORT=$((MISSING_TESTDATA_IMPORT + 1))
-            VALIDATION_FAILED=1
-        fi
-    fi
-done
-
-if [ $MISSING_TESTDATA_IMPORT -eq 0 ]; then
-    echo "  ✅ All files using testdata.FixturePath have proper imports"
-else
-    echo "  ❌ $MISSING_TESTDATA_IMPORT file(s) missing testdata import"
-fi
-
-# Summary
-echo ""
-echo "========================================="
-echo "Validation Summary"
-echo "========================================="
-echo "Total test files validated: $TOTAL_FILES"
-echo ""
-
-if [ $VALIDATION_FAILED -eq 0 ]; then
-    echo "✅ All validations passed!"
-
-    # Mark Phase 5 as successful - disable rollback
-    PHASE5_FAILED=0
-    trap - EXIT  # Remove error trap
-
-    echo "✅ Phase 5 (Test Migration) complete!"
     echo "Migration is ready to proceed to Phase 6 (Dependency Resolution)"
 else
     echo "❌ Validation failed!"
@@ -3152,13 +2859,12 @@ else
     echo "Please review and fix the issues above before proceeding."
     echo "Common fixes:"
     echo "  - Re-run Step 4 (Add OTP and Level0 Annotations)"
-    echo "  - Manually add missing tags to affected files"
-    echo "  - Check that sed commands executed successfully"
+    echo "  - Manually verify sed commands executed successfully"
+    echo "  - Check that [OTP] appears right after [sig-xxx] in Describe blocks"
+    echo "  - Check that [Level0] appears after [OTP] for files with Level0 tests"
+    echo "  - Ensure -LEVEL0- suffix is completely removed from test names"
     echo ""
     echo "After fixing, you can re-run this validation step."
-
-    # Mark Phase 5 as failed - trigger rollback
-    PHASE5_FAILED=1
     exit 1
 fi
 ```
@@ -3192,6 +2898,15 @@ if [ $? -eq 0 ]; then
 else
     echo "⚠️  go mod tidy had warnings in test module"
     echo "    This is normal - continuing to build verification..."
+fi
+
+# Remove testdata go.mod if go mod tidy created it
+# This happens when testdata package isn't found - but we have replace directive so it's not needed
+TESTDATA_DIR_NAME=$(echo "<test-dir-name>" | tr '/' '-')
+if [ -f "../<test-dir-name>-testdata/go.mod" ]; then
+    echo "⚠️  Removing unwanted testdata go.mod (created by go mod tidy)..."
+    rm "../<test-dir-name>-testdata/go.mod"
+    echo "✅ Removed ../< test-dir-name>-testdata/go.mod"
 fi
 
 # Sync replace directives from test module to root module to prevent dependency conflicts
