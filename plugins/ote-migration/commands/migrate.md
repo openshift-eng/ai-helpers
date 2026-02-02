@@ -1756,28 +1756,28 @@ TESTDATA_DIR_NAME := ${TESTDATA_DIR_NAME}
 # Build OTE extension binary
 .PHONY: tests-ext-build
 tests-ext-build:
-	@echo "Building OTE test extension binary..."
-	@echo "Generating bindata from test/\$(TESTDATA_DIR_NAME)-testdata/..."
-	@$(MAKE) -C test bindata
-	@echo "Building binary..."
-	@mkdir -p bin
-	@GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go build -o \$(TESTS_EXT_BINARY) ./cmd/extension
-	@echo "OTE binary built successfully at \$(TESTS_EXT_BINARY)"
+    @echo "Building OTE test extension binary..."
+    @echo "Generating bindata from test/\$(TESTDATA_DIR_NAME)-testdata/..."
+    @$(MAKE) -C test bindata
+    @echo "Building binary..."
+    @mkdir -p bin
+    @GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go build -o \$(TESTS_EXT_BINARY) ./cmd/extension
+    @echo "OTE binary built successfully at \$(TESTS_EXT_BINARY)"
 
 # Compress OTE extension binary (for CI/CD and container builds)
 .PHONY: tests-ext-compress
 tests-ext-compress: tests-ext-build
-	@echo "Compressing OTE extension binary..."
-	@gzip -f \$(TESTS_EXT_BINARY)
-	@echo "Compressed binary created at \$(TESTS_EXT_BINARY).gz"
+    @echo "Compressing OTE extension binary..."
+    @gzip -f \$(TESTS_EXT_BINARY)
+    @echo "Compressed binary created at \$(TESTS_EXT_BINARY).gz"
 
 # Copy compressed binary to _output directory (for CI/CD)
 .PHONY: tests-ext-copy
 tests-ext-copy: tests-ext-compress
-	@echo "Copying compressed binary to _output..."
-	@mkdir -p _output
-	@cp \$(TESTS_EXT_BINARY).gz _output/
-	@echo "Binary copied to _output/<extension-name>-tests-ext.gz"
+    @echo "Copying compressed binary to _output..."
+    @mkdir -p _output
+    @cp \$(TESTS_EXT_BINARY).gz _output/
+    @echo "Binary copied to _output/<extension-name>-tests-ext.gz"
 
 # Alias for backward compatibility
 .PHONY: extension
@@ -1786,9 +1786,9 @@ extension: tests-ext-build
 # Clean extension binary
 .PHONY: clean-extension
 clean-extension:
-	@echo "Cleaning extension binary..."
-	@rm -f \$(TESTS_EXT_BINARY) \$(TESTS_EXT_BINARY).gz _output/<extension-name>-tests-ext.gz
-	@$(MAKE) -C test clean-bindata
+    @echo "Cleaning extension binary..."
+    @rm -f \$(TESTS_EXT_BINARY) \$(TESTS_EXT_BINARY).gz _output/<extension-name>-tests-ext.gz
+    @$(MAKE) -C test clean-bindata
 EOF
 
         echo "✅ Root Makefile updated with OTE targets"
@@ -1807,28 +1807,28 @@ all: tests-ext-build
 # Build OTE extension binary
 .PHONY: tests-ext-build
 tests-ext-build:
-	@echo "Building OTE test extension binary..."
-	@echo "Generating bindata from test/\$(TESTDATA_DIR_NAME)-testdata/..."
-	@$(MAKE) -C test bindata
-	@echo "Building binary..."
-	@mkdir -p bin
-	@GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go build -o \$(TESTS_EXT_BINARY) ./cmd/extension
-	@echo "OTE binary built successfully at \$(TESTS_EXT_BINARY)"
+    @echo "Building OTE test extension binary..."
+    @echo "Generating bindata from test/\$(TESTDATA_DIR_NAME)-testdata/..."
+    @$(MAKE) -C test bindata
+    @echo "Building binary..."
+    @mkdir -p bin
+    @GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go build -o \$(TESTS_EXT_BINARY) ./cmd/extension
+    @echo "OTE binary built successfully at \$(TESTS_EXT_BINARY)"
 
 # Compress OTE extension binary (for CI/CD and container builds)
 .PHONY: tests-ext-compress
 tests-ext-compress: tests-ext-build
-	@echo "Compressing OTE extension binary..."
-	@gzip -f \$(TESTS_EXT_BINARY)
-	@echo "Compressed binary created at \$(TESTS_EXT_BINARY).gz"
+    @echo "Compressing OTE extension binary..."
+    @gzip -f \$(TESTS_EXT_BINARY)
+    @echo "Compressed binary created at \$(TESTS_EXT_BINARY).gz"
 
 # Copy compressed binary to _output directory (for CI/CD)
 .PHONY: tests-ext-copy
 tests-ext-copy: tests-ext-compress
-	@echo "Copying compressed binary to _output..."
-	@mkdir -p _output
-	@cp \$(TESTS_EXT_BINARY).gz _output/
-	@echo "Binary copied to _output/<extension-name>-tests-ext.gz"
+    @echo "Copying compressed binary to _output..."
+    @mkdir -p _output
+    @cp \$(TESTS_EXT_BINARY).gz _output/
+    @echo "Binary copied to _output/<extension-name>-tests-ext.gz"
 
 # Alias for backward compatibility
 .PHONY: extension
@@ -1837,9 +1837,9 @@ extension: tests-ext-build
 # Clean extension binary
 .PHONY: clean-extension
 clean-extension:
-	@echo "Cleaning extension binary..."
-	@rm -f \$(TESTS_EXT_BINARY) \$(TESTS_EXT_BINARY).gz _output/<extension-name>-tests-ext.gz
-	@$(MAKE) -C test clean-bindata
+    @echo "Cleaning extension binary..."
+    @rm -f \$(TESTS_EXT_BINARY) \$(TESTS_EXT_BINARY).gz _output/<extension-name>-tests-ext.gz
+    @$(MAKE) -C test clean-bindata
 EOF
 
     echo "✅ Root Makefile created with OTE targets"
