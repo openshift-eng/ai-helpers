@@ -14,10 +14,7 @@ from typing import List, Dict, Any
 class TestOutputFetcher:
     """Fetches test failure outputs from Sippy API."""
 
-    # TEMPORARY: Using localhost endpoint for development
-    # TODO: Switch to production endpoint once code merges
-    # BASE_URL = "https://sippy.dptools.openshift.org/api/tests/v2/outputs"
-    BASE_URL = "http://127.0.0.1:8080/api/tests/v2/outputs"
+    BASE_URL = "https://sippy.dptools.openshift.org/api/tests/v2/outputs"
 
     def __init__(self, test_id: str, job_run_ids: List[str]):
         """
@@ -102,7 +99,6 @@ def format_summary(results: Dict[str, Any]) -> str:
         lines.append(f"Error: {results.get('error', 'Unknown error')}")
         lines.append("")
         lines.append("The test output API may not be available.")
-        lines.append("TEMPORARY: Ensure localhost:8080 endpoint is running.")
         return "\n".join(lines)
 
     lines.append("Test Failure Outputs")

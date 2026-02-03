@@ -216,7 +216,7 @@ This command is useful for:
    output_analysis=$(python3 "$script_path" "$test_id" "$job_run_ids" --format json)
    ```
 
-   The skill fetches raw test failure outputs from Sippy API (currently localhost:8080, will use production endpoint once code merges).
+   The skill fetches raw test failure outputs from Sippy API.
 
    See `plugins/ci/skills/fetch-test-failure-outputs/SKILL.md` for complete implementation details.
 
@@ -489,7 +489,7 @@ Generated using the `fetch-test-failure-outputs` skill (see `plugins/ci/skills/f
   - Negative values indicate problems detected by the regression analysis
 - **Skills Used**:
   - `fetch-regression-details`: Fetches regression data and analyzes pass/fail patterns
-  - `fetch-test-failure-outputs`: Fetches actual test outputs and analyzes error message consistency (TEMPORARY: uses localhost:8080)
+  - `fetch-test-failure-outputs`: Fetches actual test outputs and analyzes error message consistency
 - The regression details skill groups failed jobs by job name and provides pass sequences for pattern analysis
 - The test failure outputs skill compares error messages to determine if failures have a single root cause
 - Follows the guidance: "many regressions can be caused by one bug"
