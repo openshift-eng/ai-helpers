@@ -67,6 +67,17 @@ $ git clone git@github.com:openshift-eng/ai-helpers.git
 $ ln -s ai-helpers ~/.cursor/commands/ai-helpers
 ```
 
+### Using Gemini Cli
+
+Gemini cli is able to find the various commands defined in this repo by
+making it available inside your `~/.gemini/commands` directory.
+
+```
+$ mkdir -p ~/.gemini/commands
+$ git clone git@github.com:openshift-eng/ai-helpers.git
+$ cp -r ./ai-helpers/.gemini/commands/* ~/.gemini/commands/
+```
+
 ## Using the Docker Container
 
 A container is available with Claude Code and all plugins pre-installed.
