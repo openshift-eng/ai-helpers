@@ -24,7 +24,7 @@ jobs:
           remote=$(git remote | head -n1)
 
           # Fetch the base branch to ensure we have it
-          git fetch "$remote" "${{ github.event.pull_request.base.ref }}"
+          git fetch "$remote" "${{ github.event.pull_request.base.ref }}" --depth=500
 
           # Find the merge-base between PR head and base branch
           base=$(git merge-base "$remote/${{ github.event.pull_request.base.ref }}" HEAD)
