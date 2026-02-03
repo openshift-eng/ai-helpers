@@ -30,6 +30,7 @@ Performs the complete OTE migration in one workflow.
 
 - **Complete automation** - One command handles the entire migration
 - **Smart extension name detection** - Auto-detects from repository name for binary/module naming
+- **Automatic sig tag detection** - Scans test files to discover sig tags with user confirmation, eliminating manual tag lookup
 - **Flexible sig tag filtering** - Support single or multiple sig tags for test filtering (e.g., `router` or `router,network-edge`)
 - **Two directory strategies** - Monorepo (integrated) or single-module (isolated)
 - **Automatic replace directive propagation (monorepo)** - Copies k8s.io/* and upstream replace directives from test module to root go.mod, and synchronizes openshift/api and openshift/client-go versions to prevent dependency conflicts
@@ -152,19 +153,6 @@ This plugin is available through the ai-helpers marketplace:
 
 ## Usage
 
-### Important: Identify Your Sig Tags
-
-Before running the migration, identify the sig tag(s) used in your test files:
-
-```bash
-# Find your sig tags from test files in openshift-tests-private
-grep -r "g\.Describe" test/extended/<your-subfolder>/ --include="*.go" | grep -o '\[sig-[^]]*\]' | sort -u
-
-# Example output:
-# [sig-network-edge]
-# [sig-router]
-```
-
 Run the migration command:
 
 ```bash
@@ -198,9 +186,10 @@ The plugin will:
    - Used for binary name (`router-tests-ext`), module paths, directory structure
    - Example: Target repo `git@github.com:openshift/router.git` → extension name: `router`
 
-5. **Prompt for sig filter tag(s)** to filter tests
-   - Enter single tag: `router` → filters for `[sig-router]`
-   - Enter multiple tags: `router,network-edge` → filters for `[sig-router]` OR `[sig-network-edge]`
+5. **Auto-detect sig filter tag(s)** with user confirmation
+   - Automatically scans test files in `test/extended/<extension-name>/` to discover sig tags
+   - Shows detected tags (e.g., `router,network-edge`) and asks for confirmation
+   - User can accept detected tags or enter manually if detection fails
    - **Why this matters:** The generated binary uses these tags to filter which tests to include. If the tags don't match your test files, `./bin/<extension-name>-tests-ext list` will show 0 tests because the filtering logic won't find your tests
 
 6. **Test directory name** (monorepo only, if test/e2e exists)
@@ -220,8 +209,8 @@ The migration uses a clear separation between workspace and target repository:
 **Workspace (Temporary)**:
 - Temporary directory for migration preparation
 - Used to clone repositories that don't exist locally:
-  - `openshift-tests-private` (source repo) - if not available locally
-  - Target repository - if not available locally (single-module only)
+  - `openshift-tests-private` (source repo) → cloned to `<workspace>/repos/openshift-tests-private`
+  - Target repository (single-module only) → cloned to `<workspace>/repos/<repo-name>` (e.g., `repos/router`)
 - Collected in Input 2 for both strategies
 - Example: `/tmp/migration-workspace`, `/home/user/workspace`
 - **Recommendation**: If target repo exists locally, provide its path here
