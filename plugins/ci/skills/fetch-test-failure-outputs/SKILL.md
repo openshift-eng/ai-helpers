@@ -19,9 +19,8 @@ Use this skill when you need to:
 ## Prerequisites
 
 1. **Network Access**: Must be able to reach the Sippy test outputs API
-   - **TEMPORARY**: Currently requires localhost:8080 to be running with the test outputs endpoint
    - **FUTURE**: Will use production Sippy endpoint once code merges
-   - Check: `curl -s http://127.0.0.1:8080/api/tests/v2/outputs?test_id=test&prow_job_run_ids=123`
+   - Check: `curl -s https://sippy.dptools.openshift.org/api/tests/v2/outputs?test_id=test&prow_job_run_ids=123`
 
 2. **Python 3**: Python 3.6 or later
    - Check: `python3 --version`
@@ -195,7 +194,7 @@ python3 fetch_test_failure_outputs.py "openshift-tests:abc" "123,456"
 ```json
 {
   "success": false,
-  "error": "Failed to connect to test outputs API: Connection refused. Ensure localhost:8080 is running or production endpoint is available.",
+  "error": "Failed to connect to test outputs API: Connection refused.",
   "test_id": "openshift-tests:abc",
   "requested_job_runs": 2
 }
@@ -206,10 +205,9 @@ python3 fetch_test_failure_outputs.py "openshift-tests:abc" "123,456"
 Test Failure Outputs - FETCH FAILED
 ============================================================
 
-Error: Failed to connect to test outputs API: Connection refused. Ensure localhost:8080 is running or production endpoint is available.
+Error: Failed to connect to test outputs API: Connection refused. 
 
 The test output API may not be available.
-TEMPORARY: Ensure localhost:8080 endpoint is running.
 ```
 
 ### Case 2: No Outputs Returned
@@ -290,8 +288,6 @@ fi
 
 ## Notes
 
-- **TEMPORARY**: Currently uses `http://127.0.0.1:8080/api/tests/v2/outputs` endpoint
-- **FUTURE**: Will switch to `https://sippy.dptools.openshift.org/api/tests/v2/outputs` once code merges
 - The script uses only Python standard library - no external dependencies required
 - Handles API unavailability gracefully with clear error messages
 - Returns raw outputs for AI-based interpretation and similarity analysis
@@ -302,4 +298,3 @@ fi
 
 - Related Skill: `fetch-regression-details` (provides test_id and job_run_ids)
 - Related Command: `/ci:analyze-regression` (uses this skill for failure analysis)
-- Sippy API Documentation: https://sippy.dptools.openshift.org/api/docs

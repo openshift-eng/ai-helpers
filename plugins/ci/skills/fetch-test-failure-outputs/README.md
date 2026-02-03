@@ -65,10 +65,6 @@ The AI command then analyzes the `outputs` array to:
 - Extract debugging information (file references, API paths)
 - Assess root cause
 
-## Temporary Note
-
-Currently uses `http://127.0.0.1:8080/api/tests/v2/outputs` for development. Will switch to production Sippy endpoint (`https://sippy.dptools.openshift.org/api/tests/v2/outputs`) once code merges.
-
 ## See Also
 
 - [SKILL.md](SKILL.md) - Complete implementation guide

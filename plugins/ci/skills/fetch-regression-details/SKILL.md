@@ -59,7 +59,7 @@ component=$(echo "$regression_data" | jq -r '.component')
 jira_keys=$(echo "$regression_data" | jq -r '.triages[].jira_key')
 
 # Extract failed job URLs for analysis
-failed_job_urls=$(echo "$regression_data" | jq -r '.sample_failed_jobs[].job_url')
+failed_job_urls=$(echo "$regression_data" | jq -r '.sample_failed_jobs | to_entries[] | .value.failed_runs[] | .job_url')
 ```
 
 ### Step 3: Use the Data
@@ -327,7 +327,7 @@ script_path="plugins/ci/skills/fetch-regression-details/fetch_regression_details
 data=$(python3 "$script_path" 34446 --format json)
 
 # Extract failed job URLs
-echo "$data" | jq -r '.sample_failed_jobs[].job_url'
+echo "$data" | jq -r '.sample_failed_jobs[].job_url | to_entries[] | .value.failed_runs[] | .job_url'
 ```
 
 **Expected Output:**
