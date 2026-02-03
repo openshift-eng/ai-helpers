@@ -340,7 +340,7 @@ The generated `cmd/main.go` (or `cmd/extension/main.go` for monorepo) includes *
   }
 
   // Filter to only include component-specific tests (tests with specified sig tags)
-  // Parse sig filter tags from comma-separated list (value from migration step 2)
+  // Parse sig filter tags from comma-separated list (value from Input 5)
   sigTags := strings.Split("router,network-edge", ",") // Tags user provided: "router,network-edge"
   var filteredSpecs []*et.ExtensionTestSpec
   allSpecs.Walk(func(spec *et.ExtensionTestSpec) {
@@ -658,7 +658,7 @@ Before build verification, the migration validates that all required tags are pr
 
 **Validation checks:**
 
-1. All test files have `[sig-<extension-name>]` tag
+1. Each test file contains at least one of the provided sig tags (e.g., `[sig-router]` or `[sig-network-edge]`)
 2. All Describe blocks have `[OTP]` tag
 3. Tests with `[Level0]` don't have duplicate `-LEVEL0-` suffixes
 4. Files using `testdata.FixturePath` have proper imports
