@@ -55,7 +55,7 @@ Collect all necessary information from the user before starting the migration.
 **CRITICAL INSTRUCTION FOR AI AGENT:**
 - **Input Collection Order is IMPORTANT**: Follow the exact order below
 - **Extension name (Input 4)**: AUTO-DETECT from target repository - do NOT ask user
-- **Sig filter tags (Input 5)**: MUST ask user explicitly - do NOT auto-detect or infer
+- **Sig filter tags (Input 5)**: AUTO-DETECT from source test files with user confirmation
 - **All other inputs**: Ask user explicitly using AskUserQuestion tool or direct prompts
 - **WAIT for user response** before proceeding to the next input or phase
 - **Switch to target repository** happens after Input 3 (before auto-detecting extension name)
@@ -241,11 +241,22 @@ fi
 
 For single-module if URL provided (need to clone):
 ```bash
+# Extract repository name from URL
+# Example: git@github.com:openshift/router.git → router
+REPO_NAME=$(echo "$TARGET_REPO_URL" | sed -E 's|.*/([^/]+)\.git$|\1|' | sed -E 's|.*:([^/]+)\.git$|\1|')
+
+if [ -z "$REPO_NAME" ]; then
+    echo "❌ ERROR: Could not extract repository name from URL: $TARGET_REPO_URL"
+    exit 1
+fi
+
+echo "Detected repository name: $REPO_NAME"
+
 # Clone to workspace
 cd "$WORKING_DIR"
 mkdir -p repos
-git clone "$TARGET_REPO_URL" repos/target
-TARGET_REPO_PATH="$WORKING_DIR/repos/target"
+git clone "$TARGET_REPO_URL" "repos/$REPO_NAME"
+TARGET_REPO_PATH="$WORKING_DIR/repos/$REPO_NAME"
 echo "✅ Target repository cloned to: $TARGET_REPO_PATH"
 ```
 
@@ -328,32 +339,55 @@ echo "Extension name: $EXTENSION_NAME"
 
 #### Input 5: Sig Filter Tags
 
-**MUST ask the user explicitly - do NOT auto-detect or infer this.**
-
-Ask: "What are the sig tag(s) used in your test files for filtering? (comma-separated if multiple)"
+**AUTO-DETECT with user confirmation.**
 
 **What are sig filter tags:**
 
 Sig tags are used in test names like `[sig-router]` or `[sig-network-edge]` to categorize tests by component. The migration generates code that filters tests to include ONLY those matching your specified tags.
 
-**How to find your sig tags:**
-
-If you're unsure which sig tags your tests use, you can check the source repository:
+**Auto-detection process:**
 
 ```bash
-# Find sig tags in your test files
-cd <source-repo-path>
-grep -r "g\.Describe" test/extended/<your-subfolder>/ --include="*.go" | grep -o '\[sig-[^]]*\]' | sort -u
+echo "========================================="
+echo "Auto-detecting sig tags from test files..."
+echo "========================================="
 
-# Example output:
-# [sig-network-edge]
-# [sig-router]
+# Ensure we're in the workspace directory with source repo
+cd "<working-dir>/openshift-tests-private"
+
+# Scan test files for sig tags
+DETECTED_TAGS=$(grep -rh "g\.Describe" "test/extended/<extension-name>/" --include="*.go" 2>/dev/null | \
+    grep -o '\[sig-[^]]*\]' | \
+    sed 's/\[sig-//g' | \
+    sed 's/\]//g' | \
+    sort -u | \
+    paste -sd "," -)
+
+if [ -z "$DETECTED_TAGS" ]; then
+    echo "⚠️  No sig tags detected in test files at test/extended/<extension-name>/"
+    echo ""
+    echo "Please enter sig tags manually."
+    echo "Example: router (for single tag) or router,network-edge (for multiple tags)"
+    read -p "Sig tags: " SIG_FILTER_TAGS
+else
+    echo "Detected sig tags: $DETECTED_TAGS"
+    echo ""
+    read -p "Use these detected tags? [Y/n]: " CONFIRM
+
+    if [ "$CONFIRM" = "n" ] || [ "$CONFIRM" = "N" ]; then
+        echo "Please enter sig tags manually."
+        read -p "Sig tags: " SIG_FILTER_TAGS
+    else
+        SIG_FILTER_TAGS="$DETECTED_TAGS"
+        echo "✓ Using detected tags: $SIG_FILTER_TAGS"
+    fi
+fi
 ```
 
-**User provides:**
-- Single tag: `router` (will filter for `[sig-router]`)
-- Multiple tags: `router,network-edge` (will filter for `[sig-router]` OR `[sig-network-edge]`)
-- Tags are comma-separated with no spaces (or with spaces - we'll trim them)
+**Result:**
+- Auto-detected: Tags are discovered from `test/extended/<extension-name>/` directory
+- User confirms or overrides the detected tags
+- Tags are comma-separated (e.g., `router,network-edge`)
 
 **Store in variable:** `<sig-filter-tags>`
 
@@ -501,7 +535,7 @@ Source Repository (openshift-tests-private):
   Testdata Subfolder: test/extended/testdata/<testdata-subfolder>/
 
 Target Repository:
-  Local Path: <local-target-path> (or "Will clone to <working-dir>/repos/target")
+  Local Path: <local-target-path> (or "Will clone to <working-dir>/repos/<repo-name>")
   URL: <target-repo-url> (if cloning)
 
 Destination Structure (in target repo):
@@ -3392,7 +3426,7 @@ Successfully migrated **<extension-name>** to OpenShift Tests Extension (OTE) fr
   - Testdata Subfolder: test/extended/testdata/<testdata-subfolder>/
 
 **Target Repository:** <target-repo-url>
-  - Local Path: <local-target-path> (or "Cloned to repos/target")
+  - Local Path: <local-target-path> (or "Cloned to repos/<repo-name>")
 
 ## Files Created/Modified
 
@@ -3925,7 +3959,9 @@ chmod +x test-docker-ote.sh
 
 ### Git Repository Handling
 
-- Always check if `repos/source` and `repos/target` exist before cloning
+- Always check if `repos/<repo-name>` exists before cloning (repo name extracted from URL)
+- Source repo clones to `repos/openshift-tests-private`
+- Target repo clones to `repos/<repo-name>` (e.g., `repos/router` for `openshift/router.git`)
 - Use `git fetch && git pull` for updates
 - Handle authentication errors gracefully
 - Allow user to specify branch if needed (default: main/master)
