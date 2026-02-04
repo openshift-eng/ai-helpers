@@ -109,7 +109,7 @@ Ask: "What is the working directory path for migration workspace?
 
 **Purpose of this directory**:
 - **If target repo exists locally**: Provide the target repo path (recommended - will ask about git update in Input 3a)
-- **If target repo doesn't exist locally**: Provide workspace directory where target repo will be cloned (in Input 3b)
+- **If target repo doesn't exist locally**: Provide workspace directory where target repo will be cloned (when Git URL is provided in Input 3)
 - Also used for cloning openshift-tests-private (source repo) if not available locally
 - Example: `/home/user/repos/router` (existing target), `.` (current dir), `/home/user/workspace` (workspace)
 
@@ -122,7 +122,7 @@ Ask: "What is the working directory path for migration workspace?
 
 **Store in variable:** `<working-dir>`
 
-**IMPORTANT**: After Input 3c (Target Repository validation), the working directory will become the target repository where all OTE files will be created.
+**IMPORTANT**: After Input 3b (Target Repository validation), the working directory will become the target repository where all OTE files will be created.
 
 #### Input 3: Target Repository
 
@@ -134,29 +134,20 @@ This input collects the target repository information and then **immediately swi
 - Both strategies can use either local path OR Git URL to clone
 - The target repository is where OTE files will be created
 
-**For Monorepo Strategy:**
+**For both strategies:**
 
-Ask: "What is the path to your target repository where OTE will be integrated? (Press Enter if you need to clone it from a URL)"
+Ask: "What is the path to your target repository, or provide a Git URL to clone?"
 
-- This is the repository where `cmd/extension/`, `test/e2e/`, etc. will be created
-- If provided: Use this existing local repository
-  - Can be absolute path: `/home/user/repos/router`
-  - Can be relative path: `~/openshift/cloud-credential-operator`
+- **Option 1: Local path** - Use existing local repository
+  - Can be absolute path: `/home/user/repos/router` or `/home/user/repos/sdn`
+  - Can be relative path: `~/openshift/cloud-credential-operator` or `../sdn`
   - Can be current directory if you're already in the target repo: `.`
   - Should be a git repository (will be validated below)
   - Store in variable: `<target-repo-path>`
-- If empty: Will ask for Git URL to clone (see Input 3b below)
-
-**For Single-Module Strategy:**
-
-Ask: "What is the path to your target repository? (Press Enter if you need to clone it from a URL)"
-
-- If provided: Use this existing local repository
-  - Can be absolute path: `/home/user/repos/sdn`
-  - Can be relative path: `../sdn`
-  - Can be current directory: `.`
-  - Store in variable: `<target-repo-path>`
-- If empty: Will ask for Git URL to clone (see Input 3b below)
+- **Option 2: Git URL** - Clone from remote repository
+  - Example: `git@github.com:openshift/router.git` or `git@github.com:openshift/sdn.git`
+  - Will be cloned to `<workspace>/<repo-name>` (e.g., `router` or `sdn`)
+  - Store in variable: `<target-repo-url>`
 
 #### Input 3a: Update Local Target Repository (if local target provided)
 
@@ -171,20 +162,7 @@ Ask: "Do you want to update the local target repository? (git fetch && git pull)
 
 **Store user's choice.**
 
-#### Input 3b: Target Repository URL (if no local target provided)
-
-**Skip this if user provided local path in Input 3.**
-
-**For both strategies:**
-
-If no local target repository was provided in Input 3:
-
-Ask: "What is the Git URL of the target repository (component repository)?"
-
-- Example: `git@github.com:openshift/router.git` (monorepo) or `git@github.com:openshift/sdn.git` (single-module)
-- Store in variable: `<target-repo-url>`
-
-#### Input 3c: Validate and Switch to Target Repository
+#### Input 3b: Validate and Switch to Target Repository
 
 **For both strategies**, after collecting target repo information:
 
