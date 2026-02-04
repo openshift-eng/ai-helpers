@@ -21,7 +21,7 @@ The command implements an interactive 8-phase migration workflow:
 3. **Repository Setup** - Clone/update source (openshift-tests-private) and target repositories
 4. **Structure Creation** - Create directory layout (supports both monorepo and single-module strategies)
 5. **Code Generation** - Generate main.go, Makefile, go.mod, fixtures.go, and bindata configuration
-6. **Test Migration** - Automatically replace FixturePath calls, update imports, and add OTP/Level0 annotations
+6. **Test Migration** - Automatically replace FixturePath calls, update imports, and add OTP/Level0 annotations (per-Describe-block, not per-file)
 7. **Dependency Resolution** - Run go mod tidy, vendor dependencies, and verify build
 8. **Documentation** - Generate comprehensive migration summary with next steps
 
@@ -1486,7 +1486,11 @@ func main() {
     })
 
     // Build test specs from Ginkgo
-    allSpecs, err := g.BuildExtensionTestSpecsFromOpenShiftGinkgoSuite()
+    // Force package load (this ensures test specs are registered)
+    _ = testext.PackageLoaded
+    // Use AllTestsIncludingVendored to include tests from the vendored extension module
+    // This is critical for monorepo strategy where tests in subdirectories get vendored
+    allSpecs, err := g.BuildExtensionTestSpecsFromOpenShiftGinkgoSuite(et.AllTestsIncludingVendored())
     if err != nil {
         panic(fmt.Sprintf("couldn't build extension test specs from ginkgo: %+v", err.Error()))
     }
@@ -2689,14 +2693,30 @@ echo "✅ Old imports cleaned up"
 
 **Purpose:** Add tracking annotations to ported tests:
 - **[OTP]**: Marks tests that have been ported (for tracking how many tests migrated)
-- **[Level0]**: Marks Describe blocks for test files containing "-LEVEL0-" tests (appears as `[sig-<extension-name>][OTP][Level0]` in full test name)
+- **[Level0]**: Marks Describe blocks that contain at least one test with "-LEVEL0-" suffix
 
-**Important:** This process adds annotations and removes suffixes:
-1. Adding `[OTP]` to all Describe blocks (right after `[sig-xxx]`)
-2. Adding `[Level0]` to Describe blocks (after `[OTP]`) if file contains any tests with "-LEVEL0-"
-3. **Removing `-LEVEL0-` suffix** from test names to avoid duplication
-   - Before: `"[sig-cco]...-LEVEL0-Critical..."`
-   - After: `"[sig-cco][OTP][Level0]...-Critical..."`
+**Important annotation logic (per-Describe-block, NOT per-file):**
+1. Add `[OTP]` to ALL Describe blocks (right after `[sig-xxx]`)
+2. For EACH Describe block, check if it contains tests with `-LEVEL0-` suffix
+3. If yes, add `[Level0]` to THAT SPECIFIC Describe block (after `[OTP]`)
+4. Remove `-LEVEL0-` suffix from test names
+
+**Example:**
+```go
+// File with 2 Describe blocks:
+var _ = g.Describe("[sig-cco] Group 1", func() {     // No LEVEL0 tests
+    g.It("Test-1", ...)   // Regular test
+    g.It("Test-2", ...)   // Regular test
+})
+// → Becomes: "[sig-cco][OTP] Group 1"
+
+var _ = g.Describe("[sig-cco] Group 2", func() {     // Has LEVEL0 test
+    g.It("Test-3", ...)            // Regular test
+    g.It("Test-4-LEVEL0-Critical", ...)  // Level0 test
+})
+// → Becomes: "[sig-cco][OTP][Level0] Group 2"
+// → Test becomes: "Test-4-Critical" (suffix removed)
+```
 
 **Note:** This same code works for both monorepo and single-module strategies.
 
@@ -2707,79 +2727,130 @@ echo "Sig filter tags: $SIG_FILTER_TAGS"
 echo "Test directory: test/$TEST_DIR_NAME"
 echo "========================================="
 
-# Convert comma-separated tags to array
-IFS=',' read -ra SIG_TAGS <<< "$SIG_FILTER_TAGS"
+# Create Python script for per-Describe-block annotation
+cat > /tmp/annotate_tests.py << 'PYTHON_SCRIPT'
+#!/usr/bin/env python3
+import re
+import sys
+from pathlib import Path
 
-# Find all test files
-TEST_FILES=$(find test/$TEST_DIR_NAME -name '*.go' -type f)
+def find_describe_blocks(lines):
+    """Find Describe block ranges by tracking brace nesting."""
+    describe_blocks = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        # Look for g.Describe lines
+        if 'g.Describe("' in line and 'func()' in line:
+            # Extract the Describe line signature
+            match = re.search(r'g\.Describe\("([^"]+)"', line)
+            if match:
+                desc_text = match.group(1)
+                # Find the opening brace (might be on same line or next line)
+                start_line = i
+                brace_count = 0
+                found_opening = False
+                for j in range(i, min(i + 5, len(lines))):  # Check next few lines
+                    brace_count += lines[j].count('{')
+                    if '{' in lines[j]:
+                        found_opening = True
+                        break
 
-for file in $TEST_FILES; do
-    echo "Processing: $file"
-    CHANGED=0
+                if found_opening:
+                    # Track braces to find the end of this Describe block
+                    j = start_line
+                    while j < len(lines) and brace_count > 0:
+                        brace_count += lines[j].count('{') - lines[j].count('}')
+                        j += 1
 
-    # Check if file contains any Level0 tests (detect once per file)
-    HAS_LEVEL0=false
-    if grep -q -- '-LEVEL0-' "$file"; then
-        HAS_LEVEL0=true
-        echo "  → File contains Level0 tests"
-    fi
+                    describe_blocks.append({
+                        'line_num': i,
+                        'desc_text': desc_text,
+                        'start': start_line,
+                        'end': j
+                    })
+        i += 1
 
-    # Step 1: Add [OTP] and [Level0] annotations to Describe blocks
-    # Process each sig tag
-    for sig_tag in "${SIG_TAGS[@]}"; do
-        sig_tag=$(echo "$sig_tag" | xargs)  # Trim whitespace
+    return describe_blocks
 
-        # Check if this file uses this sig tag
-        if grep -q "g\.Describe.*\[sig-$sig_tag\]" "$file"; then
-            # Add [OTP] and [Level0] (if needed) to Describe blocks
-            # This works regardless of whether there's text after the tag
-            if [ "$HAS_LEVEL0" = true ]; then
-                # Add both [OTP] and [Level0]
-                # Pattern: [sig-xxx] → [sig-xxx][OTP][Level0]
-                # Pattern: [sig-xxx] text → [sig-xxx][OTP][Level0] text
-                sed -i "s/\(\[sig-$sig_tag\]\)\([^[]\)/\1[OTP][Level0]\2/g" "$file"
-                echo "  ✓ Added [OTP][Level0] to [sig-$sig_tag]"
-            else
-                # Add only [OTP]
-                # Pattern: [sig-xxx] → [sig-xxx][OTP]
-                # Pattern: [sig-xxx] text → [sig-xxx][OTP] text
-                sed -i "s/\(\[sig-$sig_tag\]\)\([^[]\)/\1[OTP]\2/g" "$file"
-                echo "  ✓ Added [OTP] to [sig-$sig_tag]"
-            fi
-            CHANGED=1
-        fi
-    done
+def annotate_file(filepath, sig_tags):
+    """Add [OTP] and [Level0] annotations to Describe blocks based on their contents."""
+    with open(filepath, 'r') as f:
+        lines = f.readlines()
 
-    # Step 2: Remove -LEVEL0- suffix from test names
-    # This must happen AFTER Step 1 to ensure Describe blocks are annotated first
-    if [ "$HAS_LEVEL0" = true ]; then
-        # Remove the -LEVEL0- suffix from ALL occurrences in the file
-        # Example: "Author:john-LEVEL0-Critical..." → "Author:john-Critical..."
-        sed -i 's/-LEVEL0-/-/g' "$file"
-        echo "  ✓ Removed -LEVEL0- suffix from test names"
+    original_content = ''.join(lines)
 
-        # Clean up any double dashes that might result from suffix removal
-        sed -i 's/--/-/g' "$file"
+    # Step 1: Add [OTP] to all Describe blocks for each sig tag
+    for i, line in enumerate(lines):
+        for sig_tag in sig_tags:
+            # Pattern: [sig-xxx] → [sig-xxx][OTP]
+            if f'[sig-{sig_tag}]' in line and 'g.Describe' in line and '[OTP]' not in line:
+                lines[i] = re.sub(
+                    rf'(\[sig-{re.escape(sig_tag)}\])([^\[])',
+                    r'\1[OTP]\2',
+                    line
+                )
 
-        CHANGED=1
-    fi
+    # Step 2: Find Describe blocks and check if they contain -LEVEL0- tests
+    describe_blocks = find_describe_blocks(lines)
 
-    if [ $CHANGED -eq 0 ]; then
-        echo "  - No annotations needed"
-    fi
-    echo ""
-done
+    for block in describe_blocks:
+        # Check if this Describe block contains -LEVEL0- tests
+        block_content = ''.join(lines[block['start']:block['end']])
+        if '-LEVEL0-' in block_content:
+            # Add [Level0] after [OTP] in the Describe line
+            desc_line = lines[block['line_num']]
+            if '[OTP]' in desc_line and '[Level0]' not in desc_line:
+                lines[block['line_num']] = desc_line.replace('[OTP]', '[OTP][Level0]', 1)
 
+    # Step 3: Remove -LEVEL0- suffix from test names
+    for i, line in enumerate(lines):
+        if '-LEVEL0-' in line:
+            lines[i] = line.replace('-LEVEL0-', '-')
+            # Clean up any double dashes
+            lines[i] = lines[i].replace('--', '-')
+
+    new_content = ''.join(lines)
+
+    # Write back if changed
+    if new_content != original_content:
+        with open(filepath, 'w') as f:
+            f.write(new_content)
+        return True
+    return False
+
+if __name__ == '__main__':
+    test_dir = sys.argv[1]
+    sig_tags = sys.argv[2].split(',')
+    sig_tags = [tag.strip() for tag in sig_tags]
+
+    test_files = list(Path(test_dir).rglob('*.go'))
+
+    for filepath in test_files:
+        changed = annotate_file(str(filepath), sig_tags)
+        if changed:
+            print(f"✓ {filepath}")
+        else:
+            print(f"- {filepath} (no changes)")
+PYTHON_SCRIPT
+
+chmod +x /tmp/annotate_tests.py
+
+# Run the Python script
+python3 /tmp/annotate_tests.py "test/$TEST_DIR_NAME" "$SIG_FILTER_TAGS"
+
+echo ""
 echo "✅ Annotations added successfully"
 echo ""
 echo "Summary of changes:"
-echo "  [OTP]       - Added to all Describe blocks (right after [sig-xxx])"
-echo "  [Level0]    - Added to Describe blocks for files containing -LEVEL0- tests"
+echo "  [OTP]       - Added to ALL Describe blocks (right after [sig-xxx])"
+echo "  [Level0]    - Added ONLY to Describe blocks containing -LEVEL0- tests"
 echo "  -LEVEL0-    - Removed suffix from test names"
 echo ""
 echo "Expected results:"
-echo "  • Regular tests: [sig-xxx][OTP] Test description"
-echo "  • Level0 tests:  [sig-xxx][OTP][Level0] Test description (no -LEVEL0- suffix)"
+echo "  • Regular Describe: [sig-xxx][OTP] Description"
+echo "  • Level0 Describe:  [sig-xxx][OTP][Level0] Description"
+echo "  • Test names: -LEVEL0- suffix removed"
 ```
 
 

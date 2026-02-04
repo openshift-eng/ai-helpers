@@ -387,60 +387,58 @@ The generated `cmd/main.go` (or `cmd/extension/main.go` for monorepo) includes *
      - Placement: After `[sig-<extension-name>]` in Describe blocks
      - Example: `g.Describe("[sig-router][OTP]", func() { ... })`
 
-  2. **[Level0]** - Added to individual It() test cases with "-LEVEL0-" in name
-     - Identifies Level0 conformance tests
-     - Auto-detected by searching for "-LEVEL0-" string in It() descriptions
-     - Placement: At the beginning of It() descriptions
-     - **Automatically removes `-LEVEL0-` suffix** to prevent duplication
-     - Example: `g.It("[Level0] Router should handle basic routing", func() { ... })`
-     - Before: `"...Author:john-LEVEL0-Critical..."`
-     - After: `"[Level0] ...Author:john-Critical..."`
+  2. **[Level0]** - Added to Describe blocks containing Level0 tests
+     - Identifies Level0 conformance test groups
+     - Auto-detected by searching for "-LEVEL0-" string in test names within each Describe block
+     - Placement: After `[OTP]` in Describe blocks
+     - **Automatically removes `-LEVEL0-` suffix** from test names to prevent duplication
+     - Applied per-Describe-block (NOT per-file)
 
-  **Annotation logic:**
+  **Annotation logic (per-Describe-block):**
 
-  The migration adds annotations based on file content:
+  The migration processes each Describe block independently:
 
-  - **All files**: Add `[OTP]` to Describe blocks (right after `[sig-xxx]`)
-  - **Files with Level0 tests**:
-    - Add `[Level0]` to Describe block (after `[OTP]`) if **entire file** contains only Level0 tests
-    - OR prepend `[Level0]` to individual It() descriptions for mixed files
-    - Remove `-LEVEL0-` suffix from test names
+  1. **Add `[OTP]`** to ALL Describe blocks (right after `[sig-xxx]`)
+  2. **For EACH Describe block:**
+     - Check if it contains at least one test with `-LEVEL0-` suffix
+     - If yes, add `[Level0]` to THAT Describe block (after `[OTP]`)
+     - Remove `-LEVEL0-` suffix from ALL test names in the file
+
+  **Example: File with two Describe blocks**
 
   **Before migration:**
   ```go
-  g.Describe("[sig-router] Router functionality", func() {
-      g.It("Author:john-LEVEL0-Critical-12345-Basic routing test", func() {
-          // test code
-      })
+  // Describe block #1 - Contains Level0 test
+  g.Describe("[sig-router] Router Level0 tests", func() {
+      g.It("Author:john-LEVEL0-Critical-12345-Basic routing", func() {})
+      g.It("Author:jane-High-67890-Advanced routing", func() {})
+  })
+
+  // Describe block #2 - No Level0 tests
+  g.Describe("[sig-router] Router performance tests", func() {
+      g.It("Author:bob-Medium-11111-Performance test", func() {})
   })
   ```
 
-  **After migration (file with only Level0 tests):**
+  **After migration:**
   ```go
-  g.Describe("[sig-router][OTP][Level0] Router functionality", func() {
-      g.It("Author:john-Critical-12345-Basic routing test", func() {
-          // test code
-      })
+  // Describe block #1 - Gets [Level0] because it contains a LEVEL0 test
+  g.Describe("[sig-router][OTP][Level0] Router Level0 tests", func() {
+      g.It("Author:john-Critical-12345-Basic routing", func() {})  // -LEVEL0- removed
+      g.It("Author:jane-High-67890-Advanced routing", func() {})
   })
-  ```
 
-  **After migration (mixed file with Level0 and regular tests):**
-  ```go
-  g.Describe("[sig-router][OTP] Router functionality", func() {
-      g.It("[Level0] Author:john-Critical-12345-Basic routing test", func() {
-          // Level0 test
-      })
-      g.It("Author:jane-High-67890-Advanced routing test", func() {
-          // Regular test
-      })
+  // Describe block #2 - Gets only [OTP] (no Level0 tests)
+  g.Describe("[sig-router][OTP] Router performance tests", func() {
+      g.It("Author:bob-Medium-11111-Performance test", func() {})
   })
   ```
 
   **Full test names visible in list:**
   ```text
-  [sig-router][OTP][Level0] Router functionality Author:john-Critical-12345-Basic routing test
-  [sig-router][OTP] Router functionality [Level0] Author:john-Critical-12345-Basic routing test
-  [sig-router][OTP] Router functionality Author:jane-High-67890-Advanced routing test
+  [sig-router][OTP][Level0] Router Level0 tests Author:john-Critical-12345-Basic routing
+  [sig-router][OTP][Level0] Router Level0 tests Author:jane-High-67890-Advanced routing
+  [sig-router][OTP] Router performance tests Author:bob-Medium-11111-Performance test
   ```
 
   **Benefits:**
