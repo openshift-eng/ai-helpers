@@ -1208,6 +1208,58 @@
       "name": "gwapi",
       "skills": [],
       "version": "0.0.1"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "<CVE-ID> [repo-url] [--branch <branch>] [--algorithm <algo>] [--symbol <symbol>]",
+          "description": "Generate call graph visualization for a CVE vulnerability path",
+          "name": "call-graph",
+          "synopsis": "/gvs:call-graph <CVE-ID> [repo-url] [options]"
+        },
+        {
+          "argument_hint": "<package> <version>",
+          "description": "Check if a Go package version has known vulnerabilities",
+          "name": "check-package",
+          "synopsis": "/gvs:check-package <package> <version>"
+        },
+        {
+          "argument_hint": "<CVE-ID>",
+          "description": "Look up CVE details from the Go vulnerability database",
+          "name": "lookup",
+          "synopsis": "/gvs:lookup <CVE-ID>"
+        },
+        {
+          "argument_hint": "<package> <symbol> [repo-url] [--branch <branch>] [--algorithm <algo>] [--graph]",
+          "description": "Check if a symbol is reachable from entry points in a repository",
+          "name": "reachability",
+          "synopsis": "/gvs:reachability <package> <symbol> [repo-url] [options]"
+        },
+        {
+          "argument_hint": "[repo-url] [--branch <branch>] [--algorithm <algo>] [--cve <CVE-ID>]",
+          "description": "Analyze code for reflection patterns that could invoke vulnerable symbols",
+          "name": "reflection",
+          "synopsis": "/gvs:reflection [repo-url] [options]"
+        },
+        {
+          "argument_hint": "[repo-url] [CVE-ID] [--branch <branch>] [--algorithm <algo>] [--graph]",
+          "description": "Scan a Go repository for CVE vulnerabilities",
+          "name": "scan",
+          "synopsis": "/gvs:scan [repo-url] [CVE-ID] [options]"
+        },
+        {
+          "argument_hint": "",
+          "description": "Configure the GVS MCP server in Cursor",
+          "name": "setup",
+          "synopsis": "/gvs:setup"
+        }
+      ],
+      "description": "Remote CVE scanning for public Golang repositories via MCP server (no local tools needed)",
+      "has_readme": true,
+      "hooks": [],
+      "name": "gvs",
+      "skills": [],
+      "version": "0.0.1"
     }
   ]
 }
