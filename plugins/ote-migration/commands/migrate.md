@@ -302,8 +302,15 @@ cd "$WORKING_DIR"
 
 # Try to detect from git remote first
 if [ -d ".git" ]; then
-    # Get the repository name from git remote
-    REMOTE_URL=$(git remote get-url origin 2>/dev/null || git remote get-url upstream 2>/dev/null || git remote -v | head -1 | awk '{print $2}')
+    # Discover available remotes first (no hardcoded assumptions)
+    DISCOVERED_REMOTE=$(git remote -v | head -1 | awk '{print $1}')
+
+    # Get the repository URL from discovered remote
+    if [ -n "$DISCOVERED_REMOTE" ]; then
+        REMOTE_URL=$(git remote get-url "$DISCOVERED_REMOTE" 2>/dev/null)
+    else
+        REMOTE_URL=""
+    fi
 
     if [ -n "$REMOTE_URL" ]; then
         # Extract repo name from URL
@@ -713,8 +720,9 @@ if [ -d "openshift-tests-private" ]; then
         git fetch "$SOURCE_REMOTE"
         git pull "$SOURCE_REMOTE" master || git pull "$SOURCE_REMOTE" main
     else
-        echo "No remote found for openshift-tests-private, adding upstream..."
-        SOURCE_REMOTE="upstream"
+        echo "No remote found for openshift-tests-private, adding new remote..."
+        # Use descriptive remote name instead of hardcoded assumption
+        SOURCE_REMOTE="ote-source"
         git remote add "$SOURCE_REMOTE" git@github.com:openshift/openshift-tests-private.git
         git fetch "$SOURCE_REMOTE"
         git pull "$SOURCE_REMOTE" master || git pull "$SOURCE_REMOTE" main
