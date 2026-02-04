@@ -525,7 +525,7 @@
           "synopsis": ""
         },
         {
-          "argument_hint": "prowjob-url test-name",
+          "argument_hint": "prowjob-url test-name [--fast]",
           "description": "Analyzes test errors from console logs and Prow CI job artifacts",
           "name": "analyze-test-failure",
           "synopsis": ""
@@ -558,7 +558,7 @@
           "name": "Prow Job Analyze Resource"
         },
         {
-          "description": "Analyze a failed test by inspecting the code in the current project and artifacts in Prow CI job. Provide a detailed analysis of the test failure in a pre-defined format.",
+          "description": "|",
           "id": "prow-job-analyze-test-failure",
           "name": "Prow Job Analyze Test Failure"
         },
@@ -568,7 +568,7 @@
           "name": "Prow Job Extract Must-Gather"
         }
       ],
-      "version": "0.0.1"
+      "version": "0.0.4"
     },
     {
       "commands": [
