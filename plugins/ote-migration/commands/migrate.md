@@ -2990,6 +2990,27 @@ else
     echo "⚠️  No replace directives found in test module"
 fi
 
+# Add required dependencies to root module
+echo ""
+echo "Adding required dependencies to root module..."
+
+# Detect module name from root go.mod
+ROOT_MODULE=$(grep "^module " go.mod | awk '{print $2}')
+
+# Add test extension module dependency
+echo "Adding test extension module dependency..."
+GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get "$ROOT_MODULE/test/<test-dir-name>"
+
+# Add origin util dependency (required for most tests)
+echo "Adding origin util dependency..."
+GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get github.com/openshift/origin/test/extended/util
+
+# Add kubernetes framework dependency (required for test framework)
+echo "Adding kubernetes framework dependency..."
+GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get k8s.io/kubernetes/test/e2e/framework
+
+echo "✅ Dependencies added to root module"
+
 # Now run go mod tidy in root module with synced replace directives
 echo ""
 echo "Running go mod tidy in root module..."
