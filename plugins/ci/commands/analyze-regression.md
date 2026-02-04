@@ -152,7 +152,7 @@ This command is useful for:
      **Pattern 4: Recent Regression**
      - `pass_sequence` shows recent "F"s after a long sequence of "S" (e.g., `FFSSSSSSSSS`)
      - Interpretation: Test recently started failing, likely due to a recent change
-     - Example: `FFFFFPPPPPPPPPPPPP` shows 5 recent failures after many successes
+     - Example: `FFFFFSSSSSSSSSS` shows 5 recent failures after many successes
      - Action: High priority - recent regression, investigate recent code changes
 
    - **Generate Pattern Summary**: Create a summary for each job:
