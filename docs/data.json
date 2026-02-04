@@ -106,7 +106,7 @@
           "argument_hint": "<issue-key> [--auto-apply]",
           "description": "Categorize JIRA tickets into activity types using AI",
           "name": "categorize-activity-type",
-          "synopsis": "bash"
+          "synopsis": "/jira:categorize-activity-type <issue-key> [--auto-apply]"
         },
         {
           "argument_hint": "<issue-number> [issue-number...] [--github-project <org/repo>] [--jira-project <key>] [--dryrun]",
@@ -148,7 +148,7 @@
           "argument_hint": "[--github-project <org/repo>] [--jira-project <key>] [--profile <name>] [--porcelain] [--output json|yaml]",
           "description": "Reconcile state mismatches between GitHub and Jira issues",
           "name": "reconcile-github",
-          "synopsis": "bash"
+          "synopsis": "/jira:reconcile-github [options]"
         },
         {
           "argument_hint": "",
@@ -596,7 +596,7 @@
           "argument_hint": "<action> [arguments...]",
           "description": "Execute opm (Operator Package Manager) commands for building and managing operator catalogs",
           "name": "opm",
-          "synopsis": "bash"
+          "synopsis": "/olm:opm build-index-image <catalog-path> <index-image-tag> [--cacheless] [--arch=<arch>] [--base-image=<image>] [--builder-image=<image>]"
         },
         {
           "argument_hint": "[query] [--catalog <catalog-name>]",
@@ -746,7 +746,7 @@
           "argument_hint": "",
           "description": "Bootstrap OpenShift Manager (OM) integration for OpenShift operators with automated resource discovery",
           "name": "bootstrap-om",
-          "synopsis": "bash"
+          "synopsis": "/openshift:bootstrap-om"
         },
         {
           "argument_hint": "<dependency> [version] [--create-jira] [--create-pr]",
@@ -1028,7 +1028,7 @@
           "argument_hint": "<test-file-or-url> [--output <path>]",
           "description": "Identify E2E test scenario gaps in OpenShift/Kubernetes tests (component-agnostic)",
           "name": "gaps",
-          "synopsis": "bash"
+          "synopsis": "/test-coverage:gaps <test-file-or-url> [--output <path>]"
         }
       ],
       "description": "Analyze test coverage and identify gaps in test scenarios",
@@ -1055,13 +1055,13 @@
           "argument_hint": "[--sosreport PATH] [--format json|markdown] [--max-irq-samples N]",
           "description": "Analyze kernel/sysctl tuning from a live node or sosreport snapshot and propose NTO recommendations",
           "name": "analyze-node-tuning",
-          "synopsis": "text"
+          "synopsis": "/node-tuning:analyze-node-tuning [--sosreport PATH] [--collect-sosreport|--no-collect-sosreport] [--sosreport-output PATH] [--node NODE] [--kubeconfig PATH] [--oc-binary PATH] [--format json|markdown] [--max-irq-samples N] [--keep-snapshot]"
         },
         {
           "argument_hint": "[profile-name] [--summary ...] [--sysctl ...] [options]",
           "description": "Generate a Tuned (tuned.openshift.io/v1) profile manifest for the Node Tuning Operator",
           "name": "generate-tuned-profile",
-          "synopsis": "text"
+          "synopsis": "/node-tuning:generate-tuned-profile [profile-name] [--summary TEXT] [--include VALUE ...] [--sysctl KEY=VALUE ...] [--match-label KEY[=VALUE] ...] [options]"
         }
       ],
       "description": "Generate and analyze OpenShift node tuning profiles",
@@ -1187,19 +1187,19 @@
           "argument_hint": "[namespace]",
           "description": "Check Gateway API resources status in the cluster",
           "name": "check",
-          "synopsis": "bash"
+          "synopsis": "/gwapi:check [namespace]"
         },
         {
           "argument_hint": "[namespace]",
           "description": "Delete Gateway API resources from a Kubernetes/OpenShift cluster",
           "name": "delete",
-          "synopsis": "bash"
+          "synopsis": "/gwapi:delete [namespace]"
         },
         {
           "argument_hint": "[namespace]",
           "description": "Install Gateway API resources to a Kubernetes/OpenShift cluster",
           "name": "install",
-          "synopsis": "bash"
+          "synopsis": "/gwapi:install [namespace]"
         }
       ],
       "description": "Gateway API installation utilities for Kubernetes/OpenShift clusters",
