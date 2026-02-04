@@ -166,11 +166,11 @@ The plugin will:
    - Single-module (isolated tests-extension/ directory)
 
 2. **Workspace directory**
-   - **Recommendation**: If target repo exists locally, provide its path here
-   - **Purpose**: Workspace for cloning repositories that don't exist locally:
-     - Target repository (if not local)
-     - openshift-tests-private source repo (if not local)
-   - Example: `/home/user/repos/router` (existing target), `.` (current dir), `/tmp/workspace`
+   - **Purpose**: Temporary directory for cloning repositories that don't exist locally:
+     - Target repository (if Git URL provided in step 3)
+     - openshift-tests-private source repo (if not already local)
+   - **Recommendation**: Use an existing directory (like parent of your target repo) to minimize cloning overhead, or provide a temporary directory path for isolation
+   - Example: `/home/user/repos` (parent dir), `.` (current dir), `/tmp/workspace`
    - **Note**: The working directory will switch to the target repository in step 3
 
 3. **Target repository** (where files will be created)
@@ -210,11 +210,11 @@ The migration uses a clear separation between workspace and target repository:
 - Temporary directory for migration preparation
 - Used to clone repositories that don't exist locally:
   - `openshift-tests-private` (source repo) → cloned to `<workspace>/openshift-tests-private`
-  - Target repository (if not local) → cloned to `<workspace>/<repo-name>` (e.g., `router`)
+  - Target repository (if Git URL provided) → cloned to `<workspace>/<repo-name>` (e.g., `router`)
 - Collected in Input 2 for both strategies
-- Example: `/tmp/migration-workspace`, `/home/user/workspace`
-- **Recommendation**: If target repo exists locally, provide its path here
-- **Note**: This is NOT the final working directory
+- Example: `/tmp/migration-workspace`, `/home/user/repos` (parent of target)
+- **Recommendation**: Use an existing directory (like parent of your target repo) to minimize cloning overhead, or use a temporary directory for isolation
+- **Note**: This is NOT the final working directory; migration switches to target repository
 
 **Target Repository**:
 - The actual component repository where OTE files will be created
