@@ -254,24 +254,26 @@ Integrates OTE into existing repository structure with **separate test module**.
 │   ├── e2e/
 │   │   ├── go.mod                 # Separate test module
 │   │   ├── go.sum
-│   │   └── *_test.go              # Test files
-│   ├── testdata/
-│   │   ├── bindata.go             # Generated
-│   │   └── fixtures.go
+│   │   ├── *_test.go              # Test files (may be in subdirectory)
+│   │   └── testdata/              # Testdata inside test module
+│   │       ├── bindata.go         # Generated
+│   │       └── fixtures.go
 │   └── bindata.mk
 ├── go.mod                         # Root module (with replace directive)
 └── Makefile                       # Extension target added
 ```
 
+**Note:** If `test/e2e` already exists when migrating, tests and testdata will be placed in a subdirectory like `test/e2e/extension/` and `test/e2e/extension/testdata/` respectively.
+
 **Key characteristics:**
 
 - **Separate test module**: `test/e2e/go.mod` is independent from root `go.mod`
-- **Replace directives**: Root `go.mod` includes replace directives for both test module and testdata module:
+- **Replace directive**: Root `go.mod` includes replace directive for test module:
   - `replace <module>/test/e2e => ./test/e2e`
-  - `replace <module>/test/e2e-testdata => ./test/e2e-testdata` (prevents go mod tidy from creating go.mod in testdata directory)
+- **Testdata inside test module**: Testdata is part of the test module (not a separate module), located at `test/e2e/testdata/` or `test/e2e/<subdir>/testdata/`
 - **Automatic upstream replace directives**: k8s.io/* and other replace directives are automatically copied from test/e2e/go.mod to root go.mod
 - **Automatic dependency synchronization**: openshift/api and openshift/client-go in root go.mod are automatically updated to match the test module's versions (compatible with latest origin)
-- **Smart testdata path handling**: Nested test paths are flattened for testdata (e.g., `test/e2e/extension/` → testdata at `test/e2e-extension-testdata/`)
+- **Auto-detected directory structure**: If `test/e2e` already exists, creates subdirectory (e.g., `test/e2e/extension/`) with testdata inside (e.g., `test/e2e/extension/testdata/`)
 - **Integrated build**: Makefile target `tests-ext-build` added to root
 - **Binary location**: `bin/<extension-name>-tests-ext`
 

@@ -454,12 +454,16 @@ Ask: "The directory 'test/e2e' already exists. Please specify a subdirectory nam
 - Use default: `test/e2e`
 - Store in variable: `<test-dir-name>` = "e2e"
 
-**Important:** Throughout the rest of the migration, use `test/<test-dir-name>` instead of hardcoded `test/e2e`
+**Important:** The test module is always at `test/e2e` (with go.mod at `test/e2e/go.mod`)
+
+**Directory Structure:**
+- If test/e2e doesn't exist: Tests and testdata directly in `test/e2e/`
+- If test/e2e exists: Tests and testdata in subdirectory `test/e2e/<test-dir-name>/`
 
 **Examples:**
-- If test/e2e doesn't exist: `test/e2e/` (standard layout)
-- If test/e2e exists and user accepts default: `test/e2e/extension/`
-- If test/e2e exists and user specifies "ote": `test/e2e/ote/`
+- If test/e2e doesn't exist: `test/e2e/*.go` and `test/e2e/testdata/`
+- If test/e2e exists and user accepts default: `test/e2e/extension/*.go` and `test/e2e/extension/testdata/`
+- If test/e2e exists and user specifies "ote": `test/e2e/ote/*.go` and `test/e2e/ote/testdata/`
 
 #### Input 7: Local Source Repository (Optional)
 
@@ -510,13 +514,14 @@ Source Repository (openshift-tests-private):
 
 Destination Structure (in target repo):
   Extension Binary: cmd/extension/main.go
-  Test Files: test/<test-dir-name>/*.go (separate module)
-  Testdata: test/<flattened-test-dir-name>-testdata/ (regular package in main module)
-  Root go.mod: Will be updated with replace directive for test/<test-dir-name>
+  Test Module: test/e2e/go.mod (separate module)
+  Test Files: test/e2e/*.go OR test/e2e/<test-dir-name>/*.go (auto-detected)
+  Testdata: test/e2e/testdata/ OR test/e2e/<test-dir-name>/testdata/ (inside test module)
+  Root go.mod: Will be updated with replace directive for test/e2e
 
-Note: <test-dir-name> examples:
-  - "e2e" → testdata at test/e2e-testdata/ (standard layout)
-  - "e2e/extension" → testdata at test/e2e-extension-testdata/ (nested path flattened)
+Note: Directory structure is auto-detected:
+  - If test/e2e doesn't exist: Creates test/e2e/ with testdata at test/e2e/testdata/
+  - If test/e2e exists: Creates test/e2e/<test-dir-name>/ with testdata at test/e2e/<test-dir-name>/testdata/
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```bash
 
@@ -747,23 +752,50 @@ fi
 ```bash
 cd <working-dir>
 
+# Auto-detect if test/e2e already exists in target repo
+if [ -d "test/e2e" ]; then
+    TEST_E2E_EXISTS=true
+    echo "Detected existing test/e2e directory"
+else
+    TEST_E2E_EXISTS=false
+    echo "No existing test/e2e directory - will create fresh structure"
+fi
+
+# Set directory paths based on detection
+if [ "$TEST_E2E_EXISTS" = true ]; then
+    # Case 1: test/e2e exists - create subdirectory for our tests to avoid conflicts
+    TEST_CODE_DIR="test/e2e/<test-dir-name>"
+    TESTDATA_DIR="test/e2e/<test-dir-name>/testdata"
+    TEST_IMPORT_PATH="<test-dir-name>"  # Relative import within test/e2e module
+    echo "Structure: Subdirectory mode (test/e2e already exists)"
+else
+    # Case 2: test/e2e doesn't exist - use test/e2e directly for cleaner structure
+    TEST_CODE_DIR="test/e2e"
+    TESTDATA_DIR="test/e2e/testdata"
+    TEST_IMPORT_PATH=""  # Import root of test/e2e module
+    echo "Structure: Direct mode (creating fresh test/e2e)"
+fi
+
+# Module directory is always test/e2e (go.mod location)
+TEST_MODULE_DIR="test/e2e"
+
 # Create cmd directory for main.go
 mkdir -p cmd/extension
 
 # Create bin directory for binary output
 mkdir -p bin
 
-# Create test directories (use custom test directory name from Input 4a)
-mkdir -p test/<test-dir-name>
+# Create test code directory
+mkdir -p "$TEST_CODE_DIR"
 
-# Create testdata directory (flatten path: e2e/extension → e2e-extension-testdata)
-TESTDATA_DIR_NAME=$(echo "<test-dir-name>" | tr '/' '-')
-mkdir -p test/${TESTDATA_DIR_NAME}-testdata
+# Create testdata directory at test/e2e level
+mkdir -p "$TESTDATA_DIR"
 
-echo "Created monorepo structure in existing repository"
-echo "Test directory: test/<test-dir-name>"
-echo "Testdata directory: test/${TESTDATA_DIR_NAME}-testdata"
-```bash
+echo "✅ Created monorepo structure in existing repository"
+echo "   Test code: $TEST_CODE_DIR"
+echo "   Testdata: $TESTDATA_DIR"
+echo "   Go module: $TEST_MODULE_DIR"
+```
 
 **For Single-Module Strategy:**
 ```bash
@@ -791,12 +823,13 @@ echo "Created single-module structure in tests-extension/"
 ```bash
 cd <working-dir>
 
-# Copy test files from source to test/<test-dir-name>/
+# Copy test files to test code directory (set in Step 1)
 # Use $SOURCE_TEST_PATH variable (set in Phase 2)
-cp -r "$SOURCE_TEST_PATH"/* test/<test-dir-name>/
+# Use $TEST_CODE_DIR variable (set in Step 1: test/e2e or test/e2e/<test-dir-name>)
+cp -r "$SOURCE_TEST_PATH"/* "$TEST_CODE_DIR"/
 
 # Count and display copied files
-echo "Copied $(find test/<test-dir-name> -name '*_test.go' | wc -l) test files from $SOURCE_TEST_PATH"
+echo "Copied $(find "$TEST_CODE_DIR" -name '*_test.go' | wc -l) test files from $SOURCE_TEST_PATH"
 ```
 
 **For Single-Module Strategy:**
@@ -817,8 +850,20 @@ echo "Copied $(find test/e2e -name '*_test.go' | wc -l) test files from $SOURCE_
 ```bash
 cd <working-dir>
 
-# Flatten test directory path for testdata (e.g., e2e/extension → e2e-extension)
-TESTDATA_DIR_NAME=$(echo "<test-dir-name>" | tr '/' '-')
+# Auto-detect if test/e2e exists to determine testdata path
+if [ -d "test/e2e" ]; then
+    # test/e2e exists - check if we're using subdirectory
+    if [ -n "<test-dir-name>" ] && [ "<test-dir-name>" != "e2e" ]; then
+        # Using subdirectory: test/e2e/$TEST_DIR_NAME/testdata/
+        TESTDATA_TARGET_DIR="test/e2e/<test-dir-name>/testdata"
+    else
+        # Using test/e2e directly: test/e2e/testdata/
+        TESTDATA_TARGET_DIR="test/e2e/testdata"
+    fi
+else
+    # test/e2e doesn't exist - will create test/e2e/testdata/
+    TESTDATA_TARGET_DIR="test/e2e/testdata"
+fi
 
 # Copy testdata if it exists (skip if user specified "none")
 # Use $SOURCE_TESTDATA_PATH variable (set in Phase 2)
@@ -826,14 +871,15 @@ if [ -n "$SOURCE_TESTDATA_PATH" ]; then
     # Create subdirectory structure to match bindata paths
     # Files are organized as testdata/<subfolder>/ to match how tests call FixturePath()
     if [ -n "<testdata-subfolder>" ]; then
-        mkdir -p "test/${TESTDATA_DIR_NAME}-testdata/<testdata-subfolder>"
-        cp -r "$SOURCE_TESTDATA_PATH"/* "test/${TESTDATA_DIR_NAME}-testdata/<testdata-subfolder>/"
-        echo "Copied testdata files from $SOURCE_TESTDATA_PATH to test/${TESTDATA_DIR_NAME}-testdata/<testdata-subfolder>/"
+        mkdir -p "$TESTDATA_TARGET_DIR/<testdata-subfolder>"
+        cp -r "$SOURCE_TESTDATA_PATH"/* "$TESTDATA_TARGET_DIR/<testdata-subfolder>/"
+        echo "Copied testdata files from $SOURCE_TESTDATA_PATH to $TESTDATA_TARGET_DIR/<testdata-subfolder>/"
         echo "Tests should call: testdata.FixturePath(\"<testdata-subfolder>/filename.yaml\")"
     else
         # No subfolder specified, copy directly
-        cp -r "$SOURCE_TESTDATA_PATH"/* test/${TESTDATA_DIR_NAME}-testdata/
-        echo "Copied testdata files from $SOURCE_TESTDATA_PATH to test/${TESTDATA_DIR_NAME}-testdata/"
+        mkdir -p "$TESTDATA_TARGET_DIR"
+        cp -r "$SOURCE_TESTDATA_PATH"/* "$TESTDATA_TARGET_DIR/"
+        echo "Copied testdata files from $SOURCE_TESTDATA_PATH to $TESTDATA_TARGET_DIR/"
     fi
 else
     echo "Skipping testdata copy (none specified)"
@@ -870,7 +916,7 @@ fi
 
 **For Monorepo Strategy:**
 
-Create test/<test-dir-name>/go.mod as a separate module:
+Create test/e2e/go.mod as a separate module:
 ```bash
 cd <working-dir>
 
@@ -881,12 +927,12 @@ echo "Using Go version: $GO_VERSION (from target repo)"
 # Get source repo path (set in Phase 2)
 OTP_PATH="$SOURCE_REPO"
 
-echo "Step 1: Create test/<test-dir-name>/go.mod..."
-cd test/<test-dir-name>
+echo "Step 1: Create test/e2e/go.mod..."
+cd test/e2e
 
-# Initialize go.mod in test/<test-dir-name> directory
+# Initialize go.mod in test/e2e directory
 ROOT_MODULE=$(grep '^module ' ../../go.mod | awk '{print $2}')
-go mod init "$ROOT_MODULE/test/<test-dir-name>"
+go mod init "$ROOT_MODULE/test/e2e"
 
 echo "Step 2: Set Go version to match target repo..."
 sed -i "s/^go .*/go $GO_VERSION/" go.mod
@@ -1065,7 +1111,7 @@ echo "    This prevents timeout before test migration completes"
 
 echo "Step 8: Verify go.mod and go.sum are created..."
 if [ -f "go.mod" ] && [ -f "go.sum" ]; then
-    echo "✅ test/<test-dir-name>/go.mod and go.sum created successfully"
+    echo "✅ test/e2e/go.mod and go.sum created successfully"
     echo "Module: $(grep '^module' go.mod)"
     echo "Go version: $(grep '^go ' go.mod)"
 
@@ -1082,40 +1128,25 @@ cd ../..
 echo "Step 8: Update root go.mod with replace directives..."
 MODULE_NAME=$(grep '^module ' go.mod | awk '{print $2}')
 
-# Flatten test directory path for testdata (e.g., e2e/extension → e2e-extension)
-TESTDATA_DIR_NAME=$(echo "<test-dir-name>" | tr '/' '-')
-
-# Step 8a: Add replace directives for test module AND testdata module
-if ! grep -q "replace.*$MODULE_NAME/test/<test-dir-name>" go.mod; then
+# Step 8a: Add replace directive for test module (e2e)
+# Note: testdata is inside test/e2e module, not a separate module
+if ! grep -q "replace.*$MODULE_NAME/test/e2e" go.mod; then
     if grep -q "^replace (" go.mod; then
         # Add to existing replace section
-        sed -i "/^replace (/a\\    $MODULE_NAME/test/<test-dir-name> => ./test/<test-dir-name>" go.mod
+        sed -i "/^replace (/a\\    $MODULE_NAME/test/e2e => ./test/e2e" go.mod
     else
         # Create new replace section
         echo "" >> go.mod
-        echo "replace $MODULE_NAME/test/<test-dir-name> => ./test/<test-dir-name>" >> go.mod
+        echo "replace $MODULE_NAME/test/e2e => ./test/e2e" >> go.mod
     fi
     echo "✅ Test module replace directive added to root go.mod"
 fi
 
-# Also add replace directive for testdata module to prevent go mod tidy from creating go.mod in testdata directory
-if ! grep -q "replace.*$MODULE_NAME/test/${TESTDATA_DIR_NAME}-testdata" go.mod; then
-    if grep -q "^replace (" go.mod; then
-        # Add to existing replace section
-        sed -i "/^replace (/a\\    $MODULE_NAME/test/${TESTDATA_DIR_NAME}-testdata => ./test/${TESTDATA_DIR_NAME}-testdata" go.mod
-    else
-        # Create new replace section (should not happen since test module replace was just added)
-        echo "" >> go.mod
-        echo "replace $MODULE_NAME/test/${TESTDATA_DIR_NAME}-testdata => ./test/${TESTDATA_DIR_NAME}-testdata" >> go.mod
-    fi
-    echo "✅ Testdata module replace directive added to root go.mod"
-fi
-
 # Step 8b: Copy k8s.io and other upstream replace directives from test module to root
-echo "Copying k8s.io and upstream replace directives from test/<test-dir-name>/go.mod to root go.mod..."
+echo "Copying k8s.io and upstream replace directives from test/e2e/go.mod to root go.mod..."
 
 # Extract replace directives from test module (excluding the self-reference)
-TEST_REPLACES=$(grep -A 1000 "^replace (" test/<test-dir-name>/go.mod | grep -v "^replace (" | grep "=>" | grep -v "^)" || echo "")
+TEST_REPLACES=$(grep -A 1000 "^replace (" test/e2e/go.mod | grep -v "^replace (" | grep "=>" | grep -v "^)" || echo "")
 
 if [ -n "$TEST_REPLACES" ]; then
     # Ensure root go.mod has a replace block
@@ -1153,10 +1184,10 @@ fi
 echo "Updating critical OpenShift dependencies in root go.mod to match test module..."
 
 # First, get origin version from test module
-ORIGIN_VERSION=$(grep "github.com/openshift/origin" test/<test-dir-name>/go.mod | grep "=>" | awk '{print $NF}' || echo "")
+ORIGIN_VERSION=$(grep "github.com/openshift/origin" test/e2e/go.mod | grep "=>" | awk '{print $NF}' || echo "")
 if [ -z "$ORIGIN_VERSION" ]; then
     # Try to get from require section
-    ORIGIN_VERSION=$(grep "github.com/openshift/origin" test/<test-dir-name>/go.mod | grep -v "=>" | awk '{print $2}' | head -1 || echo "")
+    ORIGIN_VERSION=$(grep "github.com/openshift/origin" test/e2e/go.mod | grep -v "=>" | awk '{print $2}' | head -1 || echo "")
 fi
 
 # Fetch origin's go.mod to get compatible client-go and api versions
@@ -1180,27 +1211,27 @@ if [ -n "$ORIGIN_VERSION" ]; then
     else
         echo "  ⚠️  Could not fetch origin's go.mod, falling back to test module versions"
         # Fallback to test module versions
-        API_VERSION=$(grep "github.com/openshift/api" test/<test-dir-name>/go.mod | grep "=>" | awk '{print $NF}' || echo "")
+        API_VERSION=$(grep "github.com/openshift/api" test/e2e/go.mod | grep "=>" | awk '{print $NF}' || echo "")
         if [ -z "$API_VERSION" ]; then
-            API_VERSION=$(grep "github.com/openshift/api" test/<test-dir-name>/go.mod | grep -v "=>" | awk '{print $2}' | head -1 || echo "")
+            API_VERSION=$(grep "github.com/openshift/api" test/e2e/go.mod | grep -v "=>" | awk '{print $2}' | head -1 || echo "")
         fi
 
-        CLIENT_GO_VERSION=$(grep "github.com/openshift/client-go" test/<test-dir-name>/go.mod | grep "=>" | awk '{print $NF}' || echo "")
+        CLIENT_GO_VERSION=$(grep "github.com/openshift/client-go" test/e2e/go.mod | grep "=>" | awk '{print $NF}' || echo "")
         if [ -z "$CLIENT_GO_VERSION" ]; then
-            CLIENT_GO_VERSION=$(grep "github.com/openshift/client-go" test/<test-dir-name>/go.mod | grep -v "=>" | awk '{print $2}' | head -1 || echo "")
+            CLIENT_GO_VERSION=$(grep "github.com/openshift/client-go" test/e2e/go.mod | grep -v "=>" | awk '{print $2}' | head -1 || echo "")
         fi
     fi
 else
     echo "  ⚠️  Origin version not found in test module, using test module dependency versions"
     # Fallback to test module versions
-    API_VERSION=$(grep "github.com/openshift/api" test/<test-dir-name>/go.mod | grep "=>" | awk '{print $NF}' || echo "")
+    API_VERSION=$(grep "github.com/openshift/api" test/e2e/go.mod | grep "=>" | awk '{print $NF}' || echo "")
     if [ -z "$API_VERSION" ]; then
-        API_VERSION=$(grep "github.com/openshift/api" test/<test-dir-name>/go.mod | grep -v "=>" | awk '{print $2}' | head -1 || echo "")
+        API_VERSION=$(grep "github.com/openshift/api" test/e2e/go.mod | grep -v "=>" | awk '{print $2}' | head -1 || echo "")
     fi
 
-    CLIENT_GO_VERSION=$(grep "github.com/openshift/client-go" test/<test-dir-name>/go.mod | grep "=>" | awk '{print $NF}' || echo "")
+    CLIENT_GO_VERSION=$(grep "github.com/openshift/client-go" test/e2e/go.mod | grep "=>" | awk '{print $NF}' || echo "")
     if [ -z "$CLIENT_GO_VERSION" ]; then
-        CLIENT_GO_VERSION=$(grep "github.com/openshift/client-go" test/<test-dir-name>/go.mod | grep -v "=>" | awk '{print $2}' | head -1 || echo "")
+        CLIENT_GO_VERSION=$(grep "github.com/openshift/client-go" test/e2e/go.mod | grep -v "=>" | awk '{print $2}' | head -1 || echo "")
     fi
 fi
 
@@ -1433,14 +1464,24 @@ cd ..
 
 Create `cmd/extension/main.go`:
 
-**IMPORTANT:** Extract module name from go.mod first:
+**IMPORTANT:** Extract module name and detect test import path:
 ```bash
 cd <working-dir>
 MODULE_NAME=$(grep '^module ' go.mod | awk '{print $2}')
 echo "Using module name: $MODULE_NAME"
-```go
 
-Then generate main.go with the actual module name (not a placeholder):
+# Auto-detect test import path based on directory structure
+if [ -d "test/e2e/<test-dir-name>" ]; then
+    # Subdirectory mode: import from test/e2e/<test-dir-name>
+    TEST_IMPORT="$MODULE_NAME/test/e2e/<test-dir-name>"
+else
+    # Direct mode: import from test/e2e
+    TEST_IMPORT="$MODULE_NAME/test/e2e"
+fi
+echo "Using test import path: $TEST_IMPORT"
+```
+
+Then generate main.go with the actual module name and import path:
 
 ```go
 package main
@@ -1464,7 +1505,7 @@ import (
     "k8s.io/kubernetes/test/e2e/framework"
 
     // Import test packages from test module
-    _ "$MODULE_NAME/test/<test-dir-name>"
+    _ "$TEST_IMPORT"
 )
 
 func main() {
@@ -1697,10 +1738,16 @@ Create `test/bindata.mk`:
 ```makefile
 # Bindata generation for testdata files
 
-# Testdata path (relative to test/ directory)
-# Flattened from test path: e2e/extension → e2e-extension-testdata
-TESTDATA_DIR_NAME := $(shell echo "<test-dir-name>" | tr '/' '-')
-TESTDATA_PATH := $(TESTDATA_DIR_NAME)-testdata
+# Auto-detect testdata path based on directory structure
+# If e2e/<test-dir-name> exists (subdirectory mode): e2e/<test-dir-name>/testdata
+# If only e2e exists (direct mode): e2e/testdata
+ifeq ($(wildcard e2e/<test-dir-name>/.),)
+    # Direct mode: e2e directory is the test directory
+    TESTDATA_PATH := e2e/testdata
+else
+    # Subdirectory mode: e2e/<test-dir-name> is the test directory
+    TESTDATA_PATH := e2e/<test-dir-name>/testdata
+endif
 
 # go-bindata tool path
 GOPATH ?= $(shell go env GOPATH)
@@ -1773,9 +1820,6 @@ Update root `Makefile` (or add extension target to existing one):
 ```bash
 cd <working-dir>
 
-# Flatten test directory path for bindata (e.g., e2e/extension → e2e-extension)
-TESTDATA_DIR_NAME=$(echo "<test-dir-name>" | tr '/' '-')
-
 # Check if Makefile exists
 if [ -f "Makefile" ]; then
     echo "Updating root Makefile with OTE extension target..."
@@ -1785,17 +1829,16 @@ if [ -f "Makefile" ]; then
         echo "⚠️  OTE targets already exist in Makefile, skipping..."
     else
         # Add OTE extension build targets for monorepo
-        cat >> Makefile << EOF
+        cat >> Makefile << 'EOF'
 
 # OTE test extension binary configuration
 TESTS_EXT_BINARY := bin/<extension-name>-tests-ext
-TESTDATA_DIR_NAME := ${TESTDATA_DIR_NAME}
 
 # Build OTE extension binary
 .PHONY: tests-ext-build
 tests-ext-build:
     @echo "Building OTE test extension binary..."
-    @echo "Generating bindata from test/\$(TESTDATA_DIR_NAME)-testdata/..."
+    @echo "Generating bindata from test/e2e/testdata/..."
     @$(MAKE) -C test bindata
     @echo "Building binary..."
     @mkdir -p bin
@@ -1995,14 +2038,13 @@ fi
 
 **For Monorepo Strategy:**
 
-Create `test/<flattened-test-dir-name>-testdata/fixtures.go`:
-
-(Where `<flattened-test-dir-name>` = `<test-dir-name>` with `/` replaced by `-`)
-Example: `test/e2e/extension/` → `test/e2e-extension-testdata/fixtures.go`
+Create fixtures.go at the testdata directory location:
+- If test/e2e exists and using subdirectory: `test/e2e/<test-dir-name>/testdata/fixtures.go`
+- If test/e2e doesn't exist (direct mode): `test/e2e/testdata/fixtures.go`
 
 **For Single-Module Strategy:**
 
-Create `tests-extension/test/testdata/fixtures.go`:
+Create `tests-extension/test/testdata/fixtures.go`
 
 **Note:** The fixtures.go content is the same for both strategies:
 
@@ -2362,8 +2404,8 @@ echo "========================================="
 # Create backup of test files before migration
 echo "Creating backup of test files..."
 BACKUP_DIR=$(mktemp -d)
-if [ -d "test/<test-dir-name>" ]; then
-    cp -r "test/<test-dir-name>" "$BACKUP_DIR/test-backup"
+if [ -d "$TEST_CODE_DIR" ]; then
+    cp -r "$TEST_CODE_DIR" "$BACKUP_DIR/test-backup"
     echo "Backup created at: $BACKUP_DIR/test-backup"
 fi
 
@@ -2375,8 +2417,8 @@ cleanup_on_error() {
     if [ $PHASE5_FAILED -eq 1 ]; then
         echo "❌ Phase 5 failed - rolling back test files..."
         if [ -d "$BACKUP_DIR/test-backup" ]; then
-            rm -rf "test/<test-dir-name>"
-            cp -r "$BACKUP_DIR/test-backup" "test/<test-dir-name>"
+            rm -rf "$TEST_CODE_DIR"
+            cp -r "$BACKUP_DIR/test-backup" "$TEST_CODE_DIR"
             echo "✅ Test files restored from backup"
         fi
     fi
@@ -2535,16 +2577,26 @@ cd <working-dir>
 
 echo "Adding testdata import to test files..."
 
-# Flatten test directory path for import (e.g., e2e/extension → e2e-extension)
-TESTDATA_DIR_NAME=$(echo "<test-dir-name>" | tr '/' '-')
+# Get root module name
+MODULE_NAME=$(grep '^module ' go.mod | awk '{print $2}')
 
-# Find all test files that now use testdata.FixturePath
-TEST_FILES=$(grep -rl "testdata\.FixturePath" test/<test-dir-name>/ --include="*_test.go" 2>/dev/null || true)
+# Auto-detect testdata import path based on directory structure
+# If test/e2e/<test-dir-name> exists (subdirectory mode): $MODULE_NAME/test/e2e/<test-dir-name>/testdata
+# If only test/e2e exists (direct mode): $MODULE_NAME/test/e2e/testdata
+if [ -d "test/e2e/<test-dir-name>" ]; then
+    # Subdirectory mode
+    TESTDATA_IMPORT="$MODULE_NAME/test/e2e/<test-dir-name>/testdata"
+    TEST_FILES=$(grep -rl "testdata\.FixturePath" test/e2e/<test-dir-name>/ --include="*_test.go" 2>/dev/null || true)
+else
+    # Direct mode
+    TESTDATA_IMPORT="$MODULE_NAME/test/e2e/testdata"
+    TEST_FILES=$(grep -rl "testdata\.FixturePath" test/e2e/ --include="*_test.go" 2>/dev/null || true)
+fi
 
 if [ -z "$TEST_FILES" ]; then
     echo "No test files need testdata import"
 else
-    TESTDATA_IMPORT="$MODULE_NAME/test/${TESTDATA_DIR_NAME}-testdata"
+    echo "Using testdata import path: $TESTDATA_IMPORT"
 
     for file in $TEST_FILES; do
         # Check if import already exists
@@ -2869,7 +2921,7 @@ echo "========================================="
 VALIDATION_FAILED=0
 
 # Find all test files
-TEST_FILES=$(find test/$TEST_DIR_NAME -name '*_test.go' -type f)
+TEST_FILES=$(find "$TEST_CODE_DIR" -name '*_test.go' -type f)
 TOTAL_FILES=$(echo "$TEST_FILES" | wc -l)
 
 echo "Found $TOTAL_FILES test files to validate"
@@ -2987,7 +3039,7 @@ fi
 **For Monorepo Strategy:**
 
 ```bash
-cd <working-dir>/test/<test-dir-name>
+cd <working-dir>/test/e2e
 
 echo "========================================="
 echo "Phase 6 Step 1: Completing dependency resolution"
@@ -3005,22 +3057,13 @@ else
     echo "    This is normal - continuing to build verification..."
 fi
 
-# Remove testdata go.mod if go mod tidy created it
-# This happens when testdata package isn't found - but we have replace directive so it's not needed
-TESTDATA_DIR_NAME=$(echo "<test-dir-name>" | tr '/' '-')
-if [ -f "../<test-dir-name>-testdata/go.mod" ]; then
-    echo "⚠️  Removing unwanted testdata go.mod (created by go mod tidy)..."
-    rm "../<test-dir-name>-testdata/go.mod"
-    echo "✅ Removed ../< test-dir-name>-testdata/go.mod"
-fi
-
 # Sync replace directives from test module to root module to prevent dependency conflicts
 echo ""
 echo "Syncing replace directives from test module to root module..."
 cd ../..
 
 # Extract replace directives from test module (excluding the self-reference)
-TEST_REPLACES=$(grep -A 1000 "^replace (" test/<test-dir-name>/go.mod | grep -v "^replace (" | grep "=>" | grep -v "^)" || echo "")
+TEST_REPLACES=$(grep -A 1000 "^replace (" test/e2e/go.mod | grep -v "^replace (" | grep "=>" | grep -v "^)" || echo "")
 
 if [ -n "$TEST_REPLACES" ]; then
     # Ensure root go.mod has a replace block
@@ -3070,7 +3113,7 @@ ROOT_MODULE=$(grep "^module " go.mod | awk '{print $2}')
 
 # Add test extension module dependency
 echo "Adding test extension module dependency..."
-GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get "$ROOT_MODULE/test/<test-dir-name>"
+GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get "$ROOT_MODULE/test/e2e"
 
 # Add origin util dependency (required for most tests)
 echo "Adding origin util dependency..."
@@ -3142,7 +3185,7 @@ echo "========================================="
 
 # Build the extension binary using Makefile
 # This will automatically:
-# 1. Generate bindata from test/<testdata-dir>-testdata/
+# 1. Generate bindata from test/e2e/testdata/ (or subdirectory if applicable)
 # 2. Build the binary to bin/<extension-name>-tests-ext
 echo "Building extension binary (includes bindata generation)..."
 make extension
@@ -3175,25 +3218,22 @@ if [ $? -eq 0 ]; then
     echo "Ready to commit - no manual steps required!"
     echo "========================================="
     echo "Files to commit:"
-    echo "  - go.mod (root module with test/<test-dir-name> replace directive)"
+    echo "  - go.mod (root module with test/e2e replace directive)"
     echo "  - cmd/extension/main.go"
-    # Flatten test directory path for display (e.g., e2e/extension → e2e-extension)
-    TESTDATA_DISPLAY=$(echo "<test-dir-name>" | tr '/' '-')
-
-    echo "  - test/<test-dir-name>/go.mod"
-    echo "  - test/<test-dir-name>/go.sum"
-    echo "  - test/<test-dir-name>/*.go (test files)"
-    echo "  - test/${TESTDATA_DISPLAY}-testdata/fixtures.go"
+    echo "  - test/e2e/go.mod"
+    echo "  - test/e2e/go.sum"
+    echo "  - test/e2e/*.go (test files - may be in subdirectory)"
+    echo "  - test/e2e/testdata/fixtures.go (or subdirectory)"
     echo "  - test/bindata.mk"
     echo "  - Makefile updates"
 else
     echo "❌ Build failed - manual intervention required"
     echo "Common issues:"
     echo "  - Check import paths in test files and cmd/extension/main.go"
-    echo "  - Verify all test dependencies are available in test/<test-dir-name>/go.mod"
-    echo "  - Run 'go mod tidy' in test/<test-dir-name> directory"
-    echo "  - Check for invalid replace directives in test/<test-dir-name>/go.mod"
-    echo "  - Ensure root go.mod has: replace $MODULE_NAME/test/<test-dir-name> => ./test/<test-dir-name>"
+    echo "  - Verify all test dependencies are available in test/e2e/go.mod"
+    echo "  - Run 'go mod tidy' in test/e2e directory"
+    echo "  - Check for invalid replace directives in test/e2e/go.mod"
+    echo "  - Ensure root go.mod has: replace $MODULE_NAME/test/e2e => ./test/e2e"
     exit 1
 fi
 ```bash
@@ -3314,20 +3354,18 @@ Successfully migrated **<extension-name>** to OpenShift Tests Extension (OTE) fr
 
 ### Generated Code
 - ✅ `cmd/extension/main.go` - OTE entry point with platform filters
-- ✅ `test/<test-dir-name>/go.mod` - Test module with OpenShift replace directives
-- ✅ `test/<flattened-test-dir-name>-testdata/fixtures.go` - Testdata wrapper functions (path flattened)
-- ✅ `test/bindata.mk` - Bindata generation rules
-- ✅ `go.mod` (updated) - Added test/<test-dir-name> replace directive
+- ✅ `test/e2e/go.mod` - Test module with OpenShift replace directives
+- ✅ `test/e2e/testdata/fixtures.go` (or subdirectory) - Testdata wrapper functions
+- ✅ `test/bindata.mk` - Bindata generation rules (auto-detects testdata path)
+- ✅ `go.mod` (updated) - Added test/e2e replace directive
 - ✅ `Makefile` (updated) - Added extension build target
 
-Note: `<flattened-test-dir-name>` = `<test-dir-name>` with `/` → `-` (e.g., `e2e/extension` → `e2e-extension`)
-
 ### Test Files (Fully Automated)
-- ✅ Copied **X** test files to `test/<test-dir-name>/`
-- ✅ Copied **Y** testdata files to `test/<flattened-test-dir-name>-testdata/`
+- ✅ Copied **X** test files to `test/e2e/` (or subdirectory if test/e2e already exists)
+- ✅ Copied **Y** testdata files to `test/e2e/testdata/` (or subdirectory)
 - ✅ Automatically replaced `compat_otp.FixturePath()` → `testdata.FixturePath()`
 - ✅ Automatically replaced `exutil.FixturePath()` → `testdata.FixturePath()`
-- ✅ Automatically added imports: `$MODULE_NAME/test/<flattened-test-dir-name>-testdata`
+- ✅ Automatically added imports: `$MODULE_NAME/test/e2e/testdata` (or subdirectory)
 - ✅ Automatically cleaned up old compat_otp/exutil imports
 
 ## Statistics
