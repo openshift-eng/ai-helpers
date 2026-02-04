@@ -130,22 +130,22 @@ This input collects the target repository information and then **immediately swi
 
 **CRITICAL**: After this input, the working directory becomes the target repository. All subsequent inputs and operations happen in the target repository context.
 
-**Note**: BOTH strategies require the target repository. The difference is HOW we collect it:
-- **Monorepo**: Must provide local path (integrating into existing repo)
-- **Single-module**: Can provide local path OR Git URL to clone
+**Note**: BOTH strategies require the target repository:
+- Both strategies can use either local path OR Git URL to clone
+- The target repository is where OTE files will be created
 
 **For Monorepo Strategy:**
 
-Ask: "What is the path to your target repository where OTE will be integrated?"
+Ask: "What is the path to your target repository where OTE will be integrated? (Press Enter if you need to clone it from a URL)"
 
 - This is the repository where `cmd/extension/`, `test/e2e/`, etc. will be created
-- Must be an existing local directory (cannot clone because we're integrating into existing structure)
-- Can be absolute path: `/home/user/repos/router`
-- Can be relative path: `~/openshift/cloud-credential-operator`
-- Can be current directory if you're already in the target repo: `.`
-- Should be a git repository (will be validated below)
-
-**User provides the path** and store in variable: `<target-repo-path>`
+- If provided: Use this existing local repository
+  - Can be absolute path: `/home/user/repos/router`
+  - Can be relative path: `~/openshift/cloud-credential-operator`
+  - Can be current directory if you're already in the target repo: `.`
+  - Should be a git repository (will be validated below)
+  - Store in variable: `<target-repo-path>`
+- If empty: Will ask for Git URL to clone (see Input 3b below)
 
 **For Single-Module Strategy:**
 
@@ -171,17 +171,17 @@ Ask: "Do you want to update the local target repository? (git fetch && git pull)
 
 **Store user's choice.**
 
-#### Input 3b: Target Repository URL (if no local target provided and single-module)
+#### Input 3b: Target Repository URL (if no local target provided)
 
-**Skip this if monorepo strategy OR if single-module user provided local path.**
+**Skip this if user provided local path in Input 3.**
 
-**For single-module strategy only:**
+**For both strategies:**
 
 If no local target repository was provided in Input 3:
 
 Ask: "What is the Git URL of the target repository (component repository)?"
 
-- Example: `git@github.com:openshift/sdn.git`
+- Example: `git@github.com:openshift/router.git` (monorepo) or `git@github.com:openshift/sdn.git` (single-module)
 - Store in variable: `<target-repo-url>`
 
 #### Input 3c: Validate and Switch to Target Repository
@@ -190,7 +190,7 @@ Ask: "What is the Git URL of the target repository (component repository)?"
 
 **Step 1: Validate and update target repository**
 
-For monorepo or if single-module provided local path:
+For both strategies if local path provided:
 ```bash
 # Validate target repository exists
 if [ ! -d "$TARGET_REPO_PATH" ]; then
@@ -239,7 +239,7 @@ else
 fi
 ```
 
-For single-module if URL provided (need to clone):
+For both strategies if URL provided (need to clone):
 ```bash
 # Extract repository name from URL
 # Example: git@github.com:openshift/router.git → router
@@ -254,10 +254,15 @@ echo "Detected repository name: $REPO_NAME"
 
 # Clone to workspace
 cd "$WORKING_DIR"
-mkdir -p repos
-git clone "$TARGET_REPO_URL" "repos/$REPO_NAME"
-TARGET_REPO_PATH="$WORKING_DIR/repos/$REPO_NAME"
+git clone "$TARGET_REPO_URL" "$REPO_NAME"
+TARGET_REPO_PATH="$WORKING_DIR/$REPO_NAME"
 echo "✅ Target repository cloned to: $TARGET_REPO_PATH"
+
+# Create feature branch for OTE migration
+cd "$TARGET_REPO_PATH"
+BRANCH_NAME="ote-migration-$(date +%Y%m%d)"
+git checkout -b "$BRANCH_NAME"
+echo "✅ Created feature branch: $BRANCH_NAME"
 ```
 
 **Step 2: Switch working directory to target repository**
@@ -508,7 +513,7 @@ Target Repository: <target-repo-path>
 
 Source Repository (openshift-tests-private):
   URL: git@github.com:openshift/openshift-tests-private.git
-  Local Path: <local-source-path> (or "Will clone to <working-dir>/repos/")
+  Local Path: <local-source-path> (or "Will clone to <working-dir>/")
   Test Subfolder: test/extended/<test-subfolder>/
   Testdata Subfolder: test/extended/testdata/<testdata-subfolder>/
 
@@ -535,12 +540,12 @@ Working Directory (workspace): <working-dir>
 
 Source Repository (openshift-tests-private):
   URL: git@github.com:openshift/openshift-tests-private.git
-  Local Path: <local-source-path> (or "Will clone to <working-dir>/repos/")
+  Local Path: <local-source-path> (or "Will clone to <working-dir>/")
   Test Subfolder: test/extended/<test-subfolder>/
   Testdata Subfolder: test/extended/testdata/<testdata-subfolder>/
 
 Target Repository:
-  Local Path: <local-target-path> (or "Will clone to <working-dir>/repos/<repo-name>")
+  Local Path: <local-target-path> (or "Will clone to <working-dir>/<repo-name>")
   URL: <target-repo-url> (if cloning)
 
 Destination Structure (in target repo):
@@ -697,11 +702,10 @@ fi
 **B) If no local source repository (need to clone):**
 ```bash
 cd <working-dir>
-mkdir -p repos
 
 # Check if we already have a remote configured for openshift-tests-private
-if [ -d "repos/openshift-tests-private" ]; then
-    cd repos/openshift-tests-private
+if [ -d "openshift-tests-private" ]; then
+    cd openshift-tests-private
     SOURCE_REMOTE=$(git remote -v | grep 'openshift/openshift-tests-private' | head -1 | awk '{print $1}')
 
     if [ -n "$SOURCE_REMOTE" ]; then
@@ -715,12 +719,12 @@ if [ -d "repos/openshift-tests-private" ]; then
         git fetch "$SOURCE_REMOTE"
         git pull "$SOURCE_REMOTE" master || git pull "$SOURCE_REMOTE" main
     fi
-    cd ../..
-    SOURCE_REPO="repos/openshift-tests-private"
+    cd ..
+    SOURCE_REPO="openshift-tests-private"
 else
     echo "Cloning openshift-tests-private repository..."
-    git clone git@github.com:openshift/openshift-tests-private.git repos/openshift-tests-private
-    SOURCE_REPO="repos/openshift-tests-private"
+    git clone git@github.com:openshift/openshift-tests-private.git openshift-tests-private
+    SOURCE_REPO="openshift-tests-private"
 fi
 ```bash
 
@@ -3217,6 +3221,12 @@ if [ $? -eq 0 ]; then
     echo ""
     echo "Ready to commit - no manual steps required!"
     echo "========================================="
+
+    # Show current branch
+    CURRENT_BRANCH=$(git branch --show-current)
+    echo "Current branch: $CURRENT_BRANCH"
+    echo ""
+
     echo "Files to commit:"
     echo "  - go.mod (root module with test/e2e replace directive)"
     echo "  - cmd/extension/main.go"
@@ -3330,8 +3340,7 @@ Successfully migrated **<extension-name>** to OpenShift Tests Extension (OTE) fr
 │   └── bindata.mk                    # Bindata generation
 ├── go.mod                            # Root module (with replace directive)
 ├── Makefile                          # Root Makefile (extension target added)
-└── repos/                            # Cloned repositories (if not using local)
-    └── openshift-tests-private/      # Source repo
+└── openshift-tests-private/          # Source repo (if cloned to workspace)
 ```
 
 ## Configuration
@@ -3341,7 +3350,7 @@ Successfully migrated **<extension-name>** to OpenShift Tests Extension (OTE) fr
 **Working Directory:** <working-dir>
 
 **Source Repository:** git@github.com:openshift/openshift-tests-private.git
-  - Local Path: <local-source-path> (or "Cloned to repos/openshift-tests-private")
+  - Local Path: <local-source-path> (or "Cloned to openshift-tests-private")
   - Test Subfolder: test/extended/<test-subfolder>/
   - Testdata Subfolder: test/extended/testdata/<testdata-subfolder>/
 
@@ -3551,12 +3560,12 @@ Successfully migrated **<extension-name>** to OpenShift Tests Extension (OTE) fr
 **Working Directory:** <working-dir>
 
 **Source Repository:** git@github.com:openshift/openshift-tests-private.git
-  - Local Path: <local-source-path> (or "Cloned to repos/openshift-tests-private")
+  - Local Path: <local-source-path> (or "Cloned to openshift-tests-private")
   - Test Subfolder: test/extended/<test-subfolder>/
   - Testdata Subfolder: test/extended/testdata/<testdata-subfolder>/
 
 **Target Repository:** <target-repo-url>
-  - Local Path: <local-target-path> (or "Cloned to repos/<repo-name>")
+  - Local Path: <local-target-path> (or "Cloned to <repo-name>")
 
 ## Files Created/Modified
 
@@ -4089,9 +4098,9 @@ chmod +x test-docker-ote.sh
 
 ### Git Repository Handling
 
-- Always check if `repos/<repo-name>` exists before cloning (repo name extracted from URL)
-- Source repo clones to `repos/openshift-tests-private`
-- Target repo clones to `repos/<repo-name>` (e.g., `repos/router` for `openshift/router.git`)
+- Always check if `<repo-name>` exists before cloning (repo name extracted from URL)
+- Source repo clones to `openshift-tests-private` in workspace directory
+- Target repo clones to `<repo-name>` in workspace directory (e.g., `router` for `openshift/router.git`)
 - Use `git fetch && git pull` for updates
 - Handle authentication errors gracefully
 - Allow user to specify branch if needed (default: main/master)

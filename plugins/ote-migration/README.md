@@ -175,9 +175,9 @@ The plugin will:
 
 3. **Target repository** (where files will be created)
    - **BOTH strategies require the target repository**
-   - For monorepo: Must provide local path (integrating into existing repo structure)
-   - For single-module: Can provide local path OR Git URL to clone
+   - For both strategies: Can provide local path OR Git URL to clone
    - **If local path provided**: Will ask if you want to update it (git pull)
+   - **If cloned from URL**: Automatically creates feature branch `ote-migration-YYYYMMDD`
    - **CRITICAL:** The migration immediately switches to this directory after collecting it
 
 4. **Auto-detect extension name** from target repository
@@ -209,8 +209,8 @@ The migration uses a clear separation between workspace and target repository:
 **Workspace (Temporary)**:
 - Temporary directory for migration preparation
 - Used to clone repositories that don't exist locally:
-  - `openshift-tests-private` (source repo) → cloned to `<workspace>/repos/openshift-tests-private`
-  - Target repository (single-module only) → cloned to `<workspace>/repos/<repo-name>` (e.g., `repos/router`)
+  - `openshift-tests-private` (source repo) → cloned to `<workspace>/openshift-tests-private`
+  - Target repository (if not local) → cloned to `<workspace>/<repo-name>` (e.g., `router`)
 - Collected in Input 2 for both strategies
 - Example: `/tmp/migration-workspace`, `/home/user/workspace`
 - **Recommendation**: If target repo exists locally, provide its path here
@@ -218,14 +218,13 @@ The migration uses a clear separation between workspace and target repository:
 
 **Target Repository**:
 - The actual component repository where OTE files will be created
-- **Both strategies require the target repository**:
-  - Monorepo: Must provide local path (integrating into existing repo)
-  - Single-module: Can provide local path OR Git URL to clone
-- Collected in Input 3 (local path for monorepo, local path or Git URL for single-module)
-- Example: `/home/user/repos/router`, `/home/user/openshift/sdn`
+- **Both strategies can use local path OR Git URL to clone**
+- Collected in Input 3 (local path or Git URL for both strategies)
+- Example: `/home/user/repos/router`, `git@github.com:openshift/router.git`
 
 **Automatic Directory Switch**:
 - **IMMEDIATELY after Input 3** (before extension name detection), the working directory BECOMES the target repository
+- **If target repository was cloned**: Automatically creates feature branch `ote-migration-YYYYMMDD`
 - From this point forward, all operations happen in the target repository:
   - Extension name is auto-detected from the target repository (Input 4)
   - All remaining inputs collected in target repository context
@@ -234,6 +233,7 @@ The migration uses a clear separation between workspace and target repository:
   - Extension name is detected from the correct repository
   - Files are never created in the temporary workspace
   - The workspace is only used for cloning repositories that don't exist locally
+  - Migration work is isolated on a feature branch (when cloning)
 
 ## Directory Structure Strategies
 
