@@ -71,7 +71,7 @@ Performs the complete OTE migration in one workflow.
    Total: ~90s
 
    # New approach (parallel - fast)
-   (git clone origin & git clone k8s & git clone ginkgo &)
+   git clone origin & git clone k8s & git clone ginkgo &
    wait
    Total: ~45s
    ```
