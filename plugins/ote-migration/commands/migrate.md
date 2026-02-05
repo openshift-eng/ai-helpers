@@ -444,11 +444,13 @@ Ask: "The directory 'test/e2e' already exists. Please specify a subdirectory nam
 - Use default: `test/e2e`
 - Store in variable: `<test-dir-name>` = "e2e"
 
-**Important:** The test module is always at `test/e2e` (with go.mod at `test/e2e/go.mod`)
+**Important:** The test module location depends on whether test/e2e already exists:
+- **If test/e2e doesn't exist**: go.mod at `test/e2e/go.mod`
+- **If test/e2e exists**: go.mod at `test/e2e/<test-dir-name>/go.mod` (in the subdirectory)
 
 **Directory Structure:**
-- If test/e2e doesn't exist: Tests and testdata directly in `test/e2e/`
-- If test/e2e exists: Tests and testdata in subdirectory `test/e2e/<test-dir-name>/`
+- If test/e2e doesn't exist: Tests, testdata, and go.mod directly in `test/e2e/`
+- If test/e2e exists: Tests, testdata, and go.mod in subdirectory `test/e2e/<test-dir-name>/`
 
 **Examples:**
 - If test/e2e doesn't exist: `test/e2e/*.go` and `test/e2e/testdata/`
@@ -504,10 +506,10 @@ Source Repository (openshift-tests-private):
 
 Destination Structure (in target repo):
   Extension Binary: cmd/extension/main.go
-  Test Module: test/e2e/go.mod (separate module)
+  Test Module: test/e2e/go.mod OR test/e2e/<test-dir-name>/go.mod (auto-detected)
   Test Files: test/e2e/*.go OR test/e2e/<test-dir-name>/*.go (auto-detected)
   Testdata: test/e2e/testdata/ OR test/e2e/<test-dir-name>/testdata/ (inside test module)
-  Root go.mod: Will be updated with replace directive for test/e2e
+  Root go.mod: Will be updated with replace directive for test module
 
 Note: Directory structure is auto-detected:
   - If test/e2e doesn't exist: Creates test/e2e/ with testdata at test/e2e/testdata/
@@ -756,18 +758,17 @@ if [ "$TEST_E2E_EXISTS" = true ]; then
     # Case 1: test/e2e exists - create subdirectory for our tests to avoid conflicts
     TEST_CODE_DIR="test/e2e/<test-dir-name>"
     TESTDATA_DIR="test/e2e/<test-dir-name>/testdata"
+    TEST_MODULE_DIR="test/e2e/<test-dir-name>"  # go.mod goes in subdirectory
     TEST_IMPORT_PATH="<test-dir-name>"  # Relative import within test/e2e module
     echo "Structure: Subdirectory mode (test/e2e already exists)"
 else
     # Case 2: test/e2e doesn't exist - use test/e2e directly for cleaner structure
     TEST_CODE_DIR="test/e2e"
     TESTDATA_DIR="test/e2e/testdata"
+    TEST_MODULE_DIR="test/e2e"  # go.mod in test/e2e when no subdirectory
     TEST_IMPORT_PATH=""  # Import root of test/e2e module
     echo "Structure: Direct mode (creating fresh test/e2e)"
 fi
-
-# Module directory is always test/e2e (go.mod location)
-TEST_MODULE_DIR="test/e2e"
 
 # Create cmd directory for main.go
 mkdir -p cmd/extension
@@ -906,7 +907,7 @@ fi
 
 **For Monorepo Strategy:**
 
-Create test/e2e/go.mod as a separate module:
+Create go.mod in the test module directory (using $TEST_MODULE_DIR variable):
 ```bash
 cd <working-dir>
 
@@ -917,12 +918,20 @@ echo "Using Go version: $GO_VERSION (from target repo)"
 # Get source repo path (set in Phase 2)
 OTP_PATH="$SOURCE_REPO"
 
-echo "Step 1: Create test/e2e/go.mod..."
-cd test/e2e
+echo "Step 1: Create $TEST_MODULE_DIR/go.mod..."
+cd "$TEST_MODULE_DIR"
 
-# Initialize go.mod in test/e2e directory
-ROOT_MODULE=$(grep '^module ' ../../go.mod | awk '{print $2}')
-go mod init "$ROOT_MODULE/test/e2e"
+# Initialize go.mod in test module directory
+# Determine path back to root based on subdirectory depth
+if [ "$TEST_E2E_EXISTS" = true ]; then
+    # Subdirectory mode: test/e2e/<test-dir-name> -> need ../../../
+    ROOT_MODULE=$(grep '^module ' ../../../go.mod | awk '{print $2}')
+    go mod init "$ROOT_MODULE/$TEST_MODULE_DIR"
+else
+    # Direct mode: test/e2e -> need ../../
+    ROOT_MODULE=$(grep '^module ' ../../go.mod | awk '{print $2}')
+    go mod init "$ROOT_MODULE/test/e2e"
+fi
 
 echo "Step 2: Set Go version to match target repo..."
 sed -i "s/^go .*/go $GO_VERSION/" go.mod
@@ -1039,7 +1048,13 @@ echo "    k8s.io/sample-controller => github.com/openshift/kubernetes/staging/sr
 echo "Step 5a: Extract additional replace directives from openshift-tests-private..."
 # Extract replace directives from openshift-tests-private that aren't k8s.io/* or ginkgo
 # This captures other important dependencies
-cd ../../$SOURCE_REPO
+# Navigate to source repo (path depends on subdirectory depth)
+if [ "$TEST_E2E_EXISTS" = true ]; then
+    cd ../../../$SOURCE_REPO  # From test/e2e/<test-dir-name> to source repo
+else
+    cd ../../$SOURCE_REPO  # From test/e2e to source repo
+fi
+
 if [ -f "go.mod" ]; then
     echo "Extracting non-k8s replace directives from openshift-tests-private..."
     # Extract replace directives, excluding k8s.io/*, github.com/onsi/ginkgo, and already added ones
@@ -1063,10 +1078,20 @@ echo ")" >> go.mod
 echo "Step 6: Add replace directive for root module..."
 # CRITICAL: Test module needs to import testdata from root module
 # Add replace directive so go can find <module>/test/<testdata-dir>
-MODULE_NAME=$(grep '^module ' "$OLDPWD/go.mod" | awk '{print $2}')
-echo "" >> go.mod
-echo "replace $MODULE_NAME => ../../.." >> go.mod
-echo "✅ Added replace directive for root module: $MODULE_NAME => ../../.."
+# Path back to root depends on subdirectory depth
+if [ "$TEST_E2E_EXISTS" = true ]; then
+    # Subdirectory mode: test/e2e/<test-dir-name> is 3 levels deep
+    MODULE_NAME=$(grep '^module ' "$OLDPWD/go.mod" | awk '{print $2}')
+    echo "" >> go.mod
+    echo "replace $MODULE_NAME => ../../../.." >> go.mod
+    echo "✅ Added replace directive for root module: $MODULE_NAME => ../../../.."
+else
+    # Direct mode: test/e2e is 2 levels deep
+    MODULE_NAME=$(grep '^module ' "$OLDPWD/go.mod" | awk '{print $2}')
+    echo "" >> go.mod
+    echo "replace $MODULE_NAME => ../../.." >> go.mod
+    echo "✅ Added replace directive for root module: $MODULE_NAME => ../../.."
+fi
 
 echo "Step 6a: Upgrade api and client-go to latest versions..."
 # NOTE: Origin's go.mod often specifies outdated versions that are incompatible with origin's actual code
@@ -1101,7 +1126,7 @@ echo "    This prevents timeout before test migration completes"
 
 echo "Step 8: Verify go.mod and go.sum are created..."
 if [ -f "go.mod" ] && [ -f "go.sum" ]; then
-    echo "✅ test/e2e/go.mod and go.sum created successfully"
+    echo "✅ $TEST_MODULE_DIR/go.mod and go.sum created successfully"
     echo "Module: $(grep '^module' go.mod)"
     echo "Go version: $(grep '^go ' go.mod)"
 
@@ -1113,30 +1138,35 @@ else
     exit 1
 fi
 
-cd ../..
+# Return to root directory (path depends on subdirectory depth)
+if [ "$TEST_E2E_EXISTS" = true ]; then
+    cd ../../..  # From test/e2e/<test-dir-name> back to root
+else
+    cd ../..  # From test/e2e back to root
+fi
 
-echo "Step 8: Update root go.mod with replace directives..."
+echo "Step 9: Update root go.mod with replace directives..."
 MODULE_NAME=$(grep '^module ' go.mod | awk '{print $2}')
 
-# Step 8a: Add replace directive for test module (e2e)
-# Note: testdata is inside test/e2e module, not a separate module
-if ! grep -q "replace.*$MODULE_NAME/test/e2e" go.mod; then
+# Step 9a: Add replace directive for test module
+# Note: testdata is inside test module, not a separate module
+if ! grep -q "replace.*$MODULE_NAME/$TEST_MODULE_DIR" go.mod; then
     if grep -q "^replace (" go.mod; then
         # Add to existing replace section
-        sed -i "/^replace (/a\\    $MODULE_NAME/test/e2e => ./test/e2e" go.mod
+        sed -i "/^replace (/a\\    $MODULE_NAME/$TEST_MODULE_DIR => ./$TEST_MODULE_DIR" go.mod
     else
         # Create new replace section
         echo "" >> go.mod
-        echo "replace $MODULE_NAME/test/e2e => ./test/e2e" >> go.mod
+        echo "replace $MODULE_NAME/$TEST_MODULE_DIR => ./$TEST_MODULE_DIR" >> go.mod
     fi
-    echo "✅ Test module replace directive added to root go.mod"
+    echo "✅ Test module replace directive added to root go.mod: $MODULE_NAME/$TEST_MODULE_DIR => ./$TEST_MODULE_DIR"
 fi
 
-# Step 8b: Copy k8s.io and other upstream replace directives from test module to root
-echo "Copying k8s.io and upstream replace directives from test/e2e/go.mod to root go.mod..."
+# Step 9b: Copy k8s.io and other upstream replace directives from test module to root
+echo "Copying k8s.io and upstream replace directives from $TEST_MODULE_DIR/go.mod to root go.mod..."
 
 # Extract replace directives from test module (excluding the self-reference)
-TEST_REPLACES=$(grep -A 1000 "^replace (" test/e2e/go.mod | grep -v "^replace (" | grep "=>" | grep -v "^)" || echo "")
+TEST_REPLACES=$(grep -A 1000 "^replace (" "$TEST_MODULE_DIR/go.mod" | grep -v "^replace (" | grep "=>" | grep -v "^)" || echo "")
 
 if [ -n "$TEST_REPLACES" ]; then
     # Ensure root go.mod has a replace block
@@ -1174,10 +1204,10 @@ fi
 echo "Updating critical OpenShift dependencies in root go.mod to match test module..."
 
 # First, get origin version from test module
-ORIGIN_VERSION=$(grep "github.com/openshift/origin" test/e2e/go.mod | grep "=>" | awk '{print $NF}' || echo "")
+ORIGIN_VERSION=$(grep "github.com/openshift/origin" "$TEST_MODULE_DIR/go.mod" | grep "=>" | awk '{print $NF}' || echo "")
 if [ -z "$ORIGIN_VERSION" ]; then
     # Try to get from require section
-    ORIGIN_VERSION=$(grep "github.com/openshift/origin" test/e2e/go.mod | grep -v "=>" | awk '{print $2}' | head -1 || echo "")
+    ORIGIN_VERSION=$(grep "github.com/openshift/origin" "$TEST_MODULE_DIR/go.mod" | grep -v "=>" | awk '{print $2}' | head -1 || echo "")
 fi
 
 # Fetch origin's go.mod to get compatible client-go and api versions
@@ -1201,27 +1231,27 @@ if [ -n "$ORIGIN_VERSION" ]; then
     else
         echo "  ⚠️  Could not fetch origin's go.mod, falling back to test module versions"
         # Fallback to test module versions
-        API_VERSION=$(grep "github.com/openshift/api" test/e2e/go.mod | grep "=>" | awk '{print $NF}' || echo "")
+        API_VERSION=$(grep "github.com/openshift/api" "$TEST_MODULE_DIR/go.mod" | grep "=>" | awk '{print $NF}' || echo "")
         if [ -z "$API_VERSION" ]; then
-            API_VERSION=$(grep "github.com/openshift/api" test/e2e/go.mod | grep -v "=>" | awk '{print $2}' | head -1 || echo "")
+            API_VERSION=$(grep "github.com/openshift/api" "$TEST_MODULE_DIR/go.mod" | grep -v "=>" | awk '{print $2}' | head -1 || echo "")
         fi
 
-        CLIENT_GO_VERSION=$(grep "github.com/openshift/client-go" test/e2e/go.mod | grep "=>" | awk '{print $NF}' || echo "")
+        CLIENT_GO_VERSION=$(grep "github.com/openshift/client-go" "$TEST_MODULE_DIR/go.mod" | grep "=>" | awk '{print $NF}' || echo "")
         if [ -z "$CLIENT_GO_VERSION" ]; then
-            CLIENT_GO_VERSION=$(grep "github.com/openshift/client-go" test/e2e/go.mod | grep -v "=>" | awk '{print $2}' | head -1 || echo "")
+            CLIENT_GO_VERSION=$(grep "github.com/openshift/client-go" "$TEST_MODULE_DIR/go.mod" | grep -v "=>" | awk '{print $2}' | head -1 || echo "")
         fi
     fi
 else
     echo "  ⚠️  Origin version not found in test module, using test module dependency versions"
     # Fallback to test module versions
-    API_VERSION=$(grep "github.com/openshift/api" test/e2e/go.mod | grep "=>" | awk '{print $NF}' || echo "")
+    API_VERSION=$(grep "github.com/openshift/api" "$TEST_MODULE_DIR/go.mod" | grep "=>" | awk '{print $NF}' || echo "")
     if [ -z "$API_VERSION" ]; then
-        API_VERSION=$(grep "github.com/openshift/api" test/e2e/go.mod | grep -v "=>" | awk '{print $2}' | head -1 || echo "")
+        API_VERSION=$(grep "github.com/openshift/api" "$TEST_MODULE_DIR/go.mod" | grep -v "=>" | awk '{print $2}' | head -1 || echo "")
     fi
 
-    CLIENT_GO_VERSION=$(grep "github.com/openshift/client-go" test/e2e/go.mod | grep "=>" | awk '{print $NF}' || echo "")
+    CLIENT_GO_VERSION=$(grep "github.com/openshift/client-go" "$TEST_MODULE_DIR/go.mod" | grep "=>" | awk '{print $NF}' || echo "")
     if [ -z "$CLIENT_GO_VERSION" ]; then
-        CLIENT_GO_VERSION=$(grep "github.com/openshift/client-go" test/e2e/go.mod | grep -v "=>" | awk '{print $2}' | head -1 || echo "")
+        CLIENT_GO_VERSION=$(grep "github.com/openshift/client-go" "$TEST_MODULE_DIR/go.mod" | grep -v "=>" | awk '{print $2}' | head -1 || echo "")
     fi
 fi
 
@@ -1257,10 +1287,12 @@ echo "✅ Monorepo go.mod setup complete"
 ```
 
 **Note:** For monorepo strategy:
-- test/e2e has its own go.mod (separate module)
-- go.mod/go.sum are in test/e2e/ directory
-- Root go.mod has replace directive pointing to test/e2e
-- k8s.io/* and upstream replace directives are automatically copied from test/e2e/go.mod to root go.mod
+- Test module has its own go.mod (separate module)
+- go.mod/go.sum location depends on directory structure:
+  - If test/e2e doesn't exist: go.mod in `test/e2e/`
+  - If test/e2e exists: go.mod in `test/e2e/<test-dir-name>/` (subdirectory)
+- Root go.mod has replace directive pointing to the test module directory
+- k8s.io/* and upstream replace directives are automatically copied from test module to root go.mod
 - Replace directives are dynamically extracted from openshift-tests-private
 - Origin version is fetched from github.com/openshift/origin@main
 
@@ -1397,7 +1429,13 @@ echo "    k8s.io/sample-controller => github.com/openshift/kubernetes/staging/sr
 echo "Step 5a: Extract additional replace directives from openshift-tests-private..."
 # Extract replace directives from openshift-tests-private that aren't k8s.io/* or ginkgo
 # This captures other important dependencies
-cd ../../$SOURCE_REPO
+# Navigate to source repo (path depends on subdirectory depth)
+if [ "$TEST_E2E_EXISTS" = true ]; then
+    cd ../../../$SOURCE_REPO  # From test/e2e/<test-dir-name> to source repo
+else
+    cd ../../$SOURCE_REPO  # From test/e2e to source repo
+fi
+
 if [ -f "go.mod" ]; then
     echo "Extracting non-k8s replace directives from openshift-tests-private..."
     # Extract replace directives, excluding k8s.io/*, github.com/onsi/ginkgo, and already added ones
