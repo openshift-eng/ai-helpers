@@ -263,17 +263,22 @@ Integrates OTE into existing repository structure with **separate test module**.
 └── Makefile                       # Extension target added
 ```
 
-**Note:** If `test/e2e` already exists when migrating, tests and testdata will be placed in a subdirectory like `test/e2e/extension/` and `test/e2e/extension/testdata/` respectively.
+**Note:** The diagram above shows the structure when `test/e2e` doesn't exist. If `test/e2e` already exists when migrating, the test module (go.mod, tests, and testdata) will be placed in a subdirectory like `test/e2e/extension/go.mod`, `test/e2e/extension/*_test.go`, and `test/e2e/extension/testdata/` respectively.
 
 **Key characteristics:**
 
-- **Separate test module**: `test/e2e/go.mod` is independent from root `go.mod`
+- **Separate test module**: Test module has its own `go.mod` independent from root `go.mod`
+  - If `test/e2e` doesn't exist: `test/e2e/go.mod`
+  - If `test/e2e` exists: `test/e2e/<subdir>/go.mod` (e.g., `test/e2e/extension/go.mod`)
 - **Replace directive**: Root `go.mod` includes replace directive for test module:
-  - `replace <module>/test/e2e => ./test/e2e`
-- **Testdata inside test module**: Testdata is part of the test module (not a separate module), located at `test/e2e/testdata/` or `test/e2e/<subdir>/testdata/`
-- **Automatic upstream replace directives**: k8s.io/* and other replace directives are automatically copied from test/e2e/go.mod to root go.mod
+  - If `test/e2e` doesn't exist: `replace <module>/test/e2e => ./test/e2e`
+  - If `test/e2e` exists: `replace <module>/test/e2e/<subdir> => ./test/e2e/<subdir>`
+- **Testdata inside test module**: Testdata is part of the test module (not a separate module)
+  - If `test/e2e` doesn't exist: `test/e2e/testdata/`
+  - If `test/e2e` exists: `test/e2e/<subdir>/testdata/`
+- **Automatic upstream replace directives**: k8s.io/* and other replace directives are automatically copied from test module go.mod to root go.mod
 - **Automatic dependency synchronization**: openshift/api and openshift/client-go in root go.mod are automatically updated to match the test module's versions (compatible with latest origin)
-- **Auto-detected directory structure**: If `test/e2e` already exists, creates subdirectory (e.g., `test/e2e/extension/`) with testdata inside (e.g., `test/e2e/extension/testdata/`)
+- **Auto-detected directory structure**: If `test/e2e` already exists, creates subdirectory (e.g., `test/e2e/extension/`) with go.mod, tests, and testdata all inside the subdirectory
 - **Integrated build**: Makefile target `tests-ext-build` added to root
 - **Binary location**: `bin/<extension-name>-tests-ext`
 
