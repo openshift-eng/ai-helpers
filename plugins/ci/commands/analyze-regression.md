@@ -17,12 +17,12 @@ ci:analyze-regression
 
 The `ci:analyze-regression` command analyzes details for a specific Component Readiness regression and suggests next steps for investigation.
 
-The command first checks if the regression has already been triaged (attributed to a JIRA bug). If triaged, the command reports the triage information and analysis status, then exits without further investigation. If not triaged, it performs a full analysis to help determine the root cause and suggest next steps.
+The command performs a full analysis regardless of whether the regression has been triaged. For triaged regressions, it also fetches the linked JIRA issue to analyze whether someone is actively working on the fix or if the issue needs attention.
 
 This command is useful for:
 
-- Checking if a regression has already been triaged and attributed to a bug
-- Understanding regression patterns and failure modes for untriaged regressions
+- Understanding regression patterns and failure modes
+- Checking if a triaged regression is being actively worked on or needs attention
 - Identifying related regressions that might be caused by the same issue
 - Getting pointers on where to investigate next
 
@@ -63,56 +63,70 @@ This command is useful for:
 
    See `plugins/ci/skills/fetch-regression-details/SKILL.md` for complete implementation details.
 
-3. **Check Triage Status**: Determine if investigation is needed
+3. **Check Triage Status and Fetch JIRA Progress**: Determine triage state and analyze bug progress
 
-   Before proceeding with full analysis, check if the regression has already been triaged:
+   Check if the regression has already been triaged and fetch JIRA details:
 
    ```bash
    # Check if regression has triages
    triage_count=$(echo "$regression_data" | jq '.triages | length')
    ```
 
-   **Decision Logic**:
+   **If `triage_count > 0` (regression is triaged)**:
 
-   - **If `triage_count > 0` (regression is triaged)**:
-
-     This means a human has already attributed this regression to a specific bug. Normally there is only one entry in the triages list, but in rare cases one test might be failing for multiple reasons.
-
-     - Display triage information (JIRA keys, descriptions, resolved status)
-     - Show analysis status and explanations
-     - **If `analysis_status == -1000`**: Note that this is a failed fix scenario
-       - This indicates the test is still failing in jobs AFTER the triage was resolved
-       - Note: "⚠️ FAILED FIX: Test continues to fail after triage was resolved (analysis_status: -1000)"
-       - Note: "Further investigation of failed fixes requires different analysis (future command/skill)"
-     - **Else**: Note: "This regression has been triaged. No further investigation required."
-     - Exit early - skip steps 4-9
-
-   - **If `triage_count == 0` (regression is NOT triaged)**:
-     - Proceed with full investigation (steps 4-9)
-     - The regression needs analysis and bug filing
-
-   **Example Check**:
+   This means a human has already attributed this regression to a specific bug. For each triage entry, fetch the JIRA issue to analyze progress.
 
    ```bash
-   if [ "$triage_count" -gt 0 ]; then
-     echo "Regression already triaged. No further investigation needed."
-     # Display triages and analysis status
-     echo "$regression_data" | jq '{triages, analysis_status, analysis_explanations}'
-
-     # Check for failed fix
-     analysis_status=$(echo "$regression_data" | jq -r '.analysis_status // "null"')
-     if [ "$analysis_status" == "-1000" ]; then
-       echo ""
-       echo "⚠️ FAILED FIX: Test continues to fail after triage was resolved"
-       echo "Further investigation of failed fixes requires different analysis (future command/skill)"
-     fi
-
-     exit 0
-   else
-     echo "Regression is not triaged. Proceeding with analysis..."
-     # Continue to step 4
-   fi
+   # For each triage, fetch JIRA details
+   for jira_key in $(echo "$regression_data" | jq -r '.triages[].jira_key'); do
+     # Use gh or curl to fetch JIRA issue details
+     # Note: Requires JIRA API access - use the jira CLI or API
+     jira_data=$(curl -s -H "Authorization: Bearer $JIRA_TOKEN" \
+       "https://issues.redhat.com/rest/api/2/issue/$jira_key?fields=status,assignee,updated,comment")
+   done
    ```
+
+   **Analyze JIRA Progress**:
+
+   For each linked JIRA issue, determine the work status:
+
+   - **Active Progress** indicators:
+     - Status is `ASSIGNED`, `IN PROGRESS`, `Code Review`, or similar active states
+     - Recent comments (within last 7 days) showing investigation or fix progress
+     - Assignee is set and has been active on the issue
+     - PR links in comments indicating fix is in progress
+
+   - **Needs Attention** indicators:
+     - Status is `NEW`, `OPEN`, or `Untriaged`
+     - No assignee set
+     - No comments or last comment is older than 14 days
+     - No recent activity on the issue
+
+   - **Stalled** indicators:
+     - Status is `ASSIGNED` but no activity in 14+ days
+     - Comments indicate blocker or waiting on something
+     - Issue has been open for extended period with no progress
+
+   **Classification Output**:
+
+   ```
+   JIRA Progress Analysis:
+   - OCPBUGS-12345: 🟢 ACTIVE - Assigned to user@redhat.com, PR in review (2 days ago)
+   - OCPBUGS-12345: 🟡 STALLED - Assigned but no activity in 21 days
+   - OCPBUGS-12345: 🔴 NEEDS ATTENTION - Status NEW, no assignee, no comments
+   ```
+
+   **Note for Failed Fixes (analysis_status == -1000)**:
+   - This indicates the test is still failing AFTER the triage was resolved
+   - Flag: "⚠️ FAILED FIX: Test continues to fail after triage was resolved"
+   - Recommend: Re-opening the bug or filing a new one
+
+   **If `triage_count == 0` (regression is NOT triaged)**:
+   - Note that no bug has been filed yet
+   - Continue with full investigation (steps 4-9)
+   - Bug filing recommendations will be provided in step 8
+
+   **Always continue to step 4** regardless of triage status to provide full analysis.
 
 4. **Interpret Regression Data**: Analyze failure patterns from `sample_failed_jobs`
 
@@ -173,8 +187,6 @@ This command is useful for:
      - Recommended priority level
      - Suggested next steps
 
-   **Note**: Only perform this step if the regression is not triaged (triage_count == 0).
-
    **Example Analysis**:
 
    Given this `sample_failed_jobs` structure:
@@ -215,8 +227,6 @@ This command is useful for:
      - Action: "Issue appears to have been resolved. The failures occurred in older runs, not recent ones."
 
 5. **Analyze Failure Output Consistency**: Use the `fetch-test-failure-outputs` skill
-
-   **Note**: Only perform this step if the regression is not triaged (triage_count == 0).
 
    Use the `fetch-test-failure-outputs` skill to fetch and analyze actual test failure outputs from all failed job runs. This helps determine if all failures have the same root cause or if there are multiple issues.
 
@@ -319,8 +329,9 @@ This command is useful for:
    - Present existing JIRA tickets that might already cover this regression
    - This implements: "scan for pre-existing triages that look related"
 
-8. **Prepare Bug Filing Recommendations**: Generate actionable information
+8. **Prepare Bug Filing Recommendations or Existing Bug Status**: Generate actionable information
 
+   **If regression is NOT triaged** (no existing JIRA):
    - Component assignment (from test mappings)
    - Bug summary suggestion based on failure pattern (informed by step 4 pattern analysis)
    - Bug description template including:
@@ -341,9 +352,18 @@ This command is useful for:
      - `ci-infra`: CI outages
      - `product-infra`: customer-facing outages (e.g., quay)
 
-9. **Display Comprehensive Report**: Present findings in clear format
+   **If regression IS triaged** (existing JIRA):
+   - Note: "A bug already exists for this regression - do not file a duplicate"
+   - Display JIRA key(s) with links
+   - Show JIRA progress analysis from step 3:
+     - 🟢 **ACTIVE**: Bug is being worked on, no action needed
+     - 🟡 **STALLED**: Bug may need attention, consider commenting or reassigning
+     - 🔴 **NEEDS ATTENTION**: Bug appears abandoned, consider taking ownership or escalating
+   - **If analysis_status == -1000** (failed fix):
+     - Recommend: Re-open the existing bug OR file a new bug if the failure mode is different
+     - Provide new bug template if failure analysis suggests a different root cause
 
-   **Note**: This step is only performed for untriaged regressions (no entries in triages list).
+9. **Display Comprehensive Report**: Present findings in clear format
 
    **Section 1: Regression Summary**
    - Test name
@@ -389,31 +409,7 @@ This command is useful for:
 
 ## Return Value
 
-The command output varies based on triage status:
-
-### For Already-Triaged Regressions
-
-If the regression has already been triaged by a human, the command outputs a **Triage Status Report**:
-
-- **Test Name**: Full test name
-- **Component**: Component from regression data
-- **Release**: OpenShift release version
-- **Regression Status**: Open/Closed with dates
-- **Analysis Status**: Integer status code with explanations
-  - **-1000**: Failed fix - test continues to fail after triage was resolved
-  - **Other negative values**: Severity of the regression (lower = more severe)
-- **Existing Triages**: List of JIRA tickets this regression has been attributed to:
-  - JIRA key (e.g., OCPBUGS-12345)
-  - Triage type (product/test/ci-infra/product-infra)
-  - Description
-  - Resolved status
-  - Created/Updated timestamps
-- **Note**: "This regression has been triaged. No further investigation required."
-- **If analysis_status == -1000**: Additional note: "⚠️ FAILED FIX: Test continues to fail after triage was resolved. Further investigation of failed fixes requires different analysis (future command/skill)"
-
-### For Untriaged Regressions
-
-For regressions that need investigation, the command outputs a **Comprehensive Regression Analysis Report**:
+The command outputs a **Comprehensive Regression Analysis Report** for all regressions, with additional JIRA progress analysis for triaged regressions:
 
 #### Regression Summary
 
@@ -476,11 +472,31 @@ Generated using the `fetch-test-failure-outputs` skill (see `plugins/ci/skills/f
 - **Variant Analysis**: Summary of which job variants are affected (e.g., all AWS jobs, all upgrade jobs)
 - **Triaging Recommendation**: Whether these regressions should be grouped under a single JIRA ticket
 
-#### Existing Triages
+#### Existing Triages and JIRA Progress
 
-- **Related JIRA Tickets**: Previously filed tickets that may already cover this regression
-- **Triage Details**: Test names, job runs, and components from existing triages
-- **Recommendations**: Whether to use existing ticket or file new one
+- **Triage Status**: Whether this regression has been triaged to a JIRA bug
+- **For Triaged Regressions**:
+  - **JIRA Key(s)**: Links to existing bug(s)
+  - **JIRA Status**: Current status (NEW, ASSIGNED, IN PROGRESS, etc.)
+  - **Assignee**: Who is responsible for the fix
+  - **Last Activity**: When the issue was last updated
+  - **Recent Comments Summary**: Key points from recent comments
+  - **Progress Classification**:
+    - 🟢 **ACTIVE**: Assigned, recent activity, PR in progress - no action needed
+    - 🟡 **STALLED**: Assigned but no activity in 14+ days - may need attention
+    - 🔴 **NEEDS ATTENTION**: NEW/unassigned, no comments - needs someone to pick it up
+  - **Recommendation**: Based on progress status (monitor, follow up, or take action)
+- **For Untriaged Regressions**:
+  - Note: "No bug filed yet"
+  - Related JIRA tickets from similar regressions
+  - Bug filing template with all relevant details
+
+#### Bug Filing / Next Steps
+
+- **For Untriaged Regressions**: Complete bug template ready to file
+- **For Triaged Regressions with Active Progress**: "Bug exists and is being worked - no action needed"
+- **For Triaged Regressions Needing Attention**: Suggested actions (comment, reassign, escalate)
+- **For Failed Fixes (analysis_status -1000)**: Recommendation to re-open or file new bug
 
 ## Arguments
 
@@ -503,9 +519,12 @@ Generated using the `fetch-test-failure-outputs` skill (see `plugins/ci/skills/f
 
 ## Notes
 
-- **Automatically checks triage status** before performing full investigation:
-  - If regression is triaged, reports triage info and analysis status, then exits
-  - If regression is not triaged, performs full investigation
+- **Always performs full analysis** regardless of triage status
+- **For triaged regressions**: Fetches JIRA issue details and analyzes whether the bug is being actively worked on or needs attention
+- **JIRA Progress Classification**:
+  - 🟢 **ACTIVE**: Status is ASSIGNED/IN PROGRESS with recent activity (comments, PR links within 7 days)
+  - 🟡 **STALLED**: Status is ASSIGNED but no activity in 14+ days
+  - 🔴 **NEEDS ATTENTION**: Status is NEW/OPEN with no assignee or no recent comments
 - **Analysis Status Codes**:
   - `-1000`: Failed fix - test continues to fail after triage was resolved (requires different investigation approach)
   - Other negative values: Severity of regression (lower = more severe)
