@@ -267,10 +267,10 @@
           "synopsis": "/ci:add-debug-wait <workflow-or-job-name> [timeout]"
         },
         {
-          "argument_hint": "<regression id> <release> [--variant <variant>]",
-          "description": "Analyze root cause of a specific regressed test case from Component Readiness",
+          "argument_hint": "<regression id>",
+          "description": "Analyze details about a Component Readiness regression and suggest next steps",
           "name": "analyze-regression",
-          "synopsis": "/ci:analyze-regression <regression id> <release> [--variant <variant>]"
+          "synopsis": "/ci:analyze-regression <regression id>"
         },
         {
           "argument_hint": "[question]",
@@ -321,12 +321,22 @@
       "name": "ci",
       "skills": [
         {
+          "description": "Fetch detailed information about a Component Readiness regression from the Sippy API",
+          "id": "fetch-regression-details",
+          "name": "Fetch Regression Details"
+        },
+        {
+          "description": "Fetch test failure outputs from Sippy API for AI-based similarity analysis",
+          "id": "fetch-test-failure-outputs",
+          "name": "Fetch Test Failure Outputs"
+        },
+        {
           "description": "Helper skill to retrieve OAuth tokens from the correct OpenShift cluster context when multiple clusters are configured",
           "id": "oc-auth",
           "name": "OC Authentication Helper"
         }
       ],
-      "version": "0.0.3"
+      "version": "0.0.4"
     },
     {
       "commands": [
