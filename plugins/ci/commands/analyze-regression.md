@@ -129,30 +129,41 @@ This command is useful for:
      - Sort jobs by failure count (descending) to identify the most impacted jobs
      - Example: Job A has 18 failures, Job B has 1 failure → Job A is the primary concern
 
-   - **Analyze Pass Sequence Patterns**: For each job, examine the `pass_sequence` string (newest to oldest):
+   - **Analyze Pass Sequence Patterns**: For each job, examine the `pass_sequence` string.
+
+     **CRITICAL: Reading Direction**
+     - The pass_sequence is ordered **newest to oldest** (left = most recent, right = oldest)
+     - First character = most recent job run
+     - Last character = oldest job run
+     - Example: `FFFSSSSSSS` means: 3 most recent runs failed, 7 older runs passed
 
      **Pattern 1: Permafailing Test**
-     - `pass_sequence` shows all or most recent runs are "F" (e.g., `FFFFFFFFFF` or `FFFFFFFSS`)
-     - Interpretation: The test may have begun to permafail in this job
-     - Example: `FFFFFFFFFFFFFFFFFF` (18 consecutive failures) indicates a permafail
+     - `pass_sequence` starts with many "F"s at the LEFT (e.g., `FFFFFFFFFF` or `FFFFFFFSS`)
+     - The LEFT side (most recent runs) shows consistent failures
+     - Example: `FFFFFFFFFFFFFFFFFF` - leftmost 18 characters are all F = 18 most recent runs all failed
+     - Interpretation: Test is currently broken and consistently failing
      - Action: High priority - test is completely broken for this job variant
 
      **Pattern 2: Resolved Issue**
-     - `pass_sequence` shows failures in a solid block, but most recent runs have returned to "S" (e.g., `SSSSSFFFFF` or `SSSSSFFFFFSS`)
-     - Interpretation: The problem may have resolved itself or been fixed
-     - Example: `SSSSFFFFFFFFFFFF` shows recent successes after a block of failures
+     - `pass_sequence` starts with "S"s at the LEFT, with "F"s toward the RIGHT (e.g., `SSSSSFFFFF` or `SSSSSFFFFFSS`)
+     - The LEFT side (most recent runs) shows successes, RIGHT side (older runs) shows failures
+     - Example: `SSSSFFFFFFFFFFFF` - leftmost 4 chars are S (recent passes), rightward chars are F (older failures)
+     - Example: `SSSSSSSSSSSSSSSSSSFFSFFF` - many S's on left (recent passes), F's on right (older failures)
+     - Interpretation: The problem existed in older runs but has been resolved in recent runs
      - Action: Lower priority - verify if issue is truly resolved or if more monitoring is needed
 
      **Pattern 3: Flaky Test**
-     - `pass_sequence` shows "F"s sporadically throughout, interspersed with "S" (e.g., `SFSFSFSFSF` or `FSSFFSSFF`)
+     - `pass_sequence` shows "F"s and "S"s interspersed throughout (e.g., `SFSFSFSFSF` or `FSSFFSSFF`)
+     - No consistent block of failures - failures are scattered across the sequence
+     - Example: `SSFSSFSSFSSF` shows intermittent failures mixed with successes
      - Interpretation: Test appears flaky rather than consistently failing
-     - Example: `SSFSSFSSFSSF` shows intermittent failures
      - Action: May require test stabilization or flake investigation rather than product bug
 
      **Pattern 4: Recent Regression**
-     - `pass_sequence` shows recent "F"s after a long sequence of "S" (e.g., `FFSSSSSSSSS`)
-     - Interpretation: Test recently started failing, likely due to a recent change
-     - Example: `FFFFFSSSSSSSSSS` shows 5 recent failures after many successes
+     - `pass_sequence` starts with "F"s at the LEFT, followed by "S"s toward the RIGHT (e.g., `FFSSSSSSSSS`)
+     - The LEFT side (most recent runs) shows new failures, RIGHT side (older runs) shows the test was passing
+     - Example: `FFFFFSSSSSSSSSS` - leftmost 5 chars are F (recent failures), rightward chars are S (older successes)
+     - Interpretation: Test was passing historically but has recently started failing
      - Action: High priority - recent regression, investigate recent code changes
 
    - **Generate Pattern Summary**: Create a summary for each job:
@@ -176,19 +187,32 @@ This command is useful for:
      "periodic-ci-openshift-release-master-nightly-4.22-e2e-metal-ipi-ovn-techpreview": {
        "pass_sequence": "SSFSSSSSSSS",
        "failed_runs": [/* 1 failed run */]
+     },
+     "periodic-ci-openshift-release-master-nightly-4.22-e2e-aws-example": {
+       "pass_sequence": "SSSSSSSSSSSSSSSSSSFFSFFF",
+       "failed_runs": [/* 5 failed runs */]
      }
    }
    ```
 
+   **Remember: LEFT = newest, RIGHT = oldest**
+
    Pattern analysis output:
    - **Job 1** (18 failures): `FFFFFFFFFFFFFFFFFF`
-     - Classification: **Permafail**
+     - Reading: All 18 characters are F, starting from the LEFT (newest)
+     - Classification: **Permafail** - most recent runs are all failing
      - Priority: **High**
      - Action: "Test is completely broken for this metal+ovn+ipv4+rhcos10 variant. Investigate immediately."
    - **Job 2** (1 failure): `SSFSSSSSSSS`
-     - Classification: **Flaky**
+     - Reading: LEFT (newest) starts with SS, then one F in position 3, rest are S
+     - Classification: **Flaky** - isolated failure in mostly passing runs
      - Priority: **Low**
      - Action: "Single recent failure in mostly passing job. Monitor for pattern or investigate if recurring."
+   - **Job 3** (5 failures): `SSSSSSSSSSSSSSSSSSFFSFFF`
+     - Reading: LEFT (newest) has 18 S's = most recent 18 runs passed; RIGHT (oldest) has FFSFFF = older runs had failures
+     - Classification: **Resolved** - failures were in OLDER runs, recent runs are passing
+     - Priority: **Low**
+     - Action: "Issue appears to have been resolved. The failures occurred in older runs, not recent ones."
 
 5. **Analyze Failure Output Consistency**: Use the `fetch-test-failure-outputs` skill
 
@@ -284,10 +308,9 @@ This command is useful for:
 6. **Identify Related Regressions**: Search for similar failing tests
 
    - List all regressions for the release
-   - Identify other jobs where this test is failing
-   - Check for common error messages or stack traces
+   - Identify other variant combinations where this test is failing
    - Summarize the commonalities and differences in job variants
-     - For example is this test failing for all jobs of one platform type or upgrade type
+     - For example is this test failing for all jobs of one Platform or Upgrade variant
 
 7. **Check Existing Triages**: Look for related triage records
 
@@ -413,11 +436,11 @@ For regressions that need investigation, the command outputs a **Comprehensive R
   - Job name and variant details
   - Total number of failed runs
   - Pass sequence string (e.g., "FFFFFFFFFF" or "SFSFSFSF")
-  - **Pattern Classification**:
-    - **Permafail**: "FFFFFFFFFF..." - All or most recent runs failing. Indicates test is completely broken for this job.
-    - **Resolved**: "SSSSSSFFFF..." - Recent successes after failures. Issue may have self-resolved.
-    - **Flaky**: "SFSFSFSFSF..." - Sporadic failures. Test is unstable/flaky.
-    - **Recent Regression**: "FFFFFSSSSSS..." - Recently started failing. Likely caused by recent code change.
+  - **Pattern Classification** (remember: LEFT = newest runs, RIGHT = oldest runs):
+    - **Permafail**: "FFFFFFFFFF..." - F's at the LEFT (newest runs are failing). Test is currently broken.
+    - **Resolved**: "SSSSSSFFFF..." - S's at the LEFT (newest runs passing), F's at the RIGHT (older runs failed). Issue has been fixed.
+    - **Flaky**: "SFSFSFSFSF..." - Mixed S's and F's throughout. Test is unstable/flaky.
+    - **Recent Regression**: "FFFFFSSSSSS..." - F's at the LEFT (newest runs failing), S's at the RIGHT (older runs passed). Test recently started failing.
   - **Priority Level**: High (permafail/recent regression), Medium (flaky with many failures), Low (resolved/occasional flakes)
   - **Recommended Action**: Next steps based on pattern (e.g., "Investigate recent code changes", "Stabilize flaky test", "Verify issue is resolved")
 - **Overall Assessment**: Summary of regression severity across all jobs
