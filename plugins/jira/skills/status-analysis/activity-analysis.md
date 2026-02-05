@@ -126,17 +126,21 @@ Note escalations or de-escalations:
 
 ## Step 3: Analyze Comments for Context
 
-Scan comment text for keywords and patterns that indicate status:
+Scan comment text for keywords and patterns that indicate status.
+
+**Note**: The keyword lists below are not exhaustive. LLMs should use semantic understanding to identify blockers, risks, and progress even when exact keywords don't match. For example, "blocks", "needs", "requires" are semantically similar to the listed keywords and should be treated equivalently.
+
+**Future improvement**: Consider extracting these keyword lists into a shared dictionary file for easier maintenance and consistency across skills.
 
 ### Blocker Detection
 
 **Keywords** (case-insensitive):
-- "blocked", "blocking", "blocker"
+- "blocked", "blocking", "blocker", "blocks"
 - "waiting on", "waiting for", "depends on"
 - "stuck", "stalled", "halted"
 - "dependency", "dependent on"
 - "can't proceed", "cannot proceed"
-- "need", "require" (when followed by external resource)
+- "need", "needs", "require", "requires" (when followed by external resource)
 
 **Pattern matching**:
 ```regex

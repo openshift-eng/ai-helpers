@@ -175,12 +175,6 @@
           "synopsis": "/jira:status-rollup issue-id [--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD]"
         },
         {
-          "argument_hint": "[project-key] [--component name] [--label label-name] [user-filters...]",
-          "description": "Update weekly status summaries for Jira issues with component and user filtering",
-          "name": "update-weekly-status",
-          "synopsis": "bash"
-        },
-        {
           "argument_hint": "[target-version] [component-filter] [--bug issue-key]",
           "description": "Validate proposed release blockers using Red Hat OpenShift release blocker criteria",
           "name": "validate-blockers",
@@ -271,11 +265,6 @@
           "description": "Jira conventions and bug templates for the OCPBUGS project",
           "id": "ocpbugs",
           "name": "OCPBUGS Jira Conventions"
-        },
-        {
-          "description": "Shared engine for analyzing Jira issue activity and generating status summaries",
-          "id": "status-analysis",
-          "name": "Jira Status Analysis Engine"
         }
       ],
       "version": "0.2.0"

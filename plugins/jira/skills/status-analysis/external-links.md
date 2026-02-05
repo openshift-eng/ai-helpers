@@ -7,6 +7,10 @@ description: GitHub PR and GitLab MR integration for status analysis
 
 This module extracts and analyzes GitHub Pull Requests and GitLab Merge Requests linked to Jira issues. It enriches the status analysis with code-level activity.
 
+**Note**: For `/jira:update-weekly-status`, PR data is pre-gathered by the Python data gatherer script (`gather_status_data.py`) using GitHub's GraphQL API. This module is primarily used by `/jira:status-rollup` which fetches PR data on-demand via the `gh` CLI.
+
+**Future improvement**: This module could be combined with the `/jira:extract-prs` skill to share PR extraction logic.
+
 ## Overview
 
 External link analysis follows this flow:

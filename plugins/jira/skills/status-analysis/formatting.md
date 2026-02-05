@@ -7,6 +7,8 @@ description: Output templates for status summaries in different formats
 
 This module defines output templates for status summaries. It transforms analyzed data into human-readable formats suitable for different output targets.
 
+**Future improvement**: Consider creating a shared Jira formatting skill that centralizes Jira wiki markup syntax, templates, and best practices. This would reduce duplication across Jira-related skills in this repository.
+
 ## Overview
 
 Two output formats are supported:

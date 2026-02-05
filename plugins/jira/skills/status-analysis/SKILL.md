@@ -12,6 +12,7 @@ This skill provides the core analysis logic shared by status-related commands (`
 ## When to Use This Skill
 
 This skill is invoked automatically by:
+
 - `/jira:status-rollup` - Single root issue, outputs as Jira comment
 - `/jira:update-weekly-status` - Multiple root issues (batch), outputs to Status Summary field
 
@@ -19,24 +20,33 @@ Do NOT invoke this skill directly. Use the commands above.
 
 ## Architecture Overview
 
+### For update-weekly-status (Pre-Gathered Data)
+
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                     Calling Command                              │
-│  (/jira:status-rollup or /jira:update-weekly-status)            │
+│                  /jira:update-weekly-status                     │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                   Status Analysis Engine                         │
-│                        (SKILL.md)                                │
+│                    Python Data Gatherer                         │
+│                  (gather_status_data.py)                        │
+│                                                                 │
+│  • Async HTTP requests (aiohttp)                                │
+│  • Jira: issues, descendants, changelogs                        │
+│  • GitHub: PRs via GraphQL (batched)                            │
+│  • Output: .work/weekly-status/{date}/issues/*.json             │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    Status Analysis Engine                       │
 │  ┌───────────────┐  ┌──────────────────┐  ┌──────────────────┐  │
-│  │ Data          │  │ Activity         │  │ External         │  │
-│  │ Collection    │──▶│ Analysis         │──▶│ Links           │  │
-│  │ (data-        │  │ (activity-       │  │ (external-       │  │
-│  │ collection.md)│  │ analysis.md)     │  │ links.md)        │  │
+│  │ Read JSON     │  │ Activity         │  │ PR Activity      │  │
+│  │ (pre-gathered)│─▶│ Analysis         │─▶│ (pre-gathered)   │  │
 │  └───────────────┘  └──────────────────┘  └──────────────────┘  │
-│                              │                                   │
-│                              ▼                                   │
+│                              │                                  │
+│                              ▼                                  │
 │                    ┌──────────────────┐                         │
 │                    │ Formatting       │                         │
 │                    │ (formatting.md)  │                         │
@@ -45,9 +55,38 @@ Do NOT invoke this skill directly. Use the commands above.
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                        Output                                    │
-│  - Jira comment (wiki markup) for status-rollup                 │
-│  - Status Summary field (R/Y/G template) for update-weekly      │
+│                Status Summary field (R/Y/G template)            │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### For status-rollup (Direct MCP Calls)
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      /jira:status-rollup                        │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    Status Analysis Engine                       │
+│                         (SKILL.md)                              │
+│  ┌───────────────┐  ┌──────────────────┐  ┌──────────────────┐  │
+│  │ Data          │  │ Activity         │  │ External         │  │
+│  │ Collection    │─▶│ Analysis         │─▶│ Links            │  │
+│  │ (data-        │  │ (activity-       │  │ (external-       │  │
+│  │ collection.md)│  │ analysis.md)     │  │ links.md)        │  │
+│  └───────────────┘  └──────────────────┘  └──────────────────┘  │
+│                              │                                  │
+│                              ▼                                  │
+│                    ┌──────────────────┐                         │
+│                    │ Formatting       │                         │
+│                    │ (formatting.md)  │                         │
+│                    └──────────────────┘                         │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                   Jira comment (wiki markup)                    │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -57,10 +96,11 @@ This skill is composed of four sub-modules. Read each when executing the analysi
 
 | Module | File | Purpose |
 |--------|------|---------|
-| Data Collection | `data-collection.md` | Fetching issues, changelogs, comments from Jira |
+| Data Collection | `data-collection.md` | Reading pre-gathered JSON or fetching via MCP |
 | Activity Analysis | `activity-analysis.md` | Detecting blockers, progress, risks, completion |
 | External Links | `external-links.md` | GitHub PR and GitLab MR integration |
 | Formatting | `formatting.md` | Output templates for different modes |
+| Data Gatherer | `scripts/gather_status_data.py` | Async batch data collection (update-weekly-status) |
 
 ## Configuration Parameters
 
@@ -68,14 +108,15 @@ Both commands share the same engine with different configuration:
 
 | Parameter | status-rollup | update-weekly-status |
 |-----------|---------------|----------------------|
-| `root_issues` | Single issue key | Multiple (from JQL batch query) |
+| `data_source` | MCP API calls | Pre-gathered JSON files |
+| `root_issues` | Single issue key | Multiple (from manifest.json) |
 | `date_range.start` | User-specified or issue creation | `today - 7 days` |
 | `date_range.end` | User-specified or today | `today` |
 | `output_format` | `wiki_comment` | `ryg_field` |
 | `output_target` | Comment on root issue | Status Summary field |
-| `external_links` | Optional | Enabled (GitHub PRs, GitLab MRs) |
+| `external_links` | Via `gh` CLI | Pre-gathered in JSON |
 | `user_review` | Yes (before posting comment) | Yes (approve/modify/skip per issue) |
-| `caching` | Temp file for refinement | None |
+| `caching` | Temp file for refinement | JSON files in `.work/` |
 
 ## Hierarchy Traversal
 
@@ -99,8 +140,10 @@ Returns: ALL descendants at any depth (EPIC-456, Story 1.1, Subtask 1.1.1, Story
 **Key benefit**: `childIssuesOf()` is already recursive - a single JQL query returns the entire hierarchy regardless of depth. No manual recursion needed.
 
 The difference between commands is not in traversal but in:
+
+- **Data source**: update-weekly-status uses pre-gathered JSON; status-rollup uses MCP calls
 - **Scope**: status-rollup analyzes one root; update-weekly-status analyzes many roots
-- **Filtering**: update-weekly-status applies date range filter (`updated >= -7d`) to focus on recent activity
+- **Filtering**: update-weekly-status data is pre-filtered to date range by the Python script
 - **Aggregation**: status-rollup combines all descendants into one summary; update-weekly-status generates per-root summaries
 
 ## Shared Data Structures
@@ -202,7 +245,17 @@ OPTIONAL parameters:
 
 ### Step 2: Data Collection
 
-Follow `data-collection.md` to:
+Follow `data-collection.md` which supports two modes:
+
+**Option A: Pre-Gathered Data (update-weekly-status)**
+
+Data has already been collected by the Python script (`gather_status_data.py`):
+
+1. Read manifest from `.work/weekly-status/{date}/manifest.json`
+2. For each issue, read `.work/weekly-status/{date}/issues/{ISSUE-KEY}.json`
+3. Data includes: issue metadata, descendants, changelogs, comments, PRs (all pre-filtered to date range)
+
+**Option B: Direct MCP Calls (status-rollup)**
 
 1. **For each root issue**:
    - Fetch issue details with `fields=summary,status,assignee,issuelinks,comment,{custom-fields}`
@@ -259,6 +312,7 @@ Follow `external-links.md` to:
    - From descendants' links
 
 2. **Fetch PR metadata** (if `gh` CLI available):
+
    ```bash
    gh pr view {PR-NUMBER} --repo {REPO} --json state,updatedAt,mergedAt,title
    ```
@@ -277,6 +331,7 @@ Follow `external-links.md` to:
 Follow `formatting.md` to generate output based on `output_format`:
 
 **For `wiki_comment` (status-rollup)**:
+
 ```
 h2. Status Rollup From: {start-date} to {end-date}
 
@@ -297,6 +352,7 @@ h2. Status Rollup From: {start-date} to {end-date}
 ```
 
 **For `ryg_field` (update-weekly-status)**:
+
 ```
 * Color Status: {Red, Yellow, Green}
  * Status summary:
@@ -325,6 +381,7 @@ Return structured result:
 ```
 
 The calling command then handles:
+
 - User review and approval workflow
 - Posting to Jira (comment or field update)
 - Summary report generation
@@ -341,27 +398,46 @@ All modules should handle these error cases:
 | GitHub CLI not available | Skip PR analysis, note in output |
 | Rate limiting | Display error with retry guidance |
 | Large hierarchies (100+ issues) | Show progress indicators |
+| Missing JSON file | Log warning: "Data file for {key} not found, skipping" |
 
 ## Performance Considerations
 
-- **Minimize API calls**: Only fetch fields you need
+- **Use pre-gathered data**: For batch operations (update-weekly-status), always use the Python data gatherer
+- **Minimize API calls**: Only fetch fields you need (for status-rollup)
 - **Use batch endpoints**: `jira_batch_get_changelogs` for multiple issues
 - **Single JQL for hierarchy**: `childIssuesOf()` returns all descendants in one call
 - **Cache data**: Store in temp file for refinement iterations
-- **Parallelize**: Issue fetching and PR metadata can run in parallel
+- **Parallelize**: Python script handles parallel fetching; MCP calls can run concurrently
 - **Limit comments**: Use `comment_limit=20` to reduce response size
-- **Filter early**: Apply date range filters in JQL where possible
+- **Filter early**: Data gatherer pre-filters to date range; apply in JQL for MCP calls
 
 ## Prerequisites
+
+### For update-weekly-status
+
+- **Python 3.8+** with `aiohttp` package
+- **Environment variables**:
+  - `JIRA_TOKEN` or `JIRA_PERSONAL_TOKEN`: Jira API bearer token
+  - `GITHUB_TOKEN` or authenticated `gh` CLI
+- **Jira MCP server** configured (for argument resolution)
+
+Check setup:
+
+```bash
+python3 -c "import aiohttp; print('aiohttp OK')"
+echo $JIRA_TOKEN
+gh auth token
+```
+
+### For status-rollup
 
 - **Jira MCP server** configured and accessible
 - **GitHub CLI** (`gh`) installed and authenticated (optional but recommended)
 - **GitLab CLI** (`glab`) installed and authenticated (optional)
-- **jq** installed for JSON parsing
 
 Check for tools:
+
 ```bash
 which gh && gh auth status
 which glab && glab auth status  # optional
-which jq
 ```
