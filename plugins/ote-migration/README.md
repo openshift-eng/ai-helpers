@@ -498,19 +498,20 @@ The generated `cmd/main.go` (or `cmd/extension/main.go` for monorepo) includes *
 
 ### Dynamic Dependency Resolution
 
-  The migration tool **fetches latest versions** of critical dependencies directly from upstream repositories instead of copying potentially stale versions from openshift-tests-private.
+  The migration tool **fetches the latest commit from specified upstream branches** directly from repositories instead of copying potentially stale versions from openshift-tests-private.
 
   **What's fetched dynamically:**
 
-  1. **Kubernetes dependencies** - From `github.com/openshift/kubernetes` (master branch)
+  1. **Kubernetes dependencies** - Latest commit from `github.com/openshift/kubernetes` **master branch**
      ```bash
      K8S_LATEST=$(git ls-remote https://github.com/openshift/kubernetes.git refs/heads/master | awk '{print $1}')
-     # Creates versioned replace directives for all k8s.io/* packages
+     # Creates versioned replace directives for all k8s.io/* packages using this commit hash
      ```
 
-  2. **Ginkgo testing framework** - From `github.com/openshift/onsi-ginkgo` (v2.27.2-openshift-4.22 branch)
+  2. **Ginkgo testing framework** - Latest commit from `github.com/openshift/onsi-ginkgo` **v2.27.2-openshift-4.22 branch**
      ```bash
      GINKGO_LATEST=$(git ls-remote https://github.com/openshift/onsi-ginkgo.git refs/heads/v2.27.2-openshift-4.22 | awk '{print $1}')
+     # Uses the latest commit from this specific OpenShift-maintained branch, not ginkgo's main branch
      ```
 
   3. **Origin dependencies** - From `github.com/openshift/origin` (main branch)
@@ -595,20 +596,20 @@ The generated `cmd/main.go` (or `cmd/extension/main.go` for monorepo) includes *
 
   **What this solves:**
 
-  If dependencies require Go 1.24.6 but you have Go 1.24.3 installed:
+  If dependencies require a newer Go version than what you have installed:
 
   ```bash
   # Without GOTOOLCHAIN=auto (fails):
-  go: go.mod requires go >= 1.24.6 (running go 1.24.3; GOTOOLCHAIN=local)
+  go: go.mod requires go >= 1.XX.Y (running go 1.XX.Z; GOTOOLCHAIN=local)
 
   # With GOTOOLCHAIN=auto (succeeds):
-  # Automatically downloads and uses go1.24.11
+  # Automatically downloads and uses the required Go version
   ```
 
   **How it works:**
-- Your system Go: 1.24.3
-- Dependencies require: 1.24.6+
-- `GOTOOLCHAIN=auto` downloads: 1.24.11 (from go.mod's toolchain directive)
+- Your system Go: older version (e.g., 1.23.1)
+- Dependencies require: newer version (e.g., 1.24.0+)
+- `GOTOOLCHAIN=auto` downloads: version specified in go.mod's toolchain directive
 - Build succeeds using the downloaded toolchain
 
   **Used in these migration steps:**
