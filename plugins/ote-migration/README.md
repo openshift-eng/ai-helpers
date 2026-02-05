@@ -135,7 +135,7 @@ Result: All test files fully migrated with correct imports ✅
 **Error Recovery:**
 
 If Phase 5 fails, test files are automatically restored:
-```bash
+```text
 ❌ Phase 5 failed - rolling back test files...
 ✅ Test files restored from backup
 ```
