@@ -78,14 +78,31 @@ Ask: "Which directory structure strategy do you want to use?"
 **Option 1: Monorepo strategy (integrate into existing repo)**
 - Integrates into existing repository structure
 - Uses existing `cmd/` and `test/` directories
+- **Two variants depending on whether test/e2e already exists:**
+
+**Variant A: test/e2e doesn't exist (fresh migration)**
 - Files created:
-  - `cmd/extension/main.go` - Extension binary source code (at repository root)
+  - `test/e2e/cmd/main.go` - Extension binary **INSIDE test module** (at test/e2e root level)
   - `bin/<extension-name>-tests-ext` - Compiled binary (created by make)
   - `test/e2e/go.mod` - Separate test module
-  - `test/e2e/*.go` - Test files (in test module, may be in subdirectory if test/e2e exists)
+  - `test/e2e/*.go` - Test files (in test module)
   - `test/e2e/testdata/` - Test data (inside test module)
+- Build command: `cd test/e2e && go build -o ../../bin/<ext> ./cmd`
 - Root `go.mod` updated with replace directive for test module
-- Best for: Component repos with existing `cmd/` and `test/` structure
+- **Why cmd is inside test module:** Keeps cmd in the same module as tests for ginkgo discovery (consistent with Variant B)
+- Best for: Repos without existing test/e2e structure
+
+**Variant B: test/e2e exists (subdirectory mode)**
+- Files created:
+  - `test/e2e/extension/cmd/main.go` - Extension binary **INSIDE test module**
+  - `bin/<extension-name>-tests-ext` - Compiled binary (created by make)
+  - `test/e2e/extension/go.mod` - Separate test module in subdirectory
+  - `test/e2e/extension/*.go` - Test files (in test module subdirectory)
+  - `test/e2e/extension/testdata/` - Test data (inside test module)
+- Build command: `cd test/e2e/extension && go build -o ../../../bin/<ext> ./cmd`
+- Root `go.mod` updated with replace directive for test module
+- **Why cmd is inside test module:** When test module is separate (has go.mod), ginkgo can only discover tests within that module. The cmd must be in the same module as the tests.
+- Best for: Repos with existing test/e2e directory
 
 **Option 2: Single-module strategy (isolated directory)**
 - Creates isolated `tests-extension/` directory
@@ -772,8 +789,16 @@ else
     echo "Structure: Direct mode (creating fresh test/e2e)"
 fi
 
-# Create cmd directory for main.go at root
-mkdir -p cmd/extension
+# Create cmd directory (always inside test module for both variants)
+if [ "$TEST_DIR_EXISTS" = "true" ]; then
+    # Subdirectory mode: cmd INSIDE test module subdirectory
+    mkdir -p "$TEST_MODULE_DIR/cmd"
+    echo "   Cmd location: $TEST_MODULE_DIR/cmd (inside test module subdirectory)"
+else
+    # Direct mode: cmd INSIDE test module at root level
+    mkdir -p "$TEST_MODULE_DIR/cmd"
+    echo "   Cmd location: $TEST_MODULE_DIR/cmd (inside test module at root level)"
+fi
 
 # Create bin directory for binary output
 mkdir -p bin
@@ -1498,26 +1523,33 @@ cd ..
 
 **For Monorepo Strategy:**
 
-Create `cmd/extension/main.go` (at repository root):
-
 **IMPORTANT:** Extract module name and detect test module import path:
 ```bash
 cd <working-dir>
 MODULE_NAME=$(grep '^module ' go.mod | awk '{print $2}')
 echo "Using module name: $MODULE_NAME"
 
-# Auto-detect test import path based on directory structure
-if [ -d "test/e2e/<test-dir-name>" ]; then
-    # Subdirectory mode: import from test/e2e/<test-dir-name>
-    TEST_IMPORT="$MODULE_NAME/test/e2e/<test-dir-name>"
+# Determine main.go location and import path based on directory structure
+# Both variants have main.go inside test module, just at different levels
+if [ "$TEST_DIR_EXISTS" = "true" ]; then
+    # Subdirectory mode: main.go INSIDE test module subdirectory
+    MAIN_GO_PATH="$TEST_MODULE_DIR/cmd/main.go"
+    TEST_IMPORT="$MODULE_NAME/$TEST_MODULE_DIR"
+    echo "Main.go location: $MAIN_GO_PATH (inside test module subdirectory)"
 else
-    # Direct mode: import from test/e2e
+    # Direct mode: main.go INSIDE test module at root level
+    MAIN_GO_PATH="$TEST_MODULE_DIR/cmd/main.go"
     TEST_IMPORT="$MODULE_NAME/test/e2e"
+    echo "Main.go location: $MAIN_GO_PATH (inside test module at root level)"
 fi
 echo "Using test import path: $TEST_IMPORT"
 ```
 
-Then generate main.go with the actual module name and import path:
+**Note:** Both variants have main.go inside the test module for consistency:
+- **Variant A (test/e2e doesn't exist):** `test/e2e/cmd/main.go` (inside test module at root level)
+- **Variant B (test/e2e exists):** `test/e2e/extension/cmd/main.go` (inside test module subdirectory)
+
+Then generate main.go at the determined location with the actual module name and import path:
 
 ```go
 package main
@@ -1768,31 +1800,29 @@ func main() {
 
 **For Monorepo Strategy:**
 
-Create `test/bindata.mk`:
+Create bindata.mk in the test module directory (same level as testdata package):
 
-```makefile
+```bash
+cd <working-dir>
+
+# Create bindata.mk at test module level (same as testdata package)
+if [ "$TEST_DIR_EXISTS" = "true" ]; then
+    # Subdirectory mode: bindata.mk at test/e2e/extension/
+    BINDATA_MK_PATH="$TEST_MODULE_DIR/bindata.mk"
+else
+    # Direct mode: bindata.mk at test/e2e/
+    BINDATA_MK_PATH="$TEST_MODULE_DIR/bindata.mk"
+fi
+
+cat > "$BINDATA_MK_PATH" << 'EOF'
 # bindata.mk for embedding testdata files
 
-# Auto-detect testdata path based on directory structure
-# If e2e/<test-dir-name> exists (subdirectory mode): e2e/<test-dir-name>/testdata
-# If only e2e exists (direct mode): e2e/testdata
-ifeq ($(wildcard e2e/<test-dir-name>/.),)
-    # Direct mode: e2e directory is the test directory
-    BINDATA_DIR := e2e/testdata
-    TEST_MODULE_DIR := e2e
-else
-    # Subdirectory mode: e2e/<test-dir-name> is the test directory
-    BINDATA_DIR := e2e/<test-dir-name>/testdata
-    TEST_MODULE_DIR := e2e/<test-dir-name>
-endif
-
 BINDATA_PKG := testdata
-BINDATA_OUT := $(BINDATA_DIR)/bindata.go
+BINDATA_OUT := testdata/bindata.go
 
 .PHONY: update-bindata
 update-bindata:
 	@echo "Generating bindata for testdata files..."
-	cd $(TEST_MODULE_DIR) && \
 	go-bindata \
 		-nocompress \
 		-nometadata \
@@ -1816,7 +1846,10 @@ bindata: update-bindata
 clean-bindata:
 	@echo "Cleaning bindata..."
 	@rm -f $(BINDATA_OUT)
-```bash
+EOF
+
+echo "✅ Created bindata.mk at: $BINDATA_MK_PATH"
+```
 
 **For Single-Module Strategy:**
 
@@ -1871,21 +1904,42 @@ if [ -f "Makefile" ]; then
     if grep -q "tests-ext-build" Makefile; then
         echo "⚠️  OTE targets already exist in Makefile, skipping..."
     else
-        # Add OTE extension build targets for monorepo (builds from root)
-        cat >> Makefile << 'EOF'
+        # Generate appropriate Makefile targets based on directory structure
+        if [ "$TEST_DIR_EXISTS" = "true" ]; then
+            # Subdirectory mode: Build from inside test module
+            cat >> Makefile << 'EOF'
 
 # OTE test extension binary configuration
-TESTS_EXT_DIR := ./cmd/extension
+TESTS_EXT_DIR := <test-module-dir>/cmd
 TESTS_EXT_BINARY := bin/<extension-name>-tests-ext
 
-# Build OTE extension binary (builds from root, outputs to bin/)
+# Build OTE extension binary (builds from test module, outputs to bin/)
 .PHONY: tests-ext-build
 tests-ext-build:
 	@echo "Building OTE test extension binary..."
-	@cd test && $(MAKE) update-bindata
+	@cd <test-module-dir> && $(MAKE) -f bindata.mk update-bindata
 	@mkdir -p bin
-	go build -mod=vendor -o $(TESTS_EXT_BINARY) $(TESTS_EXT_DIR)
+	cd <test-module-dir> && GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go build -o ../../../$(TESTS_EXT_BINARY) ./cmd
 	@echo "✅ Extension binary built: $(TESTS_EXT_BINARY)"
+EOF
+        else
+            # Direct mode: Build from inside test module (at root level)
+            cat >> Makefile << 'EOF'
+
+# OTE test extension binary configuration
+TESTS_EXT_DIR := test/e2e/cmd
+TESTS_EXT_BINARY := bin/<extension-name>-tests-ext
+
+# Build OTE extension binary (builds from test module, outputs to bin/)
+.PHONY: tests-ext-build
+tests-ext-build:
+	@echo "Building OTE test extension binary..."
+	@cd test/e2e && $(MAKE) -f bindata.mk update-bindata
+	@mkdir -p bin
+	cd test/e2e && GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go build -o ../../$(TESTS_EXT_BINARY) ./cmd
+	@echo "✅ Extension binary built: $(TESTS_EXT_BINARY)"
+EOF
+        fi
 
 # Compress OTE extension binary (for CI/CD and container builds)
 .PHONY: tests-ext-compress
@@ -1919,22 +1973,47 @@ EOF
 else
     echo "⚠️  No root Makefile found in target repository"
     echo "Creating a basic Makefile with OTE targets..."
-    cat > Makefile << 'EOF'
+
+    # Generate appropriate Makefile based on directory structure
+    if [ "$TEST_DIR_EXISTS" = "true" ]; then
+        # Subdirectory mode: Build from inside test module
+        cat > Makefile << 'EOF'
 # OTE test extension binary configuration
-TESTS_EXT_DIR := ./cmd/extension
+TESTS_EXT_DIR := <test-module-dir>/cmd
 TESTS_EXT_BINARY := bin/<extension-name>-tests-ext
 
 .PHONY: all
 all: tests-ext-build
 
-# Build OTE extension binary (builds from root, outputs to bin/)
+# Build OTE extension binary (builds from test module, outputs to bin/)
 .PHONY: tests-ext-build
 tests-ext-build:
 	@echo "Building OTE test extension binary..."
-	@cd test && $(MAKE) update-bindata
+	@$(MAKE) -f test/bindata.mk update-bindata
 	@mkdir -p bin
-	go build -mod=vendor -o $(TESTS_EXT_BINARY) $(TESTS_EXT_DIR)
+	cd <test-module-dir> && GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go build -o ../../../$(TESTS_EXT_BINARY) ./cmd
 	@echo "✅ Extension binary built: $(TESTS_EXT_BINARY)"
+EOF
+    else
+        # Direct mode: Build from inside test module (at root level)
+        cat > Makefile << 'EOF'
+# OTE test extension binary configuration
+TESTS_EXT_DIR := test/e2e/cmd
+TESTS_EXT_BINARY := bin/<extension-name>-tests-ext
+
+.PHONY: all
+all: tests-ext-build
+
+# Build OTE extension binary (builds from test module, outputs to bin/)
+.PHONY: tests-ext-build
+tests-ext-build:
+	@echo "Building OTE test extension binary..."
+	@$(MAKE) -f test/bindata.mk update-bindata
+	@mkdir -p bin
+	cd test/e2e && GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go build -o ../../$(TESTS_EXT_BINARY) ./cmd
+	@echo "✅ Extension binary built: $(TESTS_EXT_BINARY)"
+EOF
+    fi
 
 # Compress OTE extension binary (for CI/CD and container builds)
 .PHONY: tests-ext-compress
@@ -2347,15 +2426,94 @@ func GetFixtureDir() string {
 }
 ```bash
 
-#### Step 6: Update Dockerfile (Monorepo Strategy Only)
+#### Step 6: Update Dockerfile
+
+**This step modifies or creates a Dockerfile to include OTE binary compilation and packaging for both strategies.**
 
 **For Monorepo Strategy:**
 
-Following the pattern from machine-config-operator PR #4665, update the Dockerfile to build and include the OTE binary:
+```bash
+cd <working-dir>
 
-```dockerfile
-# Example multi-stage Dockerfile update
-# Add this to your existing Dockerfile or create a new one
+echo "========================================="
+echo "Step 6: Updating Dockerfile for OTE binary"
+echo "========================================="
+
+# Determine bindata path based on directory structure
+if [ "$TEST_DIR_EXISTS" = "true" ]; then
+    # Subdirectory mode: bindata at test/e2e/<test-dir-name>/
+    BINDATA_PATH="test/e2e/<test-dir-name>"
+else
+    # Direct mode: bindata at test/e2e/
+    BINDATA_PATH="test/e2e"
+fi
+
+# Check if Dockerfile exists
+if [ -f "Dockerfile" ]; then
+    echo "Found existing Dockerfile - will add OTE binary build stages"
+
+    # Create backup
+    cp Dockerfile Dockerfile.pre-ote-migration
+    echo "✅ Created backup: Dockerfile.pre-ote-migration"
+
+    # Check if Dockerfile already has OTE binary build
+    if grep -q "tests-ext-build" Dockerfile; then
+        echo "⚠️  Dockerfile already contains OTE binary build - skipping modification"
+    else
+        # Create temporary file with OTE build stages
+        cat > /tmp/ote-build-stage.txt << EOF
+# OTE Extension Binary Build (added by migration)
+RUN cd $BINDATA_PATH && make -f bindata.mk update-bindata
+RUN make tests-ext-build
+RUN gzip bin/<extension-name>-tests-ext
+EOF
+
+        # Find builder stage and add OTE build commands
+        if grep -q "FROM.*AS builder" Dockerfile; then
+            # Existing builder stage found - add OTE build after COPY . .
+            echo "Adding OTE build to existing builder stage..."
+
+            # Find line number after "COPY . ." in builder stage
+            COPY_LINE=$(grep -n "COPY \. \." Dockerfile | head -1 | cut -d: -f1)
+
+            if [ -n "$COPY_LINE" ]; then
+                # Insert OTE build commands after COPY line
+                sed -i "${COPY_LINE}r /tmp/ote-build-stage.txt" Dockerfile
+                echo "✅ Added OTE build commands to builder stage"
+            else
+                echo "⚠️  Could not find 'COPY . .' in Dockerfile - please add OTE build manually"
+            fi
+        else
+            echo "⚠️  No builder stage found in Dockerfile - creating OTE-specific Dockerfile.ote"
+            # Will create separate Dockerfile below
+        fi
+
+        # Add COPY command to runtime stage
+        echo "Adding OTE binary COPY to runtime stage..."
+
+        # Find the runtime stage (usually "FROM.*base" or last FROM)
+        RUNTIME_LINE=$(grep -n "^FROM" Dockerfile | tail -1 | cut -d: -f1)
+
+        if [ -n "$RUNTIME_LINE" ]; then
+            # Add COPY command after runtime FROM line
+            cat > /tmp/ote-copy.txt << EOF
+
+# Copy OTE extension binary (added by migration)
+COPY --from=builder /go/src/github.com/<org>/<component-name>/bin/<extension-name>-tests-ext.gz /usr/bin/
+EOF
+            sed -i "${RUNTIME_LINE}r /tmp/ote-copy.txt" Dockerfile
+            echo "✅ Added OTE binary COPY to runtime stage"
+        fi
+
+        rm -f /tmp/ote-build-stage.txt /tmp/ote-copy.txt
+    fi
+else
+    echo "No Dockerfile found - creating Dockerfile.ote with OTE binary build"
+
+    # Create a complete Dockerfile for OTE binary
+    cat > Dockerfile.ote << EOF
+# Multi-stage Dockerfile for OTE Extension Binary
+# Generated by ote-migration plugin
 
 # Build stage - Build the OTE test extension binary
 FROM registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.21-openshift-4.17 AS builder
@@ -2365,37 +2523,109 @@ WORKDIR /go/src/github.com/<org>/<component-name>
 COPY . .
 
 # Generate testdata bindata
-RUN cd test && make bindata
+RUN cd $BINDATA_PATH && make -f bindata.mk update-bindata
 
-# Build the OTE extension binary using the Makefile target
+# Build the OTE extension binary
 RUN make tests-ext-build
 
 # Compress the binary (following OpenShift pattern)
 RUN gzip bin/<extension-name>-tests-ext
 
-# Final stage - Runtime image
+# Runtime stage - Copy compressed binary
 FROM registry.ci.openshift.org/ocp/4.17:base-rhel9
 
 # Copy the compressed OTE binary to /usr/bin/
 COPY --from=builder /go/src/github.com/<org>/<component-name>/bin/<extension-name>-tests-ext.gz /usr/bin/
 
-# ... rest of your Dockerfile (copy other binaries, set entrypoint, etc.)
-```bash
+# Add any additional runtime dependencies here
+# COPY other binaries, set ENTRYPOINT, etc.
+EOF
 
-**Key Points:**
-- The Dockerfile builds the OTE binary using the `tests-ext-build` Makefile target
-- The binary is compressed with gzip following OpenShift conventions
-- The compressed binary (.gz) is copied to `/usr/bin/` in the final image
-- The build happens in a builder stage with the Go toolchain
-- The final runtime image only contains the compressed binary
+    echo "✅ Created Dockerfile.ote - merge this into your main Dockerfile"
+fi
+
+echo ""
+echo "Dockerfile update complete!"
+echo ""
+echo "OTE Binary Location in Image: /usr/bin/<extension-name>-tests-ext.gz"
+echo "To register with origin, use path: /usr/bin/<extension-name>-tests-ext.gz"
+echo ""
+```
 
 **For Single-Module Strategy:**
 
-Following the same pattern, update the target repository's Dockerfile to build and include the OTE binary:
+```bash
+cd <working-dir>
 
-```dockerfile
-# Example multi-stage Dockerfile update for single-module strategy
-# Add this to your existing Dockerfile in the target repository
+echo "========================================="
+echo "Step 6: Updating Dockerfile for OTE binary"
+echo "========================================="
+
+# Check if Dockerfile exists
+if [ -f "Dockerfile" ]; then
+    echo "Found existing Dockerfile - will add OTE binary build stages"
+
+    # Create backup
+    cp Dockerfile Dockerfile.pre-ote-migration
+    echo "✅ Created backup: Dockerfile.pre-ote-migration"
+
+    # Check if Dockerfile already has OTE binary build
+    if grep -q "tests-ext-build" Dockerfile; then
+        echo "⚠️  Dockerfile already contains OTE binary build - skipping modification"
+    else
+        # Create temporary file with OTE build stages
+        cat > /tmp/ote-build-stage.txt << EOF
+# OTE Extension Binary Build (added by migration)
+RUN make tests-ext-build
+RUN gzip tests-extension/bin/<extension-name>-tests-ext
+EOF
+
+        # Find builder stage and add OTE build commands
+        if grep -q "FROM.*AS builder" Dockerfile; then
+            # Existing builder stage found - add OTE build after COPY . .
+            echo "Adding OTE build to existing builder stage..."
+
+            # Find line number after "COPY . ." in builder stage
+            COPY_LINE=$(grep -n "COPY \. \." Dockerfile | head -1 | cut -d: -f1)
+
+            if [ -n "$COPY_LINE" ]; then
+                # Insert OTE build commands after COPY line
+                sed -i "${COPY_LINE}r /tmp/ote-build-stage.txt" Dockerfile
+                echo "✅ Added OTE build commands to builder stage"
+            else
+                echo "⚠️  Could not find 'COPY . .' in Dockerfile - please add OTE build manually"
+            fi
+        else
+            echo "⚠️  No builder stage found in Dockerfile - creating OTE-specific Dockerfile.ote"
+            # Will create separate Dockerfile below
+        fi
+
+        # Add COPY command to runtime stage
+        echo "Adding OTE binary COPY to runtime stage..."
+
+        # Find the runtime stage (usually "FROM.*base" or last FROM)
+        RUNTIME_LINE=$(grep -n "^FROM" Dockerfile | tail -1 | cut -d: -f1)
+
+        if [ -n "$RUNTIME_LINE" ]; then
+            # Add COPY command after runtime FROM line
+            cat > /tmp/ote-copy.txt << EOF
+
+# Copy OTE extension binary (added by migration)
+COPY --from=builder /go/src/github.com/<org>/<component-name>/tests-extension/bin/<extension-name>-tests-ext.gz /usr/bin/
+EOF
+            sed -i "${RUNTIME_LINE}r /tmp/ote-copy.txt" Dockerfile
+            echo "✅ Added OTE binary COPY to runtime stage"
+        fi
+
+        rm -f /tmp/ote-build-stage.txt /tmp/ote-copy.txt
+    fi
+else
+    echo "No Dockerfile found - creating Dockerfile.ote with OTE binary build"
+
+    # Create a complete Dockerfile for OTE binary
+    cat > Dockerfile.ote << EOF
+# Multi-stage Dockerfile for OTE Extension Binary
+# Generated by ote-migration plugin
 
 # Build stage - Build the OTE test extension binary
 FROM registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.21-openshift-4.17 AS builder
@@ -2404,29 +2634,42 @@ WORKDIR /go/src/github.com/<org>/<component-name>
 # Copy source code
 COPY . .
 
-# Build the OTE extension binary using the root Makefile target
-# This delegates to tests-extension/Makefile
+# Build the OTE extension binary
 RUN make tests-ext-build
 
 # Compress the binary (following OpenShift pattern)
 RUN gzip tests-extension/bin/<extension-name>-tests-ext
 
-# Final stage - Runtime image
+# Runtime stage - Copy compressed binary
 FROM registry.ci.openshift.org/ocp/4.17:base-rhel9
 
 # Copy the compressed OTE binary to /usr/bin/
 COPY --from=builder /go/src/github.com/<org>/<component-name>/tests-extension/bin/<extension-name>-tests-ext.gz /usr/bin/
 
-# ... rest of your Dockerfile (copy other binaries, set entrypoint, etc.)
+# Add any additional runtime dependencies here
+# COPY other binaries, set ENTRYPOINT, etc.
+EOF
+
+    echo "✅ Created Dockerfile.ote - merge this into your main Dockerfile"
+fi
+
+echo ""
+echo "Dockerfile update complete!"
+echo ""
+echo "OTE Binary Location in Image: /usr/bin/<extension-name>-tests-ext.gz"
+echo "To register with origin, use path: /usr/bin/<extension-name>-tests-ext.gz"
+echo ""
 ```
 
 **Key Points:**
-- The Dockerfile uses the root Makefile target `make tests-ext-build`
-- The Root Makefile delegates to `tests-extension/Makefile`
-- Binary is compressed from `tests-extension/bin/<extension-name>-tests-ext`
-- The compressed binary (.gz) is copied to `/usr/bin/` in the final image
-- The build happens in a builder stage with the Go toolchain
-- The final runtime image only contains the compressed binary
+- Automatically detects existing Dockerfile and modifies it, or creates Dockerfile.ote if none exists
+- Creates backup (Dockerfile.pre-ote-migration) before modifying
+- Adds OTE binary build to existing builder stage if present
+- Compiles extension binary using `make tests-ext-build`
+- Compresses binary with gzip following OpenShift conventions
+- Copies compressed binary to `/usr/bin/<extension-name>-tests-ext.gz` in runtime image
+- Binary path can be registered to origin: `/usr/bin/<extension-name>-tests-ext.gz`
+- Works for both monorepo (Variant A and B) and single-module strategies
 
 ### Phase 5: Test Migration (5 steps - AUTOMATED with error handling)
 
@@ -2842,17 +3085,22 @@ def find_describe_blocks(lines):
                 desc_text = match.group(1)
                 # Find the opening brace (might be on same line or next line)
                 start_line = i
-                brace_count = 0
-                found_opening = False
+                found_opening_line = None
                 for j in range(i, min(i + 5, len(lines))):  # Check next few lines
-                    brace_count += lines[j].count('{')
                     if '{' in lines[j]:
-                        found_opening = True
+                        found_opening_line = j
                         break
 
-                if found_opening:
+                if found_opening_line is not None:
                     # Track braces to find the end of this Describe block
-                    j = start_line
+                    # Start with brace count of 1 (for the opening brace we found)
+                    brace_count = 1
+                    j = found_opening_line
+                    # Count braces on the opening line
+                    brace_count += lines[j].count('{') - lines[j].count('}') - 1
+                    j += 1
+
+                    # Continue from next line until braces balance
                     while j < len(lines) and brace_count > 0:
                         brace_count += lines[j].count('{') - lines[j].count('}')
                         j += 1
@@ -2874,30 +3122,33 @@ def annotate_file(filepath, sig_tags):
 
     original_content = ''.join(lines)
 
-    # Step 1: Add [OTP] to all Describe blocks for each sig tag
-    for i, line in enumerate(lines):
-        for sig_tag in sig_tags:
-            # Pattern: [sig-xxx] → [sig-xxx][OTP]
-            if f'[sig-{sig_tag}]' in line and 'g.Describe' in line and '[OTP]' not in line:
-                lines[i] = re.sub(
-                    rf'(\[sig-{re.escape(sig_tag)}\])([^\[])',
-                    r'\1[OTP]\2',
-                    line
-                )
-
-    # Step 2: Find Describe blocks and check if they contain -LEVEL0- tests
+    # Step 1: Find all Describe blocks first (before any modifications)
     describe_blocks = find_describe_blocks(lines)
 
+    # Step 2: Add [OTP] to ALL Describe blocks
+    for block in describe_blocks:
+        desc_line = lines[block['line_num']]
+        # Only add if not already present
+        if 'g.Describe' in desc_line and '[OTP]' not in desc_line:
+            # Add [OTP] after the closing quote of Describe text
+            # Pattern: g.Describe("text", func() → g.Describe("[OTP] text", func()
+            lines[block['line_num']] = re.sub(
+                r'g\.Describe\("([^"]+)"',
+                r'g.Describe("[OTP] \1"',
+                desc_line
+            )
+
+    # Step 3: Add [Level0] to Describe blocks containing -LEVEL0- tests
     for block in describe_blocks:
         # Check if this Describe block contains -LEVEL0- tests
         block_content = ''.join(lines[block['start']:block['end']])
         if '-LEVEL0-' in block_content:
-            # Add [Level0] after [OTP] in the Describe line
             desc_line = lines[block['line_num']]
+            # Add [Level0] after [OTP] if not already present
             if '[OTP]' in desc_line and '[Level0]' not in desc_line:
                 lines[block['line_num']] = desc_line.replace('[OTP]', '[OTP][Level0]', 1)
 
-    # Step 3: Remove -LEVEL0- suffix from test names
+    # Step 4: Remove -LEVEL0- suffix from test names
     for i, line in enumerate(lines):
         if '-LEVEL0-' in line:
             lines[i] = line.replace('-LEVEL0-', '-')
