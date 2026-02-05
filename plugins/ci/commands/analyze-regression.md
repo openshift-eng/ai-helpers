@@ -77,13 +77,16 @@ This command is useful for:
    This means a human has already attributed this regression to a specific bug. For each triage entry, fetch the JIRA issue to analyze progress.
 
    ```bash
-   # For each triage, fetch JIRA details
-   for jira_key in $(echo "$regression_data" | jq -r '.triages[].jira_key'); do
-     # Use gh or curl to fetch JIRA issue details
-     # Note: Requires JIRA API access - use the jira CLI or API
-     jira_data=$(curl -s -H "Authorization: Bearer $JIRA_TOKEN" \
-       "https://issues.redhat.com/rest/api/2/issue/$jira_key?fields=status,assignee,updated,comment")
-   done
+   # Check if JIRA_TOKEN environment variable is set
+   if [ -z "$JIRA_TOKEN" ]; then
+     echo "Warning: JIRA_TOKEN environment variable not set. Skipping JIRA progress analysis."
+   else
+     # For each triage, fetch JIRA details using JIRA_TOKEN env var
+     for jira_key in $(echo "$regression_data" | jq -r '.triages[].jira_key'); do
+       jira_data=$(curl -s -H "Authorization: Bearer $JIRA_TOKEN" \
+         "https://issues.redhat.com/rest/api/2/issue/$jira_key?fields=status,assignee,updated,comment")
+     done
+   fi
    ```
 
    **Analyze JIRA Progress**:
@@ -315,21 +318,104 @@ This command is useful for:
       - Example: "API endpoint not available" if errors mention missing API resources
       - Example: "Timeout issue" if errors mention timeouts or waiting conditions
 
-6. **Identify Related Regressions**: Search for similar failing tests
+6. **Determine Regression Start Date**: Use the `fetch-test-runs` skill with full history
+
+   For the job with the most failures (identified in step 4), fetch the complete test run history including successes to determine when the regression started. Use 28 days of history to ensure we can find the regression start point.
+
+   **Implementation**:
+
+   ```bash
+   # Get the job name with the most failures from step 4 analysis
+   # This is the first job in the sorted list (sorted by failure count descending)
+   most_failed_job=$(echo "$regression_data" | jq -r '
+     .sample_failed_jobs
+     | to_entries
+     | sort_by(.value.failed_runs | length)
+     | reverse
+     | .[0].key
+   ')
+
+   # Calculate start date (28 days ago) for extended history
+   start_date=$(date -v-28d +%Y-%m-%d 2>/dev/null || date -d "28 days ago" +%Y-%m-%d)
+
+   # Fetch all test runs (including successes) for this specific job, going back 28 days
+   script_path="plugins/ci/skills/fetch-test-runs/fetch_test_runs.py"
+   job_history=$(python3 "$script_path" "$test_id" --include-success --prowjob-name "$most_failed_job" --start-date "$start_date" --format json)
+   ```
+
+   **Analyze the Run History**:
+
+   The runs are returned in order from most recent to least recent. Iterate through them to find when failures started:
+
+   ```bash
+   # Check if fetch was successful
+   if [ "$(echo "$job_history" | jq -r '.success')" = "true" ]; then
+     runs=$(echo "$job_history" | jq -r '.runs')
+     num_runs=$(echo "$runs" | jq 'length')
+
+     echo "Analyzing $num_runs test runs for regression start date..."
+
+     # AI ANALYSIS: Iterate through runs from newest to oldest
+     # Look for the transition point where failures began
+     #
+     # The goal is to find the approximate date when failures started occurring
+     # more frequently. Look for patterns like:
+     # - A series of recent failures followed by older successes
+     # - A clear transition point from passing to failing
+     #
+     # For each run, check the 'success' field (true/false) and 'timestamp' or 'start_time'
+   fi
+   ```
+
+   **How to Determine Regression Start Date with AI**:
+
+   1. **Scan from Newest to Oldest**: Walk through the runs array (index 0 = newest)
+      - Track the pattern of success/failure as you go back in time
+
+   2. **Look for Transition Point**: Find where the test changed from mostly passing to mostly failing
+      - Example: If runs are [F, F, F, F, F, S, S, S, S, S, S, S], the regression likely started around the 5th run from newest
+
+   3. **Identify the First Failure in a Failure Streak**:
+      - Find the oldest failure that's part of the current regression
+      - The run just before that (if it was a success) marks the approximate start
+
+   4. **Handle Edge Cases**:
+      - If test has always been failing in available history → cannot determine start date
+      - If test is flaky (mixed S/F throughout) → cannot determine clear start date
+      - If pattern is unclear → do not include this in the report
+
+   5. **Report the Findings** (only if a clear start date can be determined):
+      - Report the job URL of the first failure in the regression
+      - Report the timestamp/date when that run occurred
+      - Example: "Regression appears to have started on 2026-01-15 with job run: https://prow.ci.openshift.org/view/gs/..."
+
+   **Output Format** (only include if start date can be determined):
+
+   ```
+   Regression Start Analysis:
+   - Job Analyzed: periodic-ci-openshift-release-master-nightly-4.22-e2e-metal-ipi-ovn
+   - Approximate Start Date: 2026-01-15
+   - First Failing Run: https://prow.ci.openshift.org/view/gs/test-platform-results/logs/...
+   - Pattern: 18 consecutive failures followed by 12 successes
+   ```
+
+   **Note**: If the API is unavailable or no clear start date can be determined, skip this section entirely. Do not include inconclusive results.
+
+7. **Identify Related Regressions**: Search for similar failing tests
 
    - List all regressions for the release
    - Identify other variant combinations where this test is failing
    - Summarize the commonalities and differences in job variants
      - For example is this test failing for all jobs of one Platform or Upgrade variant
 
-7. **Check Existing Triages**: Look for related triage records
+8. **Check Existing Triages**: Look for related triage records
 
    - Query regression data for triages with similar test names
    - Identify triages from same job runs
    - Present existing JIRA tickets that might already cover this regression
    - This implements: "scan for pre-existing triages that look related"
 
-8. **Prepare Bug Filing Recommendations or Existing Bug Status**: Generate actionable information
+9. **Prepare Bug Filing Recommendations or Existing Bug Status**: Generate actionable information
 
    **If regression is NOT triaged** (no existing JIRA):
    - Component assignment (from test mappings)
@@ -363,7 +449,7 @@ This command is useful for:
      - Recommend: Re-open the existing bug OR file a new bug if the failure mode is different
      - Provide new bug template if failure analysis suggests a different root cause
 
-9. **Display Comprehensive Report**: Present findings in clear format
+10. **Display Comprehensive Report**: Present findings in clear format
 
    **Section 1: Regression Summary**
    - Test name
@@ -399,12 +485,19 @@ This command is useful for:
    - Sample job URLs for manual inspection
    - **Note**: If the test outputs API is not available, this section will note: "Test output analysis not available"
 
-   **Section 4: Related Regressions**
+   **Section 4: Regression Start Analysis** (only if determinable)
+   - Job analyzed (the job with most failures)
+   - Approximate start date of the regression
+   - URL of the first failing job run
+   - Pattern description (e.g., "18 consecutive failures followed by 12 successes")
+   - **Note**: This section is omitted if no clear start date can be determined
+
+   **Section 5: Related Regressions**
    - List of potentially related failing tests
    - Common patterns across failures
    - Recommendation: "These regressions may be caused by the same issue and could be triaged to one JIRA"
 
-   **Section 5: Existing Triages**
+   **Section 6: Existing Triages**
    - Related JIRA tickets already filed (from other regressions)
 
 ## Return Value
@@ -459,6 +552,20 @@ Generated using the `fetch-test-runs` skill (see `plugins/ci/skills/fetch-test-r
 - **Assessment**: Interpretation of consistency (e.g., "Single root cause - API endpoint not available")
 - **Note**: If the test outputs API is not available, this section will note that the analysis could not be performed
 
+#### Regression Start Analysis (only if determinable)
+
+Generated using the `fetch-test-runs` skill with `--include-success` and `--prowjob-name`:
+
+- **Job Analyzed**: The job with the most failures (from step 4)
+- **Approximate Start Date**: When the test began failing more frequently
+- **First Failing Run URL**: Link to the job run where the regression appears to have started
+- **Pattern Description**: Summary of the pass/fail pattern (e.g., "18 consecutive failures followed by 12 successes")
+- **Note**: This section is only included when a clear regression start date can be determined. It is omitted for:
+  - Flaky tests with scattered failures
+  - Tests that have been failing throughout the available history
+  - When the API is unavailable
+  - When the pattern is inconclusive
+
 #### Root Cause Analysis
 
 - **Failure Patterns**: Common patterns identified across multiple job failures
@@ -494,7 +601,7 @@ Generated using the `fetch-test-runs` skill (see `plugins/ci/skills/fetch-test-r
 #### Bug Filing / Next Steps
 
 - **For Untriaged Regressions**: Complete bug template ready to file
-- **For Triaged Regressions with Active Progress**: "Bug exists and is being worked - no action needed"
+- **For Triaged Regressions with Active Progress**: Note existing bug and progress status
 - **For Triaged Regressions Needing Attention**: Suggested actions (comment, reassign, escalate)
 - **For Failed Fixes (analysis_status -1000)**: Recommendation to re-open or file new bug
 
@@ -516,6 +623,12 @@ Generated using the `fetch-test-runs` skill (see `plugins/ci/skills/fetch-test-r
 
    - Component Readiness API
    - Check firewall and VPN settings if needed
+
+3. **JIRA_TOKEN** (optional): Required for JIRA progress analysis on triaged regressions
+
+   - Set environment variable: `export JIRA_TOKEN="your-jira-api-token"`
+   - Obtain from: https://issues.redhat.com (Profile → Personal Access Tokens)
+   - If not set, JIRA progress analysis will be skipped but other analysis continues
 
 ## Notes
 
