@@ -12,6 +12,7 @@ This skill provides the core analysis logic shared by status-related commands (`
 ## When to Use This Skill
 
 This skill is invoked automatically by:
+
 - `/jira:status-rollup` - Single root issue, outputs as Jira comment
 - `/jira:update-weekly-status` - Multiple root issues (batch), outputs to Status Summary field
 
@@ -23,14 +24,14 @@ Do NOT invoke this skill directly. Use the commands above.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                   /jira:update-weekly-status                     │
+│                  /jira:update-weekly-status                     │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                   Python Data Gatherer                           │
-│                 (gather_status_data.py)                          │
-│                                                                  │
+│                    Python Data Gatherer                         │
+│                  (gather_status_data.py)                        │
+│                                                                 │
 │  • Async HTTP requests (aiohttp)                                │
 │  • Jira: issues, descendants, changelogs                        │
 │  • GitHub: PRs via GraphQL (batched)                            │
@@ -39,13 +40,13 @@ Do NOT invoke this skill directly. Use the commands above.
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                   Status Analysis Engine                         │
+│                    Status Analysis Engine                       │
 │  ┌───────────────┐  ┌──────────────────┐  ┌──────────────────┐  │
 │  │ Read JSON     │  │ Activity         │  │ PR Activity      │  │
-│  │ (pre-gathered)│──▶│ Analysis         │──▶│ (pre-gathered)  │  │
+│  │ (pre-gathered)│─▶│ Analysis         │─▶│ (pre-gathered)   │  │
 │  └───────────────┘  └──────────────────┘  └──────────────────┘  │
-│                              │                                   │
-│                              ▼                                   │
+│                              │                                  │
+│                              ▼                                  │
 │                    ┌──────────────────┐                         │
 │                    │ Formatting       │                         │
 │                    │ (formatting.md)  │                         │
@@ -54,7 +55,7 @@ Do NOT invoke this skill directly. Use the commands above.
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│  Status Summary field (R/Y/G template)                          │
+│                Status Summary field (R/Y/G template)            │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -62,21 +63,21 @@ Do NOT invoke this skill directly. Use the commands above.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                     /jira:status-rollup                          │
+│                      /jira:status-rollup                        │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                   Status Analysis Engine                         │
-│                        (SKILL.md)                                │
+│                    Status Analysis Engine                       │
+│                         (SKILL.md)                              │
 │  ┌───────────────┐  ┌──────────────────┐  ┌──────────────────┐  │
 │  │ Data          │  │ Activity         │  │ External         │  │
-│  │ Collection    │──▶│ Analysis         │──▶│ Links           │  │
+│  │ Collection    │─▶│ Analysis         │─▶│ Links            │  │
 │  │ (data-        │  │ (activity-       │  │ (external-       │  │
 │  │ collection.md)│  │ analysis.md)     │  │ links.md)        │  │
 │  └───────────────┘  └──────────────────┘  └──────────────────┘  │
-│                              │                                   │
-│                              ▼                                   │
+│                              │                                  │
+│                              ▼                                  │
 │                    ┌──────────────────┐                         │
 │                    │ Formatting       │                         │
 │                    │ (formatting.md)  │                         │
@@ -85,7 +86,7 @@ Do NOT invoke this skill directly. Use the commands above.
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│  Jira comment (wiki markup)                                     │
+│                   Jira comment (wiki markup)                    │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -139,6 +140,7 @@ Returns: ALL descendants at any depth (EPIC-456, Story 1.1, Subtask 1.1.1, Story
 **Key benefit**: `childIssuesOf()` is already recursive - a single JQL query returns the entire hierarchy regardless of depth. No manual recursion needed.
 
 The difference between commands is not in traversal but in:
+
 - **Data source**: update-weekly-status uses pre-gathered JSON; status-rollup uses MCP calls
 - **Scope**: status-rollup analyzes one root; update-weekly-status analyzes many roots
 - **Filtering**: update-weekly-status data is pre-filtered to date range by the Python script
@@ -310,6 +312,7 @@ Follow `external-links.md` to:
    - From descendants' links
 
 2. **Fetch PR metadata** (if `gh` CLI available):
+
    ```bash
    gh pr view {PR-NUMBER} --repo {REPO} --json state,updatedAt,mergedAt,title
    ```
@@ -328,6 +331,7 @@ Follow `external-links.md` to:
 Follow `formatting.md` to generate output based on `output_format`:
 
 **For `wiki_comment` (status-rollup)**:
+
 ```
 h2. Status Rollup From: {start-date} to {end-date}
 
@@ -348,6 +352,7 @@ h2. Status Rollup From: {start-date} to {end-date}
 ```
 
 **For `ryg_field` (update-weekly-status)**:
+
 ```
 * Color Status: {Red, Yellow, Green}
  * Status summary:
@@ -376,6 +381,7 @@ Return structured result:
 ```
 
 The calling command then handles:
+
 - User review and approval workflow
 - Posting to Jira (comment or field update)
 - Summary report generation
@@ -416,6 +422,7 @@ All modules should handle these error cases:
 - **Jira MCP server** configured (for argument resolution)
 
 Check setup:
+
 ```bash
 python3 -c "import aiohttp; print('aiohttp OK')"
 echo $JIRA_TOKEN
@@ -429,6 +436,7 @@ gh auth token
 - **GitLab CLI** (`glab`) installed and authenticated (optional)
 
 Check for tools:
+
 ```bash
 which gh && gh auth status
 which glab && glab auth status  # optional
