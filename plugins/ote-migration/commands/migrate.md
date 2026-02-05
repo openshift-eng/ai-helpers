@@ -942,10 +942,12 @@ echo "Fetching latest commit hashes..."
 ORIGIN_LATEST=$(git ls-remote https://github.com/openshift/origin.git refs/heads/main | awk '{print $1}')
 K8S_LATEST=$(git ls-remote https://github.com/openshift/kubernetes.git refs/heads/master | awk '{print $1}')
 GINKGO_LATEST=$(git ls-remote https://github.com/openshift/onsi-ginkgo.git refs/heads/v2.27.2-openshift-4.22 | awk '{print $1}')
+OTE_LATEST=$(git ls-remote https://github.com/openshift-eng/openshift-tests-extension.git refs/heads/main | awk '{print $1}')
 
 ORIGIN_SHORT="${ORIGIN_LATEST:0:12}"
 K8S_SHORT="${K8S_LATEST:0:12}"
 GINKGO_SHORT="${GINKGO_LATEST:0:12}"
+OTE_SHORT="${OTE_LATEST:0:12}"
 
 echo "Fetching commit timestamps (parallel shallow clones)..."
 # Create temp directories
@@ -999,7 +1001,8 @@ echo "Using Kubernetes version: $K8S_VERSION"
 echo "Using ginkgo version: $GINKGO_VERSION"
 
 echo "Step 4: Add required dependencies..."
-GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get github.com/openshift-eng/openshift-tests-extension@latest
+echo "Using openshift-tests-extension commit: $OTE_SHORT"
+GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get "github.com/openshift-eng/openshift-tests-extension@$OTE_SHORT"
 GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get "github.com/openshift/origin@main"
 GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get github.com/onsi/ginkgo/v2@latest
 GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get github.com/onsi/gomega@latest
@@ -1323,10 +1326,12 @@ echo "Fetching latest commit hashes..."
 ORIGIN_LATEST=$(git ls-remote https://github.com/openshift/origin.git refs/heads/main | awk '{print $1}')
 K8S_LATEST=$(git ls-remote https://github.com/openshift/kubernetes.git refs/heads/master | awk '{print $1}')
 GINKGO_LATEST=$(git ls-remote https://github.com/openshift/onsi-ginkgo.git refs/heads/v2.27.2-openshift-4.22 | awk '{print $1}')
+OTE_LATEST=$(git ls-remote https://github.com/openshift-eng/openshift-tests-extension.git refs/heads/main | awk '{print $1}')
 
 ORIGIN_SHORT="${ORIGIN_LATEST:0:12}"
 K8S_SHORT="${K8S_LATEST:0:12}"
 GINKGO_SHORT="${GINKGO_LATEST:0:12}"
+OTE_SHORT="${OTE_LATEST:0:12}"
 
 echo "Fetching commit timestamps (parallel shallow clones)..."
 # Create temp directories
@@ -1380,7 +1385,8 @@ echo "Using Kubernetes version: $K8S_VERSION"
 echo "Using ginkgo version: $GINKGO_VERSION"
 
 echo "Step 4: Add required dependencies..."
-go get github.com/openshift-eng/openshift-tests-extension@latest
+echo "Using openshift-tests-extension commit: $OTE_SHORT"
+go get "github.com/openshift-eng/openshift-tests-extension@$OTE_SHORT"
 go get "github.com/openshift/origin@main"
 go get github.com/onsi/ginkgo/v2@latest
 go get github.com/onsi/gomega@latest
@@ -3504,25 +3510,31 @@ If you see warnings about failed dependency downloads during migration, complete
 **For Monorepo Strategy:**
 
 ```bash
-cd <working-dir>/test/e2e
+# Navigate to test module directory
+# If test/e2e didn't exist: cd <working-dir>/test/e2e
+# If test/e2e exists: cd <working-dir>/test/e2e/<test-dir-name>
+cd <working-dir>/<test-module-dir>
 
-# Complete dependency resolution
-go get github.com/openshift-eng/openshift-tests-extension@latest
-go get "github.com/openshift/origin@$ORIGIN_VERSION"
-go get github.com/onsi/ginkgo/v2@latest
-go get github.com/onsi/gomega@latest
+# Get the commit hash from go.mod for openshift-tests-extension
+OTE_COMMIT=$(grep "openshift-tests-extension" go.mod | grep -o '[0-9a-f]\{12\}' | head -1)
+
+# Complete dependency resolution using commit hash (avoids timestamp issues)
+GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get "github.com/openshift-eng/openshift-tests-extension@${OTE_COMMIT}"
+GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get "github.com/openshift/origin@main"
+GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get github.com/onsi/ginkgo/v2@latest
+GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get github.com/onsi/gomega@latest
 
 # Resolve all dependencies (auto-download required Go version if needed)
 GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go mod tidy
 
 # Download all modules
-go mod download
+GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go mod download
 
 # Verify files are created
 ls -la go.mod go.sum
 
 # Return to root
-cd ../..
+cd <working-dir>
 ```
 
 **Root module (if needed):**
