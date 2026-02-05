@@ -226,9 +226,9 @@ This command is useful for:
      - Priority: **Low**
      - Action: "Issue appears to have been resolved. The failures occurred in older runs, not recent ones."
 
-5. **Analyze Failure Output Consistency**: Use the `fetch-test-failure-outputs` skill
+5. **Analyze Failure Output Consistency**: Use the `fetch-test-runs` skill
 
-   Use the `fetch-test-failure-outputs` skill to fetch and analyze actual test failure outputs from all failed job runs. This helps determine if all failures have the same root cause or if there are multiple issues.
+   Use the `fetch-test-runs` skill to fetch and analyze actual test failure outputs from all failed job runs. This helps determine if all failures have the same root cause or if there are multiple issues.
 
    **Implementation**:
 
@@ -245,14 +245,14 @@ This command is useful for:
      | .job_run_id
    ' | tr '\n' ',' | sed 's/,$//')
 
-   # Use the fetch-test-failure-outputs skill
-   script_path="plugins/ci/skills/fetch-test-failure-outputs/fetch_test_failure_outputs.py"
+   # Use the fetch-test-runs skill
+   script_path="plugins/ci/skills/fetch-test-runs/fetch_test_runs.py"
    output_analysis=$(python3 "$script_path" "$test_id" "$job_run_ids" --format json)
    ```
 
    The skill fetches raw test failure outputs from Sippy API.
 
-   See `plugins/ci/skills/fetch-test-failure-outputs/SKILL.md` for complete implementation details.
+   See `plugins/ci/skills/fetch-test-runs/SKILL.md` for complete implementation details.
 
    **Parse Results and Analyze with AI**:
 
@@ -388,7 +388,7 @@ This command is useful for:
      - Recommended action
    - Overall assessment of regression severity
 
-   **Section 3: Failure Output Analysis** (from `fetch-test-failure-outputs` skill)
+   **Section 3: Failure Output Analysis** (from `fetch-test-runs` skill)
    - Number of test outputs analyzed
    - Consistency classification (Highly Consistent / Moderately Consistent / Inconsistent)
    - Most common error message with occurrence count
@@ -443,7 +443,7 @@ The command outputs a **Comprehensive Regression Analysis Report** for all regre
 
 #### Failure Output Analysis
 
-Generated using the `fetch-test-failure-outputs` skill (see `plugins/ci/skills/fetch-test-failure-outputs/SKILL.md`):
+Generated using the `fetch-test-runs` skill (see `plugins/ci/skills/fetch-test-runs/SKILL.md`):
 
 - **Number of Outputs Analyzed**: Total test outputs examined
 - **Consistency Classification**:
@@ -531,7 +531,7 @@ Generated using the `fetch-test-failure-outputs` skill (see `plugins/ci/skills/f
   - Negative values indicate problems detected by the regression analysis
 - **Skills Used**:
   - `fetch-regression-details`: Fetches regression data and analyzes pass/fail patterns
-  - `fetch-test-failure-outputs`: Fetches actual test outputs and analyzes error message consistency
+  - `fetch-test-runs`: Fetches actual test outputs and analyzes error message consistency
 - The regression details skill groups failed jobs by job name and provides pass sequences for pattern analysis
 - The test failure outputs skill compares error messages to determine if failures have a single root cause
 - Follows the guidance: "many regressions can be caused by one bug"
@@ -544,7 +544,7 @@ Generated using the `fetch-test-failure-outputs` skill (see `plugins/ci/skills/f
 ## See Also
 
 - Related Skill: `fetch-regression-details` - Fetches regression data with pass sequences (`plugins/ci/skills/fetch-regression-details/SKILL.md`)
-- Related Skill: `fetch-test-failure-outputs` - Fetches and analyzes test failure outputs (`plugins/ci/skills/fetch-test-failure-outputs/SKILL.md`)
+- Related Skill: `fetch-test-runs` - Fetches and analyzes test failure outputs (`plugins/ci/skills/fetch-test-runs/SKILL.md`)
 - Related Command: `/component-health:list-regressions` (for bulk regression data)
 - Related Command: `/component-health:analyze-regressions` (for overall component health)
 - Component Readiness: https://sippy-auth.dptools.openshift.org/sippy-ng/component_readiness/main
