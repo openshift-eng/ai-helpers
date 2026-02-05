@@ -79,11 +79,12 @@ Ask: "Which directory structure strategy do you want to use?"
 - Integrates into existing repository structure
 - Uses existing `cmd/` and `test/` directories
 - Files created:
-  - `cmd/extension/main.go` - Extension binary
-  - `test/e2e/*.go` - Test files (regular package in main module)
-  - `test/testdata/` - Test data (regular package in main module)
-  - **NO test/e2e/go.mod** - All code in one module
-- Root `go.mod` updated with OTE dependency and replace directive
+  - `cmd/extension/main.go` - Extension binary source code (at repository root)
+  - `bin/<extension-name>-tests-ext` - Compiled binary (created by make)
+  - `test/e2e/go.mod` - Separate test module
+  - `test/e2e/*.go` - Test files (in test module, may be in subdirectory if test/e2e exists)
+  - `test/e2e/testdata/` - Test data (inside test module)
+- Root `go.mod` updated with replace directive for test module
 - Best for: Component repos with existing `cmd/` and `test/` structure
 
 **Option 2: Single-module strategy (isolated directory)**
@@ -505,7 +506,8 @@ Source Repository (openshift-tests-private):
   Testdata Subfolder: test/extended/testdata/<testdata-subfolder>/
 
 Destination Structure (in target repo):
-  Extension Binary: cmd/extension/main.go
+  Extension Source: cmd/extension/main.go (at repository root)
+  Extension Binary: bin/<extension-name>-tests-ext (created by make)
   Test Module: test/e2e/go.mod OR test/e2e/<test-dir-name>/go.mod (auto-detected)
   Test Files: test/e2e/*.go OR test/e2e/<test-dir-name>/*.go (auto-detected)
   Testdata: test/e2e/testdata/ OR test/e2e/<test-dir-name>/testdata/ (inside test module)
@@ -770,7 +772,7 @@ else
     echo "Structure: Direct mode (creating fresh test/e2e)"
 fi
 
-# Create cmd directory for main.go
+# Create cmd directory for main.go at root
 mkdir -p cmd/extension
 
 # Create bin directory for binary output
@@ -1496,9 +1498,9 @@ cd ..
 
 **For Monorepo Strategy:**
 
-Create `cmd/extension/main.go`:
+Create `cmd/extension/main.go` (at repository root):
 
-**IMPORTANT:** Extract module name and detect test import path:
+**IMPORTANT:** Extract module name and detect test module import path:
 ```bash
 cd <working-dir>
 MODULE_NAME=$(grep '^module ' go.mod | awk '{print $2}')
@@ -1538,6 +1540,9 @@ import (
     "github.com/openshift/origin/test/extended/util"
     "k8s.io/kubernetes/test/e2e/framework"
 
+    // Import testdata package from test module
+    testdata "$TEST_IMPORT/testdata"
+
     // Import test packages from test module
     _ "$TEST_IMPORT"
 )
@@ -1561,11 +1566,7 @@ func main() {
     })
 
     // Build test specs from Ginkgo
-    // Force package load (this ensures test specs are registered)
-    _ = testext.PackageLoaded
-    // Use AllTestsIncludingVendored to include tests from the vendored extension module
-    // This is critical for monorepo strategy where tests in subdirectories get vendored
-    allSpecs, err := g.BuildExtensionTestSpecsFromOpenShiftGinkgoSuite(et.AllTestsIncludingVendored())
+    allSpecs, err := g.BuildExtensionTestSpecsFromOpenShiftGinkgoSuite()
     if err != nil {
         panic(fmt.Sprintf("couldn't build extension test specs from ginkgo: %+v", err.Error()))
     }
@@ -1770,43 +1771,51 @@ func main() {
 Create `test/bindata.mk`:
 
 ```makefile
-# Bindata generation for testdata files
+# bindata.mk for embedding testdata files
 
 # Auto-detect testdata path based on directory structure
 # If e2e/<test-dir-name> exists (subdirectory mode): e2e/<test-dir-name>/testdata
 # If only e2e exists (direct mode): e2e/testdata
 ifeq ($(wildcard e2e/<test-dir-name>/.),)
     # Direct mode: e2e directory is the test directory
-    TESTDATA_PATH := e2e/testdata
+    BINDATA_DIR := e2e/testdata
+    TEST_MODULE_DIR := e2e
 else
     # Subdirectory mode: e2e/<test-dir-name> is the test directory
-    TESTDATA_PATH := e2e/<test-dir-name>/testdata
+    BINDATA_DIR := e2e/<test-dir-name>/testdata
+    TEST_MODULE_DIR := e2e/<test-dir-name>
 endif
 
-# go-bindata tool path
-GOPATH ?= $(shell go env GOPATH)
-GO_BINDATA := $(GOPATH)/bin/go-bindata
+BINDATA_PKG := testdata
+BINDATA_OUT := $(BINDATA_DIR)/bindata.go
 
-# Install go-bindata if not present
-$(GO_BINDATA):
-    @echo "Installing go-bindata to $(GO_BINDATA)..."
-    @go install github.com/go-bindata/go-bindata/v3/go-bindata@latest
-    @echo "go-bindata installed successfully"
+.PHONY: update-bindata
+update-bindata:
+	@echo "Generating bindata for testdata files..."
+	cd $(TEST_MODULE_DIR) && \
+	go-bindata \
+		-nocompress \
+		-nometadata \
+		-prefix "testdata" \
+		-pkg $(BINDATA_PKG) \
+		-o testdata/bindata.go \
+		testdata/...
+	@echo "✅ Bindata generated successfully"
 
-# Generate bindata.go from testdata directory
+.PHONY: verify-bindata
+verify-bindata: update-bindata
+	@echo "Verifying bindata is up to date..."
+	git diff --exit-code $(BINDATA_OUT) || (echo "❌ Bindata is out of date. Run 'make update-bindata'" && exit 1)
+	@echo "✅ Bindata is up to date"
+
+# Legacy alias for backward compatibility
 .PHONY: bindata
-bindata: clean-bindata $(GO_BINDATA)
-    @echo "Generating bindata from $(TESTDATA_PATH)..."
-    @mkdir -p $(TESTDATA_PATH)
-    $(GO_BINDATA) -nocompress -nometadata \
-        -pkg testdata -o $(TESTDATA_PATH)/bindata.go $(TESTDATA_PATH)/...
-    @gofmt -s -w $(TESTDATA_PATH)/bindata.go
-    @echo "Bindata generated successfully at $(TESTDATA_PATH)/bindata.go"
+bindata: update-bindata
 
 .PHONY: clean-bindata
 clean-bindata:
-    @echo "Cleaning bindata..."
-    @rm -f $(TESTDATA_PATH)/bindata.go
+	@echo "Cleaning bindata..."
+	@rm -f $(BINDATA_OUT)
 ```bash
 
 **For Single-Module Strategy:**
@@ -1849,50 +1858,49 @@ clean-bindata:
 
 **For Monorepo Strategy:**
 
-Update root `Makefile` (or add extension target to existing one):
+Update root Makefile to build extension binary directly from root:
 
 ```bash
 cd <working-dir>
 
 # Check if Makefile exists
 if [ -f "Makefile" ]; then
-    echo "Updating root Makefile with OTE extension target..."
+    echo "Updating root Makefile with OTE extension targets..."
 
     # Check if OTE targets already exist
     if grep -q "tests-ext-build" Makefile; then
         echo "⚠️  OTE targets already exist in Makefile, skipping..."
     else
-        # Add OTE extension build targets for monorepo
+        # Add OTE extension build targets for monorepo (builds from root)
         cat >> Makefile << 'EOF'
 
 # OTE test extension binary configuration
+TESTS_EXT_DIR := ./cmd/extension
 TESTS_EXT_BINARY := bin/<extension-name>-tests-ext
 
-# Build OTE extension binary
+# Build OTE extension binary (builds from root, outputs to bin/)
 .PHONY: tests-ext-build
 tests-ext-build:
-    @echo "Building OTE test extension binary..."
-    @echo "Generating bindata from test/e2e/testdata/..."
-    @$(MAKE) -C test bindata
-    @echo "Building binary..."
-    @mkdir -p bin
-    @GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go build -o \$(TESTS_EXT_BINARY) ./cmd/extension
-    @echo "OTE binary built successfully at \$(TESTS_EXT_BINARY)"
+	@echo "Building OTE test extension binary..."
+	@cd test && $(MAKE) update-bindata
+	@mkdir -p bin
+	go build -mod=vendor -o $(TESTS_EXT_BINARY) $(TESTS_EXT_DIR)
+	@echo "✅ Extension binary built: $(TESTS_EXT_BINARY)"
 
 # Compress OTE extension binary (for CI/CD and container builds)
 .PHONY: tests-ext-compress
 tests-ext-compress: tests-ext-build
-    @echo "Compressing OTE extension binary..."
-    @gzip -f \$(TESTS_EXT_BINARY)
-    @echo "Compressed binary created at \$(TESTS_EXT_BINARY).gz"
+	@echo "Compressing OTE extension binary..."
+	@gzip -f $(TESTS_EXT_BINARY)
+	@echo "Compressed binary created at $(TESTS_EXT_BINARY).gz"
 
 # Copy compressed binary to _output directory (for CI/CD)
 .PHONY: tests-ext-copy
 tests-ext-copy: tests-ext-compress
-    @echo "Copying compressed binary to _output..."
-    @mkdir -p _output
-    @cp \$(TESTS_EXT_BINARY).gz _output/
-    @echo "Binary copied to _output/<extension-name>-tests-ext.gz"
+	@echo "Copying compressed binary to _output..."
+	@mkdir -p _output
+	@cp $(TESTS_EXT_BINARY).gz _output/
+	@echo "Binary copied to _output/<extension-name>-tests-ext.gz"
 
 # Alias for backward compatibility
 .PHONY: extension
@@ -1901,9 +1909,9 @@ extension: tests-ext-build
 # Clean extension binary
 .PHONY: clean-extension
 clean-extension:
-    @echo "Cleaning extension binary..."
-    @rm -f \$(TESTS_EXT_BINARY) \$(TESTS_EXT_BINARY).gz _output/<extension-name>-tests-ext.gz
-    @$(MAKE) -C test clean-bindata
+	@echo "Cleaning extension binary..."
+	@rm -f $(TESTS_EXT_BINARY) $(TESTS_EXT_BINARY).gz _output/<extension-name>-tests-ext.gz
+	@cd test && $(MAKE) clean-bindata 2>/dev/null || true
 EOF
 
         echo "✅ Root Makefile updated with OTE targets"
@@ -1911,39 +1919,37 @@ EOF
 else
     echo "⚠️  No root Makefile found in target repository"
     echo "Creating a basic Makefile with OTE targets..."
-    cat > Makefile << EOF
+    cat > Makefile << 'EOF'
 # OTE test extension binary configuration
+TESTS_EXT_DIR := ./cmd/extension
 TESTS_EXT_BINARY := bin/<extension-name>-tests-ext
-TESTDATA_DIR_NAME := ${TESTDATA_DIR_NAME}
 
 .PHONY: all
 all: tests-ext-build
 
-# Build OTE extension binary
+# Build OTE extension binary (builds from root, outputs to bin/)
 .PHONY: tests-ext-build
 tests-ext-build:
-    @echo "Building OTE test extension binary..."
-    @echo "Generating bindata from test/\$(TESTDATA_DIR_NAME)-testdata/..."
-    @$(MAKE) -C test bindata
-    @echo "Building binary..."
-    @mkdir -p bin
-    @GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go build -o \$(TESTS_EXT_BINARY) ./cmd/extension
-    @echo "OTE binary built successfully at \$(TESTS_EXT_BINARY)"
+	@echo "Building OTE test extension binary..."
+	@cd test && $(MAKE) update-bindata
+	@mkdir -p bin
+	go build -mod=vendor -o $(TESTS_EXT_BINARY) $(TESTS_EXT_DIR)
+	@echo "✅ Extension binary built: $(TESTS_EXT_BINARY)"
 
 # Compress OTE extension binary (for CI/CD and container builds)
 .PHONY: tests-ext-compress
 tests-ext-compress: tests-ext-build
-    @echo "Compressing OTE extension binary..."
-    @gzip -f \$(TESTS_EXT_BINARY)
-    @echo "Compressed binary created at \$(TESTS_EXT_BINARY).gz"
+	@echo "Compressing OTE extension binary..."
+	@gzip -f $(TESTS_EXT_BINARY)
+	@echo "Compressed binary created at $(TESTS_EXT_BINARY).gz"
 
 # Copy compressed binary to _output directory (for CI/CD)
 .PHONY: tests-ext-copy
 tests-ext-copy: tests-ext-compress
-    @echo "Copying compressed binary to _output..."
-    @mkdir -p _output
-    @cp \$(TESTS_EXT_BINARY).gz _output/
-    @echo "Binary copied to _output/<extension-name>-tests-ext.gz"
+	@echo "Copying compressed binary to _output..."
+	@mkdir -p _output
+	@cp $(TESTS_EXT_BINARY).gz _output/
+	@echo "Binary copied to _output/<extension-name>-tests-ext.gz"
 
 # Alias for backward compatibility
 .PHONY: extension
@@ -1952,9 +1958,9 @@ extension: tests-ext-build
 # Clean extension binary
 .PHONY: clean-extension
 clean-extension:
-    @echo "Cleaning extension binary..."
-    @rm -f \$(TESTS_EXT_BINARY) \$(TESTS_EXT_BINARY).gz _output/<extension-name>-tests-ext.gz
-    @$(MAKE) -C test clean-bindata
+	@echo "Cleaning extension binary..."
+	@rm -f $(TESTS_EXT_BINARY) $(TESTS_EXT_BINARY).gz _output/<extension-name>-tests-ext.gz
+	@cd test && $(MAKE) clean-bindata 2>/dev/null || true
 EOF
 
     echo "✅ Root Makefile created with OTE targets"
@@ -2068,11 +2074,13 @@ fi
   - `make extension` - Alias for tests-ext-build
 - Can be called from Dockerfile or CI/CD scripts
 
-#### Step 5: Create fixtures.go
+#### Step 5: Create fixtures.go (Helper Functions)
+
+**IMPORTANT:** This creates the helper functions file `fixtures.go`. This is SEPARATE from `bindata.go` which is generated by go-bindata.
 
 **For Monorepo Strategy:**
 
-Create fixtures.go at the testdata directory location:
+Create fixtures.go helper file at the testdata directory location:
 - If test/e2e exists and using subdirectory: `test/e2e/<test-dir-name>/testdata/fixtures.go`
 - If test/e2e doesn't exist (direct mode): `test/e2e/testdata/fixtures.go`
 
@@ -2080,7 +2088,7 @@ Create fixtures.go at the testdata directory location:
 
 Create `tests-extension/test/testdata/fixtures.go`
 
-**Note:** The fixtures.go content is the same for both strategies:
+**Note:** The fixtures.go helper functions content is the same for both strategies. This file provides FixturePath() and other utility functions that wrap the bindata-generated Asset/RestoreAsset functions:
 
 ```go
 package testdata
@@ -3392,7 +3400,8 @@ Successfully migrated **<extension-name>** to OpenShift Tests Extension (OTE) fr
 ## Files Created/Modified
 
 ### Generated Code
-- ✅ `cmd/extension/main.go` - OTE entry point with platform filters
+- ✅ `cmd/extension/main.go` - OTE entry point (source code at repository root)
+- ✅ `bin/<extension-name>-tests-ext` - Compiled binary (created by `make extension`)
 - ✅ `test/e2e/go.mod` - Test module with OpenShift replace directives
 - ✅ `test/e2e/testdata/fixtures.go` (or subdirectory) - Testdata wrapper functions
 - ✅ `test/bindata.mk` - Bindata generation rules (auto-detects testdata path)

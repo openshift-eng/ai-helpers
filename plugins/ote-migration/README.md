@@ -243,27 +243,57 @@ The migration tool supports two directory strategies to fit different repository
 
 Integrates OTE into existing repository structure with **separate test module**.
 
-**Structure created:**
+**Structure created (when test/e2e doesn't exist):**
 
 ```text
 <repo-root>/
+├── bin/                           # Build artifacts (created by make)
+│   ├── <extension-name>-tests-ext # Binary
+│   └── <extension-name>-tests-ext.gz  # Compressed (optional)
 ├── cmd/
 │   └── extension/
-│       └── main.go                # OTE entry point
+│       └── main.go                # OTE entry point (source code)
 ├── test/
-│   ├── e2e/
+│   ├── e2e/                       # Created fresh
 │   │   ├── go.mod                 # Separate test module
 │   │   ├── go.sum
-│   │   ├── *_test.go              # Test files (may be in subdirectory)
+│   │   ├── *_test.go              # Test files
 │   │   └── testdata/              # Testdata inside test module
 │   │       ├── bindata.go         # Generated
 │   │       └── fixtures.go
 │   └── bindata.mk
+├── _output/                       # CI/CD artifacts (created by make)
+│   └── <extension-name>-tests-ext.gz
 ├── go.mod                         # Root module (with replace directive)
 └── Makefile                       # Extension target added
 ```
 
-**Note:** The diagram above shows the structure when `test/e2e` doesn't exist. If `test/e2e` already exists when migrating, the test module (go.mod, tests, and testdata) will be placed in a subdirectory like `test/e2e/extension/go.mod`, `test/e2e/extension/*_test.go`, and `test/e2e/extension/testdata/` respectively.
+**Structure created (when test/e2e already exists):**
+
+```text
+<repo-root>/
+├── bin/                           # Build artifacts (created by make)
+│   ├── <extension-name>-tests-ext # Binary (same location)
+│   └── <extension-name>-tests-ext.gz  # Compressed (optional)
+├── cmd/
+│   └── extension/
+│       └── main.go                # OTE entry point (source code)
+├── test/
+│   ├── e2e/
+│   │   ├── (existing-files...)    # Existing e2e tests (untouched)
+│   │   └── <test-dir-name>/       # New subdirectory for OTE (e.g., "extension")
+│   │       ├── go.mod             # Separate test module
+│   │       ├── go.sum
+│   │       ├── *_test.go          # Test files
+│   │       └── testdata/          # Testdata inside test module
+│   │           ├── bindata.go     # Generated
+│   │           └── fixtures.go
+│   └── bindata.mk
+├── _output/                       # CI/CD artifacts (created by make)
+│   └── <extension-name>-tests-ext.gz
+├── go.mod                         # Root module (with replace directive)
+└── Makefile                       # Extension target added
+```
 
 **Key characteristics:**
 
