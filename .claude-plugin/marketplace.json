@@ -177,6 +177,12 @@
       "source": "./plugins/gwapi",
       "description": "Gateway API installation utilities for Kubernetes/OpenShift clusters",
       "version": "0.0.1"
+    },
+    {
+      "name": "ote-migration",
+      "source": "./plugins/ote-migration",
+      "description": "Automate OpenShift Tests Extension (OTE) migration for component repositories",
+      "version": "0.0.1"
     }
   ]
 }
