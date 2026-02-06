@@ -15,15 +15,14 @@ ote-migration:migrate
 The `ote-migration:migrate` command automates the migration of component repositories to use the openshift-tests-extension (OTE) framework. It guides users through the entire migration process, from collecting configuration information to generating all necessary boilerplate code, copying test files, and setting up the build infrastructure.
 
 ## Implementation
-The command implements an interactive 8-phase migration workflow:
-1. **Cleanup** - Prepare the environment
-2. **User Input Collection** - Gather all configuration (extension name, directory strategy, repository paths, test subfolders)
-3. **Repository Setup** - Clone/update source (openshift-tests-private) and target repositories
-4. **Structure Creation** - Create directory layout (supports both monorepo and single-module strategies)
-5. **Code Generation** - Generate main.go, Makefile, go.mod, fixtures.go, and bindata configuration
-6. **Test Migration** - Automatically replace FixturePath calls, update imports, and add OTP/Level0 annotations (per-Describe-block, not per-file)
-7. **Dependency Resolution** - Run go mod tidy, vendor dependencies, and verify build
-8. **Documentation** - Generate comprehensive migration summary with next steps
+The command implements an interactive 7-phase migration workflow:
+1. **User Input Collection** - Gather all configuration (extension name, directory strategy, repository paths, test subfolders)
+2. **Repository Setup** - Clone/update source (openshift-tests-private) and target repositories
+3. **Structure Creation** - Create directory layout (supports both monorepo and single-module strategies)
+4. **Code Generation** - Generate main.go, Makefile, go.mod, fixtures.go, and bindata configuration
+5. **Test Migration** - Automatically replace FixturePath calls, update imports, and add OTP/Level0 annotations (per-Describe-block, not per-file)
+6. **Dependency Resolution and Verification** - Run go mod tidy and verify build
+7. **Documentation** - Generate comprehensive migration summary with next steps
 
 See the detailed workflow below for step-by-step implementation instructions.
 
@@ -80,6 +79,11 @@ Ask: "Which directory structure strategy do you want to use?"
 - Uses existing `cmd/` and `test/` directories
 - **Two variants depending on whether test/e2e already exists:**
 
+**IMPORTANT - Directory Structure is ENFORCED:**
+- Base path `test/e2e/` is **REQUIRED** by OTE framework conventions
+- Only the subdirectory name in Variant B is customizable (default: 'extension')
+- These paths cannot be changed to other locations (e.g., cannot use `tests/e2e/` or `testing/e2e/`)
+
 **Variant A: test/e2e doesn't exist (fresh migration)**
 - Files created:
   - `test/e2e/cmd/main.go` - Extension binary **INSIDE test module** (at test/e2e root level)
@@ -94,23 +98,31 @@ Ask: "Which directory structure strategy do you want to use?"
 
 **Variant B: test/e2e exists (subdirectory mode)**
 - Files created:
-  - `test/e2e/extension/cmd/main.go` - Extension binary **INSIDE test module**
+  - `test/e2e/<test-dir-name>/cmd/main.go` - Extension binary **INSIDE test module** (default: 'extension')
   - `bin/<extension-name>-tests-ext` - Compiled binary (created by make)
-  - `test/e2e/extension/go.mod` - Separate test module in subdirectory
-  - `test/e2e/extension/*.go` - Test files (in test module subdirectory)
-  - `test/e2e/extension/testdata/` - Test data (inside test module)
-- Build command: `cd test/e2e/extension && go build -o ../../../bin/<ext> ./cmd`
+  - `test/e2e/<test-dir-name>/go.mod` - Separate test module in subdirectory
+  - `test/e2e/<test-dir-name>/*.go` - Test files (in test module subdirectory)
+  - `test/e2e/<test-dir-name>/testdata/` - Test data (inside test module)
+- Build command: `cd test/e2e/<test-dir-name> && go build -o ../../../bin/<ext> ./cmd`
 - Root `go.mod` updated with replace directive for test module
 - **Why cmd is inside test module:** When test module is separate (has go.mod), ginkgo can only discover tests within that module. The cmd must be in the same module as the tests.
+- **Note:** `<test-dir-name>` is user-specified subdirectory name (default: 'extension'). See Input 6.
 - Best for: Repos with existing test/e2e directory
 
 **Option 2: Single-module strategy (isolated directory)**
 - Creates isolated `tests-extension/` directory
 - Self-contained with single `go.mod`
+
+**IMPORTANT - Directory Structure is ENFORCED:**
+- Base path `tests-extension/test/e2e/` is **REQUIRED** by OTE framework conventions
+- The `tests-extension/` name is fixed (cannot use other names like `test-extension/` or `tests/`)
+- The internal structure `test/e2e/` inside tests-extension is also fixed
+
 - Files created:
   - `tests-extension/cmd/main.go`
   - `tests-extension/test/e2e/*.go`
-  - `tests-extension/test/testdata/`
+  - `tests-extension/test/e2e/testdata/`
+  - `tests-extension/test/e2e/bindata.mk`
   - `tests-extension/go.mod`
 - No changes to existing repo structure
 - Best for: Standalone test extensions or repos without existing test structure
@@ -433,6 +445,11 @@ If the tags you provide don't match the actual tags in your test files, the bina
 
 **For monorepo strategy only:**
 
+**IMPORTANT - What Can Be Customized:**
+- ✅ **Customizable**: Only the subdirectory name in Variant B (when test/e2e exists)
+- ❌ **NOT Customizable**: The base path `test/e2e/` is FIXED and REQUIRED by OTE framework
+- Example: You can choose `test/e2e/my-tests/` but you CANNOT use `tests/e2e/` or `testing/e2e/`
+
 **Note**: Since we're already in the target repository (switched in Input 3b), we can now check the repository structure.
 
 Check if the default test directory already exists:
@@ -444,8 +461,10 @@ cd "$WORKING_DIR"
 # Check if test/e2e already exists
 if [ -d "test/e2e" ]; then
     echo "⚠️  Warning: test/e2e directory already exists in the target repository"
+    echo "📌 Using Variant B: Subdirectory mode"
     TEST_DIR_EXISTS=true
 else
+    echo "📌 Using Variant A: Direct mode"
     TEST_DIR_EXISTS=false
 fi
 ```
@@ -557,7 +576,7 @@ Target Repository:
 Destination Structure (in target repo):
   Extension Binary: tests-extension/cmd/main.go
   Test Files: tests-extension/test/e2e/*.go
-  Testdata: tests-extension/test/testdata/
+  Testdata: tests-extension/test/e2e/testdata/
   Module: tests-extension/go.mod (single module)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
@@ -766,10 +785,16 @@ cd <working-dir>
 # Auto-detect if test/e2e already exists in target repo
 if [ -d "test/e2e" ]; then
     TEST_E2E_EXISTS=true
-    echo "Detected existing test/e2e directory"
+    echo "========================================="
+    echo "✅ Detected: Variant B (Subdirectory mode)"
+    echo "   Structure: test/e2e/<test-dir-name>/"
+    echo "========================================="
 else
     TEST_E2E_EXISTS=false
-    echo "No existing test/e2e directory - will create fresh structure"
+    echo "========================================="
+    echo "✅ Detected: Variant A (Direct mode)"
+    echo "   Structure: test/e2e/"
+    echo "========================================="
 fi
 
 # Set directory paths based on detection
@@ -830,7 +855,7 @@ mkdir -p bin
 
 # Create test directories
 mkdir -p test/e2e
-mkdir -p test/testdata
+mkdir -p test/e2e/testdata
 
 echo "Created single-module structure in tests-extension/"
 ```bash
@@ -914,14 +939,14 @@ if [ -n "$SOURCE_TESTDATA_PATH" ]; then
     # Create subdirectory structure to match bindata paths
     # Files are organized as testdata/<subfolder>/ to match how tests call FixturePath()
     if [ -n "<testdata-subfolder>" ]; then
-        mkdir -p "test/testdata/<testdata-subfolder>"
-        cp -r "$SOURCE_TESTDATA_PATH"/* "test/testdata/<testdata-subfolder>/"
-        echo "Copied testdata files from $SOURCE_TESTDATA_PATH to test/testdata/<testdata-subfolder>/"
+        mkdir -p "test/e2e/testdata/<testdata-subfolder>"
+        cp -r "$SOURCE_TESTDATA_PATH"/* "test/e2e/testdata/<testdata-subfolder>/"
+        echo "Copied testdata files from $SOURCE_TESTDATA_PATH to test/e2e/testdata/<testdata-subfolder>/"
         echo "Tests should call: testdata.FixturePath(\"<testdata-subfolder>/filename.yaml\")"
     else
         # No subfolder specified, copy directly
-        cp -r "$SOURCE_TESTDATA_PATH"/* test/testdata/
-        echo "Copied testdata files from $SOURCE_TESTDATA_PATH to test/testdata/"
+        cp -r "$SOURCE_TESTDATA_PATH"/* test/e2e/testdata/
+        echo "Copied testdata files from $SOURCE_TESTDATA_PATH to test/e2e/testdata/"
     fi
 else
     echo "Skipping testdata copy (none specified)"
@@ -963,149 +988,54 @@ fi
 echo "Step 2: Set Go version to match target repo..."
 sed -i "s/^go .*/go $GO_VERSION/" go.mod
 
-echo "Step 3: Get latest versions from upstream repositories (parallel fetch)..."
-# Fetch commit hashes in parallel (fast - no cloning)
-echo "Fetching latest commit hashes..."
-ORIGIN_LATEST=$(git ls-remote https://github.com/openshift/origin.git refs/heads/main | awk '{print $1}')
-K8S_LATEST=$(git ls-remote https://github.com/openshift/kubernetes.git refs/heads/master | awk '{print $1}')
-GINKGO_LATEST=$(git ls-remote https://github.com/openshift/onsi-ginkgo.git refs/heads/v2.27.2-openshift-4.22 | awk '{print $1}')
+echo "Step 3: Add required dependencies..."
+# Get latest openshift-tests-extension commit from main branch
 OTE_LATEST=$(git ls-remote https://github.com/openshift-eng/openshift-tests-extension.git refs/heads/main | awk '{print $1}')
-
-ORIGIN_SHORT="${ORIGIN_LATEST:0:12}"
-K8S_SHORT="${K8S_LATEST:0:12}"
-GINKGO_SHORT="${GINKGO_LATEST:0:12}"
 OTE_SHORT="${OTE_LATEST:0:12}"
-
-echo "Fetching commit timestamps (parallel shallow clones)..."
-# Create temp directories
-TEMP_ORIGIN=$(mktemp -d)
-TEMP_K8S=$(mktemp -d)
-TEMP_GINKGO=$(mktemp -d)
-
-# Clone all repos in parallel to get timestamps - CRITICAL PERFORMANCE FIX
-# Old approach: Sequential clones took ~90s
-# New approach: Parallel clones take ~30-45s
-(git clone --depth=1 https://github.com/openshift/origin.git "$TEMP_ORIGIN" >/dev/null 2>&1) &
-PID_ORIGIN=$!
-
-(git clone --depth=1 https://github.com/openshift/kubernetes.git "$TEMP_K8S" >/dev/null 2>&1) &
-PID_K8S=$!
-
-(git clone --depth=1 --branch=v2.27.2-openshift-4.22 https://github.com/openshift/onsi-ginkgo.git "$TEMP_GINKGO" >/dev/null 2>&1) &
-PID_GINKGO=$!
-
-# Wait for all clones to complete
-echo "Waiting for parallel clones to complete..."
-wait $PID_ORIGIN $PID_K8S $PID_GINKGO
-
-# Extract timestamps
-ORIGIN_TIMESTAMP=$(cd "$TEMP_ORIGIN" && git show -s --format=%ct HEAD 2>/dev/null || echo "")
-K8S_TIMESTAMP=$(cd "$TEMP_K8S" && git show -s --format=%ct HEAD 2>/dev/null || echo "")
-GINKGO_TIMESTAMP=$(cd "$TEMP_GINKGO" && git show -s --format=%ct HEAD 2>/dev/null || echo "")
-
-# Cleanup temp directories
-rm -rf "$TEMP_ORIGIN" "$TEMP_K8S" "$TEMP_GINKGO"
-
-# Fallback if timestamps couldn't be extracted
-if [ -z "$ORIGIN_TIMESTAMP" ] || [ -z "$K8S_TIMESTAMP" ] || [ -z "$GINKGO_TIMESTAMP" ]; then
-    echo "❌ Error: Failed to extract commit timestamps"
-    echo "This usually means network issues or repository access problems"
-    exit 1
-fi
-
-# Generate pseudo-version dates
-ORIGIN_DATE=$(date -u -d @${ORIGIN_TIMESTAMP} +%Y%m%d%H%M%S 2>/dev/null || date -u -r ${ORIGIN_TIMESTAMP} +%Y%m%d%H%M%S)
-K8S_DATE=$(date -u -d @${K8S_TIMESTAMP} +%Y%m%d%H%M%S 2>/dev/null || date -u -r ${K8S_TIMESTAMP} +%Y%m%d%H%M%S)
-GINKGO_DATE=$(date -u -d @${GINKGO_TIMESTAMP} +%Y%m%d%H%M%S 2>/dev/null || date -u -r ${GINKGO_TIMESTAMP} +%Y%m%d%H%M%S)
-
-# Generate version strings
-ORIGIN_VERSION="v0.0.0-${ORIGIN_DATE}-${ORIGIN_SHORT}"
-K8S_VERSION="v1.30.1-0.${K8S_DATE}-${K8S_SHORT}"
-GINKGO_VERSION="v2.6.1-0.${GINKGO_DATE}-${GINKGO_SHORT}"
-
-echo "Using latest origin version: $ORIGIN_VERSION"
-echo "Using Kubernetes version: $K8S_VERSION"
-echo "Using ginkgo version: $GINKGO_VERSION"
-
-echo "Step 4: Add required dependencies..."
 echo "Using openshift-tests-extension commit: $OTE_SHORT"
+
 GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get "github.com/openshift-eng/openshift-tests-extension@$OTE_SHORT"
 GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get "github.com/openshift/origin@main"
 GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get github.com/onsi/ginkgo/v2@latest
 GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get github.com/onsi/gomega@latest
 
-echo "Step 5: Add replace directives with latest versions to avoid stale dependencies..."
-# Fetch latest versions from upstream to avoid outdated dependencies from openshift-tests-private
-
-# Add replace directives to go.mod with fresh versions
-echo "" >> go.mod
-echo "replace (" >> go.mod
-echo "    bitbucket.org/ww/goautoneg => github.com/munnerz/goautoneg v0.0.0-20120707110453-a547fc61f48d" >> go.mod
-echo "    github.com/jteeuwen/go-bindata => github.com/jteeuwen/go-bindata v3.0.8-0.20151023091102-a0ff2567cfb7+incompatible" >> go.mod
-echo "    github.com/onsi/ginkgo/v2 => github.com/openshift/onsi-ginkgo/v2 $GINKGO_VERSION" >> go.mod
-echo "    k8s.io/api => github.com/openshift/kubernetes/staging/src/k8s.io/api v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/apiextensions-apiserver => github.com/openshift/kubernetes/staging/src/k8s.io/apiextensions-apiserver v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/apimachinery => github.com/openshift/kubernetes/staging/src/k8s.io/apimachinery v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/apiserver => github.com/openshift/kubernetes/staging/src/k8s.io/apiserver v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/cli-runtime => github.com/openshift/kubernetes/staging/src/k8s.io/cli-runtime v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/client-go => github.com/openshift/kubernetes/staging/src/k8s.io/client-go v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/cloud-provider => github.com/openshift/kubernetes/staging/src/k8s.io/cloud-provider v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/cluster-bootstrap => github.com/openshift/kubernetes/staging/src/k8s.io/cluster-bootstrap v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/code-generator => github.com/openshift/kubernetes/staging/src/k8s.io/code-generator v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/component-base => github.com/openshift/kubernetes/staging/src/k8s.io/component-base v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/component-helpers => github.com/openshift/kubernetes/staging/src/k8s.io/component-helpers v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/controller-manager => github.com/openshift/kubernetes/staging/src/k8s.io/controller-manager v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/cri-api => github.com/openshift/kubernetes/staging/src/k8s.io/cri-api v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/cri-client => github.com/openshift/kubernetes/staging/src/k8s.io/cri-client v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/csi-translation-lib => github.com/openshift/kubernetes/staging/src/k8s.io/csi-translation-lib v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/dynamic-resource-allocation => github.com/openshift/kubernetes/staging/src/k8s.io/dynamic-resource-allocation v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/endpointslice => github.com/openshift/kubernetes/staging/src/k8s.io/endpointslice v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/kube-aggregator => github.com/openshift/kubernetes/staging/src/k8s.io/kube-aggregator v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/kube-controller-manager => github.com/openshift/kubernetes/staging/src/k8s.io/kube-controller-manager v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/kube-proxy => github.com/openshift/kubernetes/staging/src/k8s.io/kube-proxy v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/kube-scheduler => github.com/openshift/kubernetes/staging/src/k8s.io/kube-scheduler v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/kubectl => github.com/openshift/kubernetes/staging/src/k8s.io/kubectl v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/kubelet => github.com/openshift/kubernetes/staging/src/k8s.io/kubelet v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/kubernetes => github.com/openshift/kubernetes $K8S_VERSION" >> go.mod
-echo "    k8s.io/legacy-cloud-providers => github.com/openshift/kubernetes/staging/src/k8s.io/legacy-cloud-providers v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/metrics => github.com/openshift/kubernetes/staging/src/k8s.io/metrics v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/mount-utils => github.com/openshift/kubernetes/staging/src/k8s.io/mount-utils v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/pod-security-admission => github.com/openshift/kubernetes/staging/src/k8s.io/pod-security-admission v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/sample-apiserver => github.com/openshift/kubernetes/staging/src/k8s.io/sample-apiserver v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/sample-cli-plugin => github.com/openshift/kubernetes/staging/src/k8s.io/sample-cli-plugin v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/sample-controller => github.com/openshift/kubernetes/staging/src/k8s.io/sample-controller v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-
-echo "Step 5a: Extract additional replace directives from openshift-tests-private..."
-# Extract replace directives from openshift-tests-private that aren't k8s.io/* or ginkgo
-# This captures other important dependencies
+echo "Step 4: Copy ALL replace directives from openshift-tests-private/go.mod..."
 # Navigate to source repo (path depends on subdirectory depth)
 if [ "$TEST_E2E_EXISTS" = true ]; then
-    cd ../../../$SOURCE_REPO  # From test/e2e/<test-dir-name> to source repo
+    SOURCE_PATH="../../../$SOURCE_REPO"
 else
-    cd ../../$SOURCE_REPO  # From test/e2e to source repo
+    SOURCE_PATH="../../$SOURCE_REPO"
 fi
 
-if [ -f "go.mod" ]; then
-    echo "Extracting non-k8s replace directives from openshift-tests-private..."
-    # Extract replace directives, excluding k8s.io/*, github.com/onsi/ginkgo, and already added ones
-    grep "^ *[a-z].*=>" go.mod | \
-        grep -v "k8s.io/" | \
-        grep -v "github.com/onsi/ginkgo" | \
-        grep -v "bitbucket.org/ww/goautoneg" | \
-        grep -v "github.com/jteeuwen/go-bindata" | \
-        while read -r line; do
-            echo "    $line" >> "$OLDPWD/go.mod"
-            echo "  Added: $line"
-        done
-    cd "$OLDPWD"
+if [ -f "$SOURCE_PATH/go.mod" ]; then
+    echo "Extracting ALL replace directives from openshift-tests-private/go.mod..."
+
+    # Extract ALL replace directives verbatim from openshift-tests-private
+    # This ensures we get the exact same dependency graph that's battle-tested
+    grep -A 1000 "^replace" "$SOURCE_PATH/go.mod" | grep -B 1000 "^)" | \
+        grep -v "^replace" | grep -v "^)" > /tmp/replace_directives.txt
+
+    # IMPORTANT: This is an APPEND operation
+    # - Appends replace section to existing go.mod (doesn't overwrite)
+    # - Does NOT affect the require section (populated by go get and go mod tidy)
+    # - ONLY affects the replace section
+    # - Replace directives are NEVER removed by go mod tidy (standard Go behavior)
+    echo "" >> go.mod
+    echo "replace (" >> go.mod
+    cat /tmp/replace_directives.txt >> go.mod
+    echo ")" >> go.mod
+
+    # Cleanup
+    rm -f /tmp/replace_directives.txt
+
+    echo "✅ Copied all replace directives from openshift-tests-private"
 else
-    echo "Warning: openshift-tests-private go.mod not found, skipping additional replace directives"
-    cd "$OLDPWD"
+    echo "❌ Error: openshift-tests-private go.mod not found at $SOURCE_PATH"
+    echo "Cannot proceed without replace directives from source"
+    exit 1
 fi
 
-echo ")" >> go.mod
-
-echo "Step 6: Add replace directive for root module..."
+echo "Step 5: Add replace directive for root module..."
 # CRITICAL: Test module needs to import testdata from root module
 # Add replace directive so go can find <module>/test/<testdata-dir>
 # Path back to root depends on subdirectory depth
@@ -1347,149 +1277,50 @@ go mod init github.com/openshift/<extension-name>-tests-extension
 echo "Step 2: Set Go version to match target repo..."
 sed -i "s/^go .*/go $GO_VERSION/" go.mod
 
-echo "Step 3: Get latest versions from upstream repositories (parallel fetch)..."
-# Fetch commit hashes in parallel (fast - no cloning)
-echo "Fetching latest commit hashes..."
-ORIGIN_LATEST=$(git ls-remote https://github.com/openshift/origin.git refs/heads/main | awk '{print $1}')
-K8S_LATEST=$(git ls-remote https://github.com/openshift/kubernetes.git refs/heads/master | awk '{print $1}')
-GINKGO_LATEST=$(git ls-remote https://github.com/openshift/onsi-ginkgo.git refs/heads/v2.27.2-openshift-4.22 | awk '{print $1}')
+echo "Step 3: Add required dependencies..."
+# Get latest openshift-tests-extension commit from main branch
 OTE_LATEST=$(git ls-remote https://github.com/openshift-eng/openshift-tests-extension.git refs/heads/main | awk '{print $1}')
-
-ORIGIN_SHORT="${ORIGIN_LATEST:0:12}"
-K8S_SHORT="${K8S_LATEST:0:12}"
-GINKGO_SHORT="${GINKGO_LATEST:0:12}"
 OTE_SHORT="${OTE_LATEST:0:12}"
+echo "Using openshift-tests-extension commit: $OTE_SHORT"
 
-echo "Fetching commit timestamps (parallel shallow clones)..."
-# Create temp directories
-TEMP_ORIGIN=$(mktemp -d)
-TEMP_K8S=$(mktemp -d)
-TEMP_GINKGO=$(mktemp -d)
+GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get "github.com/openshift-eng/openshift-tests-extension@$OTE_SHORT"
+GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get "github.com/openshift/origin@main"
+GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get github.com/onsi/ginkgo/v2@latest
+GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get github.com/onsi/gomega@latest
 
-# Clone all repos in parallel to get timestamps - CRITICAL PERFORMANCE FIX
-# Old approach: Sequential clones took ~90s
-# New approach: Parallel clones take ~30-45s
-(git clone --depth=1 https://github.com/openshift/origin.git "$TEMP_ORIGIN" >/dev/null 2>&1) &
-PID_ORIGIN=$!
+echo "Step 4: Copy ALL replace directives from openshift-tests-private/go.mod..."
+# Source repo path for single-module
+SOURCE_PATH="../$SOURCE_REPO"
 
-(git clone --depth=1 https://github.com/openshift/kubernetes.git "$TEMP_K8S" >/dev/null 2>&1) &
-PID_K8S=$!
+if [ -f "$SOURCE_PATH/go.mod" ]; then
+    echo "Extracting ALL replace directives from openshift-tests-private/go.mod..."
 
-(git clone --depth=1 --branch=v2.27.2-openshift-4.22 https://github.com/openshift/onsi-ginkgo.git "$TEMP_GINKGO" >/dev/null 2>&1) &
-PID_GINKGO=$!
+    # Extract ALL replace directives verbatim from openshift-tests-private
+    # This ensures we get the exact same dependency graph that's battle-tested
+    grep -A 1000 "^replace" "$SOURCE_PATH/go.mod" | grep -B 1000 "^)" | \
+        grep -v "^replace" | grep -v "^)" > /tmp/replace_directives.txt
 
-# Wait for all clones to complete
-echo "Waiting for parallel clones to complete..."
-wait $PID_ORIGIN $PID_K8S $PID_GINKGO
+    # IMPORTANT: This is an APPEND operation
+    # - Appends replace section to existing go.mod (doesn't overwrite)
+    # - Does NOT affect the require section (populated by go get and go mod tidy)
+    # - ONLY affects the replace section
+    # - Replace directives are NEVER removed by go mod tidy (standard Go behavior)
+    echo "" >> go.mod
+    echo "replace (" >> go.mod
+    cat /tmp/replace_directives.txt >> go.mod
+    echo ")" >> go.mod
 
-# Extract timestamps
-ORIGIN_TIMESTAMP=$(cd "$TEMP_ORIGIN" && git show -s --format=%ct HEAD 2>/dev/null || echo "")
-K8S_TIMESTAMP=$(cd "$TEMP_K8S" && git show -s --format=%ct HEAD 2>/dev/null || echo "")
-GINKGO_TIMESTAMP=$(cd "$TEMP_GINKGO" && git show -s --format=%ct HEAD 2>/dev/null || echo "")
+    # Cleanup
+    rm -f /tmp/replace_directives.txt
 
-# Cleanup temp directories
-rm -rf "$TEMP_ORIGIN" "$TEMP_K8S" "$TEMP_GINKGO"
-
-# Fallback if timestamps couldn't be extracted
-if [ -z "$ORIGIN_TIMESTAMP" ] || [ -z "$K8S_TIMESTAMP" ] || [ -z "$GINKGO_TIMESTAMP" ]; then
-    echo "❌ Error: Failed to extract commit timestamps"
-    echo "This usually means network issues or repository access problems"
+    echo "✅ Copied all replace directives from openshift-tests-private"
+else
+    echo "❌ Error: openshift-tests-private go.mod not found at $SOURCE_PATH"
+    echo "Cannot proceed without replace directives from source"
     exit 1
 fi
 
-# Generate pseudo-version dates
-ORIGIN_DATE=$(date -u -d @${ORIGIN_TIMESTAMP} +%Y%m%d%H%M%S 2>/dev/null || date -u -r ${ORIGIN_TIMESTAMP} +%Y%m%d%H%M%S)
-K8S_DATE=$(date -u -d @${K8S_TIMESTAMP} +%Y%m%d%H%M%S 2>/dev/null || date -u -r ${K8S_TIMESTAMP} +%Y%m%d%H%M%S)
-GINKGO_DATE=$(date -u -d @${GINKGO_TIMESTAMP} +%Y%m%d%H%M%S 2>/dev/null || date -u -r ${GINKGO_TIMESTAMP} +%Y%m%d%H%M%S)
-
-# Generate version strings
-ORIGIN_VERSION="v0.0.0-${ORIGIN_DATE}-${ORIGIN_SHORT}"
-K8S_VERSION="v1.30.1-0.${K8S_DATE}-${K8S_SHORT}"
-GINKGO_VERSION="v2.6.1-0.${GINKGO_DATE}-${GINKGO_SHORT}"
-
-echo "Using latest origin version: $ORIGIN_VERSION"
-echo "Using Kubernetes version: $K8S_VERSION"
-echo "Using ginkgo version: $GINKGO_VERSION"
-
-echo "Step 4: Add required dependencies..."
-echo "Using openshift-tests-extension commit: $OTE_SHORT"
-go get "github.com/openshift-eng/openshift-tests-extension@$OTE_SHORT"
-go get "github.com/openshift/origin@main"
-go get github.com/onsi/ginkgo/v2@latest
-go get github.com/onsi/gomega@latest
-
-echo "Step 5: Add replace directives with latest versions to avoid stale dependencies..."
-# Fetch latest versions from upstream to avoid outdated dependencies from openshift-tests-private
-
-# Add replace directives to go.mod with fresh versions
-echo "" >> go.mod
-echo "replace (" >> go.mod
-echo "    bitbucket.org/ww/goautoneg => github.com/munnerz/goautoneg v0.0.0-20120707110453-a547fc61f48d" >> go.mod
-echo "    github.com/jteeuwen/go-bindata => github.com/jteeuwen/go-bindata v3.0.8-0.20151023091102-a0ff2567cfb7+incompatible" >> go.mod
-echo "    github.com/onsi/ginkgo/v2 => github.com/openshift/onsi-ginkgo/v2 $GINKGO_VERSION" >> go.mod
-echo "    k8s.io/api => github.com/openshift/kubernetes/staging/src/k8s.io/api v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/apiextensions-apiserver => github.com/openshift/kubernetes/staging/src/k8s.io/apiextensions-apiserver v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/apimachinery => github.com/openshift/kubernetes/staging/src/k8s.io/apimachinery v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/apiserver => github.com/openshift/kubernetes/staging/src/k8s.io/apiserver v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/cli-runtime => github.com/openshift/kubernetes/staging/src/k8s.io/cli-runtime v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/client-go => github.com/openshift/kubernetes/staging/src/k8s.io/client-go v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/cloud-provider => github.com/openshift/kubernetes/staging/src/k8s.io/cloud-provider v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/cluster-bootstrap => github.com/openshift/kubernetes/staging/src/k8s.io/cluster-bootstrap v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/code-generator => github.com/openshift/kubernetes/staging/src/k8s.io/code-generator v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/component-base => github.com/openshift/kubernetes/staging/src/k8s.io/component-base v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/component-helpers => github.com/openshift/kubernetes/staging/src/k8s.io/component-helpers v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/controller-manager => github.com/openshift/kubernetes/staging/src/k8s.io/controller-manager v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/cri-api => github.com/openshift/kubernetes/staging/src/k8s.io/cri-api v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/cri-client => github.com/openshift/kubernetes/staging/src/k8s.io/cri-client v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/csi-translation-lib => github.com/openshift/kubernetes/staging/src/k8s.io/csi-translation-lib v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/dynamic-resource-allocation => github.com/openshift/kubernetes/staging/src/k8s.io/dynamic-resource-allocation v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/endpointslice => github.com/openshift/kubernetes/staging/src/k8s.io/endpointslice v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/kube-aggregator => github.com/openshift/kubernetes/staging/src/k8s.io/kube-aggregator v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/kube-controller-manager => github.com/openshift/kubernetes/staging/src/k8s.io/kube-controller-manager v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/kube-proxy => github.com/openshift/kubernetes/staging/src/k8s.io/kube-proxy v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/kube-scheduler => github.com/openshift/kubernetes/staging/src/k8s.io/kube-scheduler v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/kubectl => github.com/openshift/kubernetes/staging/src/k8s.io/kubectl v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/kubelet => github.com/openshift/kubernetes/staging/src/k8s.io/kubelet v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/kubernetes => github.com/openshift/kubernetes $K8S_VERSION" >> go.mod
-echo "    k8s.io/legacy-cloud-providers => github.com/openshift/kubernetes/staging/src/k8s.io/legacy-cloud-providers v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/metrics => github.com/openshift/kubernetes/staging/src/k8s.io/metrics v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/mount-utils => github.com/openshift/kubernetes/staging/src/k8s.io/mount-utils v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/pod-security-admission => github.com/openshift/kubernetes/staging/src/k8s.io/pod-security-admission v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/sample-apiserver => github.com/openshift/kubernetes/staging/src/k8s.io/sample-apiserver v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/sample-cli-plugin => github.com/openshift/kubernetes/staging/src/k8s.io/sample-cli-plugin v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-echo "    k8s.io/sample-controller => github.com/openshift/kubernetes/staging/src/k8s.io/sample-controller v0.0.0-${K8S_DATE}-${K8S_SHORT}" >> go.mod
-
-echo "Step 5a: Extract additional replace directives from openshift-tests-private..."
-# Extract replace directives from openshift-tests-private that aren't k8s.io/* or ginkgo
-# This captures other important dependencies
-# Navigate to source repo (path depends on subdirectory depth)
-if [ "$TEST_E2E_EXISTS" = true ]; then
-    cd ../../../$SOURCE_REPO  # From test/e2e/<test-dir-name> to source repo
-else
-    cd ../../$SOURCE_REPO  # From test/e2e to source repo
-fi
-
-if [ -f "go.mod" ]; then
-    echo "Extracting non-k8s replace directives from openshift-tests-private..."
-    # Extract replace directives, excluding k8s.io/*, github.com/onsi/ginkgo, and already added ones
-    grep "^ *[a-z].*=>" go.mod | \
-        grep -v "k8s.io/" | \
-        grep -v "github.com/onsi/ginkgo" | \
-        grep -v "bitbucket.org/ww/goautoneg" | \
-        grep -v "github.com/jteeuwen/go-bindata" | \
-        while read -r line; do
-            echo "    $line" >> "$OLDPWD/go.mod"
-            echo "  Added: $line"
-        done
-    cd "$OLDPWD"
-else
-    echo "Warning: openshift-tests-private go.mod not found, skipping additional replace directives"
-    cd "$OLDPWD"
-fi
-
-echo ")" >> go.mod
-
-echo "Step 6: Generate go.sum (deferred full resolution)..."
+echo "Step 5: Generate go.sum (deferred full resolution)..."
 # PERFORMANCE FIX: Don't run full 'go mod tidy' here - it can timeout (60-120s)
 # Instead, generate minimal go.sum and defer full resolution until after test migration
 # This ensures Phase 5 (Test Migration) runs even if dependency resolution is slow
@@ -1502,7 +1333,7 @@ go mod download || echo "⚠️  Some dependencies failed to download - will ret
 echo "⚠️  Note: Full dependency resolution deferred to Phase 6"
 echo "    This prevents timeout before test migration completes"
 
-echo "Step 7: Verify go.mod and go.sum are created..."
+echo "Step 6: Verify go.mod and go.sum are created..."
 if [ -f "go.mod" ] && [ -f "go.sum" ]; then
     echo "✅ go.mod and go.sum created successfully"
     echo "Module: $(grep '^module' go.mod)"
@@ -1798,16 +1629,18 @@ func main() {
 
 #### Step 3: Create bindata.mk
 
+**Principle:** bindata.mk must always be at the same directory level as testdata/ for correct path resolution.
+
 **For Monorepo Strategy:**
 
-Create bindata.mk in the test module directory (same level as testdata package):
+Create bindata.mk at the same level as testdata/ directory:
 
 ```bash
 cd <working-dir>
 
-# Create bindata.mk at test module level (same as testdata package)
+# Create bindata.mk at same level as testdata/ directory
 if [ "$TEST_DIR_EXISTS" = "true" ]; then
-    # Subdirectory mode: bindata.mk at test/e2e/extension/
+    # Subdirectory mode: bindata.mk at test/e2e/<test-dir-name>/
     BINDATA_MK_PATH="$TEST_MODULE_DIR/bindata.mk"
 else
     # Direct mode: bindata.mk at test/e2e/
@@ -1853,13 +1686,13 @@ echo "✅ Created bindata.mk at: $BINDATA_MK_PATH"
 
 **For Single-Module Strategy:**
 
-Create `tests-extension/bindata.mk`:
+Create `tests-extension/test/e2e/bindata.mk` (same level as `tests-extension/test/e2e/testdata/`):
 
 ```makefile
 # Bindata generation for testdata files
 
-# Testdata path
-TESTDATA_PATH := test/testdata
+# Testdata path (relative to tests-extension/test/e2e/ directory)
+TESTDATA_PATH := testdata
 
 # go-bindata tool path
 GOPATH ?= $(shell go env GOPATH)
@@ -1877,7 +1710,7 @@ bindata: clean-bindata $(GO_BINDATA)
     @echo "Generating bindata from $(TESTDATA_PATH)..."
     @mkdir -p $(TESTDATA_PATH)
     $(GO_BINDATA) -nocompress -nometadata \
-        -pkg testdata -o $(TESTDATA_PATH)/bindata.go -prefix "test" $(TESTDATA_PATH)/...
+        -pkg testdata -o $(TESTDATA_PATH)/bindata.go -prefix "testdata" $(TESTDATA_PATH)/...
     @gofmt -s -w $(TESTDATA_PATH)/bindata.go
     @echo "Bindata generated successfully at $(TESTDATA_PATH)/bindata.go"
 
@@ -1891,144 +1724,94 @@ clean-bindata:
 
 **For Monorepo Strategy:**
 
-Update root Makefile to build extension binary directly from root:
+Update existing root Makefile to build extension binary:
 
 ```bash
 cd <working-dir>
 
-# Check if Makefile exists
-if [ -f "Makefile" ]; then
-    echo "Updating root Makefile with OTE extension targets..."
+# Verify Makefile exists (required for monorepo strategy)
+if [ ! -f "Makefile" ]; then
+    echo "❌ ERROR: No root Makefile found in target repository"
+    echo ""
+    echo "Monorepo strategy requires an existing Makefile."
+    echo "Please either:"
+    echo "  1. Create a basic Makefile in your repository first, OR"
+    echo "  2. Use single-module strategy instead"
+    exit 1
+fi
 
-    # Check if OTE targets already exist
-    if grep -q "tests-ext-build" Makefile; then
-        echo "⚠️  OTE targets already exist in Makefile, skipping..."
-    else
-        # Generate appropriate Makefile targets based on directory structure
-        if [ "$TEST_DIR_EXISTS" = "true" ]; then
-            # Subdirectory mode: Build from inside test module
-            cat >> Makefile << 'EOF'
+echo "Updating root Makefile with OTE extension targets..."
 
-# OTE test extension binary configuration
-TESTS_EXT_DIR := <test-module-dir>/cmd
-TESTS_EXT_BINARY := bin/<extension-name>-tests-ext
-
-# Build OTE extension binary (builds from test module, outputs to bin/)
-.PHONY: tests-ext-build
-tests-ext-build:
-	@echo "Building OTE test extension binary..."
-	@cd <test-module-dir> && $(MAKE) -f bindata.mk update-bindata
-	@mkdir -p bin
-	cd <test-module-dir> && GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go build -o ../../../$(TESTS_EXT_BINARY) ./cmd
-	@echo "✅ Extension binary built: $(TESTS_EXT_BINARY)"
-EOF
-        else
-            # Direct mode: Build from inside test module (at root level)
-            cat >> Makefile << 'EOF'
-
-# OTE test extension binary configuration
-TESTS_EXT_DIR := test/e2e/cmd
-TESTS_EXT_BINARY := bin/<extension-name>-tests-ext
-
-# Build OTE extension binary (builds from test module, outputs to bin/)
-.PHONY: tests-ext-build
-tests-ext-build:
-	@echo "Building OTE test extension binary..."
-	@cd test/e2e && $(MAKE) -f bindata.mk update-bindata
-	@mkdir -p bin
-	cd test/e2e && GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go build -o ../../$(TESTS_EXT_BINARY) ./cmd
-	@echo "✅ Extension binary built: $(TESTS_EXT_BINARY)"
-EOF
-        fi
-
-# Compress OTE extension binary (for CI/CD and container builds)
-.PHONY: tests-ext-compress
-tests-ext-compress: tests-ext-build
-	@echo "Compressing OTE extension binary..."
-	@gzip -f $(TESTS_EXT_BINARY)
-	@echo "Compressed binary created at $(TESTS_EXT_BINARY).gz"
-
-# Copy compressed binary to _output directory (for CI/CD)
-.PHONY: tests-ext-copy
-tests-ext-copy: tests-ext-compress
-	@echo "Copying compressed binary to _output..."
-	@mkdir -p _output
-	@cp $(TESTS_EXT_BINARY).gz _output/
-	@echo "Binary copied to _output/<extension-name>-tests-ext.gz"
-
-# Alias for backward compatibility
-.PHONY: extension
-extension: tests-ext-build
-
-# Clean extension binary
-.PHONY: clean-extension
-clean-extension:
-	@echo "Cleaning extension binary..."
-	@rm -f $(TESTS_EXT_BINARY) $(TESTS_EXT_BINARY).gz _output/<extension-name>-tests-ext.gz
-	@cd test && $(MAKE) clean-bindata 2>/dev/null || true
-EOF
-
-        echo "✅ Root Makefile updated with OTE targets"
-    fi
+# Check if OTE targets already exist
+if grep -q "tests-ext-build" Makefile; then
+    echo "⚠️  OTE targets already exist in Makefile, skipping..."
 else
-    echo "⚠️  No root Makefile found in target repository"
-    echo "Creating a basic Makefile with OTE targets..."
+    # Generate appropriate Makefile targets based on directory structure
+    # Note: Using actual variable values (not placeholders)
+    # $TEST_MODULE_DIR is set in Phase 3, Step 1:
+    #   - Variant A (test/e2e doesn't exist): TEST_MODULE_DIR="test/e2e"
+    #   - Variant B (test/e2e exists): TEST_MODULE_DIR="test/e2e/<actual-test-dir-name>"
 
-    # Generate appropriate Makefile based on directory structure
     if [ "$TEST_DIR_EXISTS" = "true" ]; then
-        # Subdirectory mode: Build from inside test module
-        cat > Makefile << 'EOF'
-# OTE test extension binary configuration
-TESTS_EXT_DIR := <test-module-dir>/cmd
-TESTS_EXT_BINARY := bin/<extension-name>-tests-ext
+        # Variant B (Subdirectory mode): test/e2e exists
+        # Build from test module at: test/e2e/<test-dir-name>/
+        # bindata.mk location: test/e2e/<test-dir-name>/bindata.mk
+        # Output path from module: ../../../bin/<extension-name>-tests-ext
+        cat >> Makefile << EOF
 
-.PHONY: all
-all: tests-ext-build
+# OTE test extension binary configuration (Variant B: Subdirectory mode)
+TESTS_EXT_DIR := $TEST_MODULE_DIR/cmd
+TESTS_EXT_BINARY := bin/<extension-name>-tests-ext
 
 # Build OTE extension binary (builds from test module, outputs to bin/)
 .PHONY: tests-ext-build
 tests-ext-build:
 	@echo "Building OTE test extension binary..."
-	@$(MAKE) -f test/bindata.mk update-bindata
+	@cd $TEST_MODULE_DIR && \$(MAKE) -f bindata.mk update-bindata
 	@mkdir -p bin
-	cd <test-module-dir> && GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go build -o ../../../$(TESTS_EXT_BINARY) ./cmd
-	@echo "✅ Extension binary built: $(TESTS_EXT_BINARY)"
+	cd $TEST_MODULE_DIR && GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go build -o ../../../\$(TESTS_EXT_BINARY) ./cmd
+	@echo "✅ Extension binary built: \$(TESTS_EXT_BINARY)"
 EOF
     else
-        # Direct mode: Build from inside test module (at root level)
-        cat > Makefile << 'EOF'
-# OTE test extension binary configuration
+        # Variant A (Direct mode): test/e2e doesn't exist
+        # Build from test module at: test/e2e/
+        # bindata.mk location: test/e2e/bindata.mk
+        # Output path from module: ../../bin/<extension-name>-tests-ext
+        cat >> Makefile << EOF
+
+# OTE test extension binary configuration (Variant A: Direct mode)
 TESTS_EXT_DIR := test/e2e/cmd
 TESTS_EXT_BINARY := bin/<extension-name>-tests-ext
 
-.PHONY: all
-all: tests-ext-build
-
 # Build OTE extension binary (builds from test module, outputs to bin/)
 .PHONY: tests-ext-build
 tests-ext-build:
 	@echo "Building OTE test extension binary..."
-	@$(MAKE) -f test/bindata.mk update-bindata
+	@cd test/e2e && \$(MAKE) -f bindata.mk update-bindata
 	@mkdir -p bin
-	cd test/e2e && GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go build -o ../../$(TESTS_EXT_BINARY) ./cmd
-	@echo "✅ Extension binary built: $(TESTS_EXT_BINARY)"
+	cd test/e2e && GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go build -o ../../\$(TESTS_EXT_BINARY) ./cmd
+	@echo "✅ Extension binary built: \$(TESTS_EXT_BINARY)"
 EOF
     fi
+
+    # Add common targets for both variants
+    # Note: Uses $TEST_MODULE_DIR variable which is already set to correct path
+    cat >> Makefile << EOF
 
 # Compress OTE extension binary (for CI/CD and container builds)
 .PHONY: tests-ext-compress
 tests-ext-compress: tests-ext-build
 	@echo "Compressing OTE extension binary..."
-	@gzip -f $(TESTS_EXT_BINARY)
-	@echo "Compressed binary created at $(TESTS_EXT_BINARY).gz"
+	@cd bin && tar -czvf <extension-name>-tests-ext.tar.gz <extension-name>-tests-ext && rm -f <extension-name>-tests-ext
+	@echo "Compressed binary created at bin/<extension-name>-tests-ext.tar.gz"
 
 # Copy compressed binary to _output directory (for CI/CD)
 .PHONY: tests-ext-copy
 tests-ext-copy: tests-ext-compress
 	@echo "Copying compressed binary to _output..."
 	@mkdir -p _output
-	@cp $(TESTS_EXT_BINARY).gz _output/
-	@echo "Binary copied to _output/<extension-name>-tests-ext.gz"
+	@cp bin/<extension-name>-tests-ext.tar.gz _output/
+	@echo "Binary copied to _output/<extension-name>-tests-ext.tar.gz"
 
 # Alias for backward compatibility
 .PHONY: extension
@@ -2038,11 +1821,11 @@ extension: tests-ext-build
 .PHONY: clean-extension
 clean-extension:
 	@echo "Cleaning extension binary..."
-	@rm -f $(TESTS_EXT_BINARY) $(TESTS_EXT_BINARY).gz _output/<extension-name>-tests-ext.gz
-	@cd test && $(MAKE) clean-bindata 2>/dev/null || true
+	@rm -f \$(TESTS_EXT_BINARY) bin/<extension-name>-tests-ext.tar.gz _output/<extension-name>-tests-ext.tar.gz
+	@cd $TEST_MODULE_DIR && \$(MAKE) -f bindata.mk clean-bindata 2>/dev/null || true
 EOF
 
-    echo "✅ Root Makefile created with OTE targets"
+    echo "✅ Root Makefile updated with OTE targets"
 fi
 ```bash
 
@@ -2050,78 +1833,86 @@ fi
 
 Create `tests-extension/Makefile`:
 
-```makefile
-# Include bindata targets
-include bindata.mk
+```bash
+cd <working-dir>/tests-extension
 
+# For single-module strategy:
+# - bindata.mk is at: tests-extension/test/e2e/bindata.mk
+# - testdata is at: tests-extension/test/e2e/testdata/
+# - tests are at: tests-extension/test/e2e/*.go
+# - binary output: tests-extension/bin/<extension-name>-tests-ext
+
+cat > Makefile << EOF
 # Binary name and output directory
 BINARY := bin/<extension-name>-tests-ext
 
 # Build extension binary
 .PHONY: build
-build: bindata
-    @echo "Building extension binary..."
-    @mkdir -p bin
-    GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go build -o $(BINARY) ./cmd
-    @echo "Binary built successfully at $(BINARY)"
+build:
+	@echo "Building extension binary..."
+	@cd test/e2e && \$(MAKE) -f bindata.mk update-bindata
+	@mkdir -p bin
+	GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go build -o \$(BINARY) ./cmd
+	@echo "✅ Binary built successfully at \$(BINARY)"
 
 # Clean generated files
 .PHONY: clean
 clean:
-    @echo "Cleaning binaries..."
-    @rm -f $(BINARY)
+	@echo "Cleaning binaries..."
+	@rm -f \$(BINARY)
+	@cd test/e2e && \$(MAKE) -f bindata.mk clean-bindata
 
 .PHONY: help
 help:
-    @echo "Available targets:"
-    @echo "  bindata     - Generate bindata.go from test/testdata"
-    @echo "  build       - Build extension binary (includes bindata)"
-    @echo "  clean       - Remove extension binary"
+	@echo "Available targets:"
+	@echo "  build       - Build extension binary (includes bindata)"
+	@echo "  clean       - Remove extension binary and bindata"
+EOF
+
+echo "✅ Created tests-extension/Makefile"
 ```
 
-**Update Root Makefile (Target Repository):**
+**Update Root Makefile (Target Repository - Optional):**
 
-For single-module strategy, also update the root Makefile in the target repository to add a target for building the OTE extension:
+Optionally update the root Makefile in the target repository for convenience:
 
 ```bash
 cd <working-dir>
 
-# Check if Makefile exists
 if [ -f "Makefile" ]; then
-    echo "Updating root Makefile with OTE extension target..."
+    echo "Updating root Makefile with OTE extension targets..."
 
-    # Check if OTE targets already exist
     if grep -q "tests-ext-build" Makefile; then
         echo "⚠️  OTE targets already exist in Makefile, skipping..."
     else
-        # Add OTE extension build target
-        cat >> Makefile << 'EOF'
+        # For single-module: bindata is at tests-extension/test/e2e/bindata.mk
+        cat >> Makefile << EOF
 
-# OTE test extension binary configuration
+# OTE test extension binary configuration (single-module strategy)
 TESTS_EXT_DIR := ./tests-extension
 TESTS_EXT_BINARY := tests-extension/bin/<extension-name>-tests-ext
 
 # Build OTE extension binary
 .PHONY: tests-ext-build
 tests-ext-build:
-    @echo "Building OTE test extension binary..."
-    @cd $(TESTS_EXT_DIR) && $(MAKE) build
-    @echo "OTE binary built successfully at $(TESTS_EXT_BINARY)"
+	@echo "Building OTE test extension binary..."
+	@cd \$(TESTS_EXT_DIR) && \$(MAKE) build
+	@echo "✅ OTE binary built successfully at \$(TESTS_EXT_BINARY)"
 
 # Compress OTE extension binary (for CI/CD and container builds)
 .PHONY: tests-ext-compress
 tests-ext-compress: tests-ext-build
-    @echo "Compressing OTE extension binary..."
-    @gzip -f $(TESTS_EXT_BINARY)
-    @echo "Compressed binary created at $(TESTS_EXT_BINARY).gz"
+	@echo "Compressing OTE extension binary..."
+	@cd tests-extension/bin && tar -czvf <extension-name>-tests-ext.tar.gz <extension-name>-tests-ext && rm -f <extension-name>-tests-ext
+	@echo "Compressed binary created at tests-extension/bin/<extension-name>-tests-ext.tar.gz"
 
 # Copy compressed binary to _output directory (for CI/CD)
 .PHONY: tests-ext-copy
 tests-ext-copy: tests-ext-compress
-    @echo "Copying compressed binary to _output..."
-    @mkdir -p _output
-    @cp $(TESTS_EXT_BINARY).gz _output/
-    @echo "Binary copied to _output/<extension-name>-tests-ext.gz"
+	@echo "Copying compressed binary to _output..."
+	@mkdir -p _output
+	@cp tests-extension/bin/<extension-name>-tests-ext.tar.gz _output/
+	@echo "Binary copied to _output/<extension-name>-tests-ext.tar.gz"
 
 # Alias for backward compatibility
 .PHONY: extension
@@ -2130,28 +1921,30 @@ extension: tests-ext-build
 # Clean extension binary
 .PHONY: clean-extension
 clean-extension:
-    @echo "Cleaning extension binary..."
-    @rm -f $(TESTS_EXT_BINARY) $(TESTS_EXT_BINARY).gz _output/<extension-name>-tests-ext.gz
-    @cd $(TESTS_EXT_DIR) && $(MAKE) clean
+	@echo "Cleaning extension binary..."
+	@rm -f \$(TESTS_EXT_BINARY) tests-extension/bin/<extension-name>-tests-ext.tar.gz _output/<extension-name>-tests-ext.tar.gz
+	@cd \$(TESTS_EXT_DIR) && \$(MAKE) clean
 EOF
 
         echo "✅ Root Makefile updated with OTE targets"
     fi
 else
     echo "⚠️  No root Makefile found in target repository"
-    echo "You may need to create one or integrate the build manually"
+    echo "For single-module strategy, you can use tests-extension/Makefile directly:"
+    echo "  cd tests-extension && make build"
 fi
 ```bash
 
 **Key Points:**
-- The root Makefile delegates to `tests-extension/Makefile` for building
+- `tests-extension/Makefile` is self-contained and handles bindata generation
+- Root Makefile integration is **optional** but provides convenient targets from root
 - Binary is built to `tests-extension/bin/<extension-name>-tests-ext`
-- Provides compression and copy targets for CI/CD workflows:
-  - `make tests-ext-build` - Build the binary
-  - `make tests-ext-compress` - Build and compress with gzip
-  - `make tests-ext-copy` - Build, compress, and copy to `_output/`
-  - `make extension` - Alias for tests-ext-build
-- Can be called from Dockerfile or CI/CD scripts
+- Provides standard targets:
+  - `make tests-ext-build` - Build the binary (root)
+  - `make build` - Build the binary (inside tests-extension/)
+  - `make tests-ext-compress` - Build and compress (root, for CI/CD)
+  - `make tests-ext-copy` - Build, compress, and copy to `_output/` (root, for CI/CD)
+  - `make extension` - Alias for tests-ext-build (root)
 
 #### Step 5: Create fixtures.go (Helper Functions)
 
@@ -2165,7 +1958,7 @@ Create fixtures.go helper file at the testdata directory location:
 
 **For Single-Module Strategy:**
 
-Create `tests-extension/test/testdata/fixtures.go`
+Create `tests-extension/test/e2e/testdata/fixtures.go`
 
 **Note:** The fixtures.go helper functions content is the same for both strategies. This file provides FixturePath() and other utility functions that wrap the bindata-generated Asset/RestoreAsset functions:
 
@@ -2925,7 +2718,7 @@ TEST_FILES=$(grep -rl "testdata\.FixturePath" test/e2e/ --include="*_test.go" 2>
 if [ -z "$TEST_FILES" ]; then
     echo "No test files need testdata import"
 else
-    TESTDATA_IMPORT="github.com/openshift/<extension-name>-tests-extension/test/testdata"
+    TESTDATA_IMPORT="github.com/openshift/<extension-name>-tests-extension/test/e2e/testdata"
 
     for file in $TEST_FILES; do
         # Check if import already exists
@@ -3029,30 +2822,48 @@ echo "✅ Old imports cleaned up"
 #### Step 4: Add OTP and Level0 Annotations
 
 **Purpose:** Add tracking annotations to ported tests:
-- **[OTP]**: Marks tests that have been ported (for tracking how many tests migrated)
-- **[Level0]**: Marks Describe blocks that contain at least one test with "-LEVEL0-" suffix
+- **[OTP]**: Added to ALL Describe blocks (marks tests that have been ported)
+- **[Level0]**: Added by creating SEPARATE Describe blocks for Level0 tests
 
-**Important annotation logic (per-Describe-block, NOT per-file):**
+**Important annotation logic:**
 1. Add `[OTP]` to ALL Describe blocks (right after `[sig-xxx]`)
-2. For EACH Describe block, check if it contains tests with `-LEVEL0-` suffix
-3. If yes, add `[Level0]` to THAT SPECIFIC Describe block (after `[OTP]`)
-4. Remove `-LEVEL0-` suffix from test names
+2. Identify tests with `-LEVEL0-` suffix in their names
+3. Create a SEPARATE Describe block with `[sig-xxx][OTP][Level0]` for Level0 tests
+4. Move Level0 tests to the new Describe block
+5. Remove `-LEVEL0-` suffix from test names
 
 **Example:**
 ```go
-// File with 2 Describe blocks:
-var _ = g.Describe("[sig-cco] Group 1", func() {     // No LEVEL0 tests
-    g.It("Test-1", ...)   // Regular test
-    g.It("Test-2", ...)   // Regular test
-})
-// → Becomes: "[sig-cco][OTP] Group 1"
+// Before migration:
+var _ = g.Describe("[sig-cco] Cluster_Operator CCO is enabled", func() {
+    defer g.GinkgoRecover()
+    var oc = compat_otp.NewCLI("default-cco", compat_otp.KubeConfigPath())
 
-var _ = g.Describe("[sig-cco] Group 2", func() {     // Has LEVEL0 test
-    g.It("Test-3", ...)            // Regular test
-    g.It("Test-4-LEVEL0-Critical", ...)  // Level0 test
+    g.It("Author:mihuang-High-23352-Cloud credential operator", func() {})
+    g.It("Author:mihuang-Critical-33204-LEVEL0-[cco-passthrough]IPI", func() {})
+    g.It("Author:jshu-Critical-36498-LEVEL0-CCO credentials secret", func() {})
 })
-// → Becomes: "[sig-cco][OTP][Level0] Group 2"
-// → Test becomes: "Test-4-Critical" (suffix removed)
+
+// After migration:
+var _ = g.Describe("[sig-cco][OTP] Cluster_Operator CCO is enabled", func() {
+    defer g.GinkgoRecover()
+    var oc = compat_otp.NewCLI("default-cco", compat_otp.KubeConfigPath())
+
+    g.It("Author:mihuang-High-23352-Cloud credential operator", func() {})
+})
+
+var _ = g.Describe("[sig-cco][OTP][Level0] Cluster_Operator CCO is enabled", func() {
+    defer g.GinkgoRecover()
+    var oc = compat_otp.NewCLI("default-cco", compat_otp.KubeConfigPath())
+
+    g.It("Author:mihuang-Critical-33204-[cco-passthrough]IPI", func() {})
+    g.It("Author:jshu-Critical-36498-CCO credentials secret", func() {})
+})
+
+// Full test names become:
+// "[sig-cco][OTP] Cluster_Operator CCO is enabled Author:mihuang-High-23352-Cloud credential operator"
+// "[sig-cco][OTP][Level0] Cluster_Operator CCO is enabled Author:mihuang-Critical-33204-[cco-passthrough]IPI"
+// "[sig-cco][OTP][Level0] Cluster_Operator CCO is enabled Author:jshu-Critical-36498-CCO credentials secret"
 ```
 
 **Note:** This same code works for both monorepo and single-module strategies.
@@ -3115,54 +2926,150 @@ def find_describe_blocks(lines):
 
     return describe_blocks
 
+def find_level0_tests(lines):
+    """Find all tests with -LEVEL0- suffix and their line ranges."""
+    level0_tests = {}
+    current_test_id = None
+    current_test_start = None
+    brace_count = 0
+    in_test = False
+
+    for i, line in enumerate(lines):
+        # Check for g.It() lines with -LEVEL0-
+        if ('g.It(' in line or 'g.It (' in line) and '-LEVEL0-' in line:
+            # Extract a unique test identifier (use line number as ID)
+            current_test_id = str(i)
+            current_test_start = i
+            in_test = True
+            brace_count = 0
+
+        if in_test:
+            brace_count += line.count('{') - line.count('}')
+            if brace_count == 0 and current_test_start is not None:
+                # End of test found
+                level0_tests[current_test_id] = (current_test_start, i)
+                in_test = False
+                current_test_start = None
+                current_test_id = None
+
+    return level0_tests
+
 def annotate_file(filepath, sig_tags):
-    """Add [OTP] and [Level0] annotations to Describe blocks based on their contents."""
+    """
+    Add [OTP] to Describe blocks and create separate Level0 Describe blocks.
+
+    Strategy:
+    1. Add [OTP] to all Describe blocks
+    2. Find tests with -LEVEL0- suffix
+    3. Extract those tests from the original Describe block
+    4. Create a new Describe block with [Level0] for those tests
+    5. Remove -LEVEL0- suffix from test names
+    """
     with open(filepath, 'r') as f:
         lines = f.readlines()
 
     original_content = ''.join(lines)
 
-    # Step 1: Find all Describe blocks first (before any modifications)
+    # Step 1: Find all Describe blocks
     describe_blocks = find_describe_blocks(lines)
 
     # Step 2: Add [OTP] to ALL Describe blocks
     for block in describe_blocks:
         desc_line = lines[block['line_num']]
-        # Only add if not already present
         if 'g.Describe' in desc_line and '[OTP]' not in desc_line:
-            # Add [OTP] after the closing quote of Describe text
-            # Pattern: g.Describe("text", func() → g.Describe("[OTP] text", func()
             lines[block['line_num']] = re.sub(
-                r'g\.Describe\("([^"]+)"',
-                r'g.Describe("[OTP] \1"',
+                r'g\.Describe\("\[sig-([^\]]+)\]([^"]*)"',
+                r'g.Describe("[sig-\1][OTP]\2"',
                 desc_line
             )
 
-    # Step 3: Add [Level0] to Describe blocks containing -LEVEL0- tests
-    for block in describe_blocks:
-        # Check if this Describe block contains -LEVEL0- tests
-        block_content = ''.join(lines[block['start']:block['end']])
-        if '-LEVEL0-' in block_content:
-            desc_line = lines[block['line_num']]
-            # Add [Level0] after [OTP] if not already present
-            if '[OTP]' in desc_line and '[Level0]' not in desc_line:
-                lines[block['line_num']] = desc_line.replace('[OTP]', '[OTP][Level0]', 1)
+    # Step 3: Find Level0 tests
+    level0_tests = find_level0_tests(lines)
 
-    # Step 4: Remove -LEVEL0- suffix from test names
+    if not level0_tests:
+        # No Level0 tests, just remove -LEVEL0- if present and return
+        for i, line in enumerate(lines):
+            if '-LEVEL0-' in line:
+                lines[i] = line.replace('-LEVEL0-', '-')
+
+        new_content = ''.join(lines)
+        if new_content != original_content:
+            with open(filepath, 'w') as f:
+                f.write(new_content)
+            return True
+        return False
+
+    # Step 4: Extract Level0 tests and setup variables
+    level0_test_content = []
+    for test_id, (start, end) in sorted(level0_tests.items(), key=lambda x: x[1][0]):
+        level0_test_content.extend(lines[start:end+1])
+
+    # Step 5: Remove Level0 tests from original positions (in reverse order)
+    for test_id, (start, end) in sorted(level0_tests.items(), key=lambda x: x[1][0], reverse=True):
+        del lines[start:end+1]
+
+    # Step 6: Extract Describe block setup code from first Describe block
+    first_describe = None
+    for block in describe_blocks:
+        if '[sig-' in lines[block['line_num']]:
+            first_describe = block
+            break
+
+    if not first_describe:
+        print(f"Warning: No sig-tagged Describe block found in {filepath}")
+        return False
+
+    # Extract setup code (var declarations, BeforeEach, etc.) from first Describe
+    # Look for lines between Describe and first g.It()
+    setup_lines = []
+    desc_line_num = first_describe['line_num']
+
+    # Get the Describe declaration with [OTP] added
+    desc_text = lines[desc_line_num]
+    match = re.search(r'g\.Describe\("(\[sig-[^\]]+\]\[OTP\][^"]*)"', desc_text)
+    if match:
+        base_desc_text = match.group(1)
+        # Create Level0 version
+        level0_desc_text = base_desc_text.replace('[OTP]', '[OTP][Level0]')
+    else:
+        print(f"Warning: Could not extract Describe text from {filepath}")
+        return False
+
+    # Find setup code (between Describe line and first g.It())
+    i = desc_line_num + 1
+    while i < len(lines) and not ('g.It(' in lines[i] or 'g.It (' in lines[i]):
+        setup_lines.append(lines[i])
+        i += 1
+
+    # Step 7: Create new Level0 Describe block
+    level0_describe = [f'var _ = g.Describe("{level0_desc_text}", func() {{\n']
+    level0_describe.extend(setup_lines)
+    level0_describe.append('\n')
+    level0_describe.extend(level0_test_content)
+    level0_describe.append('})\n\n')
+
+    # Step 8: Insert Level0 Describe block right before the last Describe block (disabled tests)
+    # Find insertion point (right before "CCO is disabled" Describe block if exists)
+    insertion_point = len(lines)
+    for i in range(len(lines)):
+        if 'g.Describe' in lines[i] and 'disabled' in lines[i].lower():
+            insertion_point = i
+            break
+
+    # Insert the Level0 Describe block
+    for line in reversed(level0_describe):
+        lines.insert(insertion_point, line)
+
+    # Step 9: Remove -LEVEL0- suffix from all test names
     for i, line in enumerate(lines):
         if '-LEVEL0-' in line:
             lines[i] = line.replace('-LEVEL0-', '-')
-            # Clean up any double dashes
-            lines[i] = lines[i].replace('--', '-')
 
+    # Write back
     new_content = ''.join(lines)
-
-    # Write back if changed
-    if new_content != original_content:
-        with open(filepath, 'w') as f:
-            f.write(new_content)
-        return True
-    return False
+    with open(filepath, 'w') as f:
+        f.write(new_content)
+    return True
 
 if __name__ == '__main__':
     test_dir = sys.argv[1]
@@ -3188,14 +3095,15 @@ echo ""
 echo "✅ Annotations added successfully"
 echo ""
 echo "Summary of changes:"
-echo "  [OTP]       - Added to ALL Describe blocks (right after [sig-xxx])"
-echo "  [Level0]    - Added ONLY to Describe blocks containing -LEVEL0- tests"
+echo "  [OTP]       - Added to ALL Describe blocks with sig tags (format: [sig-xxx][OTP])"
+echo "  [Level0]    - Separate Describe block created with [sig-xxx][OTP][Level0] for Level0 tests"
 echo "  -LEVEL0-    - Removed suffix from test names"
 echo ""
 echo "Expected results:"
-echo "  • Regular Describe: [sig-xxx][OTP] Description"
-echo "  • Level0 Describe:  [sig-xxx][OTP][Level0] Description"
+echo "  • Regular Describe: g.Describe(\"[sig-xxx][OTP] Test Suite\", ...)"
+echo "  • Level0 Describe:  g.Describe(\"[sig-xxx][OTP][Level0] Test Suite\", ...)"
 echo "  • Test names: -LEVEL0- suffix removed"
+echo "  • Full test names for Level0 tests will start with [sig-xxx][OTP][Level0]"
 ```
 
 
@@ -3523,7 +3431,7 @@ if [ $? -eq 0 ]; then
     echo "  - test/e2e/go.sum"
     echo "  - test/e2e/*.go (test files - may be in subdirectory)"
     echo "  - test/e2e/testdata/fixtures.go (or subdirectory)"
-    echo "  - test/bindata.mk"
+    echo "  - test/e2e/bindata.mk (or subdirectory if test/e2e already existed)"
     echo "  - Makefile updates"
 else
     echo "❌ Build failed - manual intervention required"
@@ -3655,7 +3563,7 @@ Successfully migrated **<extension-name>** to OpenShift Tests Extension (OTE) fr
 - ✅ `bin/<extension-name>-tests-ext` - Compiled binary (created by `make extension`)
 - ✅ `test/e2e/go.mod` - Test module with OpenShift replace directives
 - ✅ `test/e2e/testdata/fixtures.go` (or subdirectory) - Testdata wrapper functions
-- ✅ `test/bindata.mk` - Bindata generation rules (auto-detects testdata path)
+- ✅ `test/e2e/bindata.mk` (or subdirectory) - Bindata generation rules (same level as testdata/)
 - ✅ `go.mod` (updated) - Added test/e2e replace directive
 - ✅ `Makefile` (updated) - Added extension build target
 
@@ -3875,11 +3783,11 @@ Successfully migrated **<extension-name>** to OpenShift Tests Extension (OTE) fr
 
 ### Test Files (Fully Automated)
 - ✅ Copied **X** test files to `test/e2e/`
-- ✅ Copied **Y** testdata files to `test/testdata/`
+- ✅ Copied **Y** testdata files to `test/e2e/testdata/`
 - ✅ Vendored dependencies to `vendor/`
 - ✅ Automatically replaced `compat_otp.FixturePath()` → `testdata.FixturePath()`
 - ✅ Automatically replaced `exutil.FixturePath()` → `testdata.FixturePath()`
-- ✅ Automatically added imports: `github.com/<org>/<extension-name>-tests-extension/test/testdata`
+- ✅ Automatically added imports: `github.com/<org>/<extension-name>-tests-extension/test/e2e/testdata`
 - ✅ Automatically cleaned up old compat_otp/exutil imports
 
 ## Statistics
