@@ -73,8 +73,9 @@ The user may provide input in these formats:
    - Ensure valid YAML syntax
 
 5. **Write the output:**
-   - If an output file path is provided as `$2`, use the Write tool to create that file with the generated YAML content (write pure YAML, not markdown)
-   - Otherwise, display the generated YAML to the user in a markdown code block with yaml syntax highlighting
+   - If an output file path is provided as `$2`, use the Write tool to create that file with the generated YAML content (write pure YAML, not Markdown)
+   - If `$2` is omitted, display the generated YAML to the user in a Markdown code block with yaml syntax highlighting (terminal output)
+   - Note: This command follows Pattern 3 (User-Specified Output Paths) - see CLAUDE.md File Creation Patterns
 
 ### Important Behaviors
 
@@ -85,8 +86,9 @@ The user may provide input in these formats:
 - Handle complex nested structures by recursively applying these rules
 
 ## Return Value
-- **Claude agent text**: Generated YAML documentation with intelligent defaults and inline comments
-- **File output** (if $2 provided): YAML file written to the specified path
+- **Terminal output** (if $2 omitted): Generated YAML documentation displayed in Markdown code block with syntax highlighting
+- **File output** (if $2 provided): YAML file written to the user-specified path
+- **Format**: Pure YAML with intelligent defaults and inline comments explaining each field
 
 ## Examples
 
