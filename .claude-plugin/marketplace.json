@@ -177,6 +177,12 @@
       "source": "./plugins/gwapi",
       "description": "Gateway API installation utilities for Kubernetes/OpenShift clusters",
       "version": "0.0.1"
+    },
+    {
+      "name": "gvs",
+      "source": "./plugins/gvs",
+      "description": "Remote CVE scanning for public Golang repositories via MCP server (no local tools needed)",
+      "version": "0.0.1"
     }
   ]
 }

@@ -10,6 +10,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Doc](#doc-plugin)
 - [Etcd](#etcd-plugin)
 - [Git](#git-plugin)
+- [Gvs](#gvs-plugin)
 - [Gwapi](#gwapi-plugin)
 - [Hcp](#hcp-plugin)
 - [Hello World](#hello-world-plugin)
@@ -122,6 +123,21 @@ Git workflow automation and utilities
 - **`/git:summary`** - Show current branch, git status, and recent commits for quick context
 
 See [plugins/git/README.md](plugins/git/README.md) for detailed documentation.
+
+### Gvs Plugin
+
+Remote CVE scanning for public Golang repositories via MCP server (no local tools needed)
+
+**Commands:**
+- **`/gvs:call-graph` `<CVE-ID> [repo-url] [--branch <branch>] [--algorithm <algo>] [--symbol <symbol>]`** - Generate call graph visualization for a CVE vulnerability path
+- **`/gvs:check-package` `<package> <version>`** - Check if a Go package version has known vulnerabilities
+- **`/gvs:lookup` `<CVE-ID>`** - Look up CVE details from the Go vulnerability database
+- **`/gvs:reachability` `<package> <symbol> [repo-url] [--branch <branch>] [--algorithm <algo>] [--graph]`** - Check if a symbol is reachable from entry points in a repository
+- **`/gvs:reflection` `[repo-url] [--branch <branch>] [--algorithm <algo>] [--cve <CVE-ID>]`** - Analyze code for reflection patterns that could invoke vulnerable symbols
+- **`/gvs:scan` `[repo-url] [CVE-ID] [--branch <branch>] [--algorithm <algo>] [--graph]`** - Scan a Go repository for CVE vulnerabilities
+- **`/gvs:setup`** - Configure the GVS MCP server in Cursor
+
+See [plugins/gvs/README.md](plugins/gvs/README.md) for detailed documentation.
 
 ### Gwapi Plugin
 

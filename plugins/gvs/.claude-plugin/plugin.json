@@ -1,0 +1,8 @@
+{
+  "name": "gvs",
+  "description": "Remote CVE scanning for public Golang repositories via MCP server (no local tools needed)",
+  "version": "0.0.1",
+  "author": {
+    "name": "vkochuku"
+  }
+}
