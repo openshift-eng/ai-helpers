@@ -1300,24 +1300,48 @@ if [ -f "$SOURCE_PATH/go.mod" ]; then
     grep -A 1000 "^replace" "$SOURCE_PATH/go.mod" | grep -B 1000 "^)" | \
         grep -v "^replace" | grep -v "^)" > /tmp/replace_directives.txt
 
-    # IMPORTANT: This is an APPEND operation
-    # - Appends replace section to existing go.mod (doesn't overwrite)
-    # - Does NOT affect the require section (populated by go get and go mod tidy)
-    # - ONLY affects the replace section
-    # - Replace directives are NEVER removed by go mod tidy (standard Go behavior)
-    echo "" >> go.mod
-    echo "replace (" >> go.mod
-    cat /tmp/replace_directives.txt >> go.mod
-    echo ")" >> go.mod
+    # SAFETY CHECK: Ensure we don't duplicate replace blocks
+    # Check if go.mod already has a replace block (from go get or previous runs)
+    if grep -q "^replace (" go.mod 2>/dev/null; then
+        echo "⚠️  Warning: go.mod already contains a replace block"
+        echo "    This might be from a previous migration attempt"
+        echo "    Skipping replace directive copy to avoid duplication"
+        echo "    If this is intentional, manually merge replace directives"
+    else
+        # IMPORTANT: This is an APPEND operation
+        # - Appends replace section to existing go.mod (doesn't overwrite)
+        # - Does NOT affect module, go, toolchain, or require sections
+        # - ONLY adds the replace section at the end
+        # - Replace directives are NEVER removed by go mod tidy (standard Go behavior)
+        echo "" >> go.mod
+        echo "replace (" >> go.mod
+        cat /tmp/replace_directives.txt >> go.mod
+        echo ")" >> go.mod
+        echo "✅ Copied all replace directives from openshift-tests-private"
+    fi
 
     # Cleanup
     rm -f /tmp/replace_directives.txt
-
-    echo "✅ Copied all replace directives from openshift-tests-private"
 else
     echo "❌ Error: openshift-tests-private go.mod not found at $SOURCE_PATH"
     echo "Cannot proceed without replace directives from source"
     exit 1
+fi
+
+echo "Step 4b: Update ginkgo to latest from v2.27.2-openshift-4.22 branch..."
+# CRITICAL: openshift-tests-private may have an outdated ginkgo version that's incompatible with OTE framework
+# Fetch latest commit from the v2.27.2-openshift-4.22 branch to ensure compatibility
+echo "Fetching latest ginkgo version from v2.27.2-openshift-4.22 branch..."
+GINKGO_LATEST=$(git ls-remote https://github.com/openshift/onsi-ginkgo.git refs/heads/v2.27.2-openshift-4.22 2>/dev/null | awk '{print $1}')
+if [ -n "$GINKGO_LATEST" ]; then
+    echo "Latest ginkgo commit: $GINKGO_LATEST"
+    # Use go get to update ginkgo with proper pseudo-version (includes timestamp)
+    # This ensures we have the correct APIs (NewWriter, Labels field on TestSpec, etc.)
+    GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get "github.com/openshift/onsi-ginkgo/v2@${GINKGO_LATEST}"
+    echo "✅ Updated ginkgo to latest from v2.27.2-openshift-4.22 branch"
+else
+    echo "⚠️  Could not fetch latest ginkgo commit - using version from openshift-tests-private"
+    echo "    If build fails with 'undefined: ginkgo.NewWriter', manually update ginkgo version"
 fi
 
 echo "Step 5: Generate go.sum (deferred full resolution)..."
@@ -2024,9 +2048,9 @@ func FixturePath(elem ...string) string {
         panic(fmt.Sprintf("failed to create directory for %s: %v", relativePath, err))
     }
 
-    // Bindata stores assets with "testdata/" prefix
-    // e.g., bindata has "testdata/router/file.yaml" but tests call FixturePath("router/file.yaml")
-    bindataPath := filepath.Join("testdata", relativePath)
+    // Bindata assets have "testdata/" prefix STRIPPED (by -prefix flag in bindata.mk)
+    // e.g., bindata has "router/file.yaml" and tests call FixturePath("router", "file.yaml")
+    bindataPath := relativePath
 
     // Extract to temp directory first to handle path mismatch
     tempDir, err := os.MkdirTemp("", "bindata-extract-")
@@ -2087,13 +2111,14 @@ func GetFixtureData(elem ...string) ([]byte, error) {
     // Join all path elements
     relativePath := filepath.Join(elem...)
 
-    // Normalize path - bindata uses "testdata/" prefix
+    // Normalize path (strip leading slash if present)
     cleanPath := relativePath
     if len(cleanPath) > 0 && cleanPath[0] == '/' {
         cleanPath = cleanPath[1:]
     }
 
-    return Asset(filepath.Join("testdata", cleanPath))
+    // Bindata assets have "testdata/" prefix STRIPPED (by -prefix flag)
+    return Asset(cleanPath)
 }
 
 // MustGetFixtureData is like GetFixtureData but panics on error.
@@ -2127,7 +2152,8 @@ func FixtureExists(elem ...string) bool {
     if len(cleanPath) > 0 && cleanPath[0] == '/' {
         cleanPath = cleanPath[1:]
     }
-    _, err := Asset(filepath.Join("testdata", cleanPath))
+    // Bindata assets have "testdata/" prefix STRIPPED (by -prefix flag)
+    _, err := Asset(cleanPath)
     return err == nil
 }
 

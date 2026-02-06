@@ -542,6 +542,29 @@ The generated `cmd/main.go` (or `cmd/extension/main.go` for monorepo) includes *
 - Ensures compatibility with current OpenShift ecosystem
 - Prevents `invalid pseudo-version: does not match version-control timestamp` errors
 
+  **Ginkgo version upgrade (Step 4b - Single-Module Only):**
+
+  **NOTE:** This step is currently implemented **only for single-module strategy**. Monorepo strategy uses the original working approach without this explicit ginkgo update.
+
+  For single-module, after copying replace directives from openshift-tests-private (which may contain an outdated ginkgo version from August 2024), the migration **explicitly updates ginkgo to the latest version** from the v2.27.2-openshift-4.22 branch:
+
+  ```bash
+  # Step 4: Copy replace directives from openshift-tests-private (may be old)
+  grep -A 1000 "^replace" openshift-tests-private/go.mod >> go.mod
+
+  # Step 4b: Immediately update ginkgo to latest (prevents build failures)
+  GINKGO_LATEST=$(git ls-remote https://github.com/openshift/onsi-ginkgo.git refs/heads/v2.27.2-openshift-4.22 | awk '{print $1}')
+  GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get "github.com/openshift/onsi-ginkgo/v2@${GINKGO_LATEST}"
+  ```
+
+  **Why this is critical for single-module:**
+  - openshift-tests-private may have ginkgo from August 2024 (v2.6.1-0.20240806135314)
+  - August 2024 version lacks APIs like `ginkgo.NewWriter` and `spec.Labels`
+  - Migration needs November 2024+ version (v2.6.1-0.20251120221002) from v2.27.2-openshift-4.22 branch
+  - Without Step 4b, build fails with `undefined: ginkgo.NewWriter` or `spec.Labels undefined`
+  - This step ensures correct version is set BEFORE Phase 6, making migration more robust
+  - Uses `go get` to create proper pseudo-version format (not `sed` which creates malformed versions)
+
 ### API Version Upgrades
 
   The migration **ensures API compatibility** by upgrading `github.com/openshift/api` and `github.com/openshift/client-go` to the latest versions from their master branches.
