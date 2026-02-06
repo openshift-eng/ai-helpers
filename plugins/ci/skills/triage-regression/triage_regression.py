@@ -1,0 +1,297 @@
+#!/usr/bin/env python3
+"""
+Create or update a Component Readiness triage record via the Sippy API.
+Links one or more regressions to a JIRA bug with a triage type and description.
+"""
+
+import sys
+import json
+import urllib.request
+import urllib.error
+from typing import List, Dict, Any, Optional
+
+
+class TriageManager:
+    """Creates or updates triage records via the Sippy API."""
+
+    # TODO: Change to production URL once safe to write to prod
+    BASE_URL = "http://127.0.0.1:8080/api/component_readiness/triages"
+
+    VALID_TYPES = ("product", "test", "ci-infra", "product-infra")
+
+    def __init__(self, regression_ids: List[int], url: str, triage_type: str,
+                 description: Optional[str] = None, triage_id: Optional[int] = None):
+        """
+        Initialize triage manager.
+
+        Args:
+            regression_ids: List of regression IDs to link to this triage
+            url: JIRA bug URL (e.g., "https://issues.redhat.com/browse/OCPBUGS-12345")
+            triage_type: Triage type (product, test, ci-infra, product-infra)
+            description: Optional description for the triage
+            triage_id: Optional existing triage ID to update (omit to create new)
+        """
+        self.regression_ids = regression_ids
+        self.url = url
+        self.triage_type = triage_type
+        self.description = description
+        self.triage_id = triage_id
+
+    def _build_payload(self) -> Dict[str, Any]:
+        """Build the JSON payload for create or update."""
+        payload = {
+            "url": self.url,
+            "type": self.triage_type,
+            "regressions": [{"id": rid} for rid in self.regression_ids],
+        }
+
+        if self.description:
+            payload["description"] = self.description
+
+        if self.triage_id is not None:
+            payload["id"] = self.triage_id
+
+        return payload
+
+    def create(self) -> Dict[str, Any]:
+        """
+        Create a new triage record.
+
+        Returns:
+            dict: Response with success status and created triage or error
+        """
+        payload = self._build_payload()
+        data = json.dumps(payload).encode('utf-8')
+        req = urllib.request.Request(
+            self.BASE_URL,
+            data=data,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        return self._send(req, "create")
+
+    def update(self) -> Dict[str, Any]:
+        """
+        Update an existing triage record.
+
+        Returns:
+            dict: Response with success status and updated triage or error
+        """
+        if self.triage_id is None:
+            return {
+                'success': False,
+                'error': "triage_id is required for update",
+                'operation': 'update',
+                'regression_ids': self.regression_ids,
+            }
+
+        payload = self._build_payload()
+        data = json.dumps(payload).encode('utf-8')
+        url = f"{self.BASE_URL}/{self.triage_id}"
+        req = urllib.request.Request(
+            url,
+            data=data,
+            headers={"Content-Type": "application/json"},
+            method="PUT",
+        )
+        return self._send(req, "update")
+
+    def _send(self, req: urllib.request.Request, operation: str) -> Dict[str, Any]:
+        """Send a request and return structured response."""
+        try:
+            with urllib.request.urlopen(req, timeout=30) as response:
+                response_data = json.loads(response.read().decode('utf-8'))
+
+                if isinstance(response_data, dict) and 'error' in response_data:
+                    return {
+                        'success': False,
+                        'error': f"API error: {response_data['error']}",
+                        'operation': operation,
+                        'regression_ids': self.regression_ids,
+                    }
+
+                return {
+                    'success': True,
+                    'operation': operation,
+                    'regression_ids': self.regression_ids,
+                    'triage': response_data,
+                }
+
+        except urllib.error.HTTPError as e:
+            body = ""
+            try:
+                body = e.read().decode('utf-8')
+            except Exception:
+                pass
+            return {
+                'success': False,
+                'error': f"HTTP error {e.code}: {e.reason}",
+                'detail': body,
+                'operation': operation,
+                'regression_ids': self.regression_ids,
+            }
+        except urllib.error.URLError as e:
+            return {
+                'success': False,
+                'error': f"Failed to connect to Sippy API: {e.reason}. Ensure localhost:8080 is running.",
+                'operation': operation,
+                'regression_ids': self.regression_ids,
+            }
+        except Exception as e:
+            return {
+                'success': False,
+                'error': f"Unexpected error: {str(e)}",
+                'operation': operation,
+                'regression_ids': self.regression_ids,
+            }
+
+
+def format_summary(results: Dict[str, Any]) -> str:
+    """
+    Format results as a human-readable summary.
+
+    Args:
+        results: Results from create() or update()
+
+    Returns:
+        str: Formatted summary text
+    """
+    lines = []
+    operation = results.get('operation', 'unknown').capitalize()
+
+    if not results.get('success'):
+        lines.append(f"Triage {operation} - FAILED")
+        lines.append("=" * 60)
+        lines.append("")
+        lines.append(f"Error: {results.get('error', 'Unknown error')}")
+        if results.get('detail'):
+            lines.append(f"Detail: {results.get('detail')}")
+        return "\n".join(lines)
+
+    lines.append(f"Triage {operation} - SUCCESS")
+    lines.append("=" * 60)
+    lines.append("")
+
+    triage = results.get('triage', {})
+    lines.append(f"Triage ID: {triage.get('id', 'N/A')}")
+    lines.append(f"URL: {triage.get('url', 'N/A')}")
+    lines.append(f"Type: {triage.get('type', 'N/A')}")
+    if triage.get('description'):
+        lines.append(f"Description: {triage.get('description')}")
+
+    regressions = triage.get('regressions', [])
+    lines.append(f"Linked Regressions: {len(regressions)}")
+    for reg in regressions:
+        lines.append(f"  - Regression {reg.get('id', 'N/A')}")
+
+    return "\n".join(lines)
+
+
+def main():
+    """Create or update a triage record from command line."""
+    if len(sys.argv) < 2:
+        print("Usage: triage_regression.py <regression_ids> [options]", file=sys.stderr)
+        print("", file=sys.stderr)
+        print("Arguments:", file=sys.stderr)
+        print("  regression_ids   Comma-separated list of regression IDs", file=sys.stderr)
+        print("", file=sys.stderr)
+        print("Required Options:", file=sys.stderr)
+        print("  --url <jira_url>       JIRA bug URL (e.g., https://issues.redhat.com/browse/OCPBUGS-12345)", file=sys.stderr)
+        print("  --type <triage_type>   Triage type: product, test, ci-infra, product-infra", file=sys.stderr)
+        print("", file=sys.stderr)
+        print("Options:", file=sys.stderr)
+        print("  --triage-id <id>       Existing triage ID to update (omit to create new)", file=sys.stderr)
+        print("  --description <text>   Description for the triage", file=sys.stderr)
+        print("  --format json|summary  Output format (default: json)", file=sys.stderr)
+        print("", file=sys.stderr)
+        print("Examples:", file=sys.stderr)
+        print("  # Create a new triage for one regression", file=sys.stderr)
+        print("  triage_regression.py 33639 --url https://issues.redhat.com/browse/OCPBUGS-12345 --type product", file=sys.stderr)
+        print("", file=sys.stderr)
+        print("  # Create a new triage for multiple regressions", file=sys.stderr)
+        print("  triage_regression.py 33639,33640,33641 --url https://issues.redhat.com/browse/OCPBUGS-12345 --type product", file=sys.stderr)
+        print("", file=sys.stderr)
+        print("  # Update an existing triage to add more regressions", file=sys.stderr)
+        print("  triage_regression.py 33639,33640 --triage-id 456 --url https://issues.redhat.com/browse/OCPBUGS-12345 --type product", file=sys.stderr)
+        print("", file=sys.stderr)
+        print("  # Create with a description", file=sys.stderr)
+        print("  triage_regression.py 33639 --url https://issues.redhat.com/browse/OCPBUGS-12345 --type test --description 'Flaky test in discovery suite'", file=sys.stderr)
+        sys.exit(1)
+
+    # Parse regression IDs (first positional argument)
+    try:
+        regression_ids = [int(x.strip()) for x in sys.argv[1].split(',')]
+    except ValueError:
+        print("Error: regression_ids must be comma-separated integers", file=sys.stderr)
+        sys.exit(1)
+
+    # Parse options
+    url = None
+    triage_type = None
+    description = None
+    triage_id = None
+    output_format = 'json'
+
+    i = 2
+    while i < len(sys.argv):
+        arg = sys.argv[i]
+        if arg == '--url' and i + 1 < len(sys.argv):
+            url = sys.argv[i + 1]
+            i += 2
+        elif arg == '--type' and i + 1 < len(sys.argv):
+            triage_type = sys.argv[i + 1]
+            i += 2
+        elif arg == '--triage-id' and i + 1 < len(sys.argv):
+            try:
+                triage_id = int(sys.argv[i + 1])
+            except ValueError:
+                print("Error: --triage-id requires an integer value", file=sys.stderr)
+                sys.exit(1)
+            i += 2
+        elif arg == '--description' and i + 1 < len(sys.argv):
+            description = sys.argv[i + 1]
+            i += 2
+        elif arg == '--format' and i + 1 < len(sys.argv):
+            output_format = sys.argv[i + 1]
+            if output_format not in ('json', 'summary'):
+                print(f"Error: Invalid format '{output_format}'. Use 'json' or 'summary'", file=sys.stderr)
+                sys.exit(1)
+            i += 2
+        else:
+            print(f"Error: Unknown argument '{arg}'", file=sys.stderr)
+            sys.exit(1)
+
+    # Validate required options
+    if not url:
+        print("Error: --url is required", file=sys.stderr)
+        sys.exit(1)
+    if not triage_type:
+        print("Error: --type is required", file=sys.stderr)
+        sys.exit(1)
+    if triage_type not in TriageManager.VALID_TYPES:
+        print(f"Error: Invalid type '{triage_type}'. Must be one of: {', '.join(TriageManager.VALID_TYPES)}", file=sys.stderr)
+        sys.exit(1)
+
+    # Create or update
+    try:
+        manager = TriageManager(regression_ids, url, triage_type, description, triage_id)
+
+        if triage_id is not None:
+            results = manager.update()
+        else:
+            results = manager.create()
+
+        if output_format == 'json':
+            print(json.dumps(results, indent=2))
+        else:
+            print(format_summary(results))
+
+        return 0 if results.get('success') else 1
+
+    except Exception as e:
+        print(f"Unexpected error: {e}", file=sys.stderr)
+        return 1
+
+
+if __name__ == '__main__':
+    sys.exit(main())
