@@ -84,12 +84,10 @@ python3 "$script_path" 33639,33640,33641 \
   --description "API discovery regression across metal variants" \
   --format json
 
-# Update an existing triage (e.g., to add more regressions)
+# Update an existing triage to add more regressions (url and type inherited from existing triage)
 python3 "$script_path" 33639,33640,33641,33642 \
   --token "$TOKEN" \
   --triage-id 456 \
-  --url "https://issues.redhat.com/browse/OCPBUGS-12345" \
-  --type product \
   --format json
 ```
 
@@ -98,8 +96,8 @@ python3 "$script_path" 33639,33640,33641,33642 \
 
 **Required Options**:
 - `--token <token>`: OAuth Bearer token for sippy-auth (obtained from oc-auth skill)
-- `--url <jira_url>`: JIRA bug URL
-- `--type <triage_type>`: Triage type (`product`, `test`, `ci-infra`, `product-infra`)
+- `--url <jira_url>`: JIRA bug URL (required for create, optional for update - uses existing value)
+- `--type <triage_type>`: Triage type: `product`, `test`, `ci-infra`, `product-infra` (required for create, optional for update - uses existing value)
 
 **Options**:
 - `--triage-id <id>`: Existing triage ID to update (omit to create new)
@@ -281,13 +279,11 @@ python3 plugins/ci/skills/triage-regression/triage_regression.py \
 # First, get the existing triage ID from regression data
 existing_triage_id=$(echo "$regression_data" | jq -r '.triages[0].id')
 
-# Update it with additional regression IDs
+# Update it with additional regression IDs (url and type inherited from existing triage)
 python3 plugins/ci/skills/triage-regression/triage_regression.py \
   33639,33640,33641,33642 \
   --token "$TOKEN" \
   --triage-id "$existing_triage_id" \
-  --url "https://issues.redhat.com/browse/OCPBUGS-12345" \
-  --type product \
   --format json
 ```
 
@@ -311,7 +307,7 @@ python3 plugins/ci/skills/triage-regression/triage_regression.py \
 - Validates triage type locally before making the API call
 - When creating, do not provide `--triage-id`; when updating, `--triage-id` is required
 - The API will validate that all regression IDs exist and return an error if any are missing
-- When updating a triage, the regressions list replaces the existing linked regressions entirely
+- When updating a triage, the script automatically fetches existing regressions and merges them with the new ones (safe additive behavior)
 - The API automatically looks up and links the JIRA bug if the URL matches an imported bug
 
 ## See Also

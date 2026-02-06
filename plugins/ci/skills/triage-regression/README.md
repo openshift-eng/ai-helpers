@@ -37,13 +37,13 @@ python3 plugins/ci/skills/triage-regression/triage_regression.py \
   [--description <text>] \
   [--format json|summary]
 
-# Update an existing triage
+# Update an existing triage (add regressions; url and type inherited from existing triage)
 python3 plugins/ci/skills/triage-regression/triage_regression.py \
   <regression_ids> \
   --token "$TOKEN" \
   --triage-id <existing_triage_id> \
-  --url <jira_url> \
-  --type <triage_type> \
+  [--url <jira_url>] \
+  [--type <triage_type>] \
   [--description <text>] \
   [--format json|summary]
 ```
@@ -53,8 +53,8 @@ python3 plugins/ci/skills/triage-regression/triage_regression.py \
 
 **Required Options**:
 - `--token <token>`: OAuth Bearer token for sippy-auth (use oc-auth skill to obtain from DPCR cluster)
-- `--url <jira_url>`: JIRA bug URL (e.g., `https://issues.redhat.com/browse/OCPBUGS-12345`)
-- `--type <triage_type>`: Triage type: `product`, `test`, `ci-infra`, `product-infra`
+- `--url <jira_url>`: JIRA bug URL (required for create, optional for update - uses existing value)
+- `--type <triage_type>`: Triage type: `product`, `test`, `ci-infra`, `product-infra` (required for create, optional for update - uses existing value)
 
 **Options**:
 - `--triage-id <id>`: Existing triage ID to update (omit to create new)

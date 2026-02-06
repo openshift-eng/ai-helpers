@@ -526,12 +526,12 @@ This command is useful for:
    # Obtain auth token from DPCR cluster (oc-auth skill)
    TOKEN=$(oc whoami -t --context="$DPCR_CONTEXT")
 
-   # Collect all regression IDs: the current one + untriaged related ones
-   # Also include any regression IDs already on the existing triage so they are not removed
-   all_regression_ids="<existing_ids>,<current_id>,<related_id_1>,<related_id_2>"
+   # Only pass the new regression IDs to add - the script automatically
+   # fetches existing regressions and merges them (safe additive behavior)
+   new_regression_ids="<current_id>,<related_id_1>,<related_id_2>"
 
    script_path="plugins/ci/skills/triage-regression/triage_regression.py"
-   python3 "$script_path" "$all_regression_ids" \
+   python3 "$script_path" "$new_regression_ids" \
      --token "$TOKEN" \
      --triage-id <existing_triage_id> \
      --url "<existing_jira_url>" \
@@ -539,7 +539,7 @@ This command is useful for:
      --format json
    ```
 
-   **IMPORTANT**: When updating a triage, the regressions list replaces the existing list entirely. Always include the regression IDs that are already on the triage record in addition to the new ones being added.
+   **Note**: The triage-regression script automatically fetches the existing triage and merges its regressions with the new ones, so you only need to pass the regression IDs you want to add.
 
    **Scenario B: JIRA bug found but not triaged to any regression** (from step 3 or step 8)
 

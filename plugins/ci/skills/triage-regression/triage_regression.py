@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Create or update a Component Readiness triage record via the Sippy API.
 Links one or more regressions to a JIRA bug with a triage type and description.
@@ -18,24 +17,25 @@ class TriageManager:
 
     VALID_TYPES = ("product", "test", "ci-infra", "product-infra")
 
-    def __init__(self, regression_ids: List[int], url: str, triage_type: str,
-                 token: str, description: Optional[str] = None,
+    def __init__(self, regression_ids: List[int], token: str,
+                 url: Optional[str] = None, triage_type: Optional[str] = None,
+                 description: Optional[str] = None,
                  triage_id: Optional[int] = None):
         """
         Initialize triage manager.
 
         Args:
             regression_ids: List of regression IDs to link to this triage
-            url: JIRA bug URL (e.g., "https://issues.redhat.com/browse/OCPBUGS-12345")
-            triage_type: Triage type (product, test, ci-infra, product-infra)
             token: OAuth Bearer token for authenticating to sippy-auth
+            url: JIRA bug URL (required for create, optional for update - uses existing value)
+            triage_type: Triage type (required for create, optional for update - uses existing value)
             description: Optional description for the triage
             triage_id: Optional existing triage ID to update (omit to create new)
         """
         self.regression_ids = regression_ids
+        self.token = token
         self.url = url
         self.triage_type = triage_type
-        self.token = token
         self.description = description
         self.triage_id = triage_id
 
@@ -62,6 +62,25 @@ class TriageManager:
             "Authorization": f"Bearer {self.token}",
         }
 
+    def _fetch_existing_triage(self) -> Optional[Dict[str, Any]]:
+        """
+        Fetch an existing triage record by ID.
+
+        Returns:
+            dict: The existing triage data, or None on error
+        """
+        url = f"{self.BASE_URL}/{self.triage_id}"
+        req = urllib.request.Request(
+            url,
+            headers=self._auth_headers(),
+            method="GET",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=30) as response:
+                return json.loads(response.read().decode('utf-8'))
+        except Exception:
+            return None
+
     def create(self) -> Dict[str, Any]:
         """
         Create a new triage record.
@@ -83,6 +102,11 @@ class TriageManager:
         """
         Update an existing triage record.
 
+        Fetches the existing triage first to preserve its current regressions,
+        then merges the new regression IDs with the existing ones. The PUT
+        endpoint uses full replacement semantics, so we must always send the
+        complete list.
+
         Returns:
             dict: Response with success status and updated triage or error
         """
@@ -93,6 +117,32 @@ class TriageManager:
                 'operation': 'update',
                 'regression_ids': self.regression_ids,
             }
+
+        # Fetch existing triage to get current regressions and fill in defaults
+        existing = self._fetch_existing_triage()
+        if existing is None:
+            return {
+                'success': False,
+                'error': f"Failed to fetch existing triage {self.triage_id}. Cannot update safely without knowing current state.",
+                'operation': 'update',
+                'regression_ids': self.regression_ids,
+            }
+
+        # Use existing url and type if not provided on command line
+        if self.url is None:
+            self.url = existing.get('url', '')
+        if self.triage_type is None:
+            self.triage_type = existing.get('type', '')
+
+        # Merge existing regression IDs with new ones (deduplicate)
+        existing_ids = set()
+        for reg in existing.get('regressions', []):
+            reg_id = reg.get('id')
+            if reg_id is not None:
+                existing_ids.add(reg_id)
+
+        merged_ids = existing_ids | set(self.regression_ids)
+        self.regression_ids = sorted(merged_ids)
 
         payload = self._build_payload()
         data = json.dumps(payload).encode('utf-8')
@@ -279,19 +329,21 @@ def main():
     if not token:
         print("Error: --token is required (use oc-auth skill to obtain token from DPCR cluster)", file=sys.stderr)
         sys.exit(1)
-    if not url:
-        print("Error: --url is required", file=sys.stderr)
-        sys.exit(1)
-    if not triage_type:
-        print("Error: --type is required", file=sys.stderr)
-        sys.exit(1)
-    if triage_type not in TriageManager.VALID_TYPES:
+    if triage_id is None:
+        # Creating: url and type are required
+        if not url:
+            print("Error: --url is required when creating a new triage", file=sys.stderr)
+            sys.exit(1)
+        if not triage_type:
+            print("Error: --type is required when creating a new triage", file=sys.stderr)
+            sys.exit(1)
+    if triage_type is not None and triage_type not in TriageManager.VALID_TYPES:
         print(f"Error: Invalid type '{triage_type}'. Must be one of: {', '.join(TriageManager.VALID_TYPES)}", file=sys.stderr)
         sys.exit(1)
 
     # Create or update
     try:
-        manager = TriageManager(regression_ids, url, triage_type, token, description, triage_id)
+        manager = TriageManager(regression_ids, token, url, triage_type, description, triage_id)
 
         if triage_id is not None:
             results = manager.update()
