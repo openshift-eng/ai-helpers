@@ -194,8 +194,11 @@ Show user:
 Before posting ANY reply, verify you haven't already responded:
 
 ```bash
-CHECK_REPLIED=$(find ~/.claude/plugins -path '*/utils/scripts/check_replied.py' 2>/dev/null | head -1)
-if [ -z "$CHECK_REPLIED" ]; then echo "ERROR: check_replied.py not found" >&2; exit 2; fi
+CHECK_REPLIED="${CLAUDE_PLUGIN_ROOT}/scripts/check_replied.py"
+if [ ! -f "$CHECK_REPLIED" ]; then
+  CHECK_REPLIED=$(find ~/.claude/plugins -type f -path "*/utils/scripts/check_replied.py" 2>/dev/null | sort | head -1)
+fi
+if [ -z "$CHECK_REPLIED" ] || [ ! -f "$CHECK_REPLIED" ]; then echo "ERROR: check_replied.py not found" >&2; exit 2; fi
 python3 "$CHECK_REPLIED" <owner> <repo> <pr_number> <comment_id> --type <type>
 ```
 
