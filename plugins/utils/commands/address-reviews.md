@@ -194,12 +194,18 @@ Show user:
 Before posting ANY reply, verify you haven't already responded:
 
 ```bash
-python3 plugins/utils/scripts/check_replied.py <owner> <repo> <pr_number> <comment_id> --type <type>
+CHECK_REPLIED="${CLAUDE_PLUGIN_ROOT}/scripts/check_replied.py"
+if [ ! -f "$CHECK_REPLIED" ]; then
+  CHECK_REPLIED=$(find ~/.claude/plugins -type f -path "*/utils/scripts/check_replied.py" 2>/dev/null | sort | head -1)
+fi
+if [ -z "$CHECK_REPLIED" ] || [ ! -f "$CHECK_REPLIED" ]; then echo "ERROR: check_replied.py not found" >&2; exit 2; fi
+python3 "$CHECK_REPLIED" <owner> <repo> <pr_number> <comment_id> --type <type>
 ```
 
 Where `<type>` is one of: `issue_comment`, `review_thread`, or `review_comment`
 
 **If the script returns exit code 1**: Skip that comment - you've already replied.
+**If the script returns exit code 2**: The check failed - do NOT post a reply. Investigate and fix the issue before proceeding.
 
 ### Response Rules
 
