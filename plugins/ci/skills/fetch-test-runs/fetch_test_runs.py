@@ -10,6 +10,7 @@ import json
 import urllib.request
 import urllib.error
 import urllib.parse
+from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 
 
@@ -21,7 +22,7 @@ class TestRunsFetcher:
 
     def __init__(self, test_id: str, job_run_ids: Optional[List[str]] = None,
                  include_success: bool = False, prowjob_name: Optional[str] = None,
-                 start_date: Optional[str] = None):
+                 start_days_ago: Optional[int] = None):
         """
         Initialize fetcher with test ID and optional parameters.
 
@@ -30,13 +31,18 @@ class TestRunsFetcher:
             job_run_ids: Optional list of Prow job run IDs to filter by
             include_success: If True, include successful test runs (default: False)
             prowjob_name: Optional Prow job name to filter results to a specific job
-            start_date: Optional start date in YYYY-MM-DD format to look further back than default 7 days
+            start_days_ago: Optional number of days to look back (default API is 7 days)
         """
         self.test_id = test_id
         self.job_run_ids = job_run_ids
         self.include_success = include_success
         self.prowjob_name = prowjob_name
-        self.start_date = start_date
+        self.start_days_ago = start_days_ago
+        # Calculate start_date from start_days_ago
+        if start_days_ago is not None:
+            self.start_date = (datetime.now() - timedelta(days=start_days_ago)).strftime('%Y-%m-%d')
+        else:
+            self.start_date = None
         self.api_url = self._build_url()
 
     def _build_url(self) -> str:
@@ -57,7 +63,6 @@ class TestRunsFetcher:
         if self.start_date:
             url += f"&start_date={self.start_date}"
 
-        print(url)
         return url
 
     def fetch_runs(self) -> Dict[str, Any]:
@@ -81,6 +86,7 @@ class TestRunsFetcher:
                         'requested_job_runs': len(self.job_run_ids) if self.job_run_ids else 0,
                         'include_success': self.include_success,
                         'prowjob_name': self.prowjob_name,
+                        'start_days_ago': self.start_days_ago,
                         'start_date': self.start_date,
                     }
 
@@ -91,6 +97,7 @@ class TestRunsFetcher:
                     'requested_job_runs': len(self.job_run_ids) if self.job_run_ids else 0,
                     'include_success': self.include_success,
                     'prowjob_name': self.prowjob_name,
+                    'start_days_ago': self.start_days_ago,
                     'start_date': self.start_date,
                     'runs': data,
                     'api_url': self.api_url,
@@ -104,6 +111,7 @@ class TestRunsFetcher:
                 'requested_job_runs': len(self.job_run_ids) if self.job_run_ids else 0,
                 'include_success': self.include_success,
                 'prowjob_name': self.prowjob_name,
+                'start_days_ago': self.start_days_ago,
                 'start_date': self.start_date,
             }
         except urllib.error.URLError as e:
@@ -114,6 +122,7 @@ class TestRunsFetcher:
                 'requested_job_runs': len(self.job_run_ids) if self.job_run_ids else 0,
                 'include_success': self.include_success,
                 'prowjob_name': self.prowjob_name,
+                'start_days_ago': self.start_days_ago,
                 'start_date': self.start_date,
             }
         except Exception as e:
@@ -124,6 +133,7 @@ class TestRunsFetcher:
                 'requested_job_runs': len(self.job_run_ids) if self.job_run_ids else 0,
                 'include_success': self.include_success,
                 'prowjob_name': self.prowjob_name,
+                'start_days_ago': self.start_days_ago,
                 'start_date': self.start_date,
             }
 
@@ -160,8 +170,8 @@ def format_summary(results: Dict[str, Any]) -> str:
     if results.get('requested_job_runs', 0) > 0:
         lines.append(f"Requested Job Runs: {results.get('requested_job_runs', 0)}")
     lines.append(f"Include Successes: {results.get('include_success', False)}")
-    if results.get('start_date'):
-        lines.append(f"Start Date: {results.get('start_date')}")
+    if results.get('start_days_ago'):
+        lines.append(f"Start Days Ago: {results.get('start_days_ago')} (since {results.get('start_date')})")
     lines.append(f"Runs Fetched: {len(runs)}")
     lines.append("")
 
@@ -205,7 +215,7 @@ def main():
         print("Options:", file=sys.stderr)
         print("  --include-success          Include successful test runs (default: failures only)", file=sys.stderr)
         print("  --prowjob-name <name>      Filter to runs from a specific Prow job", file=sys.stderr)
-        print("  --start-date <YYYY-MM-DD>  Start date to look further back than default 7 days", file=sys.stderr)
+        print("  --start-days-ago <days>    Number of days to look back (default API is 7 days)", file=sys.stderr)
         print("  --format json|summary      Output format (default: json)", file=sys.stderr)
         print("", file=sys.stderr)
         print("Examples:", file=sys.stderr)
@@ -218,8 +228,8 @@ def main():
         print("  # Fetch runs from a specific job including successes", file=sys.stderr)
         print("  fetch_test_runs.py 'openshift-tests:abc123' --include-success --prowjob-name 'periodic-ci-openshift-...'", file=sys.stderr)
         print("", file=sys.stderr)
-        print("  # Fetch runs going back 30 days (for regression start analysis)", file=sys.stderr)
-        print("  fetch_test_runs.py 'openshift-tests:abc123' --include-success --start-date 2026-01-06", file=sys.stderr)
+        print("  # Fetch runs going back 28 days (for regression start analysis)", file=sys.stderr)
+        print("  fetch_test_runs.py 'openshift-tests:abc123' --include-success --start-days-ago 28", file=sys.stderr)
         print("", file=sys.stderr)
         print("  # Fetch specific job runs (for backward compatibility with analyze-regression)", file=sys.stderr)
         print("  fetch_test_runs.py 'openshift-tests:abc123' '12345,67890'", file=sys.stderr)
@@ -233,7 +243,7 @@ def main():
     job_run_ids = None
     include_success = False
     prowjob_name = None
-    start_date = None
+    start_days_ago = None
     output_format = 'json'
 
     # Parse remaining arguments
@@ -246,8 +256,12 @@ def main():
         elif arg == '--prowjob-name' and i + 1 < len(sys.argv):
             prowjob_name = sys.argv[i + 1]
             i += 2
-        elif arg == '--start-date' and i + 1 < len(sys.argv):
-            start_date = sys.argv[i + 1]
+        elif arg == '--start-days-ago' and i + 1 < len(sys.argv):
+            try:
+                start_days_ago = int(sys.argv[i + 1])
+            except ValueError:
+                print(f"Error: --start-days-ago requires an integer value", file=sys.stderr)
+                sys.exit(1)
             i += 2
         elif arg == '--format' and i + 1 < len(sys.argv):
             output_format = sys.argv[i + 1]
@@ -264,7 +278,7 @@ def main():
 
     # Fetch runs
     try:
-        fetcher = TestRunsFetcher(test_id, job_run_ids, include_success, prowjob_name, start_date)
+        fetcher = TestRunsFetcher(test_id, job_run_ids, include_success, prowjob_name, start_days_ago)
         results = fetcher.fetch_runs()
 
         # Output in requested format

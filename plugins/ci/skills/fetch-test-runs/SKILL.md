@@ -66,7 +66,7 @@ python3 "$script_path" "$test_id" --format summary
 **Options**:
 - `--include-success`: Include successful test runs (default: failures only)
 - `--prowjob-name <name>`: Filter to runs from a specific Prow job
-- `--start-date <YYYY-MM-DD>`: Start date to look further back than default 7 days
+- `--start-days-ago <days>`: Number of days to look back (default API is 7 days)
 - `--format json|summary`: Output format (default: json)
 
 ### Step 2: Prepare Input Data (for analyze-regression)
@@ -353,14 +353,11 @@ script_path="plugins/ci/skills/fetch-test-runs/fetch_test_runs.py"
 # Get the job with the most failures
 most_failed_job="periodic-ci-openshift-release-master-nightly-4.22-e2e-metal-ipi-ovn"
 
-# Calculate start date (28 days ago) for extended history
-start_date=$(date -v-28d +%Y-%m-%d 2>/dev/null || date -d "28 days ago" +%Y-%m-%d)
-
 # Fetch all runs (including successes) for this specific job, going back 28 days
 job_history=$(python3 "$script_path" "$test_id" \
   --include-success \
   --prowjob-name "$most_failed_job" \
-  --start-date "$start_date" \
+  --start-days-ago 28 \
   --format json)
 
 # Analyze the run history
@@ -383,8 +380,8 @@ fi
 - Job run IDs are optional - can fetch all runs for a test
 - `--include-success` allows analyzing both passing and failing runs
 - `--prowjob-name` filters results to a specific Prow job (useful for regression start analysis)
-- `--start-date` allows looking back further than the default 7 days (use YYYY-MM-DD format)
-- Combine `--include-success`, `--prowjob-name`, and `--start-date` to get full test history for regression analysis
+- `--start-days-ago` allows looking back further than the default 7 days (e.g., `--start-days-ago 28`)
+- Combine `--include-success`, `--prowjob-name`, and `--start-days-ago` to get full test history for regression analysis
 - Backward compatible with analyze-regression command (accepts job_run_ids)
 - Summary format shows first 5 runs only, to keep output manageable
 - Runs are returned in order from most recent to least recent

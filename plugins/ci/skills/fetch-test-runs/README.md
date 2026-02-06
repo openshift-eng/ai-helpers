@@ -54,7 +54,7 @@ python3 plugins/ci/skills/fetch-test-runs/fetch_test_runs.py \
 **Options**:
 - `--include-success`: Include successful test runs (default: failures only)
 - `--prowjob-name <name>`: Filter to runs from a specific Prow job
-- `--start-date <YYYY-MM-DD>`: Start date to look further back than default 7 days
+- `--start-days-ago <days>`: Number of days to look back (default API is 7 days)
 - `--format`: Output format - `json` (default) or `summary`
 
 ## Example

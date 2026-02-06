@@ -335,12 +335,9 @@ This command is useful for:
      | .[0].key
    ')
 
-   # Calculate start date (28 days ago) for extended history
-   start_date=$(date -v-28d +%Y-%m-%d 2>/dev/null || date -d "28 days ago" +%Y-%m-%d)
-
    # Fetch all test runs (including successes) for this specific job, going back 28 days
    script_path="plugins/ci/skills/fetch-test-runs/fetch_test_runs.py"
-   job_history=$(python3 "$script_path" "$test_id" --include-success --prowjob-name "$most_failed_job" --start-date "$start_date" --format json)
+   job_history=$(python3 "$script_path" "$test_id" --include-success --prowjob-name "$most_failed_job" --start-days-ago 28 --format json)
    ```
 
    **Analyze the Run History**:
