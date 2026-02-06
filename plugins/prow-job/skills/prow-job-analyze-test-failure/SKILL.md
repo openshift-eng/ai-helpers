@@ -29,12 +29,22 @@ The user will provide:
 
 3. Optional flags (optional):
    - `--fast` - Skip must-gather extraction and analysis (test-level analysis only)
+   - `--export-jira` - Generate additional JIRA-formatted output file alongside Markdown report
 
 ## Implementation Steps
 
 ### Step 1: Parse and Validate URL
 
-Use the "Parse and Validate URL" steps from "Prow Job Analyze Resource" skill
+1. **Capture user-provided test name**
+
+   Store the user-provided test name for later use in conditional diagnostics:
+   ```bash
+   TEST_CASE_NAME="{user-provided-test-name}"
+   ```
+
+2. **Parse and validate URL**
+
+   Use the "Parse and Validate URL" steps from "Prow Job Analyze Resource" skill
 
 ### Step 2: Create Working Directory
 
@@ -117,8 +127,12 @@ gcloud storage cp gs://test-platform-results/{bucket-path}/build-log.txt .work/p
 
 ### Step 4.5: Check for Must-Gather Availability
 
-1. **Check for --fast flag**
-   - Parse user input for `--fast` flag
+1. **Parse command flags**
+   - Check for `--fast` flag in user input
+   - Check for `--export-jira` flag in user input
+   - Store flag states for later use:
+     - `SKIP_MUST_GATHER=true` if `--fast` present
+     - `EXPORT_JIRA=true` if `--export-jira` present
    - If `--fast` flag present:
      - Skip must-gather detection and analysis entirely
      - Proceed directly to Step 5 (test-level results only)
@@ -360,30 +374,31 @@ Only if user chose "Yes" in Step 4.5:
 
    if [ -z "$OUTPUT_DIR" ]; then
      echo "ERROR: Could not find output directory in unified dump"
+     rm -rf "$TMP_EXTRACT"
      # Skip to Step 5
-   fi
+   else
+     # Move management cluster data (root level in output/)
+     # Exclude hostedcluster-* directories
+     for item in "$OUTPUT_DIR"/*; do
+       if [ -e "$item" ] && [[ ! "$(basename "$item")" =~ ^hostedcluster- ]]; then
+         mv "$item" .work/prow-job-analyze-test-failure/{build_id}/must-gather-mgmt/logs/
+       fi
+     done
 
-   # Move management cluster data (root level in output/)
-   # Exclude hostedcluster-* directories
-   for item in "$OUTPUT_DIR"/*; do
-     if [ -e "$item" ] && [[ ! "$(basename "$item")" =~ ^hostedcluster- ]]; then
-       mv "$item" .work/prow-job-analyze-test-failure/{build_id}/must-gather-mgmt/logs/
+     # Move hosted cluster data (hostedcluster-* subdirectory)
+     if [ "$HAS_HOSTED_CLUSTER" = "true" ]; then
+       HOSTED_DIR=$(find "$OUTPUT_DIR" -maxdepth 1 -type d -name "hostedcluster-*" | head -1)
+       if [ -n "$HOSTED_DIR" ]; then
+         mv "$HOSTED_DIR"/* .work/prow-job-analyze-test-failure/{build_id}/must-gather-hosted/logs/
+         echo "✓ Hosted cluster data extracted from unified archive"
+       else
+         echo "WARNING: Expected hosted cluster data but hostedcluster-* directory not found"
+       fi
      fi
-   done
 
-   # Move hosted cluster data (hostedcluster-* subdirectory)
-   if [ "$HAS_HOSTED_CLUSTER" = "true" ]; then
-     HOSTED_DIR=$(find "$OUTPUT_DIR" -maxdepth 1 -type d -name "hostedcluster-*" | head -1)
-     if [ -n "$HOSTED_DIR" ]; then
-       mv "$HOSTED_DIR"/* .work/prow-job-analyze-test-failure/{build_id}/must-gather-hosted/logs/
-       echo "✓ Hosted cluster data extracted from unified archive"
-     else
-       echo "WARNING: Expected hosted cluster data but hostedcluster-* directory not found"
-     fi
+     # Cleanup temporary extraction directory
+     rm -rf "$TMP_EXTRACT"
    fi
-
-   # Cleanup temporary extraction directory
-   rm -rf "$TMP_EXTRACT"
    ```
 
    For Pattern 2 (dual):
@@ -472,30 +487,21 @@ Only if user chose "Yes" in Step 4.5:
    if [ "$HAS_HOSTED_CLUSTER" = "true" ]; then
        MUST_GATHER_HOSTED_PATH=".work/prow-job-analyze-test-failure/{build_id}/must-gather-hosted/logs"
 
-       # Validate hosted cluster path
+       # Validate hosted cluster path (single canonical check)
        if [ ! -d "$MUST_GATHER_HOSTED_PATH" ]; then
            echo "WARNING: Hosted cluster directory not found (expected based on archive detection)"
            MUST_GATHER_HOSTED_PATH=""  # Clear the path
+           HAS_HOSTED_CLUSTER="false"  # Update flag since hosted cluster not actually present
        elif [ -z "$(ls -A "$MUST_GATHER_HOSTED_PATH" 2>/dev/null)" ]; then
            echo "WARNING: Hosted cluster directory is empty"
            MUST_GATHER_HOSTED_PATH=""  # Clear the path
-       else
-           echo "✓ Hosted cluster data located at: $MUST_GATHER_HOSTED_PATH"
-       fi
-   else
-       echo "✓ Management cluster must-gather located at: $MUST_GATHER_MGMT_PATH"
-   fi
-
-   # Only validate hosted cluster if HAS_HOSTED_CLUSTER is true
-   if [ "$HAS_HOSTED_CLUSTER" = "true" ]; then
-       if [ -z "$MUST_GATHER_HOSTED_PATH" ] || [ ! -d "$MUST_GATHER_HOSTED_PATH" ]; then
-           echo "ERROR: Hosted cluster must-gather content directory not found"
-       elif [ -z "$(ls -A "$MUST_GATHER_HOSTED_PATH" 2>/dev/null)" ]; then
-           echo "ERROR: Hosted cluster must-gather content directory is empty"
+           HAS_HOSTED_CLUSTER="false"  # Update flag since hosted cluster not actually present
        else
            echo "✓ Hosted cluster must-gather located at: $MUST_GATHER_HOSTED_PATH"
            echo "✓ Hosted cluster namespace: $HOSTED_NAMESPACE"
        fi
+   else
+       echo "✓ Management cluster must-gather located at: $MUST_GATHER_MGMT_PATH"
    fi
    ```
 
@@ -575,30 +581,30 @@ Only if Step 4.6 completed successfully:
 
    ```bash
    # Network diagnostics (if test name suggests network issues)
-   if [[ "$TEST_NAME" =~ network|ovn|sdn|connectivity|route|ingress|egress ]]; then
-       if [ -n "$MUST_GATHER_PATH" ]; then
+   if [[ "$TEST_CASE_NAME" =~ network|ovn|sdn|connectivity|route|ingress|egress ]]; then
+       if [ -n "$SCRIPTS_DIR" ] && [ -n "$MUST_GATHER_PATH" ]; then
            python3 "$SCRIPTS_DIR/analyze_network.py" "$MUST_GATHER_PATH"
        fi
-       if [ -n "$MUST_GATHER_MGMT_PATH" ]; then
+       if [ -n "$SCRIPTS_DIR" ] && [ -n "$MUST_GATHER_MGMT_PATH" ]; then
            echo "=== Management Cluster Network ==="
            python3 "$SCRIPTS_DIR/analyze_network.py" "$MUST_GATHER_MGMT_PATH"
        fi
-       if [ -n "$MUST_GATHER_HOSTED_PATH" ]; then
+       if [ -n "$SCRIPTS_DIR" ] && [ -n "$MUST_GATHER_HOSTED_PATH" ]; then
            echo "=== Hosted Cluster Network ==="
            python3 "$SCRIPTS_DIR/analyze_network.py" "$MUST_GATHER_HOSTED_PATH"
        fi
    fi
 
    # etcd diagnostics (if test name suggests control-plane issues)
-   if [[ "$TEST_NAME" =~ etcd|apiserver|control-plane|kube-apiserver ]]; then
-       if [ -n "$MUST_GATHER_PATH" ]; then
+   if [[ "$TEST_CASE_NAME" =~ etcd|apiserver|control-plane|kube-apiserver ]]; then
+       if [ -n "$SCRIPTS_DIR" ] && [ -n "$MUST_GATHER_PATH" ]; then
            python3 "$SCRIPTS_DIR/analyze_etcd.py" "$MUST_GATHER_PATH"
        fi
-       if [ -n "$MUST_GATHER_MGMT_PATH" ]; then
+       if [ -n "$SCRIPTS_DIR" ] && [ -n "$MUST_GATHER_MGMT_PATH" ]; then
            echo "=== Management Cluster etcd ==="
            python3 "$SCRIPTS_DIR/analyze_etcd.py" "$MUST_GATHER_MGMT_PATH"
        fi
-       if [ -n "$MUST_GATHER_HOSTED_PATH" ]; then
+       if [ -n "$SCRIPTS_DIR" ] && [ -n "$MUST_GATHER_HOSTED_PATH" ]; then
            echo "=== Hosted Cluster etcd ==="
            python3 "$SCRIPTS_DIR/analyze_etcd.py" "$MUST_GATHER_HOSTED_PATH"
        fi
@@ -680,7 +686,7 @@ Synthesize all gathered evidence to determine the most likely root cause for the
 
 2. **Prioritize evidence based on temporal proximity**
    - Issues occurring during test execution time (from interval files) are most relevant
-   - Cluster issues that occurred shortly before test failure (±5 minutes) are highly relevant
+   - Cluster issues that occurred shortly before test failure (±5 minutes) are relevant
    - Pre-existing cluster issues may be contributing factors but not root causes
 
 3. **Generate root cause hypothesis**
@@ -699,7 +705,9 @@ Synthesize all gathered evidence to determine the most likely root cause for the
 
 ### Step 5: Present Results to User
 
-1. **Display structured summary with enhanced formatting**
+1. **Generate Markdown report file**
+
+   Create `.work/prow-job-analyze-test-failure/{build_id}/analysis.md` with structured content.
 
    **For single must-gather or no must-gather:**
 
@@ -886,6 +894,111 @@ Synthesize all gathered evidence to determine the most likely root cause for the
    - **Management cluster must-gather**: `.work/prow-job-analyze-test-failure/{build_id}/must-gather-mgmt/logs/`
    - **Hosted cluster must-gather**: `.work/prow-job-analyze-test-failure/{build_id}/must-gather-hosted/logs/`
    ```
+
+2. **Write Markdown file**
+
+   Save the generated report to:
+   ```bash
+   .work/prow-job-analyze-test-failure/{build_id}/analysis.md
+   ```
+
+3. **Generate JIRA-formatted output (if --export-jira flag present)**
+
+   If `EXPORT_JIRA=true`, create an additional file `.work/prow-job-analyze-test-failure/{build_id}/analysis-jira.txt` with JIRA markup.
+
+   **JIRA Formatting Guidelines:**
+
+   - **Headers**: Use `h1.`, `h2.`, `h3.` instead of Markdown `#`, `##`, `###`
+   - **Code blocks**: Use `{code:bash}...{code}` for shell commands, `{code:text}...{code}` for logs
+   - **Preformatted text**: Use `{noformat}...{noformat}` for plain text output
+   - **Panels**: Use `{panel:title=Section Title}...{panel}` for important sections
+   - **Collapsible sections**: Use `{expand:title=Click to expand}...{expand}` for large content
+   - **Bold**: Use `*text*` instead of `**text**`
+   - **Links**: Use `[text|url]` instead of `[text](url)`
+   - **Lists**: Use `*` for bullets, `#` for numbers (same as Markdown)
+
+   **Collapsible sections for:**
+   - Stack traces > 20 lines
+   - Cluster operator output
+   - Pod/Node diagnostics
+   - Event logs
+   - Network/etcd analysis output
+
+   **Example JIRA format:**
+
+   ```text
+   h1. Test Failure Analysis Complete
+
+   h2. Job Information
+   * *Prow Job*: {prowjob-name}
+   * *Build ID*: {build_id}
+   * *Target*: {target}
+   * *Test*: {test_name}
+
+   h2. Test Failure Analysis
+
+   h3. Error
+   {code:text}
+   {error message from stack trace}
+   {code}
+
+   h3. Stack Trace
+   {expand:title=Click to view full stack trace}
+   {noformat}
+   {full stack trace}
+   {noformat}
+   {expand}
+
+   h3. Summary
+   {failure analysis}
+
+   ----
+
+   h2. Cluster Diagnostics
+
+   {panel:title=Cluster Operators}
+   {expand:title=Click to view cluster operator status}
+   {noformat}
+   {output from analyze_clusteroperators.py}
+   {noformat}
+   {expand}
+   {panel}
+
+   h3. Problematic Pods
+   {expand:title=Click to view pod details}
+   {noformat}
+   {output from analyze_pods.py}
+   {noformat}
+   {expand}
+
+   ----
+
+   h2. Root Cause Hypothesis
+   {correlated analysis}
+
+   ----
+
+   h2. Artifacts
+   * *Test artifacts*: {{.work/prow-job-analyze-test-failure/{build_id}/logs/}}
+   * *Must-gather*: {{.work/prow-job-analyze-test-failure/{build_id}/must-gather/logs/}}
+   ```
+
+4. **Display summary to user**
+
+   Show both file paths:
+   ```text
+   ✅ Analysis complete!
+
+   📄 Reports generated:
+   - Markdown: .work/prow-job-analyze-test-failure/{build_id}/analysis.md
+   - JIRA format: .work/prow-job-analyze-test-failure/{build_id}/analysis-jira.txt (if --export-jira)
+
+   📦 Artifacts:
+   - Test logs: .work/prow-job-analyze-test-failure/{build_id}/logs/
+   - Must-gather: .work/prow-job-analyze-test-failure/{build_id}/must-gather/logs/ (if analyzed)
+   ```
+
+   Then display the Markdown content inline for immediate viewing.
 
 ## Error Handling
 

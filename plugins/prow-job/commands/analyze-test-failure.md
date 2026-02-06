@@ -1,6 +1,6 @@
 ---
 description: Analyzes test errors from console logs and Prow CI job artifacts
-argument-hint: prowjob-url test-name [--fast]
+argument-hint: prowjob-url test-name [--fast] [--export-jira]
 ---
 
 ## Name
@@ -9,7 +9,7 @@ prow-job:analyze-test-failure
 ## Synopsis
 Generate a test failure analysis for the given test:
 ```text
-/prow-job:analyze-test-failure <prowjob-url> <test-name> [--fast]
+/prow-job:analyze-test-failure <prowjob-url> <test-name> [--fast] [--export-jira]
 ```
 
 ## Description
@@ -41,6 +41,16 @@ The command provides comprehensive analysis by:
 - Only analyzes test-level artifacts (build-log, intervals)
 - Faster results, but may miss cluster-level root causes
 
+**JIRA export mode**:
+```text
+/prow-job:analyze-test-failure <url> <test-name> --export-jira
+```
+- Generates additional JIRA-formatted output alongside standard Markdown
+- Uses JIRA markup: `{code}`, `{noformat}`, `{panel}`, `{expand}`
+- Creates collapsible sections for large logs and stack traces
+- Includes linked artifacts for easy navigation
+- Can be combined with `--fast`: `--fast --export-jira`
+
 ### HyperShift Support
 
 For HyperShift jobs with hosted clusters, the command automatically:
@@ -53,9 +63,31 @@ For HyperShift jobs with hosted clusters, the command automatically:
 
 **Note**: HyperShift jobs may use different artifact structures depending on the workflow and test type.
 
+## Output Files
+
+The command generates multiple output files in `.work/prow-job-analyze-test-failure/{build_id}/`:
+
+### Standard Output
+- **`analysis.md`**: Primary Markdown report with structured sections
+  - Viewable in any Markdown viewer
+  - GitHub-compatible formatting
+  - Includes collapsible sections for large content
+
+### JIRA Export (with --export-jira flag)
+- **`analysis-jira.txt`**: JIRA-formatted version for pasting into JIRA comments
+  - Uses JIRA markup: `{code}`, `{noformat}`, `{panel}`, `{expand}`
+  - Collapsible sections for stack traces and logs
+  - Linked artifacts with absolute paths
+
+### Artifacts
+- **`logs/`**: Test artifacts (build-log.txt, interval files, etc.)
+- **`must-gather/logs/`**: Extracted must-gather data (if analyzed)
+- **`must-gather-mgmt/logs/`**: Management cluster must-gather (HyperShift)
+- **`must-gather-hosted/logs/`**: Hosted cluster must-gather (HyperShift)
+
 ## Implementation
 Pass the user's request to the skill, which will:
-- Parse optional `--fast` flag to skip must-gather analysis
+- Parse optional flags: `--fast` (skip must-gather), `--export-jira` (JIRA output)
 - Download the artifacts from Google Cloud Storage
 - Check source code of the test
 - Extract artifacts from Prow CI job and analyze the given test failure
@@ -63,9 +95,9 @@ Pass the user's request to the skill, which will:
 - **Optionally extract and analyze must-gather data** for cluster-level diagnostics (unless --fast)
 - **For HyperShift**: Extract and analyze both management and hosted cluster must-gather
 - **Correlate cluster events and operator status** with test failure timing
-- **Provide structured output** with clear sections and enhanced formatting
+- **Generate formatted outputs**: Markdown (.md) and optionally JIRA (.txt)
 
-The skill handles all the implementation details including URL parsing, artifact downloading, archive extraction, must-gather analysis (if requested), and providing correlated evidence combining test-level and cluster-level insights.
+The skill handles all the implementation details including URL parsing, artifact downloading, archive extraction, must-gather analysis (if requested), output formatting, and providing correlated evidence combining test-level and cluster-level insights.
 
 ## Return Value
 
@@ -85,3 +117,4 @@ The skill handles all the implementation details including URL parsing, artifact
 - $2: Test name (required)
 - $3: Optional flags:
   - `--fast` - Skip must-gather extraction and analysis for faster results
+  - `--export-jira` - Export analysis results to JIRA-formatted output file
