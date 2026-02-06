@@ -17,9 +17,10 @@ Use this skill when you need to:
 
 ## Prerequisites
 
-1. **Network Access**: Must be able to reach the Sippy triage API
-   - **NOTE**: Currently using localhost endpoint while testing against local Sippy
-   - Check: `curl -s http://127.0.0.1:8080/api/component_readiness/triages`
+1. **OpenShift CLI Authentication**: Required for authenticating to the sippy-auth API
+   - Must be logged into the DPCR cluster via `oc login`
+   - Cluster API: `https://api.cr.j7t7.p1.openshiftapps.com:6443`
+   - Use the `oc-auth` skill to obtain the Bearer token
 
 2. **Python 3**: Python 3.6 or later
    - Check: `python3 --version`
@@ -32,19 +33,52 @@ Use this skill when you need to:
 
 ## Implementation Steps
 
-### Step 1: Run the Python Script
+### Step 1: Obtain Authentication Token
+
+Use the `oc-auth` skill to obtain a Bearer token from the DPCR cluster:
+
+```bash
+# Get token from the DPCR cluster context
+# The oc-auth skill's curl_with_token.sh uses this cluster for sippy-auth
+DPCR_CLUSTER="https://api.cr.j7t7.p1.openshiftapps.com:6443"
+
+# Find the oc context for the DPCR cluster and get the token
+CONTEXT=$(oc config get-contexts -o name 2>/dev/null | while read -r ctx; do
+  server=$(oc config view -o jsonpath="{.clusters[?(@.name=='$(oc config view -o jsonpath="{.contexts[?(@.name=='$ctx')].context.cluster}" 2>/dev/null)')].cluster.server}" 2>/dev/null || echo "")
+  server_clean=$(echo "$server" | sed -E 's|^https?://||')
+  if [ "$server_clean" = "api.cr.j7t7.p1.openshiftapps.com:6443" ]; then
+    echo "$ctx"
+    break
+  fi
+done)
+
+if [ -z "$CONTEXT" ]; then
+  echo "Error: Not logged into DPCR cluster. Please run: oc login $DPCR_CLUSTER"
+  exit 1
+fi
+
+TOKEN=$(oc whoami -t --context="$CONTEXT" 2>/dev/null)
+if [ -z "$TOKEN" ]; then
+  echo "Error: Failed to get token. Please re-authenticate to DPCR cluster."
+  exit 1
+fi
+```
+
+### Step 2: Run the Python Script
 
 ```bash
 script_path="plugins/ci/skills/triage-regression/triage_regression.py"
 
 # Create a new triage for one regression
 python3 "$script_path" 33639 \
+  --token "$TOKEN" \
   --url "https://issues.redhat.com/browse/OCPBUGS-12345" \
   --type product \
   --format json
 
 # Create a new triage for multiple regressions
 python3 "$script_path" 33639,33640,33641 \
+  --token "$TOKEN" \
   --url "https://issues.redhat.com/browse/OCPBUGS-12345" \
   --type product \
   --description "API discovery regression across metal variants" \
@@ -52,6 +86,7 @@ python3 "$script_path" 33639,33640,33641 \
 
 # Update an existing triage (e.g., to add more regressions)
 python3 "$script_path" 33639,33640,33641,33642 \
+  --token "$TOKEN" \
   --triage-id 456 \
   --url "https://issues.redhat.com/browse/OCPBUGS-12345" \
   --type product \
@@ -62,6 +97,7 @@ python3 "$script_path" 33639,33640,33641,33642 \
 - `regression_ids`: Required comma-separated list of regression IDs (integers)
 
 **Required Options**:
+- `--token <token>`: OAuth Bearer token for sippy-auth (obtained from oc-auth skill)
 - `--url <jira_url>`: JIRA bug URL
 - `--type <triage_type>`: Triage type (`product`, `test`, `ci-infra`, `product-infra`)
 
@@ -70,10 +106,11 @@ python3 "$script_path" 33639,33640,33641,33642 \
 - `--description <text>`: Description for the triage
 - `--format json|summary`: Output format (default: json)
 
-### Step 2: Parse the Output
+### Step 3: Parse the Output
 
 ```bash
 output=$(python3 "$script_path" 33639 \
+  --token "$TOKEN" \
   --url "https://issues.redhat.com/browse/OCPBUGS-12345" \
   --type product \
   --format json)
@@ -100,9 +137,14 @@ fi
 
 ## API Details
 
+**Base URL**: `https://sippy-auth.dptools.openshift.org`
+
+**Authentication**: Bearer token from the DPCR cluster (`api.cr.j7t7.p1.openshiftapps.com:6443`)
+
 **Create Triage**:
 - Method: `POST`
 - Endpoint: `/api/component_readiness/triages`
+- Headers: `Authorization: Bearer <token>`, `Content-Type: application/json`
 - Body:
   ```json
   {
@@ -116,6 +158,7 @@ fi
 **Update Triage**:
 - Method: `PUT`
 - Endpoint: `/api/component_readiness/triages/{id}`
+- Headers: `Authorization: Bearer <token>`, `Content-Type: application/json`
 - Body: Same as create, but must include `"id"` matching the URL path
 
 ## Script Output Format
@@ -170,16 +213,19 @@ Linked Regressions: 1
 
 ## Error Handling
 
-### Case 1: API Not Available
+### Case 1: Authentication Failure
 
 ```json
 {
   "success": false,
-  "error": "Failed to connect to Sippy API: Connection refused. Ensure localhost:8080 is running.",
+  "error": "HTTP error 401: Unauthorized",
+  "detail": "",
   "operation": "create",
   "regression_ids": [33639]
 }
 ```
+
+Re-authenticate to the DPCR cluster and obtain a fresh token.
 
 ### Case 2: Invalid Regression ID
 
@@ -211,6 +257,7 @@ Error: Invalid type 'invalid'. Must be one of: product, test, ci-infra, product-
 ```bash
 python3 plugins/ci/skills/triage-regression/triage_regression.py \
   33639 \
+  --token "$TOKEN" \
   --url "https://issues.redhat.com/browse/OCPBUGS-12345" \
   --type product \
   --format json
@@ -221,6 +268,7 @@ python3 plugins/ci/skills/triage-regression/triage_regression.py \
 ```bash
 python3 plugins/ci/skills/triage-regression/triage_regression.py \
   33639,33640,33641 \
+  --token "$TOKEN" \
   --url "https://issues.redhat.com/browse/OCPBUGS-12345" \
   --type product \
   --description "Same root cause: API discovery failure across metal variants" \
@@ -236,6 +284,7 @@ existing_triage_id=$(echo "$regression_data" | jq -r '.triages[0].id')
 # Update it with additional regression IDs
 python3 plugins/ci/skills/triage-regression/triage_regression.py \
   33639,33640,33641,33642 \
+  --token "$TOKEN" \
   --triage-id "$existing_triage_id" \
   --url "https://issues.redhat.com/browse/OCPBUGS-12345" \
   --type product \
@@ -247,6 +296,7 @@ python3 plugins/ci/skills/triage-regression/triage_regression.py \
 ```bash
 python3 plugins/ci/skills/triage-regression/triage_regression.py \
   33639 \
+  --token "$TOKEN" \
   --url "https://issues.redhat.com/browse/OCPBUGS-67890" \
   --type test \
   --description "Flaky test: intermittent timeout in discovery suite" \
@@ -256,7 +306,8 @@ python3 plugins/ci/skills/triage-regression/triage_regression.py \
 ## Notes
 
 - Uses only Python standard library - no external dependencies required
-- **Currently using localhost endpoint** - will switch to production Sippy once safe to write to prod
+- Authenticates to `https://sippy-auth.dptools.openshift.org` using a Bearer token from the DPCR cluster
+- Use the `oc-auth` skill to obtain the token (requires `oc login` to DPCR cluster)
 - Validates triage type locally before making the API call
 - When creating, do not provide `--triage-id`; when updating, `--triage-id` is required
 - The API will validate that all regression IDs exist and return an error if any are missing
@@ -265,5 +316,6 @@ python3 plugins/ci/skills/triage-regression/triage_regression.py \
 
 ## See Also
 
+- Related Skill: `oc-auth` (provides authentication tokens for sippy-auth)
 - Related Skill: `fetch-regression-details` (provides regression IDs and existing triage info)
 - Related Command: `/ci:analyze-regression` (analyzes regressions and suggests triage)

@@ -14,13 +14,13 @@ from typing import List, Dict, Any, Optional
 class TriageManager:
     """Creates or updates triage records via the Sippy API."""
 
-    # TODO: Change to production URL once safe to write to prod
-    BASE_URL = "http://127.0.0.1:8080/api/component_readiness/triages"
+    BASE_URL = "https://sippy-auth.dptools.openshift.org/api/component_readiness/triages"
 
     VALID_TYPES = ("product", "test", "ci-infra", "product-infra")
 
     def __init__(self, regression_ids: List[int], url: str, triage_type: str,
-                 description: Optional[str] = None, triage_id: Optional[int] = None):
+                 token: str, description: Optional[str] = None,
+                 triage_id: Optional[int] = None):
         """
         Initialize triage manager.
 
@@ -28,12 +28,14 @@ class TriageManager:
             regression_ids: List of regression IDs to link to this triage
             url: JIRA bug URL (e.g., "https://issues.redhat.com/browse/OCPBUGS-12345")
             triage_type: Triage type (product, test, ci-infra, product-infra)
+            token: OAuth Bearer token for authenticating to sippy-auth
             description: Optional description for the triage
             triage_id: Optional existing triage ID to update (omit to create new)
         """
         self.regression_ids = regression_ids
         self.url = url
         self.triage_type = triage_type
+        self.token = token
         self.description = description
         self.triage_id = triage_id
 
@@ -53,6 +55,13 @@ class TriageManager:
 
         return payload
 
+    def _auth_headers(self) -> Dict[str, str]:
+        """Build request headers with auth token."""
+        return {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.token}",
+        }
+
     def create(self) -> Dict[str, Any]:
         """
         Create a new triage record.
@@ -65,7 +74,7 @@ class TriageManager:
         req = urllib.request.Request(
             self.BASE_URL,
             data=data,
-            headers={"Content-Type": "application/json"},
+            headers=self._auth_headers(),
             method="POST",
         )
         return self._send(req, "create")
@@ -91,7 +100,7 @@ class TriageManager:
         req = urllib.request.Request(
             url,
             data=data,
-            headers={"Content-Type": "application/json"},
+            headers=self._auth_headers(),
             method="PUT",
         )
         return self._send(req, "update")
@@ -133,7 +142,7 @@ class TriageManager:
         except urllib.error.URLError as e:
             return {
                 'success': False,
-                'error': f"Failed to connect to Sippy API: {e.reason}. Ensure localhost:8080 is running.",
+                'error': f"Failed to connect to Sippy API: {e.reason}.",
                 'operation': operation,
                 'regression_ids': self.regression_ids,
             }
@@ -196,6 +205,7 @@ def main():
         print("  regression_ids   Comma-separated list of regression IDs", file=sys.stderr)
         print("", file=sys.stderr)
         print("Required Options:", file=sys.stderr)
+        print("  --token <token>        OAuth Bearer token for sippy-auth (use oc-auth skill to obtain)", file=sys.stderr)
         print("  --url <jira_url>       JIRA bug URL (e.g., https://issues.redhat.com/browse/OCPBUGS-12345)", file=sys.stderr)
         print("  --type <triage_type>   Triage type: product, test, ci-infra, product-infra", file=sys.stderr)
         print("", file=sys.stderr)
@@ -206,16 +216,16 @@ def main():
         print("", file=sys.stderr)
         print("Examples:", file=sys.stderr)
         print("  # Create a new triage for one regression", file=sys.stderr)
-        print("  triage_regression.py 33639 --url https://issues.redhat.com/browse/OCPBUGS-12345 --type product", file=sys.stderr)
+        print("  triage_regression.py 33639 --token $TOKEN --url https://issues.redhat.com/browse/OCPBUGS-12345 --type product", file=sys.stderr)
         print("", file=sys.stderr)
         print("  # Create a new triage for multiple regressions", file=sys.stderr)
-        print("  triage_regression.py 33639,33640,33641 --url https://issues.redhat.com/browse/OCPBUGS-12345 --type product", file=sys.stderr)
+        print("  triage_regression.py 33639,33640,33641 --token $TOKEN --url https://issues.redhat.com/browse/OCPBUGS-12345 --type product", file=sys.stderr)
         print("", file=sys.stderr)
         print("  # Update an existing triage to add more regressions", file=sys.stderr)
-        print("  triage_regression.py 33639,33640 --triage-id 456 --url https://issues.redhat.com/browse/OCPBUGS-12345 --type product", file=sys.stderr)
+        print("  triage_regression.py 33639,33640 --token $TOKEN --triage-id 456 --url https://issues.redhat.com/browse/OCPBUGS-12345 --type product", file=sys.stderr)
         print("", file=sys.stderr)
         print("  # Create with a description", file=sys.stderr)
-        print("  triage_regression.py 33639 --url https://issues.redhat.com/browse/OCPBUGS-12345 --type test --description 'Flaky test in discovery suite'", file=sys.stderr)
+        print("  triage_regression.py 33639 --token $TOKEN --url https://issues.redhat.com/browse/OCPBUGS-12345 --type test --description 'Flaky test in discovery suite'", file=sys.stderr)
         sys.exit(1)
 
     # Parse regression IDs (first positional argument)
@@ -226,6 +236,7 @@ def main():
         sys.exit(1)
 
     # Parse options
+    token = None
     url = None
     triage_type = None
     description = None
@@ -235,7 +246,10 @@ def main():
     i = 2
     while i < len(sys.argv):
         arg = sys.argv[i]
-        if arg == '--url' and i + 1 < len(sys.argv):
+        if arg == '--token' and i + 1 < len(sys.argv):
+            token = sys.argv[i + 1]
+            i += 2
+        elif arg == '--url' and i + 1 < len(sys.argv):
             url = sys.argv[i + 1]
             i += 2
         elif arg == '--type' and i + 1 < len(sys.argv):
@@ -262,6 +276,9 @@ def main():
             sys.exit(1)
 
     # Validate required options
+    if not token:
+        print("Error: --token is required (use oc-auth skill to obtain token from DPCR cluster)", file=sys.stderr)
+        sys.exit(1)
     if not url:
         print("Error: --url is required", file=sys.stderr)
         sys.exit(1)
@@ -274,7 +291,7 @@ def main():
 
     # Create or update
     try:
-        manager = TriageManager(regression_ids, url, triage_type, description, triage_id)
+        manager = TriageManager(regression_ids, url, triage_type, token, description, triage_id)
 
         if triage_id is not None:
             results = manager.update()
