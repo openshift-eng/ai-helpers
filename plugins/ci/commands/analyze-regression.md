@@ -427,8 +427,9 @@ This command is useful for:
        - Common error message
        - Consistency percentage
        - Key debugging information (file references, resources, stack traces)
-     - Link to Test Details report
-     - Related regressions (if any)
+     - **Link to Sippy Test Details report** (`test_details_url` from regression data) - this is critical for debugging
+     - Regression start date (if determined in step 6)
+     - Related regressions (if any) with their regression IDs
    - Triage type recommendation:
      - `product`: actual product issues (default)
      - `test`: clear issues in the test itself (especially for flaky patterns)
@@ -496,6 +497,134 @@ This command is useful for:
 
    **Section 6: Existing Triages**
    - Related JIRA tickets already filed (from other regressions)
+
+11. **Offer to Triage**: After presenting the report, offer to triage the regression
+
+   Based on the analysis, determine the appropriate triage action and ask the user if they want to proceed.
+
+   **Scenario A: Related triage record found on another regression** (from step 8)
+
+   If step 8 found that a related regression already has a triage record (i.e., another regression for the same or similar test is already triaged to a JIRA bug), offer to add this regression to that existing triage. Also include any other untriaged related regressions found in step 7.
+
+   ```
+   A related triage already exists:
+   - Triage ID: 789
+   - JIRA: https://issues.redhat.com/browse/OCPBUGS-12345
+   - Type: product
+
+   The following untriaged regressions could be added to this triage:
+   - Regression <current_regression_id> (this regression)
+   - Regression <related_id_1> (related, same test, different variant)
+   - Regression <related_id_2> (related, same test, different variant)
+
+   Would you like to add these regressions to the existing triage?
+   ```
+
+   If the user confirms, use the `triage-regression` skill to update the existing triage:
+
+   ```bash
+   # Obtain auth token from DPCR cluster (oc-auth skill)
+   TOKEN=$(oc whoami -t --context="$DPCR_CONTEXT")
+
+   # Collect all regression IDs: the current one + untriaged related ones
+   # Also include any regression IDs already on the existing triage so they are not removed
+   all_regression_ids="<existing_ids>,<current_id>,<related_id_1>,<related_id_2>"
+
+   script_path="plugins/ci/skills/triage-regression/triage_regression.py"
+   python3 "$script_path" "$all_regression_ids" \
+     --token "$TOKEN" \
+     --triage-id <existing_triage_id> \
+     --url "<existing_jira_url>" \
+     --type "<existing_triage_type>" \
+     --format json
+   ```
+
+   **IMPORTANT**: When updating a triage, the regressions list replaces the existing list entirely. Always include the regression IDs that are already on the triage record in addition to the new ones being added.
+
+   **Scenario B: JIRA bug found but not triaged to any regression** (from step 3 or step 8)
+
+   If step 3 found a linked JIRA bug on this regression's triage, or step 8 found a JIRA bug that looks related (e.g., same component, similar error pattern) but no triage record exists yet, offer to create a new triage linking this regression and all related untriaged regressions to that bug.
+
+   ```
+   A related JIRA bug was found:
+   - JIRA: https://issues.redhat.com/browse/OCPBUGS-67890
+   - Summary: [bug summary from JIRA]
+
+   The following regressions could be triaged to this bug:
+   - Regression <current_regression_id> (this regression)
+   - Regression <related_id_1> (related, same test, different variant)
+   - Regression <related_id_2> (related, same test, different variant)
+
+   Recommended triage type: product
+
+   Would you like to create a triage record linking these regressions to this bug?
+   ```
+
+   If the user confirms, use the `triage-regression` skill to create a new triage:
+
+   ```bash
+   # Obtain auth token from DPCR cluster (oc-auth skill)
+   TOKEN=$(oc whoami -t --context="$DPCR_CONTEXT")
+
+   all_regression_ids="<current_id>,<related_id_1>,<related_id_2>"
+
+   script_path="plugins/ci/skills/triage-regression/triage_regression.py"
+   python3 "$script_path" "$all_regression_ids" \
+     --token "$TOKEN" \
+     --url "https://issues.redhat.com/browse/OCPBUGS-67890" \
+     --type product \
+     --format json
+   ```
+
+   **Scenario C: No related triage or bug found**
+
+   If no related triage record or JIRA bug was found, and the regression is untriaged, offer to create a new JIRA bug and triage all related regressions to it.
+
+   ```
+   No existing triage or related JIRA bug was found for this regression.
+
+   Would you like me to create a JIRA bug and triage the following regressions to it?
+   - Regression <current_regression_id> (this regression)
+   - Regression <related_id_1> (related, same test, different variant)
+   - Regression <related_id_2> (related, same test, different variant)
+
+   Proposed bug details:
+   - Project: OCPBUGS
+   - Component: <component from regression data>
+   - Summary: <suggested summary from step 9>
+   - Triage type: <recommended type>
+   ```
+
+   If the user confirms, create the bug using the `/jira:create-bug` skill with the bug template from step 9. The bug description must include:
+   - Test name and release
+   - Regression opened date
+   - Affected variants
+   - Failure pattern analysis summary
+   - Common error message (if available from step 5)
+   - **Link to the Sippy Test Details report** (`test_details_url` from the regression data)
+   - Related regression IDs
+
+   After the bug is created, use the `triage-regression` skill to triage all regressions to the new bug:
+
+   ```bash
+   # Obtain auth token from DPCR cluster (oc-auth skill)
+   TOKEN=$(oc whoami -t --context="$DPCR_CONTEXT")
+
+   all_regression_ids="<current_id>,<related_id_1>,<related_id_2>"
+
+   script_path="plugins/ci/skills/triage-regression/triage_regression.py"
+   python3 "$script_path" "$all_regression_ids" \
+     --token "$TOKEN" \
+     --url "https://issues.redhat.com/browse/<new_bug_key>" \
+     --type <recommended_type> \
+     --format json
+   ```
+
+   **Scenario D: Regression is already triaged**
+
+   If this regression already has a triage record (from step 3), do not offer to triage again. The report already shows the JIRA progress analysis.
+
+   See `plugins/ci/skills/triage-regression/SKILL.md` for complete implementation details.
 
 ## Return Value
 
@@ -602,6 +731,17 @@ Generated using the `fetch-test-runs` skill with `--include-success` and `--prow
 - **For Triaged Regressions Needing Attention**: Suggested actions (comment, reassign, escalate)
 - **For Failed Fixes (analysis_status -1000)**: Recommendation to re-open or file new bug
 
+#### Triage Offering
+
+After the report, the command offers to triage based on findings:
+
+- **Related triage found**: Offers to add this regression (and untriaged related regressions) to the existing triage record
+- **Related JIRA bug found**: Offers to create a new triage linking this regression (and untriaged related regressions) to the bug
+- **No bug found**: Offers to create a new JIRA bug (with test details report link) and triage all related regressions to it
+- **Already triaged**: No triage action offered (JIRA progress shown instead)
+
+Uses the `triage-regression` skill with authentication via the `oc-auth` skill (DPCR cluster).
+
 ## Arguments
 
 - `$1` (required): Regression ID
@@ -642,6 +782,8 @@ Generated using the `fetch-test-runs` skill with `--include-success` and `--prow
 - **Skills Used**:
   - `fetch-regression-details`: Fetches regression data and analyzes pass/fail patterns
   - `fetch-test-runs`: Fetches actual test outputs and analyzes error message consistency
+  - `triage-regression`: Creates or updates triage records linking regressions to JIRA bugs
+  - `oc-auth`: Provides authentication tokens for sippy-auth API
 - The regression details skill groups failed jobs by job name and provides pass sequences for pattern analysis
 - The test failure outputs skill compares error messages to determine if failures have a single root cause
 - Follows the guidance: "many regressions can be caused by one bug"
@@ -655,6 +797,8 @@ Generated using the `fetch-test-runs` skill with `--include-success` and `--prow
 
 - Related Skill: `fetch-regression-details` - Fetches regression data with pass sequences (`plugins/ci/skills/fetch-regression-details/SKILL.md`)
 - Related Skill: `fetch-test-runs` - Fetches and analyzes test failure outputs (`plugins/ci/skills/fetch-test-runs/SKILL.md`)
+- Related Skill: `triage-regression` - Creates or updates triage records (`plugins/ci/skills/triage-regression/SKILL.md`)
+- Related Skill: `oc-auth` - Authentication tokens for sippy-auth (`plugins/ci/skills/oc-auth/SKILL.md`)
 - Related Command: `/component-health:list-regressions` (for bulk regression data)
 - Related Command: `/component-health:analyze-regressions` (for overall component health)
 - Component Readiness: https://sippy-auth.dptools.openshift.org/sippy-ng/component_readiness/main
