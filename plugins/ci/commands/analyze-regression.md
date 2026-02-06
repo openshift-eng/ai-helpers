@@ -56,10 +56,19 @@ This command is useful for:
    - `triages`: Existing JIRA tickets
    - `analysis_status`: Integer status code (negative indicates problems, -1000 indicates failed fix)
    - `analysis_explanations`: Human-readable explanations for the status
-   - `test_details_url`: Link to Sippy test details
+   - `test_details_url`: Link to Sippy test details (API URL - must be converted to UI URL before displaying, see note below)
    - `sample_failed_jobs`: Dictionary keyed by job name, each containing:
      - `pass_sequence`: Chronological S/F pattern (newest to oldest)
      - `failed_runs`: List of failed runs with job_url, job_run_id, start_time
+
+   **Converting `test_details_url` to UI URL**: The `test_details_url` from the API is an API endpoint not suitable for display or bug reports. Convert it to the UI URL by replacing the base path. The query parameters are identical:
+
+   ```bash
+   # Convert API URL to UI URL
+   test_details_ui_url=$(echo "$test_details_url" | sed 's|https://sippy.dptools.openshift.org/api/component_readiness/test_details|https://sippy-auth.dptools.openshift.org/sippy-ng/component_readiness/test_details|')
+   ```
+
+   Always use the converted `test_details_ui_url` when displaying the link in the report or including it in bug descriptions.
 
    See `plugins/ci/skills/fetch-regression-details/SKILL.md` for complete implementation details.
 
@@ -428,6 +437,16 @@ This command is useful for:
    - Whether it is triaged (has entries in `triages` array) and to which JIRA bug
    - Whether it is open or closed
 
+   For each related regression that will be included in a bug report or triage, fetch its details to get the `test_details_url`:
+
+   ```bash
+   # Fetch details for a related regression to get its test_details_url
+   related_data=$(python3 "plugins/ci/skills/fetch-regression-details/fetch_regression_details.py" <related_regression_id> --format json)
+   related_test_details_url=$(echo "$related_data" | jq -r '.test_details_url')
+   # Convert to UI URL
+   related_test_details_ui_url=$(echo "$related_test_details_url" | sed 's|https://sippy.dptools.openshift.org/api/component_readiness/test_details|https://sippy-auth.dptools.openshift.org/sippy-ng/component_readiness/test_details|')
+   ```
+
    **Summarize variant patterns**:
    - Identify if the test is failing across all jobs of one Platform variant (e.g., all `metal` jobs)
    - Identify if failures cluster around a specific Upgrade, Network, or Topology variant
@@ -465,7 +484,9 @@ This command is useful for:
        - Common error message
        - Consistency percentage
        - Key debugging information (file references, resources, stack traces)
-     - **Link to Sippy Test Details report** (`test_details_url` from regression data) - this is critical for debugging
+     - **Sippy Test Details report links** - this is critical for debugging:
+       - Link for the current regression (converted `test_details_ui_url`)
+       - Links for each related regression found in step 7 (each regression has its own `test_details_url` from the list-regressions data - convert each to UI URL)
      - Regression start date (if determined in step 6)
      - Related regressions (if any) with their regression IDs
    - Triage type recommendation:
@@ -639,7 +660,7 @@ This command is useful for:
    - Affected variants
    - Failure pattern analysis summary
    - Common error message (if available from step 5)
-   - **Link to the Sippy Test Details report** (`test_details_url` from the regression data)
+   - **Sippy Test Details report links** for each regression being triaged (convert each `test_details_url` from API to UI URL)
    - Related regression IDs
 
    After the bug is created, use the `triage-regression` skill to triage all regressions to the new bug:
@@ -680,7 +701,7 @@ The command outputs a **Comprehensive Regression Analysis Report** for all regre
 - **Regression Status**: Open/Closed with dates
 - **Affected Variants**: List of platform/topology variants where test is failing
 - **Current Triage**: Existing JIRA tickets (if any)
-- **Test Details URL**: Direct link to Sippy Test Details report
+- **Test Details URL**: Direct link to Sippy Test Details report (converted from API URL to UI URL)
 
 #### Failure Pattern Analysis
 
