@@ -20,7 +20,7 @@ Performs the complete OTE migration in one workflow.
 4. Auto-detects extension name - From target repository (AFTER switching to it)
 5. Collects sig filter tags - User provides sig tag(s) for test filtering
 6. Sets up source repository - Clones/updates openshift-tests-private
-7. Creates structure - Builds test/e2e and test/testdata directories
+7. Creates structure - Builds test/e2e/ with testdata/ inside
 8. Copies files - Moves test files and testdata to destinations
 9. Generates code - Creates go.mod, cmd/main.go, Makefile, fixtures.go with multi-tag filtering
 10. Migrates tests - Automatically replaces FixturePath() calls and updates imports
@@ -254,14 +254,14 @@ Integrates OTE into existing repository structure with **separate test module**.
 │   └── extension/
 │       └── main.go                # OTE entry point (source code)
 ├── test/
-│   ├── e2e/                       # Created fresh
-│   │   ├── go.mod                 # Separate test module
-│   │   ├── go.sum
-│   │   ├── *_test.go              # Test files
-│   │   └── testdata/              # Testdata inside test module
-│   │       ├── bindata.go         # Generated
-│   │       └── fixtures.go
-│   └── bindata.mk
+│   └── e2e/                       # Created fresh
+│       ├── go.mod                 # Separate test module
+│       ├── go.sum
+│       ├── *_test.go              # Test files
+│       ├── testdata/              # Testdata inside test module
+│       │   ├── bindata.go         # Generated
+│       │   └── fixtures.go
+│       └── bindata.mk             # Same level as testdata/
 ├── _output/                       # CI/CD artifacts (created by make)
 │   └── <extension-name>-tests-ext.gz
 ├── go.mod                         # Root module (with replace directive)
@@ -279,16 +279,16 @@ Integrates OTE into existing repository structure with **separate test module**.
 │   └── extension/
 │       └── main.go                # OTE entry point (source code)
 ├── test/
-│   ├── e2e/
-│   │   ├── (existing-files...)    # Existing e2e tests (untouched)
-│   │   └── <test-dir-name>/       # New subdirectory for OTE (e.g., "extension")
-│   │       ├── go.mod             # Separate test module
-│   │       ├── go.sum
-│   │       ├── *_test.go          # Test files
-│   │       └── testdata/          # Testdata inside test module
-│   │           ├── bindata.go     # Generated
-│   │           └── fixtures.go
-│   └── bindata.mk
+│   └── e2e/
+│       ├── (existing-files...)    # Existing e2e tests (untouched)
+│       └── <test-dir-name>/       # New subdirectory for OTE (e.g., "extension")
+│           ├── go.mod             # Separate test module
+│           ├── go.sum
+│           ├── *_test.go          # Test files
+│           ├── testdata/          # Testdata inside test module
+│           │   ├── bindata.go     # Generated
+│           │   └── fixtures.go
+│           └── bindata.mk         # Same level as testdata/
 ├── _output/                       # CI/CD artifacts (created by make)
 │   └── <extension-name>-tests-ext.gz
 ├── go.mod                         # Root module (with replace directive)
@@ -336,15 +336,15 @@ Creates isolated `tests-extension/` directory with **single go.mod** in the targ
     ├── cmd/
     │   └── main.go                # OTE entry point
     ├── test/
-    │   ├── e2e/
-    │   │   └── *_test.go
-    │   └── testdata/
-    │       ├── bindata.go
-    │       └── fixtures.go
+    │   └── e2e/
+    │       ├── *_test.go
+    │       ├── testdata/
+    │       │   ├── bindata.go
+    │       │   └── fixtures.go
+    │       └── bindata.mk         # Same level as testdata/
     ├── go.mod                     # Single module
     ├── go.sum
-    ├── Makefile
-    └── bindata.mk
+    └── Makefile
 ```
 
 **Note:** The `<working-dir>` is used as a temporary workspace during migration. After repository setup, the working directory automatically switches to `<target-repo>` where all files are created.
@@ -414,7 +414,7 @@ The generated `cmd/main.go` (or `cmd/extension/main.go` for monorepo) includes *
 
 ### Test Tracking Annotations
 
-  The migration **automatically modifies test files** to add tracking annotations. This happens in Phase 5 (Test Migration) and restructures test names for better organization.
+  The migration **automatically modifies test files** to add tracking annotations. This happens in Phase 5 (Test Migration) and restructures test files for better organization.
 
   **Automatic annotations added:**
 
@@ -424,58 +424,62 @@ The generated `cmd/main.go` (or `cmd/extension/main.go` for monorepo) includes *
      - Placement: After `[sig-<extension-name>]` in Describe blocks
      - Example: `g.Describe("[sig-router][OTP]", func() { ... })`
 
-  2. **[Level0]** - Added to Describe blocks containing Level0 tests
-     - Identifies Level0 conformance test groups
-     - Auto-detected by searching for "-LEVEL0-" string in test names within each Describe block
-     - Placement: After `[OTP]` in Describe blocks
+  2. **[Level0]** - Separate Describe blocks created for Level0 tests
+     - Identifies Level0 conformance tests
+     - Auto-detected by searching for "-LEVEL0-" suffix in test names
+     - Tests with `-LEVEL0-` suffix are extracted and moved to a new Describe block
      - **Automatically removes `-LEVEL0-` suffix** from test names to prevent duplication
-     - Applied per-Describe-block (NOT per-file)
 
-  **Annotation logic (per-Describe-block):**
+  **Annotation logic:**
 
-  The migration processes each Describe block independently:
+  The migration restructures test files to create separate Describe blocks:
 
   1. **Add `[OTP]`** to ALL Describe blocks (right after `[sig-xxx]`)
-  2. **For EACH Describe block:**
-     - Check if it contains at least one test with `-LEVEL0-` suffix
-     - If yes, add `[Level0]` to THAT Describe block (after `[OTP]`)
-     - Remove `-LEVEL0-` suffix from ALL test names in the file
+  2. **Find tests with `-LEVEL0-` suffix**
+  3. **Extract those tests** from the original Describe block
+  4. **Create a new Describe block** with `[sig-xxx][OTP][Level0]` tag
+  5. **Move Level0 tests** to the new Describe block
+  6. **Remove `-LEVEL0-` suffix** from all test names
 
-  **Example: File with two Describe blocks**
+  **Example: File with mixed tests**
 
   **Before migration:**
   ```go
-  // Describe block #1 - Contains Level0 test
-  g.Describe("[sig-router] Router Level0 tests", func() {
+  var _ = g.Describe("[sig-router] Router tests", func() {
+      defer g.GinkgoRecover()
+      var oc = compat_otp.NewCLI("default-router", compat_otp.KubeConfigPath())
+
       g.It("Author:john-LEVEL0-Critical-12345-Basic routing", func() {})
       g.It("Author:jane-High-67890-Advanced routing", func() {})
-  })
-
-  // Describe block #2 - No Level0 tests
-  g.Describe("[sig-router] Router performance tests", func() {
-      g.It("Author:bob-Medium-11111-Performance test", func() {})
+      g.It("Author:bob-LEVEL0-Critical-11111-Health check", func() {})
   })
   ```
 
   **After migration:**
   ```go
-  // Describe block #1 - Gets [Level0] because it contains a LEVEL0 test
-  g.Describe("[sig-router][OTP][Level0] Router Level0 tests", func() {
-      g.It("Author:john-Critical-12345-Basic routing", func() {})  // -LEVEL0- removed
+  // Non-Level0 tests
+  var _ = g.Describe("[sig-router][OTP] Router tests", func() {
+      defer g.GinkgoRecover()
+      var oc = compat_otp.NewCLI("default-router", compat_otp.KubeConfigPath())
+
       g.It("Author:jane-High-67890-Advanced routing", func() {})
   })
 
-  // Describe block #2 - Gets only [OTP] (no Level0 tests)
-  g.Describe("[sig-router][OTP] Router performance tests", func() {
-      g.It("Author:bob-Medium-11111-Performance test", func() {})
+  // Level0 tests in separate block
+  var _ = g.Describe("[sig-router][OTP][Level0] Router tests", func() {
+      defer g.GinkgoRecover()
+      var oc = compat_otp.NewCLI("default-router", compat_otp.KubeConfigPath())
+
+      g.It("Author:john-Critical-12345-Basic routing", func() {})  // -LEVEL0- removed
+      g.It("Author:bob-Critical-11111-Health check", func() {})    // -LEVEL0- removed
   })
   ```
 
   **Full test names visible in list:**
   ```text
-  [sig-router][OTP][Level0] Router Level0 tests Author:john-Critical-12345-Basic routing
-  [sig-router][OTP][Level0] Router Level0 tests Author:jane-High-67890-Advanced routing
-  [sig-router][OTP] Router performance tests Author:bob-Medium-11111-Performance test
+  [sig-router][OTP] Router tests Author:jane-High-67890-Advanced routing
+  [sig-router][OTP][Level0] Router tests Author:john-Critical-12345-Basic routing
+  [sig-router][OTP][Level0] Router tests Author:bob-Critical-11111-Health check
   ```
 
   **Benefits:**
@@ -714,8 +718,8 @@ All strategies follow this principle: **bindata.mk must be at the same level as 
   - bindata.mk: `test/e2e/extension/bindata.mk`
 
 - **Single-Module**:
-  - testdata: `tests-extension/test/testdata/`
-  - bindata.mk: `tests-extension/test/bindata.mk`
+  - testdata: `tests-extension/test/e2e/testdata/`
+  - bindata.mk: `tests-extension/test/e2e/bindata.mk`
 
 **Dockerfile modification:**
 
