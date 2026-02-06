@@ -135,24 +135,24 @@ Store the selection in variable: `<structure-strategy>` (value: "monorepo" or "s
 
 Ask: "What is the working directory path for migration workspace?
 
-**IMPORTANT**: If your target repository already exists locally, provide its path here. Otherwise, provide a workspace path where repositories will be cloned."
+**IMPORTANT**: This is a temporary workspace for cloning repositories. Your target repository will be collected in the next step (Input 3), and that's where tests-extension/ (or test/e2e/) will be created."
 
-**Purpose of this directory**:
-- **If target repo exists locally**: Provide the target repo path (recommended - will ask about git update in Input 3a)
-- **If target repo doesn't exist locally**: Provide workspace directory where target repo will be cloned (when Git URL is provided in Input 3)
-- Also used for cloning openshift-tests-private (source repo) if not available locally
-- Example: `/home/user/repos/router` (existing target), `.` (current dir), `/home/user/workspace` (workspace)
+**Purpose of this workspace directory**:
+- **Temporary location** for cloning repositories that don't exist locally:
+  - openshift-tests-private (source repo) - if not already available locally
+  - Target repository (if you provide a Git URL in Input 3 instead of a local path)
+- **Recommendation**: If your target repository already exists locally, provide its parent directory here (e.g., `/home/user/repos` if target is `/home/user/repos/router`)
+- Example: `/home/user/repos` (parent of target), `.` (current dir), `/tmp/workspace` (temporary)
 
 **User provides the path:**
-- Can provide existing target repository path (recommended if available)
-- Can provide current directory (`.`) as workspace for cloning
-- Can provide an existing directory path
+- Can provide existing directory (e.g., parent directory of your target repo)
+- Can provide current directory (`.`) as workspace
 - Can provide a new directory path (we'll create it)
 - Path can be absolute or relative
 
 **Store in variable:** `<working-dir>`
 
-**IMPORTANT**: After Input 3b (Target Repository validation), the working directory will become the target repository where all OTE files will be created.
+**IMPORTANT**: After Input 3 (Target Repository), the working directory will switch to the target repository where all OTE files (tests-extension/ or test/e2e/) will be created. This workspace is only for temporary cloning operations.
 
 #### Input 3: Target Repository
 
