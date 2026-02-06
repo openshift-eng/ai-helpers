@@ -398,12 +398,50 @@ This command is useful for:
 
    **Note**: If the API is unavailable or no clear start date can be determined, skip this section entirely. Do not include inconclusive results.
 
-7. **Identify Related Regressions**: Search for similar failing tests
+7. **Identify Related Regressions**: Use the `list-regressions` skill to find similar failing tests
 
-   - List all regressions for the release
-   - Identify other variant combinations where this test is failing
-   - Summarize the commonalities and differences in job variants
-     - For example is this test failing for all jobs of one Platform or Upgrade variant
+   Fetch all regressions for the same release and component to find related regressions that may share the same root cause.
+
+   **Implementation**:
+
+   ```bash
+   # Extract release from regression data
+   release=$(echo "$regression_data" | jq -r '.release')
+
+   # Use the list-regressions skill to fetch all regressions for the release
+   script_path="plugins/teams/skills/list-regressions/list_regressions.py"
+   all_regressions=$(python3 "$script_path" --release "$release")
+   ```
+
+   **Analyze Related Regressions**:
+
+   From the list-regressions output, search across all components to identify regressions related to the current one:
+
+   - **Same test, different variants**: Other regressions for the same `test_name` but with different variant combinations (e.g., same test failing on both `aws` and `metal` platforms)
+   - **Similar test names**: Regressions with test names that share a common prefix or test suite (e.g., same `[sig-api-machinery]` tests)
+   - **Same capability**: Other regressions in the same `capability` area that may indicate a broader issue
+
+   For each related regression found, note:
+   - Regression ID
+   - Test name (if different from the current one)
+   - Variants where it is failing
+   - Whether it is triaged (has entries in `triages` array) and to which JIRA bug
+   - Whether it is open or closed
+
+   **Summarize variant patterns**:
+   - Identify if the test is failing across all jobs of one Platform variant (e.g., all `metal` jobs)
+   - Identify if failures cluster around a specific Upgrade, Network, or Topology variant
+   - Note any variant combinations that are NOT failing (helps narrow root cause)
+
+   ```bash
+   # Example: Extract related regressions for the same test name across all components
+   test_name=$(echo "$regression_data" | jq -r '.test_name')
+   echo "$all_regressions" | jq --arg tn "$test_name" '
+     .components | to_entries[] | .value |
+     (.open + .closed)[] | select(.test_name == $tn)
+     | {id, test_name, variants, triages, closed}
+   '
+   ```
 
 8. **Check Existing Triages**: Look for related triage records
 
@@ -782,6 +820,7 @@ Uses the `triage-regression` skill with authentication via the `oc-auth` skill (
 - **Skills Used**:
   - `fetch-regression-details`: Fetches regression data and analyzes pass/fail patterns
   - `fetch-test-runs`: Fetches actual test outputs and analyzes error message consistency
+  - `list-regressions` (teams plugin): Lists all regressions for a release/component to find related regressions
   - `triage-regression`: Creates or updates triage records linking regressions to JIRA bugs
   - `oc-auth`: Provides authentication tokens for sippy-auth API
 - The regression details skill groups failed jobs by job name and provides pass sequences for pattern analysis
@@ -797,6 +836,7 @@ Uses the `triage-regression` skill with authentication via the `oc-auth` skill (
 
 - Related Skill: `fetch-regression-details` - Fetches regression data with pass sequences (`plugins/ci/skills/fetch-regression-details/SKILL.md`)
 - Related Skill: `fetch-test-runs` - Fetches and analyzes test failure outputs (`plugins/ci/skills/fetch-test-runs/SKILL.md`)
+- Related Skill: `list-regressions` (teams plugin) - Lists all regressions for a release/component (`plugins/teams/skills/list-regressions/SKILL.md`)
 - Related Skill: `triage-regression` - Creates or updates triage records (`plugins/ci/skills/triage-regression/SKILL.md`)
 - Related Skill: `oc-auth` - Authentication tokens for sippy-auth (`plugins/ci/skills/oc-auth/SKILL.md`)
 - Related Command: `/component-health:list-regressions` (for bulk regression data)
