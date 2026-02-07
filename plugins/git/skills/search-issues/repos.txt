@@ -1,0 +1,9 @@
+# Default repositories for /search-issues command
+# One repository per line in format: owner/repo
+# Lines starting with # are comments
+# Edit this file to add/remove repositories
+
+istio-ecosystem/sail-operator
+istio/istio
+openshift-service-mesh/sail-operator
+openshift-service-mesh/proxy
