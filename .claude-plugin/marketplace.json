@@ -143,6 +143,11 @@
       "version": "1.0.0"
     },
     {
+      "name": "testing",
+      "source": "./plugins/testing",
+      "description": "Comprehensive testing utilities for operators and applications"
+    },
+    {
       "name": "origin",
       "source": "./plugins/origin",
       "description": "Helpers for openshift/origin development.",
