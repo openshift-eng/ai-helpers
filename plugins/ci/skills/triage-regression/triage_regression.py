@@ -38,6 +38,9 @@ class TriageManager:
         self.triage_type = triage_type
         self.description = description
         self.triage_id = triage_id
+        # These are populated from the existing triage during update()
+        self._resolved = None
+        self._resolution_reason = None
 
     def _build_payload(self) -> Dict[str, Any]:
         """Build the JSON payload for create or update."""
@@ -52,6 +55,12 @@ class TriageManager:
 
         if self.triage_id is not None:
             payload["id"] = self.triage_id
+
+        # Preserve resolved status and resolution reason from existing triage
+        if self._resolved is not None:
+            payload["resolved"] = self._resolved
+        if self._resolution_reason is not None:
+            payload["resolution_reason"] = self._resolution_reason
 
         return payload
 
@@ -128,13 +137,19 @@ class TriageManager:
                 'regression_ids': self.regression_ids,
             }
 
-        # Use existing url, type, and description if not provided on command line
+        # Use existing values for fields not provided on command line.
+        # The PUT endpoint uses full replacement semantics, so any field
+        # not included in the payload will be wiped.
         if self.url is None:
             self.url = existing.get('url', '')
         if self.triage_type is None:
             self.triage_type = existing.get('type', '')
         if self.description is None:
             self.description = existing.get('description', '')
+
+        # Preserve resolved status and resolution reason from existing triage
+        self._resolved = existing.get('resolved')
+        self._resolution_reason = existing.get('resolution_reason', '')
 
         # Merge existing regression IDs with new ones (deduplicate)
         existing_ids = set()
