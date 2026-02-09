@@ -1273,6 +1273,28 @@
         }
       ],
       "version": "0.0.3"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "[question or implementation request]",
+          "description": "Use this skill to implement TLS security profiles for operators and workloads on OpenShift. Provides guidance on reading TLS config from APIServer CR and applying it to webhook/metrics servers, HTTP, and gRPC endpoints.",
+          "name": "implement",
+          "synopsis": "/openshift-tls-profile:implement [question or implementation request]"
+        }
+      ],
+      "description": "Implementation requirements and details for OpenShift TLS security profiles",
+      "has_readme": true,
+      "hooks": [],
+      "name": "openshift-tls-profile",
+      "skills": [
+        {
+          "description": "Use this skill to implement TLS security profiles for operators and workloads on OpenShift. Provides guidance on reading TLS config from APIServer CR and applying it to webhook/metrics servers, HTTP, and gRPC endpoints.",
+          "id": "openshift-tls-profile",
+          "name": "OpenShift TLS Security Profile Configuration"
+        }
+      ],
+      "version": "0.0.1"
     }
   ]
 }

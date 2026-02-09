@@ -22,6 +22,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Olm](#olm-plugin)
 - [Olm Team](#olm-team-plugin)
 - [Openshift](#openshift-plugin)
+- [Openshift Tls Profile](#openshift-tls-profile-plugin)
 - [Origin](#origin-plugin)
 - [Prow Job](#prow-job-plugin)
 - [Session](#session-plugin)
@@ -275,6 +276,15 @@ OpenShift development utilities and helpers
 - **`/openshift:visualize-ovn-topology`** - Generate and visualize OVN-Kubernetes network topology diagram
 
 See [plugins/openshift/README.md](plugins/openshift/README.md) for detailed documentation.
+
+### Openshift Tls Profile Plugin
+
+Implementation requirements and details for OpenShift TLS security profiles
+
+**Commands:**
+- **`/openshift-tls-profile:implement` `[question or implementation request]`** - Use this skill to implement TLS security profiles for operators and workloads on OpenShift. Provides guidance on reading TLS config from APIServer CR and applying it to webhook/metrics servers, HTTP, and gRPC endpoints.
+
+See [plugins/openshift-tls-profile/README.md](plugins/openshift-tls-profile/README.md) for detailed documentation.
 
 ### Origin Plugin
 
