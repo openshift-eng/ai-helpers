@@ -136,7 +136,7 @@ This command is useful for:
    **If `triage_count == 0` (regression is NOT triaged)**:
    - Note that no bug has been filed yet
    - Continue with full investigation (steps 4-9)
-   - Bug filing recommendations will be provided in step 8
+   - Bug filing recommendations will be provided in step 10
 
    **Always continue to step 4** regardless of triage status to provide full analysis.
 
@@ -407,7 +407,109 @@ This command is useful for:
 
    **Note**: If the API is unavailable or no clear start date can be determined, skip this section entirely. Do not include inconclusive results.
 
-7. **Identify Related Regressions**: Use the `list-regressions` skill to find similar failing tests
+7. **Identify Suspect PRs in Payload**: Use `fetch-prowjob-json` and `fetch-new-prs-in-payload` skills
+
+   **Only perform this step if step 6 successfully identified a clear regression start point** (i.e., a first failing run URL exists). If step 6 was skipped or inconclusive, skip this step entirely.
+
+   This step identifies pull requests that may have caused the regression by examining what was new in the payload where failures began.
+
+   **Step 7a: Get the payload tag from the first failing run**
+
+   Use the `fetch-prowjob-json` skill to fetch the prowjob.json for the first failing run identified in step 6.
+
+   ```bash
+   # The first_failing_run_url comes from step 6
+   # Use the fetch-prowjob-json skill to convert to gcsweb URL and fetch
+   # See plugins/ci/skills/fetch-prowjob-json/SKILL.md for URL conversion details
+   #
+   # Extract these annotations:
+   payload_tag=$( ... )       # metadata.annotations["release.openshift.io/tag"]
+   from_tag=$( ... )          # metadata.annotations["release.openshift.io/from-tag"] (may not exist)
+   ```
+
+   - `payload_tag`: The payload the cluster was tested against (or upgraded to for upgrade jobs)
+   - `from_tag`: The original version before upgrade (only present on upgrade jobs). If present, note this in the report as it helps distinguish whether a regression is in the upgrade path itself vs the target version.
+
+   If the prowjob.json cannot be fetched or the `release.openshift.io/tag` annotation is missing (e.g., manually triggered jobs), skip the rest of this step.
+
+   **Step 7b: Fetch new PRs in the payload**
+
+   ```bash
+   script_path="plugins/ci/skills/fetch-new-prs-in-payload/fetch_new_prs_in_payload.py"
+   pr_data=$(python3 "$script_path" "$payload_tag" --format json)
+   ```
+
+   See `plugins/ci/skills/fetch-new-prs-in-payload/SKILL.md` for complete implementation details.
+
+   **Step 7c: Identify potentially related PRs**
+
+   From the list of new PRs, identify candidates that might be related to the regression. Filter based on:
+
+   1. **Component match**: PR component name matches or overlaps with the regression's `component` or `capability`
+   2. **Repository match**: PR is from a repo related to the failing test (e.g., a test in `[sig-network]` and a PR from `openshift/ovn-kubernetes`)
+   3. **Title keywords**: PR description contains keywords related to the test name, error messages from step 5, or the affected subsystem
+   4. **Bug association**: PR has a `bug_url` referencing a fix for something in the same area
+
+   Select a maximum of **5** candidate PRs to investigate (to avoid excessive API calls). Prioritize PRs whose component or repo most closely matches the regression.
+
+   If no PRs look related based on filtering, note that in the report and skip step 7d.
+
+   **Step 7d: Check PR details with GitHub CLI**
+
+   For each candidate PR (up to 5), use the `gh` CLI to fetch the PR description and diff summary:
+
+   ```bash
+   # Check if gh CLI is available
+   if command -v gh &>/dev/null; then
+     # Extract org/repo and PR number from the PR URL
+     # e.g., https://github.com/openshift/machine-config-operator/pull/5509
+     # → owner=openshift, repo=machine-config-operator, pr_number=5509
+
+     # Fetch PR details (title, body, changed files)
+     gh pr view "$pr_number" --repo "$owner/$repo" --json title,body,files,labels
+
+     # Fetch the diff summary (file names and change counts)
+     gh pr diff "$pr_number" --repo "$owner/$repo" --stat
+   else
+     echo "Note: gh CLI not available. Showing PR URLs only - install gh for deeper analysis."
+   fi
+   ```
+
+   **Analyze each PR for relevance**:
+
+   - Read the PR description and diff to determine if the changes could plausibly affect the failing test
+   - Look for changes to files, packages, or APIs referenced in the test error messages (from step 5)
+   - Note if the PR modifies test infrastructure, API schemas, or operator behavior relevant to the regression
+   - Classify each PR as:
+     - **Likely related**: Changes directly affect the area where the test is failing
+     - **Possibly related**: Changes are in a related subsystem but not directly in the failure path
+     - **Unlikely related**: Changes appear unrelated to the test failure
+
+   **Output Format**:
+
+   ```
+   Suspect PRs in Payload (payload: 4.22.0-0.ci-2026-02-06-195709):
+   Upgrade From: 4.22.0-0.ci-2026-02-05-195709
+
+   Investigated 3 of 17 new PRs in this payload:
+
+   1. [LIKELY] openshift/machine-config-operator#5509
+      "Set NodeDegraded MCN condition when node state annotation is set to Degraded"
+      Bug: OCPBUGS-67229
+      Relevance: Changes MCN condition logic which is tested by the failing test
+      Files changed: pkg/controller/node/status.go (+45/-12)
+
+   2. [POSSIBLY] openshift/hypershift#7470
+      "use InfraStatus.APIPort for custom DNS kubeconfig"
+      Bug: OCPBUGS-72258
+      Relevance: Modifies API port handling, test involves API connectivity
+
+   3. [UNLIKELY] openshift/router#707
+      "Updating openshift-enterprise-haproxy-router-container image"
+      Relevance: Router image update, unrelated to test failure area
+   ```
+
+8. **Identify Related Regressions**: Use the `list-regressions` skill to find similar failing tests
 
    Fetch all regressions for the same release and component to find related regressions that may share the same root cause.
 
@@ -462,14 +564,14 @@ This command is useful for:
    '
    ```
 
-8. **Check Existing Triages**: Look for related triage records
+9. **Check Existing Triages**: Look for related triage records
 
    - Query regression data for triages with similar test names
    - Identify triages from same job runs
    - Present existing JIRA tickets that might already cover this regression
    - This implements: "scan for pre-existing triages that look related"
 
-9. **Prepare Bug Filing Recommendations or Existing Bug Status**: Generate actionable information
+10. **Prepare Bug Filing Recommendations or Existing Bug Status**: Generate actionable information
 
    **If regression is NOT triaged** (no existing JIRA):
    - Component assignment (from test mappings)
@@ -486,8 +588,9 @@ This command is useful for:
        - Key debugging information (file references, resources, stack traces)
      - **Sippy Test Details report links** - this is critical for debugging:
        - Link for the current regression (converted `test_details_ui_url`)
-       - Links for each related regression found in step 7 (each regression has its own `test_details_url` from the list-regressions data - convert each to UI URL)
+       - Links for each related regression found in step 8 (each regression has its own `test_details_url` from the list-regressions data - convert each to UI URL)
      - Regression start date (if determined in step 6)
+     - Suspect PRs from payload analysis (if determined in step 7) — include PR URLs and relevance classification for LIKELY and POSSIBLY related PRs
      - Related regressions (if any) with their regression IDs
    - Triage type recommendation:
      - `product`: actual product issues (default)
@@ -506,7 +609,7 @@ This command is useful for:
      - Recommend: Re-open the existing bug OR file a new bug if the failure mode is different
      - Provide new bug template if failure analysis suggests a different root cause
 
-10. **Display Comprehensive Report**: Present findings in clear format
+11. **Display Comprehensive Report**: Present findings in clear format
 
    **Section 1: Regression Summary**
    - Test name
@@ -549,21 +652,32 @@ This command is useful for:
    - Pattern description (e.g., "18 consecutive failures followed by 12 successes")
    - **Note**: This section is omitted if no clear start date can be determined
 
-   **Section 5: Related Regressions**
+   **Section 5: Suspect PRs in Payload** (only if regression start was determined)
+   - Payload tag and upgrade-from tag (if applicable)
+   - Total number of new PRs in the payload
+   - Number of PRs investigated (up to 5)
+   - For each investigated PR:
+     - Relevance classification: LIKELY, POSSIBLY, or UNLIKELY
+     - PR URL, title, and associated bug (if any)
+     - Brief explanation of why it may or may not be related
+     - Key files changed (from `gh pr diff --stat`)
+   - **Note**: This section is omitted if step 6 did not determine a clear regression start, if the prowjob.json lacks release annotations, or if no PRs looked potentially related. It is also omitted if `gh` CLI is not available, though PR URLs are still listed.
+
+   **Section 6: Related Regressions**
    - List of potentially related failing tests
    - Common patterns across failures
    - Recommendation: "These regressions may be caused by the same issue and could be triaged to one JIRA"
 
-   **Section 6: Existing Triages**
+   **Section 7: Existing Triages**
    - Related JIRA tickets already filed (from other regressions)
 
-11. **Offer to Triage**: After presenting the report, offer to triage the regression
+12. **Offer to Triage**: After presenting the report, offer to triage the regression
 
    Based on the analysis, determine the appropriate triage action and ask the user if they want to proceed.
 
-   **Scenario A: Related triage record found on another regression** (from step 8)
+   **Scenario A: Related triage record found on another regression** (from step 9)
 
-   If step 8 found that a related regression already has a triage record (i.e., another regression for the same or similar test is already triaged to a JIRA bug), offer to add this regression to that existing triage. Also include any other untriaged related regressions found in step 7.
+   If step 9 found that a related regression already has a triage record (i.e., another regression for the same or similar test is already triaged to a JIRA bug), offer to add this regression to that existing triage. Also include any other untriaged related regressions found in step 8.
 
    ```
    A related triage already exists:
@@ -600,9 +714,9 @@ This command is useful for:
 
    **Note**: The triage-regression script automatically fetches the existing triage and merges its regressions with the new ones, so you only need to pass the regression IDs you want to add.
 
-   **Scenario B: JIRA bug found but not triaged to any regression** (from step 3 or step 8)
+   **Scenario B: JIRA bug found but not triaged to any regression** (from step 3 or step 9)
 
-   If step 3 found a linked JIRA bug on this regression's triage, or step 8 found a JIRA bug that looks related (e.g., same component, similar error pattern) but no triage record exists yet, offer to create a new triage linking this regression and all related untriaged regressions to that bug.
+   If step 3 found a linked JIRA bug on this regression's triage, or step 9 found a JIRA bug that looks related (e.g., same component, similar error pattern) but no triage record exists yet, offer to create a new triage linking this regression and all related untriaged regressions to that bug.
 
    ```
    A related JIRA bug was found:
@@ -650,11 +764,11 @@ This command is useful for:
    Proposed bug details:
    - Project: OCPBUGS
    - Component: <component from regression data>
-   - Summary: <suggested summary from step 9>
+   - Summary: <suggested summary from step 10>
    - Triage type: <recommended type>
    ```
 
-   If the user confirms, create the bug using the `/jira:create-bug` skill with the bug template from step 9. The bug description must include:
+   If the user confirms, create the bug using the `/jira:create-bug` skill with the bug template from step 10. The bug description must include:
    - Test name and release
    - Regression opened date
    - Affected variants
@@ -751,6 +865,21 @@ Generated using the `fetch-test-runs` skill with `--include-success` and `--prow
   - When the API is unavailable
   - When the pattern is inconclusive
 
+#### Suspect PRs in Payload (only if regression start was determined)
+
+Generated using the `fetch-prowjob-json` and `fetch-new-prs-in-payload` skills:
+
+- **Payload Tag**: The payload where the regression first appeared
+- **Upgrade From Tag**: The pre-upgrade payload (for upgrade jobs only)
+- **Total New PRs**: Number of PRs new in this payload
+- **Investigated PRs**: Up to 5 PRs examined in detail via `gh` CLI
+- **For Each Investigated PR**:
+  - Relevance classification (LIKELY / POSSIBLY / UNLIKELY)
+  - PR URL, title, and associated bug URL
+  - Explanation of relevance to the regression
+  - Summary of changed files
+- **Note**: This section is only included when step 6 determined a clear regression start and the first failing run's prowjob.json has a `release.openshift.io/tag` annotation. Omitted if `gh` CLI is not available (PR URLs still listed without deep analysis).
+
 #### Root Cause Analysis
 
 - **Failure Patterns**: Common patterns identified across multiple job failures
@@ -841,6 +970,8 @@ Uses the `triage-regression` skill with authentication via the `oc-auth` skill (
 - **Skills Used**:
   - `fetch-regression-details`: Fetches regression data and analyzes pass/fail patterns
   - `fetch-test-runs`: Fetches actual test outputs and analyzes error message consistency
+  - `fetch-prowjob-json`: Fetches prowjob.json to get payload tag and upgrade-from tag for a Prow job
+  - `fetch-new-prs-in-payload`: Fetches new PRs in a payload compared to its predecessor
   - `list-regressions` (teams plugin): Lists all regressions for a release/component to find related regressions
   - `triage-regression`: Creates or updates triage records linking regressions to JIRA bugs
   - `oc-auth`: Provides authentication tokens for sippy-auth API
@@ -857,6 +988,8 @@ Uses the `triage-regression` skill with authentication via the `oc-auth` skill (
 
 - Related Skill: `fetch-regression-details` - Fetches regression data with pass sequences (`plugins/ci/skills/fetch-regression-details/SKILL.md`)
 - Related Skill: `fetch-test-runs` - Fetches and analyzes test failure outputs (`plugins/ci/skills/fetch-test-runs/SKILL.md`)
+- Related Skill: `fetch-prowjob-json` - Fetches prowjob.json for payload tag and metadata (`plugins/ci/skills/fetch-prowjob-json/SKILL.md`)
+- Related Skill: `fetch-new-prs-in-payload` - Fetches new PRs in a payload (`plugins/ci/skills/fetch-new-prs-in-payload/SKILL.md`)
 - Related Skill: `list-regressions` (teams plugin) - Lists all regressions for a release/component (`plugins/teams/skills/list-regressions/SKILL.md`)
 - Related Skill: `triage-regression` - Creates or updates triage records (`plugins/ci/skills/triage-regression/SKILL.md`)
 - Related Skill: `oc-auth` - Authentication tokens for sippy-auth (`plugins/ci/skills/oc-auth/SKILL.md`)

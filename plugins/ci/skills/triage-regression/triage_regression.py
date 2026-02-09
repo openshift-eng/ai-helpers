@@ -47,7 +47,7 @@ class TriageManager:
             "regressions": [{"id": rid} for rid in self.regression_ids],
         }
 
-        if self.description:
+        if self.description is not None:
             payload["description"] = self.description
 
         if self.triage_id is not None:
@@ -128,11 +128,13 @@ class TriageManager:
                 'regression_ids': self.regression_ids,
             }
 
-        # Use existing url and type if not provided on command line
+        # Use existing url, type, and description if not provided on command line
         if self.url is None:
             self.url = existing.get('url', '')
         if self.triage_type is None:
             self.triage_type = existing.get('type', '')
+        if self.description is None:
+            self.description = existing.get('description', '')
 
         # Merge existing regression IDs with new ones (deduplicate)
         existing_ids = set()
