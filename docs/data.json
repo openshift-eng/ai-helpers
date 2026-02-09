@@ -345,6 +345,11 @@
       "name": "ci",
       "skills": [
         {
+          "description": "Fetch pull requests that are new in a given OpenShift payload compared to the previous payload",
+          "id": "fetch-new-prs-in-payload",
+          "name": "Fetch New PRs in Payload"
+        },
+        {
           "description": "Fetch and return key data from a Prow job's prowjob.json artifact given a Prow job URL",
           "id": "fetch-prowjob-json",
           "name": "Fetch ProwJob JSON"
