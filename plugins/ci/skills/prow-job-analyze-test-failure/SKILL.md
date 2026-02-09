@@ -68,7 +68,19 @@ Use the "Parse and Validate URL" steps from "Prow Job Analyze Resource" skill
 
 ### Step 3: Download and Validate prowjob.json
 
-Use the "Download and Validate prowjob.json" steps from "Prow Job Analyze Resource" skill.
+Use the `fetch-prowjob-json` skill to fetch the prowjob.json for this job. See `plugins/ci/skills/fetch-prowjob-json/SKILL.md` for complete implementation details.
+
+1. **Fetch prowjob.json** using the Prow job URL (convert to gcsweb URL per the `fetch-prowjob-json` skill)
+2. **Save locally** to `.work/prow-job-analyze-test-failure/{build_id}/logs/prowjob.json`
+3. **Parse and validate**
+   - Search for pattern: `--target=([a-zA-Z0-9-]+)` in the ci-operator args
+   - If not found:
+     - Display: "This is not a ci-operator job. The prowjob cannot be analyzed by this skill."
+     - Explain: ci-operator jobs have a --target argument specifying the test target
+     - Exit skill
+4. **Extract target name**
+   - Capture the target value (e.g., `e2e-aws-ovn`)
+   - Store for constructing artifact paths
 
 ### Step 4: Analyze Test Failure
 

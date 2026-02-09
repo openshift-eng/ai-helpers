@@ -121,20 +121,17 @@ Job names contain important clues about the test environment and what to look fo
 
 ### Step 3: Download prowjob.json and Identify Target
 
-1. **Download prowjob.json**
-   ```bash
-   gcloud storage cp gs://test-platform-results/{bucket-path}/prowjob.json .work/prow-job-analyze-install-failure/{build_id}/logs/prowjob.json --no-user-output-enabled
-   ```
+Use the `fetch-prowjob-json` skill to fetch the prowjob.json for this job. See `plugins/ci/skills/fetch-prowjob-json/SKILL.md` for complete implementation details.
 
-2. **Parse and validate**
-   - Read `.work/prow-job-analyze-install-failure/{build_id}/logs/prowjob.json`
-   - Search for pattern: `--target=([a-zA-Z0-9-]+)`
+1. **Fetch prowjob.json** using the Prow job URL (convert to gcsweb URL per the `fetch-prowjob-json` skill)
+2. **Save locally** to `.work/prow-job-analyze-install-failure/{build_id}/logs/prowjob.json`
+3. **Parse and validate**
+   - Search for pattern: `--target=([a-zA-Z0-9-]+)` in the ci-operator args
    - If not found:
      - Display: "This is not a ci-operator job. The prowjob cannot be analyzed by this skill."
      - Explain: ci-operator jobs have a --target argument specifying the test target
      - Exit skill
-
-3. **Extract target name**
+4. **Extract target name**
    - Capture the target value (e.g., `e2e-aws-ovn-techpreview`)
    - Store for constructing artifact paths
 
