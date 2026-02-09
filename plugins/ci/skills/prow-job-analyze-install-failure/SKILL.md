@@ -224,7 +224,7 @@ Job names contain important clues about the test environment and what to look fo
 Metal IPI jobs use **dev-scripts** with **Metal3** and **Ironic** to install OpenShift on bare metal. These require specialized analysis.
 
 1. **Invoke the metal install failure skill**
-   - Use the Skill tool to invoke: `prow-job:prow-job-analyze-metal-install-failure`
+   - Use the Skill tool to invoke: `ci:prow-job-analyze-metal-install-failure`
    - Pass the following information:
      - Build ID: `{build_id}`
      - Bucket path: `{bucket-path}`

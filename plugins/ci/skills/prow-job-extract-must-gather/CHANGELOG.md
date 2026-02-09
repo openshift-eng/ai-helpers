@@ -6,7 +6,7 @@ All notable changes to the Prow Job Extract Must-Gather skill will be documented
 
 ### Added
 - Initial release of Prow Job Extract Must-Gather skill
-- Command file: `plugins/prow-job/commands/extract-must-gather.md`
+- Command file: `plugins/ci/commands/extract-prow-job-must-gather.md`
 - Comprehensive SKILL.md with detailed implementation instructions
 - `extract_archives.py` script for recursive archive extraction
   - Extracts must-gather.tar to specified directory

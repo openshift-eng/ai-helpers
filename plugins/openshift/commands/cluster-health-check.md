@@ -531,7 +531,7 @@ oc describe pod <pod-name> -n <namespace>
 
 - OpenShift Documentation: https://docs.openshift.com/container-platform/latest/support/troubleshooting/
 - Kubernetes Troubleshooting: https://kubernetes.io/docs/tasks/debug/
-- Related commands: `/prow-job:analyze-test-failure`, `/must-gather:analyze`
+- Related commands: `/ci:analyze-prow-job-test-failure`, `/must-gather:analyze`
 
 ## Notes
 

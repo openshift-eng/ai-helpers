@@ -22,7 +22,6 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Olm Team](#olm-team-plugin)
 - [Openshift](#openshift-plugin)
 - [Origin](#origin-plugin)
-- [Prow Job](#prow-job-plugin)
 - [Session](#session-plugin)
 - [Sosreport](#sosreport-plugin)
 - [Teams](#teams-plugin)
@@ -51,12 +50,16 @@ See [plugins/bigquery/README.md](plugins/bigquery/README.md) for detailed docume
 
 ### Ci Plugin
 
-Miscellaneous tools for working with OpenShift CI
+Tools for working with OpenShift CI and analyzing Prow job results
 
 **Commands:**
 - **`/ci:add-debug-wait` `<workflow-or-job-name> [timeout]`** - Add a wait step to a CI workflow for debugging test failures
+- **`/ci:analyze-prow-job-install-failure` `<prowjob-url>`** - Analyze OpenShift installation failures in Prow CI jobs
+- **`/ci:analyze-prow-job-resource` `prowjob-url resource-name`** - Analyze Kubernetes resource lifecycle in Prow job artifacts
+- **`/ci:analyze-prow-job-test-failure` `prowjob-url test-name`** - Analyzes test errors from console logs and Prow CI job artifacts
 - **`/ci:analyze-regression` `<regression id>`** - Analyze details about a Component Readiness regression and suggest next steps
 - **`/ci:ask-sippy` `[question]`** - Ask the Sippy AI agent questions about OpenShift CI payloads, jobs, and test results
+- **`/ci:extract-prow-job-must-gather` `prowjob-url`** - Extract and decompress must-gather archives from Prow job artifacts
 - **`/ci:list-unstable-tests` `<version> <keywords> [sippy-url]`** - List unstable tests with pass rate below 95%
 - **`/ci:query-job-status` `<execution-id>`** - Query the status of a gangway job execution by ID
 - **`/ci:query-test-result` `<version> <keywords> [sippy-url]`** - Query test results from Sippy by version and test keywords
@@ -271,18 +274,6 @@ Helpers for openshift/origin development.
 - **`/origin:two-node-origin-pr-helper` `[--url PR_URL] [<pr>] [--depth quick|full]`** - Expert review tool for PRs that add or modify Two Node (Fencing or Arbiter) tests under test/extended/two_node/ in openshift/origin.
 
 See [plugins/origin/README.md](plugins/origin/README.md) for detailed documentation.
-
-### Prow Job Plugin
-
-A plugin to analyze and inspect Prow CI job results
-
-**Commands:**
-- **`/prow-job:analyze-install-failure` `<prowjob-url>`** - Analyze OpenShift installation failures in Prow CI jobs
-- **`/prow-job:analyze-resource` `prowjob-url resource-name`** - Analyze Kubernetes resource lifecycle in Prow job artifacts
-- **`/prow-job:analyze-test-failure` `prowjob-url test-name`** - Analyzes test errors from console logs and Prow CI job artifacts
-- **`/prow-job:extract-must-gather` `prowjob-url`** - Extract and decompress must-gather archives from Prow job artifacts
-
-See [plugins/prow-job/README.md](plugins/prow-job/README.md) for detailed documentation.
 
 ### Session Plugin
 

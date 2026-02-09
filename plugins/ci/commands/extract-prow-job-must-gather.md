@@ -4,11 +4,11 @@ argument-hint: prowjob-url
 ---
 
 ## Name
-prow-job:extract-must-gather
+ci:extract-prow-job-must-gather
 
 ## Synopsis
 ```
-/prow-job:extract-must-gather <prowjob-url>
+/ci:extract-prow-job-must-gather <prowjob-url>
 ```
 
 ## Description

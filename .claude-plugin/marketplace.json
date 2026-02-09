@@ -25,8 +25,8 @@
     {
       "name": "ci",
       "source": "./plugins/ci",
-      "description": "A plugin to work with OpenShift CI",
-      "version": "0.0.4"
+      "description": "A plugin to work with OpenShift CI and analyze Prow job results",
+      "version": "0.0.5"
     },
     {
       "name": "teams",
@@ -69,12 +69,6 @@
       "source": "./plugins/olm-team",
       "description": "OLM team development utilities and onboarding tools",
       "version": "0.1.0"
-    },
-    {
-      "name": "prow-job",
-      "source": "./plugins/prow-job",
-      "description": "A plugin to analyze and inspect Prow CI job results",
-      "version": "0.0.2"
     },
     {
       "name": "agendas",

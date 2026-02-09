@@ -4,16 +4,16 @@ argument-hint: prowjob-url resource-name
 ---
 
 ## Name
-/prow-job:analyze-resource
+ci:analyze-prow-job-resource
 
 ## Synopsis
 Generate a report showing the lifecycle of a single resource:
 ```
-/prow-job:analyze-resource <prowjob-url> [namespace:][kind/][resource-name]
+/ci:analyze-prow-job-resource <prowjob-url> [namespace:][kind/][resource-name]
 ```
 Generate a report showing multiple resource lifecycles:
 ```
-/prow-job:analyze-resource <prowjob-url> [namespace:][kind/][resource-name],[namespace:][kind/][resource-name],...
+/ci:analyze-prow-job-resource <prowjob-url> [namespace:][kind/][resource-name],[namespace:][kind/][resource-name],...
 ```
 
 ## Description

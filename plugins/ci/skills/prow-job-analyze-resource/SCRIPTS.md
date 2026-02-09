@@ -24,7 +24,7 @@ python3 parse_all_logs.py <resource_pattern> <audit_logs_directory>
 
 **Example:**
 ```bash
-python3 plugins/prow-job/skills/prow-job-analyze-resource/parse_all_logs.py \
+python3 plugins/ci/skills/prow-job-analyze-resource/parse_all_logs.py \
   e2e-test-project-api-p28m \
   .work/prow-job-analyze-resource/1964725888612306944/logs/artifacts/e2e-aws-ovn-techpreview/gather-extra/artifacts/audit_logs \
   > .work/prow-job-analyze-resource/1964725888612306944/tmp/audit_entries.json 2>&1
@@ -63,7 +63,7 @@ python3 generate_html_report.py <entries.json> <prowjob_name> <build_id> <target
 
 **Example:**
 ```bash
-python3 plugins/prow-job/skills/prow-job-analyze-resource/generate_html_report.py \
+python3 plugins/ci/skills/prow-job-analyze-resource/generate_html_report.py \
   .work/prow-job-analyze-resource/1964725888612306944/tmp/audit_entries_clean.json \
   "periodic-ci-openshift-release-master-okd-scos-4.20-e2e-aws-ovn-techpreview" \
   "1964725888612306944" \
@@ -136,7 +136,7 @@ gcloud storage cp -r \
   --no-user-output-enabled
 
 # 5. Parse audit logs
-python3 plugins/prow-job/skills/prow-job-analyze-resource/parse_all_logs.py \
+python3 plugins/ci/skills/prow-job-analyze-resource/parse_all_logs.py \
   ${RESOURCE_PATTERN} \
   .work/prow-job-analyze-resource/${BUILD_ID}/logs/artifacts/${TARGET}/gather-extra/artifacts/audit_logs \
   > .work/prow-job-analyze-resource/${BUILD_ID}/tmp/audit_entries.json 2>&1
@@ -146,7 +146,7 @@ tail -n +3 .work/prow-job-analyze-resource/${BUILD_ID}/tmp/audit_entries.json \
   > .work/prow-job-analyze-resource/${BUILD_ID}/tmp/audit_entries_clean.json
 
 # 7. Generate HTML report
-python3 plugins/prow-job/skills/prow-job-analyze-resource/generate_html_report.py \
+python3 plugins/ci/skills/prow-job-analyze-resource/generate_html_report.py \
   .work/prow-job-analyze-resource/${BUILD_ID}/tmp/audit_entries_clean.json \
   "${PROWJOB_NAME}" \
   "${BUILD_ID}" \

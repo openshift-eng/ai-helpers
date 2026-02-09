@@ -32,7 +32,7 @@ python3 extract_archives.py <must-gather.tar> <output-directory>
 
 **Example:**
 ```bash
-python3 plugins/prow-job/skills/prow-job-extract-must-gather/extract_archives.py \
+python3 plugins/ci/skills/prow-job-extract-must-gather/extract_archives.py \
   .work/prow-job-extract-must-gather/1965715986610917376/tmp/must-gather.tar \
   .work/prow-job-extract-must-gather/1965715986610917376/logs
 ```
@@ -90,7 +90,7 @@ python3 generate_html_report.py <logs-directory> <prowjob_name> <build_id> <targ
 
 **Example:**
 ```bash
-python3 plugins/prow-job/skills/prow-job-extract-must-gather/generate_html_report.py \
+python3 plugins/ci/skills/prow-job-extract-must-gather/generate_html_report.py \
   .work/prow-job-extract-must-gather/1965715986610917376/logs \
   "periodic-ci-openshift-release-master-ci-4.20-e2e-aws-ovn-techpreview" \
   "1965715986610917376" \
@@ -255,11 +255,11 @@ The generated HTML report includes:
 User: "Extract must-gather from https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results/logs/periodic-ci-openshift-release-master-ci-4.20-e2e-aws-ovn-techpreview/1965715986610917376"
 
 # Standalone script
-python3 plugins/prow-job/skills/prow-job-extract-must-gather/extract_archives.py \
+python3 plugins/ci/skills/prow-job-extract-must-gather/extract_archives.py \
   .work/prow-job-extract-must-gather/1965715986610917376/tmp/must-gather.tar \
   .work/prow-job-extract-must-gather/1965715986610917376/logs
 
-python3 plugins/prow-job/skills/prow-job-extract-must-gather/generate_html_report.py \
+python3 plugins/ci/skills/prow-job-extract-must-gather/generate_html_report.py \
   .work/prow-job-extract-must-gather/1965715986610917376/logs \
   "periodic-ci-openshift-release-master-ci-4.20-e2e-aws-ovn-techpreview" \
   "1965715986610917376" \

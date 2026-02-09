@@ -167,7 +167,7 @@ For each comma-delimited resource spec:
 
 **Usage:**
 ```bash
-python3 plugins/prow-job/skills/prow-job-analyze-resource/parse_all_logs.py <resource_pattern> \
+python3 plugins/ci/skills/prow-job-analyze-resource/parse_all_logs.py <resource_pattern> \
   .work/prow-job-analyze-resource/{build_id}/logs/artifacts/{target}/gather-extra/artifacts/audit_logs \
   .work/prow-job-analyze-resource/{build_id}/logs/artifacts/{target}/gather-extra/artifacts/pods \
   > .work/prow-job-analyze-resource/{build_id}/tmp/all_entries.json
@@ -256,7 +256,7 @@ python3 plugins/prow-job/skills/prow-job-analyze-resource/parse_all_logs.py <res
 
 **Usage:**
 ```bash
-python3 plugins/prow-job/skills/prow-job-analyze-resource/generate_html_report.py \
+python3 plugins/ci/skills/prow-job-analyze-resource/generate_html_report.py \
   .work/prow-job-analyze-resource/{build_id}/tmp/all_entries.json \
   "{prowjob_name}" \
   "{build_id}" \
@@ -576,7 +576,7 @@ Output:
    - Non-ci-operator jobs cannot be analyzed (they don't have --target)
 
 4. **Working with Scripts:**
-   - All scripts are in `plugins/prow-job/skills/prow-job-analyze-resource/`
+   - All scripts are in `plugins/ci/skills/prow-job-analyze-resource/`
    - `parse_all_logs.py` - Parses audit logs and pod logs, outputs JSON
      - Detects glog severity levels (E=error, W=warn, I=info, F=fatal)
      - Supports regex patterns for resource matching

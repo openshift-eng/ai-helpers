@@ -745,7 +745,7 @@ oc auth can-i debug node
 
 - `/must-gather:analyze` - General cluster analysis
 - `/olm:diagnose` - OLM and operator troubleshooting
-- `/prow-job:analyze-test-failure` - CI test failure analysis
+- `/ci:analyze-prow-job-test-failure` - CI test failure analysis
 
 ## Additional Resources
 

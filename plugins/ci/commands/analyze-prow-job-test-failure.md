@@ -4,12 +4,12 @@ argument-hint: prowjob-url test-name
 ---
 
 ## Name
-prow-job:analyze-test-failure
+ci:analyze-prow-job-test-failure
 
 ## Synopsis
 Generate a test failure analysis for the given test:
 ```
-/prow-job:analyze-test-failure <prowjob-url> <test-name>
+/ci:analyze-prow-job-test-failure <prowjob-url> <test-name>
 ```
 
 ## Description

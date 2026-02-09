@@ -136,6 +136,42 @@ Query the status of a gangway job execution by ID.
 - Job name, type, and status (SUCCESS, FAILURE, PENDING, RUNNING, ABORTED)
 - GCS path to artifacts (if available)
 
+### analyze-prow-job-test-failure
+
+Analyze a failed test by inspecting test code and Prow CI job artifacts.
+
+**Usage:**
+```bash
+/ci:analyze-prow-job-test-failure <prowjob-url> <test-name>
+```
+
+### analyze-prow-job-install-failure
+
+Analyze OpenShift installation failures in Prow CI jobs by examining installer logs, log bundles, and sosreports.
+
+**Usage:**
+```bash
+/ci:analyze-prow-job-install-failure <prowjob-url>
+```
+
+### analyze-prow-job-resource
+
+Analyze Kubernetes resource lifecycle in Prow job artifacts. Generates interactive HTML reports with timeline visualization.
+
+**Usage:**
+```bash
+/ci:analyze-prow-job-resource <prowjob-url> [namespace:][kind/][resource-name]
+```
+
+### extract-prow-job-must-gather
+
+Extract and decompress must-gather archives from Prow job artifacts into an interactive HTML file browser.
+
+**Usage:**
+```bash
+/ci:extract-prow-job-must-gather <prowjob-url>
+```
+
 ## Configuration
 
 ### Authentication for Gangway Commands

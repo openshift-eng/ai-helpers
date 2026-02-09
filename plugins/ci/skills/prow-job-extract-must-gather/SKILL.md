@@ -128,7 +128,7 @@ The user will provide:
 
 **Usage:**
 ```bash
-python3 plugins/prow-job/skills/prow-job-extract-must-gather/extract_archives.py \
+python3 plugins/ci/skills/prow-job-extract-must-gather/extract_archives.py \
   .work/prow-job-extract-must-gather/{build_id}/tmp/must-gather.tar \
   .work/prow-job-extract-must-gather/{build_id}/logs
 ```
@@ -184,7 +184,7 @@ python3 plugins/prow-job/skills/prow-job-extract-must-gather/extract_archives.py
 
 **Usage:**
 ```bash
-python3 plugins/prow-job/skills/prow-job-extract-must-gather/generate_html_report.py \
+python3 plugins/ci/skills/prow-job-extract-must-gather/generate_html_report.py \
   .work/prow-job-extract-must-gather/{build_id}/logs \
   "{prowjob_name}" \
   "{build_id}" \
@@ -488,6 +488,6 @@ Output:
    - Invalid regex patterns are ignored gracefully
 
 5. **Working with Scripts:**
-   - All scripts are in `plugins/prow-job/skills/prow-job-extract-must-gather/`
+   - All scripts are in `plugins/ci/skills/prow-job-extract-must-gather/`
    - `extract_archives.py` - Extracts and processes archives
    - `generate_html_report.py` - Generates interactive HTML file browser

@@ -4,16 +4,16 @@ argument-hint: <prowjob-url>
 ---
 
 ## Name
-prow-job:analyze-install-failure
+ci:analyze-prow-job-install-failure
 
 ## Synopsis
 ```
-/prow-job:analyze-install-failure <prowjob-url>
+/ci:analyze-prow-job-install-failure <prowjob-url>
 ```
 
 ## Description
 
-The `prow-job:analyze-install-failure` command analyzes OpenShift installation failures in Prow CI jobs by downloading and examining installer logs, log bundles, and sosreports (for metal jobs). This command is specifically designed to debug failures in the **"install should succeed: overall"** test, which indicates that the installation process failed at some stage.
+The `ci:analyze-prow-job-install-failure` command analyzes OpenShift installation failures in Prow CI jobs by downloading and examining installer logs, log bundles, and sosreports (for metal jobs). This command is specifically designed to debug failures in the **"install should succeed: overall"** test, which indicates that the installation process failed at some stage.
 
 **Important**: All "install should succeed" tests have a specific suffix indicating the failure stage (configuration, infrastructure, cluster bootstrap, cluster creation, cluster operator stability, or other). The JUnit XML contains both the specific failure reason test (which fails) and the overall test (which also fails when any stage fails). This command analyzes the specific failure stage to provide targeted diagnostics.
 
@@ -51,7 +51,7 @@ The command performs the following steps by invoking the "Prow Job Analyze Insta
    - Cluster API resources (etcd, kube-apiserver logs)
    - Failed systemd units list
 
-6. **Invoke Metal Skill** (metal jobs only): Use the specialized `prow-job-analyze-metal-install-failure` skill to analyze:
+6. **Invoke Metal Skill** (metal jobs only): Use the specialized `ci:prow-job-analyze-metal-install-failure` skill to analyze:
    - Dev-scripts setup logs (installation framework)
    - libvirt console logs (VM/node boot sequence)
    - sosreport (hypervisor diagnostics)
@@ -80,7 +80,7 @@ The skill handles all the implementation details including URL parsing, artifact
 
 **Important for Claude**:
 1. Parse the Prow job URL to extract the build ID and job name
-2. Invoke the "prow-job:analyze-install-failure" skill with the job details
+2. Invoke the "ci:prow-job-analyze-install-failure" skill with the job details
 3. The skill will download all relevant artifacts and analyze them
 4. For metal jobs, the skill automatically invokes the specialized metal install failure skill
 5. Present the analysis report to the user with clear findings
@@ -91,7 +91,7 @@ The skill handles all the implementation details including URL parsing, artifact
 
 1. **Analyze an AWS installation failure**:
    ```
-   /prow-job:analyze-install-failure https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-release-master-ci-4.21-e2e-aws-ovn-techpreview/1983307151598161920
+   /ci:analyze-prow-job-install-failure https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-release-master-ci-4.21-e2e-aws-ovn-techpreview/1983307151598161920
    ```
    Expected output:
    - Downloads installer logs and log bundle
@@ -102,7 +102,7 @@ The skill handles all the implementation details including URL parsing, artifact
 
 2. **Analyze a metal installation failure**:
    ```
-   /prow-job:analyze-install-failure https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-release-master-nightly-4.21-e2e-metal-ipi-ovn-ipv6/1983304069657137152
+   /ci:analyze-prow-job-install-failure https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-release-master-nightly-4.21-e2e-metal-ipi-ovn-ipv6/1983304069657137152
    ```
    Expected output:
    - Invokes specialized metal install failure skill
@@ -113,7 +113,7 @@ The skill handles all the implementation details including URL parsing, artifact
 
 3. **Analyze an infrastructure failure**:
    ```
-   /prow-job:analyze-install-failure https://prow.ci.openshift.org/view/gs/test-platform-results/pr-logs/pull/openshift/installer/12345/pull-ci-openshift-installer-master-e2e-aws/7890
+   /ci:analyze-prow-job-install-failure https://prow.ci.openshift.org/view/gs/test-platform-results/pr-logs/pull/openshift/installer/12345/pull-ci-openshift-installer-master-e2e-aws/7890
    ```
    Expected output:
    - Identifies "install should succeed: infrastructure" failure
@@ -123,7 +123,7 @@ The skill handles all the implementation details including URL parsing, artifact
 
 4. **Analyze an operator stability failure**:
    ```
-   /prow-job:analyze-install-failure https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-release-master-ci-4.21-e2e-gcp/1234567890123456789
+   /ci:analyze-prow-job-install-failure https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-release-master-ci-4.21-e2e-gcp/1234567890123456789
    ```
    Expected output:
    - Identifies "install should succeed: cluster operator stability" failure
@@ -135,7 +135,7 @@ The skill handles all the implementation details including URL parsing, artifact
 
 - **Failure Modes**: The installer has multiple failure modes detected from junit_install.xml. Each mode requires different analysis approaches.
 - **Log Bundle**: Contains detailed node-level diagnostics including journals, serial consoles, and cluster API resources
-- **Metal Jobs**: Identified by "metal" in the job name. These jobs automatically invoke the specialized `prow-job-analyze-metal-install-failure` skill.
+- **Metal Jobs**: Identified by "metal" in the job name. These jobs automatically invoke the specialized `ci:prow-job-analyze-metal-install-failure` skill.
 - **Metal Artifacts**: Metal jobs analyze dev-scripts logs, libvirt console logs, sosreport, and squid logs
 - **Artifacts Location**: All downloaded artifacts are cached in `.work/prow-job-analyze-install-failure/{build_id}/` for faster re-analysis
 - **gcloud Requirement**: Requires gcloud CLI to be installed to access GCS buckets
