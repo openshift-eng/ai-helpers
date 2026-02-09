@@ -345,6 +345,11 @@
       "name": "ci",
       "skills": [
         {
+          "description": "Fetch and return key data from a Prow job's prowjob.json artifact given a Prow job URL",
+          "id": "fetch-prowjob-json",
+          "name": "Fetch ProwJob JSON"
+        },
+        {
           "description": "Fetch detailed information about a Component Readiness regression from the Sippy API",
           "id": "fetch-regression-details",
           "name": "Fetch Regression Details"
