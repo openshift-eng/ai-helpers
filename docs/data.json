@@ -303,6 +303,12 @@
           "synopsis": "/ci:extract-prow-job-must-gather <prowjob-url>"
         },
         {
+          "argument_hint": "<test-name> [release]",
+          "description": "Fetch a test report from Sippy showing pass rates, test ID, and Jira component",
+          "name": "fetch-test-report",
+          "synopsis": "/ci:fetch-test-report <test-name> [release]"
+        },
+        {
           "argument_hint": "<version> <keywords> [sippy-url]",
           "description": "List unstable tests with pass rate below 95%",
           "name": "list-unstable-tests",
@@ -358,6 +364,16 @@
           "description": "Fetch detailed information about a Component Readiness regression from the Sippy API",
           "id": "fetch-regression-details",
           "name": "Fetch Regression Details"
+        },
+        {
+          "description": "Fetch available OpenShift releases from the Sippy API",
+          "id": "fetch-releases",
+          "name": "Fetch Releases"
+        },
+        {
+          "description": "Fetch an OpenShift CI test report by name to get pass rates, test ID, and Jira component from Sippy",
+          "id": "fetch-test-report",
+          "name": "Fetch Test Report"
         },
         {
           "description": "Fetch test runs from Sippy API including outputs for AI-based similarity analysis",
