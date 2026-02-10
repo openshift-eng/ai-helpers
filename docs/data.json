@@ -1224,6 +1224,33 @@
       "name": "gwapi",
       "skills": [],
       "version": "0.0.1"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "[--language <lang>] [--profile <name>] [--skip-build] [--skip-tests]",
+          "description": "Automated pre-commit code quality review with language-aware analysis and project-specific profiles",
+          "name": "pre-commit-quality-review",
+          "synopsis": "/code-review:pre-commit-quality-review [--language <lang>] [--profile <name>] [--skip-build] [--skip-tests]"
+        }
+      ],
+      "description": "Automated code quality review with language-aware analysis for pre-commit verification",
+      "has_readme": true,
+      "hooks": [],
+      "name": "code-review",
+      "skills": [
+        {
+          "description": "Language-specific review guidance for Go code including idiomatic patterns, test conventions, and build commands",
+          "id": "lang-go",
+          "name": "Go Language Review"
+        },
+        {
+          "description": "Project-specific review profile for the openshift/hypershift repository \u2014 delegates to the repo's own agents and skills",
+          "id": "profile-hypershift",
+          "name": "HyperShift Project Profile"
+        }
+      ],
+      "version": "0.0.1"
     }
   ]
 }
