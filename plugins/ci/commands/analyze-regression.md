@@ -603,6 +603,8 @@ This command is useful for:
    - Bug summary suggestion based on failure pattern (informed by step 5 pattern analysis)
    - Bug description template including:
      - Test name and release
+     - Test ID (`test_id` — the BigQuery/Component Readiness ID, e.g., `openshift-tests:abc123`)
+     - Regression ID(s) — the Component Readiness regression ID(s) being triaged
      - Regression opened date
      - Affected variants
      - Failure patterns identified (permafail/flaky/resolved/recent)
@@ -617,7 +619,7 @@ This command is useful for:
        - Links for each related regression found in step 8 (each regression has its own `test_details_url` from the list-regressions data - convert each to UI URL)
      - Regression start date (if determined in step 7)
      - Suspect PRs from payload analysis (if determined in step 8) — include PR URLs and relevance classification for LIKELY and POSSIBLY related PRs
-     - Related regressions (if any) with their regression IDs
+     - Related regressions (if any) with their regression IDs and test names
    - Triage type recommendation:
      - `product`: actual product issues (default)
      - `test`: clear issues in the test itself (especially for flaky patterns)
@@ -803,13 +805,16 @@ This command is useful for:
    ```
 
    If the user confirms, create the bug using the `/jira:create-bug` skill with the bug template from step 11. The bug description must include:
-   - Test name and release
+   - Test name(s) — the full name of each affected test
+   - Test ID(s) (`test_id` — the BigQuery/Component Readiness ID, e.g., `openshift-tests:abc123`)
+   - Regression ID(s) — the Component Readiness regression ID(s) being triaged
+   - Release
    - Regression opened date
    - Affected variants
    - Failure pattern analysis summary
-   - Common error message (if available from step 5)
+   - Common error message (if available from step 6)
    - **Sippy Test Details report links** for each regression being triaged (convert each `test_details_url` from API to UI URL)
-   - Related regression IDs
+   - Related regression IDs and test names
 
    After the bug is created, use the `triage-regression` skill to triage all regressions to the new bug:
 
