@@ -31,6 +31,13 @@ Use this skill when:
 - CVE vulnerable function signature (e.g., `<package-path>.<function-name>`)
 - Package path from CVE analysis
 - Workspace path to analyze
+- Algorithm preference (optional, default: `vta`) — passed via `--algo` from parent command
+
+## Timeout and Algorithm Convention
+
+- Use the algorithm specified by the user via `--algo` (default: `vta`).
+- All `callgraph` invocations use `timeout 300` (5 minutes) to prevent hanging on large codebases.
+- If the chosen algorithm times out: fall back to the next faster algorithm (`vta` → `rta` → `cha`), then narrow scope to specific packages (e.g., `./cmd/...`, `./pkg/...`).
 
 ## Implementation Steps
 
@@ -54,14 +61,18 @@ which sfdp || echo "graphviz not found - visual graphs won't be generated (optio
 ### Step 2: Build Complete Call Graph
 
 ```bash
-# Build call graph in digraph format from workspace root (where go.mod is)
-# Note: This may take time for large codebases
-callgraph -format=digraph . > /tmp/callgraph.txt
+# ALGO defaults to "vta" unless user specified --algo
+ALGO="${USER_ALGO:-vta}"
+
+# Build call graph from workspace root
+# Timeout after 300s (5 minutes) to avoid hanging on large codebases
+timeout 300 callgraph -algo "${ALGO}" -format=digraph . > /tmp/callgraph.txt
 ```
 
 **Error Handling:**
 - IF build fails (compilation errors) → Note in report that call graph cannot be built
-- IF command times out (very large codebase) → Consider analyzing specific packages only
+- IF command times out → Fall back to next faster algorithm (`vta` → `rta` → `cha`) and retry
+- IF all algorithms time out → Narrow scope: `timeout 300 callgraph -algo rta -format=digraph ./cmd/... ./pkg/... > /tmp/callgraph.txt`
 - IF successful → Continue to Step 3
 
 **Output:** `/tmp/callgraph.txt` containing the full program call graph
@@ -71,29 +82,25 @@ callgraph -format=digraph . > /tmp/callgraph.txt
 Extract the vulnerable function signature from CVE details.
 
 ```bash
-# Search for exact function in call graph nodes
+# Search for exact function in the cached call graph
 VULN_FUNC="<package-path>.<vulnerable-function>"
-callgraph -format=digraph . | digraph nodes | grep "${VULN_FUNC}$"
+cat /tmp/callgraph.txt | digraph nodes | grep "${VULN_FUNC}$"
 ```
 
-**Interpretation:**
-- IF function found → Function is called somewhere in the codebase → Continue to Step 4
-- IF function NOT found → Function is not called (dead code or not imported) → Return "NOT AFFECTED (Dead Code)"
-
 **Decision Point:**
-- IF vulnerable function NOT in graph → Verdict: NOT AFFECTED → Exit skill
-- IF vulnerable function found in graph → Continue to prove reachability
+- IF function found → Continue to Step 4
+- IF function NOT found → Report as LOW RISK → Recommend manual review → Exit skill
 
 ### Step 4: Find Execution Paths from Entry Points
 
 Search for paths from main entry points to the vulnerable function.
 
 ```bash
-# Find path from main() to vulnerable function
+# Find path from main() to vulnerable function using cached call graph
 ENTRY_POINT="command-line-arguments.main"
 VULN_FUNC="<package-path>.<vulnerable-function>"
 
-callgraph -format=digraph . | \
+cat /tmp/callgraph.txt | \
   digraph somepath "${ENTRY_POINT}" "${VULN_FUNC}"
 ```
 
@@ -104,9 +111,9 @@ callgraph -format=digraph . | \
 - HTTP handlers if it's a web service
 
 **Interpretation:**
-- IF path found → Vulnerable function IS reachable → HIGH CONFIDENCE: AFFECTED
+- IF path found → Vulnerable function IS reachable → HIGH RISK
 - IF no path found → Check alternative entry points
-- IF still no path → Function may be in unreachable code → MEDIUM CONFIDENCE: POSSIBLY AFFECTED
+- IF still no path → Function may be in unreachable code → MEDIUM RISK
 
 **Output:** Text representation of call chain or empty result
 
@@ -115,8 +122,8 @@ callgraph -format=digraph . | \
 If path exists, generate visual representation:
 
 ```bash
-# Generate DOT format
-callgraph -format=digraph . | \
+# Generate DOT format from cached call graph
+cat /tmp/callgraph.txt | \
   digraph somepath "${ENTRY_POINT}" "${VULN_FUNC}" | \
   digraph to dot > /tmp/callgraph.dot
 
@@ -138,8 +145,8 @@ fi
 Extract human-readable call chain from digraph output:
 
 ```bash
-# Get call chain as text
-callgraph -format=digraph . | \
+# Get call chain as text from cached call graph
+cat /tmp/callgraph.txt | \
   digraph somepath "${ENTRY_POINT}" "${VULN_FUNC}" | \
   digraph to dot | \
   grep " -> " | \
@@ -160,22 +167,19 @@ Execution Path Found:
 main → Handler → ProcessFunction → <vulnerable-function> (VULNERABLE)
 ```
 
-### Step 7: Analyze Results and Assign Confidence
+### Step 7: Assess Risk Level
 
-**High Confidence - DEFINITELY AFFECTED:**
+**HIGH RISK:**
 - Reachable path from main() to vulnerable function
-- Evidence: Call graph shows execution path
-- Action: Immediate remediation required
+- Action: Proceed to remediation
 
-**Medium Confidence - LIKELY AFFECTED:**
+**MEDIUM RISK:**
 - Function in graph but no direct path from main()
-- May be called conditionally or from tests
-- Action: Manual review + remediation recommended
+- Action: Recommend manual review + remediation
 
-**Not Affected:**
-- Function not in call graph at all
-- Dead code or not imported
-- Action: No remediation needed
+**LOW RISK:**
+- Function not found in call graph
+- Action: Recommend manual review to confirm
 
 ## Return Value
 
@@ -184,12 +188,12 @@ Return structured result to parent analysis:
 ```json
 {
   "method": "call-graph-reachability",
+  "algorithm": "vta",
   "vulnerable_function": "<package-path>.<vulnerable-function>",
   "found_in_graph": true,
   "reachable_from_main": true,
   "call_chain": "main → Handler → ProcessFunction → <vulnerable-function>",
-  "confidence": "HIGH",
-  "verdict": "AFFECTED",
+  "risk_level": "HIGH",
   "evidence": {
     "dot_file": "/tmp/callgraph.dot",
     "svg_file": "callgraph.svg"
@@ -204,8 +208,8 @@ Return structured result to parent analysis:
 - Suggest: Fix compilation errors first
 
 ### Very Large Codebases
-- IF call graph generation times out (>5 minutes) → Consider analyzing specific packages
-- Alternative: `callgraph -format=digraph ./cmd/... ./pkg/...` (specific paths)
+- IF chosen algorithm times out (>5 minutes) → Fall back to next faster algorithm (`vta` → `rta` → `cha`)
+- IF all algorithms time out → Narrow scope: `timeout 300 callgraph -algo rta -format=digraph ./cmd/... ./pkg/... > /tmp/callgraph.txt`
 
 ### Missing Entry Points
 - IF `command-line-arguments.main` not found → Look for other entry points
@@ -219,12 +223,15 @@ Return structured result to parent analysis:
 ## Example: Generic Analysis Workflow
 
 ```bash
-# Step 1: Check if function is called
-$ callgraph -format=digraph . | digraph nodes | grep "<package-path>.<vulnerable-function>$"
+# Step 1: Build call graph (default: vta; user can override with --algo)
+$ timeout 300 callgraph -algo vta -format=digraph . > /tmp/callgraph.txt
+
+# Step 2: Check if function is called
+$ cat /tmp/callgraph.txt | digraph nodes | grep "<package-path>.<vulnerable-function>$"
 <package-path>.<vulnerable-function>
 
-# Step 2: Find path from main
-$ callgraph -format=digraph . | digraph somepath command-line-arguments.main <package-path>.<vulnerable-function>
+# Step 3: Find path from main
+$ cat /tmp/callgraph.txt | digraph somepath command-line-arguments.main <package-path>.<vulnerable-function>
 digraph {
     "command-line-arguments.main" -> "<app-package>.Handler";
     "<app-package>.Handler" -> "<app-package>.ProcessFunction";
@@ -232,10 +239,10 @@ digraph {
     "<intermediate-package>.HelperFunction" -> "<vulnerable-package>.<vulnerable-function>";
 }
 
-# Step 3: Generate visual graph
-$ callgraph -format=digraph . | digraph somepath command-line-arguments.main <package-path>.<vulnerable-function> | digraph to dot | sfdp -Tsvg -ocallgraph.svg
+# Step 4: Generate visual graph
+$ cat /tmp/callgraph.txt | digraph somepath command-line-arguments.main <package-path>.<vulnerable-function> | digraph to dot | sfdp -Tsvg -ocallgraph.svg
 
-# Result: AFFECTED (HIGH CONFIDENCE)
+# Result: HIGH RISK — reachable path found
 # Call chain: main → Handler → ProcessFunction → HelperFunction → <vulnerable-function>
 ```
 
@@ -249,8 +256,7 @@ This skill is called from Phase 2, Method 4 of the `/compliance:analyze-cve` com
 - When tools are available (checked in Phase 0)
 
 **Return to Parent:**
-- Provide confidence level (HIGH/MEDIUM/LOW)
-- Provide verdict (AFFECTED/NOT AFFECTED)
+- Provide risk level (HIGH/MEDIUM/LOW)
 - Include evidence (call chain, graph files)
 - Update report with reachability findings
 

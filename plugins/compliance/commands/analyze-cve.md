@@ -1,6 +1,6 @@
 ---
 description: Analyze Go codebase for CVE vulnerabilities and suggest fixes
-argument-hint: <CVE-ID>
+argument-hint: <CVE-ID> [--algo=vta|rta|cha|static]
 ---
 
 ## Name
@@ -8,7 +8,7 @@ compliance:analyze-cve
 
 ## Synopsis
 ```
-/compliance:analyze-cve <CVE-ID>
+/compliance:analyze-cve <CVE-ID> [--algo=vta|rta|cha|static]
 ```
 
 ## Description
@@ -24,7 +24,13 @@ This command helps developers:
 
 ### Phase 0: Setup and Tool Validation
 
-1. **Check Required Tools**
+1. **Parse Arguments**
+   
+   - Extract `<CVE-ID>` (required) from the first argument
+   - Extract `--algo` value if provided (optional, default: `vta`)
+   - Valid `--algo` values: `vta`, `rta`, `cha`, `static`
+
+2. **Check Required Tools**
    
    Check for all required tools and collect missing ones:
    
@@ -45,7 +51,7 @@ This command helps developers:
    which digraph 2>/dev/null || echo "MISSING: digraph"
    ```
 
-2. **If ANY Tool is Missing**
+3. **If ANY Tool is Missing**
    
    Display error message with installation instructions:
    
@@ -76,7 +82,7 @@ This command helps developers:
    
    **Exit with error code** - Do NOT proceed with analysis
 
-3. **If All Tools Present**
+4. **If All Tools Present**
    
    Display confirmation and proceed:
    
@@ -99,7 +105,7 @@ This command helps developers:
 ### Phase 1: CVE Intelligence Gathering
 
 **Note**: This is a complex information gathering process - see skill documentation for full details  
-**Skill**: [cve-intelligence-gathering](../../skills/cve-intelligence-gathering/SKILL.md)
+**Skill**: [cve-intelligence-gathering](../skills/cve-intelligence-gathering/SKILL.md)
 
 **Summary**:
 
@@ -131,7 +137,7 @@ This command helps developers:
    - Clearly mark information sources (verified vs user-provided)
    - Assess information completeness and Go relevance
 
-**For detailed implementation of CVE gathering**, refer to the [cve-intelligence-gathering skill](../../skills/cve-intelligence-gathering/SKILL.md).
+**For detailed implementation of CVE gathering**, refer to the [cve-intelligence-gathering skill](../skills/cve-intelligence-gathering/SKILL.md).
 
 **Decision Point After Phase 1:**
 - IF CVE details NOT found (no web results + user declined to provide info) → Exit with error
@@ -169,7 +175,8 @@ This command helps developers:
    
    - **Method 4: Call Graph Reachability Analysis** (Highest Confidence)
      - **Note**: This is a complex analysis - see skill documentation for full details
-     - **Skill**: [call-graph-analysis](../../skills/call-graph-analysis/SKILL.md)
+     - **Skill**: [call-graph-analysis](../skills/call-graph-analysis/SKILL.md)
+     - **Pass to skill**: If user provided `--algo`, forward it as the algorithm preference; otherwise the skill defaults to `vta`
      - **Summary**:
        - Build complete program call graph using `callgraph` tool
        - Search for vulnerable function in graph nodes
@@ -181,7 +188,7 @@ This command helps developers:
        - Codebase compiles successfully
        - Highest confidence assessment is needed
      - **Output**:
-       - Reachability verdict (reachable/not reachable/uncertain)
+       - Reachability risk level (HIGH/MEDIUM/LOW)
        - Call chain text (e.g., "main → handler → parse → VULN")
        - Visual graph file: `callgraph.svg`
      - **For detailed implementation**, refer to the skill documentation
@@ -277,18 +284,24 @@ This command helps developers:
      - Note any gaps in analysis or areas needing manual review
 
 **Decision Point After Phase 2:**
-- IF clearly NOT AFFECTED:
-  - Package not in dependencies → Generate "Not Affected" report (Phase 3) → Exit
-  - Package present but version not vulnerable → Generate "Not Affected" report (Phase 3) → Exit
-  - Dead code (no reachable path found) → Generate "Not Affected" report (Phase 3) → Exit
 
-- IF clearly AFFECTED:
-  - High confidence (call graph shows reachable path OR govulncheck confirms) → Generate "Affected" report (Phase 3) → Proceed to Phase 4 (Remediation)
-  - Medium confidence (package + version + usage found) → Generate "Likely Affected" report (Phase 3) → Proceed to Phase 4 (Remediation)
+Assign a **risk level** based on the evidence gathered:
 
-- IF UNCLEAR:
-  - Low confidence (package present but no usage evidence) → Generate "Possibly Affected - Manual Review Needed" report (Phase 3) → Offer to continue to Phase 4 or exit
-  - Conflicting signals → Generate "Unclear - Manual Review Needed" report (Phase 3) → Offer to continue to Phase 4 or exit
+- **HIGH RISK**:
+  - Call graph shows reachable path to vulnerable function, OR govulncheck confirms vulnerability
+  - Generate report (Phase 3) → Proceed to Phase 4 (Remediation)
+
+- **MEDIUM RISK**:
+  - Package + vulnerable version found in dependencies, usage evidence present but reachability not fully proven
+  - Generate report (Phase 3) → Proceed to Phase 4 (Remediation)
+
+- **LOW RISK**:
+  - Package not in dependencies, OR version not in vulnerable range, OR no reachable path found
+  - Generate report (Phase 3) → Recommend manual review → Exit
+
+- **NEEDS REVIEW**:
+  - Conflicting signals, incomplete analysis, or low confidence evidence
+  - Generate report (Phase 3) → Recommend manual review → Offer to continue to Phase 4 or exit
 
 ---
 
@@ -304,7 +317,7 @@ This command helps developers:
    **Design the report structure based on the analysis performed:**
    
    - **Start with Executive Summary**:
-     - What's the bottom-line conclusion? (AFFECTED/NOT AFFECTED/UNKNOWN)
+     - What's the risk level? (HIGH RISK / MEDIUM RISK / LOW RISK / NEEDS REVIEW)
      - What's the confidence level and why?
      - What should the reader know immediately?
    
@@ -333,10 +346,10 @@ This command helps developers:
      - Account for mitigating factors
    
    - **Provide Next Steps**:
-     - If affected: specific remediation guidance
-     - If not affected: explain why and suggest monitoring
-     - If unclear: recommend manual review steps
-     - Prioritize based on risk assessment
+     - High/Medium risk: specific remediation guidance
+     - Low risk: explain findings and suggest monitoring
+     - Needs review: recommend manual review steps
+     - Always recommend the user verify findings independently
    
    - **Document Sources and Limitations**:
      - What sources were consulted?
@@ -356,9 +369,9 @@ This command helps developers:
      - Inferred or uncertain information
 
 **Decision Point After Phase 3:**
-- IF verdict is "NOT AFFECTED" → Exit (no remediation needed)
-- IF verdict is "AFFECTED" or "LIKELY AFFECTED" → Continue to Phase 4 (Remediation Guidance)
-- IF verdict is "UNCLEAR" or "POSSIBLY AFFECTED":
+- IF HIGH RISK or MEDIUM RISK → Continue to Phase 4 (Remediation Guidance)
+- IF LOW RISK → Exit (recommend user verify independently)
+- IF NEEDS REVIEW:
   - Ask user: "Manual review is recommended. Would you like remediation guidance anyway?"
   - IF yes → Continue to Phase 4
   - IF no → Exit
@@ -368,16 +381,16 @@ This command helps developers:
 ### Phase 4: Remediation Guidance (Conditional - Only for Affected Code)
 
 **Note**: This is a complex planning process - see skill documentation for full details  
-**Skill**: [remediation-planning](../../skills/remediation-planning/SKILL.md)
+**Skill**: [remediation-planning](../skills/remediation-planning/SKILL.md)
 
 **Summary**:
 
-1. **If Codebase is NOT Affected**
-   - Explain why (version not vulnerable, package not used, etc.)
-   - Suggest preventive measures
-   - Recommend ongoing monitoring
+1. **If Low Risk**
+   - Explain findings and why risk is low
+   - Suggest preventive measures and ongoing monitoring
+   - Recommend user verify independently
 
-2. **If Codebase IS Affected**
+2. **If High or Medium Risk**
    
    Generate comprehensive remediation plan including:
    
@@ -414,7 +427,7 @@ This command helps developers:
      - Estimated effort
      - Rollback plan
 
-**For detailed implementation of remediation planning**, refer to the [remediation-planning skill](../../skills/remediation-planning/SKILL.md).
+**For detailed implementation of remediation planning**, refer to the [remediation-planning skill](../skills/remediation-planning/SKILL.md).
 
 **Decision Point After Phase 4:**
 - Present remediation guidance to user
@@ -471,7 +484,7 @@ This command helps developers:
 - **Format**: Markdown report at `.work/compliance/analyze-cve/{CVE-ID}/report.md`
 - **Content**:
   - Vulnerability details and severity
-  - Impact assessment (AFFECTED/NOT AFFECTED/UNCLEAR)
+  - Risk assessment (HIGH RISK / MEDIUM RISK / LOW RISK / NEEDS REVIEW)
   - Evidence from codebase analysis
   - Specific remediation recommendations
   - Applied fixes (if user approved)
@@ -490,6 +503,11 @@ This command helps developers:
   - Format: CVE-YYYY-NNNNN
   - Case insensitive
   - Required argument
+- `--algo`: Call graph construction algorithm (optional, default: `vta`)
+  - `vta` - Most precise, fewest false positives (recommended)
+  - `rta` - Good balance of precision and speed
+  - `cha` - Fast, less precise
+  - `static` - Fastest, least precise
 
 ## Notes
 

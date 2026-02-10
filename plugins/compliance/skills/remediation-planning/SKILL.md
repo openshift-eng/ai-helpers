@@ -42,13 +42,12 @@ Use this skill when:
 - Vulnerability type and remediation guidance
 
 **From Phase 2 (Codebase Impact Analysis):**
-- Impact verdict (AFFECTED/NOT AFFECTED/UNKNOWN)
-- Confidence level (HIGH/MEDIUM/LOW)
+- Risk level (HIGH / MEDIUM / LOW / NEEDS REVIEW)
 - Current package version and dependency type
 - Usage locations and functions being called
 
 **From Call Graph Analysis (optional):**
-- Reachability verdict and call chain
+- Reachability risk level and call chain
 - Entry points
 
 **From govulncheck (optional):**
@@ -57,10 +56,10 @@ Use this skill when:
 **Decision Tree:**
 
 ```
-IF verdict = "NOT_AFFECTED":
-  → No remediation needed (document why)
+IF risk_level = "LOW":
+  → Document findings, recommend monitoring and manual review
   
-IF verdict = "AFFECTED":
+IF risk_level = "HIGH" or "MEDIUM":
   IF fixed_version EXISTS:
     IF affected_package is in go.mod → Dependency Update (Step 2)
     ELSE IF affected_package is Go stdlib → Go Runtime Update (Step 2A)
@@ -71,7 +70,7 @@ IF verdict = "AFFECTED":
     IF remediation_guidance has "patch" → Apply Patch (Step 2D)
     ELSE → Workarounds (Step 3)
       
-IF verdict = "UNKNOWN":
+IF risk_level = "NEEDS_REVIEW":
   → Manual review + defensive workarounds (Step 3)
 ```
 
@@ -583,8 +582,7 @@ Return structured plan to parent command:
   
   "input_summary": {
     "cve_id": "<from Phase 1>",
-    "verdict": "<from Phase 2>",
-    "confidence": "<from Phase 2>",
+    "risk_level": "<from Phase 2>",
     "reachable": "<from call-graph-analysis or unknown>",
     "fixed_version_available": "<true|false from Phase 1>"
   },
@@ -687,8 +685,8 @@ This skill is called from Phase 4 of `/compliance:analyze-cve`.
 **Input Pipeline:**
 ```
 Phase 1 (CVE Intelligence) → CVE profile, severity, affected package, fixed version
-Phase 2 (Impact Analysis) → Verdict, confidence, current version, usage locations
-  ↓ Optional: Call Graph Analysis Skill → Reachability verdict, call chain
+Phase 2 (Impact Analysis) → Risk level, current version, usage locations
+  ↓ Optional: Call Graph Analysis Skill → Reachability risk level, call chain
   ↓ Optional: govulncheck → Detection result, vulnerable symbols
 Phase 3 (Report Generation) → Consolidated impact assessment report
 Phase 4 (THIS SKILL) → Complete remediation plan based on all inputs
