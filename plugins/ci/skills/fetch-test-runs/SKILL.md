@@ -126,13 +126,15 @@ The Sippy API returns a JSON array of test run objects:
     "url": "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-release-master-ci-4.22-e2e-aws-ovn-techpreview/2016123858595090432",
     "output": "fail [k8s.io/kubernetes/test/e2e/apimachinery/discovery.go:145]: Fail to access: /apis/stable.e2e-validating-admission-policy-1181/: the server could not find the requested resource",
     "test_name": "[sig-api-machinery] Discovery should validate PreferredVersion for each APIGroup [Conformance]",
-    "success": false
+    "success": false,
+    "failed_tests": 3
   },
   {
     "url": "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/...",
     "output": "",
     "test_name": "[sig-api-machinery] Discovery should validate PreferredVersion for each APIGroup [Conformance]",
-    "success": true
+    "success": true,
+    "failed_tests": 0
   }
 ]
 ```
@@ -156,7 +158,8 @@ Returns structured JSON with raw runs:
       "url": "https://prow.ci.openshift.org/...",
       "output": "fail [...]: error message",
       "test_name": "[sig-api-machinery] test name",
-      "success": false
+      "success": false,
+      "failed_tests": 3
     }
   ],
   "api_url": "http://127.0.0.1:8080/api/tests/v2/runs?test_id=..."
@@ -174,6 +177,7 @@ Returns structured JSON with raw runs:
   - **output**: The actual JUnit test failure output text (empty for successes)
   - **test_name**: Full test name
   - **success**: Boolean indicating if this run passed
+  - **failed_tests**: Count of all tests that failed in this job run. If `failed_tests > 10`, this is a **mass failure job** — the test may be caught up in a larger issue (e.g., infrastructure failure, installer failure) that needs further investigation to root cause. When many runs show mass failures, the regression may not be caused by a change specific to this test.
 - **api_url**: The API URL that was called
 
 **Error Response** (when success is false):
@@ -202,12 +206,17 @@ Runs Fetched: 18
 
 Successes: 0, Failures: 18
 
+Mass Failure Runs (>10 test failures in job): 4 of 18
+  ⚠ These runs had many other test failures — this test may be caught up in a larger issue.
+
 Sample Runs:
 
 1. [FAIL] Job URL: https://prow.ci.openshift.org/view/gs/test-platform-results/logs/...
+   Failed Tests in Job: 3
    Output: fail [k8s.io/kubernetes/test/e2e/apimachinery/discovery.go:145]: Fail to access...
 
-2. [FAIL] Job URL: https://prow.ci.openshift.org/view/gs/test-platform-results/logs/...
+2. [FAIL] [MASS FAILURE] Job URL: https://prow.ci.openshift.org/view/gs/test-platform-results/logs/...
+   Failed Tests in Job: 47
    Output: fail [k8s.io/kubernetes/test/e2e/apimachinery/discovery.go:145]: Fail to access...
 
 3. [PASS] Job URL: https://prow.ci.openshift.org/view/gs/test-platform-results/logs/...
@@ -385,6 +394,7 @@ fi
 - Backward compatible with analyze-regression command (accepts job_run_ids)
 - Summary format shows first 5 runs only, to keep output manageable
 - Runs are returned in order from most recent to least recent
+- Each run includes a `failed_tests` count — the total number of tests that failed in that job. If `failed_tests > 10`, it indicates a **mass failure job** where many tests failed together, suggesting the test may be caught up in a larger issue (infrastructure failure, installer failure, etc.) rather than a regression specific to this test
 
 ## See Also
 

@@ -185,11 +185,22 @@ def format_summary(results: Dict[str, Any]) -> str:
     lines.append(f"Successes: {success_count}, Failures: {failure_count}")
     lines.append("")
 
+    # Count mass failure jobs (failed_tests > 10)
+    mass_failure_count = sum(1 for r in runs if r.get('failed_tests', 0) > 10)
+    if mass_failure_count > 0:
+        lines.append(f"Mass Failure Runs (>10 test failures in job): {mass_failure_count} of {len(runs)}")
+        lines.append("  ⚠ These runs had many other test failures — this test may be caught up in a larger issue.")
+        lines.append("")
+
     # Show first few runs
     lines.append("Sample Runs:")
     for i, run in enumerate(runs[:5], 1):
         status = "PASS" if run.get('success', False) else "FAIL"
-        lines.append(f"\n{i}. [{status}] Job URL: {run.get('url', 'N/A')}")
+        failed_tests = run.get('failed_tests', 0)
+        mass_flag = " [MASS FAILURE]" if failed_tests > 10 else ""
+        lines.append(f"\n{i}. [{status}]{mass_flag} Job URL: {run.get('url', 'N/A')}")
+        if failed_tests > 0:
+            lines.append(f"   Failed Tests in Job: {failed_tests}")
         output_text = run.get('output', '')
         if output_text:
             preview = output_text[:200]
