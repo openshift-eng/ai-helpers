@@ -36,7 +36,7 @@ def get_latest_release() -> str:
     return ocp_releases[0]
 
 
-def lookup_test(test_name: str, release: str) -> list:
+def lookup_test(test_name: str, release: str, collapse: bool = True) -> list:
     """Look up a test by name in the Sippy tests API."""
     filter_param = json.dumps({
         "items": [
@@ -47,10 +47,13 @@ def lookup_test(test_name: str, release: str) -> list:
             }
         ],
     })
-    params = urllib.parse.urlencode({
+    query = {
         "release": release,
         "filter": filter_param,
-    })
+    }
+    if not collapse:
+        query["collapse"] = "false"
+    params = urllib.parse.urlencode(query)
     url = f"{SIPPY_API_BASE}/tests/v2?{params}"
 
     try:
@@ -81,12 +84,24 @@ def format_summary(tests: list) -> str:
         return "No tests found matching the given name."
 
     lines = []
-    for t in tests:
+    for i, t in enumerate(tests):
+        if i > 0:
+            lines.append("-" * 60)
         lines.append(f"Test: {t.get('name', 'N/A')}")
         lines.append(f"  Test ID:         {t.get('test_id', 'N/A')}")
         lines.append(f"  Suite:           {t.get('suite_name', '') or 'N/A'}")
         lines.append(f"  Jira Component:  {t.get('jira_component', 'N/A')}")
-        lines.append(f"  Open Bugs:       {t.get('open_bugs', 0)}")
+
+        variants = t.get("variants")
+        if variants:
+            lines.append(f"  Variants:        {', '.join(variants)}")
+
+        open_bugs = t.get("open_bugs", 0)
+        if open_bugs > 0:
+            lines.append(f"  Open Bugs:       {open_bugs} (bugs filed mentioning this test)")
+        else:
+            lines.append(f"  Open Bugs:       0")
+
         lines.append("")
         lines.append(f"  Current Period (last 7 days):")
         lines.append(f"    Runs:       {t.get('current_runs', 0)}")
@@ -127,6 +142,11 @@ def main():
         default="json",
         help="Output format (default: json)",
     )
+    parser.add_argument(
+        "--no-collapse",
+        action="store_true",
+        help="Show per-variant breakdown instead of collapsing all variants into one row",
+    )
 
     args = parser.parse_args()
 
@@ -135,7 +155,7 @@ def main():
         release = get_latest_release()
         print(f"Using latest release: {release}", file=sys.stderr)
 
-    tests = lookup_test(args.test_name, release)
+    tests = lookup_test(args.test_name, release, collapse=not args.no_collapse)
 
     if args.format == "json":
         print(json.dumps(tests, indent=2))

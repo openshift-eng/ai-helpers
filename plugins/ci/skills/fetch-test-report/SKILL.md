@@ -5,7 +5,7 @@ description: Fetch an OpenShift CI test report by name to get pass rates, test I
 
 # Fetch Test Report
 
-This skill fetches a report for an OpenShift CI test by its full name using the Sippy tests API. It returns test metadata including the BigQuery/Component Readiness test ID, Jira component, pass rates for the current and previous reporting periods, and open bug counts.
+This skill fetches a report for an OpenShift CI test by its full name using the Sippy tests API. It returns test metadata including the BigQuery/Component Readiness test ID, Jira component, pass rates for the current and previous reporting periods, and open bug counts. The `open_bugs` field counts Jira bugs that mention this test by name, which can help surface bugs that have been filed but not yet triaged in Component Readiness.
 
 ## When to Use This Skill
 
@@ -16,6 +16,8 @@ Use this skill when you need to:
 - Find the Jira component associated with a test
 - Determine if a test is flaking, failing, or stable
 - Get run counts and failure/flake breakdowns for a test
+- Check if there are open Jira bugs mentioning this test (may not yet be triaged in Component Readiness)
+- See a per-variant breakdown of pass rates to identify if the test fails only in certain job types
 
 ## Prerequisites
 
@@ -47,11 +49,15 @@ The skill uses a Python script to query the Sippy tests API:
 # Path to the Python script
 script_path="plugins/ci/skills/fetch-test-report/fetch_test_report.py"
 
-# Fetch test report in JSON format
+# Fetch test report in JSON format (collapsed — one row for the test across all variants)
 python3 "$script_path" "<test_name>" --release "$release" --format json
 
 # Or fetch as human-readable summary
 python3 "$script_path" "<test_name>" --release "$release" --format summary
+
+# Fetch per-variant breakdown (one row per variant combo — useful for identifying
+# if the test is failing only in certain job types, e.g., aws vs metal, upgrade vs new-install)
+python3 "$script_path" "<test_name>" --release "$release" --no-collapse --format json
 ```
 
 ### Step 3: Parse the Output
@@ -75,7 +81,10 @@ runs=$(echo "$test_data" | jq -r '.[0].current_runs')
 
 ```
 GET http://127.0.0.1:8080/api/tests/v2?release={release}&filter={filter_json}
+GET http://127.0.0.1:8080/api/tests/v2?release={release}&filter={filter_json}&collapse=false
 ```
+
+When `collapse=false` is specified, the API returns one row per variant combination instead of a single collapsed row. Each row includes a `variants` array showing the specific variant combo (e.g., `["aws", "ovn", "amd64", "upgrade-micro"]`). This helps identify if the test is failing in certain types of jobs and not others.
 
 ### Filter Format
 
@@ -138,12 +147,13 @@ The API returns a JSON array of test objects:
 - `test_id`: BigQuery / Component Readiness test ID (format: `suite:hash`). This is the ID used with modern skills like `fetch-regression-details` and `fetch-test-runs`.
 - `name`: Full test name
 - `suite_name`: Test suite (e.g., `openshift-tests`)
+- `variants`: Array of variant strings (only present when `--no-collapse` / `collapse=false` is used). Shows the specific variant combo for this row (e.g., `["aws", "ovn", "amd64", "upgrade-micro"]`).
 - `jira_component`: Associated OCPBUGS Jira component
 - `jira_component_id`: Jira component numeric ID
 - `current_*`: Metrics for the current 7-day reporting period
 - `previous_*`: Metrics for the 7 days before the current period
 - `net_working_improvement`: Change in working percentage (positive = improving)
-- `open_bugs`: Number of open bugs linked to this test
+- `open_bugs`: Number of open Jira bugs that mention this test by name. This can surface bugs that have been filed but not yet triaged in Component Readiness. Useful for finding existing work before filing a duplicate.
 
 ## Error Handling
 
@@ -212,7 +222,17 @@ Test: [sig-api-machinery] Discovery should validate PreferredVersion for each AP
   Trend:  improved (+1.01%)
 ```
 
-### Example 3: Fetch Test Report for a Different Release
+### Example 3: Fetch Per-Variant Breakdown
+
+```bash
+python3 plugins/ci/skills/fetch-test-report/fetch_test_report.py \
+  "[sig-api-machinery] Discovery should validate PreferredVersion for each APIGroup [Conformance]" \
+  --release 4.22 --no-collapse --format summary
+```
+
+This returns one row per variant combination, showing which specific job types the test is passing or failing in. Useful for regression analysis to determine if the failure is platform-specific, upgrade-specific, etc.
+
+### Example 4: Fetch Test Report for a Different Release
 
 ```bash
 python3 plugins/ci/skills/fetch-test-report/fetch_test_report.py \

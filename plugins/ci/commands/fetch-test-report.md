@@ -15,7 +15,7 @@ ci:fetch-test-report
 
 ## Description
 
-The `ci:fetch-test-report` command fetches a report for an OpenShift CI test by name from the Sippy API. It returns the test's BigQuery/Component Readiness test ID, Jira component, pass rates for the current and previous 7-day periods, and open bug counts.
+The `ci:fetch-test-report` command fetches a report for an OpenShift CI test by name from the Sippy API. It returns the test's BigQuery/Component Readiness test ID, Jira component, pass rates for the current and previous 7-day periods, and open bug counts. The `open_bugs` field counts Jira bugs that mention this test by name — this can help surface bugs that have been filed but not yet triaged in Component Readiness.
 
 ## Implementation
 
@@ -30,12 +30,19 @@ The `ci:fetch-test-report` command fetches a report for an OpenShift CI test by 
    python3 plugins/ci/skills/fetch-test-report/fetch_test_report.py "<test-name>" --release "$release" --format summary
    ```
 
-3. **Present the results**: Show the user the test report including test ID, pass rates, Jira component, and trend.
+   To see a per-variant breakdown (one row per variant combo), add `--no-collapse`:
+   ```bash
+   python3 plugins/ci/skills/fetch-test-report/fetch_test_report.py "<test-name>" --release "$release" --no-collapse --format summary
+   ```
+
+3. **Present the results**: Show the user the test report including test ID, pass rates, Jira component, open bugs, and trend. If `open_bugs > 0`, note that existing Jira bugs mention this test — these may be relevant even if the regression hasn't been triaged in Component Readiness yet.
 
 ## Return Value
 
 - **Format**: Human-readable summary of the test report
-- **Key fields**: test_id (BigQuery/Component Readiness ID), jira_component, current/previous pass rates, run counts, trend
+- **Key fields**: test_id (BigQuery/Component Readiness ID), jira_component, current/previous pass rates, run counts, trend, open_bugs
+- **open_bugs**: Count of Jira bugs mentioning this test by name — helps find bugs filed but not yet triaged in Component Readiness
+- **variants** (with `--no-collapse`): Per-variant breakdown showing which job types the test passes/fails in
 
 ## Examples
 

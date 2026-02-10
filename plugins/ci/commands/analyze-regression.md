@@ -72,7 +72,30 @@ This command is useful for:
 
    See `plugins/ci/skills/fetch-regression-details/SKILL.md` for complete implementation details.
 
-3. **Check Triage Status and Fetch JIRA Progress**: Determine triage state and analyze bug progress
+3. **Fetch Global Test Report**: Use the `fetch-test-report` skill to check how this test is doing globally
+
+   Use the test name and release from the regression data to fetch the global test report with per-variant breakdown:
+
+   ```bash
+   # Extract test name and release from regression data
+   test_name=$(echo "$regression_data" | jq -r '.test_name')
+   release=$(echo "$regression_data" | jq -r '.release')
+
+   # Fetch per-variant breakdown to see which job types are affected
+   script_path="plugins/ci/skills/fetch-test-report/fetch_test_report.py"
+   test_report=$(python3 "$script_path" "$test_name" --release "$release" --no-collapse --format json)
+   ```
+
+   **Analyze the test report**:
+
+   - **Global pass rate**: Check the overall pass rate across all variants. A low pass rate confirms a widespread issue; a high pass rate with the regression suggests the problem is variant-specific.
+   - **Per-variant breakdown**: With `--no-collapse`, each row shows a specific variant combo (e.g., `["aws", "ovn", "amd64", "upgrade-micro"]`). Compare pass rates across variants to identify if the failure is platform-specific, network-specific, or upgrade-specific.
+   - **Open bugs**: If `open_bugs > 0`, someone has already filed a Jira bug mentioning this test. This bug may not yet be triaged in Component Readiness. Note these bugs in the report — they could be used to triage the regression without filing a duplicate.
+   - **Trend**: Check `net_working_improvement` — positive means improving, negative means getting worse.
+
+   Include the global test report findings in Section 1 of the final report.
+
+4. **Check Triage Status and Fetch JIRA Progress**: Determine triage state and analyze bug progress
 
    Check if the regression has already been triaged and fetch JIRA details:
 
@@ -83,7 +106,7 @@ This command is useful for:
 
    **If `triage_count > 0` (regression is triaged)**:
 
-   This means a human has already attributed this regression to a specific bug. For each triage entry, fetch the JIRA issue to analyze progress.
+   This means a human has already attributed this regression to a specific bug. For each triage entry, fetch the JIRA issue to analyze progress. Also check if step 3's test report found open bugs that may be related.
 
    ```bash
    # Check if JIRA_TOKEN environment variable is set
@@ -135,12 +158,13 @@ This command is useful for:
 
    **If `triage_count == 0` (regression is NOT triaged)**:
    - Note that no bug has been filed yet
-   - Continue with full investigation (steps 4-9)
-   - Bug filing recommendations will be provided in step 10
+   - If step 3's test report found `open_bugs > 0`, note these — someone may have filed a bug that hasn't been triaged yet
+   - Continue with full investigation (steps 5-10)
+   - Bug filing recommendations will be provided in step 11
 
-   **Always continue to step 4** regardless of triage status to provide full analysis.
+   **Always continue to step 5** regardless of triage status to provide full analysis.
 
-4. **Interpret Regression Data**: Analyze failure patterns from `sample_failed_jobs`
+5. **Interpret Regression Data**: Analyze failure patterns from `sample_failed_jobs`
 
    Parse the `sample_failed_jobs` dictionary from the regression data:
 
@@ -238,14 +262,14 @@ This command is useful for:
      - Priority: **Low**
      - Action: "Issue appears to have been resolved. The failures occurred in older runs, not recent ones."
 
-5. **Analyze Failure Output Consistency**: Use the `fetch-test-runs` skill
+6. **Analyze Failure Output Consistency**: Use the `fetch-test-runs` skill
 
    Use the `fetch-test-runs` skill to fetch and analyze actual test failure outputs from all failed job runs. This helps determine if all failures have the same root cause or if there are multiple issues.
 
    **Implementation**:
 
    ```bash
-   # Extract test_id from regression data
+   # Extract test_id from regression data (already fetched in step 2)
    test_id=$(echo "$regression_data" | jq -r '.test_id')
 
    # Collect all job_run_ids from sample_failed_jobs
@@ -327,14 +351,14 @@ This command is useful for:
       - Example: "API endpoint not available" if errors mention missing API resources
       - Example: "Timeout issue" if errors mention timeouts or waiting conditions
 
-6. **Determine Regression Start Date**: Use the `fetch-test-runs` skill with full history
+7. **Determine Regression Start Date**: Use the `fetch-test-runs` skill with full history
 
-   For the job with the most failures (identified in step 4), fetch the complete test run history including successes to determine when the regression started. Use 28 days of history to ensure we can find the regression start point.
+   For the job with the most failures (identified in step 5), fetch the complete test run history including successes to determine when the regression started. Use 28 days of history to ensure we can find the regression start point.
 
    **Implementation**:
 
    ```bash
-   # Get the job name with the most failures from step 4 analysis
+   # Get the job name with the most failures from step 5 analysis
    # This is the first job in the sorted list (sorted by failure count descending)
    most_failed_job=$(echo "$regression_data" | jq -r '
      .sample_failed_jobs
@@ -407,15 +431,15 @@ This command is useful for:
 
    **Note**: If the API is unavailable or no clear start date can be determined, skip this section entirely. Do not include inconclusive results.
 
-7. **Identify Suspect PRs in Payload**: Use `fetch-prowjob-json` and `fetch-new-prs-in-payload` skills
+8. **Identify Suspect PRs in Payload**: Use `fetch-prowjob-json` and `fetch-new-prs-in-payload` skills
 
-   **Only perform this step if step 6 successfully identified a clear regression start point** (i.e., a first failing run URL exists). If step 6 was skipped or inconclusive, skip this step entirely.
+   **Only perform this step if step 7 successfully identified a clear regression start point** (i.e., a first failing run URL exists). If step 6 was skipped or inconclusive, skip this step entirely.
 
    This step identifies pull requests that may have caused the regression by examining what was new in the payload where failures began.
 
-   **Step 7a: Get the payload tag from the first failing run**
+   **Step 8a: Get the payload tag from the first failing run**
 
-   Use the `fetch-prowjob-json` skill to fetch the prowjob.json for the first failing run identified in step 6.
+   Use the `fetch-prowjob-json` skill to fetch the prowjob.json for the first failing run identified in step 7.
 
    ```bash
    # The first_failing_run_url comes from step 6
@@ -432,7 +456,7 @@ This command is useful for:
 
    If the prowjob.json cannot be fetched or the `release.openshift.io/tag` annotation is missing (e.g., manually triggered jobs), skip the rest of this step.
 
-   **Step 7b: Fetch new PRs in the payload**
+   **Step 8b: Fetch new PRs in the payload**
 
    ```bash
    script_path="plugins/ci/skills/fetch-new-prs-in-payload/fetch_new_prs_in_payload.py"
@@ -441,20 +465,20 @@ This command is useful for:
 
    See `plugins/ci/skills/fetch-new-prs-in-payload/SKILL.md` for complete implementation details.
 
-   **Step 7c: Identify potentially related PRs**
+   **Step 8c: Identify potentially related PRs**
 
    From the list of new PRs, identify candidates that might be related to the regression. Filter based on:
 
    1. **Component match**: PR component name matches or overlaps with the regression's `component` or `capability`
    2. **Repository match**: PR is from a repo related to the failing test (e.g., a test in `[sig-network]` and a PR from `openshift/ovn-kubernetes`)
-   3. **Title keywords**: PR description contains keywords related to the test name, error messages from step 5, or the affected subsystem
+   3. **Title keywords**: PR description contains keywords related to the test name, error messages from step 6, or the affected subsystem
    4. **Bug association**: PR has a `bug_url` referencing a fix for something in the same area
 
    Select a maximum of **5** candidate PRs to investigate (to avoid excessive API calls). Prioritize PRs whose component or repo most closely matches the regression.
 
-   If no PRs look related based on filtering, note that in the report and skip step 7d.
+   If no PRs look related based on filtering, note that in the report and skip step 8d.
 
-   **Step 7d: Check PR details with GitHub CLI**
+   **Step 8d: Check PR details with GitHub CLI**
 
    For each candidate PR (up to 5), use the `gh` CLI to fetch the PR description and diff summary:
 
@@ -478,7 +502,7 @@ This command is useful for:
    **Analyze each PR for relevance**:
 
    - Read the PR description and diff to determine if the changes could plausibly affect the failing test
-   - Look for changes to files, packages, or APIs referenced in the test error messages (from step 5)
+   - Look for changes to files, packages, or APIs referenced in the test error messages (from step 6)
    - Note if the PR modifies test infrastructure, API schemas, or operator behavior relevant to the regression
    - Classify each PR as:
      - **Likely related**: Changes directly affect the area where the test is failing
@@ -509,7 +533,7 @@ This command is useful for:
       Relevance: Router image update, unrelated to test failure area
    ```
 
-8. **Identify Related Regressions**: Use the `list-regressions` skill to find similar failing tests
+9. **Identify Related Regressions**: Use the `list-regressions` skill to find similar failing tests
 
    Fetch all regressions for the same release and component to find related regressions that may share the same root cause.
 
@@ -564,33 +588,35 @@ This command is useful for:
    '
    ```
 
-9. **Check Existing Triages**: Look for related triage records
+10. **Check Existing Triages**: Look for related triage records
 
    - Query regression data for triages with similar test names
    - Identify triages from same job runs
    - Present existing JIRA tickets that might already cover this regression
    - This implements: "scan for pre-existing triages that look related"
 
-10. **Prepare Bug Filing Recommendations or Existing Bug Status**: Generate actionable information
+11. **Prepare Bug Filing Recommendations or Existing Bug Status**: Generate actionable information
 
    **If regression is NOT triaged** (no existing JIRA):
    - Component assignment (from test mappings)
-   - Bug summary suggestion based on failure pattern (informed by step 4 pattern analysis)
+   - If step 3's test report found `open_bugs > 0`, note these existing bugs — one may be suitable for triaging this regression without filing a duplicate
+   - Bug summary suggestion based on failure pattern (informed by step 5 pattern analysis)
    - Bug description template including:
      - Test name and release
      - Regression opened date
      - Affected variants
      - Failure patterns identified (permafail/flaky/resolved/recent)
-     - Pass sequence analysis from step 4
-     - **Failure output consistency analysis from step 5** (if available):
+     - Pass sequence analysis from step 5
+     - **Global test report from step 3**: overall pass rate, per-variant breakdown, open bugs
+     - **Failure output consistency analysis from step 6** (if available):
        - Common error message
        - Consistency percentage
        - Key debugging information (file references, resources, stack traces)
      - **Sippy Test Details report links** - this is critical for debugging:
        - Link for the current regression (converted `test_details_ui_url`)
        - Links for each related regression found in step 8 (each regression has its own `test_details_url` from the list-regressions data - convert each to UI URL)
-     - Regression start date (if determined in step 6)
-     - Suspect PRs from payload analysis (if determined in step 7) — include PR URLs and relevance classification for LIKELY and POSSIBLY related PRs
+     - Regression start date (if determined in step 7)
+     - Suspect PRs from payload analysis (if determined in step 8) — include PR URLs and relevance classification for LIKELY and POSSIBLY related PRs
      - Related regressions (if any) with their regression IDs
    - Triage type recommendation:
      - `product`: actual product issues (default)
@@ -609,7 +635,7 @@ This command is useful for:
      - Recommend: Re-open the existing bug OR file a new bug if the failure mode is different
      - Provide new bug template if failure analysis suggests a different root cause
 
-11. **Display Comprehensive Report**: Present findings in clear format
+12. **Display Comprehensive Report**: Present findings in clear format
 
    **Section 1: Regression Summary**
    - Test name
@@ -618,8 +644,16 @@ This command is useful for:
    - Affected variants
    - Analysis status and explanations
    - Current triage status (none for untriaged regressions)
+   - Global test report (from step 3): overall pass rate, trend, open bugs count
+   - If open bugs exist, note them as potential triage targets
 
-   **Section 2: Failure Pattern Analysis**
+   **Section 2: Global Test Health** (from `fetch-test-report` skill with `--no-collapse`)
+   - Overall pass rate across all variants for this release
+   - Per-variant breakdown highlighting variants with low pass rates
+   - Open bugs count — if > 0, list them as potential triage targets
+   - Trend direction (improving/regressing/unchanged)
+
+   **Section 3: Failure Pattern Analysis**
    - Jobs ranked by number of failures (most to least impacted)
    - For each job:
      - Job name
@@ -634,7 +668,7 @@ This command is useful for:
      - Recommended action
    - Overall assessment of regression severity
 
-   **Section 3: Failure Output Analysis** (from `fetch-test-runs` skill)
+   **Section 4: Failure Output Analysis** (from `fetch-test-runs` skill)
    - Number of test outputs analyzed
    - Consistency classification (Highly Consistent / Moderately Consistent / Inconsistent)
    - Most common error message with occurrence count
@@ -645,14 +679,14 @@ This command is useful for:
    - Sample job URLs for manual inspection
    - **Note**: If the test outputs API is not available, this section will note: "Test output analysis not available"
 
-   **Section 4: Regression Start Analysis** (only if determinable)
+   **Section 5: Regression Start Analysis** (only if determinable)
    - Job analyzed (the job with most failures)
    - Approximate start date of the regression
    - URL of the first failing job run
    - Pattern description (e.g., "18 consecutive failures followed by 12 successes")
    - **Note**: This section is omitted if no clear start date can be determined
 
-   **Section 5: Suspect PRs in Payload** (only if regression start was determined)
+   **Section 6: Suspect PRs in Payload** (only if regression start was determined)
    - Payload tag and upgrade-from tag (if applicable)
    - Total number of new PRs in the payload
    - Number of PRs investigated (up to 5)
@@ -661,23 +695,23 @@ This command is useful for:
      - PR URL, title, and associated bug (if any)
      - Brief explanation of why it may or may not be related
      - Key files changed (from `gh pr diff --stat`)
-   - **Note**: This section is omitted if step 6 did not determine a clear regression start, if the prowjob.json lacks release annotations, or if no PRs looked potentially related. It is also omitted if `gh` CLI is not available, though PR URLs are still listed.
+   - **Note**: This section is omitted if step 7 did not determine a clear regression start, if the prowjob.json lacks release annotations, or if no PRs looked potentially related. It is also omitted if `gh` CLI is not available, though PR URLs are still listed.
 
-   **Section 6: Related Regressions**
+   **Section 7: Related Regressions**
    - List of potentially related failing tests
    - Common patterns across failures
    - Recommendation: "These regressions may be caused by the same issue and could be triaged to one JIRA"
 
-   **Section 7: Existing Triages**
+   **Section 8: Existing Triages**
    - Related JIRA tickets already filed (from other regressions)
 
-12. **Offer to Triage**: After presenting the report, offer to triage the regression
+13. **Offer to Triage**: After presenting the report, offer to triage the regression
 
    Based on the analysis, determine the appropriate triage action and ask the user if they want to proceed.
 
-   **Scenario A: Related triage record found on another regression** (from step 9)
+   **Scenario A: Related triage record found on another regression** (from step 10)
 
-   If step 9 found that a related regression already has a triage record (i.e., another regression for the same or similar test is already triaged to a JIRA bug), offer to add this regression to that existing triage. Also include any other untriaged related regressions found in step 8.
+   If step 10 found that a related regression already has a triage record (i.e., another regression for the same or similar test is already triaged to a JIRA bug), offer to add this regression to that existing triage. Also include any other untriaged related regressions found in step 8.
 
    ```
    A related triage already exists:
@@ -714,9 +748,9 @@ This command is useful for:
 
    **Note**: The triage-regression script automatically fetches the existing triage and merges its regressions with the new ones, so you only need to pass the regression IDs you want to add.
 
-   **Scenario B: JIRA bug found but not triaged to any regression** (from step 3 or step 9)
+   **Scenario B: JIRA bug found but not triaged to any regression** (from step 4 or step 10)
 
-   If step 3 found a linked JIRA bug on this regression's triage, or step 9 found a JIRA bug that looks related (e.g., same component, similar error pattern) but no triage record exists yet, offer to create a new triage linking this regression and all related untriaged regressions to that bug.
+   If step 4 found a linked JIRA bug on this regression's triage, or step 10 found a JIRA bug that looks related, or step 3's test report found `open_bugs > 0` (e.g., same component, similar error pattern) but no triage record exists yet, offer to create a new triage linking this regression and all related untriaged regressions to that bug.
 
    ```
    A related JIRA bug was found:
@@ -768,7 +802,7 @@ This command is useful for:
    - Triage type: <recommended type>
    ```
 
-   If the user confirms, create the bug using the `/jira:create-bug` skill with the bug template from step 10. The bug description must include:
+   If the user confirms, create the bug using the `/jira:create-bug` skill with the bug template from step 11. The bug description must include:
    - Test name and release
    - Regression opened date
    - Affected variants
@@ -833,6 +867,15 @@ The command outputs a **Comprehensive Regression Analysis Report** for all regre
   - **Recommended Action**: Next steps based on pattern (e.g., "Investigate recent code changes", "Stabilize flaky test", "Verify issue is resolved")
 - **Overall Assessment**: Summary of regression severity across all jobs
 
+#### Global Test Health
+
+Generated using the `fetch-test-report` skill with `--no-collapse`:
+
+- **Overall Pass Rate**: Aggregate pass rate across all variants for this release
+- **Per-Variant Breakdown**: Pass rates for each variant combination, highlighting variants with low pass rates
+- **Open Bugs**: Count of Jira bugs mentioning this test by name. If > 0, these bugs may be usable for triaging the regression without filing a duplicate.
+- **Trend**: Whether the test is improving, regressing, or unchanged compared to the previous period
+
 #### Failure Output Analysis
 
 Generated using the `fetch-test-runs` skill (see `plugins/ci/skills/fetch-test-runs/SKILL.md`):
@@ -855,7 +898,7 @@ Generated using the `fetch-test-runs` skill (see `plugins/ci/skills/fetch-test-r
 
 Generated using the `fetch-test-runs` skill with `--include-success` and `--prowjob-name`:
 
-- **Job Analyzed**: The job with the most failures (from step 4)
+- **Job Analyzed**: The job with the most failures (from step 5)
 - **Approximate Start Date**: When the test began failing more frequently
 - **First Failing Run URL**: Link to the job run where the regression appears to have started
 - **Pattern Description**: Summary of the pass/fail pattern (e.g., "18 consecutive failures followed by 12 successes")
@@ -878,7 +921,7 @@ Generated using the `fetch-prowjob-json` and `fetch-new-prs-in-payload` skills:
   - PR URL, title, and associated bug URL
   - Explanation of relevance to the regression
   - Summary of changed files
-- **Note**: This section is only included when step 6 determined a clear regression start and the first failing run's prowjob.json has a `release.openshift.io/tag` annotation. Omitted if `gh` CLI is not available (PR URLs still listed without deep analysis).
+- **Note**: This section is only included when step 7 determined a clear regression start and the first failing run's prowjob.json has a `release.openshift.io/tag` annotation. Omitted if `gh` CLI is not available (PR URLs still listed without deep analysis).
 
 #### Root Cause Analysis
 
@@ -890,12 +933,13 @@ Generated using the `fetch-prowjob-json` and `fetch-new-prs-in-payload` skills:
 
 - **Similar Failing Tests**: List of other regressions that appear similar
 - **Common Patterns**: Shared error messages, stack traces, or failure modes
-- **Variant Analysis**: Summary of which job variants are affected (e.g., all AWS jobs, all upgrade jobs)
+- **Variant Analysis**: Summary of which job variants are affected (e.g., all AWS jobs, all upgrade jobs). Cross-reference with the per-variant breakdown from the Global Test Health section.
 - **Triaging Recommendation**: Whether these regressions should be grouped under a single JIRA ticket
 
 #### Existing Triages and JIRA Progress
 
 - **Triage Status**: Whether this regression has been triaged to a JIRA bug
+- **Open Bugs from Test Report**: If step 3 found open bugs mentioning this test, list them here as potential triage targets
 - **For Triaged Regressions**:
   - **JIRA Key(s)**: Links to existing bug(s)
   - **JIRA Status**: Current status (NEW, ASSIGNED, IN PROGRESS, etc.)
@@ -914,7 +958,7 @@ Generated using the `fetch-prowjob-json` and `fetch-new-prs-in-payload` skills:
 
 #### Bug Filing / Next Steps
 
-- **For Untriaged Regressions**: Complete bug template ready to file
+- **For Untriaged Regressions**: Complete bug template ready to file. If open bugs were found via the test report, suggest triaging to one of those instead of filing a duplicate.
 - **For Triaged Regressions with Active Progress**: Note existing bug and progress status
 - **For Triaged Regressions Needing Attention**: Suggested actions (comment, reassign, escalate)
 - **For Failed Fixes (analysis_status -1000)**: Recommendation to re-open or file new bug
@@ -969,6 +1013,8 @@ Uses the `triage-regression` skill with authentication via the `oc-auth` skill (
   - Negative values indicate problems detected by the regression analysis
 - **Skills Used**:
   - `fetch-regression-details`: Fetches regression data and analyzes pass/fail patterns
+  - `fetch-test-report`: Fetches global test health report with per-variant breakdown and open bug counts
+  - `fetch-releases`: Determines the latest OCP release (used by fetch-test-report)
   - `fetch-test-runs`: Fetches actual test outputs and analyzes error message consistency
   - `fetch-prowjob-json`: Fetches prowjob.json to get payload tag and upgrade-from tag for a Prow job
   - `fetch-new-prs-in-payload`: Fetches new PRs in a payload compared to its predecessor
@@ -987,6 +1033,8 @@ Uses the `triage-regression` skill with authentication via the `oc-auth` skill (
 ## See Also
 
 - Related Skill: `fetch-regression-details` - Fetches regression data with pass sequences (`plugins/ci/skills/fetch-regression-details/SKILL.md`)
+- Related Skill: `fetch-test-report` - Fetches global test health report with per-variant breakdown and open bugs (`plugins/ci/skills/fetch-test-report/SKILL.md`)
+- Related Skill: `fetch-releases` - Determines the latest OCP release (`plugins/ci/skills/fetch-releases/SKILL.md`)
 - Related Skill: `fetch-test-runs` - Fetches and analyzes test failure outputs (`plugins/ci/skills/fetch-test-runs/SKILL.md`)
 - Related Skill: `fetch-prowjob-json` - Fetches prowjob.json for payload tag and metadata (`plugins/ci/skills/fetch-prowjob-json/SKILL.md`)
 - Related Skill: `fetch-new-prs-in-payload` - Fetches new PRs in a payload (`plugins/ci/skills/fetch-new-prs-in-payload/SKILL.md`)
