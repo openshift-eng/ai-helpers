@@ -297,6 +297,12 @@
           "synopsis": "/ask-sippy [question]"
         },
         {
+          "argument_hint": "<jira-key-or-url>",
+          "description": "Check if the regression described in a Jira bug is still ongoing or has resolved",
+          "name": "check-if-jira-regression-is-ongoing",
+          "synopsis": "/ci:check-if-jira-regression-is-ongoing <jira-key-or-url>"
+        },
+        {
           "argument_hint": "prowjob-url",
           "description": "Extract and decompress must-gather archives from Prow job artifacts",
           "name": "extract-prow-job-must-gather",

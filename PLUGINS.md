@@ -59,6 +59,7 @@ Tools for working with OpenShift CI and analyzing Prow job results
 - **`/ci:analyze-prow-job-test-failure` `prowjob-url test-name`** - Analyzes test errors from console logs and Prow CI job artifacts
 - **`/ci:analyze-regression` `<regression id>`** - Analyze details about a Component Readiness regression and suggest next steps
 - **`/ci:ask-sippy` `[question]`** - Ask the Sippy AI agent questions about OpenShift CI payloads, jobs, and test results
+- **`/ci:check-if-jira-regression-is-ongoing` `<jira-key-or-url>`** - Check if the regression described in a Jira bug is still ongoing or has resolved
 - **`/ci:extract-prow-job-must-gather` `prowjob-url`** - Extract and decompress must-gather archives from Prow job artifacts
 - **`/ci:fetch-test-report` `<test-name> [release]`** - Fetch a test report from Sippy showing pass rates, test ID, and Jira component
 - **`/ci:list-unstable-tests` `<version> <keywords> [sippy-url]`** - List unstable tests with pass rate below 95%
