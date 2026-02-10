@@ -248,7 +248,7 @@ $ cat /tmp/callgraph.txt | digraph somepath command-line-arguments.main <package
 
 ## Integration with Parent Command
 
-This skill is called from Phase 2, Method 4 of the `/compliance:analyze-cve` command.
+This skill is called from Method 4 of the [codebase-impact-analysis](../codebase-impact-analysis/SKILL.md) skill.
 
 **When to Invoke:**
 - After basic dependency checks show package is present
