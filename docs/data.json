@@ -279,10 +279,10 @@
           "synopsis": "/ask-sippy [question]"
         },
         {
-          "name": "list-step",
+          "argument_hint": "<workflow-or-chain-name>",
           "description": "List the step for the given workflow or chain name",
-          "synopsis": "",
-          "argument_hint": "<workflow-or-chain-name>"
+          "name": "list-step",
+          "synopsis": ""
         },
         {
           "argument_hint": "<version> <keywords> [sippy-url]",
@@ -342,7 +342,7 @@
           "name": "OC Authentication Helper"
         }
       ],
-      "version": "0.0.4"
+      "version": "0.0.5"
     },
     {
       "commands": [
