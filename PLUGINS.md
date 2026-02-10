@@ -23,6 +23,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Openshift](#openshift-plugin)
 - [Origin](#origin-plugin)
 - [Prow Job](#prow-job-plugin)
+- [Report Writer](#report-writer-plugin)
 - [Session](#session-plugin)
 - [Sosreport](#sosreport-plugin)
 - [Teams](#teams-plugin)
@@ -284,6 +285,15 @@ A plugin to analyze and inspect Prow CI job results
 - **`/prow-job:extract-must-gather` `prowjob-url`** - Extract and decompress must-gather archives from Prow job artifacts
 
 See [plugins/prow-job/README.md](plugins/prow-job/README.md) for detailed documentation.
+
+### Report Writer Plugin
+
+A plugin to generate reports
+
+**Commands:**
+- **`/report-writer:weekly` `[--project PROJECT] [--component COMPONENT] [--week-offset N] [--batch-size N]`** - Generate comprehensive weekly team activity reports from Jira
+
+See [plugins/report-writer/README.md](plugins/report-writer/README.md) for detailed documentation.
 
 ### Session Plugin
 

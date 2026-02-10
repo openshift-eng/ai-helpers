@@ -1,0 +1,8 @@
+{
+  "name": "report-writer",
+  "description": "A plugin to generate reports",
+  "version": "0.0.1",
+  "author": {
+    "name": "github.com/aguidirh"
+  }
+}
