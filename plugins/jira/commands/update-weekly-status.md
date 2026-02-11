@@ -4,23 +4,28 @@ argument-hint: "[project-key] [--component name] [--label label-name] [user-filt
 ---
 
 ## Name
+
 jira:update-weekly-status
 
 ## Synopsis
+
 ```
 /jira:update-weekly-status [project-key] [--component <component-name>] [--label <label-name>] [user-filters...]
 ```
 
 ## Description
+
 The `jira:update-weekly-status` command automates the process of updating weekly status summaries for Jira issues in a specified project. It analyzes recent activity across tickets, GitHub PRs, and GitLab MRs to draft color-coded status updates (Red/Yellow/Green), then allows you to review and modify them before updating Jira.
 
 This command is particularly useful for:
+
 - Weekly status updates on strategic issues
 - Team lead status reporting workflows
 - Consistent formatting across status updates
 - Reducing manual effort in gathering context from multiple sources
 
 Key capabilities:
+
 - **Efficient batch data gathering** using async Python script
 - Interactive component selection from available project components
 - User filtering by email or display name (with auto-resolution)
@@ -47,7 +52,7 @@ The command executes in two phases:
    - Parse optional `--component <component-name>` parameter
    - Parse optional `--label <label-name>` parameter
    - Parse user filter parameters (space-separated emails or names)
-   - User filters support exclusion by prefixing with an exclamation mark (example: !user@example.com)
+   - User filters support exclusion by prefixing with an exclamation mark (example: !<user@example.com>)
 
 2. **If project key is NOT provided:**
    - Use `mcp__atlassian-mcp__jira_get_all_projects` to list all accessible projects
@@ -104,6 +109,7 @@ python3 {plugins-dir}/jira/skills/status-analysis/scripts/gather_status_data.py 
 **Script location**: `plugins/jira/skills/status-analysis/scripts/gather_status_data.py`
 
 **Script output**:
+
 - Directory: `.work/weekly-status/{YYYY-MM-DD}/`
 - `manifest.json`: Processing config and issue list
 - `issues/{ISSUE-KEY}.json`: Per-issue data with descendants and PRs
@@ -139,6 +145,7 @@ Skill(jira:status-analysis)
 ```
 
 This loads the Status Analysis Engine skill which provides:
+
 - Activity analysis methodology
 - R/Y/G status formatting rules
 - Health status determination logic
@@ -152,6 +159,7 @@ For each issue listed in the manifest:
 Read the issue's JSON file from `.work/weekly-status/{date}/issues/{ISSUE-KEY}.json`
 
 The file contains:
+
 ```json
 {
   "issue": {
@@ -201,6 +209,7 @@ Using the pre-gathered data, apply the activity analysis rules from `activity-an
 ##### c. Generate Status Update
 
 Format using `ryg_field` template:
+
 ```
 * Color Status: {Red, Yellow, Green}
  * Status summary:
@@ -213,15 +222,18 @@ Format using `ryg_field` template:
 ##### d. Present to User for Review
 
 **If Status Summary was updated within last 24 hours:**
+
 ```text
 ⚠️  WARNING: This issue's Status Summary was last updated X hours ago (on YYYY-MM-DD at HH:MM).
 
 Current Status Summary:
 {current-status-text}
 ```
+
 Ask: "This issue was recently updated. Do you want to skip it? (yes/no/show-proposed)"
 
 **For all issues (or if proceeding after warning):**
+
 ```text
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Issue: {ISSUE-KEY} - {Summary}
@@ -246,12 +258,14 @@ Proposed Status Update:
 ```
 
 Options:
+
 - `approve` or `a`: Proceed with the proposed update
 - `modify` or `m`: Modify the text (prompt for new text)
 - `skip` or `s`: Skip this issue and move to next
 - `quit` or `q`: Stop processing remaining issues
 
 **If user chooses `modify`:**
+
 - Show the proposed text in an editable format
 - Ask: "Please provide your updated status text (maintain the bullet format):"
 - Validate format (should start with `* Color Status:`)
@@ -260,6 +274,7 @@ Options:
 ##### e. Update the Issue
 
 Use `mcp__atlassian-mcp__jira_update_issue`:
+
 ```json
 {
   "issue_key": "{ISSUE-KEY}",
@@ -305,16 +320,19 @@ Updated Issues:
 The Python script (`gather_status_data.py`) handles efficient batch data collection:
 
 ### Features
+
 - **Async HTTP requests** using aiohttp for parallel fetching
 - **Jira rate limiting**: 2 concurrent requests, 300ms delays
 - **GitHub GraphQL batching**: Up to 30 PRs per request with retry logic
 - **Date range filtering**: Only includes activity within the specified period
 
 ### Environment Variables
+
 - `JIRA_TOKEN` or `JIRA_PERSONAL_TOKEN`: Jira API bearer token
 - `GITHUB_TOKEN` or `gh auth token`: GitHub access token
 
 ### Output Structure
+
 ```
 .work/weekly-status/{YYYY-MM-DD}/
 ├── manifest.json           # Config and issue list
@@ -325,6 +343,7 @@ The Python script (`gather_status_data.py`) handles efficient batch data collect
 ```
 
 ### Per-Issue JSON Schema
+
 ```json
 {
   "issue": {
@@ -370,6 +389,7 @@ The Python script (`gather_status_data.py`) handles efficient batch data collect
 ```
 
 ## Return Value
+
 - **Updated Issues**: Jira issues with refreshed Status Summary fields
 - **Summary Report**: Console output showing update statistics and issue links
 - **User Interaction Log**: Clear feedback on each decision point
@@ -377,59 +397,76 @@ The Python script (`gather_status_data.py`) handles efficient batch data collect
 ## Examples
 
 1. **With project, component, and label (recommended)**:
+
    ```bash
    /jira:update-weekly-status OCPSTRAT --component "Hosted Control Planes" --label "control-plane-work"
    ```
+
    Output: Runs data gatherer, then processes each issue interactively
 
 2. **Interactive mode (prompts for project and component)**:
+
    ```bash
    /jira:update-weekly-status
    ```
+
    Output: Prompts for project selection, then component selection
 
 3. **Specify project, auto-select component**:
+
    ```bash
    /jira:update-weekly-status OCPSTRAT
    ```
+
    Output: Prompts for component selection from OCPSTRAT components
 
 4. **With label filter**:
+
    ```bash
    /jira:update-weekly-status OCPSTRAT --label strategic-work
    ```
+
    Output: Prompts for component, filters issues with "strategic-work" label
 
 5. **With specific users (by email)**:
+
    ```bash
    /jira:update-weekly-status OCPBUGS antoni@redhat.com jdoe@redhat.com
    ```
+
    Output: Only processes issues assigned to Antoni or Jane
 
 6. **With excluded users (by email)**:
+
    ```bash
    /jira:update-weekly-status OCPSTRAT !manager@redhat.com
    ```
-   Output: Processes all issues except those assigned to manager@redhat.com
+
+   Output: Processes all issues except those assigned to <manager@redhat.com>
 
 7. **With usernames (requires confirmation)**:
+
    ```bash
    /jira:update-weekly-status OCPSTRAT "Antoni Segura" "Jane Doe"
    ```
+
    Output: Looks up users by name, asks for confirmation, then processes their issues
 
 8. **Full example with all options**:
+
    ```bash
    /jira:update-weekly-status OCPSTRAT --component "Control Plane" --label strategic-work antoni@redhat.com !dave@redhat.com
    ```
+
    Output: Processes OCPSTRAT issues in "Control Plane" component with "strategic-work" label, assigned to Antoni, excluding Dave
 
 ## Arguments
+
 - `project-key` (optional): The Jira project key (e.g., `OCPSTRAT`, `OCPBUGS`). If not provided, prompts for selection
 - `--component <name>` (optional): Filter by specific component name. If not provided, prompts for selection
 - `--label <label-name>` (optional): Filter by specific label (e.g., `control-plane-work`, `strategic-work`)
 - `user-filters` (optional): Space-separated list of user emails or display names
-  - Prefix with exclamation mark to exclude specific users (example: !manager@redhat.com)
+  - Prefix with exclamation mark to exclude specific users (example: !<manager@redhat.com>)
   - Display names without @ symbol will trigger user lookup with confirmation
 
 ## Notes
@@ -474,18 +511,20 @@ The Python script (`gather_status_data.py`) handles efficient batch data collect
   - `GITHUB_TOKEN` or authenticated `gh` CLI
 
 Check for required tools:
+
 ```bash
 # Check Python and aiohttp
 python3 -c "import aiohttp; print('aiohttp OK')"
 
-# Check Jira token
-echo $JIRA_TOKEN
+# Check if the Jira token is defined
+test -n "$JIRA_TOKEN"
 
 # Check GitHub token (via gh CLI)
-gh auth token
+gh auth token &> /dev/null
 ```
 
 Install aiohttp if needed:
+
 ```bash
 pip install aiohttp
 ```
@@ -493,6 +532,7 @@ pip install aiohttp
 ### Customization for Different Teams
 
 Teams can customize this command by:
+
 1. Creating project-specific skills with default label filters
 2. Defining team-specific Status Summary field mappings (modify `--status-field` parameter)
 3. Customizing color status thresholds based on team velocity

@@ -348,6 +348,43 @@ class JiraClient:
         logger.info(f"Fetched changelogs for {len(results)} issues")
         return results
 
+    async def get_issue_remote_links(self, issue_key: str) -> List[Dict[str, Any]]:
+        """Get remote links (external links like GitHub PRs) for an issue."""
+        url = f"{self.base_url}/rest/api/2/issue/{issue_key}/remotelink"
+        result = await self._fetch_json(url)
+        return result if isinstance(result, list) else []
+
+    async def fetch_remote_links_batch(
+        self, issue_keys: List[str]
+    ) -> Dict[str, List[Dict[str, Any]]]:
+        """Fetch remote links for multiple issues (typically root issues only)."""
+        if not issue_keys:
+            logger.debug("No issue keys for remote links fetch")
+            return {}
+
+        results = {}
+        logger.info(f"Fetching remote links for {len(issue_keys)} root issues")
+
+        async def fetch_one(key: str):
+            links = await self.get_issue_remote_links(key)
+            if links:
+                logger.debug(f"  Remote links for {key}: {len(links)} links")
+            return key, links
+
+        tasks = [fetch_one(key) for key in issue_keys]
+        batch_results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        for result in batch_results:
+            if isinstance(result, tuple):
+                key, links = result
+                results[key] = links
+            elif isinstance(result, Exception):
+                logger.warning(f"  Remote links fetch failed: {result}")
+
+        links_found = sum(len(v) for v in results.values())
+        logger.info(f"Fetched {links_found} remote links from {len(results)} issues")
+        return results
+
 
 # =============================================================================
 # GitHub GraphQL Client
@@ -820,13 +857,17 @@ class StatusDataGatherer:
             fields=self.jira.ISSUE_FIELDS,
         )
 
-        # Step 4: Fetch changelogs for root issues
-        logger.info("Step 4/7: Fetching changelogs for root issues")
+        # Step 4: Fetch changelogs for root Jira issues
+        logger.info("Step 4/8: Fetching changelogs for root Jira issues")
         root_keys = [issue["key"] for issue in root_issues]
         changelogs = await self.jira.fetch_changelogs_batch(root_keys)
 
-        # Step 5: Extract PR URLs from all issues
-        logger.info("Step 5/7: Extracting PR URLs from issues and comments")
+        # Step 5: Fetch remote links for root Jira issues (PRs roll up to parent)
+        logger.info("Step 5/8: Fetching remote links for root Jira issues")
+        remote_links = await self.jira.fetch_remote_links_batch(root_keys)
+
+        # Step 6: Extract PR URLs from all issues, comments, and remote links
+        logger.info("Step 6/8: Extracting PR URLs from issues, comments, and remote links")
         pr_refs_map: Dict[str, PRRef] = {}
 
         for issue in root_issues:
@@ -885,10 +926,32 @@ class StatusDataGatherer:
                         if url in pr_refs_map:
                             pr_refs_map[url].found_in_issues.add(parent_key)
 
-        logger.info(f"  Found {len(pr_refs_map)} unique PR URLs ({desc_pr_count} from descendants)")
+        # From remote links (only PRs that reference a descendant issue key)
+        remote_link_pr_count = 0
+        for issue_key, links in remote_links.items():
+            # Get descendant keys for this root issue
+            desc_keys = set(all_descendant_keys.get(issue_key, []))
+            for link in links:
+                obj = link.get("object", {})
+                url = obj.get("url", "")
+                title = obj.get("title", "")
+                if url and "github.com" in url and "/pull" in url:
+                    # Check if the PR title references a descendant issue
+                    references_descendant = any(desc_key in title for desc_key in desc_keys)
+                    if references_descendant:
+                        if url not in pr_refs_map:
+                            ref = PRRef.from_url(url)
+                            if ref:
+                                pr_refs_map[url] = ref
+                                remote_link_pr_count += 1
+                                logger.debug(f"    Found PR in {issue_key} remote link: {url}")
+                        if url in pr_refs_map:
+                            pr_refs_map[url].found_in_issues.add(issue_key)
 
-        # Step 6: Fetch PR data from GitHub
-        logger.info("Step 6/7: Fetching PR data from GitHub")
+        logger.info(f"  Found {len(pr_refs_map)} unique PR URLs ({desc_pr_count} from descendants, {remote_link_pr_count} from remote links)")
+
+        # Step 7: Fetch PR data from GitHub
+        logger.info("Step 7/8: Fetching PR data from GitHub")
         if session and pr_refs_map:
             pr_data_map = await self.github.get_prs_batch(session, list(pr_refs_map.values()))
         else:
@@ -899,8 +962,8 @@ class StatusDataGatherer:
                 logger.debug("  No PR URLs found - nothing to fetch")
         logger.info(f"  Fetched data for {len(pr_data_map)} PRs")
 
-        # Step 7: Build output
-        logger.info("Step 7/7: Building output files")
+        # Step 8: Build output
+        logger.info("Step 8/8: Building output files")
         manifest = self._build_manifest(
             root_issues,
             all_descendant_keys,
