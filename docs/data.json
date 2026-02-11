@@ -145,6 +145,12 @@
           "synopsis": "/jira:grooming [project-filter] [time-period] [--component component-name] [--label label-name] [--type issue-type] [--status status] [--story-points]"
         },
         {
+          "argument_hint": "<project-key> [time-period] [--component name] [--assignee username] [--reporter username] [--status status] [--search term] [--search-description]",
+          "description": "List and analyze JIRA issues organized by component with flexible filtering",
+          "name": "issues-by-component",
+          "synopsis": "/jira:issues-by-component <project-key> [time-period] [--component component-name] [--assignee username] [--reporter username] [--status status] [--search search-term] [--search-description]"
+        },
+        {
           "argument_hint": "[--github-project <org/repo>] [--jira-project <key>] [--profile <name>] [--porcelain] [--output json|yaml]",
           "description": "Reconcile state mismatches between GitHub and Jira issues",
           "name": "reconcile-github",
@@ -246,6 +252,11 @@
           "name": "Jira Feature Documentation Generator"
         },
         {
+          "description": "Provides secure curl wrapper for the jira:issues-by-component command to prevent token exposure",
+          "id": "jira-issues-by-component",
+          "name": "JIRA Issues by Component - Helper Skill"
+        },
+        {
           "description": "Detailed implementation guide for validating proposed release blockers",
           "id": "jira-validate-blockers",
           "name": "JIRA Release Blocker Validator"
@@ -256,7 +267,7 @@
           "name": "OCPBUGS Jira Conventions"
         }
       ],
-      "version": "0.1.1"
+      "version": "0.2.0"
     },
     {
       "commands": [
