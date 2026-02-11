@@ -1,13 +1,13 @@
 ---
 description: Update weekly status summaries for Jira issues with component and user filtering
-argument-hint: [project-key] [--component name] [--label label-name] [user-filters...]
+argument-hint: "[project-key] [--component name] [--label label-name] [user-filters...]"
 ---
 
 ## Name
 jira:update-weekly-status
 
 ## Synopsis
-```bash
+```
 /jira:update-weekly-status [project-key] [--component <component-name>] [--label <label-name>] [user-filters...]
 ```
 
