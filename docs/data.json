@@ -328,7 +328,7 @@
           "argument_hint": "[repo] <pr-number>",
           "description": "Find and retest failed e2e CI jobs on a PR",
           "name": "e2e-retest",
-          "synopsis": "/ci:e2e-retest <pr-number>"
+          "synopsis": "/ci:e2e-retest [repo] <pr-number>"
         },
         {
           "argument_hint": "prowjob-url",
@@ -358,13 +358,13 @@
           "argument_hint": "[repo] <pr-number>",
           "description": "Find and retest failed payload jobs on a PR",
           "name": "payload-retest",
-          "synopsis": "/ci:payload-retest <pr-number>"
+          "synopsis": "/ci:payload-retest [repo] <pr-number>"
         },
         {
           "argument_hint": "[repo] <pr-number>",
           "description": "Find and retest failed e2e CI jobs and payload jobs on a PR",
           "name": "pr-retest",
-          "synopsis": "/ci:pr-retest <pr-number>"
+          "synopsis": "/ci:pr-retest [repo] <pr-number>"
         },
         {
           "argument_hint": "<execution-id>",

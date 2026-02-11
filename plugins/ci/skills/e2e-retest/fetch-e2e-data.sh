@@ -12,7 +12,7 @@ source "$(dirname "$0")/common.sh"
 # Parse arguments
 if [ $# -eq 1 ]; then
   PR_NUMBER="$1"
-  REPO=$(git remote -v | head -1 | grep -oP '(?<=github.com[:/])[^/]+/[^.\s]+' | sed 's/\.git$//' || true)
+  REPO=$(git remote -v | head -1 | sed -E 's/.*github\.com[:/]([^/]+\/[^ .]+).*/\1/' | sed 's/\.git$//' || true)
   if [ -z "$REPO" ]; then
     echo '{"error": "Could not detect repository from git remote"}' >&2
     exit 1

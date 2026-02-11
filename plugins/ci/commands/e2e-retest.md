@@ -8,6 +8,11 @@ ci:e2e-retest
 
 ## Synopsis
 ```
+/ci:e2e-retest [repo] <pr-number>
+```
+
+Alternative forms:
+```
 /ci:e2e-retest <pr-number>
 /ci:e2e-retest <repo> <pr-number>
 /ci:e2e-retest <org>/<repo> <pr-number>
