@@ -4,15 +4,15 @@ argument-hint: "[--language <lang>] [--profile <name>] [--skip-build] [--skip-te
 ---
 
 ## Name
-code-review:pre-commit-quality-review
+code-review:pre-commit-review
 
 ## Synopsis
 ```
-/code-review:pre-commit-quality-review [--language <lang>] [--profile <name>] [--skip-build] [--skip-tests]
+/code-review:pre-commit-review [--language <lang>] [--profile <name>] [--skip-build] [--skip-tests]
 ```
 
 ## Description
-The `code-review:pre-commit-quality-review` command performs a comprehensive code quality review of staged and unstaged changes before committing. It analyzes unit test coverage, idiomatic code patterns, DRY compliance, SOLID principles, and build verification.
+The `code-review:pre-commit-review` command performs a comprehensive code quality review of staged and unstaged changes before committing. It analyzes unit test coverage, idiomatic code patterns, DRY compliance, SOLID principles, and build verification.
 
 The command supports two layers of customization:
 
@@ -151,31 +151,31 @@ After all sub-agents and build verification complete, aggregate findings into a 
 
 1. **Basic usage with auto-detected language**:
    ```
-   /code-review:pre-commit-quality-review
+   /code-review:pre-commit-review
    ```
    Auto-detects language from changed files and runs a full review.
 
 2. **Go code review with HyperShift profile**:
    ```
-   /code-review:pre-commit-quality-review --language go --profile hypershift
+   /code-review:pre-commit-review --language go --profile hypershift
    ```
    Applies Go idiomatic checks plus HyperShift project conventions.
 
 3. **Skip build for a docs-only change**:
    ```
-   /code-review:pre-commit-quality-review --skip-build
+   /code-review:pre-commit-review --skip-build
    ```
    Runs all review steps except build verification.
 
 4. **Python review without tests**:
    ```
-   /code-review:pre-commit-quality-review --language python --skip-tests
+   /code-review:pre-commit-review --language python --skip-tests
    ```
    Applies Python idiomatic checks but skips unit test coverage review.
 
 5. **Full review with explicit language, no profile**:
    ```
-   /code-review:pre-commit-quality-review --language rust
+   /code-review:pre-commit-review --language rust
    ```
    Applies Rust idiomatic checks with no project-specific profile.
 

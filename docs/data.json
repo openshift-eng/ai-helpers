@@ -1241,8 +1241,8 @@
         {
           "argument_hint": "[--language <lang>] [--profile <name>] [--skip-build] [--skip-tests]",
           "description": "Automated pre-commit code quality review with language-aware analysis and project-specific profiles",
-          "name": "pre-commit-quality-review",
-          "synopsis": "/code-review:pre-commit-quality-review [--language <lang>] [--profile <name>] [--skip-build] [--skip-tests]"
+          "name": "pre-commit-review",
+          "synopsis": "/code-review:pre-commit-review [--language <lang>] [--profile <name>] [--skip-build] [--skip-tests]"
         }
       ],
       "description": "Automated code quality review with language-aware analysis for pre-commit verification",
@@ -1261,7 +1261,7 @@
           "name": "HyperShift Project Profile"
         }
       ],
-      "version": "0.0.1"
+      "version": "0.0.2"
     }
   ]
 }

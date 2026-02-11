@@ -4,13 +4,13 @@ Automated code quality review with language-aware analysis for pre-commit verifi
 
 ## Commands
 
-### `/code-review:pre-commit-quality-review`
+### `/code-review:pre-commit-review`
 
 Performs a comprehensive code quality review of staged and unstaged changes before committing. Analyzes unit test coverage, idiomatic code patterns, DRY compliance, SOLID principles, and build verification.
 
 **Usage:**
 ```bash
-/code-review:pre-commit-quality-review [--language <lang>] [--profile <name>] [--skip-build] [--skip-tests]
+/code-review:pre-commit-review [--language <lang>] [--profile <name>] [--skip-build] [--skip-tests]
 ```
 
 **Arguments:**
@@ -92,14 +92,14 @@ The command runs in a defined sequence of steps:
 
 ```bash
 # Auto-detect language, no profile
-/code-review:pre-commit-quality-review
+/code-review:pre-commit-review
 
 # Go code with HyperShift conventions
-/code-review:pre-commit-quality-review --language go --profile hypershift
+/code-review:pre-commit-review --language go --profile hypershift
 
 # Skip build for docs-only changes
-/code-review:pre-commit-quality-review --skip-build
+/code-review:pre-commit-review --skip-build
 
 # Python review without test checks
-/code-review:pre-commit-quality-review --language python --skip-tests
+/code-review:pre-commit-review --language python --skip-tests
 ```
