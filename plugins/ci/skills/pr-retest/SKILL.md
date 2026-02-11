@@ -26,9 +26,9 @@ Wrapper script that:
 ```
 
 **What it does:**
-1. Displays "E2E JOBS" header
+1. Displays "E2E JOBS ANALYSIS" header
 2. Runs `../e2e-retest/e2e-retest.sh` with provided arguments
-3. Displays "PAYLOAD JOBS" header
+3. Displays "PAYLOAD JOBS ANALYSIS" header
 4. Runs `../payload-retest/payload-retest.sh` with provided arguments
 
 ## Implementation Details
@@ -51,12 +51,12 @@ This ensures correct paths regardless of where the script is invoked from.
 Clear section headers help distinguish between e2e and payload results:
 ```
 =========================================
-E2E JOBS
+E2E JOBS ANALYSIS
 =========================================
 [e2e-retest output]
 
 =========================================
-PAYLOAD JOBS
+PAYLOAD JOBS ANALYSIS
 =========================================
 [payload-retest output]
 ```

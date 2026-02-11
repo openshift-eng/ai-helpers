@@ -12,7 +12,7 @@ source "$(dirname "$0")/common.sh"
 if [ $# -eq 1 ]; then
   PR_NUMBER="$1"
   # Auto-detect from git remote
-  REPO=$(git remote -v | head -1 | grep -oP '(?<=github.com[:/])[^/]+/[^.\s]+' | sed 's/\.git$//' || true)
+  REPO=$(git remote -v | head -1 | sed -E 's/.*github\.com[:/]([^/]+\/[^ .]+).*/\1/' | sed 's/\.git$//' || true)
   if [ -z "$REPO" ]; then
     echo "❌ Error: Could not detect repository from git remote."
     echo "Please specify repo: $0 <repo> <pr-number>"

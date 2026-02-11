@@ -8,6 +8,11 @@ ci:pr-retest
 
 ## Synopsis
 ```
+/ci:pr-retest [repo] <pr-number>
+```
+
+Alternative forms:
+```
 /ci:pr-retest <pr-number>
 /ci:pr-retest <repo> <pr-number>
 /ci:pr-retest <org>/<repo> <pr-number>
@@ -227,7 +232,7 @@ Find the most recent payload run by Created timestamp:
 # For each URL, fetch its Created timestamp and find the most recent
 for url in $(gh pr view ${PR_NUMBER} --repo ${REPO} --json comments | \
              jq -r '.comments[].body' | \
-             grep -oE 'https://pr-payload-tests[^ )+' | \
+             grep -oE 'https://pr-payload-tests[^ )]+' | \
              sort -u); do
   timestamp=$(curl -sL "$url" | grep -E 'Created:' | sed -E 's/.*Created: ([^<]+).*/\1/')
   echo "$timestamp|$url"

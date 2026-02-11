@@ -8,6 +8,11 @@ ci:payload-retest
 
 ## Synopsis
 ```
+/ci:payload-retest [repo] <pr-number>
+```
+
+Alternative forms:
+```
 /ci:payload-retest <pr-number>
 /ci:payload-retest <repo> <pr-number>
 /ci:payload-retest <org>/<repo> <pr-number>
