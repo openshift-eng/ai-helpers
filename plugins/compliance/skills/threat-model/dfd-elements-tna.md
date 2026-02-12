@@ -57,7 +57,7 @@ TNA uses standard Kubernetes etcd (3-member quorum via arbiter) and does **not**
 - No BMC credentials or fencing-credentials secrets
 - No podman-etcd OCF agent
 - No PCSD authentication
-- No privileged TNF setup jobs (P2, P3, P4, P5 from TNF DFD)
+- No privileged TNF setup jobs (TNF DFD P2: CEO Controller, P3: Auth Job, P4: Setup Job, P5: Fencing Job)
 - No CIB (Cluster Information Base)
 - No fence_redfish
 - No Corosync network (UDP 5404-5406)

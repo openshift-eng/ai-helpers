@@ -15,25 +15,25 @@ Analyze a pull request for security threats, map to MITRE ATT&CK, and generate a
 The skill accepts flexible input:
 
 ### Option 1: PR Number Only
-```
+```text
 /threat-model 1234
 ```
 Detects the repository from the current working directory. Must be inside a repo under `~/Projects/tnf-dev-env/repos/<repo>/`.
 
 ### Option 2: GitHub PR URL
-```
+```text
 /threat-model https://github.com/openshift/cluster-etcd-operator/pull/1234
 ```
 Extracts org, repo, and PR number from the URL automatically.
 
 ### Option 3: Explicit repo and PR
-```
+```text
 /threat-model cluster-etcd-operator 1234
 ```
 Specify repo name and PR number explicitly.
 
 ### Option 4: With topology override
-```
+```text
 /threat-model --tnf 1234
 /threat-model --tna https://github.com/openshift/installer/pull/5678
 ```
@@ -73,7 +73,7 @@ After parsing the PR input, determine which topology (TNF or TNA) the PR relates
    - `heartbeat/podman` (base OCF agent)
    - `fencing-credentials`, `fencing_credentials`, `FencingCredential`
    - `stonith`, `STONITH`
-   - `pacemaker`, `corosync`, `pcsd`, `pcs `
+   - `pacemaker`, `corosync`, `pcsd`, `pcs`
    - `two-node-with-fencing`, `two-node-fencing`
    - `templates/master/00-master/two-node-with-fencing/`
 
@@ -605,6 +605,7 @@ Guidance for cluster administrators deploying or operating TNF clusters.
 | Date | Author | Changes |
 |------|--------|---------|
 | YYYY-MM-DD | Claude Code | Initial analysis |
+
 ```
 
 ## Report Format: Individual Vulnerability (for Critical/High findings)
@@ -643,7 +644,7 @@ For significant findings, also create individual VULN reports:
 
 ### Attack Flow
 
-```
+```text
 [ASCII diagram of attack flow]
 ```
 

@@ -2,7 +2,7 @@
 
 Quick reference for mapping findings to OWASP categories.
 
-Source: https://owasp.org/Top10/2025/
+Source: <https://owasp.org/Top10/2025/>
 
 ## OWASP Top 10:2025 Categories
 
@@ -15,9 +15,9 @@ Source: https://owasp.org/Top10/2025/
 | **A05** | Injection | SQL, NoSQL, OS command, LDAP, XSS injection | CWE-20, CWE-74, CWE-77, CWE-78, CWE-79, CWE-89 |
 | **A06** | Insecure Design | Missing threat modeling, insecure architecture patterns | CWE-73, CWE-183, CWE-209, CWE-312 |
 | **A07** | Authentication Failures | Broken auth, credential stuffing, weak passwords, session issues | CWE-287, CWE-384, CWE-522, CWE-798 |
-| **A08** | Software/Data Integrity Failures | Code/data without integrity verification, insecure deserialization | CWE-345, CWE-353, CWE-426, CWE-502 |
-| **A09** | Security Logging/Alerting Failures | Missing audit logs, unmonitored security events | CWE-117, CWE-223, CWE-532, CWE-778 |
-| **A10** | Mishandling Exceptional Conditions | Improper error handling, fail-open logic, unhandled exceptions | CWE-252, CWE-280, CWE-388, CWE-754, CWE-755 |
+| **A08** | Software or Data Integrity Failures | Code/data without integrity verification, insecure deserialization | CWE-345, CWE-353, CWE-426, CWE-502 |
+| **A09** | Security Logging and Alerting Failures | Missing audit logs, unmonitored security events | CWE-117, CWE-223, CWE-532, CWE-778 |
+| **A10** | Mishandling of Exceptional Conditions | Improper error handling, fail-open logic, unhandled exceptions | CWE-252, CWE-280, CWE-388, CWE-754, CWE-755 |
 
 ---
 
@@ -86,10 +86,10 @@ Source: https://owasp.org/Top10/2025/
 
 | Topic | URL |
 |-------|-----|
-| OS Command Injection | https://cheatsheetseries.owasp.org/cheatsheets/OS_Command_Injection_Defense_Cheat_Sheet.html |
-| Secrets Management | https://cheatsheetseries.owasp.org/cheatsheets/Secrets_Management_Cheat_Sheet.html |
-| Input Validation | https://cheatsheetseries.owasp.org/cheatsheets/Input_Validation_Cheat_Sheet.html |
-| Cryptographic Storage | https://cheatsheetseries.owasp.org/cheatsheets/Cryptographic_Storage_Cheat_Sheet.html |
-| Error Handling | https://cheatsheetseries.owasp.org/cheatsheets/Error_Handling_Cheat_Sheet.html |
-| Docker Security | https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html |
-| Kubernetes Security | https://cheatsheetseries.owasp.org/cheatsheets/Kubernetes_Security_Cheat_Sheet.html |
+| OS Command Injection | <https://cheatsheetseries.owasp.org/cheatsheets/OS_Command_Injection_Defense_Cheat_Sheet.html> |
+| Secrets Management | <https://cheatsheetseries.owasp.org/cheatsheets/Secrets_Management_Cheat_Sheet.html> |
+| Input Validation | <https://cheatsheetseries.owasp.org/cheatsheets/Input_Validation_Cheat_Sheet.html> |
+| Cryptographic Storage | <https://cheatsheetseries.owasp.org/cheatsheets/Cryptographic_Storage_Cheat_Sheet.html> |
+| Error Handling | <https://cheatsheetseries.owasp.org/cheatsheets/Error_Handling_Cheat_Sheet.html> |
+| Docker Security | <https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html> |
+| Kubernetes Security | <https://cheatsheetseries.owasp.org/cheatsheets/Kubernetes_Security_Cheat_Sheet.html> |

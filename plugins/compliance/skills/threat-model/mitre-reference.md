@@ -133,6 +133,6 @@ Common techniques for infrastructure and Kubernetes security.
 
 ## References
 
-- MITRE ATT&CK Enterprise: https://attack.mitre.org/matrices/enterprise/
-- MITRE ATT&CK Containers: https://attack.mitre.org/matrices/enterprise/containers/
-- MITRE ATT&CK Mitigations: https://attack.mitre.org/mitigations/enterprise/
+- MITRE ATT&CK Enterprise: <https://attack.mitre.org/matrices/enterprise/>
+- MITRE ATT&CK Containers: <https://attack.mitre.org/matrices/enterprise/containers/>
+- MITRE ATT&CK Mitigations: <https://attack.mitre.org/mitigations/enterprise/>

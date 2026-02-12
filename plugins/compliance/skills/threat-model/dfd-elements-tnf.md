@@ -87,7 +87,7 @@ Elements with the most existing per-element threats (from TNF-THREAT-MODEL.md):
 
 The full path credentials take through the system (highest-risk data flow):
 
-```
+```text
 EE1 (Admin) --DF1--> P1 (Installer) --DF2--> DS1 (install-config) [plaintext on disk]
                                       --DF3--> DS2 (K8s Secret)    [base64 in etcd]
                                                     |
