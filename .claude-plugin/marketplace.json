@@ -182,7 +182,7 @@
       "name": "code-review",
       "source": "./plugins/code-review",
       "description": "Automated code quality review with language-aware analysis for pre-commit verification",
-      "version": "0.0.2"
+      "version": "0.0.3"
     }
   ]
 }
