@@ -15,6 +15,7 @@ Use this skill when you need to:
 - Get raw test failure outputs for AI-based similarity analysis
 - Compare error messages across runs to determine if they share the same root cause
 - Include successful runs in addition to failures (optional)
+- Filter runs by job name substrings (e.g., only GCP techpreview jobs)
 - Access JUnit test output for debugging and investigation
 
 ## Prerequisites
@@ -46,11 +47,11 @@ python3 "$script_path" "$test_id" --format json
 # Include successful runs as well
 python3 "$script_path" "$test_id" --include-success --format json
 
-# Filter to a specific Prow job
-python3 "$script_path" "$test_id" --prowjob-name "periodic-ci-openshift-release-..." --format json
+# Filter to a specific Prow job (exact name works as substring of itself)
+python3 "$script_path" "$test_id" --job-contains "periodic-ci-openshift-release-..." --format json
 
-# Filter to a specific job and include successes (useful for regression start analysis)
-python3 "$script_path" "$test_id" --include-success --prowjob-name "periodic-ci-openshift-..." --format json
+# Filter by multiple substrings (AND logic, case-insensitive, server-side)
+python3 "$script_path" "$test_id" --job-contains gcp --job-contains techpreview --format json
 
 # Filter to specific job run IDs (backward compatible with analyze-regression)
 python3 "$script_path" "$test_id" "$job_run_ids" --format json
@@ -65,7 +66,7 @@ python3 "$script_path" "$test_id" --format summary
 
 **Options**:
 - `--include-success`: Include successful test runs (default: failures only)
-- `--prowjob-name <name>`: Filter to runs from a specific Prow job
+- `--job-contains <name>`: Filter by job name substring (server-side, case-insensitive). Repeatable for AND logic — all substrings must appear in the job name. Full job names also work since they are substrings of themselves. E.g., `--job-contains gcp --job-contains techpreview` matches jobs containing both "gcp" and "techpreview".
 - `--start-days-ago <days>`: Number of days to look back (default API is 7 days)
 - `--format json|summary`: Output format (default: json)
 
@@ -153,6 +154,7 @@ Returns structured JSON with raw runs:
   "test_id": "openshift-tests:71c053c318c11cfc47717b9cf711c326",
   "requested_job_runs": 0,
   "include_success": false,
+  "job_name_filters": ["gcp", "techpreview"],
   "runs": [
     {
       "url": "https://prow.ci.openshift.org/...",
@@ -162,7 +164,7 @@ Returns structured JSON with raw runs:
       "failed_tests": 3
     }
   ],
-  "api_url": "http://127.0.0.1:8080/api/tests/v2/runs?test_id=..."
+  "api_url": "http://127.0.0.1:8080/api/tests/v2/runs?test_id=...&prowjob_name=gcp&prowjob_name=techpreview"
 }
 ```
 
@@ -172,6 +174,7 @@ Returns structured JSON with raw runs:
 - **test_id**: The test identifier that was queried
 - **requested_job_runs**: Number of job run IDs requested (0 if none specified)
 - **include_success**: Whether successful runs were requested
+- **job_name_filters**: List of job name substrings used for server-side filtering (null if not specified)
 - **runs**: Raw array of test run objects from Sippy API
   - **url**: Prow job URL for this specific run
   - **output**: The actual JUnit test failure output text (empty for successes)
@@ -188,7 +191,8 @@ Returns structured JSON with raw runs:
   "error": "Failed to connect to test runs API: Connection refused",
   "test_id": "openshift-tests:abc123",
   "requested_job_runs": 0,
-  "include_success": false
+  "include_success": false,
+  "job_name_filters": null
 }
 ```
 
@@ -201,6 +205,7 @@ Test Runs
 ============================================================
 
 Test ID: openshift-tests:71c053c318c11cfc47717b9cf711c326
+Job Contains: ['gcp', 'techpreview']
 Include Successes: False
 Runs Fetched: 18
 
@@ -239,7 +244,8 @@ python3 fetch_test_runs.py "openshift-tests:abc"
   "error": "Failed to connect to test runs API: Connection refused.",
   "test_id": "openshift-tests:abc",
   "requested_job_runs": 0,
-  "include_success": false
+  "include_success": false,
+  "job_name_filters": null
 }
 ```
 
@@ -263,6 +269,7 @@ If the API returns an empty array:
   "test_id": "openshift-tests:abc",
   "requested_job_runs": 0,
   "include_success": false,
+  "job_name_filters": null,
   "runs": []
 }
 ```
@@ -283,6 +290,7 @@ Arguments:
 
 Options:
   --include-success    Include successful test runs (default: failures only)
+  --job-contains       Filter by job name substring (repeatable for AND logic)
   --format json|summary   Output format (default: json)
 ```
 
@@ -352,7 +360,30 @@ if [ "$(echo "$output_data" | jq -r '.success')" = "true" ]; then
 fi
 ```
 
-### Example 6: Determine Regression Start Date
+### Example 6: Filter Runs by Job Name Substrings
+
+Filter to runs from jobs matching multiple criteria (e.g., GCP + techpreview):
+
+```bash
+script_path="plugins/ci/skills/fetch-test-runs/fetch_test_runs.py"
+
+# Get only GCP techpreview runs (both substrings must match, server-side)
+python3 "$script_path" "openshift-tests:abc123" --include-success \
+  --job-contains gcp --job-contains techpreview \
+  --start-days-ago 28 --format json
+
+# Get only metal upgrade runs
+python3 "$script_path" "openshift-tests:abc123" \
+  --job-contains metal --job-contains upgrade \
+  --format summary
+
+# Full job name also works (it's a substring of itself)
+python3 "$script_path" "openshift-tests:abc123" \
+  --job-contains "periodic-ci-openshift-release-master-nightly-4.22-e2e-gcp-ovn-techpreview" \
+  --format json
+```
+
+### Example 7: Determine Regression Start Date
 
 Used by analyze-regression command to find when failures began:
 
@@ -365,7 +396,7 @@ most_failed_job="periodic-ci-openshift-release-master-nightly-4.22-e2e-metal-ipi
 # Fetch all runs (including successes) for this specific job, going back 28 days
 job_history=$(python3 "$script_path" "$test_id" \
   --include-success \
-  --prowjob-name "$most_failed_job" \
+  --job-contains "$most_failed_job" \
   --start-days-ago 28 \
   --format json)
 
@@ -388,9 +419,9 @@ fi
 - Returns raw outputs for AI-based interpretation and similarity analysis
 - Job run IDs are optional - can fetch all runs for a test
 - `--include-success` allows analyzing both passing and failing runs
-- `--prowjob-name` filters results to a specific Prow job (useful for regression start analysis)
+- `--job-contains` filters results server-side using case-insensitive substring matching. Repeat for AND logic (all substrings must appear in the job name). Full job names work too since they are substrings of themselves.
 - `--start-days-ago` allows looking back further than the default 7 days (e.g., `--start-days-ago 28`)
-- Combine `--include-success`, `--prowjob-name`, and `--start-days-ago` to get full test history for regression analysis
+- Combine `--include-success`, `--job-contains`, and `--start-days-ago` to get full test history for regression analysis
 - Backward compatible with analyze-regression command (accepts job_run_ids)
 - Summary format shows first 5 runs only, to keep output manageable
 - Runs are returned in order from most recent to least recent

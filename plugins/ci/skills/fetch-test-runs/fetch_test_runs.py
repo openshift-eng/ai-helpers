@@ -21,7 +21,7 @@ class TestRunsFetcher:
     BASE_URL = "http://127.0.0.1:8080/api/tests/v2/runs"
 
     def __init__(self, test_id: str, job_run_ids: Optional[List[str]] = None,
-                 include_success: bool = False, prowjob_name: Optional[str] = None,
+                 include_success: bool = False, job_name_filters: Optional[List[str]] = None,
                  start_days_ago: Optional[int] = None):
         """
         Initialize fetcher with test ID and optional parameters.
@@ -30,13 +30,16 @@ class TestRunsFetcher:
             test_id: Test identifier (e.g., "openshift-tests:71c053c318c11cfc47717b9cf711c326")
             job_run_ids: Optional list of Prow job run IDs to filter by
             include_success: If True, include successful test runs (default: False)
-            prowjob_name: Optional Prow job name to filter results to a specific job
+            job_name_filters: Optional list of job name substrings. The API filters server-side
+                using AND logic with case-insensitive substring matching. Each value must appear
+                somewhere in the job name. Works with both full job names and partial substrings.
+                E.g., ["gcp", "techpreview"] matches jobs containing both "gcp" and "techpreview".
             start_days_ago: Optional number of days to look back (default API is 7 days)
         """
         self.test_id = test_id
         self.job_run_ids = job_run_ids
         self.include_success = include_success
-        self.prowjob_name = prowjob_name
+        self.job_name_filters = job_name_filters
         self.start_days_ago = start_days_ago
         # Calculate start_date from start_days_ago
         if start_days_ago is not None:
@@ -55,15 +58,30 @@ class TestRunsFetcher:
         if self.include_success:
             url += "&include_success=true"
 
-        if self.prowjob_name:
-            # URL encode the job name in case it contains special characters
-            encoded_name = urllib.parse.quote(self.prowjob_name, safe='')
-            url += f"&prowjob_name={encoded_name}"
+        if self.job_name_filters:
+            # Each filter is sent as a separate prowjob_name query parameter for
+            # server-side substring filtering with AND logic
+            for name in self.job_name_filters:
+                encoded_name = urllib.parse.quote(name, safe='')
+                url += f"&prowjob_name={encoded_name}"
 
         if self.start_date:
             url += f"&start_date={self.start_date}"
 
         return url
+
+    def _error_response(self, error_msg: str) -> Dict[str, Any]:
+        """Build a standard error response dict."""
+        return {
+            'success': False,
+            'error': error_msg,
+            'test_id': self.test_id,
+            'requested_job_runs': len(self.job_run_ids) if self.job_run_ids else 0,
+            'include_success': self.include_success,
+            'job_name_filters': self.job_name_filters,
+            'start_days_ago': self.start_days_ago,
+            'start_date': self.start_date,
+        }
 
     def fetch_runs(self) -> Dict[str, Any]:
         """
@@ -79,16 +97,7 @@ class TestRunsFetcher:
 
                 # Check for API error in response
                 if isinstance(data, dict) and 'error' in data:
-                    return {
-                        'success': False,
-                        'error': f"API error: {data['error']}",
-                        'test_id': self.test_id,
-                        'requested_job_runs': len(self.job_run_ids) if self.job_run_ids else 0,
-                        'include_success': self.include_success,
-                        'prowjob_name': self.prowjob_name,
-                        'start_days_ago': self.start_days_ago,
-                        'start_date': self.start_date,
-                    }
+                    return self._error_response(f"API error: {data['error']}")
 
                 # Return successful response with runs
                 return {
@@ -96,7 +105,7 @@ class TestRunsFetcher:
                     'test_id': self.test_id,
                     'requested_job_runs': len(self.job_run_ids) if self.job_run_ids else 0,
                     'include_success': self.include_success,
-                    'prowjob_name': self.prowjob_name,
+                    'job_name_filters': self.job_name_filters,
                     'start_days_ago': self.start_days_ago,
                     'start_date': self.start_date,
                     'runs': data,
@@ -104,38 +113,11 @@ class TestRunsFetcher:
                 }
 
         except urllib.error.HTTPError as e:
-            return {
-                'success': False,
-                'error': f"HTTP error {e.code}: {e.reason}",
-                'test_id': self.test_id,
-                'requested_job_runs': len(self.job_run_ids) if self.job_run_ids else 0,
-                'include_success': self.include_success,
-                'prowjob_name': self.prowjob_name,
-                'start_days_ago': self.start_days_ago,
-                'start_date': self.start_date,
-            }
+            return self._error_response(f"HTTP error {e.code}: {e.reason}")
         except urllib.error.URLError as e:
-            return {
-                'success': False,
-                'error': f"Failed to connect to test runs API: {e.reason}. Ensure localhost:8080 is running or production endpoint is available.",
-                'test_id': self.test_id,
-                'requested_job_runs': len(self.job_run_ids) if self.job_run_ids else 0,
-                'include_success': self.include_success,
-                'prowjob_name': self.prowjob_name,
-                'start_days_ago': self.start_days_ago,
-                'start_date': self.start_date,
-            }
+            return self._error_response(f"Failed to connect to test runs API: {e.reason}. Ensure localhost:8080 is running or production endpoint is available.")
         except Exception as e:
-            return {
-                'success': False,
-                'error': f"Unexpected error: {str(e)}",
-                'test_id': self.test_id,
-                'requested_job_runs': len(self.job_run_ids) if self.job_run_ids else 0,
-                'include_success': self.include_success,
-                'prowjob_name': self.prowjob_name,
-                'start_days_ago': self.start_days_ago,
-                'start_date': self.start_date,
-            }
+            return self._error_response(f"Unexpected error: {str(e)}")
 
 
 def format_summary(results: Dict[str, Any]) -> str:
@@ -165,8 +147,8 @@ def format_summary(results: Dict[str, Any]) -> str:
 
     runs = results.get('runs', [])
     lines.append(f"Test ID: {results.get('test_id', 'N/A')}")
-    if results.get('prowjob_name'):
-        lines.append(f"Prow Job: {results.get('prowjob_name')}")
+    if results.get('job_name_filters'):
+        lines.append(f"Job Contains: {results.get('job_name_filters')}")
     if results.get('requested_job_runs', 0) > 0:
         lines.append(f"Requested Job Runs: {results.get('requested_job_runs', 0)}")
     lines.append(f"Include Successes: {results.get('include_success', False)}")
@@ -224,10 +206,12 @@ def main():
         print("  job_run_ids   Optional comma-separated list of Prow job run IDs", file=sys.stderr)
         print("", file=sys.stderr)
         print("Options:", file=sys.stderr)
-        print("  --include-success          Include successful test runs (default: failures only)", file=sys.stderr)
-        print("  --prowjob-name <name>      Filter to runs from a specific Prow job", file=sys.stderr)
-        print("  --start-days-ago <days>    Number of days to look back (default API is 7 days)", file=sys.stderr)
-        print("  --format json|summary      Output format (default: json)", file=sys.stderr)
+        print("  --include-success              Include successful test runs (default: failures only)", file=sys.stderr)
+        print("  --job-contains <substring>     Filter by job name substring (server-side, case-insensitive).", file=sys.stderr)
+        print("                                 Repeat for AND logic: --job-contains gcp --job-contains techpreview", file=sys.stderr)
+        print("                                 Also accepts full job names (substring of itself).", file=sys.stderr)
+        print("  --start-days-ago <days>        Number of days to look back (default API is 7 days)", file=sys.stderr)
+        print("  --format json|summary          Output format (default: json)", file=sys.stderr)
         print("", file=sys.stderr)
         print("Examples:", file=sys.stderr)
         print("  # Fetch all test runs (failures only)", file=sys.stderr)
@@ -236,8 +220,11 @@ def main():
         print("  # Fetch all test runs including successes", file=sys.stderr)
         print("  fetch_test_runs.py 'openshift-tests:abc123' --include-success", file=sys.stderr)
         print("", file=sys.stderr)
-        print("  # Fetch runs from a specific job including successes", file=sys.stderr)
-        print("  fetch_test_runs.py 'openshift-tests:abc123' --include-success --prowjob-name 'periodic-ci-openshift-...'", file=sys.stderr)
+        print("  # Filter by exact job name (still works - it's a substring of itself)", file=sys.stderr)
+        print("  fetch_test_runs.py 'openshift-tests:abc123' --job-contains 'periodic-ci-openshift-...'", file=sys.stderr)
+        print("", file=sys.stderr)
+        print("  # Filter by multiple substrings (AND logic, case-insensitive)", file=sys.stderr)
+        print("  fetch_test_runs.py 'openshift-tests:abc123' --job-contains gcp --job-contains techpreview", file=sys.stderr)
         print("", file=sys.stderr)
         print("  # Fetch runs going back 28 days (for regression start analysis)", file=sys.stderr)
         print("  fetch_test_runs.py 'openshift-tests:abc123' --include-success --start-days-ago 28", file=sys.stderr)
@@ -253,7 +240,7 @@ def main():
     test_id = sys.argv[1]
     job_run_ids = None
     include_success = False
-    prowjob_name = None
+    job_name_filters = []
     start_days_ago = None
     output_format = 'json'
 
@@ -264,8 +251,8 @@ def main():
         if arg == '--include-success':
             include_success = True
             i += 1
-        elif arg == '--prowjob-name' and i + 1 < len(sys.argv):
-            prowjob_name = sys.argv[i + 1]
+        elif arg == '--job-contains' and i + 1 < len(sys.argv):
+            job_name_filters.append(sys.argv[i + 1])
             i += 2
         elif arg == '--start-days-ago' and i + 1 < len(sys.argv):
             try:
@@ -289,7 +276,9 @@ def main():
 
     # Fetch runs
     try:
-        fetcher = TestRunsFetcher(test_id, job_run_ids, include_success, prowjob_name, start_days_ago)
+        fetcher = TestRunsFetcher(test_id, job_run_ids, include_success,
+                                  job_name_filters if job_name_filters else None,
+                                  start_days_ago)
         results = fetcher.fetch_runs()
 
         # Output in requested format
