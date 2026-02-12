@@ -175,6 +175,12 @@
           "synopsis": "/jira:status-rollup issue-id [--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD]"
         },
         {
+          "argument_hint": "[--project <key> | --epic <key>] [--repo <org/repo>] [--since <date>] [--include-ignored] [--include-prs]",
+          "description": "Synchronize issues between JIRA and GitHub with bidirectional support and content sanitization",
+          "name": "sync-github",
+          "synopsis": "/jira:sync-github [--project <key> | --epic <key>] [--repo <org/repo>] [--since <date>] [--include-ignored] [--include-prs]"
+        },
+        {
           "argument_hint": "[target-version] [component-filter] [--bug issue-key]",
           "description": "Validate proposed release blockers using Red Hat OpenShift release blocker criteria",
           "name": "validate-blockers",
@@ -265,6 +271,11 @@
           "description": "Jira conventions and bug templates for the OCPBUGS project",
           "id": "ocpbugs",
           "name": "OCPBUGS Jira Conventions"
+        },
+        {
+          "description": "Synchronize issues between JIRA and GitHub with bidirectional support and content sanitization",
+          "id": "sync-github",
+          "name": "JIRA-GitHub Issue Sync"
         }
       ],
       "version": "0.2.0"
