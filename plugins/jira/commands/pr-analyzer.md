@@ -26,7 +26,7 @@ When user says "analyze PR [number]" or provides PR URL/diff, create 2 files:
 1. PR{NUMBER}_GUIDE.md:
    - Summary: JIRA link, status (merged date), author, 2-3 sentence description, priority, customer impact
    - Quick Start: One-line description, "Do you need this?" checklist, quick verification command
-   - Context: Why it matters for TNF 2-node clusters
+   - Context: Why it matters for TNF (two node fencing) 2-node clusters
    - Code Changes Summary: Files/lines changed, commits (hash+message), functions added/modified (with line numbers)
    - How the Fix Works: Before/after code snippets
    - Before vs After Comparison Table
@@ -67,4 +67,4 @@ When user says "analyze PR [number]" or provides PR URL/diff, create 2 files:
 
 JIRA Patterns: OCPBUGS-*/OCPEDGE-*/RHEL-* → [https://issues.redhat.com/browse/{ID}](https://issues.redhat.com/browse/{ID})
 
-Context: ClusterLabs/RHEL resource-agents, Pacemaker/OCF, TNF 2-node clusters, production RHEL/OpenShift
+Context: ClusterLabs/RHEL resource-agents, Pacemaker/OCF, TNF (two node fencing) 2-node clusters, production RHEL/OpenShift
