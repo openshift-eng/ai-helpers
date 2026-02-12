@@ -1,0 +1,8 @@
+{
+  "name": "fbc-art-images",
+  "description": "Assists with testing operators built in [FBC](https://olm.operatorframework.io/docs/reference/file-based-catalogs/) (File Based Catalog) by Konflux (quay.io/redhat-user-workloads/ocp-art-tenant/art-fbc) with quay.io/redhat-user-workloads/ocp-art-tenant/art-images-share image repository. Requires oras CLI for image discovery.",
+  "version": "0.0.1",
+  "author": {
+    "name": "OpenShift MultiArch Team"
+  }
+}
