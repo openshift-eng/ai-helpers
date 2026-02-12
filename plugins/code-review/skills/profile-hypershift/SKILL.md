@@ -17,7 +17,7 @@ The hypershift repository maintains its own Claude agents at `.claude/agents/` t
 
 1. **If inside a local hypershift checkout**: Read the agent definitions from `.claude/agents/` in the repo root. Pick the agents relevant to the changed files based on each agent's own description, and launch them as sub-agents.
 2. **If not in a hypershift checkout**: Fetch the agent definitions using `gh api repos/openshift/hypershift/contents/.claude/agents?ref=main` (or the GitHub contents API) and use them.
-3. **Let the agents decide relevance**: Each agent's description states what files and domains it covers. Match agents to changed files based on those descriptions — do not hardcode the mapping in this profile.
+3. **Use all HyperShift SME agents** to review branch changes or a given PR, questioning the approach and whether it solves the underlying problem.
 
 The repo also has skills at `.claude/skills/` (code formatting, debugging, effective Go, git commit format, CLI conventions). Apply any that are relevant to the changed files.
 
