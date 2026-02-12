@@ -170,7 +170,7 @@ For each PR, suggest:
 
 1. **Basic usage**:
    ```
-   /olm-team:ep-prs-watch
+   /olm-team:ep-watch
    ```
 
    Example output:
@@ -184,7 +184,7 @@ For each PR, suggest:
    🎯 Relevance: HIGH
 
    **Why this matters to OLM:**
-   - Mentions: operator, webhook, ClusterExtension, operator lifecycle
+   - Mentions: ClusterExtension, operator lifecycle, catalogd
    - Potential impacts: Changes how operator webhooks work in hosted control planes
      Could affect OLMv1 webhook support in HyperShift clusters
 
@@ -251,7 +251,7 @@ def score_pr_relevance(pr_data, weighted_topics):
 
 To avoid rate limits, cache results:
 ```bash
-CACHE_FILE="/tmp/olm-ep-prs-watch-cache.json"
+CACHE_FILE="/tmp/olm-ep-watch-cache.json"
 CACHE_TTL=3600  # 1 hour
 
 if [ -f "$CACHE_FILE" ]; then
@@ -315,32 +315,29 @@ fi
 - Results are ranked by relevance, not recency
 - Consider running this weekly during team meetings
 
-## Advanced Usage
+## Future Enhancements
+
+The following features could be added in future versions:
 
 ### Custom Topic Filtering
-
-To search for specific topics only:
+Allow searching for specific topics:
 ```bash
-# Modify the script to accept topic arguments
-/olm-team:ep-prs-watch webhooks catalog
+/olm-team:ep-watch webhooks catalog
 ```
 
 ### Adjust Result Limit
-
-To return more or fewer results:
+Return more or fewer results:
 ```bash
-# Show top 5 instead of 3
-/olm-team:ep-prs-watch --limit 5
+/olm-team:ep-watch --limit 5
 ```
 
 ### Include OLM Team PRs
-
-To see ALL relevant PRs (including OLM team):
+See ALL relevant PRs (including OLM team):
 ```bash
-/olm-team:ep-prs-watch --include-team
+/olm-team:ep-watch --include-team
 ```
 
-## Future Enhancements
+## Additional Future Enhancements
 
 - Auto-post weekly summary to Slack
 - Subscribe to specific topics
