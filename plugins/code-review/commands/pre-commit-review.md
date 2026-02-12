@@ -12,7 +12,7 @@ code-review:pre-commit-review
 ```
 
 ## Description
-The `code-review:pre-commit-review` command performs a comprehensive code quality review of staged and unstaged changes before committing. It analyzes unit test coverage, idiomatic code patterns, DRY compliance, SOLID principles, and build verification.
+The `code-review:pre-commit-review` command performs a comprehensive code quality review of all changes on the current branch (compared to the default branch) before committing. It analyzes unit test coverage, idiomatic code patterns, DRY compliance, SOLID principles, and build verification.
 
 The command supports two layers of customization:
 
@@ -45,9 +45,8 @@ The two layers compose: `--language go --profile hypershift` applies both Go idi
 
 This step is language-agnostic.
 
-- Run `git diff --name-only` to identify unstaged changes.
-- Run `git diff --cached --name-only` to identify staged changes.
-- Combine and deduplicate the file lists.
+- Auto-detect the default branch by running `git rev-parse --abbrev-ref origin/HEAD` (e.g., `origin/main`). If that fails, fall back to `origin/main`.
+- Run `git diff <default-branch>...HEAD --name-only` to get all files changed on the current branch relative to the default branch.
 - Focus the review exclusively on changed files. Do not review unchanged files.
 - Categorize files by type: source code, test files, configuration, documentation.
 - If no source code files are changed (e.g., only docs or config), note this and adjust the review scope accordingly.
@@ -93,7 +92,8 @@ Skip if `--skip-tests` is specified.
 
 #### Sub-agent: Profile-Specific Review (only if profile is loaded)
 - Follow the profile's instructions to discover the project's agents and skills.
-- For example, the hypershift profile instructs: read agents from `.claude/agents/` (local checkout) or fetch via `gh api repos/openshift/hypershift/contents/.claude/agents?ref=main`, pick the ones relevant to the changed files based on their descriptions, and apply their domain expertise.
+- For example, the hypershift profile instructs: read agents from `.claude/agents/` (local checkout) or fetch via `gh api repos/openshift/hypershift/contents/.claude/agents?ref=main`, pick the ones relevant to the changed files based on their descriptions.
+- **Explicitly launch each relevant project agent** using the Task tool with `subagent_type` set to the agent's name (e.g., `subagent_type: "api-sme"`, `subagent_type: "control-plane-sme"`). Pass the changed files and review context in the prompt. Do not simply "apply their domain expertise" inline — delegate to the actual agent so it runs with its own tools and specialized knowledge.
 - Check any profile-specific requirements (e.g., API generation checks if `api/` files changed).
 - Return findings as structured text.
 
