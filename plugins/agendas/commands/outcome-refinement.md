@@ -40,6 +40,7 @@ The `agendas:outcome-refinement` command runs in three main phases:
 ### 📋 Phase 3: Report Generation
 - Automatically generates a **structured outcome refinement meeting agenda** in Markdown format.
 - Includes discussion points, decision checklists, and action items.
+- Saves report to `.work/agendas/outcome-refinement/report-{timestamp}.md` and displays file path for easy opening.
 - Output can be copied directly into Confluence or shared with the team.
 
 ## Output Format
@@ -67,4 +68,7 @@ The command outputs a ready-to-use Markdown document that can be copied into Con
 ```
 
 ## Return Value
-- **Markdown Report**: Ready-to-use outcome refinement agenda with categorized issues and action items
+- **Format**: Markdown report with ready-to-use outcome refinement agenda
+- **Location**: `.work/agendas/outcome-refinement/report-{timestamp}.md`
+- **Content**: Structured agenda with categorized issues (Critical Issues, Needs Clarification) and action items
+- **Output**: File path displayed in chat for easy opening
