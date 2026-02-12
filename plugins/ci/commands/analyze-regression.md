@@ -532,26 +532,34 @@ This command is useful for:
 
 9. **Identify Related Regressions**: Use the `list-regressions` skill to find similar failing tests
 
-   Fetch all regressions for the same release and component to find related regressions that may share the same root cause.
+   Use the `list-regressions` skill with test name filtering to find related regressions that may share the same root cause. Run two queries: one for the exact same test (different variants) and one for similar tests (same namespace/sig).
 
    **Implementation**:
 
    ```bash
-   # Extract release from regression data
+   # Extract test name and release from regression data
+   test_name=$(echo "$regression_data" | jq -r '.test_name')
    release=$(echo "$regression_data" | jq -r '.release')
-
-   # Use the list-regressions skill to fetch all regressions for the release
    script_path="plugins/teams/skills/list-regressions/list_regressions.py"
-   all_regressions=$(python3 "$script_path" --release "$release")
+
+   # Query 1: Find regressions for the exact same test across all variants
+   same_test_regressions=$(python3 "$script_path" --release "$release" --test-name "$test_name")
+
+   # Query 2: Find regressions for similar tests (e.g., same namespace)
+   # Extract the namespace from the test name (e.g., "openshift-machine-config-operator")
+   # and search for other tests mentioning it
+   # Choose a distinctive substring from the test name that identifies related tests
+   similar_test_regressions=$(python3 "$script_path" --release "$release" --test-name-contains "<distinctive_substring>")
    ```
+
+   **Note**: `--test-name` and `--test-name-contains` cannot be combined with `--components` or `--team` — they search across all components automatically.
 
    **Analyze Related Regressions**:
 
-   From the list-regressions output, search across all components to identify regressions related to the current one:
+   From the filtered results, identify regressions related to the current one:
 
-   - **Same test, different variants**: Other regressions for the same `test_name` but with different variant combinations (e.g., same test failing on both `aws` and `metal` platforms)
-   - **Similar test names**: Regressions with test names that share a common prefix or test suite (e.g., same `[sig-api-machinery]` tests)
-   - **Same capability**: Other regressions in the same `capability` area that may indicate a broader issue
+   - **Same test, different variants**: From the `--test-name` query — other regressions for the same test but with different variant combinations (e.g., same test failing on both `aws` and `metal` platforms)
+   - **Similar test names**: From the `--test-name-contains` query — regressions with test names that share a common prefix or test suite (e.g., same `[sig-api-machinery]` tests)
 
    For each related regression found, note:
    - Regression ID
@@ -574,16 +582,6 @@ This command is useful for:
    - Identify if the test is failing across all jobs of one Platform variant (e.g., all `metal` jobs)
    - Identify if failures cluster around a specific Upgrade, Network, or Topology variant
    - Note any variant combinations that are NOT failing (helps narrow root cause)
-
-   ```bash
-   # Example: Extract related regressions for the same test name across all components
-   test_name=$(echo "$regression_data" | jq -r '.test_name')
-   echo "$all_regressions" | jq --arg tn "$test_name" '
-     .components | to_entries[] | .value |
-     (.open + .closed)[] | select(.test_name == $tn)
-     | {id, test_name, variants, triages, closed}
-   '
-   ```
 
 10. **Check Existing Triages**: Look for related triage records
 
