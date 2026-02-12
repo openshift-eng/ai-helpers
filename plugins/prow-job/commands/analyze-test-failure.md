@@ -54,16 +54,8 @@ For HyperShift jobs with hosted clusters, the command automatically:
 **Note**: HyperShift jobs may use different artifact structures depending on the workflow and test type.
 
 ## Implementation
-Pass the user's request to the skill, which will:
-- Parse optional `--fast` flag to skip must-gather analysis
-- Download the artifacts from Google Cloud Storage
-- Check source code of the test
-- Extract artifacts from Prow CI job and analyze the given test failure
-- **Detect must-gather availability** (single for standard OpenShift, dual for HyperShift)
-- **Optionally extract and analyze must-gather data** for cluster-level diagnostics (unless --fast)
-- **For HyperShift**: Extract and analyze both management and hosted cluster must-gather
-- **Correlate cluster events and operator status** with test failure timing
-- **Provide structured output** with clear sections and enhanced formatting
+- Load the "Prow Job Analyze Test Failure" skill
+- Proceed with the analysis by following the implementation steps from the skill
 
 The skill handles all the implementation details including URL parsing, artifact downloading, archive extraction, must-gather analysis (if requested), and providing correlated evidence combining test-level and cluster-level insights.
 
