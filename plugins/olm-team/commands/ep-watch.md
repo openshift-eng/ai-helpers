@@ -41,7 +41,7 @@ OLMv1-specific terms that indicate direct relevance:
 - ClusterExtension
 - boxcutter
 
-**Medium Priority Topics (Weight: 5-8):**
+**Medium Priority Topics (Weight: 5):**
 OLM-specific but broader terms:
 - olmv0, olm v0
 - operator lifecycle manager, operator-lifecycle-manager
@@ -51,9 +51,8 @@ OLM-specific but broader terms:
 - operator catalog
 - operator registry
 - operator hub, operatorhub
-- cluster extension (weight: 8)
 
-**Low Priority Topics (Weight: 3-4):**
+**Low Priority Topics (Weight: 3):**
 Related terms that must appear in specific context:
 - subscription (with "operator")
 - csv (with "operator")
