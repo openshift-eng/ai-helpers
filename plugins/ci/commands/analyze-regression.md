@@ -113,34 +113,31 @@ This command is useful for:
    if [ -z "$JIRA_TOKEN" ]; then
      echo "Warning: JIRA_TOKEN environment variable not set. Skipping JIRA progress analysis."
    else
-     # For each triage, fetch JIRA details using JIRA_TOKEN env var
+     # For each triage, fetch JIRA details using the fetch-jira-issue skill
+     jira_script="plugins/ci/skills/fetch-jira-issue/fetch_jira_issue.py"
      for jira_key in $(echo "$regression_data" | jq -r '.triages[].jira_key'); do
-       jira_data=$(curl -s -H "Authorization: Bearer $JIRA_TOKEN" \
-         "https://issues.redhat.com/rest/api/2/issue/$jira_key?fields=status,assignee,updated,comment")
+       jira_data=$(python3 "$jira_script" "$jira_key" --format json)
      done
    fi
    ```
 
-   **Analyze JIRA Progress**:
+   The `fetch-jira-issue` skill automatically classifies progress. Extract the classification:
 
-   For each linked JIRA issue, determine the work status:
+   ```bash
+   progress_level=$(echo "$jira_data" | jq -r '.progress.level')
+   progress_reason=$(echo "$jira_data" | jq -r '.progress.reason')
+   assignee=$(echo "$jira_data" | jq -r '.assignee.display_name // "Unassigned"')
+   linked_prs=$(echo "$jira_data" | jq -r '.linked_prs | length')
+   ```
 
-   - **Active Progress** indicators:
-     - Status is `ASSIGNED`, `IN PROGRESS`, `Code Review`, or similar active states
-     - Recent comments (within last 7 days) showing investigation or fix progress
-     - Assignee is set and has been active on the issue
-     - PR links in comments indicating fix is in progress
+   See `plugins/ci/skills/fetch-jira-issue/SKILL.md` for complete implementation details.
 
-   - **Needs Attention** indicators:
-     - Status is `NEW`, `OPEN`, or `Untriaged`
-     - No assignee set
-     - No comments or last comment is older than 14 days
-     - No recent activity on the issue
+   **Progress levels returned by the skill**:
 
-   - **Stalled** indicators:
-     - Status is `ASSIGNED` but no activity in 14+ days
-     - Comments indicate blocker or waiting on something
-     - Issue has been open for extended period with no progress
+   - **ACTIVE**: Status is ASSIGNED/IN PROGRESS with recent activity, PRs linked, or recent comments
+   - **STALLED**: Status is ASSIGNED but no activity in 14+ days
+   - **NEEDS_ATTENTION**: Status is NEW/OPEN with no assignee or no recent progress
+   - **RESOLVED**: Status is Closed/Verified
 
    **Classification Output**:
 
@@ -1024,6 +1021,7 @@ Uses the `triage-regression` skill with authentication via the `oc-auth` skill (
   - `fetch-prowjob-json`: Fetches prowjob.json to get payload tag and upgrade-from tag for a Prow job
   - `fetch-new-prs-in-payload`: Fetches new PRs in a payload compared to its predecessor
   - `list-regressions` (teams plugin): Lists all regressions for a release/component to find related regressions
+  - `fetch-jira-issue`: Fetches JIRA issue details and classifies progress
   - `triage-regression`: Creates or updates triage records linking regressions to JIRA bugs
   - `oc-auth`: Provides authentication tokens for sippy-auth API
 - The regression details skill groups failed jobs by job name and provides pass sequences for pattern analysis
@@ -1044,6 +1042,7 @@ Uses the `triage-regression` skill with authentication via the `oc-auth` skill (
 - Related Skill: `fetch-prowjob-json` - Fetches prowjob.json for payload tag and metadata (`plugins/ci/skills/fetch-prowjob-json/SKILL.md`)
 - Related Skill: `fetch-new-prs-in-payload` - Fetches new PRs in a payload (`plugins/ci/skills/fetch-new-prs-in-payload/SKILL.md`)
 - Related Skill: `list-regressions` (teams plugin) - Lists all regressions for a release/component (`plugins/teams/skills/list-regressions/SKILL.md`)
+- Related Skill: `fetch-jira-issue` - Fetches JIRA issue details and classifies progress (`plugins/ci/skills/fetch-jira-issue/SKILL.md`)
 - Related Skill: `triage-regression` - Creates or updates triage records (`plugins/ci/skills/triage-regression/SKILL.md`)
 - Related Skill: `oc-auth` - Authentication tokens for sippy-auth (`plugins/ci/skills/oc-auth/SKILL.md`)
 - Related Command: `/component-health:list-regressions` (for bulk regression data)

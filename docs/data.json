@@ -357,6 +357,11 @@
       "name": "ci",
       "skills": [
         {
+          "description": "Fetch JIRA issue details including status, assignee, comments, and progress classification",
+          "id": "fetch-jira-issue",
+          "name": "Fetch JIRA Issue"
+        },
+        {
           "description": "Fetch pull requests that are new in a given OpenShift payload compared to the previous payload",
           "id": "fetch-new-prs-in-payload",
           "name": "Fetch New PRs in Payload"

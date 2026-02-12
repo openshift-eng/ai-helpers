@@ -39,25 +39,21 @@ This command is useful for:
 
 2. **Fetch Jira Issue**: Read the bug description, status, and comments
 
-   ```bash
-   # Requires JIRA_TOKEN environment variable
-   if [ -z "$JIRA_TOKEN" ]; then
-     echo "Error: JIRA_TOKEN environment variable not set."
-     echo "Set it with: export JIRA_TOKEN='your-token'"
-     echo "Obtain from: https://issues.redhat.com (Profile → Personal Access Tokens)"
-     exit 1
-   fi
+   Use the `fetch-jira-issue` skill to retrieve the bug data:
 
-   jira_data=$(curl -s -H "Authorization: Bearer $JIRA_TOKEN" \
-     "https://issues.redhat.com/rest/api/2/issue/$jira_key?fields=summary,description,status,comment,components,labels,fixVersions")
+   ```bash
+   jira_script="plugins/ci/skills/fetch-jira-issue/fetch_jira_issue.py"
+   jira_data=$(python3 "$jira_script" "$jira_key" --format json)
    ```
 
-   Extract and read:
+   See `plugins/ci/skills/fetch-jira-issue/SKILL.md` for complete implementation details including error handling.
+
+   Extract and read from the JSON output:
    - `summary`: Bug title
-   - `description`: Full bug description body
-   - `status.name`: Current Jira status (e.g., NEW, ASSIGNED, MODIFIED, CLOSED)
-   - `comment.comments[]`: All comments on the bug
-   - `components[].name`: Jira component(s)
+   - `comments[].body`: All comment bodies
+   - `status`: Current Jira status (e.g., New, Assigned, Modified, Closed)
+   - `components[]`: Jira component(s)
+   - `progress.level`: Automatic progress classification (ACTIVE/STALLED/NEEDS_ATTENTION/RESOLVED)
 
 3. **Extract Test Identifiers**: Scan the bug for test names, test IDs, and regression IDs
 
