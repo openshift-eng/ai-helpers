@@ -1293,7 +1293,13 @@
       "has_readme": true,
       "hooks": [],
       "name": "ote-migration",
-      "skills": [],
+      "skills": [
+        {
+          "description": "Automated workflow for migrating OpenShift component repositories to OTE framework",
+          "id": "ote-migration-workflow",
+          "name": "OTE Migration Workflow"
+        }
+      ],
       "version": "0.0.1"
     }
   ]

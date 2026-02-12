@@ -4,17 +4,21 @@ argument-hint: ""
 ---
 
 ## Name
+
 ote-migration:migrate
 
 ## Synopsis
+
 ```bash
 /ote-migration:migrate
 ```
 
 ## Description
+
 The `ote-migration:migrate` command automates the complete migration of OpenShift component repositories to use the openshift-tests-extension (OTE) framework. It handles everything from repository setup to code generation, test migration, dependency resolution, and Docker integration.
 
 **What it does:**
+
 1. Collects configuration (directory strategy, repositories, paths)
 2. Sets up source and target repositories
 3. Creates directory structure (monorepo or single-module)
@@ -24,6 +28,7 @@ The `ote-migration:migrate` command automates the complete migration of OpenShif
 7. Integrates with Docker (automated or manual)
 
 **Key Features:**
+
 - **No sig filtering** - All tests included without filtering logic
 - **CMD at root (monorepo)** - Places cmd/extension/main.go at repository root, not under test/
 - **Simple annotations** - Adds [OTP] at beginning of Describe blocks, [Level0] at beginning of test names only
@@ -67,12 +72,14 @@ To execute this command:
 **Format**: Migration summary with next steps
 
 **On success:**
+
 - All files created and configured
 - Binary built and verified
 - Comprehensive next steps provided
 - Lists all files created/modified
 
 **On failure:**
+
 - Clear error message indicating which phase failed
 - For Phase 5 failures: automatic rollback to backup
 - Guidance on how to resolve the issue and retry
@@ -86,6 +93,7 @@ To execute this command:
 ```
 
 The command will:
+
 1. Ask for directory strategy (monorepo or single-module)
 2. Ask for workspace directory
 3. Ask for target repository (local path or Git URL)
@@ -100,7 +108,7 @@ The command will:
 
 ### Example interaction
 
-```
+```text
 User: /ote-migration:migrate
 
 AI: Which directory structure strategy do you want to use?
@@ -137,4 +145,4 @@ This command takes no arguments. All configuration is collected interactively du
 
 - Plugin README: `plugins/ote-migration/README.md`
 - Implementation skill: `plugins/ote-migration/skills/ote-migration-workflow/SKILL.md`
-- OTE Framework: https://github.com/openshift-eng/openshift-tests-extension
+- OTE Framework: <https://github.com/openshift-eng/openshift-tests-extension>
