@@ -750,13 +750,26 @@ This command is useful for:
    description="<generated_description>"
 
    script_path="plugins/ci/skills/triage-regression/triage_regression.py"
-   python3 "$script_path" "$new_regression_ids" \
+   triage_result=$(python3 "$script_path" "$new_regression_ids" \
      --token "$TOKEN" \
      --triage-id <existing_triage_id> \
      --url "<existing_jira_url>" \
      --type "<existing_triage_type>" \
      --description "$description" \
-     --format json
+     --format json)
+   ```
+
+   After triaging, extract the triage ID from the response and display both the JIRA URL and the triage UI link:
+
+   ```bash
+   triage_id=$(echo "$triage_result" | jq -r '.triage.id')
+   ```
+
+   Display to the user:
+   ```
+   Triage updated:
+   - JIRA: <existing_jira_url>
+   - Triage: https://sippy-auth.dptools.openshift.org/sippy-ng/component_readiness/triages/<triage_id>
    ```
 
    **Note**: The triage-regression script automatically fetches the existing triage and merges its regressions with the new ones, so you only need to pass the regression IDs you want to add.
@@ -792,12 +805,25 @@ This command is useful for:
    description="<generated_description>"
 
    script_path="plugins/ci/skills/triage-regression/triage_regression.py"
-   python3 "$script_path" "$all_regression_ids" \
+   triage_result=$(python3 "$script_path" "$all_regression_ids" \
      --token "$TOKEN" \
      --url "https://issues.redhat.com/browse/OCPBUGS-67890" \
      --type product \
      --description "$description" \
-     --format json
+     --format json)
+   ```
+
+   After triaging, extract the triage ID from the response and display both the JIRA URL and the triage UI link:
+
+   ```bash
+   triage_id=$(echo "$triage_result" | jq -r '.triage.id')
+   ```
+
+   Display to the user:
+   ```
+   Triage created:
+   - JIRA: https://issues.redhat.com/browse/OCPBUGS-67890
+   - Triage: https://sippy-auth.dptools.openshift.org/sippy-ng/component_readiness/triages/<triage_id>
    ```
 
    **Scenario C: No related triage or bug found**
@@ -852,12 +878,26 @@ This command is useful for:
    description="<generated_description>"
 
    script_path="plugins/ci/skills/triage-regression/triage_regression.py"
-   python3 "$script_path" "$all_regression_ids" \
+   triage_result=$(python3 "$script_path" "$all_regression_ids" \
      --token "$TOKEN" \
      --url "https://issues.redhat.com/browse/<new_bug_key>" \
      --type <recommended_type> \
      --description "$description" \
-     --format json
+     --format json)
+   ```
+
+   After triaging, extract the triage ID from the response and display both the JIRA URL and the triage UI link:
+
+   ```bash
+   triage_id=$(echo "$triage_result" | jq -r '.triage.id')
+   ```
+
+   Display to the user:
+   ```
+   Bug filed and triaged:
+   - JIRA: https://issues.redhat.com/browse/<new_bug_key>
+   - Release Blocker: Approved
+   - Triage: https://sippy-auth.dptools.openshift.org/sippy-ng/component_readiness/triages/<triage_id>
    ```
 
    **Scenario D: Regression is already triaged**
