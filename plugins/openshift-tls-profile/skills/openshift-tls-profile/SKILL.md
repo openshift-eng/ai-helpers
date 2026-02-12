@@ -13,6 +13,7 @@ This skill implements the requirements defined in the [Centralized and Enforced 
 
 - All components must honor the centralized TLS security profile from the APIServer CR
 - This enables consistent cryptographic policy enforcement and Post-Quantum Cryptography (PQC) readiness
+- Do not hardcode TLS versions (e.g., TLS 1.3). Always read TLS settings dynamically.
 
 The API changes are implemented in [openshift/api#2680](https://github.com/openshift/api/pull/2680), which adds the `TLSAdherence` feature gate and `tlsAdherence` field to `apiserver.config.openshift.io/v1`.
 
