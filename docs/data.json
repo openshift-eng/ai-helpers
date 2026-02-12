@@ -681,6 +681,12 @@
           "description": "Set up OLM development repositories and onboard to the team",
           "name": "dev-setup",
           "synopsis": "/olm-team:dev-setup [target-directory]"
+        },
+        {
+          "argument_hint": "",
+          "description": "Watch open Enhancement PRs from other teams that may impact OLM",
+          "name": "ep-watch",
+          "synopsis": "/olm-team:ep-watch"
         }
       ],
       "description": "OLM team development utilities and onboarding tools",

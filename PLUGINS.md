@@ -252,6 +252,7 @@ OLM team development utilities and onboarding tools
 **Commands:**
 - **`/olm-team:configure-agent`** - Configure the k8s-ocp-olm-expert agent with local repository paths
 - **`/olm-team:dev-setup` `[target-directory]`** - Set up OLM development repositories and onboard to the team
+- **`/olm-team:ep-watch`** - Watch open Enhancement PRs from other teams that may impact OLM
 
 See [plugins/olm-team/README.md](plugins/olm-team/README.md) for detailed documentation.
 
