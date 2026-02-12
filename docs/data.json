@@ -686,7 +686,7 @@
           "argument_hint": "",
           "description": "Watch open Enhancement PRs from other teams that may impact OLM",
           "name": "ep-watch",
-          "synopsis": "/olm-team:ep-watch"
+          "synopsis": "bash"
         }
       ],
       "description": "OLM team development utilities and onboarding tools",
