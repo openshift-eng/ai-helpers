@@ -5,7 +5,7 @@ description: "Language-specific review guidance for Go code including idiomatic 
 
 # Go Language Review
 
-This skill provides Go-specific guidance for code quality reviews. It is loaded automatically by the `pre-commit-quality-review` command when `--language go` is specified or when `.go` files are detected among the changed files.
+This skill provides Go-specific guidance for code quality reviews. It is loaded automatically by the `pre-commit-review` command when `--language go` is specified or when `.go` files are detected among the changed files.
 
 ## When to Use This Skill
 

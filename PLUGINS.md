@@ -73,7 +73,7 @@ See [plugins/ci/README.md](plugins/ci/README.md) for detailed documentation.
 Automated code quality review with language-aware analysis for pre-commit verification
 
 **Commands:**
-- **`/code-review:pre-commit-quality-review` `[--language <lang>] [--profile <name>] [--skip-build] [--skip-tests]`** - Automated pre-commit code quality review with language-aware analysis and project-specific profiles
+- **`/code-review:pre-commit-review` `[--language <lang>] [--profile <name>] [--skip-build] [--skip-tests]`** - Automated pre-commit code quality review with language-aware analysis and project-specific profiles
 
 See [plugins/code-review/README.md](plugins/code-review/README.md) for detailed documentation.
 
