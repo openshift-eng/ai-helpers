@@ -1,15 +1,20 @@
-# Openshift Origin Test Notes
+# Test Pattern Reference
 
-This document discusses important details and nuance for specific tests and testing frameworks in origin.
+When analyzing regressions, use these patterns to identify test types and understand their failure modes.
 
-### Monitor Tests 
+## Monitor Tests
 
-Monitor tests are from a framework in origin that allows test code to monitor the cluster under test during e2e testing, then gives them a chance to generate additional junit results after e2e testing completes. These tests are typically used to scan for abnormal things we don't want to see happen during testing. They can analyze a variety of artifacts including intervals and pod and system journal logs. 
+- **Match**: test name contains `[Monitor:<name>]`
+- **Example**: `[Monitor:kubelet-container-restarts][sig-architecture] platform pods in ns/openshift-machine-config-operator should not exit an excessive amount of times`
+- **What they are**: A framework in origin that monitors the cluster during e2e testing, then generates junit results after testing completes. They scan for abnormal behavior during test runs by analyzing intervals, pod logs, and system journal logs.
+- **When they fail**: Indicates something unexpected happened on the cluster during testing (excessive restarts, disruption, unexpected log messages). The failure may not be caused by the test itself but by a product issue that the monitor detected.
+- **Triage guidance**: These are product bugs, not test bugs. The monitor is reporting real cluster behavior. Triage as `product` unless the monitor logic itself is clearly wrong.
 
-As of 4.21 these tests always contain the substring: `[Monitor:foobar]`
+## Excessive Watch Request Tests
 
-### Excessive Watch Request Tests
-
-These tests  are intended to prevent explosive growth in watch requests by operators. They use fixed values in origin for the upper limits, and the test will fail if over this threshold significantly. When this test fails, it typically indicates natural growth in watches by the operator and the limits need to be updated provided the increase is not massive and explainable. Values below 100 are normal and relatively safe. There is a [claude code command](https://github.com/openshift/origin/blob/main/.claude/commands/update-all-operator-watch-request-limits.md) in the origin repo for easily updating them.  Today we update based on the P99 values over the past month, and then allow **double** that amount. (again, we're looking to catch exponential growth) As such this test should no longer fail very often, if it does, it requires careful scrutiny to understand why. 
-
-These tests will contain the string `should not create excessive watch requests`.
+- **Match**: test name contains `should not create excessive watch requests`
+- **What they are**: Tests that enforce upper limits on watch requests by operators. The limits are fixed values in origin, and the test fails if an operator exceeds its threshold significantly. The goal is to catch exponential growth in watch requests.
+- **When they fail**: Usually indicates natural, gradual growth in watches by an operator. The limits need updating if the increase is modest and explainable. Values below 100 are normal.
+- **Current thresholds**: Based on P99 values over the past month, with the limit set to double that amount.
+- **How to fix**: There is a Claude Code command in the origin repo that automates updating the limits: https://github.com/openshift/origin/blob/main/.claude/commands/update-all-operator-watch-request-limits.md
+- **Triage guidance**: If the increase is small and gradual, triage as `test` (limit update needed). If the increase is large or sudden, triage as `product` (investigate why the operator's watch count spiked).
