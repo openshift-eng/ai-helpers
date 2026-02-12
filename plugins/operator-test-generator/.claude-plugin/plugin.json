@@ -1,0 +1,8 @@
+{
+  "name": "operator-test-generator",
+  "description": "Generate executable oc test cases for any OpenShift operator PR based on context",
+  "version": "0.0.1",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}
