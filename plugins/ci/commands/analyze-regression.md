@@ -600,6 +600,8 @@ This command is useful for:
 
 12. **Prepare Bug Filing Recommendations or Existing Bug Status**: Generate actionable information
 
+   **Important**: Component Readiness regressions are treated as release blockers. Any bug filed for a regression should be conveyed to the user as a release blocker. See the [release blocker definition](https://github.com/openshift/enhancements/blob/master/dev-guide/release-blocker-definition.md) for details on the criteria and process.
+
    **If regression is NOT triaged** (no existing JIRA):
    - Component assignment (from test mappings)
    - If step 4's test report found `open_bugs > 0`, note these existing bugs — one may be suitable for triaging this regression without filing a duplicate
