@@ -7,7 +7,7 @@ argument-hint: ""
 olm-team:ep-watch
 
 ## Synopsis
-```
+```bash
 /olm-team:ep-watch
 ```
 
@@ -71,7 +71,7 @@ To reduce false positives, the following generic terms are NOT searched:
 
 Define list of known OLM team members (GitHub usernames):
 
-```
+```python
 OLM_TEAM_MEMBERS = [
   "grokspawn",
   "joelanford",
@@ -133,7 +133,7 @@ Sort PRs by relevance score and return top 3.
 
 ### Step 6: Format Results
 
-```
+```text
 🔍 Found X open Enhancement PRs from other teams that may impact OLM
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -169,12 +169,12 @@ For each PR, suggest:
 ## Examples
 
 1. **Basic usage**:
-   ```
+   ```bash
    /olm-team:ep-watch
    ```
 
    Example output:
-   ```
+   ```text
    🔍 Found 12 open Enhancement PRs from other teams, showing top 3 relevant to OLM
 
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -255,7 +255,16 @@ CACHE_FILE="/tmp/olm-ep-watch-cache.json"
 CACHE_TTL=3600  # 1 hour
 
 if [ -f "$CACHE_FILE" ]; then
-    age=$(($(date +%s) - $(stat -f %m "$CACHE_FILE")))
+    # Portable stat command for macOS and Linux
+    if stat -f %m "$CACHE_FILE" >/dev/null 2>&1; then
+        # macOS/BSD
+        file_time=$(stat -f %m "$CACHE_FILE")
+    else
+        # Linux
+        file_time=$(stat -c %Y "$CACHE_FILE")
+    fi
+
+    age=$(($(date +%s) - file_time))
     if [ $age -lt $CACHE_TTL ]; then
         echo "Using cached results (${age}s old)"
         cat "$CACHE_FILE"
