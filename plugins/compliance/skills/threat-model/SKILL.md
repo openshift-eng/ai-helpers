@@ -167,7 +167,7 @@ shellcheck -s bash <script-file>
 | SC2029 | Warning | ssh command with unescaped variables | T1059 |
 | SC2087 | Warning | Unquoted heredoc - variable expansion | T1059 |
 | SC2155 | Warning | Declare/assign separately to avoid masking errors | - |
-| SC2164 | Warning | cd without || exit - path traversal risk | T1083 |
+| SC2164 | Warning | cd without `\|\|` exit - path traversal risk | T1083 |
 
 ### Include in Report
 
@@ -517,7 +517,7 @@ This PR affects the following elements in the [TNF|TNA] Data Flow Diagram
 **MITRE ATT&CK**: T#### - Technique Name
 **CWE**: CWE-###
 
-#### Affected Code
+### Affected Code
 
 **File**: `path/to/file.go:line`
 
