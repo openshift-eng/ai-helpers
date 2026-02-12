@@ -706,6 +706,8 @@ This command is useful for:
 
    Based on the analysis, determine the appropriate triage action and ask the user if they want to proceed.
 
+   **Generating the triage description**: Every triage record must include a `--description`. Generate a single concise sentence summarizing the failure, similar in style to a JIRA bug summary. Example: `"InsightsDataGather CRD not found - all InsightsRuntimeExtractor tests failing across platforms since Feb 6"`
+
    **Scenario A: Related triage record found on another regression** (from step 10)
 
    If step 10 found that a related regression already has a triage record (i.e., another regression for the same or similar test is already triaged to a JIRA bug), offer to add this regression to that existing triage. Also include any other untriaged related regressions found in step 8.
@@ -734,12 +736,16 @@ This command is useful for:
    # fetches existing regressions and merges them (safe additive behavior)
    new_regression_ids="<current_id>,<related_id_1>,<related_id_2>"
 
+   # Generate a concise description from the analysis (see note below)
+   description="<generated_description>"
+
    script_path="plugins/ci/skills/triage-regression/triage_regression.py"
    python3 "$script_path" "$new_regression_ids" \
      --token "$TOKEN" \
      --triage-id <existing_triage_id> \
      --url "<existing_jira_url>" \
      --type "<existing_triage_type>" \
+     --description "$description" \
      --format json
    ```
 
@@ -772,11 +778,15 @@ This command is useful for:
 
    all_regression_ids="<current_id>,<related_id_1>,<related_id_2>"
 
+   # Generate a concise description from the analysis (see note below)
+   description="<generated_description>"
+
    script_path="plugins/ci/skills/triage-regression/triage_regression.py"
    python3 "$script_path" "$all_regression_ids" \
      --token "$TOKEN" \
      --url "https://issues.redhat.com/browse/OCPBUGS-67890" \
      --type product \
+     --description "$description" \
      --format json
    ```
 
@@ -819,11 +829,15 @@ This command is useful for:
 
    all_regression_ids="<current_id>,<related_id_1>,<related_id_2>"
 
+   # Generate a concise description from the analysis (see note below)
+   description="<generated_description>"
+
    script_path="plugins/ci/skills/triage-regression/triage_regression.py"
    python3 "$script_path" "$all_regression_ids" \
      --token "$TOKEN" \
      --url "https://issues.redhat.com/browse/<new_bug_key>" \
      --type <recommended_type> \
+     --description "$description" \
      --format json
    ```
 
