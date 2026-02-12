@@ -97,23 +97,14 @@ This command is useful for:
 
 6. **Check Test Names and Test IDs Against Open Regressions**: Find if the test appears in any current regressions
 
-   Use the `list-regressions` skill to fetch all regressions for the release:
+   Use the `list-regressions` skill with `--test-name` to fetch regressions matching this test:
 
    ```bash
    script_path="plugins/teams/skills/list-regressions/list_regressions.py"
-   all_regressions=$(python3 "$script_path" --release "$release")
+   matching_regressions=$(python3 "$script_path" --release "$release" --test-name "$test_name")
    ```
 
-   Search through all open and closed regressions for matches:
-
-   ```bash
-   # Search for matching test name across all components
-   echo "$all_regressions" | jq --arg tn "$test_name" '
-     .components | to_entries[] | .value |
-     (.open + .closed)[] | select(.test_name == $tn)
-     | {id, test_name, variants, opened, closed, triages, last_failure}
-   '
-   ```
+   This returns only regressions for the exact test name across all components and variants, without needing to fetch and parse the full regression list.
 
    For each matching regression:
    - Note whether it is **open** or **closed**
@@ -226,6 +217,61 @@ This command is useful for:
 
    🔄 INCONCLUSIVE: Could not definitively determine regression status.
       <reason — e.g., mass failures obscuring results, test not running recently>
+   ```
+
+   **If the bug is Closed or Verified but the regression is STILL ONGOING or PARTIALLY RESOLVED**:
+
+   This indicates the fix was insufficient or the problem has recurred. Offer to reopen the bug:
+
+   ```
+   ⚠ FAILED FIX: This bug is <Closed/Verified> but the regression is still ongoing.
+   The test has a <X>% pass rate with <N> recent failures.
+
+   Would you like me to:
+   1. Add a comment explaining the regression is still active
+   2. Reopen the bug by moving status back to ASSIGNED
+   ```
+
+   If the user confirms, perform both actions:
+
+   **Add a comment** explaining the situation, including:
+   - Current pass rate and failure count
+   - Which variants are still failing
+   - Link to the Sippy test details report
+   - A note that the regression was detected as still ongoing by the check command
+
+   ```bash
+   # Add comment to the bug
+   curl -s -X POST \
+     -H "Authorization: Bearer $JIRA_TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{"body": "<comment text>"}' \
+     "https://issues.redhat.com/rest/api/2/issue/<jira_key>/comment"
+   ```
+
+   **Transition the bug back to ASSIGNED**:
+
+   First, fetch available transitions to find the correct transition ID:
+   ```bash
+   transitions=$(curl -s -H "Authorization: Bearer $JIRA_TOKEN" \
+     "https://issues.redhat.com/rest/api/2/issue/<jira_key>/transitions")
+   ```
+
+   Look through the transitions for one that moves to "Assigned" status, then execute it:
+   ```bash
+   curl -s -X POST \
+     -H "Authorization: Bearer $JIRA_TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{"transition": {"id": "<transition_id>"}}' \
+     "https://issues.redhat.com/rest/api/2/issue/<jira_key>/transitions"
+   ```
+
+   Display confirmation:
+   ```
+   Bug reopened:
+   - JIRA: https://issues.redhat.com/browse/<jira_key>
+   - Status: ASSIGNED
+   - Comment added explaining regression is still active
    ```
 
 ## Return Value
