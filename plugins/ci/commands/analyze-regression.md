@@ -831,7 +831,16 @@ This command is useful for:
    - **Sippy Test Details report links** for each regression being triaged (convert each `test_details_url` from API to UI URL)
    - Related regression IDs and test names
 
-   After the bug is created, use the `triage-regression` skill to triage all regressions to the new bug:
+   After the bug is created, mark it as a release blocker using the `set-release-blocker` skill (component readiness regressions are release blockers):
+
+   ```bash
+   script_path="plugins/ci/skills/set-release-blocker/set_release_blocker.py"
+   python3 "$script_path" "<new_bug_key>" --format json
+   ```
+
+   See `plugins/ci/skills/set-release-blocker/SKILL.md` for details.
+
+   Then use the `triage-regression` skill to triage all regressions to the new bug:
 
    ```bash
    # Obtain auth token from DPCR cluster (oc-auth skill)
@@ -1045,6 +1054,7 @@ Uses the `triage-regression` skill with authentication via the `oc-auth` skill (
   - `list-regressions` (teams plugin): Lists all regressions for a release/component to find related regressions
   - `fetch-jira-issue`: Fetches JIRA issue details and classifies progress
   - `triage-regression`: Creates or updates triage records linking regressions to JIRA bugs
+  - `set-release-blocker`: Sets the Release Blocker field to "Approved" on filed JIRA bugs
   - `oc-auth`: Provides authentication tokens for sippy-auth API
 - The regression details skill groups failed jobs by job name and provides pass sequences for pattern analysis
 - The test failure outputs skill compares error messages to determine if failures have a single root cause
@@ -1066,6 +1076,7 @@ Uses the `triage-regression` skill with authentication via the `oc-auth` skill (
 - Related Skill: `list-regressions` (teams plugin) - Lists all regressions for a release/component (`plugins/teams/skills/list-regressions/SKILL.md`)
 - Related Skill: `fetch-jira-issue` - Fetches JIRA issue details and classifies progress (`plugins/ci/skills/fetch-jira-issue/SKILL.md`)
 - Related Skill: `triage-regression` - Creates or updates triage records (`plugins/ci/skills/triage-regression/SKILL.md`)
+- Related Skill: `set-release-blocker` - Sets Release Blocker field on JIRA bugs (`plugins/ci/skills/set-release-blocker/SKILL.md`)
 - Related Skill: `oc-auth` - Authentication tokens for sippy-auth (`plugins/ci/skills/oc-auth/SKILL.md`)
 - Related Command: `/component-health:list-regressions` (for bulk regression data)
 - Related Command: `/component-health:analyze-regressions` (for overall component health)
