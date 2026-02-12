@@ -845,7 +845,7 @@ This command is useful for:
    - Triage type: <recommended type>
    ```
 
-   If the user confirms, create the bug using the `/jira:create-bug` skill with the bug template from step 12. The bug description must include:
+   If the user confirms, create the bug using the `/jira:create-bug` skill with the bug template from step 12. Apply the label `component-regression` to the bug (this label identifies bugs found through Component Readiness). The bug description must include:
    - Test name(s) — the full name of each affected test
    - Test ID(s) (`test_id` — the BigQuery/Component Readiness ID, e.g., `openshift-tests:abc123`)
    - Regression ID(s) — the Component Readiness regression ID(s) being triaged
