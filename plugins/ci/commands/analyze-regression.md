@@ -367,7 +367,7 @@ This command is useful for:
 
    # Fetch all test runs (including successes) for this specific job, going back 28 days
    script_path="plugins/ci/skills/fetch-test-runs/fetch_test_runs.py"
-   job_history=$(python3 "$script_path" "$test_id" --include-success --prowjob-name "$most_failed_job" --start-days-ago 28 --format json)
+   job_history=$(python3 "$script_path" "$test_id" --include-success --prowjob-name "$most_failed_job" --start-days-ago 28 --exclude-output --format json)
    ```
 
    **Analyze the Run History**:

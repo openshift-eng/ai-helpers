@@ -22,7 +22,7 @@ class TestRunsFetcher:
 
     def __init__(self, test_id: str, job_run_ids: Optional[List[str]] = None,
                  include_success: bool = False, job_name_filters: Optional[List[str]] = None,
-                 start_days_ago: Optional[int] = None):
+                 start_days_ago: Optional[int] = None, exclude_output: bool = False):
         """
         Initialize fetcher with test ID and optional parameters.
 
@@ -35,12 +35,15 @@ class TestRunsFetcher:
                 somewhere in the job name. Works with both full job names and partial substrings.
                 E.g., ["gcp", "techpreview"] matches jobs containing both "gcp" and "techpreview".
             start_days_ago: Optional number of days to look back (default API is 7 days)
+            exclude_output: If True, strip the 'output' field from each run to reduce response
+                size. Useful when you only need pass/fail status (e.g., regression start analysis).
         """
         self.test_id = test_id
         self.job_run_ids = job_run_ids
         self.include_success = include_success
         self.job_name_filters = job_name_filters
         self.start_days_ago = start_days_ago
+        self.exclude_output = exclude_output
         # Calculate start_date from start_days_ago
         if start_days_ago is not None:
             self.start_date = (datetime.now() - timedelta(days=start_days_ago)).strftime('%Y-%m-%d')
@@ -99,8 +102,15 @@ class TestRunsFetcher:
                 if isinstance(data, dict) and 'error' in data:
                     return self._error_response(f"API error: {data['error']}")
 
-                # Return successful response with runs
-                return {
+                # Strip output field if requested to reduce response size
+                runs = data
+                if self.exclude_output and isinstance(runs, list):
+                    runs = [
+                        {k: v for k, v in run.items() if k != 'output'}
+                        for run in runs
+                    ]
+
+                result = {
                     'success': True,
                     'test_id': self.test_id,
                     'requested_job_runs': len(self.job_run_ids) if self.job_run_ids else 0,
@@ -108,9 +118,24 @@ class TestRunsFetcher:
                     'job_name_filters': self.job_name_filters,
                     'start_days_ago': self.start_days_ago,
                     'start_date': self.start_date,
-                    'runs': data,
+                    'runs': runs,
                     'api_url': self.api_url,
                 }
+
+                # Build pass sequence only when successes are included
+                # (a sequence of all F's is not useful)
+                if self.include_success:
+                    sorted_runs = sorted(
+                        runs,
+                        key=lambda r: r.get('start_time', ''),
+                        reverse=True,
+                    )
+                    result['pass_sequence'] = ''.join(
+                        'S' if r.get('success') else 'F'
+                        for r in sorted_runs
+                    )
+
+                return result
 
         except urllib.error.HTTPError as e:
             return self._error_response(f"HTTP error {e.code}: {e.reason}")
@@ -165,6 +190,11 @@ def format_summary(results: Dict[str, Any]) -> str:
     success_count = sum(1 for r in runs if r.get('success', False))
     failure_count = len(runs) - success_count
     lines.append(f"Successes: {success_count}, Failures: {failure_count}")
+
+    # Pass sequence
+    pass_sequence = results.get('pass_sequence', '')
+    if pass_sequence:
+        lines.append(f"Pass Sequence (newest->oldest): {pass_sequence}")
     lines.append("")
 
     # Count mass failure jobs (failed_tests > 10)
@@ -211,6 +241,10 @@ def main():
         print("                                 Repeat for AND logic: --job-contains gcp --job-contains techpreview", file=sys.stderr)
         print("                                 Also accepts full job names (substring of itself).", file=sys.stderr)
         print("  --start-days-ago <days>        Number of days to look back (default API is 7 days)", file=sys.stderr)
+        print("  --exclude-output               Strip test output text from runs to reduce response size.", file=sys.stderr)
+        print("                                 Useful when only pass/fail status is needed.", file=sys.stderr)
+        print("  --output <path>                Write output to file instead of stdout.", file=sys.stderr)
+        print("                                 Avoids stdout truncation for large result sets.", file=sys.stderr)
         print("  --format json|summary          Output format (default: json)", file=sys.stderr)
         print("", file=sys.stderr)
         print("Examples:", file=sys.stderr)
@@ -240,9 +274,11 @@ def main():
     test_id = sys.argv[1]
     job_run_ids = None
     include_success = False
+    exclude_output = False
     job_name_filters = []
     start_days_ago = None
     output_format = 'json'
+    output_path = None
 
     # Parse remaining arguments
     i = 2
@@ -250,6 +286,9 @@ def main():
         arg = sys.argv[i]
         if arg == '--include-success':
             include_success = True
+            i += 1
+        elif arg == '--exclude-output':
+            exclude_output = True
             i += 1
         elif arg == '--job-contains' and i + 1 < len(sys.argv):
             job_name_filters.append(sys.argv[i + 1])
@@ -260,6 +299,9 @@ def main():
             except ValueError:
                 print(f"Error: --start-days-ago requires an integer value", file=sys.stderr)
                 sys.exit(1)
+            i += 2
+        elif arg == '--output' and i + 1 < len(sys.argv):
+            output_path = sys.argv[i + 1]
             i += 2
         elif arg == '--format' and i + 1 < len(sys.argv):
             output_format = sys.argv[i + 1]
@@ -278,14 +320,24 @@ def main():
     try:
         fetcher = TestRunsFetcher(test_id, job_run_ids, include_success,
                                   job_name_filters if job_name_filters else None,
-                                  start_days_ago)
+                                  start_days_ago, exclude_output)
         results = fetcher.fetch_runs()
 
-        # Output in requested format
+        # Format output
         if output_format == 'json':
-            print(json.dumps(results, indent=2))
+            formatted = json.dumps(results, indent=2)
         else:
-            print(format_summary(results))
+            formatted = format_summary(results)
+
+        # Write to file or stdout
+        if output_path:
+            with open(output_path, 'w') as f:
+                f.write(formatted)
+                f.write('\n')
+            run_count = len(results.get('runs', []))
+            print(f"Wrote {run_count} runs to {output_path}", file=sys.stderr)
+        else:
+            print(formatted)
 
         # Exit with appropriate code
         return 0 if results.get('success') else 1

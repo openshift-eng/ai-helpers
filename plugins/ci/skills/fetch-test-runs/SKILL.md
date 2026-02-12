@@ -68,6 +68,8 @@ python3 "$script_path" "$test_id" --format summary
 - `--include-success`: Include successful test runs (default: failures only)
 - `--job-contains <name>`: Filter by job name substring (server-side, case-insensitive). Repeatable for AND logic — all substrings must appear in the job name. Full job names also work since they are substrings of themselves. E.g., `--job-contains gcp --job-contains techpreview` matches jobs containing both "gcp" and "techpreview".
 - `--start-days-ago <days>`: Number of days to look back (default API is 7 days)
+- `--exclude-output`: Strip the `output` field from each run to reduce response size. Use when you only need pass/fail status (e.g., regression start analysis). Significantly reduces JSON output size for large result sets.
+- `--output <path>`: Write output to a file instead of stdout. Use when fetching large result sets (e.g., `--include-success --start-days-ago 28`) that may exceed stdout buffer limits. The script prints a summary line to stderr confirming the write.
 - `--format json|summary`: Output format (default: json)
 
 ### Step 2: Prepare Input Data (for analyze-regression)
@@ -291,6 +293,8 @@ Arguments:
 Options:
   --include-success    Include successful test runs (default: failures only)
   --job-contains       Filter by job name substring (repeatable for AND logic)
+  --exclude-output     Strip output text from runs to reduce response size
+  --output <path>      Write output to file instead of stdout
   --format json|summary   Output format (default: json)
 ```
 
