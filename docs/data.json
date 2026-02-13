@@ -1250,6 +1250,12 @@
     {
       "commands": [
         {
+          "argument_hint": "<pr-url-or-number> [--language <lang>] [--profile <name>] [--skip-build] [--skip-tests]",
+          "description": "Automated PR code quality review with language-aware analysis and project-specific profiles",
+          "name": "pr",
+          "synopsis": "/code-review:pr <pr-url-or-number> [--language <lang>] [--profile <name>] [--skip-build] [--skip-tests]"
+        },
+        {
           "argument_hint": "[--language <lang>] [--profile <name>] [--skip-build] [--skip-tests]",
           "description": "Automated pre-commit code quality review with language-aware analysis and project-specific profiles",
           "name": "pre-commit-review",
@@ -1272,7 +1278,7 @@
           "name": "HyperShift Project Profile"
         }
       ],
-      "version": "0.0.3"
+      "version": "0.0.4"
     }
   ]
 }
