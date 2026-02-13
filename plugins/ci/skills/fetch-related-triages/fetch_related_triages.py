@@ -88,8 +88,10 @@ def simplify_last_failure(last_failure) -> str:
 
 def simplify_regression(reg: dict) -> dict:
     """Simplify a regression object for output."""
+    reg_id = reg.get("id")
     return {
-        "id": reg.get("id"),
+        "id": reg_id,
+        "regression_id": reg_id,
         "test_name": reg.get("test_name"),
         "test_id": reg.get("test_id"),
         "component": reg.get("component"),

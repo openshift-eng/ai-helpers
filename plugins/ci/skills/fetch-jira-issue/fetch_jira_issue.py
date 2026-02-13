@@ -362,69 +362,38 @@ def format_summary(issue: Dict[str, Any]) -> str:
         str: Formatted summary text
     """
     lines = []
-    lines.append(f"JIRA Issue: {issue['key']}")
-    lines.append("=" * 60)
-    lines.append("")
-
-    # Basic info
+    lines.append(f"=== {issue['key']} ===")
     lines.append(f"Summary: {issue['summary']}")
     lines.append(f"URL: {issue['url']}")
     lines.append(f"Status: {issue['status']}")
     if issue["resolution"]:
         lines.append(f"Resolution: {issue['resolution']}")
     lines.append(f"Priority: {issue['priority']}")
-    lines.append("")
-
-    # People
-    if issue["assignee"]:
-        lines.append(f"Assignee: {issue['assignee']['display_name']}")
-    else:
-        lines.append("Assignee: Unassigned")
-    if issue["reporter"]:
-        lines.append(f"Reporter: {issue['reporter']['display_name']}")
-    lines.append("")
-
-    # Classification
+    assignee = issue["assignee"]["display_name"] if issue["assignee"] else "Unassigned"
+    lines.append(f"Assignee: {assignee}")
     if issue["components"]:
         lines.append(f"Components: {', '.join(issue['components'])}")
     if issue["labels"]:
         lines.append(f"Labels: {', '.join(issue['labels'])}")
     if issue["fix_versions"]:
         lines.append(f"Fix Versions: {', '.join(issue['fix_versions'])}")
-    lines.append("")
 
-    # Dates
     created_date = issue["created"][:10] if issue["created"] else "unknown"
     updated_date = issue["updated"][:10] if issue["updated"] else "unknown"
-    lines.append(f"Created: {created_date}")
-    lines.append(f"Updated: {updated_date}")
-    lines.append("")
+    lines.append(f"Created: {created_date} | Updated: {updated_date}")
 
     # Progress classification
     progress = issue.get("progress", {})
     level = progress.get("level", "UNKNOWN")
-    emoji_map = {
-        "ACTIVE": "\U0001f7e2",
-        "STALLED": "\U0001f7e1",
-        "NEEDS_ATTENTION": "\U0001f534",
-        "RESOLVED": "\u2705",
-    }
-    emoji = emoji_map.get(level, "\u2753")
-    lines.append(f"Progress: {emoji} {level} - {progress.get('reason', '')}")
-    if progress.get("days_since_update") is not None:
-        lines.append(f"  Days since update: {progress['days_since_update']}")
-    if progress.get("days_since_last_comment") is not None:
-        lines.append(
-            f"  Days since last comment: {progress['days_since_last_comment']}"
-        )
-    lines.append("")
+    lines.append(f"Progress: {level} - {progress.get('reason', '')}")
 
     # Linked PRs
     if issue["linked_prs"]:
-        lines.append(f"Linked PRs ({len(issue['linked_prs'])}):")
+        lines.append(f"Linked PRs: {len(issue['linked_prs'])}")
         for pr in issue["linked_prs"]:
-            lines.append(f"  - {pr}")
-        lines.append("")
+            lines.append(f"  {pr}")
+    else:
+        lines.append("Linked PRs: 0")
 
     # Recent comments (last 3)
     comments = issue.get("comments", [])
@@ -435,16 +404,15 @@ def format_summary(issue: Dict[str, Any]) -> str:
             author = comment["author"]
             created = comment["created"][:10] if comment["created"] else "unknown"
             body = comment["body"]
-            # Truncate long comments
             if len(body) > 300:
                 body = body[:300] + "..."
-            lines.append(f"  [{created}] {author}:")
-            for body_line in body.split("\n")[:5]:
+            # Compact: first 3 lines only
+            body_lines = body.split("\n")[:3]
+            lines.append(f"  [{created}] {author}: {body_lines[0]}")
+            for body_line in body_lines[1:]:
                 lines.append(f"    {body_line}")
-            lines.append("")
     else:
-        lines.append("Comments: None")
-        lines.append("")
+        lines.append("Comments: 0")
 
     return "\n".join(lines)
 

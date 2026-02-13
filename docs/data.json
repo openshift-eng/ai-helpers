@@ -377,6 +377,11 @@
           "name": "Fetch Regression Details"
         },
         {
+          "description": "Fetch existing triages and untriaged regressions related to a given regression",
+          "id": "fetch-related-triages",
+          "name": "Fetch Related Triages"
+        },
+        {
           "description": "Fetch available OpenShift releases from the Sippy API",
           "id": "fetch-releases",
           "name": "Fetch Releases"
@@ -417,9 +422,19 @@
           "name": "Prow Job Analyze Test Failure"
         },
         {
+          "description": "Search, list, and fetch artifacts from Prow CI job runs stored in GCS using the gcloud CLI",
+          "id": "prow-job-artifact-search",
+          "name": "Prow Job Artifact Search"
+        },
+        {
           "description": "Extract and decompress must-gather archives from Prow CI job artifacts, generating an interactive HTML file browser with filters",
           "id": "prow-job-extract-must-gather",
           "name": "Prow Job Extract Must-Gather"
+        },
+        {
+          "description": "Set the Release Blocker field on a JIRA issue",
+          "id": "set-release-blocker",
+          "name": "Set Release Blocker"
         },
         {
           "description": "Create or update a Component Readiness triage record linking regressions to a JIRA bug",
