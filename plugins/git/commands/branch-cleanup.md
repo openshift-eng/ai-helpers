@@ -34,12 +34,20 @@ The command should follow these steps:
 2. **Gather Branch Information**
    - List all local branches: `git branch`
    - Get current branch: `git branch --show-current`
-   - Identify merged branches: `git branch --merged <main-branch>`
+   - Identify merged branches using multi-layered detection:
+     - Standard merge: `git branch --merged <main-branch>`
+     - Merge commit messages: `git log <main-branch> --merges --oneline`
+     - Content comparison: `git diff <main-branch>...<branch> --quiet`
+     - Cherry-pick detection: `git cherry <main-branch> <branch>`
    - Check remote tracking: `git branch -vv`
    - Find remote-deleted branches: `git remote prune origin --dry-run`
 
 3. **Categorize Branches**
-   - **Merged branches**: Fully merged into main branch
+   - **Merged branches**: Detected via one of these methods:
+     - Standard: Commits directly in main branch history
+     - Merge commit: Found in main's merge commit messages
+     - Content-identical: All changes present in main (rebased/cherry-picked)
+     - Cherry-picked: All commits have equivalents in main
    - **Gone branches**: Remote tracking branch no longer exists
    - **Stale branches**: Last commit older than threshold (e.g., 3 months)
    - **Protected branches**: main, master, develop, release/*, hotfix/*
@@ -79,8 +87,65 @@ fi
 # Get current branch
 current_branch=$(git branch --show-current)
 
-# Find merged branches
-git branch --merged "$main_branch" | grep -v "^\*" | grep -v "$main_branch"
+# Multi-layered merge detection function
+# Returns: "merged:<method>" or "not-merged"
+check_if_merged() {
+    local branch=$1
+    local main_branch=$2
+    # Escape for grep ERE: ] [ \ . ^ $ * + ? ( ) { } |
+    local branch_escaped=$(printf '%s\n' "$branch" | sed -e 's/[][\\.^$*+?(){}|]/\\&/g')
+
+    # Method 1: Standard merge check (commits in main history)
+    if git branch --merged "$main_branch" | grep -q "^[* ]*${branch_escaped}$"; then
+        echo "merged:standard"
+        return 0
+    fi
+
+    # Method 2: Merge-commit message heuristic (requires branch mention)
+    # Matches examples: "Merge branch 'X'", "Merge pull request ... from org/X"
+    # Note: Squash merges are not --merges; those are covered by Method 3 (content-identical).
+    local branch_basename=${branch##*/}
+    local branch_basename_escaped
+    branch_basename_escaped=$(printf '%s\n' "$branch_basename" | sed -e 's/[][\\.^$*+?(){}|]/\\&/g')
+    if git log "$main_branch" --merges --oneline \
+      | grep -qiE "merge.*(branch[[:space:]]+'${branch_escaped}'|\b${branch_escaped}\b|from[[:space:]]+[^[:space:]]*/${branch_basename_escaped})"; then
+        echo "merged:merge-commit"
+        return 0
+    fi
+
+    # Method 3: Content comparison (handles rebased/cherry-picked branches)
+    # Uses three-dot syntax (merge-base comparison) to detect content-identical branches
+    # If diff is empty, all content is in main even if commit hashes differ
+    # Note: 2>/dev/null suppresses errors for edge cases (no common ancestor, invalid branch)
+    if git diff --quiet "$main_branch"..."$branch" 2>/dev/null; then
+        echo "merged:content-identical"
+        return 0
+    fi
+
+    # Method 4: Cherry-pick detection (all commits have equivalents in main)
+    # Commits prefixed with '-' have equivalent patches in main
+    # Note: Detects patch equivalence, not necessarily commits reachable from main
+    # May have rare false positives with coincidentally similar commits
+    local unmerged=$(git cherry "$main_branch" "$branch" 2>/dev/null | grep -c '^+')
+    if [ "$unmerged" -eq 0 ]; then
+        echo "merged:cherry-picked"
+        return 0
+    fi
+
+    echo "not-merged"
+    return 1
+}
+
+# Find all merged branches with detection method
+for branch in $(git branch | grep -v "^\*" | sed 's/^[ ]*//'); do
+    if [ "$branch" != "$main_branch" ]; then
+        merge_status=$(check_if_merged "$branch" "$main_branch")
+        if [[ "$merge_status" == merged:* ]]; then
+            method=${merge_status#merged:}
+            echo "$branch|$method"
+        fi
+    fi
+done
 
 # Find branches with deleted remotes ("gone")
 git branch -vv | grep ': gone]' | awk '{print $1}'
@@ -123,8 +188,9 @@ git remote prune origin
    Current branch: feature/new-api
 
    === Merged Branches (safe to delete) ===
-   feature/bug-fix-123        Merged 2 weeks ago
-   feature/update-deps        Merged 1 month ago
+   feature/bug-fix-123        Merged (standard) - 2 weeks ago
+   feature/update-deps        Merged (merge-commit) - 1 month ago
+   feature/rebased-work       Merged (content-identical) - 3 days ago
 
    === Gone Branches (remote deleted) ===
    feature/old-feature        Remote: gone
@@ -139,6 +205,7 @@ git remote prune origin
 
    Recommendations:
    - Safe to delete: feature/bug-fix-123, feature/update-deps (merged)
+     * Note: feature/rebased-work has different commits but identical content (rebased)
    - Safe to delete: feature/old-feature, hotfix/urgent-fix (remote gone)
    - Review needed: experiment/prototype (unmerged, stale)
 
