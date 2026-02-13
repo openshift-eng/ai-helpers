@@ -151,7 +151,7 @@ Evaluate all evidence and assign a risk level. The determination should be data-
 - Package not in dependencies, OR version not in vulnerable range, OR no reachable path found
 
 **NEEDS REVIEW:**
-- Conflicting signals, incomplete analysis, or low confidence evidence
+- Conflicting signals, incomplete analysis, or low-confidence evidence
 
 ## Return Value
 

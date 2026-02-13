@@ -9,7 +9,7 @@ Security compliance and vulnerability analysis tools for Go projects.
 Analyzes Go codebases to determine CVE impact with multi-level confidence assessment.
 
 **Example:**
-```
+```text
 /compliance:analyze-cve CVE-2024-24783
 ```
 
@@ -75,13 +75,13 @@ If internet access fails, the command prompts for manual CVE information (descri
 ## Examples
 
 ### Basic usage
-```
+```text
 /compliance:analyze-cve CVE-2024-24783
 ```
 Analyzes codebase for crypto/x509 vulnerability, provides upgrade command if affected.
 
 ### High-confidence analysis
-```
+```text
 /compliance:analyze-cve CVE-2024-45338
 ```
 **Result:**

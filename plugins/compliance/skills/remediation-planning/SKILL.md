@@ -55,7 +55,7 @@ Use this skill when:
 
 **Decision Tree:**
 
-```
+```text
 IF risk_level = "LOW":
   → Document findings, recommend monitoring and manual review
   
@@ -683,7 +683,7 @@ Evaluate whether to offer automated fix application by considering:
 This skill is called from Phase 4 of `/compliance:analyze-cve`.
 
 **Input Pipeline:**
-```
+```text
 Phase 1 (CVE Intelligence) → CVE profile, severity, affected package, fixed version
 Phase 2 (Impact Analysis) → Risk level, current version, usage locations
   ↓ Optional: Call Graph Analysis Skill → Reachability risk level, call chain

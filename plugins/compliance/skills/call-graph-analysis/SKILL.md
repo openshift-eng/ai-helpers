@@ -32,6 +32,8 @@ Use this skill when:
 - Package path from CVE analysis
 - Workspace path to analyze
 - Algorithm preference (optional, default: `vta`) — passed via `--algo` from parent command
+- `CVE_ID` — used to construct the output directory
+- `OUT_DIR` (optional, default: `.work/compliance/analyze-cve/${CVE_ID}`) — where artifacts are written
 
 ## Timeout and Algorithm Convention
 
@@ -64,18 +66,22 @@ which sfdp || echo "graphviz not found - visual graphs won't be generated (optio
 # ALGO defaults to "vta" unless user specified --algo
 ALGO="${USER_ALGO:-vta}"
 
+# Output directory — aligns with parent command report location
+OUT_DIR="${OUT_DIR:-.work/compliance/analyze-cve/${CVE_ID}}"
+mkdir -p "${OUT_DIR}"
+
 # Build call graph from workspace root
 # Timeout after 300s (5 minutes) to avoid hanging on large codebases
-timeout 300 callgraph -algo "${ALGO}" -format=digraph . > /tmp/callgraph.txt
+timeout 300 callgraph -algo "${ALGO}" -format=digraph . > "${OUT_DIR}/callgraph.txt"
 ```
 
 **Error Handling:**
 - IF build fails (compilation errors) → Note in report that call graph cannot be built
 - IF command times out → Fall back to next faster algorithm (`vta` → `rta` → `cha`) and retry
-- IF all algorithms time out → Narrow scope: `timeout 300 callgraph -algo rta -format=digraph ./cmd/... ./pkg/... > /tmp/callgraph.txt`
+- IF all algorithms time out → Narrow scope: `timeout 300 callgraph -algo rta -format=digraph ./cmd/... ./pkg/... > "${OUT_DIR}/callgraph.txt"`
 - IF successful → Continue to Step 3
 
-**Output:** `/tmp/callgraph.txt` containing the full program call graph
+**Output:** `${OUT_DIR}/callgraph.txt` containing the full program call graph
 
 ### Step 3: Check if Vulnerable Function Exists in Graph
 
@@ -84,7 +90,7 @@ Extract the vulnerable function signature from CVE details.
 ```bash
 # Search for exact function in the cached call graph
 VULN_FUNC="<package-path>.<vulnerable-function>"
-cat /tmp/callgraph.txt | digraph nodes | grep "${VULN_FUNC}$"
+cat "${OUT_DIR}/callgraph.txt" | digraph nodes | grep "${VULN_FUNC}$"
 ```
 
 **Decision Point:**
@@ -100,7 +106,7 @@ Search for paths from main entry points to the vulnerable function.
 ENTRY_POINT="command-line-arguments.main"
 VULN_FUNC="<package-path>.<vulnerable-function>"
 
-cat /tmp/callgraph.txt | \
+cat "${OUT_DIR}/callgraph.txt" | \
   digraph somepath "${ENTRY_POINT}" "${VULN_FUNC}"
 ```
 
@@ -123,22 +129,22 @@ If path exists, generate visual representation:
 
 ```bash
 # Generate DOT format from cached call graph
-cat /tmp/callgraph.txt | \
+cat "${OUT_DIR}/callgraph.txt" | \
   digraph somepath "${ENTRY_POINT}" "${VULN_FUNC}" | \
-  digraph to dot > /tmp/callgraph.dot
+  digraph to dot > "${OUT_DIR}/callgraph.dot"
 
 # Convert to SVG (if graphviz available)
 if which sfdp > /dev/null; then
-  sfdp -Tsvg -ocallgraph.svg -Goverlap=scale /tmp/callgraph.dot
-  echo "Visual graph saved to: callgraph.svg"
+  sfdp -Tsvg -o"${OUT_DIR}/callgraph.svg" -Goverlap=scale "${OUT_DIR}/callgraph.dot"
+  echo "Visual graph saved to: ${OUT_DIR}/callgraph.svg"
 else
-  echo "Graphviz not available - DOT file saved to: /tmp/callgraph.dot"
+  echo "Graphviz not available - DOT file saved to: ${OUT_DIR}/callgraph.dot"
 fi
 ```
 
 **Output Files:**
-- `/tmp/callgraph.dot` - DOT notation of call path
-- `callgraph.svg` - Visual graph (if graphviz available)
+- `${OUT_DIR}/callgraph.dot` - DOT notation of call path
+- `${OUT_DIR}/callgraph.svg` - Visual graph (if graphviz available)
 
 ### Step 6: Parse and Format Call Chain
 
@@ -146,7 +152,7 @@ Extract human-readable call chain from digraph output:
 
 ```bash
 # Get call chain as text from cached call graph
-cat /tmp/callgraph.txt | \
+cat "${OUT_DIR}/callgraph.txt" | \
   digraph somepath "${ENTRY_POINT}" "${VULN_FUNC}" | \
   digraph to dot | \
   grep " -> " | \
@@ -155,14 +161,14 @@ cat /tmp/callgraph.txt | \
 ```
 
 **Example Output:**
-```
+```text
 command-line-arguments.main -> <package-path>.Handler
 <package-path>.Handler -> <package-path>.ProcessFunction
 <package-path>.ProcessFunction -> <vulnerable-package>.<vulnerable-function>
 ```
 
 **Format for Report:**
-```
+```text
 Execution Path Found:
 main → Handler → ProcessFunction → <vulnerable-function> (VULNERABLE)
 ```
@@ -195,8 +201,9 @@ Return structured result to parent analysis:
   "call_chain": "main → Handler → ProcessFunction → <vulnerable-function>",
   "risk_level": "HIGH",
   "evidence": {
-    "dot_file": "/tmp/callgraph.dot",
-    "svg_file": "callgraph.svg"
+    "callgraph_file": "${OUT_DIR}/callgraph.txt",
+    "dot_file": "${OUT_DIR}/callgraph.dot",
+    "svg_file": "${OUT_DIR}/callgraph.svg"
   }
 }
 ```
@@ -209,7 +216,7 @@ Return structured result to parent analysis:
 
 ### Very Large Codebases
 - IF chosen algorithm times out (>5 minutes) → Fall back to next faster algorithm (`vta` → `rta` → `cha`)
-- IF all algorithms time out → Narrow scope: `timeout 300 callgraph -algo rta -format=digraph ./cmd/... ./pkg/... > /tmp/callgraph.txt`
+- IF all algorithms time out → Narrow scope: `timeout 300 callgraph -algo rta -format=digraph ./cmd/... ./pkg/... > "${OUT_DIR}/callgraph.txt"`
 
 ### Missing Entry Points
 - IF `command-line-arguments.main` not found → Look for other entry points
@@ -223,15 +230,20 @@ Return structured result to parent analysis:
 ## Example: Generic Analysis Workflow
 
 ```bash
+# Setup: set CVE_ID and output directory
+$ CVE_ID="CVE-YYYY-NNNNN"
+$ OUT_DIR=".work/compliance/analyze-cve/${CVE_ID}"
+$ mkdir -p "${OUT_DIR}"
+
 # Step 1: Build call graph (default: vta; user can override with --algo)
-$ timeout 300 callgraph -algo vta -format=digraph . > /tmp/callgraph.txt
+$ timeout 300 callgraph -algo vta -format=digraph . > "${OUT_DIR}/callgraph.txt"
 
 # Step 2: Check if function is called
-$ cat /tmp/callgraph.txt | digraph nodes | grep "<package-path>.<vulnerable-function>$"
+$ cat "${OUT_DIR}/callgraph.txt" | digraph nodes | grep "<package-path>.<vulnerable-function>$"
 <package-path>.<vulnerable-function>
 
 # Step 3: Find path from main
-$ cat /tmp/callgraph.txt | digraph somepath command-line-arguments.main <package-path>.<vulnerable-function>
+$ cat "${OUT_DIR}/callgraph.txt" | digraph somepath command-line-arguments.main <package-path>.<vulnerable-function>
 digraph {
     "command-line-arguments.main" -> "<app-package>.Handler";
     "<app-package>.Handler" -> "<app-package>.ProcessFunction";
@@ -240,7 +252,7 @@ digraph {
 }
 
 # Step 4: Generate visual graph
-$ cat /tmp/callgraph.txt | digraph somepath command-line-arguments.main <package-path>.<vulnerable-function> | digraph to dot | sfdp -Tsvg -ocallgraph.svg
+$ cat "${OUT_DIR}/callgraph.txt" | digraph somepath command-line-arguments.main <package-path>.<vulnerable-function> | digraph to dot | sfdp -Tsvg -o"${OUT_DIR}/callgraph.svg"
 
 # Result: HIGH RISK — reachable path found
 # Call chain: main → Handler → ProcessFunction → HelperFunction → <vulnerable-function>
