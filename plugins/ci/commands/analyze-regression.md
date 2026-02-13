@@ -438,7 +438,7 @@ This command is useful for:
 
 9. **Identify Suspect PRs in Payload**: Use `fetch-prowjob-json` and `fetch-new-prs-in-payload` skills
 
-   **Only perform this step if step 8 successfully identified a clear regression start point** (i.e., a first failing run URL exists). If step 7 was skipped or inconclusive, skip this step entirely.
+   **Only perform this step if step 8 successfully identified a clear regression start point** (i.e., a first failing run URL exists). If step 8 was skipped or inconclusive, skip this step entirely.
 
    This step identifies pull requests that may have caused the regression by examining what was new in the payload where failures began.
 
@@ -591,12 +591,38 @@ This command is useful for:
    - Identify if failures cluster around a specific Upgrade, Network, or Topology variant
    - Note any variant combinations that are NOT failing (helps narrow root cause)
 
-11. **Check Existing Triages**: Look for related triage records
+11. **Find Related Triages and Untriaged Regressions**: Use the `fetch-related-triages` skill
 
-   - Query regression data for triages with similar test names
-   - Identify triages from same job runs
-   - Present existing JIRA tickets that might already cover this regression
-   - This implements: "scan for pre-existing triages that look related"
+   Query the Sippy API to find existing triage records and untriaged regressions related to this regression:
+
+   ```bash
+   script_path="plugins/ci/skills/fetch-related-triages/fetch_related_triages.py"
+   related=$(python3 "$script_path" <regression_id> --format json)
+   ```
+
+   See `plugins/ci/skills/fetch-related-triages/SKILL.md` for complete implementation details.
+
+   The API returns matches based on similarly named tests and shared last failure times, each with a confidence level (1-10):
+   - **10**: High confidence — same or very closely related tests
+   - **5**: Medium confidence — similarly named tests matched by edit distance
+   - **2**: Low confidence — regressions sharing the same last failure timestamp (same job runs)
+
+   **Analyze the results**:
+
+   - **`triaged_matches`**: Existing triage records that look related. For each match:
+     - Note the `triage_id`, `jira_key`, `jira_status`, and `confidence_level`
+     - High confidence matches (>=5) with open JIRA bugs are strong candidates for adding this regression to
+     - Low confidence matches or closed JIRA bugs are informational
+     - Present these in the report as potential triage targets
+
+   - **`untriaged_regressions`**: Open regressions not yet triaged that appear related. These are candidates to be triaged together with the current regression under one bug. For each:
+     - Note the `match_reason` (`similarly_named_test` or `same_last_failure`)
+     - `similarly_named_test` with low `edit_distance` (0-2) are likely the same or very similar tests in different variants
+     - `same_last_failure` regressions may share the same root cause (same failing job runs) but could be from different components
+
+   **Combine with step 10 results**: Merge these findings with the related regressions found via `--test-name` in step 10. The two sources are complementary:
+   - Step 10 finds regressions for the exact same test name (different variants)
+   - This step finds regressions with similar test names AND existing triages that may already cover the issue
 
 12. **Prepare Bug Filing Recommendations or Existing Bug Status**: Generate actionable information
 
@@ -621,7 +647,7 @@ This command is useful for:
        - Key debugging information (file references, resources, stack traces)
      - **Sippy Test Details report links** - this is critical for debugging:
        - Link for the current regression (converted `test_details_ui_url`)
-       - Links for each related regression found in step 9 (each regression has its own `test_details_url` from the list-regressions data - convert each to UI URL)
+       - Links for each related regression found in step 10 (each regression has its own `test_details_url` from the list-regressions data - convert each to UI URL)
      - Regression start date (if determined in step 8)
      - Suspect PRs from payload analysis (if determined in step 9) — include PR URLs and relevance classification for LIKELY and POSSIBLY related PRs
      - Related regressions (if any) with their regression IDs and test names
@@ -704,13 +730,12 @@ This command is useful for:
      - Key files changed (from `gh pr diff --stat`)
    - **Note**: This section is omitted if step 8 did not determine a clear regression start, if the prowjob.json lacks release annotations, or if no PRs looked potentially related. It is also omitted if `gh` CLI is not available, though PR URLs are still listed.
 
-   **Section 7: Related Regressions**
-   - List of potentially related failing tests
-   - Common patterns across failures
-   - Recommendation: "These regressions may be caused by the same issue and could be triaged to one JIRA"
-
-   **Section 8: Existing Triages**
-   - Related JIRA tickets already filed (from other regressions)
+   **Section 7: Related Regressions and Existing Triages** (from `fetch-related-triages` skill and `list-regressions --test-name`)
+   - Existing triages that may cover this regression, ranked by confidence level (10 = high, 5 = medium, 2 = low)
+   - For each existing triage: JIRA key, status, summary, triage type, confidence level, triage UI link
+   - Untriaged regressions that appear related (same/similar tests, shared failure times)
+   - Regressions for the exact same test in different variants (from step 10)
+   - Recommendation: whether to add to an existing triage or file a new bug
 
 14. **Offer to Triage**: After presenting the report, offer to triage the regression
 
@@ -720,7 +745,7 @@ This command is useful for:
 
    **Scenario A: Related triage record found on another regression** (from step 11)
 
-   If step 11 found that a related regression already has a triage record (i.e., another regression for the same or similar test is already triaged to a JIRA bug), offer to add this regression to that existing triage. Also include any other untriaged related regressions found in step 9.
+   If step 11 found that a related regression already has a triage record (i.e., another regression for the same or similar test is already triaged to a JIRA bug), offer to add this regression to that existing triage. Also include any other untriaged related regressions found in steps 10 and 11.
 
    ```
    A related triage already exists:
@@ -1092,6 +1117,7 @@ Uses the `triage-regression` skill with authentication via the `oc-auth` skill (
   - `fetch-prowjob-json`: Fetches prowjob.json to get payload tag and upgrade-from tag for a Prow job
   - `fetch-new-prs-in-payload`: Fetches new PRs in a payload compared to its predecessor
   - `list-regressions` (teams plugin): Lists all regressions for a release/component to find related regressions
+  - `fetch-related-triages`: Finds existing triages and untriaged regressions related to a regression
   - `fetch-jira-issue`: Fetches JIRA issue details and classifies progress
   - `triage-regression`: Creates or updates triage records linking regressions to JIRA bugs
   - `set-release-blocker`: Sets the Release Blocker field to "Approved" on filed JIRA bugs
@@ -1114,6 +1140,7 @@ Uses the `triage-regression` skill with authentication via the `oc-auth` skill (
 - Related Skill: `fetch-prowjob-json` - Fetches prowjob.json for payload tag and metadata (`plugins/ci/skills/fetch-prowjob-json/SKILL.md`)
 - Related Skill: `fetch-new-prs-in-payload` - Fetches new PRs in a payload (`plugins/ci/skills/fetch-new-prs-in-payload/SKILL.md`)
 - Related Skill: `list-regressions` (teams plugin) - Lists all regressions for a release/component (`plugins/teams/skills/list-regressions/SKILL.md`)
+- Related Skill: `fetch-related-triages` - Finds existing triages and untriaged regressions related to a regression (`plugins/ci/skills/fetch-related-triages/SKILL.md`)
 - Related Skill: `fetch-jira-issue` - Fetches JIRA issue details and classifies progress (`plugins/ci/skills/fetch-jira-issue/SKILL.md`)
 - Related Skill: `triage-regression` - Creates or updates triage records (`plugins/ci/skills/triage-regression/SKILL.md`)
 - Related Skill: `set-release-blocker` - Sets Release Blocker field on JIRA bugs (`plugins/ci/skills/set-release-blocker/SKILL.md`)
