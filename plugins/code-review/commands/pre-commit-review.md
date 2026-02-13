@@ -91,11 +91,19 @@ Skip if `--skip-tests` is specified.
 - **If a profile is loaded**, apply any project-specific structural patterns it defines.
 - Return findings as structured text.
 
-#### Sub-agent: Profile-Specific Review (only if profile is loaded)
-- Follow the profile's instructions to discover the project's agents and skills.
-- For example, the hypershift profile instructs: read agents from `.claude/agents/` (local checkout) or fetch via `gh api repos/openshift/hypershift/contents/.claude/agents?ref=main`, pick the ones relevant to the changed files based on their descriptions, and apply their domain expertise.
-- Check any profile-specific requirements (e.g., API generation checks if `api/` files changed).
-- Return findings as structured text.
+#### Sub-agents: Profile-Specific Reviews (only if profile is loaded)
+  - Read the profile skill to discover which SME agents are required.
+  - Launch **one sub-agent per SME agent** listed in the profile. For example,
+    if the profile lists control-plane-sme, data-plane-sme, api-sme,
+    cloud-provider-sme, and hcp-architect-sme, launch five separate sub-agents
+    in parallel, each using the corresponding `subagent_type`.
+  - Each sub-agent must receive:
+    - The complete diff
+    - PR title and description (if available)
+    - The Jira ticket context (if available)
+    - A prompt asking it to review the changes from its domain perspective.
+  - All profile sub-agents run in parallel with each other and with the other
+    Step 2 sub-agents.
 
 ### Step 3 — Build Verification
 
