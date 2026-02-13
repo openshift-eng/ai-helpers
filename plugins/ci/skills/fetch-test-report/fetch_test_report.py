@@ -14,7 +14,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-SIPPY_API_BASE = "http://127.0.0.1:8080/api"
+SIPPY_API_BASE = "https://sippy.dptools.openshift.org/api"
 SIPPY_RELEASES_URL = "https://sippy.dptools.openshift.org/api/releases"
 
 
@@ -65,7 +65,7 @@ def lookup_test(test_name: str, release: str, collapse: bool = True) -> list:
         sys.exit(1)
     except urllib.error.URLError as e:
         print(f"Error: Failed to connect to Sippy API: {e.reason}", file=sys.stderr)
-        print("Ensure the Sippy port-forward is running (typically: kubectl port-forward -n sippy svc/sippy 8080:8080).", file=sys.stderr)
+        print("Check network connectivity to sippy.dptools.openshift.org.", file=sys.stderr)
         sys.exit(1)
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)

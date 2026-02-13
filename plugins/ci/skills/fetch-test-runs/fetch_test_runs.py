@@ -17,8 +17,7 @@ from typing import List, Dict, Any, Optional
 class TestRunsFetcher:
     """Fetches test runs from Sippy API."""
 
-    # TODO: Change to production URL once API is live
-    BASE_URL = "http://127.0.0.1:8080/api/tests/v2/runs"
+    BASE_URL = "https://sippy.dptools.openshift.org/api/tests/v2/runs"
 
     def __init__(self, test_id: str, job_run_ids: Optional[List[str]] = None,
                  include_success: bool = False, job_name_filters: Optional[List[str]] = None,
@@ -140,7 +139,7 @@ class TestRunsFetcher:
         except urllib.error.HTTPError as e:
             return self._error_response(f"HTTP error {e.code}: {e.reason}")
         except urllib.error.URLError as e:
-            return self._error_response(f"Failed to connect to test runs API: {e.reason}. Ensure localhost:8080 is running or production endpoint is available.")
+            return self._error_response(f"Failed to connect to test runs API: {e.reason}")
         except Exception as e:
             return self._error_response(f"Unexpected error: {str(e)}")
 

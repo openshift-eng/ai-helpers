@@ -308,11 +308,7 @@ This command is useful for:
    - Set environment variable: `export JIRA_TOKEN="your-jira-api-token"`
    - Obtain from: https://issues.redhat.com (Profile → Personal Access Tokens)
 
-2. **Sippy Port-Forward**: Required for `fetch-test-report` and `fetch-test-runs` skills
-
-   - Typically via: `kubectl port-forward -n sippy svc/sippy 8080:8080`
-
-3. **Python 3**: Required for all skill scripts
+2. **Python 3**: Required for all skill scripts
 
    - Version: 3.6 or later
 

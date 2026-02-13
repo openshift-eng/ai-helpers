@@ -21,9 +21,9 @@ Use this skill when you need to:
 
 ## Prerequisites
 
-1. **Sippy Port-Forward**: The Sippy API must be accessible at `http://127.0.0.1:8080`
-   - Typically via: `kubectl port-forward -n sippy svc/sippy 8080:8080`
-   - Check: `curl -s http://127.0.0.1:8080/api/health?release=4.22`
+1. **Network Access**: The Sippy API must be accessible at `https://sippy.dptools.openshift.org`
+   - No authentication required
+   - Check: `curl -s https://sippy.dptools.openshift.org/api/health?release=4.22`
 
 2. **Python 3**: Python 3.6 or later
    - Check: `python3 --version`
@@ -80,8 +80,8 @@ runs=$(echo "$test_data" | jq -r '.[0].current_runs')
 ### Endpoint
 
 ```
-GET http://127.0.0.1:8080/api/tests/v2?release={release}&filter={filter_json}
-GET http://127.0.0.1:8080/api/tests/v2?release={release}&filter={filter_json}&collapse=false
+GET https://sippy.dptools.openshift.org/api/tests/v2?release={release}&filter={filter_json}
+GET https://sippy.dptools.openshift.org/api/tests/v2?release={release}&filter={filter_json}&collapse=false
 ```
 
 When `collapse=false` is specified, the API returns one row per variant combination instead of a single collapsed row. Each row includes a `variants` array showing the specific variant combo (e.g., `["aws", "ovn", "amd64", "upgrade-micro"]`). This helps identify if the test is failing in certain types of jobs and not others.
@@ -162,7 +162,7 @@ The API returns a JSON array of test objects:
 ```bash
 python3 fetch_test_report.py "[sig-api-machinery] ..."
 # Error: Failed to connect to Sippy API: [Errno 61] Connection refused
-# Ensure the Sippy port-forward is running (typically: kubectl port-forward -n sippy svc/sippy 8080:8080).
+# Check network connectivity to sippy.dptools.openshift.org.
 ```
 
 ### Case 2: No Test Found
@@ -243,7 +243,7 @@ python3 plugins/ci/skills/fetch-test-report/fetch_test_report.py \
 ## Notes
 
 - The test name must be an **exact match** — use the full test name including sig prefix and suite tags
-- The API is accessed via local port-forward; ensure the Sippy port-forward is active
+- The API is accessed via the production Sippy URL; no authentication required
 - If `--release` is not specified, use the `fetch-releases` skill to determine the latest release
 - `current_*` fields cover the last 7 days; `previous_*` fields cover the 7 days before that
 - `current_working_percentage` = pass rate + flake rate (tests that ultimately passed, possibly after retries)

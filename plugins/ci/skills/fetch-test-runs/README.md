@@ -95,7 +95,7 @@ The skill returns test runs from the Sippy API:
       "success": false
     }
   ],
-  "api_url": "http://127.0.0.1:8080/api/tests/v2/runs?..."
+  "api_url": "https://sippy.dptools.openshift.org/api/tests/v2/runs?..."
 }
 ```
 
@@ -107,7 +107,7 @@ The AI command then analyzes the `runs` array to:
 
 ## Note
 
-Currently using localhost endpoint (`http://127.0.0.1:8080`) while the API is in development. Will switch to production Sippy URL once the API is deployed.
+Uses the production Sippy API at `https://sippy.dptools.openshift.org`. No authentication required.
 
 ## See Also
 

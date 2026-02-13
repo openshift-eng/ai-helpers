@@ -21,8 +21,8 @@ Use this skill when you need to:
 ## Prerequisites
 
 1. **Network Access**: Must be able to reach the Sippy test runs API
-   - **NOTE**: Currently using localhost endpoint while API is in development
-   - Check: `curl -s http://127.0.0.1:8080/api/tests/v2/runs?test_id=test`
+   - No authentication required
+   - Check: `curl -s https://sippy.dptools.openshift.org/api/tests/v2/runs?test_id=test`
 
 2. **Python 3**: Python 3.6 or later
    - Check: `python3 --version`
@@ -166,7 +166,7 @@ Returns structured JSON with raw runs:
       "failed_tests": 3
     }
   ],
-  "api_url": "http://127.0.0.1:8080/api/tests/v2/runs?test_id=...&prowjob_name=gcp&prowjob_name=techpreview"
+  "api_url": "https://sippy.dptools.openshift.org/api/tests/v2/runs?test_id=...&prowjob_name=gcp&prowjob_name=techpreview"
 }
 ```
 
@@ -418,7 +418,7 @@ fi
 ## Notes
 
 - The script uses only Python standard library - no external dependencies required
-- **Currently using localhost endpoint** - will switch to production Sippy once API is deployed
+- Uses the production Sippy URL 
 - Handles API unavailability gracefully with clear error messages
 - Returns raw outputs for AI-based interpretation and similarity analysis
 - Job run IDs are optional - can fetch all runs for a test
