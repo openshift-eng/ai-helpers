@@ -68,7 +68,7 @@
       "name": "olm-team",
       "source": "./plugins/olm-team",
       "description": "OLM team development utilities and onboarding tools",
-      "version": "0.1.0"
+      "version": "0.2.0"
     },
     {
       "name": "prow-job",

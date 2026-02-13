@@ -118,6 +118,49 @@ See [commands/dev-setup.md](commands/dev-setup.md) for full documentation.
 
 ---
 
+### `/olm-team:ep-watch` - Watch Enhancement PRs from Other Teams
+
+Watches open Enhancement Proposal PRs from other teams that may impact OLM.
+
+**Usage:**
+```bash
+/olm-team:ep-watch
+```
+
+**What it does:**
+- Fetches open PRs from the openshift/enhancements repository
+- Filters out PRs created by OLM team members (11 members)
+- Analyzes PR content for OLM-related topics using weighted scoring
+- Returns up to 3 most relevant PRs from other teams
+- Shows why each PR matters to OLM with impact assessment
+
+**When to use:**
+- **Weekly team meetings**: Stay aware of cross-team dependencies
+- **Planning sessions**: Identify potential impacts on OLM architecture
+- **Design reviews**: Ensure OLM perspective is considered in other teams' proposals
+
+**Output includes:**
+- PR number, title, and author
+- How long ago it was opened
+- Relevance score (HIGH/MEDIUM/LOW)
+- Why it's relevant to OLM (matched topics)
+- Potential impacts on OLM
+- Direct link to the PR for review
+
+**Example:**
+```
+/olm-team:ep-watch
+
+→ Returns:
+  PR #1938: Gateway API without OLM (MEDIUM relevance)
+  - Why: Discusses removing OLM from Gateway API installation
+  - Impact: Other teams removing OLM from their workflows
+```
+
+See [commands/ep-watch.md](commands/ep-watch.md) for full documentation.
+
+---
+
 ## Understanding the OLM Ecosystem
 
 ### Upstream vs Downstream

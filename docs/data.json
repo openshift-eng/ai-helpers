@@ -681,6 +681,12 @@
           "description": "Set up OLM development repositories and onboard to the team",
           "name": "dev-setup",
           "synopsis": "/olm-team:dev-setup [target-directory]"
+        },
+        {
+          "argument_hint": "",
+          "description": "Watch open Enhancement PRs from other teams that may impact OLM",
+          "name": "ep-watch",
+          "synopsis": "bash"
         }
       ],
       "description": "OLM team development utilities and onboarding tools",
@@ -694,7 +700,7 @@
           "name": "k8s-ocp-olm-expert"
         }
       ],
-      "version": "0.1.0"
+      "version": "0.2.0"
     },
     {
       "commands": [
