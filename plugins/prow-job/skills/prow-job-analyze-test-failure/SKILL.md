@@ -117,7 +117,7 @@ gcloud storage cp gs://test-platform-results/{bucket-path}/build-log.txt .work/p
 
 ### Step 4.5: Check for Must-Gather Availability
 
-1. **Check for --fast flag**
+1. **Parse optional flags**
    - Parse user input for `--fast` flag
    - If `--fast` flag present:
      - Skip must-gather detection and analysis entirely
@@ -357,30 +357,35 @@ Only if user chose "Yes" in Step 4.5:
 
    if [ -z "$OUTPUT_DIR" ]; then
      echo "ERROR: Could not find output directory in unified dump"
-     # Skip to Step 5
-   fi
+     rm -rf "$TMP_EXTRACT"
+     # Clear variables to prevent subsequent usage
+     HAS_HOSTED_CLUSTER="false"
+     unset HOSTED_DIR
+     unset OUTPUT_DIR
+     # Skip to Step 5 - no must-gather analysis possible
+   else
+     # Move management cluster data (root level in output/)
+     # Exclude hostedcluster-* directories
+     for item in "$OUTPUT_DIR"/*; do
+       if [ -e "$item" ] && [[ ! "$(basename "$item")" =~ ^hostedcluster- ]]; then
+         mv "$item" .work/prow-job-analyze-test-failure/{build_id}/must-gather-mgmt/logs/
+       fi
+     done
 
-   # Move management cluster data (root level in output/)
-   # Exclude hostedcluster-* directories
-   for item in "$OUTPUT_DIR"/*; do
-     if [ -e "$item" ] && [[ ! "$(basename "$item")" =~ ^hostedcluster- ]]; then
-       mv "$item" .work/prow-job-analyze-test-failure/{build_id}/must-gather-mgmt/logs/
+     # Move hosted cluster data (hostedcluster-* subdirectory)
+     if [ "$HAS_HOSTED_CLUSTER" = "true" ]; then
+       HOSTED_DIR=$(find "$OUTPUT_DIR" -maxdepth 1 -type d -name "hostedcluster-*" | head -1)
+       if [ -n "$HOSTED_DIR" ]; then
+         mv "$HOSTED_DIR"/* .work/prow-job-analyze-test-failure/{build_id}/must-gather-hosted/logs/
+         echo "✓ Hosted cluster data extracted from unified archive"
+       else
+         echo "WARNING: Expected hosted cluster data but hostedcluster-* directory not found"
+       fi
      fi
-   done
 
-   # Move hosted cluster data (hostedcluster-* subdirectory)
-   if [ "$HAS_HOSTED_CLUSTER" = "true" ]; then
-     HOSTED_DIR=$(find "$OUTPUT_DIR" -maxdepth 1 -type d -name "hostedcluster-*" | head -1)
-     if [ -n "$HOSTED_DIR" ]; then
-       mv "$HOSTED_DIR"/* .work/prow-job-analyze-test-failure/{build_id}/must-gather-hosted/logs/
-       echo "✓ Hosted cluster data extracted from unified archive"
-     else
-       echo "WARNING: Expected hosted cluster data but hostedcluster-* directory not found"
-     fi
+     # Cleanup temporary extraction directory
+     rm -rf "$TMP_EXTRACT"
    fi
-
-   # Cleanup temporary extraction directory
-   rm -rf "$TMP_EXTRACT"
    ```
 
    For Pattern 2 (dual):
@@ -882,6 +887,83 @@ Synthesize all gathered evidence to determine the most likely root cause for the
    - **Test artifacts**: `.work/prow-job-analyze-test-failure/{build_id}/logs/`
    - **Management cluster must-gather**: `.work/prow-job-analyze-test-failure/{build_id}/must-gather-mgmt/logs/`
    - **Hosted cluster must-gather**: `.work/prow-job-analyze-test-failure/{build_id}/must-gather-hosted/logs/`
+   ```
+
+### Step 5.5: Ask User About JIRA Export
+
+After completing the analysis, ask the user if they want to export to JIRA format.
+
+1. **Ask user using AskUserQuestion tool**
+
+   ```
+   Question: "Analysis complete! Would you like to export this to JIRA format?"
+   Header: "JIRA Export"
+   Options:
+     - Label: "Yes - Export to JIRA (OCPBUGS format)"
+       Description: "Generate JIRA-formatted output using OCPBUGS template for easy copy-paste"
+     - Label: "No - Skip JIRA export"
+       Description: "Only keep the Markdown analysis file"
+   ```
+
+2. **If user chooses "Yes - Export to JIRA (OCPBUGS format)"**
+
+   Generate `.work/prow-job-analyze-test-failure/{build_id}/analysis-jira.txt` using OCPBUGS format:
+
+   ```
+   Description of problem:
+   [Summarize the test failure in 1-2 sentences]
+
+   Version-Release number of selected component (if applicable):
+   [OpenShift version from prowjob, if available]
+
+   How reproducible:
+   [Based on test history - e.g., "Intermittent", "Always", "Sometimes in this job configuration"]
+
+   Steps to Reproduce:
+   1. Run Prow CI job: [job-name]
+   2. Execute test: [test-name]
+   3. [Any specific conditions that triggered the failure]
+
+   Actual results:
+   [What actually happened - include error messages, stack traces]
+   {noformat}
+   [Stack trace or error output]
+   {noformat}
+
+   Expected results:
+   [What should have happened - test should pass]
+
+   Additional info:
+   [Include correlation analysis, timeline, affected components]
+
+   Job Details:
+   - Job URL: [prow-job-url]
+   - Build ID: {{build_id}}
+   - Test artifacts: {{.work/prow-job-analyze-test-failure/{build_id}/}}
+
+   [If must-gather was analyzed, include cluster diagnostics summary]
+
+   Root Cause Analysis:
+   [Detailed analysis from Step 5]
+   ```
+
+3. **Display completion message**
+
+   If JIRA export chosen:
+   ```text
+   ✅ Analysis complete!
+   📄 Reports generated:
+   - Markdown: .work/prow-job-analyze-test-failure/{build_id}/analysis.md
+   - JIRA (OCPBUGS format): .work/prow-job-analyze-test-failure/{build_id}/analysis-jira.txt
+
+   💡 Tip: Copy the contents of analysis-jira.txt directly into a JIRA OCPBUGS issue
+   ```
+
+   If JIRA export skipped:
+   ```text
+   ✅ Analysis complete!
+   📄 Report generated:
+   - Markdown: .work/prow-job-analyze-test-failure/{build_id}/analysis.md
    ```
 
 ## Error Handling

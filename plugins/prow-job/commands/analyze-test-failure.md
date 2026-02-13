@@ -41,6 +41,12 @@ The command provides comprehensive analysis by:
 - Only analyzes test-level artifacts (build-log, intervals)
 - Faster results, but may miss cluster-level root causes
 
+**JIRA export (prompted at end)**:
+- After analysis completes, you'll be asked if you want to export to JIRA format
+- If yes, generates JIRA-formatted output using OCPBUGS template
+- Perfect for copy-pasting directly into JIRA OCPBUGS issues
+- Uses standard OCPBUGS fields: Description, Version, How reproducible, Steps to Reproduce, Actual results, Expected results, Additional info
+
 ### HyperShift Support
 
 For HyperShift jobs with hosted clusters, the command automatically:
@@ -57,7 +63,11 @@ For HyperShift jobs with hosted clusters, the command automatically:
 - Load the "Prow Job Analyze Test Failure" skill
 - Proceed with the analysis by following the implementation steps from the skill
 
-The skill handles all the implementation details including URL parsing, artifact downloading, archive extraction, must-gather analysis (if requested), and providing correlated evidence combining test-level and cluster-level insights.
+The skill handles all the implementation details including:
+- URL parsing and artifact downloading
+- Archive extraction and must-gather analysis (if requested)
+- Test failure analysis with cluster correlation
+- **JIRA export (if requested)**: After analysis completes, user can choose to generate JIRA OCPBUGS-formatted output for direct copy-paste into JIRA issues
 
 ## Return Value
 
@@ -71,6 +81,8 @@ The skill handles all the implementation details including URL parsing, artifact
   - `logs/` - Test artifacts (build-log, interval files)
   - `must-gather/logs/` - Cluster diagnostics (if extracted, standard OpenShift)
   - `must-gather-mgmt/logs/` and `must-gather-hosted/logs/` - Dual cluster diagnostics (if extracted, HyperShift)
+  - `analysis.md` - Markdown analysis report (always generated)
+  - `analysis-jira.txt` - JIRA OCPBUGS-formatted analysis (generated if user chooses to export)
 
 ## Arguments:
 - $1: Prow job URL (required)
