@@ -176,7 +176,7 @@ A plugin to automate tasks with Jira
 - **`/jira:create-release-note` `<issue-key>`** - Generate bug fix release notes from Jira tickets and linked GitHub PRs
 - **`/jira:create` `<type> [project-key] <summary> [--component <name>] [--version <version>] [--parent <key>]`** - Create Jira issues (story, epic, feature, task, bug, feature-request) with proper formatting
 - **`/jira:generate-feature-doc` `<feature-key>`** - Generate comprehensive feature documentation from Jira feature and all related issues and PRs
-- **`/jira:generate-test-plan` `[JIRA issue key] [GitHub PR URLs]`** - Generate test steps for a JIRA issue
+- **`/jira:generate-test-plan` `[JIRA issue key] [GitHub PR URLs] [--generate-e2e] [--test-dir path] [--skeleton-only]`** - Generate test steps for a JIRA issue
 - **`/jira:grooming` `[project-filter] [time-period] [--component component-name] [--label label-name] [--type issue-type] [--status status] [--story-points]`** - Analyze new bugs and cards added over a time period and generate grooming meeting agenda
 - **`/jira:issues-by-component` `<project-key> [time-period] [--component name] [--assignee username] [--reporter username] [--status status] [--search term] [--search-description]`** - List and analyze JIRA issues organized by component with flexible filtering
 - **`/jira:reconcile-github` `[--github-project <org/repo>] [--jira-project <key>] [--profile <name>] [--porcelain] [--output json|yaml]`** - Reconcile state mismatches between GitHub and Jira issues
