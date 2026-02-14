@@ -30,27 +30,28 @@ The migration is an **8-phase workflow** that collects configuration, sets up re
 
 **ALL 8 PHASES ARE MANDATORY - EXECUTE EACH PHASE IN ORDER:**
 
-1. User Input Collection (10 inputs - includes Dockerfile integration choice)
+1. User Input Collection (9 inputs - includes Dockerfile integration choice)
 2. Repository Setup (source and target)
 3. Structure Creation (directories and files)
 4. Code Generation (go.mod, main.go, Makefile, bindata.mk, fixtures.go)
 5. Test Migration (automated with rollback on failure)
 6. Dependency Resolution (go mod tidy + vendor + build verification)
-7. **Dockerfile Integration (uses choice from Input 10)**
+7. **Dockerfile Integration (uses choice from Input 9)**
 8. Final Summary and Next Steps
 
 **DO NOT skip Phase 7. After Phase 6 completes, proceed immediately to Phase 7.**
 
 **Key Design Principles:**
 - **No sig filtering**: All tests included without filtering logic
-- **CMD at root** (monorepo): `cmd/extension/main.go` (not under test/)
+- **CMD at root** (monorepo): `cmd/<extension-name>-tests-ext/main.go` (not under test/)
 - **Simple annotations**: [OTP] at beginning of Describe, [Level0] at beginning of test name only
-- **Vendor at root** (monorepo): Only `vendor/` at repository root, NOT in test module
+- **Single go.mod** (monorepo): All dependencies in root go.mod (no separate test module)
+- **Vendor at root** (monorepo): Only `vendor/` at repository root
 - **No compress/copy targets**: Removed from root Makefile
 
 ## Migration Phases
 
-### Phase 1: User Input Collection (10 inputs)
+### Phase 1: User Input Collection (9 inputs)
 
 Collect all necessary information from the user before starting the migration.
 
@@ -71,8 +72,8 @@ Ask: "Which directory structure strategy do you want to use?"
 - Integrates into existing repository structure
 - Uses existing `cmd/` and `test/` directories
 - **CMD location**: `cmd/extension/main.go` (at repository root, NOT under test/)
-- **Test module**: `test/e2e/go.mod` or `test/e2e/<test-dir-name>/go.mod`
-- **Vendor location**: `vendor/` at root ONLY (not in test module)
+- **Single go.mod**: All dependencies in root go.mod (no separate test module)
+- **Vendor location**: `vendor/` at root ONLY
 
 **Option 2: Single-module strategy (isolated directory)**
 - Creates isolated `tests-extension/` directory
@@ -195,53 +196,65 @@ echo "Extension name auto-detected: $EXTENSION_NAME"
 
 **Store in variable:** `<extension-name>`
 
-#### Input 5: Test Directory Name (conditional - monorepo only)
+#### Input 4a: Target Test Directory Name (Conditional - Monorepo Mode Only)
 
-**Skip this input if single-module strategy**
+**This input is ONLY asked if:**
+1. Monorepo strategy is selected (from Input 1)
+2. Target repository already has `test/e2e/` directory
 
-For monorepo strategy, check if test/e2e exists:
+**Purpose**: When migrating to a repository that already has `test/e2e/`, we need to create a subdirectory to avoid conflicts with existing tests.
 
+**Detection logic:**
 ```bash
 cd "$WORKING_DIR"
 
-if [ -d "test/e2e" ]; then
-    echo "⚠️  test/e2e already exists"
-    TEST_DIR_EXISTS=true
-else
-    TEST_DIR_EXISTS=false
+if [ "$STRUCTURE_STRATEGY" = "monorepo" ] && [ -d "test/e2e" ]; then
+    echo "⚠️  Target repository already has test/e2e/ directory"
+    echo "Tests will be migrated to a subdirectory under test/e2e/"
+
+    # Ask for target test directory name
+    TARGET_TEST_DIR_NAME=""
 fi
 ```
 
-**If test/e2e exists:**
-Ask: "The directory 'test/e2e' already exists. Please specify a subdirectory name (default: 'extension'):"
+**If test/e2e exists, ask:**
+
+Ask: "What subdirectory name should be used under test/e2e/ for migrated tests? (default: extension):"
 - Default: "extension"
-- Store in: `<test-dir-name>` = subdirectory name (e.g., "extension")
+- Example: If you enter "router", tests will be at `test/e2e/router/`
+- Example: If you press Enter, tests will be at `test/e2e/extension/`
 
-**If test/e2e doesn't exist:**
-- Use default: `test/e2e`
-- Store in: `<test-dir-name>` = "e2e"
+**Store in variable:** `<target-test-dir>` (default: "extension" if empty)
 
-#### Input 6: Local Source Repository (Optional)
+**If test/e2e does NOT exist:**
+```bash
+# No subdirectory needed - tests go directly in test/e2e/
+TARGET_TEST_DIR_NAME=""
+```
+
+**Store in variable:** `<target-test-dir>` (empty string)
+
+#### Input 5: Local Source Repository (Optional)
 
 Ask: "Do you have a local clone of openshift-tests-private? If yes, provide the path (or press Enter to clone):"
 
 **Store in variable:** `<local-source-path>` (empty if user wants to clone)
 
-#### Input 7: Update Local Source Repository (if local source provided)
+#### Input 6: Update Local Source Repository (if local source provided)
 
 If local source provided:
 Ask: "Do you want to update the local source repository? (git fetch && git pull) [Y/n]:"
 
 **Store in variable:** `<update-source>` (value: "yes" or "no")
 
-#### Input 8: Source Test Subfolder
+#### Input 7: Source Test Subfolder
 
 Ask: "What is the test subfolder name under test/extended/?"
 - Example: "networking", "router", "storage"
 
 **Store in variable:** `<test-subfolder>`
 
-#### Input 9: Source Testdata Subfolder (Optional)
+#### Input 8: Source Testdata Subfolder (Optional)
 
 **IMPORTANT**: This determines which testdata fixtures are copied from the source OTE repository.
 The testdata files are embedded into bindata.go and accessed via FixturePath() calls in tests.
@@ -249,11 +262,11 @@ The testdata files are embedded into bindata.go and accessed via FixturePath() c
 Ask: "What is the testdata subfolder name under test/extended/testdata/?"
 
 **Options:**
-- Press **Enter** to use the same value as the test subfolder (Input 8)
+- Press **Enter** to use the same value as the test subfolder (Input 7)
 - Enter a **subfolder name** (e.g., "router", "networking") if different from test subfolder
 - Enter **"none"** if no testdata fixtures exist for these tests
 
-**Default**: Same as Input 8 (recommended for most cases)
+**Default**: Same as Input 7 (recommended for most cases)
 
 **Examples:**
 - If test subfolder is "router" and testdata is at `test/extended/testdata/router/`, press Enter
@@ -275,7 +288,7 @@ Then present the discovered subdirectories to the user and ask for their choice.
 
 **Store in variable:** `<testdata-subfolder>`
 
-#### Input 10: Dockerfile Integration Choice
+#### Input 9: Dockerfile Integration Choice
 
 Ask: "Do you want to update Dockerfiles automatically, or do it manually?"
 
@@ -285,9 +298,9 @@ Ask: "Do you want to update Dockerfiles automatically, or do it manually?"
 
 **Store in variable:** `<dockerfile-choice>` (value: "automated" or "manual")
 
-#### Input 10a: Select Dockerfiles to Update (conditional - only if automated)
+#### Input 9a: Select Dockerfiles to Update (conditional - only if automated)
 
-**This input is ONLY asked if user chose "automated" in Input 10.**
+**This input is ONLY asked if user chose "automated" in Input 9.**
 
 If user chose automated, search for all Dockerfiles in the target repository and ask user to select:
 
@@ -371,7 +384,7 @@ Workspace:             <working-dir>
 Target Repository:     <target-repo-path>
 Update Target Repo:    <update-target or "cloned from URL" or "N/A">
 Extension Name:        <extension-name>
-Test Directory:        <test-dir-name>
+Target Test Directory: <target-test-dir or "test/e2e (no subdirectory)" or "N/A (single-module)">
 Source Repository:     <local-source-path or "will clone">
 Update Source Repo:    <update-source or "will clone" or "N/A">
 Test Subfolder:        <test-subfolder>
@@ -381,7 +394,7 @@ Selected Dockerfiles:  <selected-dockerfiles or "manual integration" or "none">
 ========================================
 ```
 
-**Example output (local target, automated Dockerfile):**
+**Example output (local target with existing test/e2e, automated Dockerfile):**
 ```
 ========================================
 Migration Configuration Summary
@@ -391,7 +404,7 @@ Workspace:             /home/user/repos
 Target Repository:     /home/user/repos/router
 Update Target Repo:    yes
 Extension Name:        router
-Test Directory:        e2e
+Target Test Directory: test/e2e/extension
 Source Repository:     /home/user/openshift-tests-private
 Update Source Repo:    yes
 Test Subfolder:        router
@@ -401,7 +414,27 @@ Selected Dockerfiles:  ./Dockerfile, ./Dockerfile.rhel8
 ========================================
 ```
 
-**Example output (cloned target, manual Dockerfile):**
+**Example output (local target without test/e2e, automated Dockerfile):**
+```
+========================================
+Migration Configuration Summary
+========================================
+Strategy:              monorepo
+Workspace:             /home/user/repos
+Target Repository:     /home/user/repos/mycomponent
+Update Target Repo:    yes
+Extension Name:        mycomponent
+Target Test Directory: test/e2e (no subdirectory)
+Source Repository:     /home/user/openshift-tests-private
+Update Source Repo:    yes
+Test Subfolder:        mycomponent
+Testdata Subfolder:    mycomponent
+Dockerfile Integration: automated
+Selected Dockerfiles:  ./Dockerfile
+========================================
+```
+
+**Example output (cloned target, manual Dockerfile, single-module strategy):**
 ```
 ========================================
 Migration Configuration Summary
@@ -411,7 +444,7 @@ Workspace:             /tmp/migration
 Target Repository:     /tmp/migration/router
 Update Target Repo:    cloned from URL
 Extension Name:        router
-Test Directory:        e2e
+Target Test Directory: N/A (single-module)
 Source Repository:     will clone
 Update Source Repo:    N/A
 Test Subfolder:        router
@@ -529,29 +562,22 @@ fi
 ```bash
 cd <working-dir>
 
-# Auto-detect structure variant
-if [ -d "test/e2e" ]; then
-    TEST_E2E_EXISTS=true
-    echo "✅ Variant B (Subdirectory mode)"
+# Set directory paths based on whether test/e2e already exists
+if [ -n "$TARGET_TEST_DIR_NAME" ]; then
+    # test/e2e exists - use subdirectory
+    TEST_CODE_DIR="test/e2e/$TARGET_TEST_DIR_NAME"
+    TESTDATA_DIR="test/e2e/$TARGET_TEST_DIR_NAME/testdata"
+    echo "Using test subdirectory: test/e2e/$TARGET_TEST_DIR_NAME/"
 else
-    TEST_E2E_EXISTS=false
-    echo "✅ Variant A (Direct mode)"
-fi
-
-# Set directory paths
-if [ "$TEST_E2E_EXISTS" = true ]; then
-    TEST_CODE_DIR="test/e2e/<test-dir-name>"
-    TESTDATA_DIR="test/e2e/<test-dir-name>/testdata"
-    TEST_MODULE_DIR="test/e2e/<test-dir-name>"
-else
+    # No test/e2e - use test/e2e directly
     TEST_CODE_DIR="test/e2e"
     TESTDATA_DIR="test/e2e/testdata"
-    TEST_MODULE_DIR="test/e2e"
+    echo "Using test directory: test/e2e/"
 fi
 
 # Create directories
-# IMPORTANT: cmd is at root level (cmd/extension/), NOT under test/
-mkdir -p cmd/extension
+# IMPORTANT: cmd follows pattern cmd/extension/, NOT under test/
+mkdir -p "cmd/extension"
 mkdir -p bin
 mkdir -p "$TEST_CODE_DIR"
 mkdir -p "$TESTDATA_DIR"
@@ -683,81 +709,112 @@ fi
 ```bash
 cd <working-dir>
 
-# Extract Go version from root
-GO_VERSION=$(grep '^go ' go.mod | awk '{print $2}')
-
-cd "$TEST_MODULE_DIR"
-
-# Initialize test module
-if [ "$TEST_E2E_EXISTS" = true ]; then
-    ROOT_MODULE=$(grep '^module ' ../../../go.mod | awk '{print $2}')
-    go mod init "$ROOT_MODULE/$TEST_MODULE_DIR"
-else
-    ROOT_MODULE=$(grep '^module ' ../../go.mod | awk '{print $2}')
-    go mod init "$ROOT_MODULE/test/e2e"
-fi
-
-# Set Go version
-sed -i "s/^go .*/go $GO_VERSION/" go.mod
+# Add OTE test dependencies to root go.mod (single module approach)
+echo "Adding OTE test dependencies to root go.mod..."
 
 # Add dependencies
 OTE_LATEST=$(git ls-remote https://github.com/openshift-eng/openshift-tests-extension.git refs/heads/main | awk '{print $1}')
 OTE_SHORT="${OTE_LATEST:0:12}"
 
-GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get "github.com/openshift-eng/openshift-tests-extension@$OTE_SHORT"
-GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get "github.com/openshift/origin@main"
-GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get github.com/onsi/ginkgo/v2@latest
-GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get github.com/onsi/gomega@latest
-
-# Copy replace directives from openshift-tests-private
-SOURCE_PATH=$([ "$TEST_E2E_EXISTS" = true ] && echo "../../../$SOURCE_REPO" || echo "../../$SOURCE_REPO")
-
-grep -A 1000 "^replace" "$SOURCE_PATH/go.mod" | grep -B 1000 "^)" | \
-    grep -v "^replace" | grep -v "^)" > /tmp/replace_directives.txt
-
-echo "" >> go.mod
-echo "replace (" >> go.mod
-cat /tmp/replace_directives.txt >> go.mod
-echo ")" >> go.mod
-rm -f /tmp/replace_directives.txt
-
-# Step 4b: Update Ginkgo to latest OpenShift fork (prevents build failures from stale August 2024 version)
-echo "Updating Ginkgo to latest from OpenShift fork..."
-GINKGO_LATEST=$(git ls-remote https://github.com/openshift/onsi-ginkgo.git refs/heads/v2.27.2-openshift-4.22 | awk '{print $1}')
-GINKGO_SHORT="${GINKGO_LATEST:0:12}"
-GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get "github.com/openshift/onsi-ginkgo/v2@$GINKGO_SHORT"
-echo "✅ Ginkgo updated to latest OpenShift fork version"
-
-# Add replace directive for root module
-MODULE_NAME=$(grep '^module ' go.mod | awk '{print $2}' | sed "s|/$TEST_MODULE_DIR||")
-
-if [ "$TEST_E2E_EXISTS" = true ]; then
-    echo "" >> go.mod
-    echo "replace $MODULE_NAME => ../../.." >> go.mod
-else
-    echo "" >> go.mod
-    echo "replace $MODULE_NAME => ../.." >> go.mod
-fi
-
-# Generate minimal go.sum (defer full tidy to Phase 6)
-GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go mod download || echo "⚠️  Some downloads failed - will retry in Phase 6"
-
-# Return to root
-cd $([ "$TEST_E2E_EXISTS" = true ] && echo "../../.." || echo "../..")
-
-# Update root go.mod
-MODULE_NAME=$(grep '^module ' go.mod | awk '{print $2}')
-
-if ! grep -q "replace.*$MODULE_NAME/$TEST_MODULE_DIR" go.mod; then
-    if grep -q "^replace (" go.mod; then
-        sed -i "/^replace (/a\\    $MODULE_NAME/$TEST_MODULE_DIR => ./$TEST_MODULE_DIR" go.mod
-    else
-        echo "" >> go.mod
-        echo "replace $MODULE_NAME/$TEST_MODULE_DIR => ./$TEST_MODULE_DIR" >> go.mod
+echo "Adding OTE dependency..."
+if ! GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get "github.com/openshift-eng/openshift-tests-extension@$OTE_SHORT"; then
+    echo "❌ Failed to get openshift-tests-extension"
+    echo "Retrying..."
+    sleep 2
+    if ! GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get "github.com/openshift-eng/openshift-tests-extension@$OTE_SHORT"; then
+        echo "❌ Failed after retry - you may need to run manually: go get github.com/openshift-eng/openshift-tests-extension@latest"
+        exit 1
     fi
 fi
+echo "✅ OTE dependency added"
 
-echo "✅ Monorepo go.mod setup complete"
+echo "Adding origin dependency..."
+if ! GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get "github.com/openshift/origin@main"; then
+    echo "❌ Failed to get github.com/openshift/origin@main"
+    echo "Retrying..."
+    sleep 2
+    if ! GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get "github.com/openshift/origin@main"; then
+        echo "❌ Failed after retry - you may need to run manually: go get github.com/openshift/origin@main"
+        exit 1
+    fi
+fi
+echo "✅ Origin dependency added"
+
+echo "Adding Ginkgo dependency..."
+if ! GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get github.com/onsi/ginkgo/v2@latest; then
+    echo "❌ Failed to get ginkgo"
+    echo "Retrying..."
+    sleep 2
+    if ! GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get github.com/onsi/ginkgo/v2@latest; then
+        echo "❌ Failed after retry - you may need to run manually: go get github.com/onsi/ginkgo/v2@latest"
+        exit 1
+    fi
+fi
+echo "✅ Ginkgo dependency added"
+
+echo "Adding Gomega dependency..."
+if ! GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get github.com/onsi/gomega@latest; then
+    echo "❌ Failed to get gomega"
+    echo "Retrying..."
+    sleep 2
+    if ! GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get github.com/onsi/gomega@latest; then
+        echo "❌ Failed after retry - you may need to run manually: go get github.com/onsi/gomega@latest"
+        exit 1
+    fi
+fi
+echo "✅ Gomega dependency added"
+
+# Copy replace directives from openshift-tests-private to root go.mod
+# IMPORTANT: Filter out openshift-tests-private itself to avoid importing entire test suite
+echo "Copying replace directives from openshift-tests-private..."
+
+if [ -n "$SOURCE_REPO" ]; then
+    grep -A 1000 "^replace" "$SOURCE_REPO/go.mod" | grep -B 1000 "^)" | \
+        grep -v "^replace" | grep -v "^)" | \
+        grep -v "github.com/openshift/openshift-tests-private" > /tmp/replace_directives.txt
+
+    # Check if replace block already exists in root go.mod
+    if ! grep -q "^replace (" go.mod; then
+        echo "" >> go.mod
+        echo "replace (" >> go.mod
+        cat /tmp/replace_directives.txt >> go.mod
+        echo ")" >> go.mod
+    else
+        # Append to existing replace block (before closing parenthesis)
+        # Find the line number of the closing ) for replace block
+        REPLACE_CLOSE_LINE=$(grep -n "^replace (" go.mod | head -1 | cut -d: -f1)
+        # Find next closing ) after replace (
+        NEXT_CLOSE=$(tail -n +$((REPLACE_CLOSE_LINE + 1)) go.mod | grep -n "^)" | head -1 | cut -d: -f1)
+        REPLACE_CLOSE_LINE=$((REPLACE_CLOSE_LINE + NEXT_CLOSE))
+
+        # Insert before closing )
+        head -n $((REPLACE_CLOSE_LINE - 1)) go.mod > /tmp/go.mod.tmp
+        cat /tmp/replace_directives.txt >> /tmp/go.mod.tmp
+        tail -n +$REPLACE_CLOSE_LINE go.mod >> /tmp/go.mod.tmp
+        mv /tmp/go.mod.tmp go.mod
+    fi
+    rm -f /tmp/replace_directives.txt
+fi
+
+# Step 4b: Align Ginkgo version with OTE framework (newer version is backward compatible)
+# IMPORTANT: Use OTE's Ginkgo version (December 2024), NOT OTP's older version (August 2024)
+# The December 2024 fork is backward compatible with August 2024 code from OTP
+echo "Aligning Ginkgo version with OTE framework..."
+OTE_REPO="https://github.com/openshift-eng/openshift-tests-extension.git"
+OTE_GINKGO_VERSION=$(git ls-remote "$OTE_REPO" refs/heads/main | xargs -I {} git ls-remote https://github.com/openshift-eng/openshift-tests-extension {} | git archive --remote=https://github.com/openshift-eng/openshift-tests-extension HEAD go.mod 2>/dev/null | tar -xO | grep "github.com/onsi/ginkgo/v2 =>" | awk '{print $NF}' 2>/dev/null || echo "v2.6.1-0.20241205171354-8006f302fd12")
+
+# Fallback to known working version if detection fails
+if [ -z "$OTE_GINKGO_VERSION" ]; then
+    OTE_GINKGO_VERSION="v2.6.1-0.20241205171354-8006f302fd12"
+    echo "ℹ️  Using fallback OTE Ginkgo version: $OTE_GINKGO_VERSION"
+else
+    echo "ℹ️  Detected OTE Ginkgo version: $OTE_GINKGO_VERSION"
+fi
+
+GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get "github.com/openshift/onsi-ginkgo/v2@$OTE_GINKGO_VERSION"
+echo "✅ Ginkgo aligned to OTE framework version (backward compatible with OTP)"
+
+echo "✅ Monorepo go.mod setup complete (single module with all dependencies)"
 ```
 
 **For Single-Module Strategy:**
@@ -779,16 +836,61 @@ sed -i "s/^go .*/go $GO_VERSION/" go.mod
 OTE_LATEST=$(git ls-remote https://github.com/openshift-eng/openshift-tests-extension.git refs/heads/main | awk '{print $1}')
 OTE_SHORT="${OTE_LATEST:0:12}"
 
-GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get "github.com/openshift-eng/openshift-tests-extension@$OTE_SHORT"
-GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get "github.com/openshift/origin@main"
-GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get github.com/onsi/ginkgo/v2@latest
-GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get github.com/onsi/gomega@latest
+echo "Adding OTE dependency..."
+if ! GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get "github.com/openshift-eng/openshift-tests-extension@$OTE_SHORT"; then
+    echo "❌ Failed to get openshift-tests-extension"
+    echo "Retrying..."
+    sleep 2
+    if ! GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get "github.com/openshift-eng/openshift-tests-extension@$OTE_SHORT"; then
+        echo "❌ Failed after retry - you may need to run manually: go get github.com/openshift-eng/openshift-tests-extension@latest"
+        exit 1
+    fi
+fi
+echo "✅ OTE dependency added"
+
+echo "Adding origin dependency..."
+if ! GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get "github.com/openshift/origin@main"; then
+    echo "❌ Failed to get github.com/openshift/origin@main"
+    echo "Retrying..."
+    sleep 2
+    if ! GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get "github.com/openshift/origin@main"; then
+        echo "❌ Failed after retry - you may need to run manually: go get github.com/openshift/origin@main"
+        exit 1
+    fi
+fi
+echo "✅ Origin dependency added"
+
+echo "Adding Ginkgo dependency..."
+if ! GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get github.com/onsi/ginkgo/v2@latest; then
+    echo "❌ Failed to get ginkgo"
+    echo "Retrying..."
+    sleep 2
+    if ! GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get github.com/onsi/ginkgo/v2@latest; then
+        echo "❌ Failed after retry - you may need to run manually: go get github.com/onsi/ginkgo/v2@latest"
+        exit 1
+    fi
+fi
+echo "✅ Ginkgo dependency added"
+
+echo "Adding Gomega dependency..."
+if ! GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get github.com/onsi/gomega@latest; then
+    echo "❌ Failed to get gomega"
+    echo "Retrying..."
+    sleep 2
+    if ! GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get github.com/onsi/gomega@latest; then
+        echo "❌ Failed after retry - you may need to run manually: go get github.com/onsi/gomega@latest"
+        exit 1
+    fi
+fi
+echo "✅ Gomega dependency added"
 
 # Copy replace directives
+# IMPORTANT: Filter out openshift-tests-private itself to avoid importing entire test suite
 SOURCE_PATH="../$SOURCE_REPO"
 
 grep -A 1000 "^replace" "$SOURCE_PATH/go.mod" | grep -B 1000 "^)" | \
-    grep -v "^replace" | grep -v "^)" > /tmp/replace_directives.txt
+    grep -v "^replace" | grep -v "^)" | \
+    grep -v "github.com/openshift/openshift-tests-private" > /tmp/replace_directives.txt
 
 echo "" >> go.mod
 echo "replace (" >> go.mod
@@ -796,12 +898,23 @@ cat /tmp/replace_directives.txt >> go.mod
 echo ")" >> go.mod
 rm -f /tmp/replace_directives.txt
 
-# Step 4b: Update Ginkgo to latest OpenShift fork (prevents build failures from stale August 2024 version)
-echo "Updating Ginkgo to latest from OpenShift fork..."
-GINKGO_LATEST=$(git ls-remote https://github.com/openshift/onsi-ginkgo.git refs/heads/v2.27.2-openshift-4.22 | awk '{print $1}')
-GINKGO_SHORT="${GINKGO_LATEST:0:12}"
-GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get "github.com/openshift/onsi-ginkgo/v2@$GINKGO_SHORT"
-echo "✅ Ginkgo updated to latest OpenShift fork version"
+# Step 4b: Align Ginkgo version with OTE framework (newer version is backward compatible)
+# IMPORTANT: Use OTE's Ginkgo version (December 2024), NOT OTP's older version (August 2024)
+# The December 2024 fork is backward compatible with August 2024 code from OTP
+echo "Aligning Ginkgo version with OTE framework..."
+OTE_REPO="https://github.com/openshift-eng/openshift-tests-extension.git"
+OTE_GINKGO_VERSION=$(git ls-remote "$OTE_REPO" refs/heads/main | xargs -I {} git ls-remote https://github.com/openshift-eng/openshift-tests-extension {} | git archive --remote=https://github.com/openshift-eng/openshift-tests-extension HEAD go.mod 2>/dev/null | tar -xO | grep "github.com/onsi/ginkgo/v2 =>" | awk '{print $NF}' 2>/dev/null || echo "v2.6.1-0.20241205171354-8006f302fd12")
+
+# Fallback to known working version if detection fails
+if [ -z "$OTE_GINKGO_VERSION" ]; then
+    OTE_GINKGO_VERSION="v2.6.1-0.20241205171354-8006f302fd12"
+    echo "ℹ️  Using fallback OTE Ginkgo version: $OTE_GINKGO_VERSION"
+else
+    echo "ℹ️  Detected OTE Ginkgo version: $OTE_GINKGO_VERSION"
+fi
+
+GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get "github.com/openshift/onsi-ginkgo/v2@$OTE_GINKGO_VERSION"
+echo "✅ Ginkgo aligned to OTE framework version (backward compatible with OTP)"
 
 # Generate minimal go.sum
 GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go mod download || echo "⚠️  Will retry in Phase 6"
@@ -816,52 +929,58 @@ cd ..
 **IMPORTANT:**
 - CMD Location: `cmd/extension/main.go` (at repository root, NOT under test/)
 - NO sig filtering logic
+- Single module approach: imports test package from same module
 
 ```bash
 cd <working-dir>
 MODULE_NAME=$(grep '^module ' go.mod | awk '{print $2}')
 
-# Determine test import path
-if [ "$TEST_DIR_EXISTS" = "true" ]; then
-    TEST_IMPORT="$MODULE_NAME/$TEST_MODULE_DIR"
+# Determine test import path based on whether test/e2e already exists
+if [ -n "$TARGET_TEST_DIR_NAME" ]; then
+    # test/e2e exists - use subdirectory (e.g., github.com/openshift/router/test/e2e/extension)
+    TEST_IMPORT="$MODULE_NAME/test/e2e/$TARGET_TEST_DIR_NAME"
+    TEST_FILTER_PATH="/test/e2e/$TARGET_TEST_DIR_NAME/"
+    echo "Tests will be migrated to: test/e2e/$TARGET_TEST_DIR_NAME/"
 else
+    # No test/e2e - use test/e2e directly (e.g., github.com/openshift/router/test/e2e)
     TEST_IMPORT="$MODULE_NAME/test/e2e"
+    TEST_FILTER_PATH="/test/e2e/"
+    echo "Tests will be migrated to: test/e2e/"
 fi
 
 # Create main.go at cmd/extension/main.go
-cat > cmd/extension/main.go << 'EOF'
+cat > "cmd/extension/main.go" << 'EOF'
 package main
 
 import (
-    "context"
     "fmt"
     "os"
     "regexp"
     "strings"
 
     "github.com/spf13/cobra"
+    "k8s.io/component-base/logs"
 
     "github.com/openshift-eng/openshift-tests-extension/pkg/cmd"
     e "github.com/openshift-eng/openshift-tests-extension/pkg/extension"
     et "github.com/openshift-eng/openshift-tests-extension/pkg/extension/extensiontests"
     g "github.com/openshift-eng/openshift-tests-extension/pkg/ginkgo"
-
     "github.com/openshift/origin/test/extended/util"
-    "k8s.io/kubernetes/test/e2e/framework"
+    compat_otp "github.com/openshift/origin/test/extended/util/compat_otp"
 
-    // Import testdata package
-    testdata "<TEST_IMPORT>/testdata"
+    // Import testdata package from same module
+    _ "<TEST_IMPORT>/testdata"
 
-    // Import test packages
+    // Import test packages from same module
     _ "<TEST_IMPORT>"
 )
 
 func main() {
+    // Initialize test framework flags (required for kubeconfig, provider, etc.)
     util.InitStandardFlags()
-    if err := util.InitTest(false); err != nil {
-        panic(fmt.Sprintf("couldn't initialize test framework: %+v", err.Error()))
-    }
-    framework.AfterReadingAllFlags(&framework.TestContext)
+
+    logs.InitLogs()
+    defer logs.FlushLogs()
 
     registry := e.NewRegistry()
     ext := e.NewExtension("openshift", "payload", "<extension-name>")
@@ -871,49 +990,56 @@ func main() {
         Parents: []string{"openshift/conformance/parallel"},
     })
 
-    // Build test specs from Ginkgo - NO SIG FILTERING
-    specs, err := g.BuildExtensionTestSpecsFromOpenShiftGinkgoSuite()
+    // Build test specs from Ginkgo
+    // Note: ModuleTestsOnly() is applied by default, which filters out /vendor/ and k8s.io/kubernetes tests
+    allSpecs, err := g.BuildExtensionTestSpecsFromOpenShiftGinkgoSuite()
     if err != nil {
         panic(fmt.Sprintf("couldn't build extension test specs from ginkgo: %+v", err.Error()))
     }
 
-    // Apply platform filters based on Platform: labels
-    specs.Walk(func(spec *et.ExtensionTestSpec) {
+    // Filter to only include tests from this module's test directory
+    // Excludes tests from /go/pkg/mod/ (module cache) and /vendor/
+    componentSpecs := allSpecs.Select(func(spec *et.ExtensionTestSpec) bool {
+        for _, loc := range spec.CodeLocations {
+            // Include tests from local test directory (not from module cache or vendor)
+            if strings.Contains(loc, "<TEST_FILTER_PATH>") && !strings.Contains(loc, "/go/pkg/mod/") && !strings.Contains(loc, "/vendor/") {
+                return true
+            }
+        }
+        return false
+    })
+
+    // Initialize test framework before all tests
+    componentSpecs.AddBeforeAll(func() {
+        if err := compat_otp.InitTest(false); err != nil {
+            panic(err)
+        }
+    })
+
+    // Process all specs
+    componentSpecs.Walk(func(spec *et.ExtensionTestSpec) {
+        // Apply platform filters based on Platform: labels
         for label := range spec.Labels {
             if strings.HasPrefix(label, "Platform:") {
                 platformName := strings.TrimPrefix(label, "Platform:")
                 spec.Include(et.PlatformEquals(platformName))
             }
         }
-    })
 
-    // Apply platform filters based on [platform:xxx] in test names
-    specs.Walk(func(spec *et.ExtensionTestSpec) {
+        // Apply platform filters based on [platform:xxx] in test names
         re := regexp.MustCompile(`\[platform:([a-z]+)\]`)
         if match := re.FindStringSubmatch(spec.Name); match != nil {
             platform := match[1]
             spec.Include(et.PlatformEquals(platform))
         }
-    })
 
-    // Set lifecycle for all migrated tests to Informing
-    specs.Walk(func(spec *et.ExtensionTestSpec) {
+        // Set lifecycle to Informing
         spec.Lifecycle = et.LifecycleInforming
     })
 
-    // Wrap test execution with cleanup handler
-    specs.Walk(func(spec *et.ExtensionTestSpec) {
-        originalRun := spec.Run
-        spec.Run = func(ctx context.Context) *et.ExtensionTestResult {
-            var result *et.ExtensionTestResult
-            util.WithCleanup(func() {
-                result = originalRun(ctx)
-            })
-            return result
-        }
-    })
+    // Add filtered component specs to extension
+    ext.AddSpecs(componentSpecs)
 
-    ext.AddSpecs(specs)
     registry.Register(ext)
 
     root := &cobra.Command{
@@ -931,9 +1057,11 @@ func main() {
 EOF
 
 # Replace placeholders
-sed -i "s|<TEST_IMPORT>|$TEST_IMPORT|g" cmd/extension/main.go
-sed -i "s|<extension-name>|$EXTENSION_NAME|g" cmd/extension/main.go
-sed -i "s|<Extension Name>|${EXTENSION_NAME^}|g" cmd/extension/main.go
+sed -i "s|<TEST_IMPORT>|$TEST_IMPORT|g" "cmd/extension/main.go"
+sed -i "s|<TEST_FILTER_PATH>|$TEST_FILTER_PATH|g" "cmd/extension/main.go"
+sed -i "s|<extension-name>|$EXTENSION_NAME|g" "cmd/extension/main.go"
+sed -i "s|<Extension Name>|${EXTENSION_NAME^}|g" "cmd/extension/main.go"
+sed -i "s|<MODULE_PATH>|$MODULE_NAME|g" "cmd/extension/main.go"
 
 echo "✅ Created cmd/extension/main.go"
 ```
@@ -947,31 +1075,34 @@ cat > cmd/main.go << 'EOF'
 package main
 
 import (
-    "context"
     "fmt"
     "os"
     "regexp"
     "strings"
 
     "github.com/spf13/cobra"
+    "k8s.io/component-base/logs"
 
     "github.com/openshift-eng/openshift-tests-extension/pkg/cmd"
     e "github.com/openshift-eng/openshift-tests-extension/pkg/extension"
     et "github.com/openshift-eng/openshift-tests-extension/pkg/extension/extensiontests"
     g "github.com/openshift-eng/openshift-tests-extension/pkg/ginkgo"
-
     "github.com/openshift/origin/test/extended/util"
-    "k8s.io/kubernetes/test/e2e/framework"
+    compat_otp "github.com/openshift/origin/test/extended/util/compat_otp"
 
+    // Import testdata package from this module
+    _ "github.com/openshift/<extension-name>-tests-extension/test/e2e/testdata"
+
+    // Import test packages from this module
     _ "github.com/openshift/<extension-name>-tests-extension/test/e2e"
 )
 
 func main() {
+    // Initialize test framework flags (required for kubeconfig, provider, etc.)
     util.InitStandardFlags()
-    if err := util.InitTest(false); err != nil {
-        panic(fmt.Sprintf("couldn't initialize test framework: %+v", err.Error()))
-    }
-    framework.AfterReadingAllFlags(&framework.TestContext)
+
+    logs.InitLogs()
+    defer logs.FlushLogs()
 
     registry := e.NewRegistry()
     ext := e.NewExtension("openshift", "payload", "<extension-name>")
@@ -981,48 +1112,56 @@ func main() {
         Parents: []string{"openshift/conformance/parallel"},
     })
 
-    // Build test specs - NO SIG FILTERING
-    specs, err := g.BuildExtensionTestSpecsFromOpenShiftGinkgoSuite()
+    // Build test specs from Ginkgo
+    // Note: ModuleTestsOnly() is applied by default, which filters out /vendor/ and k8s.io/kubernetes tests
+    allSpecs, err := g.BuildExtensionTestSpecsFromOpenShiftGinkgoSuite()
     if err != nil {
         panic(fmt.Sprintf("couldn't build extension test specs from ginkgo: %+v", err.Error()))
     }
 
-    // Apply platform filters
-    specs.Walk(func(spec *et.ExtensionTestSpec) {
+    // Filter to only include tests from this module's test/e2e/ directory
+    // Excludes tests from /go/pkg/mod/ (module cache) and /vendor/
+    componentSpecs := allSpecs.Select(func(spec *et.ExtensionTestSpec) bool {
+        for _, loc := range spec.CodeLocations {
+            // Include tests from local test/e2e/ directory (not from module cache or vendor)
+            if strings.Contains(loc, "/test/e2e/") && !strings.Contains(loc, "/go/pkg/mod/") && !strings.Contains(loc, "/vendor/") {
+                return true
+            }
+        }
+        return false
+    })
+
+    // Initialize test framework before all tests
+    componentSpecs.AddBeforeAll(func() {
+        if err := compat_otp.InitTest(false); err != nil {
+            panic(err)
+        }
+    })
+
+    // Process all specs
+    componentSpecs.Walk(func(spec *et.ExtensionTestSpec) {
+        // Apply platform filters based on Platform: labels
         for label := range spec.Labels {
             if strings.HasPrefix(label, "Platform:") {
                 platformName := strings.TrimPrefix(label, "Platform:")
                 spec.Include(et.PlatformEquals(platformName))
             }
         }
-    })
 
-    specs.Walk(func(spec *et.ExtensionTestSpec) {
+        // Apply platform filters based on [platform:xxx] in test names
         re := regexp.MustCompile(`\[platform:([a-z]+)\]`)
         if match := re.FindStringSubmatch(spec.Name); match != nil {
             platform := match[1]
             spec.Include(et.PlatformEquals(platform))
         }
-    })
 
-    // Set lifecycle to Informing
-    specs.Walk(func(spec *et.ExtensionTestSpec) {
+        // Set lifecycle to Informing
         spec.Lifecycle = et.LifecycleInforming
     })
 
-    // Wrap test execution
-    specs.Walk(func(spec *et.ExtensionTestSpec) {
-        originalRun := spec.Run
-        spec.Run = func(ctx context.Context) *et.ExtensionTestResult {
-            var result *et.ExtensionTestResult
-            util.WithCleanup(func() {
-                result = originalRun(ctx)
-            })
-            return result
-        }
-    })
+    // Add filtered component specs to extension
+    ext.AddSpecs(componentSpecs)
 
-    ext.AddSpecs(specs)
     registry.Register(ext)
 
     root := &cobra.Command{
@@ -1041,6 +1180,7 @@ EOF
 
 sed -i "s|<extension-name>|$EXTENSION_NAME|g" cmd/main.go
 sed -i "s|<Extension Name>|${EXTENSION_NAME^}|g" cmd/main.go
+sed -i "s|<Extension Name>|${EXTENSION_NAME^}|g" cmd/main.go
 ```
 
 #### Step 3: Create bindata.mk
@@ -1050,45 +1190,48 @@ sed -i "s|<Extension Name>|${EXTENSION_NAME^}|g" cmd/main.go
 ```bash
 cd <working-dir>
 
-# bindata.mk location: same level as testdata/
-if [ "$TEST_DIR_EXISTS" = "true" ]; then
-    BINDATA_MK_PATH="$TEST_MODULE_DIR/bindata.mk"
-else
-    BINDATA_MK_PATH="test/e2e/bindata.mk"
-fi
+# bindata.mk location: at root for single-module monorepo approach
+cat > "bindata.mk" << 'EOF'
+TESTDATA_PATH := <TESTDATA_DIR>
+GOPATH ?= $(shell go env GOPATH)
+GO_BINDATA := $(GOPATH)/bin/go-bindata
 
-cat > "$BINDATA_MK_PATH" << 'EOF'
-BINDATA_PKG := testdata
-BINDATA_OUT := testdata/bindata.go
+$(GO_BINDATA):
+	@echo "Installing go-bindata..."
+	@GOFLAGS= go install github.com/go-bindata/go-bindata/v3/go-bindata@latest
 
 .PHONY: update-bindata
-update-bindata:
+update-bindata: $(GO_BINDATA)
 	@echo "Generating bindata for testdata files..."
-	go-bindata \
+	$(GO_BINDATA) \
 		-nocompress \
 		-nometadata \
-		-prefix "testdata" \
-		-pkg $(BINDATA_PKG) \
-		-o testdata/bindata.go \
-		testdata/...
+		-prefix "<TESTDATA_DIR>" \
+		-pkg testdata \
+		-o <TESTDATA_DIR>/bindata.go \
+		<TESTDATA_DIR>/...
+	@gofmt -s -w <TESTDATA_DIR>/bindata.go
 	@echo "✅ Bindata generated successfully"
 
 .PHONY: verify-bindata
 verify-bindata: update-bindata
 	@echo "Verifying bindata is up to date..."
-	git diff --exit-code $(BINDATA_OUT) || (echo "❌ Bindata is out of date" && exit 1)
+	git diff --exit-code $(TESTDATA_PATH)/bindata.go || (echo "❌ Bindata is out of date" && exit 1)
 	@echo "✅ Bindata is up to date"
 
 .PHONY: bindata
-bindata: update-bindata
+bindata: clean-bindata update-bindata
 
 .PHONY: clean-bindata
 clean-bindata:
 	@echo "Cleaning bindata..."
-	@rm -f $(BINDATA_OUT)
+	@rm -f $(TESTDATA_PATH)/bindata.go
 EOF
 
-echo "✅ Created bindata.mk at: $BINDATA_MK_PATH"
+# Replace placeholders
+sed -i "s|<TESTDATA_DIR>|$TESTDATA_DIR|g" "bindata.mk"
+
+echo "✅ Created bindata.mk at root"
 ```
 
 **For Single-Module:**
@@ -1103,15 +1246,25 @@ GO_BINDATA := $(GOPATH)/bin/go-bindata
 
 $(GO_BINDATA):
 	@echo "Installing go-bindata..."
-	@go install github.com/go-bindata/go-bindata/v3/go-bindata@latest
+	@GOFLAGS= go install github.com/go-bindata/go-bindata/v3/go-bindata@latest
 
-.PHONY: bindata
-bindata: clean-bindata $(GO_BINDATA)
+.PHONY: update-bindata
+update-bindata: $(GO_BINDATA)
 	@echo "Generating bindata..."
 	@mkdir -p $(TESTDATA_PATH)
 	$(GO_BINDATA) -nocompress -nometadata \
 		-pkg testdata -o $(TESTDATA_PATH)/bindata.go -prefix "testdata" $(TESTDATA_PATH)/...
 	@gofmt -s -w $(TESTDATA_PATH)/bindata.go
+	@echo "✅ Bindata generated successfully"
+
+.PHONY: verify-bindata
+verify-bindata: update-bindata
+	@echo "Verifying bindata is up to date..."
+	git diff --exit-code $(TESTDATA_PATH)/bindata.go || (echo "❌ Bindata is out of date" && exit 1)
+	@echo "✅ Bindata is up to date"
+
+.PHONY: bindata
+bindata: clean-bindata update-bindata
 
 .PHONY: clean-bindata
 clean-bindata:
@@ -1138,21 +1291,18 @@ fi
 if grep -q "tests-ext-build" Makefile; then
     echo "⚠️  OTE targets already exist, skipping..."
 else
-    # Determine build command based on structure
-    if [ "$TEST_DIR_EXISTS" = "true" ]; then
-        # Subdirectory mode
-        cat >> Makefile << EOF
+    # Single module approach - build from root
+    cat >> Makefile << EOF
 
 # OTE test extension binary configuration
-TESTS_EXT_DIR := $TEST_MODULE_DIR
 TESTS_EXT_BINARY := bin/$EXTENSION_NAME-tests-ext
 
 .PHONY: tests-ext-build
 tests-ext-build:
 	@echo "Building OTE test extension binary..."
-	@cd \$(TESTS_EXT_DIR) && \$(MAKE) -f bindata.mk update-bindata
+	@\$(MAKE) -f bindata.mk update-bindata
 	@mkdir -p bin
-	cd \$(TESTS_EXT_DIR) && GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go build -o ../../../\$(TESTS_EXT_BINARY) ../../cmd/extension
+	GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go build -mod=vendor -o \$(TESTS_EXT_BINARY) ./cmd/extension
 	@echo "✅ Extension binary built: \$(TESTS_EXT_BINARY)"
 
 .PHONY: extension
@@ -1162,34 +1312,8 @@ extension: tests-ext-build
 clean-extension:
 	@echo "Cleaning extension binary..."
 	@rm -f \$(TESTS_EXT_BINARY)
-	@cd \$(TESTS_EXT_DIR) && \$(MAKE) -f bindata.mk clean-bindata 2>/dev/null || true
+	@\$(MAKE) -f bindata.mk clean-bindata 2>/dev/null || true
 EOF
-    else
-        # Direct mode
-        cat >> Makefile << EOF
-
-# OTE test extension binary configuration
-TESTS_EXT_DIR := test/e2e
-TESTS_EXT_BINARY := bin/$EXTENSION_NAME-tests-ext
-
-.PHONY: tests-ext-build
-tests-ext-build:
-	@echo "Building OTE test extension binary..."
-	@cd \$(TESTS_EXT_DIR) && \$(MAKE) -f bindata.mk update-bindata
-	@mkdir -p bin
-	cd \$(TESTS_EXT_DIR) && GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go build -o ../../\$(TESTS_EXT_BINARY) ../../cmd/extension
-	@echo "✅ Extension binary built: \$(TESTS_EXT_BINARY)"
-
-.PHONY: extension
-extension: tests-ext-build
-
-.PHONY: clean-extension
-clean-extension:
-	@echo "Cleaning extension binary..."
-	@rm -f \$(TESTS_EXT_BINARY)
-	@cd \$(TESTS_EXT_DIR) && \$(MAKE) -f bindata.mk clean-bindata 2>/dev/null || true
-EOF
-    fi
 
     echo "✅ Root Makefile updated with OTE targets"
 fi
@@ -1409,11 +1533,8 @@ echo "Step 2: Adding testdata imports..."
 
 MODULE_NAME=$(grep '^module ' go.mod | awk '{print $2}')
 
-if [ "$TEST_DIR_EXISTS" = "true" ]; then
-    TESTDATA_IMPORT="$MODULE_NAME/$TEST_MODULE_DIR/testdata"
-else
-    TESTDATA_IMPORT="$MODULE_NAME/test/e2e/testdata"
-fi
+# Testdata import path (uses $TESTDATA_DIR set in Phase 3)
+TESTDATA_IMPORT="$MODULE_NAME/$TESTDATA_DIR"
 
 TEST_FILES=$(grep -rl "testdata\.FixturePath" "$TEST_CODE_DIR" --include="*_test.go" 2>/dev/null || true)
 
@@ -1428,16 +1549,49 @@ for file in $TEST_FILES; do
 done
 
 echo "✅ Testdata imports added"
+
+# Fix import ordering using goimports (Go standard tool)
+if command -v goimports >/dev/null 2>&1; then
+    echo "Step 2b: Fixing import ordering with goimports..."
+    goimports -w "$TEST_CODE_DIR"/*.go 2>/dev/null || true
+    echo "✅ Import ordering fixed"
+else
+    echo "⚠️  goimports not found - import ordering may not follow Go conventions"
+    echo "   Install with: go install golang.org/x/tools/cmd/goimports@latest"
+fi
 ```
 
-#### Step 3: Remove Old Imports
+#### Step 3: Add e2e framework import where needed
+
+**IMPORTANT**: If tests use `e2e.Logf()` or `e2e.Failf()`, they need the e2e framework import. Add it to files that use these functions.
 
 ```bash
-echo "Step 3: Removing old imports..."
+echo "Step 3: Adding e2e framework import where needed..."
 
-TEST_FILES=$(find "$TEST_CODE_DIR" -name '*_test.go' -type f)
+TEST_FILES=$(find "$TEST_CODE_DIR" -name '*.go' -type f)
 
 for file in $TEST_FILES; do
+    # Check if file uses e2e.Logf or e2e.Failf
+    if grep -q "e2e\.Logf\|e2e\.Failf" "$file"; then
+        # Check if e2e import already exists
+        if ! grep -q "e2e \"k8s.io/kubernetes/test/e2e/framework\"" "$file"; then
+            echo "  Adding e2e framework import to: $file"
+
+            # Add import after other imports in import block
+            if grep -q "^import (" "$file"; then
+                # Find last k8s.io import and add after it, or add before closing paren
+                if grep -q "k8s.io" "$file"; then
+                    sed -i '/k8s\.io.*$/a\	e2e "k8s.io/kubernetes/test/e2e/framework"' "$file"
+                else
+                    sed -i '/^import (/a\	e2e "k8s.io/kubernetes/test/e2e/framework"' "$file"
+                fi
+            else
+                # Create import block
+                sed -i "/^package /a\\\\nimport (\n\te2e \"k8s.io/kubernetes/test/e2e/framework\"\n)" "$file"
+            fi
+        fi
+    fi
+
     # Comment out compat_otp import if not used
     if grep -q "compat_otp" "$file" && ! grep -q "compat_otp\." "$file"; then
         sed -i 's|^\(\s*\)"\(.*compat_otp\)"|// \1"\2" // Replaced|g' "$file"
@@ -1449,7 +1603,7 @@ for file in $TEST_FILES; do
     fi
 done
 
-echo "✅ Old imports cleaned up"
+echo "✅ e2e framework imports added where needed"
 ```
 
 #### Step 4: Add OTP and Level0 Annotations
@@ -1618,7 +1772,7 @@ PHASE5_FAILED=0
 
 ### Phase 6: Dependency Resolution and Verification
 
-**IMPORTANT: For monorepo, only vendor at ROOT level (not in test module)**
+**IMPORTANT: Single module approach - all dependencies in root go.mod**
 
 #### For Monorepo:
 
@@ -1629,72 +1783,66 @@ echo "========================================="
 echo "Phase 6: Dependency Resolution"
 echo "========================================="
 
-# Step 1: Tidy test module (NO vendor)
-cd "$TEST_MODULE_DIR"
-echo "Step 1: Running go mod tidy in test module..."
-GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go mod tidy
+# Step 1: Detect and fix outdated k8s.io versions
+echo "Step 1: Checking for outdated k8s.io versions..."
 
-if [ $? -ne 0 ]; then
-    echo "❌ go mod tidy failed in test module"
-    exit 1
-fi
-echo "✅ Test module dependencies resolved"
+# Check if go.mod uses old OpenShift kubernetes fork (October 2024 or earlier)
+OLD_K8S_COMMITS="1892e4deb967"  # October 2, 2024
 
-# Return to root
-if [ "$TEST_DIR_EXISTS" = "true" ]; then
-    cd ../../..
-else
-    cd ../..
-fi
+if grep -q "$OLD_K8S_COMMITS" go.mod; then
+    echo "⚠️  WARNING: Detected outdated OpenShift kubernetes fork (October 2024)"
+    echo "OTE framework requires October 2025 fork for compatibility"
+    echo ""
+    echo "Applying automatic fix..."
 
-# Step 2: Sync replace directives to root
-echo "Step 2: Syncing replace directives to root..."
+    # Backup go.mod before making changes
+    cp go.mod go.mod.backup.k8s-version-fix
 
-TEST_REPLACES=$(grep -A 1000 "^replace (" "$TEST_MODULE_DIR/go.mod" | grep "=>" | grep -v "^)" || echo "")
+    # Update all k8s.io packages to October 2025 version
+    NEW_K8S_COMMIT="96593f323733"  # October 17, 2025
+    sed -i "s/$OLD_K8S_COMMITS/$NEW_K8S_COMMIT/g" go.mod
+    echo "  ✅ Updated k8s.io packages from October 2024 to October 2025"
 
-if [ -n "$TEST_REPLACES" ]; then
-    # Ensure root has replace block
-    if ! grep -q "^replace (" go.mod; then
-        echo "" >> go.mod
-        echo "replace (" >> go.mod
-        echo ")" >> go.mod
+    # Add otelgrpc replace if missing
+    if ! grep -q "go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc =>" go.mod; then
+        echo "  Adding otelgrpc replace directive..."
+        # Insert after ginkgo replace
+        sed -i '/github.com\/onsi\/ginkgo\/v2 =>/a\	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc => go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.53.0' go.mod
+        echo "  ✅ Added otelgrpc v0.53.0 replace directive"
     fi
 
-    UPDATED_COUNT=0
-    while IFS= read -r replace_line; do
-        PACKAGE=$(echo "$replace_line" | awk '{print $1}')
-        if [ -z "$PACKAGE" ]; then
-            continue
-        fi
+    # Add k8s.io/externaljwt if missing
+    if ! grep -q "k8s.io/externaljwt =>" go.mod; then
+        echo "  Adding k8s.io/externaljwt package..."
+        # Insert after k8s.io/endpointslice (alphabetically)
+        sed -i "/k8s.io\/endpointslice =>/a\	k8s.io/externaljwt => github.com/openshift/kubernetes/staging/src/k8s.io/externaljwt v0.0.0-$NEW_K8S_COMMIT" go.mod
+        echo "  ✅ Added k8s.io/externaljwt package"
+    fi
 
-        # Skip root module replace directive
-        if echo "$replace_line" | grep -q "=> \.\./\.\."; then
-            continue
-        fi
+    # Remove deprecated k8s.io/legacy-cloud-providers if present
+    if grep -q "k8s.io/legacy-cloud-providers" go.mod; then
+        echo "  Removing deprecated k8s.io/legacy-cloud-providers..."
+        sed -i '/k8s.io\/legacy-cloud-providers/d' go.mod
+        echo "  ✅ Removed deprecated package"
+    fi
 
-        # Update or add replace directive
-        if grep -q "^[[:space:]]*$PACKAGE " go.mod; then
-            sed -i "/^[[:space:]]*$PACKAGE /d" go.mod
-            sed -i "/^replace (/a\\    $replace_line" go.mod
-            UPDATED_COUNT=$((UPDATED_COUNT + 1))
-        else
-            sed -i "/^replace (/a\\    $replace_line" go.mod
-            UPDATED_COUNT=$((UPDATED_COUNT + 1))
-        fi
-    done <<< "$TEST_REPLACES"
+    # Update Ginkgo to October 2025 version if using old version
+    OLD_GINKGO="v2.6.1-0.20241205171354-8006f302fd12"  # December 5, 2024
+    NEW_GINKGO="v2.6.1-0.20251001123353-fd5b1fb35db1"  # October 1, 2025
+    if grep -q "$OLD_GINKGO" go.mod; then
+        sed -i "s/$OLD_GINKGO/$NEW_GINKGO/g" go.mod
+        echo "  ✅ Updated Ginkgo to October 2025 version"
+    fi
 
-    echo "✅ Synced $UPDATED_COUNT replace directives to root"
+    echo "✅ k8s.io version compatibility fix applied"
+    echo "   Backup saved to: go.mod.backup.k8s-version-fix"
+    echo ""
+else
+    echo "✅ k8s.io versions are compatible (October 2025 or newer)"
 fi
 
-# Step 3: Add test module dependency to root
-echo "Step 3: Adding test module dependency to root..."
-ROOT_MODULE=$(grep "^module " go.mod | awk '{print $2}')
-
-GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get "$ROOT_MODULE/$TEST_MODULE_DIR"
-GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get github.com/openshift/origin/test/extended/util
-
-# Step 4: Tidy root module
-echo "Step 4: Running go mod tidy in root module..."
+# Step 2: Tidy root module
+echo "Step 2: Running go mod tidy in root module..."
 GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go mod tidy
 
 if [ $? -ne 0 ]; then
@@ -1703,8 +1851,8 @@ if [ $? -ne 0 ]; then
 fi
 echo "✅ Root module dependencies resolved"
 
-# Step 5: Vendor at ROOT only (NOT in test module)
-echo "Step 5: Running go mod vendor in root module..."
+# Step 3: Vendor at ROOT
+echo "Step 3: Running go mod vendor in root module..."
 GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go mod vendor
 
 if [ $? -ne 0 ]; then
@@ -1713,8 +1861,8 @@ if [ $? -ne 0 ]; then
 fi
 echo "✅ Root module dependencies vendored (vendor/ at root)"
 
-# Step 6: Build verification
-echo "Step 6: Building extension binary for verification..."
+# Step 4: Build verification
+echo "Step 4: Building extension binary for verification..."
 make extension
 
 if [ $? -eq 0 ]; then
@@ -1747,7 +1895,24 @@ echo "========================================="
 echo "Phase 6: Dependency Resolution"
 echo "========================================="
 
-echo "Step 1: Running go mod tidy..."
+# Step 1: Verify k8s.io versions after fresh go.mod creation
+echo "Step 1: Verifying k8s.io versions..."
+
+# For single-module, go.mod is created fresh, but we still check for compatibility
+# This is informational - dependencies will be resolved correctly by go mod tidy
+if grep -q "k8s.io" go.mod; then
+    # Check if OTE/origin pulled in compatible k8s.io versions
+    if grep "k8s.io" go.mod | grep -q "v0.30\|v0.31\|v0.32\|v0.33\|v0.34\|v0.35"; then
+        echo "⚠️  Note: k8s.io dependencies are at v0.30-v0.35 range"
+        echo "   OTE framework uses OpenShift kubernetes fork (October 2025)"
+        echo "   go mod tidy will resolve compatible versions automatically"
+    fi
+    echo "✅ k8s.io versions will be resolved by go mod tidy"
+else
+    echo "✅ No k8s.io dependencies detected yet"
+fi
+
+echo "Step 2: Running go mod tidy..."
 GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go mod tidy
 
 if [ $? -ne 0 ]; then
@@ -1755,7 +1920,7 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-echo "Step 2: Running go mod vendor..."
+echo "Step 3: Running go mod vendor..."
 GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go mod vendor
 
 if [ $? -ne 0 ]; then
@@ -1763,7 +1928,7 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-echo "Step 3: Building extension binary for verification..."
+echo "Step 4: Building extension binary for verification..."
 make build
 
 if [ $? -eq 0 ]; then
@@ -1963,14 +2128,53 @@ for DOCKERFILE in "${SELECTED_DOCKERFILES_ARRAY[@]}"; do
     cp "$DOCKERFILE" "${DOCKERFILE}.pre-ote-migration"
     echo "✅ Created backup: ${DOCKERFILE}.pre-ote-migration"
 
-    # Extract existing builder image
+    # Determine builder image for test-extension-builder stage
+    # Strategy: Use existing builder image if found, otherwise derive from go.mod
     BUILDER_IMAGE=$(grep "^FROM.*AS builder" "$DOCKERFILE" | head -1 | awk '{print $2}')
 
     if [ -z "$BUILDER_IMAGE" ]; then
-        BUILDER_IMAGE="registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.21"
-        echo "⚠️  No builder image found, using default: $BUILDER_IMAGE"
+        # No named builder stage found - need to select appropriate Go builder image
+        # Extract Go version from root go.mod to match toolchain
+        GO_VERSION=$(grep "^go " <working-dir>/go.mod | awk '{print $2}' | cut -d. -f1,2)
+
+        if [ -z "$GO_VERSION" ]; then
+            GO_VERSION="1.22"
+            echo "⚠️  Could not detect Go version from go.mod, defaulting to $GO_VERSION"
+        fi
+
+        # Map Go version to available OpenShift builder image
+        # Note: OpenShift builder images may not support the very latest Go versions
+        # GOTOOLCHAIN=auto will download the correct version at build time
+        case "$GO_VERSION" in
+            1.25|1.26|1.27)
+                # Go 1.25+ not yet available, use latest (1.24) with GOTOOLCHAIN=auto
+                BUILDER_IMAGE="registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.24-openshift-4.23"
+                echo "ℹ️  No builder stage found, using Go 1.24 builder (GOTOOLCHAIN=auto will download Go $GO_VERSION)"
+                ;;
+            1.24)
+                BUILDER_IMAGE="registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.24-openshift-4.23"
+                echo "ℹ️  No builder stage found, using Go builder: $BUILDER_IMAGE"
+                ;;
+            1.23)
+                BUILDER_IMAGE="registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.23-openshift-4.20"
+                echo "ℹ️  No builder stage found, using Go builder: $BUILDER_IMAGE"
+                ;;
+            1.22)
+                BUILDER_IMAGE="registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.22-openshift-4.19"
+                echo "ℹ️  No builder stage found, using Go builder: $BUILDER_IMAGE"
+                ;;
+            1.21)
+                BUILDER_IMAGE="registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.21-openshift-4.19"
+                echo "ℹ️  No builder stage found, using Go builder: $BUILDER_IMAGE"
+                ;;
+            *)
+                # Default to Go 1.22 for older or unknown versions
+                BUILDER_IMAGE="registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.22-openshift-4.19"
+                echo "⚠️  Unknown Go version $GO_VERSION, defaulting to Go 1.22 builder"
+                ;;
+        esac
     else
-        echo "Using builder image: $BUILDER_IMAGE"
+        echo "✅ Using existing builder image: $BUILDER_IMAGE"
     fi
 
     # Check if OTE stage already exists
@@ -2104,7 +2308,7 @@ Generate comprehensive summary based on strategy used.
 
 ## Summary
 
-Successfully migrated **<extension-name>** to OTE framework using **monorepo strategy**.
+Successfully migrated **<extension-name>** to OTE framework using **monorepo strategy** with single module approach.
 
 ## Created Structure
 
@@ -2117,15 +2321,14 @@ Successfully migrated **<extension-name>** to OTE framework using **monorepo str
 │       └── main.go                    # OTE entry point (at root)
 ├── test/
 │   └── e2e/
-│       ├── go.mod                     # Test module
-│       ├── go.sum
 │       ├── *_test.go                  # Migrated test files
-│       ├── testdata/
-│       │   ├── bindata.go
-│       │   └── fixtures.go
-│       └── bindata.mk
-├── vendor/                            # Vendored at ROOT only
-├── go.mod                             # Root module (updated)
+│       └── testdata/
+│           ├── bindata.go
+│           └── fixtures.go
+├── vendor/                            # Vendored at ROOT
+├── bindata.mk                         # Bindata generation (at root)
+├── go.mod                             # Single module with all dependencies
+├── go.sum                             # Single go.sum
 ├── Makefile                           # Updated with OTE targets
 └── Dockerfile                         # Updated (if automated)
 ```
@@ -2133,12 +2336,13 @@ Successfully migrated **<extension-name>** to OTE framework using **monorepo str
 ## Key Features
 
 1. **CMD Location**: `cmd/extension/main.go` (at root, not under test/)
-2. **No Sig Filtering**: All tests included without filtering
-3. **Annotations**:
+2. **Single Module**: All dependencies (component + tests) in root go.mod
+3. **No Sig Filtering**: All tests included without filtering
+4. **Annotations**:
    - [OTP] added to all Describe blocks at beginning
    - [Level0] added to test names with -LEVEL0- suffix only
-4. **Vendored at Root**: Only `vendor/` at repository root (not in test module)
-5. **Dockerfile Integration**: Automated Docker image integration
+5. **Vendored at Root**: Only `vendor/` at repository root
+6. **Dockerfile Integration**: Automated Docker image integration
 
 ## Next Steps
 
@@ -2182,10 +2386,10 @@ ls -lh bin/<extension-name>-tests-ext
 
 ```bash
 # Build image
-docker build -t <component>:test .
+docker build -t <component>:test -f <path-to-dockerfile> .
 
-# Verify test extension in image
-docker run --rm <component>:test ls -lh /usr/bin/*-test-extension.tar.gz
+# Verify test extension in image (override ENTRYPOINT to run ls)
+docker run --rm --entrypoint ls <component>:test -lh /usr/bin/*-test-extension.tar.gz
 ```
 
 ### 5. Verify Test Annotations
@@ -2204,15 +2408,57 @@ grep -r "\-LEVEL0\-" test/e2e/*_test.go || echo "✅ All -LEVEL0- removed"
 ## Files Created/Modified
 
 - ✅ `cmd/extension/main.go` - Created
-- ✅ `test/e2e/go.mod` - Created
 - ✅ `test/e2e/testdata/fixtures.go` - Created
-- ✅ `test/e2e/testdata/bindata.go` - Created
-- ✅ `test/e2e/bindata.mk` - Created
+- ✅ `test/e2e/testdata/bindata.go` - Created (generated, can be in .gitignore)
+- ✅ `bindata.mk` - Created (at repository root)
 - ✅ `test/e2e/*_test.go` - Modified (annotations, imports)
-- ✅ `go.mod` - Updated (replace directives)
+- ✅ `go.mod` - Updated (all dependencies + replace directives)
+- ✅ `go.sum` - Updated
 - ✅ `vendor/` - Created at root
 - ✅ `Makefile` - Updated (tests-ext-build target)
 - ✅ `Dockerfile` - Updated (if automated integration)
+
+## Files to Commit (IMPORTANT!)
+
+Before creating a PR, ensure these files are committed to git:
+
+**Required for reproducible builds:**
+- ✅ `go.mod` - Single module with all dependencies
+- ✅ `go.sum` - Single go.sum for reproducible builds
+- ✅ `cmd/extension/main.go` - OTE entry point
+- ✅ `test/e2e/testdata/fixtures.go` - Testdata helper functions
+- ✅ `bindata.mk` - Bindata generation makefile (at repository root)
+- ✅ `test/e2e/*_test.go` - Migrated test files
+- ✅ `Makefile` - Updated with OTE targets
+
+**Can be in .gitignore:**
+- ⚠️ `test/e2e/testdata/bindata.go` - Generated file (regenerated during build)
+- ⚠️ `bin/<extension-name>-tests-ext` - Binary (build artifact)
+- ⚠️ `vendor/` - Optional (some repos commit, others don't)
+
+**Why go.sum is critical:**
+
+Without committed go.sum, Docker builds will:
+- ❌ Be slower (must download all modules and generate go.sum)
+- ❌ Be less reproducible (module versions can drift)
+- ❌ Fail on network issues or GOSUMDB problems
+- ❌ Potentially use different dependency versions
+
+With committed go.sum, Docker builds will:
+- ✅ Be faster (use checksums from go.sum)
+- ✅ Be reproducible (exact same dependencies every time)
+- ✅ Work reliably in CI/CD environments
+- ✅ Ensure consistent behavior across builds
+
+**Verify file is tracked:**
+
+```bash
+# Check if go.sum is tracked
+git status go.sum
+
+# If untracked, add it:
+git add go.mod go.sum
+```
 
 ## Troubleshooting
 
@@ -2302,7 +2548,196 @@ Throughout the workflow:
 
 ## Troubleshooting
 
-### Build Failures
+This section provides solutions to common issues encountered during OTE migration based on real-world experience.
+
+### Ginkgo Version Conflicts
+
+**Symptom:**
+```
+undefined: ginkgo.NewWriter
+spec.Labels undefined (type types.TestSpec has no field or method Labels)
+```
+
+**Root Cause:**
+Test module uses old Ginkgo version from OTP (August 2024), but OTE framework requires newer version (December 2024).
+
+**Solution:**
+The December 2024 Ginkgo fork is backward compatible with August 2024 code. Always use OTE's Ginkgo version:
+
+```bash
+cd test/e2e  # or test/e2e/<test-dir-name>
+
+# Get OTE's Ginkgo version (December 2024)
+GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get "github.com/openshift/onsi-ginkgo/v2@v2.6.1-0.20241205171354-8006f302fd12"
+
+# Update root go.mod replace directive
+cd ../..  # or ../../.. for subdirectory mode
+grep -q "github.com/onsi/ginkgo/v2 =>" go.mod || echo "replace github.com/onsi/ginkgo/v2 => github.com/openshift/onsi-ginkgo/v2 v2.6.1-0.20241205171354-8006f302fd12" >> go.mod
+
+go mod tidy
+go mod vendor
+```
+
+**Why this works:**
+OTE's December 2024 fork is backward compatible with OTP's August 2024 code. Using OTE's version everywhere prevents API incompatibilities.
+
+### k8s.io Version Mismatches
+
+**Symptom:**
+```
+k8s.io/cri-client/pkg/remote_image.go:75:39: undefined: otelgrpc.UnaryClientInterceptor
+```
+
+**Root Cause:**
+Root module uses old k8s.io/kubernetes replace directives (October 2024), but test module needs newer versions from OTP (October 2025).
+
+**Solution:**
+Sync k8s.io replace directives from test module to root:
+
+```bash
+# Extract k8s.io replace directives from test module
+cd test/e2e  # or test/e2e/<test-dir-name>
+grep "k8s.io/" go.mod | grep "=>" > /tmp/k8s_replaces.txt
+
+# Apply to root go.mod
+cd ../..  # or ../../.. for subdirectory mode
+
+while IFS= read -r replace_line; do
+    PACKAGE=$(echo "$replace_line" | awk '{print $1}')
+    # Remove old version if exists
+    sed -i "/^[[:space:]]*$PACKAGE /d" go.mod
+    # Add new version
+    sed -i "/^replace (/a\\    $replace_line" go.mod
+done < /tmp/k8s_replaces.txt
+
+go mod tidy
+go mod vendor
+```
+
+**Why this works:**
+OTP's k8s.io versions (October 2025) are proven stable. The OTE Ginkgo fork (December 2024) is compatible with these versions.
+
+### kube-openapi yaml Type Errors
+
+**Symptom:**
+```
+k8s.io/kube-openapi/pkg/util/proto/document_v3.go:291:31: cannot use s.GetDefault().ToRawInfo() (value of type *"go.yaml.in/yaml/v3".Node) as *"gopkg.in/yaml.v3".Node value in argument to parseV3Interface
+```
+
+**Root Cause:**
+Old kube-openapi pin from February 2024 conflicts with natural version resolution.
+
+**Solution:**
+Remove old kube-openapi pin to allow natural version resolution:
+
+```bash
+cd <working-dir>
+
+# Remove old kube-openapi pin
+sed -i '/k8s.io\/kube-openapi => k8s.io\/kube-openapi v0.0.0-2024/d' go.mod
+
+# Clean and rebuild
+rm -rf vendor/
+go mod tidy
+go mod vendor
+make clean-extension
+make extension
+```
+
+**Why this works:**
+Removing the old pin allows Go to resolve the correct kube-openapi version naturally based on k8s.io dependencies.
+
+### Test Execution Fails: Unable to Load Kubeconfig
+
+**Symptom:**
+```
+unable to load in-cluster configuration, KUBERNETES_SERVICE_HOST and KUBERNETES_SERVICE_PORT must be defined
+[FAILED] in [BeforeEach] - framework.go:222
+```
+
+**Root Cause:**
+Removing `util.InitStandardFlags()` prevents the test framework from registering kubeconfig flags. Tests fail even when KUBECONFIG is set. However, the kubernetes e2e framework import is NOT needed and should be avoided to reduce dependencies.
+
+**Solution:**
+Keep util.InitStandardFlags() and use compat_otp.InitTest() in BeforeAll:
+
+```go
+// CORRECT main.go setup:
+import (
+    "k8s.io/component-base/logs"
+    "github.com/openshift/origin/test/extended/util"
+    compat_otp "github.com/openshift/origin/test/extended/util/compat_otp"
+)
+
+func main() {
+    // Initialize test framework flags (required for kubeconfig, provider, etc.)
+    util.InitStandardFlags()
+
+    logs.InitLogs()
+    defer logs.FlushLogs()
+
+    // ... build and filter specs ...
+
+    // Initialize test framework before all tests
+    componentSpecs.AddBeforeAll(func() {
+        if err := compat_otp.InitTest(false); err != nil {
+            panic(err)
+        }
+    })
+
+    // ... rest of extension setup ...
+}
+```
+
+**What to keep:**
+- ✅ `util.InitStandardFlags()` - Registers kubeconfig, provider, and other test flags
+- ✅ `logs.InitLogs()` - Initialize logging
+- ✅ `compat_otp.InitTest(false)` in BeforeAll - Sets up test framework context
+
+**What to keep:**
+- ✅ `e2e "k8s.io/kubernetes/test/e2e/framework"` import - Keep if tests use `e2e.Logf()` or `e2e.Failf()`
+
+**What to remove:**
+- ❌ `framework.AfterReadingAllFlags(&framework.TestContext)` - Not needed
+- ❌ `util.WithCleanup()` wrapper - OTE handles cleanup automatically
+
+**Why this works:**
+- `util.InitStandardFlags()` registers framework flags so KUBECONFIG is recognized
+- `compat_otp.InitTest()` in BeforeAll sets up the framework context when tests start
+- No heavy kubernetes e2e framework dependencies are pulled in
+- OTE framework handles cleanup automatically via its test lifecycle
+- Tests can now connect to the cluster using kubeconfig
+
+### structured-merge-diff v4/v6 Incompatibility (Vendor Mode)
+
+**Symptom:**
+```
+100+ errors with -mod=vendor:
+vendor/k8s.io/apimachinery/pkg/util/managedfields/internal/fieldmanager.go:26:2: imported and not used: "sigs.k8s.io/structured-merge-diff/v4/fieldpath"
+```
+
+**Root Cause:**
+Vendor directory contains both v4 and v6 of structured-merge-diff, causing conflicts.
+
+**Solution:**
+Use `-mod=mod` instead of `-mod=vendor` for build:
+
+```bash
+# Update Makefile build command
+sed -i 's/go build/GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go build -mod=mod/g' Makefile
+
+# Or update manually:
+# For monorepo:
+GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go build -mod=vendor -o $(TESTS_EXT_BINARY) ./cmd/extension
+
+# For single-module:
+GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go build -mod=mod -o $(BINARY) ./cmd
+```
+
+**Why this works:**
+`-mod=mod` uses the Go module cache instead of vendor/, avoiding vendored version conflicts while still respecting go.mod versions.
+
+### Build Failures (General)
 
 ```bash
 # Check go.mod in test module
@@ -2355,16 +2790,38 @@ docker run --rm <image> ls -la bin/
 make tests-ext-build
 ```
 
-### Vendor Issues
+### Testdata Fixtures Not Found at Runtime
+
+**Symptom:**
+```
+panic: failed to restore fixture router/haproxy.cfg: Asset not found
+```
+
+**Root Cause:**
+Testdata files not copied from openshift-tests-private during Phase 3, or bindata.go not regenerated.
+
+**Solution:**
 
 ```bash
-# For monorepo: Clean and rebuild vendor at ROOT
-rm -rf vendor/
-go mod vendor
+# Check if testdata files exist (excluding generated files)
+find test/e2e/testdata -type f ! -name "fixtures.go" ! -name "bindata.go"
 
-# Verify vendor
-go mod verify
+# If empty, copy testdata from source
+SOURCE_TESTDATA="<source-repo>/test/extended/testdata/<testdata-subfolder>"
+cp -rv "$SOURCE_TESTDATA"/* test/e2e/testdata/
+
+# Regenerate bindata.go
+cd test/e2e
+make -f bindata.mk update-bindata
+
+# Rebuild extension
+cd ../..
+make clean-extension
+make extension
 ```
+
+**Why this works:**
+bindata.go embeds all files from testdata/ directory. If testdata files weren't copied, bindata.go only contains fixtures.go, causing runtime panics when tests try to load fixtures via FixturePath().
 
 ## Summary
 

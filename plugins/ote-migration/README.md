@@ -37,15 +37,17 @@ Performs the complete OTE migration in one workflow.
 - **Smart extension name detection** - Auto-detects from repository name for binary/module naming
 - **Two directory strategies** - Monorepo (integrated) or single-module (isolated)
 - **CMD at root (monorepo)** - Places cmd/extension/main.go at repository root, not under test/
-- **No sig filtering** - All tests included without filtering logic
-- **Automatic replace directive propagation (monorepo)** - Copies k8s.io/* and upstream replace directives from test module to root go.mod
+- **Filesystem-based test filtering** - Uses filesystem paths to include only local test/e2e/ tests, excluding unwanted kubernetes sig- tests from module cache
+- **Smart e2e framework import handling** - Adds k8s.io/kubernetes/test/e2e/framework import where tests use e2e.Logf() or e2e.Failf()
+- **Smart dependency filtering** - Excludes openshift-tests-private dependency to prevent importing entire test suite
+- **Smart replace directive propagation (monorepo)** - Syncs non-k8s.io replace directives from test module to root, allowing independent k8s.io versions between modules
 - **Vendor at root only (monorepo)** - Vendored dependencies only at repository root, not in test module
 - **Custom test directory support** - Handles existing test/e2e directories with configurable alternatives
 - **Dynamic git remote discovery** - No assumptions about remote names (no hardcoded 'origin')
 - **Smart repository management** - Remote detection and update capabilities
 - **Dynamic dependency resolution** - Fetches latest dependencies from upstream
 - **Automatic Go toolchain management** - Uses `GOTOOLCHAIN=auto` to download required Go version
-- **Automatic test migration** - Replaces FixturePath() calls, updates imports, and adds annotations atomically with rollback
+- **Automatic test migration** - Replaces FixturePath() calls, updates imports, removes kubernetes e2e framework, and adds annotations atomically with rollback
 - **Simple test annotations** - Adds [OTP] at beginning of Describe blocks, [Level0] at beginning of test names only
 - **Tag validation** - Validates all required tags are present before build
 - **Informing lifecycle by default** - All migrated tests set to informing (won't block CI on failure)
@@ -220,7 +222,7 @@ Integrates OTE into existing repository structure with **separate test module**.
 - **Testdata inside test module**: Testdata is part of the test module (not a separate module)
   - If `test/e2e` doesn't exist: `test/e2e/testdata/`
   - If `test/e2e` exists: `test/e2e/<subdir>/testdata/`
-- **Automatic upstream replace directives**: k8s.io/* and other replace directives are automatically copied from test module go.mod to root go.mod
+- **Smart upstream replace directives**: Non-k8s.io replace directives are automatically synced from test module to root. k8s.io/* and OpenShift API/client-go/library-go replace directives are kept separate, allowing test module to use proven openshift-tests-private versions while root maintains its own k8s.io versions
 - **Vendor at root only**: Dependencies vendored only at repository root (`vendor/`), NOT in test module
 - **Auto-detected directory structure**: If `test/e2e` already exists, creates subdirectory (e.g., `test/e2e/extension/`) with go.mod, tests, and testdata all inside the subdirectory
 - **Integrated build**: Makefile target `tests-ext-build` added to root
@@ -354,6 +356,66 @@ Creates isolated `tests-extension/` directory with **single go.mod** in the targ
   ./bin/<extension-name>-tests-ext list | head -10
   ```
 
+### Test Filtering to Prevent Unwanted Tests
+
+  The migration includes **two layers of protection** to ensure ONLY your migrated tests are included in the binary, preventing 1000+ unwanted tests from being registered.
+
+  **Problem Solved**: Without these protections, the binary would include:
+  - 600+ kubernetes sig- tests from dependencies in `/go/pkg/mod/`
+  - 400+ openshift-tests-private tests from dependency imports
+  - Result: 1000+ extra tests instead of just your ~50 migrated tests
+
+  **Protection Layer 1: Dependency Filtering (Phase 4)**
+
+  When copying replace directives from openshift-tests-private/go.mod, the migration **excludes** the openshift-tests-private package itself:
+
+  ```bash
+  grep -A 1000 "^replace" "$SOURCE_PATH/go.mod" | grep -B 1000 "^)" | \
+      grep -v "^replace" | grep -v "^)" | \
+      grep -v "github.com/openshift/openshift-tests-private" > /tmp/replace_directives.txt
+  ```
+
+  This prevents `github.com/openshift/openshift-tests-private` from appearing as a dependency in your test module's go.mod.
+
+  **Protection Layer 2: Filesystem Path Filtering in main.go (Phase 4)**
+
+  The generated `cmd/extension/main.go` filters specs to ONLY include tests from local `test/e2e/` directory:
+
+  ```go
+  // Build test specs from Ginkgo
+  allSpecs, err := g.BuildExtensionTestSpecsFromOpenShiftGinkgoSuite()
+
+  // Filter to only include tests from this module's test/e2e/ directory
+  // Excludes tests from /go/pkg/mod/ (module cache) and /vendor/
+  componentSpecs := allSpecs.Select(func(spec *et.ExtensionTestSpec) bool {
+      for _, loc := range spec.CodeLocations {
+          // Include tests from local test/e2e/ directory (not from module cache or vendor)
+          if strings.Contains(loc, "/test/e2e/") && !strings.Contains(loc, "/go/pkg/mod/") && !strings.Contains(loc, "/vendor/") {
+              return true
+          }
+      }
+      return false
+  })
+
+  ext.AddSpecs(componentSpecs)
+  ```
+
+  **Why this works**: Ginkgo reports filesystem paths in CodeLocations:
+  - ✅ Local tests: `/home/user/repo/test/e2e/file.go`
+  - ❌ Kubernetes tests: `/go/pkg/mod/github.com/openshift/kubernetes@v1.30.1.../test/e2e/...`
+  - ❌ Vendor tests: `/vendor/k8s.io/kubernetes/test/e2e/...`
+
+  **Result**: Binary lists ONLY your local test/e2e/ tests, excluding all kubernetes sig- tests from module cache and vendor.
+
+  **Verification after migration:**
+  ```bash
+  # List tests - should only show YOUR local tests
+  ./bin/<extension-name>-tests-ext list tests | jq -r '.[].name'
+
+  # Count should match number of migrated test cases
+  ./bin/<extension-name>-tests-ext list tests | jq -r '.[].name' | wc -l
+  ```
+
 ### Dynamic Dependency Resolution
 
   The migration tool **fetches the latest commit from specified upstream branches** directly from repositories instead of copying potentially stale versions from openshift-tests-private.
@@ -418,6 +480,42 @@ Creates isolated `tests-extension/` directory with **single go.mod** in the targ
   - Without Step 4b, build fails with `undefined: ginkgo.NewWriter` or `spec.Labels undefined`
   - This step ensures correct version is set BEFORE Phase 6, making migration more robust
   - Uses `go get` to create proper pseudo-version format (not `sed` which creates malformed versions)
+
+### Module Independence: k8s.io Version Isolation (Monorepo)
+
+  **IMPORTANT:** In monorepo strategy, the test module and root module can maintain **independent k8s.io versions**.
+
+  **The design:**
+  - Test module uses k8s.io replace directives from `openshift-tests-private` (proven, tested configuration)
+  - Root module keeps its own k8s.io versions (whatever the component project uses)
+  - **k8s.io/* and `github.com/openshift/{api,client-go,library-go}` replace directives are NOT synced** from test module to root
+
+  **Why this matters:**
+  - Test module needs specific k8s.io versions proven to work with openshift-tests-private
+  - Root module may use newer or different k8s.io versions for the component itself
+  - Module boundaries (via `replace` directives) allow each module to use its own dependencies
+  - Prevents version conflicts like `k8s.io/kubernetes v1.35.1` (root) vs `v1.34.1` (test)
+
+  **What gets synced in Phase 6:**
+  - ✅ Non-k8s.io replace directives (e.g., `github.com/onsi/ginkgo/v2`)
+  - ✅ Other upstream replace directives
+  - ❌ `k8s.io/*` replace directives (kept separate per module)
+  - ❌ `github.com/openshift/api` (kept separate per module)
+  - ❌ `github.com/openshift/client-go` (kept separate per module)
+  - ❌ `github.com/openshift/library-go` (kept separate per module)
+
+  **Example:**
+  ```
+  Root module go.mod:
+    require k8s.io/kubernetes v1.35.1  // Root uses v1.35.1
+
+  Test module go.mod:
+    require k8s.io/kubernetes v1.34.1
+    replace k8s.io/kubernetes => github.com/openshift/kubernetes v1.30.1-0.20241002124647-1892e4deb967
+    // Test uses v1.30.1 via replace (from openshift-tests-private)
+  ```
+
+  Both versions coexist peacefully thanks to proper module boundaries.
 
 ### API Version Upgrades
 
@@ -512,6 +610,64 @@ Creates isolated `tests-extension/` directory with **single go.mod** in the targ
   GOTOOLCHAIN=auto go mod tidy
   ```
 
+### Smart Go Version Management (Phase 6, Step 2b)
+
+  **The Problem:**
+  - Docker builder images typically support up to Go 1.24
+  - Root or test module go.mod may require Go 1.25+
+  - Extension binary builds from `./cmd/extension`, which imports the test module
+  - Go checks **both** root and test module go.mod files during build
+  - Build fails with: `go: module ./test/e2e requires go >= 1.25.0 (running go 1.24.11; GOTOOLCHAIN=local)`
+
+  **The Solution:**
+  Automatically adjust **both** root and test module go.mod to Go 1.24 (matching Docker builder) when either requires Go 1.25+:
+
+  ```bash
+  # Check both go.mod files
+  ROOT_GO_VERSION=$(grep "^go " go.mod | awk '{print $2}' | cut -d. -f1,2)
+  TEST_GO_VERSION=$(grep "^go " "$TEST_MODULE_DIR/go.mod" | awk '{print $2}' | cut -d. -f1,2)
+
+  # If either requires 1.25+, adjust BOTH to 1.24
+  if [ "$ROOT_GO_VERSION" = "1.25" ] || [ "$ROOT_GO_VERSION" = "1.26" ] || [ "$ROOT_GO_VERSION" = "1.27" ]; then
+      NEEDS_ADJUSTMENT=true
+  fi
+  if [ "$TEST_GO_VERSION" = "1.25" ] || [ "$TEST_GO_VERSION" = "1.26" ] || [ "$TEST_GO_VERSION" = "1.27" ]; then
+      NEEDS_ADJUSTMENT=true
+  fi
+
+  if [ "$NEEDS_ADJUSTMENT" = "true" ]; then
+      # Adjust root go.mod
+      sed -i 's/^go .*/go 1.24/' go.mod
+
+      # Adjust test module go.mod
+      sed -i 's/^go .*/go 1.24/' "$TEST_MODULE_DIR/go.mod"
+  fi
+  ```
+
+  **Why This Works:**
+  - The `go 1.24` directive is a **minimum requirement**, not a maximum
+  - With `GOTOOLCHAIN=auto`, dependencies that need Go 1.25+ still work (toolchain auto-downloads)
+  - Neither root nor test module code actually requires Go 1.25+ features
+  - Extension binary build command (`go build ./cmd/extension`) resolves **both** go.mod files
+  - Docker builder (Go 1.24) can successfully build Go 1.24 code
+  - `go mod tidy` with `GOTOOLCHAIN=auto` continues to work correctly for both modules
+
+  **Impact on Operations:**
+
+  | Operation | Before Fix | After Fix | Impact |
+  |-----------|------------|-----------|---------|
+  | `go mod tidy` (test module) | ✅ Works (GOTOOLCHAIN=auto) | ✅ Works (GOTOOLCHAIN=auto) | No change |
+  | `go mod tidy` (root) | ✅ Works (GOTOOLCHAIN=auto) | ✅ Works (GOTOOLCHAIN=auto) | No change |
+  | `make extension` (local) | ❌ **Failed** (Go 1.25 required) | ✅ **Fixed** (Go 1.24 matches) | **Positive** |
+  | Docker build | ❌ **Failed** (Go 1.25 required) | ✅ **Fixed** (Go 1.24 matches) | **Positive** |
+
+  **Benefits:**
+  - ✅ Docker builds succeed with Go 1.24 builder images
+  - ✅ Local `make extension` builds succeed
+  - ✅ `go mod tidy` operations unaffected (GOTOOLCHAIN=auto still works)
+  - ✅ Clean solution without environment variable complexity
+  - ✅ Both modules maintain proper dependency resolution
+
 ### Makefile Targets
 
 The migration creates Makefile targets for building the OTE extension binary:
@@ -604,13 +760,13 @@ All strategies follow this principle: **bindata.mk must be at the same level as 
 
 ```bash
 # Build image locally
-docker build -t test-image:latest .
+docker build -t test-image:latest -f <path-to-dockerfile> .
 
-# Verify binary exists in image
-docker run --rm test-image:latest ls -lh /usr/bin/*-test-extension.tar.gz
+# Verify binary exists in image (override ENTRYPOINT to run ls)
+docker run --rm --entrypoint ls test-image:latest -lh /usr/bin/*-test-extension.tar.gz
 
-# Extract and test binary
-docker run --rm test-image:latest cat /usr/bin/<extension-name>-test-extension.tar.gz | tar -xzv
+# Extract and test binary (override ENTRYPOINT to run cat)
+docker run --rm --entrypoint cat test-image:latest /usr/bin/<extension-name>-test-extension.tar.gz | tar -xzv
 ./bin/<extension-name>-tests-ext list
 ```
 
@@ -660,9 +816,53 @@ Before build verification, the migration validates that all required tags are pr
 
 The migration stops and provides specific guidance on which files need fixing, preventing incomplete migrations.
 
+## Recent Updates
+
+The migration workflow has been enhanced with comprehensive test filtering and proper framework initialization to ensure tests run correctly both locally and in-cluster:
+
+### Latest Critical Fix - Framework Initialization
+
+**Problem**: Tests were failing with `unable to load in-cluster configuration, KUBERNETES_SERVICE_HOST and KUBERNETES_SERVICE_PORT must be defined` even when KUBECONFIG was set.
+
+**Solution**: Preserved framework initialization (`util.InitStandardFlags()` and `framework.AfterReadingAllFlags()`) while removing only the cleanup wrapper. This ensures:
+- ✅ Kubeconfig flags are registered (KUBECONFIG environment variable works)
+- ✅ Framework context is properly set up
+- ✅ Tests can connect to cluster both locally and in-cluster
+- ✅ OTE framework handles cleanup automatically (no `util.WithCleanup()` needed)
+
+### Key Improvements
+
+1. **Filesystem Path Filtering (2026-02-14)** - Changed from module paths to filesystem paths for test filtering. Uses `/test/e2e/` with exclusions for `/go/pkg/mod/` and `/vendor/` to match Ginkgo's actual CodeLocation format
+2. **Smart E2E Framework Import Handling (2026-02-14)** - Changed from removing e2e framework import to adding it where needed. Tests using `e2e.Logf()` or `e2e.Failf()` now get the import automatically
+3. **Monorepo Variant Support (2026-02-14)** - Monorepo mode now supports two variants: (1) No existing test/e2e → create test/e2e directly; (2) Existing test/e2e → create test/e2e/<subdirectory> to avoid conflicts. User can specify subdirectory name (default: "extension")
+4. **Automatic k8s.io Version Fix (2026-02-14)** - Detects outdated OpenShift kubernetes fork (October 2024) and automatically updates to October 2025 fork. Adds missing k8s.io/externaljwt package, pins otelgrpc to v0.53.0, removes deprecated packages, and updates Ginkgo version. Prevents build errors: `undefined: otelgrpc.UnaryClientInterceptor`, `cannot use v6 as net.IP`, `undefined: diff.Diff`
+5. **Lightweight Framework Initialization** - Uses `util.InitStandardFlags()` and `compat_otp.InitTest()` without heavy kubernetes e2e framework dependency for smaller binaries and faster builds
+5. **Two-Layer Test Filtering** - Layer 1: Dependency filtering excludes openshift-tests-private; Layer 2: Filesystem path filter includes only local test/e2e/ tests, excluding module cache and vendor
+6. **Vendor Mode Build** - Uses `-mod=vendor` instead of `-mod=mod` to ensure consistent dependency resolution in all build environments
+7. **Go Import Conventions** - Uses `goimports` to automatically fix import ordering after migration, ensuring testdata imports are properly positioned per Go conventions
+8. **Auto-install go-bindata** - bindata.mk automatically installs go-bindata if not present, preventing Docker build failures
+9. **Smart Go Version Management** - Automatically adjusts root go.mod to match Docker builder version (e.g., 1.24) while keeping test module at higher version (e.g., 1.25) for dependencies
+10. **Enhanced Dependency Management** - Added retry logic and better error handling for all `go get` commands
+11. **Ginkgo Version Alignment** - Automatically aligns with OTE framework's Ginkgo version (December 2024) instead of using OTP's older version (August 2024)
+12. **k8s.io Version Consistency** - Syncs ALL replace directives (including k8s.io) from test module to root for version consistency
+13. **Old kube-openapi Pin Removal** - Automatically removes stale kube-openapi pins from February 2024 that cause yaml type errors
+14. **Smart Docker Builder Selection** - Intelligently maps Go versions (1.21-1.27) to appropriate OpenShift builder images
+15. **Comprehensive Troubleshooting** - Added 8 detailed troubleshooting entries based on real-world migration experience
+
+### Two-Layer Test Filtering
+
+See the "Test Filtering to Prevent Unwanted Tests" section above for comprehensive details on how these layers work together.
+
+### Documentation
+
+- **[skill-updates-summary.md](../../skill-updates-summary.md)** - Initial three-layer filtering implementation
+- **[latest-skill-updates.md](../../latest-skill-updates.md)** - Latest framework initialization fix and enhancements
+
 ## Resources
 
 - [OTE Framework Enhancement](https://github.com/openshift/enhancements/pull/1676)
 - [OTE Framework Repository](https://github.com/openshift-eng/openshift-tests-extension)
 - [Example Implementation](https://github.com/openshift-eng/openshift-tests-extension/blob/main/cmd/example-tests/main.go)
 - [Complete Design Document](../../OTE_PLUGIN_COMPLETE_DESIGN.md) - Comprehensive technical documentation with detailed directory structures, complete Dockerfile examples, and troubleshooting guides for both monorepo and single-module strategies
+- [Skill Updates Summary](../../skill-updates-summary.md) - Initial three-layer test filtering implementation
+- [Latest Skill Updates](../../latest-skill-updates.md) - Framework initialization fix and recent enhancements
