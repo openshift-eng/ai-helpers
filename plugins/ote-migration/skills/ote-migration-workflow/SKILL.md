@@ -1823,6 +1823,14 @@ if grep -q "$OLD_K8S_COMMITS" go.mod; then
         echo "  ✅ Added k8s.io/externaljwt package"
     fi
 
+    # Add k8s.io/kms if missing (required for Docker build compatibility with Go 1.24)
+    if ! grep -q "k8s.io/kms =>" go.mod; then
+        echo "  Adding k8s.io/kms package..."
+        # Insert after k8s.io/kube-scheduler (alphabetically)
+        sed -i "/k8s.io\/kube-scheduler =>/a\	k8s.io/kms => github.com/openshift/kubernetes/staging/src/k8s.io/kms v0.0.0-$NEW_K8S_COMMIT" go.mod
+        echo "  ✅ Added k8s.io/kms package (prevents Docker build Go version errors)"
+    fi
+
     # Remove deprecated k8s.io/legacy-cloud-providers if present
     if grep -q "k8s.io/legacy-cloud-providers" go.mod; then
         echo "  Removing deprecated k8s.io/legacy-cloud-providers..."
