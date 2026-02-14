@@ -822,11 +822,11 @@ The migration workflow has been enhanced with comprehensive test filtering and p
 
 ### Latest Critical Fix - Framework Initialization
 
-**Problem**: Tests were failing with `unable to load in-cluster configuration, KUBERNETES_SERVICE_HOST and KUBERNETES_SERVICE_PORT must be defined` even when KUBECONFIG was set.
+**Problem**: Tests were panicking with `runtime error: invalid memory address or nil pointer dereference` in `framework.(*Framework).BeforeEach` because the kubernetes e2e framework context wasn't initialized.
 
-**Solution**: Preserved framework initialization (`util.InitStandardFlags()` and `framework.AfterReadingAllFlags()`) while removing only the cleanup wrapper. This ensures:
+**Solution**: Added framework initialization (`framework.AfterReadingAllFlags(&framework.TestContext)`) immediately after `util.InitStandardFlags()`. This ensures:
 - ✅ Kubeconfig flags are registered (KUBECONFIG environment variable works)
-- ✅ Framework context is properly set up
+- ✅ Framework context is properly initialized (prevents nil pointer dereference)
 - ✅ Tests can connect to cluster both locally and in-cluster
 - ✅ OTE framework handles cleanup automatically (no `util.WithCleanup()` needed)
 
@@ -836,18 +836,18 @@ The migration workflow has been enhanced with comprehensive test filtering and p
 2. **Smart E2E Framework Import Handling (2026-02-14)** - Changed from removing e2e framework import to adding it where needed. Tests using `e2e.Logf()` or `e2e.Failf()` now get the import automatically
 3. **Monorepo Variant Support (2026-02-14)** - Monorepo mode now supports two variants: (1) No existing test/e2e → create test/e2e directly; (2) Existing test/e2e → create test/e2e/<subdirectory> to avoid conflicts. User can specify subdirectory name (default: "extension")
 4. **Automatic k8s.io Version Fix (2026-02-14)** - Detects outdated OpenShift kubernetes fork (October 2024) and automatically updates to October 2025 fork. Adds missing k8s.io/externaljwt package, pins otelgrpc to v0.53.0, removes deprecated packages, and updates Ginkgo version. Prevents build errors: `undefined: otelgrpc.UnaryClientInterceptor`, `cannot use v6 as net.IP`, `undefined: diff.Diff`
-5. **Lightweight Framework Initialization** - Uses `util.InitStandardFlags()` and `compat_otp.InitTest()` without heavy kubernetes e2e framework dependency for smaller binaries and faster builds
-5. **Two-Layer Test Filtering** - Layer 1: Dependency filtering excludes openshift-tests-private; Layer 2: Filesystem path filter includes only local test/e2e/ tests, excluding module cache and vendor
-6. **Vendor Mode Build** - Uses `-mod=vendor` instead of `-mod=mod` to ensure consistent dependency resolution in all build environments
-7. **Go Import Conventions** - Uses `goimports` to automatically fix import ordering after migration, ensuring testdata imports are properly positioned per Go conventions
-8. **Auto-install go-bindata** - bindata.mk automatically installs go-bindata if not present, preventing Docker build failures
-9. **Smart Go Version Management** - Automatically adjusts root go.mod to match Docker builder version (e.g., 1.24) while keeping test module at higher version (e.g., 1.25) for dependencies
-10. **Enhanced Dependency Management** - Added retry logic and better error handling for all `go get` commands
-11. **Ginkgo Version Alignment** - Automatically aligns with OTE framework's Ginkgo version (December 2024) instead of using OTP's older version (August 2024)
-12. **k8s.io Version Consistency** - Syncs ALL replace directives (including k8s.io) from test module to root for version consistency
-13. **Old kube-openapi Pin Removal** - Automatically removes stale kube-openapi pins from February 2024 that cause yaml type errors
-14. **Smart Docker Builder Selection** - Intelligently maps Go versions (1.21-1.27) to appropriate OpenShift builder images
-15. **Comprehensive Troubleshooting** - Added 8 detailed troubleshooting entries based on real-world migration experience
+5. **Complete Framework Initialization (2026-02-14)** - Uses `util.InitStandardFlags()`, `framework.AfterReadingAllFlags()`, and `compat_otp.InitTest()` to properly initialize the kubernetes e2e framework context and prevent nil pointer panics
+6. **Two-Layer Test Filtering** - Layer 1: Dependency filtering excludes openshift-tests-private; Layer 2: Filesystem path filter includes only local test/e2e/ tests, excluding module cache and vendor
+7. **Vendor Mode Build** - Uses `-mod=vendor` instead of `-mod=mod` to ensure consistent dependency resolution in all build environments
+8. **Go Import Conventions** - Uses `goimports` to automatically fix import ordering after migration, ensuring testdata imports are properly positioned per Go conventions
+9. **Auto-install go-bindata** - bindata.mk automatically installs go-bindata if not present, preventing Docker build failures
+10. **Smart Go Version Management** - Automatically adjusts root go.mod to match Docker builder version (e.g., 1.24) while keeping test module at higher version (e.g., 1.25) for dependencies
+11. **Enhanced Dependency Management** - Added retry logic and better error handling for all `go get` commands
+12. **Ginkgo Version Alignment** - Automatically aligns with OTE framework's Ginkgo version (December 2024) instead of using OTP's older version (August 2024)
+13. **k8s.io Version Consistency** - Syncs ALL replace directives (including k8s.io) from test module to root for version consistency
+14. **Old kube-openapi Pin Removal** - Automatically removes stale kube-openapi pins from February 2024 that cause yaml type errors
+15. **Smart Docker Builder Selection** - Intelligently maps Go versions (1.21-1.27) to appropriate OpenShift builder images
+16. **Comprehensive Troubleshooting** - Added 8 detailed troubleshooting entries based on real-world migration experience
 
 ### Two-Layer Test Filtering
 

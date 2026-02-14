@@ -967,6 +967,7 @@ import (
     g "github.com/openshift-eng/openshift-tests-extension/pkg/ginkgo"
     "github.com/openshift/origin/test/extended/util"
     compat_otp "github.com/openshift/origin/test/extended/util/compat_otp"
+    framework "k8s.io/kubernetes/test/e2e/framework"
 
     // Import testdata package from same module
     _ "<TEST_IMPORT>/testdata"
@@ -978,6 +979,7 @@ import (
 func main() {
     // Initialize test framework flags (required for kubeconfig, provider, etc.)
     util.InitStandardFlags()
+    framework.AfterReadingAllFlags(&framework.TestContext)
 
     logs.InitLogs()
     defer logs.FlushLogs()
@@ -1089,6 +1091,7 @@ import (
     g "github.com/openshift-eng/openshift-tests-extension/pkg/ginkgo"
     "github.com/openshift/origin/test/extended/util"
     compat_otp "github.com/openshift/origin/test/extended/util/compat_otp"
+    framework "k8s.io/kubernetes/test/e2e/framework"
 
     // Import testdata package from this module
     _ "github.com/openshift/<extension-name>-tests-extension/test/e2e/testdata"
@@ -1100,6 +1103,7 @@ import (
 func main() {
     // Initialize test framework flags (required for kubeconfig, provider, etc.)
     util.InitStandardFlags()
+    framework.AfterReadingAllFlags(&framework.TestContext)
 
     logs.InitLogs()
     defer logs.FlushLogs()
@@ -2667,11 +2671,13 @@ import (
     "k8s.io/component-base/logs"
     "github.com/openshift/origin/test/extended/util"
     compat_otp "github.com/openshift/origin/test/extended/util/compat_otp"
+    framework "k8s.io/kubernetes/test/e2e/framework"
 )
 
 func main() {
     // Initialize test framework flags (required for kubeconfig, provider, etc.)
     util.InitStandardFlags()
+    framework.AfterReadingAllFlags(&framework.TestContext)
 
     logs.InitLogs()
     defer logs.FlushLogs()
@@ -2691,20 +2697,18 @@ func main() {
 
 **What to keep:**
 - ✅ `util.InitStandardFlags()` - Registers kubeconfig, provider, and other test flags
+- ✅ `framework.AfterReadingAllFlags(&framework.TestContext)` - Initializes framework context (REQUIRED)
 - ✅ `logs.InitLogs()` - Initialize logging
 - ✅ `compat_otp.InitTest(false)` in BeforeAll - Sets up test framework context
-
-**What to keep:**
 - ✅ `e2e "k8s.io/kubernetes/test/e2e/framework"` import - Keep if tests use `e2e.Logf()` or `e2e.Failf()`
 
 **What to remove:**
-- ❌ `framework.AfterReadingAllFlags(&framework.TestContext)` - Not needed
 - ❌ `util.WithCleanup()` wrapper - OTE handles cleanup automatically
 
 **Why this works:**
 - `util.InitStandardFlags()` registers framework flags so KUBECONFIG is recognized
+- `framework.AfterReadingAllFlags(&framework.TestContext)` initializes the framework context, preventing nil pointer dereference in framework.BeforeEach
 - `compat_otp.InitTest()` in BeforeAll sets up the framework context when tests start
-- No heavy kubernetes e2e framework dependencies are pulled in
 - OTE framework handles cleanup automatically via its test lifecycle
 - Tests can now connect to the cluster using kubeconfig
 
