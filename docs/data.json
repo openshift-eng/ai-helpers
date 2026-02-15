@@ -854,6 +854,12 @@
         },
         {
           "argument_hint": "",
+          "description": "Generate and visualize Kubernetes Gateway API topology diagram",
+          "name": "visualize-gateway-topology",
+          "synopsis": "shell"
+        },
+        {
+          "argument_hint": "",
           "description": "Generate and visualize OVN-Kubernetes network topology diagram",
           "name": "visualize-ovn-topology",
           "synopsis": "/openshift:visualize-ovn-topology"
@@ -865,12 +871,17 @@
       "name": "openshift",
       "skills": [
         {
+          "description": "Generates and displays Kubernetes Gateway API topology diagrams showing GatewayClasses, Gateways, Routes, and backend Services in Mermaid format",
+          "id": "generating-gateway-topology",
+          "name": "generating-gateway-topology"
+        },
+        {
           "description": "Generates and displays OVN-Kubernetes network topology diagrams showing logical switches, routers, ports with IP/MAC addresses in Mermaid format",
           "id": "generating-ovn-topology",
           "name": "generating-ovn-topology"
         }
       ],
-      "version": "0.0.2"
+      "version": "0.0.3"
     },
     {
       "commands": [
