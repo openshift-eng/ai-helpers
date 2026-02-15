@@ -189,6 +189,33 @@ Shows monitoring information:
 - Alerts (state, namespace, name, active since, labels)
 - Total of pending/firing alerts
 
+#### CAMGI - Cluster Infrastructure and Autoscaler Inspector
+```bash
+# Start CAMGI web interface
+./scripts/run-camgi.sh <must-gather-path>
+
+# Stop CAMGI containers
+./scripts/run-camgi.sh stop
+
+# Or use slash command
+/must-gather:camgi <must-gather-path>
+/must-gather:camgi stop
+```
+
+Interactive web-based analysis for cluster infrastructure and autoscaler:
+- Examines cluster autoscaler configuration and behavior
+- Reviews cluster operators status and health
+- Analyzes Machines, MachineSets, and Nodes configuration
+- Inspects Control Plane MachineSets
+- Checks Machine API operator status
+- Reviews Machine Config operator status
+- Examines Cloud Controller Manager details
+- Provides visual interface for investigating autoscaler scaling decisions
+- Helps debug autoscaler and cluster infrastructure issues
+- Automatically handles permissions and browser launching
+- Runs on [http://127.0.0.1:8080](http://127.0.0.1:8080)
+- See `scripts/README-CAMGI.md` for detailed documentation
+
 ### 3. Interpret and Report
 
 After running the scripts:
@@ -249,6 +276,13 @@ Output: etcd cluster health and member status
 Parses: `cluster-scoped-resources/core/persistentvolumes/`, `namespaces/*/core/persistentvolumeclaims.yaml`
 Output: PV and PVC status tables
 
+### scripts/run-camgi.sh
+Launches: CAMGI (Cluster Autoscaler Must-Gather Inspector) web interface
+Output: Interactive web UI at [http://127.0.0.1:8080](http://127.0.0.1:8080) for cluster infrastructure and autoscaler analysis
+Analysis: Cluster operators, machines, machinesets, nodes, autoscaler configuration, Machine API/Config operators, Cloud Controller Manager
+Prerequisites: Podman/Docker (containerized) or `pip3 install okd-camgi` (local)
+See: `scripts/README-CAMGI.md` for detailed documentation
+
 ## Tips for Analysis
 
 1. **Start with Cluster Operators**: They often reveal system-wide issues
@@ -274,6 +308,12 @@ Output: PV and PVC status tables
 1. Run `analyze_network.py` - check network health
 2. Run `analyze_pods.py --namespace openshift-ovn-kubernetes`
 3. Check PodNetworkConnectivityCheck results
+
+### "Cluster infrastructure or autoscaler problems"
+1. Run `run-camgi.sh <must-gather-path>` - launch interactive cluster infrastructure inspector
+2. Use CAMGI web UI to examine cluster operators, machines, machinesets, and nodes
+3. Review autoscaler configuration, scaling events, and decisions
+4. Inspect Machine API operator, Machine Config operator, and Cloud Controller Manager status
 
 ## Next Steps After Analysis
 
