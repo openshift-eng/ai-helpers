@@ -7,7 +7,7 @@ jira:solve
 
 ## Synopsis
 ```
-/jira:solve <jira-issue-id> [remote]
+/jira:solve <jira-issue-id> [remote] [--ci]
 ```
 
 ## Description
@@ -44,7 +44,8 @@ This command takes a JIRA URL, fetches the issue description and requirements, a
          - Optional
             - Steps to reproduce (for bugs)
             - Expected vs actual behavior
-   - Ask the user for further issue grooming if the requried sections are missing
+   - If `--ci` flag ($3) is NOT set: Ask the user for further issue grooming if the required sections are missing
+   - If `--ci` flag ($3) IS set: Proceed with available information, making reasonable assumptions where needed
 
 2. **Codebase Analysis**: Search and analyze relevant code:
    - Find related files and functions
@@ -58,7 +59,8 @@ This command takes a JIRA URL, fetches the issue description and requirements, a
 
 3. **Solution Implementation**:
    - Think hard and create a detailed, step-by-step plan to implement this feature. Save it to spec-$1.md within the .work/jira/solve folder, for example .work/jira/solve/spec-OCPBUGS-12345.md
-   - Always ask the user to review the plan and give them the choice to modify it before start the implementation
+   - If `--ci` flag ($3) is NOT set: Ask the user to review the plan and give them the choice to modify it before starting the implementation
+   - If `--ci` flag ($3) IS set: Proceed immediately with implementation without waiting for approval
    - Implement the plan:
     - Make necessary code changes using Edit/MultiEdit tools
     - Follow existing code patterns and conventions
@@ -69,19 +71,27 @@ This command takes a JIRA URL, fetches the issue description and requirements, a
       - Use your best judgement if godoc comments are needed for private functions
       - For example, a comment should not be generated for a simple function like func add(int a, b) int { return a + b}
     - Create unit tests for any newly created functions
-  - After making code changes, verify the implementation based on the repository's tooling:
+  - After making code changes, you MUST verify the implementation based on the repository's tooling:
     - **Check for Makefile**: Run `ls Makefile` to see if one exists
     - **If Makefile exists**: Check available targets with `make help` or `grep '^[^#]*:' Makefile | head -20`
     - **Run appropriate verification commands**:
       - If `make lint-fix` exists: Run it to ensure imports are properly sorted and linting issues are fixed
-      - If `make verify`, `make build`, `make test` exist: Run these to ensure code builds and passes tests
+      - If `make verify`, `make build`, `make test` exist: you MUST run these to ensure code builds and passes tests
       - If no Makefile or make targets: Look for alternative commands:
         - Go projects: `go fmt ./...`, `go vet ./...`, `go test ./...`, `go build ./...`
         - Node.js: `npm test`, `npm run build`, `npm run lint`
         - Python: `pytest`, `python -m unittest`, `pylint`, `black .`
         - Other: Follow repository conventions in CI config files (.github/workflows/, .gitlab-ci.yml, etc.)
     - **Never assume make targets exist** - always verify first
-    - **You must ensure verification passes** before proceeding to "Commit Creation"
+    - **If any verification command fails**:
+      - Determine whether the failure is caused by your changes or is pre-existing
+      - If caused by your changes: fix the issue and re-run the failing command
+      - If pre-existing: note the pre-existing failure in the PR description, but still proceed
+    - **You MUST NOT proceed to "Commit Creation" until all verification commands have been run and all failures are either fixed or confirmed pre-existing**
+    - **Anti-patterns (explicitly forbidden)**:
+      - Do NOT run `go test ./changed/package/` instead of `make test` — running only the packages you changed misses cross-package regressions
+      - Do NOT skip `make test` because `make lint-fix` had unrelated failures
+      - Do NOT assume targeted package tests are "good enough" as a substitute for the full test suite
 
 4. **Commit Creation**: 
    - Create feature branch using the jira-key $1 as the branch name. For example: "git checkout -b fix-{jira-key}"
@@ -118,16 +128,19 @@ This command takes a JIRA URL, fetches the issue description and requirements, a
 
 6. **PR Description Review**:
    - After creating the PR, display the PR URL and description to the user
-   - Ask the user: "Please review the PR description. Would you like me to update it? (yes/no)"
-   - If the user says yes or requests changes:
-     - Ask what changes they'd like to make
-     - Update the PR description using `gh pr edit {PR_NUMBER} --body "{new_description}"`
-     - Repeat this review step until the user is satisfied
-   - If the user says no or is satisfied, acknowledge and provide next steps
+   - If `--ci` flag ($3) is NOT set:
+     - Ask the user: "Please review the PR description. Would you like me to update it? (yes/no)"
+     - If the user says yes or requests changes:
+       - Ask what changes they'd like to make
+       - Update the PR description using `gh pr edit {PR_NUMBER} --body "{new_description}"`
+       - Repeat this review step until the user is satisfied
+     - If the user says no or is satisfied, acknowledge and provide next steps
+   - If `--ci` flag ($3) IS set: Skip the review step and proceed to completion
 
 
 ## Arguments:
 - $1: The JIRA issue to solve (required)
 - $2: The remote repository to push the branch. Defaults to "origin".
+- $3: Optional `--ci` flag for non-interactive CI automation mode. When set, skips all user prompts and proceeds automatically.
 
 The command will provide progress updates and create a comprehensive solution addressing all requirements from the JIRA issue.

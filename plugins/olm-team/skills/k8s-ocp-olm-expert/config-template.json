@@ -1,0 +1,81 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "K8s/OCP/OLM Expert Agent Configuration",
+  "description": "Configuration file for the k8s-ocp-olm-expert agent specifying repository paths",
+  "type": "object",
+  "properties": {
+    "repositories": {
+      "type": "object",
+      "properties": {
+        "openshift_docs": {
+          "type": "string",
+          "description": "Path to openshift-docs repository (*.adoc files)"
+        },
+        "olm_v0_upstream": {
+          "type": "object",
+          "properties": {
+            "operator_lifecycle_manager": {
+              "type": "string",
+              "description": "Path to operator-framework/operator-lifecycle-manager"
+            },
+            "operator_registry": {
+              "type": "string",
+              "description": "Path to operator-framework/operator-registry"
+            },
+            "api": {
+              "type": "string",
+              "description": "Path to operator-framework/api"
+            }
+          },
+          "required": ["operator_lifecycle_manager", "operator_registry", "api"]
+        },
+        "olm_v0_downstream": {
+          "type": "object",
+          "properties": {
+            "operator_framework_olm": {
+              "type": "string",
+              "description": "Path to openshift/operator-framework-olm"
+            },
+            "operator_marketplace": {
+              "type": "string",
+              "description": "Path to openshift/operator-marketplace"
+            }
+          },
+          "required": ["operator_framework_olm", "operator_marketplace"]
+        },
+        "olm_v1_upstream": {
+          "type": "object",
+          "properties": {
+            "operator_controller": {
+              "type": "string",
+              "description": "Path to operator-framework/operator-controller"
+            }
+          },
+          "required": ["operator_controller"]
+        },
+        "olm_v1_downstream": {
+          "type": "object",
+          "properties": {
+            "operator_framework_operator_controller": {
+              "type": "string",
+              "description": "Path to openshift/operator-framework-operator-controller"
+            },
+            "cluster_olm_operator": {
+              "type": "string",
+              "description": "Path to openshift/cluster-olm-operator"
+            }
+          },
+          "required": ["operator_framework_operator_controller", "cluster_olm_operator"]
+        }
+      },
+      "required": [
+        "openshift_docs",
+        "olm_v0_upstream",
+        "olm_v0_downstream",
+        "olm_v1_upstream",
+        "olm_v1_downstream"
+      ]
+    }
+  },
+  "required": ["repositories"]
+}

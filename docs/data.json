@@ -47,6 +47,12 @@
           "synopsis": "/git:fix-cherrypick-robot-pr <pr-url> [error-messages]"
         },
         {
+          "argument_hint": "[pr-url]",
+          "description": "Adapt and correct a PR description to match its code diffs and commit messages",
+          "name": "redescribe",
+          "synopsis": "/git:redescribe              # Redescribe the PR for the current branch"
+        },
+        {
           "argument_hint": "[base-branch]",
           "description": "Suggest appropriate reviewers for a PR based on git blame and OWNERS files",
           "name": "suggest-reviewers",
@@ -70,7 +76,7 @@
           "name": "Suggest Reviewers Helper"
         }
       ],
-      "version": "0.0.1"
+      "version": "0.0.4"
     },
     {
       "commands": [
@@ -86,7 +92,7 @@
       "hooks": [],
       "name": "hello-world",
       "skills": [],
-      "version": "1.0.0"
+      "version": "1.0.1"
     },
     {
       "commands": [
@@ -101,6 +107,12 @@
           "description": "Categorize JIRA tickets into activity types using AI",
           "name": "categorize-activity-type",
           "synopsis": "bash"
+        },
+        {
+          "argument_hint": "<issue-number> [issue-number...] [--github-project <org/repo>] [--jira-project <key>] [--dryrun]",
+          "description": "Clone GitHub issues to Jira with proper formatting and linking",
+          "name": "clone-from-github",
+          "synopsis": "/jira:clone-from-github <issue-number> [issue-number...] [options]"
         },
         {
           "argument_hint": "<issue-key>",
@@ -133,16 +145,40 @@
           "synopsis": "/jira:grooming [project-filter] [time-period] [--component component-name] [--label label-name] [--type issue-type] [--status status] [--story-points]"
         },
         {
+          "argument_hint": "<project-key> [time-period] [--component name] [--assignee username] [--reporter username] [--status status] [--search term] [--search-description]",
+          "description": "List and analyze JIRA issues organized by component with flexible filtering",
+          "name": "issues-by-component",
+          "synopsis": "/jira:issues-by-component <project-key> [time-period] [--component component-name] [--assignee username] [--reporter username] [--status status] [--search search-term] [--search-description]"
+        },
+        {
+          "argument_hint": "[--github-project <org/repo>] [--jira-project <key>] [--profile <name>] [--porcelain] [--output json|yaml]",
+          "description": "Reconcile state mismatches between GitHub and Jira issues",
+          "name": "reconcile-github",
+          "synopsis": "bash"
+        },
+        {
+          "argument_hint": "",
+          "description": "Install and configure the gh2jira utility with all required tools and credentials",
+          "name": "setup-gh2jira",
+          "synopsis": "/jira:setup-gh2jira"
+        },
+        {
           "argument_hint": "",
           "description": "Analyze a JIRA issue and create a pull request to solve it.",
           "name": "solve",
-          "synopsis": "/jira:solve <jira-issue-id> [remote]"
+          "synopsis": "/jira:solve <jira-issue-id> [remote] [--ci]"
         },
         {
           "argument_hint": "issue-id [--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD]",
           "description": "Generate a status rollup comment for any JIRA issue based on all child issues and a given date range",
           "name": "status-rollup",
           "synopsis": "/jira:status-rollup issue-id [--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD]"
+        },
+        {
+          "argument_hint": "[project-key] [--component name] [--label label-name] [user-filters...]",
+          "description": "Update weekly status summaries for Jira issues with component and user filtering",
+          "name": "update-weekly-status",
+          "synopsis": "/jira:update-weekly-status [project-key] [--component <component-name>] [--label <label-name>] [user-filters...]"
         },
         {
           "argument_hint": "[target-version] [component-filter] [--bug issue-key]",
@@ -207,6 +243,11 @@
           "name": "Jira Pull Request Extractor"
         },
         {
+          "description": "GCP HCP team-specific Jira requirements for creating issues in the GCP project (Hypershift on GKE)",
+          "id": "gcp-hcp",
+          "name": "GCP HCP Jira Conventions"
+        },
+        {
           "description": "HyperShift team-specific Jira requirements for component selection and conventions",
           "id": "hypershift",
           "name": "HyperShift Jira Conventions"
@@ -217,6 +258,11 @@
           "name": "Jira Feature Documentation Generator"
         },
         {
+          "description": "Provides secure curl wrapper for the jira:issues-by-component command to prevent token exposure",
+          "id": "jira-issues-by-component",
+          "name": "JIRA Issues by Component - Helper Skill"
+        },
+        {
           "description": "Detailed implementation guide for validating proposed release blockers",
           "id": "jira-validate-blockers",
           "name": "JIRA Release Blocker Validator"
@@ -225,9 +271,14 @@
           "description": "Jira conventions and bug templates for the OCPBUGS project",
           "id": "ocpbugs",
           "name": "OCPBUGS Jira Conventions"
+        },
+        {
+          "description": "Shared engine for analyzing Jira issue activity and generating status summaries",
+          "id": "status-analysis",
+          "name": "Jira Status Analysis Engine"
         }
       ],
-      "version": "0.0.1"
+      "version": "0.3.1"
     },
     {
       "commands": [
@@ -238,10 +289,22 @@
           "synopsis": "/ci:add-debug-wait <workflow-or-job-name> [timeout]"
         },
         {
+          "argument_hint": "<regression id>",
+          "description": "Analyze details about a Component Readiness regression and suggest next steps",
+          "name": "analyze-regression",
+          "synopsis": "/ci:analyze-regression <regression id>"
+        },
+        {
           "argument_hint": "[question]",
           "description": "Ask the Sippy AI agent questions about OpenShift CI payloads, jobs, and test results",
           "name": "ask-sippy",
           "synopsis": "/ask-sippy [question]"
+        },
+        {
+          "argument_hint": "<workflow-or-chain-name>",
+          "description": "List the step for the given workflow or chain name",
+          "name": "list-step",
+          "synopsis": ""
         },
         {
           "argument_hint": "<version> <keywords> [sippy-url]",
@@ -286,56 +349,72 @@
       "name": "ci",
       "skills": [
         {
+          "description": "Fetch detailed information about a Component Readiness regression from the Sippy API",
+          "id": "fetch-regression-details",
+          "name": "Fetch Regression Details"
+        },
+        {
+          "description": "Fetch test failure outputs from Sippy API for AI-based similarity analysis",
+          "id": "fetch-test-failure-outputs",
+          "name": "Fetch Test Failure Outputs"
+        },
+        {
           "description": "Helper skill to retrieve OAuth tokens from the correct OpenShift cluster context when multiple clusters are configured",
           "id": "oc-auth",
           "name": "OC Authentication Helper"
         }
       ],
-      "version": "0.0.1"
+      "version": "0.0.5"
     },
     {
       "commands": [
         {
-          "argument_hint": "<release> [--components comp1 comp2 ...] [--project JIRAPROJECT]",
-          "description": "Analyze and grade component health based on regression and JIRA bug metrics",
-          "name": "analyze",
-          "synopsis": "/component-health:analyze <release> [--components comp1 comp2 ...] [--project JIRAPROJECT]"
+          "argument_hint": "--project <project> [--component comp1 comp2 ...] [--team <team-name>] [--status status1 status2 ...] [--include-closed] [--limit N]",
+          "description": "Query and summarize JIRA bugs for a specific project with counts by component",
+          "name": "health-check-jiras",
+          "synopsis": "/teams:health-check-jiras --project <project> [--component comp1 comp2 ...] [--status status1 status2 ...] [--include-closed] [--limit N]"
         },
         {
-          "argument_hint": "<release>",
-          "description": "List all components tracked in Sippy for a release",
+          "argument_hint": "<release> [--components comp1 comp2 ...] [--team <team-name>] [--start YYYY-MM-DD] [--end YYYY-MM-DD]",
+          "description": "Query and summarize regression data for OpenShift releases with counts and metrics",
+          "name": "health-check-regressions",
+          "synopsis": "/teams:health-check-regressions <release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]"
+        },
+        {
+          "argument_hint": "<release> [--components comp1 comp2 ...] [--team <team-name>] [--project JIRAPROJECT]",
+          "description": "Analyze and grade component health based on regression and JIRA bug metrics",
+          "name": "health-check",
+          "synopsis": "/teams:health-check <release> [--components comp1 comp2 ...] [--project JIRAPROJECT]"
+        },
+        {
+          "argument_hint": "[--team <team-name>]",
+          "description": "List all OCPBUGS components, optionally filtered by team",
           "name": "list-components",
-          "synopsis": "/component-health:list-components <release>"
+          "synopsis": "/teams:list-components [--team <team-name>]"
         },
         {
           "argument_hint": "<project> [--component comp1 comp2 ...] [--status status1 status2 ...] [--include-closed] [--limit N]",
           "description": "Query and list raw JIRA bug data for a specific project",
           "name": "list-jiras",
-          "synopsis": "/component-health:list-jiras <project> [--component comp1 comp2 ...] [--status status1 status2 ...] [--include-closed] [--limit N]"
+          "synopsis": "/teams:list-jiras <project> [--component comp1 comp2 ...] [--status status1 status2 ...] [--include-closed] [--limit N]"
         },
         {
           "argument_hint": "<release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]",
           "description": "Fetch and list raw regression data for OpenShift releases",
           "name": "list-regressions",
-          "synopsis": "/component-health:list-regressions <release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]"
+          "synopsis": "/teams:list-regressions <release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]"
         },
         {
-          "argument_hint": "--project <project> [--component comp1 comp2 ...] [--status status1 status2 ...] [--include-closed] [--limit N]",
-          "description": "Query and summarize JIRA bugs for a specific project with counts by component",
-          "name": "summarize-jiras",
-          "synopsis": "/component-health:summarize-jiras --project <project> [--component comp1 comp2 ...] [--status status1 status2 ...] [--include-closed] [--limit N]"
-        },
-        {
-          "argument_hint": "<release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]",
-          "description": "Query and summarize regression data for OpenShift releases with counts and metrics",
-          "name": "summarize-regressions",
-          "synopsis": "/component-health:summarize-regressions <release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]"
+          "argument_hint": "",
+          "description": "List all teams from the team component mapping",
+          "name": "list-teams",
+          "synopsis": "/teams:list-teams"
         }
       ],
-      "description": "Analyze component health and track regressions across OpenShift releases",
+      "description": "Team structure knowledge and health analysis commands for OpenShift teams",
       "has_readme": true,
       "hooks": [],
-      "name": "component-health",
+      "name": "teams",
       "skills": [
         {
           "description": "Grade component health based on regression triage metrics for OpenShift releases",
@@ -348,7 +427,7 @@
           "name": "Get Release Dates"
         },
         {
-          "description": "Fetch component names from Sippy component readiness API",
+          "description": "List all OCPBUGS components, optionally filtered by team",
           "id": "list-components",
           "name": "List Components"
         },
@@ -363,12 +442,17 @@
           "name": "List Regressions"
         },
         {
+          "description": "List all teams from the team component mapping",
+          "id": "list-teams",
+          "name": "List Teams"
+        },
+        {
           "description": "Query and summarize JIRA bugs for a specific project with counts by component",
           "id": "summarize-jiras",
           "name": "Summarize JIRAs"
         }
       ],
-      "version": "0.0.1"
+      "version": "0.0.2"
     },
     {
       "commands": [
@@ -384,7 +468,7 @@
       "hooks": [],
       "name": "doc",
       "skills": [],
-      "version": "0.0.1"
+      "version": "0.0.2"
     },
     {
       "commands": [
@@ -400,7 +484,7 @@
       "hooks": [],
       "name": "session",
       "skills": [],
-      "version": "0.0.1"
+      "version": "0.0.2"
     },
     {
       "commands": [
@@ -448,7 +532,7 @@
           "name": "System Configuration Analysis"
         }
       ],
-      "version": "0.0.1"
+      "version": "0.0.2"
     },
     {
       "commands": [
@@ -471,6 +555,12 @@
           "synopsis": ""
         },
         {
+          "argument_hint": "[--repo <org/repo>]",
+          "description": "List PRs and issues requiring your attention",
+          "name": "gh-attention",
+          "synopsis": "/utils:gh-attention [--repo <org/repo>]"
+        },
+        {
           "argument_hint": "",
           "description": "Placeholder command for the utils plugin",
           "name": "placeholder",
@@ -487,6 +577,12 @@
           "description": "Review potential overlaps with existing ai-helpers (Claude Code Plugins, Commands, Skills, Sub-agents, or Hooks) and open PRs",
           "name": "review-ai-helpers-overlap",
           "synopsis": "/utils:review-ai-helpers-overlap [--idea \"description\"] [--pr NUMBER] [--verbose]"
+        },
+        {
+          "argument_hint": "[file-paths-or-patterns]",
+          "description": "Orchestrate security scanners and provide contextual triage of findings",
+          "name": "review-security",
+          "synopsis": "/utils:review-security [file-paths-or-patterns]"
         }
       ],
       "description": "A generic utilities plugin serving as a catch-all for various helper commands",
@@ -494,7 +590,7 @@
       "hooks": [],
       "name": "utils",
       "skills": [],
-      "version": "0.0.1"
+      "version": "0.0.5"
     },
     {
       "commands": [
@@ -575,6 +671,40 @@
     {
       "commands": [
         {
+          "argument_hint": "",
+          "description": "Configure the k8s-ocp-olm-expert agent with local repository paths",
+          "name": "configure-agent",
+          "synopsis": "/olm-team:configure-agent"
+        },
+        {
+          "argument_hint": "[target-directory]",
+          "description": "Set up OLM development repositories and onboard to the team",
+          "name": "dev-setup",
+          "synopsis": "/olm-team:dev-setup [target-directory]"
+        },
+        {
+          "argument_hint": "",
+          "description": "Watch open Enhancement PRs from other teams that may impact OLM",
+          "name": "ep-watch",
+          "synopsis": "bash"
+        }
+      ],
+      "description": "OLM team development utilities and onboarding tools",
+      "has_readme": true,
+      "hooks": [],
+      "name": "olm-team",
+      "skills": [
+        {
+          "description": "Use this agent proactively whenever discussions, questions, or tasks involve Kubernetes (k8s), OpenShift (OCP), or Operator Lifecycle Manager (OLM) v0 or v1. This includes:\\n\\n- Analyzing or debugging Kubernetes resources (pods, deployments, services, etc.)\\n- Working with OpenShift-specific features or configurations\\n- Developing, installing, or troubleshooting operators using OLM\\n- Reviewing manifests, CRDs, or operator bundles\\n- Explaining Kubernetes/OpenShift/OLM concepts or best practices\\n- Investigating cluster issues or failures\\n- Writing or reviewing operator code and configurations\\n\\n**Examples:**\\n\\n1. **Context**: User is debugging a pod failure in their OpenShift cluster\\n   - User: \"I'm seeing CrashLoopBackOff on my etcd pod in OpenShift, can you help me investigate?\"\\n   - Assistant: \"I'm going to use the Task tool to launch the k8s-ocp-olm-expert agent to help debug this pod failure.\"\\n   - Commentary: Since the user is working with an OpenShift pod issue, proactively engage the k8s-ocp-olm-expert agent to provide specialized Kubernetes and OpenShift debugging expertise.\\n\\n2. **Context**: User mentions they're creating an OLM operator\\n   - User: \"I need to create a new operator bundle for OLM v1\"\\n   - Assistant: \"I'm going to use the Task tool to launch the k8s-ocp-olm-expert agent to guide you through creating an OLM v1 operator bundle.\"\\n   - Commentary: Since the user is working with OLM operator development, proactively engage the k8s-ocp-olm-expert agent to provide specialized OLM guidance.\\n\\n3. **Context**: User is reviewing Kubernetes manifests in their code\\n   - User: \"Can you review this deployment.yaml file I just created?\"\\n   - Assistant: \"I'm going to use the Task tool to launch the k8s-ocp-olm-expert agent to review your Kubernetes deployment manifest.\"\\n   - Commentary: Since the user is working with Kubernetes resources, proactively engage the k8s-ocp-olm-expert agent to provide expert review of the manifest.\\n\\n4. **Context**: User asks about OpenShift cluster configuration\\n   - User: \"What's the difference between a Route and an Ingress in OpenShift?\"\\n   - Assistant: \"I'm going to use the Task tool to launch the k8s-ocp-olm-expert agent to explain the differences between Routes and Ingresses.\"\\n   - Commentary: Since the user is asking about OpenShift-specific concepts, proactively engage the k8s-ocp-olm-expert agent to provide accurate technical explanation.",
+          "id": "k8s-ocp-olm-expert",
+          "name": "k8s-ocp-olm-expert"
+        }
+      ],
+      "version": "0.2.0"
+    },
+    {
+      "commands": [
+        {
           "argument_hint": "<prowjob-url>",
           "description": "Analyze OpenShift installation failures in Prow CI jobs",
           "name": "analyze-install-failure",
@@ -587,7 +717,7 @@
           "synopsis": ""
         },
         {
-          "argument_hint": "prowjob-url test-name",
+          "argument_hint": "prowjob-url test-name [--fast]",
           "description": "Analyzes test errors from console logs and Prow CI job artifacts",
           "name": "analyze-test-failure",
           "synopsis": ""
@@ -620,7 +750,7 @@
           "name": "Prow Job Analyze Resource"
         },
         {
-          "description": "Analyze a failed test by inspecting the code in the current project and artifacts in Prow CI job. Provide a detailed analysis of the test failure in a pre-defined format.",
+          "description": "Analyze failed Prow CI tests by inspecting test code, downloading artifacts, and optionally integrating must-gather cluster diagnostics for root cause analysis",
           "id": "prow-job-analyze-test-failure",
           "name": "Prow Job Analyze Test Failure"
         },
@@ -630,7 +760,7 @@
           "name": "Prow Job Extract Must-Gather"
         }
       ],
-      "version": "0.0.1"
+      "version": "0.0.6"
     },
     {
       "commands": [
@@ -646,7 +776,7 @@
       "hooks": [],
       "name": "agendas",
       "skills": [],
-      "version": "0.0.1"
+      "version": "0.0.2"
     },
     {
       "commands": [
@@ -740,7 +870,7 @@
           "name": "generating-ovn-topology"
         }
       ],
-      "version": "0.0.1"
+      "version": "0.0.2"
     },
     {
       "commands": [
@@ -762,7 +892,7 @@
       "hooks": [],
       "name": "etcd",
       "skills": [],
-      "version": "0.0.1"
+      "version": "0.0.2"
     },
     {
       "commands": [
@@ -778,7 +908,7 @@
       "hooks": [],
       "name": "yaml",
       "skills": [],
-      "version": "0.0.1"
+      "version": "0.0.2"
     },
     {
       "commands": [
@@ -812,7 +942,7 @@
           "name": "Must-Gather Analyzer"
         }
       ],
-      "version": "0.0.1"
+      "version": "0.0.2"
     },
     {
       "commands": [
@@ -859,7 +989,7 @@
       ],
       "name": "metrics",
       "skills": [],
-      "version": "0.0.1"
+      "version": "0.0.2"
     },
     {
       "commands": [
@@ -912,7 +1042,7 @@
           "name": "HyperShift PowerVS Provider"
         }
       ],
-      "version": "0.0.1"
+      "version": "0.0.2"
     },
     {
       "commands": [
@@ -928,7 +1058,7 @@
       "hooks": [],
       "name": "compliance",
       "skills": [],
-      "version": "0.0.1"
+      "version": "0.0.2"
     },
     {
       "commands": [
@@ -961,7 +1091,7 @@
           "name": "Component-Aware Test Gap Analysis"
         }
       ],
-      "version": "0.0.1"
+      "version": "0.0.2"
     },
     {
       "commands": [
@@ -1005,7 +1135,7 @@
       "hooks": [],
       "name": "origin",
       "skills": [],
-      "version": "0.0.1"
+      "version": "0.0.2"
     },
     {
       "commands": [
@@ -1033,7 +1163,7 @@
       "hooks": [],
       "name": "container-image",
       "skills": [],
-      "version": "0.0.1"
+      "version": "0.0.2"
     },
     {
       "commands": [
@@ -1049,7 +1179,7 @@
       "hooks": [],
       "name": "node",
       "skills": [],
-      "version": "0.0.1"
+      "version": "0.0.2"
     },
     {
       "commands": [
@@ -1071,7 +1201,7 @@
           "name": "Analyze BigQuery Usage"
         }
       ],
-      "version": "0.0.1"
+      "version": "0.0.2"
     },
     {
       "commands": [
@@ -1094,6 +1224,67 @@
       "name": "workspaces",
       "skills": [],
       "version": "1.0.0"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "[namespace]",
+          "description": "Check Gateway API resources status in the cluster",
+          "name": "check",
+          "synopsis": "bash"
+        },
+        {
+          "argument_hint": "[namespace]",
+          "description": "Delete Gateway API resources from a Kubernetes/OpenShift cluster",
+          "name": "delete",
+          "synopsis": "bash"
+        },
+        {
+          "argument_hint": "[namespace]",
+          "description": "Install Gateway API resources to a Kubernetes/OpenShift cluster",
+          "name": "install",
+          "synopsis": "bash"
+        }
+      ],
+      "description": "Gateway API installation utilities for Kubernetes/OpenShift clusters",
+      "has_readme": true,
+      "hooks": [],
+      "name": "gwapi",
+      "skills": [],
+      "version": "0.0.1"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "<pr-url-or-number> [--language <lang>] [--profile <name>] [--skip-build] [--skip-tests]",
+          "description": "Automated PR code quality review with language-aware analysis and project-specific profiles",
+          "name": "pr",
+          "synopsis": "/code-review:pr <pr-url-or-number> [--language <lang>] [--profile <name>] [--skip-build] [--skip-tests]"
+        },
+        {
+          "argument_hint": "[--language <lang>] [--profile <name>] [--skip-build] [--skip-tests]",
+          "description": "Automated pre-commit code quality review with language-aware analysis and project-specific profiles",
+          "name": "pre-commit-review",
+          "synopsis": "/code-review:pre-commit-review [--language <lang>] [--profile <name>] [--skip-build] [--skip-tests]"
+        }
+      ],
+      "description": "Automated code quality review with language-aware analysis for pre-commit verification",
+      "has_readme": true,
+      "hooks": [],
+      "name": "code-review",
+      "skills": [
+        {
+          "description": "Language-specific review guidance for Go code including idiomatic patterns, test conventions, and build commands",
+          "id": "lang-go",
+          "name": "Go Language Review"
+        },
+        {
+          "description": "Project-specific review profile for the openshift/hypershift repository \u2014 delegates to the repo's own agents and skills",
+          "id": "profile-hypershift",
+          "name": "HyperShift Project Profile"
+        }
+      ],
+      "version": "0.0.4"
     }
   ]
 }

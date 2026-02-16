@@ -18,6 +18,11 @@ This skill is automatically invoked by the `/jira:create feature` command to gui
 - Understanding of the strategic objective and market problem
 - Product/business context for the feature
 
+**Reference Documentation:**
+- [Wiki Markup Reference](../../reference/wiki-markup.md) - JIRA formatting syntax
+- [MCP Tools Reference](../../reference/mcp-tools.md) - MCP tool signatures and custom fields
+- [CLI Fallback Reference](../../reference/cli-fallback.md) - jira-cli commands (only if MCP unavailable)
+
 ## What is a Feature?
 
 A feature is:

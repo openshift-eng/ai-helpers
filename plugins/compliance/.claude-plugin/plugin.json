@@ -1,8 +1,8 @@
 {
-    "name": "compliance",
-    "description": "Security compliance and vulnerability analysis tools for Go projects",
-    "version": "0.0.1",
-    "author": {
-        "name": "chiragkyal"
-    }
+  "name": "compliance",
+  "description": "Security compliance and vulnerability analysis tools for Go projects",
+  "version": "0.0.2",
+  "author": {
+    "name": "chiragkyal"
+  }
 }
