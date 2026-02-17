@@ -5,12 +5,16 @@ Script to fetch regression data for OpenShift components.
 Usage:
     python3 list_regressions.py --release <release> [--components comp1 comp2 ...] [--short]
     python3 list_regressions.py --release <release> --team "Team Name" [--short]
+    python3 list_regressions.py --release <release> --test-name "exact test name"
+    python3 list_regressions.py --release <release> --test-name-contains "substring"
 
 Example:
     python3 list_regressions.py --release 4.17
     python3 list_regressions.py --release 4.21 --components Monitoring etcd
     python3 list_regressions.py --release 4.21 --team "API Server"
     python3 list_regressions.py --release 4.21 --short
+    python3 list_regressions.py --release 4.22 --test-name "[Monitor:kubelet-container-restarts]..."
+    python3 list_regressions.py --release 4.22 --test-name-contains "openshift-machine-config-operator"
 """
 
 import argparse
@@ -163,6 +167,33 @@ def filter_by_components(data: list, components: list = None) -> list:
     print(f"Filtered to {len(filtered)} regressions for components: {', '.join(components)}", 
           file=sys.stderr)
     
+    return filtered
+
+
+def filter_by_test_name(data: list, test_name: str = None, test_name_contains: str = None) -> list:
+    """
+    Filter regression data by test name.
+
+    Args:
+        data: List of regression dictionaries
+        test_name: Exact test name to match (case-sensitive)
+        test_name_contains: Substring to match within test names (case-insensitive)
+
+    Returns:
+        Filtered list of regressions matching the test name criteria
+    """
+    if not test_name and not test_name_contains:
+        return data
+
+    filtered = []
+    for regression in data:
+        reg_test_name = regression.get('test_name', '')
+        if test_name and reg_test_name == test_name:
+            filtered.append(regression)
+        elif test_name_contains and test_name_contains.lower() in reg_test_name.lower():
+            filtered.append(regression)
+
+    print(f"Filtered to {len(filtered)} regressions by test name", file=sys.stderr)
     return filtered
 
 
@@ -587,15 +618,21 @@ def main():
 Examples:
   # List all regressions for release 4.17
   %(prog)s --release 4.17
-  
+
   # Filter by specific components
   %(prog)s --release 4.21 --components Monitoring "kube-apiserver"
-  
+
   # Filter by multiple components
   %(prog)s --release 4.21 --components Monitoring etcd "kube-apiserver"
-  
+
   # Short output mode (summaries only, no regression data)
   %(prog)s --release 4.17 --short
+
+  # Find all regressions for a specific test (across all variants)
+  %(prog)s --release 4.22 --test-name "exact test name here"
+
+  # Find regressions with test names containing a substring
+  %(prog)s --release 4.22 --test-name-contains "openshift-machine-config-operator"
         """
     )
     
@@ -636,6 +673,20 @@ Examples:
     )
     
     parser.add_argument(
+        '--test-name',
+        type=str,
+        default=None,
+        help='Filter by exact test name (case-sensitive). Returns only regressions for this specific test across all variants.'
+    )
+
+    parser.add_argument(
+        '--test-name-contains',
+        type=str,
+        default=None,
+        help='Filter by test name substring (case-insensitive). Returns regressions whose test name contains this string.'
+    )
+
+    parser.add_argument(
         '--short',
         action='store_true',
         help='Short output mode: exclude regression data, only include summaries'
@@ -645,6 +696,16 @@ Examples:
     # Validate mutually exclusive arguments
     if args.team and args.components:
         print("Error: --team and --components are mutually exclusive. Use one or the other.", file=sys.stderr)
+        return 1
+
+    test_name_filter = args.test_name or args.test_name_contains
+    if test_name_filter and (args.team or args.components):
+        print("Error: --test-name/--test-name-contains cannot be combined with --team or --components. "
+              "Test name filtering searches across all components.", file=sys.stderr)
+        return 1
+
+    if args.test_name and args.test_name_contains:
+        print("Error: --test-name and --test-name-contains are mutually exclusive. Use one or the other.", file=sys.stderr)
         return 1
 
     # If team is specified, look up components for that team
@@ -670,6 +731,10 @@ Examples:
         # Filter by components (always called to remove empty component names)
         if isinstance(regressions, list):
             regressions = filter_by_components(regressions, components_to_filter)
+
+        # Filter by test name if specified
+        if isinstance(regressions, list) and (args.test_name or args.test_name_contains):
+            regressions = filter_by_test_name(regressions, args.test_name, args.test_name_contains)
 
         # Simplify time field structures (closed, last_failure)
         if isinstance(regressions, list):
