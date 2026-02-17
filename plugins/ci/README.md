@@ -1,7 +1,7 @@
 # CI Plugin
 
 A plugin for working with OpenShift CI infrastructure, providing
-commands to analyze CI data, investigate failures, and understand
+commands to analyze CI workflow,chain or data, investigate failures, and understand
 release quality.
 
 ## Commands
@@ -63,6 +63,23 @@ export ASK_SIPPY_API_TOKEN='your-token-here'
    ```bash
    /ask-sippy Why is the test "sig-network Feature:SCTP should create a Pod with SCTP HostPort" failing?
    ```
+
+### list-step
+Lists all step references (ref) used in a specified workflow or chain.
+
+**Prerequisites:**
+
+Run this command from your local clone of the openshift/release repository.
+
+**Usage:**
+```bash
+/list-step
+```
+**Arguments:**
+- workflow-name (e.g., `hypershift-aws-e2e-external`)
+
+or 
+- chain-name(e.g., `rosa-cluster-provision-chain`)
 
 ### trigger-periodic
 

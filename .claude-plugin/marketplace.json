@@ -8,19 +8,19 @@
       "name": "git",
       "source": "./plugins/git",
       "description": "Git Plugin",
-      "version": "0.0.3"
+      "version": "0.0.4"
     },
     {
       "name": "hello-world",
       "source": "./plugins/hello-world",
       "description": "Hello World Plugin",
-      "version": "1.0.0"
+      "version": "1.0.1"
     },
     {
       "name": "jira",
       "source": "./plugins/jira",
       "description": "A plugin to automate tasks with Jira",
-      "version": "0.1.1"
+      "version": "0.3.1"
     },
     {
       "name": "ci",
@@ -56,7 +56,7 @@
       "name": "utils",
       "source": "./plugins/utils",
       "description": "A generic utilities plugin serving as a catch-all for various helper commands",
-      "version": "0.0.4"
+      "version": "0.0.5"
     },
     {
       "name": "olm",
@@ -68,7 +68,7 @@
       "name": "olm-team",
       "source": "./plugins/olm-team",
       "description": "OLM team development utilities and onboarding tools",
-      "version": "0.1.0"
+      "version": "0.2.0"
     },
     {
       "name": "agendas",
@@ -171,6 +171,12 @@
       "source": "./plugins/gwapi",
       "description": "Gateway API installation utilities for Kubernetes/OpenShift clusters",
       "version": "0.0.1"
+    },
+    {
+      "name": "code-review",
+      "source": "./plugins/code-review",
+      "description": "Automated code quality review with language-aware analysis for pre-commit verification",
+      "version": "0.0.4"
     }
   ]
 }

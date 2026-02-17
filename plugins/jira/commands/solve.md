@@ -71,19 +71,27 @@ This command takes a JIRA URL, fetches the issue description and requirements, a
       - Use your best judgement if godoc comments are needed for private functions
       - For example, a comment should not be generated for a simple function like func add(int a, b) int { return a + b}
     - Create unit tests for any newly created functions
-  - After making code changes, verify the implementation based on the repository's tooling:
+  - After making code changes, you MUST verify the implementation based on the repository's tooling:
     - **Check for Makefile**: Run `ls Makefile` to see if one exists
     - **If Makefile exists**: Check available targets with `make help` or `grep '^[^#]*:' Makefile | head -20`
     - **Run appropriate verification commands**:
       - If `make lint-fix` exists: Run it to ensure imports are properly sorted and linting issues are fixed
-      - If `make verify`, `make build`, `make test` exist: Run these to ensure code builds and passes tests
+      - If `make verify`, `make build`, `make test` exist: you MUST run these to ensure code builds and passes tests
       - If no Makefile or make targets: Look for alternative commands:
         - Go projects: `go fmt ./...`, `go vet ./...`, `go test ./...`, `go build ./...`
         - Node.js: `npm test`, `npm run build`, `npm run lint`
         - Python: `pytest`, `python -m unittest`, `pylint`, `black .`
         - Other: Follow repository conventions in CI config files (.github/workflows/, .gitlab-ci.yml, etc.)
     - **Never assume make targets exist** - always verify first
-    - **You must ensure verification passes** before proceeding to "Commit Creation"
+    - **If any verification command fails**:
+      - Determine whether the failure is caused by your changes or is pre-existing
+      - If caused by your changes: fix the issue and re-run the failing command
+      - If pre-existing: note the pre-existing failure in the PR description, but still proceed
+    - **You MUST NOT proceed to "Commit Creation" until all verification commands have been run and all failures are either fixed or confirmed pre-existing**
+    - **Anti-patterns (explicitly forbidden)**:
+      - Do NOT run `go test ./changed/package/` instead of `make test` — running only the packages you changed misses cross-package regressions
+      - Do NOT skip `make test` because `make lint-fix` had unrelated failures
+      - Do NOT assume targeted package tests are "good enough" as a substitute for the full test suite
 
 4. **Commit Creation**: 
    - Create feature branch using the jira-key $1 as the branch name. For example: "git checkout -b fix-{jira-key}"

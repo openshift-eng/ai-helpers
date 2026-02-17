@@ -5,6 +5,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Agendas](#agendas-plugin)
 - [Bigquery](#bigquery-plugin)
 - [Ci](#ci-plugin)
+- [Code Review](#code-review-plugin)
 - [Compliance](#compliance-plugin)
 - [Container Image](#container-image-plugin)
 - [Doc](#doc-plugin)
@@ -62,6 +63,7 @@ Tools for working with OpenShift CI and analyzing Prow job results
 - **`/ci:check-if-jira-regression-is-ongoing` `<jira-key-or-url>`** - Check if the regression described in a Jira bug is still ongoing or has resolved
 - **`/ci:extract-prow-job-must-gather` `prowjob-url`** - Extract and decompress must-gather archives from Prow job artifacts
 - **`/ci:fetch-test-report` `<test-name> [release]`** - Fetch a test report from Sippy showing pass rates, test ID, and Jira component
+- **`/ci:list-step` `<workflow-or-chain-name>`** - List the step for the given workflow or chain name
 - **`/ci:list-unstable-tests` `<version> <keywords> [sippy-url]`** - List unstable tests with pass rate below 95%
 - **`/ci:query-job-status` `<execution-id>`** - Query the status of a gangway job execution by ID
 - **`/ci:query-test-result` `<version> <keywords> [sippy-url]`** - Query test results from Sippy by version and test keywords
@@ -70,6 +72,16 @@ Tools for working with OpenShift CI and analyzing Prow job results
 - **`/ci:trigger-presubmit` `<job-name> <org> <repo> <base-ref> <base-sha> <pr-number> <pr-sha> [ENV_VAR=value ...]`** - Trigger a presubmit gangway job (typically use GitHub Prow commands instead)
 
 See [plugins/ci/README.md](plugins/ci/README.md) for detailed documentation.
+
+### Code Review Plugin
+
+Automated code quality review with language-aware analysis for pre-commit verification
+
+**Commands:**
+- **`/code-review:pr` `<pr-url-or-number> [--language <lang>] [--profile <name>] [--skip-build] [--skip-tests]`** - Automated PR code quality review with language-aware analysis and project-specific profiles
+- **`/code-review:pre-commit-review` `[--language <lang>] [--profile <name>] [--skip-build] [--skip-tests]`** - Automated pre-commit code quality review with language-aware analysis and project-specific profiles
+
+See [plugins/code-review/README.md](plugins/code-review/README.md) for detailed documentation.
 
 ### Compliance Plugin
 
@@ -171,10 +183,12 @@ A plugin to automate tasks with Jira
 - **`/jira:generate-feature-doc` `<feature-key>`** - Generate comprehensive feature documentation from Jira feature and all related issues and PRs
 - **`/jira:generate-test-plan` `[JIRA issue key] [GitHub PR URLs]`** - Generate test steps for a JIRA issue
 - **`/jira:grooming` `[project-filter] [time-period] [--component component-name] [--label label-name] [--type issue-type] [--status status] [--story-points]`** - Analyze new bugs and cards added over a time period and generate grooming meeting agenda
+- **`/jira:issues-by-component` `<project-key> [time-period] [--component name] [--assignee username] [--reporter username] [--status status] [--search term] [--search-description]`** - List and analyze JIRA issues organized by component with flexible filtering
 - **`/jira:reconcile-github` `[--github-project <org/repo>] [--jira-project <key>] [--profile <name>] [--porcelain] [--output json|yaml]`** - Reconcile state mismatches between GitHub and Jira issues
 - **`/jira:setup-gh2jira`** - Install and configure the gh2jira utility with all required tools and credentials
 - **`/jira:solve`** - Analyze a JIRA issue and create a pull request to solve it.
 - **`/jira:status-rollup` `issue-id [--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD]`** - Generate a status rollup comment for any JIRA issue based on all child issues and a given date range
+- **`/jira:update-weekly-status` `[project-key] [--component name] [--label label-name] [user-filters...]`** - Update weekly status summaries for Jira issues with component and user filtering
 - **`/jira:validate-blockers` `[target-version] [component-filter] [--bug issue-key]`** - Validate proposed release blockers using Red Hat OpenShift release blocker criteria
 
 See [plugins/jira/README.md](plugins/jira/README.md) for detailed documentation.
@@ -244,6 +258,7 @@ OLM team development utilities and onboarding tools
 **Commands:**
 - **`/olm-team:configure-agent`** - Configure the k8s-ocp-olm-expert agent with local repository paths
 - **`/olm-team:dev-setup` `[target-directory]`** - Set up OLM development repositories and onboard to the team
+- **`/olm-team:ep-watch`** - Watch open Enhancement PRs from other teams that may impact OLM
 
 See [plugins/olm-team/README.md](plugins/olm-team/README.md) for detailed documentation.
 

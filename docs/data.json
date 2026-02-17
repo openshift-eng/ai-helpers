@@ -76,7 +76,7 @@
           "name": "Suggest Reviewers Helper"
         }
       ],
-      "version": "0.0.3"
+      "version": "0.0.4"
     },
     {
       "commands": [
@@ -92,7 +92,7 @@
       "hooks": [],
       "name": "hello-world",
       "skills": [],
-      "version": "1.0.0"
+      "version": "1.0.1"
     },
     {
       "commands": [
@@ -145,6 +145,12 @@
           "synopsis": "/jira:grooming [project-filter] [time-period] [--component component-name] [--label label-name] [--type issue-type] [--status status] [--story-points]"
         },
         {
+          "argument_hint": "<project-key> [time-period] [--component name] [--assignee username] [--reporter username] [--status status] [--search term] [--search-description]",
+          "description": "List and analyze JIRA issues organized by component with flexible filtering",
+          "name": "issues-by-component",
+          "synopsis": "/jira:issues-by-component <project-key> [time-period] [--component component-name] [--assignee username] [--reporter username] [--status status] [--search search-term] [--search-description]"
+        },
+        {
           "argument_hint": "[--github-project <org/repo>] [--jira-project <key>] [--profile <name>] [--porcelain] [--output json|yaml]",
           "description": "Reconcile state mismatches between GitHub and Jira issues",
           "name": "reconcile-github",
@@ -167,6 +173,12 @@
           "description": "Generate a status rollup comment for any JIRA issue based on all child issues and a given date range",
           "name": "status-rollup",
           "synopsis": "/jira:status-rollup issue-id [--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD]"
+        },
+        {
+          "argument_hint": "[project-key] [--component name] [--label label-name] [user-filters...]",
+          "description": "Update weekly status summaries for Jira issues with component and user filtering",
+          "name": "update-weekly-status",
+          "synopsis": "/jira:update-weekly-status [project-key] [--component <component-name>] [--label <label-name>] [user-filters...]"
         },
         {
           "argument_hint": "[target-version] [component-filter] [--bug issue-key]",
@@ -246,6 +258,11 @@
           "name": "Jira Feature Documentation Generator"
         },
         {
+          "description": "Provides secure curl wrapper for the jira:issues-by-component command to prevent token exposure",
+          "id": "jira-issues-by-component",
+          "name": "JIRA Issues by Component - Helper Skill"
+        },
+        {
           "description": "Detailed implementation guide for validating proposed release blockers",
           "id": "jira-validate-blockers",
           "name": "JIRA Release Blocker Validator"
@@ -254,9 +271,14 @@
           "description": "Jira conventions and bug templates for the OCPBUGS project",
           "id": "ocpbugs",
           "name": "OCPBUGS Jira Conventions"
+        },
+        {
+          "description": "Shared engine for analyzing Jira issue activity and generating status summaries",
+          "id": "status-analysis",
+          "name": "Jira Status Analysis Engine"
         }
       ],
-      "version": "0.1.1"
+      "version": "0.3.1"
     },
     {
       "commands": [
@@ -313,6 +335,12 @@
           "description": "Fetch a test report from Sippy showing pass rates, test ID, and Jira component",
           "name": "fetch-test-report",
           "synopsis": "/ci:fetch-test-report <test-name> [release]"
+        },
+        {
+          "argument_hint": "<workflow-or-chain-name>",
+          "description": "List the step for the given workflow or chain name",
+          "name": "list-step",
+          "synopsis": ""
         },
         {
           "argument_hint": "<version> <keywords> [sippy-url]",
@@ -668,7 +696,7 @@
       "hooks": [],
       "name": "utils",
       "skills": [],
-      "version": "0.0.4"
+      "version": "0.0.5"
     },
     {
       "commands": [
@@ -759,6 +787,12 @@
           "description": "Set up OLM development repositories and onboard to the team",
           "name": "dev-setup",
           "synopsis": "/olm-team:dev-setup [target-directory]"
+        },
+        {
+          "argument_hint": "",
+          "description": "Watch open Enhancement PRs from other teams that may impact OLM",
+          "name": "ep-watch",
+          "synopsis": "bash"
         }
       ],
       "description": "OLM team development utilities and onboarding tools",
@@ -772,7 +806,7 @@
           "name": "k8s-ocp-olm-expert"
         }
       ],
-      "version": "0.1.0"
+      "version": "0.2.0"
     },
     {
       "commands": [
@@ -1264,6 +1298,39 @@
       "name": "gwapi",
       "skills": [],
       "version": "0.0.1"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "<pr-url-or-number> [--language <lang>] [--profile <name>] [--skip-build] [--skip-tests]",
+          "description": "Automated PR code quality review with language-aware analysis and project-specific profiles",
+          "name": "pr",
+          "synopsis": "/code-review:pr <pr-url-or-number> [--language <lang>] [--profile <name>] [--skip-build] [--skip-tests]"
+        },
+        {
+          "argument_hint": "[--language <lang>] [--profile <name>] [--skip-build] [--skip-tests]",
+          "description": "Automated pre-commit code quality review with language-aware analysis and project-specific profiles",
+          "name": "pre-commit-review",
+          "synopsis": "/code-review:pre-commit-review [--language <lang>] [--profile <name>] [--skip-build] [--skip-tests]"
+        }
+      ],
+      "description": "Automated code quality review with language-aware analysis for pre-commit verification",
+      "has_readme": true,
+      "hooks": [],
+      "name": "code-review",
+      "skills": [
+        {
+          "description": "Language-specific review guidance for Go code including idiomatic patterns, test conventions, and build commands",
+          "id": "lang-go",
+          "name": "Go Language Review"
+        },
+        {
+          "description": "Project-specific review profile for the openshift/hypershift repository \u2014 delegates to the repo's own agents and skills",
+          "id": "profile-hypershift",
+          "name": "HyperShift Project Profile"
+        }
+      ],
+      "version": "0.0.4"
     }
   ]
 }
