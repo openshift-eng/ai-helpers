@@ -230,7 +230,7 @@ Slash commands exist to leverage Claude's AI capabilities. If a task can be acco
 - Collecting metrics without interpreting or prioritizing them
 
 **✅ Good examples (leverages AI):**
-- Analyzing test failures to diagnose root causes (`/prow-job:analyze-test-failure`)
+- Analyzing test failures to diagnose root causes (`/ci:analyze-test-failure`)
 - Understanding JIRA issues and proposing code changes (`/jira:solve`)
 - Interpreting complex data and providing actionable recommendations
 - Making contextual decisions based on codebase analysis

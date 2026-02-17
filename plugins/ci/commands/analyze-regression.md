@@ -300,19 +300,19 @@ This command is useful for:
 
    if [ "$success" = "true" ]; then
      # Extract outputs array
-     outputs=$(echo "$output_analysis" | jq -r '.outputs')
+     outputs=$(echo "$output_analysis" | jq -r '.runs')
      num_outputs=$(echo "$outputs" | jq 'length')
 
-     echo "Fetched $num_outputs test failure outputs"
+     echo "Fetched $num_outputs test failure runs"
 
-     # AI ANALYSIS: Compare the outputs for similarity
+     # AI ANALYSIS: Compare the runs for similarity
      # Examine each output message to determine:
      # 1. How many failures show the same or very similar error messages
      # 2. What percentage of failures are consistent
      # 3. What the common error pattern is (if any)
      # 4. Extract file references, API paths, or resource names from error messages
      #
-     # The outputs are in format: {"url": "...", "output": "error text", "test_name": "..."}
+     # The runs are in format: {"url": "...", "output": "error text", "test_name": "..."}
      #
      # Classify consistency:
      # - Highly Consistent (>90%): All/nearly all show same error -> single root cause
@@ -991,7 +991,7 @@ Generated using the `fetch-test-runs` skill (see `plugins/ci/skills/fetch-test-r
 
 #### Regression Start Analysis (only if determinable)
 
-Generated using the `fetch-test-runs` skill with `--include-success` and `--prowjob-name`:
+Generated using the `fetch-test-runs` skill with `--include-success` and `--job-contains`:
 
 - **Job Analyzed**: The job with the most failures (from step 6)
 - **Approximate Start Date**: When the test began failing more frequently
@@ -1124,8 +1124,8 @@ Uses the `triage-regression` skill with authentication via the `oc-auth` skill (
 - Follows the guidance: "many regressions can be caused by one bug"
 - Helps teams consistently follow the documented triage procedure
 - Pattern analysis (permafail/resolved/flaky/recent) helps prioritize investigation efforts
-- For high-level component health analysis, use `/component-health:analyze-regressions` instead
-- For listing all regressions, use `/component-health:list-regressions`
+- For high-level component health analysis, use `/teams:health-check-regressions` instead
+- For listing all regressions, use `/teams:list-regressions`
 - For questions, ask in #forum-ocp-release-oversight
 
 ## See Also

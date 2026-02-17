@@ -27,7 +27,7 @@ The command provides comprehensive analysis by:
 
 **Default (comprehensive analysis)**:
 ```text
-/prow-job:analyze-test-failure <url> <test-name>
+/ci:analyze-test-failure <url> <test-name>
 ```
 - Detects must-gather availability
 - Prompts user whether to include cluster diagnostics
@@ -35,7 +35,7 @@ The command provides comprehensive analysis by:
 
 **Fast mode (skip must-gather)**:
 ```text
-/prow-job:analyze-test-failure <url> <test-name> --fast
+/ci:analyze-test-failure <url> <test-name> --fast
 ```
 - Skips must-gather detection and extraction
 - Only analyzes test-level artifacts (build-log, intervals)

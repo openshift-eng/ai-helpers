@@ -98,7 +98,7 @@ class JiraIssueFetcher:
         req.add_header("Accept", "application/json")
 
         try:
-            with urllib.request.urlopen(req) as response:
+            with urllib.request.urlopen(req, timeout=30) as response:
                 return json.loads(response.read().decode("utf-8"))
         except urllib.error.HTTPError as e:
             if e.code == 401:

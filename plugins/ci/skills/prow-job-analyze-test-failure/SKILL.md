@@ -346,7 +346,7 @@ Only if user chose "Yes" in Step 4.5:
    For Pattern 3 (standard only):
    ```bash
    # Use existing extract_archives.py script for standard must-gather
-   python3 plugins/prow-job/skills/prow-job-extract-must-gather/extract_archives.py \
+   python3 plugins/ci/skills/prow-job-extract-must-gather/extract_archives.py \
      .work/prow-job-analyze-test-failure/{build_id}/must-gather/tmp/must-gather.tar \
      .work/prow-job-analyze-test-failure/{build_id}/must-gather/logs
    ```

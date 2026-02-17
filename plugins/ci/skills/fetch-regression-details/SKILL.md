@@ -327,7 +327,7 @@ script_path="plugins/ci/skills/fetch-regression-details/fetch_regression_details
 data=$(python3 "$script_path" 34446 --format json)
 
 # Extract failed job URLs
-echo "$data" | jq -r '.sample_failed_jobs[].job_url | to_entries[] | .value.failed_runs[] | .job_url'
+echo "$data" | jq -r '.sample_failed_jobs | to_entries[] | .value.failed_runs[] | .job_url'
 ```
 
 **Expected Output:**
