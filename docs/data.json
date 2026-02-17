@@ -325,6 +325,12 @@
           "synopsis": "/ci:query-test-result <version> <keywords> [sippy-url]"
         },
         {
+          "argument_hint": "<pr-url> <jira-ticket>",
+          "description": "Revert a merged PR that is breaking CI or nightly payloads",
+          "name": "revert-pr",
+          "synopsis": "/ci:revert-pr <pr-url> <jira-ticket>"
+        },
+        {
           "argument_hint": "<job-name> [ENV_VAR=value ...]",
           "description": "Trigger a periodic gangway job with optional environment variable overrides",
           "name": "trigger-periodic",
@@ -362,6 +368,11 @@
           "description": "Helper skill to retrieve OAuth tokens from the correct OpenShift cluster context when multiple clusters are configured",
           "id": "oc-auth",
           "name": "OC Authentication Helper"
+        },
+        {
+          "description": "Git revert workflow and Revertomatic PR template for reverting merged PRs",
+          "id": "revert-pr",
+          "name": "Revert PR"
         }
       ],
       "version": "0.0.5"
