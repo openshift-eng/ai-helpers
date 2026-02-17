@@ -8,6 +8,7 @@ import argparse
 import json
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 from typing import Dict, List
 
@@ -16,7 +17,7 @@ SIPPY_API_BASE = "https://sippy.dptools.openshift.org/api"
 
 def fetch_new_prs(payload_tag: str) -> list:
     """Fetch new PRs in the given payload tag compared to its predecessor."""
-    url = f"{SIPPY_API_BASE}/payloads/diff?toPayload={urllib.request.quote(payload_tag)}"
+    url = f"{SIPPY_API_BASE}/payloads/diff?toPayload={urllib.parse.quote(payload_tag)}"
 
     try:
         req = urllib.request.Request(url)

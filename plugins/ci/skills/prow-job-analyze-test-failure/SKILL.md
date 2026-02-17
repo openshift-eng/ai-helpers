@@ -142,7 +142,7 @@ gcloud storage cp gs://test-platform-results/{bucket-path}/build-log.txt .work/p
 
    ```bash
    # Extract test name from prowjob.json (e.g., "e2e-aws-operator-serial-ote")
-   TEST_NAME=$(jq -r '.spec.job' .work/prow-job-analyze-test-failure/{build_id}/prowjob.json)
+   TEST_NAME=$(jq -r '.spec.job' .work/prow-job-analyze-test-failure/{build_id}/logs/prowjob.json)
 
    # Note: For PR jobs, TARGET contains the full PR path like:
    #   pr-logs/pull/openshift_service-ca-operator/306/pull-ci-openshift-service-ca-operator-main-e2e-aws-operator-serial-ote
