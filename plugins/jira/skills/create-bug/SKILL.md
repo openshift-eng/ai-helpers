@@ -17,6 +17,11 @@ This skill is automatically invoked by the `/jira:create bug` command to guide t
 - User has permissions to create issues in the target project
 - Bug information available (problem description, steps to reproduce, etc.)
 
+**Reference Documentation:**
+- [Wiki Markup Reference](../../reference/wiki-markup.md) - JIRA formatting syntax
+- [MCP Tools Reference](../../reference/mcp-tools.md) - MCP tool signatures and custom fields
+- [CLI Fallback Reference](../../reference/cli-fallback.md) - jira-cli commands (only if MCP unavailable)
+
 ## Bug Report Best Practices
 
 ### Complete Information
@@ -329,50 +334,7 @@ Logs attached.
 
 ## Jira Description Formatting
 
-Use Jira's native formatting (Wiki markup):
-
-### Headings
-```
-h1. Main Heading
-h2. Subheading
-h3. Sub-subheading
-```
-
-### Text Formatting
-```
-*bold text*
-_italic text_
-{{monospace}}
-{quote}quoted text{quote}
-```
-
-### Lists
-```
-* Bullet item 1
-* Bullet item 2
-** Nested bullet
-
-# Numbered item 1
-# Numbered item 2
-```
-
-### Code Blocks
-```
-{code}
-command line text or code
-{code}
-
-{code:java}
-// Language-specific syntax highlighting
-public class Example {}
-{code}
-```
-
-### Links
-```
-[Link text|http://example.com]
-[OCPBUGS-123]  // Auto-links to Jira issue
-```
+Use Jira's native formatting (Wiki markup). For complete formatting reference, see [Wiki Markup Reference](../../reference/wiki-markup.md).
 
 ## Error Handling
 

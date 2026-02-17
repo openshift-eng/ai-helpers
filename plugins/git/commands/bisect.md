@@ -1,6 +1,6 @@
 ---
 description: Interactive git bisect assistant with pattern detection and automation
-argument-hint: [good-commit] [bad-commit]
+argument-hint: "[good-commit] [bad-commit]"
 ---
 
 ## Name

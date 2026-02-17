@@ -1,0 +1,54 @@
+name: Update Documentation
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'plugins/**'
+
+jobs:
+  update-docs:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: true
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.11'
+
+      - name: Sync marketplace versions
+        run: python3 scripts/sync_marketplace_versions.py
+
+      - name: Regenerate documentation
+        run: |
+          python3 scripts/generate_plugin_docs.py
+          python3 scripts/build-website.py
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@c0f553fe549906ede9cf27b5156039d195d2ece0 # v8.1.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "docs: auto-regenerate plugin documentation and sync versions"
+          title: "docs: auto-regenerate plugin documentation"
+          body: |
+            This PR was automatically generated to update plugin documentation.
+
+            Changes include:
+            - Synced plugin versions from plugin.json to marketplace.json
+            - Regenerated PLUGINS.md
+            - Regenerated docs/data.json
+          branch: auto-update-docs
+          delete-branch: true
+          add-paths: |
+            docs/
+            PLUGINS.md
+            .claude-plugin/marketplace.json

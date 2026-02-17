@@ -23,6 +23,39 @@ A collection of Claude Code plugins to automate and assist with various developm
    /jira:solve OCPBUGS-12345 origin
    ```
 
+## Updating Plugins
+
+To get the latest plugin versions:
+
+1. **Update the marketplace** (fetches latest plugin catalog):
+   ```bash
+   /plugin marketplace update ai-helpers
+   ```
+
+2. **Reinstall the plugin** (downloads new version):
+   ```bash
+   /plugin install <plugin>@ai-helpers
+   ```
+
+### Automatic Catalog Sync
+
+Add a SessionStart hook to automatically sync the marketplace catalog on each session. In your project's `.claude/settings.json`:
+
+```json
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "command": "claude plugin marketplace update ai-helpers",
+        "timeout": 30000
+      }
+    ]
+  }
+}
+```
+
+**Note:** This only refreshes the catalog (what's available). To actually update an installed plugin to a newer version, you still need to reinstall it with `/plugin install <plugin>@ai-helpers`.
+
 ### Using Cursor
 
 Cursor is able to find the various commands defined in this repo by
@@ -120,6 +153,14 @@ When you identify a desirable characteristic (clarity, brevity, formality, humor
 
 ### Adding New Commands
 
+**Check for overlaps first** - Before coding, validate your idea:
+
+```bash
+/utils:review-ai-helpers-overlap --idea "brief description of your command"
+```
+
+Collaborating on existing work instead of duplicating parallel efforts is always encouraged when overlap is found. This helps maintain a clean, non-redundant plugin collection in such an actively developed project (see [`/utils:review-ai-helpers-overlap`](plugins/utils/commands/review-ai-helpers-overlap.md) for detailed usage).
+
 When contributing new commands:
 
 1. **If your command fits an existing plugin**: Add it to the appropriate plugin's `commands/` directory
@@ -163,6 +204,7 @@ This automatically scans all plugins and regenerates the complete plugin/command
 ## Additional Documentation
 
 - **[PLUGINS.md](PLUGINS.md)** - Complete list of all available plugins and commands
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** - Guidelines for contributing plugins, including versioning policy
 - **[AGENTS.md](AGENTS.md)** - Complete guide for AI agents working with this repository
 - **[CLAUDE.md](CLAUDE.md)** - Claude-specific configuration and notes
 

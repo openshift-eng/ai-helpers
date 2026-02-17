@@ -1,14 +1,15 @@
 <!--
-Please follow our contributing guidelines located at TBD.
 
-In general, please:
-- open the PR in draft mode
-- keep commits as small and focused on specific changes as much as possible
-- try to use conventional commits
-- prefix your PR with a Jira ticket number if available
-- fill out the PR description template below
+** Thanks for your contribution to ai-helpers. In order for your PR to be
+automatically tested, you must join the openshift-eng GitHub
+organization. You may need to close and reopen your PR after you've
+joined to re-trigger organization membership checks.
 
-Feel free to delete this comment text block before submitting the PR.
+** Please consider contributing by reviewing others' PR's as well.
+
+See https://redhat-internal.slack.com/archives/C08JL32HNMU/p1761923501606379
+for more instructions.
+
 -->
 
 ## What this PR does / why we need it:
@@ -24,4 +25,4 @@ Fixes
 ## Checklist:
 - [ ] Subject and description added to both, commit and PR.
 - [ ] Relevant issues have been referenced.
-- [ ] This change includes docs. 
+- [ ] This change includes docs.

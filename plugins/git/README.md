@@ -12,6 +12,10 @@ Interactive git bisect assistant with pattern detection and automation. Helps fi
 
 Cherry-pick a git commit into the current branch using the patch command instead of git cherry-pick.
 
+### `/git:fix-robot-pr`
+
+Fix a cherrypick-robot PR that needs manual intervention by creating a replacement PR with all necessary fixes applied.
+
 ### `/git:commit-suggest`
 
 Generate Conventional Commits style commit messages for staged changes or recent commits.
@@ -19,6 +23,10 @@ Generate Conventional Commits style commit messages for staged changes or recent
 ### `/git:debt-scan`
 
 Scan the codebase for technical debt markers and generate a report.
+
+### `/git:redescribe`
+
+Adapt and correct a PR description based on code diffs and commit messages.
 
 ### `/git:summary`
 

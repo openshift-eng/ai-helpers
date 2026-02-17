@@ -1,6 +1,6 @@
 ---
 description: Analyze Windows node logs and issues in must-gather data
-argument-hint: [must-gather-path] [--component COMPONENT]
+argument-hint: "[must-gather-path] [--component COMPONENT]"
 ---
 
 ## Name

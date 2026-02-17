@@ -27,6 +27,27 @@ def parse_timestamp(ts_str: str) -> datetime:
 
     return None
 
+def extract_year_from_audit_logs(log_files: List[str]) -> int:
+    """Extract year from the first valid timestamp in audit logs."""
+    for log_file in log_files:
+        try:
+            with open(log_file, 'r') as f:
+                for line in f:
+                    try:
+                        entry = json.loads(line.strip())
+                        timestamp_str = entry.get('requestReceivedTimestamp', '')
+                        if timestamp_str:
+                            ts = parse_timestamp(timestamp_str)
+                            if ts:
+                                return ts.year
+                    except json.JSONDecodeError:
+                        continue
+        except Exception:
+            continue
+    # Fall back to current year if no valid timestamps found
+    return datetime.now().year
+
+
 def parse_audit_logs(log_files: List[str], resource_pattern: str) -> List[Dict[str, Any]]:
     """Parse audit log files for matching resource entries."""
     entries = []
@@ -111,9 +132,20 @@ def parse_audit_logs(log_files: List[str], resource_pattern: str) -> List[Dict[s
 
     return entries
 
-def parse_pod_logs(log_files: List[str], resource_pattern: str) -> List[Dict[str, Any]]:
-    """Parse pod log files for matching resource mentions."""
+def parse_pod_logs(log_files: List[str], resource_pattern: str, year: int = None) -> List[Dict[str, Any]]:
+    """Parse pod log files for matching resource mentions.
+    
+    Args:
+        log_files: List of log file paths to parse
+        resource_pattern: Regex pattern to match resource names
+        year: Year to use for glog timestamps (which don't include year).
+              If None, uses current year.
+    """
     entries = []
+
+    # Use provided year or fall back to current year
+    if year is None:
+        year = datetime.now().year
 
     # Common timestamp patterns in pod logs
     timestamp_pattern = re.compile(r'^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[.\d]*Z?)')
@@ -162,10 +194,8 @@ def parse_pod_logs(log_files: List[str], resource_pattern: str) -> List[Dict[str
                         elif severity == 'I':  # Info
                             level = 'info'
 
-                        # Parse glog timestamp - glog doesn't include year, so we infer it
-                        # Use 2025 as a reasonable default (current test year based on audit logs)
-                        # In production, you might want to get this from the prowjob metadata
-                        year = 2025
+                        # Parse glog timestamp - glog doesn't include year, so we use the
+                        # year inferred from audit logs or the current year
                         timestamp_str = f"{year}-{month}-{day}T{time_part}Z"
                         timestamp = parse_timestamp(timestamp_str)
                         timestamp_end = glog_match.end()
@@ -223,12 +253,16 @@ def main():
     pod_log_files = list(pods_dir.glob('**/*.log'))
     print(f"Found {len(pod_log_files)} pod log files", file=sys.stderr)
 
+    # Extract year from audit logs for use in log timestamp parsing
+    inferred_year = extract_year_from_audit_logs([str(f) for f in audit_log_files])
+    print(f"Using year {inferred_year} for log timestamps", file=sys.stderr)
+
     # Parse audit logs
     audit_entries = parse_audit_logs([str(f) for f in audit_log_files], resource_pattern)
     print(f"Found {len(audit_entries)} matching audit log entries", file=sys.stderr)
 
     # Parse pod logs
-    pod_entries = parse_pod_logs([str(f) for f in pod_log_files], resource_pattern)
+    pod_entries = parse_pod_logs([str(f) for f in pod_log_files], resource_pattern, year=inferred_year)
     print(f"Found {len(pod_entries)} matching pod log entries", file=sys.stderr)
 
     # Combine and sort by timestamp
