@@ -7,7 +7,7 @@ argument-hint: prowjob-url
 ci:extract-prow-job-must-gather
 
 ## Synopsis
-```
+```bash
 /ci:extract-prow-job-must-gather <prowjob-url>
 ```
 

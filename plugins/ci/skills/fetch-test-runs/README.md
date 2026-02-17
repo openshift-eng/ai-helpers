@@ -9,7 +9,7 @@ This skill fetches test runs from the Sippy API. It can return both failed and s
 Key features:
 - Fetch all test runs for a specific test (failures only by default)
 - Optionally include successful runs with `--include-success`
-- Filter to a specific Prow job with `--prowjob-name`
+- Filter to a specific Prow job with `--job-contains`
 - Filter to specific job run IDs for targeted analysis
 - Backward compatible with analyze-regression command
 
@@ -30,14 +30,14 @@ python3 plugins/ci/skills/fetch-test-runs/fetch_test_runs.py \
 # Filter to a specific Prow job
 python3 plugins/ci/skills/fetch-test-runs/fetch_test_runs.py \
   <test_id> \
-  --prowjob-name "periodic-ci-openshift-release-..." \
+  --job-contains "periodic-ci-openshift-release-..." \
   [--format json|summary]
 
 # Get full history for a specific job (for regression start analysis)
 python3 plugins/ci/skills/fetch-test-runs/fetch_test_runs.py \
   <test_id> \
   --include-success \
-  --prowjob-name "periodic-ci-openshift-release-..." \
+  --job-contains "periodic-ci-openshift-release-..." \
   [--format json|summary]
 
 # Filter to specific job run IDs (backward compatible)
@@ -53,7 +53,7 @@ python3 plugins/ci/skills/fetch-test-runs/fetch_test_runs.py \
 
 **Options**:
 - `--include-success`: Include successful test runs (default: failures only)
-- `--prowjob-name <name>`: Filter to runs from a specific Prow job
+- `--job-contains <name>`: Filter to runs from a specific Prow job
 - `--start-days-ago <days>`: Number of days to look back (default API is 7 days)
 - `--format`: Output format - `json` (default) or `summary`
 

@@ -19,6 +19,7 @@ import json
 import sys
 import urllib.request
 import urllib.error
+from typing import Optional
 
 SIPPY_BASE_URL = "https://sippy.dptools.openshift.org"
 
@@ -64,26 +65,19 @@ def fetch_related_triages(regression_id: int) -> dict:
     }
 
 
-def simplify_closed(closed) -> str:
-    """Convert closed field to a simple string or None."""
-    if closed is None:
+def simplify_nullable_time(value) -> Optional[str]:
+    """Convert a nullable time field to a simple string or None."""
+    if value is None:
         return None
-    if isinstance(closed, dict):
-        if closed.get("Valid", False):
-            return closed.get("Time")
+    if isinstance(value, dict):
+        if value.get("Valid", False):
+            return value.get("Time")
         return None
-    return str(closed)
+    return str(value)
 
 
-def simplify_last_failure(last_failure) -> str:
-    """Convert last_failure field to a simple string or None."""
-    if last_failure is None:
-        return None
-    if isinstance(last_failure, dict):
-        if last_failure.get("Valid", False):
-            return last_failure.get("Time")
-        return None
-    return str(last_failure)
+simplify_closed = simplify_nullable_time
+simplify_last_failure = simplify_nullable_time
 
 
 def simplify_regression(reg: dict) -> dict:
@@ -181,7 +175,9 @@ def process_matches(raw_matches: list, min_confidence: int) -> dict:
     deduped = []
     for reg in untriaged_regressions:
         rid = reg.get("id")
-        if rid not in seen_ids:
+        if rid is None:
+            deduped.append(reg)
+        elif rid not in seen_ids:
             seen_ids.add(rid)
             deduped.append(reg)
     untriaged_regressions = deduped

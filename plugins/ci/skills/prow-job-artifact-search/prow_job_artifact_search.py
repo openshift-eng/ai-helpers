@@ -226,7 +226,7 @@ def cmd_fetch(prefix, filepath, max_bytes=DEFAULT_MAX_BYTES):
         tmp_path = tmp.name
 
     try:
-        stdout, stderr, rc = run_gcloud(
+        _stdout, stderr, rc = run_gcloud(
             ["storage", "cp", target, tmp_path, "--no-user-output-enabled"],
             timeout=60,
         )

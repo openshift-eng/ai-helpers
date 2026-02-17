@@ -129,7 +129,7 @@ python3 fetch_new_prs_in_payload.py
 
 ### Endpoint
 
-```
+```text
 GET https://sippy.dptools.openshift.org/api/payloads/diff?toPayload={payload_tag}
 ```
 
@@ -206,7 +206,7 @@ python3 plugins/ci/skills/fetch-new-prs-in-payload/fetch_new_prs_in_payload.py 4
 ```
 
 **Expected Output:**
-```
+```text
 New PRs in payload 4.22.0-0.nightly-2026-01-15-114134
 ============================================================
 Total: 17 new pull requests

@@ -9,6 +9,7 @@ import json
 import sys
 import urllib.error
 import urllib.request
+from typing import Dict, List
 
 SIPPY_API_BASE = "https://sippy.dptools.openshift.org/api"
 
@@ -71,7 +72,7 @@ def format_summary(prs: list, payload_tag: str) -> str:
     lines.append("")
 
     # Group by component
-    by_component: dict[str, list] = {}
+    by_component: Dict[str, List] = {}
     for pr in prs:
         component = pr["component"] or "(unknown)"
         by_component.setdefault(component, []).append(pr)

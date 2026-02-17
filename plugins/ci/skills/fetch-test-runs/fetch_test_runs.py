@@ -296,7 +296,7 @@ def main():
             try:
                 start_days_ago = int(sys.argv[i + 1])
             except ValueError:
-                print(f"Error: --start-days-ago requires an integer value", file=sys.stderr)
+                print("Error: --start-days-ago requires an integer value", file=sys.stderr)
                 sys.exit(1)
             i += 2
         elif arg == '--output' and i + 1 < len(sys.argv):

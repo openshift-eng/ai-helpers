@@ -125,17 +125,14 @@ This command is useful for:
      jira_script="plugins/ci/skills/fetch-jira-issue/fetch_jira_issue.py"
      for jira_key in $(echo "$regression_data" | jq -r '.triages[].jira_key'); do
        jira_data=$(python3 "$jira_script" "$jira_key" --format json)
+
+       # The fetch-jira-issue skill automatically classifies progress. Extract the classification:
+       progress_level=$(echo "$jira_data" | jq -r '.progress.level')
+       progress_reason=$(echo "$jira_data" | jq -r '.progress.reason')
+       assignee=$(echo "$jira_data" | jq -r '.assignee.display_name // "Unassigned"')
+       linked_prs=$(echo "$jira_data" | jq -r '.linked_prs | length')
      done
    fi
-   ```
-
-   The `fetch-jira-issue` skill automatically classifies progress. Extract the classification:
-
-   ```bash
-   progress_level=$(echo "$jira_data" | jq -r '.progress.level')
-   progress_reason=$(echo "$jira_data" | jq -r '.progress.reason')
-   assignee=$(echo "$jira_data" | jq -r '.assignee.display_name // "Unassigned"')
-   linked_prs=$(echo "$jira_data" | jq -r '.linked_prs | length')
    ```
 
    See `plugins/ci/skills/fetch-jira-issue/SKILL.md` for complete implementation details.
