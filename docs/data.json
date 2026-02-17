@@ -470,7 +470,7 @@
           "name": "Triage Regression"
         }
       ],
-      "version": "0.0.5"
+      "version": "0.0.6"
     },
     {
       "commands": [
@@ -558,7 +558,7 @@
           "name": "Summarize JIRAs"
         }
       ],
-      "version": "0.0.2"
+      "version": "0.0.3"
     },
     {
       "commands": [
@@ -916,7 +916,7 @@
           "name": "generating-ovn-topology"
         }
       ],
-      "version": "0.0.2"
+      "version": "0.0.3"
     },
     {
       "commands": [
@@ -1010,7 +1010,7 @@
           "name": "LVMS Analyzer"
         }
       ],
-      "version": "0.1.0"
+      "version": "0.1.1"
     },
     {
       "commands": [],
