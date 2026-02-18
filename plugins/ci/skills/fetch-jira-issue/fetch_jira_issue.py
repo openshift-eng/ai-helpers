@@ -140,6 +140,7 @@ class JiraIssueFetcher:
             "key": raw_data.get("key", self.jira_key),
             "url": f"https://issues.redhat.com/browse/{raw_data.get('key', self.jira_key)}",
             "summary": fields.get("summary", ""),
+            "description": fields.get("description", ""),
             "status": self._parse_named_field(fields.get("status")),
             "resolution": self._parse_named_field(fields.get("resolution")),
             "priority": self._parse_named_field(fields.get("priority")),
@@ -365,6 +366,8 @@ def format_summary(issue: Dict[str, Any]) -> str:
     lines.append(f"=== {issue['key']} ===")
     lines.append(f"Summary: {issue['summary']}")
     lines.append(f"URL: {issue['url']}")
+    if issue.get("description"):
+        lines.append(f"Description: {issue['description']}")
     lines.append(f"Status: {issue['status']}")
     if issue["resolution"]:
         lines.append(f"Resolution: {issue['resolution']}")

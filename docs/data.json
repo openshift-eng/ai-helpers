@@ -361,6 +361,12 @@
           "synopsis": "/ci:query-test-result <version> <keywords> [sippy-url]"
         },
         {
+          "argument_hint": "<pr-url> <jira-ticket>",
+          "description": "Revert a merged PR that is breaking CI or nightly payloads",
+          "name": "revert-pr",
+          "synopsis": "/ci:revert-pr <pr-url> <jira-ticket>"
+        },
+        {
           "argument_hint": "<job-name> [ENV_VAR=value ...]",
           "description": "Trigger a periodic gangway job with optional environment variable overrides",
           "name": "trigger-periodic",
@@ -460,6 +466,11 @@
           "name": "Prow Job Extract Must-Gather"
         },
         {
+          "description": "Git revert workflow and Revertomatic PR template for reverting merged PRs",
+          "id": "revert-pr",
+          "name": "Revert PR"
+        },
+        {
           "description": "Set the Release Blocker field on a JIRA issue",
           "id": "set-release-blocker",
           "name": "Set Release Blocker"
@@ -470,7 +481,7 @@
           "name": "Triage Regression"
         }
       ],
-      "version": "0.0.6"
+      "version": "0.0.7"
     },
     {
       "commands": [
