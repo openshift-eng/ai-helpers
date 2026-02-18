@@ -1202,6 +1202,22 @@
     {
       "commands": [
         {
+          "argument_hint": "[--registry=<registry>] [--base-release=<release-image>] [--bash]",
+          "description": "Automate compilation of OpenShift operators from source to target OKD SCOS",
+          "name": "build-operators",
+          "synopsis": "/okd-build:build-operators [--registry=<registry>] [--base-release=<release-image>] [--bash]"
+        }
+      ],
+      "description": "Automate compilation of OpenShift operators from source to target OKD (Stream CoreOS - SCOS)",
+      "has_readme": true,
+      "hooks": [],
+      "name": "okd-build",
+      "skills": [],
+      "version": "0.0.1"
+    },
+    {
+      "commands": [
+        {
           "argument_hint": "[--url PR_URL] [<pr>] [--depth quick|full]",
           "description": "Expert review tool for PRs that add or modify Two Node (Fencing or Arbiter) tests under test/extended/two_node/ in openshift/origin.",
           "name": "two-node-origin-pr-helper",
