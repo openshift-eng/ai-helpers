@@ -3,6 +3,7 @@
 This document lists all available Claude Code plugins and their commands in the ai-helpers repository.
 
 - [Agendas](#agendas-plugin)
+- [Agent Gather](#agent-gather-plugin)
 - [Bigquery](#bigquery-plugin)
 - [Ci](#ci-plugin)
 - [Code Review](#code-review-plugin)
@@ -39,6 +40,17 @@ A plugin to create various meeting agendas
 - **`/agendas:outcome-refinement`** - Analyze the list of JIRA outcome issues to prepare an outcome refinement meeting agenda.
 
 See [plugins/agendas/README.md](plugins/agendas/README.md) for detailed documentation.
+
+### Agent Gather Plugin
+
+Collect and analyze diagnostic data from OpenShift agent-based installer deployments
+
+**Commands:**
+- **`/agent-gather:analyze` `[path] [--component name] [--attach-logs]`** - Analyze agent-gather data for common installation issues
+- **`/agent-gather:collect` `<node-ip> [--output path] [--all-nodes]`** - Collect diagnostic data from agent-based installer nodes
+- **`/agent-gather:decode-journal` `[path] [--service name] [--priority level]`** - Decode systemd journal export files to human-readable format
+
+See [plugins/agent-gather/README.md](plugins/agent-gather/README.md) for detailed documentation.
 
 ### Bigquery Plugin
 
