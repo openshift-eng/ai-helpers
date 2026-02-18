@@ -183,6 +183,11 @@
       "source": "./plugins/ote-migration",
       "description": "Automate OpenShift Tests Extension (OTE) migration for component repositories",
       "version": "0.0.1"
+    },
+    {
+      "name": "crypto-inventory",
+      "source": "./plugins/crypto-inventory",
+      "description": "Find and inventory cryptographic usage across codebases"
     }
   ]
 }
