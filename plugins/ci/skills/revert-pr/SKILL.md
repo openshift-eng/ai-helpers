@@ -296,10 +296,6 @@ To unrevert this, revert this PR, and layer an additional separate commit on top
 ```
 
 CC: @{ORIGINAL_AUTHOR}
-
-<div align="right">
-PR created by <a href="https://github.com/stbenjam/revertomatic">Revertomatic<sup>:tm:</sup></a>
-</div>
 ```
 
 **Template Variables**:
@@ -408,10 +404,6 @@ To unrevert this, revert this PR, and layer an additional separate commit on top
 ```
 
 CC: @originalauthor
-
-<div align="right">
-PR created by <a href="https://github.com/stbenjam/revertomatic">Revertomatic<sup>:tm:</sup></a>
-</div>
 ```
 
 ## Notes
