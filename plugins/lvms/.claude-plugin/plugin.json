@@ -1,7 +1,7 @@
 {
   "name": "lvms",
   "description": "LVMS (Logical Volume Manager Storage) plugin for troubleshooting and debugging storage issues",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "author": {
     "name": "github.com/openshift-eng"
   }

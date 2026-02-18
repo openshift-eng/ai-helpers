@@ -90,7 +90,7 @@ Collected when you use a slash command or invoke a skill:
 | Field | Description | Example |
 |-------|-------------|---------|
 | `type` | Metric type | `"slash_command"` or `"skill"` |
-| `name` | The command or skill name | `"jira:solve"` or `"prow-job:prow-job-analyze-install-failure"` |
+| `name` | The command or skill name | `"jira:solve"` or `"ci:prow-job-analyze-install-failure"` |
 | `engine` | Always "claude" | `"claude"` |
 | `version` | Plugin version | `"1.0"` |
 | `timestamp` | UTC timestamp | `"2025-10-30T12:34:56Z"` |
@@ -131,7 +131,7 @@ Skill invocation:
 ```json
 {
   "type": "skill",
-  "name": "prow-job:prow-job-analyze-install-failure",
+  "name": "ci:prow-job-analyze-install-failure",
   "engine": "claude",
   "version": "1.0",
   "timestamp": "2025-10-30T12:34:56Z",

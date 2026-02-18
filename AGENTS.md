@@ -163,7 +163,7 @@ Detailed implementation instructions that guide the AI agent step-by-step.
 ...
 ```
 
-**Example:** See `plugins/prow-job/skills/prow-job-analyze-resource/SKILL.md` for a comprehensive skill implementation.
+**Example:** See `plugins/ci/skills/prow-job-analyze-resource/SKILL.md` for a comprehensive skill implementation.
 
 ### 5. Marketplace Registration
 
@@ -230,7 +230,7 @@ Slash commands exist to leverage Claude's AI capabilities. If a task can be acco
 - Collecting metrics without interpreting or prioritizing them
 
 **✅ Good examples (leverages AI):**
-- Analyzing test failures to diagnose root causes (`/prow-job:analyze-test-failure`)
+- Analyzing test failures to diagnose root causes (`/ci:analyze-test-failure`)
 - Understanding JIRA issues and proposing code changes (`/jira:solve`)
 - Interpreting complex data and providing actionable recommendations
 - Making contextual decisions based on codebase analysis
@@ -329,7 +329,7 @@ If your command needs helper scripts (Python, Bash, etc.):
 2. Reference scripts using relative paths: `plugins/{plugin-name}/skills/{skill-name}/script.py`
 3. Document script usage in the SKILL.md file
 
-**Example:** `plugins/prow-job/skills/prow-job-analyze-resource/parse_all_logs.py`
+**Example:** `plugins/ci/skills/prow-job-analyze-resource/parse_all_logs.py`
 
 ### Validating with the Linter
 
@@ -478,8 +478,7 @@ Example: `.work/prow-job-analyze-resource/1234567890/etcd-0.html`
 |--------|---------|--------------|
 | `hello-world` | Reference implementation | `/hello-world:echo` |
 | `jira` | JIRA automation | `/jira:solve`, `/jira:status-rollup`, `/jira:grooming`, `/jira:outcome-refinement` |
-| `prow-job` | Prow CI analysis | `/prow-job:analyze-test-failure`, `/prow-job:analyze-resource` |
-| `ci` | OpenShift CI integration | `/ci:trigger-presubmit`, `/ci:ask-sippy` |
+| `ci` | OpenShift CI integration & Prow job analysis | `/ci:trigger-presubmit`, `/ci:ask-sippy`, `/ci:analyze-prow-job-test-failure`, `/ci:analyze-prow-job-resource` |
 | `utils` | General utilities | `/utils:generate-test-plan`, `/utils:address-reviews` |
 | `git` | Git workflows | `/git:bisect`, `/git:commit-suggest`, `/git:summary` |
 | `session` | Session management | `/session:save-session` |
@@ -488,7 +487,7 @@ Example: `.work/prow-job-analyze-resource/1234567890/etcd-0.html`
 
 - **Example Plugin:** `plugins/hello-world/` - Minimal reference implementation
 - **Complex Plugin:** `plugins/jira/` - Full-featured plugin with multiple commands
-- **Skills Example:** `plugins/prow-job/skills/prow-job-analyze-resource/` - Detailed implementation guide
+- **Skills Example:** `plugins/ci/skills/prow-job-analyze-resource/` - Detailed implementation guide
 - **Main README:** `README.md` - User-facing documentation
 - **Claude Code Docs:** https://docs.claude.com/en/docs/claude-code/
 
