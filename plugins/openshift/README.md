@@ -4,6 +4,18 @@ OpenShift development utilities and workflow helpers for Claude Code.
 
 ## Commands
 
+### `/openshift:install-vsphere`
+
+Install OpenShift on vSphere with an automated workflow designed for IBM Cloud Classic infrastructure.
+
+Features:
+- Auto-installs and configures `govc` for vSphere discovery
+- Interactive dropdown selection for datacenters, clusters, datastores, and networks
+- Automated VIP selection using Route53 queries and ping verification
+- Auto-creates Route53 DNS records (api, api-int, *.apps)
+- Generates install-config.yaml from gathered information
+- Guides through complete installation process
+
 ### `/openshift:new-e2e-test`
 
 Write and validate new OpenShift E2E tests using the Ginkgo framework.
