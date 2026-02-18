@@ -24,7 +24,6 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Openshift](#openshift-plugin)
 - [Origin](#origin-plugin)
 - [Ote Migration](#ote-migration-plugin)
-- [Prow Job](#prow-job-plugin)
 - [Session](#session-plugin)
 - [Sosreport](#sosreport-plugin)
 - [Teams](#teams-plugin)
@@ -302,18 +301,6 @@ Automate OpenShift Tests Extension (OTE) migration for component repositories
 - **`/ote-migration:migrate`** - Automate OpenShift Tests Extension (OTE) migration for component repositories
 
 See [plugins/ote-migration/README.md](plugins/ote-migration/README.md) for detailed documentation.
-
-### Prow Job Plugin
-
-A plugin to analyze and inspect Prow CI job results
-
-**Commands:**
-- **`/prow-job:analyze-install-failure` `<prowjob-url>`** - Analyze OpenShift installation failures in Prow CI jobs
-- **`/prow-job:analyze-resource` `prowjob-url resource-name`** - Analyze Kubernetes resource lifecycle in Prow job artifacts
-- **`/prow-job:analyze-test-failure` `prowjob-url test-name [--fast]`** - Analyzes test errors from console logs and Prow CI job artifacts
-- **`/prow-job:extract-must-gather` `prowjob-url`** - Extract and decompress must-gather archives from Prow job artifacts
-
-See [plugins/prow-job/README.md](plugins/prow-job/README.md) for detailed documentation.
 
 ### Session Plugin
 
