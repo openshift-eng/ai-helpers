@@ -41,10 +41,17 @@ This command is useful when:
    - If the user provides additional context about why the revert is needed, capture it for the PR body
    - If the user provides verification details (jobs to run before unrevert), capture those too
 
-2. **Gather Context**: If not provided as arguments, ask the user
+2. **Gather Context**: Use the JIRA ticket to automatically determine what broke and what needs verification
 
-   - **Context**: Why is this PR being reverted? (e.g., "This PR broke all e2e-aws jobs on the 4.18 nightly payload")
-   - **Verification**: What jobs should be run to verify a fix before unreverting? (e.g., "Run e2e-aws and e2e-gcp jobs")
+   - **Look up the JIRA ticket** using the `fetch-jira-issue` skill (`plugins/ci/skills/fetch-jira-issue/fetch_jira_issue.py`) with `--format json`
+   - **Extract context from the JIRA issue**: Use the issue summary, description, and comments to determine:
+     - **What broke**: Which CI jobs or payloads are failing (e.g., "e2e-aws jobs failing on 4.18 nightly payload")
+     - **Verification jobs**: Which jobs should pass before the original change can be re-landed (e.g., "e2e-aws, e2e-gcp")
+   - **Compose the context** for the revert PR body from the JIRA issue details. Include links to failing jobs or payloads if mentioned in the ticket.
+   - **Fall back to asking the user** only if:
+     - The JIRA lookup fails (token not set, network error, ticket not found)
+     - The JIRA issue doesn't contain enough information to determine what broke or which jobs to verify
+   - If the user provided additional context as inline arguments, combine it with the JIRA-derived context
 
 3. **Perform the Revert**: Use the `revert-pr` skill
 

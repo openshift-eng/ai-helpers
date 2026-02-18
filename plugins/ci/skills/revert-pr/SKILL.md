@@ -94,7 +94,48 @@ If using an existing local clone, ensure remotes are configured correctly:
 git remote -v
 ```
 
-### Step 5: Detect Commit Message Convention
+### Step 5: Look Up JIRA Ticket for Context
+
+When a JIRA ticket is provided, use the `fetch-jira-issue` skill to automatically gather context about what broke and which jobs need verification before unreverting.
+
+```bash
+# Path to the fetch-jira-issue script
+jira_script="plugins/ci/skills/fetch-jira-issue/fetch_jira_issue.py"
+
+# Fetch JIRA issue details
+jira_data=$(python3 "$jira_script" "$JIRA" --format json 2>/dev/null)
+```
+
+**Extract context from the JIRA issue**:
+
+From the JSON output, examine the `summary`, `comments`, and `linked_prs` fields to determine:
+
+1. **What broke** (for the `{CONTEXT}` template variable):
+   - Look at the issue summary and description for mentions of failing jobs, payloads, or test names
+   - Check comments for links to failing Prow jobs, payload pages, or Sippy reports
+   - Look for patterns like `e2e-aws`, `e2e-gcp`, `nightly`, `payload`, or release stream URLs
+
+2. **Verification jobs** (for the unrevert instructions):
+   - Identify which specific CI jobs are mentioned as broken in the ticket
+   - These are the jobs the original author should run before re-landing their change
+   - Common patterns: `e2e-aws`, `e2e-gcp`, `e2e-metal-ipi`, `e2e-ovn`, etc.
+
+```bash
+# Example: Extract context from JIRA data
+jira_summary=$(echo "$jira_data" | jq -r '.summary')
+jira_comments=$(echo "$jira_data" | jq -r '.comments[].body')
+
+# Look for job names and payload URLs in the summary and comments
+# to build the CONTEXT and VERIFICATION variables
+```
+
+**Fallback**: If the JIRA lookup fails (no token, network error, or insufficient detail in the ticket), ask the user interactively:
+- "Why is this PR being reverted?"
+- "What jobs should be run to verify a fix before unreverting?"
+
+If the user also provided inline context as arguments, combine it with the JIRA-derived context.
+
+### Step 6: Detect Commit Message Convention
 
 Before creating the revert, check recent commits in the repository to determine if it uses a special commit/PR title prefix convention.
 
@@ -115,11 +156,11 @@ git log "upstream/$base_branch" --oneline -20
   ```
   UPSTREAM: <carry>: Revert "UPSTREAM: 12345: Fix kubelet crash" because it broke e2e-aws jobs
   ```
-- If the repo does NOT use this convention, use the standard format described in Step 8.
+- If the repo does NOT use this convention, use the standard format described in Step 9.
 
-Store the detected convention for use in Steps 7 and 8.
+Store the detected convention for use in Steps 7 and 9.
 
-### Step 6: Create Revert Branch and Perform Revert
+### Step 7: Create Revert Branch and Perform Revert
 
 ```bash
 # Fetch latest from upstream
@@ -194,7 +235,7 @@ After conflict resolution (either strategy), push to the fork:
 git push fork "$revert_branch:$revert_branch"
 ```
 
-### Step 7: Generate CI Override Commands
+### Step 8: Generate CI Override Commands
 
 After the revert PR is created, determine which CI jobs need `/override` commands:
 
@@ -221,7 +262,7 @@ Format remaining jobs as override commands:
 ...
 ```
 
-### Step 8: Create the Revert PR with Revertomatic Template
+### Step 9: Create the Revert PR with Revertomatic Template
 
 **PR Title Format** depends on the commit convention detected in Step 5:
 
@@ -264,7 +305,7 @@ PR created by <a href="https://github.com/stbenjam/revertomatic">Revertomatic<su
 **Template Variables**:
 - `{ORIGINAL_PR_NUMBER}`: The PR number being reverted (e.g., `1703`)
 - `{JIRA_ISSUE}`: The JIRA ticket tracking the revert (e.g., `TRT-9999`)
-- `{CONTEXT}`: User-provided explanation of why the revert is needed (e.g., "This PR broke all e2e-aws jobs on the 4.18 nightly payload at https://amd64.ocp.releases.ci.openshift.org/...")
+- `{CONTEXT}`: Explanation of why the revert is needed, derived from the JIRA ticket (Step 5) or provided by the user (e.g., "This PR broke all e2e-aws jobs on the 4.18 nightly payload at https://amd64.ocp.releases.ci.openshift.org/...")
 - `{OVERRIDE_COMMANDS}`: The list of `/override` commands for CI jobs that need to be bypassed
 - `{ORIGINAL_AUTHOR}`: GitHub username of the original PR author
 
@@ -279,7 +320,7 @@ gh pr create \
   --body "$rendered_body"
 ```
 
-### Step 9: Post Override Commands (Optional)
+### Step 10: Post Override Commands (Optional)
 
 After the revert PR is created, the override commands can be posted as a comment on the PR to make it easy to copy-paste:
 
@@ -384,5 +425,6 @@ PR created by <a href="https://github.com/stbenjam/revertomatic">Revertomatic<su
 ## See Also
 
 - Related Command: `/ci:revert-pr` - The user-facing command that uses this skill (`plugins/ci/commands/revert-pr.md`)
+- Related Skill: `fetch-jira-issue` - Fetches JIRA issue details for automatic context extraction (`plugins/ci/skills/fetch-jira-issue/SKILL.md`)
 - Revertomatic: https://github.com/stbenjam/revertomatic
 - OpenShift Quick Revert Policy: https://github.com/openshift/enhancements/blob/master/enhancements/release/improving-ci-signal.md#quick-revert
