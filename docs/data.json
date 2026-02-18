@@ -563,6 +563,45 @@
     {
       "commands": [
         {
+          "argument_hint": "<ocp-version> <operator-name>",
+          "description": "Generate CatalogSource manifest for testing operators built in Konflux",
+          "name": "catalog-source",
+          "synopsis": "bash"
+        },
+        {
+          "argument_hint": "<ocp-version> <operator-name>",
+          "description": "Generate IDMS manifest so that art-image-share mirrors would be used on the cluster for all operator related images",
+          "name": "idms",
+          "synopsis": "/fbc-art-images:idms <ocp-version> <operator-name>"
+        },
+        {
+          "argument_hint": "<ocp-version> <operator-name>",
+          "description": "Generate CatalogSource, IDMS, and configure pull-secret for FBC testing",
+          "name": "setup",
+          "synopsis": "bash"
+        }
+      ],
+      "description": "A plugin for testing operators built in FBC ([File Based Catalog](https://olm.operatorframework.io/docs/reference/file-based-catalogs/) by Konflux with art-images-share repository. Requires oras CLI.",
+      "has_readme": true,
+      "hooks": [],
+      "name": "fbc-art-images",
+      "skills": [
+        {
+          "description": "Generate a CatalogSource manifest for FBC operator testing",
+          "id": "generate-catalog-source",
+          "name": "Generate CatalogSource Manifest"
+        },
+        {
+          "description": "Generate an ImageDigestMirrorSet manifest for art-image-share registry mirroring",
+          "id": "generate-idms",
+          "name": "Generate IDMS Manifest"
+        }
+      ],
+      "version": "0.0.1"
+    },
+    {
+      "commands": [
+        {
           "argument_hint": "[task description]",
           "description": "Generate professional engineering notes and append them to a log file",
           "name": "note",
