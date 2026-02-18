@@ -1093,18 +1093,39 @@
     {
       "commands": [
         {
-          "argument_hint": "<CVE-ID>",
+          "argument_hint": "<CVE-ID> [--algo=vta|rta|cha|static]",
           "description": "Analyze Go codebase for CVE vulnerabilities and suggest fixes",
           "name": "analyze-cve",
-          "synopsis": "/compliance:analyze-cve <CVE-ID>"
+          "synopsis": "/compliance:analyze-cve <CVE-ID> [--algo=vta|rta|cha|static]"
         }
       ],
       "description": "Security compliance and vulnerability analysis tools for Go projects",
       "has_readme": true,
       "hooks": [],
       "name": "compliance",
-      "skills": [],
-      "version": "0.0.2"
+      "skills": [
+        {
+          "description": "Perform definitive call graph analysis to prove whether vulnerable functions are reachable from program entry points",
+          "id": "call-graph-analysis",
+          "name": "Call Graph Reachability Analysis"
+        },
+        {
+          "description": "Analyze a Go codebase to determine if it is impacted by a specific CVE using multiple verification methods and assign a risk level",
+          "id": "codebase-impact-analysis",
+          "name": "Codebase Impact Analysis"
+        },
+        {
+          "description": "Gather comprehensive vulnerability information from multiple authoritative sources with fallback strategies",
+          "id": "cve-intelligence-gathering",
+          "name": "CVE Intelligence Gathering"
+        },
+        {
+          "description": "Generate comprehensive remediation guidance including dependency updates, code changes, workarounds, and verification steps",
+          "id": "remediation-planning",
+          "name": "Remediation Planning"
+        }
+      ],
+      "version": "0.0.3"
     },
     {
       "commands": [

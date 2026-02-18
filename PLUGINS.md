@@ -88,7 +88,7 @@ See [plugins/code-review/README.md](plugins/code-review/README.md) for detailed 
 Security compliance and vulnerability analysis tools for Go projects
 
 **Commands:**
-- **`/compliance:analyze-cve` `<CVE-ID>`** - Analyze Go codebase for CVE vulnerabilities and suggest fixes
+- **`/compliance:analyze-cve` `<CVE-ID> [--algo=vta|rta|cha|static]`** - Analyze Go codebase for CVE vulnerabilities and suggest fixes
 
 See [plugins/compliance/README.md](plugins/compliance/README.md) for detailed documentation.
 
