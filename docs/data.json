@@ -76,7 +76,7 @@
           "name": "Suggest Reviewers Helper"
         }
       ],
-      "version": "0.0.3"
+      "version": "0.0.4"
     },
     {
       "commands": [
@@ -289,6 +289,24 @@
           "synopsis": "/ci:add-debug-wait <workflow-or-job-name> [timeout]"
         },
         {
+          "argument_hint": "<prowjob-url>",
+          "description": "Analyze OpenShift installation failures in Prow CI jobs",
+          "name": "analyze-prow-job-install-failure",
+          "synopsis": "/ci:analyze-prow-job-install-failure <prowjob-url>"
+        },
+        {
+          "argument_hint": "prowjob-url resource-name",
+          "description": "Analyze Kubernetes resource lifecycle in Prow job artifacts",
+          "name": "analyze-prow-job-resource",
+          "synopsis": ""
+        },
+        {
+          "argument_hint": "prowjob-url test-name [--fast]",
+          "description": "Analyzes test errors from console logs and Prow CI job artifacts",
+          "name": "analyze-prow-job-test-failure",
+          "synopsis": ""
+        },
+        {
           "argument_hint": "<regression id>",
           "description": "Analyze details about a Component Readiness regression and suggest next steps",
           "name": "analyze-regression",
@@ -299,6 +317,24 @@
           "description": "Ask the Sippy AI agent questions about OpenShift CI payloads, jobs, and test results",
           "name": "ask-sippy",
           "synopsis": "/ask-sippy [question]"
+        },
+        {
+          "argument_hint": "<jira-key-or-url>",
+          "description": "Check if the regression described in a Jira bug is still ongoing or has resolved",
+          "name": "check-if-jira-regression-is-ongoing",
+          "synopsis": "/ci:check-if-jira-regression-is-ongoing <jira-key-or-url>"
+        },
+        {
+          "argument_hint": "prowjob-url",
+          "description": "Extract and decompress must-gather archives from Prow job artifacts",
+          "name": "extract-prow-job-must-gather",
+          "synopsis": "bash"
+        },
+        {
+          "argument_hint": "<test-name> [release]",
+          "description": "Fetch a test report from Sippy showing pass rates, test ID, and Jira component",
+          "name": "fetch-test-report",
+          "synopsis": "/ci:fetch-test-report <test-name> [release]"
         },
         {
           "argument_hint": "<workflow-or-chain-name>",
@@ -343,28 +379,98 @@
           "synopsis": "/trigger-presubmit <job-name> <org> <repo> <base-ref> <base-sha> <pr-number> <pr-sha> [ENV_VAR=value ...]"
         }
       ],
-      "description": "A plugin to work with OpenShift CI",
+      "description": "A plugin to work with OpenShift CI and analyze Prow job results",
       "has_readme": true,
       "hooks": [],
       "name": "ci",
       "skills": [
+        {
+          "description": "Fetch JIRA issue details including status, assignee, comments, and progress classification",
+          "id": "fetch-jira-issue",
+          "name": "Fetch JIRA Issue"
+        },
+        {
+          "description": "Fetch pull requests that are new in a given OpenShift payload compared to the previous payload",
+          "id": "fetch-new-prs-in-payload",
+          "name": "Fetch New PRs in Payload"
+        },
+        {
+          "description": "Fetch and return key data from a Prow job's prowjob.json artifact given a Prow job URL",
+          "id": "fetch-prowjob-json",
+          "name": "Fetch ProwJob JSON"
+        },
         {
           "description": "Fetch detailed information about a Component Readiness regression from the Sippy API",
           "id": "fetch-regression-details",
           "name": "Fetch Regression Details"
         },
         {
-          "description": "Fetch test failure outputs from Sippy API for AI-based similarity analysis",
-          "id": "fetch-test-failure-outputs",
-          "name": "Fetch Test Failure Outputs"
+          "description": "Fetch existing triages and untriaged regressions related to a given regression",
+          "id": "fetch-related-triages",
+          "name": "Fetch Related Triages"
+        },
+        {
+          "description": "Fetch available OpenShift releases from the Sippy API",
+          "id": "fetch-releases",
+          "name": "Fetch Releases"
+        },
+        {
+          "description": "Fetch an OpenShift CI test report by name to get pass rates, test ID, and Jira component from Sippy",
+          "id": "fetch-test-report",
+          "name": "Fetch Test Report"
+        },
+        {
+          "description": "Fetch test runs from Sippy API including outputs for AI-based similarity analysis",
+          "id": "fetch-test-runs",
+          "name": "Fetch Test Runs"
         },
         {
           "description": "Helper skill to retrieve OAuth tokens from the correct OpenShift cluster context when multiple clusters are configured",
           "id": "oc-auth",
           "name": "OC Authentication Helper"
+        },
+        {
+          "description": "Analyze OpenShift installation failures in Prow CI jobs by examining installer logs, log bundles, and sosreports. Use when CI job fails \"install should succeed\" tests at bootstrap, cluster creation or other stages.",
+          "id": "prow-job-analyze-install-failure",
+          "name": "Prow Job Analyze Install Failure"
+        },
+        {
+          "description": "Analyze OpenShift bare metal installation failures in Prow CI jobs using dev-scripts artifacts. Use for jobs with \"metal\" in name, for debugging Metal3/Ironic provisioning, installation, or dev-scripts setup failures. You may also use the prow-job-analyze-install-failure skill with this one.",
+          "id": "prow-job-analyze-metal-install-failure",
+          "name": "Prow Job Analyze Metal Install Failure"
+        },
+        {
+          "description": "Analyze Kubernetes resource lifecycle in Prow CI job artifacts by parsing audit logs and pod logs from GCS, generating interactive HTML reports with timelines",
+          "id": "prow-job-analyze-resource",
+          "name": "Prow Job Analyze Resource"
+        },
+        {
+          "description": "Analyze failed Prow CI tests by inspecting test code, downloading artifacts, and optionally integrating must-gather cluster diagnostics for root cause analysis",
+          "id": "prow-job-analyze-test-failure",
+          "name": "Prow Job Analyze Test Failure"
+        },
+        {
+          "description": "Search, list, and fetch artifacts from Prow CI job runs stored in GCS using the gcloud CLI",
+          "id": "prow-job-artifact-search",
+          "name": "Prow Job Artifact Search"
+        },
+        {
+          "description": "Extract and decompress must-gather archives from Prow CI job artifacts, generating an interactive HTML file browser with filters",
+          "id": "prow-job-extract-must-gather",
+          "name": "Prow Job Extract Must-Gather"
+        },
+        {
+          "description": "Set the Release Blocker field on a JIRA issue",
+          "id": "set-release-blocker",
+          "name": "Set Release Blocker"
+        },
+        {
+          "description": "Create or update a Component Readiness triage record linking regressions to a JIRA bug",
+          "id": "triage-regression",
+          "name": "Triage Regression"
         }
       ],
-      "version": "0.0.5"
+      "version": "0.0.6"
     },
     {
       "commands": [
@@ -452,7 +558,7 @@
           "name": "Summarize JIRAs"
         }
       ],
-      "version": "0.0.2"
+      "version": "0.0.3"
     },
     {
       "commands": [
@@ -681,6 +787,12 @@
           "description": "Set up OLM development repositories and onboard to the team",
           "name": "dev-setup",
           "synopsis": "/olm-team:dev-setup [target-directory]"
+        },
+        {
+          "argument_hint": "",
+          "description": "Watch open Enhancement PRs from other teams that may impact OLM",
+          "name": "ep-watch",
+          "synopsis": "bash"
         }
       ],
       "description": "OLM team development utilities and onboarding tools",
@@ -694,67 +806,7 @@
           "name": "k8s-ocp-olm-expert"
         }
       ],
-      "version": "0.1.0"
-    },
-    {
-      "commands": [
-        {
-          "argument_hint": "<prowjob-url>",
-          "description": "Analyze OpenShift installation failures in Prow CI jobs",
-          "name": "analyze-install-failure",
-          "synopsis": "/prow-job:analyze-install-failure <prowjob-url>"
-        },
-        {
-          "argument_hint": "prowjob-url resource-name",
-          "description": "Analyze Kubernetes resource lifecycle in Prow job artifacts",
-          "name": "analyze-resource",
-          "synopsis": ""
-        },
-        {
-          "argument_hint": "prowjob-url test-name [--fast]",
-          "description": "Analyzes test errors from console logs and Prow CI job artifacts",
-          "name": "analyze-test-failure",
-          "synopsis": ""
-        },
-        {
-          "argument_hint": "prowjob-url",
-          "description": "Extract and decompress must-gather archives from Prow job artifacts",
-          "name": "extract-must-gather",
-          "synopsis": "/prow-job:extract-must-gather <prowjob-url>"
-        }
-      ],
-      "description": "A plugin to analyze and inspect Prow CI job results",
-      "has_readme": true,
-      "hooks": [],
-      "name": "prow-job",
-      "skills": [
-        {
-          "description": "Analyze OpenShift installation failures in Prow CI jobs by examining installer logs, log bundles, and sosreports. Use when CI job fails \"install should succeed\" tests at bootstrap, cluster creation or other stages.",
-          "id": "prow-job-analyze-install-failure",
-          "name": "Prow Job Analyze Install Failure"
-        },
-        {
-          "description": "Analyze OpenShift bare metal installation failures in Prow CI jobs using dev-scripts artifacts. Use for jobs with \"metal\" in name, for debugging Metal3/Ironic provisioning, installation, or dev-scripts setup failures. You may also use the prow-job-analyze-install-failure skill with this one.",
-          "id": "prow-job-analyze-metal-install-failure",
-          "name": "Prow Job Analyze Metal Install Failure"
-        },
-        {
-          "description": "Analyze Kubernetes resource lifecycle in Prow CI job artifacts by parsing audit logs and pod logs from GCS, generating interactive HTML reports with timelines",
-          "id": "prow-job-analyze-resource",
-          "name": "Prow Job Analyze Resource"
-        },
-        {
-          "description": "Analyze failed Prow CI tests by inspecting test code, downloading artifacts, and optionally integrating must-gather cluster diagnostics for root cause analysis",
-          "id": "prow-job-analyze-test-failure",
-          "name": "Prow Job Analyze Test Failure"
-        },
-        {
-          "description": "Extract and decompress must-gather archives from Prow CI job artifacts, generating an interactive HTML file browser with filters",
-          "id": "prow-job-extract-must-gather",
-          "name": "Prow Job Extract Must-Gather"
-        }
-      ],
-      "version": "0.0.5"
+      "version": "0.2.0"
     },
     {
       "commands": [
@@ -864,7 +916,7 @@
           "name": "generating-ovn-topology"
         }
       ],
-      "version": "0.0.2"
+      "version": "0.0.3"
     },
     {
       "commands": [
@@ -958,7 +1010,7 @@
           "name": "LVMS Analyzer"
         }
       ],
-      "version": "0.1.0"
+      "version": "0.1.1"
     },
     {
       "commands": [],
@@ -1041,18 +1093,39 @@
     {
       "commands": [
         {
-          "argument_hint": "<CVE-ID>",
+          "argument_hint": "<CVE-ID> [--algo=vta|rta|cha|static]",
           "description": "Analyze Go codebase for CVE vulnerabilities and suggest fixes",
           "name": "analyze-cve",
-          "synopsis": "/compliance:analyze-cve <CVE-ID>"
+          "synopsis": "/compliance:analyze-cve <CVE-ID> [--algo=vta|rta|cha|static]"
         }
       ],
       "description": "Security compliance and vulnerability analysis tools for Go projects",
       "has_readme": true,
       "hooks": [],
       "name": "compliance",
-      "skills": [],
-      "version": "0.0.2"
+      "skills": [
+        {
+          "description": "Perform definitive call graph analysis to prove whether vulnerable functions are reachable from program entry points",
+          "id": "call-graph-analysis",
+          "name": "Call Graph Reachability Analysis"
+        },
+        {
+          "description": "Analyze a Go codebase to determine if it is impacted by a specific CVE using multiple verification methods and assign a risk level",
+          "id": "codebase-impact-analysis",
+          "name": "Codebase Impact Analysis"
+        },
+        {
+          "description": "Gather comprehensive vulnerability information from multiple authoritative sources with fallback strategies",
+          "id": "cve-intelligence-gathering",
+          "name": "CVE Intelligence Gathering"
+        },
+        {
+          "description": "Generate comprehensive remediation guidance including dependency updates, code changes, workarounds, and verification steps",
+          "id": "remediation-planning",
+          "name": "Remediation Planning"
+        }
+      ],
+      "version": "0.0.3"
     },
     {
       "commands": [

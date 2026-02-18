@@ -322,6 +322,18 @@ python3 plugins/teams/skills/list-regressions/list_regressions.py \
   - Examples: `--components Monitoring etcd "kube-apiserver"`
   - Filtering is performed after fetching data from the API
 
+- `--test-name`: Filter by exact test name
+  - Value: Exact test name string (case-sensitive)
+  - Returns only regressions for this specific test across all variants and components
+  - Useful for finding all variant-specific regressions for a single test
+  - Example: `--test-name "[Monitor:kubelet-container-restarts][sig-architecture] platform pods in ns/openshift-machine-config-operator should not exit an excessive amount of times"`
+
+- `--test-name-contains`: Filter by test name substring
+  - Value: Substring to search for within test names (case-insensitive)
+  - Returns regressions whose test name contains the given string
+  - Useful for finding related tests in the same namespace or sig
+  - Example: `--test-name-contains "openshift-machine-config-operator"`
+
 ## Output Format
 
 The script outputs JSON with summaries and regressions grouped by component:
@@ -530,6 +542,28 @@ python3 plugins/teams/skills/list-regressions/list_regressions.py \
 ```
 
 **Expected Output**: JSON containing regressions for the kube-apiserver component in release 4.21
+
+### Example 4: Filter by Exact Test Name
+
+```bash
+python3 plugins/teams/skills/list-regressions/list_regressions.py \
+  --release 4.22 \
+  --test-name "[Monitor:kubelet-container-restarts][sig-architecture] platform pods in ns/openshift-machine-config-operator should not exit an excessive amount of times"
+```
+
+**Expected Output**: JSON containing all regressions (across all components and variants) for this exact test in release 4.22. Useful for finding the same test failing in different variant combinations.
+
+### Example 5: Filter by Test Name Substring
+
+```bash
+python3 plugins/teams/skills/list-regressions/list_regressions.py \
+  --release 4.22 \
+  --test-name-contains "openshift-machine-config-operator"
+```
+
+**Expected Output**: JSON containing all regressions whose test name contains the substring (case-insensitive). Useful for finding related tests in the same namespace or sig.
+
+**Note**: `--test-name` and `--test-name-contains` are mutually exclusive with each other and with `--components`/`--team`. They search across all components automatically.
 
 ## Customization
 

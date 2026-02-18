@@ -53,12 +53,18 @@ See [plugins/bigquery/README.md](plugins/bigquery/README.md) for detailed docume
 
 ### Ci Plugin
 
-Miscellaneous tools for working with OpenShift CI
+Tools for working with OpenShift CI and analyzing Prow job results
 
 **Commands:**
 - **`/ci:add-debug-wait` `<workflow-or-job-name> [timeout]`** - Add a wait step to a CI workflow for debugging test failures
+- **`/ci:analyze-prow-job-install-failure` `<prowjob-url>`** - Analyze OpenShift installation failures in Prow CI jobs
+- **`/ci:analyze-prow-job-resource` `prowjob-url resource-name`** - Analyze Kubernetes resource lifecycle in Prow job artifacts
+- **`/ci:analyze-prow-job-test-failure` `prowjob-url test-name [--fast]`** - Analyzes test errors from console logs and Prow CI job artifacts
 - **`/ci:analyze-regression` `<regression id>`** - Analyze details about a Component Readiness regression and suggest next steps
 - **`/ci:ask-sippy` `[question]`** - Ask the Sippy AI agent questions about OpenShift CI payloads, jobs, and test results
+- **`/ci:check-if-jira-regression-is-ongoing` `<jira-key-or-url>`** - Check if the regression described in a Jira bug is still ongoing or has resolved
+- **`/ci:extract-prow-job-must-gather` `prowjob-url`** - Extract and decompress must-gather archives from Prow job artifacts
+- **`/ci:fetch-test-report` `<test-name> [release]`** - Fetch a test report from Sippy showing pass rates, test ID, and Jira component
 - **`/ci:list-step` `<workflow-or-chain-name>`** - List the step for the given workflow or chain name
 - **`/ci:list-unstable-tests` `<version> <keywords> [sippy-url]`** - List unstable tests with pass rate below 95%
 - **`/ci:query-job-status` `<execution-id>`** - Query the status of a gangway job execution by ID
@@ -84,7 +90,7 @@ See [plugins/code-review/README.md](plugins/code-review/README.md) for detailed 
 Security compliance and vulnerability analysis tools for Go projects
 
 **Commands:**
-- **`/compliance:analyze-cve` `<CVE-ID>`** - Analyze Go codebase for CVE vulnerabilities and suggest fixes
+- **`/compliance:analyze-cve` `<CVE-ID> [--algo=vta|rta|cha|static]`** - Analyze Go codebase for CVE vulnerabilities and suggest fixes
 
 See [plugins/compliance/README.md](plugins/compliance/README.md) for detailed documentation.
 
@@ -254,6 +260,7 @@ OLM team development utilities and onboarding tools
 **Commands:**
 - **`/olm-team:configure-agent`** - Configure the k8s-ocp-olm-expert agent with local repository paths
 - **`/olm-team:dev-setup` `[target-directory]`** - Set up OLM development repositories and onboard to the team
+- **`/olm-team:ep-watch`** - Watch open Enhancement PRs from other teams that may impact OLM
 
 See [plugins/olm-team/README.md](plugins/olm-team/README.md) for detailed documentation.
 

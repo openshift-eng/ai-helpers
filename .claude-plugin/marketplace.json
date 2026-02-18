@@ -8,7 +8,7 @@
       "name": "git",
       "source": "./plugins/git",
       "description": "Git Plugin",
-      "version": "0.0.3"
+      "version": "0.0.4"
     },
     {
       "name": "hello-world",
@@ -25,14 +25,14 @@
     {
       "name": "ci",
       "source": "./plugins/ci",
-      "description": "A plugin to work with OpenShift CI",
-      "version": "0.0.5"
+      "description": "A plugin to work with OpenShift CI and analyze Prow job results",
+      "version": "0.0.6"
     },
     {
       "name": "teams",
       "source": "./plugins/teams",
       "description": "Team structure knowledge and health analysis commands for OpenShift teams",
-      "version": "0.0.2"
+      "version": "0.0.3"
     },
     {
       "name": "doc",
@@ -68,13 +68,7 @@
       "name": "olm-team",
       "source": "./plugins/olm-team",
       "description": "OLM team development utilities and onboarding tools",
-      "version": "0.1.0"
-    },
-    {
-      "name": "prow-job",
-      "source": "./plugins/prow-job",
-      "description": "A plugin to analyze and inspect Prow CI job results",
-      "version": "0.0.5"
+      "version": "0.2.0"
     },
     {
       "name": "agendas",
@@ -86,7 +80,7 @@
       "name": "openshift",
       "source": "./plugins/openshift",
       "description": "OpenShift development utilities and helpers",
-      "version": "0.0.2"
+      "version": "0.0.3"
     },
     {
       "name": "etcd",
@@ -110,7 +104,7 @@
       "name": "lvms",
       "source": "./plugins/lvms",
       "description": "LVMS (Logical Volume Manager Storage) plugin for troubleshooting and debugging storage issues",
-      "version": "0.1.0"
+      "version": "0.1.1"
     },
     {
       "name": "metrics",
@@ -128,7 +122,7 @@
       "name": "compliance",
       "source": "./plugins/compliance",
       "description": "Security compliance and vulnerability analysis tools for Go projects",
-      "version": "0.0.2"
+      "version": "0.0.3"
     },
     {
       "name": "test-coverage",

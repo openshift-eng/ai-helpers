@@ -4,12 +4,12 @@ Security compliance and vulnerability analysis tools for Go projects.
 
 ## Command
 
-### `/compliance:analyze-cve <CVE-ID>`
+### `/compliance:analyze-cve <CVE-ID> [--algo=vta|rta|cha|static]`
 
 Analyzes Go codebases to determine CVE impact with multi-level confidence assessment.
 
 **Example:**
-```
+```text
 /compliance:analyze-cve CVE-2024-24783
 ```
 
@@ -39,20 +39,26 @@ Reports include confidence level (HIGH/MEDIUM/LOW) based on verification methods
 
 ## Prerequisites
 
-**Required:** Go toolchain
+**All tools are REQUIRED.** The command will exit with an error if any are missing.
 
-**Recommended (for higher confidence):**
 ```bash
-# Go vulnerability tools
+# Install all required Go tools
 go install golang.org/x/vuln/cmd/govulncheck@latest
 go install golang.org/x/tools/cmd/callgraph@latest
 go install golang.org/x/tools/cmd/digraph@latest
 
-# Optional: For visual graphs
+# Optional: For visual call graphs
 brew install graphviz  # macOS
 ```
 
-The command auto-detects available tools and uses the most comprehensive methods possible.
+**Required:**
+- Go toolchain (`go version`)
+- `go.mod` file in workspace
+- `govulncheck` - vulnerability scanner
+- `callgraph` - call graph analysis
+- `digraph` - graph traversal
+
+The command validates all tools in Phase 0 and provides installation instructions if any are missing.
 
 ## Fallback Mode
 
@@ -60,7 +66,7 @@ If internet access fails, the command prompts for manual CVE information (descri
 
 ## Report Includes
 
-- **Executive Summary**: Verdict (AFFECTED/NOT AFFECTED) with confidence level
+- **Executive Summary**: Risk level (HIGH/MEDIUM/LOW/NEEDS REVIEW) with confidence
 - **Analysis Methodology**: Which verification methods were used
 - **Impact Assessment**: Evidence from codebase, call chains (if found)
 - **Remediation Steps**: Exact commands and fixes
@@ -69,18 +75,18 @@ If internet access fails, the command prompts for manual CVE information (descri
 ## Examples
 
 ### Basic usage
-```
+```text
 /compliance:analyze-cve CVE-2024-24783
 ```
 Analyzes codebase for crypto/x509 vulnerability, provides upgrade command if affected.
 
 ### High-confidence analysis
-```
+```text
 /compliance:analyze-cve CVE-2024-45338
 ```
 **Result:**
 - Finds `golang.org/x/net/html v0.21.0` (vulnerable)
 - Proves execution path: `main → HTTPHandler → ParseHTML → html.Parse`
-- **Confidence**: HIGH | **Verdict**: AFFECTED
+- **Risk Level**: HIGH
 - Generates `callgraph.svg` showing call chain
 - Recommends: `go get golang.org/x/net@v0.23.0`
