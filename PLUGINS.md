@@ -23,6 +23,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Olm Team](#olm-team-plugin)
 - [Openshift](#openshift-plugin)
 - [Origin](#origin-plugin)
+- [Ote Migration](#ote-migration-plugin)
 - [Session](#session-plugin)
 - [Sosreport](#sosreport-plugin)
 - [Teams](#teams-plugin)
@@ -291,6 +292,15 @@ Helpers for openshift/origin development.
 - **`/origin:two-node-origin-pr-helper` `[--url PR_URL] [<pr>] [--depth quick|full]`** - Expert review tool for PRs that add or modify Two Node (Fencing or Arbiter) tests under test/extended/two_node/ in openshift/origin.
 
 See [plugins/origin/README.md](plugins/origin/README.md) for detailed documentation.
+
+### Ote Migration Plugin
+
+Automate OpenShift Tests Extension (OTE) migration for component repositories
+
+**Commands:**
+- **`/ote-migration:migrate`** - Automate OpenShift Tests Extension (OTE) migration for component repositories
+
+See [plugins/ote-migration/README.md](plugins/ote-migration/README.md) for detailed documentation.
 
 ### Session Plugin
 
