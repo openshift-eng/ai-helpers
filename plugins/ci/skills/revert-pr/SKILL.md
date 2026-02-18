@@ -352,7 +352,7 @@ For squash-merged PRs, the merge commit SHA is the squash commit itself. Use `gh
 Error: git revert -m1 failed due to conflicts.
 ```
 
-See Step 6 for the two conflict resolution strategies:
+See Step 7 for the two conflict resolution strategies:
 - **Strategy A**: Resolve simple/obvious conflicts directly (generated files, one-liners) and note this in the commit message
 - **Strategy B**: If conflicts are non-trivial, revert the dependent commits as well and document them in the commit message and PR body
 
