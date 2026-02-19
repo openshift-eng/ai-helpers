@@ -2,6 +2,10 @@
 
 Claude Code plugin that generates executable OpenShift `oc` test cases for **any operator PR** based on context.
 
+## Audience
+
+Operator developers and QE who need **executable `oc` test cases** for OpenShift operator PRs. This plugin is **operator- and OLM-specific**: it extracts CSV/CRD/samples from the repo and produces ready-to-run install → create CRs → verify → cleanup workflows. For generic test plans or non-operator PR testing guides, see `utils:generate-test-plan` or other testing-related plugins (e.g. a general "testing" plugin may serve a broader audience; this one targets operator PR test generation only).
+
 ## Overview
 
 Automatically create comprehensive test cases from any OpenShift operator GitHub PR. This plugin **dynamically analyzes** the PR and repository to extract:
