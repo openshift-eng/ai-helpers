@@ -7,7 +7,8 @@ argument-hint: "<pr-url> [--env <cluster-type>]"
 operator-test-generator:generate-execution-steps
 
 ## Synopsis
-```
+
+```text
 /operator-test-generator:generate-execution-steps <pr-url> [--env <cluster-type>]
 ```
 
@@ -112,14 +113,11 @@ oc wait --for=condition=Available deployment/<operator-deployment> \
 #### For Direct Deployment (no OLM)
 
 ```bash
-# Apply CRDs
-oc apply -f https://raw.githubusercontent.com/<org>/<repo>/main/config/crd/bases/
-
-# Apply RBAC
-oc apply -f https://raw.githubusercontent.com/<org>/<repo>/main/config/rbac/
-
-# Apply manager deployment
-oc apply -f https://raw.githubusercontent.com/<org>/<repo>/main/config/manager/
+# Apply CRDs, RBAC, and manager (GitHub does not serve directory listings)
+# Use exact raw file URLs for each YAML, or clone repo and run:
+oc apply -f config/crd/bases/
+oc apply -f config/rbac/
+oc apply -f config/manager/
 ```
 
 ### Step 4: Generate Environment Setup
@@ -368,12 +366,12 @@ spec:
 EOF
 
 ## 5. Verify
-oc get zerotrustwworkloadidentitymanager,spireserver,spireagent
+oc get zerotrustworkloadidentitymanager,spireserver,spireagent
 
 ## 6. Cleanup
 oc delete spireagent cluster
 oc delete spireserver cluster
-oc delete zerotrustwworkloadidentitymanager cluster
+oc delete zerotrustworkloadidentitymanager cluster
 oc delete namespace zero-trust-workload-identity-manager
 ```
 

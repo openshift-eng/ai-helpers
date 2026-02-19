@@ -191,7 +191,8 @@ Works with any operator that follows standard patterns:
 ## Output Location
 
 Generated files are saved to:
-```
+
+```text
 op_<operator>_pr_<number>_<description>/
 ├── test-cases.md
 └── execution-steps.md
@@ -206,7 +207,7 @@ op_<operator>_pr_<number>_<description>/
 
 ## Plugin Structure
 
-```
+```text
 operator-test-generator/
 ├── .claude-plugin/
 │   └── plugin.json           # Plugin metadata
@@ -221,7 +222,7 @@ operator-test-generator/
 
 ## How Context Detection Works
 
-```
+```text
 PR URL
   │
   ├─► Repository name ──► Operator name hint

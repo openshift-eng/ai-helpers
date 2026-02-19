@@ -7,7 +7,8 @@ argument-hint: "<pr-url> [--output <path>]"
 operator-test-generator:generate-from-pr
 
 ## Synopsis
-```
+
+```text
 /operator-test-generator:generate-from-pr <pr-url> [--output <path>]
 ```
 
@@ -158,10 +159,11 @@ oc wait --for=condition=Available deployment -l <operator-label> \
 
 #### Template: Dynamic CR Creation
 
-```markdown
+````markdown
 # Create <Kind> Custom Resource
 
 ## Environment Setup (if needed)
+
 ```bash
 # Extract cluster-specific values
 export CLUSTER_DOMAIN=$(oc get ingresses.config cluster -o jsonpath='{.spec.domain}')
@@ -169,6 +171,7 @@ export CLUSTER_NAME=$(oc get infrastructure cluster -o jsonpath='{.status.infras
 ```
 
 ## Create CR
+
 ```bash
 oc apply -f - <<EOF
 apiVersion: <group>/<version>
@@ -184,17 +187,20 @@ EOF
 ```
 
 ## Verify CR
+
 ```bash
 oc get <plural> <instance-name> -n <namespace>
 oc wait --for=condition=Ready <plural>/<instance-name> -n <namespace> --timeout=120s
 ```
+````
 
 #### Template: API Field Test
 
-```markdown
+````markdown
 # Test: New Field <fieldName> in <Kind>
 
 ## Test Steps
+
 ```bash
 # Create CR with new field
 oc apply -f - <<EOF
@@ -217,10 +223,11 @@ oc patch <plural> test-new-field --type=merge \
 # Verify update
 oc get <plural> test-new-field -o jsonpath='{.spec.<newField>}'
 ```
+````
 
 #### Template: Controller Reconciliation Test
 
-```markdown
+````markdown
 # Test: Controller Reconciliation
 
 ```bash
@@ -248,11 +255,13 @@ oc logs -n <operator-namespace> deployment/<operator-deployment> --tail=50
 # Verify status
 oc get <plural> test-reconcile -o jsonpath='{.status}'
 ```
+````
 
 ### Step 5: Output Generation
 
 1. **Create output directory**:
-   ```
+
+   ```text
    op_<operator-name>_pr_<number>_<short-description>/
    ```
 
@@ -273,27 +282,32 @@ oc get <plural> test-reconcile -o jsonpath='{.status}'
 ## Examples
 
 ### Example 1: ZTWIM Operator
-```
+
+```bash
 /operator-test-generator:generate-from-pr https://github.com/openshift/zero-trust-workload-identity-manager/pull/72
 ```
 
 ### Example 2: Cluster API Provider AWS
-```
+
+```bash
 /operator-test-generator:generate-from-pr https://github.com/openshift/cluster-api-provider-aws/pull/1234
 ```
 
 ### Example 3: LVMS Operator
-```
+
+```bash
 /operator-test-generator:generate-from-pr https://github.com/openshift/lvm-operator/pull/500
 ```
 
 ### Example 4: Node Tuning Operator
-```
+
+```bash
 /operator-test-generator:generate-from-pr https://github.com/openshift/cluster-node-tuning-operator/pull/800
 ```
 
 ### Example 5: HyperShift
-```
+
+```bash
 /operator-test-generator:generate-from-pr https://github.com/openshift/hypershift/pull/2000
 ```
 
@@ -350,7 +364,7 @@ oc get <plural> test-reconcile -o jsonpath='{.status}'
 
 ## Tool Usage
 
-```
+```text
 1. browser_navigate to <pr-url>
 2. browser_snapshot to read PR description
 3. browser_navigate to repo root to find key files
