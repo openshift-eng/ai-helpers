@@ -1,0 +1,8 @@
+{
+  "name": "macos-notifications",
+  "description": "Native macOS Notifications",
+  "version": "0.0.1",
+  "author": {
+    "name": "openshift"
+  }
+}
