@@ -4,11 +4,11 @@ argument-hint: "<pr-url> [--output <path>]"
 ---
 
 ## Name
-operator-test:generate-from-pr
+operator-test-generator:generate-from-pr
 
 ## Synopsis
 ```
-/operator-test:generate-from-pr <pr-url> [--output <path>]
+/operator-test-generator:generate-from-pr <pr-url> [--output <path>]
 ```
 
 ## Description
@@ -274,27 +274,27 @@ oc get <plural> test-reconcile -o jsonpath='{.status}'
 
 ### Example 1: ZTWIM Operator
 ```
-/operator-test:generate-from-pr https://github.com/openshift/zero-trust-workload-identity-manager/pull/72
+/operator-test-generator:generate-from-pr https://github.com/openshift/zero-trust-workload-identity-manager/pull/72
 ```
 
 ### Example 2: Cluster API Provider AWS
 ```
-/operator-test:generate-from-pr https://github.com/openshift/cluster-api-provider-aws/pull/1234
+/operator-test-generator:generate-from-pr https://github.com/openshift/cluster-api-provider-aws/pull/1234
 ```
 
 ### Example 3: LVMS Operator
 ```
-/operator-test:generate-from-pr https://github.com/openshift/lvm-operator/pull/500
+/operator-test-generator:generate-from-pr https://github.com/openshift/lvm-operator/pull/500
 ```
 
 ### Example 4: Node Tuning Operator
 ```
-/operator-test:generate-from-pr https://github.com/openshift/cluster-node-tuning-operator/pull/800
+/operator-test-generator:generate-from-pr https://github.com/openshift/cluster-node-tuning-operator/pull/800
 ```
 
 ### Example 5: HyperShift
 ```
-/operator-test:generate-from-pr https://github.com/openshift/hypershift/pull/2000
+/operator-test-generator:generate-from-pr https://github.com/openshift/hypershift/pull/2000
 ```
 
 ## How Context Extraction Works

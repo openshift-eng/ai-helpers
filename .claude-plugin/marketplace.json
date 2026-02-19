@@ -183,6 +183,12 @@
       "source": "./plugins/code-review",
       "description": "Automated code quality review with language-aware analysis for pre-commit verification",
       "version": "0.0.4"
+    },
+    {
+      "name": "operator-test-generator",
+      "source": "./plugins/operator-test-generator",
+      "description": "Generate executable oc test cases for any OpenShift operator PR based on context",
+      "version": "0.0.1"
     }
   ]
 }

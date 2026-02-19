@@ -27,8 +27,8 @@ Then generates ready-to-run `oc` commands for testing.
 
 | Command | Description |
 |---------|-------------|
-| `/operator-test:generate-from-pr <pr-url>` | Generate test cases with `oc` commands |
-| `/operator-test:generate-execution-steps <pr-url>` | Generate step-by-step execution procedure |
+| `/operator-test-generator:generate-from-pr <pr-url>` | Generate test cases with `oc` commands |
+| `/operator-test-generator:generate-execution-steps <pr-url>` | Generate step-by-step execution procedure |
 
 ## Installation
 
@@ -63,35 +63,35 @@ ls -la ~/.claude/commands/
 claude
 
 # Generate tests for any operator PR
-/operator-test:generate-from-pr https://github.com/<org>/<operator-repo>/pull/<number>
+/operator-test-generator:generate-from-pr https://github.com/<org>/<operator-repo>/pull/<number>
 ```
 
 ### Examples
 
 ```bash
 # ZTWIM Operator
-/operator-test:generate-from-pr https://github.com/openshift/zero-trust-workload-identity-manager/pull/72
+/operator-test-generator:generate-from-pr https://github.com/openshift/zero-trust-workload-identity-manager/pull/72
 
 # LVMS Operator
-/operator-test:generate-from-pr https://github.com/openshift/lvm-operator/pull/500
+/operator-test-generator:generate-from-pr https://github.com/openshift/lvm-operator/pull/500
 
 # Cluster API Provider AWS
-/operator-test:generate-from-pr https://github.com/openshift/cluster-api-provider-aws/pull/1234
+/operator-test-generator:generate-from-pr https://github.com/openshift/cluster-api-provider-aws/pull/1234
 
 # Node Tuning Operator
-/operator-test:generate-from-pr https://github.com/openshift/cluster-node-tuning-operator/pull/800
+/operator-test-generator:generate-from-pr https://github.com/openshift/cluster-node-tuning-operator/pull/800
 
 # HyperShift
-/operator-test:generate-from-pr https://github.com/openshift/hypershift/pull/2000
+/operator-test-generator:generate-from-pr https://github.com/openshift/hypershift/pull/2000
 
 # Any other operator
-/operator-test:generate-from-pr https://github.com/openshift/<operator>/pull/<number>
+/operator-test-generator:generate-from-pr https://github.com/openshift/<operator>/pull/<number>
 ```
 
 ### Non-Interactive Mode
 
 ```bash
-claude --print "/operator-test:generate-from-pr https://github.com/openshift/lvm-operator/pull/500"
+claude --print "/operator-test-generator:generate-from-pr https://github.com/openshift/lvm-operator/pull/500"
 ```
 
 ## How It Works

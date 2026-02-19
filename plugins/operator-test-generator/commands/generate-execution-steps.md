@@ -4,11 +4,11 @@ argument-hint: "<pr-url> [--env <cluster-type>]"
 ---
 
 ## Name
-operator-test:generate-execution-steps
+operator-test-generator:generate-execution-steps
 
 ## Synopsis
 ```
-/operator-test:generate-execution-steps <pr-url> [--env <cluster-type>]
+/operator-test-generator:generate-execution-steps <pr-url> [--env <cluster-type>]
 ```
 
 ## Description

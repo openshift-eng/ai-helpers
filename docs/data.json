@@ -1285,6 +1285,34 @@
         }
       ],
       "version": "0.0.4"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "<pr-url> [--env <cluster-type>]",
+          "description": "Generate step-by-step test execution procedure for any OpenShift operator PR",
+          "name": "generate-execution-steps",
+          "synopsis": "/operator-test-generator:generate-execution-steps <pr-url> [--env <cluster-type>]"
+        },
+        {
+          "argument_hint": "<pr-url> [--output <path>]",
+          "description": "Generate test cases with oc commands from any OpenShift operator PR",
+          "name": "generate-from-pr",
+          "synopsis": "/operator-test-generator:generate-from-pr <pr-url> [--output <path>]"
+        }
+      ],
+      "description": "Generate executable oc test cases for any OpenShift operator PR based on context",
+      "has_readme": true,
+      "hooks": [],
+      "name": "operator-test-generator",
+      "skills": [
+        {
+          "description": "Generate oc command-based test cases for any OpenShift operator PR based on context",
+          "id": "test-case-generator",
+          "name": "Operator Test Case Generator"
+        }
+      ],
+      "version": "0.0.1"
     }
   ]
 }
