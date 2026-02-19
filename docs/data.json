@@ -343,7 +343,7 @@
           "synopsis": "/trigger-presubmit <job-name> <org> <repo> <base-ref> <base-sha> <pr-number> <pr-sha> [ENV_VAR=value ...]"
         }
       ],
-      "description": "A plugin to work with OpenShift CI",
+      "description": "A plugin to work with OpenShift CI and analyze Prow job results",
       "has_readme": true,
       "hooks": [],
       "name": "ci",
@@ -701,66 +701,6 @@
         }
       ],
       "version": "0.2.0"
-    },
-    {
-      "commands": [
-        {
-          "argument_hint": "<prowjob-url>",
-          "description": "Analyze OpenShift installation failures in Prow CI jobs",
-          "name": "analyze-install-failure",
-          "synopsis": "/prow-job:analyze-install-failure <prowjob-url>"
-        },
-        {
-          "argument_hint": "prowjob-url resource-name",
-          "description": "Analyze Kubernetes resource lifecycle in Prow job artifacts",
-          "name": "analyze-resource",
-          "synopsis": ""
-        },
-        {
-          "argument_hint": "prowjob-url test-name [--fast]",
-          "description": "Analyzes test errors from console logs and Prow CI job artifacts",
-          "name": "analyze-test-failure",
-          "synopsis": ""
-        },
-        {
-          "argument_hint": "prowjob-url",
-          "description": "Extract and decompress must-gather archives from Prow job artifacts",
-          "name": "extract-must-gather",
-          "synopsis": "/prow-job:extract-must-gather <prowjob-url>"
-        }
-      ],
-      "description": "A plugin to analyze and inspect Prow CI job results",
-      "has_readme": true,
-      "hooks": [],
-      "name": "prow-job",
-      "skills": [
-        {
-          "description": "Analyze OpenShift installation failures in Prow CI jobs by examining installer logs, log bundles, and sosreports. Use when CI job fails \"install should succeed\" tests at bootstrap, cluster creation or other stages.",
-          "id": "prow-job-analyze-install-failure",
-          "name": "Prow Job Analyze Install Failure"
-        },
-        {
-          "description": "Analyze OpenShift bare metal installation failures in Prow CI jobs using dev-scripts artifacts. Use for jobs with \"metal\" in name, for debugging Metal3/Ironic provisioning, installation, or dev-scripts setup failures. You may also use the prow-job-analyze-install-failure skill with this one.",
-          "id": "prow-job-analyze-metal-install-failure",
-          "name": "Prow Job Analyze Metal Install Failure"
-        },
-        {
-          "description": "Analyze Kubernetes resource lifecycle in Prow CI job artifacts by parsing audit logs and pod logs from GCS, generating interactive HTML reports with timelines",
-          "id": "prow-job-analyze-resource",
-          "name": "Prow Job Analyze Resource"
-        },
-        {
-          "description": "Analyze failed Prow CI tests by inspecting test code, downloading artifacts, and optionally integrating must-gather cluster diagnostics for root cause analysis",
-          "id": "prow-job-analyze-test-failure",
-          "name": "Prow Job Analyze Test Failure"
-        },
-        {
-          "description": "Extract and decompress must-gather archives from Prow CI job artifacts, generating an interactive HTML file browser with filters",
-          "id": "prow-job-extract-must-gather",
-          "name": "Prow Job Extract Must-Gather"
-        }
-      ],
-      "version": "0.0.6"
     },
     {
       "commands": [
@@ -1310,6 +1250,28 @@
           "description": "Generate oc command-based test cases for any OpenShift operator PR based on context",
           "id": "test-case-generator",
           "name": "Operator Test Case Generator"
+        }
+      ],
+      "version": "0.0.1"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "",
+          "description": "Automate OpenShift Tests Extension (OTE) migration for component repositories",
+          "name": "migrate",
+          "synopsis": "bash"
+        }
+      ],
+      "description": "Automate OpenShift Tests Extension (OTE) migration for component repositories",
+      "has_readme": true,
+      "hooks": [],
+      "name": "ote-migration",
+      "skills": [
+        {
+          "description": "Automated workflow for migrating OpenShift component repositories to OTE framework",
+          "id": "ote-migration-workflow",
+          "name": "OTE Migration Workflow"
         }
       ],
       "version": "0.0.1"
