@@ -22,6 +22,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Olm](#olm-plugin)
 - [Olm Team](#olm-team-plugin)
 - [Openshift](#openshift-plugin)
+- [Operator Test Generator](#operator-test-generator-plugin)
 - [Origin](#origin-plugin)
 - [Ote Migration](#ote-migration-plugin)
 - [Session](#session-plugin)
@@ -284,6 +285,16 @@ OpenShift development utilities and helpers
 - **`/openshift:visualize-ovn-topology`** - Generate and visualize OVN-Kubernetes network topology diagram
 
 See [plugins/openshift/README.md](plugins/openshift/README.md) for detailed documentation.
+
+### Operator Test Generator Plugin
+
+Generate executable oc test cases for any OpenShift operator PR based on context
+
+**Commands:**
+- **`/operator-test-generator:generate-execution-steps` `<pr-url> [--env <cluster-type>]`** - Generate step-by-step test execution procedure for any OpenShift operator PR
+- **`/operator-test-generator:generate-from-pr` `<pr-url> [--output <path>]`** - Generate test cases with oc commands from any OpenShift operator PR
+
+See [plugins/operator-test-generator/README.md](plugins/operator-test-generator/README.md) for detailed documentation.
 
 ### Origin Plugin
 
