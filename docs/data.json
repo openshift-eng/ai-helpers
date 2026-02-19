@@ -1025,6 +1025,26 @@
     },
     {
       "commands": [],
+      "description": "Native macOS notifications usage for ai-helpers",
+      "has_readme": true,
+      "hooks": [
+        {
+          "description": "Native macOS Notifications",
+          "name": "Notification",
+          "type": "Notification"
+        },
+        {
+          "description": "Native macOS Notifications",
+          "name": "Stop",
+          "type": "Stop"
+        }
+      ],
+      "name": "macos-notifications",
+      "skills": [],
+      "version": "0.0.1"
+    },
+    {
+      "commands": [],
       "description": "Anonymous metrics usage for ai-helpers",
       "has_readme": true,
       "hooks": [
