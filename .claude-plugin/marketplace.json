@@ -179,14 +179,15 @@
       "version": "0.0.4"
     },
     {
-
       "name": "operator-test-generator",
       "source": "./plugins/operator-test-generator",
-      "description": "Generate executable oc test cases for any OpenShift operator PR based on co
+      "description": "Generate executable oc test cases for any OpenShift operator PR based on context",
       "version": "0.0.1"
+    },
+    {
       "name": "ote-migration",
       "source": "./plugins/ote-migration",
-      "description": "Automate OpenShift Tests Extension (OTE) migration for component repositories"
+      "description": "Automate OpenShift Tests Extension (OTE) migration for component repositories",
       "version": "0.0.1"
     }
   ]
