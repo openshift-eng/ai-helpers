@@ -1370,13 +1370,13 @@
           "argument_hint": "<pr-url> [--env <cluster-type>]",
           "description": "Generate step-by-step test execution procedure for any OpenShift operator PR",
           "name": "generate-execution-steps",
-          "synopsis": "/operator-test-generator:generate-execution-steps <pr-url> [--env <cluster-type>]"
+          "synopsis": "text"
         },
         {
           "argument_hint": "<pr-url> [--output <path>]",
           "description": "Generate test cases with oc commands from any OpenShift operator PR",
           "name": "generate-from-pr",
-          "synopsis": "/operator-test-generator:generate-from-pr <pr-url> [--output <path>]"
+          "synopsis": "text"
         }
       ],
       "description": "Generate executable oc test cases for any OpenShift operator PR based on context",
