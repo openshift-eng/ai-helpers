@@ -1388,6 +1388,28 @@
       "commands": [
         {
           "argument_hint": "",
+          "description": "Run golangci-lint tool and fix all reported issues",
+          "name": "lint-fix",
+          "synopsis": "/golang:lint-fix"
+        }
+      ],
+      "description": "Run golang codebase related commands and tools",
+      "has_readme": true,
+      "hooks": [],
+      "name": "golang",
+      "skills": [
+        {
+          "description": "Detect and run golangci-lint in a Go repository using the best available method",
+          "id": "lint",
+          "name": "Go Lint"
+        }
+      ],
+      "version": "0.1.0"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "",
           "description": "Automate OpenShift Tests Extension (OTE) migration for component repositories",
           "name": "migrate",
           "synopsis": "bash"

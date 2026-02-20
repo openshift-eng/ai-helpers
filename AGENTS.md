@@ -25,6 +25,16 @@ ai-helpers/
 └── README.md
 ```
 
+## Development Essentials
+
+**Run the linter before committing any changes:**
+
+```bash
+make lint
+```
+
+This validates plugin structure, command format, and marketplace registration. See [Validating with the Linter](#validating-with-the-linter) for details.
+
 ## Plugin Conventions
 
 ### 1. Plugin Structure
