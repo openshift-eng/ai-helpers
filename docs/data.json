@@ -910,6 +910,24 @@
           "synopsis": "/openshift:review-test-cases [file-path-or-test-code-or-commands]"
         },
         {
+          "argument_hint": "[router-pod-name]",
+          "description": "Display the router configuration",
+          "name": "router-show-config",
+          "synopsis": "/openshift:router-show-config [router-pod-name]"
+        },
+        {
+          "argument_hint": "[router-pod-name]",
+          "description": "Display router process information",
+          "name": "router-show-info",
+          "synopsis": "/openshift:router-show-info [router-pod-name]"
+        },
+        {
+          "argument_hint": "[router-pod-name]",
+          "description": "Display all active router sessions",
+          "name": "router-show-sessions",
+          "synopsis": "/openshift:router-show-sessions [router-pod-name]"
+        },
+        {
           "argument_hint": "",
           "description": "Generate and visualize OVN-Kubernetes network topology diagram",
           "name": "visualize-ovn-topology",
@@ -925,6 +943,16 @@
           "description": "Generates and displays OVN-Kubernetes network topology diagrams showing logical switches, routers, ports with IP/MAC addresses in Mermaid format",
           "id": "generating-ovn-topology",
           "name": "generating-ovn-topology"
+        },
+        {
+          "description": "Verify oc CLI installation and cluster connectivity before executing OpenShift commands",
+          "id": "oc-prereqs",
+          "name": "OpenShift CLI Prerequisites"
+        },
+        {
+          "description": "Discover and validate OpenShift router pods for inspection commands",
+          "id": "router-pod-helper",
+          "name": "Router Pod Helper"
         }
       ],
       "version": "0.0.3"
