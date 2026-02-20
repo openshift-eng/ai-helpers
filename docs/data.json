@@ -850,6 +850,12 @@
           "synopsis": "bash"
         },
         {
+          "argument_hint": "<bmc-address> <credentials-file>",
+          "description": "Validate BMC Redfish compliance against OpenStack Ironic profile",
+          "name": "bmh-ironic-check-redfish-profile",
+          "synopsis": "/openshift:bmh-ironic-check-redfish-profile <bmc-address> <credentials-file>"
+        },
+        {
           "argument_hint": "<dependency> [version] [--create-jira] [--create-pr]",
           "description": "Bump dependencies in OpenShift projects with automated analysis and PR creation",
           "name": "bump-deps",
