@@ -513,6 +513,8 @@ Generate a comprehensive, actionable report.
 - `gh` - GitHub CLI for PR details (required for GitHub enrichment)
 - Network access to `issues.redhat.com` and `github.com`
 
+**Authentication:** JIRA REST API calls require JIRA credentials or an API token; pass them to `curl` via `--user username:token` or an `Authorization` header. For GitHub enrichment, run `gh auth login` (or otherwise authenticate `gh`) before use.
+
 ## Notes
 
 - **JIRA-first approach**: Always starts with JIRA as the source of truth, then enriches with GitHub

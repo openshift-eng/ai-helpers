@@ -54,7 +54,7 @@ The command follows a **JIRA-first approach**:
 
 ## Output Example
 
-```
+```markdown
 # Similar Incidents Analysis Report
 
 **Generated**: 2024-12-24 10:30:00
@@ -94,10 +94,9 @@ The command follows a **JIRA-first approach**:
 | #4521 | Fix etcd heartbeat interval configuration | MERGED | 3 files | [View PR](https://github.com/openshift/cluster-etcd-operator/pull/4521) |
 
 **Key Files Changed**:
-```
-pkg/operator/configobservation/etcd/observe_etcd.go
-pkg/operator/etcdcli/etcd_client.go
-```
+
+    pkg/operator/configobservation/etcd/observe_etcd.go
+    pkg/operator/etcdcli/etcd_client.go
 
 **Fix Summary**:
 > Adjusted heartbeat-interval and election-timeout values to be more
@@ -136,6 +135,8 @@ pkg/operator/etcdcli/etcd_client.go
 - `jq` - For JSON parsing (recommended)
 - `gh` - GitHub CLI for fetching PR details
 - Network access to `issues.redhat.com` and `github.com`
+
+You must have authenticated access: a JIRA session or API token (e.g. JIRA username + API token, or `JIRA_COOKIE` / `JIRA_SESSION`), and the GitHub CLI must be authenticated (e.g. run `gh auth login` or set `GITHUB_TOKEN`) to avoid 401s and interactive prompts.
 
 ## Tips for Better Search Results
 
