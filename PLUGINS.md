@@ -29,6 +29,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Sosreport](#sosreport-plugin)
 - [Teams](#teams-plugin)
 - [Test Coverage](#test-coverage-plugin)
+- [Testing](#testing-plugin)
 - [Utils](#utils-plugin)
 - [Workspaces](#workspaces-plugin)
 - [Yaml](#yaml-plugin)
@@ -356,6 +357,15 @@ Analyze code coverage and identify untested paths
 - **`/test-coverage:gaps` `<test-file-or-url> [--output <path>]`** - Identify E2E test scenario gaps in OpenShift/Kubernetes tests (component-agnostic)
 
 See [plugins/test-coverage/README.md](plugins/test-coverage/README.md) for detailed documentation.
+
+### Testing Plugin
+
+Comprehensive testing utilities for operators and applications
+
+**Commands:**
+- **`/testing:mutation-test` `[operator-path] [--controllers <controller1,controller2>] [--mutation-types <types>] [--report-format <format>]`** - Test operator controller quality through mutation testing - validates test suite catches code mutations
+
+See [plugins/testing/README.md](plugins/testing/README.md) for detailed documentation.
 
 ### Utils Plugin
 

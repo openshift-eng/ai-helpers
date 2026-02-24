@@ -1222,6 +1222,33 @@
     {
       "commands": [
         {
+          "argument_hint": "[operator-path] [--controllers <controller1,controller2>] [--mutation-types <types>] [--report-format <format>]",
+          "description": "Test operator controller quality through mutation testing - validates test suite catches code mutations",
+          "name": "mutation-test",
+          "synopsis": "/testing:mutation-test [operator-path] [--controllers <controller1,controller2>] [--mutation-types <types>] [--report-format <format>]"
+        }
+      ],
+      "description": "Comprehensive testing utilities for operators and applications",
+      "has_readme": true,
+      "hooks": [],
+      "name": "testing",
+      "skills": [
+        {
+          "description": "Generate code mutations for Kubernetes operator controllers to enable mutation testing. Applies operator-specific mutations to reconciliation logic, error handling, and API interactions.",
+          "id": "mutation-generator",
+          "name": "Mutation Generator for Operator Controllers"
+        },
+        {
+          "description": "Execute tests against generated mutants and analyze results to validate test suite quality for Kubernetes operators",
+          "id": "mutation-tester",
+          "name": "Mutation Testing Executor"
+        }
+      ],
+      "version": "0.1.0"
+    },
+    {
+      "commands": [
+        {
           "argument_hint": "[--url PR_URL] [<pr>] [--depth quick|full]",
           "description": "Expert review tool for PRs that add or modify Two Node (Fencing or Arbiter) tests under test/extended/two_node/ in openshift/origin.",
           "name": "two-node-origin-pr-helper",
