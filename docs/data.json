@@ -898,6 +898,30 @@
           "synopsis": "/new-e2e-test [test-specification]"
         },
         {
+          "argument_hint": "<node> <image> [--command <cmd>] [--filter <params>]",
+          "description": "Get connection tracking entries from Kubernetes node",
+          "name": "node-kernel-conntrack",
+          "synopsis": "/openshift:node-kernel-conntrack <node> <image> [--command <cmd>] [--filter <params>]"
+        },
+        {
+          "argument_hint": "<node> <image> --command <cmd> [--options <opts>] [--filter <params>]",
+          "description": "Inspect routing, network devices, and interfaces on Kubernetes node",
+          "name": "node-kernel-ip",
+          "synopsis": "/openshift:node-kernel-ip <node> <image> --command <cmd> [--options <opts>] [--filter <params>]"
+        },
+        {
+          "argument_hint": "<node> <image> --command <cmd> [--table <table>] [--filter <params>]",
+          "description": "Inspect IPv4 and IPv6 packet filter rules on Kubernetes node",
+          "name": "node-kernel-iptables",
+          "synopsis": "/openshift:node-kernel-iptables <node> <image> --command <cmd> [--table <table>] [--filter <params>]"
+        },
+        {
+          "argument_hint": "<node> <image> --command <cmd> [--family <family>]",
+          "description": "Inspect nftables packet filtering and classification rules on Kubernetes node",
+          "name": "node-kernel-nft",
+          "synopsis": "/openshift:node-kernel-nft <node> <image> --command <cmd> [--family <family>]"
+        },
+        {
           "argument_hint": "<tag>",
           "description": "Rebase OpenShift fork of an upstream repository to a new upstream release.",
           "name": "rebase",
@@ -925,9 +949,14 @@
           "description": "Generates and displays OVN-Kubernetes network topology diagrams showing logical switches, routers, ports with IP/MAC addresses in Mermaid format",
           "id": "generating-ovn-topology",
           "name": "generating-ovn-topology"
+        },
+        {
+          "description": "Inspect kernel-level networking configuration on OpenShift/Kubernetes nodes using oc debug",
+          "id": "openshift-node-kernel",
+          "name": "OpenShift Node Kernel Inspection"
         }
       ],
-      "version": "0.0.3"
+      "version": "0.0.4"
     },
     {
       "commands": [

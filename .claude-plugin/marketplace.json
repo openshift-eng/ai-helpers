@@ -80,7 +80,7 @@
       "name": "openshift",
       "source": "./plugins/openshift",
       "description": "OpenShift development utilities and helpers",
-      "version": "0.0.3"
+      "version": "0.0.4"
     },
     {
       "name": "etcd",

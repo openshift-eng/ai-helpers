@@ -290,6 +290,10 @@ OpenShift development utilities and helpers
 - **`/openshift:expand-test-case` `[test-idea-or-file-or-commands] [format]`** - Expand basic test ideas or existing oc commands into comprehensive test scenarios with edge cases in oc CLI or Ginkgo format
 - **`/openshift:ironic-status`** - Check status of Ironic baremetal nodes in OpenShift cluster
 - **`/openshift:new-e2e-test` `[test-specification]`** - Write and validate new OpenShift E2E tests using Ginkgo framework
+- **`/openshift:node-kernel-conntrack` `<node> <image> [--command <cmd>] [--filter <params>]`** - Get connection tracking entries from Kubernetes node
+- **`/openshift:node-kernel-ip` `<node> <image> --command <cmd> [--options <opts>] [--filter <params>]`** - Inspect routing, network devices, and interfaces on Kubernetes node
+- **`/openshift:node-kernel-iptables` `<node> <image> --command <cmd> [--table <table>] [--filter <params>]`** - Inspect IPv4 and IPv6 packet filter rules on Kubernetes node
+- **`/openshift:node-kernel-nft` `<node> <image> --command <cmd> [--family <family>]`** - Inspect nftables packet filtering and classification rules on Kubernetes node
 - **`/openshift:rebase` `<tag>`** - Rebase OpenShift fork of an upstream repository to a new upstream release.
 - **`/openshift:review-test-cases` `[file-path-or-test-code-or-commands]`** - Review test cases for completeness, quality, and best practices - accepts file path or direct oc commands/test code
 - **`/openshift:visualize-ovn-topology`** - Generate and visualize OVN-Kubernetes network topology diagram
