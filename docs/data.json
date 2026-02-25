@@ -1037,6 +1037,12 @@
           "description": "Comprehensive LVMS troubleshooting - analyzes LVMCluster, volume groups, PVCs, and storage issues on live clusters or must-gather",
           "name": "analyze",
           "synopsis": "/lvms:analyze [must-gather-path] [--live] [--component <component>]"
+        },
+        {
+          "argument_hint": "[--format json|table] [--threshold-warning 80] [--namespace custom-ns]",
+          "description": "Quick LVMS health monitoring - capacity overview, status summary, and proactive alerts for regular monitoring",
+          "name": "health-check",
+          "synopsis": "/lvms:health-check [--format json|table] [--threshold-warning <percentage>] [--namespace <namespace>]"
         }
       ],
       "description": "LVMS (Logical Volume Manager Storage) plugin for troubleshooting and debugging storage issues",
@@ -1048,6 +1054,11 @@
           "description": "Analyzes LVMS must-gather data to diagnose storage issues",
           "id": "lvms-analyzer",
           "name": "LVMS Analyzer"
+        },
+        {
+          "description": "Lightweight health monitoring and capacity tracking for LVMS clusters",
+          "id": "lvms-health-check",
+          "name": "LVMS Health Check"
         }
       ],
       "version": "0.1.1"

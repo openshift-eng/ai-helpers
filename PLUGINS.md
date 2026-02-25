@@ -212,6 +212,7 @@ LVMS (Logical Volume Manager Storage) plugin for troubleshooting and debugging s
 
 **Commands:**
 - **`/lvms:analyze` `[must-gather-path|--live] [--component storage|operator|volumes]`** - Comprehensive LVMS troubleshooting - analyzes LVMCluster, volume groups, PVCs, and storage issues on live clusters or must-gather
+- **`/lvms:health-check` `[--format json|table] [--threshold-warning 80] [--namespace custom-ns]`** - Quick LVMS health monitoring - capacity overview, status summary, and proactive alerts for regular monitoring
 
 See [plugins/lvms/README.md](plugins/lvms/README.md) for detailed documentation.
 
