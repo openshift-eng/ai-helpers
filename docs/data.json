@@ -666,6 +666,12 @@
           "synopsis": ""
         },
         {
+          "argument_hint": "[PR number] [-n N] [--skip-reviews] [--skip-rebase]",
+          "description": "Iteratively fix PR checks and address review comments until PR is mergeable",
+          "name": "fix-pr",
+          "synopsis": "/utils:fix-pr [PR number] [-n N] [--skip-reviews] [--skip-rebase]"
+        },
+        {
           "argument_hint": "[GitHub PR URLs]",
           "description": "Generate test steps for one or more related PRs",
           "name": "generate-test-plan",

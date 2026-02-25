@@ -378,6 +378,7 @@ A generic utilities plugin serving as a catch-all for various helper commands an
 **Commands:**
 - **`/utils:address-reviews` `[PR number (optional - uses current branch if omitted)]`** - Fetch and address all PR review comments
 - **`/utils:auto-approve-konflux-prs` `<target-repository>`** - Automate approving Konflux bot PRs for the given repository by adding /lgtm and /approve
+- **`/utils:fix-pr` `[PR number] [-n N] [--skip-reviews] [--skip-rebase]`** - Iteratively fix PR checks and address review comments until PR is mergeable
 - **`/utils:generate-test-plan` `[GitHub PR URLs]`** - Generate test steps for one or more related PRs
 - **`/utils:gh-attention` `[--repo <org/repo>]`** - List PRs and issues requiring your attention
 - **`/utils:placeholder`** - Placeholder command for the utils plugin
