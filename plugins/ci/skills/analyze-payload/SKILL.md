@@ -160,7 +160,7 @@ If a revert PR is found:
 
 ### Step 7: Generate HTML Report
 
-Create a self-contained HTML file named `payload-analysis-<tag>.html` in the current working directory. The tag should be sanitized for use as a filename (replace colons and slashes).
+Create a self-contained HTML file named `payload-analysis-<tag>-summary.html` in the current working directory. The tag should be sanitized for use as a filename (replace colons and slashes). The `-summary.html` suffix is required for automatic rendering in downstream tools.
 
 The report must include the following sections:
 
@@ -389,7 +389,7 @@ The HTML must be fully self-contained with embedded CSS. Use a clean, profession
 ### Step 8: Save and Present
 
 1. Save the HTML file to the current working directory:
-   - Filename: `payload-analysis-<sanitized_tag>.html`
+   - Filename: `payload-analysis-<sanitized_tag>-summary.html`
    - Sanitize the tag: replace any characters not safe for filenames
 
 2. Tell the user:

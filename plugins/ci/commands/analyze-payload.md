@@ -45,7 +45,7 @@ Load the "Analyze Payload" skill and follow its implementation steps. The skill 
 ## Return Value
 
 - **Format**: Self-contained HTML file saved to the current working directory
-- **Filename**: `payload-analysis-{tag}.html`
+- **Filename**: `payload-analysis-{tag}-summary.html`
 - **Contents**:
   - Executive summary with overall payload health
   - Summary table of all blocking jobs (pass/fail)
