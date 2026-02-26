@@ -145,7 +145,8 @@
     {
       "name": "testing",
       "source": "./plugins/testing",
-      "description": "Comprehensive testing utilities for operators and applications"
+      "description": "Comprehensive testing utilities for operators and applications",
+      "version": "0.1.0"
     },
     {
       "name": "origin",
