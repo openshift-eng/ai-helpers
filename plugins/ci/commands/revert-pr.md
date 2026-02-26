@@ -119,7 +119,7 @@ This command is useful when:
 - This command follows the [Revertomatic](https://github.com/stbenjam/revertomatic) PR template format for consistency
 - The original PR author is CC'd in the revert PR body
 - To unrevert, the original author should revert the revert PR and layer a fix commit on top
-- For repos using `UPSTREAM: <carry>:` commit conventions (e.g., openshift/kubernetes), the PR title adapts automatically
+- For repos using `UPSTREAM: <tag>:` commit conventions (e.g., openshift/kubernetes and other repos carrying upstream patches), the commit message and PR title adapt automatically
 - Merge conflicts are handled automatically when possible: trivial conflicts are resolved directly, non-trivial ones trigger reverting dependent commits
 
 ## See Also

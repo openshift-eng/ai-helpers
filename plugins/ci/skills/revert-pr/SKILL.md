@@ -137,7 +137,7 @@ If the user also provided inline context as arguments, combine it with the JIRA-
 
 ### Step 6: Detect Commit Message Convention
 
-Before creating the revert, check recent commits in the repository to determine if it uses a special commit/PR title prefix convention.
+**YOU MUST ALWAYS DO THIS.** Before creating the revert, check recent commits in the repository to determine if it uses a special commit/PR title prefix convention. Skipping this step will cause `verify-commits` CI jobs to fail.
 
 ```bash
 # Check the last 20 commit subjects on the base branch
@@ -175,6 +175,35 @@ git revert -m1 --no-edit "$merge_sha"
 ```
 
 **Important**: The `-m1` flag tells git to revert relative to the first parent of the merge commit, which is the base branch. This effectively undoes the changes introduced by the PR.
+
+#### Amend Commit Message for UPSTREAM Convention
+
+If the UPSTREAM convention was detected in Step 6, you **MUST** amend the revert commit message to include the appropriate `UPSTREAM: <tag>:` prefix. The default `git revert` message (`Revert "..."`) will fail `verify-commits` CI checks.
+
+Determine the appropriate tag by looking at the commit being reverted and the repo conventions (e.g., `<carry>`, `<drop>`).
+
+```bash
+# Set the tag based on the convention detected in Step 6
+upstream_tag="carry"  # or "drop", or a cherry-pick number — based on context
+
+# Get the current commit message
+current_msg=$(git log -1 --format=%B)
+
+# Prepend the UPSTREAM: <tag>: prefix to the first line
+amended_msg=$(echo "$current_msg" | sed "1s/^/UPSTREAM: <$upstream_tag>: /")
+
+# Amend the commit
+git commit --amend -m "$amended_msg"
+```
+
+This transforms the commit message from:
+```text
+Revert "Merge pull request #638 from author/branch"
+```
+to:
+```text
+UPSTREAM: <carry>: Revert "Merge pull request #638 from author/branch"
+```
 
 #### Handling Merge Conflicts
 
@@ -264,19 +293,19 @@ Format remaining jobs as override commands:
 
 ### Step 9: Create the Revert PR with Revertomatic Template
 
-**PR Title Format** depends on the commit convention detected in Step 5:
+**PR Title Format** depends on the commit convention detected in Step 6:
 
 **Standard repositories**:
-```
+```text
 {JIRA}: Revert #{PR_NUMBER} "{ORIGINAL_TITLE}"
 ```
 Example: `TRT-9999: Revert #1703 "Fix kubelet crash on restart"`
 
 **UPSTREAM carry repositories** (e.g., openshift/kubernetes):
+```text
+{JIRA}: UPSTREAM: <tag>: Revert "{ORIGINAL_TITLE}"
 ```
-{JIRA}: UPSTREAM: <carry>: Revert "{ORIGINAL_TITLE}" because {REASON}
-```
-Example: `TRT-9999: UPSTREAM: <carry>: Revert "UPSTREAM: 12345: Fix kubelet crash" because it broke e2e-aws nightly jobs`
+Example: `TRT-9999: UPSTREAM: <carry>: Revert "UPSTREAM: 12345: Fix kubelet crash"`
 
 **PR Body - Revertomatic Template**:
 
