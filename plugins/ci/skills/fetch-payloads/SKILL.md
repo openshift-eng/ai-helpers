@@ -25,23 +25,23 @@ If the user did not specify an architecture or stream, default to `amd64` and `n
 ### Step 2: Fetch payloads
 
 ```bash
-python3 plugins/ci/skills/fetch-payloads/fetch_payloads.py [architecture] [version] [stream]
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/fetch-payloads/fetch_payloads.py [architecture] [version] [stream]
 ```
 
 Examples:
 
 ```bash
 # Latest amd64 nightly payloads (all defaults, last 5)
-python3 plugins/ci/skills/fetch-payloads/fetch_payloads.py
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/fetch-payloads/fetch_payloads.py
 
 # arm64 4.18 nightly
-python3 plugins/ci/skills/fetch-payloads/fetch_payloads.py arm64 4.18 nightly
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/fetch-payloads/fetch_payloads.py arm64 4.18 nightly
 
 # Only accepted payloads
-python3 plugins/ci/skills/fetch-payloads/fetch_payloads.py amd64 4.18 nightly --phase Accepted
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/fetch-payloads/fetch_payloads.py amd64 4.18 nightly --phase Accepted
 
 # Show more results
-python3 plugins/ci/skills/fetch-payloads/fetch_payloads.py amd64 4.18 nightly --limit 20
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/fetch-payloads/fetch_payloads.py amd64 4.18 nightly --limit 20
 ```
 
 ### Step 3: Present results

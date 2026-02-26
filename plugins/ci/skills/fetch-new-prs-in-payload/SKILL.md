@@ -37,7 +37,7 @@ The skill uses a Python script to fetch and format the payload diff data:
 
 ```bash
 # Path to the Python script
-script_path="plugins/ci/skills/fetch-new-prs-in-payload/fetch_new_prs_in_payload.py"
+script_path="${CLAUDE_PLUGIN_ROOT}/skills/fetch-new-prs-in-payload/fetch_new_prs_in_payload.py"
 
 # Fetch new PRs in JSON format
 python3 "$script_path" <payload_tag> --format json
@@ -172,7 +172,7 @@ The Python script remaps `name` to `component` in its output for clarity.
 ### Example 1: Fetch PRs as JSON
 
 ```bash
-python3 plugins/ci/skills/fetch-new-prs-in-payload/fetch_new_prs_in_payload.py 4.22.0-0.nightly-2026-01-15-114134 --format json
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/fetch-new-prs-in-payload/fetch_new_prs_in_payload.py 4.22.0-0.nightly-2026-01-15-114134 --format json
 ```
 
 **Expected Output:**
@@ -202,7 +202,7 @@ python3 plugins/ci/skills/fetch-new-prs-in-payload/fetch_new_prs_in_payload.py 4
 ### Example 2: Fetch PRs as Summary
 
 ```bash
-python3 plugins/ci/skills/fetch-new-prs-in-payload/fetch_new_prs_in_payload.py 4.22.0-0.nightly-2026-01-15-114134 --format summary
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/fetch-new-prs-in-payload/fetch_new_prs_in_payload.py 4.22.0-0.nightly-2026-01-15-114134 --format summary
 ```
 
 **Expected Output:**
@@ -242,7 +242,7 @@ Combine with the `fetch-prowjob-json` skill to get the payload tag from a Prow j
 #    e.g., "4.22.0-0.ci-2026-02-06-195709"
 
 # 2. Fetch new PRs in that payload
-script_path="plugins/ci/skills/fetch-new-prs-in-payload/fetch_new_prs_in_payload.py"
+script_path="${CLAUDE_PLUGIN_ROOT}/skills/fetch-new-prs-in-payload/fetch_new_prs_in_payload.py"
 python3 "$script_path" "$payload_tag" --format json
 ```
 
