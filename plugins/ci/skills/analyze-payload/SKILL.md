@@ -32,7 +32,16 @@ Use this skill when you need to:
 
 ### Step 1: Parse Arguments
 
-Extract from user input:
+The first argument can be either a **full payload tag** (e.g., `4.22.0-0.nightly-2026-02-25-152806`) or just a **version** (e.g., `4.22`). Detect which by checking if it matches the pattern `X.Y.0-0.<stream>-YYYY-MM-DD-HHMMSS`.
+
+**If a full payload tag is provided**, parse from it:
+- `tag`: The specific payload tag to analyze
+- `version`: Extract from the tag (e.g., `4.22` from `4.22.0-0.nightly-...`)
+- `stream`: Extract from the tag (e.g., `nightly` from `4.22.0-0.nightly-...`)
+- `architecture`: From the second argument (default: `amd64`)
+- `lookback`: From `--lookback N` (default: `10`)
+
+**If a version is provided** (or nothing):
 - `version`: OCP version (e.g., `4.22`). If not provided, use `fetch_payloads.py` with no version arg to auto-detect.
 - `architecture`: CPU architecture (default: `amd64`)
 - `stream`: Release stream (default: `nightly`) — nightly, ci
@@ -48,11 +57,15 @@ python3 plugins/ci/skills/fetch-payloads/fetch_payloads.py <architecture> <versi
 
 Parse the output to extract payload tag names, phases, and job details.
 
-Identify the **target payload** — the most recent payload that is either **Rejected** or **Ready** (with at least one failed blocking job):
+Identify the **target payload**:
+- If a specific tag was provided in Step 1, use that payload as the target.
+- Otherwise, select the most recent payload that is either **Rejected** or **Ready** (with at least one failed blocking job).
+
+Based on the target payload's phase:
 
 - **Rejected**: Extract all failed blocking job names and their Prow URLs. Proceed with full analysis.
 - **Ready**: Extract blocking jobs that have already **failed** (with their Prow URLs). These are jobs that will not pass — they indicate the payload is on track for rejection. Proceed with analysis of those failed jobs and note in the report that the payload is still in progress.
-- **Accepted** (most recent): If the most recent payload is Accepted, report "Latest payload was accepted, no analysis needed" and exit.
+- **Accepted**: Report "Payload was accepted, no analysis needed" and exit.
 
 ### Step 3: Build Failure History (Lookback)
 

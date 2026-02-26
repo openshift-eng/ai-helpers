@@ -1,6 +1,6 @@
 ---
 description: Analyze a rejected or in-progress payload with historical lookback to identify root causes of blocking job failures
-argument-hint: "[architecture] [version] [stream] [--lookback N]"
+argument-hint: "[payload-tag-or-version] [architecture] [stream] [--lookback N]"
 ---
 
 ## Name
@@ -10,7 +10,7 @@ ci:analyze-payload
 ## Synopsis
 
 ```
-/ci:analyze-payload [architecture] [version] [stream] [--lookback N]
+/ci:analyze-payload [payload-tag-or-version] [architecture] [stream] [--lookback N]
 ```
 
 ## Description
@@ -59,36 +59,41 @@ Load the "Analyze Payload" skill and follow its implementation steps. The skill 
 
 ## Examples
 
-1. **Analyze latest rejected 4.22 nightly (defaults to amd64, nightly, lookback 10)**:
+1. **Analyze a specific payload tag**:
+   ```
+   /ci:analyze-payload 4.22.0-0.nightly-2026-02-25-152806
+   ```
+
+2. **Analyze latest rejected 4.22 nightly (defaults to amd64, nightly, lookback 10)**:
    ```
    /ci:analyze-payload 4.22
    ```
 
-2. **Analyze with specific architecture**:
+3. **Analyze with specific architecture**:
    ```
    /ci:analyze-payload 4.22 arm64
    ```
 
-3. **Analyze CI stream instead of nightly**:
+4. **Analyze CI stream instead of nightly**:
    ```
    /ci:analyze-payload 4.22 amd64 ci
    ```
 
-4. **Analyze with deeper lookback**:
+5. **Analyze with deeper lookback**:
    ```
    /ci:analyze-payload 4.22 amd64 nightly --lookback 20
    ```
 
-5. **Analyze latest version (auto-detected)**:
+6. **Analyze latest version (auto-detected)**:
    ```
    /ci:analyze-payload
    ```
 
 ## Arguments
 
-- $1: CPU architecture (optional, default: amd64) — amd64, arm64, ppc64le, s390x, multi
-- $2: OCP version (optional, default: latest from Sippy) — e.g., 4.18, 4.22
-- $3: Release stream (optional, default: nightly) — nightly, ci
+- $1: A full payload tag (e.g., `4.22.0-0.nightly-2026-02-25-152806`) OR an OCP version (e.g., `4.22`). A full tag is detected by matching the pattern `X.Y.0-0.stream-YYYY-MM-DD-HHMMSS`. When a full tag is provided, version and stream are parsed from it automatically. (optional, default: latest version from Sippy)
+- $2: CPU architecture (optional, default: amd64) — amd64, arm64, ppc64le, s390x, multi
+- $3: Release stream (optional, default: nightly) — nightly, ci. Ignored when a full tag is provided.
 - `--lookback N`: Maximum number of consecutive rejected payloads to examine (optional, default: 10)
 
 ## Skills Used
