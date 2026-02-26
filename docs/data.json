@@ -290,7 +290,7 @@
         },
         {
           "argument_hint": "[architecture] [version] [stream] [--lookback N]",
-          "description": "Analyze a rejected payload with historical lookback to identify root causes of blocking job failures",
+          "description": "Analyze a rejected or in-progress payload with historical lookback to identify root causes of blocking job failures",
           "name": "analyze-payload",
           "synopsis": "/ci:analyze-payload [architecture] [version] [stream] [--lookback N]"
         },
@@ -403,7 +403,7 @@
       "name": "ci",
       "skills": [
         {
-          "description": "Analyze a rejected nightly payload with historical lookback to identify root causes of blocking job failures and produce an HTML report",
+          "description": "Analyze a rejected or in-progress nightly payload with historical lookback to identify root causes of blocking job failures and produce an HTML report",
           "id": "analyze-payload",
           "name": "Analyze Payload"
         },
