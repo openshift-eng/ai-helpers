@@ -331,6 +331,12 @@
           "synopsis": "bash"
         },
         {
+          "argument_hint": "[architecture] [version] [stream]",
+          "description": "Fetch recent release payloads from the OpenShift release controller",
+          "name": "fetch-payloads",
+          "synopsis": "/ci:fetch-payloads [architecture] [version] [stream]"
+        },
+        {
           "argument_hint": "<test-name> [release]",
           "description": "Fetch a test report from Sippy showing pass rates, test ID, and Jira component",
           "name": "fetch-test-report",
@@ -399,6 +405,11 @@
           "description": "Fetch pull requests that are new in a given OpenShift payload compared to the previous payload",
           "id": "fetch-new-prs-in-payload",
           "name": "Fetch New PRs in Payload"
+        },
+        {
+          "description": "Fetch recent release payloads from the OpenShift release controller",
+          "id": "fetch-payloads",
+          "name": "Fetch Payloads"
         },
         {
           "description": "Fetch and return key data from a Prow job's prowjob.json artifact given a Prow job URL",
