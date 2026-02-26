@@ -1,17 +1,20 @@
 ---
 name: Analyze Payload
-description: Analyze a rejected nightly payload with historical lookback to identify root causes of blocking job failures and produce an HTML report
+description: Analyze a rejected or in-progress nightly payload with historical lookback to identify root causes of blocking job failures and produce an HTML report
 ---
 
 # Analyze Payload
 
-This skill finds the latest rejected nightly payload for a given OCP version, walks back through consecutive rejected payloads to determine when each failure started, correlates failures with newly introduced PRs, investigates each failed job in parallel, and produces a comprehensive HTML report.
+This skill analyzes a nightly payload for a given OCP version, walks back through consecutive rejected payloads to determine when each failure started, correlates failures with newly introduced PRs, investigates each failed job in parallel, and produces a comprehensive HTML report.
+
+It supports both **Rejected** payloads (full analysis of all failed blocking jobs) and **Ready** payloads (early analysis of blocking jobs that have already failed, with a determination of whether the payload is on track for rejection).
 
 ## When to Use This Skill
 
 Use this skill when you need to:
 
 - Understand why a nightly payload was rejected
+- Assess whether an in-progress ("Ready") payload is likely to be rejected based on already-failed blocking jobs
 - Determine whether failures are new or persistent (permafailing)
 - Identify which PRs likely caused new failures
 - Get a comprehensive overview of payload health with actionable root cause analysis
@@ -37,35 +40,33 @@ Extract from user input:
 
 ### Step 2: Fetch Recent Payloads
 
-Use the `fetch-payloads` skill to get recent payloads, filtering for rejected ones. Fetch enough payloads to cover the lookback window:
+Fetch recent payloads without filtering by phase, so the full payload history is available for analysis and lookback:
 
 ```bash
-python3 plugins/ci/skills/fetch-payloads/fetch_payloads.py <architecture> <version> <stream> --phase Rejected --limit <lookback>
+python3 plugins/ci/skills/fetch-payloads/fetch_payloads.py <architecture> <version> <stream> --limit <lookback * 2>
 ```
 
-Parse the output to extract:
-- Payload tag names
-- Failed blocking job names and their Prow URLs
+Parse the output to extract payload tag names, phases, and job details.
 
-The **latest rejected payload** is the primary target for analysis.
+Identify the **target payload** — the most recent payload that is either **Rejected** or **Ready** (with at least one failed blocking job):
+
+- **Rejected**: Extract all failed blocking job names and their Prow URLs. Proceed with full analysis.
+- **Ready**: Extract blocking jobs that have already **failed** (with their Prow URLs). These are jobs that will not pass — they indicate the payload is on track for rejection. Proceed with analysis of those failed jobs and note in the report that the payload is still in progress.
+- **Accepted** (most recent): If the most recent payload is Accepted, report "Latest payload was accepted, no analysis needed" and exit.
 
 ### Step 3: Build Failure History (Lookback)
 
 The goal is to determine **when each failing job first started failing** in the chain of consecutive rejected payloads.
 
-1. Starting from the latest rejected payload, collect the set of failed blocking jobs.
-2. Walk backwards through the consecutive rejected payloads (up to `lookback` limit).
-3. For each failed job in the latest payload, check whether it also failed in the previous rejected payload.
+Using the full payload list from Step 2 (which includes all phases):
+
+1. Starting from the target payload, collect the set of failed blocking jobs.
+2. Walk backwards through consecutive rejected payloads (up to `lookback` limit).
+3. For each failed job in the target payload, check whether it also failed in the previous rejected payload.
 4. Continue until either:
    - The job was NOT failing in an earlier payload (meaning you found the originating payload)
    - You reach a non-rejected (Accepted) payload
    - You exhaust the lookback window
-
-To determine if payloads are consecutive (no accepted payload in between), also fetch payloads without a phase filter:
-
-```bash
-python3 plugins/ci/skills/fetch-payloads/fetch_payloads.py <architecture> <version> <stream> --limit <lookback * 2>
-```
 
 For each failed job, record:
 - **streak_length**: How many consecutive rejected payloads it has been failing in
@@ -84,7 +85,7 @@ Store the PR data keyed by originating payload tag. These PRs are the **suspects
 
 ### Step 5: Investigate Each Failed Job in Parallel
 
-For each failed blocking job in the **latest rejected payload**, launch a **parallel subagent** (using the Task tool) to investigate the failure. Use the Prow URL from Step 2.
+For each failed blocking job in the **target payload**, launch a **parallel subagent** (using the Task tool) to investigate the failure. Use the Prow URL from Step 2.
 
 Choose the appropriate analysis based on the job name:
 
@@ -398,11 +399,11 @@ The HTML must be fully self-contained with embedded CSS. Use a clean, profession
 
 ## Error Handling
 
-### No Rejected Payloads Found
+### No Payloads to Analyze
 
-If no rejected payloads are found for the given version:
+If no rejected or ready-with-failures payloads are found for the given version:
 ```
-No rejected payloads found for {version} ({architecture}) in the last {limit} payloads.
+No payloads requiring analysis found for {version} ({architecture}) in the last {limit} payloads.
 The most recent payloads may all be Accepted. Try increasing --lookback or check a different version.
 ```
 

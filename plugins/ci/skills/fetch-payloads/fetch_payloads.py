@@ -126,17 +126,26 @@ def format_payload(tag: dict, details: dict, architecture: str, stream_name: str
                 if prow_url:
                     lines.append(f"            {prow_url}")
     elif phase == "Ready":
-        pending = len([v for v in blocking.values() if v.get("state") == "Pending"])
-        succeeded = len([v for v in blocking.values() if v.get("state") == "Succeeded"])
-        failed = len([v for v in blocking.values() if v.get("state") == "Failed"])
+        pending_jobs = {k: v for k, v in blocking.items() if v.get("state") == "Pending"}
+        succeeded_jobs = {k: v for k, v in blocking.items() if v.get("state") == "Succeeded"}
+        failed_jobs = {k: v for k, v in blocking.items() if v.get("state") == "Failed"}
         parts = []
-        if succeeded:
-            parts.append(f"{succeeded} succeeded")
-        if pending:
-            parts.append(f"{pending} pending")
-        if failed:
-            parts.append(f"{failed} failed")
+        if succeeded_jobs:
+            parts.append(f"{len(succeeded_jobs)} succeeded")
+        if pending_jobs:
+            parts.append(f"{len(pending_jobs)} pending")
+        if failed_jobs:
+            parts.append(f"{len(failed_jobs)} failed")
         lines.append(f"  Blocking: {', '.join(parts)} (of {len(blocking)})")
+        if failed_jobs:
+            lines.append(f"  Failed blocking jobs:")
+            for job_name, info in sorted(failed_jobs.items()):
+                retries = info.get("retries", 0)
+                retry_str = f" ({retries} retries)" if retries else ""
+                prow_url = info.get("url", "")
+                lines.append(f"    FAILED  {job_name}{retry_str}")
+                if prow_url:
+                    lines.append(f"            {prow_url}")
     else:
         # Accepted - brief summary
         lines.append(f"  Blocking: {len(blocking)}/{len(blocking)} succeeded")

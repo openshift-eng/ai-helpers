@@ -1,5 +1,5 @@
 ---
-description: Analyze a rejected payload with historical lookback to identify root causes of blocking job failures
+description: Analyze a rejected or in-progress payload with historical lookback to identify root causes of blocking job failures
 argument-hint: "[architecture] [version] [stream] [--lookback N]"
 ---
 
@@ -15,7 +15,9 @@ ci:analyze-payload
 
 ## Description
 
-The `ci:analyze-payload` command finds the latest rejected payload for a given OCP version, investigates every failed blocking job, and produces a self-contained HTML report summarizing what went wrong.
+The `ci:analyze-payload` command finds the latest rejected or in-progress payload for a given OCP version, investigates every failed blocking job, and produces a self-contained HTML report summarizing what went wrong.
+
+It supports both **Rejected** payloads (full analysis) and **Ready** payloads (early analysis of blocking jobs that have already failed, to determine if the payload is on track for rejection).
 
 It performs **historical lookback** through consecutive rejected payloads to determine when each failure first appeared. For each originating payload (where a job first started failing), it fetches the new PRs introduced in that payload as likely culprits. This distinguishes new failures from persistent/permafailing jobs and helps identify the root cause commits.
 
