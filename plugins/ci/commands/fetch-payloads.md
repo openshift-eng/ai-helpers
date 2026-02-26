@@ -51,9 +51,9 @@ The `ci:fetch-payloads` command fetches recent release payloads from the OpenShi
    /ci:fetch-payloads arm64 4.18 nightly
    ```
 
-3. **Only rejected payloads**:
+3. **Only accepted payloads**:
    ```
-   /ci:fetch-payloads amd64 4.18 nightly --phase Rejected
+   /ci:fetch-payloads amd64 4.23 nightly --phase Accepted
    ```
 
 ## Arguments
@@ -64,5 +64,4 @@ The `ci:fetch-payloads` command fetches recent release payloads from the OpenShi
 
 ## Skills Used
 
-- `fetch-payloads`: Queries the release controller API for payload tags and release details
-- `fetch-releases` (indirectly): Used by the script to determine the latest version when not specified
+- `fetch-payloads`: Queries the release controller API for payload tags and release details. When no version is specified, `fetch_payloads.py` obtains the latest version directly from the Sippy API.
