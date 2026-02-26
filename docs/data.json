@@ -289,6 +289,12 @@
           "synopsis": "/ci:add-debug-wait <workflow-or-job-name> [timeout]"
         },
         {
+          "argument_hint": "[architecture] [version] [stream] [--lookback N]",
+          "description": "Analyze a rejected payload with historical lookback to identify root causes of blocking job failures",
+          "name": "analyze-payload",
+          "synopsis": "/ci:analyze-payload [architecture] [version] [stream] [--lookback N]"
+        },
+        {
           "argument_hint": "<prowjob-url>",
           "description": "Analyze OpenShift installation failures in Prow CI jobs",
           "name": "analyze-prow-job-install-failure",
@@ -397,6 +403,11 @@
       "name": "ci",
       "skills": [
         {
+          "description": "Analyze a rejected nightly payload with historical lookback to identify root causes of blocking job failures and produce an HTML report",
+          "id": "analyze-payload",
+          "name": "Analyze Payload"
+        },
+        {
           "description": "Fetch JIRA issue details including status, assignee, comments, and progress classification",
           "id": "fetch-jira-issue",
           "name": "Fetch JIRA Issue"
@@ -492,7 +503,7 @@
           "name": "Triage Regression"
         }
       ],
-      "version": "0.0.8"
+      "version": "0.0.9"
     },
     {
       "commands": [

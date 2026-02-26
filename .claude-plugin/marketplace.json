@@ -26,7 +26,7 @@
       "name": "ci",
       "source": "./plugins/ci",
       "description": "A plugin to work with OpenShift CI and analyze Prow job results",
-      "version": "0.0.8"
+      "version": "0.0.9"
     },
     {
       "name": "teams",
@@ -145,7 +145,8 @@
     {
       "name": "testing",
       "source": "./plugins/testing",
-      "description": "Comprehensive testing utilities for operators and applications"
+      "description": "Comprehensive testing utilities for operators and applications",
+      "version": "0.1.0"
     },
     {
       "name": "origin",
