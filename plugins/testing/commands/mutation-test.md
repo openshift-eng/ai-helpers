@@ -1,6 +1,6 @@
 ---
 description: Test operator controller quality through mutation testing - validates test suite catches code mutations
-argument-hint: "[operator-path] [--controllers <controller1,controller2>] [--mutation-types <types>] [--report-format <format>]"
+argument-hint: [operator-path] [--controllers <controller1,controller2>] [--mutation-types <types>] [--report-format <format>]
 ---
 
 ## Name
