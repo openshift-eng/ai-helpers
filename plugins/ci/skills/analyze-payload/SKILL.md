@@ -138,6 +138,25 @@ For each revert candidate, record:
 - Jobs where the failure analysis is inconclusive or the root cause is unclear
 - PRs where the correlation is circumstantial (e.g., same component but unrelated code path)
 
+#### 6.3: Check if Revert Candidates Were Already Reverted
+
+For each revert candidate identified in 6.2, check whether a revert PR already exists:
+
+```bash
+gh pr list --repo <org>/<repo> --search "revert <pr_number>" --json number,title,url,state,mergedAt --limit 5
+```
+
+If a revert PR is found:
+
+1. **Report the revert PR's state** (open, merged, or closed):
+   - **Merged**: Note when it merged relative to the analyzed payload's timestamp. If the revert merged after the payload was cut, the fix is expected in the next payload. If it merged before, investigate why the failure persists.
+   - **Open**: Note that a revert is in progress but not yet merged. Link to the PR.
+   - **Closed (not merged)**: Ignore — the revert was abandoned.
+
+2. **Do not recommend reverting a PR that already has a merged revert.** The report should still mention the culprit PR and link to the revert, but the action item should reflect the current state (e.g., "Already reverted by #291, fix expected in next payload").
+
+3. **If a revert PR is open but not merged**, still recommend the revert but note that a revert PR already exists and link to it, so the reader can help expedite the merge.
+
 ### Step 7: Generate HTML Report
 
 Create a self-contained HTML file named `payload-analysis-<tag>.html` in the current working directory. The tag should be sanitized for use as a filename (replace colons and slashes).
