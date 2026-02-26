@@ -52,7 +52,7 @@ The first argument can be either a **full payload tag** (e.g., `4.22.0-0.nightly
 Fetch recent payloads without filtering by phase, so the full payload history is available for analysis and lookback:
 
 ```bash
-python3 plugins/ci/skills/fetch-payloads/fetch_payloads.py <architecture> <version> <stream> --limit <lookback * 2>
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/fetch-payloads/fetch_payloads.py <architecture> <version> <stream> --limit <lookback * 2>
 ```
 
 Parse the output to extract payload tag names, phases, and job details.
@@ -91,7 +91,7 @@ For each failed job, record:
 For each unique originating payload identified in Step 3, fetch the PRs that were new in that payload:
 
 ```bash
-python3 plugins/ci/skills/fetch-new-prs-in-payload/fetch_new_prs_in_payload.py <originating_payload_tag> --format json
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/fetch-new-prs-in-payload/fetch_new_prs_in_payload.py <originating_payload_tag> --format json
 ```
 
 Store the PR data keyed by originating payload tag. These PRs are the **suspects** for the failures that started in that payload.
@@ -100,15 +100,17 @@ Store the PR data keyed by originating payload tag. These PRs are the **suspects
 
 For each failed blocking job in the **target payload**, launch a **parallel subagent** (using the Task tool) to investigate the failure. Use the Prow URL from Step 2.
 
-Choose the appropriate analysis based on the job name:
+Each subagent should determine whether the failure is an install failure or a test failure by checking the JUnit results (e.g., look for `install should succeed*` test failures), then use the appropriate analysis skill. Almost all blocking jobs install a cluster and then run tests, so the job name alone does not tell you the failure type.
 
-**For install failures** (job name contains "install" or the failure is "install should succeed"):
-- Use the `ci:analyze-prow-job-install-failure` skill
-- Instruct the subagent: "Analyze the install failure at <prow_url>. Follow the prow-job-analyze-install-failure skill. Return a concise summary including: failure mode, root cause, key error messages, and any relevant log excerpts. Do not ask user questions - use --fast mode equivalent (skip optional prompts). Keep the output concise for inclusion in a summary report."
+Instruct each subagent as follows:
 
-**For test failures** (all other failures):
-- Use the `ci:analyze-prow-job-test-failure` skill
-- Instruct the subagent: "Analyze the test failure at <prow_url>. Follow the prow-job-analyze-test-failure skill. The failing test(s) can be found in the build log. Return a concise summary including: which test(s) failed, root cause hypothesis, key error messages, and any relevant log excerpts. Skip must-gather extraction for speed. Keep the output concise for inclusion in a summary report."
+> Analyze the failure at <prow_url>. First, check the JUnit results or build log to determine whether this is an install failure (look for `install should succeed: overall` or similar install-related test failures) or a test failure (install passed, specific tests failed).
+>
+> Based on the failure type, use the appropriate skill:
+> - **Install failure**: Use the `ci:prow-job-analyze-install-failure` skill. For metal/bare-metal jobs (job name contains "metal"), perform additional analysis using the `ci:prow-job-analyze-metal-install-failure` skill as needed for dev-scripts, Metal3/Ironic, and BareMetalHost-specific diagnostics.
+> - **Test failure**: Use the `ci:prow-job-analyze-test-failure` skill.
+>
+> Return a concise summary including: failure type (install vs test), root cause, key error messages, and any relevant log excerpts. Do not ask user questions. Keep the output concise for inclusion in a summary report.
 
 **Important**: Launch ALL subagents in parallel (single message with multiple Task tool calls) for maximum speed. Each subagent should be given `subagent_type: "general-purpose"`.
 
