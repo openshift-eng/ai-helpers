@@ -1,11 +1,11 @@
 ---
 name: Analyze Payload
-description: Analyze a rejected or in-progress nightly payload with historical lookback to identify root causes of blocking job failures and produce an HTML report
+description: Analyze a rejected or in-progress payload with historical lookback to identify root causes of blocking job failures and produce an HTML report
 ---
 
 # Analyze Payload
 
-This skill analyzes a nightly payload for a given OCP version, walks back through consecutive rejected payloads to determine when each failure started, correlates failures with newly introduced PRs, investigates each failed job in parallel, and produces a comprehensive HTML report.
+This skill analyzes a payload for a given OCP version, walks back through consecutive rejected payloads to determine when each failure started, correlates failures with newly introduced PRs, investigates each failed job in parallel, and produces a comprehensive HTML report.
 
 It supports both **Rejected** payloads (full analysis of all failed blocking jobs) and **Ready** payloads (early analysis of blocking jobs that have already failed, with a determination of whether the payload is on track for rejection).
 
@@ -13,7 +13,7 @@ It supports both **Rejected** payloads (full analysis of all failed blocking job
 
 Use this skill when you need to:
 
-- Understand why a nightly payload was rejected
+- Understand why a payload was rejected
 - Assess whether an in-progress ("Ready") payload is likely to be rejected based on already-failed blocking jobs
 - Determine whether failures are new or persistent (permafailing)
 - Identify which PRs likely caused new failures
@@ -186,7 +186,7 @@ The report must include the following sections:
 <!-- Header with payload info -->
 <h1>Payload Analysis: {payload_tag}</h1>
 <div class="metadata">
-  <p>Architecture: {architecture} | Stream: nightly | Generated: {timestamp}</p>
+  <p>Architecture: {architecture} | Stream: {stream} | Generated: {timestamp}</p>
   <p>Release Controller: <a href="{release_controller_url}">{payload_tag}</a></p>
 </div>
 
