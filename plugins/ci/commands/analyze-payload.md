@@ -1,6 +1,6 @@
 ---
-description: Analyze a rejected nightly payload with historical lookback to identify root causes of blocking job failures
-argument-hint: "[version] [architecture] [--lookback N]"
+description: Analyze a rejected payload with historical lookback to identify root causes of blocking job failures
+argument-hint: "[architecture] [version] [stream] [--lookback N]"
 ---
 
 ## Name
@@ -10,12 +10,12 @@ ci:analyze-payload
 ## Synopsis
 
 ```
-/ci:analyze-payload [version] [architecture] [--lookback N]
+/ci:analyze-payload [architecture] [version] [stream] [--lookback N]
 ```
 
 ## Description
 
-The `ci:analyze-payload` command finds the latest rejected nightly payload for a given OCP version, investigates every failed blocking job, and produces a self-contained HTML report summarizing what went wrong.
+The `ci:analyze-payload` command finds the latest rejected payload for a given OCP version, investigates every failed blocking job, and produces a self-contained HTML report summarizing what went wrong.
 
 It performs **historical lookback** through consecutive rejected payloads to determine when each failure first appeared. For each originating payload (where a job first started failing), it fetches the new PRs introduced in that payload as likely culprits. This distinguishes new failures from persistent/permafailing jobs and helps identify the root cause commits.
 
@@ -25,7 +25,7 @@ Failed jobs are investigated **in parallel** using subagents with the appropriat
 
 ### Key Features
 
-- **Automatic payload discovery**: Finds the latest rejected nightly payload
+- **Automatic payload discovery**: Finds the latest rejected payload
 - **Historical lookback**: Walks back through up to N consecutive rejected payloads (default 10) to find when each job first started failing
 - **PR correlation**: Uses the `fetch-new-prs-in-payload` skill to identify PRs that landed in the originating payload for each failure
 - **Parallel investigation**: Kicks off subagents for each failed blocking job using the appropriate CI analysis skill
@@ -57,7 +57,7 @@ Load the "Analyze Payload" skill and follow its implementation steps. The skill 
 
 ## Examples
 
-1. **Analyze latest rejected 4.22 nightly (defaults to amd64, lookback 10)**:
+1. **Analyze latest rejected 4.22 nightly (defaults to amd64, nightly, lookback 10)**:
    ```
    /ci:analyze-payload 4.22
    ```
@@ -67,20 +67,26 @@ Load the "Analyze Payload" skill and follow its implementation steps. The skill 
    /ci:analyze-payload 4.22 arm64
    ```
 
-3. **Analyze with deeper lookback**:
+3. **Analyze CI stream instead of nightly**:
    ```
-   /ci:analyze-payload 4.22 amd64 --lookback 20
+   /ci:analyze-payload 4.22 amd64 ci
    ```
 
-4. **Analyze latest version (auto-detected)**:
+4. **Analyze with deeper lookback**:
+   ```
+   /ci:analyze-payload 4.22 amd64 nightly --lookback 20
+   ```
+
+5. **Analyze latest version (auto-detected)**:
    ```
    /ci:analyze-payload
    ```
 
 ## Arguments
 
-- $1: OCP version (optional, default: latest from Sippy) — e.g., 4.18, 4.22
-- $2: CPU architecture (optional, default: amd64) — amd64, arm64, ppc64le, s390x, multi
+- $1: CPU architecture (optional, default: amd64) — amd64, arm64, ppc64le, s390x, multi
+- $2: OCP version (optional, default: latest from Sippy) — e.g., 4.18, 4.22
+- $3: Release stream (optional, default: nightly) — nightly, ci
 - `--lookback N`: Maximum number of consecutive rejected payloads to examine (optional, default: 10)
 
 ## Skills Used

@@ -32,6 +32,7 @@ Use this skill when you need to:
 Extract from user input:
 - `version`: OCP version (e.g., `4.22`). If not provided, use `fetch_payloads.py` with no version arg to auto-detect.
 - `architecture`: CPU architecture (default: `amd64`)
+- `stream`: Release stream (default: `nightly`) — nightly, ci
 - `lookback`: Max number of rejected payloads to walk back through (default: `10`)
 
 ### Step 2: Fetch Recent Payloads
@@ -39,7 +40,7 @@ Extract from user input:
 Use the `fetch-payloads` skill to get recent payloads, filtering for rejected ones. Fetch enough payloads to cover the lookback window:
 
 ```bash
-python3 plugins/ci/skills/fetch-payloads/fetch_payloads.py <architecture> <version> nightly --phase Rejected --limit <lookback>
+python3 plugins/ci/skills/fetch-payloads/fetch_payloads.py <architecture> <version> <stream> --phase Rejected --limit <lookback>
 ```
 
 Parse the output to extract:
@@ -63,7 +64,7 @@ The goal is to determine **when each failing job first started failing** in the 
 To determine if payloads are consecutive (no accepted payload in between), also fetch payloads without a phase filter:
 
 ```bash
-python3 plugins/ci/skills/fetch-payloads/fetch_payloads.py <architecture> <version> nightly --limit <lookback * 2>
+python3 plugins/ci/skills/fetch-payloads/fetch_payloads.py <architecture> <version> <stream> --limit <lookback * 2>
 ```
 
 For each failed job, record:
