@@ -1027,6 +1027,12 @@
           "synopsis": "/must-gather:analyze [must-gather-path] [component]"
         },
         {
+          "argument_hint": "[must-gather-path|stop]",
+          "description": "Launch CAMGI (Cluster Autoscaler Must-Gather Inspector) web interface to analyze cluster infrastructure and autoscaler behavior",
+          "name": "camgi",
+          "synopsis": "/must-gather:camgi [must-gather-path]"
+        },
+        {
           "argument_hint": "[must-gather-path]",
           "description": "Analyze OVN databases from a must-gather using ovsdb-tool",
           "name": "ovn-dbs",
