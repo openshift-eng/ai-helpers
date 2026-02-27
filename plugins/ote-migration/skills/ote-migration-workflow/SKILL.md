@@ -335,7 +335,7 @@ Ask: "Which Dockerfile(s) do you want to update?"
 - Enter `none` to skip Dockerfile integration
 
 **Example:**
-```
+```text
 Found Dockerfiles:
  1. ./Dockerfile
  2. ./Dockerfile.rhel8
@@ -375,7 +375,7 @@ fi
 
 Show all collected inputs for user confirmation before proceeding:
 
-```
+```text
 ========================================
 Migration Configuration Summary
 ========================================
@@ -395,7 +395,7 @@ Selected Dockerfiles:  <selected-dockerfiles or "manual integration" or "none">
 ```
 
 **Example output (local target with existing test/e2e, automated Dockerfile):**
-```
+```text
 ========================================
 Migration Configuration Summary
 ========================================
@@ -415,7 +415,7 @@ Selected Dockerfiles:  ./Dockerfile, ./Dockerfile.rhel8
 ```
 
 **Example output (local target without test/e2e, automated Dockerfile):**
-```
+```text
 ========================================
 Migration Configuration Summary
 ========================================
@@ -435,7 +435,7 @@ Selected Dockerfiles:  ./Dockerfile
 ```
 
 **Example output (cloned target, manual Dockerfile, single-module strategy):**
-```
+```text
 ========================================
 Migration Configuration Summary
 ========================================
@@ -2195,7 +2195,7 @@ RUN cd tests-extension && \
     cd bin && \
     tar -czvf <extension-name>-test-extension.tar.gz <extension-name>-tests-ext && \
     rm -f <extension-name>-tests-ext
-```
+```markdown
 
 ## 2. Copy to Final Image
 
@@ -2207,7 +2207,7 @@ COPY --from=test-extension-builder /go/src/github.com/openshift/<extension-name>
 
 # For single-module:
 # COPY --from=test-extension-builder /go/src/github.com/openshift/<extension-name>/tests-extension/bin/<extension-name>-test-extension.tar.gz /usr/bin/
-```
+```markdown
 
 ## Example: Multi-Stage Dockerfile
 
@@ -2234,7 +2234,7 @@ COPY --from=builder /go/src/github.com/openshift/<extension-name>/bin/<extension
 
 # NEW: Copy test extension
 COPY --from=test-extension-builder /go/src/github.com/openshift/<extension-name>/bin/<extension-name>-test-extension.tar.gz /usr/bin/
-```
+```markdown
 
 ## Example: Single-Stage Dockerfile
 
@@ -2262,7 +2262,7 @@ COPY --from=test-extension-builder /go/src/github.com/openshift/<extension-name>
 USER 1001
 EXPOSE 80 443
 ENTRYPOINT ["/usr/bin/openshift-router"]
-```
+```markdown
 
 Replace <extension-name> with your actual extension name.
 
@@ -2538,7 +2538,7 @@ make extension
 
 # Verify binary exists
 ls -lh bin/<extension-name>-tests-ext
-```
+```markdown
 
 ### 2. List Tests
 
@@ -2551,7 +2551,7 @@ ls -lh bin/<extension-name>-tests-ext
 
 # Count Level0 tests
 ./bin/<extension-name>-tests-ext list | grep -c "\[Level0\]"
-```
+```markdown
 
 ### 3. Run Tests
 
@@ -2564,7 +2564,7 @@ ls -lh bin/<extension-name>-tests-ext
 
 # Run Level0 tests only
 ./bin/<extension-name>-tests-ext run --grep "\[Level0\]"
-```
+```markdown
 
 ### 4. Build Docker Image
 
@@ -2578,7 +2578,7 @@ podman build -t <component>:test -f <path-to-dockerfile> .
 podman run --rm --entrypoint ls <component>:test -lh /usr/bin/*-test-extension.tar.gz
 # Or for Docker:
 # docker run --rm --entrypoint ls <component>:test -lh /usr/bin/*-test-extension.tar.gz
-```
+```markdown
 
 ### 5. Verify Test Annotations
 
@@ -2591,7 +2591,7 @@ grep -r "\[Level0\]" test/e2e/*_test.go
 
 # Verify no -LEVEL0- suffixes remain
 grep -r "\-LEVEL0\-" test/e2e/*_test.go || echo "✅ All -LEVEL0- removed"
-```
+```markdown
 
 ## Files Created/Modified
 
@@ -2646,7 +2646,7 @@ git status go.sum
 
 # If untracked, add it:
 git add go.mod go.sum
-```
+```markdown
 
 ## Troubleshooting
 
@@ -2697,19 +2697,19 @@ Directory tree:
 ```bash
 cd tests-extension
 make build
-```
+```markdown
 
 ### 2. List Tests
 
 ```bash
 ./bin/<extension-name>-tests-ext list
-```
+```markdown
 
 ### 3. Run Tests
 
 ```bash
 ./bin/<extension-name>-tests-ext run
-```
+```markdown
 
 ## Files Created
 
@@ -2741,7 +2741,7 @@ This section provides solutions to common issues encountered during OTE migratio
 ### Ginkgo Version Conflicts
 
 **Symptom:**
-```
+```text
 undefined: ginkgo.NewWriter
 spec.Labels undefined (type types.TestSpec has no field or method Labels)
 ```
@@ -2772,7 +2772,7 @@ OTE's December 2024 fork is backward compatible with OTP's August 2024 code. Usi
 ### k8s.io Version Mismatches
 
 **Symptom:**
-```
+```text
 k8s.io/cri-client/pkg/remote_image.go:75:39: undefined: otelgrpc.UnaryClientInterceptor
 ```
 
@@ -2808,7 +2808,7 @@ OTP's k8s.io versions (October 2025) are proven stable. The OTE Ginkgo fork (Dec
 ### kube-openapi yaml Type Errors
 
 **Symptom:**
-```
+```text
 k8s.io/kube-openapi/pkg/util/proto/document_v3.go:291:31: cannot use s.GetDefault().ToRawInfo() (value of type *"go.yaml.in/yaml/v3".Node) as *"gopkg.in/yaml.v3".Node value in argument to parseV3Interface
 ```
 
@@ -2838,7 +2838,7 @@ Removing the old pin allows Go to resolve the correct kube-openapi version natur
 ### Test Execution Fails: Unable to Load Kubeconfig
 
 **Symptom:**
-```
+```text
 unable to load in-cluster configuration, KUBERNETES_SERVICE_HOST and KUBERNETES_SERVICE_PORT must be defined
 [FAILED] in [BeforeEach] - framework.go:222
 ```
@@ -2899,7 +2899,7 @@ func main() {
 ### structured-merge-diff v4/v6 Incompatibility (Vendor Mode)
 
 **Symptom:**
-```
+```text
 100+ errors with -mod=vendor:
 vendor/k8s.io/apimachinery/pkg/util/managedfields/internal/fieldmanager.go:26:2: imported and not used: "sigs.k8s.io/structured-merge-diff/v4/fieldpath"
 ```
@@ -2966,7 +2966,7 @@ make tests-ext-build
 ### Vendor Directory Out of Sync
 
 **Symptom:**
-```
+```text
 # Build fails with import errors or version conflicts
 vendor/k8s.io/apimachinery/pkg/util/managedfields/internal/fieldmanager.go:26:2: imported and not used
 ```
@@ -2998,7 +2998,7 @@ The Makefile uses `-mod=vendor` by default, which builds from the vendored code.
 ### Testdata Fixtures Not Found at Runtime
 
 **Symptom:**
-```
+```text
 panic: failed to restore fixture router/haproxy.cfg: Asset not found
 ```
 
@@ -3041,3 +3041,4 @@ This skill provides complete automation for OTE migration with:
 - **Comprehensive validation** at each phase
 
 Follow each phase sequentially for successful migration. All phases include error handling and validation to ensure migration integrity.
+
