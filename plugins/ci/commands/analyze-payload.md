@@ -1,6 +1,6 @@
 ---
 description: Analyze a rejected or in-progress payload with historical lookback to identify root causes of blocking job failures
-argument-hint: "<payload-tag> [architecture] [--lookback N]"
+argument-hint: "<payload-tag> [--lookback N]"
 ---
 
 ## Name
@@ -10,7 +10,7 @@ ci:analyze-payload
 ## Synopsis
 
 ```
-/ci:analyze-payload <payload-tag> [architecture] [--lookback N]
+/ci:analyze-payload <payload-tag> [--lookback N]
 ```
 
 ## Description
@@ -58,7 +58,7 @@ Load the "Analyze Payload" skill and follow its implementation steps. The skill 
 
 ## Examples
 
-1. **Analyze a nightly payload**:
+1. **Analyze an amd64 nightly payload**:
    ```
    /ci:analyze-payload 4.22.0-0.nightly-2026-02-25-152806
    ```
@@ -68,20 +68,19 @@ Load the "Analyze Payload" skill and follow its implementation steps. The skill 
    /ci:analyze-payload 4.22.0-0.ci-2026-02-25-152806
    ```
 
-3. **Analyze with specific architecture**:
+3. **Analyze an arm64 nightly payload** (architecture is inferred from the tag):
    ```
-   /ci:analyze-payload 4.22.0-0.nightly-2026-02-25-152806 arm64
+   /ci:analyze-payload 4.22.0-0.nightly-arm64-2026-02-25-152806
    ```
 
 4. **Analyze with deeper lookback**:
    ```
-   /ci:analyze-payload 4.22.0-0.nightly-2026-02-25-152806 amd64 --lookback 20
+   /ci:analyze-payload 4.22.0-0.nightly-2026-02-25-152806 --lookback 20
    ```
 
 ## Arguments
 
-- $1: A full payload tag (e.g., `4.22.0-0.nightly-2026-02-25-152806`). Version and stream are parsed from the tag automatically. (required)
-- $2: CPU architecture (optional, default: amd64) — amd64, arm64, ppc64le, s390x, multi
+- $1: A full payload tag (e.g., `4.22.0-0.nightly-2026-02-25-152806`). Version, stream, and architecture are parsed from the tag automatically. Tags without an architecture suffix (e.g., `4.22.0-0.nightly-...`) are amd64. Tags with an architecture suffix (e.g., `4.22.0-0.nightly-arm64-...`, `4.22.0-0.nightly-ppc64le-...`) use that architecture. (required)
 - `--lookback N`: Maximum number of consecutive rejected payloads to examine (optional, default: 10)
 
 ## Skills Used
