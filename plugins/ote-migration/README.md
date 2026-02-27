@@ -210,12 +210,15 @@ Integrates OTE into existing repository structure with **single root module**.
 **Key characteristics:**
 
 - **CMD at root**: `cmd/extension/main.go` located at repository root, NOT under test/
+
 - **Single root module**: Uses only root `go.mod` - NO separate test module
   - All test dependencies are included in root go.mod
   - No go.mod/go.sum under test/e2e/ directories
+
 - **Testdata location**:
   - If `test/e2e` doesn't exist: `test/e2e/testdata/`
   - If `test/e2e` exists: `test/e2e/<subdir>/testdata/` (e.g., `test/e2e/extension/testdata/`)
+
 - **Vendor at root only**: Dependencies vendored only at repository root (`vendor/`)
 - **Auto-detected directory structure**: If `test/e2e` already exists, creates subdirectory (e.g., `test/e2e/extension/`) with tests and testdata inside
 - **Integrated build**: Makefile target `tests-ext-build` added to root
@@ -494,37 +497,30 @@ Creates isolated `tests-extension/` directory with **single go.mod** in the targ
 
   **How it works:**
 
-  1. **During dependency setup** (Phase 4, Step 6a):
-     - Fetches latest client-go commit from master branch: `git ls-remote https://github.com/openshift/client-go.git refs/heads/master`
-     - Upgrades to latest version: `go get github.com/openshift/client-go@<latest-commit>`
-     - This pulls in compatible api version automatically
-
-  2. **Deferred full resolution** (Phase 6, Step 1):
-     - Runs full `go mod tidy` after test migration completes
-     - Resolves any remaining dependency conflicts
+  1. **During dependency resolution** (Phase 6, Step 2):
+     - Runs `go mod tidy` with `GOTOOLCHAIN=auto` and `GOSUMDB=sum.golang.org`
+     - Automatically resolves all dependencies including client-go and api packages
      - Ensures all transitive dependencies are compatible
 
   **Example:**
 
   ```bash
-  # Fetch latest client-go commit (fast - just git ls-remote)
-  CLIENT_GO_LATEST=$(git ls-remote https://github.com/openshift/client-go.git refs/heads/master | awk '{print $1}')
-  # CLIENT_GO_LATEST=a1b2c3d4e5f6...
+  # Phase 6, Step 2: Tidy root module
+  GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go mod tidy
 
-  # Upgrade to latest (may take 30-60 seconds)
-  GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get "github.com/openshift/client-go@$CLIENT_GO_LATEST"
-
-  # This automatically pulls in compatible api version
-  # e.g., github.com/openshift/api v0.0.0-20260201123456-abc123def456
+  # This automatically resolves all dependencies including:
+  # - github.com/openshift/client-go (latest compatible version)
+  # - github.com/openshift/api (compatible with client-go)
+  # - All transitive dependencies
   ```
 
   **Benefits:**
 
 - ✅ Prevents `undefined: <type>` errors from API mismatches
-- ✅ Uses latest APIs compatible with current origin
-- ✅ Avoids stale versions from origin's go.mod
-- ✅ Includes timeout protection and fallback to go mod tidy
-- ✅ Root module gets compatible versions via go mod tidy
+- ✅ Uses latest APIs compatible with current dependencies
+- ✅ Automatic dependency resolution via go mod tidy
+- ✅ `GOTOOLCHAIN=auto` downloads required Go version if needed
+- ✅ All modules get compatible versions automatically
 
 ### Automatic Go Toolchain Management
 

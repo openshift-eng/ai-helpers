@@ -1954,14 +1954,15 @@ if ! grep -q "k8s.io/kms =>" go.mod; then
     # Get current k8s.io commit from existing replace directives
     CURRENT_K8S_COMMIT=$(grep "k8s.io/kubernetes =>" go.mod | grep -o 'v0.0.0-[0-9]*-[a-f0-9]*' | head -1 | sed 's/v0.0.0-[0-9]*-//')
 
+    # Check immediately after extraction
     if [ -z "$CURRENT_K8S_COMMIT" ]; then
-        echo "❌ Could not detect k8s.io commit version in go.mod"
+        echo "❌ CRITICAL: Could not detect k8s.io commit version in go.mod"
         echo "   This repo might not have k8s.io/kubernetes replace directives"
         echo "   Cannot determine OpenShift fork commit to use for k8s.io/kms"
         exit 1
     fi
 
-    echo "  Using k8s.io commit: $CURRENT_K8S_COMMIT"
+    echo "  ✅ Detected k8s.io commit: $CURRENT_K8S_COMMIT"
 
     # Check if replace section exists
     if grep -q "^replace" go.mod; then
@@ -2310,12 +2311,12 @@ for DOCKERFILE in "${SELECTED_DOCKERFILES_ARRAY[@]}"; do
 
         # Map Go version to available OpenShift builder image
         case "$GO_VERSION" in
-            1.25|1.26|1.27)
+            1.25)
                 BUILDER_IMAGE="registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.25-openshift-4.22"
                 echo "ℹ️  No builder stage found, using Go builder: $BUILDER_IMAGE"
                 ;;
             1.24)
-                BUILDER_IMAGE="registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.24-openshift-4.23"
+                BUILDER_IMAGE="registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.24-openshift-4.20"
                 echo "ℹ️  No builder stage found, using Go builder: $BUILDER_IMAGE"
                 ;;
             1.23)
@@ -2885,28 +2886,10 @@ vendor/k8s.io/apimachinery/pkg/util/managedfields/internal/fieldmanager.go:26:2:
 ```
 
 **Root Cause:**
-Vendor directory contains both v4 and v6 of structured-merge-diff, causing conflicts. This happens when go.mod was updated (k8s.io versions, replace directives) but vendor/ still contains old dependencies.
+Vendor directory contains both v4 and v6 of structured-merge-diff, causing conflicts. This is a specific symptom of vendor directory being out of sync with go.mod.
 
 **Solution:**
-Regenerate the vendor directory to match the updated go.mod:
-
-```bash
-# Clean and regenerate vendor directory
-rm -rf vendor/
-go mod tidy
-go mod vendor
-
-# Verify vendor is clean
-go mod verify
-
-# Retry build (still using -mod=vendor)
-make tests-ext-build
-```
-
-**Why this works:**
-After updating go.mod with new k8s.io versions and replace directives, the vendor directory must be regenerated to contain the correct resolved dependencies. This eliminates version conflicts while keeping `-mod=vendor` for reproducible, offline builds.
-
-**IMPORTANT:** Always use `-mod=vendor` for Docker builds. Never switch to `-mod=mod` as it requires network access and SSH authentication during Docker build.
+See the "Vendor Directory Out of Sync" section below for the complete solution and explanation.
 
 ### Build Failures (General)
 
