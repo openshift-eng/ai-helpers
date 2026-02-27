@@ -15,6 +15,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Gwapi](#gwapi-plugin)
 - [Hcp](#hcp-plugin)
 - [Hello World](#hello-world-plugin)
+- [Incidents](#incidents-plugin)
 - [Jira](#jira-plugin)
 - [Lvms](#lvms-plugin)
 - [Must Gather](#must-gather-plugin)
@@ -184,6 +185,15 @@ A hello world plugin
 - **`/hello-world:echo` `[name]`** - Hello world plugin implementation
 
 See [plugins/hello-world/README.md](plugins/hello-world/README.md) for detailed documentation.
+
+### Incidents Plugin
+
+Incident management and historical analysis tools for faster incident resolution
+
+**Commands:**
+- **`/incidents:similar-incidents` `<description>`** - Search past incidents to find similar patterns and what worked before
+
+See [plugins/incidents/README.md](plugins/incidents/README.md) for detailed documentation.
 
 ### Jira Plugin
 

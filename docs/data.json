@@ -1505,6 +1505,22 @@
         }
       ],
       "version": "0.0.1"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "<description>",
+          "description": "Search past incidents to find similar patterns and what worked before",
+          "name": "similar-incidents",
+          "synopsis": "/incidents:similar-incidents <description>"
+        }
+      ],
+      "description": "Incident management and historical analysis tools for faster incident resolution",
+      "has_readme": true,
+      "hooks": [],
+      "name": "incidents",
+      "skills": [],
+      "version": "0.0.1"
     }
   ]
 }

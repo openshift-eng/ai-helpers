@@ -201,6 +201,12 @@
       "source": "./plugins/ote-migration",
       "description": "Automate OpenShift Tests Extension (OTE) migration for component repositories",
       "version": "0.0.1"
+    },
+    {
+      "name": "incidents",
+      "source": "./plugins/incidents",
+      "description": "Incident management and historical analysis tools for faster incident resolution",
+      "version": "0.0.1"
     }
   ]
 }
