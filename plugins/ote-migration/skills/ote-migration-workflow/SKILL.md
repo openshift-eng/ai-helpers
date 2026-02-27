@@ -1232,6 +1232,7 @@ if [ -d "test/e2e" ]; then
     # Check if test/e2e has subdirectories besides testdata
     SUBDIRS=$(find test/e2e -mindepth 1 -maxdepth 1 -type d ! -name testdata 2>/dev/null)
     if [ -n "$SUBDIRS" ]; then
+        TESTDATA_DIR=""
         # Has subdirectories - find the one with testdata
         for dir in $SUBDIRS; do
             if [ -d "$dir/testdata" ]; then
@@ -1239,6 +1240,10 @@ if [ -d "test/e2e" ]; then
                 break
             fi
         done
+        # Fallback if no matching subdir had testdata
+        if [ -z "$TESTDATA_DIR" ]; then
+            TESTDATA_DIR="test/e2e/testdata"
+        fi
     else
         # No subdirectories - use test/e2e/testdata directly
         TESTDATA_DIR="test/e2e/testdata"
@@ -1559,6 +1564,8 @@ if [ -d "test/e2e" ]; then
     # Check if test/e2e has subdirectories besides testdata
     SUBDIRS=$(find test/e2e -mindepth 1 -maxdepth 1 -type d ! -name testdata 2>/dev/null)
     if [ -n "$SUBDIRS" ]; then
+        TEST_CODE_DIR=""
+        TESTDATA_DIR=""
         # Has subdirectories - find the one with Go test files
         for dir in $SUBDIRS; do
             if ls "$dir"/*_test.go >/dev/null 2>&1; then
@@ -1567,6 +1574,11 @@ if [ -d "test/e2e" ]; then
                 break
             fi
         done
+        # Fallback if no subdir contains tests
+        if [ -z "$TEST_CODE_DIR" ]; then
+            TEST_CODE_DIR="test/e2e"
+            TESTDATA_DIR="test/e2e/testdata"
+        fi
     else
         # No subdirectories - use test/e2e directly
         TEST_CODE_DIR="test/e2e"
