@@ -23,7 +23,12 @@ The `ci:fetch-payloads` command fetches recent release payloads from the OpenShi
 
 2. **Fetch payloads**: Use the `fetch-payloads` skill:
    ```bash
-   python3 plugins/ci/skills/fetch-payloads/fetch_payloads.py [architecture] [version] [stream]
+   FETCH_PAYLOADS="${CLAUDE_PLUGIN_ROOT}/skills/fetch-payloads/fetch_payloads.py"
+   if [ ! -f "$FETCH_PAYLOADS" ]; then
+     FETCH_PAYLOADS=$(find ~/.claude/plugins -type f -path "*/ci/skills/fetch-payloads/fetch_payloads.py" 2>/dev/null | sort | head -1)
+   fi
+   if [ -z "$FETCH_PAYLOADS" ] || [ ! -f "$FETCH_PAYLOADS" ]; then echo "ERROR: fetch_payloads.py not found" >&2; exit 2; fi
+   python3 "$FETCH_PAYLOADS" [architecture] [version] [stream]
    ```
 
    Optional flags:

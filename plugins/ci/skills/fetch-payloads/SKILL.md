@@ -25,23 +25,28 @@ If the user did not specify an architecture or stream, default to `amd64` and `n
 ### Step 2: Fetch payloads
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/fetch-payloads/fetch_payloads.py [architecture] [version] [stream]
+FETCH_PAYLOADS="${CLAUDE_PLUGIN_ROOT}/skills/fetch-payloads/fetch_payloads.py"
+if [ ! -f "$FETCH_PAYLOADS" ]; then
+  FETCH_PAYLOADS=$(find ~/.claude/plugins -type f -path "*/ci/skills/fetch-payloads/fetch_payloads.py" 2>/dev/null | sort | head -1)
+fi
+if [ -z "$FETCH_PAYLOADS" ] || [ ! -f "$FETCH_PAYLOADS" ]; then echo "ERROR: fetch_payloads.py not found" >&2; exit 2; fi
+python3 "$FETCH_PAYLOADS" [architecture] [version] [stream]
 ```
 
 Examples:
 
 ```bash
 # Latest amd64 nightly payloads (all defaults, last 5)
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/fetch-payloads/fetch_payloads.py
+python3 "$FETCH_PAYLOADS"
 
 # arm64 4.18 nightly
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/fetch-payloads/fetch_payloads.py arm64 4.18 nightly
+python3 "$FETCH_PAYLOADS" arm64 4.18 nightly
 
 # Only accepted payloads
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/fetch-payloads/fetch_payloads.py amd64 4.18 nightly --phase Accepted
+python3 "$FETCH_PAYLOADS" amd64 4.18 nightly --phase Accepted
 
 # Show more results
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/fetch-payloads/fetch_payloads.py amd64 4.18 nightly --limit 20
+python3 "$FETCH_PAYLOADS" amd64 4.18 nightly --limit 20
 ```
 
 ### Step 3: Present results

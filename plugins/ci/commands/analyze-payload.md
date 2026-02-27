@@ -1,6 +1,6 @@
 ---
 description: Analyze a rejected or in-progress payload with historical lookback to identify root causes of blocking job failures
-argument-hint: "[payload-tag-or-version] [architecture] [stream] [--lookback N]"
+argument-hint: "<payload-tag> [architecture] [--lookback N]"
 ---
 
 ## Name
@@ -10,12 +10,12 @@ ci:analyze-payload
 ## Synopsis
 
 ```
-/ci:analyze-payload [payload-tag-or-version] [architecture] [stream] [--lookback N]
+/ci:analyze-payload <payload-tag> [architecture] [--lookback N]
 ```
 
 ## Description
 
-The `ci:analyze-payload` command finds the latest rejected or in-progress payload for a given OCP version, investigates every failed blocking job, and produces a self-contained HTML report summarizing what went wrong.
+The `ci:analyze-payload` command analyzes a specific payload tag, investigates every failed blocking job, and produces a self-contained HTML report summarizing what went wrong.
 
 It supports both **Rejected** payloads (full analysis) and **Ready** payloads (early analysis of blocking jobs that have already failed, to determine if the payload is on track for rejection).
 
@@ -27,7 +27,6 @@ Failed jobs are investigated **in parallel** using subagents with the appropriat
 
 ### Key Features
 
-- **Automatic payload discovery**: Finds the latest rejected payload
 - **Historical lookback**: Walks back through up to N consecutive rejected payloads (default 10) to find when each job first started failing
 - **PR correlation**: Uses the `fetch-new-prs-in-payload` skill to identify PRs that landed in the originating payload for each failure
 - **Parallel investigation**: Kicks off subagents for each failed blocking job using the appropriate CI analysis skill
@@ -59,41 +58,30 @@ Load the "Analyze Payload" skill and follow its implementation steps. The skill 
 
 ## Examples
 
-1. **Analyze a specific payload tag**:
+1. **Analyze a nightly payload**:
    ```
    /ci:analyze-payload 4.22.0-0.nightly-2026-02-25-152806
    ```
 
-2. **Analyze latest rejected 4.22 nightly (defaults to amd64, nightly, lookback 10)**:
+2. **Analyze a CI stream payload**:
    ```
-   /ci:analyze-payload 4.22
+   /ci:analyze-payload 4.22.0-0.ci-2026-02-25-152806
    ```
 
 3. **Analyze with specific architecture**:
    ```
-   /ci:analyze-payload 4.22 arm64
+   /ci:analyze-payload 4.22.0-0.nightly-2026-02-25-152806 arm64
    ```
 
-4. **Analyze CI stream instead of nightly**:
+4. **Analyze with deeper lookback**:
    ```
-   /ci:analyze-payload 4.22 amd64 ci
-   ```
-
-5. **Analyze with deeper lookback**:
-   ```
-   /ci:analyze-payload 4.22 amd64 nightly --lookback 20
-   ```
-
-6. **Analyze latest version (auto-detected)**:
-   ```
-   /ci:analyze-payload
+   /ci:analyze-payload 4.22.0-0.nightly-2026-02-25-152806 amd64 --lookback 20
    ```
 
 ## Arguments
 
-- $1: A full payload tag (e.g., `4.22.0-0.nightly-2026-02-25-152806`) OR an OCP version (e.g., `4.22`). A full tag is detected by matching the pattern `X.Y.0-0.stream-YYYY-MM-DD-HHMMSS`. When a full tag is provided, version and stream are parsed from it automatically. (optional, default: latest version from Sippy)
+- $1: A full payload tag (e.g., `4.22.0-0.nightly-2026-02-25-152806`). Version and stream are parsed from the tag automatically. (required)
 - $2: CPU architecture (optional, default: amd64) — amd64, arm64, ppc64le, s390x, multi
-- $3: Release stream (optional, default: nightly) — nightly, ci. Ignored when a full tag is provided.
 - `--lookback N`: Maximum number of consecutive rejected payloads to examine (optional, default: 10)
 
 ## Skills Used

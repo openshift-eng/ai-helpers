@@ -32,36 +32,29 @@ Use this skill when you need to:
 
 ### Step 1: Parse Arguments
 
-The first argument can be either a **full payload tag** (e.g., `4.22.0-0.nightly-2026-02-25-152806`) or just a **version** (e.g., `4.22`). Detect which by checking if it matches the pattern `X.Y.0-0.<stream>-YYYY-MM-DD-HHMMSS`.
-
-**If a full payload tag is provided**, parse from it:
+The first argument is a **full payload tag** (e.g., `4.22.0-0.nightly-2026-02-25-152806`). Parse from it:
 - `tag`: The specific payload tag to analyze
 - `version`: Extract from the tag (e.g., `4.22` from `4.22.0-0.nightly-...`)
 - `stream`: Extract from the tag (e.g., `nightly` from `4.22.0-0.nightly-...`)
 - `architecture`: From the second argument (default: `amd64`)
 - `lookback`: From `--lookback N` (default: `10`)
 
-**If a version is provided** (or nothing):
-- `version`: OCP version (e.g., `4.22`). If not provided, use `fetch_payloads.py` with no version arg to auto-detect.
-- `architecture`: CPU architecture (default: `amd64`)
-- `stream`: Release stream (default: `nightly`) — nightly, ci
-- `lookback`: Max number of rejected payloads to walk back through (default: `10`)
-
 ### Step 2: Fetch Recent Payloads
 
 Fetch recent payloads without filtering by phase, so the full payload history is available for analysis and lookback:
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/fetch-payloads/fetch_payloads.py <architecture> <version> <stream> --limit <lookback * 2>
+FETCH_PAYLOADS="${CLAUDE_PLUGIN_ROOT}/skills/fetch-payloads/fetch_payloads.py"
+if [ ! -f "$FETCH_PAYLOADS" ]; then
+  FETCH_PAYLOADS=$(find ~/.claude/plugins -type f -path "*/ci/skills/fetch-payloads/fetch_payloads.py" 2>/dev/null | sort | head -1)
+fi
+if [ -z "$FETCH_PAYLOADS" ] || [ ! -f "$FETCH_PAYLOADS" ]; then echo "ERROR: fetch_payloads.py not found" >&2; exit 2; fi
+python3 "$FETCH_PAYLOADS" <architecture> <version> <stream> --limit <lookback * 2>
 ```
 
 Parse the output to extract payload tag names, phases, and job details.
 
-Identify the **target payload**:
-- If a specific tag was provided in Step 1, use that payload as the target.
-- Otherwise, select the most recent payload that is either **Rejected** or **Ready** (with at least one failed blocking job).
-
-Based on the target payload's phase:
+Find the **target payload** (the tag from Step 1) in the fetched list. Based on its phase:
 
 - **Rejected**: Extract all failed blocking job names and their Prow URLs. Proceed with full analysis.
 - **Ready**: Extract blocking jobs that have already **failed** (with their Prow URLs). These are jobs that will not pass — they indicate the payload is on track for rejection. Proceed with analysis of those failed jobs and note in the report that the payload is still in progress.
@@ -91,7 +84,12 @@ For each failed job, record:
 For each unique originating payload identified in Step 3, fetch the PRs that were new in that payload:
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/skills/fetch-new-prs-in-payload/fetch_new_prs_in_payload.py <originating_payload_tag> --format json
+FETCH_NEW_PRS="${CLAUDE_PLUGIN_ROOT}/skills/fetch-new-prs-in-payload/fetch_new_prs_in_payload.py"
+if [ ! -f "$FETCH_NEW_PRS" ]; then
+  FETCH_NEW_PRS=$(find ~/.claude/plugins -type f -path "*/ci/skills/fetch-new-prs-in-payload/fetch_new_prs_in_payload.py" 2>/dev/null | sort | head -1)
+fi
+if [ -z "$FETCH_NEW_PRS" ] || [ ! -f "$FETCH_NEW_PRS" ]; then echo "ERROR: fetch_new_prs_in_payload.py not found" >&2; exit 2; fi
+python3 "$FETCH_NEW_PRS" <originating_payload_tag> --format json
 ```
 
 Store the PR data keyed by originating payload tag. These PRs are the **suspects** for the failures that started in that payload.
