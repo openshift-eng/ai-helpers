@@ -85,7 +85,14 @@ def fetch_from_release_controller(payload_tag: str) -> list:
         )
         sys.exit(1)
 
-    prev_tag = _find_previous_tag(stream, payload_tag)
+    try:
+        prev_tag = _find_previous_tag(stream, payload_tag)
+    except (urllib.error.HTTPError, urllib.error.URLError) as e:
+        print(
+            f"Error: Cannot find previous payload for '{payload_tag}' in stream '{stream}': {e}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
     if not prev_tag:
         print(
             f"Error: Cannot find previous payload for '{payload_tag}' in stream '{stream}'.",
