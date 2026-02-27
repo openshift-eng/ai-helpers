@@ -58,6 +58,7 @@ Tools for working with OpenShift CI and analyzing Prow job results
 
 **Commands:**
 - **`/ci:add-debug-wait` `<workflow-or-job-name> [timeout]`** - Add a wait step to a CI workflow for debugging test failures
+- **`/ci:analyze-payload` `<payload-tag> [architecture] [--lookback N]`** - Analyze a rejected or in-progress payload with historical lookback to identify root causes of blocking job failures
 - **`/ci:analyze-prow-job-install-failure` `<prowjob-url>`** - Analyze OpenShift installation failures in Prow CI jobs
 - **`/ci:analyze-prow-job-resource` `prowjob-url resource-name`** - Analyze Kubernetes resource lifecycle in Prow job artifacts
 - **`/ci:analyze-prow-job-test-failure` `prowjob-url test-name [--fast]`** - Analyzes test errors from console logs and Prow CI job artifacts
@@ -65,6 +66,7 @@ Tools for working with OpenShift CI and analyzing Prow job results
 - **`/ci:ask-sippy` `[question]`** - Ask the Sippy AI agent questions about OpenShift CI payloads, jobs, and test results
 - **`/ci:check-if-jira-regression-is-ongoing` `<jira-key-or-url>`** - Check if the regression described in a Jira bug is still ongoing or has resolved
 - **`/ci:extract-prow-job-must-gather` `prowjob-url`** - Extract and decompress must-gather archives from Prow job artifacts
+- **`/ci:fetch-payloads` `[architecture] [version] [stream]`** - Fetch recent release payloads from the OpenShift release controller
 - **`/ci:fetch-test-report` `<test-name> [release]`** - Fetch a test report from Sippy showing pass rates, test ID, and Jira component
 - **`/ci:list-step` `<workflow-or-chain-name>`** - List the step for the given workflow or chain name
 - **`/ci:list-unstable-tests` `<version> <keywords> [sippy-url]`** - List unstable tests with pass rate below 95%
