@@ -1,6 +1,6 @@
 ---
 description: Analyze a rejected or in-progress payload with historical lookback to identify root causes of blocking job failures
-argument-hint: "<payload-tag> [--lookback N]"
+argument-hint: "<payload-tag> [--lookback N] [--stage-revert]"
 ---
 
 ## Name
@@ -10,7 +10,7 @@ ci:analyze-payload
 ## Synopsis
 
 ```
-/ci:analyze-payload <payload-tag> [--lookback N]
+/ci:analyze-payload <payload-tag> [--lookback N] [--stage-revert]
 ```
 
 ## Description
@@ -21,7 +21,9 @@ It supports both **Rejected** payloads (full analysis) and **Ready** payloads (e
 
 It performs **historical lookback** through consecutive rejected payloads to determine when each failure first appeared. For each originating payload (where a job first started failing), it fetches the new PRs introduced in that payload as likely culprits. This distinguishes new failures from persistent/permafailing jobs and helps identify the root cause commits.
 
-When a suspect PR can be correlated with high confidence (>= 90%) to a blocking job failure — based on component match, error analysis, and timing — the report will **recommend it for revert** with a rationale. The `/ci:revert-pr` command can then be used to execute the revert.
+When a suspect PR can be correlated with high confidence (>= 90%) to a blocking job failure — based on component match, error analysis, and timing — the report will **recommend it for immediate revert** with a rationale and ready-to-use copy-paste text for Claude Code. Per OCP policy, PRs that break payloads MUST be reverted; fixes can be re-landed after the revert restores payload health. The `/ci:revert-pr` command can then be used to execute the revert.
+
+When `--stage-revert` is passed, the command automatically creates a TRT JIRA bug (with `trt-incident` label) for each revert candidate, opens a revert PR on GitHub, triggers `/payload-job` commands for the failing blocking jobs, and shows links to all created artifacts in the HTML report.
 
 Failed jobs are investigated **in parallel** using subagents with the appropriate analysis skill (install failure vs test failure).
 
@@ -32,6 +34,7 @@ Failed jobs are investigated **in parallel** using subagents with the appropriat
 - **Parallel investigation**: Kicks off subagents for each failed blocking job using the appropriate CI analysis skill
 - **Revert recommendations**: Proposes specific PRs to revert when the evidence strongly links them to a failure
 - **HTML report**: Generates an attractive, self-contained HTML report with collapsible sections, color-coded severity, and executive summary
+- **Automated staged reverts**: With `--stage-revert`, automatically creates TRT tickets, opens revert PRs, and triggers payload jobs
 
 ## Implementation
 
@@ -53,7 +56,7 @@ Load the "Analyze Payload" skill and follow its implementation steps. The skill 
   - Per-job failure analysis with root cause, error messages, and logs
   - Failure streak length (how many consecutive payloads each job has failed)
   - Originating payload and suspect PRs for each persistent failure
-  - Recommended reverts section with PR links, rationale, and `/ci:revert-pr` instructions
+  - Recommended reverts section with PR links, rationale, and ready-to-use Claude Code copy-paste text for immediate revert (default mode), or a "Staged Reverts" table with links to created TRT tickets, revert PRs, and triggered payload jobs (when `--stage-revert` is used)
   - Color-coded severity and collapsible detail sections
 
 ## Examples
@@ -78,10 +81,16 @@ Load the "Analyze Payload" skill and follow its implementation steps. The skill 
    /ci:analyze-payload 4.22.0-0.nightly-2026-02-25-152806 --lookback 20
    ```
 
+5. **Analyze and automatically stage reverts for identified culprits**:
+   ```
+   /ci:analyze-payload 4.22.0-0.nightly-2026-02-25-152806 --stage-revert
+   ```
+
 ## Arguments
 
 - $1: A full payload tag (e.g., `4.22.0-0.nightly-2026-02-25-152806`). Version, stream, and architecture are parsed from the tag automatically. Tags without an architecture suffix (e.g., `4.22.0-0.nightly-...`) are amd64. Tags with an architecture suffix (e.g., `4.22.0-0.nightly-arm64-...`, `4.22.0-0.nightly-ppc64le-...`) use that architecture. (required)
 - `--lookback N`: Maximum number of consecutive rejected payloads to examine (optional, default: 10)
+- `--stage-revert`: Automatically create TRT JIRA bugs, open revert PRs, and trigger `/payload-job` commands for each revert candidate (optional, default: false)
 
 ## Skills Used
 

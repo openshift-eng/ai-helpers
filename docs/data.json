@@ -289,10 +289,10 @@
           "synopsis": "/ci:add-debug-wait <workflow-or-job-name> [timeout]"
         },
         {
-          "argument_hint": "<payload-tag> [--lookback N]",
+          "argument_hint": "<payload-tag> [--lookback N] [--stage-revert]",
           "description": "Analyze a rejected or in-progress payload with historical lookback to identify root causes of blocking job failures",
           "name": "analyze-payload",
-          "synopsis": "/ci:analyze-payload <payload-tag> [--lookback N]"
+          "synopsis": "/ci:analyze-payload <payload-tag> [--lookback N] [--stage-revert]"
         },
         {
           "argument_hint": "<prowjob-url>",
@@ -373,10 +373,10 @@
           "synopsis": "/ci:query-test-result <version> <keywords> [sippy-url]"
         },
         {
-          "argument_hint": "<pr-url> <jira-ticket>",
+          "argument_hint": "<pr-url> <jira-ticket> [--override]",
           "description": "Revert a merged PR that is breaking CI or nightly payloads",
           "name": "revert-pr",
-          "synopsis": "/ci:revert-pr <pr-url> <jira-ticket>"
+          "synopsis": "/ci:revert-pr <pr-url> <jira-ticket> [--override]"
         },
         {
           "argument_hint": "<job-name> [ENV_VAR=value ...]",
@@ -503,7 +503,7 @@
           "name": "Triage Regression"
         }
       ],
-      "version": "0.0.12"
+      "version": "0.0.13"
     },
     {
       "commands": [
