@@ -1,0 +1,8 @@
+{
+    "name": "crypto-inventory",
+    "description": "Find and inventory cryptographic usage across codebases",
+    "version": "1.0.0",
+    "author": {
+        "name": "github.com/openshift-eng"
+    }
+}
