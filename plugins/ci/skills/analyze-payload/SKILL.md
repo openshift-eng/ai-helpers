@@ -43,6 +43,7 @@ The first argument is a **full payload tag** (e.g., `4.22.0-0.nightly-2026-02-25
   - `4.22.0-0.nightly-s390x-2026-02-25-152806` → `s390x`
   - `4.22.0-0.nightly-multi-2026-02-25-152806` → `multi`
 - `lookback`: From `--lookback N` (default: `10`)
+- `stage_revert`: Boolean, from `--stage-revert` flag (default: `false`)
 
 ### Step 2: Fetch Recent Payloads
 
@@ -177,6 +178,87 @@ If a revert PR is found:
 
 3. **If a revert PR is open but not merged**, still recommend the revert but note that a revert PR already exists and link to it, so the reader can help expedite the merge.
 
+### Step 6.5: Stage Reverts (only when `--stage-revert` is set)
+
+**Only execute this step when `--stage-revert` is set AND there are revert candidates from Step 6.2 that do not already have merged or open revert PRs (from Step 6.3).** If `--stage-revert` is not set, skip to Step 7.
+
+For each qualifying revert candidate, launch a **parallel subagent** (Task tool, `subagent_type: "general-purpose"`, do NOT set the `model` parameter). Each subagent executes three substeps in order:
+
+#### Substep 1: Create TRT JIRA Bug
+
+Use `mcp__atlassian__jira_create_issue` to create a TRT bug:
+
+- `project_key`: `"TRT"`
+- `issue_type`: `"Bug"`
+- `summary`: `"Revert {org}/{repo}#{pr_number} for payload regression"`
+- `description` (Jira wiki markup):
+  ```
+  h2. Payload Regression
+
+  PR {pr_url} is causing blocking job failures in the {stream} {architecture} payload.
+
+  h2. Evidence
+
+  * Payload: [{payload_tag}|{release_controller_url}]
+  * Failing blocking jobs:
+  ** [{job_name_1}|{prow_url_1}]
+  ** [{job_name_2}|{prow_url_2}]
+  * Originating payload: {originating_payload_tag}
+  * {rationale}
+
+  h2. Action
+
+  Revert PR {pr_url} to restore payload acceptance.
+  ```
+- `additional_fields`:
+  - `labels`: `["trt-incident", "ai-generated-jira"]`
+  - `security`: `{"name": "Red Hat Employee"}`
+
+Record the created JIRA key.
+
+#### Substep 2: Open Revert PR
+
+Load the `revert-pr` skill (`plugins/ci/skills/revert-pr/SKILL.md`) and follow its workflow:
+
+- PR URL: the offending PR
+- JIRA ticket: the TRT key from Substep 1
+- Context: "This PR is causing blocking job failures ({job names}) in the {stream} {architecture} payload [{payload_tag}]({release_controller_url})."
+- Do NOT pass `--override` (no override comments)
+- Do NOT prompt the user for any input
+
+Record the revert PR URL.
+
+#### Substep 3: Trigger Payload Jobs
+
+Post a comment on the revert PR with `/payload-job` commands for each failing blocking job attributed to this PR:
+
+```bash
+gh pr comment "{revert_pr_url}" --body "/payload-job {job_name_1}
+/payload-job {job_name_2}
+..."
+```
+
+One `/payload-job <job-name>` per line for each failing blocking job attributed to this PR.
+
+#### Subagent Return Format
+
+Each subagent should return its results in this format:
+
+```
+STAGED_REVERT_RESULT:
+- original_pr_url: ...
+- original_pr_number: ...
+- component: ...
+- jira_key: TRT-XXXX
+- jira_url: https://issues.redhat.com/browse/TRT-XXXX
+- revert_pr_url: https://github.com/org/repo/pull/YYYY
+- payload_jobs_triggered: job1, job2, ...
+- status: success|partial|failed
+- error: none|description
+```
+
+Collect all subagent results. Store for use in Step 7.
+
 ### Step 7: Generate HTML Report
 
 Create a self-contained HTML file named `payload-analysis-<tag>-summary.html` in the current working directory. The tag should be sanitized for use as a filename (replace colons and slashes). The `-summary.html` suffix is required for automatic rendering in downstream tools.
@@ -241,7 +323,13 @@ For each failed job, a collapsible section containing:
 
 #### 7.4: Recommended Reverts
 
-If any revert candidates were identified in Step 6.2, include a prominent section **before** the per-job details. This section should immediately follow the executive summary so it is the first actionable item a reader sees.
+This section renders differently depending on whether `--stage-revert` was passed.
+
+Include this section **before** the per-job details. It should immediately follow the executive summary so it is the first actionable item a reader sees.
+
+##### When `--stage-revert` is NOT set (default)
+
+If any revert candidates were identified in Step 6.2, show copy-paste revert instructions:
 
 ```html
 <div class="revert-recommendations">
@@ -316,6 +404,69 @@ Add the following styles for the revert prompt block:
 }
 ```
 
+##### When `--stage-revert` IS set and reverts were staged in Step 6.5
+
+Replace the copy-paste blocks with a "Staged Reverts" table showing links to all created artifacts:
+
+```html
+<div class="revert-recommendations">
+  <h2>Staged Reverts</h2>
+  <p>The following reverts have been automatically staged. TRT JIRA bugs were created,
+     revert PRs were opened, and payload jobs were triggered.</p>
+  <table>
+    <tr>
+      <th>Original PR</th>
+      <th>Component</th>
+      <th>TRT Ticket</th>
+      <th>Revert PR</th>
+      <th>Payload Jobs Triggered</th>
+      <th>Status</th>
+    </tr>
+    <tr>
+      <td><a href="{pr_url}" target="_blank">#{pr_number}</a></td>
+      <td>{component}</td>
+      <td><a href="{jira_url}" target="_blank">{jira_key}</a></td>
+      <td><a href="{revert_pr_url}" target="_blank">{revert_pr_url}</a></td>
+      <td>{comma-separated job names}</td>
+      <td><span class="badge badge-{success|partial|failed}">{Status}</span></td>
+    </tr>
+  </table>
+</div>
+```
+
+If any staged reverts failed, add a collapsible error details section below the table:
+
+```html
+<details>
+  <summary>Error Details</summary>
+  <div class="job-detail">
+    <p><strong>{original_pr_url}</strong>: {error_description}</p>
+  </div>
+</details>
+```
+
+Add the following styles for status badges:
+
+```html
+.badge-success { background: #e6f4ea; color: #1e8e3e; }
+.badge-partial { background: #fef7e0; color: #e37400; }
+.badge-failed { background: #fce8e6; color: #d93025; }
+```
+
+##### When `--stage-revert` IS set but no candidates
+
+Show a note with the "Staged Reverts" heading:
+
+```html
+<div class="revert-recommendations revert-none">
+  <h2>Staged Reverts</h2>
+  <p>No PRs were identified with sufficient confidence for automatic revert staging.
+     Failures may be caused by infrastructure issues, flaky tests, or require further investigation.</p>
+</div>
+```
+
+##### When `--stage-revert` is NOT set and no candidates
+
 If **no** revert candidates were identified, include a brief note instead:
 
 ```html
@@ -326,7 +477,9 @@ If **no** revert candidates were identified, include a brief note instead:
 </div>
 ```
 
-Add the following styles for the revert section:
+##### Shared styles for the revert section
+
+Add the following styles for both modes:
 
 ```html
 .revert-recommendations {
