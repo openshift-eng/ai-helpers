@@ -36,7 +36,12 @@ The first argument is a **full payload tag** (e.g., `4.22.0-0.nightly-2026-02-25
 - `tag`: The specific payload tag to analyze
 - `version`: Extract from the tag (e.g., `4.22` from `4.22.0-0.nightly-...`)
 - `stream`: Extract from the tag (e.g., `nightly` from `4.22.0-0.nightly-...`)
-- `architecture`: From the second argument (default: `amd64`)
+- `architecture`: Inferred from the tag. The tag format is `<version>-0.<stream>[-<arch>]-<timestamp>`. If no architecture is present between the stream and timestamp, it is `amd64`. Otherwise, the architecture is the segment between the stream and timestamp. Examples:
+  - `4.22.0-0.nightly-2026-02-25-152806` → `amd64`
+  - `4.22.0-0.nightly-arm64-2026-02-25-152806` → `arm64`
+  - `4.22.0-0.nightly-ppc64le-2026-02-25-152806` → `ppc64le`
+  - `4.22.0-0.nightly-s390x-2026-02-25-152806` → `s390x`
+  - `4.22.0-0.nightly-multi-2026-02-25-152806` → `multi`
 - `lookback`: From `--lookback N` (default: `10`)
 
 ### Step 2: Fetch Recent Payloads
@@ -110,7 +115,7 @@ Instruct each subagent as follows:
 >
 > Return a concise summary including: failure type (install vs test), root cause, key error messages, and any relevant log excerpts. Do not ask user questions. Keep the output concise for inclusion in a summary report.
 
-**Important**: Launch ALL subagents in parallel (single message with multiple Task tool calls) for maximum speed. Each subagent should be given `subagent_type: "general-purpose"`.
+**Important**: Launch ALL subagents in parallel (single message with multiple Task tool calls) for maximum speed. Each subagent should be given `subagent_type: "general-purpose"`. Do NOT set the `model` parameter — let subagents inherit the parent model, as these analysis tasks require a capable model.
 
 ### Step 6: Collect Investigation Results and Identify Revert Candidates
 

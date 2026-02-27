@@ -289,10 +289,10 @@
           "synopsis": "/ci:add-debug-wait <workflow-or-job-name> [timeout]"
         },
         {
-          "argument_hint": "<payload-tag> [architecture] [--lookback N]",
+          "argument_hint": "<payload-tag> [--lookback N]",
           "description": "Analyze a rejected or in-progress payload with historical lookback to identify root causes of blocking job failures",
           "name": "analyze-payload",
-          "synopsis": "/ci:analyze-payload <payload-tag> [architecture] [--lookback N]"
+          "synopsis": "/ci:analyze-payload <payload-tag> [--lookback N]"
         },
         {
           "argument_hint": "<prowjob-url>",
@@ -503,7 +503,7 @@
           "name": "Triage Regression"
         }
       ],
-      "version": "0.0.10"
+      "version": "0.0.11"
     },
     {
       "commands": [
