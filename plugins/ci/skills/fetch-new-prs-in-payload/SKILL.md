@@ -5,7 +5,7 @@ description: Fetch pull requests that are new in a given OpenShift payload compa
 
 # Fetch New PRs in Payload
 
-This skill fetches the list of pull requests that are new in a given OpenShift payload tag compared to the previous payload. It uses the Sippy payload diff API to identify which PRs were merged between two consecutive payloads.
+This skill fetches the list of pull requests that are new in a given OpenShift payload tag compared to the previous payload. It tries the Sippy payload diff API first, and falls back to the release controller API when Sippy has not yet ingested the payload (e.g., in-progress or very recent payloads).
 
 ## When to Use This Skill
 
@@ -21,9 +21,10 @@ The payload tag can be obtained from the `fetch-prowjob-json` skill (`release.op
 
 ## Prerequisites
 
-1. **Network Access**: Must be able to reach the Sippy API
-   - Check: `curl -s https://sippy.dptools.openshift.org/api/health`
-   - No authentication required for public API endpoints
+1. **Network Access**: Must be able to reach the Sippy API and/or the release controller
+   - Sippy: `curl -s https://sippy.dptools.openshift.org/api/health`
+   - Release controller: `curl -s https://amd64.ocp.releases.ci.openshift.org/api/v1/releasestream/4-stable/latest`
+   - No authentication required for either
 
 2. **Python 3**: Python 3.6 or later
    - Check: `python3 --version`
@@ -129,9 +130,18 @@ python3 fetch_new_prs_in_payload.py
 - `0`: Success
 - `1`: Error (invalid input, API error, network error, etc.)
 
+## Data Sources
+
+The script tries two APIs in order:
+
+1. **Sippy** (primary) — has longer history but only includes completed payloads
+2. **Release controller** (fallback) — available immediately for in-progress and recent payloads, but has shorter retention
+
+The output format is identical regardless of which source is used. The fallback is automatic and transparent.
+
 ## API Details
 
-### Endpoint
+### Sippy Endpoint
 
 ```text
 GET https://sippy.dptools.openshift.org/api/payloads/diff?toPayload={payload_tag}
@@ -251,9 +261,9 @@ python3 "$FETCH_NEW_PRS" "$payload_tag" --format json
 
 ## Notes
 
-- The API does not require authentication for read-only access
+- Neither API requires authentication for read-only access
 - The Python script uses only standard library modules (no external dependencies)
-- The API automatically determines the previous payload to diff against; you only provide the target payload
+- The previous payload is determined automatically; you only provide the target payload
 - Payload tags follow the format: `{version}-0.{stream}-{date}-{time}` (e.g., `4.22.0-0.ci-2026-02-06-195709` or `4.22.0-0.nightly-2026-01-15-114134`)
 - The `component` field (called `name` in the raw API) may contain multiple comma-separated component names for PRs that affect multiple components
 - PRs without an associated bug will have an empty string for `bug_url`
