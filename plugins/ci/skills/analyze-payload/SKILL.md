@@ -266,8 +266,54 @@ If any revert candidates were identified in Step 6.2, include a prominent sectio
       <td>{confidence_rationale}</td>
     </tr>
   </table>
-  <p class="revert-note">To revert a PR, use: <code>/ci:revert-pr &lt;pr-url&gt; &lt;jira-ticket&gt;</code></p>
+  <!-- For each revert candidate, include a copy-paste block -->
+  <h3>Revert Instructions</h3>
+  <p>Copy and paste the following into Claude Code to initiate each revert:</p>
+  <div class="revert-prompt">
+    <button onclick="navigator.clipboard.writeText(this.nextElementSibling.textContent.trim())">Copy</button>
+    <pre>PR {pr_url} caused {job_name_1}, {job_name_2}, ... to fail starting in payload {originating_payload_tag}.
+
+Evidence:
+- {brief failure summary from subagent analysis for each affected job}
+- The job(s) were passing prior to {originating_payload_tag} and started failing when this PR landed.
+
+/ci:revert-pr {pr_url}</pre>
+  </div>
 </div>
+```
+
+Add the following styles for the revert prompt block:
+
+```html
+.revert-prompt {
+  position: relative;
+  margin: 12px 0;
+}
+.revert-prompt pre {
+  background: #1e1e1e;
+  color: #d4d4d4;
+  padding: 16px;
+  border-radius: 4px;
+  white-space: pre-wrap;
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  font-size: 13px;
+  overflow-x: auto;
+}
+.revert-prompt button {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: #3c3c3c;
+  color: #d4d4d4;
+  border: 1px solid #555;
+  border-radius: 4px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.revert-prompt button:hover {
+  background: #505050;
+}
 ```
 
 If **no** revert candidates were identified, include a brief note instead:
@@ -300,17 +346,6 @@ Add the following styles for the revert section:
 }
 .revert-none h2 {
   color: #5f6368;
-}
-.revert-note {
-  margin-top: 12px;
-  font-size: 13px;
-  color: #5f6368;
-}
-.revert-note code {
-  background: #f1f3f4;
-  padding: 2px 6px;
-  border-radius: 3px;
-  font-size: 12px;
 }
 ```
 
