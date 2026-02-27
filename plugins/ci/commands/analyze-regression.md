@@ -738,7 +738,7 @@ This command is useful for:
 
    Based on the analysis, determine the appropriate triage action and ask the user if they want to proceed.
 
-   **Generating the triage description**: Every triage record must include a `--description`. Generate a single concise sentence summarizing the failure, similar in style to a JIRA bug summary. Example: `"InsightsDataGather CRD not found - all InsightsRuntimeExtractor tests failing across platforms since Feb 6"`
+   **Generating the triage description** (for new triage records only): Every new triage record must include a `--description`. Generate a single short sentence (under 120 characters) summarizing the failure — similar to a JIRA bug summary title. Be concise; do not use more than one sentence. Example: `"InsightsDataGather CRD not found - InsightsRuntimeExtractor tests failing since Feb 6"`
 
    **Scenario A: Related triage record found on another regression** (from step 11)
 
@@ -768,16 +768,12 @@ This command is useful for:
    # fetches existing regressions and merges them (safe additive behavior)
    new_regression_ids="<current_id>,<related_id_1>,<related_id_2>"
 
-   # Generate a concise description from the analysis (see note below)
-   description="<generated_description>"
-
    script_path="plugins/ci/skills/triage-regression/triage_regression.py"
    triage_result=$(python3 "$script_path" "$new_regression_ids" \
      --token "$TOKEN" \
      --triage-id <existing_triage_id> \
      --url "<existing_jira_url>" \
      --type "<existing_triage_type>" \
-     --description "$description" \
      --format json)
    ```
 
