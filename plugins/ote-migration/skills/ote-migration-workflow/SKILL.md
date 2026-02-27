@@ -935,17 +935,35 @@ cd ..
 cd <working-dir>
 MODULE_NAME=$(grep '^module ' go.mod | awk '{print $2}')
 
-# Determine test import path based on whether test/e2e already exists
+# Re-derive variables from Phase 1/3
+# (Variables don't persist between phases - need to re-calculate)
+EXTENSION_NAME=$(basename "$(pwd)")
+TARGET_TEST_DIR_NAME=""
+if [ -d "test/e2e" ]; then
+    # Check if test/e2e has subdirectories besides testdata
+    SUBDIRS=$(find test/e2e -mindepth 1 -maxdepth 1 -type d ! -name testdata 2>/dev/null)
+    if [ -n "$SUBDIRS" ]; then
+        # Has subdirectories - find the one with Go test files
+        for dir in $SUBDIRS; do
+            if ls "$dir"/*_test.go >/dev/null 2>&1; then
+                TARGET_TEST_DIR_NAME=$(basename "$dir")
+                break
+            fi
+        done
+    fi
+fi
+
+# Determine test import path based on whether test/e2e has subdirectory
 if [ -n "$TARGET_TEST_DIR_NAME" ]; then
-    # test/e2e exists - use subdirectory (e.g., github.com/openshift/router/test/e2e/extension)
+    # test/e2e exists with subdirectory (e.g., github.com/openshift/router/test/e2e/extension)
     TEST_IMPORT="$MODULE_NAME/test/e2e/$TARGET_TEST_DIR_NAME"
     TEST_FILTER_PATH="/test/e2e/$TARGET_TEST_DIR_NAME/"
-    echo "Tests will be migrated to: test/e2e/$TARGET_TEST_DIR_NAME/"
+    echo "Tests are at: test/e2e/$TARGET_TEST_DIR_NAME/"
 else
-    # No test/e2e - use test/e2e directly (e.g., github.com/openshift/router/test/e2e)
+    # No subdirectory - use test/e2e directly (e.g., github.com/openshift/router/test/e2e)
     TEST_IMPORT="$MODULE_NAME/test/e2e"
     TEST_FILTER_PATH="/test/e2e/"
-    echo "Tests will be migrated to: test/e2e/"
+    echo "Tests are at: test/e2e/"
 fi
 
 # Create main.go at cmd/extension/main.go
@@ -1194,6 +1212,32 @@ sed -i "s|<Extension Name>|${EXTENSION_NAME^}|g" cmd/main.go
 ```bash
 cd <working-dir>
 
+# Re-derive directory paths from Phase 3
+# (Variables don't persist between phases - need to re-calculate)
+if [ -d "test/e2e/extension" ]; then
+    TESTDATA_DIR="test/e2e/extension/testdata"
+elif [ -d "test/e2e" ]; then
+    # Check if test/e2e has subdirectories besides testdata
+    SUBDIRS=$(find test/e2e -mindepth 1 -maxdepth 1 -type d ! -name testdata 2>/dev/null)
+    if [ -n "$SUBDIRS" ]; then
+        # Has subdirectories - find the one with testdata
+        for dir in $SUBDIRS; do
+            if [ -d "$dir/testdata" ]; then
+                TESTDATA_DIR="$dir/testdata"
+                break
+            fi
+        done
+    else
+        # No subdirectories - use test/e2e/testdata directly
+        TESTDATA_DIR="test/e2e/testdata"
+    fi
+else
+    echo "❌ Cannot find test/e2e directory"
+    exit 1
+fi
+
+echo "Using testdata directory: $TESTDATA_DIR"
+
 # bindata.mk location: at root for single-module monorepo approach
 cat > "bindata.mk" << 'EOF'
 TESTDATA_PATH := <TESTDATA_DIR>
@@ -1286,6 +1330,10 @@ echo "✅ Created test/e2e/bindata.mk"
 
 ```bash
 cd <working-dir>
+
+# Re-derive EXTENSION_NAME from Phase 1
+# (Variables don't persist between phases - need to re-calculate)
+EXTENSION_NAME=$(basename "$(pwd)")
 
 if [ ! -f "Makefile" ]; then
     echo "❌ ERROR: No root Makefile found"
@@ -1483,6 +1531,36 @@ echo "========================================="
 echo "Phase 5: Test Migration (atomic)"
 echo "========================================="
 
+# Re-derive directory paths from Phase 3
+# (Variables don't persist between phases - need to re-calculate)
+if [ -d "test/e2e/extension" ]; then
+    TEST_CODE_DIR="test/e2e/extension"
+    TESTDATA_DIR="test/e2e/extension/testdata"
+elif [ -d "test/e2e" ]; then
+    # Check if test/e2e has subdirectories besides testdata
+    SUBDIRS=$(find test/e2e -mindepth 1 -maxdepth 1 -type d ! -name testdata 2>/dev/null)
+    if [ -n "$SUBDIRS" ]; then
+        # Has subdirectories - find the one with Go test files
+        for dir in $SUBDIRS; do
+            if ls "$dir"/*_test.go >/dev/null 2>&1; then
+                TEST_CODE_DIR="$dir"
+                TESTDATA_DIR="$dir/testdata"
+                break
+            fi
+        done
+    else
+        # No subdirectories - use test/e2e directly
+        TEST_CODE_DIR="test/e2e"
+        TESTDATA_DIR="test/e2e/testdata"
+    fi
+else
+    echo "❌ Cannot find test/e2e directory"
+    exit 1
+fi
+
+echo "Using test directory: $TEST_CODE_DIR"
+echo "Using testdata directory: $TESTDATA_DIR"
+
 BACKUP_DIR=$(mktemp -d)
 if [ -d "$TEST_CODE_DIR" ]; then
     cp -r "$TEST_CODE_DIR" "$BACKUP_DIR/test-backup"
@@ -1537,18 +1615,22 @@ echo "Step 2: Adding testdata imports..."
 
 MODULE_NAME=$(grep '^module ' go.mod | awk '{print $2}')
 
-# Testdata import path (uses $TESTDATA_DIR set in Phase 3)
+# Testdata import path (uses $TESTDATA_DIR from Step 0)
 TESTDATA_IMPORT="$MODULE_NAME/$TESTDATA_DIR"
 
 TEST_FILES=$(grep -rl "testdata\.FixturePath" "$TEST_CODE_DIR" --include="*_test.go" 2>/dev/null || true)
 
 for file in $TEST_FILES; do
-    if ! grep -q "\"$TESTDATA_IMPORT\"" "$file"; then
-        if grep -q "^import (" "$file"; then
-            sed -i "/^import (/a\\    \"$TESTDATA_IMPORT\"" "$file"
-        else
-            sed -i "/^package /a\\\\nimport (\n\t\"$TESTDATA_IMPORT\"\n)" "$file"
-        fi
+    # Check if import already exists (avoid ! operator in if statement)
+    if grep -q "\"$TESTDATA_IMPORT\"" "$file"; then
+        continue  # Skip if already has import
+    fi
+
+    # Add import
+    if grep -q "^import (" "$file"; then
+        sed -i "/^import (/a\\    \"$TESTDATA_IMPORT\"" "$file"
+    else
+        sed -i "/^package /a\\\\nimport (\n\t\"$TESTDATA_IMPORT\"\n)" "$file"
     fi
 done
 
@@ -1577,8 +1659,10 @@ TEST_FILES=$(find "$TEST_CODE_DIR" -name '*.go' -type f)
 for file in $TEST_FILES; do
     # Check if file uses e2e.Logf or e2e.Failf
     if grep -q "e2e\.Logf\|e2e\.Failf" "$file"; then
-        # Check if e2e import already exists
-        if ! grep -q "e2e \"k8s.io/kubernetes/test/e2e/framework\"" "$file"; then
+        # Check if e2e import already exists (avoid ! operator)
+        if grep -q "e2e \"k8s.io/kubernetes/test/e2e/framework\"" "$file"; then
+            : # Already has import, do nothing
+        else
             echo "  Adding e2e framework import to: $file"
 
             # Add import after other imports in import block
@@ -1596,13 +1680,17 @@ for file in $TEST_FILES; do
         fi
     fi
 
-    # Comment out compat_otp import if not used
-    if grep -q "compat_otp" "$file" && ! grep -q "compat_otp\." "$file"; then
+    # Comment out compat_otp import if not used (avoid ! operator)
+    HAS_COMPAT_IMPORT=$(grep -c "compat_otp" "$file" || echo 0)
+    HAS_COMPAT_USAGE=$(grep -c "compat_otp\." "$file" || echo 0)
+    if [ "$HAS_COMPAT_IMPORT" -gt 0 ] && [ "$HAS_COMPAT_USAGE" -eq 0 ]; then
         sed -i 's|^\(\s*\)"\(.*compat_otp\)"|// \1"\2" // Replaced|g' "$file"
     fi
 
-    # Comment out exutil import if not used
-    if grep -q "github.com/openshift/origin/test/extended/util\"" "$file" && ! grep -q "exutil\." "$file"; then
+    # Comment out exutil import if not used (avoid ! operator)
+    HAS_EXUTIL_IMPORT=$(grep -c "github.com/openshift/origin/test/extended/util\"" "$file" || echo 0)
+    HAS_EXUTIL_USAGE=$(grep -c "exutil\." "$file" || echo 0)
+    if [ "$HAS_EXUTIL_IMPORT" -gt 0 ] && [ "$HAS_EXUTIL_USAGE" -eq 0 ]; then
         sed -i 's|^\(\s*\)"\(github.com/openshift/origin/test/extended/util\)"|// \1"\2" // Replaced|g' "$file"
     fi
 done
@@ -1780,6 +1868,11 @@ PHASE5_FAILED=0
 
 #### For Monorepo:
 
+**CRITICAL INSTRUCTION: Execute ALL bash commands in this phase EXACTLY as written.**
+**Do NOT skip steps based on your interpretation or assumptions.**
+**Do NOT generate your own messages - use the echo statements provided.**
+**Step 1b MUST execute to ensure k8s.io/kms replace directive exists.**
+
 ```bash
 cd <working-dir>
 
@@ -1852,6 +1945,64 @@ if grep -q "$OLD_K8S_COMMITS" go.mod; then
 else
     echo "✅ k8s.io versions are compatible (October 2025 or newer)"
 fi
+
+# Step 1b: Ensure k8s.io/kms replace directive exists (required for all repos)
+# This must run regardless of k8s.io version to ensure OpenShift fork is used
+if ! grep -q "k8s.io/kms =>" go.mod; then
+    echo "Step 1b: Adding k8s.io/kms replace directive..."
+
+    # Get current k8s.io commit from existing replace directives
+    CURRENT_K8S_COMMIT=$(grep "k8s.io/kubernetes =>" go.mod | grep -o 'v0.0.0-[0-9]*-[a-f0-9]*' | head -1 | sed 's/v0.0.0-[0-9]*-//')
+
+    if [ -z "$CURRENT_K8S_COMMIT" ]; then
+        echo "❌ Could not detect k8s.io commit version in go.mod"
+        echo "   This repo might not have k8s.io/kubernetes replace directives"
+        echo "   Cannot determine OpenShift fork commit to use for k8s.io/kms"
+        exit 1
+    fi
+
+    echo "  Using k8s.io commit: $CURRENT_K8S_COMMIT"
+
+    # Check if replace section exists
+    if grep -q "^replace" go.mod; then
+        # Replace section exists - try to insert alphabetically after k8s.io/kube-scheduler
+        if grep -q "k8s.io/kube-scheduler =>" go.mod; then
+            sed -i "/k8s.io\/kube-scheduler =>/a\	k8s.io/kms => github.com/openshift/kubernetes/staging/src/k8s.io/kms v0.0.0-$CURRENT_K8S_COMMIT" go.mod
+        else
+            # No kube-scheduler, insert after k8s.io/kubernetes
+            sed -i "/k8s.io\/kubernetes =>/a\	k8s.io/kms => github.com/openshift/kubernetes/staging/src/k8s.io/kms v0.0.0-$CURRENT_K8S_COMMIT" go.mod
+        fi
+    else
+        # No replace section - create one at the end
+        echo "" >> go.mod
+        echo "replace (" >> go.mod
+        echo "	k8s.io/kms => github.com/openshift/kubernetes/staging/src/k8s.io/kms v0.0.0-$CURRENT_K8S_COMMIT" >> go.mod
+        echo ")" >> go.mod
+    fi
+
+    # Verify it was added
+    if grep -q "k8s.io/kms =>" go.mod; then
+        echo "  ✅ Added k8s.io/kms replace directive (ensures compatibility with OpenShift kubernetes fork)"
+    else
+        echo "  ❌ Failed to add k8s.io/kms replace directive"
+        echo "  This is required to use OpenShift kubernetes fork instead of upstream"
+        exit 1
+    fi
+else
+    echo "Step 1b: k8s.io/kms replace directive already exists ✅"
+fi
+
+# CRITICAL VERIFICATION: k8s.io/kms MUST exist after Step 1b
+# DO NOT REMOVE THIS DIRECTIVE - IT IS REQUIRED FOR COMPATIBILITY
+echo "Verifying k8s.io/kms replace directive exists..."
+if ! grep -q "k8s.io/kms =>" go.mod; then
+    echo "❌ CRITICAL ERROR: k8s.io/kms replace directive was removed or missing"
+    echo "   This directive is MANDATORY to use OpenShift kubernetes fork"
+    echo "   DO NOT remove k8s.io/kms - it prevents build failures"
+    echo "   Redirects from upstream k8s.io/kms to OpenShift fork"
+    exit 1
+fi
+echo "✅ Verification passed: k8s.io/kms replace directive exists"
 
 # Step 2: Tidy root module
 echo "Step 2: Running go mod tidy in root module..."
@@ -2042,13 +2193,13 @@ COPY --from=test-extension-builder /go/src/github.com/openshift/<extension-name>
 
 ```dockerfile
 # Your existing builder
-FROM registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.21 AS builder
+FROM registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.24-openshift-4.23 AS builder
 WORKDIR /go/src/github.com/openshift/<extension-name>
 COPY . .
 RUN make build
 
 # NEW: Test extension builder stage (builds and compresses)
-FROM registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.21 AS test-extension-builder
+FROM registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.25-openshift-4.22 AS test-extension-builder
 RUN mkdir -p /go/src/github.com/openshift/<extension-name>
 WORKDIR /go/src/github.com/openshift/<extension-name>
 COPY . .
@@ -2069,7 +2220,7 @@ COPY --from=test-extension-builder /go/src/github.com/openshift/<extension-name>
 
 ```dockerfile
 # NEW: Test extension builder stage (added as first stage)
-FROM registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.21 AS test-extension-builder
+FROM registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.25-openshift-4.22 AS test-extension-builder
 RUN mkdir -p /go/src/github.com/openshift/<extension-name>
 WORKDIR /go/src/github.com/openshift/<extension-name>
 COPY . .
@@ -2094,6 +2245,9 @@ ENTRYPOINT ["/usr/bin/openshift-router"]
 ```
 
 Replace <extension-name> with your actual extension name.
+
+**Note:** The Makefile uses `-mod=vendor` by default, which means all dependencies are built from the vendored code. This eliminates the need for SSH authentication or network access during Docker builds.
+
 ========================================
 ```
 
@@ -2155,13 +2309,10 @@ for DOCKERFILE in "${SELECTED_DOCKERFILES_ARRAY[@]}"; do
         fi
 
         # Map Go version to available OpenShift builder image
-        # Note: OpenShift builder images may not support the very latest Go versions
-        # GOTOOLCHAIN=auto will download the correct version at build time
         case "$GO_VERSION" in
             1.25|1.26|1.27)
-                # Go 1.25+ not yet available, use latest (1.24) with GOTOOLCHAIN=auto
-                BUILDER_IMAGE="registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.24-openshift-4.23"
-                echo "ℹ️  No builder stage found, using Go 1.24 builder (GOTOOLCHAIN=auto will download Go $GO_VERSION)"
+                BUILDER_IMAGE="registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.25-openshift-4.22"
+                echo "ℹ️  No builder stage found, using Go builder: $BUILDER_IMAGE"
                 ;;
             1.24)
                 BUILDER_IMAGE="registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.24-openshift-4.23"
@@ -2196,6 +2347,7 @@ for DOCKERFILE in "${SELECTED_DOCKERFILES_ARRAY[@]}"; do
     fi
 
     # Create test-extension-builder stage (builds and compresses)
+    # Uses -mod=vendor by default (no SSH needed)
     TEST_BUILDER_STAGE="
 # Test extension builder stage (added by ote-migration)
 FROM $BUILDER_IMAGE AS test-extension-builder
@@ -2324,26 +2476,26 @@ Successfully migrated **<extension-name>** to OTE framework using **monorepo str
 
 ## Created Structure
 
-```
-<working-dir>/
-├── bin/
-│   └── <extension-name>-tests-ext
-├── cmd/
-│   └── extension/
-│       └── main.go                    # OTE entry point (at root)
-├── test/
-│   └── e2e/
-│       ├── *_test.go                  # Migrated test files
-│       └── testdata/
-│           ├── bindata.go
-│           └── fixtures.go
-├── vendor/                            # Vendored at ROOT
-├── bindata.mk                         # Bindata generation (at root)
-├── go.mod                             # Single module with all dependencies
-├── go.sum                             # Single go.sum
-├── Makefile                           # Updated with OTE targets
-└── Dockerfile                         # Updated (if automated)
-```
+Directory tree:
+
+    <working-dir>/
+    ├── bin/
+    │   └── <extension-name>-tests-ext
+    ├── cmd/
+    │   └── extension/
+    │       └── main.go                    # OTE entry point (at root)
+    ├── test/
+    │   └── e2e/
+    │       ├── *_test.go                  # Migrated test files
+    │       └── testdata/
+    │           ├── bindata.go
+    │           └── fixtures.go
+    ├── vendor/                            # Vendored at ROOT
+    ├── bindata.mk                         # Bindata generation (at root)
+    ├── go.mod                             # Single module with all dependencies
+    ├── go.sum                             # Single go.sum
+    ├── Makefile                           # Updated with OTE targets
+    └── Dockerfile                         # Updated (if automated)
 
 ## Key Features
 
@@ -2398,10 +2550,14 @@ ls -lh bin/<extension-name>-tests-ext
 
 ```bash
 # Build image
-docker build -t <component>:test -f <path-to-dockerfile> .
+podman build -t <component>:test -f <path-to-dockerfile> .
+# Or for Docker:
+# docker build -t <component>:test -f <path-to-dockerfile> .
 
 # Verify test extension in image (override ENTRYPOINT to run ls)
-docker run --rm --entrypoint ls <component>:test -lh /usr/bin/*-test-extension.tar.gz
+podman run --rm --entrypoint ls <component>:test -lh /usr/bin/*-test-extension.tar.gz
+# Or for Docker:
+# docker run --rm --entrypoint ls <component>:test -lh /usr/bin/*-test-extension.tar.gz
 ```
 
 ### 5. Verify Test Annotations
@@ -2494,25 +2650,25 @@ Successfully migrated **<extension-name>** to OTE framework using **single-modul
 
 ## Created Structure
 
-```
-<working-dir>/
-└── tests-extension/
-    ├── cmd/
-    │   └── main.go                    # OTE entry point
-    ├── bin/
-    │   └── <extension-name>-tests-ext
-    ├── test/
-    │   └── e2e/
-    │       ├── *_test.go              # Migrated tests
-    │       ├── testdata/
-    │       │   ├── bindata.go
-    │       │   └── fixtures.go
-    │       └── bindata.mk
-    ├── vendor/                        # Vendored dependencies
-    ├── go.mod
-    ├── go.sum
-    └── Makefile
-```
+Directory tree:
+
+    <working-dir>/
+    └── tests-extension/
+        ├── cmd/
+        │   └── main.go                    # OTE entry point
+        ├── bin/
+        │   └── <extension-name>-tests-ext
+        ├── test/
+        │   └── e2e/
+        │       ├── *_test.go              # Migrated tests
+        │       ├── testdata/
+        │       │   ├── bindata.go
+        │       │   └── fixtures.go
+        │       └── bindata.mk
+        ├── vendor/                        # Vendored dependencies
+        ├── go.mod
+        ├── go.sum
+        └── Makefile
 
 ## Next Steps
 
@@ -2729,25 +2885,28 @@ vendor/k8s.io/apimachinery/pkg/util/managedfields/internal/fieldmanager.go:26:2:
 ```
 
 **Root Cause:**
-Vendor directory contains both v4 and v6 of structured-merge-diff, causing conflicts.
+Vendor directory contains both v4 and v6 of structured-merge-diff, causing conflicts. This happens when go.mod was updated (k8s.io versions, replace directives) but vendor/ still contains old dependencies.
 
 **Solution:**
-Use `-mod=mod` instead of `-mod=vendor` for build:
+Regenerate the vendor directory to match the updated go.mod:
 
 ```bash
-# Update Makefile build command
-sed -i 's/go build/GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go build -mod=mod/g' Makefile
+# Clean and regenerate vendor directory
+rm -rf vendor/
+go mod tidy
+go mod vendor
 
-# Or update manually:
-# For monorepo:
-GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go build -mod=vendor -o $(TESTS_EXT_BINARY) ./cmd/extension
+# Verify vendor is clean
+go mod verify
 
-# For single-module:
-GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go build -mod=mod -o $(BINARY) ./cmd
+# Retry build (still using -mod=vendor)
+make tests-ext-build
 ```
 
 **Why this works:**
-`-mod=mod` uses the Go module cache instead of vendor/, avoiding vendored version conflicts while still respecting go.mod versions.
+After updating go.mod with new k8s.io versions and replace directives, the vendor directory must be regenerated to contain the correct resolved dependencies. This eliminates version conflicts while keeping `-mod=vendor` for reproducible, offline builds.
+
+**IMPORTANT:** Always use `-mod=vendor` for Docker builds. Never switch to `-mod=mod` as it requires network access and SSH authentication during Docker build.
 
 ### Build Failures (General)
 
@@ -2801,6 +2960,38 @@ docker run --rm <image> ls -la bin/
 # Check Makefile target
 make tests-ext-build
 ```
+
+### Vendor Directory Out of Sync
+
+**Symptom:**
+```
+# Build fails with import errors or version conflicts
+vendor/k8s.io/apimachinery/pkg/util/managedfields/internal/fieldmanager.go:26:2: imported and not used
+```
+
+**Cause:** The vendor directory doesn't match the current go.mod (happens after updating k8s.io versions or replace directives).
+
+**Solution:**
+
+```bash
+# Regenerate vendor directory to match go.mod
+rm -rf vendor/
+go mod tidy
+go mod vendor
+
+# Verify vendor is clean
+go mod verify
+
+# Retry build
+make clean-extension
+make tests-ext-build
+
+# If Docker build:
+docker build -t <component>:test -f <dockerfile> .
+```
+
+**Why this works:**
+The Makefile uses `-mod=vendor` by default, which builds from the vendored code. After updating go.mod, the vendor directory must be regenerated to contain the correct resolved dependencies. This ensures reproducible, offline builds without requiring network access during Docker builds.
 
 ### Testdata Fixtures Not Found at Runtime
 
