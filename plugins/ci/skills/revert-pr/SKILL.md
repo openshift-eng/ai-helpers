@@ -266,6 +266,8 @@ git push fork "$revert_branch:$revert_branch"
 
 ### Step 8: Generate CI Override Commands
 
+**Only execute this step if `--override` was passed.** If `--override` was not passed, skip to Step 9.
+
 After the revert PR is created, determine which CI jobs need `/override` commands:
 
 ```bash
@@ -346,6 +348,8 @@ gh pr create \
 ```
 
 ### Step 10: Post Override Commands (Optional)
+
+**Only execute this step if `--override` was passed and override commands were generated in Step 8.** If `--override` was not passed, skip this step entirely.
 
 After the revert PR is created, the override commands can be posted as a comment on the PR to make it easy to copy-paste:
 
