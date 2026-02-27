@@ -146,6 +146,8 @@ For each suspect PR where you have **high confidence (>= 90%)** that it caused t
 2. **The timing is exact** — the job was passing in the payload before the originating payload and started failing in the originating payload
 3. **No other plausible explanation** — infrastructure flakiness, quota issues, or unrelated platform problems have been ruled out by the subagent analysis
 
+Per OCP policy, PRs that break payloads MUST be reverted. When confidence is high, the report must clearly state that a revert is required — not optional. A fix may be suggested as direction for a follow-up PR after the revert, but the revert itself is mandatory and must not be presented as one option among alternatives.
+
 For each revert candidate, record:
 - **PR URL**: The GitHub pull request URL
 - **PR description**: Title/summary of the PR
@@ -334,8 +336,10 @@ If any revert candidates were identified in Step 6.2, show copy-paste revert ins
 ```html
 <div class="revert-recommendations">
   <h2>Recommended Reverts</h2>
-  <p>The following PRs have been identified with high confidence as causes of blocking job failures.
-     Consider reverting them to restore payload acceptance.</p>
+  <p><strong>OCP Policy: PRs that break payloads MUST be reverted.</strong> The following PRs have been
+     identified with high confidence as causes of blocking job failures and must be reverted immediately
+     to restore payload acceptance. Fixes can be re-landed in a follow-up PR after the revert restores
+     payload health.</p>
   <table>
     <tr>
       <th>PR</th>
@@ -356,16 +360,22 @@ If any revert candidates were identified in Step 6.2, show copy-paste revert ins
   </table>
   <!-- For each revert candidate, include a copy-paste block -->
   <h3>Revert Instructions</h3>
-  <p>Copy and paste the following into Claude Code to initiate each revert:</p>
+  <p>Copy and paste the following into Claude Code to execute each revert immediately:</p>
   <div class="revert-prompt">
     <button onclick="navigator.clipboard.writeText(this.nextElementSibling.textContent.trim())">Copy</button>
-    <pre>PR {pr_url} caused {job_name_1}, {job_name_2}, ... to fail starting in payload {originating_payload_tag}.
+    <pre>Per OCP policy, PRs that break payloads must be reverted. Please revert the following PR immediately:
 
-Evidence:
-- {brief failure summary from subagent analysis for each affected job}
-- The job(s) were passing prior to {originating_payload_tag} and started failing when this PR landed.
+{pr_url}
 
-/ci:revert-pr {pr_url}</pre>
+This PR is causing the following blocking job(s) to fail in the {stream} {architecture} payload:
+- {job_name_1}: {one-line failure summary from subagent}
+- {job_name_2}: {one-line failure summary from subagent}
+
+The job(s) were passing prior to payload {originating_payload_tag} and started failing when this PR landed ({streak_length} rejected payloads ago).
+
+/ci:revert-pr {pr_url}
+
+After the revert is merged and payloads are green again, the original author can investigate the root cause and re-land a corrected version of their change.</pre>
   </div>
 </div>
 ```

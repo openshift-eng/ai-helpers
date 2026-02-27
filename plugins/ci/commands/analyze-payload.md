@@ -21,7 +21,7 @@ It supports both **Rejected** payloads (full analysis) and **Ready** payloads (e
 
 It performs **historical lookback** through consecutive rejected payloads to determine when each failure first appeared. For each originating payload (where a job first started failing), it fetches the new PRs introduced in that payload as likely culprits. This distinguishes new failures from persistent/permafailing jobs and helps identify the root cause commits.
 
-When a suspect PR can be correlated with high confidence (>= 90%) to a blocking job failure — based on component match, error analysis, and timing — the report will **recommend it for revert** with a rationale. The `/ci:revert-pr` command can then be used to execute the revert.
+When a suspect PR can be correlated with high confidence (>= 90%) to a blocking job failure — based on component match, error analysis, and timing — the report will **recommend it for immediate revert** with a rationale and ready-to-use copy-paste text for Claude Code. Per OCP policy, PRs that break payloads MUST be reverted; fixes can be re-landed after the revert restores payload health. The `/ci:revert-pr` command can then be used to execute the revert.
 
 When `--stage-revert` is passed, the command automatically creates a TRT JIRA bug (with `trt-incident` label) for each revert candidate, opens a revert PR on GitHub, triggers `/payload-job` commands for the failing blocking jobs, and shows links to all created artifacts in the HTML report.
 
@@ -56,7 +56,7 @@ Load the "Analyze Payload" skill and follow its implementation steps. The skill 
   - Per-job failure analysis with root cause, error messages, and logs
   - Failure streak length (how many consecutive payloads each job has failed)
   - Originating payload and suspect PRs for each persistent failure
-  - Recommended reverts section with PR links, rationale, and `/ci:revert-pr` instructions (default mode), or a "Staged Reverts" table with links to created TRT tickets, revert PRs, and triggered payload jobs (when `--stage-revert` is used)
+  - Recommended reverts section with PR links, rationale, and ready-to-use Claude Code copy-paste text for immediate revert (default mode), or a "Staged Reverts" table with links to created TRT tickets, revert PRs, and triggered payload jobs (when `--stage-revert` is used)
   - Color-coded severity and collapsible detail sections
 
 ## Examples
