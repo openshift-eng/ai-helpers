@@ -1,7 +1,6 @@
 ---
 description: Revert a merged PR that is breaking CI or nightly payloads
-argument-hint: <pr-url> <jira-ticket>
----
+argument-hint: <pr-url> <jira-ticket>---
 
 ## Name
 
@@ -10,8 +9,7 @@ ci:revert-pr
 ## Synopsis
 
 ```
-/ci:revert-pr <pr-url> <jira-ticket>
-```
+/ci:revert-pr <pr-url> <jira-ticket>```
 
 ## Description
 
@@ -34,7 +32,7 @@ This command is useful when:
 
 ## Implementation
 
-1. **Parse Arguments**: Extract the PR URL and JIRA ticket
+1. **Parse Arguments**: Extract the PR URL, JIRA ticket, and flags
 
    - PR URL format: `https://github.com/{owner}/{repo}/pull/{number}`
    - JIRA ticket: e.g., `TRT-1234` or `OCPBUGS-56789`
