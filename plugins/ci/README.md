@@ -6,6 +6,177 @@ release quality.
 
 ## Commands
 
+### e2e-retest
+
+Find and retest failed e2e CI jobs on a pull request (fast, focused version).
+
+**Usage:**
+```bash
+# Auto-detect repo from current directory
+/ci:e2e-retest <pr-number>
+
+# Specify repo name (assumes openshift org)
+/ci:e2e-retest <repo> <pr-number>
+
+# Specify full org/repo
+/ci:e2e-retest <org>/<repo> <pr-number>
+```
+
+**What it does:**
+- Analyzes PR status checks to find failed e2e jobs
+- Parses prow history to count consecutive failures
+- Shows recent job statistics (fail/pass/abort counts)
+- Excludes currently running jobs from retest lists
+- Provides interactive options to retest selected or all failed jobs
+- Posts `/test` comments to GitHub
+
+**Examples:**
+
+1. **From within the repository**:
+   ```bash
+   cd ~/repos/ovn-kubernetes
+   /ci:e2e-retest 2782
+   ```
+
+2. **From anywhere, with repo name**:
+   ```bash
+   /ci:e2e-retest ovn-kubernetes 2782
+   ```
+
+3. **With full org/repo**:
+   ```bash
+   /ci:e2e-retest openshift/origin 5432
+   ```
+
+**Retest Options:**
+- **Retest selected**: Choose specific jobs to retest
+- **Retest all failed**: Automatically retest all currently failing jobs
+- **Use /retest**: Post a single `/retest` comment
+- **Just show list**: Display failures without taking action
+
+**Performance:**
+- **Immediate execution**: Bash script starts in background while Claude reads command file
+- **Phase 1 (Bash)**: Fetches PR status and prow history in parallel (~2-3 seconds)
+- **Phase 2 (Claude)**: Displays results and handles interaction (~3-5 seconds)
+- **Total time**: ~5-8 seconds from invocation to results
+
+### payload-retest
+
+Find and retest failed payload jobs on a pull request (fast, focused version).
+
+**Usage:**
+```bash
+# Auto-detect repo from current directory
+/ci:payload-retest <pr-number>
+
+# Specify repo name (assumes openshift org)
+/ci:payload-retest <repo> <pr-number>
+
+# Specify full org/repo
+/ci:payload-retest <org>/<repo> <pr-number>
+```
+
+**What it does:**
+- Searches PR comments for all payload run URLs
+- Fetches all payload pages in parallel
+- Analyzes all runs to track each job's status over time
+- For each job, finds its most recent status and counts consecutive failures
+- Shows all currently failing jobs with consecutive failure counts
+- Excludes currently running jobs from retest lists
+- Provides interactive options to retest selected or all failed jobs
+- Posts `/payload-job` comments to GitHub
+
+**Examples:**
+
+1. **From within the repository**:
+   ```bash
+   cd ~/repos/ovn-kubernetes
+   /ci:payload-retest 2782
+   ```
+
+2. **From anywhere, with repo name**:
+   ```bash
+   /ci:payload-retest ovn-kubernetes 2782
+   ```
+
+3. **With full org/repo**:
+   ```bash
+   /ci:payload-retest openshift/origin 5432
+   ```
+
+**Retest Options:**
+- **Retest selected**: Choose specific jobs to retest
+- **Retest all failed**: Automatically retest all currently failing jobs
+- **Just show list**: Display failures without taking action
+
+**Performance:**
+- **Immediate execution**: Bash script starts in background while Claude reads command file
+- **Phase 1 (Bash)**: Fetches all payload pages in parallel and analyzes (~2-5 seconds)
+- **Phase 2 (Claude)**: Displays results and handles interaction (~3-5 seconds)
+- **Total time**: ~5-10 seconds from invocation to results
+
+**Notes:**
+- Payload jobs are OpenShift-specific and may not exist for all PRs
+- Command gracefully exits if no payload runs found
+- Analyzes ALL payload runs to track job history
+- Handles jobs that don't appear in every run
+- Counts consecutive failures across multiple runs
+
+### pr-retest
+
+Find and retest failed e2e CI jobs and payload jobs on a pull request (combined version).
+
+**Usage:**
+```bash
+# Auto-detect repo from current directory
+/ci:pr-retest <pr-number>
+
+# Specify repo name (assumes openshift org)
+/ci:pr-retest <repo> <pr-number>
+
+# Specify full org/repo
+/ci:pr-retest <org>/<repo> <pr-number>
+```
+
+**What it does:**
+- Analyzes PR status checks to find failed e2e jobs
+- Parses prow history to track consecutive failures
+- Checks for failed payload jobs (if applicable)
+- Excludes currently running jobs from retest lists
+- Provides interactive options to retest selected or all failed jobs
+- Posts `/test` or `/payload-job` comments to GitHub
+
+**Examples:**
+
+1. **From within the repository**:
+   ```bash
+   cd ~/repos/ovn-kubernetes
+   /ci:pr-retest 2838
+   ```
+
+2. **From anywhere, with repo name**:
+   ```bash
+   /ci:pr-retest ovn-kubernetes 2838
+   ```
+
+3. **With full org/repo**:
+   ```bash
+   /ci:pr-retest openshift/origin 5432
+   ```
+
+**Retest Options:**
+- **Retest selected**: Choose specific jobs to retest
+- **Retest all failed**: Automatically retest all currently failing jobs
+- **Use /retest**: Post a single `/retest` comment (e2e jobs only)
+- **Just show list**: Display failures without taking action
+
+**Performance:**
+- **Immediate execution**: Both bash scripts start in background while Claude reads command file
+- **Phase 1 (Bash)**: Fetches e2e and payload data in parallel (~3-5 seconds, overlapped)
+- **Phase 2 (Claude)**: Displays results and handles interaction for both sections (~5-10 seconds)
+- **Total time**: ~10-15 seconds from invocation to completion
+- **Note**: For faster analysis of just e2e or just payload, use `/ci:e2e-retest` or `/ci:payload-retest`
+
 ### ask-sippy
 
 Query the Sippy Chat AI agent for CI/CD data analysis.  Sippy Chat has a
