@@ -1348,6 +1348,12 @@
           "description": "Perform comprehensive health check on cluster nodes and report kubelet, CRI-O, and node-level issues",
           "name": "cluster-node-health-check",
           "synopsis": "/node:cluster-node-health-check [--node <node-name>] [--verbose] [--output-format json|text]"
+        },
+        {
+          "argument_hint": "<node-name> [--interface <interface>] [--filter <tcpdump-filter>] [--duration <seconds>] [--tcpdump-options <options>] [--output <filename>]",
+          "description": "Access OpenShift node via debug pod and capture network traffic using tcpdump on specified or all interfaces",
+          "name": "tcpdump",
+          "synopsis": "/node:tcpdump <node-name> [--interface <interface>] [--filter <tcpdump-filter>] [--duration <seconds>] [--count <packets>] [--tcpdump-options <options>] [--output <filename>]"
         }
       ],
       "description": "Kubernetes and OpenShift node health monitoring and diagnostics",

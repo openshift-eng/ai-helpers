@@ -234,6 +234,7 @@ Kubernetes and OpenShift node health monitoring and diagnostics
 
 **Commands:**
 - **`/node:cluster-node-health-check` `[--node <node-name>] [--verbose] [--output-format json|text]`** - Perform comprehensive health check on cluster nodes and report kubelet, CRI-O, and node-level issues
+- **`/node:tcpdump` `<node-name> [--interface <interface>] [--filter <tcpdump-filter>] [--duration <seconds>] [--tcpdump-options <options>] [--output <filename>]`** - Access OpenShift node via debug pod and capture network traffic using tcpdump on specified or all interfaces
 
 See [plugins/node/README.md](plugins/node/README.md) for detailed documentation.
 
