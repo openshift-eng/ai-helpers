@@ -935,9 +935,23 @@ cd ..
 cd <working-dir>
 MODULE_NAME=$(grep '^module ' go.mod | awk '{print $2}')
 
-# Re-derive variables from Phase 1/3
+# Re-derive variables from Phase 1/3 using IDENTICAL logic
 # (Variables don't persist between phases - need to re-calculate)
-EXTENSION_NAME=$(basename "$(pwd)")
+
+# EXTENSION_NAME: Use same logic as Phase 1 Input 4
+if [ -d ".git" ]; then
+    DISCOVERED_REMOTE=$(git remote -v | head -1 | awk '{print $1}')
+    if [ -n "$DISCOVERED_REMOTE" ]; then
+        REMOTE_URL=$(git remote get-url "$DISCOVERED_REMOTE" 2>/dev/null)
+        EXTENSION_NAME=$(echo "$REMOTE_URL" | sed 's/.*[:/]\([^/]*\)\/\([^/]*\)\.git$/\2/' | sed 's/\.git$//')
+    else
+        EXTENSION_NAME=$(basename "$(pwd)")
+    fi
+else
+    EXTENSION_NAME=$(basename "$(pwd)")
+fi
+
+# TARGET_TEST_DIR_NAME: Detect from filesystem (user-created directory from Phase 3)
 TARGET_TEST_DIR_NAME=""
 if [ -d "test/e2e" ]; then
     # Check if test/e2e has subdirectories besides testdata
@@ -1214,9 +1228,7 @@ cd <working-dir>
 
 # Re-derive directory paths from Phase 3
 # (Variables don't persist between phases - need to re-calculate)
-if [ -d "test/e2e/extension" ]; then
-    TESTDATA_DIR="test/e2e/extension/testdata"
-elif [ -d "test/e2e" ]; then
+if [ -d "test/e2e" ]; then
     # Check if test/e2e has subdirectories besides testdata
     SUBDIRS=$(find test/e2e -mindepth 1 -maxdepth 1 -type d ! -name testdata 2>/dev/null)
     if [ -n "$SUBDIRS" ]; then
@@ -1331,9 +1343,19 @@ echo "✅ Created test/e2e/bindata.mk"
 ```bash
 cd <working-dir>
 
-# Re-derive EXTENSION_NAME from Phase 1
+# Re-derive EXTENSION_NAME using IDENTICAL logic as Phase 1
 # (Variables don't persist between phases - need to re-calculate)
-EXTENSION_NAME=$(basename "$(pwd)")
+if [ -d ".git" ]; then
+    DISCOVERED_REMOTE=$(git remote -v | head -1 | awk '{print $1}')
+    if [ -n "$DISCOVERED_REMOTE" ]; then
+        REMOTE_URL=$(git remote get-url "$DISCOVERED_REMOTE" 2>/dev/null)
+        EXTENSION_NAME=$(echo "$REMOTE_URL" | sed 's/.*[:/]\([^/]*\)\/\([^/]*\)\.git$/\2/' | sed 's/\.git$//')
+    else
+        EXTENSION_NAME=$(basename "$(pwd)")
+    fi
+else
+    EXTENSION_NAME=$(basename "$(pwd)")
+fi
 
 if [ ! -f "Makefile" ]; then
     echo "❌ ERROR: No root Makefile found"
@@ -1533,10 +1555,7 @@ echo "========================================="
 
 # Re-derive directory paths from Phase 3
 # (Variables don't persist between phases - need to re-calculate)
-if [ -d "test/e2e/extension" ]; then
-    TEST_CODE_DIR="test/e2e/extension"
-    TESTDATA_DIR="test/e2e/extension/testdata"
-elif [ -d "test/e2e" ]; then
+if [ -d "test/e2e" ]; then
     # Check if test/e2e has subdirectories besides testdata
     SUBDIRS=$(find test/e2e -mindepth 1 -maxdepth 1 -type d ! -name testdata 2>/dev/null)
     if [ -n "$SUBDIRS" ]; then

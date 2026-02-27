@@ -590,7 +590,7 @@ Creates isolated `tests-extension/` directory with **single go.mod** in the targ
   FROM registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.25-openshift-4.22 AS test-extension-builder
   RUN make tests-ext-build && \
       cd bin && \
-      tar -czvf extension-test-extension.tar.gz extension-tests-ext
+      tar -czvf <extension-name>-test-extension.tar.gz <extension-name>-tests-ext
   ```
 
   **Why This Works:**
