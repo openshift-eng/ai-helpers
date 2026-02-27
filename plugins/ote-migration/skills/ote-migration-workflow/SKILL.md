@@ -1915,8 +1915,9 @@ if grep -q "$OLD_K8S_COMMITS" go.mod; then
     cp go.mod go.mod.backup.k8s-version-fix
 
     # Update all k8s.io packages to October 2025 version
-    NEW_K8S_COMMIT="96593f323733"  # October 17, 2025
-    sed -i "s/$OLD_K8S_COMMITS/$NEW_K8S_COMMIT/g" go.mod
+    NEW_K8S_COMMIT_HASH="96593f323733"  # October 17, 2025 commit hash
+    NEW_K8S_VERSION="20251017000000-96593f323733"  # Full pseudo-version suffix (timestamp + hash)
+    sed -i "s/$OLD_K8S_COMMITS/$NEW_K8S_COMMIT_HASH/g" go.mod
     echo "  ✅ Updated k8s.io packages from October 2024 to October 2025"
 
     # Add otelgrpc replace if missing
@@ -1931,7 +1932,7 @@ if grep -q "$OLD_K8S_COMMITS" go.mod; then
     if ! grep -q "k8s.io/externaljwt =>" go.mod; then
         echo "  Adding k8s.io/externaljwt package..."
         # Insert after k8s.io/endpointslice (alphabetically)
-        sed -i "/k8s.io\/endpointslice =>/a\	k8s.io/externaljwt => github.com/openshift/kubernetes/staging/src/k8s.io/externaljwt v0.0.0-$NEW_K8S_COMMIT" go.mod
+        sed -i "/k8s.io\/endpointslice =>/a\	k8s.io/externaljwt => github.com/openshift/kubernetes/staging/src/k8s.io/externaljwt v0.0.0-$NEW_K8S_VERSION" go.mod
         echo "  ✅ Added k8s.io/externaljwt package"
     fi
 
@@ -1939,7 +1940,7 @@ if grep -q "$OLD_K8S_COMMITS" go.mod; then
     if ! grep -q "k8s.io/kms =>" go.mod; then
         echo "  Adding k8s.io/kms package..."
         # Insert after k8s.io/kube-scheduler (alphabetically)
-        sed -i "/k8s.io\/kube-scheduler =>/a\	k8s.io/kms => github.com/openshift/kubernetes/staging/src/k8s.io/kms v0.0.0-$NEW_K8S_COMMIT" go.mod
+        sed -i "/k8s.io\/kube-scheduler =>/a\	k8s.io/kms => github.com/openshift/kubernetes/staging/src/k8s.io/kms v0.0.0-$NEW_K8S_VERSION" go.mod
         echo "  ✅ Added k8s.io/kms package (prevents Docker build Go version errors)"
     fi
 
@@ -1970,33 +1971,34 @@ fi
 if ! grep -q "k8s.io/kms =>" go.mod; then
     echo "Step 1b: Adding k8s.io/kms replace directive..."
 
-    # Get current k8s.io commit from existing replace directives
-    CURRENT_K8S_COMMIT=$(grep "k8s.io/kubernetes =>" go.mod | grep -o 'v0.0.0-[0-9]*-[a-f0-9]*' | head -1 | sed 's/v0.0.0-[0-9]*-//')
+    # Get current k8s.io pseudo-version from existing replace directives (keep full version)
+    CURRENT_K8S_VERSION=$(grep "k8s.io/kubernetes =>" go.mod | grep -o 'v0\.0\.0-[0-9]\{14\}-[a-f0-9]\{12\}' | head -1)
 
     # Check immediately after extraction
-    if [ -z "$CURRENT_K8S_COMMIT" ]; then
-        echo "❌ CRITICAL: Could not detect k8s.io commit version in go.mod"
+    if [ -z "$CURRENT_K8S_VERSION" ]; then
+        echo "❌ CRITICAL: Could not detect k8s.io pseudo-version in go.mod"
+        echo "   Expected format: v0.0.0-YYYYMMDDHHMMSS-COMMITHASH"
         echo "   This repo might not have k8s.io/kubernetes replace directives"
-        echo "   Cannot determine OpenShift fork commit to use for k8s.io/kms"
+        echo "   Cannot determine OpenShift fork version to use for k8s.io/kms"
         exit 1
     fi
 
-    echo "  ✅ Detected k8s.io commit: $CURRENT_K8S_COMMIT"
+    echo "  ✅ Detected k8s.io pseudo-version: $CURRENT_K8S_VERSION"
 
     # Check if replace section exists
     if grep -q "^replace" go.mod; then
         # Replace section exists - try to insert alphabetically after k8s.io/kube-scheduler
         if grep -q "k8s.io/kube-scheduler =>" go.mod; then
-            sed -i "/k8s.io\/kube-scheduler =>/a\	k8s.io/kms => github.com/openshift/kubernetes/staging/src/k8s.io/kms v0.0.0-$CURRENT_K8S_COMMIT" go.mod
+            sed -i "/k8s.io\/kube-scheduler =>/a\	k8s.io/kms => github.com/openshift/kubernetes/staging/src/k8s.io/kms $CURRENT_K8S_VERSION" go.mod
         else
             # No kube-scheduler, insert after k8s.io/kubernetes
-            sed -i "/k8s.io\/kubernetes =>/a\	k8s.io/kms => github.com/openshift/kubernetes/staging/src/k8s.io/kms v0.0.0-$CURRENT_K8S_COMMIT" go.mod
+            sed -i "/k8s.io\/kubernetes =>/a\	k8s.io/kms => github.com/openshift/kubernetes/staging/src/k8s.io/kms $CURRENT_K8S_VERSION" go.mod
         fi
     else
         # No replace section - create one at the end
         echo "" >> go.mod
         echo "replace (" >> go.mod
-        echo "	k8s.io/kms => github.com/openshift/kubernetes/staging/src/k8s.io/kms v0.0.0-$CURRENT_K8S_COMMIT" >> go.mod
+        echo "	k8s.io/kms => github.com/openshift/kubernetes/staging/src/k8s.io/kms $CURRENT_K8S_VERSION" >> go.mod
         echo ")" >> go.mod
     fi
 
@@ -2176,7 +2178,7 @@ Add this stage to build and compress the OTE extension binary.
 **For multi-stage Dockerfiles**: Add after your existing builder stage.
 **For single-stage Dockerfiles**: Add as the first stage before your existing FROM.
 
-```dockerfile
+```
 # Test extension builder stage
 FROM registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.21 AS test-extension-builder
 RUN mkdir -p /go/src/github.com/openshift/<extension-name>
@@ -2195,23 +2197,23 @@ RUN cd tests-extension && \
     cd bin && \
     tar -czvf <extension-name>-test-extension.tar.gz <extension-name>-tests-ext && \
     rm -f <extension-name>-tests-ext
-```markdown
+```
 
 ## 2. Copy to Final Image
 
 Add this to your final runtime stage:
 
-```dockerfile
+```
 # Copy test extension binary
 COPY --from=test-extension-builder /go/src/github.com/openshift/<extension-name>/bin/<extension-name>-test-extension.tar.gz /usr/bin/
 
 # For single-module:
 # COPY --from=test-extension-builder /go/src/github.com/openshift/<extension-name>/tests-extension/bin/<extension-name>-test-extension.tar.gz /usr/bin/
-```markdown
+```
 
 ## Example: Multi-Stage Dockerfile
 
-```dockerfile
+```
 # Your existing builder
 FROM registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.24-openshift-4.23 AS builder
 WORKDIR /go/src/github.com/openshift/<extension-name>
@@ -2234,11 +2236,11 @@ COPY --from=builder /go/src/github.com/openshift/<extension-name>/bin/<extension
 
 # NEW: Copy test extension
 COPY --from=test-extension-builder /go/src/github.com/openshift/<extension-name>/bin/<extension-name>-test-extension.tar.gz /usr/bin/
-```markdown
+```
 
 ## Example: Single-Stage Dockerfile
 
-```dockerfile
+```
 # NEW: Test extension builder stage (added as first stage)
 FROM registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.25-openshift-4.22 AS test-extension-builder
 RUN mkdir -p /go/src/github.com/openshift/<extension-name>
@@ -2262,7 +2264,7 @@ COPY --from=test-extension-builder /go/src/github.com/openshift/<extension-name>
 USER 1001
 EXPOSE 80 443
 ENTRYPOINT ["/usr/bin/openshift-router"]
-```markdown
+```
 
 Replace <extension-name> with your actual extension name.
 
@@ -2532,17 +2534,17 @@ Directory tree:
 
 ### 1. Verify Build
 
-```bash
+```
 # Build extension binary
 make extension
 
 # Verify binary exists
 ls -lh bin/<extension-name>-tests-ext
-```markdown
+```
 
 ### 2. List Tests
 
-```bash
+```
 # List all migrated tests
 ./bin/<extension-name>-tests-ext list
 
@@ -2551,11 +2553,11 @@ ls -lh bin/<extension-name>-tests-ext
 
 # Count Level0 tests
 ./bin/<extension-name>-tests-ext list | grep -c "\[Level0\]"
-```markdown
+```
 
 ### 3. Run Tests
 
-```bash
+```
 # Run all tests
 ./bin/<extension-name>-tests-ext run
 
@@ -2564,11 +2566,11 @@ ls -lh bin/<extension-name>-tests-ext
 
 # Run Level0 tests only
 ./bin/<extension-name>-tests-ext run --grep "\[Level0\]"
-```markdown
+```
 
 ### 4. Build Docker Image
 
-```bash
+```
 # Build image
 podman build -t <component>:test -f <path-to-dockerfile> .
 # Or for Docker:
@@ -2578,11 +2580,11 @@ podman build -t <component>:test -f <path-to-dockerfile> .
 podman run --rm --entrypoint ls <component>:test -lh /usr/bin/*-test-extension.tar.gz
 # Or for Docker:
 # docker run --rm --entrypoint ls <component>:test -lh /usr/bin/*-test-extension.tar.gz
-```markdown
+```
 
 ### 5. Verify Test Annotations
 
-```bash
+```
 # Check [OTP] annotations
 grep -r "\[OTP\]" test/e2e/*_test.go
 
@@ -2591,7 +2593,7 @@ grep -r "\[Level0\]" test/e2e/*_test.go
 
 # Verify no -LEVEL0- suffixes remain
 grep -r "\-LEVEL0\-" test/e2e/*_test.go || echo "✅ All -LEVEL0- removed"
-```markdown
+```
 
 ## Files Created/Modified
 
@@ -2640,13 +2642,13 @@ With committed go.sum, Docker builds will:
 
 **Verify file is tracked:**
 
-```bash
+```
 # Check if go.sum is tracked
 git status go.sum
 
 # If untracked, add it:
 git add go.mod go.sum
-```markdown
+```
 
 ## Troubleshooting
 
@@ -2694,22 +2696,22 @@ Directory tree:
 
 ### 1. Build Extension
 
-```bash
+```
 cd tests-extension
 make build
-```markdown
+```
 
 ### 2. List Tests
 
-```bash
+```
 ./bin/<extension-name>-tests-ext list
-```markdown
+```
 
 ### 3. Run Tests
 
-```bash
+```
 ./bin/<extension-name>-tests-ext run
-```markdown
+```
 
 ## Files Created
 
