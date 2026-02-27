@@ -8,7 +8,7 @@
       "name": "git",
       "source": "./plugins/git",
       "description": "Git Plugin",
-      "version": "0.0.4"
+      "version": "0.0.5"
     },
     {
       "name": "hello-world",
