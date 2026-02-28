@@ -292,33 +292,33 @@ mcp__atlassian__jira_create_issue(
     summary="Control plane pods crash on upgrade",
     issue_type="Bug",
     description="""
-h2. Description of problem
+## Description of problem
 
 Control plane pods crash immediately after upgrading from 4.20 to 4.21.
 
-h2. Version-Release number
+## Version-Release number
 
 4.21.0
 
-h2. How reproducible
+## How reproducible
 
 Always
 
-h2. Steps to Reproduce
+## Steps to Reproduce
 
-# Create a cluster on 4.20
-# Upgrade to 4.21
-# Observe control plane pod status
+1. Create a cluster on 4.20
+2. Upgrade to 4.21
+3. Observe control plane pod status
 
-h2. Actual results
+## Actual results
 
 Pods enter CrashLoopBackOff state.
 
-h2. Expected results
+## Expected results
 
 Pods should start successfully.
 
-h2. Additional info
+## Additional info
 
 Logs attached.
     """,
@@ -334,7 +334,17 @@ Logs attached.
 
 ## Jira Description Formatting
 
-Use Jira's native formatting (Wiki markup). For complete formatting reference, see [Wiki Markup Reference](../../reference/wiki-markup.md).
+**IMPORTANT:** The MCP `jira_create_issue` tool accepts the `description` field in **Markdown format** — it converts Markdown to Jira wiki markup internally. Always use Markdown syntax in the description:
+
+- Headings: `##` (not `h2.`)
+- Numbered lists: `1.`, `2.`, `3.` (not `#` — `#` in Markdown is an h1 heading)
+- Bullet lists: `-` or `*`
+- Inline code: backticks
+- Code blocks: triple backticks
+
+**Do NOT** use Jira wiki markup (`h2.`, `# list item`, `{{monospace}}`) directly in the description field — it will be double-converted and render incorrectly (e.g., `# step` becomes a giant h1 heading instead of a list item).
+
+For complete Jira wiki markup syntax reference (for other contexts), see [Wiki Markup Reference](../../reference/wiki-markup.md).
 
 ## Error Handling
 
@@ -509,7 +519,7 @@ Any additional context?
 4. 💬 Interactively collect bug template sections
 5. 🔒 Scan for sensitive data
 6. ✅ Validate required fields
-7. 📝 Format description with Jira markup
+7. 📝 Format description using Markdown (the jira_create_issue tool converts Markdown to Jira wiki markup)
 8. ✅ Create bug via MCP tool
 9. 📤 Return issue key and URL
 
