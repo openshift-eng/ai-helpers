@@ -283,6 +283,7 @@ OpenShift development utilities and helpers
 
 **Commands:**
 - **`/openshift:add-enhancement` `[area] <name> <description> <jira>`** - Create a new OpenShift Enhancement Proposal
+- **`/openshift:autoscale-cluster` `[--cpu-threshold <percentage>] [--memory-threshold <percentage>] [--min-nodes <count>] [--max-nodes <count>] [--dry-run]`** - Configure cluster autoscaling based on CPU and memory usage
 - **`/openshift:bootstrap-om`** - Bootstrap OpenShift Manager (OM) integration for OpenShift operators with automated resource discovery
 - **`/openshift:bump-deps` `<dependency> [version] [--create-jira] [--create-pr]`** - Bump dependencies in OpenShift projects with automated analysis and PR creation
 - **`/openshift:cluster-health-check` `[--verbose] [--output-format]`** - Perform comprehensive health check on OpenShift cluster and report issues

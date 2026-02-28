@@ -866,6 +866,12 @@
           "synopsis": "/openshift:add-enhancement [area] <name> <description> <jira>"
         },
         {
+          "argument_hint": "[--cpu-threshold <percentage>] [--memory-threshold <percentage>] [--min-nodes <count>] [--max-nodes <count>] [--dry-run]",
+          "description": "Configure cluster autoscaling based on CPU and memory usage",
+          "name": "autoscale-cluster",
+          "synopsis": "/openshift:autoscale-cluster [--cpu-threshold <percentage>] [--memory-threshold <percentage>] [--min-nodes <count>] [--max-nodes <count>] [--dry-run]"
+        },
+        {
           "argument_hint": "",
           "description": "Bootstrap OpenShift Manager (OM) integration for OpenShift operators with automated resource discovery",
           "name": "bootstrap-om",
