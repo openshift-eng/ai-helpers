@@ -2349,7 +2349,7 @@ for DOCKERFILE in "${SELECTED_DOCKERFILES_ARRAY[@]}"; do
                 echo "ℹ️  No builder stage found, using Go builder: $BUILDER_IMAGE"
                 ;;
             1.24)
-                BUILDER_IMAGE="registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.24-openshift-4.20"
+                BUILDER_IMAGE="registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.24-openshift-4.22"
                 echo "ℹ️  No builder stage found, using Go builder: $BUILDER_IMAGE"
                 ;;
             1.23)
