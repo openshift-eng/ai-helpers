@@ -84,6 +84,52 @@ Use the `fetch-prowjob-json` skill to fetch the prowjob.json for this job. See `
 
 ### Step 4: Analyze Test Failure
 
+### Step 4.0: Detect Aggregated Jobs
+
+Aggregated jobs run the same job in parallel (typically 10 times) and perform statistical
+analysis of test results. Detect aggregation by checking for `aggregated-` prefix in the job
+name or an `aggregator` container/step in prowjob.json.
+
+If the job is aggregated, the failure modes are different from normal jobs:
+
+1. **Statistically significant test failure** — The test itself fails frequently enough across
+   runs to be flagged as a regression. This is a real regression that needs investigation.
+
+2. **Insufficient completed runs** — Not enough runs completed successfully to perform the
+   statistical test (e.g., only 5 of 10 jobs produced results). This manifests as mass test
+   failures across many unrelated tests. The root cause is whatever prevented the other runs
+   from completing — this could be infrastructure issues, install failures, or an actual product
+   bug causing crashes. Investigate the underlying job runs that did not complete to determine
+   why.
+
+3. **Non-deterministic test presence** — A test only ran in a small subset of completed jobs,
+   even though the other jobs completed successfully. The failure message will say something like
+   "Passed 1 times, failed 0 times, skipped 0 times: we require at least 6 attempts to have a
+   chance at success". Every test must produce results in every job run; it is a bug if it does
+   not. This is a regression — someone introduced a test that doesn't produce results
+   deterministically. Investigate which test is non-deterministic and why it only runs in some
+   jobs.
+
+When analyzing an aggregated job failure, first determine which failure mode applies before
+diving into individual test analysis. For mode 2, focus on why runs failed rather than
+individual test results. For mode 3, investigate why the test only ran in some jobs.
+
+**Finding underlying job run URLs:**
+
+The aggregated junit XML contains links to every underlying job run. Download it from:
+```
+gs://test-platform-results/{bucket-path}/artifacts/release-analysis-aggregator/openshift-release-analysis-aggregator/artifacts/release-analysis-aggregator/{job-name}/{payload-tag}/junit-aggregated.xml
+```
+
+Each `<testcase>` element has a `<system-out>` with YAML-formatted data including `passes:`,
+`failures:`, and `skips:` lists. Each entry has:
+- `jobrunid`: The build ID of the underlying job run
+- `humanurl`: Prow URL for the job run (e.g., `https://prow.ci.openshift.org/view/gs/test-platform-results/logs/{job-name}/{jobrunid}`)
+- `gcsartifacturl`: Direct link to GCS artifacts
+
+Use the `humanurl` links to investigate individual job run failures with the normal
+(non-aggregated) analysis steps below.
+
 ### Step 4.1: Download build-log.txt
 
 ```bash
