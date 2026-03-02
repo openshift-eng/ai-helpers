@@ -67,6 +67,7 @@ The `jira:grooming` command runs in three main phases:
   - Velocity metrics and completion percentages
   - Breakdown by priority and issue type
   - List of issues missing story point estimates
+- Saves report to `.work/jira/grooming/report-{timestamp}.md` and displays file path for easy opening.
 - Output can be copied directly into Confluence or shared with the team.
 
 ## Usage Examples
@@ -257,7 +258,11 @@ The command outputs a ready-to-use Markdown document that can be copied into Con
     - Includes story point summary section in the report
     
 ## Return Value
-- **Markdown Report**: Ready-to-use grooming agenda with categorized issues and action items
+- **Format**: Markdown report with ready-to-use grooming agenda
+- **Location**: `.work/jira/grooming/report-{timestamp}.md`
+- **Content**: Structured agenda with summary, categorized issues (Critical Issues, High Priority Stories, Needs Clarification), and action items
+- **Additional sections** (when `--story-points` used): Story point summary with totals by status, type, and missing estimates
+- **Output**: File path displayed in chat for easy opening
 
 ## See Also
 - `jira:status-rollup` - Status rollup reports
