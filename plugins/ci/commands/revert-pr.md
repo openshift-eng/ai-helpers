@@ -1,6 +1,6 @@
 ---
 description: Revert a merged PR that is breaking CI or nightly payloads
-argument-hint: <pr-url> <jira-ticket> [--override]
+argument-hint: <pr-url> <jira-ticket>
 ---
 
 ## Name
@@ -10,7 +10,7 @@ ci:revert-pr
 ## Synopsis
 
 ```
-/ci:revert-pr <pr-url> <jira-ticket> [--override]
+/ci:revert-pr <pr-url> <jira-ticket>
 ```
 
 ## Description
@@ -24,7 +24,7 @@ This command:
 - Creates a revert branch and performs `git revert -m1` of the merge commit
 - Pushes the revert branch to the user's fork
 - Creates a revert PR using the [Revertomatic](https://github.com/stbenjam/revertomatic) template format
-- Optionally generates and posts CI override commands (`/override`) for jobs that need to be bypassed on the revert PR (with `--override`)
+- Generates a list of CI override commands (`/override`) for jobs that may need to be bypassed on the revert PR
 
 This command is useful when:
 
@@ -34,11 +34,10 @@ This command is useful when:
 
 ## Implementation
 
-1. **Parse Arguments**: Extract the PR URL, JIRA ticket, and flags
+1. **Parse Arguments**: Extract the PR URL and JIRA ticket
 
    - PR URL format: `https://github.com/{owner}/{repo}/pull/{number}`
    - JIRA ticket: e.g., `TRT-1234` or `OCPBUGS-56789`
-   - `--override`: Boolean flag (default: false). When passed, generate and post `/override` commands as a comment on the revert PR.
    - If the user provides additional context about why the revert is needed, capture it for the PR body
    - If the user provides verification details (jobs to run before unrevert), capture those too
 
@@ -65,14 +64,13 @@ This command is useful when:
    - Creating the revert branch and performing `git revert -m1`
    - Handling merge conflicts: resolving simple ones directly, or reverting dependent commits for complex ones
    - Pushing to the user's fork
-   - Generating CI override commands when `--override` is passed (filtering out unoverridable jobs)
+   - Generating CI override commands (filtering out unoverridable jobs)
    - Creating the revert PR with the Revertomatic template (adapting title format for UPSTREAM carry repos)
-   - Posting override commands as a PR comment when `--override` is passed
 
-4. **Report Results**: Display the revert PR URL and next steps
+4. **Report Results**: Display the revert PR URL, override commands, and next steps
 
    - Link to the revert PR
-   - List of override commands generated
+   - List of override commands that can be used to force the PR in (do NOT post these as a comment on the PR automatically)
    - Instructions for the original author to unrevert
 
 ## Return Value
@@ -103,7 +101,6 @@ This command is useful when:
 - `$2` (required): JIRA ticket tracking the revert
   - Format: JIRA key (e.g., `TRT-1234`, `OCPBUGS-56789`)
 - Additional text (optional): Context explaining why the revert is needed and verification details
-- `--override` (optional): Post `/override` commands as a comment on the revert PR for CI jobs that need to be bypassed (default: false)
 
 ## Prerequisites
 
