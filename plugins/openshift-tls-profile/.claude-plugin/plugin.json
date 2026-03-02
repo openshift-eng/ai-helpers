@@ -1,0 +1,8 @@
+{
+  "name": "openshift-tls-profile",
+  "description": "Implementation requirements and details for OpenShift TLS security profiles",
+  "version": "0.0.1",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}
