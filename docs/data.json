@@ -373,10 +373,10 @@
           "synopsis": "/ci:query-test-result <version> <keywords> [sippy-url]"
         },
         {
-          "argument_hint": "<pr-url> <jira-ticket> [--override]",
+          "argument_hint": "<pr-url> <jira-ticket>",
           "description": "Revert a merged PR that is breaking CI or nightly payloads",
           "name": "revert-pr",
-          "synopsis": "/ci:revert-pr <pr-url> <jira-ticket> [--override]"
+          "synopsis": "/ci:revert-pr <pr-url> <jira-ticket>"
         },
         {
           "argument_hint": "<job-name> [ENV_VAR=value ...]",

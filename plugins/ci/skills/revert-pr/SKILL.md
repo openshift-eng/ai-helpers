@@ -266,8 +266,6 @@ git push fork "$revert_branch:$revert_branch"
 
 ### Step 8: Generate CI Override Commands
 
-**Only execute this step if `--override` was passed.** If `--override` was not passed, skip to Step 9.
-
 After the revert PR is created, determine which CI jobs need `/override` commands:
 
 ```bash
@@ -347,19 +345,11 @@ gh pr create \
   --body "$rendered_body"
 ```
 
-### Step 10: Post Override Commands (Optional)
+### Step 10: Return Override Commands
 
-**Only execute this step if `--override` was passed and override commands were generated in Step 8.** If `--override` was not passed, skip this step entirely.
+After generating override commands in Step 8, return them to the user as a list. **Do NOT post them as a comment on the PR automatically.** The user can copy-paste them manually if needed.
 
-After the revert PR is created, the override commands can be posted as a comment on the PR to make it easy to copy-paste:
-
-```bash
-gh pr comment "$revert_pr_url" --body "/override ci/prow/e2e-aws
-/override ci/prow/e2e-gcp
-..."
-```
-
-**Note**: Override commands may need to be posted after CI jobs have started running and reported their status contexts. If no statuses are available yet, inform the user they can run `/ci:revert-pr` override commands later, or manually check the PR for required overrides.
+**Note**: Override commands may need to be posted after CI jobs have started running and reported their status contexts. If no statuses are available yet, inform the user they can check the PR later for required overrides.
 
 ## Error Handling
 
