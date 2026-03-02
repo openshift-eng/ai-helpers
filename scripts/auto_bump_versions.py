@@ -52,7 +52,11 @@ def bump_patch_version(version: str) -> str:
     if len(parts) != 3:
         print(f"Warning: unexpected version format '{version}', skipping")
         return version
-    parts[2] = str(int(parts[2]) + 1)
+    try:
+        parts[2] = str(int(parts[2]) + 1)
+    except ValueError:
+        print(f"Warning: non-numeric patch version in '{version}', skipping")
+        return version
     return ".".join(parts)
 
 
