@@ -1,0 +1,9 @@
+{
+  "name": "vpa-testgen",
+  "description": "Generate E2E tests for VPA (Vertical Pod Autoscaler) operator",
+  "version": "0.0.1",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}
+
