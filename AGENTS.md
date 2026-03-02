@@ -4,7 +4,7 @@ Claude Code plugins repository. Plugins live under `plugins/`.
 
 ## Structure
 
-```
+```text
 plugins/{plugin-name}/
 ├── .claude-plugin/
 │   └── plugin.json               # Required: name, description, version, author
@@ -18,11 +18,12 @@ plugins/{plugin-name}/
 
 Canonical example: `plugins/hello-world/`
 
-## Commands
+## Development Commands
 
 | Command | When |
 |---------|------|
 | `make lint` | Before every commit — validates structure, format, and marketplace registration |
+| Bump `version` in `plugin.json` | When modifying plugin commands or skills (not README-only changes) |
 | `make update` | After version bumps — syncs marketplace.json and regenerates docs |
 
 ## Contributing Rules
@@ -36,8 +37,3 @@ Canonical example: `plugins/hello-world/`
 - **Register all plugins** in `.claude-plugin/marketplace.json`.
 - **Set author** to `"github.com/openshift-eng"` in `plugin.json`.
 - **Add new commands** to an existing plugin when they fit its scope, or to `plugins/utils/` if no clear parent. Create a new plugin only for a distinct group of related commands.
-
-## CI Rules
-
-- Bump `version` in `plugins/{name}/.claude-plugin/plugin.json` when modifying plugin commands or skills (not for README-only changes).
-- Run `make update` after version bumps to sync marketplace.json and regenerate docs.
