@@ -44,7 +44,7 @@
       "name": "session",
       "source": "./plugins/session",
       "description": "A plugin for Claude session management and persistence",
-      "version": "0.0.2"
+      "version": "0.0.3"
     },
     {
       "name": "sosreport",
