@@ -5,13 +5,13 @@ description: Use this skill to implement TLS security profiles for operators and
 
 # OpenShift TLS Security Profile Configuration
 
-This skill helps implement TLS security profiles for operators and workloads running on OpenShift. It provides complete guidance on reading TLS configuration from the APIServer custom resource and applying it consistently across all secured endpoints.
+This skill helps implement TLS security profiles for operators and workloads running on OpenShift. It provides complete guidance on reading TLS configuration from OpenShift cluster and applying it consistently across all secured endpoints.
 
 ## Background
 
 This skill implements the requirements defined in the [Centralized and Enforced TLS Configuration Enhancement](https://github.com/openshift/enhancements/pull/1910). The enhancement addresses the gap where many OpenShift components hardcode TLS settings or rely on library defaults rather than respecting cluster-wide TLS configuration. Key points:
 
-- All components must honor the centralized TLS security profile from the APIServer CR
+- All components must honor the centralized TLS security profile from the cluster
 - This enables consistent cryptographic policy enforcement and Post-Quantum Cryptography (PQC) readiness
 - Do not hardcode TLS versions (e.g., TLS 1.3). Always read TLS settings dynamically.
 
@@ -44,14 +44,6 @@ Most components should use the API Server configuration as their TLS profile sou
 | **Kubelet** | Only use if your component is specifically running on the kubelet and needs to match kubelet's TLS settings. |
 | **Ingress Controller** | Only use if your component is specifically handling ingress traffic and needs to match the ingress controller's TLS settings. |
 
-**If Hardcoded TLS Exists in Code:**
-
-Remove hardcoded TLS configurations and update your component to fetch TLS settings from one of the central configuration sources:
-
-1. **Default: API Server configuration** - Use this for most components. This is the default and preferred option.
-2. **Kubelet configuration** - Only use if your component is specifically running on the kubelet and needs to match kubelet's TLS settings.
-3. **Ingress controller configuration** - Only use if your component is specifically handling ingress traffic and needs to match the ingress controller's TLS settings.
-
 ## When to Use This Skill
 
 Use this skill when:
@@ -59,7 +51,6 @@ Use this skill when:
 - Configuring webhook servers and metrics endpoints with cluster-wide TLS settings
 - Setting up HTTP or gRPC clients/servers that need to comply with OpenShift TLS policies
 - Converting OpenShift TLS profile types to Go `crypto/tls` configuration
-- Troubleshooting TLS-related connection issues in OpenShift clusters
 
 ## Recommended: Use controller-runtime-common Package
 
@@ -190,19 +181,6 @@ if err := watcher.SetupWithManager(mgr); err != nil {
 ```
 
 **Note:** The watcher handles predicates internally - it only watches the "cluster" APIServer object and compares profile changes using `reflect.DeepEqual`.
-
-### Restart vs Hot-Reload Trade-offs
-
-| Approach | Restart Required | Existing Connections | Recommendation |
-|----------|------------------|---------------------|----------------|
-| **SecurityProfileWatcher** (Option A) | Yes - graceful shutdown | All connections use new TLS settings after restart | **Recommended** - ensures consistent TLS policy across all connections |
-| **GetConfigForClient** (Option C) | No | **Not updated** - only new connections use new settings | Use only when restarts are not acceptable |
-
-**Why SecurityProfileWatcher is recommended:**
-- TLS profile changes are cluster-level security policy changes that should apply uniformly
-- `GetConfigForClient` leaves existing long-lived connections using the old TLS configuration
-- Graceful shutdown ensures all connections are re-established with the correct TLS settings
-- Simpler implementation using the official package
 
 ## Requirements
 
