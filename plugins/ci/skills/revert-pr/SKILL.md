@@ -345,17 +345,11 @@ gh pr create \
   --body "$rendered_body"
 ```
 
-### Step 10: Post Override Commands (Optional)
+### Step 10: Return Override Commands
 
-After the revert PR is created, the override commands can be posted as a comment on the PR to make it easy to copy-paste:
+After generating override commands in Step 8, return them to the user as a list. **Do NOT post them as a comment on the PR automatically.** The user can copy-paste them manually if needed.
 
-```bash
-gh pr comment "$revert_pr_url" --body "/override ci/prow/e2e-aws
-/override ci/prow/e2e-gcp
-..."
-```
-
-**Note**: Override commands may need to be posted after CI jobs have started running and reported their status contexts. If no statuses are available yet, inform the user they can run `/ci:revert-pr` override commands later, or manually check the PR for required overrides.
+**Note**: Override commands may need to be posted after CI jobs have started running and reported their status contexts. If no statuses are available yet, inform the user they can check the PR later for required overrides.
 
 ## Error Handling
 

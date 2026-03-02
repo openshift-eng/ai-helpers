@@ -24,7 +24,7 @@ This command:
 - Creates a revert branch and performs `git revert -m1` of the merge commit
 - Pushes the revert branch to the user's fork
 - Creates a revert PR using the [Revertomatic](https://github.com/stbenjam/revertomatic) template format
-- Generates CI override commands (`/override`) for jobs that need to be bypassed on the revert PR
+- Generates a list of CI override commands (`/override`) for jobs that may need to be bypassed on the revert PR
 
 This command is useful when:
 
@@ -66,12 +66,11 @@ This command is useful when:
    - Pushing to the user's fork
    - Generating CI override commands (filtering out unoverridable jobs)
    - Creating the revert PR with the Revertomatic template (adapting title format for UPSTREAM carry repos)
-   - Optionally posting override commands as a PR comment
 
-4. **Report Results**: Display the revert PR URL and next steps
+4. **Report Results**: Display the revert PR URL, override commands, and next steps
 
    - Link to the revert PR
-   - List of override commands generated
+   - List of override commands that can be used to force the PR in (do NOT post these as a comment on the PR automatically)
    - Instructions for the original author to unrevert
 
 ## Return Value
