@@ -37,7 +37,9 @@ Fail, if there is no `commit_hash` in the current repository checkout.
     ```bash
     git show commit_hash | patch -p1 --no-backup-if-mismatch
     ```
-and check if exit code is zero. Fail if exit code is not zero.
+and check if exit code is zero. If exit code is not zero, find confilcted files in the output and apply
+changes for them from the patch manually. Print file names which required manual changes. Fail workload
+if you cannot apply any required change manually.
 
 2. Find files removed from local checkout by the patch command and execute `git rm` for them.
 
