@@ -202,6 +202,7 @@ A plugin to automate tasks with Jira
 - **`/jira:reconcile-github` `[--github-project <org/repo>] [--jira-project <key>] [--profile <name>] [--porcelain] [--output json|yaml]`** - Reconcile state mismatches between GitHub and Jira issues
 - **`/jira:setup-gh2jira`** - Install and configure the gh2jira utility with all required tools and credentials
 - **`/jira:solve`** - Analyze a JIRA issue and create a pull request to solve it.
+- **`/jira:sprint-review` `[--project project-name] [--component component-name] [--jql custom-filter] [--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD] [--output filename]`** - Generate comprehensive sprint review report with custom date range and flexible scope filtering
 - **`/jira:status-rollup` `issue-id [--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD]`** - Generate a status rollup comment for any JIRA issue based on all child issues and a given date range
 - **`/jira:update-weekly-status` `[project-key] [--component name] [--label label-name] [user-filters...]`** - Update weekly status summaries for Jira issues with component and user filtering
 - **`/jira:validate-blockers` `[target-version] [component-filter] [--bug issue-key]`** - Validate proposed release blockers using Red Hat OpenShift release blocker criteria

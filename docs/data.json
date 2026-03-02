@@ -169,6 +169,12 @@
           "synopsis": "/jira:solve <jira-issue-id> [remote] [--ci]"
         },
         {
+          "argument_hint": "[--project project-name] [--component component-name] [--jql custom-filter] [--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD] [--output filename]",
+          "description": "Generate comprehensive sprint review report with custom date range and flexible scope filtering",
+          "name": "sprint-review",
+          "synopsis": "/jira:sprint-review [--project project-name] [--component component-name] [--jql custom-filter] [--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD] [--output filename]"
+        },
+        {
           "argument_hint": "issue-id [--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD]",
           "description": "Generate a status rollup comment for any JIRA issue based on all child issues and a given date range",
           "name": "status-rollup",
