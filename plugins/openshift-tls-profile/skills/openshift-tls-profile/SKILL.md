@@ -555,7 +555,7 @@ func TLSConfigFromProfile(profile *configv1.TLSSecurityProfile) (*tls.Config, er
 		return nil, fmt.Errorf("unknown TLS profile type: %s", profile.Type)
 	}
 
-	tlsMinVersion, err := tlsVersionToUint16(minVersion)
+	tlsMinVersion, err := crypto.TLSVersion(string(minVersion))
 	if err != nil {
 		return nil, err
 	}
@@ -570,21 +570,6 @@ func TLSConfigFromProfile(profile *configv1.TLSSecurityProfile) (*tls.Config, er
 	}, nil
 }
 
-// tlsVersionToUint16 converts OpenShift TLS version string to Go tls constant
-func tlsVersionToUint16(version configv1.TLSProtocolVersion) (uint16, error) {
-	switch version {
-	case configv1.VersionTLS10:
-		return tls.VersionTLS10, nil
-	case configv1.VersionTLS11:
-		return tls.VersionTLS11, nil
-	case configv1.VersionTLS12:
-		return tls.VersionTLS12, nil
-	case configv1.VersionTLS13:
-		return tls.VersionTLS13, nil
-	default:
-		return 0, fmt.Errorf("unknown TLS version: %s", version)
-	}
-}
 ```
 
 ### Step 3: Apply to Controller-Runtime Webhook and Metrics Servers
