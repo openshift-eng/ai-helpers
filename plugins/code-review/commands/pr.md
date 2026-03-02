@@ -57,7 +57,7 @@ The two layers compose: `--language go --profile hypershift` applies both Go idi
 
 ### Step 2 — Launch Parallel Review Sub-Agents
 
-After identifying changed files, launch the following reviews concurrently. **Use the Task tool to launch all of these in parallel in a single message with multiple tool calls.** Pass each sub-agent the list of changed files, the full PR diff, the loaded language skill content (if any), and the loaded profile skill content (if any) in its prompt.
+After identifying changed files, launch the following reviews concurrently. Launch ALL sub-agents in parallel (single message with multiple Task tool calls) for maximum speed. Each sub-agent should be given `subagent_type: "general-purpose"`. Do NOT set the `model` parameter — let sub-agents inherit the parent model, as these analysis tasks require a capable model. Pass each sub-agent the list of changed files, the full PR diff, the loaded language skill content (if any), and the loaded profile skill content (if any) in its prompt.
 
 #### Sub-agent: Unit Test Coverage
 Skip if `--skip-tests` is specified.
