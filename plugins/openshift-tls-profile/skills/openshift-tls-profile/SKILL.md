@@ -800,7 +800,7 @@ func NewGRPCClientConnWithTLSProfile(
 	tlsConfig.RootCAs = caCertPool
 
 	creds := credentials.NewTLS(tlsConfig)
-	conn, err := grpc.Dial(target, grpc.WithTransportCredentials(creds))
+	conn, err := grpc.NewClient(target, grpc.WithTransportCredentials(creds))
 	if err != nil {
 		return nil, err
 	}
