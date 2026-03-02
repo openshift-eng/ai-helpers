@@ -25,6 +25,9 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Auto-bump plugin versions
+        run: python3 scripts/auto_bump_versions.py "${{ github.event.before }}"
+
       - name: Sync marketplace versions
         run: python3 scripts/sync_marketplace_versions.py
 
@@ -37,18 +40,20 @@ jobs:
         uses: peter-evans/create-pull-request@c0f553fe549906ede9cf27b5156039d195d2ece0 # v8.1.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: "docs: auto-regenerate plugin documentation and sync versions"
-          title: "docs: auto-regenerate plugin documentation"
+          commit-message: "chore: auto-bump plugin versions and regenerate docs"
+          title: "chore: auto-bump plugin versions and regenerate docs"
           body: |
-            This PR was automatically generated to update plugin documentation.
+            This PR was automatically generated after a merge to main.
 
             Changes include:
+            - Auto-bumped patch versions for changed plugins
             - Synced plugin versions from plugin.json to marketplace.json
             - Regenerated PLUGINS.md
             - Regenerated docs/data.json
           branch: auto-update-docs
           delete-branch: true
           add-paths: |
+            plugins/*/.claude-plugin/plugin.json
             docs/
             PLUGINS.md
             .claude-plugin/marketplace.json
