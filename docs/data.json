@@ -295,6 +295,12 @@
           "synopsis": "/ci:analyze-payload <payload-tag> [--lookback N]"
         },
         {
+          "argument_hint": "[limit]",
+          "description": "Analyze recent PR reverts to identify patterns and recommend preventive measures",
+          "name": "analyze-pr-reverts",
+          "synopsis": "/ci:analyze-pr-reverts [limit]"
+        },
+        {
           "argument_hint": "<prowjob-url>",
           "description": "Analyze OpenShift installation failures in Prow CI jobs",
           "name": "analyze-prow-job-install-failure",
@@ -503,7 +509,7 @@
           "name": "Triage Regression"
         }
       ],
-      "version": "0.0.12"
+      "version": "0.0.13"
     },
     {
       "commands": [
