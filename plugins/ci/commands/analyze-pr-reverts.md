@@ -1,6 +1,6 @@
 ---
 description: Analyze recent PR reverts to identify patterns and recommend preventive measures
-argument-hint: <path-to-reverts.csv>
+argument-hint: "[limit]"
 ---
 
 ## Name
@@ -10,32 +10,26 @@ ci:analyze-pr-reverts
 ## Synopsis
 
 ```
-/ci:analyze-pr-reverts <path-to-reverts.csv>
+/ci:analyze-pr-reverts [limit]
 ```
 
 ## Description
 
-The `ci:analyze-pr-reverts` command analyzes a CSV of recently reverted pull requests to identify common failure patterns, the most affected repositories, and recommends concrete preventive measures such as new presubmit jobs, org-wide CodeRabbit review rules, or process changes.
+The `ci:analyze-pr-reverts` command fetches recently reverted pull requests from the Sippy API and analyzes them to identify common failure patterns, the most affected repositories, and recommends concrete preventive measures such as new presubmit jobs, org-wide CodeRabbit review rules, or process changes.
 
 This command is intended to be run periodically (e.g., monthly) to track revert trends over time.
 
-### Generating the Input CSV
-
-The input CSV is generated from the Sippy database using:
-
-```bash
-psql $DSN_PROD --csv -c "SELECT merged_at, link, author, title FROM prow_pull_requests WHERE title LIKE '%revert%' OR title LIKE '%Revert%' ORDER BY created_at DESC LIMIT 50" > reverts.csv
-```
-
-Where `$DSN_PROD` is a read-only connection string for the Sippy production PostgreSQL database.
-
 ## Implementation
 
-1. **Parse Arguments**: Extract the path to the CSV file.
+1. **Fetch Revert PRs from Sippy API**: Query the Sippy API for PRs with "revert" in the title.
 
-   - The CSV must have columns: `merged_at`, `link`, `author`, `title`
-   - Validate the file exists and has the expected format
-   - Read and parse all rows
+   ```bash
+   curl -s 'https://sippy.dptools.openshift.org/api/pull_requests?release=Presubmits&filter=%7B%22items%22%3A%5B%7B%22columnField%22%3A%22title%22%2C%22operatorValue%22%3A%22contains%22%2C%22value%22%3A%22revert%22%7D%5D%2C%22linkOperator%22%3A%22and%22%7D&sortField=merged_at&sort=desc&limit=<LIMIT>'
+   ```
+
+   - The default limit is 50 but can be overridden by the user's argument
+   - The API returns JSON with fields including: `merged_at`, `link`, `author`, `title`
+   - Parse the JSON response and extract all PR entries
 
 2. **Deduplicate**: Remove duplicate entries (same PR URL appearing multiple times).
 
@@ -139,25 +133,19 @@ Where `$DSN_PROD` is a read-only connection string for the Sippy production Post
 
 ## Examples
 
-1. **Basic usage**:
+1. **Basic usage** (fetches last 50 revert PRs):
    ```
-   /ci:analyze-pr-reverts ~/reverts.csv
+   /ci:analyze-pr-reverts
    ```
 
-2. **With freshly generated data**:
-   ```bash
-   # First, generate the CSV:
-   psql $DSN_PROD --csv -c "SELECT merged_at, link, author, title FROM prow_pull_requests WHERE title LIKE '%revert%' OR title LIKE '%Revert%' ORDER BY created_at DESC LIMIT 50" > reverts.csv
-
-   # Then analyze:
-   /ci:analyze-pr-reverts reverts.csv
+2. **With custom limit**:
+   ```
+   /ci:analyze-pr-reverts 100
    ```
 
 ## Arguments
 
-- `$1` (required): Path to the CSV file containing revert PR data
-  - Must have columns: `merged_at`, `link`, `author`, `title`
-  - Generated via the psql query documented above
+- `$1` (optional): Maximum number of revert PRs to fetch from the Sippy API. Defaults to 50.
 
 ## Prerequisites
 
@@ -165,8 +153,7 @@ Where `$DSN_PROD` is a read-only connection string for the Sippy production Post
    - Check: `gh auth status`
    - Needed to fetch PR details (description, files, labels) for each revert
 
-2. **CSV input file**: Generated from the Sippy production database
-   - Requires access to `$DSN_PROD` for the psql query
+2. **Network access**: Must be able to reach `sippy.dptools.openshift.org`
 
 ## Notes
 
