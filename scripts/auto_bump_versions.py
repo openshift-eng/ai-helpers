@@ -26,12 +26,17 @@ def get_changed_plugins(repo_root: Path, base_ref: str) -> set[str]:
         print(f"Error running git diff: {result.stderr}", file=sys.stderr)
         sys.exit(1)
 
+    # Files that should not trigger a version bump
+    skip_suffixes = [
+        "README.md",
+        ".claude-plugin/plugin.json",
+    ]
+
     plugins = set()
     for path in result.stdout.strip().splitlines():
         if not path:
             continue
-        # Skip documentation-only changes
-        if path.endswith("README.md") or path.endswith("SKILL.md"):
+        if any(path.endswith(s) for s in skip_suffixes):
             continue
         # Extract plugin name (plugins/{name}/...)
         parts = path.split("/")
