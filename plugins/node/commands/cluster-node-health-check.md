@@ -16,7 +16,7 @@ node:cluster-node-health-check
 
 The `/node:cluster-node-health-check` command performs an extensive diagnostic of Kubernetes/OpenShift cluster nodes to assess their operational health, stability, and performance. It automates the validation of node-level components including kubelet, CRI-O container runtime, system resources, and node conditions to ensure nodes are functioning as expected.
 
-The command runs a comprehensive set of health checks covering node status, kubelet health, container runtime (CRI-O) operations, resource utilization, system daemons, and kernel parameters. It also detects degraded states, disk/memory pressure, network issues, and recent warning events.
+The command runs a comprehensive set of health checks covering node status, kubelet health, container runtime (CRI-O) operations, resource utilization, system daemons, network logs, and kernel parameters. It also detects degraded states, disk/memory pressure, network issues, and recent warning events.
 
 Specifically, it performs the following:
 
@@ -26,6 +26,7 @@ Specifically, it performs the following:
 - Performs CRI-O runtime health checks to ensure container operations are functioning correctly.
 - Inspects resource utilization including CPU, memory, disk space, and process/pod counts against allocatable resources.
 - Evaluates system daemon health (systemd services) critical for node operations.
+- Inspects network logs for errors from NetworkManager, OVN, OVS, CNI plugins, iptables, DNS, and network interfaces, reporting any network-related issues found.
 - Examines kernel parameters and system tunables relevant to Kubernetes operations.
 - Scans for recent warning events at the node level and for pods running on nodes.
 - Reviews certificate validity for kubelet client certificates.
@@ -337,7 +338,97 @@ for node in $NODES; do
 done
 ```
 
-### 8. Check Kernel Parameters and System Tunables
+### 8. Check Network Logs for Errors
+
+Inspect network-related logs and report errors:
+
+```bash
+echo "Checking Network Logs for Errors..."
+
+for node in $NODES; do
+    echo "  Checking network logs on node: $node"
+
+    # Check NetworkManager logs for errors
+    NETWORK_MANAGER_ERRORS=$($CLI debug node/"$node" --image=registry.access.redhat.com/ubi9/ubi-minimal -- chroot /host journalctl -u NetworkManager --since "1 hour ago" -p err --no-pager 2>/dev/null | grep -v "^--" | head -20)
+
+    if [ -n "$NETWORK_MANAGER_ERRORS" ]; then
+        WARNING_ISSUES=$((WARNING_ISSUES + 1))
+        echo "⚠️  WARNING: NetworkManager errors detected on node $node:"
+        echo "$NETWORK_MANAGER_ERRORS" | while IFS= read -r line; do
+            echo "    $line"
+        done
+    fi
+
+    # Check OVN logs for errors (OpenShift SDN)
+    OVN_ERRORS=$($CLI debug node/"$node" --image=registry.access.redhat.com/ubi9/ubi-minimal -- chroot /host journalctl -u ovn-controller --since "1 hour ago" -p err --no-pager 2>/dev/null | grep -v "^--" | head -20)
+
+    if [ -n "$OVN_ERRORS" ]; then
+        WARNING_ISSUES=$((WARNING_ISSUES + 1))
+        echo "⚠️  WARNING: OVN controller errors detected on node $node:"
+        echo "$OVN_ERRORS" | while IFS= read -r line; do
+            echo "    $line"
+        done
+    fi
+
+    # Check OVS logs for errors
+    OVS_ERRORS=$($CLI debug node/"$node" --image=registry.access.redhat.com/ubi9/ubi-minimal -- chroot /host journalctl -u ovs-vswitchd --since "1 hour ago" -p err --no-pager 2>/dev/null | grep -v "^--" | head -20)
+
+    if [ -n "$OVS_ERRORS" ]; then
+        WARNING_ISSUES=$((WARNING_ISSUES + 1))
+        echo "⚠️  WARNING: OVS vswitchd errors detected on node $node:"
+        echo "$OVS_ERRORS" | while IFS= read -r line; do
+            echo "    $line"
+        done
+    fi
+
+    # Check for CNI plugin errors in kubelet logs
+    CNI_ERRORS=$($CLI debug node/"$node" --image=registry.access.redhat.com/ubi9/ubi-minimal -- chroot /host journalctl -u kubelet --since "1 hour ago" --no-pager 2>/dev/null | grep -i "cni\|network plugin" | grep -iE "error|failed|fatal" | head -20)
+
+    if [ -n "$CNI_ERRORS" ]; then
+        WARNING_ISSUES=$((WARNING_ISSUES + 1))
+        echo "⚠️  WARNING: CNI plugin errors detected on node $node:"
+        echo "$CNI_ERRORS" | while IFS= read -r line; do
+            echo "    $line"
+        done
+    fi
+
+    # Check for iptables/nftables errors
+    IPTABLES_ERRORS=$($CLI debug node/"$node" --image=registry.access.redhat.com/ubi9/ubi-minimal -- chroot /host journalctl --since "1 hour ago" --no-pager 2>/dev/null | grep -iE "iptables|nftables" | grep -iE "error|failed|fatal" | head -10)
+
+    if [ -n "$IPTABLES_ERRORS" ]; then
+        WARNING_ISSUES=$((WARNING_ISSUES + 1))
+        echo "⚠️  WARNING: iptables/nftables errors detected on node $node:"
+        echo "$IPTABLES_ERRORS" | while IFS= read -r line; do
+            echo "    $line"
+        done
+    fi
+
+    # Check for DNS resolution errors
+    DNS_ERRORS=$($CLI debug node/"$node" --image=registry.access.redhat.com/ubi9/ubi-minimal -- chroot /host journalctl --since "1 hour ago" --no-pager 2>/dev/null | grep -iE "dns|resolve" | grep -iE "error|failed|timeout" | head -10)
+
+    if [ -n "$DNS_ERRORS" ]; then
+        WARNING_ISSUES=$((WARNING_ISSUES + 1))
+        echo "⚠️  WARNING: DNS resolution errors detected on node $node:"
+        echo "$DNS_ERRORS" | while IFS= read -r line; do
+            echo "    $line"
+        done
+    fi
+
+    # In verbose mode, also show network interface errors from dmesg
+    if [ "$VERBOSE" = true ]; then
+        INTERFACE_ERRORS=$($CLI debug node/"$node" --image=registry.access.redhat.com/ubi9/ubi-minimal -- chroot /host dmesg -T 2>/dev/null | grep -iE "eth|ens|eno|link" | grep -iE "error|down|failed" | tail -10)
+
+        if [ -n "$INTERFACE_ERRORS" ]; then
+            echo "    Network interface errors from dmesg:"
+            echo "$INTERFACE_ERRORS" | while IFS= read -r line; do
+                echo "      $line"
+            done
+        fi
+    fi
+done
+```
+
+### 9. Check Kernel Parameters and System Tunables
 
 Verify important kernel parameters for Kubernetes:
 
@@ -359,7 +450,7 @@ for node in $NODES; do
 done
 ```
 
-### 9. Check Recent Node Events
+### 10. Check Recent Node Events
 
 Look for recent warning/error events:
 
@@ -386,7 +477,7 @@ for node in $NODES; do
 done
 ```
 
-### 10. Check Pod Status on Nodes
+### 11. Check Pod Status on Nodes
 
 Verify pods running on each node:
 
@@ -425,7 +516,7 @@ for node in $NODES; do
 done
 ```
 
-### 11. Check Node Labels and Roles
+### 12. Check Node Labels and Roles
 
 Verify node labels and role assignments:
 
@@ -452,7 +543,7 @@ for node in $NODES; do
 done
 ```
 
-### 12. Generate Summary Report
+### 13. Generate Summary Report
 
 Create a summary of findings:
 
@@ -481,7 +572,7 @@ else
 fi
 ```
 
-### 13. Optional: Export to JSON Format
+### 14. Optional: Export to JSON Format
 
 If `--output-format json` is specified, export findings as JSON:
 
@@ -612,6 +703,28 @@ ISSUES FOUND:
   kubectl debug node/worker-1 -- chroot /host df -h
   kubectl get pods -A --field-selector spec.nodeName=worker-1 -o json | jq '.items[] | {name:.metadata.name, ephemeralStorage:.spec.containers[].resources.requests."ephemeral-storage"}'
 
+[WARNING] Network Log Errors
+- Node: worker-2
+- Source: OVN controller
+- Errors detected:
+  Nov 27 10:15:23 worker-2 ovn-controller[1234]: Failed to connect to OVN northbound database
+  Nov 27 10:15:24 worker-2 ovn-controller[1234]: Connection refused on tcp:10.0.0.1:6641
+- Impact: Pod networking may be affected
+- Recommended Action:
+  kubectl get pods -n openshift-ovn-kubernetes
+  kubectl debug node/worker-2 -- chroot /host journalctl -u ovn-controller -n 50
+
+[WARNING] CNI Plugin Errors
+- Node: worker-2
+- Source: Kubelet CNI logs
+- Errors detected:
+  Nov 27 10:16:15 worker-2 kubelet[5678]: Error adding network: failed to set bridge addr: could not add IP address to "cni0"
+  Nov 27 10:16:16 worker-2 kubelet[5678]: CNI plugin initialization failed: network plugin returns error: cni plugin not initialized
+- Impact: New pods may fail to schedule or start
+- Recommended Action:
+  kubectl debug node/worker-2 -- chroot /host ls -la /opt/cni/bin
+  kubectl debug node/worker-2 -- chroot /host cat /etc/cni/net.d/*
+
 DIAGNOSTIC COMMANDS:
 
 1. Check node details:
@@ -741,6 +854,36 @@ kubectl debug node/<node-name> -- chroot /host openssl x509 -in /var/lib/kubelet
 ```
 
 **Remediation**: Rotate kubelet certificates (automatic in most cases, manual intervention may be needed for expired certs)
+
+### Network Log Errors
+
+**Symptoms**: NetworkManager, OVN, OVS, CNI, iptables, or DNS errors detected in logs
+
+**Investigation**:
+```bash
+# Check NetworkManager logs
+kubectl debug node/<node-name> -- chroot /host journalctl -u NetworkManager --since "1 hour ago" -p err
+
+# Check OVN controller logs
+kubectl debug node/<node-name> -- chroot /host journalctl -u ovn-controller --since "1 hour ago" -p err
+
+# Check OVS logs
+kubectl debug node/<node-name> -- chroot /host journalctl -u ovs-vswitchd --since "1 hour ago" -p err
+
+# Check CNI plugin errors in kubelet logs
+kubectl debug node/<node-name> -- chroot /host journalctl -u kubelet --since "1 hour ago" | grep -i cni
+
+# Check network interface status
+kubectl debug node/<node-name> -- chroot /host ip link show
+kubectl debug node/<node-name> -- chroot /host dmesg -T | grep -i network
+```
+
+**Remediation**: Common network issues include:
+- NetworkManager conflicts: Check if NetworkManager is managing interfaces it shouldn't
+- OVN/OVS errors: Verify SDN pods are running, check OpenShift network operator status
+- CNI plugin failures: Ensure CNI binaries are present in /opt/cni/bin, check CNI configuration in /etc/cni/net.d
+- iptables errors: Check for conflicting firewall rules or full conntrack tables
+- DNS resolution failures: Verify CoreDNS/node DNS configuration, check /etc/resolv.conf
 
 ## Security Considerations
 
