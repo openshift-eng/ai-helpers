@@ -115,6 +115,8 @@ Instruct each subagent as follows:
 > - **Test failure**: Use the `ci:prow-job-analyze-test-failure` skill.
 >
 > Return a concise summary including: failure type (install vs test), root cause, key error messages, and any relevant log excerpts. Do not ask user questions. Keep the output concise for inclusion in a summary report.
+>
+> If the job is an aggregated job (has `aggregated-` prefix in the name or an `aggregator` container/step), also return the **underlying job name** (e.g., `periodic-ci-openshift-release-main-ci-4.22-e2e-aws-upgrade-ovn-single-node`). This is found in the junit-aggregated.xml artifacts — each `<testcase>` has `<system-out>` YAML data with a `humanurl` field linking to individual runs whose URL path contains the underlying job name. The underlying job name cannot be derived from the aggregated job name — it must be extracted from the artifacts.
 
 **Important**: Launch ALL subagents in parallel (single message with multiple Task tool calls) for maximum speed. Each subagent should be given `subagent_type: "general-purpose"`. Do NOT set the `model` parameter — let subagents inherit the parent model, as these analysis tasks require a capable model.
 
@@ -192,7 +194,7 @@ Use `mcp__atlassian__jira_create_issue` to create a TRT bug:
 
 - `project_key`: `"TRT"`
 - `issue_type`: `"Bug"`
-- `summary`: `"Revert {org}/{repo}#{pr_number} for payload regression"`
+- `summary`: A concise description of the problem (the symptom, not the solution). Summarize which jobs are failing and the failure mode. For example: `"aws-ovn and aws-ovn-upgrade jobs failing with KAS crashloop in {stream} {architecture} payload"`. Do NOT use "Revert ..." as the summary — the revert is the action, not the problem.
 - `description` (Jira wiki markup):
   ```
   h2. Payload Regression
@@ -232,15 +234,19 @@ Record the revert PR URL.
 
 #### Substep 3: Trigger Payload Jobs
 
-Post a comment on the revert PR with `/payload-job` commands for each failing blocking job attributed to this PR:
+Post a comment on the revert PR with payload test commands for each failing blocking job attributed to this PR. Use the correct command based on whether the job is aggregated:
+
+- **Aggregated jobs** (job name has `aggregated-` prefix): Use `/payload-aggregate <underlying-job-name> <count>`. The underlying job name comes from the Step 5 subagent investigation (extracted from the aggregated job's junit artifacts — it cannot be derived from the aggregated job name). Choose a count of up to 10 runs — use judgement based on the total number of jobs being triggered (fewer runs per job when triggering many jobs to limit resource consumption; more runs when only one or two jobs need validation).
+- **Non-aggregated jobs**: Use `/payload-job <job-name>`.
 
 ```bash
-gh pr comment "{revert_pr_url}" --body "/payload-job {job_name_1}
+# Example with a mix of aggregated and non-aggregated jobs:
+gh pr comment "{revert_pr_url}" --body "/payload-aggregate {underlying_job_name_1} {count}
 /payload-job {job_name_2}
 ..."
 ```
 
-One `/payload-job <job-name>` per line for each failing blocking job attributed to this PR.
+One command per line for each failing blocking job attributed to this PR.
 
 #### Subagent Return Format
 

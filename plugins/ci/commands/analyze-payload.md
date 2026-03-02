@@ -23,7 +23,7 @@ It performs **historical lookback** through consecutive rejected payloads to det
 
 When a suspect PR can be correlated with high confidence (>= 90%) to a blocking job failure — based on component match, error analysis, and timing — the report will **recommend it for immediate revert** with a rationale and ready-to-use copy-paste text for Claude Code. Per OCP policy, PRs that break payloads MUST be reverted; fixes can be re-landed after the revert restores payload health. The `/ci:revert-pr` command can then be used to execute the revert.
 
-When `--stage-revert` is passed, the command automatically creates a TRT JIRA bug (with `trt-incident` label) for each revert candidate, opens a revert PR on GitHub, triggers `/payload-job` commands for the failing blocking jobs, and shows links to all created artifacts in the HTML report.
+When `--stage-revert` is passed, the command automatically creates a TRT JIRA bug (with `trt-incident` label) for each revert candidate, opens a revert PR on GitHub, triggers payload test commands (`/payload-job` for non-aggregated jobs, `/payload-aggregate` for aggregated jobs) for the failing blocking jobs, and shows links to all created artifacts in the HTML report.
 
 Failed jobs are investigated **in parallel** using subagents with the appropriate analysis skill (install failure vs test failure).
 
@@ -90,7 +90,7 @@ Load the "Analyze Payload" skill and follow its implementation steps. The skill 
 
 - $1: A full payload tag (e.g., `4.22.0-0.nightly-2026-02-25-152806`). Version, stream, and architecture are parsed from the tag automatically. Tags without an architecture suffix (e.g., `4.22.0-0.nightly-...`) are amd64. Tags with an architecture suffix (e.g., `4.22.0-0.nightly-arm64-...`, `4.22.0-0.nightly-ppc64le-...`) use that architecture. (required)
 - `--lookback N`: Maximum number of consecutive rejected payloads to examine (optional, default: 10)
-- `--stage-revert`: Automatically create TRT JIRA bugs, open revert PRs, and trigger `/payload-job` commands for each revert candidate (optional, default: false)
+- `--stage-revert`: Automatically create TRT JIRA bugs, open revert PRs, and trigger payload test commands (`/payload-job` or `/payload-aggregate`) for each revert candidate (optional, default: false)
 
 ## Skills Used
 
