@@ -134,10 +134,8 @@ def generate_report(data, output_format='text'):
             f"# Failure Threshold: >= {query['failure_threshold']}%",
             f"# Date Range: {query['start_date']} to {query['end_date']}",
             f"# Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-            f"#",
-            f"# Note: high_failure_days and link are shown only on the first row for each test case",
             "",
-            "subteam,test_case_id,high_failure_days,link,date,failure_rate_percent"
+            "subteam,test_case_id,failure_rate_percent,date,high_failure_days"
         ]
 
         base_url = "https://ocpqe-webapp-aos-qe-ci--runtime-int.apps.int.gpc.ocp-hub.prod.psi.redhat.com"
@@ -145,17 +143,18 @@ def generate_report(data, output_format='text'):
         for case_id in sorted(results.keys()):
             high_failure_days = len(results[case_id])
             link = f"{base_url}/prow_test_cases/{case_id}"
+            # Excel/Google Sheets HYPERLINK formula: =HYPERLINK("url", "display_text")
+            # In CSV, double quotes inside quoted fields must be escaped by doubling them
+            hyperlink_formula = f'=HYPERLINK("{link}", "{case_id}")'
+            # Escape quotes for CSV: " becomes ""
+            hyperlink_formula_escaped = hyperlink_formula.replace('"', '""')
 
             # Sort days by date
             sorted_days = sorted(results[case_id], key=lambda x: x['date'])
 
-            # First row: include all columns
-            first_day = sorted_days[0]
-            lines.append(f'"{query["subteam"]}","{case_id}",{high_failure_days},"{link}",{first_day["date"]},{first_day["failure_rate"]}')
-
-            # Subsequent rows: empty high_failure_days and link columns
-            for day_data in sorted_days[1:]:
-                lines.append(f'"{query["subteam"]}","{case_id}",,"",{day_data["date"]},{day_data["failure_rate"]}')
+            # All rows: include all fields (no empty cells)
+            for day_data in sorted_days:
+                lines.append(f'"{query["subteam"]}","{hyperlink_formula_escaped}",{day_data["failure_rate"]},{day_data["date"]},{high_failure_days}')
 
         return "\n".join(lines)
 
@@ -174,8 +173,8 @@ def generate_report(data, output_format='text'):
             "",
             "## Test Cases with High Failure Rates",
             "",
-            "| Test Case | Subteam | High-Failure Days | Date | Failure Rate | Link |",
-            "|-----------|---------|-------------------|------|--------------|------|"
+            "| Subteam | Test Case | Failure Rate | Date | High-Failure Days |",
+            "|---------|-----------|--------------|------|-------------------|"
         ]
 
         base_url = "https://ocpqe-webapp-aos-qe-ci--runtime-int.apps.int.gpc.ocp-hub.prod.psi.redhat.com"
@@ -183,9 +182,11 @@ def generate_report(data, output_format='text'):
         for case_id in sorted(results.keys()):
             high_failure_days = len(results[case_id])
             link = f"{base_url}/prow_test_cases/{case_id}"
+            # Embed hyperlink in test case ID using markdown syntax
+            test_case_link = f"[{case_id}]({link})"
 
             for day_data in sorted(results[case_id], key=lambda x: x['date']):
-                lines.append(f"| {case_id} | {query['subteam']} | {high_failure_days} | {day_data['date']} | {day_data['failure_rate']}% | [View]({link}) |")
+                lines.append(f"| {query['subteam']} | {test_case_link} | {day_data['failure_rate']}% | {day_data['date']} | {high_failure_days} |")
 
         return "\n".join(lines)
 
@@ -232,7 +233,7 @@ def generate_report(data, output_format='text'):
 
 def main():
     if len(sys.argv) < 5:
-        print("Usage: query_daily_failure_rates.py <subteam> <failure_threshold> <start_date> <end_date> [output_format]")
+        print("Usage: query_daily_failure_rates.py <subteam> <failure_threshold> <start_date> <end_date> [output_format]", file=sys.stderr)
         sys.exit(1)
 
     subteam = sys.argv[1]
@@ -241,11 +242,75 @@ def main():
     end_date = sys.argv[4]
     output_format = sys.argv[5] if len(sys.argv) > 5 else 'text'
 
+    # Define valid subteam names (extracted from QE webapp dropdown on 2026-03-02)
+    # Source: https://ocpqe-webapp-aos-qe-ci--runtime-int.apps.int.gpc.ocp-hub.prod.psi.redhat.com/ratios
+    # Note: Removed "Logging" (lowercase) - only "LOGGING" (uppercase) is valid
+    # Note: Removed "pod" - not a standard subteam name
+    valid_subteams = [
+        'API_Server', 'Authentication', 'Cluster_Infrastructure', 'Cluster_Observability', 'Cluster_Operator',
+        'Container_Engine_Tools', 'DR_Testing', 'ETCD', 'Hypershift', 'INSTALLER', 'Image_Registry',
+        'LOGGING', 'MCO', 'MTO', 'NODE', 'Network_Edge', 'Network_Observability',
+        'OAP', 'OLM', 'OTA', 'Operator_SDK', 'PSAP', 'PerfScale', 'SDN', 'STORAGE',
+        'Security_and_Compliance', 'User_Interface_Cypress', 'Windows_Containers', 'Workloads'
+    ]
+
+    # Validate subteam name
+    if subteam not in valid_subteams:
+        print(f"Error: Invalid subteam name '{subteam}'", file=sys.stderr)
+        print(f"\nValid subteam names (case-sensitive):", file=sys.stderr)
+        # Print in organized columns
+        for i in range(0, len(valid_subteams), 3):
+            row = valid_subteams[i:i+3]
+            print(f"  {', '.join(row)}", file=sys.stderr)
+
+        # Check for case-insensitive matches and suggest
+        subteam_lower = subteam.lower()
+        suggestions = [s for s in valid_subteams if s.lower() == subteam_lower]
+        if suggestions:
+            print(f"\nDid you mean: {suggestions[0]}?", file=sys.stderr)
+        sys.exit(1)
+
+    # Validate threshold is numeric
+    try:
+        threshold_value = float(failure_threshold)
+    except ValueError:
+        print(f"Error: Failure threshold must be a number, got '{failure_threshold}'", file=sys.stderr)
+        sys.exit(1)
+
+    # Validate threshold range (0-100)
+    if threshold_value < 0 or threshold_value > 100:
+        print(f"Error: Failure threshold must be between 0 and 100, got {threshold_value}", file=sys.stderr)
+        sys.exit(1)
+
+    # Validate date formats (YYYY-MM-DD)
+    try:
+        start_dt = datetime.strptime(start_date, '%Y-%m-%d')
+    except ValueError:
+        print(f"Error: Start date must be in YYYY-MM-DD format, got '{start_date}'", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        end_dt = datetime.strptime(end_date, '%Y-%m-%d')
+    except ValueError:
+        print(f"Error: End date must be in YYYY-MM-DD format, got '{end_date}'", file=sys.stderr)
+        sys.exit(1)
+
+    # Validate date range (start <= end)
+    if start_dt > end_dt:
+        print(f"Error: Start date ({start_date}) must be before or equal to end date ({end_date})", file=sys.stderr)
+        sys.exit(1)
+
+    # Validate output format
+    valid_formats = ['text', 'csv', 'markdown', 'json']
+    if output_format not in valid_formats:
+        print(f"Warning: Unknown output format '{output_format}', using 'text' format", file=sys.stderr)
+        output_format = 'text'
+
     # Query the webapp
     data = query_qe_webapp(subteam, failure_threshold, start_date, end_date)
 
     if not data:
-        print("Failed to retrieve data")
+        print("Failed to retrieve data", file=sys.stderr)
         sys.exit(1)
 
     # Generate and print report

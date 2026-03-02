@@ -56,9 +56,17 @@ ai-helpers/plugins/ci/skills/query-failed-ratios/query_daily_failure_rates.py
    ```bash
    mkdir -p .work/failed-ratios/${subteam}/
 
-   python3 ai-helpers/plugins/ci/skills/query-failed-ratios/query_daily_failure_rates.py \
-     ${subteam} ${failure_threshold} ${start_date} ${end_date} ${output_format} \
-     2> >(cat >&2) > .work/failed-ratios/${subteam}/daily-failure-rates-${start_date}-to-${end_date}-${failure_threshold}pct.${ext}
+   # For JSON format: capture only stdout (no progress messages in file)
+   if [ "${output_format}" = "json" ]; then
+     python3 ai-helpers/plugins/ci/skills/query-failed-ratios/query_daily_failure_rates.py \
+       ${subteam} ${failure_threshold} ${start_date} ${end_date} json \
+       > .work/failed-ratios/${subteam}/daily-failure-rates-${start_date}-to-${end_date}-${failure_threshold}pct.json
+   else
+     # For other formats: progress messages are fine (formatted as comments)
+     python3 ai-helpers/plugins/ci/skills/query-failed-ratios/query_daily_failure_rates.py \
+       ${subteam} ${failure_threshold} ${start_date} ${end_date} ${output_format} \
+       2>&1 > .work/failed-ratios/${subteam}/daily-failure-rates-${start_date}-to-${end_date}-${failure_threshold}pct.${ext}
+   fi
    ```
 
 3. **What the Script Does**
@@ -84,14 +92,17 @@ ai-helpers/plugins/ci/skills/query-failed-ratios/query_daily_failure_rates.py
 
 4. **Save Reports in Multiple Formats** (Optional but recommended)
    ```bash
-   # Text report
-   python3 ... text > .work/failed-ratios/${subteam}/daily-failure-rates-...-${threshold}pct.txt
+   # Text report (with progress messages)
+   python3 ... text 2>&1 > .work/failed-ratios/${subteam}/daily-failure-rates-...-${threshold}pct.txt
 
-   # CSV report (for spreadsheet analysis)
-   python3 ... csv > .work/failed-ratios/${subteam}/daily-failure-rates-...-${threshold}pct.csv
+   # CSV report (with progress messages as comments)
+   python3 ... csv 2>&1 > .work/failed-ratios/${subteam}/daily-failure-rates-...-${threshold}pct.csv
 
-   # Markdown report (for JIRA/GitHub)
-   python3 ... markdown > .work/failed-ratios/${subteam}/daily-failure-rates-...-${threshold}pct.md
+   # Markdown report (with progress messages)
+   python3 ... markdown 2>&1 > .work/failed-ratios/${subteam}/daily-failure-rates-...-${threshold}pct.md
+
+   # JSON report (clean, no progress messages)
+   python3 ... json > .work/failed-ratios/${subteam}/daily-failure-rates-...-${threshold}pct.json
    ```
 
 5. **Display Summary to User**
@@ -238,29 +249,26 @@ Report saved to:
 # Failure Threshold: >= 10.0%
 # Date Range: 2026-01-01 to 2026-01-31
 # Generated: 2026-02-28 03:21:20
-#
-# Note: high_failure_days and link are shown only on the first row for each test case
 
-subteam,test_case_id,high_failure_days,link,date,failure_rate_percent
-"SDN","OCP-83672",31,"https://ocpqe-webapp-aos-qe-ci--runtime-int.apps.int.gpc.ocp-hub.prod.psi.redhat.com/prow_test_cases/OCP-83672",2026-01-01,100
-"SDN","OCP-83672",,"",2026-01-02,100
-"SDN","OCP-83672",,"",2026-01-03,100
-"SDN","OCP-79910",30,"https://ocpqe-webapp-aos-qe-ci--runtime-int.apps.int.gpc.ocp-hub.prod.psi.redhat.com/prow_test_cases/OCP-79910",2026-01-01,100
-"SDN","OCP-79910",,"",2026-01-02,100
-"SDN","OCP-55887",24,"https://ocpqe-webapp-aos-qe-ci--runtime-int.apps.int.gpc.ocp-hub.prod.psi.redhat.com/prow_test_cases/OCP-55887",2026-01-01,100
-"SDN","OCP-55887",,"",2026-01-12,33
-"SDN","OCP-55887",,"",2026-01-31,100
+subteam,test_case_id,failure_rate_percent,date,high_failure_days
+"SDN","=HYPERLINK(""https://ocpqe-webapp-aos-qe-ci--runtime-int.apps.int.gpc.ocp-hub.prod.psi.redhat.com/prow_test_cases/OCP-83672"", ""OCP-83672"")",100,2026-01-01,31
+"SDN","=HYPERLINK(""https://ocpqe-webapp-aos-qe-ci--runtime-int.apps.int.gpc.ocp-hub.prod.psi.redhat.com/prow_test_cases/OCP-83672"", ""OCP-83672"")",100,2026-01-02,31
+"SDN","=HYPERLINK(""https://ocpqe-webapp-aos-qe-ci--runtime-int.apps.int.gpc.ocp-hub.prod.psi.redhat.com/prow_test_cases/OCP-83672"", ""OCP-83672"")",100,2026-01-03,31
+"SDN","=HYPERLINK(""https://ocpqe-webapp-aos-qe-ci--runtime-int.apps.int.gpc.ocp-hub.prod.psi.redhat.com/prow_test_cases/OCP-79910"", ""OCP-79910"")",100,2026-01-01,30
+"SDN","=HYPERLINK(""https://ocpqe-webapp-aos-qe-ci--runtime-int.apps.int.gpc.ocp-hub.prod.psi.redhat.com/prow_test_cases/OCP-79910"", ""OCP-79910"")",100,2026-01-02,30
+"SDN","=HYPERLINK(""https://ocpqe-webapp-aos-qe-ci--runtime-int.apps.int.gpc.ocp-hub.prod.psi.redhat.com/prow_test_cases/OCP-55887"", ""OCP-55887"")",100,2026-01-01,24
+"SDN","=HYPERLINK(""https://ocpqe-webapp-aos-qe-ci--runtime-int.apps.int.gpc.ocp-hub.prod.psi.redhat.com/prow_test_cases/OCP-55887"", ""OCP-55887"")",33,2026-01-12,24
+"SDN","=HYPERLINK(""https://ocpqe-webapp-aos-qe-ci--runtime-int.apps.int.gpc.ocp-hub.prod.psi.redhat.com/prow_test_cases/OCP-55887"", ""OCP-55887"")",100,2026-01-31,24
 ```
 
 **CSV Columns:**
-- **subteam**: Subteam name (e.g., SDN) - shown on every row
-- **test_case_id**: Test case identifier (e.g., OCP-83672) - shown on every row
-- **high_failure_days**: Total number of days this test had failures >= threshold - **shown only on first row for each test case**
-- **link**: Direct URL to the test case detail page - **shown only on first row for each test case**
-- **date**: Specific date (YYYY-MM-DD) - shown on every row
-- **failure_rate_percent**: Failure rate percentage for that date - shown on every row
+- **subteam**: Subteam name (e.g., SDN)
+- **test_case_id**: Clickable hyperlink to test case detail page (uses Excel/Google Sheets HYPERLINK formula)
+- **failure_rate_percent**: Failure rate percentage for that date
+- **date**: Specific date (YYYY-MM-DD)
+- **high_failure_days**: Total number of days this test had failures >= threshold
 
-**Note:** The CSV format groups results by test case ID. The `high_failure_days` and `link` columns are populated only on the first row for each test case to avoid repetition and make the report cleaner and easier to read.
+**Note:** All fields are repeated on every row, making each row self-contained. This format works well with spreadsheet pivot tables, filters, and sorting. The test_case_id column will display as a clickable link in Excel and Google Sheets.
 
 ## Markdown Output Example
 
@@ -278,14 +286,14 @@ subteam,test_case_id,high_failure_days,link,date,failure_rate_percent
 
 ## Test Cases with High Failure Rates
 
-| Test Case | Subteam | High-Failure Days | Date | Failure Rate | Link |
-|-----------|---------|-------------------|------|--------------|------|
-| OCP-83672 | SDN | 31 | 2026-01-01 | 100% | [View](https://ocpqe-webapp-aos-qe-ci--runtime-int.apps.int.gpc.ocp-hub.prod.psi.redhat.com/prow_test_cases/OCP-83672) |
-| OCP-83672 | SDN | 31 | 2026-01-02 | 100% | [View](https://ocpqe-webapp-aos-qe-ci--runtime-int.apps.int.gpc.ocp-hub.prod.psi.redhat.com/prow_test_cases/OCP-83672) |
-| OCP-83672 | SDN | 31 | 2026-01-03 | 100% | [View](https://ocpqe-webapp-aos-qe-ci--runtime-int.apps.int.gpc.ocp-hub.prod.psi.redhat.com/prow_test_cases/OCP-83672) |
-| OCP-79910 | SDN | 30 | 2026-01-01 | 100% | [View](https://ocpqe-webapp-aos-qe-ci--runtime-int.apps.int.gpc.ocp-hub.prod.psi.redhat.com/prow_test_cases/OCP-79910) |
-| OCP-55887 | SDN | 24 | 2026-01-01 | 100% | [View](https://ocpqe-webapp-aos-qe-ci--runtime-int.apps.int.gpc.ocp-hub.prod.psi.redhat.com/prow_test_cases/OCP-55887) |
-| OCP-55887 | SDN | 24 | 2026-01-12 | 33% | [View](https://ocpqe-webapp-aos-qe-ci--runtime-int.apps.int.gpc.ocp-hub.prod.psi.redhat.com/prow_test_cases/OCP-55887) |
+| Subteam | Test Case | Failure Rate | Date | High-Failure Days |
+|---------|-----------|--------------|------|-------------------|
+| SDN | [OCP-83672](https://ocpqe-webapp-aos-qe-ci--runtime-int.apps.int.gpc.ocp-hub.prod.psi.redhat.com/prow_test_cases/OCP-83672) | 100% | 2026-01-01 | 31 |
+| SDN | [OCP-83672](https://ocpqe-webapp-aos-qe-ci--runtime-int.apps.int.gpc.ocp-hub.prod.psi.redhat.com/prow_test_cases/OCP-83672) | 100% | 2026-01-02 | 31 |
+| SDN | [OCP-83672](https://ocpqe-webapp-aos-qe-ci--runtime-int.apps.int.gpc.ocp-hub.prod.psi.redhat.com/prow_test_cases/OCP-83672) | 100% | 2026-01-03 | 31 |
+| SDN | [OCP-79910](https://ocpqe-webapp-aos-qe-ci--runtime-int.apps.int.gpc.ocp-hub.prod.psi.redhat.com/prow_test_cases/OCP-79910) | 100% | 2026-01-01 | 30 |
+| SDN | [OCP-55887](https://ocpqe-webapp-aos-qe-ci--runtime-int.apps.int.gpc.ocp-hub.prod.psi.redhat.com/prow_test_cases/OCP-55887) | 100% | 2026-01-01 | 24 |
+| SDN | [OCP-55887](https://ocpqe-webapp-aos-qe-ci--runtime-int.apps.int.gpc.ocp-hub.prod.psi.redhat.com/prow_test_cases/OCP-55887) | 33% | 2026-01-12 | 24 |
 ```
 
 ## Understanding the Results
