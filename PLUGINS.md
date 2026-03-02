@@ -290,6 +290,7 @@ OpenShift development utilities and helpers
 - **`/openshift:create-cluster` `[release-image] [platform] [options]`** - Extract OpenShift installer from release image and create an OCP cluster
 - **`/openshift:destroy-cluster` `[install-dir]`** - Destroy an OpenShift cluster created by create-cluster command
 - **`/openshift:expand-test-case` `[test-idea-or-file-or-commands] [format]`** - Expand basic test ideas or existing oc commands into comprehensive test scenarios with edge cases in oc CLI or Ginkgo format
+- **`/openshift:firmware-update` `[host-name] [component] [firmware-url]`** - Update OpenShift node firmware via HostFirmwareComponents CRD [host-name] [component] [firmware-url]
 - **`/openshift:ironic-status`** - Check status of Ironic baremetal nodes in OpenShift cluster
 - **`/openshift:new-e2e-test` `[test-specification]`** - Write and validate new OpenShift E2E tests using Ginkgo framework
 - **`/openshift:node-kernel-conntrack` `<node> <image> [--command <cmd>] [--filter <params>]`** - Get connection tracking entries from Kubernetes node
