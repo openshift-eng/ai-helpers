@@ -63,6 +63,12 @@
           "description": "Show current branch, git status, and recent commits for quick context",
           "name": "summary",
           "synopsis": "/git:summary"
+        },
+        {
+          "argument_hint": "[--all | --current]",
+          "description": "Display a status dashboard of your open Pull Requests across GitHub repositories",
+          "name": "track-prs",
+          "synopsis": "bash"
         }
       ],
       "description": "Git Plugin",
