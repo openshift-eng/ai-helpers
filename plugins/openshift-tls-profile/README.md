@@ -96,7 +96,7 @@ The `library-go/pkg/crypto` package provides essential functions:
 
 ## Skill Documentation
 
-See [skills/skills/SKILL.md](skills/skills/SKILL.md) for complete implementation details including:
+See [skills/openshift-tls-profile/SKILL.md](skills/openshift-tls-profile/SKILL.md) for complete implementation details including:
 
 - Step-by-step implementation guide
 - Complete code examples for all endpoint types
