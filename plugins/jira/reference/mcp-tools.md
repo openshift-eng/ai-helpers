@@ -24,6 +24,11 @@ This guide documents the MCP (Model Context Protocol) tools available for automa
 - [Custom Fields for issues.redhat.com](#custom-fields-for-issuesredhatcom)
   - [Field Format Notes](#field-format-notes)
 - [Field Format Requirements](#field-format-requirements)
+  - [Epic Link Field](#epic-link-field)
+  - [Parent Link Field](#parent-link-field)
+  - [Target Version Field](#target-version-field)
+  - [Epic Name Field (Required for Epics)](#epic-name-field-required-for-epics)
+  - [Priority Field](#priority-field)
 - [Parent Linking Fallback Strategy](#parent-linking-fallback-strategy)
 - [Common JQL Queries](#common-jql-queries)
 - [Reference](#reference)
@@ -65,6 +70,7 @@ issue = mcp__atlassian__jira_create_issue(
     components="HyperShift / ROSA",
     additional_fields={
         "customfield_12311140": "GCP-456",  # Link to parent Epic
+        "priority": {"name": "Major"},  # Set priority level
         "labels": ["ai-generated-jira"],
         "security": {"name": "Red Hat Employee"}
     }
@@ -288,6 +294,7 @@ The Red Hat Jira instance (issues.redhat.com) uses the following custom fields f
 | **Epic Link** | `customfield_12311140` | String | Link Story/Task → Epic | `"GCP-456"` |
 | **Parent Link** | `customfield_12313140` | String | Link Epic → Feature | `"GCP-100"` |
 | **Target Version** | `customfield_12319940` | Array of Objects | Set target release version | `[{"id": "12448830"}]` |
+| **Priority** | `priority` | Object | Set issue priority level | `{"name": "Major"}` |
 
 ### Field Format Notes
 
@@ -319,6 +326,14 @@ The Red Hat Jira instance (issues.redhat.com) uses the following custom fields f
 - Value: Array of version objects
 - Example: `"customfield_12319940": [{"id": "12448830"}]`
 - Note: Must be array format, not string
+
+**Priority (priority):**
+- Type: Object
+- Format: Object with `name` field
+- Usage: Set the issue priority level
+- Values: `Blocker`, `Critical`, `Major`, `Normal`, `Minor`, `Undefined`
+- Example: `"priority": {"name": "Major"}`
+- Reference: Priority scheme OJA-PRIS-001
 
 ## Field Format Requirements
 
@@ -368,6 +383,25 @@ mcp__atlassian__jira_create_issue(
 )
 ```
 
+### Priority Field
+
+Set issue priority using the standard priority field with an object containing the priority name:
+
+```python
+additional_fields={
+    "priority": {"name": "Major"}  # Object with name property
+}
+```
+
+**Priority Scheme (OJA-PRIS-001):**
+
+- **Blocker** = To be worked above all other priorities. Select Blocker when the severity of the issue is very high, has no workaround, or the effort for the change is comparatively low. Issues that may be very publicly visible and could generate significant media attention may also drive a higher priority.
+- **Critical** = Must do. To be worked immediately following BLOCKER issues.
+- **Major** = Should do. To be worked after higher priority (blocker and critical) issues are resolved. Select Major when the severity is high and the effort to change it is low to moderate. Issues in this category likely have an existing workaround but implementation or execution may be non-trivial.
+- **Normal** = Could do/nice to have. To be worked after higher priority (blocker, critical and major) issues are resolved. Select Normal when the severity of an issue is relatively close to the level of effort to fix it. The existence of an easily implemented workaround can also lead to this priority level instead of a higher priority.
+- **Minor** = Won't do. To be worked after blocker, critical, major, and normal priorities are resolved. Select Minor when the severity of the issue is low, or the complexity or effort to correct it may be higher, relatively speaking. For minor priority issues, known workarounds exist or are not needed due to the trivial effort needed to address the issue.
+- **Undefined** = The priority has not been specified or not yet evaluated by the team.
+
 ## Parent Linking Fallback Strategy
 
 If issue creation fails due to parent linking errors:
@@ -416,7 +450,10 @@ project = GCP AND created >= -7d
 project = GCP AND assignee = currentUser()
 
 # Blocker issues
-project = GCP AND type = Epic AND status != Done ORDER BY created DESC
+project = GCP AND priority = Blocker AND status != Done ORDER BY created DESC
+
+# High priority issues
+project = GCP AND priority IN (Blocker, Critical) AND status = Open
 
 # Ready for sprint
 project = GCP AND status = "Ready" AND type = Story
