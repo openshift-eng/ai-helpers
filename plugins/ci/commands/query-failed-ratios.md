@@ -27,9 +27,9 @@ This command is useful for:
 - `$1` (subteam): Subteam name to filter tests. **Valid values** (case-sensitive):
   - `API_Server`, `Authentication`, `Cluster_Infrastructure`, `Cluster_Observability`, `Cluster_Operator`
   - `Container_Engine_Tools`, `DR_Testing`, `ETCD`, `Hypershift`, `INSTALLER`, `Image_Registry`
-  - `LOGGING`, `Logging`, `MCO`, `MTO`, `NODE`, `Network_Edge`, `Network_Observability`
+  - `LOGGING`, `MCO`, `MTO`, `NODE`, `Network_Edge`, `Network_Observability`
   - `OAP`, `OLM`, `OTA`, `Operator_SDK`, `PSAP`, `PerfScale`, `SDN`, `STORAGE`
-  - `Security_and_Compliance`, `User_Interface_Cypress`, `Windows_Containers`, `Workloads`, `pod`
+  - `Security_and_Compliance`, `User_Interface_Cypress`, `Windows_Containers`, `Workloads`
 - `$2` (failure-threshold): Minimum **daily** failure percentage to include (e.g., "10" means show days where >= 10% of test runs failed)
 - `$3` (start-date): Start date in YYYY-MM-DD format (e.g., "2026-01-01")
 - `$4` (end-date): End date in YYYY-MM-DD format (e.g., "2026-01-31")
@@ -108,10 +108,16 @@ ai-helpers/plugins/ci/skills/query-failed-ratios/query_daily_failure_rates.py
 5. **Display Summary to User**
 
    Show key findings from the report:
-   - Number of test cases with high-failure days
-   - Total number of high-failure days
-   - Top 3 most problematic tests (most days with high failure rates)
-   - Links to generated reports
+   - **Total test cases** with high-failure days (focus on COUNT of test cases, not total days)
+   - **Severity categorization**: Group tests by failure patterns
+     - CRITICAL: Tests with mostly 100% failure rates (completely broken)
+     - HIGH: Tests with frequent high failure rates
+     - FLAKY: Tests with mostly 0% or low % (intermittent failures)
+   - **Top 3 most problematic tests**: Listed by number of days with failures >= threshold
+   - **Links to generated reports**
+
+   **IMPORTANT**: Avoid summing up total days across all test cases as this is confusing.
+   Example: If 9 tests each fail 20 days, don't say "180 failure days" - instead say "9 test cases with failures, top test failed 20 days".
 
 ### Performance Notes
 
@@ -268,7 +274,6 @@ subteam,test_case_id,failure_rate_percent,date,high_failure_days
 - **date**: Specific date (YYYY-MM-DD)
 - **high_failure_days**: Total number of days this test had failures >= threshold
 
-**Note:** All fields are repeated on every row, making each row self-contained. This format works well with spreadsheet pivot tables, filters, and sorting. The test_case_id column will display as a clickable link in Excel and Google Sheets.
 
 ## Markdown Output Example
 
@@ -332,7 +337,7 @@ Examples:
 
 ## Notes
 
-- **Data Source**: QE webapp provides daily pass/fail/skip percentages, NOT aggregate counts
+- **Data Source**: QE webapp provides daily pass/fail/skip percentages
 - **Failure Rate**: This is a **daily** percentage, showing how many runs failed each day
 - **Threshold**: Applied to **each day individually** - days below threshold are not shown
 - **Certificate Verification**: The QE webapp uses self-signed certificates; the script handles this automatically

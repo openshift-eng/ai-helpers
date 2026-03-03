@@ -108,22 +108,36 @@ python3 ... markdown > .work/failed-ratios/SDN/daily-failure-rates-...-10pct.md
 
 ### Step 5: Show Summary to User
 
-Display key findings:
+Display key findings focused on **test case counts** and **severity**, not total days:
+
 ```
 Summary:
-- Test Cases with High Failure Days: 17
-- Total High-Failure Days: 196
+- Total Test Cases with High Failure Days: 17
 
-Top Issues:
-- OCP-83672: Failed all 31 days at 100% (CRITICAL)
-- OCP-79910: Failed 30 days at 100% (CRITICAL)
-- OCP-55887: Failed 24 days (mix of 100% and 33%)
+By Severity:
+- CRITICAL (Mostly 100% failures): 12 test cases
+  - Completely broken, highest priority
+- HIGH (Frequent high failures): 3 test cases
+  - Very unstable, high priority
+- FLAKY (Mostly 0% or low %): 2 test cases
+  - Intermittent failures, monitor for trends
+
+Top 3 Most Problematic:
+1. OCP-83672: Failed all 31 days at 100% (CRITICAL)
+2. OCP-79910: Failed 30 days at 100% (CRITICAL)
+3. OCP-55887: Failed 24 days (mix of 100% and 33%)
 
 Reports saved to:
 - .work/failed-ratios/SDN/daily-failure-rates-2026-01-01-to-2026-01-31-10pct.txt
 - .work/failed-ratios/SDN/daily-failure-rates-2026-01-01-to-2026-01-31-10pct.csv
 - .work/failed-ratios/SDN/daily-failure-rates-2026-01-01-to-2026-01-31-10pct.md
 ```
+
+**IMPORTANT**: Do NOT sum up total days across all test cases (e.g., "Total High-Failure Days: 196").
+This is confusing because it aggregates across multiple test cases. Focus on:
+- COUNT of test cases (actionable - you fix test cases, not days)
+- Severity categorization (helps prioritize)
+- Top problematic tests (shows what needs immediate attention)
 
 ## Output Formats
 
@@ -152,29 +166,29 @@ Test Case: OCP-83672
 # Failure Threshold: >= 10.0%
 # Date Range: 2026-01-01 to 2026-01-31
 # Generated: 2026-02-28 03:21:20
-#
-# Note: high_failure_days and link are shown only on the first row for each test case
 
-subteam,test_case_id,high_failure_days,link,date,failure_rate_percent
-"SDN","OCP-83672",31,"https://ocpqe-webapp-aos-qe-ci--runtime-int.apps.int.gpc.ocp-hub.prod.psi.redhat.com/prow_test_cases/OCP-83672",2026-01-01,100
-"SDN","OCP-83672",,"",2026-01-02,100
-"SDN","OCP-55887",24,"https://ocpqe-webapp-aos-qe-ci--runtime-int.apps.int.gpc.ocp-hub.prod.psi.redhat.com/prow_test_cases/OCP-55887",2026-01-01,100
-"SDN","OCP-55887",,"",2026-01-12,33
+subteam,test_case_id,failure_rate_percent,date,high_failure_days
+"SDN","=HYPERLINK(""https://ocpqe-webapp-aos-qe-ci--runtime-int.apps.int.gpc.ocp-hub.prod.psi.redhat.com/prow_test_cases/OCP-83672"", ""OCP-83672"")",100,2026-01-01,31
+"SDN","=HYPERLINK(""https://ocpqe-webapp-aos-qe-ci--runtime-int.apps.int.gpc.ocp-hub.prod.psi.redhat.com/prow_test_cases/OCP-83672"", ""OCP-83672"")",100,2026-01-02,31
+"SDN","=HYPERLINK(""https://ocpqe-webapp-aos-qe-ci--runtime-int.apps.int.gpc.ocp-hub.prod.psi.redhat.com/prow_test_cases/OCP-83672"", ""OCP-83672"")",100,2026-01-03,31
+"SDN","=HYPERLINK(""https://ocpqe-webapp-aos-qe-ci--runtime-int.apps.int.gpc.ocp-hub.prod.psi.redhat.com/prow_test_cases/OCP-79910"", ""OCP-79910"")",100,2026-01-01,30
+"SDN","=HYPERLINK(""https://ocpqe-webapp-aos-qe-ci--runtime-int.apps.int.gpc.ocp-hub.prod.psi.redhat.com/prow_test_cases/OCP-79910"", ""OCP-79910"")",100,2026-01-02,30
+"SDN","=HYPERLINK(""https://ocpqe-webapp-aos-qe-ci--runtime-int.apps.int.gpc.ocp-hub.prod.psi.redhat.com/prow_test_cases/OCP-55887"", ""OCP-55887"")",100,2026-01-01,24
+"SDN","=HYPERLINK(""https://ocpqe-webapp-aos-qe-ci--runtime-int.apps.int.gpc.ocp-hub.prod.psi.redhat.com/prow_test_cases/OCP-55887"", ""OCP-55887"")",33,2026-01-12,24
+"SDN","=HYPERLINK(""https://ocpqe-webapp-aos-qe-ci--runtime-int.apps.int.gpc.ocp-hub.prod.psi.redhat.com/prow_test_cases/OCP-55887"", ""OCP-55887"")",100,2026-01-31,24
 ```
 
 **CSV Columns:**
-- `subteam`: Subteam name (e.g., SDN) - **shown on every row**, useful when combining reports from multiple subteams
-- `test_case_id`: Test case identifier (e.g., OCP-83672) - **shown on every row**
-- `high_failure_days`: Total count of days this test had failures >= threshold - **shown only on first row for each test case** to avoid repetition
-- `link`: Direct URL to the test case detail page - **shown only on first row for each test case** to avoid repetition
-- `date`: Specific date (YYYY-MM-DD) - **shown on every row**
-- `failure_rate_percent`: Failure rate percentage for that date (0-100) - **shown on every row**
+- `subteam`: Subteam name (e.g., SDN)
+- `test_case_id`: Clickable hyperlink to test case detail page (uses Excel/Google Sheets HYPERLINK formula)
+- `failure_rate_percent`: Failure rate percentage for that date
+- `date`: Specific date (YYYY-MM-DD)
+- `high_failure_days`: Total number of days this test had failures >= threshold
 
 **Format Notes:**
-- Results are grouped by test case ID
-- The `high_failure_days` and `link` columns are only populated on the first row for each test case
-- Subsequent rows for the same test case have empty values (`""`) for these columns
-- This makes the CSV cleaner, easier to read, and avoids unnecessary repetition
+- All fields are repeated on every row, making each row self-contained
+- The test_case_id column uses HYPERLINK formula and will display as a clickable link in Excel and Google Sheets
+- This format works well with spreadsheet pivot tables, filters, and sorting
 
 ### Markdown Format
 
@@ -185,20 +199,25 @@ subteam,test_case_id,high_failure_days,link,date,failure_rate_percent
 - **Subteam:** SDN
 - **Failure Threshold:** >= 10%
 - **Date Range:** 2026-01-01 to 2026-01-31
+- **Generated:** 2026-02-28 03:11:49
 
 **Summary:**
-- Total Test Cases with High Failure Days: 17
+- Test Cases with High Failure Days: 17
 
 ## Test Cases with High Failure Rates
 
-| Test Case | Subteam | High-Failure Days | Date | Failure Rate | Link |
-|-----------|---------|-------------------|------|--------------|------|
-| OCP-83672 | SDN | 31 | 2026-01-01 | 100% | [View](https://ocpqe-webapp-aos-qe-ci--runtime-int.apps.int.gpc.ocp-hub.prod.psi.redhat.com/prow_test_cases/OCP-83672) |
-| OCP-83672 | SDN | 31 | 2026-01-02 | 100% | [View](https://ocpqe-webapp-aos-qe-ci--runtime-int.apps.int.gpc.ocp-hub.prod.psi.redhat.com/prow_test_cases/OCP-83672) |
+| Subteam | Test Case | Failure Rate | Date | High-Failure Days |
+|---------|-----------|--------------|------|-------------------|
+| SDN | [OCP-83672](https://ocpqe-webapp-aos-qe-ci--runtime-int.apps.int.gpc.ocp-hub.prod.psi.redhat.com/prow_test_cases/OCP-83672) | 100% | 2026-01-01 | 31 |
+| SDN | [OCP-83672](https://ocpqe-webapp-aos-qe-ci--runtime-int.apps.int.gpc.ocp-hub.prod.psi.redhat.com/prow_test_cases/OCP-83672) | 100% | 2026-01-02 | 31 |
+| SDN | [OCP-83672](https://ocpqe-webapp-aos-qe-ci--runtime-int.apps.int.gpc.ocp-hub.prod.psi.redhat.com/prow_test_cases/OCP-83672) | 100% | 2026-01-03 | 31 |
+| SDN | [OCP-79910](https://ocpqe-webapp-aos-qe-ci--runtime-int.apps.int.gpc.ocp-hub.prod.psi.redhat.com/prow_test_cases/OCP-79910) | 100% | 2026-01-01 | 30 |
+| SDN | [OCP-55887](https://ocpqe-webapp-aos-qe-ci--runtime-int.apps.int.gpc.ocp-hub.prod.psi.redhat.com/prow_test_cases/OCP-55887) | 100% | 2026-01-01 | 24 |
+| SDN | [OCP-55887](https://ocpqe-webapp-aos-qe-ci--runtime-int.apps.int.gpc.ocp-hub.prod.psi.redhat.com/prow_test_cases/OCP-55887) | 33% | 2026-01-12 | 24 |
 ```
 
 **Markdown Features:**
-- Clickable links in the "Link" column for easy access to test case details
+- Test case IDs are clickable links for easy access to test case details
 - High-Failure Days column helps quickly identify most problematic tests
 - Table format is ready to paste into JIRA tickets or GitHub issues
 
