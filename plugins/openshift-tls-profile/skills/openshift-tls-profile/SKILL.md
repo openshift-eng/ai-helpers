@@ -188,7 +188,7 @@ Operators implementing TLS security profiles must satisfy these requirements:
 
 1. **Read TLS profile from APIServer CR**: Fetch configuration from `apiservers.config.openshift.io/cluster`
 2. **Apply to all TLS endpoints**: Webhook server, metrics server, and any HTTP/gRPC clients or servers
-3. **Respond to profile changes**: If the TLS profile is updated in the cluster, the component should pick up the changes (may require restart depending on implementation)
+3. **Respond to profile changes**: If the TLS profile is updated in the cluster, the component must pick up the changes (existing connections should be terminated and new connections should use the new profile).
 
 ### Handling Profile Changes
 
@@ -198,9 +198,42 @@ There are several approaches to respond to TLS profile changes:
 
 The official `github.com/openshift/controller-runtime-common/pkg/tls` package provides a ready-to-use watcher. See the "Recommended: Use controller-runtime-common Package" section above.
 
-**Option B: Watch from Existing Controller**
+**Option B: For OpenShift Operators (configobserver pattern)**
 
-If your operator manages operands that need TLS configuration, watch the APIServer resource from your existing controller. This triggers operand reconciliation when the TLS profile changes, allowing you to update operand deployments with the new TLS settings:
+This is the recommended approach for OpenShift operators using the library-go configobserver pattern. Use library-go's `ObserveTLSSecurityProfile` function from the apiserver config observer package. This function:
+
+- Observes the API Server's TLSSecurityProfile from the cluster configuration (via `APIServerLister().Get("cluster")`) - this is the default source for all components
+- Converts OpenSSL cipher names to IANA names (used by Kubernetes ServingInfo configuration) using `crypto.OpenSSLToIANACipherSuites`
+- Sets `servingInfo.minTLSVersion` and `servingInfo.cipherSuites` in the observed config
+- Returns the configuration as a `map[string]interface{}` in the format expected by your operator's observed config
+- Centralizes profile mappings in library-go to ensure all components use consistent TLS profile handling
+
+```go
+package configobserver
+
+import (
+	"github.com/openshift/library-go/pkg/operator/configobserver"
+	"github.com/openshift/library-go/pkg/operator/configobserver/apiserver"
+	"github.com/openshift/library-go/pkg/operator/events"
+)
+
+// In your config observer controller's ObserveConfig method
+func (c *MyConfigObserver) ObserveConfig(
+	listers configobserver.Listers,
+	recorder events.Recorder,
+	existingConfig map[string]interface{},
+) (map[string]interface{}, []error) {
+	// ObserveTLSSecurityProfile observes APIServer.Spec.TLSSecurityProfile and sets
+	// servingInfo.minTLSVersion and servingInfo.cipherSuites in observedConfig
+	observedConfig, errs := apiserver.ObserveTLSSecurityProfile(listers, recorder, existingConfig)
+	// ... merge with other observed config
+	return observedConfig, errs
+}
+```
+
+**Option C: Watch from Existing Controller**
+
+If your operator cannot use the SecurityProfileWatcher (Option A) or the configobserver pattern (Option B), use this approach. Watch the APIServer resource from your existing controller to trigger operand reconciliation when the TLS profile changes, allowing you to update operand deployments with the new TLS settings:
 
 ```go
 package controller
@@ -342,7 +375,7 @@ This approach is efficient because:
 - Automatically reconciles all operands when the profile changes
 - Follows standard controller-runtime patterns
 
-**Option C: Dynamic TLS Config Update (Not Recommended)**
+**Option D: Dynamic TLS Config Update (Not Recommended)**
 
 An alternative approach uses Go's `GetConfigForClient` callback to dynamically return TLS configuration for each new connection without requiring a restart. However, this approach is **not recommended** because:
 
@@ -350,40 +383,7 @@ An alternative approach uses Go's `GetConfigForClient` callback to dynamically r
 - Long-lived connections may remain on outdated TLS settings indefinitely
 - TLS profile changes are security policy changes that should apply uniformly to all connections
 
-For consistent TLS policy enforcement, use Option A (SecurityProfileWatcher with graceful restart) or Option B (watch and reconcile) instead.
-
-**Option D: For OpenShift Operators (configobserver pattern)**
-
-This is the recommended approach for OpenShift operators using the library-go configobserver pattern. Use library-go's `ObserveTLSSecurityProfile` function from the apiserver config observer package. This function:
-
-- Observes the API Server's TLSSecurityProfile from the cluster configuration (via `APIServerLister().Get("cluster")`) - this is the default source for all components
-- Converts OpenSSL cipher names to IANA names (used by Kubernetes ServingInfo configuration) using `crypto.OpenSSLToIANACipherSuites`
-- Sets `servingInfo.minTLSVersion` and `servingInfo.cipherSuites` in the observed config
-- Returns the configuration as a `map[string]interface{}` in the format expected by your operator's observed config
-- Centralizes profile mappings in library-go to ensure all components use consistent TLS profile handling
-
-```go
-package configobserver
-
-import (
-	"github.com/openshift/library-go/pkg/operator/configobserver"
-	"github.com/openshift/library-go/pkg/operator/configobserver/apiserver"
-	"github.com/openshift/library-go/pkg/operator/events"
-)
-
-// In your config observer controller's ObserveConfig method
-func (c *MyConfigObserver) ObserveConfig(
-	listers configobserver.Listers,
-	recorder events.Recorder,
-	existingConfig map[string]interface{},
-) (map[string]interface{}, []error) {
-	// ObserveTLSSecurityProfile observes APIServer.Spec.TLSSecurityProfile and sets
-	// servingInfo.minTLSVersion and servingInfo.cipherSuites in observedConfig
-	observedConfig, errs := apiserver.ObserveTLSSecurityProfile(listers, recorder, existingConfig)
-	// ... merge with other observed config
-	return observedConfig, errs
-}
-```
+For consistent TLS policy enforcement, use Option A (SecurityProfileWatcher with graceful restart) or Option C (watch and reconcile) instead.
 
 ## TLS Profile Types
 
