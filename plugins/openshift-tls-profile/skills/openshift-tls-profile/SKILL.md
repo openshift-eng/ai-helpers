@@ -394,70 +394,6 @@ An alternative approach uses Go's `GetConfigForClient` callback to dynamically r
 
 For consistent TLS policy enforcement, use Option A (SecurityProfileWatcher with graceful restart) or Option C (watch and reconcile) instead.
 
-## TLS Profile Types
-
-OpenShift supports four TLS profile types based on [Mozilla's Server Side TLS recommendations](https://wiki.mozilla.org/Security/Server_Side_TLS):
-
-| Profile | Min TLS Version | Description |
-|---------|-----------------|-------------|
-| Old | TLS 1.0 | Legacy compatibility, not recommended for production |
-| Intermediate (default) | TLS 1.2 | Recommended for general use, balances security and compatibility |
-| Modern | TLS 1.3 | Highest security, may not work with older clients |
-| Custom | Configurable | User-defined ciphers and minimum TLS version |
-
-**Default Profile:** When `spec.tlsSecurityProfile` is not set in the APIServer CR, the **Intermediate** profile is used as the default. This provides a good balance between security and compatibility.
-
-**Note:** In Go, cipher suites are not configurable for TLS 1.3 - they are automatically selected by the runtime.
-
-## APIServer Custom Resource
-
-The TLS profile is configured in the `APIServer` custom resource named `cluster`. If `spec.tlsSecurityProfile` is not specified, the **Intermediate** profile is used by default.
-
-```yaml
-apiVersion: config.openshift.io/v1
-kind: APIServer
-metadata:
-  name: cluster
-spec:
-  audit:
-    profile: Default
-  # tlsSecurityProfile is optional. If not set, defaults to Intermediate profile.
-  tlsSecurityProfile:
-    # type can be: Old, Intermediate, Modern, or Custom
-    type: Intermediate
-    # Only one of the following should be set based on type:
-    old: {}
-    intermediate: {}
-    modern: {}
-    custom:
-      ciphers:
-        - TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
-        - TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
-      minTLSVersion: VersionTLS12
-```
-
-**Reference:**
-- [APIServer Config API Reference](https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/config_apis/apiserver-config-openshift-io-v1#spec)
-- [APIServer CR Spec Example](https://github.com/robszumski/kubernetes-object-specs/blob/main/apiservers.config.openshift.io.yaml#L210)
-- [TLSSecurityProfile Type Definition](https://github.com/openshift/api/blob/master/config/v1/types_tlssecurityprofile.go#L211)
-
-### Query Commands
-
-Check the current TLS security profile in your cluster:
-
-```bash
-# Get the full APIServer configuration
-oc get apiserver cluster -o yaml
-
-# Get just the TLS security profile (empty output means default Intermediate profile is used)
-oc get apiserver cluster -o jsonpath='{.spec.tlsSecurityProfile}' | jq .
-
-# Check the effective TLS profile type (empty means Intermediate default)
-oc get apiserver cluster -o jsonpath='{.spec.tlsSecurityProfile.type}'
-```
-
-**Note:** If the above commands return empty output, the cluster is using the default **Intermediate** profile.
-
 ## Implementation Steps
 
 ### Step 1: Fetch TLS Profile from APIServer CR
@@ -522,6 +458,71 @@ For each endpoint, use the `*tls.Config` returned by `TLSConfigFromProfile()` (S
 - `CipherSuites` - allowed cipher suites (only applies to TLS 1.2 and below)
 
 **Key principle:** No HTTP or gRPC endpoint should use hardcoded TLS settings. Always derive TLS configuration from the cluster's APIServer CR to ensure consistent security policy enforcement across all components.
+
+## TLS Profile Types
+
+OpenShift supports four TLS profile types based on [Mozilla's Server Side TLS recommendations](https://wiki.mozilla.org/Security/Server_Side_TLS):
+
+| Profile | Min TLS Version | Description |
+|---------|-----------------|-------------|
+| Old | TLS 1.0 | Legacy compatibility, not recommended for production |
+| Intermediate (default) | TLS 1.2 | Recommended for general use, balances security and compatibility |
+| Modern | TLS 1.3 | Highest security, may not work with older clients |
+| Custom | Configurable | User-defined ciphers and minimum TLS version |
+
+**Default Profile:** When `spec.tlsSecurityProfile` is not set in the APIServer CR, the **Intermediate** profile is used as the default. This provides a good balance between security and compatibility.
+
+**Note:** In Go, cipher suites are not configurable for TLS 1.3 - they are automatically selected by the runtime.
+
+## APIServer Custom Resource
+
+The TLS profile is configured in the `APIServer` custom resource named `cluster`. If `spec.tlsSecurityProfile` is not specified, the **Intermediate** profile is used by default.
+
+```yaml
+apiVersion: config.openshift.io/v1
+kind: APIServer
+metadata:
+  name: cluster
+spec:
+  audit:
+    profile: Default
+  # tlsSecurityProfile is optional. If not set, defaults to Intermediate profile.
+  tlsSecurityProfile:
+    # type can be: Old, Intermediate, Modern, or Custom
+    type: Intermediate
+    # Only one of the following should be set based on type:
+    old: {}
+    intermediate: {}
+    modern: {}
+    custom:
+      ciphers:
+        - TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+        - TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+      minTLSVersion: VersionTLS12
+```
+
+**Reference:**
+- [APIServer Config API Reference](https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/config_apis/apiserver-config-openshift-io-v1#spec)
+- [APIServer CR Spec Example](https://github.com/robszumski/kubernetes-object-specs/blob/main/apiservers.config.openshift.io.yaml#L210)
+- [TLSSecurityProfile Type Definition](https://github.com/openshift/api/blob/master/config/v1/types_tlssecurityprofile.go#L211)
+
+### Query Commands
+
+Check the current TLS security profile in your cluster:
+
+```bash
+# Get the full APIServer configuration
+oc get apiserver cluster -o yaml
+
+# Get just the TLS security profile (empty output means default Intermediate profile is used)
+oc get apiserver cluster -o jsonpath='{.spec.tlsSecurityProfile}' | jq .
+
+# Check the effective TLS profile type (empty means Intermediate default)
+oc get apiserver cluster -o jsonpath='{.spec.tlsSecurityProfile.type}'
+```
+
+**Note:** If the above commands return empty output, the cluster is using the default **Intermediate** profile.
+
 
 ## OpenShift library-go Crypto Utilities
 
