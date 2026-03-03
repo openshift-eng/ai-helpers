@@ -52,7 +52,19 @@ Use this skill when:
 - Setting up HTTP or gRPC clients/servers that need to comply with OpenShift TLS policies
 - Converting OpenShift TLS profile types to Go `crypto/tls` configuration
 
-## Recommended: Use controller-runtime-common Package
+## Requirements
+
+Operators implementing TLS security profiles must satisfy these requirements:
+
+1. **Read TLS profile from APIServer CR**: Fetch configuration from `apiservers.config.openshift.io/cluster`
+2. **Apply to all TLS endpoints**: Webhook server, metrics server, and any HTTP/gRPC clients or servers
+3. **Respond to profile changes**: If the TLS profile is updated in the cluster, the component must pick up the changes (existing connections should be terminated and new connections should use the new profile).
+
+### Handling Profile Changes
+
+There are several approaches to respond to TLS profile changes:
+
+**Option A: Use controller-runtime-common Package (Recommended for controller-runtime)**
 
 For operators using controller-runtime, the **recommended approach** is to use the official package:
 
@@ -60,9 +72,9 @@ For operators using controller-runtime, the **recommended approach** is to use t
 github.com/openshift/controller-runtime-common/pkg/tls
 ```
 
-This package provides all necessary utilities for TLS profile implementation:
+This package provides all necessary utilities for TLS profile implementation.
 
-### Quick Start Example
+**Quick Start Example:**
 
 ```go
 package main
@@ -152,7 +164,7 @@ func main() {
 }
 ```
 
-### Package Functions
+**Package Functions:**
 
 | Function | Purpose |
 |----------|---------|
@@ -161,7 +173,7 @@ func main() {
 | `NewTLSConfigFromProfile(spec)` | Returns a `func(*tls.Config)` for controller-runtime's TLSOpts + list of unsupported ciphers |
 | `SecurityProfileWatcher` | Controller that watches APIServer and triggers callback on TLS profile changes |
 
-### SecurityProfileWatcher
+**SecurityProfileWatcher:**
 
 The `SecurityProfileWatcher` is a controller that watches the APIServer CR and invokes a callback when the TLS profile changes:
 
@@ -182,21 +194,18 @@ if err := watcher.SetupWithManager(mgr); err != nil {
 
 **Note:** The watcher handles predicates internally - it only watches the "cluster" APIServer object and compares profile changes using `reflect.DeepEqual`.
 
-## Requirements
+**Restart vs Hot-Reload Trade-offs:**
 
-Operators implementing TLS security profiles must satisfy these requirements:
+| Approach | Restart Required | Existing Connections | Recommendation |
+|----------|------------------|---------------------|----------------|
+| **SecurityProfileWatcher** | Yes - graceful shutdown | All connections use new TLS settings after restart | **Recommended** - ensures consistent TLS policy across all connections |
+| **GetConfigForClient** (Option D) | No | **Not updated** - only new connections use new settings | Use only when restarts are not acceptable |
 
-1. **Read TLS profile from APIServer CR**: Fetch configuration from `apiservers.config.openshift.io/cluster`
-2. **Apply to all TLS endpoints**: Webhook server, metrics server, and any HTTP/gRPC clients or servers
-3. **Respond to profile changes**: If the TLS profile is updated in the cluster, the component must pick up the changes (existing connections should be terminated and new connections should use the new profile).
-
-### Handling Profile Changes
-
-There are several approaches to respond to TLS profile changes:
-
-**Option A: Use SecurityProfileWatcher (Recommended for controller-runtime)**
-
-The official `github.com/openshift/controller-runtime-common/pkg/tls` package provides a ready-to-use watcher. See the "Recommended: Use controller-runtime-common Package" section above.
+**Why SecurityProfileWatcher is recommended:**
+- TLS profile changes are cluster-level security policy changes that should apply uniformly
+- `GetConfigForClient` leaves existing long-lived connections using the old TLS configuration
+- Graceful shutdown ensures all connections are re-established with the correct TLS settings
+- Simpler implementation using the official package
 
 **Option B: For OpenShift Operators (configobserver pattern)**
 
@@ -453,184 +462,51 @@ oc get apiserver cluster -o jsonpath='{.spec.tlsSecurityProfile.type}'
 
 ### Step 1: Fetch TLS Profile from APIServer CR
 
-Create a function to retrieve the TLS security profile from the cluster:
+Use `FetchAPIServerTLSProfile` from the controller-runtime-common package to retrieve the TLS security profile:
 
 ```go
-package tlsprofile
-
 import (
-	"context"
-	"fmt"
-
-	configv1 "github.com/openshift/api/config/v1"
-	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	openshifttls "github.com/openshift/controller-runtime-common/pkg/tls"
 )
 
-// GetTLSSecurityProfile fetches the TLS security profile from the APIServer CR
-func GetTLSSecurityProfile(ctx context.Context, c client.Client) (*configv1.TLSSecurityProfile, error) {
-	apiServer := &configv1.APIServer{}
-	if err := c.Get(ctx, types.NamespacedName{Name: "cluster"}, apiServer); err != nil {
-		return nil, fmt.Errorf("failed to get APIServer cluster: %w", err)
-	}
-
-	if apiServer.Spec.TLSSecurityProfile == nil {
-		// Return default Intermediate profile if not set
-		return &configv1.TLSSecurityProfile{
-			Type:         configv1.TLSProfileIntermediateType,
-			Intermediate: &configv1.IntermediateTLSProfile{},
-		}, nil
-	}
-
-	return apiServer.Spec.TLSSecurityProfile, nil
+// Fetch the TLS profile from APIServer CR
+// Returns default Intermediate profile if not set
+tlsProfileSpec, err := openshifttls.FetchAPIServerTLSProfile(ctx, client)
+if err != nil {
+	return err
 }
 ```
+
+This function fetches the `TLSSecurityProfile` from `apiservers.config.openshift.io/cluster` and returns the default Intermediate profile if none is configured.
 
 ### Step 2: Convert TLS Profile to Go crypto/tls Configuration
 
-Create a conversion function that transforms the OpenShift TLS profile into Go's `tls.Config`:
+Use `NewTLSConfigFromProfile` from the controller-runtime-common package to convert the TLS profile spec to a `func(*tls.Config)` suitable for controller-runtime:
 
 ```go
-package tlsprofile
-
 import (
-	"crypto/tls"
-	"fmt"
-
-	configv1 "github.com/openshift/api/config/v1"
-	"github.com/openshift/library-go/pkg/crypto"
+	openshifttls "github.com/openshift/controller-runtime-common/pkg/tls"
 )
 
-// TLSConfigFromProfile converts an OpenShift TLS security profile to a tls.Config
-func TLSConfigFromProfile(profile *configv1.TLSSecurityProfile) (*tls.Config, error) {
-	if profile == nil {
-		profile = &configv1.TLSSecurityProfile{
-			Type:         configv1.TLSProfileIntermediateType,
-			Intermediate: &configv1.IntermediateTLSProfile{},
-		}
-	}
-
-	var minVersion configv1.TLSProtocolVersion
-	var ciphers []string
-
-	switch profile.Type {
-	case configv1.TLSProfileOldType:
-		minVersion = configv1.TLSProfiles[configv1.TLSProfileOldType].MinTLSVersion
-		ciphers = configv1.TLSProfiles[configv1.TLSProfileOldType].Ciphers
-	case configv1.TLSProfileIntermediateType:
-		minVersion = configv1.TLSProfiles[configv1.TLSProfileIntermediateType].MinTLSVersion
-		ciphers = configv1.TLSProfiles[configv1.TLSProfileIntermediateType].Ciphers
-	case configv1.TLSProfileModernType:
-		minVersion = configv1.TLSProfiles[configv1.TLSProfileModernType].MinTLSVersion
-		ciphers = configv1.TLSProfiles[configv1.TLSProfileModernType].Ciphers
-	case configv1.TLSProfileCustomType:
-		if profile.Custom == nil {
-			return nil, fmt.Errorf("custom TLS profile specified but no custom configuration provided")
-		}
-		minVersion = profile.Custom.MinTLSVersion
-		ciphers = profile.Custom.Ciphers
-	default:
-		return nil, fmt.Errorf("unknown TLS profile type: %s", profile.Type)
-	}
-
-	tlsMinVersion, err := crypto.TLSVersion(string(minVersion))
-	if err != nil {
-		return nil, err
-	}
-
-	// Convert OpenSSL cipher names to IANA names, then to Go constants
-	ianaCiphers := crypto.OpenSSLToIANACipherSuites(ciphers)
-	cipherSuites := crypto.CipherSuitesOrDie(ianaCiphers)
-
-	return &tls.Config{
-		MinVersion:   tlsMinVersion,
-		CipherSuites: cipherSuites,
-	}, nil
-}
-
-```
-
-### Step 3: Apply to Controller-Runtime Webhook and Metrics Servers
-
-Configure the controller-runtime manager with the TLS settings:
-
-```go
-package main
-
-import (
-	"context"
-	"crypto/tls"
-	"os"
-
-	configv1 "github.com/openshift/api/config/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
-	"sigs.k8s.io/controller-runtime/pkg/webhook"
-
-	"myoperator/pkg/tlsprofile"
-)
-
-var scheme = runtime.NewScheme()
-
-func init() {
-	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-	utilruntime.Must(configv1.AddToScheme(scheme))
-}
-
-func main() {
-	ctx := context.Background()
-
-	// Create a temporary client to fetch TLS profile
-	cfg := ctrl.GetConfigOrDie()
-	tempClient, err := client.New(cfg, client.Options{Scheme: scheme})
-	if err != nil {
-		os.Exit(1)
-	}
-
-	// Fetch and convert TLS profile
-	profile, err := tlsprofile.GetTLSSecurityProfile(ctx, tempClient)
-	if err != nil {
-		os.Exit(1)
-	}
-
-	tlsConfig, err := tlsprofile.TLSConfigFromProfile(profile)
-	if err != nil {
-		os.Exit(1)
-	}
-
-	// Create TLS options function
-	tlsOpts := func(config *tls.Config) {
-		config.MinVersion = tlsConfig.MinVersion
-		config.CipherSuites = tlsConfig.CipherSuites
-	}
-
-	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
-		Scheme: scheme,
-		Metrics: metricsserver.Options{
-			BindAddress:   ":8443",
-			SecureServing: true,
-			TLSOpts:       []func(*tls.Config){tlsOpts},
-		},
-		WebhookServer: webhook.NewServer(webhook.Options{
-			Port:    9443,
-			TLSOpts: []func(*tls.Config){tlsOpts},
-		}),
-	})
-	if err != nil {
-		os.Exit(1)
-	}
-
-	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
-		os.Exit(1)
-	}
+// Convert to TLSOpts function for controller-runtime
+// Returns a func(*tls.Config) that sets MinVersion and CipherSuites
+tlsOpts, unsupportedCiphers := openshifttls.NewTLSConfigFromProfile(tlsProfileSpec)
+if len(unsupportedCiphers) > 0 {
+	// Log warning about unsupported ciphers (ciphers not available in Go's crypto/tls)
+	log.Info("Some ciphers from TLS profile are not supported", "ciphers", unsupportedCiphers)
 }
 ```
 
-### Step 4: Apply to All HTTP and gRPC Clients/Servers
+This function handles:
+- Resolving profile types (Old/Intermediate/Modern/Custom) to their cipher suites and min TLS version
+- Converting OpenSSL cipher names to Go `crypto/tls` constants
+- Returning unsupported ciphers for logging (some OpenSSL ciphers have no Go equivalent)
+
+### Step 3: Apply to All HTTP and gRPC Clients/Servers
+
+For controller-runtime webhook and metrics servers, see the complete Quick Start Example in **Option A** above.
+
+For other endpoints:
 
 **All TLS-enabled endpoints in your operator and operand must honor the cluster TLS configuration.** This includes:
 
@@ -649,119 +525,21 @@ For each endpoint, use the `*tls.Config` returned by `TLSConfigFromProfile()` (S
 
 ## OpenShift library-go Crypto Utilities
 
-The `github.com/openshift/library-go/pkg/crypto` package provides essential utilities for working with TLS in OpenShift. These functions simplify converting between OpenShift TLS profile configurations and Go's `crypto/tls` types.
+**Note:** For controller-runtime users, `NewTLSConfigFromProfile` from `github.com/openshift/controller-runtime-common/pkg/tls` handles all cipher conversion automatically. The utilities below are primarily for:
+- Non-controller-runtime code (e.g., library-go based operators using configobserver pattern)
+- Understanding how the conversion works internally
 
-### Why Use library-go/pkg/crypto
-
-- **Cipher suite name conversion**: OpenShift's `configv1.TLSProfiles` uses OpenSSL-format cipher names, not Go constants
-- **Validated defaults**: Default ciphers align with Mozilla's Intermediate TLS profile
-- **Consistent behavior**: Same utilities used by OpenShift core components
-
-### Key Functions
+The `github.com/openshift/library-go/pkg/crypto` package provides utilities for converting between OpenShift TLS profile configurations and Go's `crypto/tls` types:
 
 | Function | Purpose |
 |----------|---------|
 | `TLSVersion(name string) (uint16, error)` | Convert TLS version name (e.g., "VersionTLS12") to Go constant |
-| `TLSVersionOrDie(name string) uint16` | Same as above, panics on error |
-| `DefaultTLSVersion() uint16` | Returns default TLS version (TLS 1.2) |
-| `CipherSuite(name string) (uint16, error)` | Convert cipher suite name to Go constant |
-| `CipherSuitesOrDie(names []string) []uint16` | Convert multiple cipher names, panics on error |
+| `CipherSuitesOrDie(names []string) []uint16` | Convert IANA cipher names to Go constants |
 | `OpenSSLToIANACipherSuites(ciphers []string) []string` | Map OpenSSL cipher names to IANA names |
 | `SecureTLSConfig(config *tls.Config) *tls.Config` | Apply secure defaults to a TLS config |
 | `DefaultCiphers() []uint16` | Get default cipher suites for Intermediate profile |
 
-### Example: Using library-go for Cipher Conversion
-
-The `configv1.TLSProfiles` map contains cipher names in OpenSSL format. Use `OpenSSLToIANACipherSuites` to convert them:
-
-```go
-package tlsprofile
-
-import (
-	"crypto/tls"
-	"fmt"
-
-	configv1 "github.com/openshift/api/config/v1"
-	"github.com/openshift/library-go/pkg/crypto"
-)
-
-// TLSConfigFromProfileWithLibraryGo uses library-go utilities for conversion
-func TLSConfigFromProfileWithLibraryGo(profile *configv1.TLSSecurityProfile) (*tls.Config, error) {
-	if profile == nil {
-		// Use library-go defaults
-		return &tls.Config{
-			MinVersion:   crypto.DefaultTLSVersion(),
-			CipherSuites: crypto.DefaultCiphers(),
-		}, nil
-	}
-
-	var minVersionStr string
-	var openSSLCiphers []string
-
-	switch profile.Type {
-	case configv1.TLSProfileOldType:
-		spec := configv1.TLSProfiles[configv1.TLSProfileOldType]
-		minVersionStr = string(spec.MinTLSVersion)
-		openSSLCiphers = spec.Ciphers
-	case configv1.TLSProfileIntermediateType:
-		spec := configv1.TLSProfiles[configv1.TLSProfileIntermediateType]
-		minVersionStr = string(spec.MinTLSVersion)
-		openSSLCiphers = spec.Ciphers
-	case configv1.TLSProfileModernType:
-		spec := configv1.TLSProfiles[configv1.TLSProfileModernType]
-		minVersionStr = string(spec.MinTLSVersion)
-		openSSLCiphers = spec.Ciphers
-	case configv1.TLSProfileCustomType:
-		if profile.Custom == nil {
-			return nil, fmt.Errorf("custom profile without configuration")
-		}
-		minVersionStr = string(profile.Custom.MinTLSVersion)
-		openSSLCiphers = profile.Custom.Ciphers
-	default:
-		return nil, fmt.Errorf("unknown profile type: %s", profile.Type)
-	}
-
-	// Use library-go to convert TLS version
-	minVersion, err := crypto.TLSVersion(minVersionStr)
-	if err != nil {
-		return nil, fmt.Errorf("invalid TLS version %s: %w", minVersionStr, err)
-	}
-
-	// Convert OpenSSL cipher names to IANA names, then to Go constants
-	ianaCiphers := crypto.OpenSSLToIANACipherSuites(openSSLCiphers)
-	cipherSuites := crypto.CipherSuitesOrDie(ianaCiphers)
-
-	return &tls.Config{
-		MinVersion:   minVersion,
-		CipherSuites: cipherSuites,
-	}, nil
-}
-```
-
-### Using SecureTLSConfig for Additional Hardening
-
-Apply `SecureTLSConfig` to enforce secure defaults on any TLS configuration:
-
-```go
-package main
-
-import (
-	"crypto/tls"
-
-	"github.com/openshift/library-go/pkg/crypto"
-)
-
-func createSecureTLSConfig() *tls.Config {
-	// Start with custom or empty config
-	config := &tls.Config{
-		// Your settings here
-	}
-
-	// Apply library-go secure defaults
-	// This enforces minimum security settings used by OpenShift
-	return crypto.SecureTLSConfig(config)
-}
-```
+**Why these exist:** OpenShift's `configv1.TLSProfiles` uses OpenSSL-format cipher names, not Go constants. These utilities handle the conversion.
 
 ## Additional Resources
 
