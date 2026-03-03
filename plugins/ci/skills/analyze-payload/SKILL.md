@@ -216,7 +216,6 @@ Use `mcp__atlassian__jira_create_issue` to create a TRT bug:
   ```
 - `additional_fields`:
   - `labels`: `["trt-incident", "ai-generated-jira"]`
-  - `security`: `{"name": "Red Hat Employee"}`
 
 Record the created JIRA key.
 

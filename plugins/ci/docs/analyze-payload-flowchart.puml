@@ -1,0 +1,227 @@
+@startuml analyze-payload-flowchart
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam ActivityBackgroundColor #E8F4FD
+skinparam ActivityBorderColor #1A73E8
+skinparam ActivityDiamondBackgroundColor #FEF7E0
+skinparam ActivityDiamondBorderColor #E37400
+skinparam ArrowColor #333333
+skinparam NoteBorderColor #5F6368
+skinparam NoteBackgroundColor #F8F9FA
+skinparam PartitionBorderColor #1A73E8
+skinparam ActivityFontSize 13
+skinparam defaultFontName "Segoe UI"
+
+title Analyze Payload Flow\n/ci:analyze-payload
+
+start
+
+partition "Step 1: Parse Arguments" {
+  :Parse payload tag from argument;
+  note right
+    Extract from tag:
+    - version (e.g. 4.22)
+    - stream (e.g. nightly)
+    - architecture (amd64, arm64, ...)
+    - --lookback N (default: 10)
+    - --stage-revert flag
+  end note
+}
+
+partition "Step 2: Fetch Recent Payloads" {
+  :Run fetch_payloads.py
+  (limit = lookback * 2);
+  :Find target payload in list;
+
+  if (Payload phase?) then (Accepted)
+    :Report "Payload accepted,
+    no analysis needed";
+    stop
+  elseif (Rejected) then
+    :Extract ALL failed blocking
+    job names + Prow URLs;
+  else (Ready / In-Progress)
+    :Extract blocking jobs that
+    have already **failed**;
+    note right
+      Partial analysis:
+      payload still running
+    end note
+  endif
+}
+
+partition "Step 3: Build Failure History (Lookback)" {
+  :Walk backwards through
+  consecutive rejected payloads;
+
+  while (More previous payloads\nand within lookback limit?) is (yes)
+    :Check if each failing job
+    also failed in previous payload;
+    if (Previous payload Accepted\nor job was passing?) then (yes)
+      :Found **originating payload**
+      for this job;
+    else (no)
+      :Extend streak, continue walking back;
+    endif
+  endwhile (no)
+
+  :Record per-job:
+  - streak_length
+  - originating_payload
+  - is_new_failure;
+}
+
+partition "Step 4: Fetch New PRs in Originating Payloads" {
+  :Collect unique originating
+  payload tags;
+  :Run fetch_new_prs_in_payload.py
+  for each originating payload;
+  :Store suspect PRs keyed
+  by originating payload;
+}
+
+partition "Step 5: Investigate Failed Jobs (Parallel)" {
+  fork
+    :Subagent: Analyze Job 1;
+  fork again
+    :Subagent: Analyze Job 2;
+  fork again
+    :Subagent: Analyze Job N...;
+  end fork
+
+  note right
+    Each subagent:
+    1. Check JUnit for failure type
+    2. Install failure -> use
+       prow-job-analyze-install-failure
+       (+ metal skill for metal jobs)
+    3. Test failure -> use
+       prow-job-analyze-test-failure
+    4. Aggregated jobs -> extract
+       underlying job name from
+       junit-aggregated.xml
+    5. Return root cause summary
+  end note
+}
+
+partition "Step 6: Correlate & Identify Reverts" {
+  :6.1: Cross-reference failure analyses
+  with suspect PRs;
+  note right
+    Match by:
+    - Component overlap
+    - Error message match
+    - Temporal correlation
+    - Single suspect PR
+  end note
+
+  :6.2: Identify revert candidates
+  (>= 90% confidence);
+
+  if (Revert candidates found?) then (yes)
+    :6.3: Check if revert PRs
+    already exist (gh pr list);
+
+    if (Revert already merged?) then (yes)
+      :Note: "Already reverted,
+      fix expected in next payload";
+    elseif (Revert PR open?) then
+      :Note: "Revert in progress,
+      help expedite merge";
+    else (no existing revert)
+      :Mark as actionable
+      revert candidate;
+    endif
+  else (no)
+    :No high-confidence
+    revert candidates;
+  endif
+}
+
+if (--stage-revert set\nAND actionable candidates?) then (yes)
+  partition "Step 6.5: Stage Reverts (Parallel)" {
+    fork
+      :Subagent: Stage Revert for PR A;
+    fork again
+      :Subagent: Stage Revert for PR B...;
+    end fork
+
+    note right
+      Each subagent:
+      1. Create TRT JIRA Bug
+      2. Open Revert PR
+         (via revert-pr skill)
+      3. Post /payload-aggregate or
+         /payload-job comments
+         on revert PR
+    end note
+  }
+else (no)
+endif
+
+partition "Step 7: Generate HTML Report" {
+  :7.1: Header & Executive Summary
+  (total jobs, pass/fail, streak);
+
+  :7.2: Blocking Jobs Summary Table
+  (all jobs, status, streak, origin);
+
+  if (--stage-revert was set?) then (yes)
+    if (Reverts were staged?) then (yes)
+      :7.4: Staged Reverts table
+      (JIRA links, Revert PR links,
+      payload jobs triggered);
+    else (no)
+      :7.4: "No candidates for
+      automatic staging" note;
+    endif
+  else (no)
+    if (Revert candidates exist?) then (yes)
+      :7.4: Recommended Reverts table
+      + copy-paste revert instructions;
+    else (no)
+      :7.4: "No high-confidence
+      revert candidates" note;
+    endif
+  endif
+
+  :7.3: Failed Job Details
+  (collapsible per-job sections with
+  analysis, suspect PRs, Prow links);
+
+  :7.5: Embed all CSS styles;
+}
+
+partition "Step 8: Generate JSON Data File" {
+  :Build flat table: one row per
+  (failed job, revert candidate) pair;
+  note right
+    - All values as strings
+    - Payload stats denormalized
+    - Revert fields empty if none
+    - Multiple rows per job if
+      2+ revert candidates
+    - Filename: *-autodl.json
+  end note
+  :Write payload-analysis-<tag>-autodl.json;
+}
+
+partition "Step 9: Save & Present" {
+  :Save HTML report to CWD
+  payload-analysis-<tag>-summary.html;
+  :Save JSON data file to CWD
+  payload-analysis-<tag>-autodl.json;
+  :Present file paths + brief
+  text summary to user;
+}
+
+stop
+
+legend right
+  |= Symbol |= Meaning |
+  | Diamond | Decision point |
+  | Fork/Join | Parallel execution |
+  | Partition | Major step |
+endlegend
+
+@enduml
