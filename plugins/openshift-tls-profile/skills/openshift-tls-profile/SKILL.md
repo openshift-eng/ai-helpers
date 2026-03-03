@@ -441,7 +441,7 @@ spec:
 - [APIServer CR Spec Example](https://github.com/robszumski/kubernetes-object-specs/blob/main/apiservers.config.openshift.io.yaml#L210)
 - [TLSSecurityProfile Type Definition](https://github.com/openshift/api/blob/master/config/v1/types_tlssecurityprofile.go#L211)
 
-## Query Commands
+### Query Commands
 
 Check the current TLS security profile in your cluster:
 
