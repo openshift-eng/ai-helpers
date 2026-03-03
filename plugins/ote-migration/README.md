@@ -40,8 +40,7 @@ Performs the complete OTE migration in one workflow.
 - **Filesystem-based test filtering** - Uses filesystem paths to include only local test/e2e/ tests, excluding unwanted kubernetes sig- tests from module cache
 - **Smart e2e framework import handling** - Adds k8s.io/kubernetes/test/e2e/framework import where tests use e2e.Logf() or e2e.Failf()
 - **Smart dependency filtering** - Excludes openshift-tests-private dependency to prevent importing entire test suite
-- **Smart replace directive propagation (monorepo)** - Syncs non-k8s.io replace directives from test module to root, allowing independent k8s.io versions between modules
-- **Vendor at root only (monorepo)** - Vendored dependencies only at repository root, not in test module
+- **Vendor at root only (monorepo)** - Vendored dependencies only at repository root
 - **Custom test directory support** - Handles existing test/e2e directories with configurable alternatives
 - **Dynamic git remote discovery** - No assumptions about remote names (no hardcoded 'origin')
 - **Smart repository management** - Remote detection and update capabilities
@@ -160,7 +159,7 @@ The migration tool supports two directory strategies to fit different repository
 
 ### Option 1: Monorepo Strategy (Recommended for Component Repositories)
 
-Integrates OTE into existing repository structure with **separate test module**.
+Integrates OTE into existing repository structure with **single root module**.
 
 **Structure created (when test/e2e doesn't exist):**
 
@@ -173,15 +172,14 @@ Integrates OTE into existing repository structure with **separate test module**.
 │       └── main.go                # OTE entry point (at root, NOT under test/)
 ├── test/
 │   └── e2e/                       # Created fresh
-│       ├── go.mod                 # Separate test module
-│       ├── go.sum
 │       ├── *_test.go              # Test files
-│       ├── testdata/              # Testdata inside test module
+│       ├── testdata/              # Testdata directory
 │       │   ├── bindata.go         # Generated
 │       │   └── fixtures.go
 │       └── bindata.mk             # Same level as testdata/
 ├── vendor/                        # Vendored at ROOT only
-├── go.mod                         # Root module (with replace directive)
+├── go.mod                         # Single root module (includes test dependencies)
+├── go.sum
 └── Makefile                       # Extension target added
 ```
 
@@ -198,33 +196,31 @@ Integrates OTE into existing repository structure with **separate test module**.
 │   └── e2e/
 │       ├── (existing-files...)    # Existing e2e tests (untouched)
 │       └── <test-dir-name>/       # New subdirectory for OTE (e.g., "extension")
-│           ├── go.mod             # Separate test module
-│           ├── go.sum
 │           ├── *_test.go          # Test files
-│           ├── testdata/          # Testdata inside test module
+│           ├── testdata/          # Testdata directory
 │           │   ├── bindata.go     # Generated
 │           │   └── fixtures.go
 │           └── bindata.mk         # Same level as testdata/
 ├── vendor/                        # Vendored at ROOT only
-├── go.mod                         # Root module (with replace directive)
+├── go.mod                         # Single root module (includes test dependencies)
+├── go.sum
 └── Makefile                       # Extension target added
 ```
 
 **Key characteristics:**
 
 - **CMD at root**: `cmd/extension/main.go` located at repository root, NOT under test/
-- **Separate test module**: Test module has its own `go.mod` independent from root `go.mod`
-  - If `test/e2e` doesn't exist: `test/e2e/go.mod`
-  - If `test/e2e` exists: `test/e2e/<subdir>/go.mod` (e.g., `test/e2e/extension/go.mod`)
-- **Replace directive**: Root `go.mod` includes replace directive for test module:
-  - If `test/e2e` doesn't exist: `replace <module>/test/e2e => ./test/e2e`
-  - If `test/e2e` exists: `replace <module>/test/e2e/<subdir> => ./test/e2e/<subdir>`
-- **Testdata inside test module**: Testdata is part of the test module (not a separate module)
+
+- **Single root module**: Uses only root `go.mod` - NO separate test module
+  - All test dependencies are included in root go.mod
+  - No go.mod/go.sum under test/e2e/ directories
+
+- **Testdata location**:
   - If `test/e2e` doesn't exist: `test/e2e/testdata/`
-  - If `test/e2e` exists: `test/e2e/<subdir>/testdata/`
-- **Smart upstream replace directives**: Non-k8s.io replace directives are automatically synced from test module to root. k8s.io/* and OpenShift API/client-go/library-go replace directives are kept separate, allowing test module to use proven openshift-tests-private versions while root maintains its own k8s.io versions
-- **Vendor at root only**: Dependencies vendored only at repository root (`vendor/`), NOT in test module
-- **Auto-detected directory structure**: If `test/e2e` already exists, creates subdirectory (e.g., `test/e2e/extension/`) with go.mod, tests, and testdata all inside the subdirectory
+  - If `test/e2e` exists: `test/e2e/<subdir>/testdata/` (e.g., `test/e2e/extension/testdata/`)
+
+- **Vendor at root only**: Dependencies vendored only at repository root (`vendor/`)
+- **Auto-detected directory structure**: If `test/e2e` already exists, creates subdirectory (e.g., `test/e2e/extension/`) with tests and testdata inside
 - **Integrated build**: Makefile target `tests-ext-build` added to root
 - **Binary location**: `bin/<extension-name>-tests-ext`
 
@@ -375,7 +371,7 @@ Creates isolated `tests-extension/` directory with **single go.mod** in the targ
       grep -v "github.com/openshift/openshift-tests-private" > /tmp/replace_directives.txt
   ```
 
-  This prevents `github.com/openshift/openshift-tests-private` from appearing as a dependency in your test module's go.mod.
+  This prevents `github.com/openshift/openshift-tests-private` from appearing as a dependency in the root go.mod.
 
   **Protection Layer 2: Filesystem Path Filtering in main.go (Phase 4)**
 
@@ -481,42 +477,6 @@ Creates isolated `tests-extension/` directory with **single go.mod** in the targ
   - This step ensures correct version is set BEFORE Phase 6, making migration more robust
   - Uses `go get` to create proper pseudo-version format (not `sed` which creates malformed versions)
 
-### Module Independence: k8s.io Version Isolation (Monorepo)
-
-  **IMPORTANT:** In monorepo strategy, the test module and root module can maintain **independent k8s.io versions**.
-
-  **The design:**
-  - Test module uses k8s.io replace directives from `openshift-tests-private` (proven, tested configuration)
-  - Root module keeps its own k8s.io versions (whatever the component project uses)
-  - **k8s.io/* and `github.com/openshift/{api,client-go,library-go}` replace directives are NOT synced** from test module to root
-
-  **Why this matters:**
-  - Test module needs specific k8s.io versions proven to work with openshift-tests-private
-  - Root module may use newer or different k8s.io versions for the component itself
-  - Module boundaries (via `replace` directives) allow each module to use its own dependencies
-  - Prevents version conflicts like `k8s.io/kubernetes v1.35.1` (root) vs `v1.34.1` (test)
-
-  **What gets synced in Phase 6:**
-  - ✅ Non-k8s.io replace directives (e.g., `github.com/onsi/ginkgo/v2`)
-  - ✅ Other upstream replace directives
-  - ❌ `k8s.io/*` replace directives (kept separate per module)
-  - ❌ `github.com/openshift/api` (kept separate per module)
-  - ❌ `github.com/openshift/client-go` (kept separate per module)
-  - ❌ `github.com/openshift/library-go` (kept separate per module)
-
-  **Example:**
-  ```
-  Root module go.mod:
-    require k8s.io/kubernetes v1.35.1  // Root uses v1.35.1
-
-  Test module go.mod:
-    require k8s.io/kubernetes v1.34.1
-    replace k8s.io/kubernetes => github.com/openshift/kubernetes v1.30.1-0.20241002124647-1892e4deb967
-    // Test uses v1.30.1 via replace (from openshift-tests-private)
-  ```
-
-  Both versions coexist peacefully thanks to proper module boundaries.
-
 ### API Version Upgrades
 
   The migration **ensures API compatibility** by upgrading `github.com/openshift/api` and `github.com/openshift/client-go` to the latest versions from their master branches.
@@ -537,37 +497,30 @@ Creates isolated `tests-extension/` directory with **single go.mod** in the targ
 
   **How it works:**
 
-  1. **During test module creation** (Phase 4, Step 6a):
-     - Fetches latest client-go commit from master branch: `git ls-remote https://github.com/openshift/client-go.git refs/heads/master`
-     - Upgrades to latest version: `go get github.com/openshift/client-go@<latest-commit>`
-     - This pulls in compatible api version automatically
-
-  2. **Deferred full resolution** (Phase 6, Step 1):
-     - Runs full `go mod tidy` after test migration completes
-     - Resolves any remaining dependency conflicts
+  1. **During dependency resolution** (Phase 6, Step 2):
+     - Runs `go mod tidy` with `GOTOOLCHAIN=auto` and `GOSUMDB=sum.golang.org`
+     - Automatically resolves all dependencies including client-go and api packages
      - Ensures all transitive dependencies are compatible
 
   **Example:**
 
   ```bash
-  # Fetch latest client-go commit (fast - just git ls-remote)
-  CLIENT_GO_LATEST=$(git ls-remote https://github.com/openshift/client-go.git refs/heads/master | awk '{print $1}')
-  # CLIENT_GO_LATEST=a1b2c3d4e5f6...
+  # Phase 6, Step 2: Tidy root module
+  GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go mod tidy
 
-  # Upgrade to latest (may take 30-60 seconds)
-  GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get "github.com/openshift/client-go@$CLIENT_GO_LATEST"
-
-  # This automatically pulls in compatible api version
-  # e.g., github.com/openshift/api v0.0.0-20260201123456-abc123def456
+  # This automatically resolves all dependencies including:
+  # - github.com/openshift/client-go (latest compatible version)
+  # - github.com/openshift/api (compatible with client-go)
+  # - All transitive dependencies
   ```
 
   **Benefits:**
 
 - ✅ Prevents `undefined: <type>` errors from API mismatches
-- ✅ Uses latest APIs compatible with current origin
-- ✅ Avoids stale versions from origin's go.mod
-- ✅ Includes timeout protection and fallback to go mod tidy
-- ✅ Both test module and root module get compatible versions via go mod tidy
+- ✅ Uses latest APIs compatible with current dependencies
+- ✅ Automatic dependency resolution via go mod tidy
+- ✅ `GOTOOLCHAIN=auto` downloads required Go version if needed
+- ✅ All modules get compatible versions automatically
 
 ### Automatic Go Toolchain Management
 
@@ -610,63 +563,49 @@ Creates isolated `tests-extension/` directory with **single go.mod** in the targ
   GOTOOLCHAIN=auto go mod tidy
   ```
 
-### Smart Go Version Management (Phase 6, Step 2b)
+### Smart Go Version Management (Phase 6 + Dockerfile)
 
   **The Problem:**
-  - Docker builder images typically support up to Go 1.24
-  - Root or test module go.mod may require Go 1.25+
-  - Extension binary builds from `./cmd/extension`, which imports the test module
-  - Go checks **both** root and test module go.mod files during build
-  - Build fails with: `go: module ./test/e2e requires go >= 1.25.0 (running go 1.24.11; GOTOOLCHAIN=local)`
+  - Root go.mod may require Go 1.25+ after dependency resolution
+  - Some OpenShift repositories still have k8s.io/kms pointing to upstream (requires Go 1.25)
 
   **The Solution:**
-  Automatically adjust **both** root and test module go.mod to Go 1.24 (matching Docker builder) when either requires Go 1.25+:
+  Use Go 1.25 builder image with proper k8s.io/kms replace directive:
 
   ```bash
-  # Check both go.mod files
-  ROOT_GO_VERSION=$(grep "^go " go.mod | awk '{print $2}' | cut -d. -f1,2)
-  TEST_GO_VERSION=$(grep "^go " "$TEST_MODULE_DIR/go.mod" | awk '{print $2}' | cut -d. -f1,2)
-
-  # If either requires 1.25+, adjust BOTH to 1.24
-  if [ "$ROOT_GO_VERSION" = "1.25" ] || [ "$ROOT_GO_VERSION" = "1.26" ] || [ "$ROOT_GO_VERSION" = "1.27" ]; then
-      NEEDS_ADJUSTMENT=true
-  fi
-  if [ "$TEST_GO_VERSION" = "1.25" ] || [ "$TEST_GO_VERSION" = "1.26" ] || [ "$TEST_GO_VERSION" = "1.27" ]; then
-      NEEDS_ADJUSTMENT=true
+  # Phase 6: Dependency Resolution
+  # Step 1b: Ensure k8s.io/kms replace directive exists (points to OpenShift fork)
+  if ! grep -q "k8s.io/kms =>" go.mod; then
+      CURRENT_K8S_COMMIT=$(grep "k8s.io/kubernetes =>" go.mod | grep -o 'v0.0.0-[0-9]*-[a-f0-9]*' | sed 's/v0.0.0-[0-9]*-//')
+      sed -i "/k8s.io\/kube-scheduler =>/a\	k8s.io/kms => github.com/openshift/kubernetes/staging/src/k8s.io/kms v0.0.0-$CURRENT_K8S_COMMIT" go.mod
   fi
 
-  if [ "$NEEDS_ADJUSTMENT" = "true" ]; then
-      # Adjust root go.mod
-      sed -i 's/^go .*/go 1.24/' go.mod
+  # Step 2: go mod tidy (resolves to Go 1.25+ if needed)
+  GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go mod tidy
 
-      # Adjust test module go.mod
-      sed -i 's/^go .*/go 1.24/' "$TEST_MODULE_DIR/go.mod"
-  fi
+  # Step 3: Vendor dependencies
+  GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go mod vendor
+
+  # Dockerfile: Use Go 1.25 builder image
+  FROM registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.25-openshift-4.22 AS test-extension-builder
+  RUN make tests-ext-build && \
+      cd bin && \
+      tar -czvf <extension-name>-test-extension.tar.gz <extension-name>-tests-ext
   ```
 
   **Why This Works:**
-  - The `go 1.24` directive is a **minimum requirement**, not a maximum
-  - With `GOTOOLCHAIN=auto`, dependencies that need Go 1.25+ still work (toolchain auto-downloads)
-  - Neither root nor test module code actually requires Go 1.25+ features
-  - Extension binary build command (`go build ./cmd/extension`) resolves **both** go.mod files
-  - Docker builder (Go 1.24) can successfully build Go 1.24 code
-  - `go mod tidy` with `GOTOOLCHAIN=auto` continues to work correctly for both modules
-
-  **Impact on Operations:**
-
-  | Operation | Before Fix | After Fix | Impact |
-  |-----------|------------|-----------|---------|
-  | `go mod tidy` (test module) | ✅ Works (GOTOOLCHAIN=auto) | ✅ Works (GOTOOLCHAIN=auto) | No change |
-  | `go mod tidy` (root) | ✅ Works (GOTOOLCHAIN=auto) | ✅ Works (GOTOOLCHAIN=auto) | No change |
-  | `make extension` (local) | ❌ **Failed** (Go 1.25 required) | ✅ **Fixed** (Go 1.24 matches) | **Positive** |
-  | Docker build | ❌ **Failed** (Go 1.25 required) | ✅ **Fixed** (Go 1.24 matches) | **Positive** |
+  - **Phase 6 Step 1b** ensures k8s.io/kms replace directive exists (redirects to OpenShift fork compatible with Go 1.24+)
+  - **Phase 6 Step 2** with `GOTOOLCHAIN=auto` resolves all dependencies and creates go.sum
+  - **Phase 6 Step 3** vendors with `GOTOOLCHAIN=auto` to create vendor/ directory
+  - **Dockerfile** uses Go 1.25 builder image - supports Go 1.25+ dependencies without version downgrades
+  - The k8s.io/kms replace directive ensures compatibility across all Go versions
 
   **Benefits:**
-  - ✅ Docker builds succeed with Go 1.24 builder images
-  - ✅ Local `make extension` builds succeed
-  - ✅ `go mod tidy` operations unaffected (GOTOOLCHAIN=auto still works)
-  - ✅ Clean solution without environment variable complexity
-  - ✅ Both modules maintain proper dependency resolution
+  - ✅ Docker builds succeed with Go 1.25 builder image
+  - ✅ Local builds work with `GOTOOLCHAIN=auto`
+  - ✅ No version downgrades needed
+  - ✅ k8s.io/kms replace directive ensures OpenShift fork compatibility
+  - ✅ Clean solution using appropriate builder image version
 
 ### Makefile Targets
 
@@ -760,13 +699,17 @@ All strategies follow this principle: **bindata.mk must be at the same level as 
 
 ```bash
 # Build image locally
-docker build -t test-image:latest -f <path-to-dockerfile> .
+podman build -t test-image:latest -f <path-to-dockerfile> .
+# Or for Docker:
+# docker build -t test-image:latest -f <path-to-dockerfile> .
 
 # Verify binary exists in image (override ENTRYPOINT to run ls)
-docker run --rm --entrypoint ls test-image:latest -lh /usr/bin/*-test-extension.tar.gz
+podman run --rm --entrypoint ls test-image:latest -lh /usr/bin/*-test-extension.tar.gz
+# Or for Docker:
+# docker run --rm --entrypoint ls test-image:latest -lh /usr/bin/*-test-extension.tar.gz
 
 # Extract and test binary (override ENTRYPOINT to run cat)
-docker run --rm --entrypoint cat test-image:latest /usr/bin/<extension-name>-test-extension.tar.gz | tar -xzv
+podman run --rm --entrypoint cat test-image:latest /usr/bin/<extension-name>-test-extension.tar.gz | tar -xzv
 ./bin/<extension-name>-tests-ext list
 ```
 
@@ -841,13 +784,12 @@ The migration workflow has been enhanced with comprehensive test filtering and p
 7. **Vendor Mode Build** - Uses `-mod=vendor` instead of `-mod=mod` to ensure consistent dependency resolution in all build environments
 8. **Go Import Conventions** - Uses `goimports` to automatically fix import ordering after migration, ensuring testdata imports are properly positioned per Go conventions
 9. **Auto-install go-bindata** - bindata.mk automatically installs go-bindata if not present, preventing Docker build failures
-10. **Smart Go Version Management** - Automatically adjusts root go.mod to match Docker builder version (e.g., 1.24) while keeping test module at higher version (e.g., 1.25) for dependencies
+10. **Smart Go Version Management** - Uses Go 1.25 builder image (`registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.25-openshift-4.22`) for Docker builds. Phase 6 Step 1b ensures k8s.io/kms replace directive exists (redirects to OpenShift fork compatible with Go 1.24+), resolves dependencies with `GOTOOLCHAIN=auto` (Step 2), and vendors with `GOTOOLCHAIN=auto` (Step 3). No version downgrades needed - the k8s.io/kms replace directive ensures all dependencies are compatible
 11. **Enhanced Dependency Management** - Added retry logic and better error handling for all `go get` commands
 12. **Ginkgo Version Alignment** - Automatically aligns with OTE framework's Ginkgo version (December 2024) instead of using OTP's older version (August 2024)
-13. **k8s.io Version Consistency** - Syncs ALL replace directives (including k8s.io) from test module to root for version consistency
-14. **Old kube-openapi Pin Removal** - Automatically removes stale kube-openapi pins from February 2024 that cause yaml type errors
-15. **Smart Docker Builder Selection** - Intelligently maps Go versions (1.21-1.27) to appropriate OpenShift builder images
-16. **Comprehensive Troubleshooting** - Added 8 detailed troubleshooting entries based on real-world migration experience
+13. **Old kube-openapi Pin Removal** - Automatically removes stale kube-openapi pins from February 2024 that cause yaml type errors
+14. **Smart Docker Builder Selection** - Intelligently maps Go versions (1.21-1.27) to appropriate OpenShift builder images
+15. **Comprehensive Troubleshooting** - Added 8 detailed troubleshooting entries based on real-world migration experience
 
 ### Two-Layer Test Filtering
 
