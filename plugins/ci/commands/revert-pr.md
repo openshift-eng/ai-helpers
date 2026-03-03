@@ -1,6 +1,7 @@
 ---
 description: Revert a merged PR that is breaking CI or nightly payloads
-argument-hint: <pr-url> <jira-ticket>---
+argument-hint: <pr-url> <jira-ticket>
+---
 
 ## Name
 
@@ -9,7 +10,8 @@ ci:revert-pr
 ## Synopsis
 
 ```
-/ci:revert-pr <pr-url> <jira-ticket>```
+/ci:revert-pr <pr-url> <jira-ticket>
+```
 
 ## Description
 
