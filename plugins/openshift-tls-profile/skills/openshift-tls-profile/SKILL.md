@@ -630,188 +630,22 @@ func main() {
 }
 ```
 
-### Step 4: Apply to HTTP Client
+### Step 4: Apply to All HTTP and gRPC Clients/Servers
 
-Configure an HTTP client with the TLS profile:
+**All TLS-enabled endpoints in your operator and operand must honor the cluster TLS configuration.** This includes:
 
-```go
-package httpclient
+| Endpoint Type | How to Apply TLS Config |
+|---------------|------------------------|
+| **HTTP Client** | Set `Transport.TLSClientConfig` on `http.Client` |
+| **HTTP Server** | Set `TLSConfig` on `http.Server` |
+| **gRPC Client** | Use `grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig))` with `grpc.NewClient()` |
+| **gRPC Server** | Use `grpc.Creds(credentials.NewTLS(tlsConfig))` with `grpc.NewServer()` |
 
-import (
-	"crypto/tls"
-	"crypto/x509"
-	"net/http"
-	"os"
-	"time"
+For each endpoint, use the `*tls.Config` returned by `TLSConfigFromProfile()` (Step 2) to configure:
+- `MinVersion` - minimum TLS protocol version
+- `CipherSuites` - allowed cipher suites (only applies to TLS 1.2 and below)
 
-	configv1 "github.com/openshift/api/config/v1"
-	"myoperator/pkg/tlsprofile"
-)
-
-// NewHTTPClientWithTLSProfile creates an HTTP client configured with the TLS profile
-func NewHTTPClientWithTLSProfile(profile *configv1.TLSSecurityProfile, caCertPath string) (*http.Client, error) {
-	tlsConfig, err := tlsprofile.TLSConfigFromProfile(profile)
-	if err != nil {
-		return nil, err
-	}
-
-	// Load CA certificate if provided
-	if caCertPath != "" {
-		caCert, err := os.ReadFile(caCertPath)
-		if err != nil {
-			return nil, err
-		}
-		caCertPool := x509.NewCertPool()
-		caCertPool.AppendCertsFromPEM(caCert)
-		tlsConfig.RootCAs = caCertPool
-	}
-
-	return &http.Client{
-		Timeout: 30 * time.Second,
-		Transport: &http.Transport{
-			TLSClientConfig: tlsConfig,
-		},
-	}, nil
-}
-```
-
-### Step 5: Apply to HTTP Server
-
-Configure an HTTP server with the TLS profile:
-
-```go
-package httpserver
-
-import (
-	"crypto/tls"
-	"net/http"
-
-	configv1 "github.com/openshift/api/config/v1"
-	"myoperator/pkg/tlsprofile"
-)
-
-// NewHTTPServerWithTLSProfile creates an HTTP server configured with the TLS profile
-func NewHTTPServerWithTLSProfile(
-	addr string,
-	handler http.Handler,
-	profile *configv1.TLSSecurityProfile,
-	certFile, keyFile string,
-) (*http.Server, error) {
-	tlsConfig, err := tlsprofile.TLSConfigFromProfile(profile)
-	if err != nil {
-		return nil, err
-	}
-
-	// Add recommended server settings
-	// Note: PreferServerCipherSuites is deprecated in Go 1.18+ and ignored
-	tlsConfig.CurvePreferences = []tls.CurveID{tls.CurveP256, tls.X25519}
-
-	server := &http.Server{
-		Addr:      addr,
-		Handler:   handler,
-		TLSConfig: tlsConfig,
-		// Disable HTTP/2 if not needed
-		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
-	}
-
-	return server, nil
-}
-
-// Example usage:
-// server, err := NewHTTPServerWithTLSProfile(":8443", mux, profile, "server.crt", "server.key")
-// if err != nil { ... }
-// err = server.ListenAndServeTLS("server.crt", "server.key")
-```
-
-### Step 6: Apply to gRPC Client
-
-Configure a gRPC client with the TLS profile:
-
-```go
-package grpcclient
-
-import (
-	"crypto/tls"
-	"crypto/x509"
-	"os"
-
-	configv1 "github.com/openshift/api/config/v1"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-
-	"myoperator/pkg/tlsprofile"
-)
-
-// NewGRPCClientConnWithTLSProfile creates a gRPC client connection with the TLS profile
-func NewGRPCClientConnWithTLSProfile(
-	target string,
-	profile *configv1.TLSSecurityProfile,
-	caCertPath string,
-) (*grpc.ClientConn, error) {
-	tlsConfig, err := tlsprofile.TLSConfigFromProfile(profile)
-	if err != nil {
-		return nil, err
-	}
-
-	// Load CA certificate
-	caCert, err := os.ReadFile(caCertPath)
-	if err != nil {
-		return nil, err
-	}
-	caCertPool := x509.NewCertPool()
-	caCertPool.AppendCertsFromPEM(caCert)
-	tlsConfig.RootCAs = caCertPool
-
-	creds := credentials.NewTLS(tlsConfig)
-	conn, err := grpc.NewClient(target, grpc.WithTransportCredentials(creds))
-	if err != nil {
-		return nil, err
-	}
-
-	return conn, nil
-}
-```
-
-### Step 7: Apply to gRPC Server
-
-Configure a gRPC server with the TLS profile:
-
-```go
-package grpcserver
-
-import (
-	"crypto/tls"
-
-	configv1 "github.com/openshift/api/config/v1"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-
-	"myoperator/pkg/tlsprofile"
-)
-
-// NewGRPCServerWithTLSProfile creates a gRPC server configured with the TLS profile
-func NewGRPCServerWithTLSProfile(
-	profile *configv1.TLSSecurityProfile,
-	certFile, keyFile string,
-) (*grpc.Server, error) {
-	tlsConfig, err := tlsprofile.TLSConfigFromProfile(profile)
-	if err != nil {
-		return nil, err
-	}
-
-	// Load server certificate
-	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
-	if err != nil {
-		return nil, err
-	}
-	tlsConfig.Certificates = []tls.Certificate{cert}
-
-	creds := credentials.NewTLS(tlsConfig)
-	server := grpc.NewServer(grpc.Creds(creds))
-
-	return server, nil
-}
-```
+**Key principle:** No HTTP or gRPC endpoint should use hardcoded TLS settings. Always derive TLS configuration from the cluster's APIServer CR to ensure consistent security policy enforcement across all components.
 
 ## OpenShift library-go Crypto Utilities
 
