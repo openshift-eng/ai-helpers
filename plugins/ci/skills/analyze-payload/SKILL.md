@@ -609,14 +609,140 @@ The HTML must be fully self-contained with embedded CSS. Use a clean, profession
 </style>
 ```
 
-### Step 8: Save and Present
+### Step 8: Generate JSON Data File
 
-1. Save the HTML file to the current working directory:
-   - Filename: `payload-analysis-<sanitized_tag>-summary.html`
+After generating the HTML report, produce a single structured JSON data file for database ingestion. The file contains one flat table with **one row per (failed blocking job, revert candidate) pair**:
+
+- A failed job with **no** revert candidate gets exactly **one row** (revert fields are empty strings / `"0"`).
+- A failed job with **one** revert candidate gets **one row** with revert fields populated.
+- A failed job with **two or more** revert candidates gets **one row per candidate** (job fields repeat, revert fields differ).
+- **Only failed blocking jobs** are included — passed jobs are omitted.
+
+Payload-level summary fields are denormalized (repeated identically) across all rows for the same payload.
+
+The filename **must** end with `-autodl.json`: `payload-analysis-<sanitized_tag>-autodl.json`
+
+**All row values MUST be strings** — even numeric fields. The schema declares the downstream types.
+
+```json
+{
+    "table_name": "payload_analysis",
+    "schema": {
+        "payload_tag": "string",
+        "version": "string",
+        "stream": "string",
+        "architecture": "string",
+        "phase": "string",
+        "release_controller_url": "string",
+        "analyzed_at": "string",
+        "rejection_streak": "int64",
+        "total_blocking_jobs": "int64",
+        "failed_blocking_jobs": "int64",
+        "job_name": "string",
+        "prow_url": "string",
+        "failure_type": "string",
+        "streak_length": "int64",
+        "is_new_failure": "int64",
+        "originating_payload_tag": "string",
+        "failure_analysis": "string",
+        "revert_pr_url": "string",
+        "revert_pr_number": "int64",
+        "revert_component": "string",
+        "revert_confidence_pct": "int64",
+        "revert_rationale": "string",
+        "existing_revert_status": "string",
+        "existing_revert_pr_url": "string"
+    },
+    "schema_mapping": null,
+    "rows": [
+        {
+            "payload_tag": "4.22.0-0.nightly-2026-02-25-152806",
+            "version": "4.22",
+            "stream": "nightly",
+            "architecture": "amd64",
+            "phase": "Rejected",
+            "release_controller_url": "https://amd64.ocp.releases.ci.openshift.org/...",
+            "analyzed_at": "2026-02-26T10:30:00Z",
+            "rejection_streak": "5",
+            "total_blocking_jobs": "42",
+            "failed_blocking_jobs": "4",
+            "job_name": "periodic-ci-openshift-release-main-ci-4.22-e2e-aws-ovn",
+            "prow_url": "https://prow.ci.openshift.org/view/gs/...",
+            "failure_type": "test",
+            "streak_length": "5",
+            "is_new_failure": "0",
+            "originating_payload_tag": "4.22.0-0.nightly-2026-02-20-150000",
+            "failure_analysis": "Root cause summary from subagent...",
+            "revert_pr_url": "https://github.com/openshift/cno/pull/2037",
+            "revert_pr_number": "2037",
+            "revert_component": "cluster-network-operator",
+            "revert_confidence_pct": "95",
+            "revert_rationale": "Error references code changed by this PR",
+            "existing_revert_status": "",
+            "existing_revert_pr_url": ""
+        },
+        {
+            "payload_tag": "4.22.0-0.nightly-2026-02-25-152806",
+            "version": "4.22",
+            "stream": "nightly",
+            "architecture": "amd64",
+            "phase": "Rejected",
+            "release_controller_url": "https://amd64.ocp.releases.ci.openshift.org/...",
+            "analyzed_at": "2026-02-26T10:30:00Z",
+            "rejection_streak": "5",
+            "total_blocking_jobs": "42",
+            "failed_blocking_jobs": "4",
+            "job_name": "periodic-ci-openshift-release-main-ci-4.22-e2e-gcp-ovn",
+            "prow_url": "https://prow.ci.openshift.org/view/gs/...",
+            "failure_type": "install",
+            "streak_length": "2",
+            "is_new_failure": "0",
+            "originating_payload_tag": "4.22.0-0.nightly-2026-02-23-080000",
+            "failure_analysis": "Install timeout waiting for etcd quorum...",
+            "revert_pr_url": "",
+            "revert_pr_number": "0",
+            "revert_component": "",
+            "revert_confidence_pct": "0",
+            "revert_rationale": "",
+            "existing_revert_status": "",
+            "existing_revert_pr_url": ""
+        }
+    ],
+    "chunk_size": 0,
+    "expiration_days": 0,
+    "partition_column": ""
+}
+```
+
+#### Row cardinality rules
+
+| Scenario | Rows for that job |
+|----------|-------------------|
+| Failed job, no revert candidate | 1 row — revert fields are `""` / `"0"` |
+| Failed job, 1 revert candidate | 1 row — revert fields populated |
+| Failed job, 2+ revert candidates | N rows — job fields identical, revert fields differ per candidate |
+| Passed job | 0 rows — not included |
+
+#### Rules
+
+1. **All row values are strings** — wrap every value in double quotes (e.g., `"5"` not `5`).
+2. **Empty/missing values** are empty strings (`""`). For int64 fields with no value, use `"0"`.
+3. **`is_new_failure`**: `"1"` for true, `"0"` for false.
+4. **`revert_confidence_pct`**: Integer percentage, e.g. `"95"` for 95%. `"0"` when no candidate.
+5. **`existing_revert_status`**: `"merged"`, `"open"`, or `""` if no existing revert.
+6. **`schema_mapping`** is always `null`.
+7. **`chunk_size`**, **`expiration_days`**, and **`partition_column`** are always `0`, `0`, and `""`.
+
+### Step 9: Save and Present
+
+1. Save all output files to the current working directory:
+   - HTML report: `payload-analysis-<sanitized_tag>-summary.html`
+   - JSON data file: `payload-analysis-<sanitized_tag>-autodl.json`
    - Sanitize the tag: replace any characters not safe for filenames
 
 2. Tell the user:
    - The path to the saved HTML report
+   - The path to the JSON data file
    - A brief text summary of findings (number of failures, new vs persistent, key suspect PRs)
 
 ## Error Handling
