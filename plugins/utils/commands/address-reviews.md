@@ -122,13 +122,15 @@ When multiple comments relate to the same concern/fix:
 
 **b. If requested change is valid**:
 - Plan and implement changes
-- Commit and Push
+- Commit and Push **(ALL sub-steps are MANDATORY — do not skip any)**
    1. **Review changes**: `git diff`
 
-   2. **Analyze commit structure**: `git log --oneline origin/main..HEAD`
+   2. **Sync with remote first**: `git pull --rebase origin <branch>` to ensure local branch is up to date. If the branch is behind or diverged, you MUST rebase before committing.
+
+   3. **Analyze commit structure**: `git log --oneline origin/main..HEAD`
       - Identify which commit the changes relate to
 
-   3. **Commit strategy**:
+   4. **Commit strategy**:
 
       **DEFAULT: Amend the relevant commit**
 
@@ -137,11 +139,18 @@ When multiple comments relate to the same concern/fix:
       - **When unsure**: Amend (keep git history clean)
       - **Multiple commits**: Use `git rebase -i origin/main` to amend the specific relevant commit
 
-   4. **Create and push commit**:
+   5. **Create commit AND push (both required)**:
       - Follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) format
       - Always include body explaining "why"
       - **Amend**: `git commit --amend --no-edit && git push --force-with-lease` (or update message if scope changed)
-      - **New commit**: Standard commit with message
+      - **New commit**: Standard commit with message, then `git push`
+      - **⚠️ A commit without a push is incomplete. You MUST push.**
+
+   6. **Verify push succeeded (MANDATORY before replying)**:
+      - Run `git log -1 --format='%H'` locally and `git ls-remote origin <branch>` to confirm the remote has your commit
+      - **If they differ**: The push failed or was never executed. Do NOT post a "Done" reply. Diagnose and retry, or report the failure to the user.
+      - **If uncommitted changes remain** (`git status`): The commit failed. Fix it first.
+      - **⚠️ NEVER post a "Done" or "Fixed" reply unless the push is verified on the remote.** Posting false claims of completion erodes reviewer trust and wastes human reviewers' time.
 
 - **Concise Reply template**: `Done. [1-line what changed]. [Optional 1-line why]`
   - Max 2 sentences + attribution footer
