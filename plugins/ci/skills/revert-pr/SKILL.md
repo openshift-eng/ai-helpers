@@ -69,7 +69,7 @@ Parse the PR URL to determine owner and repository:
 # Get authenticated user
 gh_user=$(gh api user --jq '.login')
 
-# Check if fork exists
+# Check if fork exists; create one if not
 if ! gh api "repos/$gh_user/$repo" &>/dev/null; then
     echo "Creating fork of $owner/$repo..."
     gh repo fork "$owner/$repo" --clone=false
@@ -83,20 +83,28 @@ fi
 If no local repository is available:
 
 ```bash
-# Clone upstream (shallow for speed)
+# Clone upstream repo
 git clone -b "$base_branch" "https://github.com/$owner/$repo.git" /tmp/revert-workdir
 cd /tmp/revert-workdir
 
-# Add fork as remote
+# Rename the default remote to 'upstream' so later steps can reference it consistently
+git remote rename origin upstream
+
+# Add the user's fork as the 'fork' remote (used for pushing the revert branch)
 git remote add fork "git@github.com:$gh_user/$repo.git"
 ```
 
 If using an existing local clone, ensure remotes are configured correctly:
 
 ```bash
-# Verify upstream remote points to the correct repository
-# Verify fork remote points to user's fork
+# Verify remotes: 'upstream' must point to the canonical repo, 'fork' to the user's fork
 git remote -v
+
+# If 'upstream' is missing but 'origin' points to the canonical repo, rename it:
+# git remote rename origin upstream
+
+# If 'fork' is missing, add it:
+# git remote add fork "git@github.com:$gh_user/$repo.git"
 ```
 
 ### Step 5: Look Up JIRA Ticket for Context
