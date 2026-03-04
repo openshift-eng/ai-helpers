@@ -32,7 +32,6 @@ Use this skill when you want fully autonomous payload triage:
 Parse the command arguments:
 
 - `payload_tag` (required): Full payload tag (e.g., `4.22.0-0.nightly-2026-02-25-152806`)
-- `--lookback N` (optional): Maximum lookback depth (default: 10)
 
 Parse from the tag:
 - `version`: e.g., `4.22`

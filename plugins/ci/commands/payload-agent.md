@@ -1,6 +1,6 @@
 ---
 description: Autonomous agent that analyzes a rejected payload, determines root causes, and takes action based on confidence scoring
-argument-hint: "<payload-tag> [--lookback N]"
+argument-hint: "<payload-tag>"
 ---
 
 ## Name
@@ -10,7 +10,7 @@ ci:payload-agent
 ## Synopsis
 
 ```
-/ci:payload-agent <payload-tag> [--lookback N]
+/ci:payload-agent <payload-tag>
 ```
 
 ## Description
@@ -63,12 +63,7 @@ Load the `payload-agent` skill and follow its implementation steps. The skill or
    /ci:payload-agent 4.22.0-0.nightly-2026-02-25-152806
    ```
 
-2. **Analyze with deeper lookback**:
-   ```
-   /ci:payload-agent 4.22.0-0.nightly-2026-02-25-152806 --lookback 20
-   ```
-
-3. **Resume bisect to collect results** (run the same command again from the same directory):
+2. **Resume bisect to collect results** (run the same command again from the same directory):
    ```
    /ci:payload-agent 4.22.0-0.nightly-2026-02-25-152806
    ```
@@ -76,7 +71,6 @@ Load the `payload-agent` skill and follow its implementation steps. The skill or
 ## Arguments
 
 - $1: A full payload tag (e.g., `4.22.0-0.nightly-2026-02-25-152806`). Version, stream, and architecture are parsed from the tag automatically. (required)
-- `--lookback N`: Maximum number of consecutive rejected payloads to examine (optional, default: 10)
 
 ## Skills Used
 

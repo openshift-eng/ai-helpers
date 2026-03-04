@@ -23,7 +23,6 @@ partition "Step 1: Parse Arguments & Detect Resume" {
     - version (e.g. 4.22)
     - stream (e.g. nightly)
     - architecture (amd64, arm64, ...)
-    - --lookback N (default: 10)
   end note
 
   if (<tag>-bisect.yaml exists\nwith pending experiments?) then (yes)
