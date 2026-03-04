@@ -1532,6 +1532,32 @@
         }
       ],
       "version": "0.0.1"
+    },
+    {
+      "commands": [],
+      "description": "Automatic JIRA lifecycle tracking for implementation plans",
+      "has_readme": true,
+      "hooks": [
+        {
+          "description": "JIRA automatic project management hooks",
+          "name": "TaskCompleted",
+          "type": "TaskCompleted"
+        },
+        {
+          "description": "JIRA automatic project management hooks",
+          "name": "SessionStart",
+          "type": "SessionStart"
+        }
+      ],
+      "name": "jira-auto-pm",
+      "skills": [
+        {
+          "description": "Ensures implementation plans reference a JIRA issue key for automatic lifecycle tracking",
+          "id": "jira-auto-pm",
+          "name": "JIRA Auto PM Plan Tracker"
+        }
+      ],
+      "version": "0.1.0"
     }
   ]
 }
