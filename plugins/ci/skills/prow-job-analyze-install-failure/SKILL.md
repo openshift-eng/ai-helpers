@@ -612,49 +612,53 @@ See that skill's documentation for details on dev-scripts, libvirt logs, sosrepo
 
 ## Important Notes
 
-1. **Eventual Consistency Behavior**
+1. **Bootstrap Failures Require Log Bundle Analysis**
+   - Bootstrap timeout failures can have many causes — always download and examine the installer log bundle to determine the actual root cause
+   - Do not classify bootstrap failures without examining the logs
+
+2. **Eventual Consistency Behavior**
    - OpenShift installations exhibit eventual consistency
    - Components report errors while waiting for dependencies
    - Early errors are EXPECTED and usually resolve automatically
    - **Always analyze backwards from the final timeout, not forwards from the start**
    - Only errors that persist until failure are relevant root causes
 
-2. **Upgrade Jobs and Installation**
+3. **Upgrade Jobs and Installation**
    - Jobs with "upgrade" in the name perform installation FIRST, then upgrade
    - If you're analyzing an installation failure in an upgrade job, it never got to the upgrade phase
    - "minor" upgrade: Installs 4.n-1 version (e.g., 4.20 for a 4.21 upgrade job)
    - "micro" upgrade: Installs earlier payload in same stream
 
-3. **Log Bundle Availability**
+4. **Log Bundle Availability**
    - Not all jobs produce log bundles
    - Older jobs may not have this feature
    - Installation must reach a certain point to generate log bundle
 
-4. **Must-Gather Availability**
+5. **Must-Gather Availability**
    - Must-gather only exists if a `must-gather*.tar` file is present
    - If no .tar file exists, the cluster was too unstable to collect diagnostics
    - **Never suggest downloading must-gather unless you verified the .tar file exists**
 
-5. **Metal Job Specifics**
+6. **Metal Job Specifics**
    - Metal jobs are analyzed using the specialized `prow-job-analyze-metal-install-failure` skill
    - That skill handles dev-scripts, libvirt console logs, sosreport, and squid logs
    - See the metal skill documentation for details
 
-6. **Debugging Workflow**
+7. **Debugging Workflow**
    - Start with installer log to find **LAST** error (not first)
    - Use failure stage to guide which logs to examine
    - Log bundle provides node-level details
    - For metal jobs, invoke the metal-specific skill for additional analysis
    - Work backwards in time to trace dependency chains
 
-7. **Common Failure Patterns**
+8. **Common Failure Patterns**
    - **Bootstrap etcd not starting**: Check etcd.log and bootkube.log
    - **API server not responding**: Check kube-apiserver.log
    - **Masters not joining**: Check master serial logs
    - **Operators degraded**: Check specific operator logs in must-gather (if it exists)
    - **Network issues**: Check network configuration in bootstrap/network/
 
-8. **File Formats**
+9. **File Formats**
    - Installer log: Plain text, structured format
    - Journal logs: systemd journal format (plain text export)
    - Serial logs: Raw console output

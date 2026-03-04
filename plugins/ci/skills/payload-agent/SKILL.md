@@ -58,6 +58,10 @@ Execute the `analyze-payload` skill Steps 1-6 to gather all analysis data:
 6. Identify revert candidates (Step 6.2)
 7. Check for existing reverts (Step 6.3)
 
+**Critical — Install failure investigation must be thorough.** When subagents investigate install failures (Step 5), they MUST use the `ci:prow-job-analyze-install-failure` skill to download and examine actual log bundles. Do not allow surface-level assessments based on pass rates or job names alone. Bootstrap timeouts, for example, can be caused by admission plugin bugs, race conditions, or configuration errors — not just infrastructure problems. The log bundle contains the actual error messages that reveal root cause.
+
+**Critical — Evaluate ALL new PRs as potential causes.** When failures affect a specific feature set (e.g., TechPreview), examine each new PR for changes that could affect that feature set: feature gate changes, vendored dependency updates (especially kube rebases), manifest changes that add/modify annotations, and admission plugin configuration. Vendor-only rebases can still introduce behavioral changes through updated library code.
+
 All results stay in-context (not written to files yet). The `analyze-payload` skill's Steps 7-9 (report generation) are deferred to Step 6 of this skill.
 
 ### Step 3: Apply Confidence Scoring

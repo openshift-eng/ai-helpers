@@ -110,8 +110,10 @@ Instruct each subagent as follows:
 > Analyze the failure at <prow_url>. First, check the JUnit results or build log to determine whether this is an install failure (look for `install should succeed: overall` or similar install-related test failures) or a test failure (install passed, specific tests failed).
 >
 > Based on the failure type, use the appropriate skill:
-> - **Install failure**: Use the `ci:prow-job-analyze-install-failure` skill. For metal/bare-metal jobs (job name contains "metal"), perform additional analysis using the `ci:prow-job-analyze-metal-install-failure` skill as needed for dev-scripts, Metal3/Ironic, and BareMetalHost-specific diagnostics.
+> - **Install failure**: Use the `ci:prow-job-analyze-install-failure` skill. **You MUST download and examine the actual installer log bundle** — do NOT skip this step or make assessments based only on high-level metadata like pass rates or job names. The log bundle contains the actual error messages that reveal the root cause. For metal/bare-metal jobs (job name contains "metal"), perform additional analysis using the `ci:prow-job-analyze-metal-install-failure` skill as needed for dev-scripts, Metal3/Ironic, and BareMetalHost-specific diagnostics.
 > - **Test failure**: Use the `ci:prow-job-analyze-test-failure` skill.
+>
+> **IMPORTANT — Classify failures based on log evidence, not assumptions.** You must examine the actual logs (installer log, log bundle, bootstrap journals, kube-apiserver logs) before classifying a failure. A bootstrap timeout could be infrastructure, a product bug, or a race condition — the logs will tell you which. Cite specific error messages in your assessment.
 >
 > Return a concise summary including: failure type (install vs test), root cause, key error messages, and any relevant log excerpts. Do not ask user questions. Keep the output concise for inclusion in a summary report.
 >
@@ -131,6 +133,15 @@ ANALYSIS_RESULT:
 This structured format enables downstream consumers (like the `payload-agent` skill) to programmatically extract analysis results for confidence scoring.
 
 **Important**: Launch ALL subagents in parallel (single message with multiple Task tool calls) for maximum speed. Each subagent should be given `subagent_type: "general-purpose"`. Do NOT set the `model` parameter — let subagents inherit the parent model, as these analysis tasks require a capable model.
+
+#### Cross-Platform and Cross-Job Failure Pattern Recognition
+
+After collecting subagent results, look for patterns across multiple jobs:
+
+- **Same failure across a job family** (e.g., all `techpreview` jobs, all `fips` jobs, all `upgrade` jobs): This often indicates a failure specific to that feature set or configuration. Look at what differentiates that job family (feature gates, install-config options, test parameters).
+- **Same failure across multiple platforms**: Consider whether this points to a product bug in shared code, though note that cross-platform infrastructure issues (e.g., CI platform problems) are also possible.
+
+When patterns emerge, query Sippy for pass rates of related non-blocking jobs to see if the pattern extends beyond blocking jobs.
 
 ### Step 6: Collect Investigation Results and Identify Revert Candidates
 
