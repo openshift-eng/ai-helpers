@@ -24,7 +24,6 @@ partition "Step 1: Parse Arguments" {
     - stream (e.g. nightly)
     - architecture (amd64, arm64, ...)
     - --lookback N (default: 10)
-    - --stage-revert flag
   end note
 }
 
@@ -100,23 +99,24 @@ partition "Step 5: Investigate Failed Jobs (Parallel)" {
     4. Aggregated jobs -> extract
        underlying job name from
        junit-aggregated.xml
-    5. Return root cause summary
+    5. Return ANALYSIS_RESULT block
   end note
 }
 
 partition "Step 6: Correlate & Identify Reverts" {
-  :6.1: Cross-reference failure analyses
-  with suspect PRs;
+  :6.1: Score each (job, suspect PR) pair
+  using weighted confidence rubric;
   note right
-    Match by:
-    - Component overlap
-    - Error message match
-    - Temporal correlation
-    - Single suspect PR
+    Rubric weights:
+    - Temporal match: +30
+    - Component match: +10 to +30
+    - Error message match: +30
+    - Single suspect: +10
+    Max score: 100
   end note
 
   :6.2: Identify revert candidates
-  (>= 90% confidence);
+  (rubric score >= 85);
 
   if (Revert candidates found?) then (yes)
     :6.3: Check if revert PRs
@@ -138,27 +138,6 @@ partition "Step 6: Correlate & Identify Reverts" {
   endif
 }
 
-if (--stage-revert set\nAND actionable candidates?) then (yes)
-  partition "Step 6.5: Stage Reverts (Parallel)" {
-    fork
-      :Subagent: Stage Revert for PR A;
-    fork again
-      :Subagent: Stage Revert for PR B...;
-    end fork
-
-    note right
-      Each subagent:
-      1. Create TRT JIRA Bug
-      2. Open Revert PR
-         (via revert-pr skill)
-      3. Post /payload-aggregate or
-         /payload-job comments
-         on revert PR
-    end note
-  }
-else (no)
-endif
-
 partition "Step 7: Generate HTML Report" {
   :7.1: Header & Executive Summary
   (total jobs, pass/fail, streak);
@@ -166,23 +145,12 @@ partition "Step 7: Generate HTML Report" {
   :7.2: Blocking Jobs Summary Table
   (all jobs, status, streak, origin);
 
-  if (--stage-revert was set?) then (yes)
-    if (Reverts were staged?) then (yes)
-      :7.4: Staged Reverts table
-      (JIRA links, Revert PR links,
-      payload jobs triggered);
-    else (no)
-      :7.4: "No candidates for
-      automatic staging" note;
-    endif
+  if (Revert candidates exist?) then (yes)
+    :7.4: Recommended Reverts table
+    + copy-paste revert instructions;
   else (no)
-    if (Revert candidates exist?) then (yes)
-      :7.4: Recommended Reverts table
-      + copy-paste revert instructions;
-    else (no)
-      :7.4: "No high-confidence
-      revert candidates" note;
-    endif
+    :7.4: "No high-confidence
+    revert candidates" note;
   endif
 
   :7.3: Failed Job Details
