@@ -315,13 +315,15 @@ OpenShift installations exhibit "eventual consistency" behavior, which means:
 2. **Analyze based on failure mode from junit_install.xml**
 
    **For "cluster bootstrap" failures:**
-   - Check `bootstrap/journals/bootkube.log` for bootkube errors
-   - Check `bootstrap/journals/kubelet.log` for kubelet issues
-   - Check `clusterapi/kube-apiserver.log` for API server startup issues
-   - Check `clusterapi/etcd.log` for etcd cluster formation issues
-   - Check `serial/{cluster-name}-bootstrap-serial.log` for bootstrap VM boot issues
-   - Look for temporary control plane startup problems
-   - This is an early failure - focus on bootstrap node and initial control plane
+
+   Bootstrap failures are varied and complex. You MUST thoroughly examine the log bundle to build a complete timeline — do not guess the root cause from a single error.
+
+   - Read `bootstrap/journals/bootkube.log` thoroughly. Identify every process that started, crashed, or errored, noting timestamps to build a chronological sequence.
+   - For any crashed process (non-zero exit status, ContainerDied), read its stderr/stdout in the surrounding lines. Exit codes tell you *that* it crashed; the error output tells you *why*. Treat a crash as a potential bug but validate the termination reason (OOM, host restart, killed by signal, resource limits, etc.) by examining container exit status, kernel messages, and host metrics before assigning root cause. Consult surrounding logs and infra signals — exit codes, ContainerDied event details, dmesg/journal entries, and resource utilization — to distinguish software defects from infra/resource-induced terminations.
+   - Pursue errors: read surrounding context, follow references to other components' logs, and trace the chain of causation back to the originating failure. The first error is often a symptom, not the cause.
+   - Check supporting logs: `clusterapi/kube-apiserver.log`, `clusterapi/etcd.log`, `bootstrap/journals/kubelet.log`. Cross-reference timestamps with bootkube.log.
+   - Check `serial/{cluster-name}-bootstrap-serial.log` for kernel panics, ignition failures, disk errors.
+   - Check `failed-units.txt` for failed systemd units.
 
    **For "infrastructure" failures:**
    - Primary focus on installer log, not log bundle (failure happens before bootstrap)
@@ -609,6 +611,7 @@ See that skill's documentation for details on dev-scripts, libvirt logs, sosrepo
 - Pay attention to job name clues: fips, ipv6, dualstack, metal, single-node, upgrade
 - IPv6 jobs are often disconnected and use mirror registries
 - Only suggest must-gather if the .tar file exists; if not, cluster was too unstable
+- **TechPreview jobs** (names containing "techpreview") enable additional feature gates not active in Default clusters. Bootstrap failures in TechPreview jobs may be in TechPreview-gated code paths (e.g., on-cluster layering, OS image management) that won't reproduce in Default clusters. Note this in your analysis when relevant.
 
 ## Important Notes
 
