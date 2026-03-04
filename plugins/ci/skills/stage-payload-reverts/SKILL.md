@@ -18,6 +18,7 @@ Use this skill when revert candidates have already been identified with high con
 - `release_controller_url`: URL to the payload on the release controller
 - `revert_candidates`: List of PRs to revert, each with:
   - `pr_url`, `pr_number`, `component`, `confidence_score`, `rationale`
+  - `originating_payload_tag`: The payload where this suspect PR first caused failures
   - `failing_jobs`: List of `{job_name, prow_url, is_aggregated, underlying_job_name}`
 
 ## Prerequisites
@@ -30,9 +31,17 @@ Use this skill when revert candidates have already been identified with high con
 
 For each qualifying revert candidate, launch a **parallel subagent** (Task tool, `subagent_type: "general-purpose"`, do NOT set the `model` parameter). Each subagent executes three substeps in order:
 
-### Substep 1: Create TRT JIRA Bug
+### Substep 1: Create TRT JIRA Bug (with idempotency check)
 
-Use `mcp__jira__jira_create_issue` to create a TRT bug:
+**Preflight**: Before creating a new issue, search for an existing TRT bug for this PR:
+
+```
+jql: project = TRT AND labels = "trt-incident" AND description ~ "{pr_url}" ORDER BY created DESC
+```
+
+Use `mcp__jira__jira_search` with this JQL. If a matching issue is found, reuse its key and URL — skip creation and proceed to Substep 2.
+
+**Create** (only if no existing issue found): Use `mcp__jira__jira_create_issue`:
 
 - `project_key`: `"TRT"`
 - `issue_type`: `"Bug"`
@@ -59,22 +68,40 @@ Use `mcp__jira__jira_create_issue` to create a TRT bug:
 - `additional_fields`:
   - `labels`: `["trt-incident", "ai-generated-jira"]`
 
-Record the created JIRA key.
+Record the created (or reused) JIRA key and URL.
 
-### Substep 2: Open Revert PR
+### Substep 2: Open Revert PR (with idempotency check)
 
-Load the `revert-pr` skill (`plugins/ci/skills/revert-pr/SKILL.md`) and follow its workflow:
+**Preflight**: Before opening a new revert PR, check whether one already exists:
+
+```bash
+gh pr list --repo <org>/<repo> --search "revert <pr_number>" --json number,title,url,state --limit 5
+```
+
+If an open or draft revert PR is found for this PR number, reuse its URL — skip the revert-pr skill and proceed to Substep 3.
+
+**Create** (only if no existing revert PR found): Load the `revert-pr` skill (`plugins/ci/skills/revert-pr/SKILL.md`) and follow its workflow:
 
 - PR URL: the offending PR
 - JIRA ticket: the TRT key from Substep 1
 - Context (use `--context`): "This PR is causing blocking job failures ({job names}) in the {stream} {architecture} payload [{payload_tag}]({release_controller_url})."
 - Do NOT prompt the user for any input
 
-Record the revert PR URL.
+Record the revert PR URL (created or reused).
 
-### Substep 3: Trigger Payload Jobs and Collect Run URLs
+### Substep 3: Trigger Payload Jobs and Collect Run URLs (with idempotency check)
 
-Post a comment on the revert PR with payload test commands for each failing blocking job attributed to this PR. Use the correct command based on whether the job is aggregated:
+**Preflight**: Before posting new payload commands, check whether jobs were already triggered on this revert PR:
+
+```bash
+# Check for an existing openshift-ci[bot] reply with a pr-payload-tests URL
+gh api "repos/<org>/<repo>/issues/<revert_pr_number>/comments" \
+  --jq '[.[] | select(.user.login == "openshift-ci[bot]" and (.body | contains("pr-payload-tests")))] | last | .body'
+```
+
+If a `pr-payload-tests.ci.openshift.org/runs/ci/<uuid>` URL is found, reuse it — extract the prow job URLs from that page and skip posting new commands.
+
+**Trigger** (only if no existing payload test run found): Post a comment on the revert PR with payload test commands for each failing blocking job attributed to this PR. Use the correct command based on whether the job is aggregated:
 
 - **Aggregated jobs** (job name has `aggregated-` prefix): Use `/payload-aggregate <underlying-job-name> <count>`. The underlying job name comes from the caller's analysis data (extracted from the aggregated job's junit artifacts — it cannot be derived from the aggregated job name). Choose a count of up to 10 runs — use judgement based on the total number of jobs being triggered (fewer runs per job when triggering many jobs to limit resource consumption; more runs when only one or two jobs need validation).
 - **Non-aggregated jobs**: Use `/payload-job <job-name>`.
@@ -92,7 +119,7 @@ After posting the comment, wait ~30 seconds and poll for the `openshift-ci[bot]`
 
 ```bash
 # Poll for the bot reply containing the pr-payload-tests URL
-gh api "repos/<org>/<repo>/issues/<pr_number>/comments" \
+gh api "repos/<org>/<repo>/issues/<revert_pr_number>/comments" \
   --jq '[.[] | select(.user.login == "openshift-ci[bot]" and (.body | contains("pr-payload-tests")))] | last | .body'
 ```
 
@@ -122,6 +149,7 @@ STAGED_REVERT_RESULT:
 - payload_test_url: https://pr-payload-tests.ci.openshift.org/runs/ci/...
 - payload_jobs_triggered: job1, job2, ...
 - status: success|partial|failed
+- reused: none|jira|revert_pr|payload_jobs|all
 - error: none|description
 ```
 

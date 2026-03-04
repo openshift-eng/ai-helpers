@@ -188,7 +188,7 @@ If bisect Phase 2 completed, add a "Bisect Results" section:
       <th>Details</th>
     </tr>
     <tr>
-      <td><a href="{pr_url}">#{pr_number}</a></td>
+      <td><a href="{pr_url}" target="_blank" rel="noopener noreferrer">#{pr_number}</a></td>
       <td>{component}</td>
       <td><span class="badge badge-{confirmed|innocent|inconclusive}">{Verdict}</span></td>
       <td>{action: "JIRA created + PR promoted" | "Draft closed" | "Pending"}</td>
