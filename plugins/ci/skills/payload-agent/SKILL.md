@@ -27,13 +27,12 @@ Use this skill when you want fully autonomous payload triage:
 
 ## Implementation Steps
 
-### Step 1: Parse Arguments and Determine Mode
+### Step 1: Parse Arguments and Detect Resume
 
 Parse the command arguments:
 
 - `payload_tag` (required): Full payload tag (e.g., `4.22.0-0.nightly-2026-02-25-152806`)
 - `--lookback N` (optional): Maximum lookback depth (default: 10)
-- `--continue` (optional): Resume bisect Phase 2 from a previous session
 
 Parse from the tag:
 - `version`: e.g., `4.22`
@@ -46,7 +45,7 @@ https://<architecture>.ocp.releases.ci.openshift.org/releasestream/<version>.0-0
 ```
 (For `amd64`, the subdomain is `amd64.ocp.releases.ci.openshift.org`.)
 
-**If `--continue` is set**: Jump directly to Step 5 (Bisect Phase 2).
+**Check for existing bisect tracking file**: Look for `<payload-tag>-bisect.yaml` in the current working directory. If it exists and contains experiments with `status: pending`, this is a resume — jump directly to Step 5 (Bisect Phase 2).
 
 ### Step 2: Run Analysis
 
@@ -99,10 +98,10 @@ Based on the confidence tiers, take autonomous action:
 
 If there are no HIGH or MEDIUM candidates, skip to Step 6 (report generation).
 
-### Step 5: Bisect Phase 2 (Resume Mode)
+### Step 5: Bisect Phase 2 (Resume)
 
 This step is reached either:
-- Via `--continue` (jumping here directly from Step 1)
+- Automatically when a `<payload-tag>-bisect.yaml` with pending experiments is found in Step 1
 - After a CI wait period when Phase 1 was previously initiated
 
 Read `<payload-tag>-bisect.yaml` from the current working directory.
@@ -169,7 +168,7 @@ If bisect Phase 1 was initiated but Phase 2 has not completed, add a "Bisect In 
     </tr>
     <!-- One row per experiment -->
   </table>
-  <p><strong>Resume with:</strong> <code>/ci:payload-agent {payload_tag} --continue</code></p>
+  <p><strong>Resume by running:</strong> <code>/ci:payload-agent {payload_tag}</code> again from the same directory.</p>
 </div>
 ```
 
@@ -218,11 +217,11 @@ Add styles for bisect badges:
 .badge-failed { background: #fce8e6; color: #d93025; }
 ```
 
-### Step 7: Exit or Schedule Resume
+### Step 7: Exit
 
 After report generation:
 
-- **If bisect Phase 1 was initiated** (tracking YAML was written):
+- **If bisect Phase 1 was initiated** (tracking YAML was written with pending experiments):
   1. Print the tracking file path
   2. Print resume instructions:
      ```
@@ -230,14 +229,12 @@ After report generation:
 
      Tracking file: ./<payload-tag>-bisect.yaml
 
-     To collect results and generate the final report, resume with:
-       claude --continue
-
-     Or start a new session:
-       /ci:payload-agent <payload-tag> --continue
+     To collect results and generate the final report, run the same command again
+     from this directory:
+       /ci:payload-agent <payload-tag>
      ```
 
-- **If no bisect was initiated** (only HIGH or LOW confidence, or `--continue` completed):
+- **If no bisect was initiated** (only HIGH or LOW confidence, or Phase 2 just completed):
   - Print the report file paths and a brief summary
   - Done
 
@@ -245,13 +242,13 @@ After report generation:
 
 - If the `analyze-payload` skill fails partway, report what was collected and note the error.
 - If `stage-payload-reverts` or `bisect-payload-suspects` fail for individual candidates, continue with remaining candidates and note errors in the report.
-- If `--continue` is used but no tracking YAML exists, report the error and suggest running without `--continue`.
+- If the tracking YAML exists but all experiments are already completed (no pending), skip Phase 2 and proceed to report generation.
 - Network errors, JIRA failures, and GitHub API errors should be caught and reported without aborting the entire pipeline.
 
 ## Notes
 
 - No human interaction during execution. The agent runs fully autonomously.
-- The `--continue` flow supports the hours-long CI gap: Phase 1 opens experiments and exits, Phase 2 collects results after jobs complete.
+- The skill is reentrant: it detects the presence of `<payload-tag>-bisect.yaml` in CWD to determine whether to run a fresh analysis or resume bisect Phase 2. Running the same command twice from the same directory automatically resumes.
 - The confidence rubric is deterministic — the same signals always produce the same score.
 - Deferred suspects (from bisect throttling) are noted in the report for manual follow-up.
 

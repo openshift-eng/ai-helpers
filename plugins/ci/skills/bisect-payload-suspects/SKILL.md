@@ -99,7 +99,7 @@ Extract the `pr-payload-tests.ci.openshift.org/runs/ci/<uuid>` URL. Fetch the pa
 
 Record the experiment data for the tracking YAML (see schema below).
 
-**Throttling**: If more than 8 suspects, test only the top 5-8 by component overlap + confidence score. Record the remainder as `deferred_suspects` in the tracking YAML.
+**Throttling**: Never bisect more than 5 suspects. If there are more than 5, test only the top 5 by confidence score. Record the remainder as `deferred_suspects` in the tracking YAML.
 
 ### Write Tracking YAML
 

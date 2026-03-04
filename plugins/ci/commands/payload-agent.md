@@ -1,6 +1,6 @@
 ---
 description: Autonomous agent that analyzes a rejected payload, determines root causes, and takes action based on confidence scoring
-argument-hint: "<payload-tag> [--lookback N] [--continue]"
+argument-hint: "<payload-tag> [--lookback N]"
 ---
 
 ## Name
@@ -10,7 +10,7 @@ ci:payload-agent
 ## Synopsis
 
 ```
-/ci:payload-agent <payload-tag> [--lookback N] [--continue]
+/ci:payload-agent <payload-tag> [--lookback N]
 ```
 
 ## Description
@@ -23,14 +23,14 @@ It uses a deterministic confidence rubric to score suspect PRs and dispatches ac
 - **MEDIUM confidence (60-84)**: Opens draft revert PRs as bisect experiments, triggers payload jobs, and writes a tracking YAML for later result collection
 - **LOW confidence (< 60)**: Reports findings only — no automated action
 
-For medium-confidence suspects, the bisect workflow handles the hours-long CI gap via a YAML tracking file and `--continue` session resume. Phase 1 opens experiments and exits; Phase 2 (invoked with `--continue`) collects results after jobs complete, promotes confirmed causes to real revert PRs, and closes innocent drafts.
+For medium-confidence suspects, the bisect workflow handles the hours-long CI gap via a YAML tracking file. Phase 1 opens experiments and exits; running the same command again from the same directory automatically detects the tracking file and runs Phase 2 to collect results, promote confirmed causes to real revert PRs, and close innocent drafts.
 
 ### Key Features
 
 - **Autonomous operation**: No human interaction during execution
 - **Confidence-based dispatch**: Deterministic rubric ensures consistent scoring
 - **Bisect experiments**: Draft revert PRs test medium-confidence suspects experimentally
-- **Session resume**: `--continue` collects bisect results after CI jobs complete
+- **Reentrant**: Automatically resumes bisect Phase 2 when a tracking YAML exists in CWD
 - **Comprehensive report**: HTML report includes staged reverts, bisect status, and full analysis
 
 ## Implementation
@@ -68,16 +68,15 @@ Load the `payload-agent` skill and follow its implementation steps. The skill or
    /ci:payload-agent 4.22.0-0.nightly-2026-02-25-152806 --lookback 20
    ```
 
-3. **Resume bisect to collect results**:
+3. **Resume bisect to collect results** (run the same command again from the same directory):
    ```
-   /ci:payload-agent 4.22.0-0.nightly-2026-02-25-152806 --continue
+   /ci:payload-agent 4.22.0-0.nightly-2026-02-25-152806
    ```
 
 ## Arguments
 
 - $1: A full payload tag (e.g., `4.22.0-0.nightly-2026-02-25-152806`). Version, stream, and architecture are parsed from the tag automatically. (required)
 - `--lookback N`: Maximum number of consecutive rejected payloads to examine (optional, default: 10)
-- `--continue`: Resume bisect Phase 2 from a previous session. Reads the tracking YAML from the current working directory and collects payload job results. (optional)
 
 ## Skills Used
 

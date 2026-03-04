@@ -16,7 +16,7 @@ title Payload Agent Flow\n/ci:payload-agent
 
 start
 
-partition "Step 1: Parse Arguments" {
+partition "Step 1: Parse Arguments & Detect Resume" {
   :Parse payload tag from argument;
   note right
     Extract from tag:
@@ -24,10 +24,9 @@ partition "Step 1: Parse Arguments" {
     - stream (e.g. nightly)
     - architecture (amd64, arm64, ...)
     - --lookback N (default: 10)
-    - --continue flag
   end note
 
-  if (--continue?) then (yes)
+  if (<tag>-bisect.yaml exists\nwith pending experiments?) then (yes)
     :Jump to Step 5
     (Bisect Phase 2);
     detach
@@ -112,8 +111,8 @@ if (Bisect Phase 1\nwas initiated?) then (yes)
 else (no)
 endif
 
-' Rejoin from --continue path
-if (--continue OR\nbisect Phase 1 done?) then (resume)
+' Rejoin from resume path
+if (Tracking YAML found OR\nbisect Phase 1 done?) then (resume)
 
   partition "Step 5: Bisect Phase 2 (Collect Results)" {
     :Read <tag>-bisect.yaml;
@@ -170,7 +169,8 @@ partition "Step 7: Exit" {
   if (Bisect experiments pending?) then (yes)
     :Print tracking file path;
     :Print resume instructions:
-    /ci:payload-agent <tag> --continue;
+    run /ci:payload-agent <tag>
+    again from this directory;
   else (no)
     :Print report file paths
     + brief summary;

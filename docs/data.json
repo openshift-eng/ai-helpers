@@ -367,10 +367,10 @@
           "synopsis": "/ci:list-unstable-tests <version> <keywords> [sippy-url]"
         },
         {
-          "argument_hint": "<payload-tag> [--lookback N] [--continue]",
+          "argument_hint": "<payload-tag> [--lookback N]",
           "description": "Autonomous agent that analyzes a rejected payload, determines root causes, and takes action based on confidence scoring",
           "name": "payload-agent",
-          "synopsis": "/ci:payload-agent <payload-tag> [--lookback N] [--continue]"
+          "synopsis": "/ci:payload-agent <payload-tag> [--lookback N]"
         },
         {
           "argument_hint": "<execution-id>",
