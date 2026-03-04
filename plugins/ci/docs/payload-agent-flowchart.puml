@@ -1,0 +1,188 @@
+@startuml payload-agent-flowchart
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam ActivityBackgroundColor #E8F4FD
+skinparam ActivityBorderColor #1A73E8
+skinparam ActivityDiamondBackgroundColor #FEF7E0
+skinparam ActivityDiamondBorderColor #E37400
+skinparam ArrowColor #333333
+skinparam NoteBorderColor #5F6368
+skinparam NoteBackgroundColor #F8F9FA
+skinparam PartitionBorderColor #1A73E8
+skinparam ActivityFontSize 13
+skinparam defaultFontName "Segoe UI"
+
+title Payload Agent Flow\n/ci:payload-agent
+
+start
+
+partition "Step 1: Parse Arguments & Detect Resume" {
+  :Parse payload tag from argument;
+  note right
+    Extract from tag:
+    - version (e.g. 4.22)
+    - stream (e.g. nightly)
+    - architecture (amd64, arm64, ...)
+  end note
+
+  if (<tag>-bisect.yaml exists\nwith pending experiments?) then (yes)
+    :Jump to Step 5
+    (Bisect Phase 2);
+    detach
+  else (no)
+  endif
+}
+
+partition "Step 2: Run Analysis" {
+  :Execute analyze-payload
+  Steps 1-6;
+  note right
+    All analysis stays
+    in-context (no files)
+  end note
+}
+
+partition "Step 3: Apply Confidence Scoring" {
+  :Score each (job, suspect PR) pair
+  using weighted rubric;
+  note right
+    Rubric weights:
+    - Temporal match: +30
+    - Component match: +10 to +30
+    - Error message match: +30
+    - Single suspect: +10
+  end note
+
+  :Classify suspects into tiers;
+  note right
+    HIGH: >= 85
+    MEDIUM: 60-84
+    LOW: < 60
+  end note
+
+  :Filter out suspects with
+  existing merged/open reverts;
+}
+
+partition "Step 4: Decision & Dispatch" {
+  if (Any HIGH confidence\nsuspects?) then (yes)
+    :Dispatch to
+    **stage-payload-reverts**;
+    note right
+      For each HIGH suspect:
+      1. Create TRT JIRA Bug
+      2. Open Revert PR
+      3. Trigger payload jobs
+      4. Collect pr-payload-tests URL
+    end note
+  else (no)
+  endif
+
+  if (Any MEDIUM confidence\nsuspects?) then (yes)
+    :Dispatch to
+    **bisect-payload-suspects**
+    Phase 1;
+  else (no)
+  endif
+}
+
+if (Bisect Phase 1\nwas initiated?) then (yes)
+
+  partition "Bisect Phase 1: Set Up Experiments (Parallel)" {
+    fork
+      :Subagent: Bisect Suspect A;
+    fork again
+      :Subagent: Bisect Suspect B...;
+    end fork
+
+    note right
+      Each subagent:
+      1. Check for merge conflicts
+      2. Open **draft** revert PR
+      3. Trigger payload jobs
+      4. Collect pr-payload-tests URL
+    end note
+
+    :Write <tag>-bisect.yaml
+    tracking file to CWD;
+  }
+
+else (no)
+endif
+
+' Rejoin from resume path
+if (Tracking YAML found OR\nbisect Phase 1 done?) then (resume)
+
+  partition "Step 5: Bisect Phase 2 (Collect Results)" {
+    :Read <tag>-bisect.yaml;
+
+    while (More pending experiments?) is (yes)
+      :Fetch payload_test_url,
+      check for AllJobsFinished;
+
+      if (Jobs finished?) then (yes)
+        if (Payload jobs PASS\nwith revert?) then (yes — confirmed cause)
+          :Create TRT JIRA Bug;
+          :Promote draft PR to real PR
+          (gh pr ready);
+          :Record: status = passed;
+        else (no — PR is innocent)
+          :Post explanation comment;
+          :Close draft PR
+          (gh pr close);
+          :Record: status = failed;
+        endif
+      else (not finished)
+        :Record: status = inconclusive;
+      endif
+    endwhile (no)
+
+    :Update <tag>-bisect.yaml
+    with results;
+  }
+
+else (no bisect)
+endif
+
+partition "Step 6: Generate Report & Artifacts" {
+  :Run analyze-payload Steps 7-9
+  (HTML report + autodl.json);
+
+  if (HIGH reverts staged?) then (yes)
+    :Add "Staged Reverts" table
+    (JIRA, revert PR, payload jobs);
+  else (no)
+  endif
+
+  if (Bisect Phase 1 only?) then (yes)
+    :Add "Bisect In Progress" section
+    (draft PRs, payload test URLs);
+  elseif (Bisect Phase 2 done?) then
+    :Add "Bisect Results" section
+    (confirmed / innocent verdicts);
+  else (no bisect)
+  endif
+}
+
+partition "Step 7: Exit" {
+  if (Bisect experiments pending?) then (yes)
+    :Print tracking file path;
+    :Print resume instructions:
+    run /ci:payload-agent <tag>
+    again from this directory;
+  else (no)
+    :Print report file paths
+    + brief summary;
+  endif
+}
+
+stop
+
+legend right
+  |= Tier |= Score |= Action |
+  | HIGH | >= 85 | Stage revert (JIRA + PR + jobs) |
+  | MEDIUM | 60-84 | Bisect (draft PR + jobs) |
+  | LOW | < 60 | Report only |
+endlegend
+
+@enduml

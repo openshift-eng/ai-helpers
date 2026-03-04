@@ -16,6 +16,11 @@ Use this skill when:
 - You need the exact Revertomatic template format for the revert PR body
 - You need to generate CI override commands for a revert PR
 
+## Optional Parameters
+
+- **`--draft`**: When set, create the revert PR as a draft (`gh pr create --draft`). Used by the bisect workflow to open experimental revert PRs that may be closed if the suspect is cleared.
+- **`--context`**: When the caller passes context directly (e.g., from an autonomous pipeline that already has all context in memory), skip the JIRA lookup in Step 5. The provided context string is used as-is for the `{CONTEXT}` template variable.
+
 ## Prerequisites
 
 1. **GitHub CLI (`gh`)**: Installed and authenticated
@@ -64,7 +69,7 @@ Parse the PR URL to determine owner and repository:
 # Get authenticated user
 gh_user=$(gh api user --jq '.login')
 
-# Check if fork exists
+# Check if fork exists; create one if not
 if ! gh api "repos/$gh_user/$repo" &>/dev/null; then
     echo "Creating fork of $owner/$repo..."
     gh repo fork "$owner/$repo" --clone=false
@@ -78,25 +83,35 @@ fi
 If no local repository is available:
 
 ```bash
-# Clone upstream (shallow for speed)
+# Clone upstream repo
 git clone -b "$base_branch" "https://github.com/$owner/$repo.git" /tmp/revert-workdir
 cd /tmp/revert-workdir
 
-# Add fork as remote
+# Rename the default remote to 'upstream' so later steps can reference it consistently
+git remote rename origin upstream
+
+# Add the user's fork as the 'fork' remote (used for pushing the revert branch)
 git remote add fork "git@github.com:$gh_user/$repo.git"
 ```
 
 If using an existing local clone, ensure remotes are configured correctly:
 
 ```bash
-# Verify upstream remote points to the correct repository
-# Verify fork remote points to user's fork
+# Verify remotes: 'upstream' must point to the canonical repo, 'fork' to the user's fork
 git remote -v
+
+# If 'upstream' is missing but 'origin' points to the canonical repo, rename it:
+# git remote rename origin upstream
+
+# If 'fork' is missing, add it:
+# git remote add fork "git@github.com:$gh_user/$repo.git"
 ```
 
 ### Step 5: Look Up JIRA Ticket for Context
 
-When a JIRA ticket is provided, use the `fetch-jira-issue` skill to automatically gather context about what broke and which jobs need verification before unreverting.
+**If `--context` was provided**: Skip the JIRA lookup entirely. Use the provided context string as-is for the `{CONTEXT}` template variable and proceed to Step 6. The caller has already gathered all necessary context.
+
+**Otherwise**, when a JIRA ticket is provided, use the `fetch-jira-issue` skill to automatically gather context about what broke and which jobs need verification before unreverting.
 
 ```bash
 # Path to the fetch-jira-issue script
@@ -343,6 +358,18 @@ gh pr create \
   --head "$gh_user:$revert_branch" \
   --title "$jira: Revert #$pr_number \"$pr_title\"" \
   --body "$rendered_body"
+```
+
+**If `--draft` was set**, add the `--draft` flag to the `gh pr create` command:
+
+```bash
+gh pr create \
+  --repo "$owner/$repo" \
+  --base "$base_branch" \
+  --head "$gh_user:$revert_branch" \
+  --title "$jira: Revert #$pr_number \"$pr_title\"" \
+  --body "$rendered_body" \
+  --draft
 ```
 
 ### Step 10: Return Override Commands

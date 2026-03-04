@@ -367,6 +367,12 @@
           "synopsis": "/ci:list-unstable-tests <version> <keywords> [sippy-url]"
         },
         {
+          "argument_hint": "<payload-tag>",
+          "description": "Autonomous agent that analyzes a rejected payload, determines root causes, and takes action based on confidence scoring",
+          "name": "payload-agent",
+          "synopsis": "/ci:payload-agent <payload-tag>"
+        },
+        {
           "argument_hint": "<execution-id>",
           "description": "Query the status of a gangway job execution by ID",
           "name": "query-job-status",
@@ -412,6 +418,11 @@
           "description": "Analyze a rejected or in-progress payload with historical lookback to identify root causes of blocking job failures and produce an HTML report",
           "id": "analyze-payload",
           "name": "Analyze Payload"
+        },
+        {
+          "description": "Experimentally bisect medium-confidence payload suspects by opening draft revert PRs and triggering payload jobs",
+          "id": "bisect-payload-suspects",
+          "name": "Bisect Payload Suspects"
         },
         {
           "description": "Fetch JIRA issue details including status, assignee, comments, and progress classification",
@@ -464,6 +475,11 @@
           "name": "OC Authentication Helper"
         },
         {
+          "description": "Autonomous agent that analyzes a rejected payload, scores confidence, and takes action \u2014 staging reverts, bisecting suspects, or reporting only",
+          "id": "payload-agent",
+          "name": "Payload Agent"
+        },
+        {
           "description": "Analyze OpenShift installation failures in Prow CI jobs by examining installer logs, log bundles, and sosreports. Use when CI job fails \"install should succeed\" tests at bootstrap, cluster creation or other stages.",
           "id": "prow-job-analyze-install-failure",
           "name": "Prow Job Analyze Install Failure"
@@ -504,12 +520,17 @@
           "name": "Set Release Blocker"
         },
         {
+          "description": "Create TRT JIRA bugs, open revert PRs, and trigger payload jobs for high-confidence revert candidates",
+          "id": "stage-payload-reverts",
+          "name": "Stage Payload Reverts"
+        },
+        {
           "description": "Create or update a Component Readiness triage record linking regressions to a JIRA bug",
           "id": "triage-regression",
           "name": "Triage Regression"
         }
       ],
-      "version": "0.0.13"
+      "version": "0.0.16"
     },
     {
       "commands": [

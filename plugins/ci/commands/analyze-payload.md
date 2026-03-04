@@ -21,7 +21,9 @@ It supports both **Rejected** payloads (full analysis) and **Ready** payloads (e
 
 It performs **historical lookback** through consecutive rejected payloads to determine when each failure first appeared. For each originating payload (where a job first started failing), it fetches the new PRs introduced in that payload as likely culprits. This distinguishes new failures from persistent/permafailing jobs and helps identify the root cause commits.
 
-When a suspect PR can be correlated with high confidence (>= 90%) to a blocking job failure — based on component match, error analysis, and timing — the report will **recommend it for revert** with a rationale. The `/ci:revert-pr` command can then be used to execute the revert.
+When a suspect PR can be correlated with high confidence (>= 85 rubric score) to a blocking job failure — based on component match, error analysis, and timing — the report will **recommend it for immediate revert** with a rationale and ready-to-use copy-paste text for Claude Code. Per OCP policy, PRs that break payloads MUST be reverted; fixes can be re-landed after the revert restores payload health. The `/ci:revert-pr` command can then be used to execute the revert.
+
+For autonomous analysis with automated revert staging and bisect, use `/ci:payload-agent` instead.
 
 Failed jobs are investigated **in parallel** using subagents with the appropriate analysis skill (install failure vs test failure).
 
@@ -32,7 +34,6 @@ Failed jobs are investigated **in parallel** using subagents with the appropriat
 - **Parallel investigation**: Kicks off subagents for each failed blocking job using the appropriate CI analysis skill
 - **Revert recommendations**: Proposes specific PRs to revert when the evidence strongly links them to a failure
 - **HTML report**: Generates an attractive, self-contained HTML report with collapsible sections, color-coded severity, and executive summary
-
 ## Implementation
 
 Load the "Analyze Payload" skill and follow its implementation steps. The skill orchestrates:
@@ -53,7 +54,7 @@ Load the "Analyze Payload" skill and follow its implementation steps. The skill 
   - Per-job failure analysis with root cause, error messages, and logs
   - Failure streak length (how many consecutive payloads each job has failed)
   - Originating payload and suspect PRs for each persistent failure
-  - Recommended reverts section with PR links, rationale, and `/ci:revert-pr` instructions
+  - Recommended reverts section with PR links, rationale, and ready-to-use Claude Code copy-paste text for immediate revert
   - Color-coded severity and collapsible detail sections
 
 ## Examples
@@ -89,4 +90,3 @@ Load the "Analyze Payload" skill and follow its implementation steps. The skill 
 - `fetch-new-prs-in-payload`: Identifies PRs new in a given payload vs its predecessor
 - `prow-job-analyze-install-failure`: Analyzes install failures (used by subagents)
 - `prow-job-analyze-test-failure`: Analyzes test failures (used by subagents)
-- `revert-pr`: Referenced in recommendations for executing reverts of identified culprit PRs
