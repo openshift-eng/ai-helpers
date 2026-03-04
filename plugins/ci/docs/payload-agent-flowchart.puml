@@ -58,8 +58,8 @@ partition "Step 3: Apply Confidence Scoring" {
   :Classify suspects into tiers;
   note right
     HIGH: >= 85
-    MEDIUM: 40-84
-    LOW: < 40
+    MEDIUM: 60-84
+    LOW: < 60
   end note
 
   :Filter out suspects with
@@ -182,8 +182,8 @@ stop
 legend right
   |= Tier |= Score |= Action |
   | HIGH | >= 85 | Stage revert (JIRA + PR + jobs) |
-  | MEDIUM | 40-84 | Bisect (draft PR + jobs) |
-  | LOW | < 40 | Report only |
+  | MEDIUM | 60-84 | Bisect (draft PR + jobs) |
+  | LOW | < 60 | Report only |
 endlegend
 
 @enduml

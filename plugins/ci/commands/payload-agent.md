@@ -20,8 +20,8 @@ The `ci:payload-agent` command is an autonomous orchestrator that analyzes a rej
 It uses a deterministic confidence rubric to score suspect PRs and dispatches actions based on the score:
 
 - **HIGH confidence (>= 85)**: Automatically creates a TRT JIRA bug, opens a revert PR, and triggers payload validation jobs
-- **MEDIUM confidence (40-84)**: Opens draft revert PRs as bisect experiments, triggers payload jobs, and writes a tracking YAML for later result collection
-- **LOW confidence (< 40)**: Reports findings only — no automated action
+- **MEDIUM confidence (60-84)**: Opens draft revert PRs as bisect experiments, triggers payload jobs, and writes a tracking YAML for later result collection
+- **LOW confidence (< 60)**: Reports findings only — no automated action
 
 For medium-confidence suspects, the bisect workflow handles the hours-long CI gap via a YAML tracking file and `--continue` session resume. Phase 1 opens experiments and exits; Phase 2 (invoked with `--continue`) collects results after jobs complete, promotes confirmed causes to real revert PRs, and closes innocent drafts.
 

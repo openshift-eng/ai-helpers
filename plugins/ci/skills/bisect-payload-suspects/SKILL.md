@@ -9,7 +9,7 @@ This skill experimentally tests medium-confidence suspect PRs by opening draft r
 
 ## When to Use This Skill
 
-Use this skill when the `payload-agent` orchestrator identifies suspect PRs with medium confidence (score 40-84) that cannot be conclusively attributed to a failure through static analysis alone. The bisect creates real experiments to determine causality.
+Use this skill when the `payload-agent` orchestrator identifies suspect PRs with medium confidence (score 60-84) that cannot be conclusively attributed to a failure through static analysis alone. The bisect creates real experiments to determine causality.
 
 **Inputs** (passed in-context by the caller):
 

@@ -78,8 +78,8 @@ Classify each suspect into confidence tiers:
 | Tier | Score Range | Label |
 |------|------------|-------|
 | HIGH | >= 85 | Revert immediately |
-| MEDIUM | 40-84 | Bisect experimentally |
-| LOW | < 40 | Report only |
+| MEDIUM | 60-84 | Bisect experimentally |
+| LOW | < 60 | Report only |
 
 If a suspect PR appears in multiple (job, PR) pairs, use the **highest** score across all pairs for tier classification.
 
@@ -90,8 +90,8 @@ Based on the confidence tiers, take autonomous action:
 | Confidence | Action | Skill Used |
 |------------|--------|------------|
 | >= 85 (HIGH) | Stage reverts: create TRT JIRA, open revert PR, trigger payload jobs | `stage-payload-reverts` |
-| 40-84 (MEDIUM) | Bisect: open draft revert PRs, trigger payload jobs | `bisect-payload-suspects` Phase 1 |
-| < 40 (LOW) | Report only — no automated action | None |
+| 60-84 (MEDIUM) | Bisect: open draft revert PRs, trigger payload jobs | `bisect-payload-suspects` Phase 1 |
+| < 60 (LOW) | Report only — no automated action | None |
 
 **Skip candidates** that already have merged or open revert PRs (identified in Step 2 via `analyze-payload` Step 6.3).
 
