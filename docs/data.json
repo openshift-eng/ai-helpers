@@ -373,6 +373,12 @@
           "synopsis": "/ci:payload-agent <payload-tag>"
         },
         {
+          "argument_hint": "<subteam> <failure-threshold> <start-date> <end-date> [output-format]",
+          "description": "Query daily failure rates from QE webapp by subteam and threshold",
+          "name": "query-failed-ratios",
+          "synopsis": "/ci:query-failed-ratios <subteam> <failure-threshold> <start-date> <end-date> [output-format]"
+        },
+        {
           "argument_hint": "<execution-id>",
           "description": "Query the status of a gangway job execution by ID",
           "name": "query-job-status",
@@ -508,6 +514,11 @@
           "description": "Extract and decompress must-gather archives from Prow CI job artifacts, generating an interactive HTML file browser with filters",
           "id": "prow-job-extract-must-gather",
           "name": "Prow Job Extract Must-Gather"
+        },
+        {
+          "description": "Query QE webapp for daily failure rates by subteam",
+          "id": "query-failed-ratios",
+          "name": "Query Failed Ratios"
         },
         {
           "description": "Git revert workflow and Revertomatic PR template for reverting merged PRs",
