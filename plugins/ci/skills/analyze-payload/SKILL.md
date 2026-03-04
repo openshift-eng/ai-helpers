@@ -43,7 +43,6 @@ The first argument is a **full payload tag** (e.g., `4.22.0-0.nightly-2026-02-25
   - `4.22.0-0.nightly-s390x-2026-02-25-152806` → `s390x`
   - `4.22.0-0.nightly-multi-2026-02-25-152806` → `multi`
 - `lookback`: From `--lookback N` (default: `10`)
-- `stage_revert`: Boolean, from `--stage-revert` flag (default: `false`)
 
 ### Step 2: Fetch Recent Payloads
 
@@ -118,6 +117,19 @@ Instruct each subagent as follows:
 >
 > If the job is an aggregated job (has `aggregated-` prefix in the name or an `aggregator` container/step), also return the **underlying job name** (e.g., `periodic-ci-openshift-release-main-ci-4.22-e2e-aws-upgrade-ovn-single-node`). This is found in the junit-aggregated.xml artifacts — each `<testcase>` has `<system-out>` YAML data with a `humanurl` field linking to individual runs whose URL path contains the underlying job name. The underlying job name cannot be derived from the aggregated job name — it must be extracted from the artifacts.
 
+**Structured Return Format**: Instruct each subagent to include an `ANALYSIS_RESULT` block at the end of its response:
+
+```
+ANALYSIS_RESULT:
+- failure_type: install|test
+- root_cause_summary: <one-line summary>
+- affected_components: <comma-separated list of affected operators/components>
+- key_error_patterns: <comma-separated key error strings for matching>
+- underlying_job_name: <for aggregated jobs only, extracted from junit artifacts>
+```
+
+This structured format enables downstream consumers (like the `payload-agent` skill) to programmatically extract analysis results for confidence scoring.
+
 **Important**: Launch ALL subagents in parallel (single message with multiple Task tool calls) for maximum speed. Each subagent should be given `subagent_type: "general-purpose"`. Do NOT set the `model` parameter — let subagents inherit the parent model, as these analysis tasks require a capable model.
 
 ### Step 6: Collect Investigation Results and Identify Revert Candidates
@@ -133,16 +145,20 @@ Wait for all subagents to complete and collect their analysis results. For each 
 
 #### 6.1: Correlate Failures with Suspect PRs
 
-For each failed job, cross-reference the failure analysis from the subagent with the suspect PRs from the originating payload. Look for strong correlations:
+For each failed job, cross-reference the failure analysis from the subagent with the suspect PRs from the originating payload. Score each (failed job, suspect PR) pair using the following weighted rubric:
 
-- **Component match**: The failure involves a component (operator, controller, API) that was modified by a suspect PR
-- **Error message match**: Error messages or stack traces reference code, packages, or functionality changed by a suspect PR
-- **Temporal match**: The job was passing before the originating payload and started failing exactly when the suspect PR landed
-- **Single suspect**: Only one PR landed in the originating payload that touches the affected component
+| Signal | Weight | Criteria |
+|--------|--------|----------|
+| Temporal match | +30 | Job was passing before the originating payload and started failing exactly when this PR landed |
+| Component match | +10 to +30 | The failure involves a component modified by this PR. Score: 1 component = +30, 2-3 components in the originating payload = +20, 4+ components = +10 |
+| Error message match | +30 | Error messages or stack traces directly reference code, packages, or functionality changed by this PR |
+| Single suspect | +10 | Only one PR landed in the originating payload that touches the affected component |
+
+The maximum possible score is 100. Record the numeric score for each (job, suspect PR) pair alongside the qualitative rationale.
 
 #### 6.2: Propose Revert Candidates
 
-For each suspect PR where you have **high confidence (>= 90%)** that it caused the regression, mark it as a **revert candidate**. A PR qualifies as a revert candidate when:
+For each suspect PR with a rubric score of **>= 85**, mark it as a **revert candidate**. A PR qualifies as a revert candidate when:
 
 1. **The failure clearly maps to the PR's changes** — e.g., the error stack trace references the exact code changed, or the failing component is the one modified by the PR
 2. **The timing is exact** — the job was passing in the payload before the originating payload and started failing in the originating payload
@@ -154,7 +170,7 @@ For each revert candidate, record:
 - **PR URL**: The GitHub pull request URL
 - **PR description**: Title/summary of the PR
 - **Component**: The affected component
-- **Confidence**: Your confidence level (e.g., "High — error directly references code changed by this PR")
+- **Confidence score**: The numeric rubric score (e.g., 95) and a qualitative summary (e.g., "95 — temporal match + component match + error references code changed by this PR")
 - **Rationale**: A 1-2 sentence explanation of why this PR is the likely cause
 
 **Do NOT propose reverts for**:
@@ -181,90 +197,6 @@ If a revert PR is found:
 2. **Do not recommend reverting a PR that already has a merged revert.** The report should still mention the culprit PR and link to the revert, but the action item should reflect the current state (e.g., "Already reverted by #291, fix expected in next payload").
 
 3. **If a revert PR is open but not merged**, still recommend the revert but note that a revert PR already exists and link to it, so the reader can help expedite the merge.
-
-### Step 6.5: Stage Reverts (only when `--stage-revert` is set)
-
-**Only execute this step when `--stage-revert` is set AND there are revert candidates from Step 6.2 that do not already have merged or open revert PRs (from Step 6.3).** If `--stage-revert` is not set, skip to Step 7.
-
-For each qualifying revert candidate, launch a **parallel subagent** (Task tool, `subagent_type: "general-purpose"`, do NOT set the `model` parameter). Each subagent executes three substeps in order:
-
-#### Substep 1: Create TRT JIRA Bug
-
-Use `mcp__atlassian__jira_create_issue` to create a TRT bug:
-
-- `project_key`: `"TRT"`
-- `issue_type`: `"Bug"`
-- `summary`: A concise description of the problem (the symptom, not the solution). Summarize which jobs are failing and the failure mode. For example: `"aws-ovn and aws-ovn-upgrade jobs failing with KAS crashloop in {stream} {architecture} payload"`. Do NOT use "Revert ..." as the summary — the revert is the action, not the problem.
-- `description` (Jira wiki markup):
-  ```
-  h2. Payload Regression
-
-  PR {pr_url} is causing blocking job failures in the {stream} {architecture} payload.
-
-  h2. Evidence
-
-  * Payload: [{payload_tag}|{release_controller_url}]
-  * Failing blocking jobs:
-  ** [{job_name_1}|{prow_url_1}]
-  ** [{job_name_2}|{prow_url_2}]
-  * Originating payload: {originating_payload_tag}
-  * {rationale}
-
-  h2. Action
-
-  Revert PR {pr_url} to restore payload acceptance.
-  ```
-- `additional_fields`:
-  - `labels`: `["trt-incident", "ai-generated-jira"]`
-
-Record the created JIRA key.
-
-#### Substep 2: Open Revert PR
-
-Load the `revert-pr` skill (`plugins/ci/skills/revert-pr/SKILL.md`) and follow its workflow:
-
-- PR URL: the offending PR
-- JIRA ticket: the TRT key from Substep 1
-- Context: "This PR is causing blocking job failures ({job names}) in the {stream} {architecture} payload [{payload_tag}]({release_controller_url})."
-- Do NOT pass `--override` (no override comments)
-- Do NOT prompt the user for any input
-
-Record the revert PR URL.
-
-#### Substep 3: Trigger Payload Jobs
-
-Post a comment on the revert PR with payload test commands for each failing blocking job attributed to this PR. Use the correct command based on whether the job is aggregated:
-
-- **Aggregated jobs** (job name has `aggregated-` prefix): Use `/payload-aggregate <underlying-job-name> <count>`. The underlying job name comes from the Step 5 subagent investigation (extracted from the aggregated job's junit artifacts — it cannot be derived from the aggregated job name). Choose a count of up to 10 runs — use judgement based on the total number of jobs being triggered (fewer runs per job when triggering many jobs to limit resource consumption; more runs when only one or two jobs need validation).
-- **Non-aggregated jobs**: Use `/payload-job <job-name>`.
-
-```bash
-# Example with a mix of aggregated and non-aggregated jobs:
-gh pr comment "{revert_pr_url}" --body "/payload-aggregate {underlying_job_name_1} {count}
-/payload-job {job_name_2}
-..."
-```
-
-One command per line for each failing blocking job attributed to this PR.
-
-#### Subagent Return Format
-
-Each subagent should return its results in this format:
-
-```
-STAGED_REVERT_RESULT:
-- original_pr_url: ...
-- original_pr_number: ...
-- component: ...
-- jira_key: TRT-XXXX
-- jira_url: https://issues.redhat.com/browse/TRT-XXXX
-- revert_pr_url: https://github.com/org/repo/pull/YYYY
-- payload_jobs_triggered: job1, job2, ...
-- status: success|partial|failed
-- error: none|description
-```
-
-Collect all subagent results. Store for use in Step 7.
 
 ### Step 7: Generate HTML Report
 
@@ -330,11 +262,7 @@ For each failed job, a collapsible section containing:
 
 #### 7.4: Recommended Reverts
 
-This section renders differently depending on whether `--stage-revert` was passed.
-
 Include this section **before** the per-job details. It should immediately follow the executive summary so it is the first actionable item a reader sees.
-
-##### When `--stage-revert` is NOT set (default)
 
 If any revert candidates were identified in Step 6.2, show copy-paste revert instructions:
 
@@ -418,69 +346,6 @@ Add the following styles for the revert prompt block:
   background: #505050;
 }
 ```
-
-##### When `--stage-revert` IS set and reverts were staged in Step 6.5
-
-Replace the copy-paste blocks with a "Staged Reverts" table showing links to all created artifacts:
-
-```html
-<div class="revert-recommendations">
-  <h2>Staged Reverts</h2>
-  <p>The following reverts have been automatically staged. TRT JIRA bugs were created,
-     revert PRs were opened, and payload jobs were triggered.</p>
-  <table>
-    <tr>
-      <th>Original PR</th>
-      <th>Component</th>
-      <th>TRT Ticket</th>
-      <th>Revert PR</th>
-      <th>Payload Jobs Triggered</th>
-      <th>Status</th>
-    </tr>
-    <tr>
-      <td><a href="{pr_url}" target="_blank">#{pr_number}</a></td>
-      <td>{component}</td>
-      <td><a href="{jira_url}" target="_blank">{jira_key}</a></td>
-      <td><a href="{revert_pr_url}" target="_blank">{revert_pr_url}</a></td>
-      <td>{comma-separated job names}</td>
-      <td><span class="badge badge-{success|partial|failed}">{Status}</span></td>
-    </tr>
-  </table>
-</div>
-```
-
-If any staged reverts failed, add a collapsible error details section below the table:
-
-```html
-<details>
-  <summary>Error Details</summary>
-  <div class="job-detail">
-    <p><strong>{original_pr_url}</strong>: {error_description}</p>
-  </div>
-</details>
-```
-
-Add the following styles for status badges:
-
-```html
-.badge-success { background: #e6f4ea; color: #1e8e3e; }
-.badge-partial { background: #fef7e0; color: #e37400; }
-.badge-failed { background: #fce8e6; color: #d93025; }
-```
-
-##### When `--stage-revert` IS set but no candidates
-
-Show a note with the "Staged Reverts" heading:
-
-```html
-<div class="revert-recommendations revert-none">
-  <h2>Staged Reverts</h2>
-  <p>No PRs were identified with sufficient confidence for automatic revert staging.
-     Failures may be caused by infrastructure issues, flaky tests, or require further investigation.</p>
-</div>
-```
-
-##### When `--stage-revert` is NOT set and no candidates
 
 If **no** revert candidates were identified, include a brief note instead:
 

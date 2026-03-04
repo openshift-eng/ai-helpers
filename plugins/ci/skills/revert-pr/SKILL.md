@@ -16,6 +16,11 @@ Use this skill when:
 - You need the exact Revertomatic template format for the revert PR body
 - You need to generate CI override commands for a revert PR
 
+## Optional Parameters
+
+- **`--draft`**: When set, create the revert PR as a draft (`gh pr create --draft`). Used by the bisect workflow to open experimental revert PRs that may be closed if the suspect is cleared.
+- **`--context`**: When the caller passes context directly (e.g., from an autonomous pipeline that already has all context in memory), skip the JIRA lookup in Step 5. The provided context string is used as-is for the `{CONTEXT}` template variable.
+
 ## Prerequisites
 
 1. **GitHub CLI (`gh`)**: Installed and authenticated
@@ -96,7 +101,9 @@ git remote -v
 
 ### Step 5: Look Up JIRA Ticket for Context
 
-When a JIRA ticket is provided, use the `fetch-jira-issue` skill to automatically gather context about what broke and which jobs need verification before unreverting.
+**If `--context` was provided**: Skip the JIRA lookup entirely. Use the provided context string as-is for the `{CONTEXT}` template variable and proceed to Step 6. The caller has already gathered all necessary context.
+
+**Otherwise**, when a JIRA ticket is provided, use the `fetch-jira-issue` skill to automatically gather context about what broke and which jobs need verification before unreverting.
 
 ```bash
 # Path to the fetch-jira-issue script
@@ -343,6 +350,18 @@ gh pr create \
   --head "$gh_user:$revert_branch" \
   --title "$jira: Revert #$pr_number \"$pr_title\"" \
   --body "$rendered_body"
+```
+
+**If `--draft` was set**, add the `--draft` flag to the `gh pr create` command:
+
+```bash
+gh pr create \
+  --repo "$owner/$repo" \
+  --base "$base_branch" \
+  --head "$gh_user:$revert_branch" \
+  --title "$jira: Revert #$pr_number \"$pr_title\"" \
+  --body "$rendered_body" \
+  --draft
 ```
 
 ### Step 10: Return Override Commands

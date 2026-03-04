@@ -58,7 +58,7 @@ Tools for working with OpenShift CI and analyzing Prow job results
 
 **Commands:**
 - **`/ci:add-debug-wait` `<workflow-or-job-name> [timeout]`** - Add a wait step to a CI workflow for debugging test failures
-- **`/ci:analyze-payload` `<payload-tag> [--lookback N] [--stage-revert]`** - Analyze a rejected or in-progress payload with historical lookback to identify root causes of blocking job failures
+- **`/ci:analyze-payload` `<payload-tag> [--lookback N]`** - Analyze a rejected or in-progress payload with historical lookback to identify root causes of blocking job failures
 - **`/ci:analyze-pr-reverts` `[limit]`** - Analyze recent PR reverts to identify patterns and recommend preventive measures
 - **`/ci:analyze-prow-job-install-failure` `<prowjob-url>`** - Analyze OpenShift installation failures in Prow CI jobs
 - **`/ci:analyze-prow-job-resource` `prowjob-url resource-name`** - Analyze Kubernetes resource lifecycle in Prow job artifacts
@@ -71,6 +71,7 @@ Tools for working with OpenShift CI and analyzing Prow job results
 - **`/ci:fetch-test-report` `<test-name> [release]`** - Fetch a test report from Sippy showing pass rates, test ID, and Jira component
 - **`/ci:list-step` `<workflow-or-chain-name>`** - List the step for the given workflow or chain name
 - **`/ci:list-unstable-tests` `<version> <keywords> [sippy-url]`** - List unstable tests with pass rate below 95%
+- **`/ci:payload-agent` `<payload-tag> [--lookback N] [--continue]`** - Autonomous agent that analyzes a rejected payload, determines root causes, and takes action based on confidence scoring
 - **`/ci:query-job-status` `<execution-id>`** - Query the status of a gangway job execution by ID
 - **`/ci:query-test-result` `<version> <keywords> [sippy-url]`** - Query test results from Sippy by version and test keywords
 - **`/ci:revert-pr` `<pr-url> <jira-ticket>`** - Revert a merged PR that is breaking CI or nightly payloads
