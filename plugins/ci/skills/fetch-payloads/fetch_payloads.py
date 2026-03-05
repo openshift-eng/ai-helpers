@@ -141,7 +141,7 @@ def format_payload(tag: dict, details: dict, architecture: str, stream_name: str
             lines.append(f"    FAILED  {job_name}{retry_str}")
             if prow_url:
                 lines.append(f"            {prow_url}")
-            previous = info.get("previousAttemptURLs", [])
+            previous = info.get("previousAttemptURLs") or []
             for i, prev_url in enumerate(previous, 1):
                 lines.append(f"            attempt {i}: {prev_url}")
 
