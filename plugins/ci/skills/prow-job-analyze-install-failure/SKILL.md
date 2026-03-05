@@ -166,6 +166,26 @@ Use the `fetch-prowjob-json` skill to fetch the prowjob.json for this job. See `
    - Extract the failure stage for targeted log analysis
    - Use the failure mode to guide which logs to prioritize
 
+### Step 4b: Check for Known Symptom Labels
+
+The CI system may attach **symptom labels** to job runs — machine-detected patterns (e.g., "test failures during high CPU events") stored as JSON artifacts. These are **not root causes** but provide useful environmental context that may help explain failures when no other cause is found.
+
+1. **List the job_labels directory**
+   ```bash
+   gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/job_labels/" 2>/dev/null
+   ```
+   - If the directory does not exist or returns an error, skip this step silently
+
+2. **Download any JSON symptom files** (exclude `label-summary.html`)
+   ```bash
+   gcloud storage cp "gs://test-platform-results/{bucket-path}/artifacts/job_labels/*.json" \
+     .work/prow-job-analyze-install-failure/{build_id}/logs/job_labels/ --no-user-output-enabled 2>/dev/null || true
+   ```
+
+3. **Parse symptom labels** — each JSON file describes a detected symptom with a summary and explanation. Collect all symptom summaries for inclusion in the report.
+
+4. **Use symptoms as investigative context** — symptoms are environmental observations, NOT definitive causes. They should inform your investigation but you must still perform thorough root cause analysis. Include them in the "Known Symptoms Seen" section of the report.
+
 ### Step 5: Locate and Download Installer Logs
 
 1. **List all artifacts to find installer logs**
@@ -400,6 +420,12 @@ OpenShift installations exhibit "eventual consistency" behavior, which means:
    Prow URL: {original-url}
 
    Failure Stage: {stage from junit_install.xml}
+
+   Known Symptoms Seen (only if symptom labels found in Step 4b — omit if none)
+   ---------------------
+   - {symptom summary}: {symptom explanation}
+   Note: Symptoms are machine-detected environmental observations, not definitive
+   causes. They add context to help explain failures when correlated with other evidence.
 
    Summary
    -------

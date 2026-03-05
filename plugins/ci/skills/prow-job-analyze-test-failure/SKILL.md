@@ -165,6 +165,26 @@ gcloud storage cp gs://test-platform-results/{bucket-path}/build-log.txt .work/p
     - `source = "OperatorState"`
   - These events may indicate cluster issues that caused or contributed to the test failure
 
+### Step 4.3b: Check for Known Symptom Labels
+
+The CI system may attach **symptom labels** to job runs — machine-detected patterns (e.g., "test failures during high CPU events") stored as JSON artifacts. These are **not root causes** but provide useful environmental context that may help explain failures when no other cause is found.
+
+1. **List the job_labels directory**
+   ```bash
+   gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/job_labels/" 2>/dev/null
+   ```
+   - If the directory does not exist or returns an error, skip this step silently
+
+2. **Download any JSON symptom files** (exclude `label-summary.html`)
+   ```bash
+   gcloud storage cp "gs://test-platform-results/{bucket-path}/artifacts/job_labels/*.json" \
+     .work/prow-job-analyze-test-failure/{build_id}/logs/job_labels/ --no-user-output-enabled 2>/dev/null || true
+   ```
+
+3. **Parse symptom labels** — each JSON file describes a detected symptom with a summary and explanation. Collect all symptom summaries for inclusion in the report.
+
+4. **Use symptoms as investigative context** — symptoms are environmental observations, NOT definitive causes. They should inform your investigation (e.g., if 2 tests failed while high CPU was measured, CPU pressure could explain the failures if no other cause is found) but you must still perform thorough root cause analysis. Include them in the "Known Symptoms Seen" section of the report.
+
 ### Step 4.4: Gather initial evidence
 
 - Analyze stack traces from build-log.txt
@@ -735,6 +755,7 @@ Synthesize all gathered evidence to determine the most likely root cause for the
    - Stack traces from Step 4.2
    - Test code analysis from Step 4.4
    - Interval file events from Step 4.3
+   - Known symptom labels from Step 4.3b (if available — use as supporting context, not as root cause)
    - Cluster diagnostics from Step 4.7 (if available)
    - Correlations from Step 4.8 (if available)
 
@@ -771,6 +792,11 @@ Synthesize all gathered evidence to determine the most likely root cause for the
    - **Build ID**: {build_id}
    - **Target**: {target}
    - **Test**: {test_name}
+
+   ## Known Symptoms Seen
+   *(Only if symptom labels were found in Step 4.3b — omit section entirely if none)*
+   - {symptom summary}: {symptom explanation}
+   > **Note**: Symptoms are machine-detected environmental observations, not definitive causes. They add context to help explain failures when correlated with other evidence.
 
    ## Test Failure Analysis
 
@@ -847,6 +873,11 @@ Synthesize all gathered evidence to determine the most likely root cause for the
    - **Target**: {target}
    - **Test**: {test_name}
    - **Hosted Cluster Namespace**: {HOSTED_NAMESPACE}
+
+   ## Known Symptoms Seen
+   *(Only if symptom labels were found in Step 4.3b — omit section entirely if none)*
+   - {symptom summary}: {symptom explanation}
+   > **Note**: Symptoms are machine-detected environmental observations, not definitive causes. They add context to help explain failures when correlated with other evidence.
 
    ## Test Failure Analysis
 
