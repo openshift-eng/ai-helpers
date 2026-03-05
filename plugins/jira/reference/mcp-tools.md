@@ -39,7 +39,7 @@ mcp__atlassian__jira_create_issue(
     project_key="PROJECT",           # Required: Project key (e.g., "CNTRLPLANE", "GCP", "OCPBUGS")
     summary="Issue title",            # Required: Issue summary/title
     issue_type="Story",               # Required: Type (Story, Epic, Task, Bug, Feature, Feature Request)
-    description="Issue description",  # Optional: Full description with wiki markup
+    description="Issue description",  # Optional: Full description in Markdown format (MCP converts to Jira wiki markup internally - do NOT use h2./# wiki syntax directly)
     components="Component Name",      # Optional: Single component name or list
     additional_fields={               # Optional: Additional fields
         "labels": ["label1", "label2"],
@@ -61,7 +61,7 @@ issue = mcp__atlassian__jira_create_issue(
     project_key="GCP",
     summary="Enable Pod Disruption Budgets for control plane",
     issue_type="Story",
-    description="As a cluster administrator, I want to enable Pod Disruption Budgets for the control plane, so that I can prevent accidental disruptions.\n\nh2. Acceptance Criteria\n\n* Test that PDB is configured for all control plane pods\n* Test that pods are protected from voluntary disruptions",
+    description="As a cluster administrator, I want to enable Pod Disruption Budgets for the control plane, so that I can prevent accidental disruptions.\n\n## Acceptance Criteria\n\n- Test that PDB is configured for all control plane pods\n- Test that pods are protected from voluntary disruptions",
     components="HyperShift / ROSA",
     additional_fields={
         "customfield_12311140": "GCP-456",  # Link to parent Epic
