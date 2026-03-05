@@ -327,6 +327,7 @@ See [plugins/ote-migration/README.md](plugins/ote-migration/README.md) for detai
 A plugin to save and resume conversation sessions across long time intervals
 
 **Commands:**
+- **`/session:log-session` `[filename]`** - Save the current Claude Code session to a plain text file for later reference
 - **`/session:save-session` `[optional-description]`** - Save current conversation session to markdown file for future continuation
 
 See [plugins/session/README.md](plugins/session/README.md) for detailed documentation.

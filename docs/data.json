@@ -639,6 +639,12 @@
     {
       "commands": [
         {
+          "argument_hint": "[filename]",
+          "description": "Save the current Claude Code session to a plain text file for later reference",
+          "name": "log-session",
+          "synopsis": "/log-session"
+        },
+        {
           "argument_hint": "[optional-description]",
           "description": "Save current conversation session to markdown file for future continuation",
           "name": "save-session",
@@ -650,7 +656,7 @@
       "hooks": [],
       "name": "session",
       "skills": [],
-      "version": "0.0.2"
+      "version": "0.0.3"
     },
     {
       "commands": [
