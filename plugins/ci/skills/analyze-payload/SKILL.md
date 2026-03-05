@@ -1,19 +1,20 @@
 ---
 name: Analyze Payload
-description: Analyze a rejected or in-progress payload with historical lookback to identify root causes of blocking job failures and produce an HTML report
+description: Analyze a payload (rejected, accepted, or in-progress) with historical lookback to identify root causes of blocking job failures and produce an HTML report
 ---
 
 # Analyze Payload
 
 This skill analyzes a payload for a given OCP version, walks back through consecutive rejected payloads to determine when each failure started, correlates failures with newly introduced PRs, investigates each failed job in parallel, and produces a comprehensive HTML report.
 
-It supports both **Rejected** payloads (full analysis of all failed blocking jobs) and **Ready** payloads (early analysis of blocking jobs that have already failed, with a determination of whether the payload is on track for rejection).
+It supports **Rejected** payloads (full analysis of all failed blocking jobs), **Ready** payloads (early analysis of blocking jobs that have already failed, with a determination of whether the payload is on track for rejection), and **Accepted** payloads (payloads can be force-accepted despite blocking failures, so any failed blocking jobs are still analyzed).
 
 ## When to Use This Skill
 
 Use this skill when you need to:
 
 - Understand why a payload was rejected
+- Investigate failures in a force-accepted payload (Accepted payloads may still have failed blocking jobs)
 - Assess whether an in-progress ("Ready") payload is likely to be rejected based on already-failed blocking jobs
 - Determine whether failures are new or persistent (permafailing)
 - Identify which PRs likely caused new failures
@@ -63,26 +64,23 @@ Find the **target payload** (the tag from Step 1) in the fetched list. Based on 
 
 - **Rejected**: Extract all failed blocking job names and their Prow URLs. Proceed with full analysis.
 - **Ready**: Extract blocking jobs that have already **failed** (with their Prow URLs). These are jobs that will not pass — they indicate the payload is on track for rejection. Proceed with analysis of those failed jobs and note in the report that the payload is still in progress.
-- **Accepted**: Report "Payload was accepted, no analysis needed" and exit.
+- **Accepted**: Extract any failed blocking job names and their Prow URLs. Payloads can be force-accepted despite blocking job failures, so do NOT assume all blocking jobs passed. If there are failed blocking jobs, proceed with full analysis and note in the report that the payload was accepted despite these failures. If there are truly no failed blocking jobs, report "Payload was accepted with all blocking jobs passing, no analysis needed" and exit.
 
 ### Step 3: Build Failure History (Lookback)
 
-The goal is to determine **when each failing job first started failing** in the chain of consecutive rejected payloads.
+The goal is to determine **when each failing job first started failing** and understand its failure pattern across recent payloads.
 
 Using the full payload list from Step 2 (which includes all phases):
 
 1. Starting from the target payload, collect the set of failed blocking jobs.
-2. Walk backwards through consecutive rejected payloads (up to `lookback` limit).
-3. For each failed job in the target payload, check whether it also failed in the previous rejected payload.
-4. Continue until either:
-   - The job was NOT failing in an earlier payload (meaning you found the originating payload)
-   - You reach a non-rejected (Accepted) payload
-   - You exhaust the lookback window
+2. Walk backwards through **all** previous payloads in the lookback window (up to `lookback` limit), regardless of phase (Rejected, Accepted, or Ready). Accepted payloads can have failed blocking jobs (force-accepted), so check every payload.
+3. For each failed job in the target payload, record whether it passed or failed in each previous payload across the entire lookback window. Do NOT stop at the first pass — a job may show an intermittent pattern like F-F-S-F-F due to flaky behavior, and understanding this pattern is important.
 
 For each failed job, record:
-- **streak_length**: How many consecutive rejected payloads it has been failing in
-- **originating_payload**: The first payload in the streak where this job started failing
-- **is_new_failure**: Whether the job first started failing in the latest payload
+- **streak_length**: How many consecutive payloads (counting backwards from the target) this job has been failing in (stops counting at the first pass)
+- **originating_payload**: The first payload in the current consecutive failure streak where this job started failing
+- **is_new_failure**: Whether the job first started failing in the target payload (streak_length == 1)
+- **failure_pattern**: The full pass/fail history across the lookback window (e.g., "F F F S F F"). This helps contextualize whether the failure is a solid regression or intermittent. Intermittent failures are still fully investigated — the pattern is informational context, not a reason to skip analysis or discount the failure.
 
 ### Step 4: Fetch New PRs in Originating Payloads
 
@@ -111,7 +109,7 @@ Instruct each subagent as follows:
 >
 > Based on the failure type, use the appropriate skill:
 > - **Install failure**: Use the `ci:prow-job-analyze-install-failure` skill. **You MUST download and examine the actual installer log bundle** — do NOT skip this step or make assessments based only on high-level metadata like pass rates or job names. The log bundle contains the actual error messages that reveal the root cause. For metal/bare-metal jobs (job name contains "metal"), perform additional analysis using the `ci:prow-job-analyze-metal-install-failure` skill as needed for dev-scripts, Metal3/Ironic, and BareMetalHost-specific diagnostics.
-> - **Test failure**: Use the `ci:prow-job-analyze-test-failure` skill.
+> - **Test failure**: Use the `ci:prow-job-analyze-test-failure` skill. Do NOT use `--fast` — always perform the full analysis including must-gather extraction and analysis.
 >
 > **IMPORTANT — Classify failures based on log evidence, not assumptions.** You must examine the actual logs (installer log, log bundle, bootstrap journals, kube-apiserver logs) before classifying a failure. A bootstrap timeout could be infrastructure, a product bug, or a race condition — the logs will tell you which. Cite specific error messages in your assessment.
 >
@@ -240,6 +238,7 @@ A table showing ALL blocking jobs with columns:
 - Job Name
 - Status (color-coded: green for passed, red for failed)
 - Streak (how many consecutive payloads it has been failing; "N/A" for passed jobs)
+- History (the failure_pattern across the lookback window, e.g., "F F F S F F", showing most recent first; use color-coded markers — red for F, green for S)
 - First Failed In (originating payload tag, linked to release controller)
 
 #### 7.3: Failed Job Details
@@ -518,6 +517,7 @@ The filename **must** end with `-autodl.json`: `payload-analysis-<sanitized_tag>
         "failure_type": "string",
         "streak_length": "int64",
         "is_new_failure": "int64",
+        "failure_pattern": "string",
         "originating_payload_tag": "string",
         "failure_analysis": "string",
         "revert_pr_url": "string",
@@ -546,6 +546,7 @@ The filename **must** end with `-autodl.json`: `payload-analysis-<sanitized_tag>
             "failure_type": "test",
             "streak_length": "5",
             "is_new_failure": "0",
+            "failure_pattern": "F F F F F S S",
             "originating_payload_tag": "4.22.0-0.nightly-2026-02-20-150000",
             "failure_analysis": "Root cause summary from subagent...",
             "revert_pr_url": "https://github.com/openshift/cno/pull/2037",
@@ -572,6 +573,7 @@ The filename **must** end with `-autodl.json`: `payload-analysis-<sanitized_tag>
             "failure_type": "install",
             "streak_length": "2",
             "is_new_failure": "0",
+            "failure_pattern": "F F S S S S S",
             "originating_payload_tag": "4.22.0-0.nightly-2026-02-23-080000",
             "failure_analysis": "Install timeout waiting for etcd quorum...",
             "revert_pr_url": "",
@@ -645,7 +647,7 @@ If the release controller or Sippy API is unreachable, report the error clearly 
 
 ## Notes
 
-- The lookback only examines **consecutive** rejected payloads. If an Accepted payload breaks the chain, the lookback stops there.
-- Subagents should run in **fast mode** (skip optional prompts like must-gather extraction) to keep analysis time reasonable.
+- The lookback examines the job across **all payloads in the lookback window**, regardless of phase. A job may have a pattern like F-F-F-S-F-F-F due to flaky behavior — the lookback captures the full history so the report can distinguish persistent/intermittent failures from new regressions.
+- Subagents should perform a **thorough analysis** — do not skip steps like must-gather extraction to save time. A proper root cause analysis is more important than speed.
 - The HTML report is fully self-contained — no external CSS/JS dependencies.
 - For very large numbers of failed jobs (>8), consider whether some share the same underlying failure and group them in the report.
