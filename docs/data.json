@@ -290,7 +290,7 @@
         },
         {
           "argument_hint": "<payload-tag> [--lookback N]",
-          "description": "Analyze a rejected or in-progress payload with historical lookback to identify root causes of blocking job failures",
+          "description": "Analyze a payload (rejected, accepted, or in-progress) with historical lookback to identify root causes of blocking job failures",
           "name": "analyze-payload",
           "synopsis": "/ci:analyze-payload <payload-tag> [--lookback N]"
         },
@@ -415,7 +415,7 @@
       "name": "ci",
       "skills": [
         {
-          "description": "Analyze a rejected or in-progress payload with historical lookback to identify root causes of blocking job failures and produce an HTML report",
+          "description": "Analyze a payload (rejected, accepted, or in-progress) with historical lookback to identify root causes of blocking job failures and produce an HTML report",
           "id": "analyze-payload",
           "name": "Analyze Payload"
         },
@@ -530,7 +530,7 @@
           "name": "Triage Regression"
         }
       ],
-      "version": "0.0.18"
+      "version": "0.0.20"
     },
     {
       "commands": [

@@ -113,42 +113,34 @@ def format_payload(tag: dict, details: dict, architecture: str, stream_name: str
     if not blocking:
         return "\n".join(lines)
 
-    if phase == "Rejected":
-        failed = {k: v for k, v in blocking.items() if v.get("state") == "Failed"}
-        succeeded = len([v for v in blocking.values() if v.get("state") == "Succeeded"])
-        if failed:
-            lines.append(f"  Blocking: {succeeded}/{len(blocking)} succeeded, {len(failed)} failed:")
-            for job_name, info in sorted(failed.items()):
-                retries = info.get("retries", 0)
-                retry_str = f" ({retries} retries)" if retries else ""
-                prow_url = info.get("url", "")
-                lines.append(f"    FAILED  {job_name}{retry_str}")
-                if prow_url:
-                    lines.append(f"            {prow_url}")
-    elif phase == "Ready":
-        pending_jobs = {k: v for k, v in blocking.items() if v.get("state") == "Pending"}
-        succeeded_jobs = {k: v for k, v in blocking.items() if v.get("state") == "Succeeded"}
-        failed_jobs = {k: v for k, v in blocking.items() if v.get("state") == "Failed"}
-        parts = []
-        if succeeded_jobs:
-            parts.append(f"{len(succeeded_jobs)} succeeded")
-        if pending_jobs:
-            parts.append(f"{len(pending_jobs)} pending")
-        if failed_jobs:
-            parts.append(f"{len(failed_jobs)} failed")
+    # Categorize jobs by state
+    succeeded_jobs = {k: v for k, v in blocking.items() if v.get("state") == "Succeeded"}
+    failed_jobs = {k: v for k, v in blocking.items() if v.get("state") == "Failed"}
+    pending_jobs = {k: v for k, v in blocking.items() if v.get("state") == "Pending"}
+
+    # Build summary line
+    parts = []
+    if succeeded_jobs:
+        parts.append(f"{len(succeeded_jobs)} succeeded")
+    if pending_jobs:
+        parts.append(f"{len(pending_jobs)} pending")
+    if failed_jobs:
+        parts.append(f"{len(failed_jobs)} failed")
+
+    if parts:
         lines.append(f"  Blocking: {', '.join(parts)} (of {len(blocking)})")
-        if failed_jobs:
-            lines.append(f"  Failed blocking jobs:")
-            for job_name, info in sorted(failed_jobs.items()):
-                retries = info.get("retries", 0)
-                retry_str = f" ({retries} retries)" if retries else ""
-                prow_url = info.get("url", "")
-                lines.append(f"    FAILED  {job_name}{retry_str}")
-                if prow_url:
-                    lines.append(f"            {prow_url}")
     else:
-        # Accepted - brief summary
-        lines.append(f"  Blocking: {len(blocking)}/{len(blocking)} succeeded")
+        lines.append(f"  Blocking: {len(blocking)} jobs")
+
+    # Show failed jobs with details
+    if failed_jobs:
+        for job_name, info in sorted(failed_jobs.items()):
+            retries = info.get("retries", 0)
+            retry_str = f" ({retries} retries)" if retries else ""
+            prow_url = info.get("url", "")
+            lines.append(f"    FAILED  {job_name}{retry_str}")
+            if prow_url:
+                lines.append(f"            {prow_url}")
 
     return "\n".join(lines)
 
