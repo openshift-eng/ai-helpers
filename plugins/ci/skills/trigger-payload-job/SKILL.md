@@ -33,8 +33,8 @@ Use this skill whenever you need to trigger payload testing on a PR (revert PR, 
 Before posting new payload commands, check whether jobs were already triggered on this PR:
 
 ```bash
-gh api "repos/<org>/<repo>/issues/<pr_number>/comments" \
-  --jq '[.[] | select(.user.login == "openshift-ci[bot]" and (.body | contains("pr-payload-tests")))] | last | .body'
+gh api "repos/<org>/<repo>/issues/<pr_number>/comments?per_page=100&sort=created&direction=desc" \
+  --jq '[.[] | select(.user.login == "openshift-ci[bot]" and (.body | contains("pr-payload-tests")))] | .[0] | .body'
 ```
 
 If a `pr-payload-tests.ci.openshift.org/runs/ci/<uuid>` URL is found, reuse it — skip to Step 3 to extract prow job URLs from that page.
@@ -70,8 +70,8 @@ After posting the comment, wait ~30 seconds for the `openshift-ci[bot]` to proce
 
 ```bash
 sleep 30
-gh api "repos/<org>/<repo>/issues/<pr_number>/comments" \
-  --jq '[.[] | select(.user.login == "openshift-ci[bot]" and (.body | contains("pr-payload-tests")))] | last | .body'
+gh api "repos/<org>/<repo>/issues/<pr_number>/comments?per_page=100&sort=created&direction=desc" \
+  --jq '[.[] | select(.user.login == "openshift-ci[bot]" and (.body | contains("pr-payload-tests")))] | .[0] | .body'
 ```
 
 If no reply is found, retry up to 3 times with 30-second intervals. If still no reply after ~2 minutes, record the comment URL and note that manual checking is required.
