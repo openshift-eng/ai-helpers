@@ -99,6 +99,8 @@ Based on the confidence tiers, take autonomous action:
 
 **Execute HIGH and MEDIUM actions in parallel** when both tiers have candidates. Pass all required context in-memory to each skill.
 
+**Critical — Aggregated job handling**: When constructing the `failing_jobs` list for each suspect, you MUST correctly populate `is_aggregated` and `underlying_job_name` using the subagent analysis results from Step 2. Jobs with the `aggregated-` prefix are aggregated jobs. The `underlying_job_name` is extracted by the subagent from the junit-aggregated.xml artifacts (see `analyze-payload` Step 5). Both `bisect-payload-suspects` and `stage-payload-reverts` use the `trigger-payload-job` skill to post the correct commands — but they depend on the caller providing accurate `is_aggregated` and `underlying_job_name` values.
+
 If there are no HIGH or MEDIUM candidates, skip to Step 6 (report generation).
 
 ### Step 5: Bisect Phase 2 (Resume)
@@ -261,3 +263,4 @@ After report generation:
 - Related Skill: `analyze-payload` - Core analysis logic (`plugins/ci/skills/analyze-payload/SKILL.md`)
 - Related Skill: `stage-payload-reverts` - High-confidence revert staging (`plugins/ci/skills/stage-payload-reverts/SKILL.md`)
 - Related Skill: `bisect-payload-suspects` - Medium-confidence bisect experiments (`plugins/ci/skills/bisect-payload-suspects/SKILL.md`)
+- Related Skill: `trigger-payload-job` - Triggers payload jobs and collects URLs (`plugins/ci/skills/trigger-payload-job/SKILL.md`)

@@ -528,9 +528,14 @@
           "description": "Create or update a Component Readiness triage record linking regressions to a JIRA bug",
           "id": "triage-regression",
           "name": "Triage Regression"
+        },
+        {
+          "description": "Trigger payload validation jobs on a PR and collect the resulting Prow job URLs",
+          "id": "trigger-payload-job",
+          "name": "Trigger Payload Job"
         }
       ],
-      "version": "0.0.21"
+      "version": "0.0.22"
     },
     {
       "commands": [

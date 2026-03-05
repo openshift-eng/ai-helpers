@@ -89,50 +89,16 @@ If an open or draft revert PR is found for this PR number, reuse its URL — ski
 
 Record the revert PR URL (created or reused).
 
-### Substep 3: Trigger Payload Jobs and Collect Run URLs (with idempotency check)
+### Substep 3: Trigger Payload Jobs and Collect Run URLs
 
-**Preflight**: Before posting new payload commands, check whether jobs were already triggered on this revert PR:
+Use the `trigger-payload-job` skill (`plugins/ci/skills/trigger-payload-job/SKILL.md`) to trigger payload validation jobs on the revert PR and collect the resulting URLs. Pass:
 
-```bash
-# Check for an existing openshift-ci[bot] reply with a pr-payload-tests URL
-gh api "repos/<org>/<repo>/issues/<revert_pr_number>/comments" \
-  --jq '[.[] | select(.user.login == "openshift-ci[bot]" and (.body | contains("pr-payload-tests")))] | last | .body'
-```
+- `pr_url`: The revert PR URL from Substep 2
+- `jobs`: The `failing_jobs` list for this candidate (includes `job_name`, `is_aggregated`, `underlying_job_name` for each job)
 
-If a `pr-payload-tests.ci.openshift.org/runs/ci/<uuid>` URL is found, reuse it — extract the prow job URLs from that page and skip posting new commands.
+The skill handles idempotency (checking for existing bot replies), correct command selection (`/payload-aggregate` vs `/payload-job`), polling, and URL extraction.
 
-**Trigger** (only if no existing payload test run found): Post a comment on the revert PR with payload test commands for each failing blocking job attributed to this PR. Use the correct command based on whether the job is aggregated:
-
-- **Aggregated jobs** (job name has `aggregated-` prefix): Use `/payload-aggregate <underlying-job-name> <count>`. The underlying job name comes from the caller's analysis data (extracted from the aggregated job's junit artifacts — it cannot be derived from the aggregated job name). Choose a count of up to 10 runs — use judgement based on the total number of jobs being triggered (fewer runs per job when triggering many jobs to limit resource consumption; more runs when only one or two jobs need validation).
-- **Non-aggregated jobs**: Use `/payload-job <job-name>`.
-
-```bash
-# Example with a mix of aggregated and non-aggregated jobs:
-gh pr comment "{revert_pr_url}" --body "/payload-aggregate {underlying_job_name_1} {count}
-/payload-job {job_name_2}
-..."
-```
-
-One command per line for each failing blocking job attributed to this PR.
-
-After posting the comment, wait ~30 seconds and poll for the `openshift-ci[bot]` reply containing the `pr-payload-tests` URL:
-
-```bash
-# Poll for the bot reply containing the pr-payload-tests URL
-gh api "repos/<org>/<repo>/issues/<revert_pr_number>/comments" \
-  --jq '[.[] | select(.user.login == "openshift-ci[bot]" and (.body | contains("pr-payload-tests")))] | last | .body'
-```
-
-Extract the `pr-payload-tests.ci.openshift.org/runs/ci/<uuid>` URL from the reply. This URL is the primary endpoint for checking job completion status (the page shows "AllJobsFinished" when done).
-
-Fetch the pr-payload-tests page to extract the actual prow job URL(s):
-
-```bash
-# The page contains prow job links like:
-# https://prow.ci.openshift.org/view/gs/test-platform-results/logs/<job-slug>/<build-id>
-```
-
-Record both the `payload_test_url` and individual `prow_url`s in the return data.
+Record the `payload_test_url` and individual `prow_url`s from the skill's return data.
 
 ## Subagent Return Format
 
@@ -165,5 +131,6 @@ Collect all subagent results. Return to the caller for inclusion in the report.
 ## See Also
 
 - Related Skill: `revert-pr` - The git revert workflow (`plugins/ci/skills/revert-pr/SKILL.md`)
+- Related Skill: `trigger-payload-job` - Triggers payload jobs and collects URLs (`plugins/ci/skills/trigger-payload-job/SKILL.md`)
 - Related Skill: `analyze-payload` - Identifies revert candidates (`plugins/ci/skills/analyze-payload/SKILL.md`)
 - Related Command: `/ci:payload-agent` - Autonomous orchestrator that uses this skill (`plugins/ci/commands/payload-agent.md`)

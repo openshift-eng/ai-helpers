@@ -58,7 +58,7 @@ The script outputs one block per payload to stdout with job details. Present to 
 For each payload, the script outputs:
 
 - **Tag line**: `<tag>  (<phase>)  <timestamp>  <url>`
-- **Rejected payloads**: lists each failed blocking job with retry count and Prow link
+- **Rejected payloads**: lists each failed blocking job with retry count, Prow link for the final attempt, and Prow links for all previous attempts
 - **Ready payloads**: summary of succeeded/pending/failed counts
 - **Accepted payloads**: confirmation that all blocking jobs succeeded
 

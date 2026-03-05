@@ -62,9 +62,11 @@ Parse the output to extract payload tag names, phases, and job details.
 
 Find the **target payload** (the tag from Step 1) in the fetched list. Based on its phase:
 
-- **Rejected**: Extract all failed blocking job names and their Prow URLs. Proceed with full analysis.
-- **Ready**: Extract blocking jobs that have already **failed** (with their Prow URLs). These are jobs that will not pass — they indicate the payload is on track for rejection. Proceed with analysis of those failed jobs and note in the report that the payload is still in progress.
-- **Accepted**: Extract any failed blocking job names and their Prow URLs. Payloads can be force-accepted despite blocking job failures, so do NOT assume all blocking jobs passed. If there are failed blocking jobs, proceed with full analysis and note in the report that the payload was accepted despite these failures. If there are truly no failed blocking jobs, report "Payload was accepted with all blocking jobs passing, no analysis needed" and exit.
+- **Rejected**: Extract all failed blocking job names, their Prow URLs, and any previous attempt URLs. Proceed with full analysis.
+- **Ready**: Extract blocking jobs that have already **failed** (with their Prow URLs and previous attempt URLs). These are jobs that will not pass — they indicate the payload is on track for rejection. Proceed with analysis of those failed jobs and note in the report that the payload is still in progress.
+- **Accepted**: Extract any failed blocking job names, their Prow URLs, and previous attempt URLs. Payloads can be force-accepted despite blocking job failures, so do NOT assume all blocking jobs passed. If there are failed blocking jobs, proceed with full analysis and note in the report that the payload was accepted despite these failures. If there are truly no failed blocking jobs, report "Payload was accepted with all blocking jobs passing, no analysis needed" and exit.
+
+The release controller API returns `previousAttemptURLs` for jobs that were retried. For each failed job, collect the final Prow URL and all previous attempt URLs. These are available in the `fetch-payloads` output as `attempt N: <url>` lines below the main URL.
 
 ### Step 3: Build Failure History (Lookback)
 
@@ -99,13 +101,17 @@ Store the PR data keyed by originating payload tag. These PRs are the **suspects
 
 ### Step 5: Investigate Each Failed Job in Parallel
 
-For each failed blocking job in the **target payload**, launch a **parallel subagent** (using the Task tool) to investigate the failure. Use the Prow URL from Step 2.
+For each failed blocking job in the **target payload**, launch a **parallel subagent** (using the Task tool) to investigate the failure. Pass the subagent the final Prow URL **and** all previous attempt URLs from Step 2.
 
 Each subagent should determine whether the failure is an install failure or a test failure by checking the JUnit results (e.g., look for `install should succeed*` test failures), then use the appropriate analysis skill. Almost all blocking jobs install a cluster and then run tests, so the job name alone does not tell you the failure type.
 
 Instruct each subagent as follows:
 
-> Analyze the failure at <prow_url>. First, check the JUnit results or build log to determine whether this is an install failure (look for `install should succeed: overall` or similar install-related test failures) or a test failure (install passed, specific tests failed).
+> Analyze the failure at <prow_url>. This job had <N> retries. The previous attempt URLs are: <previous_attempt_urls>.
+>
+> **Examine the final attempt first**, then compare with previous attempts to determine whether all retries failed the same way. If retries show different failure modes, note this — it distinguishes consistent regressions from intermittent/infrastructure issues. Consistent failures across all attempts strongly indicate a product regression rather than flakiness.
+>
+> First, check the JUnit results or build log to determine whether this is an install failure (look for `install should succeed: overall` or similar install-related test failures) or a test failure (install passed, specific tests failed).
 >
 > Based on the failure type, use the appropriate skill:
 > - **Install failure**: Use the `ci:prow-job-analyze-install-failure` skill. **You MUST download and examine the actual installer log bundle** — do NOT skip this step or make assessments based only on high-level metadata like pass rates or job names. The log bundle contains the actual error messages that reveal the root cause. For metal/bare-metal jobs (job name contains "metal"), perform additional analysis using the `ci:prow-job-analyze-metal-install-failure` skill as needed for dev-scripts, Metal3/Ironic, and BareMetalHost-specific diagnostics.
@@ -127,6 +133,8 @@ ANALYSIS_RESULT:
 - key_error_patterns: <comma-separated key error strings for matching>
 - known_symptoms: <comma-separated symptom summaries from job_labels, or "none">
 - underlying_job_name: <for aggregated jobs only, extracted from junit artifacts>
+- retries_consistent: yes|no|only_final_examined
+- retry_summary: <brief comparison of failure modes across attempts, e.g. "all 3 attempts failed with same KAS crashloop" or "attempt 1 infra timeout, attempts 2-3 test failure">
 ```
 
 This structured format enables downstream consumers (like the `payload-agent` skill) to programmatically extract analysis results for confidence scoring.
