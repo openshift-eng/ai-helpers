@@ -125,6 +125,7 @@ ANALYSIS_RESULT:
 - root_cause_summary: <one-line summary>
 - affected_components: <comma-separated list of affected operators/components>
 - key_error_patterns: <comma-separated key error strings for matching>
+- known_symptoms: <comma-separated symptom summaries from job_labels, or "none">
 - underlying_job_name: <for aggregated jobs only, extracted from junit artifacts>
 ```
 
@@ -257,6 +258,11 @@ For each failed job, a collapsible section containing:
 
     <h4>Failure Analysis</h4>
     <div class="analysis">{analysis_from_subagent}</div>
+
+    <!-- Only include if subagent reported known symptoms -->
+    <h4>Known Symptoms Seen</h4>
+    <p class="symptoms">{comma-separated symptom summaries, or omit this section if "none"}</p>
+    <p class="symptoms-note"><em>Symptoms are machine-detected environmental observations, not definitive causes.</em></p>
 
     <h4>First Failed In</h4>
     <p><a href="{originating_payload_url}">{originating_payload_tag}</a></p>
