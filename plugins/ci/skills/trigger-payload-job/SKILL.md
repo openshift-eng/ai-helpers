@@ -41,6 +41,8 @@ If a `pr-payload-tests.ci.openshift.org/runs/ci/<uuid>` URL is found, reuse it â
 
 ### Step 2: Post Payload Commands
 
+First, validate each job entry. If any job has `is_aggregated == true` but `underlying_job_name` is empty or null, skip that job and return an error for it â€” do NOT post a comment with an incomplete command.
+
 Build the comment body with one command per line. Use the correct command for each job type:
 
 - **Aggregated jobs** (`is_aggregated == true`): `/payload-aggregate <underlying_job_name> <count>`

@@ -101,6 +101,8 @@ Based on the confidence tiers, take autonomous action:
 
 **Critical — Aggregated job handling**: When constructing the `failing_jobs` list for each suspect, you MUST correctly populate `is_aggregated` and `underlying_job_name` using the subagent analysis results from Step 2. Jobs with the `aggregated-` prefix are aggregated jobs. The `underlying_job_name` is extracted by the subagent from the junit-aggregated.xml artifacts (see `analyze-payload` Step 5). Both `bisect-payload-suspects` and `stage-payload-reverts` use the `trigger-payload-job` skill to post the correct commands — but they depend on the caller providing accurate `is_aggregated` and `underlying_job_name` values.
 
+**Fail-fast validation**: After assembling the `failing_jobs` list from subagent results and before passing it to `bisect-payload-suspects` or `stage-payload-reverts`, validate each entry: if `is_aggregated` is true but `underlying_job_name` is empty or null, do NOT enqueue that job for payload testing. Instead, record a hard error for that suspect in the report (e.g., "Cannot trigger payload test: aggregated job missing underlying_job_name from subagent analysis") and continue with the remaining suspects. This prevents silent misuse of `trigger-payload-job` with an aggregated job that has no underlying job name.
+
 If there are no HIGH or MEDIUM candidates, skip to Step 6 (report generation).
 
 ### Step 5: Bisect Phase 2 (Resume)
