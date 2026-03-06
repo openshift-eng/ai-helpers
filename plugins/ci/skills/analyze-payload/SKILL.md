@@ -249,7 +249,7 @@ A table showing ALL blocking jobs with columns:
 - Job Name
 - Status (color-coded: green for passed, red for failed)
 - Streak (how many consecutive payloads it has been failing; "N/A" for passed jobs)
-- History (the failure_pattern across the lookback window, e.g., "F F F S F F", showing most recent first; use color-coded markers — red for F, green for S)
+- History (the failure_pattern across the lookback window, e.g., "F F F S F F", showing most recent first; use color-coded markers — red for F, green for S. Each marker should be a link to that job's Prow URL from that payload, when available from the lookback data)
 - First Failed In (originating payload tag, linked to release controller)
 
 #### 7.3: Failed Job Details
@@ -339,170 +339,104 @@ After the revert is merged and payloads are green again, the original author can
 </div>
 ```
 
-Add the following styles for the revert prompt block:
+Use `verdict-revert` for the revert section when there are revert candidates, and `verdict-none` when there are none. The revert prompt copy button should use the same variable-based styling:
 
 ```html
 .revert-prompt {
   position: relative;
-  margin: 12px 0;
+  margin: 0.75rem 0;
 }
 .revert-prompt pre {
-  background: #1e1e1e;
-  color: #d4d4d4;
-  padding: 16px;
-  border-radius: 4px;
   white-space: pre-wrap;
-  font-family: 'SFMono-Regular', Consolas, monospace;
-  font-size: 13px;
-  overflow-x: auto;
 }
 .revert-prompt button {
   position: absolute;
   top: 8px;
   right: 8px;
-  background: #3c3c3c;
-  color: #d4d4d4;
-  border: 1px solid #555;
+  background: var(--surface);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
   border-radius: 4px;
   padding: 4px 10px;
   cursor: pointer;
   font-size: 12px;
 }
 .revert-prompt button:hover {
-  background: #505050;
+  border-color: var(--blue);
+  color: var(--text);
 }
 ```
 
 If **no** revert candidates were identified, include a brief note instead:
 
 ```html
-<div class="revert-recommendations revert-none">
-  <h2>Recommended Reverts</h2>
+<div class="verdict verdict-none">
+  <strong>No Recommended Reverts</strong>
   <p>No PRs were identified with sufficient confidence for revert recommendation.
      Failures may be caused by infrastructure issues, flaky tests, or require further investigation.</p>
 </div>
 ```
 
-##### Shared styles for the revert section
-
-Add the following styles for both modes:
-
-```html
-.revert-recommendations {
-  background: #16213e;
-  border-left: 4px solid #ef5350;
-  padding: 16px 20px;
-  margin: 20px 0;
-  border-radius: 4px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.4);
-}
-.revert-recommendations h2 {
-  color: #ef5350;
-  border-bottom: none;
-}
-.revert-none {
-  border-left-color: #78909c;
-}
-.revert-none h2 {
-  color: #78909c;
-}
-```
-
 #### 7.5: Styling
 
-The HTML must be fully self-contained with embedded CSS. Use a dark mode design with the following theme:
+The HTML must be fully self-contained with embedded CSS. Use a GitHub-inspired dark mode design. Wrap all content in a `<div class="container">`. Use CSS variables for the color palette and the following base styles as a guide:
 
 ```html
 <style>
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 20px;
-    background: #1a1a2e;
-    color: #e0e0e0;
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-muted: #8b949e;
+    --green: #3fb950;
+    --red: #f85149;
+    --orange: #d29922;
+    --blue: #58a6ff;
+    --purple: #bc8cff;
   }
-  .executive-summary {
-    background: #16213e;
-    border-left: 4px solid #4fc3f7;
-    padding: 16px 20px;
-    margin: 20px 0;
-    border-radius: 4px;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.4);
-  }
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    background: #16213e;
-    border-radius: 4px;
-    overflow: hidden;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.4);
-  }
-  th {
-    background: #0f3460;
-    padding: 12px 16px;
-    text-align: left;
-    font-weight: 600;
-    color: #e0e0e0;
-    border-bottom: 2px solid #1a1a2e;
-  }
-  td {
-    padding: 10px 16px;
-    border-bottom: 1px solid #1a1a2e;
-  }
-  .status-passed { color: #66bb6a; font-weight: 600; }
-  .status-failed { color: #ef5350; font-weight: 600; }
-  .badge {
-    display: inline-block;
-    padding: 2px 8px;
-    border-radius: 12px;
-    font-size: 12px;
-    font-weight: 600;
-    margin-left: 8px;
-  }
-  .badge-new { background: #4a1c1c; color: #ef5350; }
-  .badge-persistent { background: #4a3a1c; color: #ffb74d; }
-  .badge-infra { background: #2a2a3e; color: #78909c; }
-  details {
-    background: #16213e;
-    margin: 12px 0;
-    border-radius: 4px;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.4);
-  }
-  details summary {
-    padding: 14px 20px;
-    cursor: pointer;
-    font-weight: 500;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-  details summary:hover { background: #0f3460; }
-  .job-detail {
-    padding: 0 20px 20px;
-    border-top: 1px solid #0f3460;
-  }
-  .analysis {
-    background: #0d1b2a;
-    padding: 16px;
-    border-radius: 4px;
-    white-space: pre-wrap;
-    font-family: 'SFMono-Regular', Consolas, monospace;
-    font-size: 13px;
-    overflow-x: auto;
-    color: #b0bec5;
-  }
-  a { color: #4fc3f7; text-decoration: none; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; padding: 2rem; }
+  .container { max-width: 1100px; margin: 0 auto; }
+  h1 { font-size: 1.8rem; margin-bottom: 0.5rem; }
+  h2 { font-size: 1.4rem; margin: 1.5rem 0 0.75rem; border-bottom: 1px solid var(--border); padding-bottom: 0.4rem; }
+  h3 { font-size: 1.1rem; margin: 1rem 0 0.5rem; }
+  a { color: var(--blue); text-decoration: none; }
   a:hover { text-decoration: underline; }
-  h1 { color: #e0e0e0; }
-  h2 { color: #b0bec5; border-bottom: 1px solid #0f3460; padding-bottom: 8px; }
-  h4 { color: #b0bec5; }
-  code { background: #0d1b2a; color: #4fc3f7; padding: 2px 5px; border-radius: 3px; }
-  .metadata { color: #78909c; font-size: 14px; }
-  .suspect-prs th { font-size: 13px; }
-  .suspect-prs td { font-size: 13px; }
+  .badge { display: inline-block; padding: 0.15rem 0.6rem; border-radius: 1rem; font-size: 0.8rem; font-weight: 600; }
+  .badge-rejected { background: rgba(248,81,73,0.2); color: var(--red); border: 1px solid var(--red); }
+  .badge-accepted { background: rgba(63,185,80,0.2); color: var(--green); border: 1px solid var(--green); }
+  .badge-new { background: rgba(248,81,73,0.15); color: var(--red); }
+  .badge-persistent { background: rgba(210,153,34,0.15); color: var(--orange); }
+  .badge-infra { background: rgba(210,153,34,0.2); color: var(--orange); border: 1px solid var(--orange); }
+  .badge-pass { background: rgba(63,185,80,0.15); color: var(--green); font-size: 0.75rem; padding: 0.1rem 0.5rem; }
+  .badge-fail { background: rgba(248,81,73,0.15); color: var(--red); font-size: 0.75rem; padding: 0.1rem 0.5rem; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 0.5rem; padding: 1.25rem; margin: 1rem 0; }
+  .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin: 1rem 0; }
+  .stat { background: var(--surface); border: 1px solid var(--border); border-radius: 0.5rem; padding: 1rem; text-align: center; }
+  .stat .num { font-size: 2rem; font-weight: 700; }
+  .stat .label { font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+  table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; }
+  th, td { padding: 0.5rem 0.75rem; text-align: left; border-bottom: 1px solid var(--border); }
+  th { color: var(--text-muted); font-weight: 600; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.03em; }
+  details { margin: 0.75rem 0; }
+  summary { cursor: pointer; padding: 0.6rem 0.75rem; background: var(--surface); border: 1px solid var(--border); border-radius: 0.4rem; font-weight: 600; user-select: none; }
+  summary:hover { border-color: var(--blue); }
+  details[open] summary { border-radius: 0.4rem 0.4rem 0 0; border-bottom: 1px solid var(--border); }
+  details .detail-body { border: 1px solid var(--border); border-top: 0; border-radius: 0 0 0.4rem 0.4rem; padding: 1rem; background: var(--surface); }
+  pre { background: var(--bg); border: 1px solid var(--border); border-radius: 0.3rem; padding: 0.75rem; overflow-x: auto; font-size: 0.85rem; color: var(--text-muted); }
+  code { font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; font-size: 0.85em; }
+  .verdict { padding: 1rem; border-radius: 0.5rem; margin: 1rem 0; font-size: 0.95rem; }
+  .verdict-revert { background: rgba(248,81,73,0.1); border-left: 4px solid var(--red); }
+  .verdict-infra { background: rgba(210,153,34,0.1); border-left: 4px solid var(--orange); }
+  .verdict-none { background: rgba(139,148,158,0.1); border-left: 4px solid var(--text-muted); }
+  .suspect-prs th { font-size: 0.85rem; }
+  .suspect-prs td { font-size: 0.85rem; }
+  .footer { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--text-muted); font-size: 0.8rem; text-align: center; }
 </style>
 ```
+
+You may add additional classes as needed (e.g., history markers, timeline items, pattern groups) following the same variable-based color palette. Use `var(--red)` / `var(--green)` for fail/pass indicators, `var(--orange)` for infrastructure issues, and `var(--blue)` for links and highlights.
 
 ### Step 8: Generate JSON Data File
 
