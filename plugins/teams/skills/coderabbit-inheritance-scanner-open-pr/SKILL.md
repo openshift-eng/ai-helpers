@@ -9,7 +9,7 @@ This skill handles the complete workflow of opening a pull request to add `inher
 
 ## When to Use This Skill
 
-Use this skill as Step 6 of the `/git:github-coderabbit-inheritance-scanner` command, after the user has confirmed they want to open PRs. Call it once per non-compliant repo that does not already have an open fix PR.
+Use this skill as Step 6 of the `/teams:coderabbit-inheritance-scanner` command, after the user has confirmed they want to open PRs. Call it once per non-compliant repo that does not already have an open fix PR.
 
 **Do NOT call this skill in `--dry-run` mode.** Instead, display the actions that would be taken for each repo.
 
@@ -54,9 +54,12 @@ sleep 1
 
 # Step 4: Clone the fork and create the fix branch
 rm -rf "${WORKDIR}"
-gh repo clone "${GH_USER}/${REPO_NAME}" "${WORKDIR}" -- -b "${DEFAULT_BRANCH}" --depth 1 2>&1
-cd "${WORKDIR}"
-git checkout -b "${BRANCH_NAME}" 2>&1
+if ! gh repo clone "${GH_USER}/${REPO_NAME}" "${WORKDIR}" -- -b "${DEFAULT_BRANCH}" --depth 1 2>&1; then
+  echo "ERROR|${REPO}|Clone failed"
+  return 1 2>/dev/null || continue
+fi
+cd "${WORKDIR}" || { echo "ERROR|${REPO}|cd into workdir failed"; return 1 2>/dev/null || continue; }
+git checkout -b "${BRANCH_NAME}" 2>&1 || { echo "ERROR|${REPO}|Branch creation failed"; cd /tmp; return 1 2>/dev/null || continue; }
 
 # Step 5: Add inheritance: true to the config file
 if [ ! -f "${CFGFILE}" ]; then
@@ -65,7 +68,7 @@ if [ ! -f "${CFGFILE}" ]; then
   return 1 2>/dev/null || continue
 fi
 
-if ! grep -q 'inheritance:' "${CFGFILE}"; then
+if ! grep -qE '^\s*inheritance:\s*(true|false)\b' "${CFGFILE}"; then
   # Prepend inheritance: true as the first line
   printf 'inheritance: true\n' | cat - "${CFGFILE}" > "${CFGFILE}.tmp" && mv "${CFGFILE}.tmp" "${CFGFILE}"
 else

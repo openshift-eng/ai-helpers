@@ -9,7 +9,7 @@ This skill searches the `openshift` GitHub organization for repositories contain
 
 ## When to Use This Skill
 
-Use this skill as Step 1 of the `/git:github-coderabbit-inheritance-scanner` command.
+Use this skill as Step 1 of the `/teams:coderabbit-inheritance-scanner` command.
 
 ## Procedure
 
@@ -21,11 +21,18 @@ ALL_REPOS=""
 for FILENAME in .coderabbit.yaml .coderabbit.yml; do
   PAGE=1
   while true; do
+    API_ERR=""
     RESULT=$(gh api -X GET "search/code" \
       -f "q=filename:${FILENAME} org:openshift" \
       -f "per_page=100" \
       -f "page=${PAGE}" \
-      --jq '.items[] | .repository.full_name' 2>/dev/null)
+      --jq '.items[] | .repository.full_name' 2> >(API_ERR=$(cat)))
+    API_EXIT=$?
+    if [ $API_EXIT -ne 0 ]; then
+      echo "ERROR: GitHub code search API failed (exit ${API_EXIT}): ${API_ERR}" >&2
+      echo "Check authentication with: gh auth status" >&2
+      exit 1
+    fi
     if [ -z "$RESULT" ]; then
       break
     fi

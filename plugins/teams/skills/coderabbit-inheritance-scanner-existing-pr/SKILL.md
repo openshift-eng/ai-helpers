@@ -9,7 +9,7 @@ This skill checks whether a repository already has an open pull request whose ti
 
 ## When to Use This Skill
 
-Use this skill as Step 3 of the `/git:github-coderabbit-inheritance-scanner` command, after identifying non-compliant repos. Call it for each non-compliant repo.
+Use this skill as Step 3 of the `/teams:coderabbit-inheritance-scanner` command, after identifying non-compliant repos. Call it for each non-compliant repo.
 
 ## Procedure
 
@@ -24,7 +24,7 @@ for REPO in "${NON_COMPLIANT_REPOS[@]}"; do
   PR_DATA=$(gh api "repos/${REPO}/pulls" \
     -f "state=open" \
     -f "per_page=100" \
-    --jq '[.[] | select(.title | ascii_downcase | contains("coderabbit inheritance"))] | first | {number: .number, html_url: .html_url, created_at: .created_at}' 2>/dev/null)
+    --jq '[.[] | select(.title | ascii_downcase | contains("coderabbit inheritance"))] | first? | {number: .number, html_url: .html_url, created_at: .created_at} // empty' 2>/dev/null)
 
   if [ -n "$PR_DATA" ]; then
     PR_NUMBER=$(echo "$PR_DATA" | jq -r '.number')

@@ -9,7 +9,7 @@ This skill checks a single repository's `.coderabbit.yaml` (or `.coderabbit.yml`
 
 ## When to Use This Skill
 
-Use this skill as Step 2 of the `/git:github-coderabbit-inheritance-scanner` command. Call it once per repo found by the search skill. Multiple repos can be checked in a single bash invocation using the batch procedure below.
+Use this skill as Step 2 of the `/teams:coderabbit-inheritance-scanner` command. Call it once per repo found by the search skill. Multiple repos can be checked in a single bash invocation using the batch procedure below.
 
 ## Procedure
 

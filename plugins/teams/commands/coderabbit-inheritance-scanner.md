@@ -1,19 +1,19 @@
 ---
-description: Scan openshift org repos for .coderabbit.yaml files missing inheritance
+description: Scan openshift org repos for .coderabbit.yaml/.coderabbit.yml files missing inheritance
 argument-hint: "[--dry-run]"
 ---
 
 ## Name
-git:github-coderabbit-inheritance-scanner
+teams:coderabbit-inheritance-scanner
 
 ## Synopsis
 ```
-/git:github-coderabbit-inheritance-scanner
-/git:github-coderabbit-inheritance-scanner --dry-run
+/teams:coderabbit-inheritance-scanner
+/teams:coderabbit-inheritance-scanner --dry-run
 ```
 
 ## Description
-The `git:github-coderabbit-inheritance-scanner` command scans all repositories in the `openshift` GitHub organization that contain a `.coderabbit.yaml` file and verifies each one has `inheritance: true` set. This ensures repos with custom CodeRabbit configurations still inherit the org-wide review rules defined in [openshift/coderabbit](https://github.com/openshift/coderabbit).
+The `teams:coderabbit-inheritance-scanner` command scans all repositories in the `openshift` GitHub organization that contain a `.coderabbit.yaml` or `.coderabbit.yml` file and verifies each one has `inheritance: true` set. This ensures repos with custom CodeRabbit configurations still inherit the org-wide review rules defined in [openshift/coderabbit](https://github.com/openshift/coderabbit).
 
 The `openshift/coderabbit` repo itself is excluded from results since it is the source of the global rules.
 
@@ -33,11 +33,11 @@ After scanning, the command offers to open PRs on non-compliant repos to add `in
 
 ### Steps
 
-1. **Search for `.coderabbit.yaml` files across the openshift org** using the `git:github-coderabbit-inheritance-scanner` skill's search procedure. Use GitHub code search via `gh api` to find repos efficiently. Use the `git:github-coderabbit-inheritance-scanner-search` skill.
+1. **Search for `.coderabbit.yaml` files across the openshift org** using the `teams:coderabbit-inheritance-scanner-search` skill. Use GitHub code search via `gh api` to find repos efficiently.
 
-2. **For each repo, fetch the raw file and check for `inheritance: true`**. Use the `git:github-coderabbit-inheritance-scanner-check` skill to classify each repo as compliant, non-compliant (missing key), non-compliant (explicitly false), or error.
+2. **For each repo, fetch the raw file and check for `inheritance: true`**. Use the `teams:coderabbit-inheritance-scanner-check` skill to classify each repo as compliant, non-compliant (missing key), non-compliant (explicitly false), or error.
 
-3. **For each non-compliant repo, check for an existing open PR** whose title contains `"CodeRabbit inheritance"` (case-insensitive substring match, since teams sometimes modify the PR title to satisfy merge requirements). Use the `git:github-coderabbit-inheritance-scanner-existing-pr` skill. Record the PR URL and how long it has been open.
+3. **For each non-compliant repo, check for an existing open PR** whose title contains `"CodeRabbit inheritance"` (case-insensitive substring match, since teams sometimes modify the PR title to satisfy merge requirements). Use the `teams:coderabbit-inheritance-scanner-existing-pr` skill. Record the PR URL and how long it has been open.
 
 4. **Format and present the results** as a markdown report:
 
@@ -71,7 +71,7 @@ After scanning, the command offers to open PRs on non-compliant repos to add `in
    - If `--dry-run`: Display what would be done for each repo (fork, sync, branch, commit, PR) and stop.
    - If not `--dry-run`: Ask the user "Open PRs for these N repos? (y/n)" and proceed only on confirmation.
 
-6. **Open fix PRs** using the `git:github-coderabbit-inheritance-scanner-open-pr` skill for each repo that needs a PR. This skill handles forking, syncing, branching, committing, pushing, and creating the PR. Collect all created PR URLs.
+6. **Open fix PRs** using the `teams:coderabbit-inheritance-scanner-open-pr` skill for each repo that needs a PR. This skill handles forking, syncing, branching, committing, pushing, and creating the PR. Collect all created PR URLs.
 
 7. **Present final results** with links to all created PRs.
 
@@ -79,21 +79,21 @@ After scanning, the command offers to open PRs on non-compliant repos to add `in
 
 This command delegates to the following skills:
 
-- `git:github-coderabbit-inheritance-scanner-search` - Search for repos with `.coderabbit.yaml` files
-- `git:github-coderabbit-inheritance-scanner-check` - Check a repo's `.coderabbit.yaml` for `inheritance: true`
-- `git:github-coderabbit-inheritance-scanner-existing-pr` - Search for an existing fix PR on a repo
-- `git:github-coderabbit-inheritance-scanner-open-pr` - Fork, sync, and open a fix PR on a repo
+- `teams:coderabbit-inheritance-scanner-search` - Search for repos with `.coderabbit.yaml` files
+- `teams:coderabbit-inheritance-scanner-check` - Check a repo's `.coderabbit.yaml` for `inheritance: true`
+- `teams:coderabbit-inheritance-scanner-existing-pr` - Search for an existing fix PR on a repo
+- `teams:coderabbit-inheritance-scanner-open-pr` - Fork, sync, and open a fix PR on a repo
 
 ## Examples
 
 1. **Scan only (report + offer to fix)**:
    ```
-   /git:github-coderabbit-inheritance-scanner
+   /teams:coderabbit-inheritance-scanner
    ```
 
 2. **Dry run (report + show what would be done, no PRs opened)**:
    ```
-   /git:github-coderabbit-inheritance-scanner --dry-run
+   /teams:coderabbit-inheritance-scanner --dry-run
    ```
 
 ## Notes
