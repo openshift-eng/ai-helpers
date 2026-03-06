@@ -29,7 +29,7 @@ Use this skill when revert candidates have already been identified with high con
 
 ## Implementation Steps
 
-For each qualifying revert candidate, launch a **parallel subagent** (Task tool, `subagent_type: "general-purpose"`, do NOT set the `model` parameter). Each subagent executes three substeps in order:
+For each qualifying revert candidate, launch a **parallel subagent** (do NOT set the `model` parameter). Each subagent executes three substeps in order:
 
 ### Substep 1: Create TRT JIRA Bug (with idempotency check)
 

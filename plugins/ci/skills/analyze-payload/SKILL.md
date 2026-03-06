@@ -101,7 +101,7 @@ Store the PR data keyed by originating payload tag. These PRs are the **suspects
 
 ### Step 5: Investigate Each Failed Job in Parallel
 
-For each failed blocking job in the **target payload**, launch a **parallel subagent** (using the Task tool) to investigate the failure. Pass the subagent the final Prow URL **and** all previous attempt URLs from Step 2.
+For each failed blocking job in the **target payload**, launch a **parallel subagent** to investigate the failure. Pass the subagent the final Prow URL **and** all previous attempt URLs from Step 2.
 
 Each subagent should determine whether the failure is an install failure or a test failure by checking the JUnit results (e.g., look for `install should succeed*` test failures), then use the appropriate analysis skill. Almost all blocking jobs install a cluster and then run tests, so the job name alone does not tell you the failure type.
 
@@ -141,7 +141,7 @@ ANALYSIS_RESULT:
 
 This structured format enables downstream consumers (like the `payload-agent` skill) to programmatically extract analysis results for confidence scoring.
 
-**Important**: Launch ALL subagents in parallel (single message with multiple Task tool calls) for maximum speed. Each subagent should be given `subagent_type: "general-purpose"`. Do NOT set the `model` parameter — let subagents inherit the parent model, as these analysis tasks require a capable model.
+**Important**: Launch ALL subagents in parallel for maximum speed. Do NOT set the `model` parameter — let subagents inherit the parent model, as these analysis tasks require a capable model.
 
 #### Cross-Platform and Cross-Job Failure Pattern Recognition
 

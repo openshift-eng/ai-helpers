@@ -30,7 +30,7 @@ Use this skill when the `payload-agent` orchestrator identifies suspect PRs with
 
 ### Phase 1: Set Up Experiments
 
-For each medium-confidence suspect, launch a **parallel subagent** (Task tool, `subagent_type: "general-purpose"`, do NOT set the `model` parameter):
+For each medium-confidence suspect, launch a **parallel subagent** (do NOT set the `model` parameter):
 
 #### 1.1: Check for Merge Conflicts
 
