@@ -24,6 +24,10 @@ This guide documents the MCP (Model Context Protocol) tools available for automa
 - [Custom Fields for issues.redhat.com](#custom-fields-for-issuesredhatcom)
   - [Field Format Notes](#field-format-notes)
 - [Field Format Requirements](#field-format-requirements)
+  - [Epic Link Field](#epic-link-field)
+  - [Parent Link Field](#parent-link-field)
+  - [Target Version Field](#target-version-field)
+  - [Epic Name Field (Required for Epics)](#epic-name-field-required-for-epics)
 - [Parent Linking Fallback Strategy](#parent-linking-fallback-strategy)
 - [Common JQL Queries](#common-jql-queries)
 - [Reference](#reference)
@@ -65,6 +69,7 @@ issue = mcp__atlassian__jira_create_issue(
     components="HyperShift / ROSA",
     additional_fields={
         "customfield_12311140": "GCP-456",  # Link to parent Epic
+        "priority": {"name": "Major"},  # Set priority level
         "labels": ["ai-generated-jira"],
         "security": {"name": "Red Hat Employee"}
     }
@@ -415,8 +420,14 @@ project = GCP AND created >= -7d
 # Issues assigned to current user
 project = GCP AND assignee = currentUser()
 
-# Blocker issues
+# All open epics
 project = GCP AND type = Epic AND status != Done ORDER BY created DESC
+
+# Blocker priority issues
+project = GCP AND priority = Blocker AND status != Done ORDER BY created DESC
+
+# High priority issues
+project = GCP AND priority IN (Blocker, Critical) AND status != Done
 
 # Ready for sprint
 project = GCP AND status = "Ready" AND type = Story

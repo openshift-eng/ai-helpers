@@ -10,6 +10,7 @@ content from the upstream sources and reconcile any changes.
 |-------------------------------------------|--------------------------------------------|
 | Story Template structure                  | docs/jira-story-template.md               |
 | Story Sizing Guide (within story section) | docs/jira-story-template.md               |
+| Priority Scheme (OJA-PRIS-001)            | *See note below*                           |
 | Epic Template structure                   | docs/jira-epic-template.md                |
 | Feature Template structure                | docs/jira-feature-template.md             |
 | Definition of Done                        | docs/definition-of-done.md                |
@@ -26,6 +27,14 @@ When this skill needs updating (upstream templates changed, new sections added):
 2. Compare against the embedded content in SKILL.md
 3. Update SKILL.md with any new or changed content
 4. Run `make lint` from the `ai-helpers` repo root to validate
+
+## Notes on Sources
+
+**Priority Scheme (OJA-PRIS-001):**
+- This content is **not** from upstream openshift-online/gcp-hcp
+- Source: Red Hat internal priority scheme OJA-PRIS-001
+- This is team-agnostic guidance maintained directly in ai-helpers
+- Keep this section synchronized with other Jira skills that reference OJA-PRIS-001
 
 ## Notes on Intentional Omissions
 

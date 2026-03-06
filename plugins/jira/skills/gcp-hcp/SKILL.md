@@ -27,6 +27,7 @@ This skill provides GCP HCP (Hypershift on GKE) team-specific conventions for cr
     - [Story DoD](#story-dod)
     - [Spike DoD](#spike-dod)
     - [Bug DoD](#bug-dod)
+  - [Priority Scheme (OJA-PRIS-001)](#priority-scheme-oja-pris-001)
 - [Examples](#examples)
   - [Example 1: GCP HCP Story](#example-1-gcp-hcp-story)
   - [Example 2: GCP HCP Epic](#example-2-gcp-hcp-epic)
@@ -88,6 +89,7 @@ mcp__atlassian__jira_create_issue(
     additional_fields={
         "customfield_12311140": "GCP-456",  # Epic Link - parent epic
         "customfield_12310243": 3.0,        # Story Points - OMIT unless user confirms
+        "priority": {"name": "Major"},      # Priority - OMIT unless user specifies
         "labels": ["ai-generated-jira"],
         "security": {"name": "Red Hat Employee"}
     }
@@ -95,6 +97,8 @@ mcp__atlassian__jira_create_issue(
 ```
 
 **Story Points guidance**: Before creating a story, ask the user if they want to assign story points: "Would you like to assign story points to this story? I can walk you through the sizing guide." Reference the [Story Sizing Guide](#story-sizing-guide) to guide the conversation. If yes, set `customfield_12310243` as a float (e.g. `3.0`). If no, omit the field entirely.
+
+**Priority guidance**: Before creating an issue, ask the user if they want to set a specific priority: "Would you like to set a priority for this issue? The default is Normal." Reference the [Priority Scheme (OJA-PRIS-001)](#priority-scheme-oja-pris-001) below to guide the conversation. If yes, set `priority` as an object with `name` field (e.g. `{"name": "Major"}`). If no, omit the field to use the default.
 
 ### For GCP HCP Epics in GCP Project
 
@@ -467,6 +471,17 @@ In addition to meeting the requirements and any acceptance criteria from the Jir
 5. Ticket Closed
    - Link to merged PR added to bug ticket
 
+### Priority Scheme (OJA-PRIS-001)
+
+Apply Priority according to priority scheme OJA-PRIS-001 ([documented here](https://spaces.redhat.com/spaces/HUB/pages/686720015/OJA+Jira+Configuration+Taxonomy)):
+
+- **Blocker** = To be worked above all other priorities. Select Blocker when the severity of the issue is very high, has no workaround, or the effort for the change is comparatively low. Issues that may be very publicly visible and could generate significant media attention may also drive a higher priority.
+- **Critical** = Must do. To be worked immediately following BLOCKER issues.
+- **Major** = Should do. To be worked after higher priority (blocker and critical) issues are resolved. Select Major when the severity is high and the effort to change it is low to moderate. Issues in this category likely have an existing workaround but implementation or execution may be non-trivial.
+- **Normal** = Could do/nice to have. To be worked after higher priority (blocker, critical and major) issues are resolved. Select Normal when the severity of an issue is relatively close to the level of effort to fix it. The existence of an easily implemented workaround can also lead to this priority level instead of a higher priority.
+- **Minor** = Won't do. To be worked after blocker, critical, major, and normal priorities are resolved. Select Minor when the severity of the issue is low, or the complexity or effort to correct it may be higher, relatively speaking. For minor priority issues, known workarounds exist or are not needed due to the trivial effort needed to address the issue.
+- **Undefined** = The priority has not been specified or not yet evaluated by the team.
+
 ## Examples
 
 ### Example 1: GCP HCP Story
@@ -488,6 +503,7 @@ Issue Type: Story
 Component: (optional)
 Parent: GCP-456 (Epic)
 Story Points: 3.0
+Priority: Major
 Labels: ai-generated-jira
 ```
 
