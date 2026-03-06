@@ -1129,23 +1129,23 @@
     },
     {
       "commands": [],
-      "description": "Native macOS notifications usage for ai-helpers",
+      "description": "Cross-platform desktop notifications for ai-helpers",
       "has_readme": true,
       "hooks": [
         {
-          "description": "Native macOS Notifications",
+          "description": "Cross-platform desktop notifications (macOS, Linux desktop, Linux headless)",
           "name": "Notification",
           "type": "Notification"
         },
         {
-          "description": "Native macOS Notifications",
+          "description": "Cross-platform desktop notifications (macOS, Linux desktop, Linux headless)",
           "name": "Stop",
           "type": "Stop"
         }
       ],
-      "name": "macos-notifications",
+      "name": "native-notifications",
       "skills": [],
-      "version": "0.0.1"
+      "version": "0.0.2"
     },
     {
       "commands": [],
