@@ -355,6 +355,30 @@
           "synopsis": "/ci:fetch-test-report <test-name> [release]"
         },
         {
+          "argument_hint": "<release> [--period twoDay|default] [--min-runs 5] [--limit 20]",
+          "description": "Query Sippy for regressing CI jobs and rank them by severity",
+          "name": "find-regressing-jobs",
+          "synopsis": "/ci:find-regressing-jobs <release> [--period twoDay|default] [--min-runs 5] [--limit 20]"
+        },
+        {
+          "argument_hint": "<job-name> <release>",
+          "description": "Investigate a failing CI job, file a Jira bug, and open a PR to fix it",
+          "name": "fix-job",
+          "synopsis": "/ci:fix-job <job-name> <release>"
+        },
+        {
+          "argument_hint": "<release> [--count 5] [--fix]",
+          "description": "End-to-end CI problem hunting -- find regressions, investigate, and fix",
+          "name": "hunt-problems",
+          "synopsis": "/ci:hunt-problems <release> [--count 5] [--fix]"
+        },
+        {
+          "argument_hint": "<job-name> <release>",
+          "description": "Deep-dive a single failing CI job to identify root cause and assess fixability",
+          "name": "investigate-job",
+          "synopsis": "/ci:investigate-job <job-name> <release>"
+        },
+        {
           "argument_hint": "<workflow-or-chain-name>",
           "description": "List the step for the given workflow or chain name",
           "name": "list-step",
@@ -470,6 +494,26 @@
           "name": "Fetch Test Runs"
         },
         {
+          "description": "Query Sippy for regressing CI jobs and rank them by severity",
+          "id": "find-regressing-jobs",
+          "name": "Find Regressing Jobs"
+        },
+        {
+          "description": "Investigate a failing CI job, file a Jira bug, and open a PR to fix it",
+          "id": "fix-job",
+          "name": "Fix Job"
+        },
+        {
+          "description": "End-to-end CI problem hunting -- find regressions, investigate, and fix",
+          "id": "hunt-problems",
+          "name": "Hunt Problems"
+        },
+        {
+          "description": "Deep-dive a single failing CI job to identify root cause and assess fixability",
+          "id": "investigate-job",
+          "name": "Investigate Job"
+        },
+        {
           "description": "Helper skill to retrieve OAuth tokens from the correct OpenShift cluster context when multiple clusters are configured",
           "id": "oc-auth",
           "name": "OC Authentication Helper"
@@ -535,7 +579,7 @@
           "name": "Trigger Payload Job"
         }
       ],
-      "version": "0.0.22"
+      "version": "0.0.23"
     },
     {
       "commands": [
