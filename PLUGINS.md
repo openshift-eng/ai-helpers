@@ -69,6 +69,10 @@ Tools for working with OpenShift CI and analyzing Prow job results
 - **`/ci:extract-prow-job-must-gather` `prowjob-url`** - Extract and decompress must-gather archives from Prow job artifacts
 - **`/ci:fetch-payloads` `[architecture] [version] [stream]`** - Fetch recent release payloads from the OpenShift release controller
 - **`/ci:fetch-test-report` `<test-name> [release]`** - Fetch a test report from Sippy showing pass rates, test ID, and Jira component
+- **`/ci:find-regressing-jobs` `<release> [--period twoDay|default] [--min-runs 5] [--limit 20]`** - Query Sippy for regressing CI jobs and rank them by severity
+- **`/ci:fix-job` `<job-name> <release>`** - Investigate a failing CI job, file a Jira bug, and open a PR to fix it
+- **`/ci:hunt-problems` `<release> [--count 5] [--fix]`** - End-to-end CI problem hunting -- find regressions, investigate, and fix
+- **`/ci:investigate-job` `<job-name> <release>`** - Deep-dive a single failing CI job to identify root cause and assess fixability
 - **`/ci:list-step` `<workflow-or-chain-name>`** - List the step for the given workflow or chain name
 - **`/ci:list-unstable-tests` `<version> <keywords> [sippy-url]`** - List unstable tests with pass rate below 95%
 - **`/ci:payload-agent` `<payload-tag>`** - Autonomous agent that analyzes a rejected payload, determines root causes, and takes action based on confidence scoring
