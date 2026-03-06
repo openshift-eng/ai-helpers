@@ -8,7 +8,7 @@ Returns: For each test case, shows which days had failure rate >= threshold
 import re
 import json
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from urllib.request import urlopen, Request
 import ssl
 from urllib.error import URLError
@@ -31,11 +31,12 @@ def secure_urlopen(request, timeout=30, warn_on_insecure=True):
     try:
         secure_ctx = ssl.create_default_context()
         return urlopen(request, context=secure_ctx, timeout=timeout)
-    except (ssl.SSLError, URLError) as secure_err:
-        # Don't retry timeouts with insecure mode - timeouts are network issues, not certificate issues
-        error_msg = str(secure_err).lower()
-        if 'timed out' in error_msg or 'timeout' in error_msg:
-            raise  # Re-raise timeout errors without fallback
+    except URLError as secure_err:
+        # Only fall back when failure is specifically certificate-validation related.
+        reason = getattr(secure_err, "reason", None)
+        is_cert_failure = isinstance(reason, ssl.SSLCertVerificationError)
+        if not is_cert_failure:
+            raise
 
         # If secure connection fails due to certificates, try without verification
         if warn_on_insecure:
@@ -46,6 +47,9 @@ def secure_urlopen(request, timeout=30, warn_on_insecure=True):
         insecure_ctx.check_hostname = False
         insecure_ctx.verify_mode = ssl.CERT_NONE
         return urlopen(request, context=insecure_ctx, timeout=timeout)
+    except ssl.SSLError:
+        # Non-verification SSL errors should be surfaced directly.
+        raise
 
 def query_qe_webapp(subteam, failure_threshold, start_date, end_date):
     """Query the QE webapp for test cases and their daily failure rates"""
@@ -58,8 +62,12 @@ def query_qe_webapp(subteam, failure_threshold, start_date, end_date):
     print(f"Querying for test cases: {url}", file=sys.stderr)
 
     req = Request(url)
-    with secure_urlopen(req) as response:
-        html = response.read().decode('utf-8')
+    try:
+        with secure_urlopen(req) as response:
+            html = response.read().decode('utf-8')
+    except Exception as e:
+        print(f"Error querying test-case index page: {e}", file=sys.stderr)
+        return None
 
     # Parse HTML to find the subteam section
     subteam_pattern = f'<div class="tab-pane fade" id="{subteam}">(.*?)(?:<div class="tab-pane fade" id=|</div>\s*</div>\s*</div>\s*</body>)'
@@ -228,7 +236,7 @@ def generate_report(data, output_format='text'):
         report.append("=" * 80)
         report.append("Daily Failure Rates Report")
         report.append("=" * 80)
-        report.append(f"Query Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}")
+        report.append(f"Query Time: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}")
         report.append(f"Source: ocpqe-webapp-aos-qe-ci (runtime-int)")
         report.append("")
         report.append("Query Parameters:")
