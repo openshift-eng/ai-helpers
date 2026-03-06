@@ -30,7 +30,7 @@ Use this skill when the `payload-agent` orchestrator identifies suspect PRs with
 
 ### Phase 1: Set Up Experiments
 
-For each medium-confidence suspect, launch a **parallel subagent** (Task tool, `subagent_type: "general-purpose"`, do NOT set the `model` parameter):
+For each medium-confidence suspect, launch a **parallel subagent** (do NOT set the `model` parameter):
 
 #### 1.1: Check for Merge Conflicts
 
@@ -71,35 +71,20 @@ Load the `revert-pr` skill and follow its workflow with `--draft`:
 
 Record the draft revert PR URL.
 
-#### 1.3: Trigger Payload Jobs
+#### 1.3: Trigger Payload Jobs and Collect Run URLs
 
-Post a comment on the draft revert PR with payload test commands for each failing blocking job attributed to this suspect:
+Use the `trigger-payload-job` skill (`plugins/ci/skills/trigger-payload-job/SKILL.md`) to trigger payload validation jobs on the draft revert PR and collect the resulting URLs. Pass:
 
-- **Aggregated jobs**: Use `/payload-aggregate <underlying-job-name> <count>`
-- **Non-aggregated jobs**: Use `/payload-job <job-name>`
+- `pr_url`: The draft revert PR URL
+- `jobs`: The `failing_jobs` list for this suspect (includes `job_name`, `is_aggregated`, `underlying_job_name` for each job)
 
-```bash
-gh pr comment "{draft_pr_url}" --body "/payload-aggregate {underlying_job_name_1} {count}
-/payload-job {job_name_2}
-..."
-```
-
-#### 1.4: Collect Run URLs
-
-After posting the comment, wait ~30 seconds and poll for the `openshift-ci[bot]` reply:
-
-```bash
-gh api "repos/<org>/<repo>/issues/<pr_number>/comments" \
-  --jq '[.[] | select(.user.login == "openshift-ci[bot]" and (.body | contains("pr-payload-tests")))] | last | .body'
-```
-
-Extract the `pr-payload-tests.ci.openshift.org/runs/ci/<uuid>` URL. Fetch the page to extract individual prow job URLs.
-
-#### 1.5: Record Experiment
+#### 1.4: Record Experiment
 
 Record the experiment data for the tracking YAML (see schema below).
 
 **Throttling**: Never bisect more than 5 suspects. If there are more than 5, test only the top 5 by confidence score. Record the remainder as `deferred_suspects` in the tracking YAML.
+
+**Job triggering limits**: Respect the global limits set by the `payload-agent` orchestrator. Across all bisect experiments combined: trigger at most 5 non-aggregated jobs and at most 1 aggregated job. Prioritize jobs from higher-confidence suspects. Skip excess jobs and record them in the tracking YAML as skipped due to limits.
 
 ### Write Tracking YAML
 
@@ -220,5 +205,6 @@ Return results to the caller for inclusion in the final report.
 ## See Also
 
 - Related Skill: `revert-pr` - The git revert workflow (`plugins/ci/skills/revert-pr/SKILL.md`)
+- Related Skill: `trigger-payload-job` - Triggers payload jobs and collects URLs (`plugins/ci/skills/trigger-payload-job/SKILL.md`)
 - Related Skill: `stage-payload-reverts` - Stages high-confidence reverts (`plugins/ci/skills/stage-payload-reverts/SKILL.md`)
 - Related Command: `/ci:payload-agent` - Autonomous orchestrator that uses this skill (`plugins/ci/commands/payload-agent.md`)

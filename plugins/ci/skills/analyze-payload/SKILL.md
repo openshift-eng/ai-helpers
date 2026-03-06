@@ -62,9 +62,11 @@ Parse the output to extract payload tag names, phases, and job details.
 
 Find the **target payload** (the tag from Step 1) in the fetched list. Based on its phase:
 
-- **Rejected**: Extract all failed blocking job names and their Prow URLs. Proceed with full analysis.
-- **Ready**: Extract blocking jobs that have already **failed** (with their Prow URLs). These are jobs that will not pass — they indicate the payload is on track for rejection. Proceed with analysis of those failed jobs and note in the report that the payload is still in progress.
-- **Accepted**: Extract any failed blocking job names and their Prow URLs. Payloads can be force-accepted despite blocking job failures, so do NOT assume all blocking jobs passed. If there are failed blocking jobs, proceed with full analysis and note in the report that the payload was accepted despite these failures. If there are truly no failed blocking jobs, report "Payload was accepted with all blocking jobs passing, no analysis needed" and exit.
+- **Rejected**: Extract all failed blocking job names, their Prow URLs, and any previous attempt URLs. Proceed with full analysis.
+- **Ready**: Extract blocking jobs that have already **failed** (with their Prow URLs and previous attempt URLs). These are jobs that will not pass — they indicate the payload is on track for rejection. Proceed with analysis of those failed jobs and note in the report that the payload is still in progress.
+- **Accepted**: Extract any failed blocking job names, their Prow URLs, and previous attempt URLs. Payloads can be force-accepted despite blocking job failures, so do NOT assume all blocking jobs passed. If there are failed blocking jobs, proceed with full analysis and note in the report that the payload was accepted despite these failures. If there are truly no failed blocking jobs, report "Payload was accepted with all blocking jobs passing, no analysis needed" and exit.
+
+The release controller API returns `previousAttemptURLs` for jobs that were retried. For each failed job, collect the final Prow URL and all previous attempt URLs. These are available in the `fetch-payloads` output as `attempt N: <url>` lines below the main URL.
 
 ### Step 3: Build Failure History (Lookback)
 
@@ -99,13 +101,19 @@ Store the PR data keyed by originating payload tag. These PRs are the **suspects
 
 ### Step 5: Investigate Each Failed Job in Parallel
 
-For each failed blocking job in the **target payload**, launch a **parallel subagent** (using the Task tool) to investigate the failure. Use the Prow URL from Step 2.
+For each failed blocking job in the **target payload**, launch a **parallel subagent** to investigate the failure. Pass the subagent the final Prow URL **and** all previous attempt URLs from Step 2.
 
 Each subagent should determine whether the failure is an install failure or a test failure by checking the JUnit results (e.g., look for `install should succeed*` test failures), then use the appropriate analysis skill. Almost all blocking jobs install a cluster and then run tests, so the job name alone does not tell you the failure type.
 
 Instruct each subagent as follows:
 
-> Analyze the failure at <prow_url>. First, check the JUnit results or build log to determine whether this is an install failure (look for `install should succeed: overall` or similar install-related test failures) or a test failure (install passed, specific tests failed).
+> Analyze the failure at <prow_url>. This job had <N> retries. The previous attempt URLs are: <previous_attempt_urls>.
+>
+> **Aggregated jobs**: If this is an aggregated job (has `aggregated-` prefix or an `aggregator` step), retries only re-run the aggregation analysis — they do NOT re-run the underlying test jobs. Therefore, only examine the most recent attempt; previous attempts contain the same underlying results and do not provide additional signal.
+>
+> **Non-aggregated jobs**: **Examine the final attempt first**, then compare with previous attempts to determine whether all retries failed the same way. If retries show different failure modes, note this — it distinguishes consistent regressions from intermittent/infrastructure issues. Consistent failures across all attempts strongly indicate a product regression rather than flakiness.
+>
+> First, check the JUnit results or build log to determine whether this is an install failure (look for `install should succeed: overall` or similar install-related test failures) or a test failure (install passed, specific tests failed).
 >
 > Based on the failure type, use the appropriate skill:
 > - **Install failure**: Use the `ci:prow-job-analyze-install-failure` skill. **You MUST download and examine the actual installer log bundle** — do NOT skip this step or make assessments based only on high-level metadata like pass rates or job names. The log bundle contains the actual error messages that reveal the root cause. For metal/bare-metal jobs (job name contains "metal"), perform additional analysis using the `ci:prow-job-analyze-metal-install-failure` skill as needed for dev-scripts, Metal3/Ironic, and BareMetalHost-specific diagnostics.
@@ -127,11 +135,13 @@ ANALYSIS_RESULT:
 - key_error_patterns: <comma-separated key error strings for matching>
 - known_symptoms: <comma-separated symptom summaries from job_labels, or "none">
 - underlying_job_name: <for aggregated jobs only, extracted from junit artifacts>
+- retries_consistent: yes|no|no_retries|only_final_examined
+- retry_summary: <brief comparison of failure modes across attempts, e.g. "all 3 attempts failed with same KAS crashloop" or "attempt 1 infra timeout, attempts 2-3 test failure", or "no retries" when there was only a single attempt>
 ```
 
 This structured format enables downstream consumers (like the `payload-agent` skill) to programmatically extract analysis results for confidence scoring.
 
-**Important**: Launch ALL subagents in parallel (single message with multiple Task tool calls) for maximum speed. Each subagent should be given `subagent_type: "general-purpose"`. Do NOT set the `model` parameter — let subagents inherit the parent model, as these analysis tasks require a capable model.
+**Important**: Launch ALL subagents in parallel for maximum speed. Do NOT set the `model` parameter — let subagents inherit the parent model, as these analysis tasks require a capable model.
 
 #### Cross-Platform and Cross-Job Failure Pattern Recognition
 
@@ -239,7 +249,7 @@ A table showing ALL blocking jobs with columns:
 - Job Name
 - Status (color-coded: green for passed, red for failed)
 - Streak (how many consecutive payloads it has been failing; "N/A" for passed jobs)
-- History (the failure_pattern across the lookback window, e.g., "F F F S F F", showing most recent first; use color-coded markers — red for F, green for S)
+- History (the failure_pattern across the lookback window, e.g., "F F F S F F", showing most recent first; use color-coded markers — red for F, green for S. Each marker should be a link to that job's Prow URL from that payload, when available from the lookback data)
 - First Failed In (originating payload tag, linked to release controller)
 
 #### 7.3: Failed Job Details
@@ -329,165 +339,104 @@ After the revert is merged and payloads are green again, the original author can
 </div>
 ```
 
-Add the following styles for the revert prompt block:
+Use `verdict-revert` for the revert section when there are revert candidates, and `verdict-none` when there are none. The revert prompt copy button should use the same variable-based styling:
 
 ```html
 .revert-prompt {
   position: relative;
-  margin: 12px 0;
+  margin: 0.75rem 0;
 }
 .revert-prompt pre {
-  background: #1e1e1e;
-  color: #d4d4d4;
-  padding: 16px;
-  border-radius: 4px;
   white-space: pre-wrap;
-  font-family: 'SFMono-Regular', Consolas, monospace;
-  font-size: 13px;
-  overflow-x: auto;
 }
 .revert-prompt button {
   position: absolute;
   top: 8px;
   right: 8px;
-  background: #3c3c3c;
-  color: #d4d4d4;
-  border: 1px solid #555;
+  background: var(--surface);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
   border-radius: 4px;
   padding: 4px 10px;
   cursor: pointer;
   font-size: 12px;
 }
 .revert-prompt button:hover {
-  background: #505050;
+  border-color: var(--blue);
+  color: var(--text);
 }
 ```
 
 If **no** revert candidates were identified, include a brief note instead:
 
 ```html
-<div class="revert-recommendations revert-none">
-  <h2>Recommended Reverts</h2>
+<div class="verdict verdict-none">
+  <strong>No Recommended Reverts</strong>
   <p>No PRs were identified with sufficient confidence for revert recommendation.
      Failures may be caused by infrastructure issues, flaky tests, or require further investigation.</p>
 </div>
 ```
 
-##### Shared styles for the revert section
-
-Add the following styles for both modes:
-
-```html
-.revert-recommendations {
-  background: white;
-  border-left: 4px solid #d93025;
-  padding: 16px 20px;
-  margin: 20px 0;
-  border-radius: 4px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-}
-.revert-recommendations h2 {
-  color: #d93025;
-  border-bottom: none;
-}
-.revert-none {
-  border-left-color: #5f6368;
-}
-.revert-none h2 {
-  color: #5f6368;
-}
-```
-
 #### 7.5: Styling
 
-The HTML must be fully self-contained with embedded CSS. Use a clean, professional design:
+The HTML must be fully self-contained with embedded CSS. Use a GitHub-inspired dark mode design. Wrap all content in a `<div class="container">`. Use CSS variables for the color palette and the following base styles as a guide:
 
 ```html
 <style>
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 20px;
-    background: #f5f5f5;
-    color: #333;
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-muted: #8b949e;
+    --green: #3fb950;
+    --red: #f85149;
+    --orange: #d29922;
+    --blue: #58a6ff;
+    --purple: #bc8cff;
   }
-  .executive-summary {
-    background: white;
-    border-left: 4px solid #1a73e8;
-    padding: 16px 20px;
-    margin: 20px 0;
-    border-radius: 4px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-  }
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    background: white;
-    border-radius: 4px;
-    overflow: hidden;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-  }
-  th {
-    background: #f8f9fa;
-    padding: 12px 16px;
-    text-align: left;
-    font-weight: 600;
-    border-bottom: 2px solid #dee2e6;
-  }
-  td {
-    padding: 10px 16px;
-    border-bottom: 1px solid #eee;
-  }
-  .status-passed { color: #1e8e3e; font-weight: 600; }
-  .status-failed { color: #d93025; font-weight: 600; }
-  .badge {
-    display: inline-block;
-    padding: 2px 8px;
-    border-radius: 12px;
-    font-size: 12px;
-    font-weight: 600;
-    margin-left: 8px;
-  }
-  .badge-new { background: #fce8e6; color: #d93025; }
-  .badge-persistent { background: #fef7e0; color: #e37400; }
-  details {
-    background: white;
-    margin: 12px 0;
-    border-radius: 4px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-  }
-  details summary {
-    padding: 14px 20px;
-    cursor: pointer;
-    font-weight: 500;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-  details summary:hover { background: #f8f9fa; }
-  .job-detail {
-    padding: 0 20px 20px;
-    border-top: 1px solid #eee;
-  }
-  .analysis {
-    background: #f8f9fa;
-    padding: 16px;
-    border-radius: 4px;
-    white-space: pre-wrap;
-    font-family: 'SFMono-Regular', Consolas, monospace;
-    font-size: 13px;
-    overflow-x: auto;
-  }
-  a { color: #1a73e8; text-decoration: none; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; padding: 2rem; }
+  .container { max-width: 1100px; margin: 0 auto; }
+  h1 { font-size: 1.8rem; margin-bottom: 0.5rem; }
+  h2 { font-size: 1.4rem; margin: 1.5rem 0 0.75rem; border-bottom: 1px solid var(--border); padding-bottom: 0.4rem; }
+  h3 { font-size: 1.1rem; margin: 1rem 0 0.5rem; }
+  a { color: var(--blue); text-decoration: none; }
   a:hover { text-decoration: underline; }
-  h1 { color: #202124; }
-  h2 { color: #3c4043; border-bottom: 1px solid #eee; padding-bottom: 8px; }
-  .metadata { color: #5f6368; font-size: 14px; }
-  .suspect-prs th { font-size: 13px; }
-  .suspect-prs td { font-size: 13px; }
+  .badge { display: inline-block; padding: 0.15rem 0.6rem; border-radius: 1rem; font-size: 0.8rem; font-weight: 600; }
+  .badge-rejected { background: rgba(248,81,73,0.2); color: var(--red); border: 1px solid var(--red); }
+  .badge-accepted { background: rgba(63,185,80,0.2); color: var(--green); border: 1px solid var(--green); }
+  .badge-new { background: rgba(248,81,73,0.15); color: var(--red); }
+  .badge-persistent { background: rgba(210,153,34,0.15); color: var(--orange); }
+  .badge-infra { background: rgba(210,153,34,0.2); color: var(--orange); border: 1px solid var(--orange); }
+  .badge-pass { background: rgba(63,185,80,0.15); color: var(--green); font-size: 0.75rem; padding: 0.1rem 0.5rem; }
+  .badge-fail { background: rgba(248,81,73,0.15); color: var(--red); font-size: 0.75rem; padding: 0.1rem 0.5rem; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 0.5rem; padding: 1.25rem; margin: 1rem 0; }
+  .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin: 1rem 0; }
+  .stat { background: var(--surface); border: 1px solid var(--border); border-radius: 0.5rem; padding: 1rem; text-align: center; }
+  .stat .num { font-size: 2rem; font-weight: 700; }
+  .stat .label { font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+  table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; }
+  th, td { padding: 0.5rem 0.75rem; text-align: left; border-bottom: 1px solid var(--border); }
+  th { color: var(--text-muted); font-weight: 600; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.03em; }
+  details { margin: 0.75rem 0; }
+  summary { cursor: pointer; padding: 0.6rem 0.75rem; background: var(--surface); border: 1px solid var(--border); border-radius: 0.4rem; font-weight: 600; user-select: none; }
+  summary:hover { border-color: var(--blue); }
+  details[open] summary { border-radius: 0.4rem 0.4rem 0 0; border-bottom: 1px solid var(--border); }
+  details .detail-body { border: 1px solid var(--border); border-top: 0; border-radius: 0 0 0.4rem 0.4rem; padding: 1rem; background: var(--surface); }
+  pre { background: var(--bg); border: 1px solid var(--border); border-radius: 0.3rem; padding: 0.75rem; overflow-x: auto; font-size: 0.85rem; color: var(--text-muted); }
+  code { font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; font-size: 0.85em; }
+  .verdict { padding: 1rem; border-radius: 0.5rem; margin: 1rem 0; font-size: 0.95rem; }
+  .verdict-revert { background: rgba(248,81,73,0.1); border-left: 4px solid var(--red); }
+  .verdict-infra { background: rgba(210,153,34,0.1); border-left: 4px solid var(--orange); }
+  .verdict-none { background: rgba(139,148,158,0.1); border-left: 4px solid var(--text-muted); }
+  .suspect-prs th { font-size: 0.85rem; }
+  .suspect-prs td { font-size: 0.85rem; }
+  .footer { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--text-muted); font-size: 0.8rem; text-align: center; }
 </style>
 ```
+
+You may add additional classes as needed (e.g., history markers, timeline items, pattern groups) following the same variable-based color palette. Use `var(--red)` / `var(--green)` for fail/pass indicators, `var(--orange)` for infrastructure issues, and `var(--blue)` for links and highlights.
 
 ### Step 8: Generate JSON Data File
 
