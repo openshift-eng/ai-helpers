@@ -291,7 +291,6 @@ Error querying OCP-12345: HTTP Error 401: Unauthorized
 1. Check VPN connection
 2. Verify Kerberos ticket: `klist`
 3. Authenticate via browser first
-4. The script uses `ssl.CERT_NONE` to bypass certificate verification
 
 ### No Data Returned
 
