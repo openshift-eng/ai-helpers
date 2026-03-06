@@ -107,9 +107,9 @@
       "version": "0.1.1"
     },
     {
-      "name": "macos-notifications",
-      "source": "./plugins/macos-notifications",
-      "description": "Native macOS notifications usage for ai-helpers",
+      "name": "native-notifications",
+      "source": "./plugins/native-notifications",
+      "description": "Cross-platform desktop notifications for ai-helpers",
       "version": "0.0.2"
     },
     {
