@@ -389,28 +389,28 @@ Add the following styles for both modes:
 
 ```html
 .revert-recommendations {
-  background: white;
-  border-left: 4px solid #d93025;
+  background: #16213e;
+  border-left: 4px solid #ef5350;
   padding: 16px 20px;
   margin: 20px 0;
   border-radius: 4px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.4);
 }
 .revert-recommendations h2 {
-  color: #d93025;
+  color: #ef5350;
   border-bottom: none;
 }
 .revert-none {
-  border-left-color: #5f6368;
+  border-left-color: #78909c;
 }
 .revert-none h2 {
-  color: #5f6368;
+  color: #78909c;
 }
 ```
 
 #### 7.5: Styling
 
-The HTML must be fully self-contained with embedded CSS. Use a clean, professional design:
+The HTML must be fully self-contained with embedded CSS. Use a dark mode design with the following theme:
 
 ```html
 <style>
@@ -419,38 +419,39 @@ The HTML must be fully self-contained with embedded CSS. Use a clean, profession
     max-width: 1200px;
     margin: 0 auto;
     padding: 20px;
-    background: #f5f5f5;
-    color: #333;
+    background: #1a1a2e;
+    color: #e0e0e0;
   }
   .executive-summary {
-    background: white;
-    border-left: 4px solid #1a73e8;
+    background: #16213e;
+    border-left: 4px solid #4fc3f7;
     padding: 16px 20px;
     margin: 20px 0;
     border-radius: 4px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.4);
   }
   table {
     width: 100%;
     border-collapse: collapse;
-    background: white;
+    background: #16213e;
     border-radius: 4px;
     overflow: hidden;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.4);
   }
   th {
-    background: #f8f9fa;
+    background: #0f3460;
     padding: 12px 16px;
     text-align: left;
     font-weight: 600;
-    border-bottom: 2px solid #dee2e6;
+    color: #e0e0e0;
+    border-bottom: 2px solid #1a1a2e;
   }
   td {
     padding: 10px 16px;
-    border-bottom: 1px solid #eee;
+    border-bottom: 1px solid #1a1a2e;
   }
-  .status-passed { color: #1e8e3e; font-weight: 600; }
-  .status-failed { color: #d93025; font-weight: 600; }
+  .status-passed { color: #66bb6a; font-weight: 600; }
+  .status-failed { color: #ef5350; font-weight: 600; }
   .badge {
     display: inline-block;
     padding: 2px 8px;
@@ -459,13 +460,14 @@ The HTML must be fully self-contained with embedded CSS. Use a clean, profession
     font-weight: 600;
     margin-left: 8px;
   }
-  .badge-new { background: #fce8e6; color: #d93025; }
-  .badge-persistent { background: #fef7e0; color: #e37400; }
+  .badge-new { background: #4a1c1c; color: #ef5350; }
+  .badge-persistent { background: #4a3a1c; color: #ffb74d; }
+  .badge-infra { background: #2a2a3e; color: #78909c; }
   details {
-    background: white;
+    background: #16213e;
     margin: 12px 0;
     border-radius: 4px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.4);
   }
   details summary {
     padding: 14px 20px;
@@ -475,25 +477,28 @@ The HTML must be fully self-contained with embedded CSS. Use a clean, profession
     align-items: center;
     justify-content: space-between;
   }
-  details summary:hover { background: #f8f9fa; }
+  details summary:hover { background: #0f3460; }
   .job-detail {
     padding: 0 20px 20px;
-    border-top: 1px solid #eee;
+    border-top: 1px solid #0f3460;
   }
   .analysis {
-    background: #f8f9fa;
+    background: #0d1b2a;
     padding: 16px;
     border-radius: 4px;
     white-space: pre-wrap;
     font-family: 'SFMono-Regular', Consolas, monospace;
     font-size: 13px;
     overflow-x: auto;
+    color: #b0bec5;
   }
-  a { color: #1a73e8; text-decoration: none; }
+  a { color: #4fc3f7; text-decoration: none; }
   a:hover { text-decoration: underline; }
-  h1 { color: #202124; }
-  h2 { color: #3c4043; border-bottom: 1px solid #eee; padding-bottom: 8px; }
-  .metadata { color: #5f6368; font-size: 14px; }
+  h1 { color: #e0e0e0; }
+  h2 { color: #b0bec5; border-bottom: 1px solid #0f3460; padding-bottom: 8px; }
+  h4 { color: #b0bec5; }
+  code { background: #0d1b2a; color: #4fc3f7; padding: 2px 5px; border-radius: 3px; }
+  .metadata { color: #78909c; font-size: 14px; }
   .suspect-prs th { font-size: 13px; }
   .suspect-prs td { font-size: 13px; }
 </style>
