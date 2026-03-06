@@ -1,5 +1,5 @@
 ---
-description: Scan openshift org repos for .coderabbit.yaml files missing inheritance
+description: Scan openshift org repos for .coderabbit.yaml/.coderabbit.yml files missing inheritance
 argument-hint: "[--dry-run]"
 ---
 
@@ -13,7 +13,7 @@ git:github-coderabbit-inheritance-scanner
 ```
 
 ## Description
-The `git:github-coderabbit-inheritance-scanner` command scans all repositories in the `openshift` GitHub organization that contain a `.coderabbit.yaml` file and verifies each one has `inheritance: true` set. This ensures repos with custom CodeRabbit configurations still inherit the org-wide review rules defined in [openshift/coderabbit](https://github.com/openshift/coderabbit).
+The `git:github-coderabbit-inheritance-scanner` command scans all repositories in the `openshift` GitHub organization that contain a `.coderabbit.yaml` or `.coderabbit.yml` file and verifies each one has `inheritance: true` set. This ensures repos with custom CodeRabbit configurations still inherit the org-wide review rules defined in [openshift/coderabbit](https://github.com/openshift/coderabbit).
 
 The `openshift/coderabbit` repo itself is excluded from results since it is the source of the global rules.
 
@@ -33,7 +33,7 @@ After scanning, the command offers to open PRs on non-compliant repos to add `in
 
 ### Steps
 
-1. **Search for `.coderabbit.yaml` files across the openshift org** using the `git:github-coderabbit-inheritance-scanner` skill's search procedure. Use GitHub code search via `gh api` to find repos efficiently. Use the `git:github-coderabbit-inheritance-scanner-search` skill.
+1. **Search for `.coderabbit.yaml` files across the openshift org** using the `git:github-coderabbit-inheritance-scanner-search` skill. Use GitHub code search via `gh api` to find repos efficiently.
 
 2. **For each repo, fetch the raw file and check for `inheritance: true`**. Use the `git:github-coderabbit-inheritance-scanner-check` skill to classify each repo as compliant, non-compliant (missing key), non-compliant (explicitly false), or error.
 

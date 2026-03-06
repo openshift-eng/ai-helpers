@@ -50,7 +50,7 @@
           "argument_hint": "[--dry-run]",
           "description": "Scan openshift org repos for .coderabbit.yaml files missing inheritance",
           "name": "github-coderabbit-inheritance-scanner",
-          "synopsis": "/git:github-coderabbit-inheritance-scanner"
+          "synopsis": "/git:github-coderabbit-inheritance-scanner [--dry-run]"
         },
         {
           "argument_hint": "[pr-url]",

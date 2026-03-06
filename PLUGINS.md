@@ -142,7 +142,7 @@ Git workflow automation and utilities
 - **`/git:commit-suggest` `[N]`** - Generate Conventional Commits style commit messages or summarize existing commits
 - **`/git:debt-scan`** - Analyze technical debt indicators in the repository
 - **`/git:fix-cherrypick-robot-pr` `<pr-url> [error-messages]`** - Fix a cherrypick-robot PR that needs manual intervention
-- **`/git:github-coderabbit-inheritance-scanner` `[--dry-run]`** - Scan openshift org repos for .coderabbit.yaml files missing inheritance
+- **`/git:github-coderabbit-inheritance-scanner` `[--dry-run]`** - Scan openshift org repos for .coderabbit.yaml/.coderabbit.yml files missing inheritance
 - **`/git:redescribe` `[pr-url]`** - Adapt and correct a PR description to match its code diffs and commit messages
 - **`/git:suggest-reviewers` `[base-branch]`** - Suggest appropriate reviewers for a PR based on git blame and OWNERS files
 - **`/git:summary`** - Show current branch, git status, and recent commits for quick context

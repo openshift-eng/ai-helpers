@@ -24,7 +24,7 @@ for REPO in "${NON_COMPLIANT_REPOS[@]}"; do
   PR_DATA=$(gh api "repos/${REPO}/pulls" \
     -f "state=open" \
     -f "per_page=100" \
-    --jq '[.[] | select(.title | ascii_downcase | contains("coderabbit inheritance"))] | first | {number: .number, html_url: .html_url, created_at: .created_at}' 2>/dev/null)
+    --jq '[.[] | select(.title | ascii_downcase | contains("coderabbit inheritance"))] | first? | {number: .number, html_url: .html_url, created_at: .created_at} // empty' 2>/dev/null)
 
   if [ -n "$PR_DATA" ]; then
     PR_NUMBER=$(echo "$PR_DATA" | jq -r '.number')
