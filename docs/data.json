@@ -106,7 +106,7 @@
           "argument_hint": "<issue-key> [--auto-apply]",
           "description": "Categorize JIRA tickets into activity types using AI",
           "name": "categorize-activity-type",
-          "synopsis": "bash"
+          "synopsis": "/jira:categorize-activity-type <issue-key> [--auto-apply]"
         },
         {
           "argument_hint": "<issue-number> [issue-number...] [--github-project <org/repo>] [--jira-project <key>] [--dryrun]",
@@ -121,10 +121,10 @@
           "synopsis": "/jira:create-release-note <issue-key>"
         },
         {
-          "argument_hint": "<type> [project-key] <summary> [--component <name>] [--version <version>] [--parent <key>]",
+          "argument_hint": "<type> [project-key] <summary> [--component <name>] [--version <version>] [--parent <key>] [--template <name>] [--overrides <path>] [--priority <value>] [--security-level <value>]",
           "description": "Create Jira issues (story, epic, feature, task, bug, feature-request) with proper formatting",
           "name": "create",
-          "synopsis": "/jira:create <type> [project-key] <summary> [options]"
+          "synopsis": "/jira:create <type> [project-key] <summary> [--component <name>] [--version <version>] [--parent <key>] [--template <name>] [--overrides <path>] [--priority <value>] [--security-level <value>]"
         },
         {
           "argument_hint": "<feature-key>",
@@ -154,7 +154,7 @@
           "argument_hint": "[--github-project <org/repo>] [--jira-project <key>] [--profile <name>] [--porcelain] [--output json|yaml]",
           "description": "Reconcile state mismatches between GitHub and Jira issues",
           "name": "reconcile-github",
-          "synopsis": "bash"
+          "synopsis": "/jira:reconcile-github [options]"
         },
         {
           "argument_hint": "",
@@ -173,6 +173,12 @@
           "description": "Generate a status rollup comment for any JIRA issue based on all child issues and a given date range",
           "name": "status-rollup",
           "synopsis": "/jira:status-rollup issue-id [--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD]"
+        },
+        {
+          "argument_hint": "<action> [template-name]",
+          "description": "Manage Jira issue templates (create, list, edit, delete, validate)",
+          "name": "template",
+          "synopsis": "/jira:template <action> [template-name]"
         },
         {
           "argument_hint": "[project-key] [--component name] [--label label-name] [user-filters...]",
@@ -198,44 +204,14 @@
           "name": "JIRA Activity Type Categorizer"
         },
         {
-          "description": "Jira conventions for the CNTRLPLANE project used by OpenShift teams",
-          "id": "cntrlplane",
-          "name": "CNTRLPLANE Jira Conventions"
-        },
-        {
-          "description": "Implementation guide for creating well-formed Jira bug reports",
-          "id": "create-bug",
-          "name": "Create Jira Bug"
-        },
-        {
-          "description": "Implementation guide for creating Jira epics with proper scope and parent linking",
-          "id": "create-epic",
-          "name": "Create Jira Epic"
-        },
-        {
-          "description": "Implementation guide for creating Jira features representing strategic objectives and market problems",
-          "id": "create-feature",
-          "name": "Create Jira Feature"
-        },
-        {
-          "description": "Implementation guide for creating Feature Requests in the RFE project",
-          "id": "create-feature-request",
-          "name": "Create Jira Feature Request"
+          "description": "Unified skill for creating all Jira issue types using template-driven workflows",
+          "id": "create-issue",
+          "name": "Create Jira Issue (Template-Driven)"
         },
         {
           "description": "Detailed implementation guide for generating bug fix release notes from Jira and GitHub PRs",
           "id": "create-release-note",
           "name": "Create Release Note"
-        },
-        {
-          "description": "Implementation guide for creating well-formed Jira user stories with acceptance criteria",
-          "id": "create-story",
-          "name": "Create Jira Story"
-        },
-        {
-          "description": "Implementation guide for creating Jira tasks for technical and operational work",
-          "id": "create-task",
-          "name": "Create Jira Task"
         },
         {
           "description": "Recursively extract GitHub Pull Request links from Jira issues",
@@ -246,11 +222,6 @@
           "description": "GCP HCP team-specific Jira requirements for creating issues in the GCP project (Hypershift on GKE)",
           "id": "gcp-hcp",
           "name": "GCP HCP Jira Conventions"
-        },
-        {
-          "description": "HyperShift team-specific Jira requirements for component selection and conventions",
-          "id": "hypershift",
-          "name": "HyperShift Jira Conventions"
         },
         {
           "description": "Detailed implementation guide for recursively analyzing Jira features and generating comprehensive documentation",
@@ -268,14 +239,14 @@
           "name": "JIRA Release Blocker Validator"
         },
         {
-          "description": "Jira conventions and bug templates for the OCPBUGS project",
-          "id": "ocpbugs",
-          "name": "OCPBUGS Jira Conventions"
-        },
-        {
           "description": "Shared engine for analyzing Jira issue activity and generating status summaries",
           "id": "status-analysis",
           "name": "Jira Status Analysis Engine"
+        },
+        {
+          "description": "Implementation guide for Jira issue templates",
+          "id": "template-management",
+          "name": "Template Management"
         }
       ],
       "version": "0.3.2"
@@ -340,7 +311,7 @@
           "argument_hint": "prowjob-url",
           "description": "Extract and decompress must-gather archives from Prow job artifacts",
           "name": "extract-prow-job-must-gather",
-          "synopsis": "bash"
+          "synopsis": "/ci:extract-prow-job-must-gather <prowjob-url>"
         },
         {
           "argument_hint": "[architecture] [version] [stream]",
@@ -842,7 +813,7 @@
           "argument_hint": "<action> [arguments...]",
           "description": "Execute opm (Operator Package Manager) commands for building and managing operator catalogs",
           "name": "opm",
-          "synopsis": "bash"
+          "synopsis": "/olm:opm build-index-image <catalog-path> <index-image-tag> [--cacheless] [--arch=<arch>] [--base-image=<image>] [--builder-image=<image>]"
         },
         {
           "argument_hint": "[query] [--catalog <catalog-name>]",
@@ -894,7 +865,7 @@
           "argument_hint": "",
           "description": "Watch open Enhancement PRs from other teams that may impact OLM",
           "name": "ep-watch",
-          "synopsis": "bash"
+          "synopsis": "/olm-team:ep-watch"
         }
       ],
       "description": "OLM team development utilities and onboarding tools",
@@ -938,7 +909,7 @@
           "argument_hint": "",
           "description": "Bootstrap OpenShift Manager (OM) integration for OpenShift operators with automated resource discovery",
           "name": "bootstrap-om",
-          "synopsis": "bash"
+          "synopsis": "/openshift:bootstrap-om"
         },
         {
           "argument_hint": "<dependency> [version] [--create-jira] [--create-pr]",
@@ -1290,7 +1261,7 @@
           "argument_hint": "<test-file-or-url> [--output <path>]",
           "description": "Identify E2E test scenario gaps in OpenShift/Kubernetes tests (component-agnostic)",
           "name": "gaps",
-          "synopsis": "bash"
+          "synopsis": "/test-coverage:gaps <test-file-or-url> [--output <path>]"
         }
       ],
       "description": "Analyze test coverage and identify gaps in test scenarios",
@@ -1317,13 +1288,13 @@
           "argument_hint": "[--sosreport PATH] [--format json|markdown] [--max-irq-samples N]",
           "description": "Analyze kernel/sysctl tuning from a live node or sosreport snapshot and propose NTO recommendations",
           "name": "analyze-node-tuning",
-          "synopsis": "text"
+          "synopsis": "/node-tuning:analyze-node-tuning [--sosreport PATH] [--collect-sosreport|--no-collect-sosreport] [--sosreport-output PATH] [--node NODE] [--kubeconfig PATH] [--oc-binary PATH] [--format json|markdown] [--max-irq-samples N] [--keep-snapshot]"
         },
         {
           "argument_hint": "[profile-name] [--summary ...] [--sysctl ...] [options]",
           "description": "Generate a Tuned (tuned.openshift.io/v1) profile manifest for the Node Tuning Operator",
           "name": "generate-tuned-profile",
-          "synopsis": "text"
+          "synopsis": "/node-tuning:generate-tuned-profile [profile-name] [--summary TEXT] [--include VALUE ...] [--sysctl KEY=VALUE ...] [--match-label KEY[=VALUE] ...] [options]"
         }
       ],
       "description": "Generate and analyze OpenShift node tuning profiles",
@@ -1476,19 +1447,19 @@
           "argument_hint": "[namespace]",
           "description": "Check Gateway API resources status in the cluster",
           "name": "check",
-          "synopsis": "bash"
+          "synopsis": "/gwapi:check [namespace]"
         },
         {
           "argument_hint": "[namespace]",
           "description": "Delete Gateway API resources from a Kubernetes/OpenShift cluster",
           "name": "delete",
-          "synopsis": "bash"
+          "synopsis": "/gwapi:delete [namespace]"
         },
         {
           "argument_hint": "[namespace]",
           "description": "Install Gateway API resources to a Kubernetes/OpenShift cluster",
           "name": "install",
-          "synopsis": "bash"
+          "synopsis": "/gwapi:install [namespace]"
         }
       ],
       "description": "Gateway API installation utilities for Kubernetes/OpenShift clusters",
@@ -1559,7 +1530,7 @@
           "argument_hint": "",
           "description": "Automate OpenShift Tests Extension (OTE) migration for component repositories",
           "name": "migrate",
-          "synopsis": "bash"
+          "synopsis": "/ote-migration:migrate"
         }
       ],
       "description": "Automate OpenShift Tests Extension (OTE) migration for component repositories",
