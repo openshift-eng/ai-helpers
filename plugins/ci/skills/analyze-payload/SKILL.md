@@ -135,8 +135,8 @@ ANALYSIS_RESULT:
 - key_error_patterns: <comma-separated key error strings for matching>
 - known_symptoms: <comma-separated symptom summaries from job_labels, or "none">
 - underlying_job_name: <for aggregated jobs only, extracted from junit artifacts>
-- retries_consistent: yes|no|only_final_examined
-- retry_summary: <brief comparison of failure modes across attempts, e.g. "all 3 attempts failed with same KAS crashloop" or "attempt 1 infra timeout, attempts 2-3 test failure">
+- retries_consistent: yes|no|no_retries|only_final_examined
+- retry_summary: <brief comparison of failure modes across attempts, e.g. "all 3 attempts failed with same KAS crashloop" or "attempt 1 infra timeout, attempts 2-3 test failure", or "no retries" when there was only a single attempt>
 ```
 
 This structured format enables downstream consumers (like the `payload-agent` skill) to programmatically extract analysis results for confidence scoring.
