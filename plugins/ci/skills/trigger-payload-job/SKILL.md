@@ -26,6 +26,15 @@ Use this skill whenever you need to trigger payload testing on a PR (revert PR, 
 1. **GitHub CLI (`gh`)**: Installed and authenticated
 2. **Repository Access**: User must have permission to comment on the PR
 
+## Job Triggering Limits
+
+The caller (typically `payload-agent`) is responsible for enforcing global limits before invoking this skill. However, this skill also enforces the following hard limits per invocation:
+
+- **Non-aggregated jobs**: No more than 5 per comment
+- **Aggregated jobs**: No more than 1 per comment. Aggregated jobs are expensive (they run many iterations), so only trigger one at a time. A second aggregated job should only be triggered after the first completes, and only if confirmation is needed.
+
+If the `jobs` input exceeds these limits, trigger only the allowed number (prioritizing by the order provided) and return the remainder as `skipped` in the return format.
+
 ## Implementation Steps
 
 ### Step 1: Idempotency Check
@@ -102,6 +111,10 @@ PAYLOAD_JOB_RESULT:
 - prow_jobs:
   - job_name: <job name>
     prow_url: <individual prow URL>
+  - ...
+- skipped_jobs:
+  - job_name: <job name>
+    reason: "job trigger limit reached (max 5 non-aggregated, max 1 aggregated per invocation)"
   - ...
 - status: triggered|reused|failed
 - error: none|<description>

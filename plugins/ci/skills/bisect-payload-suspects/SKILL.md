@@ -84,6 +84,8 @@ Record the experiment data for the tracking YAML (see schema below).
 
 **Throttling**: Never bisect more than 5 suspects. If there are more than 5, test only the top 5 by confidence score. Record the remainder as `deferred_suspects` in the tracking YAML.
 
+**Job triggering limits**: Respect the global limits set by the `payload-agent` orchestrator. Across all bisect experiments combined: trigger at most 5 non-aggregated jobs and at most 1 aggregated job. Prioritize jobs from higher-confidence suspects. Skip excess jobs and record them in the tracking YAML as skipped due to limits.
+
 ### Write Tracking YAML
 
 After all Phase 1 subagents complete, write `<payload-tag>-bisect.yaml` to the current working directory with all experiment data:
