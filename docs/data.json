@@ -363,6 +363,12 @@
           "synopsis": "/ci:check-if-jira-regression-is-ongoing <jira-key-or-url>"
         },
         {
+          "argument_hint": "<pr-url>",
+          "description": "Extract kubeconfig from a running CI job in a PR",
+          "name": "extract-kubeconfig",
+          "synopsis": "bash"
+        },
+        {
           "argument_hint": "prowjob-url",
           "description": "Extract and decompress must-gather archives from Prow job artifacts",
           "name": "extract-prow-job-must-gather",
