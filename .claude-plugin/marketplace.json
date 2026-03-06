@@ -110,7 +110,7 @@
       "name": "macos-notifications",
       "source": "./plugins/macos-notifications",
       "description": "Native macOS notifications usage for ai-helpers",
-      "version": "0.0.1"
+      "version": "0.0.2"
     },
     {
       "name": "metrics",

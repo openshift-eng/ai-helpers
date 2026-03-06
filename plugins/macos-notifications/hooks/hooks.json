@@ -1,12 +1,12 @@
 {
-  "description": "Native macOS/Linux Notifications",
+  "description": "Cross-platform desktop notifications (macOS, Linux desktop, Linux headless)",
   "hooks": {
     "Notification": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "if command -v osascript &>/dev/null; then osascript -e 'display notification \"Claude needs your input\" with title \"🔔 Claude Code\"'; elif command -v notify-send &>/dev/null; then notify-send '🔔 Claude Code' 'Claude needs your input'; fi"
+            "command": "if command -v osascript &>/dev/null; then osascript -e 'display notification \"Claude needs your input\" with title \"🔔 Claude Code\"'; elif command -v notify-send &>/dev/null && [ -n \"${DISPLAY:-}${WAYLAND_DISPLAY:-}\" ]; then notify-send '🔔 Claude Code' 'Claude needs your input'; else printf '\\a'; fi"
           }
         ]
       }
@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "if command -v osascript &>/dev/null; then osascript -e 'display notification \"Claude finished your task\" with title \"✅ Claude Code\"'; elif command -v notify-send &>/dev/null; then notify-send '✅ Claude Code' 'Claude finished your task'; fi"
+            "command": "if command -v osascript &>/dev/null; then osascript -e 'display notification \"Claude finished your task\" with title \"✅ Claude Code\"'; elif command -v notify-send &>/dev/null && [ -n \"${DISPLAY:-}${WAYLAND_DISPLAY:-}\" ]; then notify-send '✅ Claude Code' 'Claude finished your task'; else printf '\\a'; fi"
           }
         ]
       }
