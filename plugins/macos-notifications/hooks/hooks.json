@@ -1,12 +1,12 @@
 {
-  "description": "Native macOS Notifications",
+  "description": "Native macOS/Linux Notifications",
   "hooks": {
     "Notification": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "osascript -e 'display notification \"Claude needs your input\" with title \"🔔 Claude Code\"'"
+            "command": "if command -v osascript &>/dev/null; then osascript -e 'display notification \"Claude needs your input\" with title \"🔔 Claude Code\"'; elif command -v notify-send &>/dev/null; then notify-send '🔔 Claude Code' 'Claude needs your input'; fi"
           }
         ]
       }
@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "osascript -e 'display notification \"Claude finished your task\" with title \"✅ Claude Code\"'"
+            "command": "if command -v osascript &>/dev/null; then osascript -e 'display notification \"Claude finished your task\" with title \"✅ Claude Code\"'; elif command -v notify-send &>/dev/null; then notify-send '✅ Claude Code' 'Claude finished your task'; fi"
           }
         ]
       }
