@@ -47,6 +47,12 @@
           "synopsis": "/git:fix-cherrypick-robot-pr <pr-url> [error-messages]"
         },
         {
+          "argument_hint": "[--dry-run]",
+          "description": "Scan openshift org repos for .coderabbit.yaml files missing inheritance",
+          "name": "github-coderabbit-inheritance-scanner",
+          "synopsis": "/git:github-coderabbit-inheritance-scanner"
+        },
+        {
           "argument_hint": "[pr-url]",
           "description": "Adapt and correct a PR description to match its code diffs and commit messages",
           "name": "redescribe",
@@ -71,12 +77,32 @@
       "name": "git",
       "skills": [
         {
+          "description": "Check a repo's .coderabbit.yaml for inheritance: true",
+          "id": "github-coderabbit-inheritance-scanner-check",
+          "name": "CodeRabbit Inheritance Scanner - Check"
+        },
+        {
+          "description": "Search for an existing fix PR on a repo before opening a new one",
+          "id": "github-coderabbit-inheritance-scanner-existing-pr",
+          "name": "CodeRabbit Inheritance Scanner - Existing PR Check"
+        },
+        {
+          "description": "Fork, sync, and open a fix PR to add inheritance: true to a repo's .coderabbit.yaml",
+          "id": "github-coderabbit-inheritance-scanner-open-pr",
+          "name": "CodeRabbit Inheritance Scanner - Open PR"
+        },
+        {
+          "description": "Search for repos with .coderabbit.yaml files in the openshift GitHub org",
+          "id": "github-coderabbit-inheritance-scanner-search",
+          "name": "CodeRabbit Inheritance Scanner - Search"
+        },
+        {
           "description": "Git blame analysis helper for the suggest-reviewers command",
           "id": "suggest-reviewers",
           "name": "Suggest Reviewers Helper"
         }
       ],
-      "version": "0.0.4"
+      "version": "0.0.5"
     },
     {
       "commands": [
