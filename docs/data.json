@@ -549,7 +549,7 @@
           "argument_hint": "[--dry-run]",
           "description": "Scan openshift org repos for .coderabbit.yaml/.coderabbit.yml files missing inheritance",
           "name": "coderabbit-inheritance-scanner",
-          "synopsis": "/teams:coderabbit-inheritance-scanner [--dry-run]"
+          "synopsis": "/teams:coderabbit-inheritance-scanner"
         },
         {
           "argument_hint": "--project <project> [--component comp1 comp2 ...] [--team <team-name>] [--status status1 status2 ...] [--include-closed] [--limit N]",
