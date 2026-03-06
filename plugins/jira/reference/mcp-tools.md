@@ -28,7 +28,6 @@ This guide documents the MCP (Model Context Protocol) tools available for automa
   - [Parent Link Field](#parent-link-field)
   - [Target Version Field](#target-version-field)
   - [Epic Name Field (Required for Epics)](#epic-name-field-required-for-epics)
-  - [Priority Field](#priority-field)
 - [Parent Linking Fallback Strategy](#parent-linking-fallback-strategy)
 - [Common JQL Queries](#common-jql-queries)
 - [Reference](#reference)
@@ -295,8 +294,6 @@ The Red Hat Jira instance (issues.redhat.com) uses the following custom fields f
 | **Parent Link** | `customfield_12313140` | String | Link Epic → Feature | `"GCP-100"` |
 | **Target Version** | `customfield_12319940` | Array of Objects | Set target release version | `[{"id": "12448830"}]` |
 
-**Note:** For the standard `priority` field (not a custom field), see [Priority Field](#priority-field) in Field Format Requirements below.
-
 ### Field Format Notes
 
 **Epic Name (customfield_12311141):**
@@ -376,22 +373,6 @@ mcp__atlassian__jira_create_issue(
 )
 ```
 
-### Priority Field
-
-**Note:** `priority` is a standard Jira field, not a custom field. It's included here for completeness.
-
-Set issue priority using the standard priority field with an object containing the priority name:
-
-```python
-additional_fields={
-    "priority": {"name": "Major"}  # Object with name property
-}
-```
-
-**Valid Values:** `Blocker`, `Critical`, `Major`, `Normal`, `Minor`, `Undefined`
-
-For detailed guidance on when to select each priority level, see team-specific skills (e.g., gcp-hcp) which reference the Priority Scheme (OJA-PRIS-001).
-
 ## Parent Linking Fallback Strategy
 
 If issue creation fails due to parent linking errors:
@@ -446,7 +427,7 @@ project = GCP AND type = Epic AND status != Done ORDER BY created DESC
 project = GCP AND priority = Blocker AND status != Done ORDER BY created DESC
 
 # High priority issues
-project = GCP AND priority IN (Blocker, Critical) AND status = Open
+project = GCP AND priority IN (Blocker, Critical) AND status != Done
 
 # Ready for sprint
 project = GCP AND status = "Ready" AND type = Story
