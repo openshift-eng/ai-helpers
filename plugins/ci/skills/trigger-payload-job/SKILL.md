@@ -105,24 +105,24 @@ Return the collected data in this format:
 
 ```
 PAYLOAD_JOB_RESULT:
-- pr_url: <the PR URL>
-- comment_url: <URL of the comment posted>
-- payload_test_url: <pr-payload-tests URL, or empty if not found>
-- prow_jobs:
-  - job_name: <job name>
-    prow_url: <individual prow URL>
-  - ...
-- skipped_jobs:
-  - job_name: <job name>
-    reason: "job trigger limit reached (max 5 non-aggregated, max 1 aggregated per invocation)"
-  - ...
-- status: triggered|reused|failed
-- error: none|<description>
+  pr_url: <the PR URL>
+  comment_url: <URL of the comment posted>
+  payload_test_url: <pr-payload-tests URL, or empty if not found>
+  prow_jobs:
+    - job_name: <job name>
+      prow_url: <individual prow URL>
+    - ...
+  skipped_jobs:
+    - job_name: <job name>
+      reason: "job trigger limit reached (max 5 non-aggregated, max 1 aggregated per invocation)"
+    - ...
+  status: triggered|reused|no_response|failed
+  error: none|<description>
 ```
 
 ## Error Handling
 
-- If the bot never replies, return `status: triggered` with the comment URL so the caller can check manually later.
+- If the bot never replies, return `status: no_response` with the comment URL so the caller can check manually later.
 - If the PR doesn't exist or the user lacks permissions, return `status: failed` with the error message.
 - Do not retry indefinitely — 3 poll attempts is the maximum.
 
