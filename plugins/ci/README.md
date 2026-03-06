@@ -189,6 +189,20 @@ Extract and decompress must-gather archives from Prow job artifacts into an inte
 /ci:extract-prow-job-must-gather <prowjob-url>
 ```
 
+### extract-kubeconfig
+
+Extract kubeconfig from a running rehearsal/CI job in a GitHub PR. Checks step status to verify the cluster is ready, then connects to the build cluster to extract the kubeconfig from the running pod. Supports both standard and HyperShift (nested kubeconfig) clusters, and both public (`prow.ci.openshift.org`) and private (`qe-private-deck`) jobs.
+
+**Prerequisites:** `gh` and `oc` CLI tools installed (`gsutil` optional, only needed for public jobs). You should be the PR author.
+
+**Usage:**
+```bash
+/ci:extract-kubeconfig <pr-url>
+```
+
+**Arguments:**
+- PR URL (e.g., `https://github.com/openshift/release/pull/75742`)
+
 ## Configuration
 
 ### Authentication for Gangway Commands
