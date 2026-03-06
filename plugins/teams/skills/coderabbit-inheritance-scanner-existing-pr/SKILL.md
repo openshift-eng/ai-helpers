@@ -9,7 +9,7 @@ This skill checks whether a repository already has an open pull request whose ti
 
 ## When to Use This Skill
 
-Use this skill as Step 3 of the `/git:github-coderabbit-inheritance-scanner` command, after identifying non-compliant repos. Call it for each non-compliant repo.
+Use this skill as Step 3 of the `/teams:coderabbit-inheritance-scanner` command, after identifying non-compliant repos. Call it for each non-compliant repo.
 
 ## Procedure
 

@@ -9,7 +9,7 @@ This skill handles the complete workflow of opening a pull request to add `inher
 
 ## When to Use This Skill
 
-Use this skill as Step 6 of the `/git:github-coderabbit-inheritance-scanner` command, after the user has confirmed they want to open PRs. Call it once per non-compliant repo that does not already have an open fix PR.
+Use this skill as Step 6 of the `/teams:coderabbit-inheritance-scanner` command, after the user has confirmed they want to open PRs. Call it once per non-compliant repo that does not already have an open fix PR.
 
 **Do NOT call this skill in `--dry-run` mode.** Instead, display the actions that would be taken for each repo.
 

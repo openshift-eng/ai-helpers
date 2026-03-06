@@ -142,5 +142,5 @@ If a repo has **some PRs with CodeRabbit comments and some without**, the repo i
 
 ## See Also
 
-- Related Command: `/git:github-coderabbit-inheritance-scanner` - Scan repos for CodeRabbit config inheritance
+- Related Command: `/teams:coderabbit-inheritance-scanner` - Scan repos for CodeRabbit config inheritance
 - Global CodeRabbit config: https://github.com/openshift/coderabbit

@@ -9,7 +9,7 @@ This skill searches the `openshift` GitHub organization for repositories contain
 
 ## When to Use This Skill
 
-Use this skill as Step 1 of the `/git:github-coderabbit-inheritance-scanner` command.
+Use this skill as Step 1 of the `/teams:coderabbit-inheritance-scanner` command.
 
 ## Procedure
 
