@@ -44,6 +44,9 @@ Kernel-level networking diagnostics for OpenShift/OVN-Kubernetes nodes:
 - `/openshift:node-kernel-iptables` - IPv4/IPv6 packet filter rules
 - `/openshift:node-kernel-nft` - nftables packet filtering
 - `/openshift:node-kernel-ip` - IP routing and network interfaces
+### `/openshift:firmware-update`
+
+Update OpenShift node firmware via HostFirmwareComponents CRD for baremetal nodes.
 
 See the [commands/](commands/) directory for full documentation of each command.
 
@@ -259,6 +262,94 @@ Safely destroy an OpenShift Container Platform cluster that was created using `/
    ```
 
 See [commands/destroy-cluster.md](commands/destroy-cluster.md) for full documentation.
+
+#### `/openshift:firmware-update` - Update Node Firmware
+
+Update firmware on OpenShift baremetal nodes using the HostFirmwareComponents Custom Resource Definition. This command automates firmware updates for BIOS, BMC and NIC on Metal3-managed baremetal hosts.
+
+**⚠️ Important**: This operation reboots the target node and affects workload availability. Plan accordingly.
+
+**Basic Usage:**
+```bash
+# Interactive mode (prompts for all options)
+/openshift:firmware-update
+
+# With all parameters
+/openshift:firmware-update worker-01 bmc https://dl.dell.com/FOLDER12249926M/1/iDRAC-Firmware.EXE
+
+# Update HPE iLO firmware
+/openshift:firmware-update worker-02 bmc https://downloads.hpe.com/pub/softlib2/software1/fwpkg-ilo/p991377599/v243854/ilo5_302.fwpkg
+
+# Update BIOS
+/openshift:firmware-update master-00 bios https://dl.dell.com/FOLDER11965413M/1/BIOS_C4FT0_WN64_2.24.2.EXE
+```
+
+**Prerequisites:**
+- OpenShift baremetal cluster with Metal3
+- Cluster admin privileges
+- Access to firmware files (Dell, HPE, or custom)
+- OpenShift CLI (`oc`)
+
+**Supported Firmware Components:**
+- `bmc` - Baseboard Management Controller (iDRAC, iLO)
+- `bios` - System BIOS
+- `nic` - Network interface cards
+
+
+**Key Features:**
+- Automatic firmware download and extraction (Dell, HPE)
+- In-cluster web server for firmware hosting, or your own
+- Version verification before and after update
+- Automated reboot and update monitoring
+- Support for Dell and HPE firmware formats
+- HTTP-based firmware delivery (BMC-compatible)
+
+**Arguments:**
+- `[host-name]` (optional): BareMetalHost name (e.g., `worker-01`)
+- `[component]` (optional): Firmware component (e.g., `bmc`, `bios`)
+- `[firmware-url]` (optional): Direct URL to firmware file
+
+**What Happens:**
+1. Creates HostUpdatePolicy for the target node
+2. Downloads and extracts firmware file
+3. Sets up in-cluster nginx web server
+4. Updates HostFirmwareComponents CRD
+5. Reboots the node to apply firmware
+6. Monitors update progress (10-30 minutes)
+7. Verifies new firmware version
+8. Cleans up temporary resources
+
+**Examples:**
+
+1. Interactive mode with prompts:
+   ```bash
+   /openshift:firmware-update
+   ```
+
+2. Update Dell iDRAC BMC:
+   ```bash
+   /openshift:firmware-update openshift-worker-0 bmc https://dl.dell.com/FOLDER12249926M/1/iDRAC-Firmware.EXE
+   ```
+
+3. Update HPE iLO BMC:
+   ```bash
+   /openshift:firmware-update openshift-worker-1 bmc https://downloads.hpe.com/pub/softlib2/software1/fwpkg-ilo/p991377599/v243854/ilo5_302.fwpkg
+   ```
+
+4. Update BIOS firmware:
+   ```bash
+   /openshift:firmware-update master-00 bios https://dl.dell.com/FOLDER11965413M/1/BIOS_C4FT0_WN64_2.24.2.EXE
+   ```
+
+**Important Notes:**
+- **Disruptive**: Node reboots during update, affecting workloads
+- **Firmware formats**: Dell uses `firmimgFIT.d9`, HPE uses `.bin` (auto-extracted)
+- **Network**: Must use HTTP (not HTTPS) - BMCs cannot validate SSL
+- **Timeout**: Updates typically take 10-30 minutes
+- **Compatibility**: Verify firmware is compatible with hardware model
+- **Cluster health**: Monitor cluster operators after update
+
+See [commands/firmware-update.md](commands/firmware-update.md) for full documentation.
 
 ## Development
 
