@@ -88,7 +88,7 @@ mcp__atlassian__jira_create_issue(
     components="<component name>",  # Optional - see Components section
     additional_fields={
         "customfield_12311140": "GCP-456",  # Epic Link - parent epic
-        "customfield_12310243": 3.0,        # Story Points - OMIT unless user confirms
+        "customfield_12310243": 3.0,        # Story Points - auto-estimated per Sizing Guide
         "priority": {"name": "Major"},      # Priority - OMIT unless user specifies
         "labels": ["ai-generated-jira"],
         "security": {"name": "Red Hat Employee"}
@@ -96,7 +96,7 @@ mcp__atlassian__jira_create_issue(
 )
 ```
 
-**Story Points guidance**: Before creating a story, ask the user if they want to assign story points: "Would you like to assign story points to this story? I can walk you through the sizing guide." Reference the [Story Sizing Guide](#story-sizing-guide) to guide the conversation. If yes, set `customfield_12310243` as a float (e.g. `3.0`). If no, omit the field entirely.
+**Story Points guidance**: When creating a Story or Task, auto-estimate story points by analyzing the issue summary, description, and acceptance criteria against the [Story Sizing Guide](#story-sizing-guide). Set `customfield_12310243` as a float (e.g. `3.0`). Use the Fibonacci scale: 0, 1, 2, 3, 5, 8, 13. For estimates of 8 or higher, add a note in the description recommending the story be split into smaller items. The `ai-generated-jira` label (already applied) serves as an indicator that points were AI-estimated; the team reviews and adjusts estimates during refinement.
 
 **Priority guidance**: Before creating an issue, ask the user if they want to set a specific priority: "Would you like to set a priority for this issue? The default is Normal." Reference the [Priority Scheme (OJA-PRIS-001)](#priority-scheme-oja-pris-001) below to guide the conversation. If yes, set `priority` as an object with `name` field (e.g. `{"name": "Major"}`). If no, omit the field to use the default.
 
