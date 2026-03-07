@@ -452,7 +452,10 @@ h3. Mitigation
     """,
     components="HyperShift",
     additional_fields={
-        "customfield_12319940": "openshift-4.21",  # target version (initial)
+        # Target version: requires fetching version ID first via jira_get_project_versions,
+        # then use array format: "customfield_12319940": [{"id": "<VERSION_ID>"}]
+        # DO NOT use string format like "openshift-4.21" — causes "data was not an array" error.
+        # If MCP unavailable, use jira-cli fallback: jira issue edit PROJ-123 -f 'target-version=openshift-4.21'
         "labels": ["ai-generated-jira", "observability", "enterprise"],
         "security": {"name": "Red Hat Employee"}
     }

@@ -99,7 +99,10 @@ mcp__atlassian__jira_create_issue(
     components="<component name>",  # if required by team
     additional_fields={
         "versions": [{"name": "4.21"}],           # affects version (user-specified)
-        "customfield_12319940": "openshift-4.21", # target version (default or user-specified)
+        # Target version: requires fetching version ID first via jira_get_project_versions,
+        # then use array format: "customfield_12319940": [{"id": "<VERSION_ID>"}]
+        # DO NOT use string format like "openshift-4.21" — causes "data was not an array" error.
+        # If MCP unavailable, use jira-cli fallback: jira issue edit PROJ-123 -f 'target-version=openshift-4.21'
         "labels": ["ai-generated-jira"],
         "security": {"name": "Red Hat Employee"}
     }
@@ -116,7 +119,7 @@ mcp__atlassian__jira_create_issue(
 | Description | `description` | Formatted bug template |
 | Component | `components` | Team-specific (optional) |
 | Affects Version | `additional_fields.versions` | `[{"name": "4.21"}]` (user-specified) |
-| Target Version | `additional_fields.customfield_12319940` | `"openshift-4.21"` (default or user-specified) |
+| Target Version | `additional_fields.customfield_12319940` | `[{"id": "<VERSION_ID>"}]` — fetch ID via `jira_get_project_versions` first; omit if MCP unavailable |
 | Labels | `additional_fields.labels` | `["ai-generated-jira"]` (required) |
 | Security Level | `additional_fields.security` | `{"name": "Red Hat Employee"}` (required) |
 
