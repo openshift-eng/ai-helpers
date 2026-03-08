@@ -1,6 +1,6 @@
 ---
 name: Trigger Payload Job
-description: Trigger payload validation jobs on a PR and collect the resulting Prow job URLs
+description: MUST be used whenever triggering payload testing on a PR. Do not post payload commands without following this skill — the command syntax is specific and other formats will be silently ignored by the bot.
 ---
 
 # Trigger Payload Job
@@ -9,7 +9,7 @@ This skill triggers payload validation jobs on a GitHub PR by posting the correc
 
 ## When to Use This Skill
 
-Use this skill whenever you need to trigger payload testing on a PR (revert PR, draft bisect PR, or any PR that needs payload validation). It handles the differences between aggregated and non-aggregated jobs and collects the resulting URLs for downstream tracking.
+**This skill MUST be used whenever triggering payload testing on a PR.** This includes revert PRs, draft bisect PRs, or any PR that needs payload validation. Do not post payload commands without following this skill — the command syntax is specific and other formats will be silently ignored by the bot.
 
 **Inputs** (passed in-context by the caller):
 

@@ -96,7 +96,14 @@ Use the `trigger-payload-job` skill (`plugins/ci/skills/trigger-payload-job/SKIL
 - `pr_url`: The revert PR URL from Substep 2
 - `jobs`: The `failing_jobs` list for this candidate (includes `job_name`, `is_aggregated`, `underlying_job_name` for each job)
 
-The skill handles idempotency (checking for existing bot replies), correct command selection (`/payload-aggregate` vs `/payload-job`), polling, and URL extraction.
+The skill handles idempotency (checking for existing bot replies), correct command selection, polling, and URL extraction.
+
+**IMPORTANT — correct payload command syntax** (read `trigger-payload-job` skill for the full procedure):
+
+- **Non-aggregated jobs**: `/payload-job <full-periodic-job-name>` (e.g., `/payload-job periodic-ci-openshift-release-main-nightly-4.22-e2e-aws-ovn-serial-1of2`)
+- **Aggregated jobs**: `/payload-aggregate <underlying-periodic-job-name> <count>` (e.g., `/payload-aggregate periodic-ci-openshift-hypershift-release-4.22-periodics-e2e-aws-ovn-conformance 10`)
+
+Commands must follow these exact formats — no other syntax is accepted.
 
 Record the `payload_test_url` and individual `prow_url`s from the skill's return data.
 
