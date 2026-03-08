@@ -895,7 +895,9 @@ Only if Step 4.7 completed:
 
 ### Step 4.9: Determine Root Cause
 
-Synthesize all gathered evidence to determine the most likely root cause for the test failure:
+Synthesize all gathered evidence to determine the most likely root cause for the test failure.
+
+**CRITICAL: Trace symptoms back to root cause.** Never stop at high-level symptoms like "nodes didn't join" or "operator unavailable". Trace backwards: check pod statuses (including init containers), read their logs, and follow the dependency chain until you find the originating error.
 
 1. **Analyze all available evidence**
    - Stack traces from Step 4.2

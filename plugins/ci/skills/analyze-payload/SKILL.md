@@ -121,6 +121,8 @@ Instruct each subagent as follows:
 >
 > **IMPORTANT — Classify failures based on log evidence, not assumptions.** You must examine the actual logs (installer log, log bundle, bootstrap journals, kube-apiserver logs) before classifying a failure. A bootstrap timeout could be infrastructure, a product bug, or a race condition — the logs will tell you which. Cite specific error messages in your assessment.
 >
+> **IMPORTANT — Trace every failure to its root cause.** Never stop at high-level symptoms like "0 nodes ready" or "operator degraded". Trace backwards through pod statuses, init containers, and logs until you find the originating error.
+>
 > Return a concise summary including: failure type (install vs test), root cause, key error messages, and any relevant log excerpts. Do not ask user questions. Keep the output concise for inclusion in a summary report.
 >
 > If the job is an aggregated job (has `aggregated-` prefix in the name or an `aggregator` container/step), also return the **underlying job name** (e.g., `periodic-ci-openshift-release-main-ci-4.22-e2e-aws-upgrade-ovn-single-node`). This is found in the junit-aggregated.xml artifacts — each `<testcase>` has `<system-out>` YAML data with a `humanurl` field linking to individual runs whose URL path contains the underlying job name. The underlying job name cannot be derived from the aggregated job name — it must be extracted from the artifacts.
