@@ -536,7 +536,7 @@
           "name": "Triage Regression"
         },
         {
-          "description": "Trigger payload validation jobs on a PR and collect the resulting Prow job URLs",
+          "description": "MUST be used whenever triggering payload testing on a PR. Do not post payload commands without following this skill \u2014 the command syntax is specific and other formats will be silently ignored by the bot.",
           "id": "trigger-payload-job",
           "name": "Trigger Payload Job"
         }

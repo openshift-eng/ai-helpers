@@ -145,6 +145,15 @@ def format_payload(tag: dict, details: dict, architecture: str, stream_name: str
             for i, prev_url in enumerate(previous, 1):
                 lines.append(f"            attempt {i}: {prev_url}")
 
+    # Show async jobs (e.g., claude-payload-analysis)
+    async_jobs = results.get("asyncJobs", {})
+    for job_name, info in sorted(async_jobs.items()):
+        state = info.get("state", "Unknown")
+        prow_url = info.get("url", "")
+        lines.append(f"  Async: {job_name} ({state})")
+        if prow_url:
+            lines.append(f"         {prow_url}")
+
     return "\n".join(lines)
 
 

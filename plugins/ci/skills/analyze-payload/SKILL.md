@@ -154,6 +154,23 @@ After collecting subagent results, look for patterns across multiple jobs:
 
 When patterns emerge, query Sippy for pass rates of related non-blocking jobs to see if the pattern extends beyond blocking jobs.
 
+### Step 5b: Consult Previous Claude Analyses
+
+If the `fetch-payloads` output shows a `claude-payload-analysis` async job with state `Succeeded` on any payload in the current rejection streak, fetch the HTML report from its Prow artifacts to review the previous analysis. The report is located at:
+
+```
+{prow_artifacts_url}/artifacts/claude-payload-analysis/openshift-release-analysis-claude-payload-analysis/artifacts/payload-analysis-{tag}-summary.html
+```
+
+Convert the Prow URL to a gcsweb URL and use WebFetch to read it.
+
+**Important**: Previous analyses are a secondary input — they may contain insights you missed (e.g., deeper artifact investigation) or they may be wrong. Always complete your own analysis first (Steps 1-5), then compare. Use previous findings to:
+- **Bolster confidence** when your analysis reaches the same conclusion
+- **Challenge assumptions** when a previous analysis disagrees with yours — re-examine the evidence
+- **Fill gaps** when a previous analysis examined logs or artifacts you didn't — go back and examine those same artifacts in the current payload to verify whether the findings still apply
+
+Never adopt a previous analysis conclusion without verifying it against the current payload's artifacts.
+
 ### Step 6: Collect Investigation Results and Identify Revert Candidates
 
 Wait for all subagents to complete and collect their analysis results. For each failed job, you should now have:
