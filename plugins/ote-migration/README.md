@@ -276,6 +276,70 @@ Creates isolated `tests-extension/` directory with **single go.mod** in the targ
 
 ## Important Notes
 
+### Test Suites
+
+The migration creates **multiple test suites** for better test organization and CI/CD integration:
+
+#### Available Suites
+
+1. **`<extension-name>/conformance/parallel`** - Parallel conformance tests
+   - Level0 tests that can run concurrently
+   - Excludes Serial and Disruptive tests
+   - Best for: CI pre-merge checks (fastest feedback)
+   - Parent: `openshift/conformance/parallel`
+
+2. **`<extension-name>/conformance/serial`** - Serial conformance tests
+   - Level0 tests that must run sequentially
+   - Excludes Disruptive tests
+   - Best for: CI post-merge validation
+   - Parent: `openshift/conformance/serial`
+
+3. **`<extension-name>/disruptive`** - Disruptive tests
+   - Tests that may affect cluster state
+   - Should be isolated from other tests
+   - Best for: Nightly runs or dedicated test clusters
+   - Parent: `openshift/disruptive`
+
+4. **`<extension-name>/non-disruptive`** - All non-disruptive tests
+   - Safe for development clusters
+   - Includes both parallel and serial tests
+   - Best for: Local testing and development
+
+5. **`<extension-name>/all`** - All tests
+   - Complete test suite
+   - Best for: Full validation runs
+
+#### Running Suites
+
+```bash
+# Fast parallel conformance tests (CI pre-merge)
+./bin/<extension-name>-tests-ext run suite <extension-name>/conformance/parallel
+
+# Serial tests (CI post-merge)
+./bin/<extension-name>-tests-ext run suite <extension-name>/conformance/serial
+
+# Disruptive tests (nightly runs only)
+./bin/<extension-name>-tests-ext run suite <extension-name>/disruptive
+
+# Non-disruptive tests (local development)
+./bin/<extension-name>-tests-ext run suite <extension-name>/non-disruptive
+
+# Everything (full validation)
+./bin/<extension-name>-tests-ext run suite <extension-name>/all
+
+# List available suites
+./bin/<extension-name>-tests-ext list suites
+```
+
+#### Suite Qualifiers
+
+Suites use automatic filtering based on test annotations:
+- `[Level0]` - Conformance test
+- `[Serial]` - Must run sequentially
+- `[Disruptive]` - May affect cluster state
+
+Tests are automatically categorized into the appropriate suites based on these tags.
+
 ### Test Tracking Annotations
 
   The migration **automatically modifies test files** to add tracking annotations. This happens in Phase 5 (Test Migration).
