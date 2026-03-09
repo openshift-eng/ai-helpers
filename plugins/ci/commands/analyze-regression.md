@@ -353,6 +353,56 @@ This command is useful for:
       - Example: "API endpoint not available" if errors mention missing API resources
       - Example: "Timeout issue" if errors mention timeouts or waiting conditions
 
+7a. **Analyze Job Run Context**: Use the `fetch-job-run-summary` skill
+
+   For each failed job run, the regressed test is just one of potentially many test results. Understanding the broader job run context — how many other tests failed, which ones, and whether they share error patterns — is critical for diagnosing the root cause.
+
+   - If the regressed test is the **only failure** (or one of very few) in each run, it is likely a targeted issue specific to that test or its component.
+   - If the regressed test fails alongside a **consistent set of other tests**, those co-failures point to a shared root cause (e.g., an operator failing that breaks multiple dependent tests).
+   - If the regressed test is caught up in **mass failures** with different tests failing each time, it may be collateral damage from infrastructure instability or a foundational issue rather than a specific regression in the test's component.
+
+   This is especially important for mass test failure regressions (`[Jira:"Test Framework"] there should not be mass test failures`), where the `fetch-test-runs` output from step 7 only shows the mass failure count breakdown and the actual failing tests must be examined to find the real root cause.
+
+   **Implementation**:
+
+   Select a representative sample of failed job runs to analyze. Pick up to 3 runs from the `sample_failed_jobs` data — if failure counts vary, choose runs with different severities (e.g., the run with the most failures, one with a moderate count, and one with the fewest):
+
+   ```bash
+   script_path="plugins/ci/skills/fetch-job-run-summary/fetch_job_run_summary.py"
+
+   # For each selected job run ID from the sample_failed_jobs data:
+   summary=$(python3 "$script_path" <job_run_id> --format json)
+   ```
+
+   See `plugins/ci/skills/fetch-job-run-summary/SKILL.md` for complete implementation details.
+
+   **Analyze the results across runs**:
+
+   1. **Assess isolation vs. co-failure**: For each run, check `failure_count`. If the regressed test is the only failure (or one of 2-3), the issue is isolated to this test. If it fails alongside 10+ other tests, it may be a symptom of a broader problem.
+
+   2. **Compare failed test lists across runs**: Check whether the same set of other tests co-fail with the regressed test. Consistent co-failures suggest a shared root cause. Random co-failures suggest environmental issues.
+
+   3. **Check dominant error patterns**: The skill automatically detects error messages appearing in >5% of failures. A single dominant error across many tests (e.g., "stale GroupVersion discovery" at 94%) indicates one root cause cascading across many tests, and the regressed test is likely collateral damage. If the regressed test has a unique error distinct from other failures, it may be an independent issue.
+
+   4. **Assess failure scale consistency**: Compare `failure_count` across runs. If counts vary dramatically (e.g., 12 in one run, 397 in another), the issue may be intermittent or timing-dependent. Consistent failure counts suggest a deterministic problem.
+
+   5. **Identify the true failing component** (especially for mass test failure regressions): The mass test failure regression is attributed to "Test Framework" in Component Readiness, but the actual product issue is in whatever component's tests are failing. Use the failed test names to identify the real affected component(s).
+
+   **Classification**:
+
+   - **Isolated failure**: The regressed test is the only failure or one of very few in each run. The issue is specific to this test's component. File the bug against that component.
+   - **Consistent co-failures**: The same set of tests fail together across runs, with a dominant error pattern. This points to a specific product bug affecting multiple tests. The bug should be filed against the component responsible for the shared failure mode.
+   - **Inconsistent/random co-failures**: The regressed test fails in runs with many other failures, but the set of co-failing tests varies. This suggests infrastructure instability, cluster health issues, or a foundational problem (e.g., API server instability) causing cascading and unpredictable failures.
+   - **Scaling pattern**: A consistent core set of failures plus a variable number of additional failures. The core failures are the root cause; the additional failures are secondary effects.
+
+   **Output for Report**: Include in the report:
+   - Number of runs analyzed and their failure counts
+   - Whether the regressed test is an isolated failure or part of broader co-failures
+   - Whether the same tests consistently co-fail across runs
+   - The dominant error pattern (if any) with percentage
+   - For mass test failure regressions: the real affected component(s) based on failing test names
+   - Assessment: isolated test issue, targeted product bug with co-failures, or collateral damage from widespread instability
+
 8. **Determine Regression Start Date**: Use the `fetch-test-runs` skill with full history
 
    For the job with the most failures (identified in step 6), fetch the complete test run history including successes to determine when the regression started. Use 28 days of history to ensure we can find the regression start point.
@@ -709,6 +759,14 @@ This command is useful for:
    - Sample job URLs for manual inspection
    - **Note**: If the test outputs API is not available, this section will note: "Test output analysis not available"
 
+   **Section 4a: Job Run Context** (from `fetch-job-run-summary` skill)
+   - Number of job runs analyzed and their individual failure counts
+   - Whether the regressed test is an isolated failure or part of broader co-failures
+   - Whether the same tests consistently co-fail across runs
+   - Dominant error pattern with percentage (if applicable)
+   - For mass test failure regressions: real affected component(s) based on which tests are failing
+   - Assessment: isolated test issue, targeted product bug with co-failures, or collateral damage from widespread instability
+
    **Section 5: Regression Start Analysis** (only if determinable)
    - Job analyzed (the job with most failures)
    - Approximate start date of the regression
@@ -985,6 +1043,23 @@ Generated using the `fetch-test-runs` skill (see `plugins/ci/skills/fetch-test-r
 - **Assessment**: Interpretation of consistency (e.g., "Single root cause - API endpoint not available")
 - **Note**: If the test outputs API is not available, this section will note that the analysis could not be performed
 
+#### Job Run Context
+
+Generated using the `fetch-job-run-summary` skill (see `plugins/ci/skills/fetch-job-run-summary/SKILL.md`):
+
+- **Runs Analyzed**: Number of job runs examined (up to 3) with their individual failure counts
+- **Isolation Assessment**: Whether the regressed test is the only failure in each run, or part of broader co-failures
+  - **Isolated**: Test is the only failure or one of very few — issue is specific to this test
+  - **Co-failures**: Test fails alongside a consistent set of other tests — shared root cause
+  - **Mass failures**: Test fails in runs with many other varying failures — may be collateral damage
+- **Co-failure Consistency**: Whether the same tests consistently co-fail across runs
+  - **Consistent**: A core set of tests fails together every time — points to a specific product bug
+  - **Inconsistent/Random**: Different tests co-fail each run — suggests infrastructure instability
+  - **Scaling**: Core failures plus variable additional failures — core is root cause, rest are secondary
+- **Dominant Error Pattern**: Most common error message with percentage across all failures in the run (e.g., "94% of 398 failures: stale GroupVersion discovery: user.openshift.io/v1")
+- **Real Affected Component** (for mass test failure regressions): The actual component(s) whose tests are failing, since the regression is attributed to "Test Framework" but the real issue lies elsewhere
+- **Assessment**: Isolated test issue, targeted product bug with co-failures, or collateral damage from widespread instability
+
 #### Regression Start Analysis (only if determinable)
 
 Generated using the `fetch-test-runs` skill with `--include-success` and `--job-contains`:
@@ -1107,6 +1182,7 @@ Uses the `triage-regression` skill with authentication via the `oc-auth` skill (
   - `fetch-test-report`: Fetches global test health report with per-variant breakdown and open bug counts
   - `fetch-releases`: Determines the latest OCP release (used by fetch-test-report)
   - `fetch-test-runs`: Fetches actual test outputs and analyzes error message consistency
+  - `fetch-job-run-summary`: Fetches all failed tests in a job run to assess whether the regressed test is an isolated failure or part of broader co-failures
   - `fetch-prowjob-json`: Fetches prowjob.json to get payload tag and upgrade-from tag for a Prow job
   - `fetch-new-prs-in-payload`: Fetches new PRs in a payload compared to its predecessor
   - `list-regressions` (teams plugin): Lists all regressions for a release/component to find related regressions
@@ -1130,6 +1206,7 @@ Uses the `triage-regression` skill with authentication via the `oc-auth` skill (
 - Related Skill: `fetch-test-report` - Fetches global test health report with per-variant breakdown and open bugs (`plugins/ci/skills/fetch-test-report/SKILL.md`)
 - Related Skill: `fetch-releases` - Determines the latest OCP release (`plugins/ci/skills/fetch-releases/SKILL.md`)
 - Related Skill: `fetch-test-runs` - Fetches and analyzes test failure outputs (`plugins/ci/skills/fetch-test-runs/SKILL.md`)
+- Related Skill: `fetch-job-run-summary` - Fetches all failed tests in a job run to assess isolation vs. co-failures (`plugins/ci/skills/fetch-job-run-summary/SKILL.md`)
 - Related Skill: `fetch-prowjob-json` - Fetches prowjob.json for payload tag and metadata (`plugins/ci/skills/fetch-prowjob-json/SKILL.md`)
 - Related Skill: `fetch-new-prs-in-payload` - Fetches new PRs in a payload (`plugins/ci/skills/fetch-new-prs-in-payload/SKILL.md`)
 - Related Skill: `list-regressions` (teams plugin) - Lists all regressions for a release/component (`plugins/teams/skills/list-regressions/SKILL.md`)
