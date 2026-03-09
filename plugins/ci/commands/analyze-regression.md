@@ -28,6 +28,15 @@ This command is useful for:
 
 ## Implementation
 
+**Important: Avoiding user permission prompts when running scripts**
+
+When calling Python skill scripts via the Bash tool, always run the script directly without piping the output through inline Python (`python3 -c "..."`). Complex piped commands trigger user permission prompts, while simple `python3 script.py args` calls are auto-approved.
+
+- **Do**: `python3 script.py args --format json 2>/dev/null` — run the script directly and process the JSON output in your reasoning
+- **Don't**: `python3 script.py args | python3 -c "import json; ..."` — piped inline Python triggers permission prompts
+
+Parse and analyze the JSON output from scripts using your own reasoning capabilities rather than shell pipelines.
+
 1. **Load CI Context**: Read all documentation files in `plugins/ci/docs/` for context on tests, jobs, and CI conventions. These contain important notes on specific test frameworks, job ownership, and debugging guidance that should inform the analysis.
 
    ```bash
