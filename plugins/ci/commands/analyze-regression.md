@@ -689,7 +689,12 @@ Parse and analyze the JSON output from scripts using your own reasoning capabili
    - If step 4's test report found `open_bugs > 0`, note these existing bugs — one may be suitable for triaging this regression without filing a duplicate
    - Bug summary suggestion based on failure pattern (informed by step 6 pattern analysis)
    - Bug description template including:
-     - Test name and release
+     - Test name(s) and release — use the **full test name including all tags** (e.g., `[Suite:openshift/conformance/parallel]`, `[Serial]`, `[Conformance]`). Format each test name on its own line wrapped in Jira `{code}` blocks so that tooling can find bugs by test name:
+       ```
+       {code}
+       [Jira:"Test Framework"] there should not be mass test failures
+       {code}
+       ```
      - Test ID (`test_id` — the BigQuery/Component Readiness ID, e.g., `openshift-tests:abc123`)
      - Regression ID(s) — the Component Readiness regression ID(s) being triaged
      - Regression opened date
@@ -931,7 +936,12 @@ Parse and analyze the JSON output from scripts using your own reasoning capabili
    ```
 
    If the user confirms, create the bug using the `/jira:create-bug` skill with the bug template from step 12. Apply the label `component-regression` to the bug (this label identifies bugs found through Component Readiness). The bug description must include:
-   - Test name(s) — the full name of each affected test
+   - Test name(s) — the **full name including all tags** (e.g., `[Suite:openshift/conformance/parallel]`, `[Serial]`). Each test name must be on its own line wrapped in Jira `{code}` blocks so that tooling can search for bugs mentioning a specific test:
+     ```
+     {code}
+     [Monitor:kubelet-container-restarts][sig-architecture] platform pods in ns/openshift-kube-apiserver should not exit an excessive amount of times
+     {code}
+     ```
    - Test ID(s) (`test_id` — the BigQuery/Component Readiness ID, e.g., `openshift-tests:abc123`)
    - Regression ID(s) — the Component Readiness regression ID(s) being triaged
    - Release
