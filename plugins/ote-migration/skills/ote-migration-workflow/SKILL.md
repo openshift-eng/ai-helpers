@@ -1019,10 +1019,8 @@ func main() {
     registry := e.NewRegistry()
     ext := e.NewExtension("openshift", "payload", "<extension-name>")
 
-    ext.AddSuite(e.Suite{
-        Name:    "openshift/<extension-name>/tests",
-        Parents: []string{"openshift/conformance/parallel"},
-    })
+    // Register test suites (parallel, serial, disruptive, all)
+    registerSuites(ext)
 
     // Build test specs from Ginkgo
     // Note: ModuleTestsOnly() is applied by default, which filters out /vendor/ and k8s.io/kubernetes tests
@@ -1088,6 +1086,56 @@ func main() {
         os.Exit(1)
     }
 }
+
+// registerSuites registers test suites with proper categorization
+func registerSuites(ext *e.Extension) {
+    suites := []e.Suite{
+        {
+            Name: "<extension-name>/conformance/parallel",
+            Parents: []string{
+                "openshift/conformance/parallel",
+            },
+            Description: "Parallel conformance tests (Level0, non-serial, non-disruptive)",
+            Qualifiers: []string{
+                `name.contains("[Level0]") && !(name.contains("[Serial]") || name.contains("[Disruptive]"))`,
+            },
+        },
+        {
+            Name: "<extension-name>/conformance/serial",
+            Parents: []string{
+                "openshift/conformance/serial",
+            },
+            Description: "Serial conformance tests (must run sequentially)",
+            Qualifiers: []string{
+                `name.contains("[Level0]") && name.contains("[Serial]") && !name.contains("[Disruptive]")`,
+            },
+        },
+        {
+            Name:        "<extension-name>/disruptive",
+            Parents:     []string{"openshift/disruptive"},
+            Description: "Disruptive tests (may affect cluster state)",
+            Qualifiers: []string{
+                `name.contains("[Disruptive]")`,
+            },
+        },
+        {
+            Name:        "<extension-name>/non-disruptive",
+            Description: "All non-disruptive tests (safe for development clusters)",
+            Qualifiers: []string{
+                `!name.contains("[Disruptive]")`,
+            },
+        },
+        {
+            Name:        "<extension-name>/all",
+            Description: "All <extension-name> tests",
+            // No qualifiers means all tests from this extension will be included
+        },
+    }
+
+    for _, suite := range suites {
+        ext.AddSuite(suite)
+    }
+}
 EOF
 
 # Replace placeholders
@@ -1143,10 +1191,8 @@ func main() {
     registry := e.NewRegistry()
     ext := e.NewExtension("openshift", "payload", "<extension-name>")
 
-    ext.AddSuite(e.Suite{
-        Name:    "openshift/<extension-name>/tests",
-        Parents: []string{"openshift/conformance/parallel"},
-    })
+    // Register test suites (parallel, serial, disruptive, all)
+    registerSuites(ext)
 
     // Build test specs from Ginkgo
     // Note: ModuleTestsOnly() is applied by default, which filters out /vendor/ and k8s.io/kubernetes tests
@@ -1210,6 +1256,56 @@ func main() {
         return root.Execute()
     }(); err != nil {
         os.Exit(1)
+    }
+}
+
+// registerSuites registers test suites with proper categorization
+func registerSuites(ext *e.Extension) {
+    suites := []e.Suite{
+        {
+            Name: "<extension-name>/conformance/parallel",
+            Parents: []string{
+                "openshift/conformance/parallel",
+            },
+            Description: "Parallel conformance tests (Level0, non-serial, non-disruptive)",
+            Qualifiers: []string{
+                `name.contains("[Level0]") && !(name.contains("[Serial]") || name.contains("[Disruptive]"))`,
+            },
+        },
+        {
+            Name: "<extension-name>/conformance/serial",
+            Parents: []string{
+                "openshift/conformance/serial",
+            },
+            Description: "Serial conformance tests (must run sequentially)",
+            Qualifiers: []string{
+                `name.contains("[Level0]") && name.contains("[Serial]") && !name.contains("[Disruptive]")`,
+            },
+        },
+        {
+            Name:        "<extension-name>/disruptive",
+            Parents:     []string{"openshift/disruptive"},
+            Description: "Disruptive tests (may affect cluster state)",
+            Qualifiers: []string{
+                `name.contains("[Disruptive]")`,
+            },
+        },
+        {
+            Name:        "<extension-name>/non-disruptive",
+            Description: "All non-disruptive tests (safe for development clusters)",
+            Qualifiers: []string{
+                `!name.contains("[Disruptive]")`,
+            },
+        },
+        {
+            Name:        "<extension-name>/all",
+            Description: "All <extension-name> tests",
+            // No qualifiers means all tests from this extension will be included
+        },
+    }
+
+    for _, suite := range suites {
+        ext.AddSuite(suite)
     }
 }
 EOF
