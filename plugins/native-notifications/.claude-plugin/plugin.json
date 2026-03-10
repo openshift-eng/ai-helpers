@@ -1,0 +1,8 @@
+{
+  "name": "native-notifications",
+  "description": "Cross-platform desktop notifications (macOS, Linux desktop, Linux headless)",
+  "version": "0.0.2",
+  "author": {
+    "name": "openshift"
+  }
+}
