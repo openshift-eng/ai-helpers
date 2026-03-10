@@ -1,22 +1,22 @@
 ---
-name: Bisect Payload Suspects
-description: Experimentally bisect medium-confidence payload suspects by opening draft revert PRs and triggering payload jobs
+name: Payload Experimental Reverts
+description: Experimentally test medium-confidence payload suspects by opening draft revert PRs and triggering payload jobs
 ---
 
-# Bisect Payload Suspects
+# Payload Experimental Reverts
 
 This skill experimentally tests medium-confidence suspect PRs by opening draft revert PRs, triggering payload jobs, and evaluating results. It operates in two phases separated by a CI wait period.
 
 ## When to Use This Skill
 
-Use this skill when the `payload-agent` orchestrator identifies suspect PRs with medium confidence (score 60-84) that cannot be conclusively attributed to a failure through static analysis alone. The bisect creates real experiments to determine causality.
+Use this skill when the `payload-agent` orchestrator or the `/ci:payload-experiment` command identifies suspect PRs with medium confidence (score 60-84) that cannot be conclusively attributed to a failure through static analysis alone. The experiment creates real tests to determine causality.
 
 **Inputs** (passed in-context by the caller):
 
 - `payload_tag`: The full payload tag being analyzed
 - `version`, `stream`, `architecture`: Parsed from the payload tag
 - `release_controller_url`: URL to the payload on the release controller
-- `suspects`: List of medium-confidence PRs to bisect, each with:
+- `suspects`: List of medium-confidence PRs to test experimentally, each with:
   - `pr_url`, `pr_number`, `component`, `title`, `confidence_score`
   - `failing_jobs`: List of `{job_name, prow_url, is_aggregated, underlying_job_name}`
 
@@ -38,8 +38,8 @@ Before opening a revert PR, preemptively check whether the revert will have merg
 
 ```bash
 # Clone the repo (shallow for speed)
-git clone -b <base_branch> --depth 50 "https://github.com/<org>/<repo>.git" /tmp/bisect-check-<pr_number>
-cd /tmp/bisect-check-<pr_number>
+git clone -b <base_branch> --depth 50 "https://github.com/<org>/<repo>.git" /tmp/experiment-check-<pr_number>
+cd /tmp/experiment-check-<pr_number>
 
 # Attempt the revert without committing
 git revert -m1 --no-commit <merge_sha>
@@ -51,7 +51,7 @@ git status --porcelain
 If conflicts exist:
 - Record `status: skipped_conflict` in the tracking data
 - Skip to the next suspect
-- Do NOT attempt to resolve conflicts for bisect experiments
+- Do NOT attempt to resolve conflicts for experimental reverts
 
 If no conflicts, abort the dry-run revert and proceed:
 
@@ -66,7 +66,7 @@ Load the `revert-pr` skill and follow its workflow with `--draft`:
 - PR URL: the suspect PR
 - JIRA ticket: use a placeholder like `NO-JIRA` (real ticket is created in Phase 2 only for confirmed causes)
 - `--draft`: Create as a draft PR
-- `--context`: "Bisect experiment for {stream} {architecture} payload {payload_tag}. Testing whether reverting this PR resolves blocking job failures."
+- `--context`: "Experimental revert for {stream} {architecture} payload {payload_tag}. Testing whether reverting this PR resolves blocking job failures."
 - Do NOT prompt the user for any input
 
 Record the draft revert PR URL.
@@ -82,13 +82,13 @@ Use the `trigger-payload-job` skill (`plugins/ci/skills/trigger-payload-job/SKIL
 
 Record the experiment data for the tracking YAML (see schema below).
 
-**Throttling**: Never bisect more than 5 suspects. If there are more than 5, test only the top 5 by confidence score. Record the remainder as `deferred_suspects` in the tracking YAML.
+**Throttling**: Never test more than 5 suspects. If there are more than 5, test only the top 5 by confidence score. Record the remainder as `deferred_suspects` in the tracking YAML.
 
-**Job triggering limits**: Respect the global limits set by the `payload-agent` orchestrator. Across all bisect experiments combined: trigger at most 5 non-aggregated jobs and at most 1 aggregated job. Prioritize jobs from higher-confidence suspects. Skip excess jobs and record them in the tracking YAML as skipped due to limits.
+**Job triggering limits**: Respect the global limits set by the `payload-agent` orchestrator. Across all experiments combined: trigger at most 5 non-aggregated jobs and at most 1 aggregated job. Prioritize jobs from higher-confidence suspects. Skip excess jobs and record them in the tracking YAML as skipped due to limits.
 
 ### Write Tracking YAML
 
-After all Phase 1 subagents complete, write `<payload-tag>-bisect.yaml` to the current working directory with all experiment data:
+After all Phase 1 subagents complete, write `<payload-tag>-experiments.yaml` to the current working directory with all experiment data:
 
 ```yaml
 metadata:
@@ -139,7 +139,7 @@ Phase 2 is invoked after a CI wait period (typically 1-4 hours). The caller pass
 
 #### 2.1: Read Tracking YAML
 
-Read the `<payload-tag>-bisect.yaml` file from the current working directory.
+Read the `<payload-tag>-experiments.yaml` file from the current working directory.
 
 #### 2.2: Check Job Results
 
@@ -174,7 +174,7 @@ The suspect PR is confirmed as the cause. Execute:
 
 1. Post a comment on the draft PR explaining the result:
    ```
-   Bisect result: payload jobs still fail with this PR reverted. This PR is not the cause of the
+   Experiment result: payload jobs still fail with this PR reverted. This PR is not the cause of the
    blocking job failures in {payload_tag}. Closing this draft.
    ```
 2. Close the draft PR:
@@ -208,3 +208,4 @@ Return results to the caller for inclusion in the final report.
 - Related Skill: `trigger-payload-job` - Triggers payload jobs and collects URLs (`plugins/ci/skills/trigger-payload-job/SKILL.md`)
 - Related Skill: `stage-payload-reverts` - Stages high-confidence reverts (`plugins/ci/skills/stage-payload-reverts/SKILL.md`)
 - Related Command: `/ci:payload-agent` - Autonomous orchestrator that uses this skill (`plugins/ci/commands/payload-agent.md`)
+- Related Command: `/ci:payload-experiment` - Standalone command for experimental reverts (`plugins/ci/commands/payload-experiment.md`)

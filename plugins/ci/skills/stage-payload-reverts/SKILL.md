@@ -141,3 +141,4 @@ Collect all subagent results. Return to the caller for inclusion in the report.
 - Related Skill: `trigger-payload-job` - Triggers payload jobs and collects URLs (`plugins/ci/skills/trigger-payload-job/SKILL.md`)
 - Related Skill: `analyze-payload` - Identifies revert candidates (`plugins/ci/skills/analyze-payload/SKILL.md`)
 - Related Command: `/ci:payload-agent` - Autonomous orchestrator that uses this skill (`plugins/ci/commands/payload-agent.md`)
+- Related Command: `/ci:payload-revert` - Standalone command for staging reverts (`plugins/ci/commands/payload-revert.md`)

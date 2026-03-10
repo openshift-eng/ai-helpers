@@ -23,7 +23,9 @@ It performs **historical lookback** through consecutive rejected payloads to det
 
 When a suspect PR can be correlated with high confidence (>= 85 rubric score) to a blocking job failure — based on component match, error analysis, and timing — the report will **recommend it for immediate revert** with a rationale and ready-to-use copy-paste text for Claude Code. Per OCP policy, PRs that break payloads MUST be reverted; fixes can be re-landed after the revert restores payload health. The `/ci:revert-pr` command can then be used to execute the revert.
 
-For autonomous analysis with automated revert staging and bisect, use `/ci:payload-agent` instead.
+The suspects YAML output (`payload-analysis-{tag}-suspects.yaml`) can be consumed by composable downstream commands: `/ci:payload-revert` stages reverts for high-confidence suspects, and `/ci:payload-experiment` opens draft revert PRs for medium-confidence suspects to experimentally determine causality.
+
+For autonomous analysis with automated revert staging and experimental reverts, use `/ci:payload-agent` instead.
 
 Failed jobs are investigated **in parallel** using subagents with the appropriate analysis skill (install failure vs test failure).
 
@@ -46,8 +48,11 @@ Load the "Analyze Payload" skill and follow its implementation steps. The skill 
 
 ## Return Value
 
-- **Format**: Self-contained HTML file saved to the current working directory
-- **Filename**: `payload-analysis-{tag}-summary.html`
+- **Format**: Self-contained HTML file + suspects YAML saved to the current working directory
+- **Filenames**:
+  - `payload-analysis-{tag}-summary.html` — HTML report
+  - `payload-analysis-{tag}-autodl.json` — JSON data for database ingestion
+  - `payload-analysis-{tag}-suspects.yaml` — Scored suspects for downstream commands
 - **Contents** (all `<a>` links must use `target="_blank"` to open in a new tab):
   - Executive summary with overall payload health
   - Summary table of all blocking jobs (pass/fail)

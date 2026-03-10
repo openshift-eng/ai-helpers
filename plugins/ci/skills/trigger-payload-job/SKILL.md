@@ -9,7 +9,7 @@ This skill triggers payload validation jobs on a GitHub PR by posting the correc
 
 ## When to Use This Skill
 
-**This skill MUST be used whenever triggering payload testing on a PR.** This includes revert PRs, draft bisect PRs, or any PR that needs payload validation. Do not post payload commands without following this skill — the command syntax is specific and other formats will be silently ignored by the bot.
+**This skill MUST be used whenever triggering payload testing on a PR.** This includes revert PRs, draft experimental revert PRs, or any PR that needs payload validation. Do not post payload commands without following this skill — the command syntax is specific and other formats will be silently ignored by the bot.
 
 **Inputs** (passed in-context by the caller):
 
@@ -128,5 +128,5 @@ PAYLOAD_JOB_RESULT:
 
 ## See Also
 
-- Used by: `bisect-payload-suspects` — triggers payload jobs for draft bisect PRs
+- Used by: `payload-experimental-reverts` — triggers payload jobs for draft experimental revert PRs
 - Used by: `stage-payload-reverts` — triggers payload jobs for revert PRs

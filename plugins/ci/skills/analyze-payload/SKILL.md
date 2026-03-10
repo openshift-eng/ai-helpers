@@ -237,6 +237,42 @@ If a revert PR is found:
 
 3. **If a revert PR is open but not merged**, still recommend the revert but note that a revert PR already exists and link to it, so the reader can help expedite the merge.
 
+#### 6.4: Write Suspects YAML
+
+After scoring all (job, suspect PR) pairs and checking for existing reverts, write a suspects YAML file to the current working directory: `payload-analysis-{tag}-suspects.yaml` (sanitize the tag for filename safety).
+
+This file contains ALL scored suspects across all confidence tiers (HIGH, MEDIUM, and LOW), enabling downstream commands (`/ci:payload-revert`, `/ci:payload-experiment`) to filter by their own criteria.
+
+When a PR appears as a suspect for multiple jobs, merge into one entry using the highest confidence score and combining all `failing_jobs` into a single list.
+
+```yaml
+metadata:
+  payload_tag: "4.22.0-0.nightly-2026-02-25-152806"
+  version: "4.22"
+  stream: "nightly"
+  architecture: "amd64"
+  release_controller_url: "https://amd64.ocp.releases.ci.openshift.org/..."
+  analyzed_at: "2026-02-26T10:30:00Z"
+
+suspects:
+  - pr_url: "https://github.com/openshift/cno/pull/2037"
+    pr_number: 2037
+    component: "cluster-network-operator"
+    title: "Fix OVN gateway mode selection"
+    confidence_score: 95
+    rationale: "temporal match + component match + error references code changed"
+    originating_payload_tag: "4.22.0-0.nightly-2026-02-20-150000"
+    existing_revert_status: ""  # "merged", "open", or ""
+    existing_revert_pr_url: ""
+    failing_jobs:
+      - job_name: "periodic-ci-...-e2e-aws-ovn"
+        prow_url: "https://prow.ci.openshift.org/..."
+        is_aggregated: false
+        underlying_job_name: ""
+        failure_type: "test"
+        root_cause_summary: "OVN gateway mode selection regression"
+```
+
 ### Step 7: Generate HTML Report
 
 Create a self-contained HTML file named `payload-analysis-<tag>-summary.html` in the current working directory. The tag should be sanitized for use as a filename (replace colons and slashes). The `-summary.html` suffix is required for automatic rendering in downstream tools.
@@ -589,12 +625,15 @@ The filename **must** end with `-autodl.json`: `payload-analysis-<sanitized_tag>
 1. Save all output files to the current working directory:
    - HTML report: `payload-analysis-<sanitized_tag>-summary.html`
    - JSON data file: `payload-analysis-<sanitized_tag>-autodl.json`
+   - Suspects YAML: `payload-analysis-<sanitized_tag>-suspects.yaml` (written in Step 6.4)
    - Sanitize the tag: replace any characters not safe for filenames
 
 2. Tell the user:
    - The path to the saved HTML report
    - The path to the JSON data file
+   - The path to the suspects YAML file
    - A brief text summary of findings (number of failures, new vs persistent, key suspect PRs)
+   - Mention that downstream commands `/ci:payload-revert` and `/ci:payload-experiment` can consume the suspects YAML for automated actions
 
 ## Error Handling
 

@@ -379,6 +379,18 @@
           "synopsis": "/ci:payload-agent <payload-tag>"
         },
         {
+          "argument_hint": "<payload-tag>",
+          "description": "Open draft revert PRs for medium-confidence payload suspects and trigger payload jobs to experimentally determine which PR is causing failures",
+          "name": "payload-experiment",
+          "synopsis": "/ci:payload-experiment <payload-tag>"
+        },
+        {
+          "argument_hint": "<payload-tag>",
+          "description": "Stage reverts for high-confidence payload suspects identified by analyze-payload",
+          "name": "payload-revert",
+          "synopsis": "/ci:payload-revert <payload-tag>"
+        },
+        {
           "argument_hint": "<execution-id>",
           "description": "Query the status of a gangway job execution by ID",
           "name": "query-job-status",
@@ -424,11 +436,6 @@
           "description": "Analyze a payload (rejected, accepted, or in-progress) with historical lookback to identify root causes of blocking job failures and produce an HTML report",
           "id": "analyze-payload",
           "name": "Analyze Payload"
-        },
-        {
-          "description": "Experimentally bisect medium-confidence payload suspects by opening draft revert PRs and triggering payload jobs",
-          "id": "bisect-payload-suspects",
-          "name": "Bisect Payload Suspects"
         },
         {
           "description": "Fetch JIRA issue details including status, assignee, comments, and progress classification",
@@ -481,9 +488,14 @@
           "name": "OC Authentication Helper"
         },
         {
-          "description": "Autonomous agent that analyzes a rejected payload, scores confidence, and takes action \u2014 staging reverts, bisecting suspects, or reporting only",
+          "description": "Autonomous agent that analyzes a rejected payload, reads scored suspects, and takes action \u2014 staging reverts, running experimental reverts, or reporting only",
           "id": "payload-agent",
           "name": "Payload Agent"
+        },
+        {
+          "description": "Experimentally test medium-confidence payload suspects by opening draft revert PRs and triggering payload jobs",
+          "id": "payload-experimental-reverts",
+          "name": "Payload Experimental Reverts"
         },
         {
           "description": "Analyze OpenShift installation failures in Prow CI jobs by examining installer logs, log bundles, and sosreports. Use when CI job fails \"install should succeed\" tests at bootstrap, cluster creation or other stages.",
@@ -541,7 +553,7 @@
           "name": "Trigger Payload Job"
         }
       ],
-      "version": "0.0.23"
+      "version": "0.0.24"
     },
     {
       "commands": [

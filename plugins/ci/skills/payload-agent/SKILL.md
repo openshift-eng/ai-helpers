@@ -1,6 +1,6 @@
 ---
 name: Payload Agent
-description: Autonomous agent that analyzes a rejected payload, scores confidence, and takes action — staging reverts, bisecting suspects, or reporting only
+description: Autonomous agent that analyzes a rejected payload, reads scored suspects, and takes action — staging reverts, running experimental reverts, or reporting only
 ---
 
 # Payload Agent
@@ -13,8 +13,8 @@ Use this skill when you want fully autonomous payload triage:
 
 - Analyze a rejected or failing payload
 - Automatically stage reverts for high-confidence culprits
-- Experimentally bisect medium-confidence suspects via draft revert PRs
-- Resume after a CI wait period to collect bisect results
+- Experimentally test medium-confidence suspects via draft revert PRs
+- Resume after a CI wait period to collect experiment results
 - Generate a comprehensive report with all actions taken
 
 ## Prerequisites
@@ -44,11 +44,15 @@ https://<architecture>.ocp.releases.ci.openshift.org/releasestream/<version>.0-0
 ```
 (For `amd64`, the subdomain is `amd64.ocp.releases.ci.openshift.org`.)
 
-**Check for existing bisect tracking file**: Look for `<payload-tag>-bisect.yaml` in the current working directory. If it exists and contains experiments with `status: pending`, this is a resume — jump directly to Step 5 (Bisect Phase 2).
+**Check for resume state** (in order of priority):
+
+1. **Experiments tracking file**: Look for `<payload-tag>-experiments.yaml` in the current working directory. If it exists and contains experiments with `status: pending`, this is a resume — jump directly to Step 5 (Experiment Phase 2).
+
+2. **Existing suspects YAML**: Look for `payload-analysis-<tag>-suspects.yaml` in the current working directory. If it exists, skip analysis — jump directly to Step 3 (read suspects and dispatch).
 
 ### Step 2: Run Analysis
 
-Execute the `analyze-payload` skill Steps 1-6 to gather all analysis data:
+Execute the `analyze-payload` skill Steps 1-6 (including Step 6.4 which writes the suspects YAML) to gather all analysis data:
 
 1. Fetch recent payloads (Step 2)
 2. Build failure history with lookback (Step 3)
@@ -57,33 +61,25 @@ Execute the `analyze-payload` skill Steps 1-6 to gather all analysis data:
 5. Correlate failures with suspect PRs and score using the rubric (Step 6.1)
 6. Identify revert candidates (Step 6.2)
 7. Check for existing reverts (Step 6.3)
+8. Write suspects YAML (Step 6.4)
 
 **Critical — Install failure investigation must be thorough.** When subagents investigate install failures (Step 5), they MUST use the `ci:prow-job-analyze-install-failure` skill to download and examine actual log bundles. Do not allow surface-level assessments based on pass rates or job names alone. Bootstrap timeouts, for example, can be caused by admission plugin bugs, race conditions, or configuration errors — not just infrastructure problems. The log bundle contains the actual error messages that reveal root cause.
 
 **Critical — Evaluate ALL new PRs as potential causes.** When failures affect a specific feature set (e.g., TechPreview), examine each new PR for changes that could affect that feature set: feature gate changes, vendored dependency updates (especially kube rebases), manifest changes that add/modify annotations, and admission plugin configuration. Vendor-only rebases can still introduce behavioral changes through updated library code.
 
-All results stay in-context (not written to files yet). The `analyze-payload` skill's Steps 7-9 (report generation) are deferred to Step 6 of this skill.
+### Step 3: Read Suspects and Classify
 
-### Step 3: Apply Confidence Scoring
-
-Score each (failed job, suspect PR) pair using the rubric from `analyze-payload` Step 6.1:
-
-| Signal | Weight |
-|--------|--------|
-| Temporal match | +30 |
-| Component match | +10 to +30 |
-| Error message match | +30 |
-| Single suspect | +10 |
+Read the suspects YAML (`payload-analysis-<tag>-suspects.yaml`) from the current working directory.
 
 Classify each suspect into confidence tiers:
 
 | Tier | Score Range | Label |
 |------|------------|-------|
 | HIGH | >= 85 | Revert immediately |
-| MEDIUM | 60-84 | Bisect experimentally |
+| MEDIUM | 60-84 | Experiment with draft reverts |
 | LOW | < 60 | Report only |
 
-If a suspect PR appears in multiple (job, PR) pairs, use the **highest** score across all pairs for tier classification.
+If a suspect PR appears in multiple entries (shouldn't happen since the YAML merges by PR), use the **highest** score for tier classification.
 
 ### Step 4: Decision and Dispatch
 
@@ -92,35 +88,35 @@ Based on the confidence tiers, take autonomous action:
 | Confidence | Action | Skill Used |
 |------------|--------|------------|
 | >= 85 (HIGH) | Stage reverts: create TRT JIRA, open revert PR, trigger payload jobs | `stage-payload-reverts` |
-| 60-84 (MEDIUM) | Bisect: open draft revert PRs, trigger payload jobs | `bisect-payload-suspects` Phase 1 |
+| 60-84 (MEDIUM) | Experiment: open draft revert PRs, trigger payload jobs | `payload-experimental-reverts` Phase 1 |
 | < 60 (LOW) | Report only — no automated action | None |
 
-**Skip candidates** that already have merged or open revert PRs (identified in Step 2 via `analyze-payload` Step 6.3).
+**Skip candidates** that already have merged or open revert PRs (identified via `existing_revert_status` in the suspects YAML).
 
 **Execute HIGH and MEDIUM actions in parallel** when both tiers have candidates. Pass all required context in-memory to each skill.
 
 **Job triggering limits**: The total number of payload jobs triggered across ALL suspects (both HIGH and MEDIUM tiers combined) must respect these limits:
 
 - **Non-aggregated jobs**: Up to 5 total across all suspects
-- **Aggregated jobs**: Up to 1 initially. A second aggregated job may only be triggered if the first one's results are needed to confirm a finding (e.g., during bisect Phase 2 confirmation). Never trigger more than 2 aggregated jobs total.
+- **Aggregated jobs**: Up to 1 initially. A second aggregated job may only be triggered if the first one's results are needed to confirm a finding (e.g., during experiment Phase 2 confirmation). Never trigger more than 2 aggregated jobs total.
 
 When the number of failing jobs across all suspects exceeds these limits, prioritize jobs from higher-confidence suspects first. For aggregated jobs, pick the single most important one (highest confidence suspect, most critical job). Record any jobs that were skipped due to limits in the report as "skipped — job trigger limit reached".
 
-**Critical — Aggregated job handling**: When constructing the `failing_jobs` list for each suspect, you MUST correctly populate `is_aggregated` and `underlying_job_name` using the subagent analysis results from Step 2. Jobs with the `aggregated-` prefix are aggregated jobs. The `underlying_job_name` is extracted by the subagent from the junit-aggregated.xml artifacts (see `analyze-payload` Step 5). Both `bisect-payload-suspects` and `stage-payload-reverts` use the `trigger-payload-job` skill to post the correct commands — but they depend on the caller providing accurate `is_aggregated` and `underlying_job_name` values.
+**Critical — Aggregated job handling**: When constructing the `failing_jobs` list for each suspect, validate `is_aggregated` and `underlying_job_name` from the suspects YAML. Both `payload-experimental-reverts` and `stage-payload-reverts` use the `trigger-payload-job` skill to post the correct commands — but they depend on the caller providing accurate `is_aggregated` and `underlying_job_name` values.
 
-**Fail-fast validation**: After assembling the `failing_jobs` list from subagent results and before passing it to `bisect-payload-suspects` or `stage-payload-reverts`, validate each entry: if `is_aggregated` is true but `underlying_job_name` is empty or null, do NOT enqueue that job for payload testing. Instead, record a hard error for that suspect in the report (e.g., "Cannot trigger payload test: aggregated job missing underlying_job_name from subagent analysis") and continue with the remaining suspects. This prevents silent misuse of `trigger-payload-job` with an aggregated job that has no underlying job name.
+**Fail-fast validation**: Before passing suspects to `payload-experimental-reverts` or `stage-payload-reverts`, validate each job entry: if `is_aggregated` is true but `underlying_job_name` is empty or null, do NOT enqueue that job for payload testing. Instead, record a hard error for that suspect in the report (e.g., "Cannot trigger payload test: aggregated job missing underlying_job_name from analysis") and continue with the remaining suspects.
 
 If there are no HIGH or MEDIUM candidates, skip to Step 6 (report generation).
 
-### Step 5: Bisect Phase 2 (Resume)
+### Step 5: Experiment Phase 2 (Resume)
 
 This step is reached either:
-- Automatically when a `<payload-tag>-bisect.yaml` with pending experiments is found in Step 1
+- Automatically when a `<payload-tag>-experiments.yaml` with pending experiments is found in Step 1
 - After a CI wait period when Phase 1 was previously initiated
 
-Read `<payload-tag>-bisect.yaml` from the current working directory.
+Read `<payload-tag>-experiments.yaml` from the current working directory.
 
-Use the `bisect-payload-suspects` skill Phase 2:
+Use the `payload-experimental-reverts` skill Phase 2:
 1. Check job results for each experiment
 2. For confirmed causes (jobs pass with revert): create TRT JIRA, promote draft PR
 3. For innocent PRs (jobs still fail): close draft PR with explanation
@@ -162,13 +158,13 @@ If high-confidence reverts were staged (Step 4), add a "Staged Reverts" table af
 </div>
 ```
 
-#### 6.2: Bisect In Progress Section
+#### 6.2: Experiments In Progress Section
 
-If bisect Phase 1 was initiated but Phase 2 has not completed, add a "Bisect In Progress" section:
+If experiment Phase 1 was initiated but Phase 2 has not completed, add an "Experiments In Progress" section:
 
 ```html
-<div class="bisect-section">
-  <h2>Bisect In Progress</h2>
+<div class="experiment-section">
+  <h2>Experiments In Progress</h2>
   <p>Draft revert PRs have been opened and payload jobs triggered for the following
      medium-confidence suspects. Results will be available after jobs complete (typically 1-4 hours).</p>
   <table>
@@ -186,13 +182,13 @@ If bisect Phase 1 was initiated but Phase 2 has not completed, add a "Bisect In 
 </div>
 ```
 
-#### 6.3: Bisect Results Section
+#### 6.3: Experiment Results Section
 
-If bisect Phase 2 completed, add a "Bisect Results" section:
+If experiment Phase 2 completed, add an "Experiment Results" section:
 
 ```html
-<div class="bisect-section">
-  <h2>Bisect Results</h2>
+<div class="experiment-section">
+  <h2>Experiment Results</h2>
   <table>
     <tr>
       <th>Suspect PR</th>
@@ -212,10 +208,10 @@ If bisect Phase 2 completed, add a "Bisect Results" section:
 </div>
 ```
 
-Add styles for bisect badges:
+Add styles for experiment badges:
 
 ```html
-.bisect-section {
+.experiment-section {
   background: white;
   border-left: 4px solid #1a73e8;
   padding: 16px 20px;
@@ -235,41 +231,41 @@ Add styles for bisect badges:
 
 After report generation:
 
-- **If bisect Phase 1 was initiated** (tracking YAML was written with pending experiments):
+- **If experiment Phase 1 was initiated** (tracking YAML was written with pending experiments):
   1. Print the tracking file path
   2. Print resume instructions:
      ```
-     Bisect experiments are running. Payload jobs typically take 1-4 hours to complete.
+     Experimental reverts are running. Payload jobs typically take 1-4 hours to complete.
 
-     Tracking file: ./<payload-tag>-bisect.yaml
+     Tracking file: ./<payload-tag>-experiments.yaml
 
      To collect results and generate the final report, run the same command again
      from this directory:
        /ci:payload-agent <payload-tag>
      ```
 
-- **If no bisect was initiated** (only HIGH or LOW confidence, or Phase 2 just completed):
+- **If no experiments were initiated** (only HIGH or LOW confidence, or Phase 2 just completed):
   - Print the report file paths and a brief summary
   - Done
 
 ## Error Handling
 
 - If the `analyze-payload` skill fails partway, report what was collected and note the error.
-- If `stage-payload-reverts` or `bisect-payload-suspects` fail for individual candidates, continue with remaining candidates and note errors in the report.
+- If `stage-payload-reverts` or `payload-experimental-reverts` fail for individual candidates, continue with remaining candidates and note errors in the report.
 - If the tracking YAML exists but all experiments are already completed (no pending), skip Phase 2 and proceed to report generation.
 - Network errors, JIRA failures, and GitHub API errors should be caught and reported without aborting the entire pipeline.
 
 ## Notes
 
 - No human interaction during execution. The agent runs fully autonomously.
-- The skill is reentrant: it detects the presence of `<payload-tag>-bisect.yaml` in CWD to determine whether to run a fresh analysis or resume bisect Phase 2. Running the same command twice from the same directory automatically resumes.
+- The skill is reentrant: it detects the presence of `<payload-tag>-experiments.yaml` in CWD to determine whether to run a fresh analysis or resume experiment Phase 2. Running the same command twice from the same directory automatically resumes.
 - The confidence rubric is deterministic — the same signals always produce the same score.
-- Deferred suspects (from bisect throttling) are noted in the report for manual follow-up.
+- Deferred suspects (from experiment throttling) are noted in the report for manual follow-up.
 
 ## See Also
 
 - Related Command: `/ci:payload-agent` - The user-facing command (`plugins/ci/commands/payload-agent.md`)
 - Related Skill: `analyze-payload` - Core analysis logic (`plugins/ci/skills/analyze-payload/SKILL.md`)
 - Related Skill: `stage-payload-reverts` - High-confidence revert staging (`plugins/ci/skills/stage-payload-reverts/SKILL.md`)
-- Related Skill: `bisect-payload-suspects` - Medium-confidence bisect experiments (`plugins/ci/skills/bisect-payload-suspects/SKILL.md`)
+- Related Skill: `payload-experimental-reverts` - Medium-confidence experimental reverts (`plugins/ci/skills/payload-experimental-reverts/SKILL.md`)
 - Related Skill: `trigger-payload-job` - Triggers payload jobs and collects URLs (`plugins/ci/skills/trigger-payload-job/SKILL.md`)

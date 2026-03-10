@@ -25,9 +25,16 @@ partition "Step 1: Parse Arguments & Detect Resume" {
     - architecture (amd64, arm64, ...)
   end note
 
-  if (<tag>-bisect.yaml exists\nwith pending experiments?) then (yes)
+  if (<tag>-experiments.yaml exists\nwith pending experiments?) then (yes)
     :Jump to Step 5
-    (Bisect Phase 2);
+    (Experiment Phase 2);
+    detach
+  else (no)
+  endif
+
+  if (suspects YAML exists?) then (yes)
+    :Jump to Step 3
+    (Read Suspects & Classify);
     detach
   else (no)
   endif
@@ -35,23 +42,15 @@ partition "Step 1: Parse Arguments & Detect Resume" {
 
 partition "Step 2: Run Analysis" {
   :Execute analyze-payload
-  Steps 1-6;
+  Steps 1-6 (incl. 6.4 suspects YAML);
   note right
-    All analysis stays
-    in-context (no files)
+    Writes suspects YAML
+    to CWD
   end note
 }
 
-partition "Step 3: Apply Confidence Scoring" {
-  :Score each (job, suspect PR) pair
-  using weighted rubric;
-  note right
-    Rubric weights:
-    - Temporal match: +30
-    - Component match: +10 to +30
-    - Error message match: +30
-    - Single suspect: +10
-  end note
+partition "Step 3: Read Suspects & Classify" {
+  :Read suspects YAML;
 
   :Classify suspects into tiers;
   note right
@@ -80,19 +79,19 @@ partition "Step 4: Decision & Dispatch" {
 
   if (Any MEDIUM confidence\nsuspects?) then (yes)
     :Dispatch to
-    **bisect-payload-suspects**
+    **payload-experimental-reverts**
     Phase 1;
   else (no)
   endif
 }
 
-if (Bisect Phase 1\nwas initiated?) then (yes)
+if (Experiment Phase 1\nwas initiated?) then (yes)
 
-  partition "Bisect Phase 1: Set Up Experiments (Parallel)" {
+  partition "Experiment Phase 1: Set Up Experiments (Parallel)" {
     fork
-      :Subagent: Bisect Suspect A;
+      :Subagent: Experiment Suspect A;
     fork again
-      :Subagent: Bisect Suspect B...;
+      :Subagent: Experiment Suspect B...;
     end fork
 
     note right
@@ -103,7 +102,7 @@ if (Bisect Phase 1\nwas initiated?) then (yes)
       4. Collect pr-payload-tests URL
     end note
 
-    :Write <tag>-bisect.yaml
+    :Write <tag>-experiments.yaml
     tracking file to CWD;
   }
 
@@ -111,10 +110,10 @@ else (no)
 endif
 
 ' Rejoin from resume path
-if (Tracking YAML found OR\nbisect Phase 1 done?) then (resume)
+if (Tracking YAML found OR\nexperiment Phase 1 done?) then (resume)
 
-  partition "Step 5: Bisect Phase 2 (Collect Results)" {
-    :Read <tag>-bisect.yaml;
+  partition "Step 5: Experiment Phase 2 (Collect Results)" {
+    :Read <tag>-experiments.yaml;
 
     while (More pending experiments?) is (yes)
       :Fetch payload_test_url,
@@ -137,11 +136,11 @@ if (Tracking YAML found OR\nbisect Phase 1 done?) then (resume)
       endif
     endwhile (no)
 
-    :Update <tag>-bisect.yaml
+    :Update <tag>-experiments.yaml
     with results;
   }
 
-else (no bisect)
+else (no experiments)
 endif
 
 partition "Step 6: Generate Report & Artifacts" {
@@ -154,18 +153,18 @@ partition "Step 6: Generate Report & Artifacts" {
   else (no)
   endif
 
-  if (Bisect Phase 1 only?) then (yes)
-    :Add "Bisect In Progress" section
+  if (Experiment Phase 1 only?) then (yes)
+    :Add "Experiments In Progress" section
     (draft PRs, payload test URLs);
-  elseif (Bisect Phase 2 done?) then
-    :Add "Bisect Results" section
+  elseif (Experiment Phase 2 done?) then
+    :Add "Experiment Results" section
     (confirmed / innocent verdicts);
-  else (no bisect)
+  else (no experiments)
   endif
 }
 
 partition "Step 7: Exit" {
-  if (Bisect experiments pending?) then (yes)
+  if (Experiments pending?) then (yes)
     :Print tracking file path;
     :Print resume instructions:
     run /ci:payload-agent <tag>
@@ -181,7 +180,7 @@ stop
 legend right
   |= Tier |= Score |= Action |
   | HIGH | >= 85 | Stage revert (JIRA + PR + jobs) |
-  | MEDIUM | 60-84 | Bisect (draft PR + jobs) |
+  | MEDIUM | 60-84 | Experiment (draft PR + jobs) |
   | LOW | < 60 | Report only |
 endlegend
 
