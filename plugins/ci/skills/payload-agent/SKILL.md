@@ -44,11 +44,10 @@ https://<architecture>.ocp.releases.ci.openshift.org/releasestream/<version>.0-0
 ```
 (For `amd64`, the subdomain is `amd64.ocp.releases.ci.openshift.org`.)
 
-**Check for resume state** (in order of priority):
+**Check for resume state**: Look for `payload-analysis-<tag>-suspects.yaml` in the current working directory. If it exists:
 
-1. **Experiments tracking file**: Look for `<payload-tag>-experiments.yaml` in the current working directory. If it exists and contains experiments with `status: pending`, this is a resume — jump directly to Step 5 (Experiment Phase 2).
-
-2. **Existing suspects YAML**: Look for `payload-analysis-<tag>-suspects.yaml` in the current working directory. If it exists, skip analysis — jump directly to Step 3 (read suspects and dispatch).
+1. **Pending experiments**: If any suspect has `action_status: "pending"`, this is a resume — jump directly to Step 5 (Experiment Phase 2).
+2. **Analysis complete, no pending actions**: Skip analysis — jump directly to Step 3 (read suspects and dispatch).
 
 ### Step 2: Run Analysis
 
@@ -111,16 +110,14 @@ If there are no HIGH or MEDIUM candidates, skip to Step 6 (report generation).
 ### Step 5: Experiment Phase 2 (Resume)
 
 This step is reached either:
-- Automatically when a `<payload-tag>-experiments.yaml` with pending experiments is found in Step 1
+- Automatically when suspects with `action_status: "pending"` are found in Step 1
 - After a CI wait period when Phase 1 was previously initiated
 
-Read `<payload-tag>-experiments.yaml` from the current working directory.
-
 Use the `payload-experimental-reverts` skill Phase 2:
-1. Check job results for each experiment
+1. Check job results for each pending experiment
 2. For confirmed causes (jobs pass with revert): create TRT JIRA, promote draft PR
 3. For innocent PRs (jobs still fail): close draft PR with explanation
-4. Update tracking YAML with results
+4. Update suspects YAML in place with results
 
 Proceed to Step 6.
 
@@ -231,13 +228,13 @@ Add styles for experiment badges:
 
 After report generation:
 
-- **If experiment Phase 1 was initiated** (tracking YAML was written with pending experiments):
-  1. Print the tracking file path
+- **If experiment Phase 1 was initiated** (suspects YAML has entries with `action_status: pending`):
+  1. Print the suspects YAML path
   2. Print resume instructions:
      ```
      Experimental reverts are running. Payload jobs typically take 1-4 hours to complete.
 
-     Tracking file: ./<payload-tag>-experiments.yaml
+     Suspects file: ./payload-analysis-<tag>-suspects.yaml
 
      To collect results and generate the final report, run the same command again
      from this directory:
@@ -252,13 +249,13 @@ After report generation:
 
 - If the `analyze-payload` skill fails partway, report what was collected and note the error.
 - If `stage-payload-reverts` or `payload-experimental-reverts` fail for individual candidates, continue with remaining candidates and note errors in the report.
-- If the tracking YAML exists but all experiments are already completed (no pending), skip Phase 2 and proceed to report generation.
+- If the suspects YAML exists but all experiments are already completed (no `action_status: pending`), skip Phase 2 and proceed to report generation.
 - Network errors, JIRA failures, and GitHub API errors should be caught and reported without aborting the entire pipeline.
 
 ## Notes
 
 - No human interaction during execution. The agent runs fully autonomously.
-- The skill is reentrant: it detects the presence of `<payload-tag>-experiments.yaml` in CWD to determine whether to run a fresh analysis or resume experiment Phase 2. Running the same command twice from the same directory automatically resumes.
+- The skill is reentrant: it checks the suspects YAML for `action_status: pending` entries to determine whether to run a fresh analysis or resume experiment Phase 2. Running the same command twice from the same directory automatically resumes.
 - The confidence rubric is deterministic — the same signals always produce the same score.
 - Deferred suspects (from experiment throttling) are noted in the report for manual follow-up.
 

@@ -20,10 +20,10 @@ The `ci:payload-agent` command is an autonomous orchestrator that analyzes a rej
 It uses a deterministic confidence rubric to score suspect PRs and dispatches actions based on the score:
 
 - **HIGH confidence (>= 85)**: Automatically creates a TRT JIRA bug, opens a revert PR, and triggers payload validation jobs
-- **MEDIUM confidence (60-84)**: Opens draft revert PRs as experimental reverts, triggers payload jobs, and writes a tracking YAML for later result collection
+- **MEDIUM confidence (60-84)**: Opens draft revert PRs as experimental reverts, triggers payload jobs, and updates the suspects YAML with pending status for later result collection
 - **LOW confidence (< 60)**: Reports findings only — no automated action
 
-For medium-confidence suspects, the experimental revert workflow handles the hours-long CI gap via a YAML tracking file. Phase 1 opens experiments and exits; running the same command again from the same directory automatically detects the tracking file and runs Phase 2 to collect results, promote confirmed causes to real revert PRs, and close innocent drafts.
+For medium-confidence suspects, the experimental revert workflow handles the hours-long CI gap via the suspects YAML. Phase 1 opens experiments and marks them `action_status: pending`; running the same command again from the same directory automatically detects pending experiments and runs Phase 2 to collect results, promote confirmed causes to real revert PRs, and close innocent drafts.
 
 The orchestrator composes three stages that are also independently invocable:
 1. `/ci:analyze-payload` — produces the suspects YAML
@@ -35,16 +35,16 @@ The orchestrator composes three stages that are also independently invocable:
 - **Autonomous operation**: No human interaction during execution
 - **Confidence-based dispatch**: Deterministic rubric ensures consistent scoring
 - **Experimental reverts**: Draft revert PRs test medium-confidence suspects experimentally
-- **Reentrant**: Automatically resumes experiment Phase 2 when a tracking YAML exists in CWD
+- **Reentrant**: Automatically resumes experiment Phase 2 when suspects YAML has pending experiments
 - **Comprehensive report**: HTML report includes staged reverts, experiment status, and full analysis
 
 ## Implementation
 
 Load the `payload-agent` skill and follow its implementation steps. The skill orchestrates:
 
-1. Detecting resume state (`<tag>-experiments.yaml` or suspects YAML)
+1. Reading the suspects YAML (if it exists) and detecting resume state (pending experiments)
 2. Analyzing the payload using the `analyze-payload` skill (if needed)
-3. Reading the suspects YAML and scoring with the confidence rubric
+3. Classifying suspects by confidence tier
 4. Dispatching actions: staging reverts (HIGH), experimental reverts (MEDIUM), or reporting (LOW)
 5. Generating an augmented HTML report with action results
 
@@ -54,8 +54,7 @@ Load the `payload-agent` skill and follow its implementation steps. The skill or
 - **Filenames**:
   - `payload-analysis-{tag}-summary.html` — HTML report
   - `payload-analysis-{tag}-autodl.json` — JSON data for database ingestion
-  - `payload-analysis-{tag}-suspects.yaml` — Scored suspects for downstream commands
-  - `{tag}-experiments.yaml` — Experiments tracking file (only when medium-confidence suspects are tested)
+  - `payload-analysis-{tag}-suspects.yaml` — Scored suspects with action tracking for all tiers
 - **Contents** (all `<a>` links must use `target="_blank"` to open in a new tab):
   - Everything from `analyze-payload` (executive summary, blocking jobs table, failure details, suspect PRs)
   - Staged Reverts table with JIRA tickets, revert PRs, and triggered payload jobs (when high-confidence reverts are staged)

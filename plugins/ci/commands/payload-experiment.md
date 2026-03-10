@@ -17,9 +17,11 @@ ci:payload-experiment
 
 The `ci:payload-experiment` command opens draft revert PRs for medium-confidence payload suspects (confidence score 60-84) and triggers payload jobs to experimentally determine which PR is causing failures. It operates in two phases separated by a CI wait period.
 
-**Phase 1**: Reads the suspects YAML, filters medium-confidence suspects, opens draft revert PRs, and triggers payload jobs. Writes a tracking YAML (`<tag>-experiments.yaml`) and exits.
+**Phase 1**: Reads the suspects YAML, filters medium-confidence suspects, opens draft revert PRs, triggers payload jobs, and updates the suspects YAML with `action: experiment` / `action_status: pending`.
 
-**Phase 2**: Detects an existing `<tag>-experiments.yaml` with pending experiments, checks job results, promotes confirmed causes to real revert PRs (with TRT JIRA bugs), and closes innocent draft PRs.
+**Phase 2**: Detects suspects with `action_status: pending` in the suspects YAML, checks job results, promotes confirmed causes to real revert PRs (with TRT JIRA bugs), and closes innocent draft PRs.
+
+All state is tracked in the suspects YAML — no separate tracking file is created.
 
 This command is one of three composable stages in the payload triage pipeline:
 1. `/ci:analyze-payload` — produces the suspects YAML
@@ -35,23 +37,23 @@ This command is one of three composable stages in the payload triage pipeline:
 
 1. **Parse the payload tag** from the argument. Extract `version`, `stream`, and `architecture` from the tag (see `analyze-payload` Step 1 for parsing rules).
 
-2. **Detect Phase 2 resume**: Check for `<payload-tag>-experiments.yaml` in the current working directory. If it exists and contains experiments with `status: pending`, jump to Phase 2 (step 5).
-
-3. **Read the suspects YAML**: Look for `payload-analysis-{tag}-suspects.yaml` in the current working directory. If not found, print an error and exit:
+2. **Read the suspects YAML**: Look for `payload-analysis-{tag}-suspects.yaml` in the current working directory. If not found, print an error and exit:
    ```
    Error: Suspects YAML not found for {payload_tag}.
    Run `/ci:analyze-payload {payload_tag}` first to generate it.
    ```
 
-4. **Phase 1 — Set up experiments**: Filter suspects with `60 <= confidence_score < 85`. Exclude any with `existing_revert_status` of `"merged"` or `"open"`. Dispatch to the `payload-experimental-reverts` skill Phase 1.
+3. **Detect Phase 2 resume**: If any suspect in the YAML has `action_status: "pending"`, jump to Phase 2 (step 5).
 
-5. **Phase 2 — Collect results**: Read the `<payload-tag>-experiments.yaml` tracking file. Dispatch to the `payload-experimental-reverts` skill Phase 2 to check job results, promote confirmed causes, and close innocent drafts.
+4. **Phase 1 — Set up experiments**: Filter suspects with `60 <= confidence_score < 85`. Exclude any with `existing_revert_status` of `"merged"` or `"open"`. Dispatch to the `payload-experimental-reverts` skill Phase 1, which updates the suspects YAML in place.
+
+5. **Phase 2 — Collect results**: Dispatch to the `payload-experimental-reverts` skill Phase 2 to check job results, promote confirmed causes, close innocent drafts, and update the suspects YAML.
 
 6. **Report results**: Print a summary of actions taken.
 
 ## Return Value
 
-- **Phase 1**: Path to the experiments tracking YAML and resume instructions
+- **Phase 1**: Confirmation that experiments are running, with resume instructions
 - **Phase 2**: Summary of experiment verdicts (confirmed/innocent/inconclusive) and actions taken
 
 ## Examples

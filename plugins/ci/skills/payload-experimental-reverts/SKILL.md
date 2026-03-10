@@ -5,7 +5,7 @@ description: Experimentally test medium-confidence payload suspects by opening d
 
 # Payload Experimental Reverts
 
-This skill experimentally tests medium-confidence suspect PRs by opening draft revert PRs, triggering payload jobs, and evaluating results. It operates in two phases separated by a CI wait period.
+This skill experimentally tests medium-confidence suspect PRs by opening draft revert PRs, triggering payload jobs, and evaluating results. It operates in two phases separated by a CI wait period. All state is tracked in the suspects YAML file — no separate tracking file is created.
 
 ## When to Use This Skill
 
@@ -13,9 +13,7 @@ Use this skill when the `payload-agent` orchestrator or the `/ci:payload-experim
 
 **Inputs** (passed in-context by the caller):
 
-- `payload_tag`: The full payload tag being analyzed
-- `version`, `stream`, `architecture`: Parsed from the payload tag
-- `release_controller_url`: URL to the payload on the release controller
+- `suspects_yaml_path`: Path to the suspects YAML file in CWD
 - `suspects`: List of medium-confidence PRs to test experimentally, each with:
   - `pr_url`, `pr_number`, `component`, `title`, `confidence_score`
   - `failing_jobs`: List of `{job_name, prow_url, is_aggregated, underlying_job_name}`
@@ -49,7 +47,7 @@ git status --porcelain
 ```
 
 If conflicts exist:
-- Record `status: skipped_conflict` in the tracking data
+- Record `action_status: skipped_conflict` for this suspect
 - Skip to the next suspect
 - Do NOT attempt to resolve conflicts for experimental reverts
 
@@ -80,74 +78,41 @@ Use the `trigger-payload-job` skill (`plugins/ci/skills/trigger-payload-job/SKIL
 
 #### 1.4: Record Experiment
 
-Record the experiment data for the tracking YAML (see schema below).
+Update the suspect's action tracking fields in the suspects YAML:
+- `action`: `"experiment"`
+- `action_status`: `"pending"`
+- `action_revert_pr_url`: the draft PR URL
+- `action_revert_pr_state`: `"draft"`
+- `action_triggered_jobs`: list of triggered jobs with URLs
+- `action_result_summary`: `""`
+- `action_jira_key`: `""`
+- `action_jira_url`: `""`
 
-**Throttling**: Never test more than 5 suspects. If there are more than 5, test only the top 5 by confidence score. Record the remainder as `deferred_suspects` in the tracking YAML.
+**Throttling**: Never test more than 5 suspects. If there are more than 5, test only the top 5 by confidence score. Note the remainder in the report as deferred.
 
-**Job triggering limits**: Respect the global limits set by the `payload-agent` orchestrator. Across all experiments combined: trigger at most 5 non-aggregated jobs and at most 1 aggregated job. Prioritize jobs from higher-confidence suspects. Skip excess jobs and record them in the tracking YAML as skipped due to limits.
+**Job triggering limits**: Respect the global limits set by the `payload-agent` orchestrator. Across all experiments combined: trigger at most 5 non-aggregated jobs and at most 1 aggregated job. Prioritize jobs from higher-confidence suspects. Skip excess jobs and record them as skipped due to limits.
 
-### Write Tracking YAML
+### Update Suspects YAML
 
-After all Phase 1 subagents complete, write `<payload-tag>-experiments.yaml` to the current working directory with all experiment data:
-
-```yaml
-metadata:
-  payload_tag: "4.22.0-0.nightly-2026-02-25-152806"
-  version: "4.22"
-  stream: "nightly"
-  architecture: "amd64"
-  release_controller_url: "https://amd64.ocp.releases.ci.openshift.org/..."
-  phase1_completed_at: "<ISO 8601 timestamp>"
-  phase2_completed_at: ""
-
-experiments:
-  - suspect_pr:
-      url: "https://github.com/openshift/cluster-network-operator/pull/2037"
-      number: 2037
-      component: "cluster-network-operator"
-      title: "Fix OVN gateway mode selection"
-      confidence_score: 60
-    revert_pr:
-      url: "https://github.com/user/cluster-network-operator/pull/15"
-      number: 15
-      state: "draft"
-    triggered_jobs:
-      - job_name: "periodic-ci-...-e2e-aws-ovn"
-        type: "non-aggregated"
-        command: "/payload-job periodic-ci-...-e2e-aws-ovn"
-        payload_test_url: "https://pr-payload-tests.ci.openshift.org/runs/ci/9ed573a0-..."
-        prow_url: "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/..."
-    failing_jobs_attributed:
-      - "periodic-ci-...-e2e-aws-ovn"
-    status: "pending"
-    result_summary: ""
-    jira_key: ""
-    jira_url: ""
-
-deferred_suspects:
-  - url: "https://github.com/openshift/mco/pull/5509"
-    number: 5509
-    component: "machine-config-operator"
-    confidence_score: 42
-```
+After all Phase 1 subagents complete, update the suspects YAML file in place with the action tracking fields for each suspect that was processed.
 
 ---
 
 ### Phase 2: Collect Results and Act
 
-Phase 2 is invoked after a CI wait period (typically 1-4 hours). The caller passes the path to the tracking YAML.
+Phase 2 is invoked after a CI wait period (typically 1-4 hours). The caller detects suspects with `action_status: "pending"` in the suspects YAML and invokes this phase.
 
-#### 2.1: Read Tracking YAML
+#### 2.1: Read Suspects YAML
 
-Read the `<payload-tag>-experiments.yaml` file from the current working directory.
+Read the suspects YAML from the current working directory. Find all suspects with `action: "experiment"` and `action_status: "pending"`.
 
 #### 2.2: Check Job Results
 
-For each experiment with `status: pending`:
+For each pending experiment:
 
-1. Fetch the `payload_test_url` from the tracking YAML
+1. Fetch the `payload_test_url` from `action_triggered_jobs`
 2. Check for "AllJobsFinished" status on the page
-3. If not finished, mark as `status: inconclusive` with a note that jobs are still running
+3. If not finished, mark as `action_status: inconclusive` with a note that jobs are still running
 4. If finished, check individual prow job results (pass/fail) by fetching each `prow_url`
 
 #### 2.3: Act on Results
@@ -168,7 +133,7 @@ The suspect PR is confirmed as the cause. Execute:
    gh pr edit <draft_pr_url> --title "<jira_key>: Revert #<pr_number> \"<pr_title>\""
    ```
    Update the PR body to include the JIRA reference and full Revertomatic template.
-3. Record `status: passed`, `jira_key`, `jira_url` in tracking data
+3. Update suspect: `action_status: passed`, `action_revert_pr_state: open`, `action_jira_key`, `action_jira_url`
 
 **FAIL** (payload jobs still fail with the revert applied — the PR is innocent):
 
@@ -181,17 +146,16 @@ The suspect PR is confirmed as the cause. Execute:
    ```bash
    gh pr close <draft_pr_url>
    ```
-3. Record `status: failed` in tracking data
+3. Update suspect: `action_status: failed`, `action_revert_pr_state: closed`
 
 **ALL FAIL** (no single revert fixes the problem):
 
-If all experiments fail, close all remaining draft PRs and note in the tracking data that the failures may be caused by an interaction between multiple PRs or by infrastructure issues.
+If all experiments fail, close all remaining draft PRs and note in the result summaries that the failures may be caused by an interaction between multiple PRs or by infrastructure issues.
 
-#### 2.4: Update Tracking YAML
+#### 2.4: Update Suspects YAML
 
-Update the tracking YAML with:
-- `phase2_completed_at` timestamp
-- Updated `status`, `result_summary`, `jira_key`, `jira_url` for each experiment
+Update the suspects YAML in place with:
+- Updated `action_status`, `action_result_summary`, `action_revert_pr_state`, `action_jira_key`, `action_jira_url` for each suspect
 
 Return results to the caller for inclusion in the final report.
 

@@ -25,17 +25,16 @@ partition "Step 1: Parse Arguments & Detect Resume" {
     - architecture (amd64, arm64, ...)
   end note
 
-  if (<tag>-experiments.yaml exists\nwith pending experiments?) then (yes)
-    :Jump to Step 5
-    (Experiment Phase 2);
-    detach
-  else (no)
-  endif
-
   if (suspects YAML exists?) then (yes)
-    :Jump to Step 3
-    (Read Suspects & Classify);
-    detach
+    if (any suspect has\naction_status: pending?) then (yes)
+      :Jump to Step 5
+      (Experiment Phase 2);
+      detach
+    else (no)
+      :Jump to Step 3
+      (Read Suspects & Classify);
+      detach
+    endif
   else (no)
   endif
 }
@@ -72,7 +71,7 @@ partition "Step 4: Decision & Dispatch" {
       1. Create TRT JIRA Bug
       2. Open Revert PR
       3. Trigger payload jobs
-      4. Collect pr-payload-tests URL
+      4. Update suspects YAML
     end note
   else (no)
   endif
@@ -102,18 +101,19 @@ if (Experiment Phase 1\nwas initiated?) then (yes)
       4. Collect pr-payload-tests URL
     end note
 
-    :Write <tag>-experiments.yaml
-    tracking file to CWD;
+    :Update suspects YAML with
+    action_status: pending;
   }
 
 else (no)
 endif
 
 ' Rejoin from resume path
-if (Tracking YAML found OR\nexperiment Phase 1 done?) then (resume)
+if (Suspects with\naction_status: pending?) then (resume)
 
   partition "Step 5: Experiment Phase 2 (Collect Results)" {
-    :Read <tag>-experiments.yaml;
+    :Read suspects YAML
+    (pending experiments);
 
     while (More pending experiments?) is (yes)
       :Fetch payload_test_url,
@@ -124,19 +124,19 @@ if (Tracking YAML found OR\nexperiment Phase 1 done?) then (resume)
           :Create TRT JIRA Bug;
           :Promote draft PR to real PR
           (gh pr ready);
-          :Record: status = passed;
+          :Record: action_status = passed;
         else (no — PR is innocent)
           :Post explanation comment;
           :Close draft PR
           (gh pr close);
-          :Record: status = failed;
+          :Record: action_status = failed;
         endif
       else (not finished)
-        :Record: status = inconclusive;
+        :Record: action_status = inconclusive;
       endif
     endwhile (no)
 
-    :Update <tag>-experiments.yaml
+    :Update suspects YAML
     with results;
   }
 
@@ -165,7 +165,7 @@ partition "Step 6: Generate Report & Artifacts" {
 
 partition "Step 7: Exit" {
   if (Experiments pending?) then (yes)
-    :Print tracking file path;
+    :Print suspects YAML path;
     :Print resume instructions:
     run /ci:payload-agent <tag>
     again from this directory;

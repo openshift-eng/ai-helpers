@@ -271,7 +271,34 @@ suspects:
         underlying_job_name: ""
         failure_type: "test"
         root_cause_summary: "OVN gateway mode selection regression"
+    # Action tracking (populated by payload-revert, payload-experiment, or payload-agent)
+    action: ""              # "staged", "experiment", or "" (set when action is dispatched)
+    action_status: ""       # "pending", "passed", "failed", "inconclusive", "skipped_conflict", or ""
+    action_revert_pr_url: ""
+    action_revert_pr_state: ""  # "draft", "open", "merged", "closed"
+    action_triggered_jobs:
+      - job_name: "periodic-ci-...-e2e-aws-ovn"
+        command: "/payload-job periodic-ci-...-e2e-aws-ovn"
+        payload_test_url: "https://pr-payload-tests.ci.openshift.org/runs/ci/..."
+        prow_url: "https://prow.ci.openshift.org/view/gs/..."
+    action_result_summary: ""
+    action_jira_key: ""
+    action_jira_url: ""
 ```
+
+The `action` field distinguishes how the suspect was handled:
+- `"staged"`: HIGH confidence — full revert PR + JIRA created immediately (via `stage-payload-reverts`)
+- `"experiment"`: MEDIUM confidence — draft revert PR opened to test experimentally (via `payload-experimental-reverts`)
+- `""`: No action taken (LOW confidence or skipped)
+
+The `action_status` field tracks progress:
+- `"pending"`: Action dispatched, payload jobs running, results not yet collected
+- `"passed"`: Payload jobs passed with the revert — suspect confirmed as cause
+- `"failed"`: Payload jobs still fail with the revert — suspect is innocent
+- `"inconclusive"`: Jobs not yet finished or mixed results
+- `"skipped_conflict"`: Revert has merge conflicts, skipped
+
+Resume detection: if any suspect has `action_status: "pending"`, the file has in-progress experiments awaiting Phase 2 collection.
 
 ### Step 7: Generate HTML Report
 
