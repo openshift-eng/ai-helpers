@@ -13,7 +13,7 @@ Use this skill when the `/ci:payload-experiment` command identifies suspect PRs 
 
 **Inputs** (passed in-context by the caller):
 
-- `suspects_yaml_path`: Path to the suspects YAML file in CWD
+- `suspects_yaml_path`: Absolute or relative path to the suspects YAML file (e.g., `./payload-analysis-{tag}-suspects.yaml`)
 - `suspects`: List of medium-confidence PRs to test experimentally, each with:
   - `pr_url`, `pr_number`, `component`, `title`, `confidence_score`
   - `failing_jobs`: List of `{job_name, prow_url, is_aggregated, underlying_job_name}`
@@ -107,17 +107,17 @@ Suspects beyond the top 5 that were never processed at all should be set to:
 
 ### Update Suspects YAML
 
-After all Phase 1 subagents complete, update the suspects YAML file in place with the action tracking fields for each suspect that was processed or deferred.
+After all Phase 1 subagents complete, update the suspects YAML at `suspects_yaml_path` in place with the action tracking fields for each suspect that was processed or deferred.
 
 ---
 
 ### Phase 2: Collect Results and Act
 
-Phase 2 is invoked after a CI wait period (typically 1-4 hours). The caller detects suspects with `action_status: "pending"` in the suspects YAML and invokes this phase.
+Phase 2 is invoked after a CI wait period (typically 1-4 hours). The caller detects suspects with `action_status: "pending"` in the suspects YAML and invokes this phase, passing the same `suspects_yaml_path`.
 
 #### 2.1: Read Suspects YAML
 
-Read the suspects YAML from the current working directory. Find all suspects with `action: "experiment"` and `action_status: "pending"`. Skip suspects with `action_status: "deferred"` — these had no jobs triggered and cannot be evaluated.
+Read the suspects YAML at `suspects_yaml_path`. Find all suspects with `action: "experiment"` and `action_status: "pending"`. Skip suspects with `action_status: "deferred"` — these had no jobs triggered and cannot be evaluated.
 
 #### 2.2: Check Job Results
 
@@ -167,7 +167,7 @@ If all experiments fail, close all remaining draft PRs and note in the result su
 
 #### 2.4: Update Suspects YAML
 
-Update the suspects YAML in place with:
+Update the suspects YAML at `suspects_yaml_path` in place with:
 - Updated `action_status`, `action_result_summary`, `action_revert_pr_state`, `action_jira_key`, `action_jira_url` for each completed suspect
 - Suspects whose jobs are still running remain `action_status: "pending"` (unchanged)
 
