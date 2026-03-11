@@ -105,7 +105,7 @@ For each failed blocking job in the **target payload**, launch a **parallel suba
 
 Each subagent should determine whether the failure is an install failure or a test failure by checking the JUnit results (e.g., look for `install should succeed*` test failures), then use the appropriate analysis skill. Almost all blocking jobs install a cluster and then run tests, so the job name alone does not tell you the failure type.
 
-Instruct each subagent as follows:
+You MUST use the following prompt verbatim (substituting the placeholder values) when launching each subagent. Do NOT paraphrase, shorten, or write your own prompt — the specific instructions below are critical for analysis quality:
 
 > Analyze the failure at <prow_url>. This job had <N> retries. The previous attempt URLs are: <previous_attempt_urls>.
 >
@@ -121,7 +121,7 @@ Instruct each subagent as follows:
 >
 > **IMPORTANT — Classify failures based on log evidence, not assumptions.** You must examine the actual logs (installer log, log bundle, bootstrap journals, kube-apiserver logs) before classifying a failure. A bootstrap timeout could be infrastructure, a product bug, or a race condition — the logs will tell you which. Cite specific error messages in your assessment.
 >
-> **IMPORTANT — Trace every failure to its root cause.** Never stop at high-level symptoms like "0 nodes ready" or "operator degraded". Trace backwards through pod statuses, init containers, and logs until you find the originating error.
+> **IMPORTANT — Be tenacious. Trace every failure to its root cause.** Never stop at high-level symptoms like "0 nodes ready", "operator degraded", or "containers are crash-looping". Download actual logs, pod YAMLs, and container previous logs from GCS artifacts until you find the specific originating error message. The root cause must be specific and actionable, not a restatement of the symptom.
 >
 > Return a concise summary including: failure type (install vs test), root cause, key error messages, and any relevant log excerpts. Do not ask user questions. Keep the output concise for inclusion in a summary report.
 >
