@@ -88,13 +88,26 @@ Update the suspect's action tracking fields in the suspects YAML:
 - `action_jira_key`: `""`
 - `action_jira_url`: `""`
 
-**Throttling**: Never test more than 5 suspects. If there are more than 5, test only the top 5 by confidence score. Note the remainder in the report as deferred.
+**Throttling**: Never test more than 5 suspects. If there are more than 5, test only the top 5 by confidence score.
 
-**Job triggering limits**: Across all experiments combined: trigger at most 5 non-aggregated jobs and at most 1 aggregated job. Prioritize jobs from higher-confidence suspects. Skip excess jobs and record them as skipped due to limits.
+**Job triggering limits**: Across all experiments combined: trigger at most 5 non-aggregated jobs and at most 1 aggregated job. Prioritize jobs from higher-confidence suspects.
+
+When a suspect is processed but **all** of its jobs were skipped due to these limits (i.e., none were actually triggered), do NOT leave it as `action_status: "pending"`. Instead set:
+- `action`: `"experiment"`
+- `action_status`: `"deferred"`
+- `action_triggered_jobs`: one entry per skipped job with `job_name` set and `command`, `payload_test_url`, `prow_url` all set to `"skipped_due_to_limits"`
+- `action_result_summary`: `"All jobs skipped due to cross-experiment triggering limits"`
+
+When a suspect has **some** jobs triggered and some skipped, mark the triggered jobs normally and add entries for skipped jobs with the `"skipped_due_to_limits"` marker so the record is complete. The suspect's `action_status` should be `"pending"` in this case (it has real jobs to check).
+
+Suspects beyond the top 5 that were never processed at all should be set to:
+- `action`: `"experiment"`
+- `action_status`: `"deferred"`
+- `action_result_summary`: `"Deferred — exceeded maximum of 5 experimental suspects"`
 
 ### Update Suspects YAML
 
-After all Phase 1 subagents complete, update the suspects YAML file in place with the action tracking fields for each suspect that was processed.
+After all Phase 1 subagents complete, update the suspects YAML file in place with the action tracking fields for each suspect that was processed or deferred.
 
 ---
 
@@ -104,7 +117,7 @@ Phase 2 is invoked after a CI wait period (typically 1-4 hours). The caller dete
 
 #### 2.1: Read Suspects YAML
 
-Read the suspects YAML from the current working directory. Find all suspects with `action: "experiment"` and `action_status: "pending"`.
+Read the suspects YAML from the current working directory. Find all suspects with `action: "experiment"` and `action_status: "pending"`. Skip suspects with `action_status: "deferred"` — these had no jobs triggered and cannot be evaluated.
 
 #### 2.2: Check Job Results
 

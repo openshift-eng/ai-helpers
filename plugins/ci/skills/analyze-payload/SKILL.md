@@ -297,6 +297,7 @@ The `action_status` field tracks progress:
 - `"failed"`: Payload jobs still fail with the revert — suspect is innocent
 - `"inconclusive"`: Jobs not yet finished or mixed results
 - `"skipped_conflict"`: Revert has merge conflicts, skipped
+- `"deferred"`: All jobs skipped due to triggering limits, or suspect exceeded the max experiment count
 
 Resume detection: if any suspect has `action_status: "pending"`, the file has in-progress experiments awaiting Phase 2 collection.
 
