@@ -141,7 +141,7 @@ ANALYSIS_RESULT:
 - retry_summary: <brief comparison of failure modes across attempts, e.g. "all 3 attempts failed with same KAS crashloop" or "attempt 1 infra timeout, attempts 2-3 test failure", or "no retries" when there was only a single attempt>
 ```
 
-This structured format enables downstream consumers (like the `payload-agent` skill) to programmatically extract analysis results for confidence scoring.
+This structured format enables downstream consumers (like the `/ci:payload-revert` and `/ci:payload-experiment` commands) to programmatically extract analysis results for confidence scoring.
 
 **Important**: Launch ALL subagents in parallel for maximum speed. Do NOT set the `model` parameter — let subagents inherit the parent model, as these analysis tasks require a capable model.
 
@@ -271,7 +271,7 @@ suspects:
         underlying_job_name: ""
         failure_type: "test"
         root_cause_summary: "OVN gateway mode selection regression"
-    # Action tracking (populated by payload-revert, payload-experiment, or payload-agent)
+    # Action tracking (populated by payload-revert or payload-experiment)
     action: ""              # "staged", "experiment", or "" (set when action is dispatched)
     action_status: ""       # "pending", "passed", "failed", "inconclusive", "skipped_conflict", or ""
     action_revert_pr_url: ""

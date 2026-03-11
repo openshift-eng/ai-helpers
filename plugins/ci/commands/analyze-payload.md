@@ -25,8 +25,6 @@ When a suspect PR can be correlated with high confidence (>= 85 rubric score) to
 
 The suspects YAML output (`payload-analysis-{tag}-suspects.yaml`) can be consumed by composable downstream commands: `/ci:payload-revert` stages reverts for high-confidence suspects, and `/ci:payload-experiment` opens draft revert PRs for medium-confidence suspects to experimentally determine causality.
 
-For autonomous analysis with automated revert staging and experimental reverts, use `/ci:payload-agent` instead.
-
 Failed jobs are investigated **in parallel** using subagents with the appropriate analysis skill (install failure vs test failure).
 
 ### Key Features

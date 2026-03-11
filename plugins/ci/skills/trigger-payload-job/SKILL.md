@@ -28,7 +28,7 @@ This skill triggers payload validation jobs on a GitHub PR by posting the correc
 
 ## Job Triggering Limits
 
-The caller (typically `payload-agent`) is responsible for enforcing global limits before invoking this skill. However, this skill also enforces the following hard limits per invocation:
+The caller is responsible for enforcing global limits before invoking this skill. However, this skill also enforces the following hard limits per invocation:
 
 - **Non-aggregated jobs**: No more than 5 per comment
 - **Aggregated jobs**: No more than 1 per comment. Aggregated jobs are expensive (they run many iterations), so only trigger one at a time. A second aggregated job should only be triggered after the first completes, and only if confirmation is needed.

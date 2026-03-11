@@ -72,7 +72,6 @@ Tools for working with OpenShift CI and analyzing Prow job results
 - **`/ci:fetch-test-report` `<test-name> [release]`** - Fetch a test report from Sippy showing pass rates, test ID, and Jira component
 - **`/ci:list-step` `<workflow-or-chain-name>`** - List the step for the given workflow or chain name
 - **`/ci:list-unstable-tests` `<version> <keywords> [sippy-url]`** - List unstable tests with pass rate below 95%
-- **`/ci:payload-agent` `<payload-tag>`** - Autonomous agent that analyzes a rejected payload, determines root causes, and takes action based on confidence scoring
 - **`/ci:payload-experiment` `<payload-tag>`** - Open draft revert PRs for medium-confidence payload suspects and trigger payload jobs to experimentally determine which PR is causing failures
 - **`/ci:payload-revert` `<payload-tag>`** - Stage reverts for high-confidence payload suspects identified by analyze-payload
 - **`/ci:query-job-status` `<execution-id>`** - Query the status of a gangway job execution by ID

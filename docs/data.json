@@ -374,12 +374,6 @@
         },
         {
           "argument_hint": "<payload-tag>",
-          "description": "Autonomous agent that analyzes a rejected payload, determines root causes, and takes action based on confidence scoring",
-          "name": "payload-agent",
-          "synopsis": "/ci:payload-agent <payload-tag>"
-        },
-        {
-          "argument_hint": "<payload-tag>",
           "description": "Open draft revert PRs for medium-confidence payload suspects and trigger payload jobs to experimentally determine which PR is causing failures",
           "name": "payload-experiment",
           "synopsis": "/ci:payload-experiment <payload-tag>"
@@ -486,11 +480,6 @@
           "description": "Helper skill to retrieve OAuth tokens from the correct OpenShift cluster context when multiple clusters are configured",
           "id": "oc-auth",
           "name": "OC Authentication Helper"
-        },
-        {
-          "description": "Autonomous agent that analyzes a rejected payload, reads scored suspects, and takes action \u2014 staging reverts, running experimental reverts, or reporting only",
-          "id": "payload-agent",
-          "name": "Payload Agent"
         },
         {
           "description": "Experimentally test medium-confidence payload suspects by opening draft revert PRs and triggering payload jobs",

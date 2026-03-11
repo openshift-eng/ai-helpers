@@ -9,7 +9,7 @@ This skill experimentally tests medium-confidence suspect PRs by opening draft r
 
 ## When to Use This Skill
 
-Use this skill when the `payload-agent` orchestrator or the `/ci:payload-experiment` command identifies suspect PRs with medium confidence (score 60-84) that cannot be conclusively attributed to a failure through static analysis alone. The experiment creates real tests to determine causality.
+Use this skill when the `/ci:payload-experiment` command identifies suspect PRs with medium confidence (score 60-84) that cannot be conclusively attributed to a failure through static analysis alone. The experiment creates real tests to determine causality.
 
 **Inputs** (passed in-context by the caller):
 
@@ -90,7 +90,7 @@ Update the suspect's action tracking fields in the suspects YAML:
 
 **Throttling**: Never test more than 5 suspects. If there are more than 5, test only the top 5 by confidence score. Note the remainder in the report as deferred.
 
-**Job triggering limits**: Respect the global limits set by the `payload-agent` orchestrator. Across all experiments combined: trigger at most 5 non-aggregated jobs and at most 1 aggregated job. Prioritize jobs from higher-confidence suspects. Skip excess jobs and record them as skipped due to limits.
+**Job triggering limits**: Across all experiments combined: trigger at most 5 non-aggregated jobs and at most 1 aggregated job. Prioritize jobs from higher-confidence suspects. Skip excess jobs and record them as skipped due to limits.
 
 ### Update Suspects YAML
 
@@ -171,5 +171,4 @@ Return results to the caller for inclusion in the final report.
 - Related Skill: `revert-pr` - The git revert workflow (`plugins/ci/skills/revert-pr/SKILL.md`)
 - Related Skill: `trigger-payload-job` - Triggers payload jobs and collects URLs (`plugins/ci/skills/trigger-payload-job/SKILL.md`)
 - Related Skill: `stage-payload-reverts` - Stages high-confidence reverts (`plugins/ci/skills/stage-payload-reverts/SKILL.md`)
-- Related Command: `/ci:payload-agent` - Autonomous orchestrator that uses this skill (`plugins/ci/commands/payload-agent.md`)
-- Related Command: `/ci:payload-experiment` - Standalone command for experimental reverts (`plugins/ci/commands/payload-experiment.md`)
+- Related Command: `/ci:payload-experiment` - Command for experimental reverts (`plugins/ci/commands/payload-experiment.md`)
