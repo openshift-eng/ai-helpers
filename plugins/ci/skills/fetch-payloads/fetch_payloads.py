@@ -110,43 +110,45 @@ def format_payload(tag: dict, details: dict, architecture: str, stream_name: str
     results = details.get("results", {})
     blocking = results.get("blockingJobs", {})
 
-    if not blocking:
+    async_jobs = results.get("asyncJobs", {})
+
+    if not blocking and not async_jobs:
         return "\n".join(lines)
 
-    # Categorize jobs by state
-    succeeded_jobs = {k: v for k, v in blocking.items() if v.get("state") == "Succeeded"}
-    failed_jobs = {k: v for k, v in blocking.items() if v.get("state") == "Failed"}
-    pending_jobs = {k: v for k, v in blocking.items() if v.get("state") == "Pending"}
+    # Categorize blocking jobs by state
+    if blocking:
+        succeeded_jobs = {k: v for k, v in blocking.items() if v.get("state") == "Succeeded"}
+        failed_jobs = {k: v for k, v in blocking.items() if v.get("state") == "Failed"}
+        pending_jobs = {k: v for k, v in blocking.items() if v.get("state") == "Pending"}
 
-    # Build summary line
-    parts = []
-    if succeeded_jobs:
-        parts.append(f"{len(succeeded_jobs)} succeeded")
-    if pending_jobs:
-        parts.append(f"{len(pending_jobs)} pending")
-    if failed_jobs:
-        parts.append(f"{len(failed_jobs)} failed")
+        # Build summary line
+        parts = []
+        if succeeded_jobs:
+            parts.append(f"{len(succeeded_jobs)} succeeded")
+        if pending_jobs:
+            parts.append(f"{len(pending_jobs)} pending")
+        if failed_jobs:
+            parts.append(f"{len(failed_jobs)} failed")
 
-    if parts:
-        lines.append(f"  Blocking: {', '.join(parts)} (of {len(blocking)})")
-    else:
-        lines.append(f"  Blocking: {len(blocking)} jobs")
+        if parts:
+            lines.append(f"  Blocking: {', '.join(parts)} (of {len(blocking)})")
+        else:
+            lines.append(f"  Blocking: {len(blocking)} jobs")
 
-    # Show failed jobs with details
-    if failed_jobs:
-        for job_name, info in sorted(failed_jobs.items()):
-            retries = info.get("retries", 0)
-            retry_str = f" ({retries} retries)" if retries else ""
-            prow_url = info.get("url", "")
-            lines.append(f"    FAILED  {job_name}{retry_str}")
-            if prow_url:
-                lines.append(f"            {prow_url}")
-            previous = info.get("previousAttemptURLs") or []
-            for i, prev_url in enumerate(previous, 1):
-                lines.append(f"            attempt {i}: {prev_url}")
+        # Show failed jobs with details
+        if failed_jobs:
+            for job_name, info in sorted(failed_jobs.items()):
+                retries = info.get("retries", 0)
+                retry_str = f" ({retries} retries)" if retries else ""
+                prow_url = info.get("url", "")
+                lines.append(f"    FAILED  {job_name}{retry_str}")
+                if prow_url:
+                    lines.append(f"            {prow_url}")
+                previous = info.get("previousAttemptURLs") or []
+                for i, prev_url in enumerate(previous, 1):
+                    lines.append(f"            attempt {i}: {prev_url}")
 
     # Show async jobs (e.g., claude-payload-analysis)
-    async_jobs = results.get("asyncJobs", {})
     for job_name, info in sorted(async_jobs.items()):
         state = info.get("state", "Unknown")
         prow_url = info.get("url", "")
