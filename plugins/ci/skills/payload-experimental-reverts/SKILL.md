@@ -125,7 +125,7 @@ For each pending experiment:
 
 1. Fetch the `payload_test_url` from `action_triggered_jobs`
 2. Check for "AllJobsFinished" status on the page
-3. If not finished, mark as `action_status: inconclusive` with a note that jobs are still running
+3. If not finished, leave as `action_status: "pending"` — do NOT change the status. The caller can invoke Phase 2 again later to re-check.
 4. If finished, check individual prow job results (pass/fail) by fetching each `prow_url`
 
 #### 2.3: Act on Results
@@ -168,9 +168,10 @@ If all experiments fail, close all remaining draft PRs and note in the result su
 #### 2.4: Update Suspects YAML
 
 Update the suspects YAML in place with:
-- Updated `action_status`, `action_result_summary`, `action_revert_pr_state`, `action_jira_key`, `action_jira_url` for each suspect
+- Updated `action_status`, `action_result_summary`, `action_revert_pr_state`, `action_jira_key`, `action_jira_url` for each completed suspect
+- Suspects whose jobs are still running remain `action_status: "pending"` (unchanged)
 
-Return results to the caller for inclusion in the final report.
+Return results to the caller. If any suspects remain `pending`, inform the caller that Phase 2 should be re-invoked later to collect remaining results.
 
 ## Error Handling
 

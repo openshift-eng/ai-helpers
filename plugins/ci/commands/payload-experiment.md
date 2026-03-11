@@ -54,7 +54,7 @@ This command is one of three composable stages in the payload triage pipeline:
 ## Return Value
 
 - **Phase 1**: Confirmation that experiments are running, with resume instructions
-- **Phase 2**: Summary of experiment verdicts (confirmed/innocent/inconclusive) and actions taken
+- **Phase 2**: Summary of experiment verdicts (confirmed/innocent) and actions taken. If some experiments are still running, they remain `pending` and the command can be re-invoked to check again.
 
 ## Examples
 
