@@ -83,14 +83,14 @@ Use the `fetch-prowjob-json` skill to fetch the prowjob.json for this job. See `
      - Display: "This is not a ci-operator job. The prowjob cannot be analyzed by this skill."
      - Explain: ci-operator jobs have a --target argument specifying the test target
      - Exit skill
-4. **Extract target name and TEST_NAME**
+4. **Extract target name and JOB_NAME**
    - Capture the target value (e.g., `e2e-aws-ovn`) from the `--target=` arg
-   - Extract `TEST_NAME` from `.spec.job` in prowjob.json (the artifact directory key):
+   - Extract `JOB_NAME` from `.spec.job` in prowjob.json (the artifact directory key):
      ```bash
-     TEST_NAME=$(jq -r '.spec.job' .work/prow-job-analyze-test-failure/{build_id}/logs/prowjob.json)
+     JOB_NAME=$(jq -r '.spec.job' .work/prow-job-analyze-test-failure/{build_id}/logs/prowjob.json)
      ```
-   - Note: on PR jobs `{target}` and `{TEST_NAME}` often differ. All artifact-path lookups
-     (JUnit XML, step logs, step artifacts) must use `{TEST_NAME}`, not `{target}`
+   - Note: on PR jobs `{target}` and `{JOB_NAME}` often differ. All artifact-path lookups
+     (JUnit XML, step logs, step artifacts) must use `{JOB_NAME}`, not `{target}`
 
 ### Step 4: Analyze Test Failure
 
@@ -164,16 +164,16 @@ where failures occur in CI steps rather than named unit tests.
 
 1. **Discover failed CI steps from JUnit XML**
 
-   Use `{TEST_NAME}` (from Step 3, extracted from `.spec.job`) for all GCS artifact paths —
+   Use `{JOB_NAME}` (from Step 3, extracted from `.spec.job`) for all GCS artifact paths —
    not `{target}`. On PR jobs these values differ and `{target}` will miss the artifacts.
 
    Search for JUnit XML files under the artifacts directory:
    ```bash
-   gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/{TEST_NAME}/**/junit*.xml" 2>/dev/null
+   gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/{JOB_NAME}/**/junit*.xml" 2>/dev/null
    ```
    Download all found JUnit XML files:
    ```bash
-   gcloud storage cp "gs://test-platform-results/{bucket-path}/artifacts/{TEST_NAME}/**/junit*.xml" \
+   gcloud storage cp "gs://test-platform-results/{bucket-path}/artifacts/{JOB_NAME}/**/junit*.xml" \
      .work/prow-job-analyze-test-failure/{build_id}/logs/ --no-user-output-enabled --recursive 2>/dev/null || true
    ```
    Parse each downloaded XML file and collect every `<testcase>` element where:
@@ -185,46 +185,69 @@ where failures occur in CI steps rather than named unit tests.
    - `failure_message`: text content of the `<failure>` or `<error>` element
    - `junit_file`: path of the XML file it came from
 
-2. **Classify each failed step by type**
+2. **Classify each failed step by phase**
 
-   Before iterating, classify every discovered `step_name` into one of two categories:
+   The ci-operator JUnit XML (`junit_operator.xml`) includes phase-level testcases:
+   - `"Run multi-stage test pre phase"` — setup/installation steps
+   - `"Run multi-stage test test phase"` — functional test steps
+   - `"Run multi-stage test post phase"` — gather/cleanup steps
 
-   **Installation step** — the step is responsible for provisioning infrastructure or
-   installing OpenShift/MCE/HyperShift, not for running functional tests. Indicators:
-   - Step name contains keywords: `setup`, `install`, `create`, `provision`, `deploy`,
-     `ipi-`, `baremetalds-`, `devscripts`, `ibm`, `proxy`, `conf-`, `catalogsource`,
-     `agentserviceconfig`, `hostedcluster`, `metallb`, `minio`, `lvm` (the install
-     variant), `ofcir`, `rbac`, `loki`, `enable-qe`, `rhcos`, `os-images`
-   - Failure message mentions: bootstrap failure, installation timed out, cluster
-     not available, waiting for nodes, kubeconfig unavailable
+   Use the phase entries to classify each failed `step_name`:
 
-   **Test step** — the step executes a functional/e2e test against an already-installed
-   cluster. Indicators:
-   - Step name contains keywords: `e2e`, `test`, `oadp`, `backup`, `restore`,
-     `hypershift-mce-agent-oadp`, `hypershift-mce-agent-lvm` (the test variant),
-     `check-conditions`, `info`, `dump`, `gather`, `cucushift`
-   - Failure message mentions: test assertion, timeout waiting for a resource after
-     cluster was available, backup/restore failure, operator not reconciled
+   - Look at the failed **phase-level** testcases (those with `"pre phase"`, `"test phase"`,
+     or `"post phase"` in their name) — these tell you which phase failed
+   - Cross-reference the individual step testcases against their phase:
+     - Steps in the **`pre` phase** → installation/setup steps
+     - Steps in the **`test` phase** → functional test steps
+     - Steps in the **`post` phase** → gather/cleanup steps (rarely the root cause)
 
-   > **When in doubt**, prefer classifying as a **test step** so must-gather analysis
-   > is performed — it is better to over-analyze than to miss cluster-level evidence.
+   If the phase-level testcases are absent from the JUnit XML (some jobs omit them),
+   fall back to the `ci-operator-step-graph.json` artifact, which lists all steps with
+   their dependencies and timing — use execution order and naming conventions as a
+   secondary signal. When still ambiguous, prefer classifying as a **test step** so
+   must-gather analysis is not skipped.
 
 3. **Route each failed step to the appropriate analysis path**
 
-   - **Installation steps** → invoke the `ci:analyze-prow-job-install-failure` skill
-     directly for each such step, passing the same Prow job URL. Do not perform
-     must-gather analysis within this skill for those steps.
-   - **Test steps** → proceed with the iteration in item 4 below (download step log,
-     artifacts, extract stack trace) and include must-gather analysis (Steps 4.4–4.9).
+   - **`pre` phase steps (installation)** → invoke the `ci:analyze-prow-job-install-failure`
+     skill for each such step, passing the same Prow job URL. Must-gather is **not**
+     attempted for `pre` phase failures: must-gather requires a live apiserver, and when
+     the installation phase fails the cluster is not fully up, so collection will fail.
+     **Capture the delegated output** and store it
+     as a per-step entry in the shared results collection used by Step 5 and Step 5.5:
+     ```
+     {
+       step_name:      {step_name},
+       type:           "installation",
+       summary:        {one-line summary from ci:analyze-prow-job-install-failure},
+       evidence:       {key error / stack trace from delegated analysis},
+       recommendation: {recommended action from delegated analysis}
+     }
+     ```
+   - **`test` phase steps (functional tests)** → proceed with the iteration in item 4
+     below (download step log, artifacts, extract stack trace) and include must-gather
+     analysis (Steps 4.4–4.9). Store findings in the same per-step results collection:
+     ```
+     {
+       step_name:      {step_name},
+       type:           "test",
+       summary:        {one-line failure summary},
+       evidence:       {stack trace / error output},
+       recommendation: {recommended action}
+     }
+     ```
+   - **`post` phase steps (gather/cleanup)** → treat as informational. Download the step
+     log and note the failure in the report, but do not perform must-gather analysis for
+     post-phase failures alone (they are usually a consequence of earlier failures).
 
-4. **Iterate over each test step** (skip installation steps — already routed above)
+4. **Iterate over each `test` phase step** (`pre` and `post` phase steps already routed above)
 
-   For each `step_name` classified as a **test step**, perform the following sub-steps:
+   For each `step_name` in the **`test` phase**, perform the following sub-steps:
 
    a. **Download step-specific log**
       ```bash
       gcloud storage cp \
-        "gs://test-platform-results/{bucket-path}/artifacts/{TEST_NAME}/{step_name}/build-log.txt" \
+        "gs://test-platform-results/{bucket-path}/artifacts/{JOB_NAME}/{step_name}/build-log.txt" \
         .work/prow-job-analyze-test-failure/{build_id}/logs/{step_name}-build-log.txt \
         --no-user-output-enabled 2>/dev/null || true
       ```
@@ -233,7 +256,7 @@ where failures occur in CI steps rather than named unit tests.
 
    b. **Download step-specific artifacts**
       ```bash
-      gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/{TEST_NAME}/{step_name}/" \
+      gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/{JOB_NAME}/{step_name}/" \
         2>/dev/null
       ```
       Download any relevant artifacts (e.g., `*.json`, `*.yaml`, `events*.txt`) to
@@ -331,7 +354,7 @@ The CI system may attach **symptom labels** to job runs — machine-detected pat
 
    ```bash
    # Extract test name from prowjob.json (e.g., "e2e-aws-operator-serial-ote")
-   TEST_NAME=$(jq -r '.spec.job' .work/prow-job-analyze-test-failure/{build_id}/logs/prowjob.json)
+   JOB_NAME=$(jq -r '.spec.job' .work/prow-job-analyze-test-failure/{build_id}/logs/prowjob.json)
 
    # Note: For PR jobs, TARGET contains the full PR path like:
    #   pr-logs/pull/openshift_service-ca-operator/306/pull-ci-openshift-service-ca-operator-main-e2e-aws-operator-serial-ote
@@ -341,7 +364,7 @@ The CI system may attach **symptom labels** to job runs — machine-detected pat
 
 3. **Detect must-gather archive** (only if --fast not present)
 
-   Use TEST_NAME (not TARGET) for artifact paths.
+   Use JOB_NAME (not TARGET) for artifact paths.
 
    HyperShift jobs may have **different must-gather patterns**:
 
@@ -361,10 +384,10 @@ The CI system may attach **symptom labels** to job runs — machine-detected pat
    **Detection logic**:
    ```bash
    # Check for Pattern 1: Unified archive (dump-management-cluster)
-   UNIFIED_DUMP=$(gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/$TEST_NAME/dump-management-cluster/artifacts/artifacts.tar*" 2>/dev/null | head -1 || true)
+   UNIFIED_DUMP=$(gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/$JOB_NAME/dump-management-cluster/artifacts/artifacts.tar*" 2>/dev/null | head -1 || true)
 
    # Check for Pattern 2/3: Standard must-gather
-   STANDARD_MG=$(gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/$TEST_NAME/gather-must-gather/artifacts/must-gather.tar" 2>/dev/null || true)
+   STANDARD_MG=$(gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/$JOB_NAME/gather-must-gather/artifacts/must-gather.tar" 2>/dev/null || true)
 
    # Check for Pattern 2: Additional hypershift-dump (multiple possible locations)
    # Use wildcards to match all current and future HyperShift dump patterns:
@@ -374,7 +397,7 @@ The CI system may attach **symptom labels** to job runs — machine-detected pat
    for pattern in \
        "**/artifacts/hypershift-dump.tar" \
        "**/artifacts/**/hostedcluster.tar"; do
-       FOUND=$(gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/$TEST_NAME/$pattern" 2>/dev/null | head -1 || true)
+       FOUND=$(gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/$JOB_NAME/$pattern" 2>/dev/null | head -1 || true)
        if [ -n "$FOUND" ]; then
            HYPERSHIFT_DUMP="$FOUND"
            break
@@ -500,7 +523,7 @@ Only if user chose "Yes" in Step 4.5:
 
 4. **Download must-gather archives**
 
-   Use TEST_NAME (from Step 4.5.2) for artifact paths, not {target}:
+   Use JOB_NAME (from Step 4.5.2) for artifact paths, not {target}:
 
    For Pattern 3 (standard only):
    ```bash
@@ -778,7 +801,7 @@ Only if Step 4.6 completed successfully:
 
    ```bash
    # Network diagnostics (if test name suggests network issues)
-   if [[ "$TEST_NAME" =~ network|ovn|sdn|connectivity|route|ingress|egress ]]; then
+   if [[ "$JOB_NAME" =~ network|ovn|sdn|connectivity|route|ingress|egress ]]; then
        if [ -n "$MUST_GATHER_PATH" ]; then
            python3 "$SCRIPTS_DIR/analyze_network.py" "$MUST_GATHER_PATH"
        fi
@@ -793,7 +816,7 @@ Only if Step 4.6 completed successfully:
    fi
 
    # etcd diagnostics (if test name suggests control-plane issues)
-   if [[ "$TEST_NAME" =~ etcd|apiserver|control-plane|kube-apiserver ]]; then
+   if [[ "$JOB_NAME" =~ etcd|apiserver|control-plane|kube-apiserver ]]; then
        if [ -n "$MUST_GATHER_PATH" ]; then
            python3 "$SCRIPTS_DIR/analyze_etcd.py" "$MUST_GATHER_PATH"
        fi
@@ -1166,15 +1189,20 @@ Synthesize all gathered evidence to determine the most likely root cause for the
    | ... | ... |
 
    ### Timeline
-   - **Test started**: {from timestamp from interval files}
-   - **Test failed**: {to timestamp from interval files}
-   - **Cluster events during failure window**:
-     - {cluster-event} at {timestamp}
+   *(Emit one entry per failed step. If interval data cannot be mapped to a specific
+   step, omit the Timeline section entirely rather than showing a misleading single window.)*
+
+   - **{step_name_1}**: started {from timestamp} — failed {to timestamp}
+     - Cluster events during this window: {cluster-event} at {timestamp}
+   - **{step_name_2}**: started {from timestamp} — failed {to timestamp}
+     - Cluster events during this window: {cluster-event} at {timestamp}
+   - *(repeat for each failed step with mappable interval data)*
 
    ### Root Cause Hypothesis
-   {synthesized root cause drawn from all per-step findings, interval events,
-   symptom labels, and cluster diagnostics; clearly identify whether one step
-   is the root cause or whether multiple independent failures occurred}
+   {synthesized root cause drawn from all per-step findings (install + test steps),
+   per-step interval events, symptom labels, and cluster diagnostics; clearly
+   identify whether one step is the root cause or whether multiple independent
+   failures occurred}
 
    ### Recommendations
    - {actionable next step 1}
