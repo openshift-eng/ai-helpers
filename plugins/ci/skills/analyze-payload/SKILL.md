@@ -84,6 +84,8 @@ For each failed job, record:
 - **is_new_failure**: Whether the job first started failing in the target payload (streak_length == 1)
 - **failure_pattern**: The full pass/fail history across the lookback window (e.g., "F F F S F F"). This helps contextualize whether the failure is a solid regression or intermittent. Intermittent failures are still fully investigated — the pattern is informational context, not a reason to skip analysis or discount the failure.
 
+**IMPORTANT — streak validation**: A consecutive failure streak does NOT automatically mean the same root cause. After completing the failure investigations in Step 5, verify that failures across consecutive payloads share the same root cause. If a job fails in two consecutive payloads but for **different reasons**, treat each as a separate streak=1 failure with its own originating payload and suspect PRs.
+
 ### Step 4: Fetch New PRs in Originating Payloads
 
 For each unique originating payload identified in Step 3, fetch the PRs that were new in that payload:
