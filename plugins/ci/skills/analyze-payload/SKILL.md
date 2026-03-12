@@ -190,7 +190,7 @@ For each failed job, cross-reference the failure analysis from the subagent with
 
 | Signal | Weight | Criteria |
 |--------|--------|----------|
-| Temporal match | +30 | Job was passing before the originating payload and started failing exactly when this PR landed |
+| New failure mode | +30 | The specific failure mode (error messages, symptoms) was not present in previous payloads — the job may have been failing before, but not in this way |
 | Component match | +10 to +30 | The failure involves a component modified by this PR. Score: 1 component = +30, 2-3 components in the originating payload = +20, 4+ components = +10 |
 | Error message match | +30 | Error messages or stack traces directly reference code, packages, or functionality changed by this PR |
 | Single candidate | +10 | Only one PR landed in the originating payload that touches the affected component |
@@ -219,6 +219,8 @@ For each revert candidate, record:
 - Flaky tests that also fail intermittently on accepted payloads
 - Jobs where the failure analysis is inconclusive or the root cause is unclear
 - PRs where the correlation is circumstantial (e.g., same component but unrelated code path)
+
+**Older or pre-existing failures**: If the root cause can be traced to a PR from an older payload (outside the current lookback window), identify it and recommend it for revert. If the root cause is identifiable and a fix can be suggested — even if the failure wasn't introduced in this payload — include the diagnosis and suggested fix in the report.
 
 #### 6.3: Check if Revert Candidates Were Already Reverted
 
