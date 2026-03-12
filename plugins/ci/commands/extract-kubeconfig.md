@@ -79,10 +79,12 @@ If the PR author does NOT match the current user, warn: "You are not the author 
 Fetch the PR status checks:
 
 ```bash
-gh pr view <number> --repo openshift/release --json title,state,statusCheckRollup > /tmp/pr-checks.json
+gh pr view <number> --repo openshift/release --json title,state,statusCheckRollup --jq '
+  .statusCheckRollup[]
+  | select(.__typename == "StatusContext" and .state == "PENDING" and (.context | test("^tide$") | not))
+  | {context, state, targetUrl}
+'
 ```
-
-Parse the JSON to find checks with `state: PENDING` (these use `__typename: StatusContext` with fields `context`, `state`, `targetUrl`). Exclude the `tide` check.
 
 - If multiple running jobs found, list them and ask the user which one to use.
 - If exactly one running job found, use it automatically.
@@ -129,28 +131,47 @@ Find the build cluster from the generated job config in the openshift/release re
 
 ### Step 5: Login to the Build Cluster
 
-Check if a context for the build cluster already exists:
+**IMPORTANT**: Use a dedicated temporary kubeconfig file for all build cluster operations. This prevents modifying the user's current kubeconfig context in `~/.kube/config`, which could disrupt other processes (e.g., running `oc` commands, controllers, or scripts) that rely on the current context.
 
+Create a temporary kubeconfig file path and set the target server:
 ```bash
-oc config get-contexts | grep <cluster>
-```
-
-If a context exists, use `--context=<context_name>` for all subsequent `oc` commands instead of switching the current context. This avoids issues with `oc login --web` not persisting.
-
-If no context exists, login:
-
-```bash
-oc login --server=https://api.<cluster>.ci.devcluster.openshift.com:6443 --web
+BUILD_KUBECONFIG="/tmp/build-cluster-kubeconfig.yaml"
+TARGET_SERVER="https://api.<cluster>.ci.devcluster.openshift.com:6443"
 ```
 
 Where `<cluster>` is the build cluster determined in Step 4.
 
-### Step 6: Find CI Namespace
-
-Use `oc get projects` and grep for the PR number and job name to find the ci-op namespace:
+If the temp kubeconfig already exists (it may contain contexts from multiple build clusters from previous runs), find a context matching the target server:
 
 ```bash
-oc [--context=<ctx>] get projects | grep "rehearse-<pr_number>-<job_name_suffix>"
+MATCHING_CTX=""
+for ctx in $(KUBECONFIG="$BUILD_KUBECONFIG" oc config get-contexts -o name 2>/dev/null); do
+  server=$(KUBECONFIG="$BUILD_KUBECONFIG" oc --context="$ctx" config view --minify -o jsonpath='{.clusters[0].cluster.server}' 2>/dev/null)
+  if [ "$server" = "$TARGET_SERVER" ]; then
+    MATCHING_CTX="$ctx"
+    break
+  fi
+done
+```
+
+If a matching context is found and authentication is still valid (`KUBECONFIG="$BUILD_KUBECONFIG" oc whoami --context="$MATCHING_CTX"` succeeds), switch to it and reuse:
+```bash
+KUBECONFIG="$BUILD_KUBECONFIG" oc config use-context "$MATCHING_CTX"
+```
+
+Otherwise (no temp kubeconfig, no matching context, or session expired), login into the temp kubeconfig:
+```bash
+KUBECONFIG="$BUILD_KUBECONFIG" oc login --server="$TARGET_SERVER" --web
+```
+
+All subsequent `oc` commands targeting the build cluster **MUST** use `KUBECONFIG="$BUILD_KUBECONFIG"` as an environment variable prefix instead of `--context=<ctx>`. This ensures the user's default kubeconfig is never read or modified.
+
+### Step 6: Find CI Namespace
+
+Use `oc get projects` with the dedicated kubeconfig and grep for the PR number and job name to find the ci-op namespace:
+
+```bash
+KUBECONFIG="$BUILD_KUBECONFIG" oc get projects | grep "rehearse-<pr_number>-<job_name_suffix>"
 ```
 
 The project display name includes the prow job name. For rehearsal jobs, this contains both the PR number and the job name, e.g.:
@@ -165,7 +186,7 @@ Construct the grep pattern from the check context found in Step 3. The context i
 List pods in the namespace to determine step status:
 
 ```bash
-oc [--context=<ctx>] get pods -n <namespace>
+KUBECONFIG="$BUILD_KUBECONFIG" oc get pods -n <namespace>
 ```
 
 Each pod name corresponds to a step in the job. Pod statuses indicate step progress:
@@ -175,7 +196,7 @@ Each pod name corresponds to a step in the job. Pod statuses indicate step progr
 
 Report the status of all steps/pods. If any pod shows `Error` status, report the failure and stop.
 
-Determine if the pre-phase has completed by checking that setup/provisioning pods (names containing `setup`, `install`, `create`, `provision`) show `Completed` status, and there is a currently `Running` pod (typically a test step or a `wait` step).
+Determine if the cluster is ready for kubeconfig extraction: there must be at least one `Running` pod that has the kubeconfig available (i.e., setup/provisioning pods like those with names containing `setup`, `install`, `create`, or `provision` have `Completed`). If the cluster creation step has completed but additional setup steps are still running (e.g., OADP setup, operator installation), warn the user that the cluster may not be fully configured yet but proceed with extraction since the kubeconfig is already available.
 
 ### Step 8: Extract Kubeconfig
 
@@ -185,30 +206,30 @@ Use the ci-op namespace as a prefix for kubeconfig filenames to avoid collisions
 
 Extract the kubeconfig:
 ```bash
-oc [--context=<ctx>] exec -n <namespace> <running_pod> -c test -- cat /tmp/secret/kubeconfig > /tmp/<namespace>-kubeconfig.yaml
+KUBECONFIG="$BUILD_KUBECONFIG" oc exec -n <namespace> <running_pod> -c test -- cat /tmp/secret/kubeconfig > /tmp/<namespace>-kubeconfig.yaml
 chmod 600 /tmp/<namespace>-kubeconfig.yaml
 ```
 
 Also check for nested kubeconfig (for HyperShift/hosted clusters):
 ```bash
-oc [--context=<ctx>] exec -n <namespace> <running_pod> -c test -- ls /tmp/secret/nested_kubeconfig 2>/dev/null
+KUBECONFIG="$BUILD_KUBECONFIG" oc exec -n <namespace> <running_pod> -c test -- ls /tmp/secret/nested_kubeconfig 2>/dev/null
 ```
 
 If `nested_kubeconfig` exists, extract it too:
 ```bash
-oc [--context=<ctx>] exec -n <namespace> <running_pod> -c test -- cat /tmp/secret/nested_kubeconfig > /tmp/<namespace>-nested-kubeconfig.yaml
+KUBECONFIG="$BUILD_KUBECONFIG" oc exec -n <namespace> <running_pod> -c test -- cat /tmp/secret/nested_kubeconfig > /tmp/<namespace>-nested-kubeconfig.yaml
 chmod 600 /tmp/<namespace>-nested-kubeconfig.yaml
 ```
 
 Also extract additional metadata from `/tmp/secret/` on the pod:
 ```bash
 # Proxy configuration (for clusters behind a proxy)
-oc [--context=<ctx>] exec -n <namespace> <running_pod> -c test -- cat /tmp/secret/proxy-conf.sh > /tmp/<namespace>-proxy-conf.sh 2>/dev/null
+KUBECONFIG="$BUILD_KUBECONFIG" oc exec -n <namespace> <running_pod> -c test -- cat /tmp/secret/proxy-conf.sh > /tmp/<namespace>-proxy-conf.sh 2>/dev/null
 chmod 600 /tmp/<namespace>-proxy-conf.sh 2>/dev/null
 
-# Cluster name and cluster ID (for ROSA clusters)
-oc [--context=<ctx>] exec -n <namespace> <running_pod> -c test -- cat /tmp/secret/cluster-name 2>/dev/null
-oc [--context=<ctx>] exec -n <namespace> <running_pod> -c test -- cat /tmp/secret/cluster-id 2>/dev/null
+# Cluster name and cluster ID (for ROSA clusters, may not exist)
+KUBECONFIG="$BUILD_KUBECONFIG" oc exec -n <namespace> <running_pod> -c test -- cat /tmp/secret/cluster-name 2>/dev/null || true
+KUBECONFIG="$BUILD_KUBECONFIG" oc exec -n <namespace> <running_pod> -c test -- cat /tmp/secret/cluster-id 2>/dev/null || true
 ```
 
 If proxy-conf.sh is empty or the command fails, there is no proxy config — remove the empty file.
@@ -296,7 +317,7 @@ Report includes:
 - **PR ownership**: You must be the PR author to have access to the ci-op namespace on the build cluster. The command warns if you're not the author.
 - **Private QE deck**: Jobs using `qe-private-deck` have inaccessible GCS artifacts. The command finds the build cluster from the job config in the openshift/release repo instead.
 - **Build clusters**: OpenShift CI uses multiple build clusters (build01-build12). The command automatically determines which cluster from `prowjob.json` (when `gsutil` is available and the job is public) or from the job config YAML in the repo (fallback).
-- **Context reuse**: If you've previously logged into a build cluster, the command reuses the existing context instead of requiring a new login.
+- **Context isolation**: All build cluster operations use a dedicated temporary kubeconfig (`/tmp/build-cluster-kubeconfig.yaml`) to avoid modifying the user's current kubeconfig context. The temp kubeconfig can accumulate contexts from multiple build clusters across runs. If a valid context for the target build cluster already exists in the temp kubeconfig, it is reused without requiring a new login.
 - **Namespace discovery**: The ci-op namespace is found via `oc get projects` filtered by PR number and job name, which works reliably for running jobs.
 - **Multiple extractions**: Kubeconfig files use the ci-op namespace as prefix (e.g., `/tmp/ci-op-abc123-kubeconfig.yaml`) to support extracting from multiple jobs without overwriting.
 - **Wait steps**: Jobs with a `wait` step (used for debugging) are valid targets for kubeconfig extraction.
