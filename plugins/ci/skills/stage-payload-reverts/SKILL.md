@@ -13,12 +13,13 @@ Use this skill when revert candidates have already been identified with high con
 
 **Inputs** (passed in-context by the caller):
 
+- `results_yaml_path`: Path to the payload results YAML file (e.g., `./payload-results-{tag}.yaml`)
 - `payload_tag`: The full payload tag being analyzed
 - `version`, `stream`, `architecture`: Parsed from the payload tag
 - `release_controller_url`: URL to the payload on the release controller
 - `revert_candidates`: List of PRs to revert, each with:
   - `pr_url`, `pr_number`, `component`, `confidence_score`, `rationale`
-  - `originating_payload_tag`: The payload where this suspect PR first caused failures
+  - `originating_payload_tag`: The payload where this candidate PR first caused failures
   - `failing_jobs`: List of `{job_name, prow_url, is_aggregated, underlying_job_name}`
 
 ## Prerequisites
@@ -127,7 +128,19 @@ STAGED_REVERT_RESULT:
 - error: none|description
 ```
 
-Collect all subagent results. Return to the caller for inclusion in the report.
+Collect all subagent results.
+
+### Update Payload Results YAML
+
+After all subagents complete, use the `payload-results-yaml` skill to append an action to each processed candidate's `actions` array in the results file at `results_yaml_path`:
+
+- `type`: `"revert"`
+- `status`: `"staged"` (or `"failed"` if the revert PR could not be created)
+- `revert_pr_url`, `revert_pr_state`, `jira_key`, `jira_url`, `result_summary`, `payload_jobs`
+
+See the `payload-results-yaml` skill for the full schema.
+
+Return results to the caller for inclusion in the report.
 
 ## Error Handling
 
@@ -138,6 +151,7 @@ Collect all subagent results. Return to the caller for inclusion in the report.
 
 ## See Also
 
+- Related Skill: `payload-results-yaml` - Schema and operations for the payload results YAML
 - Related Skill: `revert-pr` - The git revert workflow (`plugins/ci/skills/revert-pr/SKILL.md`)
 - Related Skill: `trigger-payload-job` - Triggers payload jobs and collects URLs (`plugins/ci/skills/trigger-payload-job/SKILL.md`)
 - Related Skill: `analyze-payload` - Identifies revert candidates (`plugins/ci/skills/analyze-payload/SKILL.md`)

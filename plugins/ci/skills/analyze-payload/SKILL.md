@@ -84,7 +84,7 @@ For each failed job, record:
 - **is_new_failure**: Whether the job first started failing in the target payload (streak_length == 1)
 - **failure_pattern**: The full pass/fail history across the lookback window (e.g., "F F F S F F"). This helps contextualize whether the failure is a solid regression or intermittent. Intermittent failures are still fully investigated — the pattern is informational context, not a reason to skip analysis or discount the failure.
 
-**IMPORTANT — streak validation**: A consecutive failure streak does NOT automatically mean the same root cause. After completing the failure investigations in Step 5, verify that failures across consecutive payloads share the same root cause. If a job fails in two consecutive payloads but for **different reasons**, treat each as a separate streak=1 failure with its own originating payload and suspect PRs.
+**IMPORTANT — streak validation**: A consecutive failure streak does NOT automatically mean the same root cause. After completing the failure investigations in Step 5, verify that failures across consecutive payloads share the same root cause. If a job fails in two consecutive payloads but for **different reasons**, treat each as a separate streak=1 failure with its own originating payload and candidate PRs.
 
 ### Step 4: Fetch New PRs in Originating Payloads
 
@@ -99,7 +99,7 @@ if [ -z "$FETCH_NEW_PRS" ] || [ ! -f "$FETCH_NEW_PRS" ]; then echo "ERROR: fetch
 python3 "$FETCH_NEW_PRS" <originating_payload_tag> --format json
 ```
 
-Store the PR data keyed by originating payload tag. These PRs are the **suspects** for the failures that started in that payload.
+Store the PR data keyed by originating payload tag. These PRs are the **candidates** for the failures that started in that payload.
 
 ### Step 5: Investigate Each Failed Job in Parallel
 
@@ -182,24 +182,24 @@ Wait for all subagents to complete and collect their analysis results. For each 
 - **Failure analysis** (from subagent)
 - **Streak length** (from Step 3)
 - **Originating payload** (from Step 3)
-- **Suspect PRs** (from Step 4)
+- **Candidate PRs** (from Step 4)
 
-#### 6.1: Correlate Failures with Suspect PRs
+#### 6.1: Correlate Failures with Candidate PRs
 
-For each failed job, cross-reference the failure analysis from the subagent with the suspect PRs from the originating payload. Score each (failed job, suspect PR) pair using the following weighted rubric:
+For each failed job, cross-reference the failure analysis from the subagent with the candidate PRs from the originating payload. Score each (failed job, candidate PR) pair using the following weighted rubric:
 
 | Signal | Weight | Criteria |
 |--------|--------|----------|
 | Temporal match | +30 | Job was passing before the originating payload and started failing exactly when this PR landed |
 | Component match | +10 to +30 | The failure involves a component modified by this PR. Score: 1 component = +30, 2-3 components in the originating payload = +20, 4+ components = +10 |
 | Error message match | +30 | Error messages or stack traces directly reference code, packages, or functionality changed by this PR |
-| Single suspect | +10 | Only one PR landed in the originating payload that touches the affected component |
+| Single candidate | +10 | Only one PR landed in the originating payload that touches the affected component |
 
-The maximum possible score is 100. Record the numeric score for each (job, suspect PR) pair alongside the qualitative rationale.
+The maximum possible score is 100. Record the numeric score for each (job, candidate PR) pair alongside the qualitative rationale.
 
 #### 6.2: Propose Revert Candidates
 
-For each suspect PR with a rubric score of **>= 85**, mark it as a **revert candidate**. A PR qualifies as a revert candidate when:
+For each candidate PR with a rubric score of **>= 85**, mark it as a **revert candidate**. A PR qualifies as a revert candidate when:
 
 1. **The failure clearly maps to the PR's changes** — e.g., the error stack trace references the exact code changed, or the failing component is the one modified by the PR
 2. **The timing is exact** — the job was passing in the payload before the originating payload and started failing in the originating payload
@@ -239,69 +239,17 @@ If a revert PR is found:
 
 3. **If a revert PR is open but not merged**, still recommend the revert but note that a revert PR already exists and link to it, so the reader can help expedite the merge.
 
-#### 6.4: Write Suspects YAML
+#### 6.4: Write Payload Results YAML
 
-After scoring all (job, suspect PR) pairs and checking for existing reverts, write a suspects YAML file to the current working directory: `payload-analysis-{tag}-suspects.yaml` (sanitize the tag for filename safety).
+After scoring all (job, candidate PR) pairs and checking for existing reverts, use the `payload-results-yaml` skill to create the results file in the current working directory: `payload-results-{tag}.yaml` (sanitize the tag for filename safety).
 
-This file contains ALL scored suspects across all confidence tiers (HIGH, MEDIUM, and LOW), enabling downstream commands (`/ci:payload-revert`, `/ci:payload-experiment`) to filter by their own criteria.
+This file contains ALL scored candidates across all confidence tiers (HIGH, MEDIUM, and LOW), enabling downstream commands (`/ci:payload-revert`, `/ci:payload-experiment`) to filter by their own criteria.
 
-When a PR appears as a suspect for multiple jobs, merge into one entry using the highest confidence score and combining all `failing_jobs` into a single list.
+When a PR appears as a candidate for multiple jobs, merge into one entry using the highest confidence score and combining all `failing_jobs` into a single list.
 
-```yaml
-metadata:
-  payload_tag: "4.22.0-0.nightly-2026-02-25-152806"
-  version: "4.22"
-  stream: "nightly"
-  architecture: "amd64"
-  release_controller_url: "https://amd64.ocp.releases.ci.openshift.org/..."
-  analyzed_at: "2026-02-26T10:30:00Z"
+All candidates start with `actions: []`. The `actions` array is populated later by downstream skills (`stage-payload-reverts`, `payload-experimental-reverts`).
 
-suspects:
-  - pr_url: "https://github.com/openshift/cno/pull/2037"
-    pr_number: 2037
-    component: "cluster-network-operator"
-    title: "Fix OVN gateway mode selection"
-    confidence_score: 95
-    rationale: "temporal match + component match + error references code changed"
-    originating_payload_tag: "4.22.0-0.nightly-2026-02-20-150000"
-    existing_revert_status: ""  # "merged", "open", or ""
-    existing_revert_pr_url: ""
-    failing_jobs:
-      - job_name: "periodic-ci-...-e2e-aws-ovn"
-        prow_url: "https://prow.ci.openshift.org/..."
-        is_aggregated: false
-        underlying_job_name: ""
-        failure_type: "test"
-        root_cause_summary: "OVN gateway mode selection regression"
-    # Action tracking (populated by payload-revert or payload-experiment)
-    action: ""              # "staged", "experiment", or "" (set when action is dispatched)
-    action_status: ""       # "pending", "passed", "failed", "inconclusive", "skipped_conflict", or ""
-    action_revert_pr_url: ""
-    action_revert_pr_state: ""  # "draft", "open", "merged", "closed"
-    action_triggered_jobs:
-      - job_name: "periodic-ci-...-e2e-aws-ovn"
-        command: "/payload-job periodic-ci-...-e2e-aws-ovn"
-        payload_test_url: "https://pr-payload-tests.ci.openshift.org/runs/ci/..."
-        prow_url: "https://prow.ci.openshift.org/view/gs/..."
-    action_result_summary: ""
-    action_jira_key: ""
-    action_jira_url: ""
-```
-
-The `action` field distinguishes how the suspect was handled:
-- `"staged"`: HIGH confidence — full revert PR + JIRA created immediately (via `stage-payload-reverts`)
-- `"experiment"`: MEDIUM confidence — draft revert PR opened to test experimentally (via `payload-experimental-reverts`)
-- `""`: No action taken (LOW confidence or skipped)
-
-The `action_status` field tracks progress:
-- `"pending"`: Action dispatched, payload jobs running, results not yet collected
-- `"passed"`: Payload jobs passed with the revert — suspect confirmed as cause
-- `"failed"`: Payload jobs still fail with the revert — suspect is innocent
-- `"inconclusive"`: Jobs not yet finished or mixed results
-- `"skipped_conflict"`: Revert has merge conflicts, skipped
-- `"deferred"`: All jobs skipped due to triggering limits, or suspect exceeded the max experiment count
-
-Resume detection: if any suspect has `action_status: "pending"`, the file has in-progress experiments awaiting Phase 2 collection.
+See the `payload-results-yaml` skill for the complete schema.
 
 ### Step 7: Generate HTML Report
 
@@ -362,10 +310,10 @@ For each failed job, a collapsible section containing:
     <h4>First Failed In</h4>
     <p><a href="{originating_payload_url}">{originating_payload_tag}</a></p>
 
-    <h4>Suspect PRs (introduced in {originating_payload_tag})</h4>
+    <h4>Candidate PRs (introduced in {originating_payload_tag})</h4>
     <table>
       <tr><th>Component</th><th>PR</th><th>Description</th><th>Bug</th></tr>
-      <!-- One row per suspect PR -->
+      <!-- One row per candidate PR -->
     </table>
   </div>
 </details>
@@ -402,25 +350,17 @@ If any revert candidates were identified in Step 6.2, show copy-paste revert ins
       <td>{confidence_rationale}</td>
     </tr>
   </table>
-  <!-- For each revert candidate, include a copy-paste block -->
-  <h3>Revert Instructions</h3>
-  <p>Copy and paste the following into Claude Code to execute each revert immediately:</p>
+  <!-- Automated revert instructions -->
+  <h3>Automated Reverts</h3>
+  <p>Download the payload results YAML and run <code>/ci:payload-revert</code> to automatically
+     create TRT JIRA bugs, open revert PRs, and trigger payload validation jobs for all
+     high-confidence candidates:</p>
   <div class="revert-prompt">
     <button onclick="navigator.clipboard.writeText(this.nextElementSibling.textContent.trim())">Copy</button>
-    <pre>Per OCP policy, PRs that break payloads must be reverted. Please revert the following PR immediately:
-
-{pr_url}
-
-This PR is causing the following blocking job(s) to fail in the {stream} {architecture} payload:
-- {job_name_1}: {one-line failure summary from subagent}
-- {job_name_2}: {one-line failure summary from subagent}
-
-The job(s) were passing prior to payload {originating_payload_tag} and started failing when this PR landed ({streak_length} rejected payloads ago).
-
-/ci:revert-pr {pr_url}
-
-After the revert is merged and payloads are green again, the original author can investigate the root cause and re-land a corrected version of their change.</pre>
+    <pre>/ci:payload-revert {payload_tag}</pre>
   </div>
+  <p class="revert-note">The payload results YAML (<code>payload-results-{tag}.yaml</code>) must be
+     in the current working directory. If running from CI artifacts, download it first.</p>
 </div>
 ```
 
@@ -515,8 +455,8 @@ The HTML must be fully self-contained with embedded CSS. Use a GitHub-inspired d
   .verdict-revert { background: rgba(248,81,73,0.1); border-left: 4px solid var(--red); }
   .verdict-infra { background: rgba(210,153,34,0.1); border-left: 4px solid var(--orange); }
   .verdict-none { background: rgba(139,148,158,0.1); border-left: 4px solid var(--text-muted); }
-  .suspect-prs th { font-size: 0.85rem; }
-  .suspect-prs td { font-size: 0.85rem; }
+  .candidate-prs th { font-size: 0.85rem; }
+  .candidate-prs td { font-size: 0.85rem; }
   .footer { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--text-muted); font-size: 0.8rem; text-align: center; }
 </style>
 ```
@@ -655,15 +595,15 @@ The filename **must** end with `-autodl.json`: `payload-analysis-<sanitized_tag>
 1. Save all output files to the current working directory:
    - HTML report: `payload-analysis-<sanitized_tag>-summary.html`
    - JSON data file: `payload-analysis-<sanitized_tag>-autodl.json`
-   - Suspects YAML: `payload-analysis-<sanitized_tag>-suspects.yaml` (written in Step 6.4)
+   - Payload results YAML: `payload-results-<sanitized_tag>.yaml` (written in Step 6.4)
    - Sanitize the tag: replace any characters not safe for filenames
 
 2. Tell the user:
    - The path to the saved HTML report
    - The path to the JSON data file
-   - The path to the suspects YAML file
-   - A brief text summary of findings (number of failures, new vs persistent, key suspect PRs)
-   - Mention that downstream commands `/ci:payload-revert` and `/ci:payload-experiment` can consume the suspects YAML for automated actions
+   - The path to the payload results YAML file
+   - A brief text summary of findings (number of failures, new vs persistent, key candidate PRs)
+   - Mention that downstream commands `/ci:payload-revert` and `/ci:payload-experiment` can consume the payload results YAML for automated actions
 
 ## Error Handling
 

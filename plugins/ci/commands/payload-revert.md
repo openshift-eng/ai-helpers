@@ -1,5 +1,5 @@
 ---
-description: Stage reverts for high-confidence payload suspects identified by analyze-payload
+description: Stage reverts for high-confidence payload candidates identified by analyze-payload
 argument-hint: "<payload-tag>"
 ---
 
@@ -15,37 +15,37 @@ ci:payload-revert
 
 ## Description
 
-The `ci:payload-revert` command reads the suspects YAML produced by `/ci:analyze-payload` and stages reverts for all high-confidence suspects (confidence score >= 85) that have not already been reverted.
+The `ci:payload-revert` command reads the payload results YAML produced by `/ci:analyze-payload` and stages reverts for all high-confidence candidates (confidence score >= 85) that have not already been reverted.
 
-For each qualifying suspect, it creates a TRT JIRA bug, opens a revert PR, and triggers payload validation jobs using the `stage-payload-reverts` skill.
+For each qualifying candidate, it creates a TRT JIRA bug, opens a revert PR, and triggers payload validation jobs using the `stage-payload-reverts` skill.
 
 This command is one of three composable stages in the payload triage pipeline:
-1. `/ci:analyze-payload` — produces the suspects YAML
-2. `/ci:payload-revert` — stages reverts for HIGH confidence suspects (this command)
-3. `/ci:payload-experiment` — opens draft revert PRs for MEDIUM confidence suspects
+1. `/ci:analyze-payload` — produces the payload results YAML
+2. `/ci:payload-revert` — stages reverts for HIGH confidence candidates (this command)
+3. `/ci:payload-experiment` — opens draft revert PRs for MEDIUM confidence candidates
 
 ### Job Triggering Limits
 
-- **Non-aggregated jobs**: Up to 5 total across all suspects
+- **Non-aggregated jobs**: Up to 5 total across all candidates
 - **Aggregated jobs**: Up to 1 total
 
-When the number of failing jobs across all suspects exceeds these limits, prioritize jobs from higher-confidence suspects first.
+When the number of failing jobs across all candidates exceeds these limits, prioritize jobs from higher-confidence candidates first.
 
 ## Implementation
 
 1. **Parse the payload tag** from the argument. Extract `version`, `stream`, and `architecture` from the tag (see `analyze-payload` Step 1 for parsing rules).
 
-2. **Read the suspects YAML**: Look for `payload-analysis-{tag}-suspects.yaml` in the current working directory. If not found, print an error and exit:
+2. **Read the payload results YAML** using the `payload-results-yaml` skill: Look for `payload-results-{tag}.yaml` in the current working directory. If not found, print an error and exit:
    ```
-   Error: Suspects YAML not found for {payload_tag}.
+   Error: Payload results YAML not found for {payload_tag}.
    Run `/ci:analyze-payload {payload_tag}` first to generate it.
    ```
 
-3. **Filter suspects**: Select suspects with `confidence_score >= 85`. Exclude any with `existing_revert_status` of `"merged"` or `"open"`.
+3. **Filter candidates**: Select candidates with `confidence_score >= 85`. Exclude any with `existing_revert_status` of `"merged"` or `"open"`.
 
-4. **Fail-fast validation**: For each suspect's `failing_jobs`, if any entry has `is_aggregated: true` but `underlying_job_name` is empty, skip that job and record an error: "Cannot trigger payload test: aggregated job missing underlying_job_name from analysis".
+4. **Fail-fast validation**: For each candidate's `failing_jobs`, if any entry has `is_aggregated: true` but `underlying_job_name` is empty, skip that job and record an error: "Cannot trigger payload test: aggregated job missing underlying_job_name from analysis".
 
-5. **Dispatch to `stage-payload-reverts` skill**: Pass all qualifying suspects with their context (payload tag, version, stream, architecture, release controller URL, and failing jobs).
+5. **Dispatch to `stage-payload-reverts` skill**: Pass all qualifying candidates with their context (results YAML path, payload tag, version, stream, architecture, release controller URL, and failing jobs). The skill updates the results YAML in place via the `payload-results-yaml` skill.
 
 6. **Report results**: Print a summary of actions taken (JIRA tickets created, revert PRs opened, payload jobs triggered).
 
@@ -68,6 +68,7 @@ When the number of failing jobs across all suspects exceeds these limits, priori
 
 ## Skills Used
 
+- `payload-results-yaml`: Reads and updates the payload results YAML
 - `stage-payload-reverts`: Creates TRT JIRA bugs, opens revert PRs, triggers payload jobs
 - `trigger-payload-job`: Triggers payload jobs and collects URLs
 - `revert-pr`: Git revert workflow for creating revert PRs
