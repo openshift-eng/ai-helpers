@@ -84,8 +84,6 @@ For each failed job, record:
 - **is_new_failure**: Whether the job first started failing in the target payload (streak_length == 1)
 - **failure_pattern**: The full pass/fail history across the lookback window (e.g., "F F F S F F"). This helps contextualize whether the failure is a solid regression or intermittent. Intermittent failures are still fully investigated — the pattern is informational context, not a reason to skip analysis or discount the failure.
 
-**IMPORTANT — streak validation**: A consecutive failure streak does NOT automatically mean the same root cause. After completing the failure investigations in Step 5, verify that failures across consecutive payloads share the same root cause. If a job fails in two consecutive payloads but for **different reasons**, treat each as a separate streak=1 failure with its own originating payload and candidate PRs.
-
 ### Step 4: Fetch New PRs in Originating Payloads
 
 For each unique originating payload identified in Step 3, fetch the PRs that were new in that payload:
@@ -118,12 +116,10 @@ You MUST use the following prompt verbatim (substituting the placeholder values)
 > First, check the JUnit results or build log to determine whether this is an install failure (look for `install should succeed: overall` or similar install-related test failures) or a test failure (install passed, specific tests failed).
 >
 > Based on the failure type, use the appropriate skill:
-> - **Install failure**: Use the `ci:prow-job-analyze-install-failure` skill. **You MUST download and examine the actual installer log bundle** — do NOT skip this step or make assessments based only on high-level metadata like pass rates or job names. The log bundle contains the actual error messages that reveal the root cause. For metal/bare-metal jobs (job name contains "metal"), perform additional analysis using the `ci:prow-job-analyze-metal-install-failure` skill as needed for dev-scripts, Metal3/Ironic, and BareMetalHost-specific diagnostics.
+> - **Install failure**: Use the `ci:prow-job-analyze-install-failure` skill. For metal/bare-metal jobs (job name contains "metal"), perform additional analysis using the `ci:prow-job-analyze-metal-install-failure` skill as needed for dev-scripts, Metal3/Ironic, and BareMetalHost-specific diagnostics.
 > - **Test failure**: Use the `ci:prow-job-analyze-test-failure` skill. Do NOT use `--fast` — always perform the full analysis including must-gather extraction and analysis.
 >
-> **IMPORTANT — Classify failures based on log evidence, not assumptions.** You must examine the actual logs (installer log, log bundle, bootstrap journals, kube-apiserver logs) before classifying a failure. A bootstrap timeout could be infrastructure, a product bug, or a race condition — the logs will tell you which. Cite specific error messages in your assessment.
->
-> **IMPORTANT — Be tenacious. Trace every failure to its root cause.** Never stop at high-level symptoms like "0 nodes ready", "operator degraded", or "containers are crash-looping". Download actual logs, pod YAMLs, and container previous logs from GCS artifacts until you find the specific originating error message. The root cause must be specific and actionable, not a restatement of the symptom.
+> **IMPORTANT** — Trace every failure to its specific root cause by examining actual logs. Never stop at high-level symptoms like "0 nodes ready", "operator degraded", or "containers are crash-looping". Download and read the actual log bundles, pod logs, and container previous logs. Cite specific error messages. The root cause must be actionable, not a restatement of the symptom.
 >
 > Return a concise summary including: failure type (install vs test), root cause, key error messages, and any relevant log excerpts. Do not ask user questions. Keep the output concise for inclusion in a summary report.
 >
@@ -142,6 +138,8 @@ ANALYSIS_RESULT:
 - retries_consistent: yes|no|no_retries|only_final_examined
 - retry_summary: <brief comparison of failure modes across attempts, e.g. "all 3 attempts failed with same KAS crashloop" or "attempt 1 infra timeout, attempts 2-3 test failure", or "no retries" when there was only a single attempt>
 ```
+
+**Note for aggregated jobs**: Since only the final attempt is examined (retries re-run aggregation only), set `retries_consistent: only_final_examined` and `retry_summary: "Aggregated job — only final attempt examined (retries re-run aggregation only)"`.
 
 This structured format enables downstream consumers (like the `/ci:payload-revert` and `/ci:payload-experiment` commands) to programmatically extract analysis results for confidence scoring.
 
@@ -173,6 +171,12 @@ Convert the Prow URL to a gcsweb URL and use WebFetch to read it.
 
 Never adopt a previous analysis conclusion without verifying it against the current payload's artifacts.
 
+### Step 6.0: Validate Failure Streaks
+
+After collecting all subagent results, verify that consecutive failures across payloads share the same root cause. A consecutive failure streak does NOT automatically mean the same root cause. Compare the subagent's root cause analysis for the target payload against previous payload analyses (from Step 5b) or the failure signatures in the lookback data.
+
+If a job fails in two consecutive payloads but for **different reasons** (e.g., payload N failed due to a KAS crashloop and payload N-1 failed due to an etcd timeout), treat each as a separate streak=1 failure with its own originating payload and candidate PRs. Re-split the streak and re-assign originating payloads before proceeding to scoring.
+
 ### Step 6: Collect Investigation Results and Identify Revert Candidates
 
 Wait for all subagents to complete and collect their analysis results. For each failed job, you should now have:
@@ -191,7 +195,7 @@ For each failed job, cross-reference the failure analysis from the subagent with
 | Signal | Weight | Criteria |
 |--------|--------|----------|
 | New failure mode | +30 | The specific failure mode (error messages, symptoms) was not present in previous payloads — the job may have been failing before, but not in this way |
-| Component match | +10 to +30 | The failure involves a component modified by this PR. Score: 1 component = +30, 2-3 components in the originating payload = +20, 4+ components = +10 |
+| Component exclusivity | +10 to +30 | The failure involves a component modified by this PR, and fewer other PRs in the originating payload touch the same component. Score: sole modifier = +30, 2-3 PRs touch component = +20, 4+ PRs = +10 |
 | Error message match | +40 | Error messages or stack traces directly reference code, packages, or functionality changed by this PR |
 | Multi-job correlation | +10 | The same PR is a candidate for failures in multiple independent jobs — the more jobs that point to the same PR, the stronger the signal |
 | Presubmit coverage gap | +10 | The failing job tests a scenario (upgrade, FIPS, SNO, techpreview, etc.) that wasn't covered by the PR's presubmit tests |
@@ -638,3 +642,11 @@ If the release controller or Sippy API is unreachable, report the error clearly 
 - Subagents should perform a **thorough analysis** — do not skip steps like must-gather extraction to save time. A proper root cause analysis is more important than speed.
 - The HTML report is fully self-contained — no external CSS/JS dependencies.
 - For very large numbers of failed jobs (>8), consider whether some share the same underlying failure and group them in the report.
+
+## See Also
+
+- Related Skill: `payload-results-yaml` - Schema for the results YAML
+- Related Skill: `fetch-payloads` - Fetches payload data from release controller
+- Related Skill: `fetch-new-prs-in-payload` - Fetches PRs new in a payload
+- Related Command: `/ci:payload-revert` - Stages reverts for high-confidence candidates
+- Related Command: `/ci:payload-experiment` - Tests medium-confidence candidates experimentally

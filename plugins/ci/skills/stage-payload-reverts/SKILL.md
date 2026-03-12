@@ -99,34 +99,13 @@ Use the `trigger-payload-job` skill (`plugins/ci/skills/trigger-payload-job/SKIL
 
 The skill handles idempotency (checking for existing bot replies), correct command selection, polling, and URL extraction.
 
-**IMPORTANT — correct payload command syntax** (read `trigger-payload-job` skill for the full procedure):
-
-- **Non-aggregated jobs**: `/payload-job <full-periodic-job-name>` (e.g., `/payload-job periodic-ci-openshift-release-main-nightly-4.22-e2e-aws-ovn-serial-1of2`)
-- **Aggregated jobs (10/10 failure)**: `/payload-job <underlying-periodic-job-name>` — a single run is sufficient to validate the revert when the original failure was 100%
-- **Aggregated jobs (partial failure)**: `/payload-aggregate <underlying-periodic-job-name> <count>` (e.g., `/payload-aggregate periodic-ci-openshift-hypershift-release-4.22-periodics-e2e-aws-ovn-conformance 10`)
-
-Commands must follow these exact formats — no other syntax is accepted.
+See the `trigger-payload-job` skill for exact command syntax. The skill enforces format requirements.
 
 Record the `payload_test_url` and individual `prow_url`s from the skill's return data.
 
 ## Subagent Return Format
 
-Each subagent should return its results in this format:
-
-```
-STAGED_REVERT_RESULT:
-- original_pr_url: ...
-- original_pr_number: ...
-- component: ...
-- jira_key: TRT-XXXX
-- jira_url: https://issues.redhat.com/browse/TRT-XXXX
-- revert_pr_url: https://github.com/org/repo/pull/YYYY
-- payload_test_url: https://pr-payload-tests.ci.openshift.org/runs/ci/...
-- payload_jobs_triggered: job1, job2, ...
-- status: success|partial|failed
-- reused: none|jira|revert_pr|payload_jobs|all
-- error: none|description
-```
+Each subagent should use the `payload-results-yaml` skill to update the results YAML, then return a brief status summary (success/partial/failed with any error descriptions) for the caller to print.
 
 Collect all subagent results.
 

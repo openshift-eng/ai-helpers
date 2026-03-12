@@ -43,7 +43,7 @@ This command is one of three composable stages in the payload triage pipeline:
    Run `/ci:analyze-payload {payload_tag}` first to generate it.
    ```
 
-3. **Detect Phase 2 resume**: If any candidate in the YAML has an action entry with `status: "pending"`, jump to Phase 2 (step 5).
+3. **Detect Phase 2 resume**: If the results YAML contains any action entry with `type: "experiment"` and `status: "pending"`, jump to Phase 2 (step 5). Phase 2 processes only pending experiments — candidates with other statuses are left unchanged.
 
 4. **Phase 1 — Set up experiments**: Filter candidates with `60 <= confidence_score < 85`. Exclude any with `existing_revert_status` of `"merged"` or `"open"`. Dispatch to the `payload-experimental-reverts` skill Phase 1, which updates the results YAML in place.
 

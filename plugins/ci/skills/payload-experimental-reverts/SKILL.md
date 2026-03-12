@@ -110,7 +110,7 @@ After all Phase 1 subagents complete, use the `payload-results-yaml` skill to up
 
 ### Phase 2: Collect Results and Act
 
-Phase 2 is invoked after a CI wait period (typically 1-4 hours). The caller detects candidates with an action entry where `type: "experiment"` and `status: "pending"` in the results YAML and invokes this phase, passing the same `results_yaml_path`.
+Phase 2 is invoked after a CI wait period (typically 1-4 hours). If the results YAML contains any action entry with `type: "experiment"` and `status: "pending"`, enter Phase 2. Phase 2 processes only pending experiments — candidates with other statuses are left unchanged.
 
 #### 2.1: Read Payload Results YAML
 

@@ -44,6 +44,8 @@ candidates:
     confidence_score: 95
     rationale: "temporal match + component match + error references code changed"
     originating_payload_tag: "4.22.0-0.nightly-2026-02-20-150000"
+    streak_length: 5
+    failure_pattern: "F F F F F S S"
     existing_revert_status: ""   # "merged", "open", or ""
     existing_revert_pr_url: ""
     failing_jobs:
@@ -93,6 +95,8 @@ Each entry represents a PR identified as a candidate cause of payload failures. 
 | `confidence_score` | int | 0-100 confidence that this PR caused the failures |
 | `rationale` | string | Explanation of why this PR is a candidate |
 | `originating_payload_tag` | string | The payload where this PR first caused failures |
+| `streak_length` | int | Consecutive payloads this job has been failing |
+| `failure_pattern` | string | Pass/fail history, most recent first (e.g., `"F F F S F F"`) |
 | `existing_revert_status` | string | `"merged"`, `"open"`, or `""` — pre-existing revert PR status |
 | `existing_revert_pr_url` | string | URL of pre-existing revert PR, or `""` |
 | `failing_jobs` | array | Jobs failing due to this candidate (see below) |
@@ -168,7 +172,7 @@ For a given candidate's action entry (matched by `pr_url` and `type`), update it
 
 ### Resume Detection (used by `payload-experiment`)
 
-Scan all candidates. If any candidate has an action with `status: "pending"`, the file has in-progress experiments awaiting Phase 2 collection.
+Scan all candidates. If any candidate has an action with `type: "experiment"` and `status: "pending"`, the file has in-progress experiments awaiting Phase 2 collection. Phase 2 processes only pending experiments — candidates with other statuses are left unchanged.
 
 ## See Also
 
