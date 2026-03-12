@@ -138,11 +138,16 @@ def main():
     for tag in tags:
         name = tag.get("name", "")
         details = fetch_release_details(architecture, stream_name, name)
+        all_results = details.get("results", {})
+        filtered_results = {
+            k: v for k, v in all_results.items()
+            if k in ("blockingJobs", "asyncJobs")
+        }
         payloads.append({
             "tag": name,
             "phase": tag.get("phase", "Unknown"),
             "url": release_page_url(architecture, stream_name, name),
-            "results": details.get("results", {}),
+            "results": filtered_results,
         })
 
     print(json.dumps(payloads, indent=2))
