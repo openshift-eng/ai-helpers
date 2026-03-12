@@ -374,13 +374,13 @@
         },
         {
           "argument_hint": "<payload-tag>",
-          "description": "Open draft revert PRs for medium-confidence payload suspects and trigger payload jobs to experimentally determine which PR is causing failures",
+          "description": "Open draft revert PRs for medium-confidence payload candidates and trigger payload jobs to experimentally determine which PR is causing failures",
           "name": "payload-experiment",
           "synopsis": "/ci:payload-experiment <payload-tag>"
         },
         {
           "argument_hint": "<payload-tag>",
-          "description": "Stage reverts for high-confidence payload suspects identified by analyze-payload",
+          "description": "Stage reverts for high-confidence payload candidates identified by analyze-payload",
           "name": "payload-revert",
           "synopsis": "/ci:payload-revert <payload-tag>"
         },
@@ -482,9 +482,14 @@
           "name": "OC Authentication Helper"
         },
         {
-          "description": "Experimentally test medium-confidence payload suspects by opening draft revert PRs and triggering payload jobs",
+          "description": "Experimentally test medium-confidence payload candidates by opening draft revert PRs and triggering payload jobs",
           "id": "payload-experimental-reverts",
           "name": "Payload Experimental Reverts"
+        },
+        {
+          "description": "State management for agentic payload triage actions \u2014 you must use this skill whenever reading or writing the payload results YAML file",
+          "id": "payload-results-yaml",
+          "name": "Payload Results YAML"
         },
         {
           "description": "Analyze OpenShift installation failures in Prow CI jobs by examining installer logs, log bundles, and sosreports. Use when CI job fails \"install should succeed\" tests at bootstrap, cluster creation or other stages.",
@@ -542,7 +547,7 @@
           "name": "Trigger Payload Job"
         }
       ],
-      "version": "0.0.25"
+      "version": "0.0.26"
     },
     {
       "commands": [
