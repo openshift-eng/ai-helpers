@@ -313,7 +313,7 @@
           "synopsis": ""
         },
         {
-          "argument_hint": "prowjob-url test-name [--fast]",
+          "argument_hint": "prowjob-url [test-name] [--fast]",
           "description": "Analyzes test errors from console logs and Prow CI job artifacts",
           "name": "analyze-prow-job-test-failure",
           "synopsis": ""

@@ -21,14 +21,19 @@ The user will provide:
    - Example: `https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results/pr-logs/pull/openshift_hypershift/6731/pull-ci-openshift-hypershift-main-e2e-aws/1962527613477982208`
    - URL may or may not have trailing slash
 
-2. **Test name** - test name that failed
+2. **Test name** (optional) - specific test name that failed
+   - When provided, focus the analysis on that test's stack trace and logs
+   - When omitted, analyze all failed CI steps by inspecting the JUnit XML, build logs,
+     and step artifacts to identify the root cause — this is the common case for
+     multi-step CI workflows (e.g. HyperShift, bare-metal OADP jobs) where the failure
+     is in a step rather than a named unit test
    - Examples:
      - `TestKarpenter/EnsureHostedCluster/ValidateMetricsAreExposed`
      - `TestCreateClusterCustomConfig`
      - `The openshift-console downloads pods [apigroup:console.openshift.io] should be scheduled on different nodes`
 
 3. Optional flags (optional):
-   - `--fast` - Skip must-gather extraction and analysis (test-level analysis only)
+   - `--fast` - Skip must-gather extraction and analysis; continue with log/JUnit/step-artifact analysis only (scope is preserved: test-level when `test-name` is provided, step-level across all failed CI steps when omitted)
 
 ## Implementation Steps
 
@@ -78,9 +83,14 @@ Use the `fetch-prowjob-json` skill to fetch the prowjob.json for this job. See `
      - Display: "This is not a ci-operator job. The prowjob cannot be analyzed by this skill."
      - Explain: ci-operator jobs have a --target argument specifying the test target
      - Exit skill
-4. **Extract target name**
-   - Capture the target value (e.g., `e2e-aws-ovn`)
-   - Store for constructing artifact paths
+4. **Extract target name and JOB_NAME**
+   - Capture the target value (e.g., `e2e-aws-ovn`) from the `--target=` arg
+   - Extract `JOB_NAME` from `.spec.job` in prowjob.json (the artifact directory key):
+     ```bash
+     JOB_NAME=$(jq -r '.spec.job' .work/prow-job-analyze-test-failure/{build_id}/logs/prowjob.json)
+     ```
+   - Note: on PR jobs `{target}` and `{JOB_NAME}` often differ. All artifact-path lookups
+     (JUnit XML, step logs, step artifacts) must use `{JOB_NAME}`, not `{target}`
 
 ### Step 4: Analyze Test Failure
 
@@ -139,8 +149,142 @@ gcloud storage cp gs://test-platform-results/{bucket-path}/build-log.txt .work/p
 ### Step 4.2: Parse and validate
 
 - Read `.work/prow-job-analyze-test-failure/{build_id}/logs/build-log.txt`
-- Search for the Test name
-- Gather stack trace related to the test
+
+**Branch on whether {test_name} was provided:**
+
+#### Branch A: test_name provided
+- Search build-log.txt for the exact test name string
+- Gather the stack trace and surrounding context for that specific test
+- Store the single failing test's error output for use in Steps 4.4 and 4.9
+
+#### Branch B: test_name NOT provided (multi-step discovery)
+
+This is the common case for multi-step CI workflows (e.g., HyperShift, bare-metal, OADP jobs)
+where failures occur in CI steps rather than named unit tests.
+
+1. **Discover failed CI steps from JUnit XML**
+
+   Use `{JOB_NAME}` (from Step 3, extracted from `.spec.job`) for all GCS artifact paths —
+   not `{target}`. On PR jobs these values differ and `{target}` will miss the artifacts.
+
+   Search for JUnit XML files under the artifacts directory:
+   ```bash
+   gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/{JOB_NAME}/**/junit*.xml" 2>/dev/null
+   ```
+   Download all found JUnit XML files:
+   ```bash
+   gcloud storage cp "gs://test-platform-results/{bucket-path}/artifacts/{JOB_NAME}/**/junit*.xml" \
+     .work/prow-job-analyze-test-failure/{build_id}/logs/ --no-user-output-enabled --recursive 2>/dev/null || true
+   ```
+   Parse each downloaded XML file and collect every `<testcase>` element where:
+   - A `<failure>` or `<error>` child element is present, OR
+   - The `<testcase>` has attribute `status="failed"`
+
+   For each failed testcase record:
+   - `step_name`: value of `classname` or `name` attribute (whichever identifies the CI step)
+   - `failure_message`: text content of the `<failure>` or `<error>` element
+   - `junit_file`: path of the XML file it came from
+
+2. **Classify each failed step by phase**
+
+   The ci-operator JUnit XML (`junit_operator.xml`) includes phase-level testcases:
+   - `"Run multi-stage test pre phase"` — setup/installation steps
+   - `"Run multi-stage test test phase"` — functional test steps
+   - `"Run multi-stage test post phase"` — gather/cleanup steps
+
+   Use the phase entries to classify each failed `step_name`:
+
+   - Look at the failed **phase-level** testcases (those with `"pre phase"`, `"test phase"`,
+     or `"post phase"` in their name) — these tell you which phase failed
+   - Cross-reference the individual step testcases against their phase:
+     - Steps in the **`pre` phase** → installation/setup steps
+     - Steps in the **`test` phase** → functional test steps
+     - Steps in the **`post` phase** → gather/cleanup steps (rarely the root cause)
+
+   If the phase-level testcases are absent from the JUnit XML (some jobs omit them),
+   fall back to the `ci-operator-step-graph.json` artifact, which lists all steps with
+   their dependencies and timing — use execution order and naming conventions as a
+   secondary signal. When still ambiguous, prefer classifying as a **test step** so
+   must-gather analysis is not skipped.
+
+3. **Route each failed step to the appropriate analysis path**
+
+   - **`pre` phase steps (installation)** → invoke the `ci:analyze-prow-job-install-failure`
+     skill for each such step, passing the same Prow job URL. Must-gather is **not**
+     attempted for `pre` phase failures: must-gather requires a live apiserver, and when
+     the installation phase fails the cluster is not fully up, so collection will fail.
+     **Capture the delegated output** and store it
+     as a per-step entry in the shared results collection used by Step 5 and Step 5.5:
+     ```
+     {
+       step_name:      {step_name},
+       type:           "installation",
+       summary:        {one-line summary from ci:analyze-prow-job-install-failure},
+       evidence:       {key error / stack trace from delegated analysis},
+       recommendation: {recommended action from delegated analysis}
+     }
+     ```
+   - **`test` phase steps (functional tests)** → proceed with the iteration in item 4
+     below (download step log, artifacts, extract stack trace) and include must-gather
+     analysis (Steps 4.4–4.9). Store findings in the same per-step results collection:
+     ```
+     {
+       step_name:      {step_name},
+       type:           "test",
+       summary:        {one-line failure summary},
+       evidence:       {stack trace / error output},
+       recommendation: {recommended action}
+     }
+     ```
+   - **`post` phase steps (gather/cleanup)** → treat as informational. Download the step
+     log and note the failure in the report, but do not perform must-gather analysis for
+     post-phase failures alone (they are usually a consequence of earlier failures).
+
+4. **Iterate over each `test` phase step** (`pre` and `post` phase steps already routed above)
+
+   For each `step_name` in the **`test` phase**, perform the following sub-steps:
+
+   a. **Download step-specific log**
+      ```bash
+      gcloud storage cp \
+        "gs://test-platform-results/{bucket-path}/artifacts/{JOB_NAME}/{step_name}/build-log.txt" \
+        .work/prow-job-analyze-test-failure/{build_id}/logs/{step_name}-build-log.txt \
+        --no-user-output-enabled 2>/dev/null || true
+      ```
+      If the step log is not found at that path, fall back to scanning build-log.txt for
+      lines mentioning `{step_name}` and collect surrounding context (±50 lines).
+
+   b. **Download step-specific artifacts**
+      ```bash
+      gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/{JOB_NAME}/{step_name}/" \
+        2>/dev/null
+      ```
+      Download any relevant artifacts (e.g., `*.json`, `*.yaml`, `events*.txt`) to
+      `.work/prow-job-analyze-test-failure/{build_id}/logs/{step_name}/`.
+
+   c. **Extract stack trace and context**
+      - Scan the step log for panic traces, `FAIL`, `Error:`, `fatal`, or assertion failures
+      - Collect the full stack trace block (from the triggering line to the end of the trace)
+      - Note the failure message from the JUnit XML as additional context
+
+   d. **Store per-step findings**
+      Record for each step:
+      - `step_name`
+      - `failure_message` (from JUnit XML)
+      - `stack_trace` (from step log or build-log.txt context)
+      - `artifacts` (list of downloaded artifact paths)
+
+3. **Produce a multi-step failure summary**
+
+   After iterating all failed steps, produce an ordered list of findings:
+   ```
+   Failed Steps Discovered:
+   1. {step_name_1}: {one-line failure summary}
+   2. {step_name_2}: {one-line failure summary}
+   ...
+   ```
+   This list is used in Step 4.4 (evidence gathering) and Step 5 (report) to drive
+   per-step analysis rather than singular test analysis.
 
 ### Step 4.3: Examine intervals files for cluster activity during E2E failures
 
@@ -199,7 +343,9 @@ The CI system may attach **symptom labels** to job runs — machine-detected pat
    - Parse user input for `--fast` flag
    - If `--fast` flag present:
      - Skip must-gather detection and analysis entirely
-     - Proceed directly to Step 5 (test-level results only)
+     - Proceed directly to Step 5 — scope is preserved:
+       - If `test_name` was provided → produce singular test report (Branch A)
+       - If `test_name` was omitted → produce multi-step report (Branch B)
      - Do NOT prompt user about must-gather
 
 2. **Extract actual test name from prowjob.json**
@@ -208,7 +354,7 @@ The CI system may attach **symptom labels** to job runs — machine-detected pat
 
    ```bash
    # Extract test name from prowjob.json (e.g., "e2e-aws-operator-serial-ote")
-   TEST_NAME=$(jq -r '.spec.job' .work/prow-job-analyze-test-failure/{build_id}/logs/prowjob.json)
+   JOB_NAME=$(jq -r '.spec.job' .work/prow-job-analyze-test-failure/{build_id}/logs/prowjob.json)
 
    # Note: For PR jobs, TARGET contains the full PR path like:
    #   pr-logs/pull/openshift_service-ca-operator/306/pull-ci-openshift-service-ca-operator-main-e2e-aws-operator-serial-ote
@@ -218,7 +364,7 @@ The CI system may attach **symptom labels** to job runs — machine-detected pat
 
 3. **Detect must-gather archive** (only if --fast not present)
 
-   Use TEST_NAME (not TARGET) for artifact paths.
+   Use JOB_NAME (not TARGET) for artifact paths.
 
    HyperShift jobs may have **different must-gather patterns**:
 
@@ -238,10 +384,10 @@ The CI system may attach **symptom labels** to job runs — machine-detected pat
    **Detection logic**:
    ```bash
    # Check for Pattern 1: Unified archive (dump-management-cluster)
-   UNIFIED_DUMP=$(gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/$TEST_NAME/dump-management-cluster/artifacts/artifacts.tar*" 2>/dev/null | head -1 || true)
+   UNIFIED_DUMP=$(gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/$JOB_NAME/dump-management-cluster/artifacts/artifacts.tar*" 2>/dev/null | head -1 || true)
 
    # Check for Pattern 2/3: Standard must-gather
-   STANDARD_MG=$(gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/$TEST_NAME/gather-must-gather/artifacts/must-gather.tar" 2>/dev/null || true)
+   STANDARD_MG=$(gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/$JOB_NAME/gather-must-gather/artifacts/must-gather.tar" 2>/dev/null || true)
 
    # Check for Pattern 2: Additional hypershift-dump (multiple possible locations)
    # Use wildcards to match all current and future HyperShift dump patterns:
@@ -251,7 +397,7 @@ The CI system may attach **symptom labels** to job runs — machine-detected pat
    for pattern in \
        "**/artifacts/hypershift-dump.tar" \
        "**/artifacts/**/hostedcluster.tar"; do
-       FOUND=$(gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/$TEST_NAME/$pattern" 2>/dev/null | head -1 || true)
+       FOUND=$(gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/$JOB_NAME/$pattern" 2>/dev/null | head -1 || true)
        if [ -n "$FOUND" ]; then
            HYPERSHIFT_DUMP="$FOUND"
            break
@@ -377,7 +523,7 @@ Only if user chose "Yes" in Step 4.5:
 
 4. **Download must-gather archives**
 
-   Use TEST_NAME (from Step 4.5.2) for artifact paths, not {target}:
+   Use JOB_NAME (from Step 4.5.2) for artifact paths, not {target}:
 
    For Pattern 3 (standard only):
    ```bash
@@ -512,10 +658,10 @@ Only if user chose "Yes" in Step 4.5:
    # Validate MUST_GATHER_PATH is set and directory exists
    if [ -z "$MUST_GATHER_PATH" ] || [ ! -d "$MUST_GATHER_PATH" ]; then
        echo "ERROR: Must-gather content directory not found after extraction"
-       # Skip to Step 5 (continue with test-level analysis only)
+       # Skip to Step 5 (scope preserved: Branch A or Branch B per test_name presence)
    elif [ -z "$(ls -A "$MUST_GATHER_PATH" 2>/dev/null)" ]; then
        echo "ERROR: Must-gather content directory is empty"
-       # Skip to Step 5 (continue with test-level analysis only)
+       # Skip to Step 5 (scope preserved: Branch A or Branch B per test_name presence)
    else
        echo "✓ Must-gather content located at: $MUST_GATHER_PATH"
        # Continue to Step 4.7 with MUST_GATHER_PATH set
@@ -540,10 +686,10 @@ Only if user chose "Yes" in Step 4.5:
    # Validate management cluster path
    if [ -z "$MUST_GATHER_MGMT_PATH" ] || [ ! -d "$MUST_GATHER_MGMT_PATH" ]; then
        echo "ERROR: Management cluster directory not found"
-       # Skip to Step 5 (continue with test-level analysis only)
+       # Skip to Step 5 (scope preserved: Branch A or Branch B per test_name presence)
    elif [ -z "$(ls -A "$MUST_GATHER_MGMT_PATH" 2>/dev/null)" ]; then
        echo "ERROR: Management cluster directory is empty"
-       # Skip to Step 5 (continue with test-level analysis only)
+       # Skip to Step 5 (scope preserved: Branch A or Branch B per test_name presence)
    else
        echo "✓ Management cluster data located at: $MUST_GATHER_MGMT_PATH"
    fi
@@ -655,7 +801,7 @@ Only if Step 4.6 completed successfully:
 
    ```bash
    # Network diagnostics (if test name suggests network issues)
-   if [[ "$TEST_NAME" =~ network|ovn|sdn|connectivity|route|ingress|egress ]]; then
+   if [[ "$JOB_NAME" =~ network|ovn|sdn|connectivity|route|ingress|egress ]]; then
        if [ -n "$MUST_GATHER_PATH" ]; then
            python3 "$SCRIPTS_DIR/analyze_network.py" "$MUST_GATHER_PATH"
        fi
@@ -670,7 +816,7 @@ Only if Step 4.6 completed successfully:
    fi
 
    # etcd diagnostics (if test name suggests control-plane issues)
-   if [[ "$TEST_NAME" =~ etcd|apiserver|control-plane|kube-apiserver ]]; then
+   if [[ "$JOB_NAME" =~ etcd|apiserver|control-plane|kube-apiserver ]]; then
        if [ -n "$MUST_GATHER_PATH" ]; then
            python3 "$SCRIPTS_DIR/analyze_etcd.py" "$MUST_GATHER_PATH"
        fi
@@ -782,7 +928,14 @@ Synthesize all gathered evidence to determine the most likely root cause for the
 
 1. **Display structured summary with enhanced formatting**
 
-   **For single must-gather or no must-gather:**
+   **Branch on whether test_name was provided (mirrors Step 4.2 branching):**
+
+   - **Branch A (test_name provided):** Use the singular `{test_name}` report shape below.
+   - **Branch B (test_name NOT provided):** Use the multi-step report shape further below,
+     iterating over each failed step discovered in Step 4.2 Branch B and aggregating
+     their findings into a combined report.
+
+   **For single must-gather or no must-gather (Branch A — test_name provided):**
 
    ```text
    # Test Failure Analysis Complete
@@ -978,6 +1131,90 @@ Synthesize all gathered evidence to determine the most likely root cause for the
    - **Hosted cluster must-gather**: `.work/prow-job-analyze-test-failure/{build_id}/must-gather-hosted/logs/`
    ```
 
+   **For Branch B (test_name NOT provided — multi-step failure report):**
+
+   Iterate over the ordered list of failed steps discovered in Step 4.2 Branch B and produce
+   one section per step, then aggregate into a combined root cause section.
+
+   ```text
+   # Test Failure Analysis Complete (Multi-Step)
+
+   ## Job Information
+   - **Prow Job**: {prowjob-name}
+   - **Build ID**: {build_id}
+   - **Target**: {target}
+   - **Failed Steps**: {count of discovered failed steps}
+
+   ## Known Symptoms Seen
+   *(Only if symptom labels were found in Step 4.3b — omit section entirely if none)*
+   - {symptom summary}: {symptom explanation}
+   > **Note**: Symptoms are machine-detected environmental observations, not definitive causes.
+
+   ---
+
+   ## Failed Step Analyses
+
+   *(Repeat the following block for each failed step discovered in Step 4.2 Branch B)*
+
+   ### Step: {step_name}
+
+   #### Error
+   {failure_message from JUnit XML for this step}
+
+   #### Summary
+   {analysis of this step's stack trace and log context}
+
+   #### Evidence
+   {stack trace extracted from {step_name}-build-log.txt or build-log.txt context}
+
+   #### Artifacts Examined
+   - `.work/prow-job-analyze-test-failure/{build_id}/logs/{step_name}-build-log.txt`
+   - `.work/prow-job-analyze-test-failure/{build_id}/logs/{step_name}/` *(step artifacts if downloaded)*
+
+   ---
+
+   ## Cluster Diagnostics
+   *(Only if must-gather was analyzed — same structure as Branch A; include per-cluster
+   sections as appropriate for standard or HyperShift patterns)*
+
+   ---
+
+   ## Aggregated Root Cause
+
+   ### Failed Steps Summary
+   | Step | One-line Failure |
+   |------|-----------------|
+   | {step_name_1} | {summary} |
+   | {step_name_2} | {summary} |
+   | ... | ... |
+
+   ### Timeline
+   *(Emit one entry per failed step. If interval data cannot be mapped to a specific
+   step, omit the Timeline section entirely rather than showing a misleading single window.)*
+
+   - **{step_name_1}**: started {from timestamp} — failed {to timestamp}
+     - Cluster events during this window: {cluster-event} at {timestamp}
+   - **{step_name_2}**: started {from timestamp} — failed {to timestamp}
+     - Cluster events during this window: {cluster-event} at {timestamp}
+   - *(repeat for each failed step with mappable interval data)*
+
+   ### Root Cause Hypothesis
+   {synthesized root cause drawn from all per-step findings (install + test steps),
+   per-step interval events, symptom labels, and cluster diagnostics; clearly
+   identify whether one step is the root cause or whether multiple independent
+   failures occurred}
+
+   ### Recommendations
+   - {actionable next step 1}
+   - {actionable next step 2}
+
+   ---
+
+   ## Artifacts
+   - **Test artifacts**: `.work/prow-job-analyze-test-failure/{build_id}/logs/`
+   - **Must-gather**: `.work/prow-job-analyze-test-failure/{build_id}/must-gather*/logs/` *(if extracted)*
+   ```
+
 ### Step 5.5: Ask User About JIRA Export
 
 After completing the analysis, ask the user if they want to export to JIRA format.
@@ -996,7 +1233,10 @@ After completing the analysis, ask the user if they want to export to JIRA forma
 
 2. **If user chooses "Yes - Export to JIRA (OCPBUGS format)"**
 
-   Generate `.work/prow-job-analyze-test-failure/{build_id}/analysis-jira.txt` using OCPBUGS format:
+   Generate `.work/prow-job-analyze-test-failure/{build_id}/analysis-jira.txt` using OCPBUGS format.
+   Branch on whether `test_name` was provided:
+
+   **Branch A (test_name provided — singular test):**
 
    ```
    Description of problem:
@@ -1036,6 +1276,52 @@ After completing the analysis, ask the user if they want to export to JIRA forma
    [Detailed analysis from Step 5]
    ```
 
+   **Branch B (test_name omitted — multi-step report):**
+
+   ```
+   Description of problem:
+   [Summarize the overall CI job failure — which steps failed and the likely root cause]
+
+   Version-Release number of selected component (if applicable):
+   [OpenShift version from prowjob, if available]
+
+   How reproducible:
+   [Based on test history - e.g., "Intermittent", "Always", "Sometimes in this job configuration"]
+
+   Steps to Reproduce:
+   1. Run Prow CI job: [job-name]
+   2. Observe failures in the following CI steps: [step_name_1], [step_name_2], ...
+
+   Failed Steps:
+   [For each failed step discovered in Step 4.2 Branch B, emit one block:]
+
+   === Step: [step_name] ===
+   Failure message: [failure_message from JUnit XML]
+
+   Actual results:
+   {noformat}
+   [Stack trace or error output for this step]
+   {noformat}
+
+   Expected results:
+   [This step should complete successfully]
+
+   [Repeat for each failed step]
+
+   Additional info:
+   [Aggregated root cause hypothesis, timeline, affected components from the multi-step report]
+
+   Job Details:
+   - Job URL: [prow-job-url]
+   - Build ID: {{build_id}}
+   - Test artifacts: {{.work/prow-job-analyze-test-failure/{build_id}/}}
+
+   [If must-gather was analyzed, include cluster diagnostics summary]
+
+   Root Cause Analysis:
+   [Synthesized root cause from the "Aggregated Root Cause" section of Step 5]
+   ```
+
 3. **Display completion message**
 
    If JIRA export chosen:
@@ -1062,17 +1348,17 @@ Handle errors in the same way as "Error handling" in "Prow Job Analyze Resource"
 1. **Must-gather not available**
    - If `gcloud storage ls` returns 404 for must-gather.tar, this is expected (not all jobs have must-gather)
    - Silently skip must-gather analysis - do NOT warn the user
-   - Continue with test-level analysis only
+   - Continue to Step 5 preserving scope: Branch A (singular test) or Branch B (multi-step) as determined by whether `test_name` was provided
 
 2. **Must-gather extraction fails**
    - If download or extraction fails, warn the user but continue with test analysis
-   - Display: "WARNING: Must-gather extraction failed: {error}. Continuing with test-level analysis."
-   - Continue to Step 5 with test-level results only
+   - Display: "WARNING: Must-gather extraction failed: {error}. Continuing without cluster diagnostics."
+   - Continue to Step 5 preserving scope: Branch A (singular test) or Branch B (multi-step) as determined by whether `test_name` was provided
 
 3. **Analysis scripts not found**
    - If `find` command returns empty (no scripts found), warn the user
    - Display: "WARNING: Must-gather analysis scripts not installed. Install the must-gather plugin from openshift-eng/ai-helpers for cluster diagnostics."
-   - Continue with test-level analysis only
+   - Continue to Step 5 preserving scope: Branch A (singular test) or Branch B (multi-step) as determined by whether `test_name` was provided
 
 4. **Partial analysis script failures**
    - If one script fails (non-zero exit code), continue with other scripts
