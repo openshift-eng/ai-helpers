@@ -54,7 +54,9 @@ First, validate each job entry. If any job has `is_aggregated == true` but `unde
 
 Build the comment body with one command per line. Use the correct command for each job type:
 
-- **Aggregated jobs** (`is_aggregated == true`): `/payload-aggregate <underlying_job_name> <count>`
+- **Aggregated jobs** (`is_aggregated == true`):
+  - If the aggregated job failed **10/10 runs**, use `/payload-job <underlying_job_name>` instead of `/payload-aggregate`. A single successful run is sufficient to validate the revert when the original failure was 100%.
+  - Otherwise, use `/payload-aggregate <underlying_job_name> <count>`
 - **Non-aggregated jobs** (`is_aggregated == false`): `/payload-job <job_name>`
 
 ```bash

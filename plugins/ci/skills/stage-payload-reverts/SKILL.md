@@ -101,7 +101,8 @@ The skill handles idempotency (checking for existing bot replies), correct comma
 **IMPORTANT — correct payload command syntax** (read `trigger-payload-job` skill for the full procedure):
 
 - **Non-aggregated jobs**: `/payload-job <full-periodic-job-name>` (e.g., `/payload-job periodic-ci-openshift-release-main-nightly-4.22-e2e-aws-ovn-serial-1of2`)
-- **Aggregated jobs**: `/payload-aggregate <underlying-periodic-job-name> <count>` (e.g., `/payload-aggregate periodic-ci-openshift-hypershift-release-4.22-periodics-e2e-aws-ovn-conformance 10`)
+- **Aggregated jobs (10/10 failure)**: `/payload-job <underlying-periodic-job-name>` — a single run is sufficient to validate the revert when the original failure was 100%
+- **Aggregated jobs (partial failure)**: `/payload-aggregate <underlying-periodic-job-name> <count>` (e.g., `/payload-aggregate periodic-ci-openshift-hypershift-release-4.22-periodics-e2e-aws-ovn-conformance 10`)
 
 Commands must follow these exact formats — no other syntax is accepted.
 
