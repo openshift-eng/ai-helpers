@@ -192,10 +192,12 @@ For each failed job, cross-reference the failure analysis from the subagent with
 |--------|--------|----------|
 | New failure mode | +30 | The specific failure mode (error messages, symptoms) was not present in previous payloads — the job may have been failing before, but not in this way |
 | Component match | +10 to +30 | The failure involves a component modified by this PR. Score: 1 component = +30, 2-3 components in the originating payload = +20, 4+ components = +10 |
-| Error message match | +30 | Error messages or stack traces directly reference code, packages, or functionality changed by this PR |
+| Error message match | +40 | Error messages or stack traces directly reference code, packages, or functionality changed by this PR |
+| Multi-job correlation | +10 | The same PR is a candidate for failures in multiple independent jobs — the more jobs that point to the same PR, the stronger the signal |
+| Presubmit coverage gap | +10 | The failing job tests a scenario (upgrade, FIPS, SNO, techpreview, etc.) that wasn't covered by the PR's presubmit tests |
 | Single candidate | +10 | Only one PR landed in the originating payload that touches the affected component |
 
-The maximum possible score is 100. Record the numeric score for each (job, candidate PR) pair alongside the qualitative rationale.
+The maximum possible score is 130, but scores above 100 should be capped at 100. Record the numeric score for each (job, candidate PR) pair alongside the qualitative rationale.
 
 #### 6.2: Propose Revert Candidates
 
