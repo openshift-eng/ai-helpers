@@ -84,7 +84,7 @@ Written once by `analyze-payload`. Never modified by downstream skills.
 
 ### `candidates[]`
 
-Each entry represents a PR identified as a candidate cause of payload failures. Written by `analyze-payload`, read by downstream skills.
+Each entry represents a PR identified as a candidate cause of payload failures. Top-level candidate fields are written once by `analyze-payload` and are read-only to downstream skills. The `actions` sub-array is mutable (see below).
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -117,7 +117,7 @@ Jobs from the payload that are failing and attributed to this candidate. Written
 
 ### `candidates[].actions[]`
 
-Actions taken on a candidate. Each entry is **appended** by a downstream skill — never overwritten. An empty array means no action has been taken.
+Actions taken on a candidate. New entries are **appended** by downstream skills. Existing entries may be **updated in place** (e.g., `status`, `result_summary`, `payload_jobs`) by the Update Action Status operation. An empty array means no action has been taken.
 
 | Field | Type | Description |
 |-------|------|-------------|

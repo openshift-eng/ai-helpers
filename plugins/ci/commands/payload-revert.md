@@ -43,7 +43,7 @@ When the number of failing jobs across all candidates exceeds these limits, prio
 
 3. **Filter candidates**: Select candidates with `confidence_score >= 85`. Exclude any with `existing_revert_status` of `"merged"` or `"open"`.
 
-4. **Dispatch to `stage-payload-reverts` skill**: Pass all qualifying candidates with their context (results YAML path, payload tag, version, stream, architecture, release controller URL, and failing jobs). The skill updates the results YAML in place via the `payload-results-yaml` skill. The `trigger-payload-job` skill validates that aggregated jobs have `underlying_job_name` set and skips them with an error if not.
+4. **Dispatch to `stage-payload-reverts` skill**: Pass all qualifying candidates with their context (results YAML path, payload tag, version, stream, architecture, release controller URL, and failing jobs). The skill updates the results YAML and HTML report in place. The `trigger-payload-job` skill validates that aggregated jobs have `underlying_job_name` set and skips them with an error if not.
 
 5. **Report results**: Print a summary of actions taken (JIRA tickets created, revert PRs opened, payload jobs triggered).
 

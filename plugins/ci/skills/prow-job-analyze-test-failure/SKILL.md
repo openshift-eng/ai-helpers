@@ -341,16 +341,14 @@ The CI system may attach **symptom labels** to job runs — machine-detected pat
 
 **Be tenacious.** When the build log or test output mentions crash-looping pods, container restarts, or deployments not becoming ready, you MUST trace the failure to its root cause. Never stop at "containers are crash-looping" — find out *why*.
 
-1. **Search for per-test artifact dumps** in GCS. E2E frameworks often dump per-test resources (pod YAMLs, container logs, events):
-   ```bash
-   gcloud storage ls -r "gs://test-platform-results/{bucket-path}/artifacts/$TEST_NAME/**/artifacts/{TestName}/" 2>/dev/null | head -50
-   ```
+**Pursue all available log sources:**
 
-2. **Download the pod YAML** for failing pods and parse `containerStatuses` for `exitCode`, `lastState.terminated.reason`, `lastState.terminated.message` (contains last stderr — often the actual error), and `restartCount`.
+- **Must-gather data** (Step 4.6–4.7): Contains pod YAMLs with `containerStatuses` (`exitCode`, `lastState.terminated.reason`, `restartCount`), container logs (current and previous), events, and operator conditions. This is often the richest source for diagnosing crash-looping pods.
+- **Gather-extra / gather-audit logs**: Some jobs run additional gather steps that collect extra diagnostics. List the step artifacts directory for gather steps beyond `gather-must-gather` (e.g., `gather-extra`, `gather-audit-logs`) and download relevant logs.
+- **Step-level build logs**: The build log for the failing test step (downloaded in Step 4.2) often contains error output, stack traces, and timeout messages that reference specific pods or containers.
+- **Events from interval files** (Step 4.3): Operator state transitions and warning events correlated with the failure window.
 
-3. **Download container previous logs** (`*-previous.log`) for crashed containers. These show what the container printed before it died.
-
-4. **Follow the dependency chain.** If sidecars crash because a socket is gone, the root cause is in the main container. If an operator can't roll out because a deployment isn't ready, the root cause is in that deployment's pods. Always trace upstream to the originating error.
+**Follow the dependency chain.** Always trace upstream to the originating error rather than stopping at the first symptom.
 
 ### Step 4.5: Check for Must-Gather Availability
 
@@ -912,7 +910,7 @@ Only if Step 4.7 completed:
 
 Synthesize all gathered evidence to determine the most likely root cause for the test failure.
 
-**CRITICAL: Be tenacious — trace symptoms back to root cause.** Never stop at high-level symptoms like "nodes didn't join", "operator unavailable", or "containers are crash-looping". Trace backwards through the dependency chain (pod statuses → container logs → originating error) until you find the specific, actionable root cause. If you identified crash-looping containers in Step 4.4b, use those findings here.
+**CRITICAL: Be tenacious — trace symptoms back to root cause.** Never stop at high-level symptoms like "nodes didn't join", "operator unavailable", or "containers are crash-looping". Trace backwards through the dependency chain (pod statuses → container logs → originating error) until you find the specific, actionable root cause.
 
 1. **Analyze all available evidence**
    - Stack traces from Step 4.2

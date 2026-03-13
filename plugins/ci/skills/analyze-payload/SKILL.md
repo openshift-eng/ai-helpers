@@ -156,10 +156,10 @@ When patterns emerge, query Sippy for pass rates of related non-blocking jobs to
 
 ### Step 5b: Consult Previous Claude Analyses
 
-If the `fetch-payloads` output shows a `claude-payload-analysis` async job with state `Succeeded` on any payload in the current rejection streak, fetch the HTML report from its Prow artifacts to review the previous analysis. The report is located at:
+If the `fetch-payloads` output shows a `claude-payload-agent` async job with state `Succeeded` on any payload in the current rejection streak, fetch the HTML report from its Prow artifacts to review the previous analysis. The report is located at:
 
 ```
-{prow_artifacts_url}/artifacts/claude-payload-analysis/openshift-release-analysis-claude-payload-analysis/artifacts/payload-analysis-{tag}-summary.html
+{prow_artifacts_url}/artifacts/claude-payload-agent/openshift-release-analysis-claude-payload-agent/artifacts/payload-analysis-{tag}-summary.html
 ```
 
 Convert the Prow URL to a gcsweb URL and use WebFetch to read it.

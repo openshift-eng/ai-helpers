@@ -119,6 +119,19 @@ After all subagents complete, use the `payload-results-yaml` skill to append an 
 
 See the `payload-results-yaml` skill for the full schema.
 
+### Update HTML Report
+
+After updating the results YAML, update the HTML report (`payload-analysis-{sanitized_tag}-summary.html` in the current working directory) to include links to the staged reverts.
+
+Find the existing "Recommended Reverts" section in the HTML. For each candidate that was successfully staged, add a new row to the table or update the existing row to include:
+
+- **Revert PR**: Link to the revert PR (e.g., `<a href="{revert_pr_url}">#{revert_pr_number}</a>`)
+- **JIRA**: Link to the TRT issue (e.g., `<a href="{jira_url}">{jira_key}</a>`)
+- **Payload Jobs**: Link to the pr-payload-tests URL (e.g., `<a href="{payload_test_url}">Payload Test</a>`)
+- **Status**: Badge showing `Revert Staged` (use the `badge-rejected` class for visual consistency)
+
+If the report has no "Recommended Reverts" section (all candidates scored below 85 during analysis), add one before the per-job details section, using the same HTML structure as described in `analyze-payload` Step 7.4.
+
 Return results to the caller for inclusion in the report.
 
 ## Error Handling
