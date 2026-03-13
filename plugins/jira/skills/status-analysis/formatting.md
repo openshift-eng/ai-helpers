@@ -11,12 +11,13 @@ This module defines output templates for status summaries. It transforms analyze
 
 ## Overview
 
-Two output formats are supported:
+Three output formats are supported:
 
 | Format | Used By | Output Target | Syntax |
 |--------|---------|---------------|--------|
 | `wiki_comment` | `/jira:status-rollup` | Jira comment | Jira wiki markup |
 | `ryg_field` | `/jira:update-weekly-status` | Status Summary field | Bullet-point template |
+| `feature_markdown` | `/jira:generate-feature-updates` | stdout / localhost HTTP server | Markdown nested lists |
 
 ## Format: wiki_comment
 
@@ -242,6 +243,146 @@ Used by `/jira:update-weekly-status` to update the Status Summary custom field.
      ** May need to descope Azure AD integration from initial release
 ```
 
+## Format: feature_markdown
+
+Used by `/jira:generate-feature-updates` to produce concise executive-level feature summaries for weekly status documents (e.g., "Key Strategic Feature Updates" section).
+
+### Template
+
+```
+- 🟢 [{ISSUE-KEY}](https://issues.redhat.com/browse/{ISSUE-KEY}): {issue summary}
+    - {1-3 sentence prose summary of significant activity}
+- 🔴 [{ISSUE-KEY-2}](https://issues.redhat.com/browse/{ISSUE-KEY-2}): {issue summary}
+    - {1-3 sentence prose summary of significant activity}
+```
+
+Color circle mapping (from the `color` field in Status Summary):
+- `Green` → 🟢
+- `Yellow` → 🟡
+- `Red` → 🔴
+- No color / unknown → omit circle
+
+### Formatting Rules
+
+1. **Nested unordered list**: Top-level bullet is the feature link + summary, nested bullet is the update prose
+2. **Markdown links**: Use `[KEY](url)` syntax (standard Markdown, not Jira wiki)
+3. **Prose in nested bullet**: Each entry's update is 1-3 flowing sentences in a single nested list item
+4. **Color circle prefix**: Each top-level bullet starts with a unicode circle (🟢🟡🔴) matching the Color Status from the Status Summary field. Omit the circle if no color is set.
+5. **No metrics**: No completion percentages, issue counts, or tables
+6. **Cross-references as markdown links**: Reference related issues, PRs, and people inline
+7. **Continuous list**: All entries in one unordered list, no blank lines between items
+8. **PR references**: Use `[PR #N](url)` format when referencing specific PRs
+9. **First names for attribution**: Use `author_name` fields (not `author` logins) when attributing contributions. Always use first names, never GitHub handles.
+
+### Content Guidelines
+
+**Focus on what matters to executives:**
+
+- Features that made **significant progress** (PRs merged, milestones hit)
+- Features that were **delivered or completed**
+- Features whose **status color changed** this week (e.g., Green→Yellow, Yellow→Red) — a status change is always news
+- Features that are **blocked or at risk** with new activity or updates this week
+- **Scope changes** or strategic pivots
+
+**R/Y/G status as prioritization, not inclusion:** Use the team's self-reported color status to order and prioritize the output (Red/Yellow before Green), but do not include a feature solely because it has been Red/Yellow — it must also have a status change or other significant activity this week.
+
+**Attribution for recognition:**
+
+- Name team members who drove key accomplishments
+- Example: "Thanks to Sara's work on PR #456, the migration path is now fully tested"
+
+**Tone:**
+
+- Executive-level: concise, direct, outcome-oriented
+- Focus on "so what" rather than "what happened"
+- Highlight customer or business impact where relevant
+
+**DO**:
+- Reference specific PRs, people, and customers
+- Explain scope changes and their rationale
+- Call out blockers with clear ownership
+- Attribute contributions so team members get recognition
+- Use first names for attribution (e.g., "Salvatore's PR #7746" not "sdminonne's PR #7746")
+
+**DON'T**:
+- List every sub-task or minor change
+- Use vague language ("making progress", "ongoing work")
+- Include metrics or completion percentages
+- Use bullet points (prose only)
+- Use GitHub handles (e.g., `sdminonne`, `enxebre`). Always use first names from `author_name` fields instead.
+
+### Example Outputs
+
+```markdown
+- 🟢 [OCPSTRAT-2426](https://issues.redhat.com/browse/OCPSTRAT-2426): Customer global pull secret in HCP for ROSA
+    - Scope reduced to Managed OpenShift and platforms using node replacement strategy. E2E tests are already passing.
+- 🟡 [OCPSTRAT-1409](https://issues.redhat.com/browse/OCPSTRAT-1409): Auto backup/restore for Hosted Clusters
+    - A bug found in the implementation has highlighted a permission gap that we are going to cover with better UX.
+- 🟢 [OCPSTRAT-1558](https://issues.redhat.com/browse/OCPSTRAT-1558): Shared ingress for HCP
+    - Wei's [PR #7143](https://github.com/openshift/hypershift/pull/7143) landed this week, completing the core shared ingress controller. Integration tests are passing on AWS.
+- 🔴 [OCPSTRAT-2100](https://issues.redhat.com/browse/OCPSTRAT-2100): IPv6 support for Hosted Control Planes
+    - Blocked on upstream Kubernetes networking changes expected in 1.32. Alberto has prepared the downstream patches and they are ready to go once the dependency lands.
+```
+
+### Significant Activity Filter
+
+Skip issues with no noteworthy activity. An issue has significant activity if any of:
+
+- **Status color changed** this week (e.g., Green→Yellow, Yellow→Red) — detected via changelog or by comparing `last_status_summary_update` with date range
+- Status transitions (started, completed, blocked, reopened)
+- PRs merged or new PRs opened
+- Scope changes or priority changes
+- Blocker identified or resolved
+- Substantive comments from team members (not bot updates)
+
+Issues with only minor updates (bot comments, trivial field changes) should be omitted. A feature that has been Red/Yellow for weeks with no new activity is not news — only include it if the color changed or there is a meaningful update this week.
+
+### Pseudocode
+
+```python
+COLOR_CIRCLES = {"Green": "🟢", "Yellow": "🟡", "Red": "🔴"}
+
+def format_feature_markdown(issue_data, config):
+    output = []
+
+    issue_url = f"https://issues.redhat.com/browse/{issue_data.issue_key}"
+    circle = COLOR_CIRCLES.get(issue_data.color, "")
+    prefix = f"{circle} " if circle else ""
+    output.append(f"- {prefix}[{issue_data.issue_key}]({issue_url}): {issue_data.summary}")
+
+    # Build prose from analysis
+    sentences = []
+
+    # Achievements / deliveries
+    for achievement in issue_data.analysis.achievements:
+        sentences.append(achievement.description)
+
+    # Blockers / risks
+    for blocker in issue_data.analysis.blockers:
+        sentences.append(blocker.description)
+
+    for risk in issue_data.analysis.risks:
+        sentences.append(risk.description)
+
+    # Combine into 1-3 sentences of flowing prose as a nested bullet
+    # Use author_name (first names), never GitHub logins
+    prose = synthesize_prose(sentences, max_sentences=3)
+    output.append(f"    - {prose}")
+
+    return "\n".join(output)
+```
+
+### feature_markdown validation
+
+- [ ] Each entry is a top-level list item: `- 🟢 [ISSUE-KEY](url): summary`
+- [ ] Color circle (🟢🟡🔴) matches the Color Status from the Status Summary field
+- [ ] Update prose is a nested list item: `    - 1-3 sentences`
+- [ ] No metrics or percentages
+- [ ] All entries form one continuous unordered list
+- [ ] Cross-references use markdown link syntax
+- [ ] Issues with no significant activity are omitted
+- [ ] No GitHub handles — only first names from `author_name` fields
+
 ## Building Output from Analysis Data
 
 ### For wiki_comment format
@@ -318,6 +459,72 @@ def format_ryg_field(issue_data, config):
         output.append("     ** None at this time")
 
     return "\n".join(output)
+```
+
+### For feature_markdown format
+
+```python
+COLOR_CIRCLES = {"Green": "🟢", "Yellow": "🟡", "Red": "🔴"}
+
+def format_feature_markdown(issue_data, config):
+    # Skip issues with no significant activity
+    if not has_significant_activity(issue_data):
+        return None
+
+    output = []
+    issue_url = f"https://issues.redhat.com/browse/{issue_data.issue_key}"
+    circle = COLOR_CIRCLES.get(issue_data.color, "")
+    prefix = f"{circle} " if circle else ""
+    output.append(f"- {prefix}[{issue_data.issue_key}]({issue_url}): {issue_data.summary}")
+
+    # Synthesize 1-3 sentences of executive prose from:
+    # - achievements (PRs merged, milestones, deliveries)
+    # - blockers and risks (with ownership)
+    # - scope changes or strategic pivots
+    # - attribution (use first names from author_name, never GitHub logins)
+    prose = synthesize_executive_prose(issue_data.analysis)
+    output.append(f"    - {prose}")
+
+    return "\n".join(output)
+
+
+def has_significant_activity(issue_data):
+    """Return True if issue has noteworthy activity worth reporting."""
+    # Check if the status color changed this week
+    if status_color_changed_in_range(issue_data):
+        return True
+
+    return (
+        len(issue_data.analysis.achievements) > 0
+        or len(issue_data.analysis.blockers) > 0
+        or len(issue_data.analysis.risks) > 0
+        or any(t.to in ("Closed", "Done", "Blocked") for t in issue_data.changelog.status_transitions)
+        or any(pr.state == "MERGED" for pr in issue_data.external_links.github_prs)
+    )
+
+
+def status_color_changed_in_range(issue_data):
+    """Check if the R/Y/G status color changed during the date range."""
+    # Look for Status Summary field changes in changelog_in_range
+    for entry in issue_data.changelog_in_range:
+        for item in entry.get("items", []):
+            if item.get("field") == "Status Summary":
+                old_color = parse_color_status(item.get("fromString", ""))
+                new_color = parse_color_status(item.get("toString", ""))
+                if old_color != new_color:
+                    return True
+    return False
+
+
+def parse_color_status(status_summary):
+    """Extract Red/Yellow/Green from status summary text."""
+    if not status_summary:
+        return None
+    # Handle both "* Color Status: Green" and "{color:#d04437}Red{color}" formats
+    for color in ("Red", "Yellow", "Green"):
+        if color in status_summary:
+            return color
+    return None
 ```
 
 ## Validation
