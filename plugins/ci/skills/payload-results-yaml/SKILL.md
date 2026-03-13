@@ -36,6 +36,26 @@ metadata:
   release_controller_url: "https://amd64.ocp.releases.ci.openshift.org/..."
   analyzed_at: "2026-02-26T10:30:00Z"
 
+failing_jobs:
+  - job_name: "periodic-ci-...-e2e-aws-ovn"
+    prow_url: "https://prow.ci.openshift.org/..."
+    is_aggregated: false
+    underlying_job_name: ""
+    failure_type: "test"
+    root_cause_summary: "OVN gateway mode selection regression"
+    streak_length: 5
+    originating_payload_tag: "4.22.0-0.nightly-2026-02-20-150000"
+    failure_pattern: "F F F F F S S"
+  - job_name: "periodic-ci-...-e2e-gcp-ovn-techpreview"
+    prow_url: "https://prow.ci.openshift.org/..."
+    is_aggregated: false
+    underlying_job_name: ""
+    failure_type: "infra"
+    root_cause_summary: "Pods deleted unexpectedly on build04 cluster"
+    streak_length: 1
+    originating_payload_tag: "4.22.0-0.nightly-2026-02-25-152806"
+    failure_pattern: "F"
+
 candidates:
   - pr_url: "https://github.com/openshift/cno/pull/2037"
     pr_number: 2037
@@ -43,16 +63,8 @@ candidates:
     title: "Fix OVN gateway mode selection"
     confidence_score: 95
     rationale: "temporal match + component match + error references code changed"
-    originating_payload_tag: "4.22.0-0.nightly-2026-02-20-150000"
-    streak_length: 5
-    failure_pattern: "F F F F F S S"
     failing_jobs:
-      - job_name: "periodic-ci-...-e2e-aws-ovn"
-        prow_url: "https://prow.ci.openshift.org/..."
-        is_aggregated: false
-        underlying_job_name: ""
-        failure_type: "test"
-        root_cause_summary: "OVN gateway mode selection regression"
+      - "periodic-ci-...-e2e-aws-ovn"
     actions:
       - type: "revert"
         status: "staged"
@@ -80,9 +92,27 @@ Written once by `analyze-payload`. Never modified by downstream skills.
 | `release_controller_url` | string | URL to the payload on the release controller |
 | `analyzed_at` | string | ISO 8601 timestamp of when the analysis was performed |
 
+### `failing_jobs[]`
+
+All failed blocking jobs in the payload. Written once by `analyze-payload`. Never modified by downstream skills. This is the authoritative list of failures — every failed blocking job appears here regardless of whether a candidate PR has been identified.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `job_name` | string | Full periodic job name |
+| `prow_url` | string | Prow URL for the failing run |
+| `is_aggregated` | bool | Whether this is an aggregated job |
+| `underlying_job_name` | string | For aggregated jobs, the underlying periodic job name; `""` otherwise |
+| `failure_type` | string | `"test"`, `"install"`, `"upgrade"`, or `"infra"` |
+| `root_cause_summary` | string | Brief description of the failure mode |
+| `streak_length` | int | Consecutive payloads this job has been failing |
+| `originating_payload_tag` | string | The payload where this job first started failing in the current streak |
+| `failure_pattern` | string | Pass/fail history across the lookback window, most recent first (e.g., `"F F F S F F"`) |
+
 ### `candidates[]`
 
 Each entry represents a PR identified as a candidate cause of payload failures. Top-level candidate fields are written once by `analyze-payload` and are read-only to downstream skills. The `actions` sub-array is mutable (see below).
+
+Candidates reference failing jobs by `job_name` via the `failing_jobs` string array, linking back to the top-level `failing_jobs[]` entries.
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -92,24 +122,8 @@ Each entry represents a PR identified as a candidate cause of payload failures. 
 | `title` | string | PR title |
 | `confidence_score` | int | 0-100 confidence that this PR caused the failures |
 | `rationale` | string | Explanation of why this PR is a candidate |
-| `originating_payload_tag` | string | The payload where this PR first caused failures |
-| `streak_length` | int | Consecutive payloads this job has been failing |
-| `failure_pattern` | string | Pass/fail history, most recent first (e.g., `"F F F S F F"`) |
-| `failing_jobs` | array | Jobs failing due to this candidate (see below) |
+| `failing_jobs` | array of strings | Job names from the top-level `failing_jobs[]` that this candidate is blamed for |
 | `actions` | array | Actions taken on this candidate (see below) |
-
-### `candidates[].failing_jobs[]`
-
-Jobs from the payload that are failing and attributed to this candidate. Written by `analyze-payload`, read by downstream skills. Never modified after creation.
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `job_name` | string | Full periodic job name |
-| `prow_url` | string | Prow URL for the original failing run |
-| `is_aggregated` | bool | Whether this is an aggregated job |
-| `underlying_job_name` | string | For aggregated jobs, the underlying periodic job name; `""` otherwise |
-| `failure_type` | string | `"test"`, `"install"`, `"upgrade"`, or `"infra"` |
-| `root_cause_summary` | string | Brief description of the failure mode |
 
 ### `candidates[].actions[]`
 
@@ -154,11 +168,11 @@ Payload validation jobs triggered against the revert PR.
 
 ### Create (used by `analyze-payload`)
 
-Write a new `payload-results-{tag}.yaml` with `metadata` and `candidates` populated. Candidates with no pre-existing revert start with `actions: []`. If a pre-existing revert PR is discovered during analysis, append an action with `type: "revert"` and `status: "open"` or `"merged"`.
+Write a new `payload-results-{tag}.yaml` with `metadata`, `failing_jobs`, and `candidates` populated. All failed blocking jobs are recorded in `failing_jobs`. Candidates with no pre-existing revert start with `actions: []`. If a pre-existing revert PR is discovered during analysis, append an action with `type: "revert"` and `status: "open"` or `"merged"`.
 
 ### Read Candidates (used by `payload-revert`, `payload-experiment`)
 
-Read the file. Filter candidates by `confidence_score` range. Exclude candidates that already have an action with `status` of `"open"` or `"merged"` (pre-existing revert). Return matching candidates.
+Read the file. Filter candidates by `confidence_score` range. Exclude candidates that already have an action with `status` of `"open"` or `"merged"` (pre-existing revert). Return matching candidates. Use the top-level `failing_jobs[]` to look up full job details for each candidate's `failing_jobs` references.
 
 ### Append Action (used by `stage-payload-reverts`, `payload-experimental-reverts`)
 

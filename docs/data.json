@@ -482,6 +482,11 @@
           "name": "OC Authentication Helper"
         },
         {
+          "description": "Schema for the autodl JSON data file produced by analyze-payload for database ingestion \u2014 you must use this skill whenever generating the autodl JSON file",
+          "id": "payload-autodl-json",
+          "name": "Payload Autodl JSON"
+        },
+        {
           "description": "Experimentally test medium-confidence payload candidates by opening draft revert PRs and triggering payload jobs",
           "id": "payload-experimental-reverts",
           "name": "Payload Experimental Reverts"
@@ -547,7 +552,7 @@
           "name": "Trigger Payload Job"
         }
       ],
-      "version": "0.0.26"
+      "version": "0.0.28"
     },
     {
       "commands": [

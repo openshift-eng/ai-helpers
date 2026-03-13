@@ -18,6 +18,13 @@ Use this skill when the `/ci:payload-experiment` command identifies candidate PR
   - `pr_url`, `pr_number`, `component`, `title`, `confidence_score`
   - `failing_jobs`: List of `{job_name, prow_url, is_aggregated, underlying_job_name}`
 
+## Required Skills
+
+Before starting, you **MUST** load the following skills (they define output schemas used when updating results):
+
+1. **`payload-results-yaml`** — schema for the payload results YAML file
+2. **`payload-autodl-json`** — schema for the autodl JSON data file
+
 ## Prerequisites
 
 1. **GitHub CLI (`gh`)**: Installed and authenticated
@@ -108,10 +115,7 @@ After all Phase 1 subagents complete, use the `payload-results-yaml` skill to up
 
 ### Update autodl JSON
 
-Update the autodl JSON file (`payload-analysis-{sanitized_tag}-autodl.json` in the current working directory). For each candidate that had a draft revert PR created, find the rows matching `candidate_pr_url` and set:
-
-- `revert_pr_url`: URL of the draft revert PR
-- `revert_pr_status`: `"draft"`
+Use the `payload-autodl-json` skill's "Update Experiment Status" Phase 1 operation to update the autodl JSON file for each candidate that had a draft revert PR created.
 
 ---
 
@@ -177,10 +181,7 @@ Use the `payload-results-yaml` skill to update the results file at `results_yaml
 
 #### 2.5: Update autodl JSON
 
-Update the autodl JSON file (`payload-analysis-{sanitized_tag}-autodl.json` in the current working directory). For each completed experiment, find the rows matching `candidate_pr_url` and update:
-
-- **PASS** (confirmed cause): `revert_pr_status`: `"open"`
-- **FAIL** (innocent): `revert_pr_url`: `""`, `revert_pr_status`: `""` (draft was closed)
+Use the `payload-autodl-json` skill's "Update Experiment Status" Phase 2 operation to update the autodl JSON file for each completed experiment.
 
 Return results to the caller. If any candidates remain `pending`, inform the caller that Phase 2 should be re-invoked later to collect remaining results.
 

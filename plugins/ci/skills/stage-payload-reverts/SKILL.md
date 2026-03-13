@@ -22,6 +22,13 @@ Use this skill when revert candidates have already been identified with high con
   - `originating_payload_tag`: The payload where this candidate PR first caused failures
   - `failing_jobs`: List of `{job_name, prow_url, is_aggregated, underlying_job_name}`
 
+## Required Skills
+
+Before starting, you **MUST** load the following skills (they define output schemas used when updating results):
+
+1. **`payload-results-yaml`** — schema for the payload results YAML file
+2. **`payload-autodl-json`** — schema for the autodl JSON data file
+
 ## Prerequisites
 
 1. **GitHub CLI (`gh`)**: Installed and authenticated
@@ -134,10 +141,7 @@ If the report has no "Recommended Reverts" section (all candidates scored below 
 
 ### Update autodl JSON
 
-After updating the HTML report, update the autodl JSON file (`payload-analysis-{sanitized_tag}-autodl.json` in the current working directory). For each candidate that was successfully staged, find the rows matching `candidate_pr_url` and set:
-
-- `revert_pr_url`: URL of the revert PR (created or pre-existing)
-- `revert_pr_status`: `"open"` (or `"draft"` if draft)
+After updating the HTML report, use the `payload-autodl-json` skill's "Update Revert Status" operation to update the autodl JSON file for each candidate that was successfully staged.
 
 Return results to the caller for inclusion in the report.
 
