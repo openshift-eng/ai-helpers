@@ -540,8 +540,8 @@
     {
       "commands": [
         {
-          "argument_hint": "[--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD] [--detailed]",
-          "description": "Report on CodeRabbit adoption across OpenShift org PRs",
+          "argument_hint": "[--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD]",
+          "description": "Report on CodeRabbit adoption across OCP payload repos",
           "name": "coderabbit-adoption-report",
           "synopsis": "/teams:coderabbit-adoption-report"
         },
@@ -660,7 +660,7 @@
           "name": "Summarize JIRAs"
         }
       ],
-      "version": "0.0.5"
+      "version": "0.0.6"
     },
     {
       "commands": [
