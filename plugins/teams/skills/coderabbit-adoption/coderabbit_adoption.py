@@ -2,16 +2,16 @@
 """
 CodeRabbit Adoption Report Script
 
-Measures CodeRabbit adoption across the openshift GitHub organization by
-querying the GitHub search API for merged PRs with coderabbitai[bot] comments.
+Measures CodeRabbit adoption across a curated list of OCP payload repositories
+by querying the GitHub search API for merged PRs with coderabbitai[bot] comments.
 
-By default, produces a lightweight org-wide summary using only 2 API calls.
-Use --detailed to add per-repo breakdowns with adoption percentages and a
-check for well-known repos missing CodeRabbit activity. The detailed mode
-makes many additional API calls and is prone to hitting GitHub rate limits.
+The script always produces per-repo breakdowns. It first queries org-wide for
+CodeRabbit-commented PRs (efficient pagination), then fetches per-repo total
+PR counts only for repos with CodeRabbit activity. Repos with no activity are
+listed separately without needing individual API calls.
 
 GitHub search API rate limit: 30 requests/minute for authenticated users.
-The --detailed mode uses 2-second sleeps between calls to stay under this.
+The script uses 2-second sleeps between calls to stay under this limit.
 
 Prerequisites:
     GitHub CLI (gh) must be installed and authenticated.
@@ -19,20 +19,26 @@ Prerequisites:
 Usage:
     python3 coderabbit_adoption.py
     python3 coderabbit_adoption.py --start-date 2026-02-01 --end-date 2026-02-28
-    python3 coderabbit_adoption.py --detailed
 """
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 import time
 from collections import Counter
 from datetime import datetime, timedelta
 
-# GitHub search API allows 30 requests/minute for authenticated users.
-# 2-second sleep keeps us at ~30 req/min with headroom.
 SEARCH_API_SLEEP = 2
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+ALLOWED_REPOS_FILE = os.path.join(SCRIPT_DIR, "allowed-repos.txt")
+
+
+def load_allowed_repos():
+    """Load the curated list of repos to report on."""
+    with open(ALLOWED_REPOS_FILE) as f:
+        return set(line.strip() for line in f if line.strip())
 
 
 def gh_api_get(endpoint, params=None):
@@ -57,8 +63,8 @@ def search_count(query):
 
 
 def search_items_paginated(query, max_pages=10):
-    """Fetch search results with pagination, returning repository_url list."""
-    urls = []
+    """Fetch search results with pagination, returning repository full_name list."""
+    repos = []
     for page in range(1, max_pages + 1):
         data = gh_api_get("/search/issues", {
             "q": query,
@@ -74,123 +80,88 @@ def search_items_paginated(query, max_pages=10):
             repo_url = item.get("repository_url", "")
             parts = repo_url.split("/repos/", 1)
             if len(parts) == 2:
-                urls.append(parts[1])
+                repos.append(parts[1])
         if len(items) < 100:
             break
         time.sleep(SEARCH_API_SLEEP)
-    return urls
+    return repos
 
 
 def main():
     parser = argparse.ArgumentParser(description="CodeRabbit Adoption Report")
     parser.add_argument("--start-date", help="Start date YYYY-MM-DD (default: 30 days ago)")
     parser.add_argument("--end-date", help="End date YYYY-MM-DD (default: today)")
-    parser.add_argument("--top-n", type=int, default=20,
-                        help="Number of top repos to show in breakdown (default: 20)")
-    parser.add_argument("--detailed", action="store_true",
-                        help="Fetch per-repo breakdowns with adoption percentages "
-                             "and check well-known repos for missing activity. "
-                             "Makes many extra API calls; prone to rate limiting.")
     args = parser.parse_args()
 
     end_date = args.end_date or datetime.now().strftime("%Y-%m-%d")
-    if args.start_date:
-        start_date = args.start_date
-    else:
-        start_date = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
+    start_date = args.start_date or (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
 
-    print(f"Querying GitHub search API for merged PRs in openshift org...", file=sys.stderr)
+    allowed_repos = load_allowed_repos()
+    print(f"Loaded {len(allowed_repos)} repos from allowed list", file=sys.stderr)
     print(f"Date range: {start_date} to {end_date}", file=sys.stderr)
 
-    # Step 1: Get total merged PRs (1 API call)
-    base_query = f"is:pr is:merged org:openshift merged:{start_date}..{end_date}"
-    total = search_count(base_query)
-    print(f"Total merged PRs: {total}", file=sys.stderr)
+    # Phase 1: Get org-wide CR PR count (1 API call)
+    print("Querying org-wide CodeRabbit PR count...", file=sys.stderr)
+    cr_query = f"is:pr is:merged org:openshift merged:{start_date}..{end_date} commenter:coderabbitai[bot]"
+    org_cr_total = search_count(cr_query)
+    print(f"  Org-wide PRs with CodeRabbit: {org_cr_total}", file=sys.stderr)
+    time.sleep(SEARCH_API_SLEEP)
 
-    # Step 2: Get merged PRs with CodeRabbit comments (1 API call)
-    cr_query = f"{base_query} commenter:coderabbitai[bot]"
-    with_cr = search_count(cr_query)
-    print(f"PRs with CodeRabbit comments: {with_cr}", file=sys.stderr)
+    # Phase 2: Paginate CR results to get per-repo counts (~10 API calls)
+    print("Fetching per-repo CodeRabbit counts via pagination...", file=sys.stderr)
+    cr_repo_urls = search_items_paginated(cr_query)
+    all_cr_counts = Counter(cr_repo_urls)
+    cr_counts = {repo: count for repo, count in all_cr_counts.items() if repo in allowed_repos}
+    approximate = len(cr_repo_urls) < org_cr_total
+    print(f"  Found CodeRabbit activity in {len(cr_counts)} allowed repos "
+          f"(paginated {len(cr_repo_urls)}/{org_cr_total} results"
+          f"{', approximate' if approximate else ''})", file=sys.stderr)
+    time.sleep(SEARCH_API_SLEEP)
 
-    adoption_pct = (with_cr / total * 100) if total > 0 else 0
+    # Phase 3: Query per-repo total PRs for repos with CR activity
+    repos_with_cr = sorted(cr_counts.keys(), key=lambda r: cr_counts[r], reverse=True)
+    repo_breakdown = []
+    total_prs = 0
+    total_cr_prs = sum(cr_counts.values())
+
+    if repos_with_cr:
+        print(f"Fetching total PR counts for {len(repos_with_cr)} active repos "
+              f"(~{len(repos_with_cr) * SEARCH_API_SLEEP}s)...", file=sys.stderr)
+
+    for i, repo in enumerate(repos_with_cr, 1):
+        cr_count = cr_counts[repo]
+        repo_total = search_count(
+            f"is:pr is:merged repo:{repo} merged:{start_date}..{end_date}")
+        total_prs += repo_total
+        adoption_pct = round((cr_count / repo_total * 100) if repo_total > 0 else 0, 1)
+        repo_breakdown.append({
+            "repo": repo,
+            "cr_count": cr_count,
+            "total": repo_total,
+            "adoption_pct": adoption_pct,
+        })
+        print(f"  [{i}/{len(repos_with_cr)}] {repo}: {cr_count}/{repo_total} ({adoption_pct}%)",
+              file=sys.stderr)
+        time.sleep(SEARCH_API_SLEEP)
+
+    # Repos with no CR activity
+    repos_without_cr = sorted(allowed_repos - set(cr_counts.keys()))
+
+    overall_adoption = round((total_cr_prs / total_prs * 100) if total_prs > 0 else 0, 1)
 
     output = {
         "start_date": start_date,
         "end_date": end_date,
-        "total_merged_prs": total,
-        "prs_with_coderabbit": with_cr,
-        "adoption_pct": round(adoption_pct, 1),
-        "detailed": args.detailed,
-        "repo_breakdown": [],
-        "no_coderabbit_activity": [],
+        "total_merged_prs": total_prs,
+        "prs_with_coderabbit": total_cr_prs,
+        "adoption_pct": overall_adoption,
+        "per_repo_approximate": approximate,
+        "repo_breakdown": repo_breakdown,
+        "repos_without_cr_activity": repos_without_cr,
+        "repos_without_cr_count": len(repos_without_cr),
+        "repos_with_cr_count": len(repos_with_cr),
+        "total_allowed_repos": len(allowed_repos),
     }
-
-    if args.detailed:
-        print("Detailed mode: fetching per-repo breakdown "
-              "(2s between calls to respect rate limits)...", file=sys.stderr)
-
-        # Step 3: Paginate for per-repo CR counts (up to 10 API calls)
-        repo_urls = search_items_paginated(cr_query)
-        repo_counts = Counter(repo_urls)
-        output["per_repo_approximate"] = len(repo_urls) < with_cr
-
-        top_repos = repo_counts.most_common(args.top_n)
-
-        # Step 4: Fetch per-repo totals for adoption percentages
-        repo_breakdown = []
-        print(f"Fetching total PR counts for top {len(top_repos)} repos...", file=sys.stderr)
-        for repo_name, cr_count in top_repos:
-            repo_total = search_count(
-                f"is:pr is:merged repo:{repo_name} merged:{start_date}..{end_date}")
-            repo_breakdown.append({
-                "repo": repo_name,
-                "cr_count": cr_count,
-                "total": repo_total,
-                "adoption_pct": round(
-                    (cr_count / repo_total * 100) if repo_total > 0 else 0, 1),
-            })
-            time.sleep(SEARCH_API_SLEEP)
-
-        output["repo_breakdown"] = repo_breakdown
-
-        # Step 5: Find high-volume repos with no CodeRabbit activity
-        well_known_repos = [
-            "openshift/release",
-            "openshift/installer",
-            "openshift/machine-config-operator",
-            "openshift/ovn-kubernetes",
-            "openshift/openshift-tests-private",
-            "openshift/cluster-logging-operator",
-            "openshift/library-go",
-            "openshift/kubernetes",
-            "openshift/enhancements",
-            "openshift/cluster-monitoring-operator",
-            "openshift/router",
-            "openshift/cluster-node-tuning-operator",
-            "openshift/machine-api-operator",
-            "openshift/openshift-controller-manager",
-            "openshift/cluster-storage-operator",
-            "openshift/cluster-openshift-apiserver-operator",
-            "openshift/multus-cni",
-            "openshift/sriov-network-operator",
-        ]
-        repos_with_cr = set(repo_counts.keys())
-        repos_to_check = [r for r in well_known_repos if r not in repos_with_cr]
-        if repos_to_check:
-            print(f"Checking {len(repos_to_check)} well-known repos for activity...",
-                  file=sys.stderr)
-        no_cr_repos = {}
-        for repo_name in repos_to_check:
-            repo_total = search_count(
-                f"is:pr is:merged repo:{repo_name} merged:{start_date}..{end_date}")
-            if repo_total >= 10:
-                no_cr_repos[repo_name] = repo_total
-            time.sleep(SEARCH_API_SLEEP)
-
-        output["no_coderabbit_activity"] = [
-            {"repo": k, "total": v}
-            for k, v in sorted(no_cr_repos.items(), key=lambda x: x[1], reverse=True)
-        ]
 
     json.dump(output, sys.stdout, indent=2)
     print(file=sys.stdout)

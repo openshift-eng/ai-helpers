@@ -347,7 +347,7 @@ See [plugins/sosreport/README.md](plugins/sosreport/README.md) for detailed docu
 Team structure knowledge and health analysis commands for OpenShift teams
 
 **Commands:**
-- **`/teams:coderabbit-adoption-report` `[--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD] [--detailed]`** - Report on CodeRabbit adoption across OpenShift org PRs
+- **`/teams:coderabbit-adoption-report` `[--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD]`** - Report on CodeRabbit adoption across OCP payload repos
 - **`/teams:coderabbit-inheritance-scanner` `[--dry-run]`** - Scan openshift org repos for .coderabbit.yaml/.coderabbit.yml files missing inheritance
 - **`/teams:health-check-jiras` `--project <project> [--component comp1 comp2 ...] [--team <team-name>] [--status status1 status2 ...] [--include-closed] [--limit N]`** - Query and summarize JIRA bugs for a specific project with counts by component
 - **`/teams:health-check-regressions` `<release> [--components comp1 comp2 ...] [--team <team-name>] [--start YYYY-MM-DD] [--end YYYY-MM-DD]`** - Query and summarize regression data for OpenShift releases with counts and metrics
