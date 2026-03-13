@@ -255,7 +255,7 @@ This file contains ALL scored candidates across all confidence tiers (HIGH, MEDI
 
 When a PR appears as a candidate for multiple jobs, merge into one entry using the highest confidence score and combining all `failing_jobs` into a single list.
 
-All candidates start with `actions: []`. The `actions` array is populated later by downstream skills (`stage-payload-reverts`, `payload-experimental-reverts`).
+Candidates start with `actions: []` unless a pre-existing revert PR was found in Step 6.3. If found, append an action with `type: "revert"`, `status: "open"` or `"merged"`, `revert_pr_url` set, and remaining action fields empty. Downstream skills (`stage-payload-reverts`, `payload-experimental-reverts`) append additional actions.
 
 See the `payload-results-yaml` skill for the complete schema.
 
@@ -473,11 +473,11 @@ You may add additional classes as needed (e.g., history markers, timeline items,
 
 ### Step 8: Generate JSON Data File
 
-After generating the HTML report, produce a single structured JSON data file for database ingestion. The file contains one flat table with **one row per (failed blocking job, revert candidate) pair**:
+After generating the HTML report, produce a single structured JSON data file for database ingestion. The file contains one flat table with **one row per (failed blocking job, candidate) pair**:
 
-- A failed job with **no** revert candidate gets exactly **one row** (revert fields are empty strings / `"0"`).
-- A failed job with **one** revert candidate gets **one row** with revert fields populated.
-- A failed job with **two or more** revert candidates gets **one row per candidate** (job fields repeat, revert fields differ).
+- A failed job with **no** candidate gets exactly **one row** (candidate fields are empty strings / `"0"`).
+- A failed job with **one** candidate gets **one row** with candidate fields populated.
+- A failed job with **two or more** candidates gets **one row per candidate** (job fields repeat, candidate fields differ).
 - **Only failed blocking jobs** are included — passed jobs are omitted.
 
 Payload-level summary fields are denormalized (repeated identically) across all rows for the same payload.
@@ -488,7 +488,7 @@ The filename **must** end with `-autodl.json`: `payload-analysis-<sanitized_tag>
 
 ```json
 {
-    "table_name": "payload_analysis",
+    "table_name": "payload_triage",
     "schema": {
         "payload_tag": "string",
         "version": "string",
@@ -503,18 +503,17 @@ The filename **must** end with `-autodl.json`: `payload-analysis-<sanitized_tag>
         "job_name": "string",
         "prow_url": "string",
         "failure_type": "string",
+        "root_cause_summary": "string",
         "streak_length": "int64",
         "is_new_failure": "int64",
-        "failure_pattern": "string",
         "originating_payload_tag": "string",
-        "failure_analysis": "string",
+        "candidate_pr_url": "string",
+        "candidate_title": "string",
+        "candidate_repo": "string",
+        "candidate_confidence_score": "int64",
+        "candidate_rationale": "string",
         "revert_pr_url": "string",
-        "revert_pr_number": "int64",
-        "revert_component": "string",
-        "revert_confidence_pct": "int64",
-        "revert_rationale": "string",
-        "existing_revert_status": "string",
-        "existing_revert_pr_url": "string"
+        "revert_pr_status": "string"
     },
     "schema_mapping": null,
     "rows": [
@@ -532,18 +531,17 @@ The filename **must** end with `-autodl.json`: `payload-analysis-<sanitized_tag>
             "job_name": "periodic-ci-openshift-release-main-ci-4.22-e2e-aws-ovn",
             "prow_url": "https://prow.ci.openshift.org/view/gs/...",
             "failure_type": "test",
+            "root_cause_summary": "OVN gateway mode selection regression",
             "streak_length": "5",
             "is_new_failure": "0",
-            "failure_pattern": "F F F F F S S",
             "originating_payload_tag": "4.22.0-0.nightly-2026-02-20-150000",
-            "failure_analysis": "Root cause summary from subagent...",
-            "revert_pr_url": "https://github.com/openshift/cno/pull/2037",
-            "revert_pr_number": "2037",
-            "revert_component": "cluster-network-operator",
-            "revert_confidence_pct": "95",
-            "revert_rationale": "Error references code changed by this PR",
-            "existing_revert_status": "",
-            "existing_revert_pr_url": ""
+            "candidate_pr_url": "https://github.com/openshift/cno/pull/2037",
+            "candidate_title": "Fix OVN gateway mode selection",
+            "candidate_repo": "openshift/cluster-network-operator",
+            "candidate_confidence_score": "95",
+            "candidate_rationale": "Error references code changed by this PR",
+            "revert_pr_url": "https://github.com/openshift/cno/pull/2038",
+            "revert_pr_status": "open"
         },
         {
             "payload_tag": "4.22.0-0.nightly-2026-02-25-152806",
@@ -559,18 +557,17 @@ The filename **must** end with `-autodl.json`: `payload-analysis-<sanitized_tag>
             "job_name": "periodic-ci-openshift-release-main-ci-4.22-e2e-gcp-ovn",
             "prow_url": "https://prow.ci.openshift.org/view/gs/...",
             "failure_type": "install",
+            "root_cause_summary": "Install timeout waiting for etcd quorum",
             "streak_length": "2",
             "is_new_failure": "0",
-            "failure_pattern": "F F S S S S S",
             "originating_payload_tag": "4.22.0-0.nightly-2026-02-23-080000",
-            "failure_analysis": "Install timeout waiting for etcd quorum...",
+            "candidate_pr_url": "",
+            "candidate_title": "",
+            "candidate_repo": "",
+            "candidate_confidence_score": "0",
+            "candidate_rationale": "",
             "revert_pr_url": "",
-            "revert_pr_number": "0",
-            "revert_component": "",
-            "revert_confidence_pct": "0",
-            "revert_rationale": "",
-            "existing_revert_status": "",
-            "existing_revert_pr_url": ""
+            "revert_pr_status": ""
         }
     ],
     "chunk_size": 0,
@@ -583,9 +580,9 @@ The filename **must** end with `-autodl.json`: `payload-analysis-<sanitized_tag>
 
 | Scenario | Rows for that job |
 |----------|-------------------|
-| Failed job, no revert candidate | 1 row — revert fields are `""` / `"0"` |
-| Failed job, 1 revert candidate | 1 row — revert fields populated |
-| Failed job, 2+ revert candidates | N rows — job fields identical, revert fields differ per candidate |
+| Failed job, no candidate | 1 row — candidate fields are `""` / `"0"` |
+| Failed job, 1 candidate | 1 row — candidate fields populated |
+| Failed job, 2+ candidates | N rows — job fields identical, candidate fields differ per candidate |
 | Passed job | 0 rows — not included |
 
 #### Rules
@@ -593,10 +590,11 @@ The filename **must** end with `-autodl.json`: `payload-analysis-<sanitized_tag>
 1. **All row values are strings** — wrap every value in double quotes (e.g., `"5"` not `5`).
 2. **Empty/missing values** are empty strings (`""`). For int64 fields with no value, use `"0"`.
 3. **`is_new_failure`**: `"1"` for true, `"0"` for false.
-4. **`revert_confidence_pct`**: Integer percentage, e.g. `"95"` for 95%. `"0"` when no candidate.
-5. **`existing_revert_status`**: `"merged"`, `"open"`, or `""` if no existing revert.
-6. **`schema_mapping`** is always `null`.
-7. **`chunk_size`**, **`expiration_days`**, and **`partition_column`** are always `0`, `0`, and `""`.
+4. **`candidate_confidence_score`**: Integer 0-100, e.g. `"95"`. `"0"` when no candidate.
+5. **`revert_pr_url`**: URL of the revert PR — either a pre-existing revert discovered during analysis, or one created by `stage-payload-reverts`. `""` if no revert exists.
+6. **`revert_pr_status`**: `"open"`, `"merged"`, `"draft"`, `"closed"`, or `""` if no revert.
+7. **`schema_mapping`** is always `null`.
+8. **`chunk_size`**, **`expiration_days`**, and **`partition_column`** are always `0`, `0`, and `""`.
 
 ### Step 9: Save and Present
 

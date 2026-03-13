@@ -41,7 +41,7 @@ When the number of failing jobs across all candidates exceeds these limits, prio
    Run `/ci:analyze-payload {payload_tag}` first to generate it.
    ```
 
-3. **Filter candidates**: Select candidates with `confidence_score >= 85`. Exclude any with `existing_revert_status` of `"merged"` or `"open"`.
+3. **Filter candidates**: Select candidates with `confidence_score >= 85`. Exclude any that already have an action with `status` of `"open"` or `"merged"` (pre-existing revert).
 
 4. **Dispatch to `stage-payload-reverts` skill**: Pass all qualifying candidates with their context (results YAML path, payload tag, version, stream, architecture, release controller URL, and failing jobs). The skill updates the results YAML and HTML report in place. The `trigger-payload-job` skill validates that aggregated jobs have `underlying_job_name` set and skips them with an error if not.
 

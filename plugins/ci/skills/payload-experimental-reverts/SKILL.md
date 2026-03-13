@@ -106,6 +106,13 @@ Candidates beyond the top 5 that were never processed at all should get an actio
 
 After all Phase 1 subagents complete, use the `payload-results-yaml` skill to update the results file at `results_yaml_path` with the action entries for each candidate that was processed or deferred.
 
+### Update autodl JSON
+
+Update the autodl JSON file (`payload-analysis-{sanitized_tag}-autodl.json` in the current working directory). For each candidate that had a draft revert PR created, find the rows matching `candidate_pr_url` and set:
+
+- `revert_pr_url`: URL of the draft revert PR
+- `revert_pr_status`: `"draft"`
+
 ---
 
 ### Phase 2: Collect Results and Act
@@ -167,6 +174,13 @@ If all experiments fail, close all remaining draft PRs and note in the result su
 Use the `payload-results-yaml` skill to update the results file at `results_yaml_path`:
 - For each completed candidate, update the relevant action entry's `status`, `result_summary`, `revert_pr_state`, `jira_key`, `jira_url`
 - Candidates whose jobs are still running keep their action entry's `status: "pending"` (unchanged)
+
+#### 2.5: Update autodl JSON
+
+Update the autodl JSON file (`payload-analysis-{sanitized_tag}-autodl.json` in the current working directory). For each completed experiment, find the rows matching `candidate_pr_url` and update:
+
+- **PASS** (confirmed cause): `revert_pr_status`: `"open"`
+- **FAIL** (innocent): `revert_pr_url`: `""`, `revert_pr_status`: `""` (draft was closed)
 
 Return results to the caller. If any candidates remain `pending`, inform the caller that Phase 2 should be re-invoked later to collect remaining results.
 

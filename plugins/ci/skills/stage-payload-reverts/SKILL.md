@@ -132,6 +132,13 @@ Find the existing "Recommended Reverts" section in the HTML. For each candidate 
 
 If the report has no "Recommended Reverts" section (all candidates scored below 85 during analysis), add one before the per-job details section, using the same HTML structure as described in `analyze-payload` Step 7.4.
 
+### Update autodl JSON
+
+After updating the HTML report, update the autodl JSON file (`payload-analysis-{sanitized_tag}-autodl.json` in the current working directory). For each candidate that was successfully staged, find the rows matching `candidate_pr_url` and set:
+
+- `revert_pr_url`: URL of the revert PR (created or pre-existing)
+- `revert_pr_status`: `"open"` (or `"draft"` if draft)
+
 Return results to the caller for inclusion in the report.
 
 ## Error Handling

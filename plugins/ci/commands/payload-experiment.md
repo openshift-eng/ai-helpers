@@ -45,7 +45,7 @@ This command is one of three composable stages in the payload triage pipeline:
 
 3. **Detect Phase 2 resume**: If the results YAML contains any action entry with `type: "experiment"` and `status: "pending"`, jump to Phase 2 (step 5). Phase 2 processes only pending experiments — candidates with other statuses are left unchanged.
 
-4. **Phase 1 — Set up experiments**: Filter candidates with `60 <= confidence_score < 85`. Exclude any with `existing_revert_status` of `"merged"` or `"open"`. Dispatch to the `payload-experimental-reverts` skill Phase 1, which updates the results YAML in place.
+4. **Phase 1 — Set up experiments**: Filter candidates with `60 <= confidence_score < 85`. Exclude any that already have an action with `status` of `"open"` or `"merged"` (pre-existing revert). Dispatch to the `payload-experimental-reverts` skill Phase 1, which updates the results YAML in place.
 
 5. **Phase 2 — Collect results**: Dispatch to the `payload-experimental-reverts` skill Phase 2 to check job results, promote confirmed causes, close innocent drafts, and update the results YAML.
 

@@ -46,8 +46,6 @@ candidates:
     originating_payload_tag: "4.22.0-0.nightly-2026-02-20-150000"
     streak_length: 5
     failure_pattern: "F F F F F S S"
-    existing_revert_status: ""   # "merged", "open", or ""
-    existing_revert_pr_url: ""
     failing_jobs:
       - job_name: "periodic-ci-...-e2e-aws-ovn"
         prow_url: "https://prow.ci.openshift.org/..."
@@ -97,8 +95,6 @@ Each entry represents a PR identified as a candidate cause of payload failures. 
 | `originating_payload_tag` | string | The payload where this PR first caused failures |
 | `streak_length` | int | Consecutive payloads this job has been failing |
 | `failure_pattern` | string | Pass/fail history, most recent first (e.g., `"F F F S F F"`) |
-| `existing_revert_status` | string | `"merged"`, `"open"`, or `""` — pre-existing revert PR status |
-| `existing_revert_pr_url` | string | URL of pre-existing revert PR, or `""` |
 | `failing_jobs` | array | Jobs failing due to this candidate (see below) |
 | `actions` | array | Actions taken on this candidate (see below) |
 
@@ -134,6 +130,8 @@ Actions taken on a candidate. New entries are **appended** by downstream skills.
 
 | Status | Meaning |
 |--------|---------|
+| `"open"` | Pre-existing revert PR found open during analysis |
+| `"merged"` | Pre-existing revert PR already merged |
 | `"staged"` | Revert PR and JIRA created, payload jobs triggered (used by `type: "revert"`) |
 | `"pending"` | Experiment dispatched, payload jobs running, results not yet collected |
 | `"passed"` | Payload jobs passed with the revert — candidate confirmed as cause |
@@ -156,11 +154,11 @@ Payload validation jobs triggered against the revert PR.
 
 ### Create (used by `analyze-payload`)
 
-Write a new `payload-results-{tag}.yaml` with `metadata` and `candidates` populated. All candidates start with `actions: []`.
+Write a new `payload-results-{tag}.yaml` with `metadata` and `candidates` populated. Candidates with no pre-existing revert start with `actions: []`. If a pre-existing revert PR is discovered during analysis, append an action with `type: "revert"` and `status: "open"` or `"merged"`.
 
 ### Read Candidates (used by `payload-revert`, `payload-experiment`)
 
-Read the file. Filter candidates by `confidence_score` range and `existing_revert_status`. Return matching candidates.
+Read the file. Filter candidates by `confidence_score` range. Exclude candidates that already have an action with `status` of `"open"` or `"merged"` (pre-existing revert). Return matching candidates.
 
 ### Append Action (used by `stage-payload-reverts`, `payload-experimental-reverts`)
 
