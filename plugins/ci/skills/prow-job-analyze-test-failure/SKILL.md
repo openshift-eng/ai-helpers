@@ -337,6 +337,19 @@ The CI system may attach **symptom labels** to job runs — machine-detected pat
 - Store logs under `.work/prow-job-analyze-test-failure/{build_id}/logs/`
 - Collect evidence from logs and events and other json/yaml files
 
+### Step 4.4b: Investigate crash-looping or failing containers
+
+**Be tenacious.** When the build log or test output mentions crash-looping pods, container restarts, or deployments not becoming ready, you MUST trace the failure to its root cause. Never stop at "containers are crash-looping" — find out *why*.
+
+**Pursue all available log sources:**
+
+- **Must-gather data** (Step 4.6–4.7): Contains pod YAMLs with `containerStatuses` (`exitCode`, `lastState.terminated.reason`, `restartCount`), container logs (current and previous), events, and operator conditions. This is often the richest source for diagnosing crash-looping pods.
+- **Gather-extra / gather-audit logs**: Some jobs run additional gather steps that collect extra diagnostics. List the step artifacts directory for gather steps beyond `gather-must-gather` (e.g., `gather-extra`, `gather-audit-logs`) and download relevant logs.
+- **Step-level build logs**: The build log for the failing test step (downloaded in Step 4.2) often contains error output, stack traces, and timeout messages that reference specific pods or containers.
+- **Events from interval files** (Step 4.3): Operator state transitions and warning events correlated with the failure window.
+
+**Follow the dependency chain.** Always trace upstream to the originating error rather than stopping at the first symptom.
+
 ### Step 4.5: Check for Must-Gather Availability
 
 1. **Parse optional flags**
@@ -895,7 +908,9 @@ Only if Step 4.7 completed:
 
 ### Step 4.9: Determine Root Cause
 
-Synthesize all gathered evidence to determine the most likely root cause for the test failure:
+Synthesize all gathered evidence to determine the most likely root cause for the test failure.
+
+**CRITICAL: Be tenacious — trace symptoms back to root cause.** Never stop at high-level symptoms like "nodes didn't join", "operator unavailable", or "containers are crash-looping". Trace backwards through the dependency chain (pod statuses → container logs → originating error) until you find the specific, actionable root cause.
 
 1. **Analyze all available evidence**
    - Stack traces from Step 4.2

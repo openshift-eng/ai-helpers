@@ -1,12 +1,8 @@
 #!/usr/bin/env python3
 """Fetch recent release payloads from the OpenShift release controller.
 
-Lists release payloads for a given architecture, version, and stream,
-showing their tag name, phase (Accepted/Rejected/Ready), and a link
-to the release controller page for more details.
-
-For rejected payloads, fetches release details and reports which
-blocking jobs failed with their Prow links.
+Outputs JSON with each payload's tag, phase, release controller URL,
+and full API details (blocking jobs, async jobs, retries, Prow URLs).
 """
 
 import argparse
@@ -36,12 +32,8 @@ def release_stream_name(version: str, stream: str, architecture: str) -> str:
       - ci stream is only available on amd64
     """
     if stream == "ci" and architecture != "amd64":
-        print(
-            "Error: The 'ci' stream is only available for amd64.",
-            file=sys.stderr,
-        )
+        print("Error: The 'ci' stream is only available for amd64.", file=sys.stderr)
         sys.exit(1)
-
     name = f"{version}.0-0.{stream}"
     if architecture != "amd64":
         name += f"-{architecture}"
@@ -86,68 +78,6 @@ def release_page_url(architecture: str, stream_name: str, tag_name: str) -> str:
     return f"https://{domain}/releasestream/{stream_name}/release/{tag_name}"
 
 
-def parse_timestamp(tag_name: str) -> str:
-    """Extract a human-readable timestamp from a payload tag name.
-
-    Tags contain a YYYY-MM-DD-HHMMSS suffix, e.g.:
-      4.18.0-0.nightly-2026-02-26-105306 -> 2026-02-26 10:53:06
-    """
-    m = re.search(r"(\d{4}-\d{2}-\d{2})-(\d{2})(\d{2})(\d{2})$", tag_name)
-    if m:
-        return f"{m.group(1)} {m.group(2)}:{m.group(3)}:{m.group(4)}"
-    return "unknown"
-
-
-def format_payload(tag: dict, details: dict, architecture: str, stream_name: str) -> str:
-    """Format a single payload's output."""
-    name = tag.get("name", "")
-    phase = tag.get("phase", "Unknown")
-    timestamp = parse_timestamp(name)
-    url = release_page_url(architecture, stream_name, name)
-
-    lines = [f"{name}  ({phase})  {timestamp}  {url}"]
-
-    results = details.get("results", {})
-    blocking = results.get("blockingJobs", {})
-
-    if not blocking:
-        return "\n".join(lines)
-
-    # Categorize jobs by state
-    succeeded_jobs = {k: v for k, v in blocking.items() if v.get("state") == "Succeeded"}
-    failed_jobs = {k: v for k, v in blocking.items() if v.get("state") == "Failed"}
-    pending_jobs = {k: v for k, v in blocking.items() if v.get("state") == "Pending"}
-
-    # Build summary line
-    parts = []
-    if succeeded_jobs:
-        parts.append(f"{len(succeeded_jobs)} succeeded")
-    if pending_jobs:
-        parts.append(f"{len(pending_jobs)} pending")
-    if failed_jobs:
-        parts.append(f"{len(failed_jobs)} failed")
-
-    if parts:
-        lines.append(f"  Blocking: {', '.join(parts)} (of {len(blocking)})")
-    else:
-        lines.append(f"  Blocking: {len(blocking)} jobs")
-
-    # Show failed jobs with details
-    if failed_jobs:
-        for job_name, info in sorted(failed_jobs.items()):
-            retries = info.get("retries", 0)
-            retry_str = f" ({retries} retries)" if retries else ""
-            prow_url = info.get("url", "")
-            lines.append(f"    FAILED  {job_name}{retry_str}")
-            if prow_url:
-                lines.append(f"            {prow_url}")
-            previous = info.get("previousAttemptURLs") or []
-            for i, prev_url in enumerate(previous, 1):
-                lines.append(f"            attempt {i}: {prev_url}")
-
-    return "\n".join(lines)
-
-
 def get_latest_version() -> str:
     """Fetch the latest OCP version from the Sippy API."""
     try:
@@ -156,13 +86,11 @@ def get_latest_version() -> str:
     except Exception as e:
         print(f"Error: Could not fetch releases from Sippy: {e}", file=sys.stderr)
         sys.exit(1)
-
     releases = data.get("releases", [])
     ocp_releases = [r for r in releases if re.match(r"^\d+\.\d+$", r)]
     if not ocp_releases:
         print("Error: No OCP releases found in Sippy API.", file=sys.stderr)
         sys.exit(1)
-
     return ocp_releases[0]
 
 
@@ -171,33 +99,23 @@ def main():
         description="Fetch recent release payloads from the OpenShift release controller.",
     )
     parser.add_argument(
-        "architecture",
-        nargs="?",
-        default="amd64",
+        "architecture", nargs="?", default="amd64",
         help="CPU architecture (default: amd64). Options: amd64, arm64, ppc64le, s390x, multi",
     )
     parser.add_argument(
-        "version",
-        nargs="?",
-        default=None,
+        "version", nargs="?", default=None,
         help="OCP version, e.g. 4.18 (default: latest from Sippy API)",
     )
     parser.add_argument(
-        "stream",
-        nargs="?",
-        default="nightly",
+        "stream", nargs="?", default="nightly",
         help="Release stream (default: nightly). Options: nightly, ci",
     )
     parser.add_argument(
-        "--limit",
-        type=int,
-        default=5,
+        "--limit", type=int, default=5,
         help="Maximum number of tags to show (default: 5, 0 = all)",
     )
     parser.add_argument(
-        "--phase",
-        choices=["Accepted", "Rejected", "Ready"],
-        default=None,
+        "--phase", choices=["Accepted", "Rejected", "Ready"], default=None,
         help="Filter by phase",
     )
 
@@ -218,15 +136,12 @@ def main():
 
     stream = args.stream
     stream_name = release_stream_name(version, stream, architecture)
-
     tags = fetch_tags(architecture, version, stream)
 
     if args.phase:
         tags = [t for t in tags if t.get("phase") == args.phase]
-
     if args.limit > 0:
         tags = tags[: args.limit]
-
     if not tags:
         print("No payloads found.", file=sys.stderr)
         sys.exit(1)
@@ -234,12 +149,23 @@ def main():
     print(f"Release stream: {stream_name} ({architecture})", file=sys.stderr)
     print(f"Fetching details for {len(tags)} payloads...", file=sys.stderr)
 
-    for i, tag in enumerate(tags):
+    payloads = []
+    for tag in tags:
         name = tag.get("name", "")
         details = fetch_release_details(architecture, stream_name, name)
-        print(format_payload(tag, details, architecture, stream_name))
-        if i < len(tags) - 1:
-            print()
+        all_results = details.get("results", {})
+        filtered_results = {
+            k: v for k, v in all_results.items()
+            if k in ("blockingJobs", "asyncJobs")
+        }
+        payloads.append({
+            "tag": name,
+            "phase": tag.get("phase", "Unknown"),
+            "url": release_page_url(architecture, stream_name, name),
+            "results": filtered_results,
+        })
+
+    print(json.dumps(payloads, indent=2))
 
 
 if __name__ == "__main__":

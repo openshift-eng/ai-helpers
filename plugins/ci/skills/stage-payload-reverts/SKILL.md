@@ -13,13 +13,21 @@ Use this skill when revert candidates have already been identified with high con
 
 **Inputs** (passed in-context by the caller):
 
+- `results_yaml_path`: Path to the payload results YAML file (e.g., `./payload-results-{tag}.yaml`)
 - `payload_tag`: The full payload tag being analyzed
 - `version`, `stream`, `architecture`: Parsed from the payload tag
 - `release_controller_url`: URL to the payload on the release controller
 - `revert_candidates`: List of PRs to revert, each with:
   - `pr_url`, `pr_number`, `component`, `confidence_score`, `rationale`
-  - `originating_payload_tag`: The payload where this suspect PR first caused failures
+  - `originating_payload_tag`: The payload where this candidate PR first caused failures
   - `failing_jobs`: List of `{job_name, prow_url, is_aggregated, underlying_job_name}`
+
+## Required Skills
+
+Before starting, you **MUST** load the following skills (they define output schemas used when updating results):
+
+1. **`payload-results-yaml`** — schema for the payload results YAML file
+2. **`payload-autodl-json`** — schema for the autodl JSON data file
 
 ## Prerequisites
 
@@ -96,30 +104,46 @@ Use the `trigger-payload-job` skill (`plugins/ci/skills/trigger-payload-job/SKIL
 - `pr_url`: The revert PR URL from Substep 2
 - `jobs`: The `failing_jobs` list for this candidate (includes `job_name`, `is_aggregated`, `underlying_job_name` for each job)
 
-The skill handles idempotency (checking for existing bot replies), correct command selection (`/payload-aggregate` vs `/payload-job`), polling, and URL extraction.
+The skill handles idempotency (checking for existing bot replies), correct command selection, polling, and URL extraction.
+
+See the `trigger-payload-job` skill for exact command syntax. The skill enforces format requirements.
 
 Record the `payload_test_url` and individual `prow_url`s from the skill's return data.
 
 ## Subagent Return Format
 
-Each subagent should return its results in this format:
+Each subagent should use the `payload-results-yaml` skill to update the results YAML, then return a brief status summary (success/partial/failed with any error descriptions) for the caller to print.
 
-```
-STAGED_REVERT_RESULT:
-- original_pr_url: ...
-- original_pr_number: ...
-- component: ...
-- jira_key: TRT-XXXX
-- jira_url: https://issues.redhat.com/browse/TRT-XXXX
-- revert_pr_url: https://github.com/org/repo/pull/YYYY
-- payload_test_url: https://pr-payload-tests.ci.openshift.org/runs/ci/...
-- payload_jobs_triggered: job1, job2, ...
-- status: success|partial|failed
-- reused: none|jira|revert_pr|payload_jobs|all
-- error: none|description
-```
+Collect all subagent results.
 
-Collect all subagent results. Return to the caller for inclusion in the report.
+### Update Payload Results YAML
+
+After all subagents complete, use the `payload-results-yaml` skill to append an action to each processed candidate's `actions` array in the results file at `results_yaml_path`:
+
+- `type`: `"revert"`
+- `status`: `"staged"` (or `"failed"` if the revert PR could not be created)
+- `revert_pr_url`, `revert_pr_state`, `jira_key`, `jira_url`, `result_summary`, `payload_jobs`
+
+See the `payload-results-yaml` skill for the full schema.
+
+### Update HTML Report
+
+After updating the results YAML, update the HTML report (`payload-analysis-{sanitized_tag}-summary.html` in the current working directory) to include links to the staged reverts.
+
+Find the existing "Recommended Reverts" section in the HTML. For each candidate that was successfully staged, add a new row to the table or update the existing row to include:
+
+- **Revert PR**: Link to the revert PR (e.g., `<a href="{revert_pr_url}">#{revert_pr_number}</a>`)
+- **JIRA**: Link to the TRT issue (e.g., `<a href="{jira_url}">{jira_key}</a>`)
+- **Payload Jobs**: Link to the pr-payload-tests URL (e.g., `<a href="{payload_test_url}">Payload Test</a>`)
+- **Status**: Badge showing `Revert Staged` (use the `badge-rejected` class for visual consistency)
+
+If the report has no "Recommended Reverts" section (all candidates scored below 85 during analysis), add one before the per-job details section, using the same HTML structure as described in `analyze-payload` Step 7.4.
+
+### Update autodl JSON
+
+After updating the HTML report, use the `payload-autodl-json` skill's "Update Revert Status" operation to update the autodl JSON file for each candidate that was successfully staged.
+
+Return results to the caller for inclusion in the report.
 
 ## Error Handling
 
@@ -130,7 +154,8 @@ Collect all subagent results. Return to the caller for inclusion in the report.
 
 ## See Also
 
+- Related Skill: `payload-results-yaml` - Schema and operations for the payload results YAML
 - Related Skill: `revert-pr` - The git revert workflow (`plugins/ci/skills/revert-pr/SKILL.md`)
 - Related Skill: `trigger-payload-job` - Triggers payload jobs and collects URLs (`plugins/ci/skills/trigger-payload-job/SKILL.md`)
 - Related Skill: `analyze-payload` - Identifies revert candidates (`plugins/ci/skills/analyze-payload/SKILL.md`)
-- Related Command: `/ci:payload-agent` - Autonomous orchestrator that uses this skill (`plugins/ci/commands/payload-agent.md`)
+- Related Command: `/ci:payload-revert` - Command for staging reverts (`plugins/ci/commands/payload-revert.md`)

@@ -18,7 +18,7 @@ Use this skill when:
 
 ## Optional Parameters
 
-- **`--draft`**: When set, create the revert PR as a draft (`gh pr create --draft`). Used by the bisect workflow to open experimental revert PRs that may be closed if the suspect is cleared.
+- **`--draft`**: When set, create the revert PR as a draft (`gh pr create --draft`). Used by the experimental revert workflow to open experimental revert PRs that may be closed if the suspect is cleared.
 - **`--context`**: When the caller passes context directly (e.g., from an autonomous pipeline that already has all context in memory), skip the JIRA lookup in Step 5. The provided context string is used as-is for the `{CONTEXT}` template variable.
 
 ## Prerequisites

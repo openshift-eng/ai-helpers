@@ -1,6 +1,6 @@
 ---
 name: Trigger Payload Job
-description: Trigger payload validation jobs on a PR and collect the resulting Prow job URLs
+description: MUST be used whenever triggering payload testing on a PR. Do not post payload commands without following this skill — the command syntax is specific and other formats will be silently ignored by the bot.
 ---
 
 # Trigger Payload Job
@@ -9,7 +9,7 @@ This skill triggers payload validation jobs on a GitHub PR by posting the correc
 
 ## When to Use This Skill
 
-Use this skill whenever you need to trigger payload testing on a PR (revert PR, draft bisect PR, or any PR that needs payload validation). It handles the differences between aggregated and non-aggregated jobs and collects the resulting URLs for downstream tracking.
+**This skill MUST be used whenever triggering payload testing on a PR.** This includes revert PRs, draft experimental revert PRs, or any PR that needs payload validation. Do not post payload commands without following this skill — the command syntax is specific and other formats will be silently ignored by the bot.
 
 **Inputs** (passed in-context by the caller):
 
@@ -28,7 +28,7 @@ Use this skill whenever you need to trigger payload testing on a PR (revert PR, 
 
 ## Job Triggering Limits
 
-The caller (typically `payload-agent`) is responsible for enforcing global limits before invoking this skill. However, this skill also enforces the following hard limits per invocation:
+The caller is responsible for enforcing global limits before invoking this skill. However, this skill also enforces the following hard limits per invocation:
 
 - **Non-aggregated jobs**: No more than 5 per comment
 - **Aggregated jobs**: No more than 1 per comment. Aggregated jobs are expensive (they run many iterations), so only trigger one at a time. A second aggregated job should only be triggered after the first completes, and only if confirmation is needed.
@@ -54,7 +54,9 @@ First, validate each job entry. If any job has `is_aggregated == true` but `unde
 
 Build the comment body with one command per line. Use the correct command for each job type:
 
-- **Aggregated jobs** (`is_aggregated == true`): `/payload-aggregate <underlying_job_name> <count>`
+- **Aggregated jobs** (`is_aggregated == true`):
+  - If the aggregated job failed **10/10 runs**, use `/payload-job <underlying_job_name>` instead of `/payload-aggregate`. A single successful run is sufficient to validate the revert when the original failure was 100%.
+  - Otherwise, use `/payload-aggregate <underlying_job_name> <count>`
 - **Non-aggregated jobs** (`is_aggregated == false`): `/payload-job <job_name>`
 
 ```bash
@@ -128,5 +130,5 @@ PAYLOAD_JOB_RESULT:
 
 ## See Also
 
-- Used by: `bisect-payload-suspects` — triggers payload jobs for draft bisect PRs
+- Used by: `payload-experimental-reverts` — triggers payload jobs for draft experimental revert PRs
 - Used by: `stage-payload-reverts` — triggers payload jobs for revert PRs

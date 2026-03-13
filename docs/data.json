@@ -374,9 +374,15 @@
         },
         {
           "argument_hint": "<payload-tag>",
-          "description": "Autonomous agent that analyzes a rejected payload, determines root causes, and takes action based on confidence scoring",
-          "name": "payload-agent",
-          "synopsis": "/ci:payload-agent <payload-tag>"
+          "description": "Open draft revert PRs for medium-confidence payload candidates and trigger payload jobs to experimentally determine which PR is causing failures",
+          "name": "payload-experiment",
+          "synopsis": "/ci:payload-experiment <payload-tag>"
+        },
+        {
+          "argument_hint": "<payload-tag>",
+          "description": "Stage reverts for high-confidence payload candidates identified by analyze-payload",
+          "name": "payload-revert",
+          "synopsis": "/ci:payload-revert <payload-tag>"
         },
         {
           "argument_hint": "<execution-id>",
@@ -424,11 +430,6 @@
           "description": "Analyze a payload (rejected, accepted, or in-progress) with historical lookback to identify root causes of blocking job failures and produce an HTML report",
           "id": "analyze-payload",
           "name": "Analyze Payload"
-        },
-        {
-          "description": "Experimentally bisect medium-confidence payload suspects by opening draft revert PRs and triggering payload jobs",
-          "id": "bisect-payload-suspects",
-          "name": "Bisect Payload Suspects"
         },
         {
           "description": "Fetch JIRA issue details including status, assignee, comments, and progress classification",
@@ -481,9 +482,19 @@
           "name": "OC Authentication Helper"
         },
         {
-          "description": "Autonomous agent that analyzes a rejected payload, scores confidence, and takes action \u2014 staging reverts, bisecting suspects, or reporting only",
-          "id": "payload-agent",
-          "name": "Payload Agent"
+          "description": "Schema for the autodl JSON data file produced by analyze-payload for database ingestion \u2014 you must use this skill whenever generating the autodl JSON file",
+          "id": "payload-autodl-json",
+          "name": "Payload Autodl JSON"
+        },
+        {
+          "description": "Experimentally test medium-confidence payload candidates by opening draft revert PRs and triggering payload jobs",
+          "id": "payload-experimental-reverts",
+          "name": "Payload Experimental Reverts"
+        },
+        {
+          "description": "State management for agentic payload triage actions \u2014 you must use this skill whenever reading or writing the payload results YAML file",
+          "id": "payload-results-yaml",
+          "name": "Payload Results YAML"
         },
         {
           "description": "Analyze OpenShift installation failures in Prow CI jobs by examining installer logs, log bundles, and sosreports. Use when CI job fails \"install should succeed\" tests at bootstrap, cluster creation or other stages.",
@@ -536,12 +547,12 @@
           "name": "Triage Regression"
         },
         {
-          "description": "Trigger payload validation jobs on a PR and collect the resulting Prow job URLs",
+          "description": "MUST be used whenever triggering payload testing on a PR. Do not post payload commands without following this skill \u2014 the command syntax is specific and other formats will be silently ignored by the bot.",
           "id": "trigger-payload-job",
           "name": "Trigger Payload Job"
         }
       ],
-      "version": "0.0.23"
+      "version": "0.0.28"
     },
     {
       "commands": [
