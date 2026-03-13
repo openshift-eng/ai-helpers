@@ -12,15 +12,25 @@ import sys
 import urllib.error
 import urllib.request
 
+# Architectures that have their own release controller domain.
 KNOWN_ARCHITECTURES = ["amd64", "arm64", "ppc64le", "s390x", "multi"]
+
 SIPPY_API_URL = "https://sippy.dptools.openshift.org/api/releases"
 
 
 def rc_domain(architecture: str) -> str:
+    """Return the release controller domain for the given architecture."""
     return f"{architecture}.ocp.releases.ci.openshift.org"
 
 
 def release_stream_name(version: str, stream: str, architecture: str) -> str:
+    """Build the release stream identifier used by the release controller.
+
+    Mirrors the logic in sippy's OCPProject.FullReleaseStream:
+      - amd64:  4.18.0-0.nightly
+      - others: 4.18.0-0.nightly-arm64
+      - ci stream is only available on amd64
+    """
     if stream == "ci" and architecture != "amd64":
         print("Error: The 'ci' stream is only available for amd64.", file=sys.stderr)
         sys.exit(1)
@@ -31,6 +41,7 @@ def release_stream_name(version: str, stream: str, architecture: str) -> str:
 
 
 def fetch_json(url: str, timeout: int = 30) -> dict:
+    """Fetch JSON from a URL."""
     try:
         with urllib.request.urlopen(url, timeout=timeout) as resp:
             return json.loads(resp.read().decode("utf-8"))
@@ -46,6 +57,7 @@ def fetch_json(url: str, timeout: int = 30) -> dict:
 
 
 def fetch_tags(architecture: str, version: str, stream: str) -> list:
+    """Fetch release tags from the release controller API."""
     domain = rc_domain(architecture)
     stream_name = release_stream_name(version, stream, architecture)
     url = f"https://{domain}/api/v1/releasestream/{stream_name}/tags"
@@ -54,17 +66,20 @@ def fetch_tags(architecture: str, version: str, stream: str) -> list:
 
 
 def fetch_release_details(architecture: str, stream_name: str, tag_name: str) -> dict:
+    """Fetch details for a specific release tag."""
     domain = rc_domain(architecture)
     url = f"https://{domain}/api/v1/releasestream/{stream_name}/release/{tag_name}"
     return fetch_json(url)
 
 
 def release_page_url(architecture: str, stream_name: str, tag_name: str) -> str:
+    """Build the URL to the release controller page for a specific tag."""
     domain = rc_domain(architecture)
     return f"https://{domain}/releasestream/{stream_name}/release/{tag_name}"
 
 
 def get_latest_version() -> str:
+    """Fetch the latest OCP version from the Sippy API."""
     try:
         with urllib.request.urlopen(SIPPY_API_URL, timeout=15) as resp:
             data = json.loads(resp.read().decode("utf-8"))
