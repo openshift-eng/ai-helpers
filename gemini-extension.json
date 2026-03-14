@@ -1,0 +1,6 @@
+{
+  "name": "ai-helpers",
+  "version": "0.1.0",
+  "description": "A collection of Gemini CLI commands and skills for CI, Jira, Git, OpenShift, and more.",
+  "contextFileName": "GEMINI.md"
+}
