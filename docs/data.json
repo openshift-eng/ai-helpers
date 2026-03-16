@@ -278,7 +278,7 @@
           "name": "Jira Status Analysis Engine"
         }
       ],
-      "version": "0.3.4"
+      "version": "0.3.5"
     },
     {
       "commands": [
@@ -552,7 +552,7 @@
           "name": "Trigger Payload Job"
         }
       ],
-      "version": "0.0.28"
+      "version": "0.0.29"
     },
     {
       "commands": [
@@ -677,7 +677,7 @@
           "name": "Summarize JIRAs"
         }
       ],
-      "version": "0.0.6"
+      "version": "0.0.7"
     },
     {
       "commands": [
@@ -815,7 +815,7 @@
       "hooks": [],
       "name": "utils",
       "skills": [],
-      "version": "0.0.6"
+      "version": "0.0.7"
     },
     {
       "commands": [
@@ -891,7 +891,7 @@
       "hooks": [],
       "name": "olm",
       "skills": [],
-      "version": "0.1.0"
+      "version": "0.1.1"
     },
     {
       "commands": [
@@ -941,7 +941,7 @@
       "hooks": [],
       "name": "agendas",
       "skills": [],
-      "version": "0.0.2"
+      "version": "0.0.3"
     },
     {
       "commands": [
@@ -1064,7 +1064,7 @@
           "name": "OpenShift Node Kernel Inspection"
         }
       ],
-      "version": "0.0.4"
+      "version": "0.0.5"
     },
     {
       "commands": [
