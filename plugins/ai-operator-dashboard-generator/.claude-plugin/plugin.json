@@ -1,0 +1,8 @@
+{
+  "name": "operator-dashboard",
+  "description": "Generate OpenShift Console operator dashboard: CRD discovery, list/detail components from templates",
+  "version": "0.0.1",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}
