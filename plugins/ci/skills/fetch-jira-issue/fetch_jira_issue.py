@@ -5,6 +5,7 @@ Retrieves status, assignee, priority, resolution, comments, and linked PRs.
 Classifies issue progress as ACTIVE, STALLED, or NEEDS_ATTENTION.
 """
 
+import base64
 import os
 import re
 import sys
@@ -18,7 +19,7 @@ from typing import Dict, List, Optional, Any
 class JiraIssueFetcher:
     """Fetches and parses JIRA issue data from the Red Hat JIRA REST API."""
 
-    BASE_URL = "https://issues.redhat.com/rest/api/2/issue"
+    BASE_URL = "https://redhat.atlassian.net/rest/api/2/issue"
 
     # Fields to request from the API
     FIELDS = [
@@ -59,16 +60,18 @@ class JiraIssueFetcher:
     STALE_DAYS = 14
     RECENT_DAYS = 7
 
-    def __init__(self, jira_key: str, token: Optional[str] = None):
+    def __init__(self, jira_key: str, token: Optional[str] = None,
+                 username: Optional[str] = None):
         """
         Initialize fetcher with JIRA issue key.
 
         Args:
             jira_key: JIRA issue key (e.g., OCPBUGS-74401)
             token: JIRA API token. If not provided, reads from JIRA_TOKEN env var.
+            username: Atlassian account email. If not provided, reads from JIRA_USERNAME env var.
 
         Raises:
-            ValueError: If no token is available
+            ValueError: If no token or username is available
         """
         self.jira_key = jira_key.upper().strip()
         self.token = token or os.environ.get("JIRA_TOKEN", "")
@@ -76,7 +79,13 @@ class JiraIssueFetcher:
             raise ValueError(
                 "JIRA API token required.\n"
                 "Set JIRA_TOKEN environment variable or pass --token.\n"
-                "Obtain from: https://issues.redhat.com (Profile > Personal Access Tokens)"
+                "Obtain from: https://id.atlassian.com/manage-profile/security/api-tokens"
+            )
+        self.username = username or os.environ.get("JIRA_USERNAME", "")
+        if not self.username:
+            raise ValueError(
+                "JIRA username (Atlassian account email) required.\n"
+                "Set JIRA_USERNAME environment variable or pass --username."
             )
         self.api_url = f"{self.BASE_URL}/{self.jira_key}"
 
@@ -94,7 +103,8 @@ class JiraIssueFetcher:
         url = f"{self.api_url}?fields={fields_param}"
 
         req = urllib.request.Request(url)
-        req.add_header("Authorization", f"Bearer {self.token}")
+        credentials = base64.b64encode(f"{self.username}:{self.token}".encode()).decode()
+        req.add_header("Authorization", f"Basic {credentials}")
         req.add_header("Accept", "application/json")
 
         try:
@@ -103,8 +113,8 @@ class JiraIssueFetcher:
         except urllib.error.HTTPError as e:
             if e.code == 401:
                 raise ValueError(
-                    "Authentication failed. Check that JIRA_TOKEN is valid.\n"
-                    "Obtain from: https://issues.redhat.com (Profile > Personal Access Tokens)"
+                    "Authentication failed. Check that JIRA_TOKEN and JIRA_USERNAME are valid.\n"
+                    "Obtain from: https://id.atlassian.com/manage-profile/security/api-tokens"
                 )
             elif e.code == 403:
                 raise ValueError(
@@ -138,7 +148,7 @@ class JiraIssueFetcher:
 
         issue = {
             "key": raw_data.get("key", self.jira_key),
-            "url": f"https://issues.redhat.com/browse/{raw_data.get('key', self.jira_key)}",
+            "url": f"https://redhat.atlassian.net/browse/{raw_data.get('key', self.jira_key)}",
             "summary": fields.get("summary", ""),
             "description": fields.get("description", ""),
             "status": self._parse_named_field(fields.get("status")),
@@ -434,7 +444,8 @@ def main():
         print("  fetch_jira_issue.py OCPBUGS-74401 --format summary", file=sys.stderr)
         print("", file=sys.stderr)
         print("Environment:", file=sys.stderr)
-        print("  JIRA_TOKEN: API token for issues.redhat.com (required)", file=sys.stderr)
+        print("  JIRA_TOKEN: API token for redhat.atlassian.net (required)", file=sys.stderr)
+        print("  JIRA_USERNAME: Atlassian account email (required)", file=sys.stderr)
         sys.exit(1)
 
     jira_key = sys.argv[1]
@@ -442,6 +453,7 @@ def main():
     # Parse optional arguments
     output_format = "json"
     token = None
+    username = None
 
     for i, arg in enumerate(sys.argv):
         if arg == "--format" and i + 1 < len(sys.argv):
@@ -454,9 +466,11 @@ def main():
                 sys.exit(1)
         elif arg == "--token" and i + 1 < len(sys.argv):
             token = sys.argv[i + 1]
+        elif arg == "--username" and i + 1 < len(sys.argv):
+            username = sys.argv[i + 1]
 
     try:
-        fetcher = JiraIssueFetcher(jira_key, token=token)
+        fetcher = JiraIssueFetcher(jira_key, token=token, username=username)
         issue = fetcher.fetch_and_parse()
 
         if output_format == "json":

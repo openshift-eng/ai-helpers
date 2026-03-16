@@ -94,7 +94,7 @@ The `olm:debug` command analyzes OLM (Operator Lifecycle Manager) issues by corr
      - Status: Open, In Progress, or Recently Resolved
    - API endpoint example:
      ```
-     https://issues.redhat.com/rest/api/2/search?jql=project=OCPBUGS AND component=olm AND affectedVersion~"4.14"
+     https://redhat.atlassian.net/rest/api/2/search?jql=project=OCPBUGS AND component=olm AND affectedVersion~"4.14"
      ```
 
 9. **Match errors with known bugs**
@@ -204,7 +204,7 @@ The command generates the following outputs in `.work/olm-debug/<timestamp>/`:
 - Large must-gather archives may take time to process
 - The analysis is based on pattern matching and may require manual verification
 - For private repositories, ensure GitHub credentials are configured
-- Jira access to https://issues.redhat.com/ may require authentication for full access
+- Jira access to https://redhat.atlassian.net/ may require authentication for full access
 - Known bug matching is based on text similarity and may produce false positives
 - Always verify suggested bug matches by reading the full bug description
 
@@ -213,5 +213,5 @@ The command generates the following outputs in `.work/olm-debug/<timestamp>/`:
 - OLM Documentation: https://olm.operatorframework.io/
 - OpenShift OLM: https://docs.openshift.com/container-platform/latest/operators/understanding/olm/olm-understanding-olm.html
 - Must-gather documentation: https://docs.openshift.com/container-platform/latest/support/gathering-cluster-data.html
-- OCPBUGS Jira Project: https://issues.redhat.com/projects/OCPBUGS/
+- OCPBUGS Jira Project: https://redhat.atlassian.net/projects/OCPBUGS/
 - Jira REST API: https://docs.atlassian.com/jira-software/REST/latest/

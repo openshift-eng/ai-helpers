@@ -7,8 +7,9 @@ for the weekly status update workflow. It fetches data in parallel with proper
 rate limiting and outputs structured JSON files for LLM processing.
 
 Environment Variables:
-    JIRA_URL: Base URL for JIRA instance (default: https://issues.redhat.com)
-    JIRA_PERSONAL_TOKEN: Your JIRA API bearer token (required)
+    JIRA_URL: Base URL for JIRA instance (default: https://redhat.atlassian.net)
+    JIRA_API_TOKEN: Your Atlassian API token (required)
+    JIRA_USERNAME: Your Atlassian account email (required)
     GITHUB_TOKEN: GitHub personal access token with repo scope (required)
 
 Usage:
@@ -126,12 +127,13 @@ class GatherConfig:
     project: str
     jira_url: str
     jira_token: str
+    jira_username: str
     github_token: str
     output_dir: Path
     date_range: DateRange
     component: Optional[str] = None
     label: Optional[str] = None
-    status_summary_field: str = "customfield_12320841"
+    status_summary_field: str = "customfield_10814"
     assignees: List[str] = field(default_factory=list)
     excluded_assignees: List[str] = field(default_factory=list)
 
@@ -175,17 +177,20 @@ class JiraClient:
         "issuetype,priority,labels,issuelinks"
     )
 
-    def __init__(self, base_url: str, token: str):
+    def __init__(self, base_url: str, token: str, username: str = ""):
         self.base_url = base_url.rstrip("/")
         self.token = token
+        self.username = username
         self.session: Optional[aiohttp.ClientSession] = None
         self.semaphore = asyncio.Semaphore(JIRA_MAX_CONCURRENT_REQUESTS)
         self.request_count = 0
 
     def _get_headers(self) -> Dict[str, str]:
-        """Get authentication headers."""
+        """Get authentication headers using Basic auth for Atlassian Cloud."""
+        import base64
+        credentials = base64.b64encode(f"{self.username}:{self.token}".encode()).decode()
         return {
-            "Authorization": f"Bearer {self.token}",
+            "Authorization": f"Basic {credentials}",
             "Accept": "application/json",
             "Content-Type": "application/json",
         }
@@ -206,7 +211,7 @@ class JiraClient:
                             logger.debug(f"Jira request #{self.request_count} succeeded")
                             return await resp.json()
                         elif resp.status == 401:
-                            logger.error("Jira authentication failed (401). Check JIRA_PERSONAL_TOKEN.")
+                            logger.error("Jira authentication failed (401). Check JIRA_API_TOKEN and JIRA_USERNAME.")
                             return None
                         elif resp.status == 404:
                             logger.debug(f"Jira request #{self.request_count} returned 404")
@@ -611,7 +616,7 @@ class StatusDataGatherer:
 
     def __init__(self, config: GatherConfig):
         self.config = config
-        self.jira = JiraClient(config.jira_url, config.jira_token)
+        self.jira = JiraClient(config.jira_url, config.jira_token, config.jira_username)
         self.github = GitHubClient(config.github_token)
 
     def _build_root_jql(self) -> str:
@@ -1216,8 +1221,9 @@ Examples:
   %(prog)s --project OCPSTRAT --days 14 --output-dir .work/status --debug
 
 Environment Variables:
-  JIRA_URL              Jira server URL (default: https://issues.redhat.com)
-  JIRA_PERSONAL_TOKEN   Jira API bearer token (required)
+  JIRA_URL              Jira server URL (default: https://redhat.atlassian.net)
+  JIRA_API_TOKEN        Atlassian API token (required)
+  JIRA_USERNAME         Atlassian account email (required)
   GITHUB_TOKEN          GitHub personal access token (required)
         """,
     )
@@ -1229,7 +1235,7 @@ Environment Variables:
     parser.add_argument("--start-date", help="Start date (YYYY-MM-DD), overrides --days")
     parser.add_argument("--end-date", help="End date (YYYY-MM-DD), defaults to today")
     parser.add_argument("--output-dir", default=".work/weekly-status", help="Output directory")
-    parser.add_argument("--status-field", default="customfield_12320841", help="Status Summary field ID")
+    parser.add_argument("--status-field", default="customfield_10814", help="Status Summary field ID")
     parser.add_argument("--assignee", action="append", dest="assignees", help="Filter by assignee")
     parser.add_argument("--exclude-assignee", action="append", dest="excluded_assignees", help="Exclude assignee")
     parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose output (INFO level)")
@@ -1255,8 +1261,9 @@ Environment Variables:
     output_dir = Path(args.output_dir) / end_date.isoformat()
 
     # Get credentials
-    jira_url = get_env_var("JIRA_URL", default="https://issues.redhat.com", required=False)
-    jira_token = get_env_var("JIRA_PERSONAL_TOKEN", alternatives=["JIRA_TOKEN"])
+    jira_url = get_env_var("JIRA_URL", default="https://redhat.atlassian.net", required=False)
+    jira_token = get_env_var("JIRA_API_TOKEN", alternatives=["JIRA_TOKEN"])
+    jira_username = get_env_var("JIRA_USERNAME", required=True)
     github_token = get_github_token()
 
     config = GatherConfig(
@@ -1265,6 +1272,7 @@ Environment Variables:
         label=args.label,
         jira_url=jira_url,
         jira_token=jira_token,
+        jira_username=jira_username,
         github_token=github_token,
         output_dir=output_dir,
         date_range=DateRange(start=start_date, end=end_date),

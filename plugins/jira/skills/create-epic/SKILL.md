@@ -334,7 +334,7 @@ h2. Dependencies
     """,
     components="HyperShift / ROSA",
     additional_fields={
-        "customfield_12319940": "openshift-4.21",  # target version
+        "customfield_10855": "openshift-4.21",  # target version
         "customfield_epicname": "Multi-cluster metrics aggregation for ROSA HCP",  # epic name
         "labels": ["ai-generated-jira", "observability"],
         "security": {"name": "Red Hat Employee"}
@@ -354,8 +354,8 @@ mcp__atlassian__jira_create_issue(
     description="<epic content with scope and AC>",
     components="HyperShift",
     additional_fields={
-        "customfield_12311141": "Multi-cluster monitoring dashboard",  # Epic Name (required)
-        "customfield_12313140": "CNTRLPLANE-100",  # Parent Link - links to parent FEATURE (STRING!)
+        "customfield_10011": "Multi-cluster monitoring dashboard",  # Epic Name (required)
+        "customfield_10018": "CNTRLPLANE-100",  # Parent Link - links to parent FEATURE (STRING!)
         "labels": ["ai-generated-jira"],
         "security": {"name": "Red Hat Employee"}
     }
@@ -363,8 +363,8 @@ mcp__atlassian__jira_create_issue(
 ```
 
 **IMPORTANT:**
-- Epic→Feature uses **Parent Link** (`customfield_12313140`) - value is a STRING
-- Story→Epic uses **Epic Link** (`customfield_12311140`) - value is a STRING
+- Epic→Feature uses **Parent Link** (`customfield_10018`) - value is a STRING
+- Story→Epic uses **Epic Link** (`customfield_10014`) - value is a STRING
 - The standard `parent` field does NOT work for these relationships
 
 **See:** `/jira:create` command documentation for complete parent linking hierarchy and implementation strategy.
@@ -573,8 +573,8 @@ Timeframe?
 2. Create epic with Parent Link field:
    ```python
    additional_fields={
-       "customfield_12311141": "Multi-cluster metrics aggregation",  # Epic Name
-       "customfield_12313140": "CNTRLPLANE-100",  # Parent Link (STRING, not object!)
+       "customfield_10011": "Multi-cluster metrics aggregation",  # Epic Name
+       "customfield_10018": "CNTRLPLANE-100",  # Parent Link (STRING, not object!)
        "labels": ["ai-generated-jira"],
        "security": {"name": "Red Hat Employee"}
    }
@@ -583,7 +583,7 @@ Timeframe?
 
 **Result:**
 - Epic created with complete description
-- Linked to parent feature CNTRLPLANE-100 via Parent Link field (`customfield_12313140`)
+- Linked to parent feature CNTRLPLANE-100 via Parent Link field (`customfield_10018`)
 - All CNTRLPLANE conventions applied
 
 ### Example 2: Epic with Auto-Detection

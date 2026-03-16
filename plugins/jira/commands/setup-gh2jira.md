@@ -15,7 +15,7 @@ The `jira:setup-gh2jira` command guides you through the complete installation an
 
 - Checks for and installs required dependencies (Go)
 - Clones and builds the gh2jira utility
-- Guides you through creating GitHub and Jira Personal Access Tokens
+- Guides you through creating GitHub and Jira API Tokens
 - Creates and configures `tokenstore.yaml` with your credentials
 - Optionally creates `profiles.yaml` for project shortcuts
 - Creates default `workflows.yaml` for state mapping
@@ -187,17 +187,17 @@ Possible issues:
 Please verify your token and try again.
 ```
 
-#### 3.2 Create Jira Personal Access Token
+#### 3.2 Create Jira API Token
 
 **Instructions for user:**
 
 ```
-Creating Jira Personal Access Token
+Creating Jira API Token
 ====================================
 
 The process varies by Jira installation:
 
-For Atlassian Cloud (issues.redhat.com, *.atlassian.net):
+For Atlassian Cloud (redhat.atlassian.net, *.atlassian.net):
 1. Open: https://id.atlassian.com/manage-profile/security/api-tokens
 2. Click "Create API token"
 3. Enter a label: "gh2jira access"
@@ -215,7 +215,7 @@ For Red Hat Jira:
 
 **Prompt user to enter token:**
 ```
-Please paste your Jira Personal Access Token:
+Please paste your Jira API Token:
 (input will be hidden)
 
 If you're unsure about your Jira token setup, enter 'skip' to configure later.
@@ -225,12 +225,12 @@ Store in variable: `$JIRA_TOKEN`
 
 **Validate token (optional, requires Jira URL):**
 ```
-Enter your Jira base URL (e.g., https://issues.redhat.com):
+Enter your Jira base URL (e.g., https://redhat.atlassian.net):
 ```
 
 ```bash
 # Test token
-curl -s -H "Authorization: Bearer $JIRA_TOKEN" "$JIRA_URL/rest/api/2/myself" | jq -r '.displayName'
+curl -s -u "$JIRA_USERNAME:$JIRA_TOKEN" "$JIRA_URL/rest/api/2/myself" | jq -r '.displayName'
 ```
 
 #### 3.3 Create tokenstore.yaml

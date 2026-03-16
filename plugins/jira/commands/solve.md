@@ -25,16 +25,16 @@ This command takes a JIRA URL, fetches the issue description and requirements, a
 
 ## Implementation
 
-- The command uses curl to fetch JIRA data via REST API: https://issues.redhat.com/rest/api/2/issue/{$1}
+- The command uses curl to fetch JIRA data via REST API: https://redhat.atlassian.net/rest/api/2/issue/{$1}
 - Parses JSON response using jq or text processing
 - Extracts key fields: summary, description, components, labels
-- No authentication required for public Red Hat JIRA issues
+- Authentication uses Basic auth with JIRA_USERNAME and JIRA_API_TOKEN for Atlassian Cloud
 - Creates a PR with the solution
 
 ### Process Flow
 
 1. **Issue Analysis**: Parse JIRA URL and fetch issue details:
-   - Use curl to fetch JIRA issue data: curl -s "https://issues.redhat.com/rest/api/2/issue/{$1}"
+   - Use curl to fetch JIRA issue data: curl -s "https://redhat.atlassian.net/rest/api/2/issue/{$1}"
    - Parse JSON response to extract:
       - Issue summary and description
       - From within the description expect the following sections

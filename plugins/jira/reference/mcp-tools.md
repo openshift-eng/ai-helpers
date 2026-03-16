@@ -5,7 +5,7 @@ description: MCP tool signatures and custom field documentation for Jira
 
 # MCP Tools Reference
 
-This guide documents the MCP (Model Context Protocol) tools available for automating Jira operations, including tool signatures, parameters, and custom field definitions for the Red Hat Jira instance (issues.redhat.com).
+This guide documents the MCP (Model Context Protocol) tools available for automating Jira operations, including tool signatures, parameters, and custom field definitions for the Red Hat Jira instance (redhat.atlassian.net).
 
 ## Table of Contents
 
@@ -21,7 +21,7 @@ This guide documents the MCP (Model Context Protocol) tools available for automa
 - [Issue Transitions](#issue-transitions)
   - [Get Transitions](#get-transitions)
   - [Transition Issue](#transition-issue)
-- [Custom Fields for issues.redhat.com](#custom-fields-for-issuesredhatcom)
+- [Custom Fields for redhat.atlassian.net](#custom-fields-for-issuesredhatcom)
   - [Field Format Notes](#field-format-notes)
 - [Field Format Requirements](#field-format-requirements)
   - [Epic Link Field](#epic-link-field)
@@ -48,10 +48,10 @@ mcp__atlassian__jira_create_issue(
     additional_fields={               # Optional: Additional fields
         "labels": ["label1", "label2"],
         "security": {"name": "Red Hat Employee"},
-        "customfield_12311140": "EPIC-123",  # Epic Link for Stories/Tasks
-        "customfield_12311141": "Epic Name",  # Epic Name for Epics
-        "customfield_12313140": "FEATURE-50", # Parent Link for Epics
-        "customfield_12319940": [{"id": "12448830"}],  # Target Version (array of objects with id)
+        "customfield_10014": "EPIC-123",  # Epic Link for Stories/Tasks
+        "customfield_10011": "Epic Name",  # Epic Name for Epics
+        "customfield_10018": "FEATURE-50", # Parent Link for Epics
+        "customfield_10855": [{"id": "12448830"}],  # Target Version (array of objects with id)
     }
 )
 ```
@@ -68,7 +68,7 @@ issue = mcp__atlassian__jira_create_issue(
     description="As a cluster administrator, I want to enable Pod Disruption Budgets for the control plane, so that I can prevent accidental disruptions.\n\nh2. Acceptance Criteria\n\n* Test that PDB is configured for all control plane pods\n* Test that pods are protected from voluntary disruptions",
     components="HyperShift / ROSA",
     additional_fields={
-        "customfield_12311140": "GCP-456",  # Link to parent Epic
+        "customfield_10014": "GCP-456",  # Link to parent Epic
         "priority": {"name": "Major"},  # Set priority level
         "labels": ["ai-generated-jira"],
         "security": {"name": "Red Hat Employee"}
@@ -150,9 +150,9 @@ mcp__atlassian__jira_update_issue(
         "description": "New description"
     },
     additional_fields={               # Optional: Custom fields to update
-        "customfield_12311140": "EPIC-456",  # Update Epic Link
+        "customfield_10014": "EPIC-456",  # Update Epic Link
         "labels": ["new-label"],
-        "customfield_12319940": [{"id": "12448830"}],  # Update Target Version
+        "customfield_10855": [{"id": "12448830"}],  # Update Target Version
     }
 )
 ```
@@ -164,7 +164,7 @@ mcp__atlassian__jira_update_issue(
     issue_key="GCP-100",
     fields={},
     additional_fields={
-        "customfield_12313140": "GCP-50"  # Parent Link (Feature key)
+        "customfield_10018": "GCP-50"  # Parent Link (Feature key)
     }
 )
 ```
@@ -283,83 +283,83 @@ mcp__atlassian__jira_transition_issue(
 )
 ```
 
-## Custom Fields for issues.redhat.com
+## Custom Fields for redhat.atlassian.net
 
-The Red Hat Jira instance (issues.redhat.com) uses the following custom fields for issue hierarchy and versions:
+The Red Hat Jira instance (redhat.atlassian.net) uses the following custom fields for issue hierarchy and versions:
 
 | Field Name | Custom Field ID | Type | Usage | Example |
 |-----------|-----------------|------|-------|---------|
-| **Epic Name** | `customfield_12311141` | String | Required when creating Epics (must match summary) | `"Multi-cluster monitoring"` |
-| **Epic Link** | `customfield_12311140` | String | Link Story/Task → Epic | `"GCP-456"` |
-| **Parent Link** | `customfield_12313140` | String | Link Epic → Feature | `"GCP-100"` |
-| **Target Version** | `customfield_12319940` | Array of Objects | Set target release version | `[{"id": "12448830"}]` |
+| **Epic Name** | `customfield_10011` | String | Required when creating Epics (must match summary) | `"Multi-cluster monitoring"` |
+| **Epic Link** | `customfield_10014` | String | Link Story/Task → Epic | `"GCP-456"` |
+| **Parent Link** | `customfield_10018` | String | Link Epic → Feature | `"GCP-100"` |
+| **Target Version** | `customfield_10855` | Array of Objects | Set target release version | `[{"id": "12448830"}]` |
 
 ### Field Format Notes
 
-**Epic Name (customfield_12311141):**
+**Epic Name (customfield_10011):**
 - Type: String
 - Format: Plain text string
 - Required: Yes, when creating Epics
 - Value: Must match the Epic's summary
-- Example: `"customfield_12311141": "Multi-cluster metrics aggregation"`
+- Example: `"customfield_10011": "Multi-cluster metrics aggregation"`
 
-**Epic Link (customfield_12311140):**
+**Epic Link (customfield_10014):**
 - Type: String
 - Format: Issue key string
 - Usage: Link Story/Task to parent Epic
 - Value: Parent Epic key
-- Example: `"customfield_12311140": "GCP-456"`
+- Example: `"customfield_10014": "GCP-456"`
 
-**Parent Link (customfield_12313140):**
+**Parent Link (customfield_10018):**
 - Type: String
 - Format: Issue key string
 - Usage: Link Epic to parent Feature
 - Value: Parent Feature key
-- Example: `"customfield_12313140": "GCP-100"`
+- Example: `"customfield_10018": "GCP-100"`
 
-**Target Version (customfield_12319940):**
+**Target Version (customfield_10855):**
 - Type: Array of Objects
 - Format: Array with objects containing `id` field
 - Usage: Set the target release version
 - Value: Array of version objects
-- Example: `"customfield_12319940": [{"id": "12448830"}]`
+- Example: `"customfield_10855": [{"id": "12448830"}]`
 - Note: Must be array format, not string
 
 ## Field Format Requirements
 
 ### Epic Link Field
 
-Use the Epic Link custom field (customfield_12311140) to link Stories and Tasks to parent Epics. The field accepts a string value containing the Epic's issue key:
+Use the Epic Link custom field (customfield_10014) to link Stories and Tasks to parent Epics. The field accepts a string value containing the Epic's issue key:
 
 ```python
 additional_fields={
-    "customfield_12311140": "GCP-456"  # Epic Link - string format with issue key
+    "customfield_10014": "GCP-456"  # Epic Link - string format with issue key
 }
 ```
 
 ### Parent Link Field
 
-Use the Parent Link custom field (customfield_12313140) to link Epics to parent Features. The field accepts a string value containing the Feature's issue key:
+Use the Parent Link custom field (customfield_10018) to link Epics to parent Features. The field accepts a string value containing the Feature's issue key:
 
 ```python
 additional_fields={
-    "customfield_12313140": "GCP-100"  # Parent Link - string format with issue key
+    "customfield_10018": "GCP-100"  # Parent Link - string format with issue key
 }
 ```
 
 ### Target Version Field
 
-Use the Target Version custom field (customfield_12319940) with an array of objects containing version IDs:
+Use the Target Version custom field (customfield_10855) with an array of objects containing version IDs:
 
 ```python
 additional_fields={
-    "customfield_12319940": [{"id": "12448830"}]  # Array of objects with id property
+    "customfield_10855": [{"id": "12448830"}]  # Array of objects with id property
 }
 ```
 
 ### Epic Name Field (Required for Epics)
 
-When creating Epic issues, include the Epic Name custom field (customfield_12311141) with a value matching the Epic's summary:
+When creating Epic issues, include the Epic Name custom field (customfield_10011) with a value matching the Epic's summary:
 
 ```python
 mcp__atlassian__jira_create_issue(
@@ -367,7 +367,7 @@ mcp__atlassian__jira_create_issue(
     summary="Multi-cluster monitoring",
     issue_type="Epic",
     additional_fields={
-        "customfield_12311141": "Multi-cluster monitoring",  # Must match summary
+        "customfield_10011": "Multi-cluster monitoring",  # Must match summary
         "labels": ["ai-generated-jira"],
     }
 )
@@ -397,7 +397,7 @@ if issue:
         issue_key=issue["key"],
         fields={},
         additional_fields={
-            "customfield_12311140": "GCP-456"  # Add Epic Link via update
+            "customfield_10014": "GCP-456"  # Add Epic Link via update
         }
     )
 ```

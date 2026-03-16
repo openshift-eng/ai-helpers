@@ -54,10 +54,10 @@ GCP project uses the same instance-wide custom fields as other Red Hat Jira proj
 
 | Field | Custom Field ID | Usage | Example |
 |-------|-----------------|-------|---------|
-| **Epic Name** | `customfield_12311141` | Required when creating Epics | `"Multi-cluster metrics aggregation"` |
-| **Epic Link** | `customfield_12311140` | Link Story/Task → Epic | `"GCP-456"` |
-| **Parent Link** | `customfield_12313140` | Link Epic → Feature | `"GCP-100"` |
-| **Story Points** | `customfield_12310243` | Optional story point estimate | `3.0` |
+| **Epic Name** | `customfield_10011` | Required when creating Epics | `"Multi-cluster metrics aggregation"` |
+| **Epic Link** | `customfield_10014` | Link Story/Task → Epic | `"GCP-456"` |
+| **Parent Link** | `customfield_10018` | Link Epic → Feature | `"GCP-100"` |
+| **Story Points** | `customfield_10028` | Optional story point estimate | `3.0` |
 
 ## Components
 
@@ -87,8 +87,8 @@ mcp__atlassian__jira_create_issue(
     description="<formatted story description>",
     components="<component name>",  # Optional - see Components section
     additional_fields={
-        "customfield_12311140": "GCP-456",  # Epic Link - parent epic
-        "customfield_12310243": 3.0,        # Story Points - auto-estimated per Sizing Guide
+        "customfield_10014": "GCP-456",  # Epic Link - parent epic
+        "customfield_10028": 3.0,        # Story Points - auto-estimated per Sizing Guide
         "priority": {"name": "Major"},      # Priority - OMIT unless user specifies
         "labels": ["ai-generated-jira"],
         "security": {"name": "Red Hat Employee"}
@@ -96,7 +96,7 @@ mcp__atlassian__jira_create_issue(
 )
 ```
 
-**Story Points guidance**: When creating a Story or Task, auto-estimate story points by analyzing the issue summary, description, and acceptance criteria against the [Story Sizing Guide](#story-sizing-guide). Set `customfield_12310243` as a float (e.g. `3.0`). Use the Fibonacci scale: 0, 1, 2, 3, 5, 8, 13. For estimates of 8 or higher, add a note in the description recommending the story be split into smaller items. The `ai-generated-jira` label (already applied) serves as an indicator that points were AI-estimated; the team reviews and adjusts estimates during refinement.
+**Story Points guidance**: When creating a Story or Task, auto-estimate story points by analyzing the issue summary, description, and acceptance criteria against the [Story Sizing Guide](#story-sizing-guide). Set `customfield_10028` as a float (e.g. `3.0`). Use the Fibonacci scale: 0, 1, 2, 3, 5, 8, 13. For estimates of 8 or higher, add a note in the description recommending the story be split into smaller items. The `ai-generated-jira` label (already applied) serves as an indicator that points were AI-estimated; the team reviews and adjusts estimates during refinement.
 
 **Priority guidance**: Before creating an issue, ask the user if they want to set a specific priority: "Would you like to set a priority for this issue? The default is Normal." Reference the [Priority Scheme (OJA-PRIS-001)](#priority-scheme-oja-pris-001) below to guide the conversation. If yes, set `priority` as an object with `name` field (e.g. `{"name": "Major"}`). If no, omit the field to use the default.
 
@@ -110,11 +110,11 @@ mcp__atlassian__jira_create_issue(
     description="<formatted epic description>",
     components="<component name>",  # Optional - see Components section
     additional_fields={
-        "customfield_12311141": "Multi-cluster metrics aggregation",  # Epic Name (required, same as summary)
+        "customfield_10011": "Multi-cluster metrics aggregation",  # Epic Name (required, same as summary)
         "labels": ["ai-generated-jira"],
         "security": {"name": "Red Hat Employee"}
     }
-    # NOTE: Do NOT include parent link (customfield_12313140) here.
+    # NOTE: Do NOT include parent link (customfield_10018) here.
     # Add parent link in a separate update call per "Epic Linking Best Practices" section.
 )
 ```
@@ -134,7 +134,7 @@ epic = mcp__atlassian__jira_create_issue(
     issue_type="Epic",
     summary="Multi-cluster monitoring",
     additional_fields={
-        "customfield_12311141": "Multi-cluster monitoring",  # Epic Name
+        "customfield_10011": "Multi-cluster monitoring",  # Epic Name
         "labels": ["ai-generated-jira"],
         "security": {"name": "Red Hat Employee"}
     }
@@ -145,7 +145,7 @@ mcp__atlassian__jira_update_issue(
     issue_key=epic["key"],
     fields={},
     additional_fields={
-        "customfield_12313140": "GCP-100"  # Parent Link (Feature key)
+        "customfield_10018": "GCP-100"  # Parent Link (Feature key)
     }
 )
 ```

@@ -229,7 +229,7 @@ If updates cause issues:
    ✅ Created: OCPBUGS-12345
 
    Summary:
-   - Jira: https://issues.redhat.com/browse/OCPBUGS-12345
+   - Jira: https://redhat.atlassian.net/browse/OCPBUGS-12345
    - Dependency: golang.org/x/net
    - Version: v0.19.0 → v0.20.0
    - Breaking changes: Yes
@@ -274,7 +274,7 @@ If updates cause issues:
    ✅ PR created: #1234
 
    Summary:
-   - Jira: https://issues.redhat.com/browse/OCPBUGS-12346
+   - Jira: https://redhat.atlassian.net/browse/OCPBUGS-12346
    - PR: https://github.com/openshift/repo/pull/1234
    - Dependency: github.com/spf13/cobra
    - Version: v1.7.0 → v1.8.0

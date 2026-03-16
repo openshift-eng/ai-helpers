@@ -77,7 +77,7 @@ Read the manifest file to get the list of issues:
       "start": "2026-01-29",
       "end": "2026-02-05"
     },
-    "status_summary_field": "customfield_12320841"
+    "status_summary_field": "customfield_10814"
   },
   "issues": [
     {
@@ -556,7 +556,7 @@ Total issues: {count}
 
 | Field | ID (example) | Purpose |
 |-------|--------------|---------|
-| Status Summary | `customfield_12320841` | Field to update in update-weekly-status |
+| Status Summary | `customfield_10814` | Field to update in update-weekly-status |
 
 **Finding custom field IDs**:
 ```

@@ -62,7 +62,7 @@ This skill is invoked automatically when the `/jira:validate-blockers` command i
 project = OCPBUGS AND type = Bug AND "Release Blocker" = Proposed
 ```
 
-**IMPORTANT**: Use `"Release Blocker" = Proposed` NOT `cf[12319743]`. The field ID `customfield_12319743` is the Release Blocker field, but in JQL use the field name.
+**IMPORTANT**: Use `"Release Blocker" = Proposed` NOT `cf[12319743]`. The field ID `customfield_10847` is the Release Blocker field, but in JQL use the field name.
 
 **Version filter construction:**
 
@@ -118,7 +118,7 @@ project = OCPBUGS AND type = Bug AND "Release Blocker" = Proposed AND ("Target V
 
 For version/component mode, use `mcp__atlassian__jira_search`:
 - **jql**: The constructed JQL query from Phase 2
-- **fields**: "key,summary,priority,severity,status,assignee,created,updated,labels,components,description,reporter,customfield_12319743,customfield_12319940"
+- **fields**: "key,summary,priority,severity,status,assignee,created,updated,labels,components,description,reporter,customfield_10847,customfield_10855"
 - **expand**: "renderedFields" (to get comments for workaround analysis)
 - **limit**: 1000 (adjust based on expected results)
 
@@ -127,8 +127,8 @@ Parse the response to extract:
 - List of bug objects with all required fields
 
 Custom fields to include:
-- `customfield_12319743` - Release Blocker status (should be "Proposed")
-- `customfield_12319940` - Target Version
+- `customfield_10847` - Release Blocker status (should be "Proposed")
+- `customfield_10855` - Target Version
 
 For single bug mode (`--bug` flag), use `mcp__atlassian__jira_get_issue`:
 - **issue_key**: The bug key provided by user
@@ -280,7 +280,7 @@ When `--bug` flag is used, adapt the report to focus on a single bug:
 **MCP tool errors:**
 - If `mcp__atlassian__jira_search` fails, display JQL query and error message
 - If `mcp__atlassian__jira_get_issue` fails:
-  1. **Fallback to WebFetch**: Try fetching via `https://issues.redhat.com/browse/{issue-key}`
+  1. **Fallback to WebFetch**: Try fetching via `https://redhat.atlassian.net/browse/{issue-key}`
   2. **If WebFetch succeeds**: Parse the web page to extract bug details (summary, severity, description) and continue with validation
   3. **If WebFetch also fails**: Display clear error indicating bug doesn't exist or isn't accessible
 - Provide troubleshooting guidance (check MCP server, verify credentials)
@@ -314,5 +314,5 @@ project = OCPBUGS AND type = Bug AND "Release Blocker" = Proposed AND ("Target V
 ```
 
 **Field IDs Reference:**
-- Release Blocker field: `customfield_12319743` (use `"Release Blocker"` in JQL)
-- Target Version field: `customfield_12319940` (use `"Target Version"` in JQL)
+- Release Blocker field: `customfield_10847` (use `"Release Blocker"` in JQL)
+- Target Version field: `customfield_10855` (use `"Target Version"` in JQL)

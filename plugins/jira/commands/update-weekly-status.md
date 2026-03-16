@@ -279,7 +279,7 @@ Use `mcp__atlassian-mcp__jira_update_issue`:
 {
   "issue_key": "{ISSUE-KEY}",
   "fields": {
-    "customfield_12320841": "{formatted-status-text}"
+    "customfield_10814": "{formatted-status-text}"
   }
 }
 ```
@@ -328,7 +328,8 @@ The Python script (`gather_status_data.py`) handles efficient batch data collect
 
 ### Environment Variables
 
-- `JIRA_TOKEN` or `JIRA_PERSONAL_TOKEN`: Jira API bearer token
+- `JIRA_API_TOKEN` or `JIRA_TOKEN`: Atlassian API token
+  - `JIRA_USERNAME`: Atlassian account email
 - `GITHUB_TOKEN` or `gh auth token`: GitHub access token
 
 ### Output Structure
@@ -507,7 +508,8 @@ The Python script (`gather_status_data.py`) handles efficient batch data collect
 - **Python 3.8+** with `aiohttp` package installed
 - **Jira MCP server** configured and accessible
 - **Environment variables**:
-  - `JIRA_TOKEN` or `JIRA_PERSONAL_TOKEN`: Jira API bearer token
+  - `JIRA_API_TOKEN` or `JIRA_TOKEN`: Atlassian API token
+  - `JIRA_USERNAME`: Atlassian account email
   - `GITHUB_TOKEN` or authenticated `gh` CLI
 
 Check for required tools:

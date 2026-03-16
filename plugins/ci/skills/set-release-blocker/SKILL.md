@@ -12,7 +12,8 @@ See the [release blocker definition](https://github.com/openshift/enhancements/b
 ## Prerequisites
 
 - **JIRA_TOKEN**: Environment variable must be set with a valid JIRA API token
-  - Obtain from: https://issues.redhat.com (Profile -> Personal Access Tokens)
+  - Obtain from: https://id.atlassian.com/manage-profile/security/api-tokens
+- **JIRA_USERNAME**: Environment variable must be set with your Atlassian account email
 
 ## Usage
 
@@ -35,7 +36,7 @@ python3 plugins/ci/skills/set-release-blocker/set_release_blocker.py OCPBUGS-765
 
 ## JIRA Field Details
 
-- **Field ID**: `customfield_12319743`
+- **Field ID**: `customfield_10847`
 - **Field name**: Release Blocker
 - **Type**: Select dropdown
 - **Options**:
@@ -48,7 +49,7 @@ python3 plugins/ci/skills/set-release-blocker/set_release_blocker.py OCPBUGS-765
 
 ```
 Release Blocker set to 'Approved' on OCPBUGS-76523
-  https://issues.redhat.com/browse/OCPBUGS-76523
+  https://redhat.atlassian.net/browse/OCPBUGS-76523
 ```
 
 ### JSON format
@@ -58,7 +59,7 @@ Release Blocker set to 'Approved' on OCPBUGS-76523
   "success": true,
   "issue_key": "OCPBUGS-76523",
   "value": "Approved",
-  "url": "https://issues.redhat.com/browse/OCPBUGS-76523"
+  "url": "https://redhat.atlassian.net/browse/OCPBUGS-76523"
 }
 ```
 

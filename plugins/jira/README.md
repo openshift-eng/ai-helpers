@@ -25,19 +25,19 @@ Comprehensive Jira integration for Claude Code, providing AI-powered tools to an
 
 ```bash
 # Start the atlassian mcp server using podman
-podman run -i --rm -p 8080:8080 -e "JIRA_URL=https://issues.redhat.com" -e "JIRA_USERNAME" -e "JIRA_PERSONAL_TOKEN" -e "JIRA_SSL_VERIFY" ghcr.io/sooperset/mcp-atlassian:latest --transport sse --port 8080 -vv
+podman run -i --rm -p 8080:8080 -e "JIRA_URL=https://redhat.atlassian.net" -e "JIRA_USERNAME" -e "JIRA_API_TOKEN" ghcr.io/sooperset/mcp-atlassian:latest --transport sse --port 8080 -vv
 ```
 
 Add the MCP server to Claude:
 
 ```bash
 # Add the Atlassian MCP server
-claude mcp add --transport sse atlassian http://localhost:8080/sse
+claude mcp add -e JIRA_URL="https://redhat.atlassian.net" -e JIRA_API_TOKEN="token" -e JIRA_USERNAME="user@redhat.com" --transport stdio jira -- uvx mcp-atlassian
 ```
 
 #### Getting Tokens
 
-For your Jira token, use https://issues.redhat.com/secure/ViewProfile.jspa?selectedTab=com.atlassian.pats.pats-plugin:jira-user-personal-access-tokens
+For your Jira API token, use https://id.atlassian.com/manage-profile/security/api-tokens
 
 ### Notes and tips
 
@@ -46,7 +46,6 @@ For your Jira token, use https://issues.redhat.com/secure/ViewProfile.jspa?selec
 - The `atlassian` server example uses an MCP container image: `ghcr.io/sooperset/mcp-atlassian:latest`.
 - If you prefer Docker, replace the `podman` command with `docker` (arguments are typically the same).
 - If Podman is installed via Podman Machine on macOS, ensure it is running: `podman machine start`.
-- Keep `JIRA_SSL_VERIFY` as "true" unless you have a specific reason to disable TLS verification.
 - Limit active MCP servers: running too many at once can degrade performance or hit limits. Use Cursor's MCP panel to disable those you don't need for the current session.
 
 ## Installation
@@ -266,7 +265,7 @@ Fix: Added nil check for CloudProviderConfig.Subnet before accessing Subnet.ID f
 Result: The control-plane-operator no longer crashes when CloudProviderConfig.Subnet is not specified
 ---
 
-Updated: https://issues.redhat.com/browse/OCPBUGS-38358
+Updated: https://redhat.atlassian.net/browse/OCPBUGS-38358
 ```
 
 See [commands/create-release-note.md](commands/create-release-note.md) for full documentation.

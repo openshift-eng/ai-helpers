@@ -29,7 +29,7 @@ Structured JSON data containing:
 ```json
 {
   "key": "OCPBUGS-74401",
-  "url": "https://issues.redhat.com/browse/OCPBUGS-74401",
+  "url": "https://redhat.atlassian.net/browse/OCPBUGS-74401",
   "summary": "ovn-ipsec-host creates duplicate openssl attribute",
   "status": "Modified",
   "resolution": null,
@@ -54,15 +54,15 @@ Structured JSON data containing:
 The skill fetches data from:
 
 ```
-https://issues.redhat.com/rest/api/2/issue/{key}
+https://redhat.atlassian.net/rest/api/2/issue/{key}
 ```
 
-Authentication via Bearer token is required.
+Authentication via Basic auth (email + API token) is required.
 
 ## Prerequisites
 
 - JIRA API token (`JIRA_TOKEN` environment variable)
-- Network access to issues.redhat.com (VPN may be required)
+- Network access to redhat.atlassian.net
 - Python 3.6 or later (uses standard library only)
 
 ## Usage

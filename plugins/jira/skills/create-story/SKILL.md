@@ -449,7 +449,7 @@ mcp__atlassian__jira_create_issue(
     description="<story description with user story format and AC>",
     components="HyperShift / ROSA",
     additional_fields={
-        "customfield_12311140": "CNTRLPLANE-456",  # Epic Link - parent epic key as STRING
+        "customfield_10014": "CNTRLPLANE-456",  # Epic Link - parent epic key as STRING
         "labels": ["ai-generated-jira"],
         "security": {"name": "Red Hat Employee"}
     }
@@ -689,7 +689,7 @@ URL: https://jira.example.com/browse/MYPROJECT-123
 2. Create story with Epic Link field:
    ```python
    additional_fields={
-       "customfield_12311140": "CNTRLPLANE-100",  # Epic Link (NOT parent field!)
+       "customfield_10014": "CNTRLPLANE-100",  # Epic Link (NOT parent field!)
        "labels": ["ai-generated-jira"],
        "security": {"name": "Red Hat Employee"}
    }

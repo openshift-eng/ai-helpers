@@ -86,14 +86,14 @@ From the PR diff (go.mod changes):
     - Usage in repository
     - Changes in update
     - Step-by-step testing instructions
-  - **Target Version**: Sets customfield_12319940 to openshift-X.Y
+  - **Target Version**: Sets customfield_10855 to openshift-X.Y
 
 ### 5. PR Title Update
 
 Posts comment with `/retitle` command and processing summary:
 
 ```
-/retitle [PROJECT-XXXX](https://issues.redhat.com/browse/PROJECT-XXXX): {Package name} ({Brief description})
+/retitle [PROJECT-XXXX](https://redhat.atlassian.net/browse/PROJECT-XXXX): {Package name} ({Brief description})
 ```
 
 Includes checklist of completed actions and link to Jira ticket.

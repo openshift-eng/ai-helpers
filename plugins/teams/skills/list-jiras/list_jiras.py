@@ -7,8 +7,9 @@ It uses environment variables for authentication and supports filtering by compo
 status, and other criteria.
 
 Environment Variables:
-    JIRA_URL: Base URL for JIRA instance (e.g., "https://issues.redhat.com")
-    JIRA_PERSONAL_TOKEN: Your JIRA API bearer token or personal access token
+    JIRA_URL: Base URL for JIRA instance (e.g., "https://redhat.atlassian.net")
+    JIRA_USERNAME: Your JIRA username (email address) for Basic auth
+    JIRA_API_TOKEN: Your JIRA API token
 
 Usage:
     python3 list_jiras.py --project OCPBUGS
@@ -18,6 +19,7 @@ Usage:
 """
 
 import argparse
+import base64
 import json
 import os
 import sys
@@ -65,14 +67,15 @@ def build_jql_query(project: str, components: Optional[List[str]] = None,
     return ' AND '.join(parts)
 
 
-def fetch_jira_issues(jira_url: str, token: str,
+def fetch_jira_issues(jira_url: str, username: str, token: str,
                       jql: str, max_results: int = 100) -> Dict[str, Any]:
     """
     Fetch issues from JIRA using JQL query.
 
     Args:
         jira_url: Base JIRA URL
-        token: JIRA bearer token
+        username: JIRA username (email) for Basic auth
+        token: JIRA API token
         jql: JQL query string
         max_results: Maximum number of results to fetch
 
@@ -88,7 +91,7 @@ def fetch_jira_issues(jira_url: str, token: str,
         'created', 'updated', 'resolutiondate',
         'versions',  # Affects Version/s
         'fixVersions',  # Fix Version/s
-        'customfield_12319940'  # Target Version
+        'customfield_10855'  # Target Version
     ]
 
     params = {
@@ -109,10 +112,10 @@ def fetch_jira_issues(jira_url: str, token: str,
     query_string = '&'.join(encoded_params)
     full_url = f"{api_url}?{query_string}"
 
-    # Create request with bearer token authentication
+    # Create request with Basic authentication (base64 of username:api_token)
     request = urllib.request.Request(full_url)
-    request.add_header('Authorization', f'Bearer {token}')
-    # Note: Don't add Content-Type for GET requests
+    credentials = base64.b64encode(f"{username}:{token}".encode()).decode()
+    request.add_header('Authorization', f'Basic {credentials}')
 
     print(f"Fetching issues from JIRA...", file=sys.stderr)
     print(f"JQL: {jql}", file=sys.stderr)
@@ -194,7 +197,8 @@ Examples:
 
     # Get environment variables
     jira_url = get_env_var('JIRA_URL').rstrip('/')
-    token = get_env_var('JIRA_PERSONAL_TOKEN')
+    username = get_env_var('JIRA_USERNAME')
+    token = get_env_var('JIRA_API_TOKEN')
 
     # If multiple components are provided, warn user and iterate through them
     if args.component and len(args.component) > 1:
@@ -220,7 +224,7 @@ Examples:
             )
 
             # Fetch issues for this component
-            response = fetch_jira_issues(jira_url, token, jql, args.limit)
+            response = fetch_jira_issues(jira_url, username, token, jql, args.limit)
 
             # Aggregate results
             component_issues = response.get('issues', [])
@@ -277,7 +281,7 @@ Examples:
         )
 
         # Fetch issues
-        response = fetch_jira_issues(jira_url, token, jql, args.limit)
+        response = fetch_jira_issues(jira_url, username, token, jql, args.limit)
 
         # Extract data
         issues = response.get('issues', [])

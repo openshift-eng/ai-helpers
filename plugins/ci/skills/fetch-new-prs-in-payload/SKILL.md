@@ -85,14 +85,14 @@ The structured data includes all PR details from the payload diff:
       "pull_request_id": "8594",
       "component": "agent-installer-api-server",
       "description": "Create Enhancement Document for 3rd Party CNI / No CNI Support in Assisted Installer",
-      "bug_url": "https://issues.redhat.com/browse/MGMT-22584"
+      "bug_url": "https://redhat.atlassian.net/browse/MGMT-22584"
     },
     {
       "url": "https://github.com/openshift/hypershift/pull/7470",
       "pull_request_id": "7470",
       "component": "hypershift",
       "description": "use InfraStatus.APIPort for custom DNS kubeconfig",
-      "bug_url": "https://issues.redhat.com/browse/OCPBUGS-72258"
+      "bug_url": "https://redhat.atlassian.net/browse/OCPBUGS-72258"
     }
   ]
 }
@@ -166,7 +166,7 @@ The API returns a JSON array of PR objects:
     "pull_request_id": "7470",
     "name": "hypershift",
     "description": "use InfraStatus.APIPort for custom DNS kubeconfig",
-    "bug_url": "https://issues.redhat.com/browse/OCPBUGS-72258"
+    "bug_url": "https://redhat.atlassian.net/browse/OCPBUGS-72258"
   }
 ]
 ```
@@ -200,14 +200,14 @@ python3 "$FETCH_NEW_PRS" 4.22.0-0.nightly-2026-01-15-114134 --format json
       "pull_request_id": "8594",
       "component": "agent-installer-api-server",
       "description": "Create Enhancement Document for 3rd Party CNI / No CNI Support in Assisted Installer",
-      "bug_url": "https://issues.redhat.com/browse/MGMT-22584"
+      "bug_url": "https://redhat.atlassian.net/browse/MGMT-22584"
     },
     {
       "url": "https://github.com/openshift/machine-config-operator/pull/5509",
       "pull_request_id": "5509",
       "component": "machine-config-operator",
       "description": "Set `NodeDegraded` MCN condition when node state annotation is set to `Degraded`",
-      "bug_url": "https://issues.redhat.com/browse/OCPBUGS-67229"
+      "bug_url": "https://redhat.atlassian.net/browse/OCPBUGS-67229"
     }
   ]
 }
@@ -226,23 +226,23 @@ New PRs in payload 4.22.0-0.nightly-2026-01-15-114134
 Total: 17 new pull requests
 
   agent-installer-api-server (1 PRs):
-    - Create Enhancement Document for 3rd Party CNI / No CNI Support in Assisted Installer [https://issues.redhat.com/browse/MGMT-22584]
+    - Create Enhancement Document for 3rd Party CNI / No CNI Support in Assisted Installer [https://redhat.atlassian.net/browse/MGMT-22584]
       https://github.com/openshift/assisted-service/pull/8594
 
   hypershift (4 PRs):
-    - [kubevirt] Make L3 migration labeling conditional [https://issues.redhat.com/browse/OCPBUGS-66205]
+    - [kubevirt] Make L3 migration labeling conditional [https://redhat.atlassian.net/browse/OCPBUGS-66205]
       https://github.com/openshift/hypershift/pull/7308
-    - feat(api): add support for graceful service account signing key rotation [https://issues.redhat.com/browse/CNTRLPLANE-1768]
+    - feat(api): add support for graceful service account signing key rotation [https://redhat.atlassian.net/browse/CNTRLPLANE-1768]
       https://github.com/openshift/hypershift/pull/7324
-    - Scaffold OpenShiftManager controller [https://issues.redhat.com/browse/API-1835]
+    - Scaffold OpenShiftManager controller [https://redhat.atlassian.net/browse/API-1835]
       https://github.com/openshift/hypershift/pull/7445
-    - use InfraStatus.APIPort for custom DNS kubeconfig [https://issues.redhat.com/browse/OCPBUGS-72258]
+    - use InfraStatus.APIPort for custom DNS kubeconfig [https://redhat.atlassian.net/browse/OCPBUGS-72258]
       https://github.com/openshift/hypershift/pull/7470
 
   machine-config-operator (2 PRs):
-    - Set `NodeDegraded` MCN condition when node state annotation is set to `Degraded` [https://issues.redhat.com/browse/OCPBUGS-67229]
+    - Set `NodeDegraded` MCN condition when node state annotation is set to `Degraded` [https://redhat.atlassian.net/browse/OCPBUGS-67229]
       https://github.com/openshift/machine-config-operator/pull/5509
-    - Prevent unnecessary systemd unit disable [https://issues.redhat.com/browse/OCPBUGS-58023]
+    - Prevent unnecessary systemd unit disable [https://redhat.atlassian.net/browse/OCPBUGS-58023]
       https://github.com/openshift/machine-config-operator/pull/5527
 ```
 

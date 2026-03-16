@@ -68,7 +68,7 @@ python3 plugins/ci/skills/triage-regression/triage_regression.py \
 python3 plugins/ci/skills/triage-regression/triage_regression.py \
   33639,33640,33641 \
   --token "$TOKEN" \
-  --url "https://issues.redhat.com/browse/OCPBUGS-12345" \
+  --url "https://redhat.atlassian.net/browse/OCPBUGS-12345" \
   --type product \
   --description "API discovery failure across metal variants" \
   --format json
@@ -83,7 +83,7 @@ python3 plugins/ci/skills/triage-regression/triage_regression.py \
   "regression_ids": [33639, 33640, 33641],
   "triage": {
     "id": 456,
-    "url": "https://issues.redhat.com/browse/OCPBUGS-12345",
+    "url": "https://redhat.atlassian.net/browse/OCPBUGS-12345",
     "type": "product",
     "description": "API discovery failure across metal variants",
     "regressions": [

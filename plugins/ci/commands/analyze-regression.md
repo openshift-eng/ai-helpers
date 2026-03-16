@@ -747,7 +747,7 @@ This command is useful for:
    ```
    A related triage already exists:
    - Triage ID: 789
-   - JIRA: https://issues.redhat.com/browse/OCPBUGS-12345
+   - JIRA: https://redhat.atlassian.net/browse/OCPBUGS-12345
    - Type: product
 
    The following untriaged regressions could be added to this triage:
@@ -802,7 +802,7 @@ This command is useful for:
 
    ```
    A related JIRA bug was found:
-   - JIRA: https://issues.redhat.com/browse/OCPBUGS-67890
+   - JIRA: https://redhat.atlassian.net/browse/OCPBUGS-67890
    - Summary: [bug summary from JIRA]
 
    The following regressions could be triaged to this bug:
@@ -829,7 +829,7 @@ This command is useful for:
    script_path="plugins/ci/skills/triage-regression/triage_regression.py"
    triage_result=$(python3 "$script_path" "$all_regression_ids" \
      --token "$TOKEN" \
-     --url "https://issues.redhat.com/browse/OCPBUGS-67890" \
+     --url "https://redhat.atlassian.net/browse/OCPBUGS-67890" \
      --type product \
      --description "$description" \
      --format json)
@@ -844,7 +844,7 @@ This command is useful for:
    Display to the user:
    ```
    Triage created:
-   - JIRA: https://issues.redhat.com/browse/OCPBUGS-67890
+   - JIRA: https://redhat.atlassian.net/browse/OCPBUGS-67890
    - Triage: https://sippy-auth.dptools.openshift.org/sippy-ng/component_readiness/triages/<triage_id>
    ```
 
@@ -902,7 +902,7 @@ This command is useful for:
    script_path="plugins/ci/skills/triage-regression/triage_regression.py"
    triage_result=$(python3 "$script_path" "$all_regression_ids" \
      --token "$TOKEN" \
-     --url "https://issues.redhat.com/browse/<new_bug_key>" \
+     --url "https://redhat.atlassian.net/browse/<new_bug_key>" \
      --type <recommended_type> \
      --description "$description" \
      --format json)
@@ -917,7 +917,7 @@ This command is useful for:
    Display to the user:
    ```
    Bug filed and triaged:
-   - JIRA: https://issues.redhat.com/browse/<new_bug_key>
+   - JIRA: https://redhat.atlassian.net/browse/<new_bug_key>
    - Release Blocker: Approved
    - Triage: https://sippy-auth.dptools.openshift.org/sippy-ng/component_readiness/triages/<triage_id>
    ```
@@ -1091,7 +1091,7 @@ Uses the `triage-regression` skill with authentication via the `oc-auth` skill (
 3. **JIRA_TOKEN** (optional): Required for JIRA progress analysis on triaged regressions
 
    - Set environment variable: `export JIRA_TOKEN="your-jira-api-token"`
-   - Obtain from: https://issues.redhat.com (Profile → Personal Access Tokens)
+   - Obtain from: https://id.atlassian.com/manage-profile/security/api-tokens
    - If not set, JIRA progress analysis will be skipped but other analysis continues
 
 ## Notes

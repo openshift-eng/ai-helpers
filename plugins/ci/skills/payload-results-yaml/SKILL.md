@@ -72,7 +72,7 @@ candidates:
         revert_pr_state: "open"
         result_summary: "Revert PR opened and payload jobs triggered"
         jira_key: "TRT-1234"
-        jira_url: "https://issues.redhat.com/browse/TRT-1234"
+        jira_url: "https://redhat.atlassian.net/browse/TRT-1234"
         payload_jobs:
           - command: "/payload-job periodic-ci-...-e2e-aws-ovn"
             test_url: "https://pr-payload-tests.ci.openshift.org/runs/ci/..."

@@ -215,8 +215,8 @@ Update the Jira bug ticket with generated release note:
 1. **Prepare fields** for update:
    ```
    {
-     "customfield_12320850": {"value": "<Release Note Type>"},
-     "customfield_12317313": "<Release Note Text>"
+     "customfield_10785": {"value": "<Release Note Type>"},
+     "customfield_10783": "<Release Note Text>"
    }
    ```
 
@@ -225,8 +225,8 @@ Update the Jira bug ticket with generated release note:
    mcp__atlassian__jira_update_issue(
      issue_key=<issue-key>,
      fields={
-       "customfield_12320850": {"value": "Bug Fix"},
-       "customfield_12317313": "<formatted release note text>"
+       "customfield_10785": {"value": "Bug Fix"},
+       "customfield_10783": "<formatted release note text>"
      }
    )
    ```
@@ -255,7 +255,7 @@ Show the user what was created:
    Workaround: ...
    ---
 
-   Updated: https://issues.redhat.com/browse/{issue-key}
+   Updated: https://redhat.atlassian.net/browse/{issue-key}
    ```
 
 2. **Provide next steps**:
@@ -338,7 +338,7 @@ Fix: Added nil check for CloudProviderConfig.Subnet before accessing Subnet.ID f
 Result: The control-plane-operator no longer crashes when CloudProviderConfig.Subnet is not specified
 ---
 
-Updated: https://issues.redhat.com/browse/OCPBUGS-38358
+Updated: https://redhat.atlassian.net/browse/OCPBUGS-38358
 ```
 
 ## Error Handling
@@ -468,7 +468,7 @@ Consequence: ...
 ```
 Failed to update Release Note Type field.
 
-Error: Value "Bug Fix" is not valid for field customfield_12320850
+Error: Value "Bug Fix" is not valid for field customfield_10785
 
 This may indicate a Jira configuration issue. Please verify the allowed values for Release Note Type in your Jira instance.
 ```
@@ -521,8 +521,8 @@ Combining all fixes into a single release note...
 
 1. **Jira Permissions**:
    - Read access to bug tickets
-   - Write access to Release Note Type field (customfield_12320850)
-   - Write access to Release Note Text field (customfield_12317313)
+   - Write access to Release Note Type field (customfield_10785)
+   - Write access to Release Note Text field (customfield_10783)
 
 2. **GitHub Permissions**:
    - Read access to pull requests
@@ -540,8 +540,8 @@ Combining all fixes into a single release note...
 ### Jira Custom Fields
 
 The command uses these Jira custom field IDs:
-- `customfield_12320850`: Release Note Type (dropdown)
-- `customfield_12317313`: Release Note Text (text field)
+- `customfield_10785`: Release Note Type (dropdown)
+- `customfield_10783`: Release Note Text (text field)
 
 These field IDs are specific to Red Hat's Jira instance. If using a different Jira instance, you may need to update the field IDs.
 

@@ -548,7 +548,7 @@ oc logs -n openshift-marketplace <catalog-pod>        # Check logs
 - **Solution**: The command will fall back to the `main` branch. Be aware that there may be version differences.
 
 **Jira access fails or returns no results:**
-- **Solution**: Check network connectivity to https://issues.redhat.com/. The command will continue with analysis even if Jira is unavailable.
+- **Solution**: Check network connectivity to https://redhat.atlassian.net/. The command will continue with analysis even if Jira is unavailable.
 
 **Too many potential bug matches returned:**
 - **Solution**: Review the `known-bugs.md` file and focus on high-confidence matches. Verify each match by reading the full bug description in Jira.
@@ -561,7 +561,7 @@ oc logs -n openshift-marketplace <catalog-pod>        # Check logs
 - [Operator Lifecycle Manager Documentation](https://olm.operatorframework.io/)
 - [OperatorHub.io](https://operatorhub.io/) - Browse operators online
 - [Must-gather Documentation](https://docs.openshift.com/container-platform/latest/support/gathering-cluster-data.html)
-- [OCPBUGS Jira Project](https://issues.redhat.com/projects/OCPBUGS/)
+- [OCPBUGS Jira Project](https://redhat.atlassian.net/projects/OCPBUGS/)
 
 ## Contributing
 

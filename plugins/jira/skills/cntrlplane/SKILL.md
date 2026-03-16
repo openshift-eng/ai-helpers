@@ -30,7 +30,7 @@ This skill is automatically invoked by the `/jira:create` command when the proje
 
 **Note:** Universal requirements (Security Level: Red Hat Employee, Labels: ai-generated-jira) are defined in the `/jira:create` command and automatically applied to all tickets.
 
-### Target Version (customfield_12319940)
+### Target Version (customfield_10855)
 
 **Status:** OPTIONAL (many issues in CNTRLPLANE have null target version)
 
@@ -71,7 +71,7 @@ Users may specify versions in various formats. Normalize all inputs to the Jira 
 
 3. **Use correct MCP format** (array of version objects with ID):
    ```python
-   "customfield_12319940": [{"id": "VERSION_ID"}]  # e.g., openshift-4.22
+   "customfield_10855": [{"id": "VERSION_ID"}]  # e.g., openshift-4.22
    ```
 
 **IMPORTANT:** Do NOT use string format like `"openshift-4.22"` - this will fail. Must use array with version ID.
@@ -98,13 +98,13 @@ CNTRLPLANE uses different fields for different parent relationships:
 
 | Creating | Parent Type | Field to Use | Value Format |
 |----------|-------------|--------------|--------------|
-| Story | Epic | `customfield_12311140` (Epic Link) | `"CNTRLPLANE-123"` (string) |
-| Task | Epic | `customfield_12311140` (Epic Link) | `"CNTRLPLANE-123"` (string) |
-| Epic | Feature | `customfield_12313140` (Parent Link) | `"CNTRLPLANE-123"` (string) |
+| Story | Epic | `customfield_10014` (Epic Link) | `"CNTRLPLANE-123"` (string) |
+| Task | Epic | `customfield_10014` (Epic Link) | `"CNTRLPLANE-123"` (string) |
+| Epic | Feature | `customfield_10018` (Parent Link) | `"CNTRLPLANE-123"` (string) |
 
 **⚠️ CRITICAL:**
-- Story/Task → Epic uses **Epic Link** (`customfield_12311140`)
-- Epic → Feature uses **Parent Link** (`customfield_12313140`)
+- Story/Task → Epic uses **Epic Link** (`customfield_10014`)
+- Epic → Feature uses **Parent Link** (`customfield_10018`)
 - Both fields take STRING values (issue key), NOT objects
 - The standard `parent` field does NOT work
 
@@ -112,10 +112,10 @@ CNTRLPLANE uses different fields for different parent relationships:
 
 | Field | Custom Field ID | Format |
 |-------|-----------------|--------|
-| Epic Link (for stories/tasks) | `customfield_12311140` | String: `"CNTRLPLANE-123"` |
-| Parent Link (for epics→features) | `customfield_12313140` | String: `"CNTRLPLANE-123"` |
-| Epic Name (required for epics) | `customfield_12311141` | String: same as summary |
-| Target Version | `customfield_12319940` | Array: `[{"id": "12448830"}]` |
+| Epic Link (for stories/tasks) | `customfield_10014` | String: `"CNTRLPLANE-123"` |
+| Parent Link (for epics→features) | `customfield_10018` | String: `"CNTRLPLANE-123"` |
+| Epic Name (required for epics) | `customfield_10011` | String: same as summary |
+| Target Version | `customfield_10855` | Array: `[{"id": "12448830"}]` |
 
 ### Implementation
 
@@ -189,7 +189,7 @@ mcp__atlassian__jira_create_issue(
     description="<formatted description with full user story and AC>",
     components="<component name>",  # if required by team
     additional_fields={
-        "customfield_12311140": "<epic-key>",  # Epic Link (e.g., "CNTRLPLANE-456")
+        "customfield_10014": "<epic-key>",  # Epic Link (e.g., "CNTRLPLANE-456")
         "labels": ["ai-generated-jira"],
         "security": {"name": "Red Hat Employee"}
     }
@@ -207,7 +207,7 @@ mcp__atlassian__jira_create_issue(
     description="<epic description with scope and AC>",
     components="<component name>",  # if required
     additional_fields={
-        "customfield_12311141": "<epic name>",  # required, same as summary
+        "customfield_10011": "<epic name>",  # required, same as summary
         "labels": ["ai-generated-jira"],
         "security": {"name": "Red Hat Employee"}
     }
@@ -223,8 +223,8 @@ mcp__atlassian__jira_create_issue(
     description="<epic description with scope and AC>",
     components="<component name>",  # if required
     additional_fields={
-        "customfield_12311141": "<epic name>",  # required, same as summary
-        "customfield_12313140": "CNTRLPLANE-123",  # Parent Link - feature key as STRING
+        "customfield_10011": "<epic name>",  # required, same as summary
+        "customfield_10018": "CNTRLPLANE-123",  # Parent Link - feature key as STRING
         "labels": ["ai-generated-jira"],
         "security": {"name": "Red Hat Employee"}
     }
@@ -259,14 +259,14 @@ mcp__atlassian__jira_create_issue(
     description="<task description with what/why/AC>",
     components="<component name>",  # if required
     additional_fields={
-        "customfield_12311140": "CNTRLPLANE-456",  # Epic Link (if linking to epic)
+        "customfield_10014": "CNTRLPLANE-456",  # Epic Link (if linking to epic)
         "labels": ["ai-generated-jira"],
         "security": {"name": "Red Hat Employee"}
     }
 )
 ```
 
-**Note:** If you need to link a task to a parent story, use Epic Link field (`customfield_12311140`) with the story key.
+**Note:** If you need to link a task to a parent story, use Epic Link field (`customfield_10014`) with the story key.
 
 ### Field Mapping Reference
 
@@ -277,10 +277,10 @@ mcp__atlassian__jira_create_issue(
 | Summary | `summary` | Concise title (5-10 words), NOT full user story | Yes |
 | Description | `description` | Formatted template (contains full user story) | Yes |
 | Component | `components` | Team-specific component name | Varies by team |
-| Target Version | `additional_fields.customfield_12319940` | Array: `[{"id": "12448830"}]` **Recommend omitting** | No |
+| Target Version | `additional_fields.customfield_10855` | Array: `[{"id": "12448830"}]` **Recommend omitting** | No |
 | Labels | `additional_fields.labels` | `["ai-generated-jira"]` | Yes |
 | Security Level | `additional_fields.security` | `{"name": "Red Hat Employee"}` | Yes |
-| Epic Link (stories→epics) | `additional_fields.customfield_12311140` | Epic key as string: `"CNTRLPLANE-123"` | No |
+| Epic Link (stories→epics) | `additional_fields.customfield_10014` | Epic key as string: `"CNTRLPLANE-123"` | No |
 | Epic Name (epics only) | `additional_fields.customfield_epicname` | Same as summary | Yes (epics) |
 | Parent Link (epics→features) | `additional_fields.parent` | `{"key": "FEATURE-123"}` | No |
 

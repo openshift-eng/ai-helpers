@@ -417,7 +417,8 @@ All modules should handle these error cases:
 
 - **Python 3.8+** with `aiohttp` package
 - **Environment variables**:
-  - `JIRA_TOKEN` or `JIRA_PERSONAL_TOKEN`: Jira API bearer token
+  - `JIRA_API_TOKEN` or `JIRA_TOKEN`: Atlassian API token
+  - `JIRA_USERNAME`: Atlassian account email
   - `GITHUB_TOKEN` or authenticated `gh` CLI
 - **Jira MCP server** configured (for argument resolution)
 

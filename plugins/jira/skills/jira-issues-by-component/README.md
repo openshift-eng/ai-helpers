@@ -29,7 +29,7 @@ jira_curl.sh [curl arguments...]
 **Example:**
 ```bash
 # Instead of exposing token in command line:
-curl -H "Authorization: Bearer ${JIRA_PERSONAL_TOKEN}" https://jira.example.com/api
+curl -u "user@redhat.com:${JIRA_API_TOKEN}" https://jira.example.com/api
 
 # Use wrapper (token hidden):
 jira_curl.sh https://jira.example.com/api
@@ -37,10 +37,9 @@ jira_curl.sh https://jira.example.com/api
 
 ## Required Environment Variables
 
-- `JIRA_URL`: JIRA instance URL (e.g., `https://issues.redhat.com`)
-- `JIRA_PERSONAL_TOKEN` or `JIRA_API_TOKEN`: Authentication token
-
-The wrapper will use `JIRA_PERSONAL_TOKEN` if available (preferred for Red Hat JIRA), otherwise falls back to `JIRA_API_TOKEN`.
+- `JIRA_URL`: JIRA instance URL (e.g., `https://redhat.atlassian.net`)
+- `JIRA_API_TOKEN`: Atlassian API token
+- `JIRA_USERNAME`: Atlassian account email (e.g., `user@redhat.com`)
 
 ## Security Benefits
 
