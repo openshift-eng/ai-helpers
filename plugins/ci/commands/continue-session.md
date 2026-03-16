@@ -97,7 +97,7 @@ If multiple sessions are found, display a numbered list asking "What session wou
 - The truncated first user message
 
 Example:
-```
+```text
 What session would you like to continue?
 
 1. [abc12345-...] "Please analyze the test failures in..."
@@ -112,7 +112,7 @@ The extracted archive contains sessions under a CI-specific project path (e.g., 
 
 Determine the **local project path** that Claude uses for the current working directory. Claude's projects directory structure encodes the absolute path of the project by replacing `/` with `-` and stripping the leading slash. For example, if the current working directory is `/Users/stbenjam/git/my-repo`, the local project path is:
 
-```
+```text
 ~/.claude/projects/-Users-stbenjam-git-my-repo/
 ```
 
@@ -138,7 +138,7 @@ Only the single selected session is copied — do not copy other sessions. Both 
 
 Tell the user:
 
-```
+```text
 You are all set! You can now continue the session by launching a new Claude:
 
 claude --resume <session-uuid>
