@@ -505,7 +505,7 @@ The command executes the following workflow:
   1. Check that JIRA_API_TOKEN is correct and not expired
   2. Verify JIRA_USERNAME matches your Atlassian account email
   3. Ensure JIRA_URL is correct (e.g., https://redhat.atlassian.net)
-  4. Test authentication: curl -u "user@redhat.com:YOUR_TOKEN" YOUR_JIRA_URL/rest/api/3/myself
+  4. Test authentication: curl -H "Authorization: Basic $(printf '%s:%s' "$JIRA_USERNAME" "$JIRA_API_TOKEN" | base64)" YOUR_JIRA_URL/rest/api/3/myself
 
   To regenerate your token, visit:
   https://id.atlassian.com/manage-profile/security/api-tokens
