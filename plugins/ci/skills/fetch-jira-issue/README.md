@@ -20,7 +20,8 @@ This skill is used internally by CI commands such as `/ci:analyze-regression` an
 ### Input
 
 - **JIRA Key**: Issue key (e.g., OCPBUGS-74401)
-- **JIRA_TOKEN**: API token set as environment variable (or passed via `--token`)
+- **JIRA_USERNAME**: Atlassian account email set as environment variable (or passed via `--username`)
+- **JIRA_API_TOKEN**: API token set as environment variable (or passed via `--token`)
 
 ### Output
 
@@ -61,7 +62,8 @@ Authentication via Basic auth (email + API token) is required.
 
 ## Prerequisites
 
-- JIRA API token (`JIRA_TOKEN` environment variable)
+- JIRA username (`JIRA_USERNAME` environment variable)
+- JIRA API token (`JIRA_API_TOKEN` environment variable)
 - Network access to redhat.atlassian.net
 - Python 3.6 or later (uses standard library only)
 

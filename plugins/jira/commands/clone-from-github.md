@@ -68,7 +68,7 @@ Check that the gh2jira utility is available and configured:
 3. **Verify tokens are configured**:
    - Check that `tokenstore.yaml` contains actual tokens (not placeholder values)
    - GitHub token should not contain "YOUR_GITHUB_TOKEN"
-   - Jira token should not contain "YOUR_JIRA_TOKEN"
+   - Jira token should not contain "YOUR_JIRA_API_TOKEN"
 
 **IMPORTANT**: All gh2jira commands MUST be executed from the `$GH2JIRA_DIR` directory to ensure configuration files are properly loaded.
 
@@ -345,7 +345,7 @@ Alternatively, you can manually create the tokenstore.yaml file:
 cat > tokenstore.yaml << 'EOF'
 schema: gh2jira.tokenstore
 authTokens:
-  jira: YOUR_JIRA_TOKEN
+  jira: YOUR_JIRA_API_TOKEN
   github: YOUR_GITHUB_TOKEN
 EOF
 ```

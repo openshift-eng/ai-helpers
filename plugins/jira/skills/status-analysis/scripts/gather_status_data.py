@@ -1262,7 +1262,7 @@ Environment Variables:
 
     # Get credentials
     jira_url = get_env_var("JIRA_URL", default="https://redhat.atlassian.net", required=False)
-    jira_token = get_env_var("JIRA_API_TOKEN", alternatives=["JIRA_TOKEN"])
+    jira_token = get_env_var("JIRA_API_TOKEN")
     jira_username = get_env_var("JIRA_USERNAME", required=True)
     github_token = get_github_token()
 

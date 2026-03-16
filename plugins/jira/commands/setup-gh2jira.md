@@ -221,7 +221,7 @@ Please paste your Jira API Token:
 If you're unsure about your Jira token setup, enter 'skip' to configure later.
 ```
 
-Store in variable: `$JIRA_TOKEN`
+Store in variable: `$JIRA_API_TOKEN`
 
 **Validate token (optional, requires Jira URL):**
 ```
@@ -230,7 +230,7 @@ Enter your Jira base URL (e.g., https://redhat.atlassian.net):
 
 ```bash
 # Test token
-curl -s -u "$JIRA_USERNAME:$JIRA_TOKEN" "$JIRA_URL/rest/api/2/myself" | jq -r '.displayName'
+curl -s -u "$JIRA_USERNAME:$JIRA_API_TOKEN" "$JIRA_URL/rest/api/2/myself" | jq -r '.displayName'
 ```
 
 #### 3.3 Create tokenstore.yaml
@@ -239,7 +239,7 @@ curl -s -u "$JIRA_USERNAME:$JIRA_TOKEN" "$JIRA_URL/rest/api/2/myself" | jq -r '.
 cat > $GH2JIRA_DIR/tokenstore.yaml << EOF
 schema: gh2jira.tokenstore
 authTokens:
-  jira: $JIRA_TOKEN
+  jira: $JIRA_API_TOKEN
   github: $GITHUB_TOKEN
 EOF
 

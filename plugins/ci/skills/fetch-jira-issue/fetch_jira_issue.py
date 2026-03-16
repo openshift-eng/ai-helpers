@@ -67,18 +67,18 @@ class JiraIssueFetcher:
 
         Args:
             jira_key: JIRA issue key (e.g., OCPBUGS-74401)
-            token: JIRA API token. If not provided, reads from JIRA_TOKEN env var.
+            token: JIRA API token. If not provided, reads from JIRA_API_TOKEN env var.
             username: Atlassian account email. If not provided, reads from JIRA_USERNAME env var.
 
         Raises:
             ValueError: If no token or username is available
         """
         self.jira_key = jira_key.upper().strip()
-        self.token = token or os.environ.get("JIRA_TOKEN", "")
+        self.token = token or os.environ.get("JIRA_API_TOKEN", "")
         if not self.token:
             raise ValueError(
                 "JIRA API token required.\n"
-                "Set JIRA_TOKEN environment variable or pass --token.\n"
+                "Set JIRA_API_TOKEN environment variable or pass --token.\n"
                 "Obtain from: https://id.atlassian.com/manage-profile/security/api-tokens"
             )
         self.username = username or os.environ.get("JIRA_USERNAME", "")
@@ -113,7 +113,7 @@ class JiraIssueFetcher:
         except urllib.error.HTTPError as e:
             if e.code == 401:
                 raise ValueError(
-                    "Authentication failed. Check that JIRA_TOKEN and JIRA_USERNAME are valid.\n"
+                    "Authentication failed. Check that JIRA_API_TOKEN and JIRA_USERNAME are valid.\n"
                     "Obtain from: https://id.atlassian.com/manage-profile/security/api-tokens"
                 )
             elif e.code == 403:
@@ -444,7 +444,7 @@ def main():
         print("  fetch_jira_issue.py OCPBUGS-74401 --format summary", file=sys.stderr)
         print("", file=sys.stderr)
         print("Environment:", file=sys.stderr)
-        print("  JIRA_TOKEN: API token for redhat.atlassian.net (required)", file=sys.stderr)
+        print("  JIRA_API_TOKEN: API token for redhat.atlassian.net (required)", file=sys.stderr)
         print("  JIRA_USERNAME: Atlassian account email (required)", file=sys.stderr)
         sys.exit(1)
 

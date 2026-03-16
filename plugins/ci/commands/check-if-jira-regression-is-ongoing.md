@@ -242,7 +242,7 @@ This command is useful for:
 
    ```bash
    # Add comment to the bug
-   JIRA_AUTH=$(echo -n "$JIRA_USERNAME:$JIRA_TOKEN" | base64)
+   JIRA_AUTH=$(echo -n "$JIRA_USERNAME:$JIRA_API_TOKEN" | base64)
    curl -s -X POST \
      -H "Authorization: Basic $JIRA_AUTH" \
      -H "Content-Type: application/json" \
@@ -304,14 +304,14 @@ This command is useful for:
 
 ## Prerequisites
 
-1. **JIRA_TOKEN**: Required to read the Jira issue
-
-   - Set environment variable: `export JIRA_TOKEN="your-jira-api-token"`
-   - Obtain from: https://id.atlassian.com/manage-profile/security/api-tokens
-
-2. **JIRA_USERNAME**: Required for Jira authentication
+1. **JIRA_USERNAME**: Required for Jira authentication
 
    - Set environment variable: `export JIRA_USERNAME="your-atlassian-email"`
+
+2. **JIRA_API_TOKEN**: Required to read the Jira issue
+
+   - Set environment variable: `export JIRA_API_TOKEN="your-jira-api-token"`
+   - Obtain from: https://id.atlassian.com/manage-profile/security/api-tokens
 
 2. **Python 3**: Required for all skill scripts
 

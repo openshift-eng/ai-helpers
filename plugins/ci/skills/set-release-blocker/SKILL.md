@@ -11,7 +11,7 @@ See the [release blocker definition](https://github.com/openshift/enhancements/b
 
 ## Prerequisites
 
-- **JIRA_TOKEN**: Environment variable must be set with a valid JIRA API token
+- **JIRA_API_TOKEN**: Environment variable must be set with a valid JIRA API token
   - Obtain from: https://id.atlassian.com/manage-profile/security/api-tokens
 - **JIRA_USERNAME**: Environment variable must be set with your Atlassian account email
 
@@ -65,6 +65,6 @@ Release Blocker set to 'Approved' on OCPBUGS-76523
 
 ## Error Handling
 
-- If `JIRA_TOKEN` is not set, the script exits with an error message
+- If `JIRA_API_TOKEN` or `JIRA_USERNAME` is not set, the script exits with an error message
 - If the API call fails, returns `success: false` with the HTTP error details
 - The script verifies the update after setting it and reports the confirmed value

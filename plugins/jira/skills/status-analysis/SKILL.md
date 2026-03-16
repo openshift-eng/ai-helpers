@@ -417,7 +417,7 @@ All modules should handle these error cases:
 
 - **Python 3.8+** with `aiohttp` package
 - **Environment variables**:
-  - `JIRA_API_TOKEN` or `JIRA_TOKEN`: Atlassian API token
+  - `JIRA_API_TOKEN`: Atlassian API token (create at https://id.atlassian.com/manage-profile/security/api-tokens)
   - `JIRA_USERNAME`: Atlassian account email
   - `GITHUB_TOKEN` or authenticated `gh` CLI
 - **Jira MCP server** configured (for argument resolution)
@@ -426,7 +426,7 @@ Check setup:
 
 ```bash
 python3 -c "import aiohttp; print('aiohttp OK')"
-echo $JIRA_TOKEN
+echo $JIRA_API_TOKEN
 gh auth token
 ```
 

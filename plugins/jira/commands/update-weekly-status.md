@@ -328,7 +328,7 @@ The Python script (`gather_status_data.py`) handles efficient batch data collect
 
 ### Environment Variables
 
-- `JIRA_API_TOKEN` or `JIRA_TOKEN`: Atlassian API token
+- `JIRA_API_TOKEN`: Atlassian API token (create at https://id.atlassian.com/manage-profile/security/api-tokens)
   - `JIRA_USERNAME`: Atlassian account email
 - `GITHUB_TOKEN` or `gh auth token`: GitHub access token
 
@@ -508,7 +508,7 @@ The Python script (`gather_status_data.py`) handles efficient batch data collect
 - **Python 3.8+** with `aiohttp` package installed
 - **Jira MCP server** configured and accessible
 - **Environment variables**:
-  - `JIRA_API_TOKEN` or `JIRA_TOKEN`: Atlassian API token
+  - `JIRA_API_TOKEN`: Atlassian API token (create at https://id.atlassian.com/manage-profile/security/api-tokens)
   - `JIRA_USERNAME`: Atlassian account email
   - `GITHUB_TOKEN` or authenticated `gh` CLI
 
@@ -519,7 +519,7 @@ Check for required tools:
 python3 -c "import aiohttp; print('aiohttp OK')"
 
 # Check if the Jira token is defined
-test -n "$JIRA_TOKEN"
+test -n "$JIRA_API_TOKEN"
 
 # Check GitHub token (via gh CLI)
 gh auth token &> /dev/null

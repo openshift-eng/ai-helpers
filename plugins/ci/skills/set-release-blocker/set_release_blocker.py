@@ -11,7 +11,7 @@ Examples:
     python3 set_release_blocker.py OCPBUGS-76523 --value Rejected
     python3 set_release_blocker.py OCPBUGS-76523 --value ""  # Clear the field
 
-Requires JIRA_TOKEN environment variable to be set.
+Requires JIRA_API_TOKEN and JIRA_USERNAME environment variables to be set.
 """
 
 import argparse
@@ -141,9 +141,9 @@ Examples:
 
     args = parser.parse_args()
 
-    token = os.environ.get("JIRA_TOKEN")
+    token = os.environ.get("JIRA_API_TOKEN")
     if not token:
-        print("Error: JIRA_TOKEN environment variable is not set.", file=sys.stderr)
+        print("Error: JIRA_API_TOKEN environment variable is not set.", file=sys.stderr)
         print("Obtain from: https://id.atlassian.com/manage-profile/security/api-tokens", file=sys.stderr)
         sys.exit(1)
 

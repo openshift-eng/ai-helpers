@@ -117,9 +117,9 @@ This command is useful for:
    This means a human has already attributed this regression to a specific bug. For each triage entry, fetch the JIRA issue to analyze progress. Also check if step 4's test report found open bugs that may be related.
 
    ```bash
-   # Check if JIRA_TOKEN environment variable is set
-   if [ -z "$JIRA_TOKEN" ]; then
-     echo "Warning: JIRA_TOKEN environment variable not set. Skipping JIRA progress analysis."
+   # Check if JIRA auth environment variables are set
+   if [ -z "$JIRA_USERNAME" ] || [ -z "$JIRA_API_TOKEN" ]; then
+     echo "Warning: JIRA_USERNAME and/or JIRA_API_TOKEN not set. Skipping JIRA progress analysis."
    else
      # For each triage, fetch JIRA details using the fetch-jira-issue skill
      jira_script="plugins/ci/skills/fetch-jira-issue/fetch_jira_issue.py"
@@ -1088,11 +1088,15 @@ Uses the `triage-regression` skill with authentication via the `oc-auth` skill (
    - Component Readiness API
    - Check firewall and VPN settings if needed
 
-3. **JIRA_TOKEN** (optional): Required for JIRA progress analysis on triaged regressions
+3. **JIRA_USERNAME** and **JIRA_API_TOKEN** (optional): Required for JIRA progress analysis on triaged regressions
 
-   - Set environment variable: `export JIRA_TOKEN="your-jira-api-token"`
-   - Obtain from: https://id.atlassian.com/manage-profile/security/api-tokens
-   - If not set, JIRA progress analysis will be skipped but other analysis continues
+   - Set environment variables:
+     ```bash
+     export JIRA_USERNAME="your.email@redhat.com"
+     export JIRA_API_TOKEN="your-api-token"
+     ```
+   - Obtain your API token from: https://id.atlassian.com/manage-profile/security/api-tokens
+   - If either is not set, JIRA progress analysis will be skipped but other analysis continues
 
 ## Notes
 
