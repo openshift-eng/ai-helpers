@@ -433,10 +433,10 @@ The Python script (`gather_status_data.py`) handles efficient batch data collect
 5. **With specific users (by email)**:
 
    ```bash
-   /jira:update-weekly-status OCPBUGS antoni@redhat.com jdoe@redhat.com
+   /jira:update-weekly-status OCPBUGS user1@redhat.com user2@redhat.com
    ```
 
-   Output: Only processes issues assigned to Antoni or Jane
+   Output: Only processes issues assigned to User1 or User2
 
 6. **With excluded users (by email)**:
 
@@ -449,7 +449,7 @@ The Python script (`gather_status_data.py`) handles efficient batch data collect
 7. **With usernames (requires confirmation)**:
 
    ```bash
-   /jira:update-weekly-status OCPSTRAT "Antoni Segura" "Jane Doe"
+   /jira:update-weekly-status OCPSTRAT "<user1-name>" "<user2-name>"
    ```
 
    Output: Looks up users by name, asks for confirmation, then processes their issues
@@ -457,10 +457,10 @@ The Python script (`gather_status_data.py`) handles efficient batch data collect
 8. **Full example with all options**:
 
    ```bash
-   /jira:update-weekly-status OCPSTRAT --component "Control Plane" --label strategic-work antoni@redhat.com !dave@redhat.com
+   /jira:update-weekly-status OCPSTRAT --component "Control Plane" --label strategic-work user1@redhat.com !user3@redhat.com
    ```
 
-   Output: Processes OCPSTRAT issues in "Control Plane" component with "strategic-work" label, assigned to Antoni, excluding Dave
+   Output: Processes OCPSTRAT issues in "Control Plane" component with "strategic-work" label, assigned to User1, excluding User3
 
 ## Arguments
 

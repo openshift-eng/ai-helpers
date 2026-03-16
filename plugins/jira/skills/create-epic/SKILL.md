@@ -92,7 +92,7 @@ Epic-level acceptance criteria define when the epic is complete:
 ```
 
 **Example:**
-```
+```markdown
 ## Epic Acceptance Criteria
 
 - Administrators can view aggregated metrics from all clusters in a single dashboard
@@ -376,11 +376,11 @@ mcp__plugin_atlassian_atlassian__createJiraIssue(
 
 ## Jira Description Formatting
 
-Use markdown format (set `contentFormat: "markdown"` on create/edit calls):
+Use Markdown format (set `contentFormat: "markdown"` on create/edit calls):
 
 ### Epic Template Format
 
-```
+```markdown
 <Epic objective - what capability will be delivered and why it matters>
 
 ## Epic Acceptance Criteria
@@ -684,7 +684,7 @@ Description: "Improve monitoring"
 7. 🔒 Scan for sensitive data
 8. ✅ Validate epic size and quality
 9. ✅ Set epic name field = summary
-10. 📝 Format description with markdown
+10. 📝 Format description with Markdown
 11. ✅ Create epic via MCP tool
 12. 📤 Return issue key and URL
 

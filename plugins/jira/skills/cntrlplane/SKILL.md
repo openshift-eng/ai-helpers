@@ -63,7 +63,7 @@ Users may specify versions in various formats. Normalize all inputs to the Jira 
 **If target version is set:**
 
 1. **First, fetch available versions** via Jira REST API:
-   ```
+   ```http
    GET https://redhat.atlassian.net/rest/api/3/project/CNTRLPLANE/versions
    ```
    Note: The Atlassian MCP plugin does not have a dedicated project versions tool. Use `WebFetch` or another HTTP method to retrieve available versions.

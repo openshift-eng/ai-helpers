@@ -170,7 +170,7 @@ mcp__plugin_atlassian_atlassian__createJiraIssue(
 **Scenario:** User specifies a version that doesn't exist.
 
 **Action:**
-1. Use `Jira REST API (`GET /rest/api/3/project/OCPBUGS/versions`)` to fetch available versions
+1. Use Jira REST API (`GET /rest/api/3/project/OCPBUGS/versions`) to fetch available versions
 2. Suggest closest match: "Version '4.21.5' not found. Did you mean '4.21.0'?"
 3. Show available versions: "Available: 4.20.0, 4.21.0, 4.22.0"
 4. Wait for confirmation or correction

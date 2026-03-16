@@ -337,7 +337,7 @@ Logs attached.
 
 ## Jira Description Formatting
 
-Use markdown format (set `contentFormat: "markdown"` on create/edit calls). Descriptions should use standard markdown syntax for headings, lists, code blocks, and other formatting.
+Use Markdown format (set `contentFormat: "markdown"` on create/edit calls). Descriptions should use standard Markdown syntax for headings, lists, code blocks, and other formatting.
 
 ## Error Handling
 
@@ -512,7 +512,7 @@ Any additional context?
 4. 💬 Interactively collect bug template sections
 5. 🔒 Scan for sensitive data
 6. ✅ Validate required fields
-7. 📝 Format description with markdown
+7. 📝 Format description with Markdown
 8. ✅ Create bug via MCP tool
 9. 📤 Return issue key and URL
 

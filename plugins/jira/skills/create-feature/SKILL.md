@@ -464,11 +464,11 @@ Build a comprehensive observability platform for hosted control planes that prov
 
 ## Jira Description Formatting
 
-Use markdown format (set `contentFormat: "markdown"` on create/edit calls):
+Use Markdown format (set `contentFormat: "markdown"` on create/edit calls):
 
 ### Feature Template Format
 
-```
+```markdown
 <Brief feature overview>
 
 ## Market Problem
@@ -748,7 +748,7 @@ If this is a public Jira project, please sanitize:
 7. 💬 Collect epic breakdown and timeline
 8. 🔒 Scan for sensitive data
 9. ✅ Validate feature quality and scope
-10. 📝 Format description with markdown
+10. 📝 Format description with Markdown
 11. ✅ Create feature via MCP tool
 12. 📤 Return issue key and URL
 

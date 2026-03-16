@@ -72,7 +72,7 @@ The GCP project uses these components for organizing work:
 
 **Usage:**
 - Components are **optional** - only specify if the work clearly fits a component
-- Use `components` inside the `fields` object (e.g., `fields={"components": [{"name": "..."}]}`)
+- Use `components` inside the `additional_fields` object (e.g., `additional_fields={"components": [{"name": "..."}]}`)
 - If work doesn't fit any existing component, leave empty - do not request new components
 
 ## MCP Tool Integration
