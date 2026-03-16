@@ -55,7 +55,7 @@ Structured JSON data containing:
 The skill fetches data from:
 
 ```
-https://redhat.atlassian.net/rest/api/2/issue/{key}
+https://redhat.atlassian.net/rest/api/3/issue/{key}
 ```
 
 Authentication via Basic auth (email + API token) is required.

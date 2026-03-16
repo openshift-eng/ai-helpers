@@ -247,7 +247,7 @@ This command is useful for:
      -H "Authorization: Basic $JIRA_AUTH" \
      -H "Content-Type: application/json" \
      -d '{"body": "<comment text>"}' \
-     "https://redhat.atlassian.net/rest/api/2/issue/<jira_key>/comment"
+     "https://redhat.atlassian.net/rest/api/3/issue/<jira_key>/comment"
    ```
 
    **Transition the bug back to ASSIGNED**:
@@ -255,7 +255,7 @@ This command is useful for:
    First, fetch available transitions to find the correct transition ID:
    ```bash
    transitions=$(curl -s -H "Authorization: Basic $JIRA_AUTH" \
-     "https://redhat.atlassian.net/rest/api/2/issue/<jira_key>/transitions")
+     "https://redhat.atlassian.net/rest/api/3/issue/<jira_key>/transitions")
    ```
 
    Look through the transitions for one that moves to "Assigned" status, then execute it:
@@ -264,7 +264,7 @@ This command is useful for:
      -H "Authorization: Basic $JIRA_AUTH" \
      -H "Content-Type: application/json" \
      -d '{"transition": {"id": "<transition_id>"}}' \
-     "https://redhat.atlassian.net/rest/api/2/issue/<jira_key>/transitions"
+     "https://redhat.atlassian.net/rest/api/3/issue/<jira_key>/transitions"
    ```
 
    Display confirmation:

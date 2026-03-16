@@ -25,7 +25,6 @@ import os
 import sys
 import urllib.request
 import urllib.error
-import urllib.parse
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta
 
@@ -82,10 +81,10 @@ def fetch_jira_issues(jira_url: str, username: str, token: str,
     Returns:
         Dictionary containing JIRA API response
     """
-    # Build API URL
-    api_url = f"{jira_url}/rest/api/2/search"
+    # Build API URL (Atlassian Cloud v3 POST endpoint)
+    api_url = f"{jira_url}/rest/api/3/search/jql"
 
-    # Build query parameters - Note: fields should be comma-separated without URL encoding the commas
+    # Build request body
     fields_list = [
         'summary', 'status', 'priority', 'components', 'assignee',
         'created', 'updated', 'resolutiondate',
@@ -94,26 +93,17 @@ def fetch_jira_issues(jira_url: str, username: str, token: str,
         'customfield_10855'  # Target Version
     ]
 
-    params = {
+    payload = {
         'jql': jql,
-        'maxResults': max_results,
-        'fields': ','.join(fields_list)
+        'fields': fields_list,
+        'maxResults': max_results
     }
 
-    # Encode parameters - but don't encode commas in fields parameter
-    encoded_params = []
-    for k, v in params.items():
-        if k == 'fields':
-            # Don't encode commas in fields list
-            encoded_params.append(f'{k}={v}')
-        else:
-            encoded_params.append(f'{k}={urllib.parse.quote(str(v))}')
+    body = json.dumps(payload).encode('utf-8')
 
-    query_string = '&'.join(encoded_params)
-    full_url = f"{api_url}?{query_string}"
-
-    # Create request with Basic authentication (base64 of username:api_token)
-    request = urllib.request.Request(full_url)
+    # Create POST request with Basic authentication (base64 of username:api_token)
+    request = urllib.request.Request(api_url, data=body, method='POST')
+    request.add_header('Content-Type', 'application/json')
     credentials = base64.b64encode(f"{username}:{token}".encode()).decode()
     request.add_header('Authorization', f'Basic {credentials}')
 

@@ -19,7 +19,7 @@ from typing import Dict, List, Optional, Any
 class JiraIssueFetcher:
     """Fetches and parses JIRA issue data from the Red Hat JIRA REST API."""
 
-    BASE_URL = "https://redhat.atlassian.net/rest/api/2/issue"
+    BASE_URL = "https://redhat.atlassian.net/rest/api/3/issue"
 
     # Fields to request from the API
     FIELDS = [

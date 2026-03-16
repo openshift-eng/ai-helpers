@@ -202,7 +202,7 @@ The command executes the following workflow:
    - Use Basic Auth with `JIRA_USERNAME:JIRA_API_TOKEN` (base64-encoded) for Atlassian Cloud
 
    **Important API Details:**
-   - Use `/rest/api/2/search` endpoint
+   - Use POST `/rest/api/3/search/jql` endpoint with a JSON body containing `jql`, `fields`, and `maxResults`
    - Use `Authorization: Basic <base64(username:token)>` header for authentication
    - Check HTTP response code to detect authentication failures
 
@@ -213,19 +213,25 @@ The command executes the following workflow:
    TOTAL_FETCHED=0
 
    while true; do
-     # Construct API URL with pagination
-     API_URL="${JIRA_URL}/rest/api/2/search?\
-      jql=${ENCODED_JQL}&\
-      startAt=${START_AT}&\
-      maxResults=1000&\
-      fields=summary,status,priority,assignee,reporter,created,updated,description,labels,components,watches,comment"
+     # Construct API URL for POST search
+     API_URL="${JIRA_URL}/rest/api/3/search/jql"
 
-     # Fetch batch using curl with Basic authentication
+     # Build JSON body for POST request
+     JSON_BODY=$(jq -n \
+       --arg jql "$JQL" \
+       --argjson startAt "$START_AT" \
+       --argjson maxResults 1000 \
+       '{jql: $jql, startAt: $startAt, maxResults: $maxResults, fields: ["summary","status","priority","assignee","reporter","created","updated","description","labels","components","watches","comment"]}')
+
+     # Fetch batch using curl with Basic authentication (POST)
      AUTH_HEADER=$(printf '%s:%s' "$JIRA_EMAIL" "$AUTH_TOKEN" | base64)
      HTTP_CODE=$(curl -s -w "%{http_code}" \
+       -X POST \
        -o "batch-${BATCH_NUM}.json" \
        -H "Authorization: Basic ${AUTH_HEADER}" \
+       -H "Content-Type: application/json" \
        -H "Accept: application/json" \
+       -d "$JSON_BODY" \
        "${API_URL}")
 
      # Check HTTP response code
@@ -499,7 +505,7 @@ The command executes the following workflow:
   1. Check that JIRA_API_TOKEN is correct and not expired
   2. Verify JIRA_USERNAME matches your Atlassian account email
   3. Ensure JIRA_URL is correct (e.g., https://redhat.atlassian.net)
-  4. Test authentication: curl -u "user@redhat.com:YOUR_TOKEN" YOUR_JIRA_URL/rest/api/2/myself
+  4. Test authentication: curl -u "user@redhat.com:YOUR_TOKEN" YOUR_JIRA_URL/rest/api/3/myself
 
   To regenerate your token, visit:
   https://id.atlassian.com/manage-profile/security/api-tokens

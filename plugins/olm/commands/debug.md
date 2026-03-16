@@ -94,7 +94,8 @@ The `olm:debug` command analyzes OLM (Operator Lifecycle Manager) issues by corr
      - Status: Open, In Progress, or Recently Resolved
    - API endpoint example:
      ```
-     https://redhat.atlassian.net/rest/api/2/search?jql=project=OCPBUGS AND component=olm AND affectedVersion~"4.14"
+     POST https://redhat.atlassian.net/rest/api/3/search/jql
+     Body: {"jql": "project=OCPBUGS AND component=olm AND affectedVersion~\"4.14\""}
      ```
 
 9. **Match errors with known bugs**

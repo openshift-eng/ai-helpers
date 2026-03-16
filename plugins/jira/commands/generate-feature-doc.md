@@ -226,7 +226,7 @@ See SKILL.md Step 2 for complete algorithm details.
 ### GitHub PR Extraction Strategy
 
 **Dual-source approach** (implemented in SKILL.md Step 3):
-1. **Primary**: JIRA Remote Links API (`/rest/api/2/issue/{key}/remotelink`)
+1. **Primary**: JIRA Remote Links API (`/rest/api/3/issue/{key}/remotelink`)
    - Authoritative source for PRs added via "Link Issue" UI
    - NOT included in main issue API response
 2. **Backup**: Text extraction from descriptions and comments

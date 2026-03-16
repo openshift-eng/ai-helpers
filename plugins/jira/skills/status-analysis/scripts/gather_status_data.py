@@ -195,18 +195,33 @@ class JiraClient:
             "Content-Type": "application/json",
         }
 
-    async def _fetch_json(self, url: str) -> Optional[Dict[str, Any]]:
-        """Fetch JSON with rate limiting and error handling."""
+    async def _fetch_json(
+        self,
+        url: str,
+        method: str = "GET",
+        json_body: Optional[Dict[str, Any]] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Fetch JSON with rate limiting and error handling.
+
+        Args:
+            url: The URL to fetch.
+            method: HTTP method ("GET" or "POST").
+            json_body: JSON body for POST requests.
+        """
         async with self.semaphore:
             await asyncio.sleep(JIRA_REQUEST_DELAY_SECONDS)
             self.request_count += 1
 
             # Log the request at debug level
-            logger.debug(f"Jira request #{self.request_count}: {url[:100]}...")
+            logger.debug(f"Jira {method} request #{self.request_count}: {url[:100]}...")
 
             if HAS_AIOHTTP and self.session:
                 try:
-                    async with self.session.get(url, headers=self._get_headers()) as resp:
+                    if method == "POST":
+                        req_ctx = self.session.post(url, headers=self._get_headers(), json=json_body)
+                    else:
+                        req_ctx = self.session.get(url, headers=self._get_headers())
+                    async with req_ctx as resp:
                         if resp.status == 200:
                             logger.debug(f"Jira request #{self.request_count} succeeded")
                             return await resp.json()
@@ -219,7 +234,7 @@ class JiraClient:
                         elif resp.status == 429:
                             logger.warning("Rate limited by Jira! Waiting 30 seconds...")
                             await asyncio.sleep(30)
-                            return await self._fetch_json(url)  # Retry
+                            return await self._fetch_json(url, method=method, json_body=json_body)  # Retry
                         else:
                             text = await resp.text()
                             logger.warning(f"Jira API returned {resp.status}: {text[:200]}")
@@ -230,14 +245,17 @@ class JiraClient:
             else:
                 # Synchronous fallback
                 try:
-                    response = requests.get(url, headers=self._get_headers(), timeout=30)
+                    if method == "POST":
+                        response = requests.post(url, headers=self._get_headers(), json=json_body, timeout=30)
+                    else:
+                        response = requests.get(url, headers=self._get_headers(), timeout=30)
                     if response.status_code == 200:
                         logger.debug(f"Jira request #{self.request_count} succeeded")
                         return response.json()
                     elif response.status_code == 429:
                         logger.warning("Rate limited by Jira! Waiting 30 seconds...")
                         await asyncio.sleep(30)
-                        return await self._fetch_json(url)
+                        return await self._fetch_json(url, method=method, json_body=json_body)
                     else:
                         logger.warning(f"Jira API returned {response.status_code}")
                         return None
@@ -252,17 +270,17 @@ class JiraClient:
         expand: Optional[str] = None,
         max_results: int = 100,
     ) -> List[Dict[str, Any]]:
-        """Search for issues using JQL."""
-        params = {
+        """Search for issues using JQL via POST /rest/api/3/search/jql."""
+        body = {
             "jql": jql,
             "maxResults": max_results,
-            "fields": fields,
+            "fields": [f.strip() for f in fields.split(",")],
         }
         if expand:
-            params["expand"] = expand
+            body["expand"] = [e.strip() for e in expand.split(",")]
 
-        url = f"{self.base_url}/rest/api/2/search?{urlencode(params)}"
-        result = await self._fetch_json(url)
+        url = f"{self.base_url}/rest/api/3/search/jql"
+        result = await self._fetch_json(url, method="POST", json_body=body)
         return result.get("issues", []) if result else []
 
     async def fetch_issues_batch(
@@ -307,7 +325,7 @@ class JiraClient:
         """Get changelog for an issue."""
         # Extra delay for changelog API which is more rate-limited
         await asyncio.sleep(JIRA_CHANGELOG_DELAY_SECONDS)
-        url = f"{self.base_url}/rest/api/2/issue/{issue_key}/changelog?maxResults={max_results}"
+        url = f"{self.base_url}/rest/api/3/issue/{issue_key}/changelog?maxResults={max_results}"
         result = await self._fetch_json(url)
         return result.get("values", []) if result else []
 
@@ -355,7 +373,7 @@ class JiraClient:
 
     async def get_issue_remote_links(self, issue_key: str) -> List[Dict[str, Any]]:
         """Get remote links (external links like GitHub PRs) for an issue."""
-        url = f"{self.base_url}/rest/api/2/issue/{issue_key}/remotelink"
+        url = f"{self.base_url}/rest/api/3/issue/{issue_key}/remotelink"
         result = await self._fetch_json(url)
         return result if isinstance(result, list) else []
 

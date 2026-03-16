@@ -48,7 +48,7 @@ export JIRA_URL="https://redhat.atlassian.net"
 export JIRA_API_TOKEN="your-token-here"
 
 # Use wrapper (token hidden from process list)
-jira_curl.sh -s https://redhat.atlassian.net/rest/api/2/search?jql=project=OCPBUGS
+jira_curl.sh -s -X POST -d '{"jql":"project=OCPBUGS"}' https://redhat.atlassian.net/rest/api/3/search/jql
 ```
 
 ## How It Works
@@ -152,8 +152,10 @@ source ~/.jira-credentials
 ### Insecure Approach (Don't Do This)
 ```bash
 # Credentials exposed in process list and history!
-curl -u "user@redhat.com:${JIRA_API_TOKEN}" \
-  https://redhat.atlassian.net/rest/api/2/search
+curl -u "user@redhat.com:${JIRA_API_TOKEN}" -X POST \
+  -H "Content-Type: application/json" \
+  -d '{"jql":"..."}' \
+  https://redhat.atlassian.net/rest/api/3/search/jql
 ```
 
 **Problems**:
@@ -165,7 +167,8 @@ curl -u "user@redhat.com:${JIRA_API_TOKEN}" \
 ### Secure Approach (Use This)
 ```bash
 # Token hidden inside wrapper script
-jira_curl.sh https://redhat.atlassian.net/rest/api/2/search
+jira_curl.sh -X POST -H "Content-Type: application/json" \
+  -d '{"jql":"..."}' https://redhat.atlassian.net/rest/api/3/search/jql
 ```
 
 **Benefits**:

@@ -44,7 +44,7 @@ def set_release_blocker(issue_key: str, value: str, token: str, username: str) -
     Returns:
         dict with success status, issue key, and value set
     """
-    url = f"{JIRA_BASE_URL}/rest/api/2/issue/{issue_key}"
+    url = f"{JIRA_BASE_URL}/rest/api/3/issue/{issue_key}"
 
     if value == "":
         payload = {"fields": {RELEASE_BLOCKER_FIELD: None}}

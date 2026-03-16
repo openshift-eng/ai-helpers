@@ -230,7 +230,7 @@ Enter your Jira base URL (e.g., https://redhat.atlassian.net):
 
 ```bash
 # Test token
-curl -s -u "$JIRA_USERNAME:$JIRA_API_TOKEN" "$JIRA_URL/rest/api/2/myself" | jq -r '.displayName'
+curl -s -u "$JIRA_USERNAME:$JIRA_API_TOKEN" "$JIRA_URL/rest/api/3/myself" | jq -r '.displayName'
 ```
 
 #### 3.3 Create tokenstore.yaml

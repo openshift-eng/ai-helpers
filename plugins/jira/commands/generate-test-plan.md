@@ -16,7 +16,7 @@ The 'jira:generate-test-plan' command takes a JIRA issue key and optionally a li
 
 ## Implementation
 
-- The command uses curl to fetch JIRA data via REST API: https://redhat.atlassian.net/rest/api/2/issue/{$1}
+- The command uses curl to fetch JIRA data via REST API: https://redhat.atlassian.net/rest/api/3/issue/{$1}
 - Uses WebFetch to extract PR links from JIRA issue if no PRs provided
 - Uses `gh pr view` to fetch PR details for each PR
 - Analyzes changes across all PRs to understand implementation
@@ -25,7 +25,7 @@ The 'jira:generate-test-plan' command takes a JIRA issue key and optionally a li
 ## Process Flow:
 
 1. **JIRA Analysis**: Fetch and parse JIRA issue details:
-   - Use curl to fetch JIRA issue data: `curl -s "https://redhat.atlassian.net/rest/api/2/issue/{$1}"`
+   - Use curl to fetch JIRA issue data: `curl -s "https://redhat.atlassian.net/rest/api/3/issue/{$1}"`
    - Parse JSON response to extract:
      - Issue summary and description
      - Context and acceptance criteria

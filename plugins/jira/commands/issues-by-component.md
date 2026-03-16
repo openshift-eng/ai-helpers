@@ -192,7 +192,7 @@ ORDER BY component ASC, priority DESC, updated DESC
 - Wrapper script path: `plugins/jira/skills/jira-issues-by-component/jira_curl.sh`
 
 **Important API Details:**
-- Use `/rest/api/2/search` endpoint (API v2 works reliably with Red Hat JIRA)
+- Use POST `/rest/api/3/search/jql` endpoint with a JSON body containing `jql`, `fields`, and `maxResults`
 - Wrapper automatically adds `Authorization: Basic` header
 - Check HTTP response code to detect authentication failures
 - Request fields: `summary,status,priority,assignee,reporter,created,updated,description,labels,components,issuetype`
@@ -215,14 +215,19 @@ TOTAL_FETCHED=0
 
 while true; do
   # Construct API URL with pagination
-  API_URL="${JIRA_URL}/rest/api/2/search?\
-jql=${ENCODED_JQL}&\
-startAt=${START_AT}&\
-maxResults=1000&\
-fields=summary,status,priority,assignee,reporter,created,updated,description,labels,components,issuetype"
+  API_URL="${JIRA_URL}/rest/api/3/search/jql"
 
-  # Fetch batch using secure wrapper (token not exposed in process list)
+  # Build JSON body for POST request
+  JSON_BODY=$(jq -n \
+    --arg jql "$JQL" \
+    --argjson startAt "$START_AT" \
+    --argjson maxResults 1000 \
+    '{jql: $jql, startAt: $startAt, maxResults: $maxResults, fields: ["summary","status","priority","assignee","reporter","created","updated","description","labels","components","issuetype"]}')
+
+  # Fetch batch using secure wrapper with POST (token not exposed in process list)
   HTTP_CODE=$("$JIRA_CURL" -s -w "%{http_code}" \
+    -X POST -H "Content-Type: application/json" \
+    -d "$JSON_BODY" \
     -o ".work/jira-issues-by-component/${PROJECT_KEY}/batch-${BATCH_NUM}.json" \
     "${API_URL}")
 
