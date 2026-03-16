@@ -27,10 +27,15 @@ if [ -z "${JIRA_URL:-}" ]; then
   exit 1
 fi
 
-# Use JIRA_API_TOKEN for Atlassian Cloud authentication
-AUTH_TOKEN="${JIRA_API_TOKEN:-}"
+case "$JIRA_URL" in
+  https://*) ;;
+  *)
+    echo "Error: JIRA_URL must use https:// scheme to protect credentials" >&2
+    exit 1
+    ;;
+esac
 
-if [ -z "$AUTH_TOKEN" ]; then
+if [ -z "${JIRA_API_TOKEN:-}" ]; then
   echo "Error: JIRA authentication token is required" >&2
   echo "" >&2
   echo "Please set:" >&2
@@ -42,9 +47,7 @@ if [ -z "$AUTH_TOKEN" ]; then
   exit 1
 fi
 
-JIRA_USER="${JIRA_USERNAME:-}"
-
-if [ -z "$JIRA_USER" ]; then
+if [ -z "${JIRA_USERNAME:-}" ]; then
   echo "Error: JIRA_USERNAME environment variable is required" >&2
   echo "" >&2
   echo "Please set:" >&2
@@ -55,5 +58,5 @@ fi
 # Execute curl with Basic authentication header
 # The credentials are constructed here, inside the script, so they never
 # appear in the parent process's command line arguments
-AUTH_HEADER=$(printf '%s:%s' "$JIRA_USER" "$AUTH_TOKEN" | base64 | tr -d '\r\n')
+AUTH_HEADER=$(printf '%s:%s' "$JIRA_USERNAME" "$JIRA_API_TOKEN" | base64 | tr -d '\r\n')
 exec curl -H "Authorization: Basic $AUTH_HEADER" -H "Accept: application/json" "$@"

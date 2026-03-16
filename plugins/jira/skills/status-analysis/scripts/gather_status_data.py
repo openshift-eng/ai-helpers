@@ -35,8 +35,10 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, date
 from pathlib import Path
 from typing import Optional, List, Dict, Any, Set
-from urllib.parse import urlencode
+from urllib.parse import urlparse
 
+
+# NOTE: _adf_to_text is duplicated from fetch_jira_issue.py and must be kept in sync.
 def _adf_to_text(node: Any) -> str:
     """Convert an Atlassian Document Format (ADF) node to plain text.
 
@@ -49,7 +51,7 @@ def _adf_to_text(node: Any) -> str:
         return node
     if not isinstance(node, dict):
         return str(node)
-    parts: list[str] = []
+    parts: List[str] = []
     node_type = node.get("type")
     if node_type == "text":
         text = node.get("text", "")
@@ -217,6 +219,11 @@ class JiraClient:
                 "JIRA_USERNAME (Atlassian account email) is required for Basic auth.\n"
                 "Set JIRA_USERNAME environment variable."
             )
+        parsed = urlparse(base_url)
+        if parsed.scheme != "https" or not parsed.netloc:
+            raise ValueError(
+                "JIRA_URL must be an https URL to avoid sending credentials in plaintext."
+            )
         self.base_url = base_url.rstrip("/")
         self.token = token
         self.username = username
@@ -239,6 +246,7 @@ class JiraClient:
         url: str,
         method: str = "GET",
         json_body: Optional[Dict[str, Any]] = None,
+        retry_count: int = 0,
     ) -> Optional[Dict[str, Any]]:
         """Fetch JSON with rate limiting and error handling.
 
@@ -246,6 +254,7 @@ class JiraClient:
             url: The URL to fetch.
             method: HTTP method ("GET" or "POST").
             json_body: JSON body for POST requests.
+            retry_count: Current retry attempt for rate-limit handling (max 5).
         """
         async with self.semaphore:
             await asyncio.sleep(JIRA_REQUEST_DELAY_SECONDS)
@@ -265,15 +274,20 @@ class JiraClient:
                             logger.debug(f"Jira request #{self.request_count} succeeded")
                             return await resp.json()
                         elif resp.status == 401:
-                            logger.error("Jira authentication failed (401). Check JIRA_API_TOKEN and JIRA_USERNAME.")
-                            return None
+                            raise ValueError(
+                                "Jira authentication failed (401). "
+                                "Check JIRA_API_TOKEN and JIRA_USERNAME."
+                            )
                         elif resp.status == 404:
                             logger.debug(f"Jira request #{self.request_count} returned 404")
                             return None
                         elif resp.status == 429:
-                            logger.warning("Rate limited by Jira! Waiting 30 seconds...")
+                            if retry_count >= 5:
+                                logger.error("Rate limited by Jira! Max retries (5) exceeded.")
+                                return None
+                            logger.warning(f"Rate limited by Jira! Waiting 30 seconds... (retry {retry_count + 1}/5)")
                             await asyncio.sleep(30)
-                            return await self._fetch_json(url, method=method, json_body=json_body)  # Retry
+                            return await self._fetch_json(url, method=method, json_body=json_body, retry_count=retry_count + 1)
                         else:
                             text = await resp.text()
                             logger.warning(f"Jira API returned {resp.status}: {text[:200]}")
@@ -291,10 +305,18 @@ class JiraClient:
                     if response.status_code == 200:
                         logger.debug(f"Jira request #{self.request_count} succeeded")
                         return response.json()
+                    elif response.status_code == 401:
+                        raise ValueError(
+                            "Jira authentication failed (401). "
+                            "Check JIRA_API_TOKEN and JIRA_USERNAME."
+                        )
                     elif response.status_code == 429:
-                        logger.warning("Rate limited by Jira! Waiting 30 seconds...")
+                        if retry_count >= 5:
+                            logger.error("Rate limited by Jira! Max retries (5) exceeded.")
+                            return None
+                        logger.warning(f"Rate limited by Jira! Waiting 30 seconds... (retry {retry_count + 1}/5)")
                         await asyncio.sleep(30)
-                        return await self._fetch_json(url, method=method, json_body=json_body)
+                        return await self._fetch_json(url, method=method, json_body=json_body, retry_count=retry_count + 1)
                     else:
                         logger.warning(f"Jira API returned {response.status_code}")
                         return None
@@ -872,7 +894,7 @@ class StatusDataGatherer:
         start_time = datetime.now()
 
         # Step 1: Find root issues
-        logger.info("Step 1/7: Fetching root issues")
+        logger.info("Step 1/8: Fetching root issues")
         jql = self._build_root_jql()
         logger.debug(f"JQL query: {jql}")
 
@@ -890,7 +912,7 @@ class StatusDataGatherer:
             return self._build_manifest([], {}, {}, {}, start_time)
 
         # Step 2: Get descendants for all root issues
-        logger.info("Step 2/7: Fetching descendants")
+        logger.info("Step 2/8: Fetching descendants")
         all_descendant_keys: Dict[str, List[str]] = {}
 
         for issue in root_issues:
@@ -909,7 +931,7 @@ class StatusDataGatherer:
         logger.info(f"  Found {total_descendants} total descendants across {len(root_issues)} root issues")
 
         # Step 3: Batch fetch all descendant details
-        logger.info("Step 3/7: Fetching descendant details")
+        logger.info("Step 3/8: Fetching descendant details")
         all_keys = []
         for keys in all_descendant_keys.values():
             all_keys.extend(keys)

@@ -86,7 +86,6 @@ def set_release_blocker(issue_key: str, value: str, token: str, username: str) -
     verify_req = urllib.request.Request(
         f"{url}?fields={RELEASE_BLOCKER_FIELD}", method="GET"
     )
-    credentials = base64.b64encode(f"{username}:{token}".encode()).decode()
     verify_req.add_header("Authorization", f"Basic {credentials}")
 
     try:
@@ -102,14 +101,14 @@ def set_release_blocker(issue_key: str, value: str, token: str, username: str) -
                 "value": current_value,
                 "url": f"{JIRA_BASE_URL}/browse/{issue_key}",
             }
-    except Exception:
+    except Exception as e:
         # Update succeeded but verification failed — still report success
         return {
             "success": True,
             "issue_key": issue_key,
             "value": value if value else None,
             "url": f"{JIRA_BASE_URL}/browse/{issue_key}",
-            "note": "Update succeeded but verification could not be completed",
+            "note": f"Update succeeded but verification failed: {e}",
         }
 
 

@@ -87,7 +87,11 @@ class TriageManager:
         try:
             with urllib.request.urlopen(req, timeout=30) as response:
                 return json.loads(response.read().decode('utf-8'))
-        except Exception:
+        except urllib.error.HTTPError as e:
+            print(f"HTTP {e.code} fetching triage {self.triage_id}: {e.reason}", file=sys.stderr)
+            return None
+        except urllib.error.URLError as e:
+            print(f"Network error fetching triage {self.triage_id}: {e.reason}", file=sys.stderr)
             return None
 
     def create(self) -> Dict[str, Any]:

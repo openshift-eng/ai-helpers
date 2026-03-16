@@ -139,7 +139,7 @@ def fetch_jira_issues(jira_url: str, username: str, token: str,
         try:
             error_body = e.read().decode()
             print(f"Response: {error_body}", file=sys.stderr)
-        except:
+        except Exception:
             pass
         sys.exit(1)
     except urllib.error.URLError as e:
