@@ -29,7 +29,7 @@ The `jira:create-release-note` command runs in multiple phases:
 
 ### 🎯 Phase 1: Fetch and Validate Jira Bug
 
-1. **Fetch bug ticket** using `mcp__atlassian__jira_get_issue` MCP tool:
+1. **Fetch bug ticket** using `mcp__plugin_atlassian_atlassian__getJiraIssue` MCP tool (with `cloudId="redhat.atlassian.net"`, `responseContentFormat="markdown"`):
    - Request all fields to ensure we have complete data
    - Verify the issue is a Bug type
    - Extract issue description, links, and custom fields
@@ -222,8 +222,9 @@ Update the Jira bug ticket with generated release note:
 
 2. **Update using MCP tool**:
    ```
-   mcp__atlassian__jira_update_issue(
-     issue_key=<issue-key>,
+   mcp__plugin_atlassian_atlassian__editJiraIssue(
+     cloudId="redhat.atlassian.net",
+     issueIdOrKey=<issue-key>,
      fields={
        "customfield_10785": {"value": "Bug Fix"},
        "customfield_10783": "<formatted release note text>"

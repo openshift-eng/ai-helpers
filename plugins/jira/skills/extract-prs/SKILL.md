@@ -81,65 +81,100 @@ Discovers all descendant issues using Jira's `childIssuesOf()` JQL function (aut
 
 1. **Fetch issue metadata using MCP Jira tool**:
    ```
-   mcp__atlassian__jira_get_issue(
-     issue_key=<issue-key>,
-     fields="summary,description,issuetype,status,comment",
-     expand="changelog"
+   mcp__plugin_atlassian_atlassian__getJiraIssue(
+     cloudId="redhat.atlassian.net",
+     issueIdOrKey=<issue-key>,
+     fields=["summary","description","issuetype","status","comment"],
+     expand="changelog",
+     responseContentFormat="markdown"
    )
    ```
    - Extract `fields.description` - for text-based PR URL extraction
    - Extract `fields.comment.comments` - for PR URLs mentioned in comments
    - Extract `changelog.histories` - for remote link PR URLs from `RemoteIssueLink` field changes
 
+   **Additionally, fetch remote links directly** for more reliable PR discovery:
+   ```
+   mcp__plugin_atlassian_atlassian__getJiraIssueRemoteIssueLinks(
+     cloudId="redhat.atlassian.net",
+     issueIdOrKey=<issue-key>
+   )
+   ```
+   - Returns all remote links attached to the issue (GitHub PRs, external URLs, etc.)
+   - Filter for GitHub PR URLs matching `/pull/` or `/pulls/` pattern
+   - This is more reliable than changelog parsing since it returns current state of remote links
+
 2. **Search for ALL descendant issues using JQL**:
    ```
-   mcp__atlassian__jira_search(
+   mcp__plugin_atlassian_atlassian__searchJiraIssuesUsingJql(
+     cloudId="redhat.atlassian.net",
      jql="issue in childIssuesOf(<issue-key>)",
-     fields="key",
-     limit=100
+     fields=["key"],
+     maxResults=100
    )
    ```
    - **Important**: `childIssuesOf()` is **already recursive** - returns ALL descendant issues (Epics, Stories, Subtasks, etc.) regardless of depth
    - Single JQL query gets everything - no manual recursion needed
    - Only fetch `key` field here - will fetch full data (including changelog) per-issue in Phase 2
-   - **Note**: `jira_search` does NOT support `expand` parameter - use `jira_get_issue` with `expand="changelog"` for each issue
+   - **Note**: `maxResults` is capped at 100 per page - use `nextPageToken` for pagination if needed
+   - **Note**: `searchJiraIssuesUsingJql` does NOT support `expand` parameter - use `getJiraIssue` with `expand="changelog"` for each issue
 
 3. **Fetch full data for each issue** (including root + all descendants):
    ```
    for each issue_key:
-     mcp__atlassian__jira_get_issue(
-       issue_key=<issue-key>,
-       fields="summary,description,issuetype,status,comment",
-       expand="changelog"
+     mcp__plugin_atlassian_atlassian__getJiraIssue(
+       cloudId="redhat.atlassian.net",
+       issueIdOrKey=<issue-key>,
+       fields=["summary","description","issuetype","status","comment"],
+       expand="changelog",
+       responseContentFormat="markdown"
+     )
+     # Also fetch remote links directly for each issue
+     mcp__plugin_atlassian_atlassian__getJiraIssueRemoteIssueLinks(
+       cloudId="redhat.atlassian.net",
+       issueIdOrKey=<issue-key>
      )
    ```
    - This fetches description, comments, and changelog (which includes remote links)
+   - Remote links API provides direct access to all attached links (more reliable than changelog parsing)
    - Excludes issue links (`relates to`, `blocks`, etc.) - only parent-child relationships
 
 ### 🔗 Phase 2: GitHub PR Extraction
 
 Extracts PR URLs from two sources:
 
-### Source 1: Jira Remote Links via Changelog (primary)
-- **Extract remote links from issue changelog** (using MCP with authenticated access):
+### Source 1: Jira Remote Links API (primary)
+- **Fetch remote links directly using the Remote Links API** (most reliable method):
   ```bash
-  # Fetch issue with changelog expansion (store in variable)
-  issue_json=$(mcp__atlassian__jira_get_issue \
-    issue_key="${issue_key}" \
-    expand="changelog")
+  # Fetch remote links for the issue
+  remote_links=$(mcp__plugin_atlassian_atlassian__getJiraIssueRemoteIssueLinks \
+    cloudId="redhat.atlassian.net" \
+    issueIdOrKey="${issue_key}")
 
+  # Extract GitHub PR URLs from remote link objects
+  pr_urls=$(echo "$remote_links" | jq -r '
+    .[]? |
+    .object.url // empty |
+    select(test("https://github\\.com/[^/]+/[^/]+/(pull|pulls)/[0-9]+"))
+  ' | sort -u)
+  ```
+- **Additionally, extract from changelog** as a supplementary source:
+  ```bash
   # Extract RemoteIssueLink entries from changelog
-  pr_urls=$(echo "$issue_json" | jq -r '
+  changelog_pr_urls=$(echo "$issue_json" | jq -r '
     .changelog.histories[]?.items[]? |
     select(.field == "RemoteIssueLink") |
     .toString // .to_string |
     match("https://github\\.com/[^/]+/[^/]+/(pull|pulls)/[0-9]+") |
     .string
   ' | sort -u)
+
+  # Combine both sources
+  pr_urls=$(echo -e "${pr_urls}\n${changelog_pr_urls}" | sort -u)
   ```
 - **Important**:
-  - Remote links appear in changelog as `RemoteIssueLink` field changes
-  - Changelog contains link creation events with GitHub PR URLs in `toString` or `to_string` field
+  - The Remote Links API (`getJiraIssueRemoteIssueLinks`) returns current state of all attached links directly
+  - Changelog provides historical link creation events as a supplementary source
   - Store results in variables, not temporary files
   - Uses MCP authentication (no separate curl needed)
 - Filters for GitHub PR URLs matching `/pull/` or `/pulls/` pattern
@@ -166,10 +201,11 @@ Extracts PR URLs from two sources:
 
 **Deduplication**:
 - Merges URLs found in multiple sources/issues
-- Tracks `sources` array: `["comment", "description", "remote_link"]` (alphabetically sorted)
+- Tracks `sources` array: `["comment", "description", "remote_link", "remote_link_api"]` (alphabetically sorted)
   - `"comment"`: Found in issue comments
   - `"description"`: Found in issue description
-  - `"remote_link"`: Found via Jira Remote Links API
+  - `"remote_link"`: Found via changelog `RemoteIssueLink` field changes
+  - `"remote_link_api"`: Found via `getJiraIssueRemoteIssueLinks` API
 - Tracks `found_in_issues` array: `["OCPSTRAT-1612", "CNTRLPLANE-1201"]` (alphabetically sorted)
 - **Important**: If same PR URL found in multiple sources or issues, merge into single entry with combined arrays
 
@@ -190,15 +226,15 @@ Extracts PR URLs from two sources:
   - MCP authentication handles all Jira access (including changelog and remote links)
 - **Changelog expansion fails**: If `expand="changelog"` returns error, continue with text-based extraction only (graceful degradation)
 - **No PRs found**: Return empty `pull_requests` array (valid result)
-- **Too many descendants**: If hierarchy has >100 issues, increase `limit` parameter in `jira_search`
+- **Too many descendants**: If hierarchy has >100 issues, use `nextPageToken` for pagination in `searchJiraIssuesUsingJql` (maxResults capped at 100)
 - **GitHub rate limit**: If `gh pr view` fails due to rate limiting, display error with reset time
 - **PR metadata fetch fails**: If `gh pr view` returns error (PR deleted/private), exclude that PR from output
 
 ## Performance Considerations
 
-**API calls**: 1 `jira_search` + N `jira_get_issue` (with changelog) + M `gh pr view`
-- Example: 11 issues = 12 MCP calls + M PR fetches
-- Changelog expansion includes remote links (no extra calls needed)
-- Can parallelize: issue fetching and PR metadata fetching
+**API calls**: 1 `searchJiraIssuesUsingJql` + N `getJiraIssue` (with changelog) + N `getJiraIssueRemoteIssueLinks` + M `gh pr view`
+- Example: 11 issues = 1 search + 11 get_issue + 11 get_remote_links + M PR fetches
+- Remote links API provides direct link access; changelog expansion provides supplementary data
+- Can parallelize: issue fetching, remote link fetching, and PR metadata fetching
 
 **File I/O**: Save PR metadata to `.work/extract-prs/{issue-key}/pr-*-metadata.json`, build final JSON by reading files

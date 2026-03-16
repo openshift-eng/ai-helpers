@@ -18,8 +18,7 @@ This skill is automatically invoked by the `/jira:create story` command to guide
 - Understanding of the user story and acceptance criteria to be created
 
 **Reference Documentation:**
-- [Wiki Markup Reference](../../reference/wiki-markup.md) - JIRA formatting syntax
-- [MCP Tools Reference](../../reference/mcp-tools.md) - MCP tool signatures and custom fields
+- [MCP Tools Reference](../../reference/mcp-tools.md) - Custom fields and JQL queries
 - [CLI Fallback Reference](../../reference/cli-fallback.md) - jira-cli commands (only if MCP unavailable)
 
 ## ⚠️ Summary vs Description: CRITICAL DISTINCTION
@@ -379,20 +378,22 @@ Before submitting the story, validate:
 ### Basic Story Creation
 
 ```python
-mcp__atlassian__jira_create_issue(
-    project_key="<PROJECT_KEY>",
+mcp__plugin_atlassian_atlassian__createJiraIssue(
+    cloudId="redhat.atlassian.net",
+    projectKey="<PROJECT_KEY>",
     summary="<concise title>",  # 5-10 words, NOT full user story
-    issue_type="Story",
+    issueTypeName="Story",
+    contentFormat="markdown",
     description="""
 As a <user>, I want to <action>, so that <value>.
 
-h2. Acceptance Criteria
+## Acceptance Criteria
 
-* Test that <criteria 1>
-* Test that <criteria 2>
-* Verify that <criteria 3>
+- Test that <criteria 1>
+- Test that <criteria 2>
+- Verify that <criteria 3>
 
-h2. Additional Context
+## Additional Context
 
 <context if provided>
     """,
@@ -406,23 +407,25 @@ h2. Additional Context
 ### With Project-Specific Fields (e.g., CNTRLPLANE)
 
 ```python
-mcp__atlassian__jira_create_issue(
-    project_key="CNTRLPLANE",
+mcp__plugin_atlassian_atlassian__createJiraIssue(
+    cloudId="redhat.atlassian.net",
+    projectKey="CNTRLPLANE",
     summary="Enable automatic node pool scaling for ROSA HCP",
-    issue_type="Story",
+    issueTypeName="Story",
+    contentFormat="markdown",
     description="""
 As a cluster admin, I want to configure automatic node pool scaling based on CPU utilization, so that I can handle traffic spikes without manual intervention.
 
-h2. Acceptance Criteria
+## Acceptance Criteria
 
-* Test that node pools scale up when average CPU exceeds 80% for 5 minutes
-* Test that node pools scale down when average CPU drops below 30% for 10 minutes
-* Test that scaling respects configured min/max node limits
-* Verify that when scaling is disabled, node count remains constant regardless of load
-* Verify that scaling events are logged to the cluster audit trail
-* Demonstrate that scaling policies can be configured via rosa CLI
+- Test that node pools scale up when average CPU exceeds 80% for 5 minutes
+- Test that node pools scale down when average CPU drops below 30% for 10 minutes
+- Test that scaling respects configured min/max node limits
+- Verify that when scaling is disabled, node count remains constant regardless of load
+- Verify that scaling events are logged to the cluster audit trail
+- Demonstrate that scaling policies can be configured via rosa CLI
 
-h2. Additional Context
+## Additional Context
 
 This builds on the existing monitoring infrastructure. Must integrate with Prometheus metrics for CPU utilization data.
 
@@ -442,10 +445,12 @@ Out of scope: Custom metrics-based scaling (will be separate story CNTRLPLANE-45
 When linking a story to a parent epic via `--parent` flag, use the Epic Link custom field:
 
 ```python
-mcp__atlassian__jira_create_issue(
-    project_key="CNTRLPLANE",
+mcp__plugin_atlassian_atlassian__createJiraIssue(
+    cloudId="redhat.atlassian.net",
+    projectKey="CNTRLPLANE",
     summary="Add metrics endpoint for cluster health",
-    issue_type="Story",
+    issueTypeName="Story",
+    contentFormat="markdown",
     description="<story description with user story format and AC>",
     components="HyperShift / ROSA",
     additional_fields={
@@ -460,32 +465,30 @@ mcp__atlassian__jira_create_issue(
 
 ## Jira Description Formatting
 
-Use Jira's native formatting (Wiki markup):
+Use markdown format (set `contentFormat: "markdown"` on create/edit calls):
 
 ### Story Template Format
 
 ```
 As a <user>, I want to <action>, so that <value>.
 
-h2. Acceptance Criteria
+## Acceptance Criteria
 
-* Test that <criteria 1>
-* Verify that <criteria 2>
-* Given <context> when <event> then <outcome>
+- Test that <criteria 1>
+- Verify that <criteria 2>
+- Given <context> when <event> then <outcome>
 
-h2. Additional Context
+## Additional Context
 
 <optional context>
 
-h3. Dependencies
-* [PROJ-123] - Parent epic or related story
+### Dependencies
+- [PROJ-123] - Parent epic or related story
 
-h3. Out of Scope
-* Feature X (will be separate story)
-* Platform Y support (future release)
+### Out of Scope
+- Feature X (will be separate story)
+- Platform Y support (future release)
 ```
-
-For complete JIRA Wiki Markup formatting reference, see [Wiki Markup Reference](../../reference/wiki-markup.md).
 
 ## Error Handling
 
@@ -752,7 +755,7 @@ As a user, I want to create, edit, delete, and share documents
 6. 💬 Optionally collect additional context
 7. 🔒 Scan for sensitive data
 8. ✅ Validate story quality and completeness
-9. 📝 Format description with Jira markup
+9. 📝 Format description with markdown
 10. ✅ Create story via MCP tool
 11. 📤 Return issue key and URL
 

@@ -115,13 +115,15 @@ In addition to `ai-generated-jira` (from CNTRLPLANE skill), HyperShift issues ma
 ### For HyperShift Stories/Tasks in CNTRLPLANE
 
 ```python
-mcp__atlassian__jira_create_issue(
-    project_key="CNTRLPLANE",
+mcp__plugin_atlassian_atlassian__createJiraIssue(
+    cloudId="redhat.atlassian.net",
+    projectKey="CNTRLPLANE",
+    issueTypeName="Story",  # or "Task", "Epic", "Feature"
     summary="<issue summary>",
-    issue_type="Story" | "Task" | "Epic" | "Feature",
     description="<formatted description>",
-    components="HyperShift / ARO" | "HyperShift / ROSA" | "HyperShift",
+    contentFormat="markdown",
     additional_fields={
+        "components": [{"name": "HyperShift / ARO"}],  # or "HyperShift / ROSA" or "HyperShift"
         "customfield_10855": "openshift-4.21",  # target version
         "labels": ["ai-generated-jira"],
         "security": {"name": "Red Hat Employee"}
@@ -132,13 +134,15 @@ mcp__atlassian__jira_create_issue(
 ### For HyperShift Bugs in OCPBUGS
 
 ```python
-mcp__atlassian__jira_create_issue(
-    project_key="OCPBUGS",
+mcp__plugin_atlassian_atlassian__createJiraIssue(
+    cloudId="redhat.atlassian.net",
+    projectKey="OCPBUGS",
+    issueTypeName="Bug",
     summary="<bug summary>",
-    issue_type="Bug",
     description="<formatted bug template>",
-    components="HyperShift / ARO" | "HyperShift / ROSA" | "HyperShift",
+    contentFormat="markdown",
     additional_fields={
+        "components": [{"name": "HyperShift / ARO"}],  # or "HyperShift / ROSA" or "HyperShift"
         "versions": [{"name": "4.21"}],          # affects version
         "customfield_10855": "4.21",           # target version
         "labels": ["ai-generated-jira"],

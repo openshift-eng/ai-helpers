@@ -18,42 +18,16 @@ Comprehensive Jira integration for Claude Code, providing AI-powered tools to an
 ## Prerequisites
 
 - Claude Code installed
-- Jira MCP server configured
+- Official Atlassian plugin for Claude Code installed
 - Optional: `gh` CLI tools installed and configured, for GitHub access.
 
-### Setting up Jira MCP Server
+### Setting up Atlassian MCP
 
-**Option 1: Podman container (recommended if you already have Podman)**
-
-```bash
-# Start the atlassian mcp server using podman
-podman run -i --rm -p 8080:8080 -e "JIRA_URL=https://redhat.atlassian.net" -e "JIRA_USERNAME" -e "JIRA_API_TOKEN" ghcr.io/sooperset/mcp-atlassian:latest --transport sse --port 8080 -vv
-```
-
-Then add it to Claude as an SSE server:
+The Atlassian MCP tools are available automatically when you install the official Atlassian plugin for Claude Code. No API tokens or manual server setup required.
 
 ```bash
-claude mcp add --transport sse jira http://localhost:8080/sse
+/plugin install atlassian@claude-plugins-official
 ```
-
-**Option 2: uvx (no container needed)**
-
-```bash
-claude mcp add -e JIRA_URL="https://redhat.atlassian.net" -e JIRA_API_TOKEN="token" -e JIRA_USERNAME="user@redhat.com" --transport stdio jira -- uvx mcp-atlassian
-```
-
-#### Getting Tokens
-
-For your Jira API token, use https://id.atlassian.com/manage-profile/security/api-tokens
-
-### Notes and tips
-
-- Do not commit real tokens. If you must keep a project-local file, prefer committing a `mcp.json.sample` with placeholders, and keep your real `mcp.json` untracked.
-- Consider using the [rh-pre-commit](https://source.redhat.com/departments/it/it_information_security/leaktk/leaktk_components/rh_pre_commit) hook to scan for secrets accidentally left in commits.
-- The `atlassian` server example uses an MCP container image: `ghcr.io/sooperset/mcp-atlassian:latest`.
-- If you prefer Docker, replace the `podman` command with `docker` (arguments are typically the same).
-- If Podman is installed via Podman Machine on macOS, ensure it is running: `podman machine start`.
-- Limit active MCP servers: running too many at once can degrade performance or hit limits. Use Cursor's MCP panel to disable those you don't need for the current session.
 
 ## Installation
 
@@ -72,8 +46,7 @@ Skills reference these files rather than duplicating content:
 
 | File | Purpose |
 |------|---------|
-| [reference/wiki-markup.md](reference/wiki-markup.md) | JIRA Wiki Markup formatting guide |
-| [reference/mcp-tools.md](reference/mcp-tools.md) | MCP tool signatures and custom fields |
+| [reference/mcp-tools.md](reference/mcp-tools.md) | Custom fields and JQL queries |
 | [reference/cli-fallback.md](reference/cli-fallback.md) | jira-cli commands when MCP unavailable |
 
 **Best Practice:** Keep references one level deep. Link directly from SKILL.md to reference files. Deeply nested references may result in partial file reads.

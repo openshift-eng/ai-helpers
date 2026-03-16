@@ -29,9 +29,11 @@ This skill is automatically invoked by the `/jira:create-release-note` command a
 
 1. **Fetch the bug using MCP**:
    ```
-   mcp__atlassian__jira_get_issue(
-     issue_key=<issue-key>,
-     fields="summary,description,issuetype,status,issuelinks,customfield_10785,customfield_10783,comment"
+   mcp__plugin_atlassian_atlassian__getJiraIssue(
+     cloudId="redhat.atlassian.net",
+     issueIdOrKey=<issue-key>,
+     fields=["summary","description","issuetype","status","issuelinks","customfield_10785","customfield_10783","comment"],
+     responseContentFormat="markdown"
    )
    ```
 
@@ -619,8 +621,9 @@ questions = [{
 
 **MCP tool call**:
 ```
-mcp__atlassian__jira_update_issue(
-  issue_key=<issue-key>,
+mcp__plugin_atlassian_atlassian__editJiraIssue(
+  cloudId="redhat.atlassian.net",
+  issueIdOrKey=<issue-key>,
   fields={
     "customfield_10785": {"value": "<selected_type>"},
     "customfield_10783": "<formatted_release_note_text>"

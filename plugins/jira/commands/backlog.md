@@ -35,138 +35,41 @@ How it works:
 
 ## Prerequisites
 
-This command requires JIRA credentials to be configured via the JIRA MCP server setup, even though it uses direct API calls instead of MCP commands.
+- Jira plugin installed (see [Jira Plugin README](../README.md#installation))
+- JIRA credentials configured (see below)
 
-### 1. Install the Jira Plugin
+### Configure JIRA Credentials
 
-If you haven't already installed the Jira plugin, see the [Jira Plugin README](../README.md#installation) for installation instructions.
+This command uses `curl` to fetch data directly from the JIRA REST API rather than MCP tools, because MCP has performance issues with large datasets (413 errors, excessive token consumption). It requires the following environment variables:
 
-### 2. Configure JIRA Credentials via MCP Configuration File
-
-**⚠️ Important:** While this command does NOT use MCP commands to query JIRA, it DOES read credentials from the MCP server configuration file. You must configure the MCP server settings even if you're only using this command.
-
-**Why not use MCP commands?** The MCP approach has performance issues when fetching large datasets:
-- Each MCP response must be processed by Claude, consuming tokens
-- Large result sets (even with pagination) cause 413 errors from Claude due to tool result size limits
-- Processing hundreds of tickets through MCP commands creates excessive context usage
-- Direct API calls allow us to stream data to disk without intermediate processing
-
-**Solution:** This command uses `curl` to fetch data directly from JIRA and save to disk, then processes it with Python. It reads JIRA credentials from `~/.config/claude-code/mcp.json` - the same file used by the MCP server.
-
-**Required Configuration File Format:**
-
-Create or edit `~/.config/claude-code/mcp.json`:
-
-```json
-{
-  "mcpServers": {
-    "atlassian": {
-      "command": "npx",
-      "args": ["mcp-atlassian"],
-      "env": {
-        "JIRA_URL": "https://redhat.atlassian.net",
-        "JIRA_USERNAME": "your-email@redhat.com",
-        "JIRA_API_TOKEN": "your-atlassian-api-token-here"
-      }
-    }
-  }
-}
-```
-
-**Field Descriptions:**
 - `JIRA_URL`: Your JIRA instance URL (e.g., `https://redhat.atlassian.net`)
 - `JIRA_USERNAME`: Your Atlassian account email address
-- `JIRA_API_TOKEN`: Atlassian API token from [Atlassian API Token Management Page](https://id.atlassian.com/manage-profile/security/api-tokens)
+- `JIRA_API_TOKEN`: Atlassian API token from [Atlassian API Token Management](https://id.atlassian.com/manage-profile/security/api-tokens)
 
-### 3. Start Local MCP Server with Podman
-
-**⚠️ Recommended Setup:** Use the podman containerized approach. We tested npx methods on October 31, 2025, and encountered 404 errors and missing dependencies. The containerized setup works reliably.
-
-**Steps:**
-
-1. **First, ensure your `~/.config/claude-code/mcp.json` is created with credentials** (see example above)
-
-2. **Start the MCP server container using credentials from mcp.json:**
-
-   ```bash
-   # Extract credentials from your mcp.json file
-   JIRA_URL=$(jq -r '.mcpServers.atlassian.env.JIRA_URL' ~/.config/claude-code/mcp.json)
-   JIRA_USERNAME=$(jq -r '.mcpServers.atlassian.env.JIRA_USERNAME' ~/.config/claude-code/mcp.json)
-   JIRA_API_TOKEN=$(jq -r '.mcpServers.atlassian.env.JIRA_API_TOKEN' ~/.config/claude-code/mcp.json)
-
-   # Start the container
-   podman run -d --name mcp-atlassian -p 8080:8080 \
-     -e "JIRA_URL=${JIRA_URL}" \
-     -e "JIRA_USERNAME=${JIRA_USERNAME}" \
-     -e "JIRA_API_TOKEN=${JIRA_API_TOKEN}" \
-     ghcr.io/sooperset/mcp-atlassian:latest --transport sse --port 8080 -vv
-   ```
-
-3. **Verify the container is running:**
-   ```bash
-   podman ps | grep mcp-atlassian
-   ```
-
-4. **Restart Claude Code** to ensure it reads the mcp.json configuration
-
-**Managing the Container:**
-```bash
-# Check if container is running
-podman ps | grep mcp-atlassian
-
-# View logs
-podman logs mcp-atlassian
-
-# Stop the container
-podman stop mcp-atlassian
-
-# Start the container again
-podman start mcp-atlassian
-
-# Remove the container (you'll need to run 'podman run' again)
-podman rm mcp-atlassian
-```
-
-### 4. Verify MCP Server Configuration
-
-To verify your MCP server is properly configured and can connect to JIRA, you can test it with a simple JIRA query in Claude Code:
+Set these in your shell profile or export them before running the command:
 
 ```bash
-Ask Claude Code to run: "Use the mcp__atlassian__jira_get_issue tool to fetch OCPBUGS-1"
+export JIRA_URL="https://redhat.atlassian.net"
+export JIRA_USERNAME="your-email@redhat.com"
+export JIRA_API_TOKEN="your-atlassian-api-token-here"
 ```
-
-If the MCP server is properly configured, you should see issue details returned. If you see an error:
-- **"Tool not found"**: The MCP server is not properly registered with Claude Code. Re-run the `claude mcp add` command.
-- **"Authentication failed"** or **401/403 errors**: Check your `JIRA_API_TOKEN` and `JIRA_USERNAME` are correct.
-- **"Connection refused"**: If using a local MCP server, ensure the podman container is running (`podman ps`).
-- **"Could not find issue"**: Your authentication works! This just means the specific issue doesn't exist or you don't have access.
-
-See the [full JIRA Plugin README](../README.md) for complete setup instructions and troubleshooting.
 
 ## Implementation
 
 The command executes the following workflow:
 
-1. **Extract Credentials from MCP Configuration File**
-   - Read credentials from `~/.config/claude-code/mcp.json`
-   - Extract from the `atlassian` MCP server configuration:
-     ```bash
-     MCP_CONFIG="$HOME/.config/claude-code/mcp.json"
-
-     JIRA_URL=$(jq -r '.mcpServers.atlassian.env.JIRA_URL' "$MCP_CONFIG")
-     JIRA_USERNAME=$(jq -r '.mcpServers.atlassian.env.JIRA_USERNAME' "$MCP_CONFIG")
-     JIRA_API_TOKEN=$(jq -r '.mcpServers.atlassian.env.JIRA_API_TOKEN' "$MCP_CONFIG")
-
-     AUTH_TOKEN="$JIRA_API_TOKEN"
-     ```
-   - If any required credentials are missing or the file doesn't exist, display error:
+1. **Verify JIRA Credentials**
+   - Check that `JIRA_URL`, `JIRA_USERNAME`, and `JIRA_API_TOKEN` environment variables are set
+   - If any required credentials are missing, display error:
      ```bash
      Error: JIRA credentials not configured.
 
-     This command requires JIRA credentials from the MCP server configuration file.
-     Please create or edit ~/.config/claude-code/mcp.json with your JIRA credentials.
+     This command requires the following environment variables:
+       JIRA_URL       - Your JIRA instance URL (e.g., https://redhat.atlassian.net)
+       JIRA_USERNAME  - Your Atlassian account email
+       JIRA_API_TOKEN - Atlassian API token
 
-     See Prerequisites section for the required mcp.json format and setup instructions.
+     See Prerequisites section for setup instructions.
      ```
 
 2. **Parse Arguments and Set Defaults**
@@ -476,36 +379,26 @@ The command executes the following workflow:
    - Useful for tracking backlog trends over time
 
 **Error Handling:**
-- **Missing credentials file**: If `~/.config/claude-code/mcp.json` doesn't exist, display:
+- **Missing credentials**: If environment variables are not set, display:
   ```bash
   Error: JIRA credentials not configured.
 
-  This command requires JIRA credentials from the MCP server configuration file.
-  File not found: ~/.config/claude-code/mcp.json
+  Set the following environment variables:
+    export JIRA_URL="https://redhat.atlassian.net"
+    export JIRA_USERNAME="your-email@redhat.com"
+    export JIRA_API_TOKEN="your-api-token"
 
-  Please create this file with your JIRA credentials.
-  See Prerequisites section for the required mcp.json format and setup instructions.
-  ```
-- **Invalid credentials in file**: If credentials are missing from mcp.json, display:
-  ```bash
-  Error: JIRA credentials incomplete in ~/.config/claude-code/mcp.json
-
-  Required fields in .mcpServers.atlassian.env:
-  - JIRA_URL (e.g., https://redhat.atlassian.net)
-  - JIRA_USERNAME (your Atlassian account email)
-  - JIRA_API_TOKEN
-
-  See Prerequisites section for the required mcp.json format.
+  See Prerequisites section for setup instructions.
   ```
 - **Authentication failure**: If curl returns 401/403, display:
   ```bash
   Error: JIRA authentication failed (HTTP 401/403)
 
-  Please verify your JIRA credentials in ~/.config/claude-code/mcp.json:
+  Please verify your JIRA credentials:
   1. Check that JIRA_API_TOKEN is correct and not expired
   2. Verify JIRA_USERNAME matches your Atlassian account email
   3. Ensure JIRA_URL is correct (e.g., https://redhat.atlassian.net)
-  4. Test authentication: curl -H "Authorization: Basic $(printf '%s:%s' "$JIRA_USERNAME" "$JIRA_API_TOKEN" | base64 | tr -d '\n')" YOUR_JIRA_URL/rest/api/3/myself
+  4. Test authentication: curl -H "Authorization: Basic $(printf '%s:%s' "$JIRA_USERNAME" "$JIRA_API_TOKEN" | base64 | tr -d '\n')" $JIRA_URL/rest/api/3/myself
 
   To regenerate your token, visit:
   https://id.atlassian.com/manage-profile/security/api-tokens
@@ -541,7 +434,7 @@ The command executes the following workflow:
 
 ## Examples
 
-**Note:** All examples require JIRA credentials to be configured in `~/.config/claude-code/mcp.json` (see Prerequisites section). The command uses curl to fetch data directly from JIRA's REST API, bypassing MCP commands to avoid 413 errors with large datasets.
+**Note:** All examples require JIRA credential environment variables to be set (see Prerequisites).
 
 1. **Find unassigned tickets in OCPBUGS project**:
    ```bash

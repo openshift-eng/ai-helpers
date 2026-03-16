@@ -18,8 +18,7 @@ This skill is automatically invoked by the `/jira:create epic` command to guide 
 - Understanding of the epic scope and related work
 
 **Reference Documentation:**
-- [Wiki Markup Reference](../../reference/wiki-markup.md) - JIRA formatting syntax
-- [MCP Tools Reference](../../reference/mcp-tools.md) - MCP tool signatures and custom fields
+- [MCP Tools Reference](../../reference/mcp-tools.md) - Custom fields and JQL queries
 - [CLI Fallback Reference](../../reference/cli-fallback.md) - jira-cli commands (only if MCP unavailable)
 
 ## What is an Epic?
@@ -85,21 +84,21 @@ Epic-level acceptance criteria define when the epic is complete:
 
 **Format:**
 ```
-h2. Epic Acceptance Criteria
+## Epic Acceptance Criteria
 
-* <High-level outcome 1>
-* <High-level outcome 2>
-* <High-level outcome 3>
+- <High-level outcome 1>
+- <High-level outcome 2>
+- <High-level outcome 3>
 ```
 
 **Example:**
 ```
-h2. Epic Acceptance Criteria
+## Epic Acceptance Criteria
 
-* Administrators can view aggregated metrics from all clusters in a single dashboard
-* Alert rules can be configured to fire based on cross-cluster conditions
-* Historical metrics are retained for 30 days across all clusters
-* Documentation is complete for multi-cluster setup and configuration
+- Administrators can view aggregated metrics from all clusters in a single dashboard
+- Alert rules can be configured to fire based on cross-cluster conditions
+- Historical metrics are retained for 30 days across all clusters
+- Documentation is complete for multi-cluster setup and configuration
 ```
 
 **Characteristics:**
@@ -117,12 +116,12 @@ Include timeframe information:
 
 **Example:**
 ```
-h2. Timeline
+## Timeline
 
-* Target: Q1 2025 / OpenShift 4.21
-* Milestone 1: Metrics collection infrastructure (Sprint 1-2)
-* Milestone 2: Dashboard and visualization (Sprint 3-4)
-* Milestone 3: Alerting and historical data (Sprint 5-6)
+- Target: Q1 2025 / OpenShift 4.21
+- Milestone 1: Metrics collection infrastructure (Sprint 1-2)
+- Milestone 2: Dashboard and visualization (Sprint 3-4)
+- Milestone 3: Alerting and historical data (Sprint 5-6)
 ```
 
 ### Parent Link to Feature
@@ -134,7 +133,7 @@ If the epic belongs to a larger feature:
 
 **Example:**
 ```
-h2. Parent Feature
+## Parent Feature
 
 This epic is part of [PROJ-100] "Advanced cluster observability" and specifically addresses the multi-cluster aggregation capability.
 ```
@@ -249,28 +248,30 @@ Before submitting the epic, validate:
 ### Basic Epic Creation
 
 ```python
-mcp__atlassian__jira_create_issue(
-    project_key="<PROJECT_KEY>",
+mcp__plugin_atlassian_atlassian__createJiraIssue(
+    cloudId="redhat.atlassian.net",
+    projectKey="<PROJECT_KEY>",
     summary="<epic summary>",
-    issue_type="Epic",
+    issueTypeName="Epic",
+    contentFormat="markdown",
     description="""
 <Epic objective and description>
 
-h2. Epic Acceptance Criteria
+## Epic Acceptance Criteria
 
-* <Outcome 1>
-* <Outcome 2>
-* <Outcome 3>
+- <Outcome 1>
+- <Outcome 2>
+- <Outcome 3>
 
-h2. Scope
+## Scope
 
-h3. In Scope
-* <What's included>
+### In Scope
+- <What's included>
 
-h3. Out of Scope
-* <What's not included>
+### Out of Scope
+- <What's not included>
 
-h2. Timeline
+## Timeline
 
 Target: <quarter/release>
     """,
@@ -285,52 +286,54 @@ Target: <quarter/release>
 ### With Project-Specific Fields (e.g., CNTRLPLANE)
 
 ```python
-mcp__atlassian__jira_create_issue(
-    project_key="CNTRLPLANE",
+mcp__plugin_atlassian_atlassian__createJiraIssue(
+    cloudId="redhat.atlassian.net",
+    projectKey="CNTRLPLANE",
     summary="Multi-cluster metrics aggregation for ROSA HCP",
-    issue_type="Epic",
+    issueTypeName="Epic",
+    contentFormat="markdown",
     description="""
 Enable SREs to manage and monitor multiple ROSA HCP clusters from a unified observability dashboard, reducing operational complexity of multi-cluster environments.
 
-h2. Epic Acceptance Criteria
+## Epic Acceptance Criteria
 
-* SREs can view aggregated metrics from all managed clusters in one dashboard
-* Alert rules can be defined for cross-cluster conditions (e.g., "any cluster CPU >80%")
-* Historical metrics retained for 30 days across all clusters
-* Multi-cluster setup documented and tested with production workloads
-* Performance acceptable with 100+ clusters
+- SREs can view aggregated metrics from all managed clusters in one dashboard
+- Alert rules can be defined for cross-cluster conditions (e.g., "any cluster CPU >80%")
+- Historical metrics retained for 30 days across all clusters
+- Multi-cluster setup documented and tested with production workloads
+- Performance acceptable with 100+ clusters
 
-h2. Scope
+## Scope
 
-h3. In Scope
-* Metrics aggregation across ROSA HCP clusters
-* Unified dashboard for cluster health and performance
-* Cross-cluster alerting capabilities
-* 30-day historical metrics retention
-* Configuration via CLI and API
+### In Scope
+- Metrics aggregation across ROSA HCP clusters
+- Unified dashboard for cluster health and performance
+- Cross-cluster alerting capabilities
+- 30-day historical metrics retention
+- Configuration via CLI and API
 
-h3. Out of Scope
-* Log aggregation (separate epic CNTRLPLANE-200)
-* Cost reporting (different feature)
-* Support for standalone OCP clusters (future consideration)
-* Integration with external monitoring systems (post-MVP)
+### Out of Scope
+- Log aggregation (separate epic CNTRLPLANE-200)
+- Cost reporting (different feature)
+- Support for standalone OCP clusters (future consideration)
+- Integration with external monitoring systems (post-MVP)
 
-h2. Timeline
+## Timeline
 
-* Target: Q1 2025 / OpenShift 4.21
-* Estimated: 6 sprints
-* Key milestone: MVP dashboard by end of Sprint 3
+- Target: Q1 2025 / OpenShift 4.21
+- Estimated: 6 sprints
+- Key milestone: MVP dashboard by end of Sprint 3
 
-h2. Target Users
+## Target Users
 
-* SREs managing multiple ROSA HCP clusters
-* Platform administrators
-* Operations teams
+- SREs managing multiple ROSA HCP clusters
+- Platform administrators
+- Operations teams
 
-h2. Dependencies
+## Dependencies
 
-* Requires centralized metrics storage infrastructure ([CNTRLPLANE-150])
-* Depends on cluster registration API ([CNTRLPLANE-175])
+- Requires centralized metrics storage infrastructure ([CNTRLPLANE-150])
+- Depends on cluster registration API ([CNTRLPLANE-175])
     """,
     components="HyperShift / ROSA",
     additional_fields={
@@ -347,10 +350,12 @@ h2. Dependencies
 When linking an epic to a parent feature via `--parent` flag, use the **Parent Link** custom field (NOT Epic Link, NOT standard `parent` field):
 
 ```python
-mcp__atlassian__jira_create_issue(
-    project_key="CNTRLPLANE",
+mcp__plugin_atlassian_atlassian__createJiraIssue(
+    cloudId="redhat.atlassian.net",
+    projectKey="CNTRLPLANE",
     summary="Multi-cluster monitoring dashboard",
-    issue_type="Epic",
+    issueTypeName="Epic",
+    contentFormat="markdown",
     description="<epic content with scope and AC>",
     components="HyperShift",
     additional_fields={
@@ -371,45 +376,45 @@ mcp__atlassian__jira_create_issue(
 
 ## Jira Description Formatting
 
-Use Jira's native formatting (Wiki markup):
+Use markdown format (set `contentFormat: "markdown"` on create/edit calls):
 
 ### Epic Template Format
 
 ```
 <Epic objective - what capability will be delivered and why it matters>
 
-h2. Epic Acceptance Criteria
+## Epic Acceptance Criteria
 
-* <High-level outcome 1>
-* <High-level outcome 2>
-* <High-level outcome 3>
+- <High-level outcome 1>
+- <High-level outcome 2>
+- <High-level outcome 3>
 
-h2. Scope
+## Scope
 
-h3. In Scope
-* <Functionality included in this epic>
-* <Capabilities to be delivered>
+### In Scope
+- <Functionality included in this epic>
+- <Capabilities to be delivered>
 
-h3. Out of Scope
-* <Related work NOT in this epic>
-* <Future considerations>
+### Out of Scope
+- <Related work NOT in this epic>
+- <Future considerations>
 
-h2. Timeline
+## Timeline
 
-* Target: <quarter or release>
-* Estimated: <sprints>
-* Key milestones: <major deliverables>
+- Target: <quarter or release>
+- Estimated: <sprints>
+- Key milestones: <major deliverables>
 
-h2. Target Users
+## Target Users
 
-* <User group 1>
-* <User group 2>
+- <User group 1>
+- <User group 2>
 
-h2. Dependencies (optional)
+## Dependencies (optional)
 
-* [PROJ-XXX] - <dependency description>
+- [PROJ-XXX] - <dependency description>
 
-h2. Parent Feature (if applicable)
+## Parent Feature (if applicable)
 
 This epic is part of [PROJ-YYY] "<feature name>" and addresses <how this epic contributes>.
 ```
@@ -572,12 +577,16 @@ Timeframe?
 1. Pre-validate that CNTRLPLANE-100 exists and is a Feature
 2. Create epic with Parent Link field:
    ```python
-   additional_fields={
-       "customfield_10011": "Multi-cluster metrics aggregation",  # Epic Name
-       "customfield_10018": "CNTRLPLANE-100",  # Parent Link (STRING, not object!)
-       "labels": ["ai-generated-jira"],
-       "security": {"name": "Red Hat Employee"}
-   }
+   mcp__plugin_atlassian_atlassian__createJiraIssue(
+       cloudId="redhat.atlassian.net",
+       ...
+       additional_fields={
+           "customfield_10011": "Multi-cluster metrics aggregation",  # Epic Name
+           "customfield_10018": "CNTRLPLANE-100",  # Parent Link (STRING, not object!)
+           "labels": ["ai-generated-jira"],
+           "security": {"name": "Red Hat Employee"}
+       }
+   )
    ```
 3. If creation fails, use fallback: create without parent, then update to add parent link
 
@@ -675,7 +684,7 @@ Description: "Improve monitoring"
 7. 🔒 Scan for sensitive data
 8. ✅ Validate epic size and quality
 9. ✅ Set epic name field = summary
-10. 📝 Format description with Jira markup
+10. 📝 Format description with markdown
 11. ✅ Create epic via MCP tool
 12. 📤 Return issue key and URL
 
