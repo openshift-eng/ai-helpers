@@ -105,12 +105,9 @@ Structured JSON with the same data:
   "test_count": 3827,
   "failure_count": 400,
   "pass_rate": 89.5,
-  "failures_by_sig": {
-    "sig-cli": {
-      "count": 103,
-      "tests": [{"test_name": "...", "error": "..."}]
-    }
-  },
+  "failed_tests": [
+    {"test_name": "[sig-cli] example test name", "error": "error message..."}
+  ],
   "dominant_error_patterns": [
     {"pattern": "stale GroupVersion discovery: ...", "count": 50, "percentage": 12.5}
   ]
