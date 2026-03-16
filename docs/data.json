@@ -437,6 +437,11 @@
           "name": "Fetch JIRA Issue"
         },
         {
+          "description": "Fetch a Prow job run summary from Sippy showing all failed tests grouped by SIG with error messages",
+          "id": "fetch-job-run-summary",
+          "name": "Fetch Job Run Summary"
+        },
+        {
           "description": "Fetch pull requests that are new in a given OpenShift payload compared to the previous payload",
           "id": "fetch-new-prs-in-payload",
           "name": "Fetch New PRs in Payload"
