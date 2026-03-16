@@ -92,7 +92,7 @@ From the PR diff (go.mod changes):
 
 Posts comment with `/retitle` command and processing summary:
 
-```
+```text
 /retitle [PROJECT-XXXX](https://redhat.atlassian.net/browse/PROJECT-XXXX): {Package name} ({Brief description})
 ```
 

@@ -735,7 +735,10 @@ This skill uses placeholder comments for custom fields because the actual field 
 
 1. **Query Jira API for RFE project metadata:**
    ```bash
-   curl -X GET "https://redhat.atlassian.net/rest/api/3/issue/createmeta?projectKeys=RFE&expand=projects.issuetypes.fields"
+   # Get issue types for the project:
+   curl -X GET "https://redhat.atlassian.net/rest/api/3/issue/createmeta/RFE/issuetypes"
+   # Then get fields for a specific issue type:
+   curl -X GET "https://redhat.atlassian.net/rest/api/3/issue/createmeta/RFE/issuetypes/ISSUETYPE_ID"
    ```
 
 2. **Look for custom fields** like:

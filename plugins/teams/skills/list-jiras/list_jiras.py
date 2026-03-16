@@ -113,7 +113,13 @@ def fetch_jira_issues(jira_url: str, username: str, token: str,
     try:
         with urllib.request.urlopen(request, timeout=30) as response:
             data = json.loads(response.read().decode())
-            print(f"Fetched {len(data.get('issues', []))} of {data.get('total', 0)} total issues",
+            # v3 POST /rest/api/3/search/jql does not return 'total';
+            # it uses 'nextPageToken' / 'isLast' for pagination.
+            # Synthesise 'total' so callers can use it uniformly.
+            issues = data.get('issues', [])
+            if 'total' not in data:
+                data['total'] = len(issues)
+            print(f"Fetched {len(issues)} issues (page complete: {data.get('isLast', 'unknown')})",
                   file=sys.stderr)
             return data
     except urllib.error.HTTPError as e:

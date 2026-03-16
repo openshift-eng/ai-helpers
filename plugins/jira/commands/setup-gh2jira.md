@@ -223,6 +223,13 @@ If you're unsure about your Jira token setup, enter 'skip' to configure later.
 
 Store in variable: `$JIRA_API_TOKEN`
 
+**Prompt user to enter username:**
+```
+Please enter your Atlassian account email (e.g., user@redhat.com):
+```
+
+Store in variable: `$JIRA_USERNAME`
+
 **Validate token (optional, requires Jira URL):**
 ```
 Enter your Jira base URL (e.g., https://redhat.atlassian.net):
@@ -240,6 +247,8 @@ cat > $GH2JIRA_DIR/tokenstore.yaml << EOF
 schema: gh2jira.tokenstore
 authTokens:
   jira: $JIRA_API_TOKEN
+  # Basic auth requires both username and token; jira_username may be needed by gh2jira
+  jira_username: $JIRA_USERNAME
   github: $GITHUB_TOKEN
 EOF
 

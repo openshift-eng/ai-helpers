@@ -39,13 +39,15 @@ jira_curl.sh [curl arguments...]
 
 **Required Environment Variables**:
 - `JIRA_URL`: JIRA instance URL (e.g., `https://redhat.atlassian.net`)
-- `JIRA_API_TOKEN` or `JIRA_API_TOKEN`: Authentication token
+- `JIRA_API_TOKEN`: Authentication token
+- `JIRA_USERNAME`: Atlassian account email for Basic auth
 
 **Example**:
 ```bash
 # Set credentials
 export JIRA_URL="https://redhat.atlassian.net"
 export JIRA_API_TOKEN="your-token-here"
+export JIRA_USERNAME="user@redhat.com"
 
 # Use wrapper (token hidden from process list)
 jira_curl.sh -s -X POST -d '{"jql":"project=OCPBUGS"}' https://redhat.atlassian.net/rest/api/3/search/jql

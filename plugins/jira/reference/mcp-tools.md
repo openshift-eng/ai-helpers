@@ -21,7 +21,7 @@ This guide documents the MCP (Model Context Protocol) tools available for automa
 - [Issue Transitions](#issue-transitions)
   - [Get Transitions](#get-transitions)
   - [Transition Issue](#transition-issue)
-- [Custom Fields for redhat.atlassian.net](#custom-fields-for-issuesredhatcom)
+- [Custom Fields for redhat.atlassian.net](#custom-fields-for-redhatatlassiannet)
   - [Field Format Notes](#field-format-notes)
 - [Field Format Requirements](#field-format-requirements)
   - [Epic Link Field](#epic-link-field)

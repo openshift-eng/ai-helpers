@@ -242,7 +242,7 @@ This command is useful for:
 
    ```bash
    # Add comment to the bug
-   JIRA_AUTH=$(echo -n "$JIRA_USERNAME:$JIRA_API_TOKEN" | base64)
+   JIRA_AUTH=$(printf '%s' "$JIRA_USERNAME:$JIRA_API_TOKEN" | base64 | tr -d '\r\n')
    curl -s -X POST \
      -H "Authorization: Basic $JIRA_AUTH" \
      -H "Content-Type: application/json" \
@@ -268,7 +268,7 @@ This command is useful for:
    ```
 
    Display confirmation:
-   ```
+   ```text
    Bug reopened:
    - JIRA: https://redhat.atlassian.net/browse/<jira_key>
    - Status: ASSIGNED
@@ -313,7 +313,7 @@ This command is useful for:
    - Set environment variable: `export JIRA_API_TOKEN="your-jira-api-token"`
    - Obtain from: https://id.atlassian.com/manage-profile/security/api-tokens
 
-2. **Python 3**: Required for all skill scripts
+3. **Python 3**: Required for all skill scripts
 
    - Version: 3.6 or later
 

@@ -55,5 +55,5 @@ fi
 # Execute curl with Basic authentication header
 # The credentials are constructed here, inside the script, so they never
 # appear in the parent process's command line arguments
-AUTH_HEADER=$(printf '%s:%s' "$JIRA_USER" "$AUTH_TOKEN" | base64)
+AUTH_HEADER=$(printf '%s:%s' "$JIRA_USER" "$AUTH_TOKEN" | base64 | tr -d '\r\n')
 exec curl -H "Authorization: Basic $AUTH_HEADER" -H "Accept: application/json" "$@"

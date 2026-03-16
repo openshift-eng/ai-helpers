@@ -29,7 +29,8 @@ def _adf_to_text(node: Any) -> str:
     if not isinstance(node, dict):
         return str(node)
     parts: List[str] = []
-    if node.get("type") == "text":
+    node_type = node.get("type")
+    if node_type == "text":
         text = node.get("text", "")
         # Preserve link URLs inline
         for mark in node.get("marks", []):
@@ -38,6 +39,11 @@ def _adf_to_text(node: Any) -> str:
                 if href and href != text:
                     text = f"{text} ({href})"
         parts.append(text)
+    elif node_type in ("inlineCard", "blockCard", "embedCard"):
+        # Smart Links store URL in attrs.url
+        url = node.get("attrs", {}).get("url", "")
+        if url:
+            parts.append(url)
     for child in node.get("content", []):
         parts.append(_adf_to_text(child))
     sep = "\n" if node.get("type") in ("doc", "paragraph", "heading", "bulletList",

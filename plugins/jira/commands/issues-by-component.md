@@ -62,6 +62,7 @@ Set the following environment variables:
 ```bash
 export JIRA_URL="https://redhat.atlassian.net"
 export JIRA_API_TOKEN="your-atlassian-api-token-here"
+export JIRA_USERNAME="user@redhat.com"
 ```
 
 **Getting Your Token:**
@@ -107,6 +108,12 @@ The command executes the following workflow:
   if [ -z "${JIRA_API_TOKEN:-}" ]; then
     echo "Error: JIRA authentication token is required"
     echo "Please set: export JIRA_API_TOKEN='your-token-here'"
+    exit 1
+  fi
+
+  if [ -z "${JIRA_USERNAME:-}" ]; then
+    echo "Error: JIRA_USERNAME environment variable is required"
+    echo "Please set: export JIRA_USERNAME='user@redhat.com'"
     exit 1
   fi
   ```
@@ -411,6 +418,14 @@ Please set:
 
 Get your token from:
   - Atlassian API Token: https://id.atlassian.com/manage-profile/security/api-tokens
+```
+
+**Missing JIRA_USERNAME**: If JIRA_USERNAME is not set:
+```
+Error: JIRA_USERNAME environment variable is required
+
+Please set:
+  export JIRA_USERNAME='user@redhat.com'
 ```
 
 **Authentication failure**: If curl returns 401/403:

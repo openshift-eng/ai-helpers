@@ -518,8 +518,8 @@ Check for required tools:
 # Check Python and aiohttp
 python3 -c "import aiohttp; print('aiohttp OK')"
 
-# Check if the Jira token is defined
-test -n "$JIRA_API_TOKEN"
+# Check if the Jira credentials are defined
+test -n "$JIRA_API_TOKEN" && test -n "$JIRA_USERNAME"
 
 # Check GitHub token (via gh CLI)
 gh auth token &> /dev/null

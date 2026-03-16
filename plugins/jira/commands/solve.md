@@ -34,7 +34,7 @@ This command takes a JIRA URL, fetches the issue description and requirements, a
 ### Process Flow
 
 1. **Issue Analysis**: Parse JIRA URL and fetch issue details:
-   - Use curl to fetch JIRA issue data: curl -s "https://redhat.atlassian.net/rest/api/3/issue/{$1}"
+   - Use curl to fetch JIRA issue data: curl -s -u "$JIRA_USERNAME:$JIRA_API_TOKEN" "https://redhat.atlassian.net/rest/api/3/issue/{$1}"
    - Parse JSON response to extract:
       - Issue summary and description
       - From within the description expect the following sections
