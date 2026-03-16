@@ -81,7 +81,7 @@ Discovers all descendant issues using Jira's `childIssuesOf()` JQL function (aut
 
 1. **Fetch issue metadata using MCP Jira tool**:
    ```
-   mcp__atlassian__jira_get_issue(
+   mcp__rh-jira__jira_get_issue(
      issue_key=<issue-key>,
      fields="summary,description,issuetype,status,comment",
      expand="changelog"
@@ -93,7 +93,7 @@ Discovers all descendant issues using Jira's `childIssuesOf()` JQL function (aut
 
 2. **Search for ALL descendant issues using JQL**:
    ```
-   mcp__atlassian__jira_search(
+   mcp__rh-jira__jira_search(
      jql="issue in childIssuesOf(<issue-key>)",
      fields="key",
      limit=100
@@ -107,7 +107,7 @@ Discovers all descendant issues using Jira's `childIssuesOf()` JQL function (aut
 3. **Fetch full data for each issue** (including root + all descendants):
    ```
    for each issue_key:
-     mcp__atlassian__jira_get_issue(
+     mcp__rh-jira__jira_get_issue(
        issue_key=<issue-key>,
        fields="summary,description,issuetype,status,comment",
        expand="changelog"
@@ -124,7 +124,7 @@ Extracts PR URLs from two sources:
 - **Extract remote links from issue changelog** (using MCP with authenticated access):
   ```bash
   # Fetch issue with changelog expansion (store in variable)
-  issue_json=$(mcp__atlassian__jira_get_issue \
+  issue_json=$(mcp__rh-jira__jira_get_issue \
     issue_key="${issue_key}" \
     expand="changelog")
 

@@ -322,7 +322,7 @@ Before submitting the feature request, validate:
 ### Basic Feature Request Creation
 
 ```python
-mcp__atlassian__jira_create_issue(
+mcp__rh-jira__jira_create_issue(
     project_key="RFE",
     summary="<title of feature request>",
     issue_type="Feature Request",
@@ -379,7 +379,7 @@ h3. Related Services
 ### Example: Foo Feature Request
 
 ```python
-mcp__atlassian__jira_create_issue(
+mcp__rh-jira__jira_create_issue(
     project_key="RFE",
     summary="Support Foo for ProductA managed control planes",
     issue_type="Feature Request",
@@ -735,7 +735,7 @@ This skill uses placeholder comments for custom fields because the actual field 
 
 1. **Query Jira API for RFE project metadata:**
    ```bash
-   curl -X GET "https://issues.redhat.com/rest/api/2/issue/createmeta?projectKeys=RFE&expand=projects.issuetypes.fields"
+   curl -X GET "https://redhat.atlassian.net/rest/api/2/issue/createmeta?projectKeys=RFE&expand=projects.issuetypes.fields"
    ```
 
 2. **Look for custom fields** like:

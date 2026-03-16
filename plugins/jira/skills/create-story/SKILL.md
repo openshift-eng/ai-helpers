@@ -379,7 +379,7 @@ Before submitting the story, validate:
 ### Basic Story Creation
 
 ```python
-mcp__atlassian__jira_create_issue(
+mcp__rh-jira__jira_create_issue(
     project_key="<PROJECT_KEY>",
     summary="<concise title>",  # 5-10 words, NOT full user story
     issue_type="Story",
@@ -406,7 +406,7 @@ h2. Additional Context
 ### With Project-Specific Fields (e.g., CNTRLPLANE)
 
 ```python
-mcp__atlassian__jira_create_issue(
+mcp__rh-jira__jira_create_issue(
     project_key="CNTRLPLANE",
     summary="Enable automatic node pool scaling for ROSA HCP",
     issue_type="Story",
@@ -442,7 +442,7 @@ Out of scope: Custom metrics-based scaling (will be separate story CNTRLPLANE-45
 When linking a story to a parent epic via `--parent` flag, use the Epic Link custom field:
 
 ```python
-mcp__atlassian__jira_create_issue(
+mcp__rh-jira__jira_create_issue(
     project_key="CNTRLPLANE",
     summary="Add metrics endpoint for cluster health",
     issue_type="Story",

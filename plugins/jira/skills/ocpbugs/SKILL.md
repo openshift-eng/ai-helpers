@@ -40,10 +40,12 @@ This skill is automatically invoked by the `/jira:create` command when the proje
 - If not specified, prompt user: "Which version did you encounter this bug in?"
 - Multiple versions can be specified if bug affects multiple releases
 
-### Target Version (customfield_12319940)
+### Target Version (customfield_10855)
 **Purpose:** Version where the fix is targeted
 
-**Common default:** `openshift-4.21` (or current development release)
+**Common default:** `4.22` (or current development release)
+
+> **Note:** OCPBUGS version names do NOT use the `openshift-` prefix. Use `4.22`, `4.21.z`, etc. — not `openshift-4.22`.
 
 **Override:** May be different based on:
 - Severity (critical bugs may target earlier releases)
@@ -91,15 +93,15 @@ Some teams require specific components, while others do not. The OCPBUGS skill d
 ### For OCPBUGS Bugs
 
 ```python
-mcp__atlassian__jira_create_issue(
+mcp__rh-jira__jira_create_issue(
     project_key="OCPBUGS",
     summary="<bug summary>",
     issue_type="Bug",
     description="<formatted bug template>",
     components="<component name>",  # if required by team
     additional_fields={
-        "versions": [{"name": "4.21"}],           # affects version (user-specified)
-        "customfield_12319940": "openshift-4.21", # target version (default or user-specified)
+        "versions": [{"name": "4.21"}],          # affects version (user-specified)
+        "customfield_10855": [{"name": "4.22"}],  # target version (default or user-specified, no "openshift-" prefix)
         "labels": ["ai-generated-jira"],
         "security": {"name": "Red Hat Employee"}
     }
@@ -116,7 +118,7 @@ mcp__atlassian__jira_create_issue(
 | Description | `description` | Formatted bug template |
 | Component | `components` | Team-specific (optional) |
 | Affects Version | `additional_fields.versions` | `[{"name": "4.21"}]` (user-specified) |
-| Target Version | `additional_fields.customfield_12319940` | `"openshift-4.21"` (default or user-specified) |
+| Target Version | `additional_fields.customfield_10855` | `[{"name": "4.22"}]` (default or user-specified; no `openshift-` prefix) |
 | Labels | `additional_fields.labels` | `["ai-generated-jira"]` (required) |
 | Security Level | `additional_fields.security` | `{"name": "Red Hat Employee"}` (required) |
 
@@ -127,7 +129,7 @@ mcp__atlassian__jira_create_issue(
 **OCPBUGS-specific prompts:**
 - **Affects Version** (required): "Which version did you encounter this bug in?"
   - Show common versions: 4.19, 4.20, 4.21, 4.22
-- **Target Version** (optional): "Which version should this be fixed in? (default: openshift-4.21)"
+- **Target Version** (optional): "Which version should this be fixed in? (default: 4.22, e.g. 4.21, 4.21.z)"
 - **Component** (if required by team): Defer to team-specific skills
 
 ## Examples
@@ -142,7 +144,7 @@ mcp__atlassian__jira_create_issue(
 
 **OCPBUGS-specific defaults:**
 - Project: OCPBUGS (default for bugs)
-- Target Version: openshift-4.21 (default)
+- Target Version: 4.22 (default; no `openshift-` prefix)
 
 **Prompts:** See `create-bug` skill for bug template prompts, plus Affects Version
 
@@ -154,7 +156,7 @@ mcp__atlassian__jira_create_issue(
 
 **OCPBUGS-specific defaults:**
 - Affects Version: 4.21 (from --version flag)
-- Target Version: openshift-4.21 (default)
+- Target Version: 4.22 (default; no `openshift-` prefix)
 - Component: API (from --component flag)
 
 **Prompts:** See `create-bug` skill for bug template prompts
@@ -166,7 +168,7 @@ mcp__atlassian__jira_create_issue(
 **Scenario:** User specifies a version that doesn't exist.
 
 **Action:**
-1. Use `mcp__atlassian__jira_get_project_versions` to fetch available versions
+1. Use `mcp__rh-jira__jira_get_project_versions` to fetch available versions
 2. Suggest closest match: "Version '4.21.5' not found. Did you mean '4.21.0'?"
 3. Show available versions: "Available: 4.20.0, 4.21.0, 4.22.0"
 4. Wait for confirmation or correction
@@ -233,7 +235,7 @@ When `/jira:create bug` is invoked:
 1. ✅ **OCPBUGS skill loaded:** Applies project-specific conventions
 2. ⚙️ **Apply OCPBUGS defaults:**
    - Project: OCPBUGS (default for bugs)
-   - Target version: openshift-4.21 (default)
+   - Target version: 4.22 (default; no `openshift-` prefix in OCPBUGS)
 3. 🔍 **Check for team-specific skills:** If team keywords detected, invoke team skill (e.g., `hypershift`)
 4. 💬 **Interactive prompts:**
    - Affects version (required)

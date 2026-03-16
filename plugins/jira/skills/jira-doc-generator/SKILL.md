@@ -38,7 +38,7 @@ This skill is automatically invoked by the `/jira:generate-feature-doc` command 
 
 4. **Fetch main feature**: Use MCP Jira tool to get issue with all fields:
    ```
-   mcp__atlassian__jira_get_issue(issue_key=<feature-key>, fields="*all")
+   mcp__rh-jira__jira_get_issue(issue_key=<feature-key>, fields="*all")
    ```
    - If MCP unavailable, display error pointing to `plugins/jira/README.md`
 

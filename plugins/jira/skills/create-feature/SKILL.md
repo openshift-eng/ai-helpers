@@ -262,7 +262,7 @@ Before submitting the feature, validate:
 ### Basic Feature Creation
 
 ```python
-mcp__atlassian__jira_create_issue(
+mcp__rh-jira__jira_create_issue(
     project_key="<PROJECT_KEY>",
     summary="<feature summary>",
     issue_type="Feature",
@@ -323,7 +323,7 @@ h2. Timeline
 ### With Project-Specific Fields (e.g., CNTRLPLANE)
 
 ```python
-mcp__atlassian__jira_create_issue(
+mcp__rh-jira__jira_create_issue(
     project_key="CNTRLPLANE",
     summary="Advanced observability for hosted control planes",
     issue_type="Feature",

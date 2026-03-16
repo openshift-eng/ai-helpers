@@ -249,7 +249,7 @@ Before submitting the epic, validate:
 ### Basic Epic Creation
 
 ```python
-mcp__atlassian__jira_create_issue(
+mcp__rh-jira__jira_create_issue(
     project_key="<PROJECT_KEY>",
     summary="<epic summary>",
     issue_type="Epic",
@@ -285,7 +285,7 @@ Target: <quarter/release>
 ### With Project-Specific Fields (e.g., CNTRLPLANE)
 
 ```python
-mcp__atlassian__jira_create_issue(
+mcp__rh-jira__jira_create_issue(
     project_key="CNTRLPLANE",
     summary="Multi-cluster metrics aggregation for ROSA HCP",
     issue_type="Epic",
@@ -347,7 +347,7 @@ h2. Dependencies
 When linking an epic to a parent feature via `--parent` flag, use the **Parent Link** custom field (NOT Epic Link, NOT standard `parent` field):
 
 ```python
-mcp__atlassian__jira_create_issue(
+mcp__rh-jira__jira_create_issue(
     project_key="CNTRLPLANE",
     summary="Multi-cluster monitoring dashboard",
     issue_type="Epic",

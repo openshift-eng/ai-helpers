@@ -80,7 +80,7 @@ The GCP project uses these components for organizing work:
 ### For GCP HCP Stories in GCP Project
 
 ```python
-mcp__atlassian__jira_create_issue(
+mcp__rh-jira__jira_create_issue(
     project_key="GCP",
     summary="<story summary>",
     issue_type="Story",
@@ -103,7 +103,7 @@ mcp__atlassian__jira_create_issue(
 ### For GCP HCP Epics in GCP Project
 
 ```python
-mcp__atlassian__jira_create_issue(
+mcp__rh-jira__jira_create_issue(
     project_key="GCP",
     summary="<epic summary>",
     issue_type="Epic",
@@ -129,7 +129,7 @@ mcp__atlassian__jira_create_issue(
 **Example:**
 ```python
 # Step 1: Create Epic
-epic = mcp__atlassian__jira_create_issue(
+epic = mcp__rh-jira__jira_create_issue(
     project_key="GCP",
     issue_type="Epic",
     summary="Multi-cluster monitoring",
@@ -141,7 +141,7 @@ epic = mcp__atlassian__jira_create_issue(
 )
 
 # Step 2: Link to Feature
-mcp__atlassian__jira_update_issue(
+mcp__rh-jira__jira_update_issue(
     issue_key=epic["key"],
     fields={},
     additional_fields={

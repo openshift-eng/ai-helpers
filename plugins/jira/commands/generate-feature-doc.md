@@ -184,7 +184,7 @@ See `jira-doc-generator` SKILL.md Section "Error Handling" for detailed guidance
    - Verify: `gh auth status`
 
 3. **JIRA Access** - Read permissions for issues
-   - Network access to `https://issues.redhat.com`
+   - Network access to `https://redhat.atlassian.net`
 
 4. **GitHub Access** - Read access to repositories where PRs are located
    - PRs in private repos require appropriate GitHub permissions

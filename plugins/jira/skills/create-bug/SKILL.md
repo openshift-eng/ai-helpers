@@ -271,7 +271,7 @@ Before submitting the bug, validate:
 ### Basic Bug Creation
 
 ```python
-mcp__atlassian__jira_create_issue(
+mcp__rh-jira__jira_create_issue(
     project_key="<PROJECT_KEY>",  # e.g., "OCPBUGS", "MYPROJECT"
     summary="<bug summary>",
     issue_type="Bug",
@@ -287,7 +287,7 @@ mcp__atlassian__jira_create_issue(
 ### With Project-Specific Fields (e.g., OCPBUGS)
 
 ```python
-mcp__atlassian__jira_create_issue(
+mcp__rh-jira__jira_create_issue(
     project_key="OCPBUGS",
     summary="Control plane pods crash on upgrade",
     issue_type="Bug",
@@ -359,7 +359,7 @@ Example: "API server crashes when creating namespaces"
 **Scenario:** Specified version doesn't exist in project.
 
 **Action:**
-1. Use `mcp__atlassian__jira_get_project_versions` to fetch valid versions
+1. Use `mcp__rh-jira__jira_get_project_versions` to fetch valid versions
 2. Suggest closest match or list available versions
 3. Ask user to confirm or select different version
 

@@ -29,7 +29,7 @@ The `jira:create-release-note` command runs in multiple phases:
 
 ### 🎯 Phase 1: Fetch and Validate Jira Bug
 
-1. **Fetch bug ticket** using `mcp__atlassian__jira_get_issue` MCP tool:
+1. **Fetch bug ticket** using `mcp__rh-jira__jira_get_issue` MCP tool:
    - Request all fields to ensure we have complete data
    - Verify the issue is a Bug type
    - Extract issue description, links, and custom fields
@@ -222,7 +222,7 @@ Update the Jira bug ticket with generated release note:
 
 2. **Update using MCP tool**:
    ```
-   mcp__atlassian__jira_update_issue(
+   mcp__rh-jira__jira_update_issue(
      issue_key=<issue-key>,
      fields={
        "customfield_12320850": {"value": "Bug Fix"},
@@ -255,7 +255,7 @@ Show the user what was created:
    Workaround: ...
    ---
 
-   Updated: https://issues.redhat.com/browse/{issue-key}
+   Updated: https://redhat.atlassian.net/browse/{issue-key}
    ```
 
 2. **Provide next steps**:
@@ -338,7 +338,7 @@ Fix: Added nil check for CloudProviderConfig.Subnet before accessing Subnet.ID f
 Result: The control-plane-operator no longer crashes when CloudProviderConfig.Subnet is not specified
 ---
 
-Updated: https://issues.redhat.com/browse/OCPBUGS-38358
+Updated: https://redhat.atlassian.net/browse/OCPBUGS-38358
 ```
 
 ## Error Handling

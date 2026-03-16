@@ -115,7 +115,7 @@ In addition to `ai-generated-jira` (from CNTRLPLANE skill), HyperShift issues ma
 ### For HyperShift Stories/Tasks in CNTRLPLANE
 
 ```python
-mcp__atlassian__jira_create_issue(
+mcp__rh-jira__jira_create_issue(
     project_key="CNTRLPLANE",
     summary="<issue summary>",
     issue_type="Story" | "Task" | "Epic" | "Feature",
@@ -132,7 +132,7 @@ mcp__atlassian__jira_create_issue(
 ### For HyperShift Bugs in OCPBUGS
 
 ```python
-mcp__atlassian__jira_create_issue(
+mcp__rh-jira__jira_create_issue(
     project_key="OCPBUGS",
     summary="<bug summary>",
     issue_type="Bug",

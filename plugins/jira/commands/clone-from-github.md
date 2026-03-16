@@ -159,7 +159,7 @@ Format and display results to the user:
 ```
 ✓ Cloned GitHub issue #123 → OCPBUGS-4567
   Title: <issue title>
-  URL: https://issues.redhat.com/browse/OCPBUGS-4567
+  URL: https://redhat.atlassian.net/browse/OCPBUGS-4567
   GitHub link: https://github.com/org/repo/issues/123
 ```
 
@@ -403,7 +403,7 @@ A Jira issue may already exist for GitHub #123
 
 Existing issue: OCPBUGS-4567
 Created: 2024-01-15
-URL: https://issues.redhat.com/browse/OCPBUGS-4567
+URL: https://redhat.atlassian.net/browse/OCPBUGS-4567
 
 Options:
 1. Skip this issue (recommended)

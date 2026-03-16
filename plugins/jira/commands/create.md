@@ -66,7 +66,7 @@ Feature (Strategic objective, market problem)
 #### Linking a Story to an Epic
 
 ```python
-mcp__atlassian__jira_create_issue(
+mcp__rh-jira__jira_create_issue(
     project_key="CNTRLPLANE",
     summary="Add metrics endpoint for cluster health",
     issue_type="Story",
@@ -83,7 +83,7 @@ mcp__atlassian__jira_create_issue(
 #### Linking an Epic to a Feature
 
 ```python
-mcp__atlassian__jira_create_issue(
+mcp__rh-jira__jira_create_issue(
     project_key="CNTRLPLANE",
     summary="Multi-cluster metrics aggregation",
     issue_type="Epic",
@@ -101,7 +101,7 @@ mcp__atlassian__jira_create_issue(
 #### Linking a Task to an Epic
 
 ```python
-mcp__atlassian__jira_create_issue(
+mcp__rh-jira__jira_create_issue(
     project_key="CNTRLPLANE",
     summary="Refactor metrics collection pipeline",
     issue_type="Task",
@@ -124,7 +124,7 @@ Before creating the issue, validate the parent:
 
 ```python
 # Fetch parent issue to verify it exists and is correct type
-parent_issue = mcp__atlassian__jira_get_issue(issue_key="<parent-key>")
+parent_issue = mcp__rh-jira__jira_get_issue(issue_key="<parent-key>")
 
 # Verify parent type matches expected hierarchy:
 # - If creating Story/Task with --parent, parent should be Epic
@@ -165,7 +165,7 @@ If creation fails with an error related to parent linking:
 
 2. **Create without parent link:**
    ```python
-   issue = mcp__atlassian__jira_create_issue(
+   issue = mcp__rh-jira__jira_create_issue(
        # ... same parameters but WITHOUT the parent/epic link field
    )
    ```
@@ -173,14 +173,14 @@ If creation fails with an error related to parent linking:
 3. **Link via update:**
    ```python
    # For Story/Task → Epic:
-   mcp__atlassian__jira_update_issue(
+   mcp__rh-jira__jira_update_issue(
        issue_key=issue["key"],
        fields={},
        additional_fields={"customfield_12311140": "<epic-key>"}
    )
 
    # For Epic → Feature:
-   mcp__atlassian__jira_update_issue(
+   mcp__rh-jira__jira_update_issue(
        issue_key=issue["key"],
        fields={},
        additional_fields={"customfield_12313140": "<feature-key>"}
@@ -192,7 +192,7 @@ If creation fails with an error related to parent linking:
    Created: CNTRLPLANE-789
    Linked to parent: CNTRLPLANE-456 ✓
    Title: <issue title>
-   URL: https://issues.redhat.com/browse/CNTRLPLANE-789
+   URL: https://redhat.atlassian.net/browse/CNTRLPLANE-789
    ```
 
 #### Step 4: If Fallback Also Fails
@@ -201,7 +201,7 @@ If the update to add parent link also fails:
 ```
 Created: CNTRLPLANE-789
 ⚠️  Automatic parent linking failed. Please link manually in Jira.
-URL: https://issues.redhat.com/browse/CNTRLPLANE-789
+URL: https://redhat.atlassian.net/browse/CNTRLPLANE-789
 ```
 
 ### Common Parent Linking Errors
@@ -398,7 +398,7 @@ Scan all content (summary, description, comments) for sensitive data:
 
 ### ✅ Phase 7: Create Issue via MCP
 
-Use the `mcp__atlassian__jira_create_issue` MCP tool with collected parameters.
+Use the `mcp__rh-jira__jira_create_issue` MCP tool with collected parameters.
 
 **Build additional_fields:**
 
@@ -687,7 +687,7 @@ Refer to project-specific skills for epic linking fallback strategies:
 1. **Target Version format**
    - ❌ Wrong: `"customfield_12319940": "openshift-4.21"`
    - ✅ Correct: `"customfield_12319940": [{"id": "12448830"}]`
-   - **Action:** Fetch version ID using `mcp__atlassian__jira_get_project_versions`, convert to correct format
+   - **Action:** Fetch version ID using `mcp__rh-jira__jira_get_project_versions`, convert to correct format
 
 2. **Epic Link format**
    - ❌ Wrong: `"parent": {"key": "EPIC-123"}` (for stories)

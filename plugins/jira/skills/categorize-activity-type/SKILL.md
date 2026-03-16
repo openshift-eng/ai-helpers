@@ -15,7 +15,7 @@ This skill is invoked automatically by the `/jira:categorize-activity-type` comm
 ## Prerequisites
 
 - MCP Jira server must be configured (see [plugin README](../../README.md))
-- MCP tools available: `mcp__atlassian__jira_get_issue`, `mcp__atlassian__jira_update_issue`
+- MCP tools available: `mcp__rh-jira__jira_get_issue`, `mcp__rh-jira__jira_update_issue`
 - Access to JIRA instance with Activity Type custom field (`customfield_12320040`)
 
 ## Activity Type Categories
@@ -159,7 +159,7 @@ When a ticket is a subtask or linked to an Epic, apply inheritance logic:
 1. **Fetch Parent Epic/Story:**
    ```python
    if parent_key:
-       parent_issue = mcp__atlassian__jira_get_issue(
+       parent_issue = mcp__rh-jira__jira_get_issue(
            issue_key=parent_key,
            fields="summary,customfield_12320040"
        )
@@ -394,7 +394,7 @@ else:
 ```python
 if not final_category and parent_key:
     try:
-        parent_issue = mcp__atlassian__jira_get_issue(
+        parent_issue = mcp__rh-jira__jira_get_issue(
             issue_key=parent_key,
             fields="summary,customfield_12320040"
         )
@@ -537,7 +537,7 @@ if issue_type not in ["Bug", "Story", "Task", "Epic", "Vulnerability", "Weakness
 **Parent fetch failure:**
 ```python
 try:
-    parent_issue = mcp__atlassian__jira_get_issue(
+    parent_issue = mcp__rh-jira__jira_get_issue(
         issue_key=parent_key,
         fields="summary,customfield_12320040"
     )

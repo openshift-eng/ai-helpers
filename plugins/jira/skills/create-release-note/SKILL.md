@@ -29,7 +29,7 @@ This skill is automatically invoked by the `/jira:create-release-note` command a
 
 1. **Fetch the bug using MCP**:
    ```
-   mcp__atlassian__jira_get_issue(
+   mcp__rh-jira__jira_get_issue(
      issue_key=<issue-key>,
      fields="summary,description,issuetype,status,issuelinks,customfield_12320850,customfield_12317313,comment"
    )
@@ -619,7 +619,7 @@ questions = [{
 
 **MCP tool call**:
 ```
-mcp__atlassian__jira_update_issue(
+mcp__rh-jira__jira_update_issue(
   issue_key=<issue-key>,
   fields={
     "customfield_12320850": {"value": "<selected_type>"},
@@ -696,7 +696,7 @@ Text:
 {Release Note Text with proper formatting}
 ---
 
-Updated: https://issues.redhat.com/browse/{issue-key}
+Updated: https://redhat.atlassian.net/browse/{issue-key}
 
 Next steps:
 - Review the release note in Jira
@@ -718,7 +718,7 @@ Fix: Added nil check for CloudProviderConfig.Subnet before accessing Subnet.ID f
 Result: The control-plane-operator no longer crashes when CloudProviderConfig.Subnet is not specified
 ---
 
-Updated: https://issues.redhat.com/browse/OCPBUGS-38358
+Updated: https://redhat.atlassian.net/browse/OCPBUGS-38358
 
 Next steps:
 - Review the release note in Jira

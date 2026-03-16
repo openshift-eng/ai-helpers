@@ -231,7 +231,7 @@ Before submitting the task, validate:
 ### Basic Task Creation
 
 ```python
-mcp__atlassian__jira_create_issue(
+mcp__rh-jira__jira_create_issue(
     project_key="<PROJECT_KEY>",
     summary="<task summary>",
     issue_type="Task",
@@ -261,7 +261,7 @@ h2. Technical Details
 ### With Project-Specific Fields (e.g., CNTRLPLANE)
 
 ```python
-mcp__atlassian__jira_create_issue(
+mcp__rh-jira__jira_create_issue(
     project_key="CNTRLPLANE",
     summary="Update autoscaling documentation for 4.21 release",
     issue_type="Task",
@@ -301,7 +301,7 @@ Reference: API changes introduced in PR #1234
 ### With Parent Link
 
 ```python
-mcp__atlassian__jira_create_issue(
+mcp__rh-jira__jira_create_issue(
     project_key="MYPROJECT",
     summary="Add unit tests for scaling validation",
     issue_type="Task",

@@ -139,7 +139,7 @@ podman rm mcp-atlassian
 To verify your MCP server is properly configured and can connect to JIRA, you can test it with a simple JIRA query in Claude Code:
 
 ```bash
-Ask Claude Code to run: "Use the mcp__atlassian__jira_get_issue tool to fetch OCPBUGS-1"
+Ask Claude Code to run: "Use the mcp__rh-jira__jira_get_issue tool to fetch OCPBUGS-1"
 ```
 
 If the MCP server is properly configured, you should see issue details returned. If you see an error:

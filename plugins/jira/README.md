@@ -24,30 +24,43 @@ Comprehensive Jira integration for Claude Code, providing AI-powered tools to an
 ### Setting up Jira MCP Server
 
 ```bash
-# Start the atlassian mcp server using podman
-podman run -i --rm -p 8080:8080 -e "JIRA_URL=https://issues.redhat.com" -e "JIRA_USERNAME" -e "JIRA_PERSONAL_TOKEN" -e "JIRA_SSL_VERIFY" ghcr.io/sooperset/mcp-atlassian:latest --transport sse --port 8080 -vv
+export JIRA_USERNAME=your-email@redhat.com
+export JIRA_API_TOKEN=your-api-token
+export CONFLUENCE_USERNAME=your-email@redhat.com
+export CONFLUENCE_API_TOKEN=your-api-token
 ```
 
-Add the MCP server to Claude:
+Then add the MCP server to Claude:
 
 ```bash
-# Add the Atlassian MCP server
-claude mcp add --transport sse atlassian http://localhost:8080/sse
+claude mcp add rh-jira \
+  -e JIRA_URL=https://redhat.atlassian.net \
+  -e JIRA_SSL_VERIFY=true \
+  -e CONFLUENCE_URL=https://redhat.atlassian.net/wiki \
+  -e CONFLUENCE_SSL_VERIFY=true \
+  -e JIRA_USERNAME="$JIRA_USERNAME" \
+  -e JIRA_API_TOKEN="$JIRA_API_TOKEN" \
+  -e CONFLUENCE_USERNAME="$CONFLUENCE_USERNAME" \
+  -e CONFLUENCE_API_TOKEN="$CONFLUENCE_API_TOKEN" \
+  -- podman run --rm -i \
+  -e JIRA_URL -e JIRA_USERNAME -e JIRA_API_TOKEN -e JIRA_SSL_VERIFY \
+  -e CONFLUENCE_URL -e CONFLUENCE_USERNAME -e CONFLUENCE_API_TOKEN -e CONFLUENCE_SSL_VERIFY \
+  ghcr.io/sooperset/mcp-atlassian:latest
 ```
 
 #### Getting Tokens
 
-For your Jira token, use https://issues.redhat.com/secure/ViewProfile.jspa?selectedTab=com.atlassian.pats.pats-plugin:jira-user-personal-access-tokens
+Generate an API token at https://id.atlassian.com/manage-profile/security/api-tokens — click **Create API token**. The same token works for both Jira and Confluence.
 
 ### Notes and tips
 
 - Do not commit real tokens. If you must keep a project-local file, prefer committing a `mcp.json.sample` with placeholders, and keep your real `mcp.json` untracked.
 - Consider using the [rh-pre-commit](https://source.redhat.com/departments/it/it_information_security/leaktk/leaktk_components/rh_pre_commit) hook to scan for secrets accidentally left in commits.
-- The `atlassian` server example uses an MCP container image: `ghcr.io/sooperset/mcp-atlassian:latest`.
-- If you prefer Docker, replace the `podman` command with `docker` (arguments are typically the same).
+- The server uses the container image: `ghcr.io/sooperset/mcp-atlassian:latest`.
+- If you prefer Docker, replace `podman` with `docker` (arguments are the same).
 - If Podman is installed via Podman Machine on macOS, ensure it is running: `podman machine start`.
-- Keep `JIRA_SSL_VERIFY` as "true" unless you have a specific reason to disable TLS verification.
-- Limit active MCP servers: running too many at once can degrade performance or hit limits. Use Cursor's MCP panel to disable those you don't need for the current session.
+- Keep `JIRA_SSL_VERIFY` as `"true"` unless you have a specific reason to disable TLS verification.
+- Limit active MCP servers: running too many at once can degrade performance or hit limits.
 
 ## Installation
 
@@ -266,7 +279,7 @@ Fix: Added nil check for CloudProviderConfig.Subnet before accessing Subnet.ID f
 Result: The control-plane-operator no longer crashes when CloudProviderConfig.Subnet is not specified
 ---
 
-Updated: https://issues.redhat.com/browse/OCPBUGS-38358
+Updated: https://redhat.atlassian.net/browse/OCPBUGS-38358
 ```
 
 See [commands/create-release-note.md](commands/create-release-note.md) for full documentation.

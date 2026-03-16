@@ -30,7 +30,7 @@ The command supports six activity type categories:
 Use MCP to fetch only the fields needed for categorization:
 
 ```python
-issue_data = mcp__atlassian__jira_get_issue(
+issue_data = mcp__rh-jira__jira_get_issue(
     issue_key="${1}",
     fields="summary,description,issuetype,labels,parent,components,priority,customfield_12320040"
 )
@@ -117,7 +117,7 @@ Key Evidence:
 **Update using MCP:**
 
 ```python
-mcp__atlassian__jira_update_issue(
+mcp__rh-jira__jira_update_issue(
     issue_key="${1}",
     fields={
         "customfield_12320040": {  # Activity Type field
@@ -131,7 +131,7 @@ mcp__atlassian__jira_update_issue(
 
 ```text
 ✓ Updated ROX-12345: Activity Type set to "Quality / Stability / Reliability"
-  View at: https://issues.redhat.com/browse/ROX-12345
+  View at: https://redhat.atlassian.net/browse/ROX-12345
 ```
 
 ### Phase 5: Error Handling
@@ -210,7 +210,7 @@ mcp__atlassian__jira_update_issue(
 ## Notes
 
 - **Activity Type field ID**: `customfield_12320040` - **This is specific to Red Hat JIRA instances**. Other JIRA instances will have different custom field IDs for Activity Type. To find your instance's field ID:
-  1. Use MCP to fetch any issue: `mcp__atlassian__jira_get_issue(issue_key="YOUR-ISSUE-KEY")`
+  1. Use MCP to fetch any issue: `mcp__rh-jira__jira_get_issue(issue_key="YOUR-ISSUE-KEY")`
   2. Search the response for "Activity Type" or your custom field name
   3. Note the field ID (e.g., `customfield_12345`) associated with that field
   4. Update the command implementation and skill to use your field ID instead of `customfield_12320040`
