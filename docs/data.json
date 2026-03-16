@@ -278,7 +278,7 @@
           "name": "Jira Status Analysis Engine"
         }
       ],
-      "version": "0.3.5"
+      "version": "0.3.6"
     },
     {
       "commands": [
@@ -557,7 +557,7 @@
           "name": "Trigger Payload Job"
         }
       ],
-      "version": "0.0.29"
+      "version": "0.0.30"
     },
     {
       "commands": [
@@ -682,7 +682,7 @@
           "name": "Summarize JIRAs"
         }
       ],
-      "version": "0.0.7"
+      "version": "0.0.8"
     },
     {
       "commands": [

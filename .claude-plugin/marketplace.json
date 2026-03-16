@@ -20,19 +20,19 @@
       "name": "jira",
       "source": "./plugins/jira",
       "description": "A plugin to automate tasks with Jira",
-      "version": "0.3.5"
+      "version": "0.3.6"
     },
     {
       "name": "ci",
       "source": "./plugins/ci",
       "description": "A plugin to work with OpenShift CI and analyze Prow job results",
-      "version": "0.0.29"
+      "version": "0.0.30"
     },
     {
       "name": "teams",
       "source": "./plugins/teams",
       "description": "Team structure knowledge and health analysis commands for OpenShift teams",
-      "version": "0.0.7"
+      "version": "0.0.8"
     },
     {
       "name": "doc",
