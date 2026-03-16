@@ -16,6 +16,35 @@ from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any
 
 
+def _adf_to_text(node: Any) -> str:
+    """Convert an Atlassian Document Format (ADF) node to plain text.
+
+    API v3 returns description and comment bodies as ADF dicts instead of
+    plain strings.  This recursively extracts the text content.
+    """
+    if node is None:
+        return ""
+    if isinstance(node, str):
+        return node
+    if not isinstance(node, dict):
+        return str(node)
+    parts: List[str] = []
+    if node.get("type") == "text":
+        text = node.get("text", "")
+        # Preserve link URLs inline
+        for mark in node.get("marks", []):
+            if mark.get("type") == "link":
+                href = mark.get("attrs", {}).get("href", "")
+                if href and href != text:
+                    text = f"{text} ({href})"
+        parts.append(text)
+    for child in node.get("content", []):
+        parts.append(_adf_to_text(child))
+    sep = "\n" if node.get("type") in ("doc", "paragraph", "heading", "bulletList",
+                                        "orderedList", "listItem", "blockquote") else ""
+    return sep.join(parts)
+
+
 class JiraIssueFetcher:
     """Fetches and parses JIRA issue data from the Red Hat JIRA REST API."""
 
@@ -150,7 +179,7 @@ class JiraIssueFetcher:
             "key": raw_data.get("key", self.jira_key),
             "url": f"https://redhat.atlassian.net/browse/{raw_data.get('key', self.jira_key)}",
             "summary": fields.get("summary", ""),
-            "description": fields.get("description", ""),
+            "description": _adf_to_text(fields.get("description", "")),
             "status": self._parse_named_field(fields.get("status")),
             "resolution": self._parse_named_field(fields.get("resolution")),
             "priority": self._parse_named_field(fields.get("priority")),
@@ -212,7 +241,7 @@ class JiraIssueFetcher:
             parsed.append({
                 "author": author.get("displayName", "unknown"),
                 "created": comment.get("created", ""),
-                "body": comment.get("body", ""),
+                "body": _adf_to_text(comment.get("body", "")),
             })
         return parsed
 
@@ -231,7 +260,7 @@ class JiraIssueFetcher:
         )
         prs = set()
         for comment in comments:
-            body = comment.get("body", "")
+            body = _adf_to_text(comment.get("body", ""))
             prs.update(pr_pattern.findall(body))
         return sorted(prs)
 

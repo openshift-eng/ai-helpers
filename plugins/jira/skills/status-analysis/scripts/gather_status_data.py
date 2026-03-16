@@ -37,6 +37,34 @@ from pathlib import Path
 from typing import Optional, List, Dict, Any, Set
 from urllib.parse import urlencode
 
+def _adf_to_text(node: Any) -> str:
+    """Convert an Atlassian Document Format (ADF) node to plain text.
+
+    API v3 returns description and comment bodies as ADF dicts instead of
+    plain strings.  This recursively extracts the text content.
+    """
+    if node is None:
+        return ""
+    if isinstance(node, str):
+        return node
+    if not isinstance(node, dict):
+        return str(node)
+    parts: list[str] = []
+    if node.get("type") == "text":
+        text = node.get("text", "")
+        for mark in node.get("marks", []):
+            if mark.get("type") == "link":
+                href = mark.get("attrs", {}).get("href", "")
+                if href and href != text:
+                    text = f"{text} ({href})"
+        parts.append(text)
+    for child in node.get("content", []):
+        parts.append(_adf_to_text(child))
+    sep = "\n" if node.get("type") in ("doc", "paragraph", "heading", "bulletList",
+                                        "orderedList", "listItem", "blockquote") else ""
+    return sep.join(parts)
+
+
 # Configure logging
 logger = logging.getLogger(__name__)
 
@@ -661,10 +689,12 @@ class StatusDataGatherer:
 
         return " AND ".join(parts) + " ORDER BY rank ASC"
 
-    def _extract_pr_urls(self, text: Optional[str]) -> Set[str]:
-        """Extract GitHub PR URLs from text."""
+    def _extract_pr_urls(self, text) -> Set[str]:
+        """Extract GitHub PR URLs from text or ADF content."""
         if not text:
             return set()
+        if isinstance(text, dict):
+            text = _adf_to_text(text)
         return set(self.PR_PATTERN.findall(text))
 
     def _parse_datetime(self, date_str: Optional[str]) -> Optional[datetime]:
@@ -722,7 +752,7 @@ class StatusDataGatherer:
                 "author": author.get("emailAddress") or author.get("displayName", "Unknown"),
                 "author_name": author.get("displayName", "Unknown"),
                 "date": comment.get("created"),
-                "body": comment.get("body", ""),
+                "body": _adf_to_text(comment.get("body", "")),
                 "is_bot": is_bot,
             })
 
