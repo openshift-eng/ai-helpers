@@ -125,7 +125,12 @@ def fetch_jira_issues(jira_url: str, username: str, token: str,
             # Synthesise 'total' so callers can use it uniformly.
             issues = data.get('issues', [])
             if 'total' not in data:
-                data['total'] = len(issues)
+                if data.get('isLast') is True:
+                    data['total'] = len(issues)
+                else:
+                    # Signal that results are truncated
+                    data['total'] = len(issues) + 1
+                    data['partial'] = True
             print(f"Fetched {len(issues)} issues (page complete: {data.get('isLast', 'unknown')})",
                   file=sys.stderr)
             return data

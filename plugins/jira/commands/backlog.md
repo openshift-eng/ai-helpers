@@ -154,7 +154,7 @@ The command executes the following workflow:
      MCP_CONFIG="$HOME/.config/claude-code/mcp.json"
 
      JIRA_URL=$(jq -r '.mcpServers.atlassian.env.JIRA_URL' "$MCP_CONFIG")
-     JIRA_EMAIL=$(jq -r '.mcpServers.atlassian.env.JIRA_USERNAME // .mcpServers.atlassian.env.JIRA_EMAIL' "$MCP_CONFIG")
+     JIRA_USERNAME=$(jq -r '.mcpServers.atlassian.env.JIRA_USERNAME' "$MCP_CONFIG")
      JIRA_API_TOKEN=$(jq -r '.mcpServers.atlassian.env.JIRA_API_TOKEN' "$MCP_CONFIG")
 
      AUTH_TOKEN="$JIRA_API_TOKEN"
@@ -224,7 +224,7 @@ The command executes the following workflow:
        '{jql: $jql, startAt: $startAt, maxResults: $maxResults, fields: ["summary","status","priority","assignee","reporter","created","updated","description","labels","components","watches","comment"]}')
 
      # Fetch batch using curl with Basic authentication (POST)
-     AUTH_HEADER=$(printf '%s:%s' "$JIRA_EMAIL" "$AUTH_TOKEN" | base64)
+     AUTH_HEADER=$(printf '%s:%s' "$JIRA_USERNAME" "$AUTH_TOKEN" | base64 | tr -d '\n')
      HTTP_CODE=$(curl -s -w "%{http_code}" \
        -X POST \
        -o "batch-${BATCH_NUM}.json" \
@@ -505,7 +505,7 @@ The command executes the following workflow:
   1. Check that JIRA_API_TOKEN is correct and not expired
   2. Verify JIRA_USERNAME matches your Atlassian account email
   3. Ensure JIRA_URL is correct (e.g., https://redhat.atlassian.net)
-  4. Test authentication: curl -H "Authorization: Basic $(printf '%s:%s' "$JIRA_USERNAME" "$JIRA_API_TOKEN" | base64)" YOUR_JIRA_URL/rest/api/3/myself
+  4. Test authentication: curl -H "Authorization: Basic $(printf '%s:%s' "$JIRA_USERNAME" "$JIRA_API_TOKEN" | base64 | tr -d '\n')" YOUR_JIRA_URL/rest/api/3/myself
 
   To regenerate your token, visit:
   https://id.atlassian.com/manage-profile/security/api-tokens
