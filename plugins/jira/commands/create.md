@@ -50,14 +50,14 @@ Feature (Strategic objective, market problem)
 
 | Relationship | Field | MCP Parameter | Value Format |
 |--------------|-------|---------------|--------------|
-| **Epic → Feature** | Parent Link (custom field) | `additional_fields.customfield_12313140` | `"PROJ-123"` (string) |
-| **Story → Epic** | Epic Link (custom field) | `additional_fields.customfield_12311140` | `"PROJ-123"` (string) |
-| **Task → Epic** | Epic Link (custom field) | `additional_fields.customfield_12311140` | `"PROJ-123"` (string) |
-| **Task → Story** | Epic Link (custom field) | `additional_fields.customfield_12311140` | `"PROJ-123"` (string) |
+| **Epic → Feature** | Parent Link (custom field) | `additional_fields.customfield_10018` | `"PROJ-123"` (string) |
+| **Story → Epic** | Epic Link (custom field) | `additional_fields.customfield_10014` | `"PROJ-123"` (string) |
+| **Task → Epic** | Epic Link (custom field) | `additional_fields.customfield_10014` | `"PROJ-123"` (string) |
+| **Task → Story** | Epic Link (custom field) | `additional_fields.customfield_10014` | `"PROJ-123"` (string) |
 
 **Why the difference?**
-- The Parent Link field (`customfield_12313140`) is used for Epic→Feature relationships in CNTRLPLANE
-- The Epic Link field (`customfield_12311140`) is used for Story/Task→Epic relationships
+- The Parent Link field (`customfield_10018`) is used for Epic→Feature relationships in CNTRLPLANE
+- The Epic Link field (`customfield_10014`) is used for Story/Task→Epic relationships
 - Both are custom fields specific to how Red Hat Jira handles hierarchy
 - The standard `parent` field does NOT work for these relationships
 
@@ -73,7 +73,7 @@ mcp__atlassian__jira_create_issue(
     description="<story description>",
     components="HyperShift / ROSA",
     additional_fields={
-        "customfield_12311140": "CNTRLPLANE-456",  # Epic Link - links to parent epic
+        "customfield_10014": "CNTRLPLANE-456",  # Epic Link - links to parent epic
         "labels": ["ai-generated-jira"],
         "security": {"name": "Red Hat Employee"}
     }
@@ -90,8 +90,8 @@ mcp__atlassian__jira_create_issue(
     description="<epic description>",
     components="HyperShift",
     additional_fields={
-        "customfield_12311141": "Multi-cluster metrics aggregation",  # Epic Name (same as summary)
-        "customfield_12313140": "CNTRLPLANE-100",  # Parent Link - links to parent feature (STRING, not object!)
+        "customfield_10011": "Multi-cluster metrics aggregation",  # Epic Name (same as summary)
+        "customfield_10018": "CNTRLPLANE-100",  # Parent Link - links to parent feature (STRING, not object!)
         "labels": ["ai-generated-jira"],
         "security": {"name": "Red Hat Employee"}
     }
@@ -107,7 +107,7 @@ mcp__atlassian__jira_create_issue(
     issue_type="Task",
     description="<task description>",
     additional_fields={
-        "customfield_12311140": "CNTRLPLANE-456",  # Epic Link - links to parent epic
+        "customfield_10014": "CNTRLPLANE-456",  # Epic Link - links to parent epic
         "labels": ["ai-generated-jira"],
         "security": {"name": "Red Hat Employee"}
     }
@@ -154,8 +154,8 @@ What would you like to do?
 
 Include the appropriate parent field based on issue type:
 
-- **Story/Task → Epic:** Use `customfield_12311140` (Epic Link)
-- **Epic → Feature:** Use `customfield_12313140` (Parent Link)
+- **Story/Task → Epic:** Use `customfield_10014` (Epic Link)
+- **Epic → Feature:** Use `customfield_10018` (Parent Link)
 
 #### Step 3: Fallback Strategy (If Creation Fails)
 
@@ -176,14 +176,14 @@ If creation fails with an error related to parent linking:
    mcp__atlassian__jira_update_issue(
        issue_key=issue["key"],
        fields={},
-       additional_fields={"customfield_12311140": "<epic-key>"}
+       additional_fields={"customfield_10014": "<epic-key>"}
    )
 
    # For Epic → Feature:
    mcp__atlassian__jira_update_issue(
        issue_key=issue["key"],
        fields={},
-       additional_fields={"customfield_12313140": "<feature-key>"}
+       additional_fields={"customfield_10018": "<feature-key>"}
    )
    ```
 
@@ -192,7 +192,7 @@ If creation fails with an error related to parent linking:
    Created: CNTRLPLANE-789
    Linked to parent: CNTRLPLANE-456 ✓
    Title: <issue title>
-   URL: https://issues.redhat.com/browse/CNTRLPLANE-789
+   URL: https://redhat.atlassian.net/browse/CNTRLPLANE-789
    ```
 
 #### Step 4: If Fallback Also Fails
@@ -201,16 +201,16 @@ If the update to add parent link also fails:
 ```
 Created: CNTRLPLANE-789
 ⚠️  Automatic parent linking failed. Please link manually in Jira.
-URL: https://issues.redhat.com/browse/CNTRLPLANE-789
+URL: https://redhat.atlassian.net/browse/CNTRLPLANE-789
 ```
 
 ### Common Parent Linking Errors
 
 | Error Message | Cause | Solution |
 |---------------|-------|----------|
-| `Field 'parent' does not exist` | Using standard `parent` field | Use `customfield_12313140` (Parent Link) or `customfield_12311140` (Epic Link) |
-| `customfield_12311140 is not valid` | Epic Link field issue | Use fallback: create then update |
-| `customfield_12313140 is not valid` | Parent Link field issue | Use fallback: create then update |
+| `Field 'parent' does not exist` | Using standard `parent` field | Use `customfield_10018` (Parent Link) or `customfield_10014` (Epic Link) |
+| `customfield_10014 is not valid` | Epic Link field issue | Use fallback: create then update |
+| `customfield_10018 is not valid` | Parent Link field issue | Use fallback: create then update |
 | `Parent issue not found` | Invalid parent key | Verify parent exists first |
 | `Cannot link to issue of type X` | Wrong parent type | Verify hierarchy (Story→Epic, Epic→Feature) |
 
@@ -685,13 +685,13 @@ Refer to project-specific skills for epic linking fallback strategies:
 **Common field format errors:**
 
 1. **Target Version format**
-   - ❌ Wrong: `"customfield_12319940": "openshift-4.21"`
-   - ✅ Correct: `"customfield_12319940": [{"id": "12448830"}]`
+   - ❌ Wrong: `"customfield_10855": "openshift-4.21"`
+   - ✅ Correct: `"customfield_10855": [{"id": "12448830"}]`
    - **Action:** Fetch version ID using `mcp__atlassian__jira_get_project_versions`, convert to correct format
 
 2. **Epic Link format**
    - ❌ Wrong: `"parent": {"key": "EPIC-123"}` (for stories)
-   - ✅ Correct: `"customfield_12311140": "EPIC-123"` (string, not object)
+   - ✅ Correct: `"customfield_10014": "EPIC-123"` (string, not object)
    - **Action:** Convert to correct format and retry
 
 3. **Component format**

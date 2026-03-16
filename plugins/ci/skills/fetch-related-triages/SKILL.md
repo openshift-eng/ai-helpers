@@ -61,7 +61,7 @@ The API assigns a confidence level (1-10) to each match:
       "triage_id": 370,
       "triage_ui_url": "https://sippy-auth.dptools.openshift.org/sippy-ng/component_readiness/triages/370",
       "jira_key": "OCPBUGS-76612",
-      "jira_url": "https://issues.redhat.com/browse/OCPBUGS-76612",
+      "jira_url": "https://redhat.atlassian.net/browse/OCPBUGS-76612",
       "jira_status": "New",
       "jira_summary": "Component Readiness: [Networking / ovn-kubernetes] ...",
       "triage_type": "test",

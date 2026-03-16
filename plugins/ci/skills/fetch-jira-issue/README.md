@@ -20,7 +20,8 @@ This skill is used internally by CI commands such as `/ci:analyze-regression` an
 ### Input
 
 - **JIRA Key**: Issue key (e.g., OCPBUGS-74401)
-- **JIRA_TOKEN**: API token set as environment variable (or passed via `--token`)
+- **JIRA_USERNAME**: Atlassian account email set as environment variable (or passed via `--username`)
+- **JIRA_API_TOKEN**: API token set as environment variable (or passed via `--token`)
 
 ### Output
 
@@ -29,7 +30,7 @@ Structured JSON data containing:
 ```json
 {
   "key": "OCPBUGS-74401",
-  "url": "https://issues.redhat.com/browse/OCPBUGS-74401",
+  "url": "https://redhat.atlassian.net/browse/OCPBUGS-74401",
   "summary": "ovn-ipsec-host creates duplicate openssl attribute",
   "status": "Modified",
   "resolution": null,
@@ -54,15 +55,16 @@ Structured JSON data containing:
 The skill fetches data from:
 
 ```
-https://issues.redhat.com/rest/api/2/issue/{key}
+https://redhat.atlassian.net/rest/api/3/issue/{key}
 ```
 
-Authentication via Bearer token is required.
+Authentication via Basic auth (email + API token) is required.
 
 ## Prerequisites
 
-- JIRA API token (`JIRA_TOKEN` environment variable)
-- Network access to issues.redhat.com (VPN may be required)
+- JIRA username (`JIRA_USERNAME` environment variable)
+- JIRA API token (`JIRA_API_TOKEN` environment variable)
+- Network access to redhat.atlassian.net
 - Python 3.6 or later (uses standard library only)
 
 ## Usage

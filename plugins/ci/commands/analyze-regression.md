@@ -126,9 +126,9 @@ Parse and analyze the JSON output from scripts using your own reasoning capabili
    This means a human has already attributed this regression to a specific bug. For each triage entry, fetch the JIRA issue to analyze progress. Also check if step 4's test report found open bugs that may be related.
 
    ```bash
-   # Check if JIRA_TOKEN environment variable is set
-   if [ -z "$JIRA_TOKEN" ]; then
-     echo "Warning: JIRA_TOKEN environment variable not set. Skipping JIRA progress analysis."
+   # Check if JIRA auth environment variables are set
+   if [ -z "$JIRA_USERNAME" ] || [ -z "$JIRA_API_TOKEN" ]; then
+     echo "Warning: JIRA_USERNAME and/or JIRA_API_TOKEN not set. Skipping JIRA progress analysis."
    else
      # For each triage, fetch JIRA details using the fetch-jira-issue skill
      jira_script="plugins/ci/skills/fetch-jira-issue/fetch_jira_issue.py"
@@ -819,7 +819,7 @@ Parse and analyze the JSON output from scripts using your own reasoning capabili
    ```
    A related triage already exists:
    - Triage ID: 789
-   - JIRA: https://issues.redhat.com/browse/OCPBUGS-12345
+   - JIRA: https://redhat.atlassian.net/browse/OCPBUGS-12345
    - Type: product
 
    The following untriaged regressions could be added to this triage:
@@ -870,7 +870,7 @@ Parse and analyze the JSON output from scripts using your own reasoning capabili
 
    ```
    A related JIRA bug was found:
-   - JIRA: https://issues.redhat.com/browse/OCPBUGS-67890
+   - JIRA: https://redhat.atlassian.net/browse/OCPBUGS-67890
    - Summary: [bug summary from JIRA]
 
    The following regressions could be triaged to this bug:
@@ -897,7 +897,7 @@ Parse and analyze the JSON output from scripts using your own reasoning capabili
    script_path="plugins/ci/skills/triage-regression/triage_regression.py"
    triage_result=$(python3 "$script_path" "$all_regression_ids" \
      --token "$TOKEN" \
-     --url "https://issues.redhat.com/browse/OCPBUGS-67890" \
+     --url "https://redhat.atlassian.net/browse/OCPBUGS-67890" \
      --type product \
      --description "$description" \
      --format json)
@@ -912,7 +912,7 @@ Parse and analyze the JSON output from scripts using your own reasoning capabili
    Display to the user:
    ```
    Triage created:
-   - JIRA: https://issues.redhat.com/browse/OCPBUGS-67890
+   - JIRA: https://redhat.atlassian.net/browse/OCPBUGS-67890
    - Triage: https://sippy-auth.dptools.openshift.org/sippy-ng/component_readiness/triages/<triage_id>
    ```
 
@@ -975,7 +975,7 @@ Parse and analyze the JSON output from scripts using your own reasoning capabili
    script_path="plugins/ci/skills/triage-regression/triage_regression.py"
    triage_result=$(python3 "$script_path" "$all_regression_ids" \
      --token "$TOKEN" \
-     --url "https://issues.redhat.com/browse/<new_bug_key>" \
+     --url "https://redhat.atlassian.net/browse/<new_bug_key>" \
      --type <recommended_type> \
      --description "$description" \
      --format json)
@@ -990,7 +990,7 @@ Parse and analyze the JSON output from scripts using your own reasoning capabili
    Display to the user:
    ```
    Bug filed and triaged:
-   - JIRA: https://issues.redhat.com/browse/<new_bug_key>
+   - JIRA: https://redhat.atlassian.net/browse/<new_bug_key>
    - Release Blocker: Approved
    - Triage: https://sippy-auth.dptools.openshift.org/sippy-ng/component_readiness/triages/<triage_id>
    ```
@@ -1178,11 +1178,15 @@ Uses the `triage-regression` skill with authentication via the `oc-auth` skill (
    - Component Readiness API
    - Check firewall and VPN settings if needed
 
-3. **JIRA_TOKEN** (optional): Required for JIRA progress analysis on triaged regressions
+3. **JIRA_USERNAME** and **JIRA_API_TOKEN** (optional): Required for JIRA progress analysis on triaged regressions
 
-   - Set environment variable: `export JIRA_TOKEN="your-jira-api-token"`
-   - Obtain from: https://issues.redhat.com (Profile → Personal Access Tokens)
-   - If not set, JIRA progress analysis will be skipped but other analysis continues
+   - Set environment variables:
+     ```bash
+     export JIRA_USERNAME="your.email@redhat.com"
+     export JIRA_API_TOKEN="your-api-token"
+     ```
+   - Obtain your API token from: https://id.atlassian.com/manage-profile/security/api-tokens
+   - If either is not set, JIRA progress analysis will be skipped but other analysis continues
 
 ## Notes
 

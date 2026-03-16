@@ -226,7 +226,8 @@ ln -s ai-helpers ~/.cursor/commands/ai-helpers
 2. **Network Access**: Required to reach component health API and JIRA
 3. **JIRA Authentication** (for bug analysis):
    - `JIRA_URL`: Your JIRA instance URL
-   - `JIRA_PERSONAL_TOKEN`: Your JIRA bearer token
+   - `JIRA_API_TOKEN`: Your Jira API token
+   - `JIRA_USERNAME`: Your Jira email address
 
 ## Use Cases
 

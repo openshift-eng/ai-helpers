@@ -7,8 +7,9 @@ It leverages the list_jiras.py script to fetch raw data, then calculates counts 
 status, priority, and component.
 
 Environment Variables:
-    JIRA_URL: Base URL for JIRA instance (e.g., "https://issues.redhat.com")
-    JIRA_PERSONAL_TOKEN: Your JIRA API bearer token or personal access token
+    JIRA_URL: Base URL for JIRA instance (e.g., "https://redhat.atlassian.net")
+    JIRA_USERNAME: Your JIRA username (email address) for Basic auth
+    JIRA_API_TOKEN: Your JIRA API token
 
 Usage:
     python3 summarize_jiras.py --project OCPBUGS

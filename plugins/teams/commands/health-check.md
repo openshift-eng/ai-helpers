@@ -387,7 +387,8 @@ If HTML report is generated:
 2. **JIRA Authentication**: Environment variables must be configured for bug data
 
    - `JIRA_URL`: Your JIRA instance URL
-   - `JIRA_PERSONAL_TOKEN`: Your JIRA bearer token or personal access token
+   - `JIRA_API_TOKEN`: Your Jira API token
+   - `JIRA_USERNAME`: Your Jira email address
    - See `/teams:health-check-jiras` for setup instructions
 
 3. **Network Access**: Must be able to reach both component health API and JIRA

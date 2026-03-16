@@ -85,7 +85,7 @@ _Generated with [Claude Code|https://claude.com/claude-code] via {{/jira:status-
 | Heading 2 | `h2. Text` | `h2. Status Rollup` |
 | Heading 3 | `h3. Text` | `h3. This Period` |
 | Bold | `*text*` | `*Completed:*` |
-| Link | `[text\|url]` | `[OCPSTRAT-123\|https://issues.redhat.com/browse/OCPSTRAT-123]` |
+| Link | `[text\|url]` | `[OCPSTRAT-123\|https://redhat.atlassian.net/browse/OCPSTRAT-123]` |
 | Bullet list | `* item` | `* First item` |
 | Nested bullet | `*# item` | `*# Nested item` |
 | Quote block | `{quote}text{quote}` | `{quote}User said this{quote}` |
@@ -113,15 +113,15 @@ h2. Status Rollup: 2025-01-06 to 2025-01-13
 h3. This Period
 
 *Completed:*
-*# [AUTH-101|https://issues.redhat.com/browse/AUTH-101] - OAuth2 implementation (PR #456 merged, all review feedback addressed)
-*# [AUTH-102|https://issues.redhat.com/browse/AUTH-102] - Token validation with comprehensive unit tests
+*# [AUTH-101|https://redhat.atlassian.net/browse/AUTH-101] - OAuth2 implementation (PR #456 merged, all review feedback addressed)
+*# [AUTH-102|https://redhat.atlassian.net/browse/AUTH-102] - Token validation with comprehensive unit tests
 
 *In Progress:*
-*# [UI-201|https://issues.redhat.com/browse/UI-201] - Login UI components (design review completed, implementing responsive layout)
-*# [AUTH-103|https://issues.redhat.com/browse/AUTH-103] - Session handling refactor (draft PR submitted)
+*# [UI-201|https://redhat.atlassian.net/browse/UI-201] - Login UI components (design review completed, implementing responsive layout)
+*# [AUTH-103|https://redhat.atlassian.net/browse/AUTH-103] - Session handling refactor (draft PR submitted)
 
 *Blocked:*
-*# [AUTH-104|https://issues.redhat.com/browse/AUTH-104] - Azure AD integration (waiting on subscription approval)
+*# [AUTH-104|https://redhat.atlassian.net/browse/AUTH-104] - Azure AD integration (waiting on subscription approval)
 {quote}Need Azure subscription approved before proceeding - submitted ticket #12345{quote}
 
 h3. Next Steps
@@ -265,21 +265,21 @@ def format_wiki_comment(issue_data, config):
     output.append("")
     output.append("*Completed:*")
     for achievement in issue_data.analysis.achievements:
-        issue_url = f"https://issues.redhat.com/browse/{achievement.issue_key}"
+        issue_url = f"https://redhat.atlassian.net/browse/{achievement.issue_key}"
         output.append(f"*# [{achievement.issue_key}|{issue_url}] - {achievement.description}")
 
     # In Progress section
     output.append("")
     output.append("*In Progress:*")
     for item in issue_data.analysis.in_progress:
-        issue_url = f"https://issues.redhat.com/browse/{item.issue_key}"
+        issue_url = f"https://redhat.atlassian.net/browse/{item.issue_key}"
         output.append(f"*# [{item.issue_key}|{issue_url}] - {item.description}")
 
     # Blocked section
     output.append("")
     output.append("*Blocked:*")
     for blocker in issue_data.analysis.blockers:
-        issue_url = f"https://issues.redhat.com/browse/{blocker.issue_key}"
+        issue_url = f"https://redhat.atlassian.net/browse/{blocker.issue_key}"
         output.append(f"*# [{blocker.issue_key}|{issue_url}] - {blocker.description}")
         if blocker.quote:
             output.append(f"{{quote}}{blocker.quote}{{quote}}")

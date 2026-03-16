@@ -90,7 +90,7 @@ The structured data includes all necessary regression details:
   "triages": [
     {
       "id": 344,
-      "url": "https://issues.redhat.com/browse/OCPBUGS-74651",
+      "url": "https://redhat.atlassian.net/browse/OCPBUGS-74651",
       "jira_key": "OCPBUGS-74651",
       "type": "product",
       "description": "RHCOS 10 metal ipv4 job permafailing on ipv6 network access",
@@ -207,7 +207,7 @@ The API returns a JSON object with the following structure:
       "id": 344,
       "created_at": "2026-01-29T17:58:20.858051Z",
       "updated_at": "2026-01-30T13:28:33.429963Z",
-      "url": "https://issues.redhat.com/browse/OCPBUGS-74651",
+      "url": "https://redhat.atlassian.net/browse/OCPBUGS-74651",
       "description": "Description of the triage",
       "type": "product",
       "bug_id": 17817794,

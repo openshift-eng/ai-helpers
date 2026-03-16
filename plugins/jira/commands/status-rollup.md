@@ -181,15 +181,15 @@ h2. Status Rollup: 2025-01-06 to 2025-01-13
 h3. This Period
 
 *Completed:*
-*# [AUTH-101|https://issues.redhat.com/browse/AUTH-101] - OAuth2 implementation (PR #456 merged, all review feedback addressed)
-*# [AUTH-102|https://issues.redhat.com/browse/AUTH-102] - Token validation with comprehensive unit tests
+*# [AUTH-101|https://redhat.atlassian.net/browse/AUTH-101] - OAuth2 implementation (PR #456 merged, all review feedback addressed)
+*# [AUTH-102|https://redhat.atlassian.net/browse/AUTH-102] - Token validation with comprehensive unit tests
 
 *In Progress:*
-*# [UI-201|https://issues.redhat.com/browse/UI-201] - Login UI components (design review completed, implementing responsive layout)
-*# [AUTH-103|https://issues.redhat.com/browse/AUTH-103] - Session handling refactor (draft PR submitted)
+*# [UI-201|https://redhat.atlassian.net/browse/UI-201] - Login UI components (design review completed, implementing responsive layout)
+*# [AUTH-103|https://redhat.atlassian.net/browse/AUTH-103] - Session handling refactor (draft PR submitted)
 
 *Blocked:*
-*# [AUTH-104|https://issues.redhat.com/browse/AUTH-104] - Azure AD integration (waiting on subscription approval)
+*# [AUTH-104|https://redhat.atlassian.net/browse/AUTH-104] - Azure AD integration (waiting on subscription approval)
 {quote}Need Azure subscription approved before proceeding - submitted ticket #12345{quote}
 
 h3. Next Steps

@@ -39,19 +39,22 @@ This command is useful for:
 2. **Verify Environment Variables**: Ensure JIRA authentication is configured
 
    - Check that the following environment variables are set:
-     - `JIRA_URL`: Base URL for JIRA instance (e.g., "https://issues.redhat.com")
-     - `JIRA_PERSONAL_TOKEN`: Your JIRA bearer token or personal access token
+     - `JIRA_URL`: Base URL for JIRA instance (e.g., "https://redhat.atlassian.net")
+     - `JIRA_USERNAME`: Your JIRA username (email address) for Basic auth
+     - `JIRA_API_TOKEN`: Your JIRA API token
 
    - Verify with:
      ```bash
      echo "JIRA_URL: ${JIRA_URL}"
-     echo "JIRA_PERSONAL_TOKEN: ${JIRA_PERSONAL_TOKEN:+***set***}"
+     echo "JIRA_USERNAME: ${JIRA_USERNAME}"
+     echo "JIRA_API_TOKEN: ${JIRA_API_TOKEN:+***set***}"
      ```
 
    - If missing, guide the user to set them:
      ```bash
-     export JIRA_URL="https://issues.redhat.com"
-     export JIRA_PERSONAL_TOKEN="your-token-here"
+     export JIRA_URL="https://redhat.atlassian.net"
+     export JIRA_USERNAME="your-email@redhat.com"
+     export JIRA_API_TOKEN="your-api-token-here"
      ```
 
 3. **Parse Arguments**: Extract project key and optional filters from arguments
@@ -146,7 +149,7 @@ The command outputs **raw JIRA issue data** in JSON format with the following st
     - `resolutiondate`: Resolution timestamp (if closed)
     - `versions`: Affects Version/s array
     - `fixVersions`: Fix Version/s array
-    - `customfield_12319940`: Target Version (custom field)
+    - `customfield_10855`: Target Version (custom field)
     - And other JIRA fields as applicable
 
 ### Additional Information
@@ -304,11 +307,12 @@ The command outputs **raw JIRA issue data** in JSON format with the following st
 2. **JIRA Authentication**: Environment variables must be configured
 
    - `JIRA_URL`: Your JIRA instance URL
-   - `JIRA_PERSONAL_TOKEN`: Your JIRA bearer token or personal access token
+   - `JIRA_USERNAME`: Your JIRA username (email address) for Basic auth
+   - `JIRA_API_TOKEN`: Your JIRA API token
 
-   How to get a JIRA token:
-   - Navigate to JIRA → Profile → Personal Access Tokens
-   - Generate a new token with appropriate permissions
+   How to get a JIRA API token:
+   - Navigate to https://id.atlassian.com/manage-profile/security/api-tokens
+   - Generate a new API token
    - Export it as an environment variable
 
 3. **Network Access**: Must be able to reach your JIRA instance

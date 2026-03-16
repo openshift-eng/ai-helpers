@@ -60,20 +60,13 @@ If you haven't already installed the Jira plugin, see the [Jira Plugin README](.
 Set the following environment variables:
 
 ```bash
-export JIRA_URL="https://issues.redhat.com"
-export JIRA_PERSONAL_TOKEN="your-redhat-jira-personal-token-here"
-```
-
-**Or for JIRA Cloud:**
-
-```bash
-export JIRA_URL="https://your-domain.atlassian.net"
+export JIRA_URL="https://redhat.atlassian.net"
 export JIRA_API_TOKEN="your-atlassian-api-token-here"
+export JIRA_USERNAME="user@redhat.com"
 ```
 
-**Getting Your Tokens:**
-- **Red Hat JIRA PAT** (preferred for Red Hat JIRA): [Personal Access Tokens Page](https://issues.redhat.com/secure/ViewProfile.jspa?selectedTab=com.atlassian.pats.pats-plugin:jira-user-personal-access-tokens)
-- **Atlassian API Token** (for JIRA Cloud): [API Token Management](https://id.atlassian.com/manage-profile/security/api-tokens)
+**Getting Your Token:**
+- **Atlassian API Token**: [API Token Management](https://id.atlassian.com/manage-profile/security/api-tokens)
 
 **Recommended: Create a credentials file**
 
@@ -81,8 +74,9 @@ To avoid setting variables every time, create `~/.jira-credentials`:
 
 ```bash
 # ~/.jira-credentials
-export JIRA_URL="https://issues.redhat.com"
-export JIRA_PERSONAL_TOKEN="your-token-here"
+export JIRA_URL="https://redhat.atlassian.net"
+export JIRA_API_TOKEN="your-token-here"
+export JIRA_USERNAME="user@redhat.com"
 ```
 
 Then make it readable only by you:
@@ -95,7 +89,7 @@ And source it when needed:
 source ~/.jira-credentials
 ```
 
-**Note:** The command will use `JIRA_PERSONAL_TOKEN` if available (preferred for Red Hat JIRA), otherwise falls back to `JIRA_API_TOKEN`.
+**Note:** The command uses `JIRA_API_TOKEN` and `JIRA_USERNAME` for Atlassian Cloud authentication.
 
 ## Implementation
 
@@ -107,13 +101,19 @@ The command executes the following workflow:
   ```bash
   if [ -z "${JIRA_URL:-}" ]; then
     echo "Error: JIRA_URL environment variable is required"
-    echo "Please run: export JIRA_URL='https://issues.redhat.com'"
+    echo "Please run: export JIRA_URL='https://redhat.atlassian.net'"
     exit 1
   fi
 
-  if [ -z "${JIRA_PERSONAL_TOKEN:-}" ] && [ -z "${JIRA_API_TOKEN:-}" ]; then
+  if [ -z "${JIRA_API_TOKEN:-}" ]; then
     echo "Error: JIRA authentication token is required"
-    echo "Please set: export JIRA_PERSONAL_TOKEN='your-token-here'"
+    echo "Please set: export JIRA_API_TOKEN='your-token-here'"
+    exit 1
+  fi
+
+  if [ -z "${JIRA_USERNAME:-}" ]; then
+    echo "Error: JIRA_USERNAME environment variable is required"
+    echo "Please set: export JIRA_USERNAME='user@redhat.com'"
     exit 1
   fi
   ```
@@ -199,8 +199,8 @@ ORDER BY component ASC, priority DESC, updated DESC
 - Wrapper script path: `plugins/jira/skills/jira-issues-by-component/jira_curl.sh`
 
 **Important API Details:**
-- Use `/rest/api/2/search` endpoint (API v2 works reliably with Red Hat JIRA)
-- Wrapper automatically adds `Authorization: Bearer` header
+- Use POST `/rest/api/3/search/jql` endpoint with a JSON body containing `jql`, `fields`, and `maxResults`
+- Wrapper automatically adds `Authorization: Basic` header
 - Check HTTP response code to detect authentication failures
 - Request fields: `summary,status,priority,assignee,reporter,created,updated,description,labels,components,issuetype`
 
@@ -222,14 +222,19 @@ TOTAL_FETCHED=0
 
 while true; do
   # Construct API URL with pagination
-  API_URL="${JIRA_URL}/rest/api/2/search?\
-jql=${ENCODED_JQL}&\
-startAt=${START_AT}&\
-maxResults=1000&\
-fields=summary,status,priority,assignee,reporter,created,updated,description,labels,components,issuetype"
+  API_URL="${JIRA_URL}/rest/api/3/search/jql"
 
-  # Fetch batch using secure wrapper (token not exposed in process list)
+  # Build JSON body for POST request
+  JSON_BODY=$(jq -n \
+    --arg jql "$JQL" \
+    --argjson startAt "$START_AT" \
+    --argjson maxResults 1000 \
+    '{jql: $jql, startAt: $startAt, maxResults: $maxResults, fields: ["summary","status","priority","assignee","reporter","created","updated","description","labels","components","issuetype"]}')
+
+  # Fetch batch using secure wrapper with POST (token not exposed in process list)
   HTTP_CODE=$("$JIRA_CURL" -s -w "%{http_code}" \
+    -X POST -H "Content-Type: application/json" \
+    -d "$JSON_BODY" \
     -o ".work/jira-issues-by-component/${PROJECT_KEY}/batch-${BATCH_NUM}.json" \
     "${API_URL}")
 
@@ -396,24 +401,31 @@ Load the grouped data and generate the appropriate report based on mode:
 Error: JIRA_URL environment variable is required
 
 Please set JIRA credentials:
-  export JIRA_URL='https://issues.redhat.com'
-  export JIRA_PERSONAL_TOKEN='your-token-here'
+  export JIRA_URL='https://redhat.atlassian.net'
+  export JIRA_API_TOKEN='your-token-here'
+  export JIRA_USERNAME='user@redhat.com'
 
 Alternatively, source a credentials file:
   source ~/.jira-credentials
 ```
 
-**Missing authentication token**: If neither JIRA_PERSONAL_TOKEN nor JIRA_API_TOKEN is set:
+**Missing authentication token**: If JIRA_API_TOKEN is not set:
 ```
 Error: JIRA authentication token is required
 
-Please set either:
-  export JIRA_PERSONAL_TOKEN='your-token-here'  # Preferred for Red Hat JIRA
-  export JIRA_API_TOKEN='your-token-here'       # For JIRA Cloud
+Please set:
+  export JIRA_API_TOKEN='your-token-here'
 
 Get your token from:
-  - Red Hat JIRA PAT: https://issues.redhat.com/secure/ViewProfile.jspa?...
   - Atlassian API Token: https://id.atlassian.com/manage-profile/security/api-tokens
+```
+
+**Missing JIRA_USERNAME**: If JIRA_USERNAME is not set:
+```
+Error: JIRA_USERNAME environment variable is required
+
+Please set:
+  export JIRA_USERNAME='user@redhat.com'
 ```
 
 **Authentication failure**: If curl returns 401/403:
@@ -467,8 +479,9 @@ Available components:
 **Before running any examples, set your credentials:**
 ```bash
 # Option 1: Export directly
-export JIRA_URL="https://issues.redhat.com"
-export JIRA_PERSONAL_TOKEN="your-token-here"
+export JIRA_URL="https://redhat.atlassian.net"
+export JIRA_API_TOKEN="your-token-here"
+export JIRA_USERNAME="user@redhat.com"
 
 # Option 2: Source from credentials file
 source ~/.jira-credentials

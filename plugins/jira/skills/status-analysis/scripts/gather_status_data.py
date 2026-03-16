@@ -7,8 +7,9 @@ for the weekly status update workflow. It fetches data in parallel with proper
 rate limiting and outputs structured JSON files for LLM processing.
 
 Environment Variables:
-    JIRA_URL: Base URL for JIRA instance (default: https://issues.redhat.com)
-    JIRA_PERSONAL_TOKEN: Your JIRA API bearer token (required)
+    JIRA_URL: Base URL for JIRA instance (default: https://redhat.atlassian.net)
+    JIRA_API_TOKEN: Your Atlassian API token (required)
+    JIRA_USERNAME: Your Atlassian account email (required)
     GITHUB_TOKEN: GitHub personal access token with repo scope (required)
 
 Usage:
@@ -35,6 +36,40 @@ from datetime import datetime, timedelta, date
 from pathlib import Path
 from typing import Optional, List, Dict, Any, Set
 from urllib.parse import urlencode
+
+def _adf_to_text(node: Any) -> str:
+    """Convert an Atlassian Document Format (ADF) node to plain text.
+
+    API v3 returns description and comment bodies as ADF dicts instead of
+    plain strings.  This recursively extracts the text content.
+    """
+    if node is None:
+        return ""
+    if isinstance(node, str):
+        return node
+    if not isinstance(node, dict):
+        return str(node)
+    parts: list[str] = []
+    node_type = node.get("type")
+    if node_type == "text":
+        text = node.get("text", "")
+        for mark in node.get("marks", []):
+            if mark.get("type") == "link":
+                href = mark.get("attrs", {}).get("href", "")
+                if href and href != text:
+                    text = f"{text} ({href})"
+        parts.append(text)
+    elif node_type in ("inlineCard", "blockCard", "embedCard"):
+        # Smart Links store URL in attrs.url
+        url = node.get("attrs", {}).get("url", "")
+        if url:
+            parts.append(url)
+    for child in node.get("content", []):
+        parts.append(_adf_to_text(child))
+    sep = "\n" if node.get("type") in ("doc", "paragraph", "heading", "bulletList",
+                                        "orderedList", "listItem", "blockquote") else ""
+    return sep.join(parts)
+
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -126,12 +161,13 @@ class GatherConfig:
     project: str
     jira_url: str
     jira_token: str
+    jira_username: str
     github_token: str
     output_dir: Path
     date_range: DateRange
     component: Optional[str] = None
     label: Optional[str] = None
-    status_summary_field: str = "customfield_12320841"
+    status_summary_field: str = "customfield_10814"
     assignees: List[str] = field(default_factory=list)
     excluded_assignees: List[str] = field(default_factory=list)
 
@@ -175,38 +211,61 @@ class JiraClient:
         "issuetype,priority,labels,issuelinks"
     )
 
-    def __init__(self, base_url: str, token: str):
+    def __init__(self, base_url: str, token: str, username: str = ""):
+        if not username:
+            raise ValueError(
+                "JIRA_USERNAME (Atlassian account email) is required for Basic auth.\n"
+                "Set JIRA_USERNAME environment variable."
+            )
         self.base_url = base_url.rstrip("/")
         self.token = token
+        self.username = username
         self.session: Optional[aiohttp.ClientSession] = None
         self.semaphore = asyncio.Semaphore(JIRA_MAX_CONCURRENT_REQUESTS)
         self.request_count = 0
 
     def _get_headers(self) -> Dict[str, str]:
-        """Get authentication headers."""
+        """Get authentication headers using Basic auth for Atlassian Cloud."""
+        import base64
+        credentials = base64.b64encode(f"{self.username}:{self.token}".encode()).decode()
         return {
-            "Authorization": f"Bearer {self.token}",
+            "Authorization": f"Basic {credentials}",
             "Accept": "application/json",
             "Content-Type": "application/json",
         }
 
-    async def _fetch_json(self, url: str) -> Optional[Dict[str, Any]]:
-        """Fetch JSON with rate limiting and error handling."""
+    async def _fetch_json(
+        self,
+        url: str,
+        method: str = "GET",
+        json_body: Optional[Dict[str, Any]] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Fetch JSON with rate limiting and error handling.
+
+        Args:
+            url: The URL to fetch.
+            method: HTTP method ("GET" or "POST").
+            json_body: JSON body for POST requests.
+        """
         async with self.semaphore:
             await asyncio.sleep(JIRA_REQUEST_DELAY_SECONDS)
             self.request_count += 1
 
             # Log the request at debug level
-            logger.debug(f"Jira request #{self.request_count}: {url[:100]}...")
+            logger.debug(f"Jira {method} request #{self.request_count}: {url[:100]}...")
 
             if HAS_AIOHTTP and self.session:
                 try:
-                    async with self.session.get(url, headers=self._get_headers()) as resp:
+                    if method == "POST":
+                        req_ctx = self.session.post(url, headers=self._get_headers(), json=json_body)
+                    else:
+                        req_ctx = self.session.get(url, headers=self._get_headers())
+                    async with req_ctx as resp:
                         if resp.status == 200:
                             logger.debug(f"Jira request #{self.request_count} succeeded")
                             return await resp.json()
                         elif resp.status == 401:
-                            logger.error("Jira authentication failed (401). Check JIRA_PERSONAL_TOKEN.")
+                            logger.error("Jira authentication failed (401). Check JIRA_API_TOKEN and JIRA_USERNAME.")
                             return None
                         elif resp.status == 404:
                             logger.debug(f"Jira request #{self.request_count} returned 404")
@@ -214,7 +273,7 @@ class JiraClient:
                         elif resp.status == 429:
                             logger.warning("Rate limited by Jira! Waiting 30 seconds...")
                             await asyncio.sleep(30)
-                            return await self._fetch_json(url)  # Retry
+                            return await self._fetch_json(url, method=method, json_body=json_body)  # Retry
                         else:
                             text = await resp.text()
                             logger.warning(f"Jira API returned {resp.status}: {text[:200]}")
@@ -225,14 +284,17 @@ class JiraClient:
             else:
                 # Synchronous fallback
                 try:
-                    response = requests.get(url, headers=self._get_headers(), timeout=30)
+                    if method == "POST":
+                        response = requests.post(url, headers=self._get_headers(), json=json_body, timeout=30)
+                    else:
+                        response = requests.get(url, headers=self._get_headers(), timeout=30)
                     if response.status_code == 200:
                         logger.debug(f"Jira request #{self.request_count} succeeded")
                         return response.json()
                     elif response.status_code == 429:
                         logger.warning("Rate limited by Jira! Waiting 30 seconds...")
                         await asyncio.sleep(30)
-                        return await self._fetch_json(url)
+                        return await self._fetch_json(url, method=method, json_body=json_body)
                     else:
                         logger.warning(f"Jira API returned {response.status_code}")
                         return None
@@ -247,17 +309,17 @@ class JiraClient:
         expand: Optional[str] = None,
         max_results: int = 100,
     ) -> List[Dict[str, Any]]:
-        """Search for issues using JQL."""
-        params = {
+        """Search for issues using JQL via POST /rest/api/3/search/jql."""
+        body = {
             "jql": jql,
             "maxResults": max_results,
-            "fields": fields,
+            "fields": [f.strip() for f in fields.split(",")],
         }
         if expand:
-            params["expand"] = expand
+            body["expand"] = [e.strip() for e in expand.split(",")]
 
-        url = f"{self.base_url}/rest/api/2/search?{urlencode(params)}"
-        result = await self._fetch_json(url)
+        url = f"{self.base_url}/rest/api/3/search/jql"
+        result = await self._fetch_json(url, method="POST", json_body=body)
         return result.get("issues", []) if result else []
 
     async def fetch_issues_batch(
@@ -302,7 +364,7 @@ class JiraClient:
         """Get changelog for an issue."""
         # Extra delay for changelog API which is more rate-limited
         await asyncio.sleep(JIRA_CHANGELOG_DELAY_SECONDS)
-        url = f"{self.base_url}/rest/api/2/issue/{issue_key}/changelog?maxResults={max_results}"
+        url = f"{self.base_url}/rest/api/3/issue/{issue_key}/changelog?maxResults={max_results}"
         result = await self._fetch_json(url)
         return result.get("values", []) if result else []
 
@@ -350,7 +412,7 @@ class JiraClient:
 
     async def get_issue_remote_links(self, issue_key: str) -> List[Dict[str, Any]]:
         """Get remote links (external links like GitHub PRs) for an issue."""
-        url = f"{self.base_url}/rest/api/2/issue/{issue_key}/remotelink"
+        url = f"{self.base_url}/rest/api/3/issue/{issue_key}/remotelink"
         result = await self._fetch_json(url)
         return result if isinstance(result, list) else []
 
@@ -611,7 +673,7 @@ class StatusDataGatherer:
 
     def __init__(self, config: GatherConfig):
         self.config = config
-        self.jira = JiraClient(config.jira_url, config.jira_token)
+        self.jira = JiraClient(config.jira_url, config.jira_token, config.jira_username)
         self.github = GitHubClient(config.github_token)
 
     def _build_root_jql(self) -> str:
@@ -638,10 +700,12 @@ class StatusDataGatherer:
 
         return " AND ".join(parts) + " ORDER BY rank ASC"
 
-    def _extract_pr_urls(self, text: Optional[str]) -> Set[str]:
-        """Extract GitHub PR URLs from text."""
+    def _extract_pr_urls(self, text) -> Set[str]:
+        """Extract GitHub PR URLs from text or ADF content."""
         if not text:
             return set()
+        if isinstance(text, dict):
+            text = _adf_to_text(text)
         return set(self.PR_PATTERN.findall(text))
 
     def _parse_datetime(self, date_str: Optional[str]) -> Optional[datetime]:
@@ -699,7 +763,7 @@ class StatusDataGatherer:
                 "author": author.get("emailAddress") or author.get("displayName", "Unknown"),
                 "author_name": author.get("displayName", "Unknown"),
                 "date": comment.get("created"),
-                "body": comment.get("body", ""),
+                "body": _adf_to_text(comment.get("body", "")),
                 "is_bot": is_bot,
             })
 
@@ -1216,8 +1280,9 @@ Examples:
   %(prog)s --project OCPSTRAT --days 14 --output-dir .work/status --debug
 
 Environment Variables:
-  JIRA_URL              Jira server URL (default: https://issues.redhat.com)
-  JIRA_PERSONAL_TOKEN   Jira API bearer token (required)
+  JIRA_URL              Jira server URL (default: https://redhat.atlassian.net)
+  JIRA_API_TOKEN        Atlassian API token (required)
+  JIRA_USERNAME         Atlassian account email (required)
   GITHUB_TOKEN          GitHub personal access token (required)
         """,
     )
@@ -1229,7 +1294,7 @@ Environment Variables:
     parser.add_argument("--start-date", help="Start date (YYYY-MM-DD), overrides --days")
     parser.add_argument("--end-date", help="End date (YYYY-MM-DD), defaults to today")
     parser.add_argument("--output-dir", default=".work/weekly-status", help="Output directory")
-    parser.add_argument("--status-field", default="customfield_12320841", help="Status Summary field ID")
+    parser.add_argument("--status-field", default="customfield_10814", help="Status Summary field ID")
     parser.add_argument("--assignee", action="append", dest="assignees", help="Filter by assignee")
     parser.add_argument("--exclude-assignee", action="append", dest="excluded_assignees", help="Exclude assignee")
     parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose output (INFO level)")
@@ -1255,8 +1320,9 @@ Environment Variables:
     output_dir = Path(args.output_dir) / end_date.isoformat()
 
     # Get credentials
-    jira_url = get_env_var("JIRA_URL", default="https://issues.redhat.com", required=False)
-    jira_token = get_env_var("JIRA_PERSONAL_TOKEN", alternatives=["JIRA_TOKEN"])
+    jira_url = get_env_var("JIRA_URL", default="https://redhat.atlassian.net", required=False)
+    jira_token = get_env_var("JIRA_API_TOKEN")
+    jira_username = get_env_var("JIRA_USERNAME", required=True)
     github_token = get_github_token()
 
     config = GatherConfig(
@@ -1265,6 +1331,7 @@ Environment Variables:
         label=args.label,
         jira_url=jira_url,
         jira_token=jira_token,
+        jira_username=jira_username,
         github_token=github_token,
         output_dir=output_dir,
         date_range=DateRange(start=start_date, end=end_date),
