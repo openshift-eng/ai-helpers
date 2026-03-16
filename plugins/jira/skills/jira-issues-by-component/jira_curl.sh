@@ -59,4 +59,7 @@ fi
 # The credentials are constructed here, inside the script, so they never
 # appear in the parent process's command line arguments
 AUTH_HEADER=$(printf '%s:%s' "$JIRA_USERNAME" "$JIRA_API_TOKEN" | base64 | tr -d '\r\n')
-exec curl -H "Authorization: Basic $AUTH_HEADER" -H "Accept: application/json" "$@"
+exec curl --proto '=https' --proto-redir '=https' \
+  -H "Authorization: Basic $AUTH_HEADER" \
+  -H "Accept: application/json" \
+  "$@"

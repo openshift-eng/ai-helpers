@@ -256,73 +256,81 @@ class JiraClient:
             json_body: JSON body for POST requests.
             retry_count: Current retry attempt for rate-limit handling (max 5).
         """
-        async with self.semaphore:
-            await asyncio.sleep(JIRA_REQUEST_DELAY_SECONDS)
-            self.request_count += 1
+        for attempt in range(retry_count, 6):
+            async with self.semaphore:
+                await asyncio.sleep(JIRA_REQUEST_DELAY_SECONDS)
+                self.request_count += 1
 
-            # Log the request at debug level
-            logger.debug(f"Jira {method} request #{self.request_count}: {url[:100]}...")
+                # Log the request at debug level
+                logger.debug(f"Jira {method} request #{self.request_count}: {url[:100]}...")
 
-            if HAS_AIOHTTP and self.session:
-                try:
-                    if method == "POST":
-                        req_ctx = self.session.post(url, headers=self._get_headers(), json=json_body)
-                    else:
-                        req_ctx = self.session.get(url, headers=self._get_headers())
-                    async with req_ctx as resp:
-                        if resp.status == 200:
+                if HAS_AIOHTTP and self.session:
+                    try:
+                        if method == "POST":
+                            req_ctx = self.session.post(url, headers=self._get_headers(), json=json_body)
+                        else:
+                            req_ctx = self.session.get(url, headers=self._get_headers())
+                        async with req_ctx as resp:
+                            if resp.status == 200:
+                                logger.debug(f"Jira request #{self.request_count} succeeded")
+                                return await resp.json()
+                            elif resp.status == 401:
+                                raise ValueError(
+                                    "Jira authentication failed (401). "
+                                    "Check JIRA_API_TOKEN and JIRA_USERNAME."
+                                )
+                            elif resp.status == 404:
+                                logger.debug(f"Jira request #{self.request_count} returned 404")
+                                return None
+                            elif resp.status == 429:
+                                if attempt >= 5:
+                                    logger.error("Rate limited by Jira! Max retries (5) exceeded.")
+                                    return None
+                                logger.warning(f"Rate limited by Jira! Waiting 30 seconds... (retry {attempt + 1}/5)")
+                                # Fall through to sleep outside semaphore
+                            else:
+                                text = await resp.text()
+                                logger.warning(f"Jira API returned {resp.status}: {text[:200]}")
+                                return None
+                    except ValueError:
+                        raise
+                    except Exception as e:
+                        logger.error(f"Error fetching {url}: {e}")
+                        return None
+                else:
+                    # Synchronous fallback
+                    try:
+                        if method == "POST":
+                            response = requests.post(url, headers=self._get_headers(), json=json_body, timeout=30)
+                        else:
+                            response = requests.get(url, headers=self._get_headers(), timeout=30)
+                        if response.status_code == 200:
                             logger.debug(f"Jira request #{self.request_count} succeeded")
-                            return await resp.json()
-                        elif resp.status == 401:
+                            return response.json()
+                        elif response.status_code == 401:
                             raise ValueError(
                                 "Jira authentication failed (401). "
                                 "Check JIRA_API_TOKEN and JIRA_USERNAME."
                             )
-                        elif resp.status == 404:
-                            logger.debug(f"Jira request #{self.request_count} returned 404")
-                            return None
-                        elif resp.status == 429:
-                            if retry_count >= 5:
+                        elif response.status_code == 429:
+                            if attempt >= 5:
                                 logger.error("Rate limited by Jira! Max retries (5) exceeded.")
                                 return None
-                            logger.warning(f"Rate limited by Jira! Waiting 30 seconds... (retry {retry_count + 1}/5)")
-                            await asyncio.sleep(30)
-                            return await self._fetch_json(url, method=method, json_body=json_body, retry_count=retry_count + 1)
+                            logger.warning(f"Rate limited by Jira! Waiting 30 seconds... (retry {attempt + 1}/5)")
+                            # Fall through to sleep outside semaphore
                         else:
-                            text = await resp.text()
-                            logger.warning(f"Jira API returned {resp.status}: {text[:200]}")
+                            logger.warning(f"Jira API returned {response.status_code}")
                             return None
-                except Exception as e:
-                    logger.error(f"Error fetching {url}: {e}")
-                    return None
-            else:
-                # Synchronous fallback
-                try:
-                    if method == "POST":
-                        response = requests.post(url, headers=self._get_headers(), json=json_body, timeout=30)
-                    else:
-                        response = requests.get(url, headers=self._get_headers(), timeout=30)
-                    if response.status_code == 200:
-                        logger.debug(f"Jira request #{self.request_count} succeeded")
-                        return response.json()
-                    elif response.status_code == 401:
-                        raise ValueError(
-                            "Jira authentication failed (401). "
-                            "Check JIRA_API_TOKEN and JIRA_USERNAME."
-                        )
-                    elif response.status_code == 429:
-                        if retry_count >= 5:
-                            logger.error("Rate limited by Jira! Max retries (5) exceeded.")
-                            return None
-                        logger.warning(f"Rate limited by Jira! Waiting 30 seconds... (retry {retry_count + 1}/5)")
-                        await asyncio.sleep(30)
-                        return await self._fetch_json(url, method=method, json_body=json_body, retry_count=retry_count + 1)
-                    else:
-                        logger.warning(f"Jira API returned {response.status_code}")
+                    except ValueError:
+                        raise
+                    except Exception as e:
+                        logger.error(f"Error fetching {url}: {e}")
                         return None
-                except Exception as e:
-                    logger.error(f"Error fetching {url}: {e}")
-                    return None
+
+            # Sleep outside semaphore for rate-limit retries
+            await asyncio.sleep(30)
+
+        return None
 
     async def search_issues(
         self,
