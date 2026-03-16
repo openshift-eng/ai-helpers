@@ -23,6 +23,7 @@ import base64
 import json
 import os
 import sys
+import urllib.parse
 import urllib.request
 import urllib.error
 from typing import Optional, List, Dict, Any
@@ -81,6 +82,12 @@ def fetch_jira_issues(jira_url: str, username: str, token: str,
     Returns:
         Dictionary containing JIRA API response
     """
+    # Validate HTTPS to avoid sending credentials in plaintext
+    parsed = urllib.parse.urlparse(jira_url)
+    if parsed.scheme != 'https' or not parsed.netloc:
+        print("Error: JIRA_URL must be an https URL", file=sys.stderr)
+        sys.exit(1)
+
     # Build API URL (Atlassian Cloud v3 POST endpoint)
     api_url = f"{jira_url}/rest/api/3/search/jql"
 
