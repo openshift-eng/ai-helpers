@@ -111,13 +111,13 @@ Determine the **local project path** that Claude uses for the current working di
 ~/.claude/projects/-Users-stbenjam-git-my-repo/
 ```
 
-Compute this by taking `pwd`, replacing all `/` with `-`, and prepending `-` if not already present.
+Compute this by taking `pwd` and replacing all `/` with `-`. Since absolute paths start with `/`, this naturally produces a leading `-`.
 
 Copy both the selected session's JSONL file and its corresponding directory into the local project path:
 
 ```bash
 # Determine local project path
-LOCAL_PROJECT_DIR="$HOME/.claude/projects/-$(pwd | tr '/' '-' | sed 's/^-//')"
+LOCAL_PROJECT_DIR="$HOME/.claude/projects/$(pwd | tr '/' '-')"
 mkdir -p "$LOCAL_PROJECT_DIR"
 
 # Copy the session JSONL file
