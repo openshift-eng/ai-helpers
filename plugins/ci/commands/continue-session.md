@@ -113,6 +113,8 @@ Determine the **local project path** that Claude uses for the current working di
 
 Compute this by taking `pwd` and replacing all `/` with `-`. Since absolute paths start with `/`, this naturally produces a leading `-`.
 
+Before copying, check if the session UUID already exists locally (either the `.jsonl` file or the directory). If it does, warn the user that a local session with this UUID already exists and ask whether to overwrite it. If the user declines, stop.
+
 Copy both the selected session's JSONL file and its corresponding directory into the local project path:
 
 ```bash
