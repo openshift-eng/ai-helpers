@@ -1013,6 +1013,12 @@
           "synopsis": "/openshift:add-enhancement [area] <name> <description> <jira>"
         },
         {
+          "argument_hint": "[pr_url]",
+          "description": "Run strict OpenShift API review workflow for PR changes or local changes",
+          "name": "api-review",
+          "synopsis": "/openshift:api-review [pr_url]"
+        },
+        {
           "argument_hint": "",
           "description": "Bootstrap OpenShift Manager (OM) integration for OpenShift operators with automated resource discovery",
           "name": "bootstrap-om",
@@ -1125,7 +1131,7 @@
           "name": "OpenShift Node Kernel Inspection"
         }
       ],
-      "version": "0.0.5"
+      "version": "0.0.6"
     },
     {
       "commands": [
