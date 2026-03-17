@@ -37,30 +37,36 @@ Load the `ci:prow-job-artifact-search` skill and use its search operation to fin
 
 Parse the JSON output. If no matches are found (`count: 0`), tell the user "No Claude session archives found in this job's artifacts." and stop.
 
-### Step 2: Download archives to .work directory
-
-Create a working directory:
-
-```bash
-mkdir -p .work/continue-session
-```
+### Step 2: Download archives to current directory
 
 For each matched archive file, download it from GCS using `gcloud storage cp`:
 
 ```bash
-gcloud storage cp --no-user-output-enabled <gcs_uri> .work/continue-session/
+gcloud storage cp --no-user-output-enabled <gcs_uri> ./
 ```
+
+### Step 2b: Download payload artifacts
+
+Search for payload artifacts using the `ci:prow-job-artifact-search` skill with the pattern `**/payload*.yaml`, `**/payload*.json`, and `**/payload*.html`.
+
+For each matched file, download it to the current directory:
+
+```bash
+gcloud storage cp --no-user-output-enabled <gcs_uri> ./
+```
+
+These are supplementary artifacts — if none are found, continue without error.
 
 ### Step 3: Extract archives
 
-For each downloaded archive in `.work/continue-session/`:
+For each downloaded archive in the current directory:
 
 ```bash
 # For .tar.gz files
-tar xzf .work/continue-session/<filename>.tar.gz -C .work/continue-session/
+tar xzf <filename>.tar.gz
 
 # For .tar files (not gzipped)
-tar xf .work/continue-session/<filename>.tar -C .work/continue-session/
+tar xf <filename>.tar
 ```
 
 After extraction, the structure contains a `projects/` directory. Each session consists of two parts:
@@ -142,6 +148,8 @@ claude --resume <session-uuid>
 ```
 
 Where `<session-uuid>` is the UUID of the session they selected.
+
+If any payload artifacts were downloaded, list them so the user knows they are available in the current directory.
 
 ## Arguments
 
