@@ -1016,7 +1016,7 @@
           "argument_hint": "[pr_url]",
           "description": "Run strict OpenShift API review workflow for PR changes or local changes",
           "name": "api-review",
-          "synopsis": "/openshift:api-review [pr_url]"
+          "synopsis": "text"
         },
         {
           "argument_hint": "",

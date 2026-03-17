@@ -7,7 +7,7 @@ argument-hint: "[pr_url]"
 openshift:api-review
 
 ## Synopsis
-```
+```text
 /openshift:api-review [pr_url]
 ```
 
@@ -50,7 +50,11 @@ echo "📍 Current branch: $CURRENT_BRANCH"
 # Check if a PR URL was provided
 if [ -n "$ARGUMENTS" ] && [[ "$ARGUMENTS" =~ github\.com.*pull ]]; then
     REVIEW_MODE="pr"
-    PR_NUMBER=$(echo "$ARGUMENTS" | grep -oE '[0-9]+$')
+    PR_NUMBER=$(echo "$ARGUMENTS" | sed -nE 's#^.*/pull/([0-9]+)([/?].*)?$#\1#p')
+    if [ -z "$PR_NUMBER" ]; then
+        echo "❌ ERROR: Could not parse PR number from: $ARGUMENTS"
+        exit 1
+    fi
     echo "🔍 PR review mode: Reviewing PR #$PR_NUMBER"
 
     # For PR review, check for uncommitted changes
@@ -76,11 +80,11 @@ else
         fi
     done
 
-    # If no existing remote found, add upstream
+    # If no existing remote found, add one with a unique name
     if [ -z "$OPENSHIFT_REMOTE" ]; then
-        echo "⚠️  No remote pointing to openshift/api found. Adding upstream remote..."
-        git remote add upstream https://github.com/openshift/api.git
-        OPENSHIFT_REMOTE="upstream"
+        echo "⚠️  No remote pointing to openshift/api found. Adding upstream-openshift-api remote..."
+        git remote add upstream-openshift-api https://github.com/openshift/api.git
+        OPENSHIFT_REMOTE="upstream-openshift-api"
     fi
 
     # Fetch latest changes from the OpenShift API remote
@@ -209,13 +213,13 @@ fi
 ## Examples
 
 1. **Review a PR**:
-   ```
+   ```text
    /openshift:api-review https://github.com/openshift/api/pull/2145
    ```
    Checks out the PR, runs lint and convention checks, then switches back to your branch.
 
 2. **Review local changes**:
-   ```
+   ```text
    /openshift:api-review
    ```
    Reviews local changes against upstream master in the current openshift/api clone.
