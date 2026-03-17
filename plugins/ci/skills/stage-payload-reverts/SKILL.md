@@ -53,7 +53,7 @@ For each qualifying revert candidate, launch a **parallel subagent** (do NOT set
 
 ### Step 3: Create TRT JIRA Bug (with idempotency check)
 
-If Jira MCP was unavailable in Step 1 and the user chose to continue without it, skip this step entirely and proceed to Step 4.
+If Jira MCP was unavailable in Step 1 and the user chose to continue without it, skip Jira creation and proceed to Step 4. After all subagents complete, print the Jira issue details for each candidate (project, type, summary, description, and labels as described below) so the user can create them manually.
 
 **Preflight**: Before creating a new issue, search for an existing TRT bug for this PR:
 
