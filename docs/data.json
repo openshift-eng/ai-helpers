@@ -337,6 +337,12 @@
           "synopsis": "/ci:check-if-jira-regression-is-ongoing <jira-key-or-url>"
         },
         {
+          "argument_hint": "<prowjob-url>",
+          "description": "Download and continue a Claude session from a Prow CI job's artifacts",
+          "name": "continue-session",
+          "synopsis": "bash"
+        },
+        {
           "argument_hint": "<pr-url>",
           "description": "Extract kubeconfig from a running CI job in a PR",
           "name": "extract-kubeconfig",
@@ -557,7 +563,7 @@
           "name": "Trigger Payload Job"
         }
       ],
-      "version": "0.0.31"
+      "version": "0.0.32"
     },
     {
       "commands": [
