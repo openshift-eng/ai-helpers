@@ -32,14 +32,28 @@ Before starting, you **MUST** load the following skills (they define output sche
 ## Prerequisites
 
 1. **GitHub CLI (`gh`)**: Installed and authenticated
-2. **JIRA MCP**: Configured for creating TRT issues
+2. **JIRA MCP**: Configured for creating TRT issues (validated in Step 1)
 3. **Repository Access**: User must have push access to their fork of each target repository
 
 ## Implementation Steps
 
-For each qualifying revert candidate, launch a **parallel subagent** (do NOT set the `model` parameter). Each subagent executes three substeps in order:
+### Step 1: Check Jira MCP Availability
 
-### Substep 1: Create TRT JIRA Bug (with idempotency check)
+Before launching subagents, verify the Jira MCP server is working by attempting a lightweight read-only Jira MCP call (e.g., a simple JQL search or fetching the current user profile — use whichever Jira MCP tool is available).
+
+If the call fails (tool not found, connection error, authentication error, or any other error), stop and inform the user. Present two options:
+1. **Fix and retry**: "Fix your Jira MCP configuration and tell me when it's working. I'll pick up where I left off."
+2. **Continue without Jira**: "Continue without creating Jira issues. I'll open the revert PRs and trigger payload jobs, and give you the details to create Jira issues yourself afterward."
+
+Wait for the user to choose. If no user input is available (e.g., running autonomously), default to option 2. If the user chooses option 1, re-run the check when they say it's ready.
+
+### Step 2: Launch Subagents
+
+For each qualifying revert candidate, launch a **parallel subagent** (do NOT set the `model` parameter). Each subagent executes Steps 3–5 in order.
+
+### Step 3: Create TRT JIRA Bug (with idempotency check)
+
+If Jira MCP was unavailable in Step 1 and the user chose to continue without it, skip Jira creation and proceed to Step 4. After all subagents complete, print the Jira issue details for each candidate (project, type, summary, description, and labels as described below) so the user can create them manually.
 
 **Preflight**: Before creating a new issue, search for an existing TRT bug for this PR:
 
@@ -47,9 +61,9 @@ For each qualifying revert candidate, launch a **parallel subagent** (do NOT set
 jql: project = TRT AND labels = "trt-incident" AND description ~ "{pr_url}" ORDER BY created DESC
 ```
 
-Use `mcp__jira__jira_search` with this JQL. If a matching issue is found, reuse its key and URL — skip creation and proceed to Substep 2.
+Use the Jira MCP search tool with this JQL. If a matching issue is found, reuse its key and URL — skip creation and proceed to Step 4.
 
-**Create** (only if no existing issue found): Use `mcp__jira__jira_create_issue`:
+**Create** (only if no existing issue found): Use the Jira MCP create issue tool:
 
 - `project_key`: `"TRT"`
 - `issue_type`: `"Bug"`
@@ -78,7 +92,7 @@ Use `mcp__jira__jira_search` with this JQL. If a matching issue is found, reuse 
 
 Record the created (or reused) JIRA key and URL.
 
-### Substep 2: Open Revert PR (with idempotency check)
+### Step 4: Open Revert PR (with idempotency check)
 
 **Preflight**: Before opening a new revert PR, check whether one already exists:
 
@@ -86,22 +100,22 @@ Record the created (or reused) JIRA key and URL.
 gh pr list --repo <org>/<repo> --search "revert <pr_number>" --json number,title,url,state --limit 5
 ```
 
-If an open or draft revert PR is found for this PR number, reuse its URL — skip the revert-pr skill and proceed to Substep 3.
+If an open or draft revert PR is found for this PR number, reuse its URL — skip the revert-pr skill and proceed to Step 5.
 
 **Create** (only if no existing revert PR found): Load the `revert-pr` skill (`plugins/ci/skills/revert-pr/SKILL.md`) and follow its workflow:
 
 - PR URL: the offending PR
-- JIRA ticket: the TRT key from Substep 1
+- JIRA ticket: the TRT key from Step 3 (if available)
 - Context (use `--context`): "This PR is causing blocking job failures ({job names}) in the {stream} {architecture} payload [{payload_tag}]({release_controller_url})."
 - Do NOT prompt the user for any input
 
 Record the revert PR URL (created or reused).
 
-### Substep 3: Trigger Payload Jobs and Collect Run URLs
+### Step 5: Trigger Payload Jobs and Collect Run URLs
 
 Use the `trigger-payload-job` skill (`plugins/ci/skills/trigger-payload-job/SKILL.md`) to trigger payload validation jobs on the revert PR and collect the resulting URLs. Pass:
 
-- `pr_url`: The revert PR URL from Substep 2
+- `pr_url`: The revert PR URL from Step 4
 - `jobs`: The `failing_jobs` list for this candidate (includes `job_name`, `is_aggregated`, `underlying_job_name` for each job)
 
 The skill handles idempotency (checking for existing bot replies), correct command selection, polling, and URL extraction.
@@ -147,7 +161,7 @@ Return results to the caller for inclusion in the report.
 
 ## Error Handling
 
-- If JIRA creation fails, continue with the revert PR and note the error.
+- If JIRA MCP is unavailable, Step 1 handles it. If JIRA creation fails for other reasons at Step 3, continue with the revert PR and note the error.
 - If the revert PR fails (e.g., merge conflicts), record the error and skip payload job triggering for that candidate.
 - If payload job triggering fails, record the error but keep the JIRA and revert PR.
 - Do not let one failed candidate block processing of others.
