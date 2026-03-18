@@ -62,11 +62,8 @@ These are supplementary artifacts — if none are found, continue without error.
 For each downloaded archive in the current directory:
 
 ```bash
-# For .tar.gz files
-tar xzf <filename>.tar.gz
-
-# For .tar files (not gzipped)
-tar xf <filename>.tar
+# tar auto-detects compression format (.tar, .tar.gz, .tar.zst, .tar.bz2, etc.)
+tar xf <filename>
 ```
 
 After extraction, the structure contains a `projects/` directory. Each session consists of two parts:
