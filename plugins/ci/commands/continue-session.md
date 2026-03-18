@@ -45,7 +45,7 @@ For each matched archive file, download it from GCS using `gcloud storage cp`:
 gcloud storage cp --no-user-output-enabled <gcs_uri> ./
 ```
 
-### Step 2b: Download payload artifacts
+### Step 3: Download payload artifacts
 
 Search for payload artifacts using the `ci:prow-job-artifact-search` skill with the pattern `**/payload*.yaml`, `**/payload*.json`, and `**/payload*.html`.
 
@@ -57,7 +57,7 @@ gcloud storage cp --no-user-output-enabled <gcs_uri> ./
 
 These are supplementary artifacts — if none are found, continue without error.
 
-### Step 3: Extract archives
+### Step 4: Extract archives
 
 For each downloaded archive in the current directory:
 
@@ -72,7 +72,7 @@ After extraction, the structure contains a `projects/` directory. Each session c
 
 Both must be copied together for the session to work.
 
-### Step 4: Discover sessions and extract first user message
+### Step 5: Discover sessions and extract first user message
 
 Find all session JSONL files (files matching `*.jsonl` under the extracted `projects/` hierarchy). Each `.jsonl` file corresponds to a session, and its filename (without extension) is the session UUID.
 
@@ -85,7 +85,7 @@ For each session JSONL file found:
 
 If no sessions are found after extraction, tell the user "No Claude sessions found in the extracted archives." and stop.
 
-### Step 5: Present session list to user
+### Step 6: Present session list to user
 
 If only one session is found, display its details and confirm with the user before proceeding.
 
@@ -104,7 +104,7 @@ What session would you like to continue?
 
 Use AskUserQuestion to let the user select a session by number.
 
-### Step 6: Copy selected session to local Claude projects directory
+### Step 7: Copy selected session to local Claude projects directory
 
 The extracted archive contains sessions under a CI-specific project path (e.g., `projects/-home-prow-go-src-github.com-org-repo/`). This path reflects where the repo was checked out in CI and will not match the local project path.
 
@@ -134,7 +134,7 @@ cp -r <path-to-extracted>/<session-uuid> "$LOCAL_PROJECT_DIR/"
 
 Only the single selected session is copied — do not copy other sessions. Both the `.jsonl` file and the UUID directory must be copied for the session to be resumable.
 
-### Step 7: Report success
+### Step 8: Report success
 
 Tell the user:
 
