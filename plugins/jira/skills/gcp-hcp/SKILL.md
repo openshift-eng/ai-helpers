@@ -58,6 +58,7 @@ GCP project uses the same instance-wide custom fields as other Red Hat Jira proj
 | **Epic Link** | `customfield_10014` | Link Story/Task → Epic | `"GCP-456"` |
 | **Parent Link** | `customfield_10018` | Link Epic → Feature | `"GCP-100"` |
 | **Story Points** | `customfield_10028` | Optional story point estimate | `3.0` |
+| **Blocked** | `customfield_10517` | Mark issue as blocked (dropdown) | `{"value": "True"}` |
 
 ## Components
 
