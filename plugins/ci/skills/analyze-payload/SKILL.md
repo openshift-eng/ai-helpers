@@ -197,7 +197,9 @@ Wait for all subagents to complete and collect their analysis results. For each 
 
 #### 6.1: Correlate Failures with Candidate PRs
 
-For each failed job, cross-reference the failure analysis from the subagent with the candidate PRs from the originating payload. Score each (failed job, candidate PR) pair using the following weighted rubric:
+For each failed job, cross-reference the failure analysis from the subagent with the candidate PRs from the originating payload. Additionally, if a subagent traced the root cause to a PR outside the payload (e.g., an `openshift/release` PR that modified a CI step registry script), include that PR as a candidate — it is a regression like any other and should be scored and treated the same way as payload PRs.
+
+Score each (failed job, candidate PR) pair using the following weighted rubric:
 
 | Signal | Weight | Criteria |
 |--------|--------|----------|
