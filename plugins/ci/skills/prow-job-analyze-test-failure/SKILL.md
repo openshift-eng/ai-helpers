@@ -336,6 +336,7 @@ The CI system may attach **symptom labels** to job runs — machine-detected pat
 - Store artifacts from Prow CI job (json/yaml files) related to the failure under `.work/prow-job-analyze-test-failure/{build_id}/tmp`
 - Store logs under `.work/prow-job-analyze-test-failure/{build_id}/logs/`
 - Collect evidence from logs and events and other json/yaml files
+- **Check for CI step script errors**: If the error is a scripting issue in a CI step (e.g., unbound variable, syntax error, missing command, bad exit code from a shell script) rather than a product bug, check for recent commits to that step's script in the `openshift/release` repository. This is part of evidence gathering — identifying the responsible PR early informs the rest of the analysis. Include the responsible PR in your evidence.
 
 ### Step 4.4b: Investigate crash-looping or failing containers
 
