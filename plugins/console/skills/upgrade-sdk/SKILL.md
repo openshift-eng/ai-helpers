@@ -3,7 +3,7 @@ name: upgrade-sdk
 description: Assists in the upgrade of an OpenShift Console dynamic plugin to the latest Console SDK version.
 compatibility: Designed for Claude Code. Requires Node.js, gh CLI, and internet access.
 argument-hint: "<current-target-version> <new-target-version>"
-allowed-tools: Bash(gh api repos/openshift/console/contents/*), WebFetch(domain:raw.githubusercontent.com), AskUserQuestion, Bash(yarn npm info *), Bash(npm info *)
+allowed-tools: Bash(gh api repos/openshift/console/contents/*), Bash(gh api repos/*/releases/tags/*), WebFetch(domain:raw.githubusercontent.com), AskUserQuestion, Bash(yarn npm info *), Bash(npm info *)
 license: Apache-2.0
 ---
 
@@ -13,7 +13,7 @@ You are a senior software engineer with expertise in TypeScript, React, and webp
 
 ## Usage
 
-```
+```text
 # Upgrade a Console plugin from version 4.18 to 4.22
 /console:upgrade-sdk 4.18 4.22
 ```

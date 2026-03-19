@@ -8,7 +8,7 @@ OpenShift Console dynamic plugin development utilities.
 
 Upgrade an OpenShift Console dynamic plugin to a newer Console SDK version.
 
-```
+```text
 /console:upgrade-sdk <current-target-version> <new-target-version>
 ```
 
