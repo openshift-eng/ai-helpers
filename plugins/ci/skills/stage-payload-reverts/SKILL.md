@@ -111,6 +111,25 @@ If an open or draft revert PR is found for this PR number, reuse its URL — ski
 
 Record the revert PR URL (created or reused).
 
+### Step 4b: Link Fix PR and Verify Its Payload Coverage
+
+Check if the candidate has a `type: "fix"` action in its `actions` array (a fix PR was discovered during analysis). If so, add a comment on the revert PR linking to it:
+
+```bash
+gh pr comment "<revert_pr_url>" --body "Note: A fix PR also exists at <fix_pr_url> that addresses this regression without reverting. The revert is still required per OCP policy to unblock the payload immediately. If the fix PR's payload jobs pass, it can replace this revert."
+```
+
+Then verify the fix PR has appropriate payload job coverage. Check the fix action's `payload_jobs` array — if it is non-empty, the fix already has coverage (either from payload commands or presubmit CI checks). No further action needed.
+
+If `payload_jobs` is empty, the fix PR has not been validated against the failing jobs. Before triggering, check the fix PR's GitHub check runs for analogous jobs:
+
+```bash
+gh pr checks <fix_pr_number> --repo <org>/<repo> --json name,state --jq '.[] | select(.name | test("<job_name_pattern>"))'
+```
+
+- If analogous checks are found, no payload jobs need to be triggered — the fix is already being validated through its own CI. Note this in the result summary.
+- If no analogous checks are found, trigger payload jobs on the fix PR using the `trigger-payload-job` skill with the same `failing_jobs` list. This ensures both the revert and the fix are racing to validate — whichever passes first can be merged.
+
 ### Step 5: Trigger Payload Jobs and Collect Run URLs
 
 Use the `trigger-payload-job` skill (`plugins/ci/skills/trigger-payload-job/SKILL.md`) to trigger payload validation jobs on the revert PR and collect the resulting URLs. Pass:
@@ -136,7 +155,7 @@ After all subagents complete, use the `payload-results-yaml` skill to append an 
 
 - `type`: `"revert"`
 - `status`: `"staged"` (or `"failed"` if the revert PR could not be created)
-- `revert_pr_url`, `revert_pr_state`, `jira_key`, `jira_url`, `result_summary`, `payload_jobs`
+- `pr_url`, `pr_state`, `jira_key`, `jira_url`, `result_summary`, `payload_jobs`
 
 See the `payload-results-yaml` skill for the full schema.
 
@@ -149,6 +168,7 @@ Find the existing "Recommended Reverts" section in the HTML. For each candidate 
 - **Revert PR**: Link to the revert PR (e.g., `<a href="{revert_pr_url}">#{revert_pr_number}</a>`)
 - **JIRA**: Link to the TRT issue (e.g., `<a href="{jira_url}">{jira_key}</a>`)
 - **Payload Jobs**: Link to the pr-payload-tests URL (e.g., `<a href="{payload_test_url}">Payload Test</a>`)
+- **Fix PR** (if exists): Link to the fix PR (e.g., `<a href="{fix_pr_url}">#{fix_pr_number}</a>`) with a note on whether it has payload jobs triggered
 - **Status**: Badge showing `Revert Staged` (use the `badge-rejected` class for visual consistency)
 
 If the report has no "Recommended Reverts" section (all candidates scored below 85 during analysis), add one before the per-job details section, using the same HTML structure as described in `analyze-payload` Step 7.4.

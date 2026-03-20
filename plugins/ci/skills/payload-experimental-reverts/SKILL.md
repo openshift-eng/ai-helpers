@@ -89,7 +89,7 @@ Use the `payload-results-yaml` skill to append an action entry to the candidate'
 
 - `type`: `"experiment"`
 - `status`: `"pending"`
-- `revert_pr_url`, `revert_pr_state: "draft"`, `payload_jobs`, `result_summary: ""`, `jira_key: ""`, `jira_url: ""`
+- `pr_url`, `pr_state: "draft"`, `payload_jobs`, `result_summary: ""`, `jira_key: ""`, `jira_url: ""`
 
 See the `payload-results-yaml` skill for the full schema.
 
@@ -154,7 +154,7 @@ The candidate PR is confirmed as the cause. Execute:
    gh pr edit <draft_pr_url> --title "<jira_key>: Revert #<pr_number> \"<pr_title>\""
    ```
    Update the PR body to include the JIRA reference and full Revertomatic template.
-3. Update the action entry: `status: "passed"`, `revert_pr_state: "open"`, `jira_key`, `jira_url`
+3. Update the action entry: `status: "passed"`, `pr_state: "open"`, `jira_key`, `jira_url`
 
 **FAIL** (payload jobs still fail with the revert applied — the PR is innocent):
 
@@ -167,7 +167,7 @@ The candidate PR is confirmed as the cause. Execute:
    ```bash
    gh pr close <draft_pr_url>
    ```
-3. Update the action entry: `status: "failed"`, `revert_pr_state: "closed"`
+3. Update the action entry: `status: "failed"`, `pr_state: "closed"`
 
 **ALL FAIL** (no single revert fixes the problem):
 
@@ -176,7 +176,7 @@ If all experiments fail, close all remaining draft PRs and note in the result su
 #### 2.4: Update Payload Results YAML
 
 Use the `payload-results-yaml` skill to update the results file at `results_yaml_path`:
-- For each completed candidate, update the relevant action entry's `status`, `result_summary`, `revert_pr_state`, `jira_key`, `jira_url`
+- For each completed candidate, update the relevant action entry's `status`, `result_summary`, `pr_state`, `jira_key`, `jira_url`
 - Candidates whose jobs are still running keep their action entry's `status: "pending"` (unchanged)
 
 #### 2.5: Update autodl JSON

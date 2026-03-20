@@ -68,11 +68,22 @@ candidates:
     actions:
       - type: "revert"
         status: "staged"
-        revert_pr_url: "https://github.com/openshift/cno/pull/2038"
-        revert_pr_state: "open"
+        pr_url: "https://github.com/openshift/cno/pull/2038"
+        pr_state: "open"
         result_summary: "Revert PR opened and payload jobs triggered"
         jira_key: "TRT-1234"
         jira_url: "https://redhat.atlassian.net/browse/TRT-1234"
+        payload_jobs:
+          - command: "/payload-job periodic-ci-...-e2e-aws-ovn"
+            test_url: "https://pr-payload-tests.ci.openshift.org/runs/ci/..."
+            test_prow_url: "https://prow.ci.openshift.org/view/gs/..."
+      - type: "fix"
+        status: "open"
+        pr_url: "https://github.com/openshift/cno/pull/2039"
+        pr_state: "open"
+        result_summary: "Fix PR found, payload jobs triggered"
+        jira_key: ""
+        jira_url: ""
         payload_jobs:
           - command: "/payload-job periodic-ci-...-e2e-aws-ovn"
             test_url: "https://pr-payload-tests.ci.openshift.org/runs/ci/..."
@@ -131,10 +142,10 @@ Actions taken on a candidate. New entries are **appended** by downstream skills.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `type` | string | `"revert"` or `"experiment"` |
+| `type` | string | `"revert"`, `"fix"`, or `"experiment"` |
 | `status` | string | See status values below |
-| `revert_pr_url` | string | URL of the revert PR (draft or real) |
-| `revert_pr_state` | string | `"draft"`, `"open"`, `"merged"`, `"closed"` |
+| `pr_url` | string | URL of the PR (revert PR, fix PR, or draft experiment PR) |
+| `pr_state` | string | `"draft"`, `"open"`, `"merged"`, `"closed"` |
 | `result_summary` | string | Brief description of the outcome |
 | `jira_key` | string | TRT JIRA key (e.g., `"TRT-1234"`), or `""` |
 | `jira_url` | string | TRT JIRA URL, or `""` |
@@ -144,19 +155,19 @@ Actions taken on a candidate. New entries are **appended** by downstream skills.
 
 | Status | Meaning |
 |--------|---------|
-| `"open"` | Pre-existing revert PR found open during analysis |
-| `"merged"` | Pre-existing revert PR already merged |
+| `"open"` | Pre-existing revert or fix PR found open during analysis |
+| `"merged"` | Pre-existing revert or fix PR already merged |
 | `"staged"` | Revert PR and JIRA created, payload jobs triggered (used by `type: "revert"`) |
 | `"pending"` | Experiment dispatched, payload jobs running, results not yet collected |
-| `"passed"` | Payload jobs passed with the revert — candidate confirmed as cause |
-| `"failed"` | Payload jobs still fail with the revert — candidate is innocent |
+| `"passed"` | Payload jobs passed — candidate confirmed as cause (revert/experiment) or fix validated (fix) |
+| `"failed"` | Payload jobs still fail — candidate is innocent (revert/experiment) or fix doesn't work (fix) |
 | `"inconclusive"` | Mixed or unfinished results |
 | `"skipped_conflict"` | Revert has merge conflicts, skipped |
 | `"deferred"` | Jobs skipped due to triggering limits, or candidate exceeded max experiment count |
 
 ### `candidates[].actions[].payload_jobs[]`
 
-Payload validation jobs triggered against the revert PR.
+Payload validation jobs triggered against the action's PR (revert, fix, or experiment).
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -168,11 +179,11 @@ Payload validation jobs triggered against the revert PR.
 
 ### Create (used by `analyze-payload`)
 
-Write a new `payload-results-{tag}.yaml` with `metadata`, `failing_jobs`, and `candidates` populated. All failed blocking jobs are recorded in `failing_jobs`. Candidates with no pre-existing revert start with `actions: []`. If a pre-existing revert PR is discovered during analysis, append an action with `type: "revert"` and `status: "open"` or `"merged"`.
+Write a new `payload-results-{tag}.yaml` with `metadata`, `failing_jobs`, and `candidates` populated. All failed blocking jobs are recorded in `failing_jobs`. Candidates with no pre-existing revert or fix start with `actions: []`. If a pre-existing revert PR is discovered during analysis, append an action with `type: "revert"` and `status: "open"` or `"merged"`. If a pre-existing fix PR is discovered, append an action with `type: "fix"` and `status: "open"` or `"merged"`.
 
 ### Read Candidates (used by `payload-revert`, `payload-experiment`)
 
-Read the file. Filter candidates by `confidence_score` range. Exclude candidates that already have an action with `status` of `"open"` or `"merged"` (pre-existing revert). Return matching candidates. Use the top-level `failing_jobs[]` to look up full job details for each candidate's `failing_jobs` references.
+Read the file. Filter candidates by `confidence_score` range. Exclude candidates that already have an action with `type: "revert"` and `status` of `"open"` or `"merged"` (pre-existing revert). Note: a pre-existing `type: "fix"` action does NOT exclude the candidate — reverts are still required per OCP policy. Return matching candidates. Use the top-level `failing_jobs[]` to look up full job details for each candidate's `failing_jobs` references.
 
 ### Append Action (used by `stage-payload-reverts`, `payload-experimental-reverts`)
 
@@ -180,7 +191,7 @@ For a given candidate (matched by `pr_url`), append a new entry to its `actions`
 
 ### Update Action Status (used by `payload-experimental-reverts` Phase 2)
 
-For a given candidate's action entry (matched by `pr_url` and `type`), update its `status`, `result_summary`, `revert_pr_state`, `jira_key`, `jira_url`, and `payload_jobs` fields in place.
+For a given candidate's action entry (matched by `pr_url` and `type`), update its `status`, `result_summary`, `pr_state`, `jira_key`, `jira_url`, and `payload_jobs` fields in place.
 
 ### Resume Detection (used by `payload-experiment`)
 

@@ -256,7 +256,80 @@ If a revert PR is found:
 
 3. **If a revert PR is open but not merged**, still recommend the revert but note that a revert PR already exists and link to it, so the reader can help expedite the merge.
 
-#### 6.4: Write Payload Results YAML
+#### 6.4: Check for Existing Fix PRs
+
+For each revert candidate identified in 6.2, check whether a **fix PR** (not a revert) already exists. A fix PR is one opened after the candidate PR merged that addresses the regression — it may or may not explicitly reference the original PR.
+
+Search using multiple strategies to find potential fix PRs:
+
+1. **Search by PR number reference** (author may have referenced the breaking PR):
+```bash
+gh pr list --repo <org>/<repo> --search "<pr_number> in:title,body" --state open --json number,title,url,state --limit 10
+```
+
+2. **Search by changed files** (most common — fix touches the same code):
+```bash
+# Get the files changed by the candidate PR
+gh api "repos/<org>/<repo>/pulls/<pr_number>/files" --jq '.[].filename' | head -20
+
+# Search for open PRs that modify the same files
+gh pr list --repo <org>/<repo> --state open --json number,title,url,state,createdAt --limit 20
+```
+For each open PR, check if it modifies any of the same files:
+```bash
+gh api "repos/<org>/<repo>/pulls/<open_pr_number>/files" --jq '.[].filename'
+```
+A fix PR candidate is one that was opened **after** the candidate PR merged and touches at least one of the same files.
+
+3. **Search by author** (original author often opens the fix):
+```bash
+gh pr list --repo <org>/<repo> --state open --author <candidate_pr_author> --json number,title,url,state --limit 5
+```
+
+Across all strategies, filter results to find fix PRs:
+- Exclude the original candidate PR itself and any revert PRs (already found in 6.3)
+- Is NOT a revert (title does not start with "Revert")
+- Is currently `open` or `draft`
+- Was opened after the candidate PR merged
+
+If a fix PR is found:
+
+1. **Append a `type: "fix"` action** to the candidate's `actions` array with `status: "open"`, `pr_url` set to the fix PR URL, and `pr_state` set to the fix PR's state.
+
+2. **Check whether the fix PR has payload job coverage** for the relevant failing jobs. Check two sources:
+
+   a. **Payload commands** (pr-payload-tests): Check for bot replies with payload test URLs:
+   ```bash
+   gh api "repos/<org>/<repo>/issues/<fix_pr_number>/comments?per_page=100&sort=created&direction=desc" \
+     --jq '[.[] | select(.user.login == "openshift-ci[bot]" and (.body | contains("pr-payload-tests")))] | .[0] | .body'
+   ```
+
+   b. **GitHub check runs** (presubmit CI): Check whether the fix PR's CI checks already cover an analogous job:
+   ```bash
+   gh pr checks <fix_pr_number> --repo <org>/<repo> --json name,state --jq '.[] | select(.name | test("<job_name_pattern>"))'
+   ```
+   Where `<job_name_pattern>` is derived from the failing job name (e.g., if the failing job is `periodic-ci-...-e2e-metal-ipi-ovn-ipv6`, look for check runs containing `e2e-metal-ipi-ovn-ipv6`).
+
+   If either source shows coverage for the failing jobs, record the payload jobs in the fix action and set `result_summary` accordingly. The fix PR does not need additional payload jobs triggered if it already runs analogous checks.
+
+3. **Post a comment on the fix PR** explaining the payload context and CI coverage assessment:
+
+   ```
+   This PR fixes a change ([#{candidate_pr_number}]({candidate_pr_url})) that was identified as a cause of payload breakage in [{payload_tag}]({release_controller_url}).
+
+   {coverage_statement}
+
+   While org policy is still revert-first, a validated fix is acceptable if it can be verified in the same amount of time as a revert. In some cases, we may need to force-merge a revert for a quick return to green. In that case, you can layer your fix on top of an unrevert.
+   ```
+
+   Where `{coverage_statement}` is one of:
+   - If CI checks cover the failing jobs: `"I have verified this PR runs the required CI testing to validate the fix: {list of matching check run names that cover the failing jobs}."`
+   - If payload jobs were already triggered: `"I have verified this PR has payload jobs triggered that cover the failing jobs: {pr-payload-tests URL}."`
+   - If no coverage exists: `"This PR does not appear to have CI coverage for the failing jobs ({job names}). Payload jobs have been triggered to validate the fix."`
+
+4. **Still recommend the revert.** Note the fix PR in the report so reviewers are aware of both options.
+
+#### 6.5: Write Payload Results YAML
 
 After scoring all (job, candidate PR) pairs and checking for existing reverts, use the `payload-results-yaml` skill to create the results file in the current working directory: `payload-results-{tag}.yaml` (sanitize the tag for filename safety).
 
@@ -264,7 +337,7 @@ This file contains ALL scored candidates across all confidence tiers (HIGH, MEDI
 
 When a PR appears as a candidate for multiple jobs, merge into one entry using the highest confidence score and combining all `failing_jobs` into a single list.
 
-Candidates start with `actions: []` unless a pre-existing revert PR was found in Step 6.3. If found, append an action with `type: "revert"`, `status: "open"` or `"merged"`, `revert_pr_url` set, and remaining action fields empty. Downstream skills (`stage-payload-reverts`, `payload-experimental-reverts`) append additional actions.
+Candidates start with `actions: []` unless a pre-existing revert or fix PR was found in Steps 6.3/6.4. If a pre-existing revert PR was found, append an action with `type: "revert"`, `status: "open"` or `"merged"`, `pr_url` set, and remaining action fields empty. If a fix PR was found, append an action with `type: "fix"`, `status: "open"`, `pr_url` set, and payload job coverage noted in `result_summary`. Downstream skills (`stage-payload-reverts`, `payload-experimental-reverts`) append additional actions.
 
 See the `payload-results-yaml` skill for the complete schema.
 
@@ -356,6 +429,7 @@ If any revert candidates were identified in Step 6.2, show copy-paste revert ins
       <th>Description</th>
       <th>Caused Failure In</th>
       <th>Failing Since</th>
+      <th>Fix PR</th>
       <th>Rationale</th>
     </tr>
     <tr>
@@ -364,6 +438,7 @@ If any revert candidates were identified in Step 6.2, show copy-paste revert ins
       <td>{pr_description}</td>
       <td>{job_name(s) this PR is blamed for}</td>
       <td>{originating_payload_tag} ({streak_length} payloads ago)</td>
+      <td>{fix_pr_link or "—"}</td>
       <td>{confidence_rationale}</td>
     </tr>
   </table>
@@ -491,7 +566,7 @@ See the `payload-autodl-json` skill for the complete schema, row cardinality rul
 1. Save all output files to the current working directory:
    - HTML report: `payload-analysis-<sanitized_tag>-summary.html`
    - JSON data file: `payload-analysis-<sanitized_tag>-autodl.json`
-   - Payload results YAML: `payload-results-<sanitized_tag>.yaml` (written in Step 6.4)
+   - Payload results YAML: `payload-results-<sanitized_tag>.yaml` (written in Step 6.5)
    - Sanitize the tag: replace any characters not safe for filenames
 
 2. Tell the user:

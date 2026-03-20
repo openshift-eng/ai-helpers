@@ -50,7 +50,9 @@ The filename **must** end with `-autodl.json`. Sanitize the tag for filename saf
         "candidate_confidence_score": "int64",
         "candidate_rationale": "string",
         "revert_pr_url": "string",
-        "revert_pr_status": "string"
+        "revert_pr_status": "string",
+        "fix_pr_url": "string",
+        "fix_pr_status": "string"
     },
     "schema_mapping": null,
     "rows": [
@@ -78,7 +80,9 @@ The filename **must** end with `-autodl.json`. Sanitize the tag for filename saf
             "candidate_confidence_score": "95",
             "candidate_rationale": "Error references code changed by this PR",
             "revert_pr_url": "https://github.com/openshift/cno/pull/2038",
-            "revert_pr_status": "open"
+            "revert_pr_status": "open",
+            "fix_pr_url": "",
+            "fix_pr_status": ""
         },
         {
             "payload_tag": "4.22.0-0.nightly-2026-02-25-152806",
@@ -104,7 +108,9 @@ The filename **must** end with `-autodl.json`. Sanitize the tag for filename saf
             "candidate_confidence_score": "0",
             "candidate_rationale": "",
             "revert_pr_url": "",
-            "revert_pr_status": ""
+            "revert_pr_status": "",
+            "fix_pr_url": "",
+            "fix_pr_status": ""
         }
     ],
     "chunk_size": 0,
@@ -173,6 +179,8 @@ The filename **must** end with `-autodl.json`. Sanitize the tag for filename saf
 | `candidate_rationale` | string | Explanation of why this PR is a candidate, or `""` |
 | `revert_pr_url` | string | URL of a revert PR if one exists, or `""` |
 | `revert_pr_status` | string | `"open"`, `"merged"`, `"draft"`, `"closed"`, or `""` |
+| `fix_pr_url` | string | URL of a fix PR (not a revert) if one exists, or `""` |
+| `fix_pr_status` | string | `"open"`, `"merged"`, `"draft"`, `"closed"`, or `""` |
 
 ## Operations
 
