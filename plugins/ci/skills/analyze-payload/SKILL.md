@@ -22,7 +22,7 @@ Use this skill when you need to:
 
 ## Required Skills
 
-Before starting, you **MUST** load the following skills (they define output schemas used in Steps 6, 8, and 9):
+Before starting, you **MUST** load the following skills (they define output schemas used in Steps 6 and 8):
 
 1. **`payload-results-yaml`** — schema for the payload results YAML file
 2. **`payload-autodl-json`** — schema for the autodl JSON data file
@@ -108,58 +108,36 @@ Store the PR data keyed by originating payload tag. These PRs are the **candidat
 
 ### Step 5: Investigate Each Failed Job in Parallel
 
-For each failed blocking job in the **target payload**, launch a **parallel subagent** to investigate the failure. Pass the subagent the final Prow URL **and** all previous attempt URLs from Step 2.
-
-Each subagent should determine whether the failure is an install failure or a test failure by checking the JUnit results (e.g., look for `install should succeed*` test failures), then use the appropriate analysis skill. Almost all blocking jobs install a cluster and then run tests, so the job name alone does not tell you the failure type.
+For each failed blocking job in the **target payload**, launch a **parallel subagent** using the `payload-job-analysis` skill. Each subagent receives the full context needed to independently perform failure investigation, candidate PR scoring, and revert/fix PR discovery.
 
 You MUST use the following prompt verbatim (substituting the placeholder values) when launching each subagent. Do NOT paraphrase, shorten, or write your own prompt — the specific instructions below are critical for analysis quality:
 
-> Analyze the failure at <prow_url>. This job had <N> retries. The previous attempt URLs are: <previous_attempt_urls>.
+> Use the `ci:payload-job-analysis` skill to analyze this failed blocking job.
 >
-> **Aggregated jobs**: If this is an aggregated job (has `aggregated-` prefix or an `aggregator` step), retries only re-run the aggregation analysis — they do NOT re-run the underlying test jobs. Therefore, only examine the most recent attempt; previous attempts contain the same underlying results and do not provide additional signal.
+> **Job context:**
+> - Job name: `<job_name>`
+> - Prow URL (final attempt): <prow_url>
+> - Retry count: <N>
+> - Previous attempt URLs: <previous_attempt_urls>
+> - Payload tag: `<payload_tag>`
+> - Release controller URL: <release_controller_url>
+> - Streak length: <streak_length>
+> - Originating payload: `<originating_payload_tag>`
+> - Is new failure: <true|false>
 >
-> **Non-aggregated jobs**: **Examine the final attempt first**, then compare with previous attempts to determine whether all retries failed the same way. If retries show different failure modes, note this — it distinguishes consistent regressions from intermittent/infrastructure issues. Consistent failures across all attempts strongly indicate a product regression rather than flakiness.
+> **Candidate PRs from originating payload** (JSON):
+> ```json
+> <candidate_prs_json_array>
+> ```
 >
-> First, check the JUnit results or build log to determine whether this is an install failure (look for `install should succeed: overall` or similar install-related test failures) or a test failure (install passed, specific tests failed).
+> Follow all three phases of the `payload-job-analysis` skill:
+> 1. **Phase 1**: Investigate the failure (determine install vs test, trace root cause)
+> 2. **Phase 2**: Score each candidate PR against the failure using the rubric
+> 3. **Phase 3**: For candidates scoring >= 85, check for existing revert and fix PRs on GitHub
 >
-> Based on the failure type, use the appropriate skill:
-> - **Install failure**: Use the `ci:prow-job-analyze-install-failure` skill. For metal/bare-metal jobs (job name contains "metal"), perform additional analysis using the `ci:prow-job-analyze-metal-install-failure` skill as needed for dev-scripts, Metal3/Ironic, and BareMetalHost-specific diagnostics.
-> - **Test failure**: Use the `ci:prow-job-analyze-test-failure` skill. Do NOT use `--fast` — always perform the full analysis including must-gather extraction and analysis.
->
-> **IMPORTANT** — Trace every failure to its specific root cause by examining actual logs. Never stop at high-level symptoms like "0 nodes ready", "operator degraded", or "containers are crash-looping". Download and read the actual log bundles, pod logs, and container previous logs. Cite specific error messages. The root cause must be actionable, not a restatement of the symptom.
->
-> Return a concise summary including: failure type (install vs test), root cause, key error messages, and any relevant log excerpts. Do not ask user questions. Keep the output concise for inclusion in a summary report.
->
-> If the job is an aggregated job (has `aggregated-` prefix in the name or an `aggregator` container/step), also return the **underlying job name** (e.g., `periodic-ci-openshift-release-main-ci-4.22-e2e-aws-upgrade-ovn-single-node`). This is found in the junit-aggregated.xml artifacts — each `<testcase>` has `<system-out>` YAML data with a `humanurl` field linking to individual runs whose URL path contains the underlying job name. The underlying job name cannot be derived from the aggregated job name — it must be extracted from the artifacts.
-
-**Structured Return Format**: Instruct each subagent to include an `ANALYSIS_RESULT` block at the end of its response:
-
-```
-ANALYSIS_RESULT:
-- failure_type: install|test
-- root_cause_summary: <one-line summary>
-- affected_components: <comma-separated list of affected operators/components>
-- key_error_patterns: <comma-separated key error strings for matching>
-- known_symptoms: <comma-separated symptom summaries from job_labels, or "none">
-- underlying_job_name: <for aggregated jobs only, extracted from junit artifacts>
-- retries_consistent: yes|no|no_retries|only_final_examined
-- retry_summary: <brief comparison of failure modes across attempts, e.g. "all 3 attempts failed with same KAS crashloop" or "attempt 1 infra timeout, attempts 2-3 test failure", or "no retries" when there was only a single attempt>
-```
-
-**Note for aggregated jobs**: Since only the final attempt is examined (retries re-run aggregation only), set `retries_consistent: only_final_examined` and `retry_summary: "Aggregated job — only final attempt examined (retries re-run aggregation only)"`.
-
-This structured format enables downstream consumers (like the `/ci:payload-revert` and `/ci:payload-experiment` commands) to programmatically extract analysis results for confidence scoring.
+> Return the structured `ANALYSIS_RESULT` block as specified by the skill.
 
 **Important**: Launch ALL subagents in parallel for maximum speed. Do NOT set the `model` parameter — let subagents inherit the parent model, as these analysis tasks require a capable model.
-
-#### Cross-Platform and Cross-Job Failure Pattern Recognition
-
-After collecting subagent results, look for patterns across multiple jobs:
-
-- **Same failure across a job family** (e.g., all `techpreview` jobs, all `fips` jobs, all `upgrade` jobs): This often indicates a failure specific to that feature set or configuration. Look at what differentiates that job family (feature gates, install-config options, test parameters).
-- **Same failure across multiple platforms**: Consider whether this points to a product bug in shared code, though note that cross-platform infrastructure issues (e.g., CI platform problems) are also possible.
-
-When patterns emerge, query Sippy for pass rates of related non-blocking jobs to see if the pattern extends beyond blocking jobs.
 
 ### Step 5b: Consult Previous Claude Analyses
 
@@ -178,56 +156,37 @@ Convert the Prow URL to a gcsweb URL and use WebFetch to read it.
 
 Never adopt a previous analysis conclusion without verifying it against the current payload's artifacts.
 
-### Step 6.0: Validate Failure Streaks
+### Step 6: Collect Results and Finalize Candidates
 
-After collecting all subagent results, verify that consecutive failures across payloads share the same root cause. A consecutive failure streak does NOT automatically mean the same root cause. Compare the subagent's root cause analysis for the target payload against previous payload analyses (from Step 5b) or the failure signatures in the lookback data.
+Wait for all subagents to complete. Each subagent returns an `ANALYSIS_RESULT` block containing:
+- Failure analysis (type, root cause, affected components, error patterns)
+- Scored candidates (PR URL, score, rationale, revert/fix PR status)
 
-If a job fails in two consecutive payloads but for **different reasons** (e.g., payload N failed due to a KAS crashloop and payload N-1 failed due to an etcd timeout), treat each as a separate streak=1 failure with its own originating payload and candidate PRs. Re-split the streak and re-assign originating payloads before proceeding to scoring.
+#### 6.1: Validate Failure Streaks
 
-### Step 6: Collect Investigation Results and Identify Revert Candidates
+Verify that consecutive failures across payloads share the same root cause. A consecutive failure streak does NOT automatically mean the same root cause. Compare the subagent's root cause analysis for the target payload against previous payload analyses (from Step 5b) or the failure signatures in the lookback data.
 
-Wait for all subagents to complete and collect their analysis results. For each failed job, you should now have:
+If a job fails in two consecutive payloads but for **different reasons** (e.g., payload N failed due to a KAS crashloop and payload N-1 failed due to an etcd timeout), treat each as a separate streak=1 failure with its own originating payload and candidate PRs. Re-split the streak and re-assign originating payloads before proceeding.
 
-- **Job name**
-- **Prow URL**
-- **Failure analysis** (from subagent)
-- **Streak length** (from Step 3)
-- **Originating payload** (from Step 3)
-- **Candidate PRs** (from Step 4)
+#### 6.2: Cross-Job Pattern Recognition and Multi-Job Correlation
 
-#### 6.1: Correlate Failures with Candidate PRs
+After collecting all subagent results:
 
-For each failed job, cross-reference the failure analysis from the subagent with the candidate PRs from the originating payload. Additionally, if a subagent traced the root cause to a PR outside the payload (e.g., an `openshift/release` PR that modified a CI step registry script), include that PR as a candidate — it is a regression like any other and should be scored and treated the same way as payload PRs.
+1. **Apply multi-job correlation bonus (+10)**: If the same candidate PR appears in multiple subagents' scored candidates, add +10 to each instance (cap at 100). This signal can only be applied by the parent since individual subagents only see one job.
 
-Score each (failed job, candidate PR) pair using the following weighted rubric:
+2. **Look for patterns across job families**:
+   - **Same failure across a job family** (e.g., all `techpreview` jobs, all `fips` jobs, all `upgrade` jobs): This often indicates a failure specific to that feature set or configuration.
+   - **Same failure across multiple platforms**: Consider whether this points to a product bug in shared code.
 
-| Signal | Weight | Criteria |
-|--------|--------|----------|
-| New failure mode | +30 | The specific failure mode (error messages, symptoms) was not present in previous payloads — the job may have been failing before, but not in this way |
-| Component exclusivity | +10 to +30 | The failure involves a component modified by this PR, and fewer other PRs in the originating payload touch the same component. Score: sole modifier = +30, 2-3 PRs touch component = +20, 4+ PRs = +10 |
-| Error message match | +40 | Error messages or stack traces directly reference code, packages, or functionality changed by this PR |
-| Multi-job correlation | +10 | The same PR is a candidate for failures in multiple independent jobs — the more jobs that point to the same PR, the stronger the signal |
-| Presubmit coverage gap | +10 | The failing job tests a scenario (upgrade, FIPS, SNO, techpreview, etc.) that wasn't covered by the PR's presubmit tests |
-| Single candidate | +10 | Only one PR landed in the originating payload that touches the affected component |
+   When patterns emerge, query Sippy for pass rates of related non-blocking jobs to see if the pattern extends beyond blocking jobs.
 
-The maximum possible score is 130, but scores above 100 should be capped at 100. Record the numeric score for each (job, candidate PR) pair alongside the qualitative rationale.
+#### 6.3: Assemble Revert Recommendations
 
-#### 6.2: Propose Revert Candidates
+For each candidate PR with a final score >= 85 (after multi-job bonus), mark it as a **revert candidate**.
 
-For each candidate PR with a rubric score of **>= 85**, mark it as a **revert candidate**. A PR qualifies as a revert candidate when:
+Per OCP policy, PRs that break payloads MUST be reverted. When confidence is high, the report must clearly state that a revert is required — not optional.
 
-1. **The failure clearly maps to the PR's changes** — e.g., the error stack trace references the exact code changed, or the failing component is the one modified by the PR
-2. **The timing is exact** — the job was passing in the payload before the originating payload and started failing in the originating payload
-3. **No other plausible explanation** — infrastructure flakiness, quota issues, or unrelated platform problems have been ruled out by the subagent analysis
-
-Per OCP policy, PRs that break payloads MUST be reverted. When confidence is high, the report must clearly state that a revert is required — not optional. A fix may be suggested as direction for a follow-up PR after the revert, but the revert itself is mandatory and must not be presented as one option among alternatives.
-
-For each revert candidate, record:
-- **PR URL**: The GitHub pull request URL
-- **PR description**: Title/summary of the PR
-- **Component**: The affected component
-- **Confidence score**: The numeric rubric score (e.g., 95) and a qualitative summary (e.g., "95 — temporal match + component match + error references code changed by this PR")
-- **Rationale**: A 1-2 sentence explanation of why this PR is the likely cause
+**Do NOT recommend reverts already handled**: If the subagent found a merged revert PR, do not recommend reverting again. Note the culprit and link to the merged revert instead (e.g., "Already reverted by #291, fix expected in next payload").
 
 **Do NOT propose reverts for**:
 - Infrastructure failures (cloud quota, API rate limits, network issues)
@@ -235,109 +194,34 @@ For each revert candidate, record:
 - Jobs where the failure analysis is inconclusive or the root cause is unclear
 - PRs where the correlation is circumstantial (e.g., same component but unrelated code path)
 
-**Older or pre-existing failures**: If the root cause can be traced to a PR from an older payload (outside the current lookback window), identify it and recommend it for revert. If the root cause is identifiable and a fix can be suggested — even if the failure wasn't introduced in this payload — include the diagnosis and suggested fix in the report.
+When a PR appears as a candidate for multiple jobs, merge into one candidate entry using the highest confidence score and combining all `failing_jobs` into a single list.
 
-#### 6.3: Check if Revert Candidates Were Already Reverted
+#### 6.4: Comment on Fix PRs
 
-For each revert candidate identified in 6.2, check whether a revert PR already exists:
+For each candidate where the subagent found a fix PR, post a comment on the fix PR explaining the payload context (see template below). This step is done by the parent because it requires write access and cross-job context.
 
-```bash
-gh pr list --repo <org>/<repo> --search "revert <pr_number>" --json number,title,url,state,mergedAt --limit 5
+```
+This PR fixes a change ([#{candidate_pr_number}]({candidate_pr_url})) that was identified as a cause of payload breakage in [{payload_tag}]({release_controller_url}).
+
+{coverage_statement}
+
+While org policy is still revert-first, a validated fix is acceptable if it can be verified in the same amount of time as a revert. In some cases, we may need to force-merge a revert for a quick return to green. In that case, you can layer your fix on top of an unrevert.
 ```
 
-If a revert PR is found:
-
-1. **Report the revert PR's state** (open, merged, or closed):
-   - **Merged**: Note when it merged relative to the analyzed payload's timestamp. If the revert merged after the payload was cut, the fix is expected in the next payload. If it merged before, investigate why the failure persists.
-   - **Open**: Note that a revert is in progress but not yet merged. Link to the PR.
-   - **Closed (not merged)**: Ignore — the revert was abandoned.
-
-2. **Do not recommend reverting a PR that already has a merged revert.** The report should still mention the culprit PR and link to the revert, but the action item should reflect the current state (e.g., "Already reverted by #291, fix expected in next payload").
-
-3. **If a revert PR is open but not merged**, still recommend the revert but note that a revert PR already exists and link to it, so the reader can help expedite the merge.
-
-#### 6.4: Check for Existing Fix PRs
-
-For each revert candidate identified in 6.2, check whether a **fix PR** (not a revert) already exists. A fix PR is one opened after the candidate PR merged that addresses the regression — it may or may not explicitly reference the original PR.
-
-Search using multiple strategies to find potential fix PRs:
-
-1. **Search by PR number reference** (author may have referenced the breaking PR):
-```bash
-gh pr list --repo <org>/<repo> --search "<pr_number> in:title,body" --state open --json number,title,url,state --limit 10
-```
-
-2. **Search by changed files** (most common — fix touches the same code):
-```bash
-# Get the files changed by the candidate PR
-gh api "repos/<org>/<repo>/pulls/<pr_number>/files" --jq '.[].filename' | head -20
-
-# Search for open PRs that modify the same files
-gh pr list --repo <org>/<repo> --state open --json number,title,url,state,createdAt --limit 20
-```
-For each open PR, check if it modifies any of the same files:
-```bash
-gh api "repos/<org>/<repo>/pulls/<open_pr_number>/files" --jq '.[].filename'
-```
-A fix PR candidate is one that was opened **after** the candidate PR merged and touches at least one of the same files.
-
-3. **Search by author** (original author often opens the fix):
-```bash
-gh pr list --repo <org>/<repo> --state open --author <candidate_pr_author> --json number,title,url,state --limit 5
-```
-
-Across all strategies, filter results to find fix PRs:
-- Exclude the original candidate PR itself and any revert PRs (already found in 6.3)
-- Is NOT a revert (title does not start with "Revert")
-- Is currently `open` or `draft`
-- Was opened after the candidate PR merged
-
-If a fix PR is found:
-
-1. **Append a `type: "fix"` action** to the candidate's `actions` array with `status: "open"`, `pr_url` set to the fix PR URL, and `pr_state` set to the fix PR's state.
-
-2. **Check whether the fix PR has payload job coverage** for the relevant failing jobs. Check two sources:
-
-   a. **Payload commands** (pr-payload-tests): Check for bot replies with payload test URLs:
-   ```bash
-   gh api "repos/<org>/<repo>/issues/<fix_pr_number>/comments?per_page=100&sort=created&direction=desc" \
-     --jq '[.[] | select(.user.login == "openshift-ci[bot]" and (.body | contains("pr-payload-tests")))] | .[0] | .body'
-   ```
-
-   b. **GitHub check runs** (presubmit CI): Check whether the fix PR's CI checks already cover an analogous job:
-   ```bash
-   gh pr checks <fix_pr_number> --repo <org>/<repo> --json name,state --jq '.[] | select(.name | test("<job_name_pattern>"))'
-   ```
-   Where `<job_name_pattern>` is derived from the failing job name (e.g., if the failing job is `periodic-ci-...-e2e-metal-ipi-ovn-ipv6`, look for check runs containing `e2e-metal-ipi-ovn-ipv6`).
-
-   If either source shows coverage for the failing jobs, record the payload jobs in the fix action and set `result_summary` accordingly. The fix PR does not need additional payload jobs triggered if it already runs analogous checks.
-
-3. **Post a comment on the fix PR** explaining the payload context and CI coverage assessment:
-
-   ```
-   This PR fixes a change ([#{candidate_pr_number}]({candidate_pr_url})) that was identified as a cause of payload breakage in [{payload_tag}]({release_controller_url}).
-
-   {coverage_statement}
-
-   While org policy is still revert-first, a validated fix is acceptable if it can be verified in the same amount of time as a revert. In some cases, we may need to force-merge a revert for a quick return to green. In that case, you can layer your fix on top of an unrevert.
-   ```
-
-   Where `{coverage_statement}` is one of:
-   - If CI checks cover the failing jobs: `"I have verified this PR runs the required CI testing to validate the fix: {list of matching check run names that cover the failing jobs}."`
-   - If payload jobs were already triggered: `"I have verified this PR has payload jobs triggered that cover the failing jobs: {pr-payload-tests URL}."`
-   - If no coverage exists: `"This PR does not appear to have CI coverage for the failing jobs ({job names}). Payload jobs have been triggered to validate the fix."`
-
-4. **Still recommend the revert.** Note the fix PR in the report so reviewers are aware of both options.
+Where `{coverage_statement}` is one of:
+- If CI checks cover the failing jobs: `"I have verified this PR runs the required CI testing to validate the fix: {list of matching check run names that cover the failing jobs}."`
+- If payload jobs were already triggered: `"I have verified this PR has payload jobs triggered that cover the failing jobs: {pr-payload-tests URL}."`
+- If no coverage exists: `"This PR does not appear to have CI coverage for the failing jobs ({job names}). Payload jobs have been triggered to validate the fix."`
 
 #### 6.5: Write Payload Results YAML
 
-After scoring all (job, candidate PR) pairs and checking for existing reverts, use the `payload-results-yaml` skill to create the results file in the current working directory: `payload-results-{tag}.yaml` (sanitize the tag for filename safety).
+Use the `payload-results-yaml` skill to create the results file: `payload-results-{tag}.yaml`.
 
-This file contains ALL scored candidates across all confidence tiers (HIGH, MEDIUM, and LOW), enabling downstream commands (`/ci:payload-revert`, `/ci:payload-experiment`) to filter by their own criteria.
+This file contains ALL scored candidates across all confidence tiers, enabling downstream commands (`/ci:payload-revert`, `/ci:payload-experiment`) to filter by their own criteria.
 
-When a PR appears as a candidate for multiple jobs, merge into one entry using the highest confidence score and combining all `failing_jobs` into a single list.
-
-Candidates start with `actions: []` unless a pre-existing revert or fix PR was found in Steps 6.3/6.4. If a pre-existing revert PR was found, append an action with `type: "revert"`, `status: "open"` or `"merged"`, `pr_url` set, and remaining action fields empty. If a fix PR was found, append an action with `type: "fix"`, `status: "open"`, `pr_url` set, and payload job coverage noted in `result_summary`. Downstream skills (`stage-payload-reverts`, `payload-experimental-reverts`) append additional actions.
+Candidates start with `actions: []` unless the subagent found a pre-existing revert or fix PR:
+- Pre-existing revert: append action with `type: "revert"`, `status: "open"` or `"merged"`, `pr_url` set
+- Fix PR found: append action with `type: "fix"`, `status: "open"`, `pr_url` set, coverage noted in `result_summary`
 
 See the `payload-results-yaml` skill for the complete schema.
 
@@ -402,8 +286,8 @@ For each failed job, a collapsible section containing:
 
     <h4>Candidate PRs (introduced in {originating_payload_tag})</h4>
     <table>
-      <tr><th>Component</th><th>PR</th><th>Description</th><th>Bug</th></tr>
-      <!-- One row per candidate PR -->
+      <tr><th>Component</th><th>PR</th><th>Description</th><th>Score</th><th>Revert</th><th>Fix</th></tr>
+      <!-- One row per scored candidate PR from the subagent -->
     </table>
   </div>
 </details>
@@ -413,7 +297,7 @@ For each failed job, a collapsible section containing:
 
 Include this section **before** the per-job details. It should immediately follow the executive summary so it is the first actionable item a reader sees.
 
-If any revert candidates were identified in Step 6.2, show copy-paste revert instructions:
+If any revert candidates were identified in Step 6.3, show copy-paste revert instructions:
 
 ```html
 <div class="revert-recommendations">
@@ -608,6 +492,7 @@ If the release controller or Sippy API is unreachable, report the error clearly 
 
 ## See Also
 
+- Related Skill: `payload-job-analysis` - Subagent skill for per-job investigation, scoring, and revert/fix checks
 - Related Skill: `payload-results-yaml` - Schema for the results YAML
 - Related Skill: `payload-autodl-json` - Schema for the autodl JSON data file
 - Related Skill: `fetch-payloads` - Fetches payload data from release controller
