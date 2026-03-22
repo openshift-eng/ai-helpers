@@ -63,8 +63,8 @@ def search_count(query):
 
 
 def search_items_paginated(query, max_pages=10):
-    """Fetch search results with pagination, returning repository full_name list."""
-    repos = []
+    """Fetch search results with pagination, returning (repo, author) tuples."""
+    results = []
     for page in range(1, max_pages + 1):
         data = gh_api_get("/search/issues", {
             "q": query,
@@ -79,22 +79,46 @@ def search_items_paginated(query, max_pages=10):
         for item in items:
             repo_url = item.get("repository_url", "")
             parts = repo_url.split("/repos/", 1)
+            author = item.get("user", {}).get("login", "unknown")
             if len(parts) == 2:
-                repos.append(parts[1])
+                results.append((parts[1], author))
         if len(items) < 100:
             break
         time.sleep(SEARCH_API_SLEEP)
-    return repos
+    return results
+
+
+def search_authors_paginated(query, max_pages=10):
+    """Fetch search results with pagination, returning set of author logins."""
+    authors = set()
+    for page in range(1, max_pages + 1):
+        data = gh_api_get("/search/issues", {
+            "q": query,
+            "per_page": "100",
+            "page": str(page),
+        })
+        if data is None:
+            break
+        items = data.get("items", [])
+        if not items:
+            break
+        for item in items:
+            author = item.get("user", {}).get("login", "unknown")
+            authors.add(author)
+        if len(items) < 100:
+            break
+        time.sleep(SEARCH_API_SLEEP)
+    return authors
 
 
 def main():
     parser = argparse.ArgumentParser(description="CodeRabbit Adoption Report")
-    parser.add_argument("--start-date", help="Start date YYYY-MM-DD (default: 30 days ago)")
+    parser.add_argument("--start-date", help="Start date YYYY-MM-DD (default: 7 days ago)")
     parser.add_argument("--end-date", help="End date YYYY-MM-DD (default: today)")
     args = parser.parse_args()
 
     end_date = args.end_date or datetime.now().strftime("%Y-%m-%d")
-    start_date = args.start_date or (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
+    start_date = args.start_date or (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
 
     allowed_repos = load_allowed_repos()
     print(f"Loaded {len(allowed_repos)} repos from allowed list", file=sys.stderr)
@@ -107,11 +131,17 @@ def main():
     print(f"  Org-wide PRs with CodeRabbit: {org_cr_total}", file=sys.stderr)
     time.sleep(SEARCH_API_SLEEP)
 
-    # Phase 2: Paginate CR results to get per-repo counts (~10 API calls)
+    # Phase 2: Paginate CR results to get per-repo counts and authors (~10 API calls)
     print("Fetching per-repo CodeRabbit counts via pagination...", file=sys.stderr)
-    cr_repo_urls = search_items_paginated(cr_query)
+    cr_results = search_items_paginated(cr_query)
+    cr_repo_urls = [repo for repo, _ in cr_results]
     all_cr_counts = Counter(cr_repo_urls)
     cr_counts = {repo: count for repo, count in all_cr_counts.items() if repo in allowed_repos}
+    # Collect CR authors per repo
+    cr_authors_by_repo = {}
+    for repo, author in cr_results:
+        if repo in allowed_repos:
+            cr_authors_by_repo.setdefault(repo, set()).add(author)
     approximate = len(cr_repo_urls) < org_cr_total
     print(f"  Found CodeRabbit activity in {len(cr_counts)} allowed repos "
           f"(paginated {len(cr_repo_urls)}/{org_cr_total} results"
@@ -128,17 +158,25 @@ def main():
         print(f"Fetching total PR counts for {len(repos_with_cr)} active repos "
               f"(~{len(repos_with_cr) * SEARCH_API_SLEEP}s)...", file=sys.stderr)
 
+    all_unlicensed_users = set()
     for i, repo in enumerate(repos_with_cr, 1):
         cr_count = cr_counts[repo]
-        repo_total = search_count(
-            f"is:pr is:merged repo:{repo} merged:{start_date}..{end_date}")
+        repo_query = f"is:pr is:merged repo:{repo} merged:{start_date}..{end_date}"
+        all_authors = search_authors_paginated(repo_query)
+        # Use count API for accurate total since pagination gives unique authors not PR count
+        repo_total = search_count(repo_query)
         total_prs += repo_total
         adoption_pct = round((cr_count / repo_total * 100) if repo_total > 0 else 0, 1)
+        cr_authors = cr_authors_by_repo.get(repo, set())
+        bot_users = {u for u in all_authors if u.endswith("[bot]")} | {"openshift-merge-robot"}
+        unlicensed = sorted(all_authors - cr_authors - bot_users)
+        all_unlicensed_users.update(unlicensed)
         repo_breakdown.append({
             "repo": repo,
             "cr_count": cr_count,
             "total": repo_total,
             "adoption_pct": adoption_pct,
+            "unlicensed_users": unlicensed,
         })
         print(f"  [{i}/{len(repos_with_cr)}] {repo}: {cr_count}/{repo_total} ({adoption_pct}%)",
               file=sys.stderr)
@@ -161,6 +199,8 @@ def main():
         "repos_without_cr_count": len(repos_without_cr),
         "repos_with_cr_count": len(repos_with_cr),
         "total_allowed_repos": len(allowed_repos),
+        "unlicensed_users": sorted(all_unlicensed_users),
+        "unlicensed_user_count": len(all_unlicensed_users),
     }
 
     json.dump(output, sys.stdout, indent=2)
