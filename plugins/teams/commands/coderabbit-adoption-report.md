@@ -16,20 +16,19 @@ teams:coderabbit-adoption-report
 
 ## Description
 
-The `teams:coderabbit-adoption-report` command measures CodeRabbit adoption across a curated list of ~160 OCP payload repositories by calculating what percentage of merged PRs received comments or reviews from the `coderabbitai[bot]` app.
+The `teams:coderabbit-adoption-report` command measures CodeRabbit Pro adoption across a curated list of ~160 OCP payload repositories by calculating what percentage of merged PRs received a Pro-tier CodeRabbit review (identified by `"Plan: Pro"` in the comment body).
 
 The list of repos to scan is defined in `plugins/teams/skills/coderabbit-adoption/allowed-repos.txt`.
 
-It uses a Python script that calls the GitHub search API via `gh` CLI. The script always produces per-repo breakdowns. It first does an efficient org-wide query to identify which repos have CodeRabbit activity (~10 API calls), then fetches per-repo total PR counts only for active repos (~30-50 additional API calls with 2-second sleeps). **Takes a few minutes to complete** but shows progress as it goes.
+It uses a Python script that calls the GitHub search API via `gh` CLI. The script does one org-wide query for PRs with Pro reviews, then batched queries (20 repos per batch) for all merged PRs. Per-repo breakdowns are calculated in Python. **Takes about a minute to complete** with progress shown.
 
-### How CodeRabbit Adoption Works
+### How CodeRabbit Pro Reviews Work
 
-CodeRabbit requires **two things** to review a PR:
+CodeRabbit was enabled across most OCP payload repos on **2026-03-09**. Since many of these repos are open source, CodeRabbit may leave comments on any PR — but only **Pro** reviews (indicated by `Plan: Pro` in the CodeRabbit comment) provide the full-quality analysis we want.
 
-1. **Repo-level enablement**: CodeRabbit must be enabled on the repository (via org-level config or a per-repo `.coderabbit.yaml`).
-2. **User license**: The PR author must have a CodeRabbit license/seat assigned.
+The script uses `"Plan: Pro"` as a search term combined with `commenter:coderabbitai[bot]` to directly identify Pro-reviewed PRs, then compares against all merged PRs to find the gap.
 
-If a repo has **some PRs with CodeRabbit comments and some without**, the repo is enabled but not all PR authors have licenses. This is the primary adoption gap we want to track and close — the goal is to get the bulk of engineers to sign up for their license.
+The script filters to PRs **created on or after the enablement date** (2026-03-09) to avoid counting old long-lived PRs that merged after enablement but were never seen by CodeRabbit.
 
 ## Arguments
 
@@ -63,61 +62,57 @@ If a repo has **some PRs with CodeRabbit comments and some without**, the repo i
    ```
 
    The script handles all GitHub API orchestration:
-   - **Phase 1** (1 API call): Queries org-wide for CodeRabbit-commented PR count.
-   - **Phase 2** (~10 API calls): Paginates CR results to get per-repo CR counts, filtered to the allowed repo list.
-   - **Phase 3** (~50-80 API calls): Fetches total PR counts and PR authors per repo that had CR activity, with 2-second sleeps between calls. Identifies unlicensed users by comparing all PR authors against CR PR authors. Shows progress to stderr.
+   - **Query 1** (paginated, ~5 API calls): Org-wide search for PRs with `commenter:coderabbitai[bot] "Plan: Pro"`, filtered to allowed repos.
+   - **Query 2** (~8 batched API calls): All merged PRs across allowed repos in batches of 20, with 3-second sleeps and retry logic for rate limits.
 
-3. **Parse the JSON output** and format the report. Build the unlicensed users table by inverting the per-repo `unlicensed_users` arrays from `repo_breakdown` to show which repos each user was active in. The top-level `unlicensed_users` array has the deduplicated list. Bot accounts are already filtered out.
+   All queries include a `created:>=2026-03-09` filter to exclude PRs opened before CodeRabbit was enabled.
 
-   **Detect partial data**: Check if `unlicensed_users_approximate` is `true` OR if any entry in `repo_breakdown` has `truncated: true`. When either condition is true, the unlicensed users list is incomplete because GitHub search pagination hit its limits (1000 items max). Insert a warning notice in the report as shown below.
+3. **Parse the JSON output** and format the report. The script outputs all data needed: summary stats, missed PRs with URLs, and per-user breakdowns.
+
+   **Detect partial data**: Check if `truncated` is `true`. When true, GitHub search pagination hit its limits (1000 items max). Insert a warning notice in the report.
 
    ```
    ## CodeRabbit Adoption Report
 
    **Date Range**: <start_date> to <end_date>
+   **PRs created on or after**: <cr_enablement_date>
 
    ### Summary
    - Repos scanned: <total_allowed_repos>
-   - Repos with CodeRabbit activity: <repos_with_cr_count>
-   - Total merged PRs (active repos): <total>
-   - PRs with CodeRabbit comments: <with_cr>
-   - Adoption rate (active repos): <percentage>%
+   - Repos with activity: <repos_with_activity>
+   - Total merged PRs: <total_merged_prs>
+   - PRs with Pro review: <prs_with_pro_review>
+   - Adoption rate: <adoption_pct>%
 
-   ### Repos with CodeRabbit Activity
-   | Repository | PRs with CodeRabbit | Total Merged PRs | Adoption % |
+   ### PRs Without Pro Review (<missed_prs_count>)
+   | Repository | PR | Author | Bot? |
    |---|---|---|---|
-   | openshift/console | 39 | 40 | 97.5% |
-   | ... | ... | ... | ... |
+   | openshift/console | [#16138](https://github.com/openshift/console/pull/16138) | rhamilto | No |
+   | openshift/ironic-image | [#816](https://github.com/openshift/ironic-image/pull/816) | github-actions[bot] | Yes |
 
-   ### Repos with No CodeRabbit Activity (<count>)
-   <collapsed list of repo names>
-
-   ### Potentially Unlicensed Users (<count>)
-   <!-- If unlicensed_users_approximate is true OR any repo_breakdown[].truncated is true, add this warning: -->
-   > **Note**: This list is **incomplete**. GitHub search pagination limits (1000 results max) were reached, so not all PR authors could be compared against CodeRabbit commenters. The actual number of unlicensed users may be higher. Consider narrowing the date range for more accurate results.
-
-   Users who authored merged PRs in CodeRabbit-enabled repos but whose PRs did not receive CodeRabbit comments.
-   This likely indicates they do not have a CodeRabbit license/seat assigned.
-   Bot accounts (usernames ending in `[bot]` or known bots like `openshift-merge-robot`) are excluded — bots cannot hold CodeRabbit licenses and should not be counted as adoption gaps.
+   ### Users Without Pro Reviews (<count>)
+   Users who authored merged PRs but whose PRs did not receive a Pro CodeRabbit review.
+   Bot accounts are excluded.
    | User | Repos |
    |---|---|
    | @username | openshift/repo-a, openshift/repo-b |
-   | ... | ... |
+
+   ### Repos with No Activity
+   <repos_without_activity_count> repos had no merged PRs in this date range.
    ```
 
 4. **Offer to copy report to clipboard**: After presenting the report, ask the user if they'd like the full markdown report copied to their clipboard. If they accept, use `pbcopy` (macOS) or `xclip`/`xsel` (Linux) to copy the complete report.
 
-5. **AI Analysis**: After presenting the data, provide:
-   - **License gap analysis** (most important): All repos in the breakdown are already enabled for CodeRabbit. PRs that did *not* get CodeRabbit comments represent engineers without licenses. Highlight repos with the largest absolute gap (total - cr_count) as the highest-impact targets for getting more engineers to sign up. Call out the unlicensed users list — these are the specific people who should be asked to sign up for their CodeRabbit license. Note that bot accounts (e.g. `openshift-merge-robot`, `dependabot[bot]`, `openshift-ci[bot]`) cannot have licenses and are already filtered out of the unlicensed users list — do not flag them as needing licenses. If any remaining `[bot]`-suffixed users appear in the data, exclude them from the analysis. If `unlicensed_users_approximate` is `true` or any `repo_breakdown[].truncated` is `true`, explicitly note in the analysis that the unlicensed users data is incomplete due to GitHub pagination limits and recommend re-running with a narrower date range for a complete picture.
-   - Observations on adoption trends (which areas are using CodeRabbit most)
-   - Distinguish between repos that need to be **enabled** (in the "no activity" list) vs repos where engineers need to **get their license** (in the breakdown but with less than full coverage)
-   - Any notable patterns (e.g., team-level adoption clusters)
+5. **AI Analysis**: After presenting the data, provide brief observations:
+   - Highlight any non-bot missed PRs as the key action items
+   - Note whether missed PRs are from bots (expected, not a concern) vs humans (worth investigating)
+   - Any notable patterns in the missed PRs
 
 ## Return Value
 
-- **Markdown report**: Summary statistics and per-repo breakdown table
-- **Adoption percentage**: Overall adoption rate across active payload repos
-- **Analysis**: Observations and recommendations for increasing adoption
+- **Markdown report**: Summary statistics, missed PRs table, and user breakdown
+- **Adoption percentage**: Overall Pro review adoption rate
+- **Analysis**: Brief observations on missed PRs
 
 ## Examples
 
@@ -139,12 +134,11 @@ If a repo has **some PRs with CodeRabbit comments and some without**, the repo i
     jq '.references.spec.tags[].annotations["io.openshift.build.source-location"]' -r | \
     uniq | sort -u > plugins/teams/skills/coderabbit-adoption/allowed-repos.txt
   ```
-- **API usage**: ~60-100 API calls total with 2-second sleeps (GitHub search API limit is 30 requests/minute). Takes a few minutes but shows progress. The additional calls are for fetching PR authors per active repo to identify unlicensed users.
+- **Created-date filter**: The script automatically filters to PRs created on or after 2026-03-09 (when CodeRabbit was enabled on most repos). This is hardcoded in the script as `CR_ENABLEMENT_DATE` and prevents old long-lived PRs from skewing adoption numbers.
+- **API usage**: ~15 API calls total with 3-second sleeps and retry logic for rate limits. One org-wide paginated query for Pro reviews, plus 8 batched queries for all merged PRs (20 repos per batch).
 - The Python script uses `gh api -X GET` for all GitHub API calls (the `-X GET` flag is required for the search endpoint).
-- Uses org-wide search with pagination to efficiently identify which repos have CodeRabbit activity, then only queries per-repo totals for active repos.
-- The per-repo CR counts come from paginating org-wide results (up to 1000 items). If more than 1000 PRs have CodeRabbit comments, per-repo counts are approximate (indicated by `per_repo_approximate: true` in the JSON output).
-- The `commenter:coderabbitai[bot]` filter matches any PR where the CodeRabbit app left a comment (including review summaries, inline suggestions, and walkthrough comments).
-- The adoption percentage is calculated only across repos with CodeRabbit activity, since we don't fetch total PR counts for inactive repos (to save API calls).
+- Uses `"Plan: Pro"` as a search term combined with `commenter:coderabbitai[bot]` to directly identify Pro-reviewed PRs via GitHub's full-text search.
+- The adoption percentage is calculated across all repos with merged PRs in the date range.
 
 ## See Also
 
