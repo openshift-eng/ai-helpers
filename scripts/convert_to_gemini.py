@@ -23,9 +23,10 @@ Conversion details:
   - Skills nested under plugin name to preserve path structure
 
 Version management:
-  The patch version in gemini-extension.json is auto-bumped whenever any
-  content (commands, skills, GEMINI.md) changes compared to the existing
-  output. The version starts at 1.0.0 on first generation.
+  The version in gemini-extension.json starts at 0.1.0 on first generation.
+  - Minor version is bumped when a new plugin is added (e.g. 0.1.0 -> 0.2.0)
+  - Patch version is bumped when an existing plugin is updated (e.g. 0.1.0 -> 0.1.1)
+  - Major version is only bumped manually.
 """
 
 import filecmp
@@ -164,8 +165,8 @@ def read_existing_version():
     if os.path.isfile(manifest_path):
         with open(manifest_path, "r") as f:
             data = json.load(f)
-        return data.get("version", "1.0.0")
-    return "1.0.0"
+        return data.get("version", "0.1.0")
+    return "0.1.0"
 
 
 def bump_patch(version_str):
@@ -178,6 +179,71 @@ def bump_patch(version_str):
         parts.append(0)
     parts[2] += 1
     return ".".join(str(x) for x in parts)
+
+
+def bump_minor(version_str):
+    """Bump the minor component of a semver string, resetting patch to 0."""
+    try:
+        parts = [int(x) for x in version_str.split(".")]
+    except ValueError:
+        parts = [0, 0, 0]
+    while len(parts) < 3:
+        parts.append(0)
+    parts[1] += 1
+    parts[2] = 0
+    return ".".join(str(x) for x in parts)
+
+
+def has_new_plugins(changed_plugins):
+    """Check if any changed plugins are new (not yet converted)."""
+    for plugin_name in changed_plugins:
+        existing_cmds = os.path.join(REPO_ROOT, "commands", plugin_name)
+        existing_skills = os.path.join(REPO_ROOT, "skills", plugin_name)
+        if not os.path.isdir(existing_cmds) and not os.path.isdir(existing_skills):
+            return True
+    return False
+
+
+def has_removed_plugins(changed_plugins, new_content_dir):
+    """Check if any changed plugins are being fully removed.
+
+    A plugin is removed when it exists at the repo root but the new
+    conversion produces no commands or skills for it.
+    Must be called before syncing files to repo root.
+    """
+    for plugin_name in changed_plugins:
+        existing_cmds = os.path.join(REPO_ROOT, "commands", plugin_name)
+        existing_skills = os.path.join(REPO_ROOT, "skills", plugin_name)
+        has_existing = os.path.isdir(existing_cmds) or os.path.isdir(existing_skills)
+        if not has_existing:
+            continue
+        new_cmds = os.path.join(new_content_dir, "commands", plugin_name)
+        new_skills = os.path.join(new_content_dir, "skills", plugin_name)
+        has_new = os.path.isdir(new_cmds) or os.path.isdir(new_skills)
+        if not has_new:
+            return True
+    return False
+
+
+def compute_new_version(changed_plugins, current_version, new_content_dir=None):
+    """Compute the new version based on what changed.
+
+    - New plugin added: bump minor (e.g. 0.1.0 -> 0.2.0)
+    - Plugin fully removed: bump minor (e.g. 0.1.0 -> 0.2.0)
+    - Existing plugin updated: bump patch (e.g. 0.1.0 -> 0.1.1)
+    - No changes: return current version unchanged
+
+    Must be called before syncing files to repo root, so that
+    has_new_plugins()/has_removed_plugins() can compare against
+    the existing state.
+    """
+    if not changed_plugins:
+        return current_version
+    if has_new_plugins(changed_plugins):
+        return bump_minor(current_version)
+    if new_content_dir and has_removed_plugins(changed_plugins, new_content_dir):
+        return bump_minor(current_version)
+    return bump_patch(current_version)
 
 
 def write_manifest(output_dir, version):
@@ -303,7 +369,16 @@ def get_changed_plugins(new_dir):
         return []
 
     changed = set()
-    plugin_names = get_plugin_names()
+    plugin_names = set(get_plugin_names())
+
+    # Also include plugins that exist at the repo root but are no longer
+    # in plugins/ (i.e. fully removed plugins).
+    for subdir in ["commands", "skills"]:
+        root = os.path.join(REPO_ROOT, subdir)
+        if os.path.isdir(root):
+            for name in os.listdir(root):
+                if os.path.isdir(os.path.join(root, name)):
+                    plugin_names.add(name)
 
     for plugin_name in plugin_names:
         # Check commands/{plugin}/
@@ -500,114 +575,135 @@ def parse_args():
     parser.add_argument(
         "--plugin",
         type=str,
-        help="Convert a single plugin by name (e.g. --plugin ci).",
+        help="Convert one or more plugins by name, comma-separated (e.g. --plugin ci,git).",
     )
     return parser.parse_args()
 
 
-def convert_single_plugin(plugin_name):
-    """Convert a single plugin and write output to the repo root."""
-    plugin_dir = os.path.join(PLUGINS_DIR, plugin_name)
-    if not os.path.isdir(plugin_dir):
-        print(f"Error: plugin not found: {plugin_name}", file=sys.stderr)
-        sys.exit(1)
+def convert_selected_plugins(plugin_names):
+    """Convert one or more plugins and write output to the repo root."""
+    # Validate all plugins first
+    for plugin_name in plugin_names:
+        plugin_dir = os.path.join(PLUGINS_DIR, plugin_name)
+        if not os.path.isdir(plugin_dir):
+            print(f"Error: plugin not found: {plugin_name}", file=sys.stderr)
+            sys.exit(1)
+        plugin_json = os.path.join(plugin_dir, ".claude-plugin", "plugin.json")
+        if not os.path.isfile(plugin_json):
+            print(f"Error: not a valid plugin (missing plugin.json): {plugin_name}", file=sys.stderr)
+            sys.exit(1)
 
-    plugin_json = os.path.join(plugin_dir, ".claude-plugin", "plugin.json")
-    if not os.path.isfile(plugin_json):
-        print(f"Error: not a valid plugin (missing plugin.json): {plugin_name}", file=sys.stderr)
-        sys.exit(1)
-
-    # Convert to a temp dir first to detect changes
-    temp_dir = tempfile.mkdtemp(prefix="gemini-single-")
+    # Convert all plugins to a temp dir and detect changes
+    temp_dir = tempfile.mkdtemp(prefix="gemini-selected-")
+    changed_plugins = []
     try:
-        convert_commands(plugin_name, plugin_dir, temp_dir)
-        copy_skills(plugin_name, plugin_dir, temp_dir)
+        for plugin_name in plugin_names:
+            plugin_dir = os.path.join(PLUGINS_DIR, plugin_name)
+            convert_commands(plugin_name, plugin_dir, temp_dir)
+            copy_skills(plugin_name, plugin_dir, temp_dir)
 
-        # Check if commands changed
-        new_cmds = os.path.join(temp_dir, "commands", plugin_name)
-        existing_cmds = os.path.join(REPO_ROOT, "commands", plugin_name)
-        cmds_changed = False
-        if os.path.isdir(new_cmds):
-            if not os.path.isdir(existing_cmds):
+            # Check if commands changed
+            new_cmds = os.path.join(temp_dir, "commands", plugin_name)
+            existing_cmds = os.path.join(REPO_ROOT, "commands", plugin_name)
+            cmds_changed = False
+            if os.path.isdir(new_cmds):
+                if not os.path.isdir(existing_cmds):
+                    cmds_changed = True
+                else:
+                    dcmp = filecmp.dircmp(new_cmds, existing_cmds)
+                    cmds_changed = _has_diffs(dcmp)
+            elif os.path.isdir(existing_cmds):
                 cmds_changed = True
-            else:
-                dcmp = filecmp.dircmp(new_cmds, existing_cmds)
-                cmds_changed = _has_diffs(dcmp)
 
-        # Check if skills changed
-        skills_changed = False
-        new_skills = os.path.join(temp_dir, "skills", plugin_name)
-        existing_skills = os.path.join(REPO_ROOT, "skills", plugin_name)
-        if os.path.isdir(new_skills):
-            if not os.path.isdir(existing_skills):
+            # Check if skills changed
+            skills_changed = False
+            new_skills = os.path.join(temp_dir, "skills", plugin_name)
+            existing_skills = os.path.join(REPO_ROOT, "skills", plugin_name)
+            if os.path.isdir(new_skills):
+                if not os.path.isdir(existing_skills):
+                    skills_changed = True
+                else:
+                    dcmp = filecmp.dircmp(new_skills, existing_skills)
+                    skills_changed = _has_diffs(dcmp)
+            elif os.path.isdir(existing_skills):
                 skills_changed = True
+
+            if cmds_changed or skills_changed:
+                changed_plugins.append(plugin_name)
             else:
-                dcmp = filecmp.dircmp(new_skills, existing_skills)
-                skills_changed = _has_diffs(dcmp)
-        elif os.path.isdir(existing_skills):
-            skills_changed = True
+                print(f"Plugin '{plugin_name}': no changes detected, skipping.")
 
-        has_changes = cmds_changed or skills_changed
-
-        if not has_changes:
-            print(f"Plugin '{plugin_name}': no changes detected, skipping.")
+        if not changed_plugins:
             return
 
-        # Copy changed files to repo root
-        if os.path.isdir(new_cmds):
+        # Compute version before copying files to repo root, so that
+        # has_new_plugins() can compare against the existing state.
+        current_version = read_existing_version()
+        manifest_path = os.path.join(REPO_ROOT, "gemini-extension.json")
+        is_first_gen = not os.path.isfile(manifest_path)
+        if not is_first_gen:
+            new_version = compute_new_version(changed_plugins, current_version, temp_dir)
+
+        # Copy changed files to repo root (and remove stale content)
+        for plugin_name in changed_plugins:
+            new_cmds = os.path.join(temp_dir, "commands", plugin_name)
             dst_cmds = os.path.join(REPO_ROOT, "commands", plugin_name)
             if os.path.isdir(dst_cmds):
                 shutil.rmtree(dst_cmds)
-            os.makedirs(os.path.dirname(dst_cmds), exist_ok=True)
-            shutil.copytree(new_cmds, dst_cmds)
-        if os.path.isdir(new_skills):
+            if os.path.isdir(new_cmds):
+                os.makedirs(os.path.dirname(dst_cmds), exist_ok=True)
+                shutil.copytree(new_cmds, dst_cmds)
+
+            new_skills = os.path.join(temp_dir, "skills", plugin_name)
             dst_skills = os.path.join(REPO_ROOT, "skills", plugin_name)
             if os.path.isdir(dst_skills):
                 shutil.rmtree(dst_skills)
-            os.makedirs(os.path.dirname(dst_skills), exist_ok=True)
-            shutil.copytree(new_skills, dst_skills)
+            if os.path.isdir(new_skills):
+                os.makedirs(os.path.dirname(dst_skills), exist_ok=True)
+                shutil.copytree(new_skills, dst_skills)
     finally:
         shutil.rmtree(temp_dir)
 
-    # Update GEMINI.md with all converted plugins
+    # Update GEMINI.md with all converted plugins (from both commands/ and skills/)
     converted_plugins = set()
-    cmds_root = os.path.join(REPO_ROOT, "commands")
-    if os.path.isdir(cmds_root):
-        converted_plugins = {d for d in os.listdir(cmds_root) if os.path.isdir(os.path.join(cmds_root, d))}
+    for subdir in ["commands", "skills"]:
+        root = os.path.join(REPO_ROOT, subdir)
+        if os.path.isdir(root):
+            converted_plugins.update(
+                d for d in os.listdir(root) if os.path.isdir(os.path.join(root, d))
+            )
     generate_context_file(REPO_ROOT, sorted(converted_plugins))
 
-    # Generate or bump manifest version
-    manifest_path = os.path.join(REPO_ROOT, "gemini-extension.json")
-    current_version = read_existing_version()
-    if not os.path.isfile(manifest_path):
+    # Write manifest version (computed before copying files)
+    if is_first_gen:
         write_manifest(REPO_ROOT, current_version)
         print(f"Created gemini-extension.json (v{current_version})")
     else:
-        new_version = bump_patch(current_version)
         write_manifest(REPO_ROOT, new_version)
         print(f"Bumped version v{current_version} -> v{new_version}")
 
     # Report
-    cmd_count = 0
-    cmds_dir = os.path.join(REPO_ROOT, "commands", plugin_name)
-    if os.path.isdir(cmds_dir):
-        toml_files = sorted(os.listdir(cmds_dir))
-        cmd_count = len(toml_files)
-        print(f"Commands ({cmd_count}):")
-        for f in toml_files:
-            print(f"  commands/{plugin_name}/{f}")
+    for plugin_name in changed_plugins:
+        cmd_count = 0
+        cmds_dir = os.path.join(REPO_ROOT, "commands", plugin_name)
+        if os.path.isdir(cmds_dir):
+            toml_files = sorted(os.listdir(cmds_dir))
+            cmd_count = len(toml_files)
+            print(f"Commands ({cmd_count}):")
+            for f in toml_files:
+                print(f"  commands/{plugin_name}/{f}")
 
-    skill_count = 0
-    skills_dir = os.path.join(REPO_ROOT, "skills", plugin_name)
-    if os.path.isdir(skills_dir):
-        skill_dirs = sorted(os.listdir(skills_dir))
-        skill_count = len(skill_dirs)
-        if skill_dirs:
-            print(f"Skills ({skill_count}):")
-            for d in skill_dirs:
-                print(f"  skills/{plugin_name}/{d}/")
+        skill_count = 0
+        skills_dir = os.path.join(REPO_ROOT, "skills", plugin_name)
+        if os.path.isdir(skills_dir):
+            skill_dirs = sorted(os.listdir(skills_dir))
+            skill_count = len(skill_dirs)
+            if skill_dirs:
+                print(f"Skills ({skill_count}):")
+                for d in skill_dirs:
+                    print(f"  skills/{plugin_name}/{d}/")
 
-    print(f"\nConverted plugin '{plugin_name}': {cmd_count} commands, {skill_count} skills.")
+        print(f"\nConverted plugin '{plugin_name}': {cmd_count} commands, {skill_count} skills.")
 
 
 def main():
@@ -618,7 +714,8 @@ def main():
         sys.exit(1)
 
     if args.plugin:
-        convert_single_plugin(args.plugin)
+        plugin_names = [p.strip() for p in args.plugin.split(",") if p.strip()]
+        convert_selected_plugins(plugin_names)
         return
 
     if args.check:
@@ -664,6 +761,8 @@ def main():
             current_version = read_existing_version()
             changed_plugins = get_changed_plugins(temp_dir)
             if changed_plugins:
+                new_version = compute_new_version(changed_plugins, current_version, temp_dir)
+            elif has_content_changes(temp_dir):
                 new_version = bump_patch(current_version)
             else:
                 new_version = current_version
