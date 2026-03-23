@@ -37,10 +37,10 @@ The HTML template uses the following placeholders (enclosed in `{{}}` double cur
 - `{{TRIAGE_TIME_GRADE_CLASS}}` - Grade CSS class
 
 ### Resolution Speed Metrics
-- `{{RESOLUTION_TIME_AVG}}` - Average hours to close
-- `{{RESOLUTION_TIME_AVG_DAYS}}` - Average days to close
-- `{{RESOLUTION_TIME_MAX}}` - Maximum hours to close
-- `{{RESOLUTION_TIME_MAX_DAYS}}` - Maximum days to close
+- `{{RESOLUTION_TIME_AVG}}` - Average hours to resolve (regression opened to triage resolved)
+- `{{RESOLUTION_TIME_AVG_DAYS}}` - Average days to resolve
+- `{{RESOLUTION_TIME_MAX}}` - Maximum hours to resolve
+- `{{RESOLUTION_TIME_MAX_DAYS}}` - Maximum days to resolve
 - `{{RESOLUTION_TIME_CLASS}}` - CSS class
 - `{{RESOLUTION_TIME_GRADE}}` - Grade text
 - `{{RESOLUTION_TIME_GRADE_CLASS}}` - Grade CSS class

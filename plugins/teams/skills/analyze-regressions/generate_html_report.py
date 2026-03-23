@@ -138,7 +138,7 @@ def generate_component_row(name, data):
                             <td>{summary['total']}</td>
                             <td>{format_percentage_value(summary['triage_percentage'])}</td>
                             <td>{format_time_value(summary['time_to_triage_hrs_avg'])}</td>
-                            <td>{format_time_value(summary['time_to_close_hrs_avg'])}</td>
+                            <td>{format_time_value(summary['time_to_resolve_hrs_avg'])}</td>
                             <td>{summary['open']['total']}</td>
                             <td class="grade-{grade_class}">{grade_text}</td>
                         </tr>'''
@@ -157,7 +157,7 @@ def generate_html_report(release, data, release_dates, output_path):
     # Calculate derived values
     triage_coverage = summary['triage_percentage']
     triage_time_avg = summary['time_to_triage_hrs_avg'] or 0
-    resolution_time_avg = summary['time_to_close_hrs_avg'] or 0
+    resolution_time_avg = summary['time_to_resolve_hrs_avg'] or 0
 
     # Determine release period
     dev_start = release_dates.get('development_start', 'Unknown')
@@ -257,8 +257,8 @@ def generate_html_report(release, data, release_dates, output_path):
         'TRIAGE_TIME_GRADE_CLASS': f"grade-{triage_time_class}",
         'RESOLUTION_TIME_AVG': str(int(resolution_time_avg)) if resolution_time_avg else 'N/A',
         'RESOLUTION_TIME_AVG_DAYS': format_hours_to_days(resolution_time_avg),
-        'RESOLUTION_TIME_MAX': str(int(summary['time_to_close_hrs_max'])) if summary['time_to_close_hrs_max'] else 'N/A',
-        'RESOLUTION_TIME_MAX_DAYS': format_hours_to_days(summary['time_to_close_hrs_max']),
+        'RESOLUTION_TIME_MAX': str(int(summary['time_to_resolve_hrs_max'])) if summary['time_to_resolve_hrs_max'] else 'N/A',
+        'RESOLUTION_TIME_MAX_DAYS': format_hours_to_days(summary['time_to_resolve_hrs_max']),
         'RESOLUTION_TIME_CLASS': resolution_time_class,
         'RESOLUTION_TIME_GRADE': get_grade_text(resolution_time_avg, {}, True),
         'RESOLUTION_TIME_GRADE_CLASS': f"grade-{resolution_time_class}",

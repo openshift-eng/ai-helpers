@@ -130,7 +130,7 @@ Grading is subjective and not meant to be a critique of team performance. This i
         - 24-72 hours: Good ⚠️
         - 72-168 hours (1 week): Needs Improvement ⚠️
         - >168 hours: Poor ❌
-      - Resolution Speed: Average hours to close
+      - Resolution Speed: Average hours to resolve
         - <168 hours (1 week): Excellent ✅
         - 168-336 hours (1-2 weeks): Good ⚠️
         - 336-720 hours (2-4 weeks): Needs Improvement ⚠️

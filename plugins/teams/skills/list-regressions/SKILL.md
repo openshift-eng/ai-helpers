@@ -96,8 +96,8 @@ The script outputs JSON data with the following structure:
     "triage_percentage": <number>,
     "time_to_triage_hrs_avg": <number or null>,
     "time_to_triage_hrs_max": <number or null>,
-    "time_to_close_hrs_avg": <number or null>,
-    "time_to_close_hrs_max": <number or null>,
+    "time_to_resolve_hrs_avg": <number or null>,
+    "time_to_resolve_hrs_max": <number or null>,
     "open": {
       "total": <number>,
       "triaged": <number>,
@@ -113,10 +113,8 @@ The script outputs JSON data with the following structure:
       "triage_percentage": <number>,
       "time_to_triage_hrs_avg": <number or null>,
       "time_to_triage_hrs_max": <number or null>,
-      "time_to_close_hrs_avg": <number or null>,
-      "time_to_close_hrs_max": <number or null>,
-      "time_triaged_closed_hrs_avg": <number or null>,
-      "time_triaged_closed_hrs_max": <number or null>
+      "time_to_resolve_hrs_avg": <number or null>,
+      "time_to_resolve_hrs_max": <number or null>
     }
   },
   "components": {
@@ -127,8 +125,8 @@ The script outputs JSON data with the following structure:
         "triage_percentage": <number>,
         "time_to_triage_hrs_avg": <number or null>,
         "time_to_triage_hrs_max": <number or null>,
-        "time_to_close_hrs_avg": <number or null>,
-        "time_to_close_hrs_max": <number or null>,
+        "time_to_resolve_hrs_avg": <number or null>,
+        "time_to_resolve_hrs_max": <number or null>,
         "open": {
           "total": <number>,
           "triaged": <number>,
@@ -144,10 +142,8 @@ The script outputs JSON data with the following structure:
           "triage_percentage": <number>,
           "time_to_triage_hrs_avg": <number or null>,
           "time_to_triage_hrs_max": <number or null>,
-          "time_to_close_hrs_avg": <number or null>,
-          "time_to_close_hrs_max": <number or null>,
-          "time_triaged_closed_hrs_avg": <number or null>,
-          "time_triaged_closed_hrs_max": <number or null>
+          "time_to_resolve_hrs_avg": <number or null>,
+          "time_to_resolve_hrs_max": <number or null>
         }
       },
       "open": [...],
@@ -165,8 +161,8 @@ The script outputs JSON data with the following structure:
   - **`summary.triage_percentage`**: Percentage of all regressions that have been triaged (KEY HEALTH METRIC)
   - **`summary.time_to_triage_hrs_avg`**: Overall average hours to triage (combining open and closed, KEY HEALTH METRIC)
   - `summary.time_to_triage_hrs_max`: Overall maximum hours to triage
-  - **`summary.time_to_close_hrs_avg`**: Overall average hours to close regressions (closed only, KEY HEALTH METRIC)
-  - `summary.time_to_close_hrs_max`: Overall maximum hours to close regressions (closed only)
+  - **`summary.time_to_resolve_hrs_avg`**: Overall average hours to resolve regressions, measured from regression opened to triage resolved timestamp (KEY HEALTH METRIC)
+  - `summary.time_to_resolve_hrs_max`: Overall maximum hours to resolve regressions
   - `summary.open.total`: Number of open regressions (where `closed` is null)
   - `summary.open.triaged`: Number of open regressions that have been triaged to a JIRA bug
   - `summary.open.triage_percentage`: Percentage of open regressions triaged
@@ -179,10 +175,8 @@ The script outputs JSON data with the following structure:
   - `summary.closed.triage_percentage`: Percentage of closed regressions triaged
   - `summary.closed.time_to_triage_hrs_avg`: Average hours from opened to first triage (closed only)
   - `summary.closed.time_to_triage_hrs_max`: Maximum hours from opened to first triage (closed only)
-  - `summary.closed.time_to_close_hrs_avg`: Average hours from opened to closed timestamp (null if no valid data)
-  - `summary.closed.time_to_close_hrs_max`: Maximum hours from opened to closed timestamp (null if no valid data)
-  - `summary.closed.time_triaged_closed_hrs_avg`: Average hours from first triage to closed (null if no triaged closed regressions)
-  - `summary.closed.time_triaged_closed_hrs_max`: Maximum hours from first triage to closed (null if no triaged closed regressions)
+  - `summary.closed.time_to_resolve_hrs_avg`: Average hours from regression opened to triage resolved (JIRA bug completed), null if no valid data
+  - `summary.closed.time_to_resolve_hrs_max`: Maximum hours from regression opened to triage resolved, null if no valid data
 - `components`: Dictionary mapping component names to objects containing:
   - `summary`: Per-component statistics (includes same fields as overall summary)
   - `open`: Array of open regression objects for that component
@@ -199,15 +193,22 @@ The `time_to_triage_hrs_avg` field is calculated as:
 5. Average all valid time-to-triage values for open regressions separately from closed regressions
 6. Return `null` if no regressions have valid time-to-triage data in that category
 
-**Time to Close Calculation**:
+**Time to Resolve Calculation**:
 
-The `time_to_close_hrs_avg` and `time_to_close_hrs_max` fields (only for closed regressions) are calculated as:
+The `time_to_resolve_hrs_avg` and `time_to_resolve_hrs_max` fields (only for triaged closed regressions) are calculated as:
 
-1. For each closed regression, calculate the time difference between `opened` and `closed` timestamps
-2. Convert the difference to hours and round to the nearest hour
-3. Only include positive time differences (skip data inconsistencies)
-4. Calculate average and maximum of all valid time-to-close values
-5. Return `null` if no closed regressions have valid time data
+1. For each closed regression that has been triaged, find the earliest `resolved` timestamp among the triage objects
+2. The triage `resolved` timestamp indicates when the linked JIRA bug moved to a completed state
+3. Calculate the time difference between the regression's `opened` timestamp and the earliest triage `resolved` timestamp
+4. Convert the difference to hours and round to the nearest hour
+5. Only include positive time differences (skip data inconsistencies)
+6. Calculate average and maximum of all valid time-to-resolve values
+7. Return `null` if no triaged closed regressions have valid resolved timestamps
+
+Note: This metric uses the triage resolved timestamp rather than the regression closed timestamp because
+the regression closing (bad data rolling off component readiness) can lag by a week or more after the
+underlying issue is fixed. The triage resolved timestamp provides a more accurate measure of how quickly
+a team addressed the issue.
 
 **Open Duration Calculation**:
 
@@ -218,16 +219,6 @@ The `open_hrs_avg` and `open_hrs_max` fields (only for open regressions) are cal
 3. Only include positive time differences
 4. Calculate average and maximum of all open duration values
 5. Return `null` if no open regressions have valid time data
-
-**Time Triaged to Closed Calculation**:
-
-The `time_triaged_closed_hrs_avg` and `time_triaged_closed_hrs_max` fields (only for triaged closed regressions) are calculated as:
-
-1. For each closed regression that has been triaged, calculate the time difference between earliest `triages.created_at` timestamp and `closed` timestamp
-2. Convert the difference to hours and round to the nearest hour
-3. Only include positive time differences
-4. Calculate average and maximum of all triaged-to-closed values
-5. Return `null` if no triaged closed regressions have valid time data
 
 **ALWAYS use these summary counts** rather than attempting to count the regression arrays yourself. This ensures accuracy even when the output is truncated due to size.
 
@@ -346,8 +337,8 @@ The script outputs JSON with summaries and regressions grouped by component:
     "triage_percentage": 95.2,
     "time_to_triage_hrs_avg": 68,
     "time_to_triage_hrs_max": 240,
-    "time_to_close_hrs_avg": 168,
-    "time_to_close_hrs_max": 480,
+    "time_to_resolve_hrs_avg": 168,
+    "time_to_resolve_hrs_max": 480,
     "open": {
       "total": 2,
       "triaged": 1,
@@ -363,10 +354,8 @@ The script outputs JSON with summaries and regressions grouped by component:
       "triage_percentage": 96.7,
       "time_to_triage_hrs_avg": 72,
       "time_to_triage_hrs_max": 240,
-      "time_to_close_hrs_avg": 168,
-      "time_to_close_hrs_max": 480,
-      "time_triaged_closed_hrs_avg": 96,
-      "time_triaged_closed_hrs_max": 240
+      "time_to_resolve_hrs_avg": 168,
+      "time_to_resolve_hrs_max": 480
     }
   },
   "components": {
@@ -377,8 +366,8 @@ The script outputs JSON with summaries and regressions grouped by component:
         "triage_percentage": 86.7,
         "time_to_triage_hrs_avg": 68,
         "time_to_triage_hrs_max": 180,
-        "time_to_close_hrs_avg": 156,
-        "time_to_close_hrs_max": 360,
+        "time_to_resolve_hrs_avg": 156,
+        "time_to_resolve_hrs_max": 360,
         "open": {
           "total": 1,
           "triaged": 0,
@@ -394,10 +383,8 @@ The script outputs JSON with summaries and regressions grouped by component:
           "triage_percentage": 92.9,
           "time_to_triage_hrs_avg": 68,
           "time_to_triage_hrs_max": 180,
-          "time_to_close_hrs_avg": 156,
-          "time_to_close_hrs_max": 360,
-          "time_triaged_closed_hrs_avg": 88,
-          "time_triaged_closed_hrs_max": 180
+          "time_to_resolve_hrs_avg": 156,
+          "time_to_resolve_hrs_max": 360
         }
       },
       "open": [
@@ -433,8 +420,8 @@ The script outputs JSON with summaries and regressions grouped by component:
         "triage_percentage": 95.0,
         "time_to_triage_hrs_avg": 84,
         "time_to_triage_hrs_max": 220,
-        "time_to_close_hrs_avg": 192,
-        "time_to_close_hrs_max": 500,
+        "time_to_resolve_hrs_avg": 192,
+        "time_to_resolve_hrs_max": 500,
         "open": {
           "total": 0,
           "triaged": 0,
@@ -450,10 +437,8 @@ The script outputs JSON with summaries and regressions grouped by component:
           "triage_percentage": 95.0,
           "time_to_triage_hrs_avg": 84,
           "time_to_triage_hrs_max": 220,
-          "time_to_close_hrs_avg": 192,
-          "time_to_close_hrs_max": 500,
-          "time_triaged_closed_hrs_avg": 108,
-          "time_triaged_closed_hrs_max": 280
+          "time_to_resolve_hrs_avg": 192,
+          "time_to_resolve_hrs_max": 500
         }
       },
       "open": [],
@@ -466,8 +451,8 @@ The script outputs JSON with summaries and regressions grouped by component:
         "triage_percentage": 100.0,
         "time_to_triage_hrs_avg": 58,
         "time_to_triage_hrs_max": 168,
-        "time_to_close_hrs_avg": 144,
-        "time_to_close_hrs_max": 400,
+        "time_to_resolve_hrs_avg": 144,
+        "time_to_resolve_hrs_max": 400,
         "open": {
           "total": 1,
           "triaged": 1,
@@ -483,10 +468,8 @@ The script outputs JSON with summaries and regressions grouped by component:
           "triage_percentage": 100.0,
           "time_to_triage_hrs_avg": 60,
           "time_to_triage_hrs_max": 168,
-          "time_to_close_hrs_avg": 144,
-          "time_to_close_hrs_max": 400,
-          "time_triaged_closed_hrs_avg": 84,
-          "time_triaged_closed_hrs_max": 232
+          "time_to_resolve_hrs_avg": 144,
+          "time_to_resolve_hrs_max": 400
         }
       },
       "open": [...],

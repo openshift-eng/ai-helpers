@@ -109,7 +109,7 @@ This command is useful for:
    - Highlight key metrics:
      - Triage coverage percentages
      - Average time to triage
-     - Average time to close (for closed regressions)
+     - Average time to resolve (based on triage resolved timestamp)
      - Open vs closed counts
    - Present data in tables or structured format
    - Note any date filtering applied
@@ -142,8 +142,8 @@ The command outputs a **Regression Summary Report** with the following informati
 **Overall Metrics**:
 - **Average Time to Triage**: `summary.time_to_triage_hrs_avg` hours
 - **Maximum Time to Triage**: `summary.time_to_triage_hrs_max` hours
-- **Average Time to Close**: `summary.time_to_close_hrs_avg` hours (closed regressions only)
-- **Maximum Time to Close**: `summary.time_to_close_hrs_max` hours (closed regressions only)
+- **Average Time to Resolve**: `summary.time_to_resolve_hrs_avg` hours (based on triage resolved timestamp)
+- **Maximum Time to Resolve**: `summary.time_to_resolve_hrs_max` hours (based on triage resolved timestamp)
 
 **Open Regression Metrics**:
 - **Average Open Duration**: `summary.open.open_hrs_avg` hours
@@ -152,19 +152,17 @@ The command outputs a **Regression Summary Report** with the following informati
 - **Maximum Time to Triage** (open): `summary.open.time_to_triage_hrs_max` hours
 
 **Closed Regression Metrics**:
-- **Average Time to Close**: `summary.closed.time_to_close_hrs_avg` hours
-- **Maximum Time to Close**: `summary.closed.time_to_close_hrs_max` hours
+- **Average Time to Resolve**: `summary.closed.time_to_resolve_hrs_avg` hours (based on triage resolved timestamp)
+- **Maximum Time to Resolve**: `summary.closed.time_to_resolve_hrs_max` hours (based on triage resolved timestamp)
 - **Average Time to Triage** (closed): `summary.closed.time_to_triage_hrs_avg` hours
 - **Maximum Time to Triage** (closed): `summary.closed.time_to_triage_hrs_max` hours
-- **Average Triage-to-Close Time**: `summary.closed.time_triaged_closed_hrs_avg` hours
-- **Maximum Triage-to-Close Time**: `summary.closed.time_triaged_closed_hrs_max` hours
 
 ### Per-Component Summary
 
 For each component (from `components.*.summary`):
 
-| Component | Total | Open | Closed | Triaged | Triage % | Avg Time to Triage | Avg Time to Close |
-|-----------|-------|------|--------|---------|----------|--------------------|-------------------|
+| Component | Total | Open | Closed | Triaged | Triage % | Avg Time to Triage | Avg Time to Resolve |
+|-----------|-------|------|--------|---------|----------|--------------------|--------------------|
 | Monitoring | 15 | 1 | 14 | 13 | 86.7% | 68 hrs | 156 hrs |
 | etcd | 20 | 0 | 20 | 19 | 95.0% | 84 hrs | 192 hrs |
 | kube-apiserver | 27 | 1 | 26 | 27 | 100.0% | 58 hrs | 144 hrs |
