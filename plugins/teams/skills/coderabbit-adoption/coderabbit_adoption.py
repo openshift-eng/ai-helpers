@@ -84,8 +84,8 @@ def search_items_paginated(query, max_pages=10):
         for item in items:
             repo_url = item.get("repository_url", "")
             parts = repo_url.split("/repos/", 1)
-            author = item.get("user", {}).get("login")
-            if len(parts) == 2 and author:
+            author = (item.get("user") or {}).get("login")
+            if len(parts) == 2:
                 results.append((parts[1], author))
         if len(items) < 100:
             break
@@ -114,7 +114,7 @@ def search_authors_paginated(query, max_pages=10):
         if not items:
             break
         for item in items:
-            author = item.get("user", {}).get("login")
+            author = (item.get("user") or {}).get("login")
             if author:
                 authors.add(author)
         if len(items) < 100:
@@ -154,7 +154,7 @@ def main():
     # Collect CR authors per repo
     cr_authors_by_repo = {}
     for repo, author in cr_results:
-        if repo in allowed_repos:
+        if repo in allowed_repos and author:
             cr_authors_by_repo.setdefault(repo, set()).add(author)
     approximate = len(cr_repo_urls) < org_cr_total
     print(f"  Found CodeRabbit activity in {len(cr_counts)} allowed repos "

@@ -69,6 +69,8 @@ If a repo has **some PRs with CodeRabbit comments and some without**, the repo i
 
 3. **Parse the JSON output** and format the report. Build the unlicensed users table by inverting the per-repo `unlicensed_users` arrays from `repo_breakdown` to show which repos each user was active in. The top-level `unlicensed_users` array has the deduplicated list. Bot accounts are already filtered out.
 
+   **Detect partial data**: Check if `unlicensed_users_approximate` is `true` OR if any entry in `repo_breakdown` has `truncated: true`. When either condition is true, the unlicensed users list is incomplete because GitHub search pagination hit its limits (1000 items max). Insert a warning notice in the report as shown below.
+
    ```
    ## CodeRabbit Adoption Report
 
@@ -91,6 +93,9 @@ If a repo has **some PRs with CodeRabbit comments and some without**, the repo i
    <collapsed list of repo names>
 
    ### Potentially Unlicensed Users (<count>)
+   <!-- If unlicensed_users_approximate is true OR any repo_breakdown[].truncated is true, add this warning: -->
+   > **Note**: This list is **incomplete**. GitHub search pagination limits (1000 results max) were reached, so not all PR authors could be compared against CodeRabbit commenters. The actual number of unlicensed users may be higher. Consider narrowing the date range for more accurate results.
+
    Users who authored merged PRs in CodeRabbit-enabled repos but whose PRs did not receive CodeRabbit comments.
    This likely indicates they do not have a CodeRabbit license/seat assigned.
    Bot accounts (usernames ending in `[bot]` or known bots like `openshift-merge-robot`) are excluded — bots cannot hold CodeRabbit licenses and should not be counted as adoption gaps.
@@ -103,7 +108,7 @@ If a repo has **some PRs with CodeRabbit comments and some without**, the repo i
 4. **Offer to copy report to clipboard**: After presenting the report, ask the user if they'd like the full markdown report copied to their clipboard. If they accept, use `pbcopy` (macOS) or `xclip`/`xsel` (Linux) to copy the complete report.
 
 5. **AI Analysis**: After presenting the data, provide:
-   - **License gap analysis** (most important): All repos in the breakdown are already enabled for CodeRabbit. PRs that did *not* get CodeRabbit comments represent engineers without licenses. Highlight repos with the largest absolute gap (total - cr_count) as the highest-impact targets for getting more engineers to sign up. Call out the unlicensed users list — these are the specific people who should be asked to sign up for their CodeRabbit license. Note that bot accounts (e.g. `openshift-merge-robot`, `dependabot[bot]`, `openshift-ci[bot]`) cannot have licenses and are already filtered out of the unlicensed users list — do not flag them as needing licenses. If any remaining `[bot]`-suffixed users appear in the data, exclude them from the analysis.
+   - **License gap analysis** (most important): All repos in the breakdown are already enabled for CodeRabbit. PRs that did *not* get CodeRabbit comments represent engineers without licenses. Highlight repos with the largest absolute gap (total - cr_count) as the highest-impact targets for getting more engineers to sign up. Call out the unlicensed users list — these are the specific people who should be asked to sign up for their CodeRabbit license. Note that bot accounts (e.g. `openshift-merge-robot`, `dependabot[bot]`, `openshift-ci[bot]`) cannot have licenses and are already filtered out of the unlicensed users list — do not flag them as needing licenses. If any remaining `[bot]`-suffixed users appear in the data, exclude them from the analysis. If `unlicensed_users_approximate` is `true` or any `repo_breakdown[].truncated` is `true`, explicitly note in the analysis that the unlicensed users data is incomplete due to GitHub pagination limits and recommend re-running with a narrower date range for a complete picture.
    - Observations on adoption trends (which areas are using CodeRabbit most)
    - Distinguish between repos that need to be **enabled** (in the "no activity" list) vs repos where engineers need to **get their license** (in the breakdown but with less than full coverage)
    - Any notable patterns (e.g., team-level adoption clusters)
