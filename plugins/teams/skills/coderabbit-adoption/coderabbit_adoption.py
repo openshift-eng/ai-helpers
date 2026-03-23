@@ -63,8 +63,13 @@ def search_count(query):
 
 
 def search_items_paginated(query, max_pages=10):
-    """Fetch search results with pagination, returning (repo, author) tuples."""
+    """Fetch search results with pagination, returning (results, truncated).
+
+    results is a list of (repo, author) tuples.
+    truncated is True if pagination hit the max_pages limit or GitHub's 1000-item cap.
+    """
     results = []
+    truncated = False
     for page in range(1, max_pages + 1):
         data = gh_api_get("/search/issues", {
             "q": query,
@@ -79,18 +84,22 @@ def search_items_paginated(query, max_pages=10):
         for item in items:
             repo_url = item.get("repository_url", "")
             parts = repo_url.split("/repos/", 1)
-            author = item.get("user", {}).get("login", "unknown")
-            if len(parts) == 2:
+            author = item.get("user", {}).get("login")
+            if len(parts) == 2 and author:
                 results.append((parts[1], author))
         if len(items) < 100:
             break
+        if page == max_pages:
+            truncated = True
         time.sleep(SEARCH_API_SLEEP)
-    return results
+    return results, truncated
 
 
 def search_authors_paginated(query, max_pages=10):
-    """Fetch search results with pagination, returning set of author logins."""
+    """Fetch search results with pagination, returning (authors, total_count, truncated)."""
     authors = set()
+    total_count = 0
+    truncated = False
     for page in range(1, max_pages + 1):
         data = gh_api_get("/search/issues", {
             "q": query,
@@ -99,16 +108,21 @@ def search_authors_paginated(query, max_pages=10):
         })
         if data is None:
             break
+        if page == 1:
+            total_count = data.get("total_count", 0)
         items = data.get("items", [])
         if not items:
             break
         for item in items:
-            author = item.get("user", {}).get("login", "unknown")
-            authors.add(author)
+            author = item.get("user", {}).get("login")
+            if author:
+                authors.add(author)
         if len(items) < 100:
             break
+        if page == max_pages:
+            truncated = True
         time.sleep(SEARCH_API_SLEEP)
-    return authors
+    return authors, total_count, truncated
 
 
 def main():
@@ -118,7 +132,7 @@ def main():
     args = parser.parse_args()
 
     end_date = args.end_date or datetime.now().strftime("%Y-%m-%d")
-    start_date = args.start_date or (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
+    start_date = args.start_date or (datetime.strptime(end_date, "%Y-%m-%d") - timedelta(days=6)).strftime("%Y-%m-%d")
 
     allowed_repos = load_allowed_repos()
     print(f"Loaded {len(allowed_repos)} repos from allowed list", file=sys.stderr)
@@ -133,7 +147,7 @@ def main():
 
     # Phase 2: Paginate CR results to get per-repo counts and authors (~10 API calls)
     print("Fetching per-repo CodeRabbit counts via pagination...", file=sys.stderr)
-    cr_results = search_items_paginated(cr_query)
+    cr_results, cr_truncated = search_items_paginated(cr_query)
     cr_repo_urls = [repo for repo, _ in cr_results]
     all_cr_counts = Counter(cr_repo_urls)
     cr_counts = {repo: count for repo, count in all_cr_counts.items() if repo in allowed_repos}
@@ -159,24 +173,28 @@ def main():
               f"(~{len(repos_with_cr) * SEARCH_API_SLEEP}s)...", file=sys.stderr)
 
     all_unlicensed_users = set()
+    any_truncated = False
     for i, repo in enumerate(repos_with_cr, 1):
         cr_count = cr_counts[repo]
         repo_query = f"is:pr is:merged repo:{repo} merged:{start_date}..{end_date}"
-        all_authors = search_authors_paginated(repo_query)
-        # Use count API for accurate total since pagination gives unique authors not PR count
-        repo_total = search_count(repo_query)
+        all_authors, repo_total, authors_truncated = search_authors_paginated(repo_query)
         total_prs += repo_total
         adoption_pct = round((cr_count / repo_total * 100) if repo_total > 0 else 0, 1)
         cr_authors = cr_authors_by_repo.get(repo, set())
         bot_users = {u for u in all_authors if u.endswith("[bot]")} | {"openshift-merge-robot"}
-        unlicensed = sorted(all_authors - cr_authors - bot_users)
-        all_unlicensed_users.update(unlicensed)
+        repo_truncated = authors_truncated or cr_truncated
+        unlicensed = sorted(all_authors - cr_authors - bot_users) if not repo_truncated else []
+        if not repo_truncated:
+            all_unlicensed_users.update(unlicensed)
+        else:
+            any_truncated = True
         repo_breakdown.append({
             "repo": repo,
             "cr_count": cr_count,
             "total": repo_total,
             "adoption_pct": adoption_pct,
             "unlicensed_users": unlicensed,
+            "truncated": repo_truncated,
         })
         print(f"  [{i}/{len(repos_with_cr)}] {repo}: {cr_count}/{repo_total} ({adoption_pct}%)",
               file=sys.stderr)
@@ -201,6 +219,7 @@ def main():
         "total_allowed_repos": len(allowed_repos),
         "unlicensed_users": sorted(all_unlicensed_users),
         "unlicensed_user_count": len(all_unlicensed_users),
+        "unlicensed_users_approximate": any_truncated,
     }
 
     json.dump(output, sys.stdout, indent=2)
