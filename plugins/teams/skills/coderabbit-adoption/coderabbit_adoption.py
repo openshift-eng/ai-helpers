@@ -59,7 +59,12 @@ def search_paginated(query, max_pages=10):
         ]
         data = None
         for attempt in range(MAX_RETRIES):
-            result = subprocess.run(cmd, capture_output=True, text=True)
+            try:
+                result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                           universal_newlines=True, timeout=30)
+            except subprocess.TimeoutExpired:
+                print(f"  Timeout after 30s (attempt {attempt + 1}/{MAX_RETRIES})...", file=sys.stderr)
+                continue
             if result.returncode == 0:
                 data = json.loads(result.stdout)
                 break
@@ -71,6 +76,7 @@ def search_paginated(query, max_pages=10):
                 print(f"  Error: {result.stderr.strip()}", file=sys.stderr)
                 break
         if data is None:
+            truncated = True
             break
         if page == 1:
             total_count = data.get("total_count", 0)
