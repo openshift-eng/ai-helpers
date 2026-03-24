@@ -7,3 +7,4 @@ Commands are organized by topic using directory-based namespacing
 ## Available command groups
 
 - **hello-world**: A hello world plugin
+- **utils**: A generic utilities plugin serving as a catch-all for various helper commands and agents
