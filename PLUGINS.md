@@ -60,6 +60,7 @@ Tools for working with OpenShift CI and analyzing Prow job results
 
 **Commands:**
 - **`/ci:add-debug-wait` `<workflow-or-job-name> [timeout]`** - Add a wait step to a CI workflow for debugging test failures
+- **`/ci:analyze-disruption` `<prowjob-url-1> [prowjob-url-2 ...] [--backends backend1,backend2,...]`** - Analyze and compare disruption across one or more Prow CI job runs
 - **`/ci:analyze-payload` `<payload-tag> [--lookback N]`** - Analyze a payload (rejected, accepted, or in-progress) with historical lookback to identify root causes of blocking job failures
 - **`/ci:analyze-pr-reverts` `[limit]`** - Analyze recent PR reverts to identify patterns and recommend preventive measures
 - **`/ci:analyze-prow-job-install-failure` `<prowjob-url>`** - Analyze OpenShift installation failures in Prow CI jobs
