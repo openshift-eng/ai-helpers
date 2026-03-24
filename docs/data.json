@@ -757,6 +757,12 @@
           "synopsis": ""
         },
         {
+          "argument_hint": "<PR-URL>",
+          "description": "Find and verify Konflux-built container images from a GitHub PR",
+          "name": "find-konflux-images",
+          "synopsis": ""
+        },
+        {
           "argument_hint": "[GitHub PR URLs]",
           "description": "Generate test steps for one or more related PRs",
           "name": "generate-test-plan",
@@ -798,7 +804,7 @@
       "hooks": [],
       "name": "utils",
       "skills": [],
-      "version": "0.0.6"
+      "version": "0.0.7"
     },
     {
       "commands": [
