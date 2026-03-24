@@ -50,7 +50,7 @@
           "argument_hint": "[base-branch]",
           "description": "Generate a PR description from the current branch's changes against the base branch",
           "name": "pr-describe",
-          "synopsis": "/git:pr-describe            # Compare against main"
+          "synopsis": "text"
         },
         {
           "argument_hint": "[pr-url]",

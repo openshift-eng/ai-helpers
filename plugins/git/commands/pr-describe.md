@@ -7,7 +7,7 @@ argument-hint: "[base-branch]"
 git:pr-describe
 
 ## Synopsis
-```
+```text
 /git:pr-describe            # Compare against main
 /git:pr-describe develop    # Compare against a specific base branch
 ```
@@ -106,7 +106,7 @@ If a PR template was found in step 3, populate it accordingly. Otherwise, produc
 ## Examples
 
 ### Example 1: Basic usage
-```
+```text
 /git:pr-describe
 ```
 Output:
@@ -134,7 +134,7 @@ instead of returning a 401 to the caller.
 ```
 
 ### Example 2: Custom base branch
-```
+```text
 /git:pr-describe release-4.16
 ```
 
