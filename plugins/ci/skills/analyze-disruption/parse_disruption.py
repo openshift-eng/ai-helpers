@@ -210,23 +210,44 @@ def extract_concurrent_events(items, disruptions, window_seconds=60):
     if not disruptions:
         return {}
 
-    # Compute the overall disruption window
-    all_from = [parse_ts(d["from"]) for d in disruptions]
-    all_to = [parse_ts(d["to"]) for d in disruptions]
-    window_start = min(all_from) - timedelta(seconds=window_seconds)
-    window_end = max(all_to) + timedelta(seconds=window_seconds)
+    # Build per-disruption windows so we catch events that started before
+    # a window but still overlapped, and avoid pulling in unrelated events
+    # from gaps between non-contiguous disruptions.
+    disruption_windows = []
+    for d in disruptions:
+        d_from = parse_ts(d["from"])
+        d_to = parse_ts(d["to"])
+        disruption_windows.append((
+            d_from - timedelta(seconds=window_seconds),
+            d_to + timedelta(seconds=window_seconds),
+        ))
 
-    ws_str = window_start.isoformat().replace("+00:00", "Z")
-    we_str = window_end.isoformat().replace("+00:00", "Z")
-
+    seen = set()
     by_source = defaultdict(list)
     for item in items:
         if item.get("source") == "Disruption":
             continue
         if item.get("source") not in CONTEXT_SOURCES:
             continue
-        if item["from"] < ws_str or item["from"] > we_str:
+
+        item_from = parse_ts(item["from"])
+        item_to = parse_ts(item.get("to", item["from"]))
+
+        # Check if this item overlaps any per-disruption window
+        overlaps = False
+        for win_start, win_end in disruption_windows:
+            if item_from <= win_end and item_to >= win_start:
+                overlaps = True
+                break
+        if not overlaps:
             continue
+
+        # Deduplicate by (source, from, message snippet)
+        dedup_key = (item.get("source"), item["from"],
+                     item.get("message", {}).get("humanMessage", "")[:80])
+        if dedup_key in seen:
+            continue
+        seen.add(dedup_key)
 
         keys = item.get("locator", {}).get("keys", {})
         node = keys.get("node", "")
@@ -507,13 +528,21 @@ def generate_links(job_name, build_id, target=None, timeline_files=None):
 
     # Deep links to the specific timeline files that were parsed
     if timeline_files and target:
-        artifact_base = f"{gcs_base}/artifacts/{target}"
+        artifact_base = f"{gcs_base}/artifacts/"
         timeline_urls = []
         for tf in timeline_files:
-            basename = tf.rsplit("/", 1)[-1] if "/" in tf else tf
-            timeline_urls.append(
-                f"{artifact_base}/openshift-e2e-test/artifacts/junit/{basename}"
-            )
+            # Preserve the original artifact-relative path rather than using
+            # just the basename.  The local file path typically contains an
+            # "/artifacts/" segment mirroring the GCS layout; extract everything
+            # after it.  Fall back to a flat junit/ path if the marker is absent.
+            marker = "/artifacts/"
+            idx = tf.find(marker)
+            if idx >= 0:
+                rel_path = tf[idx + len(marker):]
+            else:
+                basename = tf.rsplit("/", 1)[-1] if "/" in tf else tf
+                rel_path = f"{target}/openshift-e2e-test/artifacts/junit/{basename}"
+            timeline_urls.append(f"{artifact_base}{rel_path}")
         links["gcsweb_timelines"] = timeline_urls
 
     return links

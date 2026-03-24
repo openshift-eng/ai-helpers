@@ -14,7 +14,7 @@ audit logs, and pod logs, then correlates disruption across backends and job run
    - Check if installed: `which gcloud`
    - The `test-platform-results` bucket is publicly accessible — no authentication required
 
-2. **Python 3** (3.6 or later)
+2. **Python 3** (3.7 or later)
 
 ## Input Format
 
@@ -325,7 +325,7 @@ etcd log context beyond what the timeline summaries provide.
 #### 6.1: Download Audit Logs (if needed)
 
 ```bash
-gcloud storage cp -r "gs://test-platform-results/{bucket-path}/artifacts/{JOB_NAME}/gather-extra/artifacts/audit_logs/" \
+gcloud storage cp -r "gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-extra/artifacts/audit_logs/" \
   .work/disruption-analysis/{date}/{build_id}/logs/audit_logs/ --no-user-output-enabled 2>/dev/null || true
 ```
 
@@ -334,7 +334,7 @@ Query for sampler requests during disruption windows to identify request gaps.
 #### 6.2: Download etcd Pod Logs (if needed)
 
 ```bash
-gcloud storage cp -r "gs://test-platform-results/{bucket-path}/artifacts/{JOB_NAME}/gather-extra/artifacts/pods/openshift-etcd/" \
+gcloud storage cp -r "gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-extra/artifacts/pods/openshift-etcd/" \
   .work/disruption-analysis/{date}/{build_id}/logs/etcd-pods/ --no-user-output-enabled 2>/dev/null || true
 ```
 

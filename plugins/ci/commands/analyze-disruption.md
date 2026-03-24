@@ -86,16 +86,16 @@ The skill handles all implementation details including:
 ## Examples
 
 1. **Analyze disruption in a single job run**:
-   ```
+   ```text
    /ci:analyze-disruption https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-release-master-ci-4.21-e2e-aws-ovn/1983307151598161920
    ```
 
 2. **Compare disruption across multiple runs**:
-   ```
+   ```text
    /ci:analyze-disruption https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-release-master-ci-4.21-e2e-aws-ovn/1983307151598161920 https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-release-master-ci-4.21-e2e-aws-ovn/1983307151598161921
    ```
 
 3. **Focus on specific backends**:
-   ```
+   ```text
    /ci:analyze-disruption https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-release-master-ci-4.21-e2e-aws-ovn/1983307151598161920 --backends kube-api,oauth-api,openshift-api
    ```
