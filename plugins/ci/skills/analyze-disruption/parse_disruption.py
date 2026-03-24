@@ -21,6 +21,7 @@ Output (JSON mode):
 
 import argparse
 import json
+import os
 import sys
 from collections import defaultdict
 from datetime import datetime, timedelta
@@ -66,7 +67,7 @@ def load_items(paths):
     ordering.  Timeline files are sorted by filename timestamp — the first is
     the upgrade phase, the second is the conformance/e2e-test phase.
     """
-    sorted_paths = sorted(paths)
+    sorted_paths = sorted(paths, key=lambda p: os.path.basename(p))
     all_items = []
     for idx, path in enumerate(sorted_paths):
         # First file = upgrade, second = conformance
@@ -242,8 +243,10 @@ def extract_concurrent_events(items, disruptions, window_seconds=60):
         if not overlaps:
             continue
 
-        # Deduplicate by (source, from, message snippet)
-        dedup_key = (item.get("source"), item["from"],
+        # Deduplicate by (source, from, locator keys, message snippet) so
+        # distinct records from different locators at the same second are kept.
+        loc_keys = tuple(sorted(item.get("locator", {}).get("keys", {}).items()))
+        dedup_key = (item.get("source"), item["from"], loc_keys,
                      item.get("message", {}).get("humanMessage", "")[:80])
         if dedup_key in seen:
             continue
