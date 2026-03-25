@@ -1,11 +1,11 @@
 ---
-name: Create Jira Bug
-description: Implementation guide for creating well-formed Jira bug reports
+name: create-bug
+description: "Guide interactive creation of well-formed Jira bug reports — collecting problem descriptions, reproduction steps, actual vs expected results, and environment details with auto-detection of components and versions, security validation, and project-specific field mapping (OCPBUGS, CNTRLPLANE). Use when creating bug reports via the /jira:create bug command or when structured Jira bug creation is needed."
 ---
 
 # Create Jira Bug
 
-This skill provides implementation guidance for creating well-structured Jira bug reports with complete reproduction steps and clear problem descriptions.
+Provides interactive guidance for creating well-structured Jira bug reports with complete reproduction steps, clear problem descriptions, auto-detected components/versions, and project-specific field mapping.
 
 ## When to Use This Skill
 

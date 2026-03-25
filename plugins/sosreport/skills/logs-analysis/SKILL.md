@@ -1,11 +1,11 @@
 ---
-name: Logs Analysis
-description: Analyze system and application log data from sosreport archives, extracting error patterns, kernel panics, OOM events, service failures, and application crashes from journald logs and traditional log files within the sosreport directory structure to identify root causes of system failures and issues
+name: logs-analysis
+description: "Analyze system and application log data from sosreport archives — extracting error patterns, kernel panics, OOM events, service failures, and application crashes from journald and traditional log files to identify root causes of system failures. Use when performing the log analysis phase of sosreport analysis, investigating specific errors in sosreports, or deep-diving into system failure root causes."
 ---
 
-# Logs Analysis Skill
+# Logs Analysis
 
-This skill provides detailed guidance for analyzing logs from sosreport archives, including journald logs, system logs, kernel messages, and application logs.
+Provides structured guidance for analyzing logs from sosreport archives, covering journald logs, system logs (`/var/log/messages`, `dmesg`), kernel messages, and application logs with categorized error extraction and timeline analysis.
 
 ## When to Use This Skill
 

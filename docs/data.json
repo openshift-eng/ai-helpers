@@ -203,9 +203,9 @@
           "name": "CNTRLPLANE Jira Conventions"
         },
         {
-          "description": "Implementation guide for creating well-formed Jira bug reports",
+          "description": "Guide interactive creation of well-formed Jira bug reports \u2014 collecting problem descriptions, reproduction steps, actual vs expected results, and environment details with auto-detection of components and versions, security validation, and project-specific field mapping (OCPBUGS, CNTRLPLANE). Use when creating bug reports via the /jira:create bug command or when structured Jira bug creation is needed.",
           "id": "create-bug",
-          "name": "Create Jira Bug"
+          "name": "create-bug"
         },
         {
           "description": "Implementation guide for creating Jira epics with proper scope and parent linking",
@@ -433,9 +433,9 @@
       "name": "ci",
       "skills": [
         {
-          "description": "Analyze a payload (rejected, accepted, or in-progress) with historical lookback to identify root causes of blocking job failures and produce an HTML report",
+          "description": "Analyze an OCP payload (rejected, accepted, or in-progress) with configurable historical lookback \u2014 identifying root causes of blocking job failures, correlating failures with candidate PRs via weighted scoring, proposing revert candidates, and producing a self-contained HTML report with executive summary and structured YAML/JSON output. Use when investigating payload rejections, assessing in-progress payload health, or identifying PRs to revert for payload recovery.",
           "id": "analyze-payload",
-          "name": "Analyze Payload"
+          "name": "analyze-payload"
         },
         {
           "description": "Fetch JIRA issue details including status, assignee, comments, and progress classification",
@@ -743,9 +743,9 @@
       "name": "sosreport",
       "skills": [
         {
-          "description": "Analyze system and application log data from sosreport archives, extracting error patterns, kernel panics, OOM events, service failures, and application crashes from journald logs and traditional log files within the sosreport directory structure to identify root causes of system failures and issues",
+          "description": "Analyze system and application log data from sosreport archives \u2014 extracting error patterns, kernel panics, OOM events, service failures, and application crashes from journald and traditional log files to identify root causes of system failures. Use when performing the log analysis phase of sosreport analysis, investigating specific errors in sosreports, or deep-diving into system failure root causes.",
           "id": "logs-analysis",
-          "name": "Logs Analysis"
+          "name": "logs-analysis"
         },
         {
           "description": "Analyze network configuration data from sosreport archives, extracting interface configurations, routing tables, active connections, firewall rules (firewalld/iptables), and DNS settings from the sosreport directory structure to diagnose network connectivity and configuration issues",
@@ -1294,9 +1294,9 @@
           "name": "Codebase Impact Analysis"
         },
         {
-          "description": "Gather comprehensive vulnerability information from multiple authoritative sources with fallback strategies",
+          "description": "Gather comprehensive CVE vulnerability information from NVD, MITRE, Go vulndb, and GitHub Security Advisories with cascading fallback strategies \u2014 validating CVE format, compiling structured vulnerability profiles, and assessing Go relevance. Use when starting CVE analysis, handling search failures across databases, or building evidence for security compliance reports.",
           "id": "cve-intelligence-gathering",
-          "name": "CVE Intelligence Gathering"
+          "name": "cve-intelligence-gathering"
         },
         {
           "description": "Generate comprehensive remediation guidance including dependency updates, code changes, workarounds, and verification steps",
@@ -1574,9 +1574,9 @@
       "name": "golang",
       "skills": [
         {
-          "description": "Detect and run golangci-lint in a Go repository using the best available method",
+          "description": "Detect and run golangci-lint in a Go repository by checking project docs, lint scripts, Makefiles, and direct invocation \u2014 reporting categorized results in a structured summary. Use when running linters, checking code quality in Go projects, or as a prerequisite for lint-fix workflows.",
           "id": "lint",
-          "name": "Go Lint"
+          "name": "lint"
         }
       ],
       "version": "0.1.0"

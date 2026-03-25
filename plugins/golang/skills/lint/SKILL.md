@@ -1,11 +1,11 @@
 ---
-name: Go Lint
-description: Detect and run golangci-lint in a Go repository using the best available method
+name: lint
+description: "Detect and run golangci-lint in a Go repository by checking project docs, lint scripts, Makefiles, and direct invocation — reporting categorized results in a structured summary. Use when running linters, checking code quality in Go projects, or as a prerequisite for lint-fix workflows."
 ---
 
 # Go Lint
 
-This skill detects the best way to run golangci-lint in the current Go repository and executes it, reporting results in a structured summary.
+Detects the best available method to run golangci-lint in the current Go repository and executes it, reporting results in a structured summary with issues grouped by category.
 
 ## When to Use This Skill
 

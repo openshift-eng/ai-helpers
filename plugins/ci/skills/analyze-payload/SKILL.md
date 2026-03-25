@@ -1,6 +1,6 @@
 ---
-name: Analyze Payload
-description: Analyze a payload (rejected, accepted, or in-progress) with historical lookback to identify root causes of blocking job failures and produce an HTML report
+name: analyze-payload
+description: "Analyze an OCP payload (rejected, accepted, or in-progress) with configurable historical lookback — identifying root causes of blocking job failures, correlating failures with candidate PRs via weighted scoring, proposing revert candidates, and producing a self-contained HTML report with executive summary and structured YAML/JSON output. Use when investigating payload rejections, assessing in-progress payload health, or identifying PRs to revert for payload recovery."
 ---
 
 # Analyze Payload
