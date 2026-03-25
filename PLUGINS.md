@@ -78,6 +78,7 @@ Tools for working with OpenShift CI and analyzing Prow job results
 - **`/ci:ask-sippy` `[question]`** - Ask the Sippy AI agent questions about OpenShift CI payloads, jobs, and test results
 - **`/ci:check-if-jira-regression-is-ongoing` `<jira-key-or-url>`** - Check if the regression described in a Jira bug is still ongoing or has resolved
 - **`/ci:continue-session` `<prowjob-url>`** - Download and continue a Claude session from a Prow CI job's artifacts
+- **`/ci:detect-backport-regressions` `[--current-release <version>] [--lookback N] [--days N]`** - Detect regressions that have cascaded from newer releases to older releases due to problematic backports
 - **`/ci:extract-kubeconfig` `<pr-url>`** - Extract kubeconfig from a running CI job in a PR
 - **`/ci:extract-prow-job-must-gather` `prowjob-url`** - Extract and decompress must-gather archives from Prow job artifacts
 - **`/ci:fetch-payloads` `[architecture] [version] [stream]`** - Fetch recent release payloads from the OpenShift release controller
