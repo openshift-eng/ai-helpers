@@ -27,7 +27,7 @@ Comprehensive Jira integration for Claude Code, providing AI-powered tools to an
 
 ```bash
 # Start the atlassian mcp server using podman
-podman run -i --rm -p 8080:8080 -e "JIRA_URL=https://redhat.atlassian.net" -e "JIRA_USERNAME" -e "JIRA_API_TOKEN" ghcr.io/sooperset/mcp-atlassian:latest --transport sse --port 8080 -vv
+podman run -i --rm -p 8080:8080 -e JIRA_URL="https://redhat.atlassian.net" -e JIRA_USERNAME="user@redhat.com" -e JIRA_API_TOKEN="token" ghcr.io/sooperset/mcp-atlassian:latest --transport sse --port 8080 -vv
 ```
 
 Then add it to Claude as an SSE server:
