@@ -1580,6 +1580,11 @@
       "name": "code-review",
       "skills": [
         {
+          "description": "Classify GitHub PR review comments by severity and topic. Use when the user wants to categorize, analyze, or understand patterns in code review feedback \u2014 whether for a single comment, a comment URL, or an entire pull request. Triggers on requests like 'classify this comment', 'categorize PR feedback', 'what kind of review comments does this PR have', or 'break down comments by severity'.",
+          "id": "classify-review-comment",
+          "name": "classify-review-comment"
+        },
+        {
           "description": "Language-specific review guidance for Go code including idiomatic patterns, test conventions, and build commands",
           "id": "lang-go",
           "name": "Go Language Review"
@@ -1590,7 +1595,7 @@
           "name": "HyperShift Project Profile"
         }
       ],
-      "version": "0.0.5"
+      "version": "0.0.6"
     },
     {
       "commands": [
