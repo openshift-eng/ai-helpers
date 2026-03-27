@@ -580,6 +580,12 @@
           "synopsis": "/teams:coderabbit-inheritance-scanner"
         },
         {
+          "argument_hint": "<repo> [--count N]",
+          "description": "Analyze PR review comments to propose CodeRabbit rules for a repository",
+          "name": "coderabbit-rules-from-pr-reviews",
+          "synopsis": "/teams:coderabbit-rules-from-pr-reviews openshift/origin"
+        },
+        {
           "argument_hint": "--project <project> [--component comp1 comp2 ...] [--team <team-name>] [--status status1 status2 ...] [--include-closed] [--limit N]",
           "description": "Query and summarize JIRA bugs for a specific project with counts by component",
           "name": "health-check-jiras",
@@ -658,6 +664,11 @@
           "name": "CodeRabbit Inheritance Scanner - Search"
         },
         {
+          "description": "Fetch and filter human review comments from recent merged PRs in a GitHub repository",
+          "id": "coderabbit-rules-from-pr-reviews",
+          "name": "CodeRabbit Rules from PR Reviews - Fetch Comments"
+        },
+        {
           "description": "Fetch OpenShift release dates and metadata from Sippy API",
           "id": "get-release-dates",
           "name": "Get Release Dates"
@@ -688,7 +699,7 @@
           "name": "Summarize JIRAs"
         }
       ],
-      "version": "0.0.10"
+      "version": "0.0.12"
     },
     {
       "commands": [
