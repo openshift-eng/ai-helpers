@@ -3400,15 +3400,13 @@ func main() {
 - ✅ `logs.InitLogs()` - Initialize logging
 - ✅ `compat_otp.InitTest(false)` in BeforeAll - Sets up test framework context (MUST use `compat_otp`, NOT `util` or `exutil`)
 - ✅ Both `util` and `compat_otp` import lines - BOTH are required
-
-**What to remove:**
-- ❌ `util.WithCleanup()` wrapper - OTE handles cleanup automatically
+- ✅ `util.WithCleanup()` wrapper - Sets `testsStarted = true` to allow OTP functions like `oc.Run()` to work
 
 **Why this works:**
 - `util.InitStandardFlags()` registers framework flags so KUBECONFIG is recognized
 - `framework.AfterReadingAllFlags(&framework.TestContext)` initializes the framework context, preventing nil pointer dereference in framework.BeforeEach
 - `compat_otp.InitTest()` in BeforeAll sets up the test framework context when tests start
-- OTE framework handles cleanup automatically via its test lifecycle
+- `util.WithCleanup()` sets the `testsStarted` flag, which is required for OTP helper functions to work correctly
 - Tests can now connect to the cluster using kubeconfig
 
 **Why you CANNOT use `exutil` alias:**
