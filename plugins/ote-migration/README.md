@@ -830,18 +830,18 @@ The migration workflow has been enhanced with comprehensive test filtering and p
 
 **Problem**: Tests were panicking with `runtime error: invalid memory address or nil pointer dereference` in `framework.(*Framework).BeforeEach` because the kubernetes e2e framework context wasn't initialized.
 
-**Solution**: Added framework initialization (`framework.AfterReadingAllFlags(&framework.TestContext)`) immediately after `util.InitStandardFlags()`. This ensures:
+**Solution**: Added framework initialization (`framework.AfterReadingAllFlags(&framework.TestContext)`) immediately after `util.InitStandardFlags()`, plus `util.WithCleanup()` in BeforeAll. This ensures:
 - ✅ Kubeconfig flags are registered (KUBECONFIG environment variable works)
 - ✅ Framework context is properly initialized (prevents nil pointer dereference)
 - ✅ Tests can connect to cluster both locally and in-cluster
-- ✅ OTE framework handles cleanup automatically (no `util.WithCleanup()` needed)
+- ✅ OTP helper functions work correctly (`util.WithCleanup()` sets `testsStarted = true` flag)
 
 ### Key Improvements
 
 1. **Filesystem Path Filtering (2026-02-14)** - Changed from module paths to filesystem paths for test filtering. Uses `/test/e2e/` with exclusions for `/go/pkg/mod/` and `/vendor/` to match Ginkgo's actual CodeLocation format
 2. **Monorepo Variant Support (2026-02-14)** - Monorepo mode now supports two variants: (1) No existing test/e2e → create test/e2e directly; (2) Existing test/e2e → create test/e2e/<subdirectory> to avoid conflicts. User can specify subdirectory name (default: "extension")
 3. **Automatic k8s.io Version Fix (2026-02-14)** - Detects outdated OpenShift kubernetes fork (October 2024) and automatically updates to October 2025 fork. Adds missing k8s.io/externaljwt and k8s.io/kms packages, pins otelgrpc to v0.53.0, removes deprecated packages, and updates Ginkgo version. Prevents build errors: `undefined: otelgrpc.UnaryClientInterceptor`, `cannot use v6 as net.IP`, `undefined: diff.Diff`, and Docker build Go version errors (`k8s.io/kms requires go >= 1.25.0`)
-4. **Complete Framework Initialization (2026-02-14)** - Uses `util.InitStandardFlags()`, `framework.AfterReadingAllFlags()`, and `compat_otp.InitTest()` to properly initialize the kubernetes e2e framework context and prevent nil pointer panics
+4. **Complete Framework Initialization (2026-02-14)** - Uses `util.InitStandardFlags()`, `framework.AfterReadingAllFlags()`, `compat_otp.InitTest()`, and `util.WithCleanup()` to properly initialize the kubernetes e2e framework context and prevent nil pointer panics
 5. **All Go Files Migration + Dynamic Import Management (2026-03-20)** - Phase 5 now processes ALL .go files (not just *_test.go) for FixturePath replacement and import updates. Fixes migration of helper/utility files (like aws_util.go) that were previously skipped. Import statements are managed dynamically: existing imports like compat_otp are retained, exutil is added where needed for CLI operations, and unused imports are cleaned up. Function calls are modernized for OTE compatibility (e.g., compat_otp.NewCLI() → exutil.NewCLIWithoutNamespace())
 6. **Two-Layer Test Filtering** - Layer 1: Dependency filtering excludes openshift-tests-private; Layer 2: Filesystem path filter includes only local test/e2e/ tests, excluding module cache and vendor
 7. **Vendor Mode Build** - Uses `-mod=vendor` instead of `-mod=mod` to ensure consistent dependency resolution in all build environments
