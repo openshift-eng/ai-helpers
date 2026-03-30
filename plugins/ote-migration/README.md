@@ -38,7 +38,6 @@ Performs the complete OTE migration in one workflow.
 - **Two directory strategies** - Monorepo (integrated) or single-module (isolated)
 - **CMD at root (monorepo)** - Places cmd/extension/main.go at repository root, not under test/
 - **Filesystem-based test filtering** - Uses filesystem paths to include only local test/e2e/ tests, excluding unwanted kubernetes sig- tests from module cache
-- **Smart e2e framework import handling** - Adds k8s.io/kubernetes/test/e2e/framework import where tests use e2e.Logf() or e2e.Failf()
 - **Smart dependency filtering** - Excludes openshift-tests-private dependency to prevent importing entire test suite
 - **Vendor at root only (monorepo)** - Vendored dependencies only at repository root
 - **Custom test directory support** - Handles existing test/e2e directories with configurable alternatives
@@ -46,7 +45,7 @@ Performs the complete OTE migration in one workflow.
 - **Smart repository management** - Remote detection and update capabilities
 - **Dynamic dependency resolution** - Fetches latest dependencies from upstream
 - **Automatic Go toolchain management** - Uses `GOTOOLCHAIN=auto` to download required Go version
-- **Automatic test migration** - Replaces FixturePath() calls, updates imports, removes kubernetes e2e framework, and adds annotations atomically with rollback
+- **Automatic test migration** - Replaces FixturePath() calls, adds testdata imports, preserves all existing imports, and adds annotations atomically with rollback
 - **Simple test annotations** - Adds [OTP] at beginning of Describe blocks, [Level0] at beginning of test names only
 - **Tag validation** - Validates all required tags are present before build
 - **Informing lifecycle by default** - All migrated tests set to informing (won't block CI on failure)
@@ -840,10 +839,10 @@ The migration workflow has been enhanced with comprehensive test filtering and p
 ### Key Improvements
 
 1. **Filesystem Path Filtering (2026-02-14)** - Changed from module paths to filesystem paths for test filtering. Uses `/test/e2e/` with exclusions for `/go/pkg/mod/` and `/vendor/` to match Ginkgo's actual CodeLocation format
-2. **Smart E2E Framework Import Handling (2026-02-14)** - Changed from removing e2e framework import to adding it where needed. Tests using `e2e.Logf()` or `e2e.Failf()` now get the import automatically
-3. **Monorepo Variant Support (2026-02-14)** - Monorepo mode now supports two variants: (1) No existing test/e2e → create test/e2e directly; (2) Existing test/e2e → create test/e2e/<subdirectory> to avoid conflicts. User can specify subdirectory name (default: "extension")
-4. **Automatic k8s.io Version Fix (2026-02-14)** - Detects outdated OpenShift kubernetes fork (October 2024) and automatically updates to October 2025 fork. Adds missing k8s.io/externaljwt and k8s.io/kms packages, pins otelgrpc to v0.53.0, removes deprecated packages, and updates Ginkgo version. Prevents build errors: `undefined: otelgrpc.UnaryClientInterceptor`, `cannot use v6 as net.IP`, `undefined: diff.Diff`, and Docker build Go version errors (`k8s.io/kms requires go >= 1.25.0`)
-5. **Complete Framework Initialization (2026-02-14)** - Uses `util.InitStandardFlags()`, `framework.AfterReadingAllFlags()`, and `compat_otp.InitTest()` to properly initialize the kubernetes e2e framework context and prevent nil pointer panics
+2. **Monorepo Variant Support (2026-02-14)** - Monorepo mode now supports two variants: (1) No existing test/e2e → create test/e2e directly; (2) Existing test/e2e → create test/e2e/<subdirectory> to avoid conflicts. User can specify subdirectory name (default: "extension")
+3. **Automatic k8s.io Version Fix (2026-02-14)** - Detects outdated OpenShift kubernetes fork (October 2024) and automatically updates to October 2025 fork. Adds missing k8s.io/externaljwt and k8s.io/kms packages, pins otelgrpc to v0.53.0, removes deprecated packages, and updates Ginkgo version. Prevents build errors: `undefined: otelgrpc.UnaryClientInterceptor`, `cannot use v6 as net.IP`, `undefined: diff.Diff`, and Docker build Go version errors (`k8s.io/kms requires go >= 1.25.0`)
+4. **Complete Framework Initialization (2026-02-14)** - Uses `util.InitStandardFlags()`, `framework.AfterReadingAllFlags()`, and `compat_otp.InitTest()` to properly initialize the kubernetes e2e framework context and prevent nil pointer panics
+5. **All Go Files Migration + Preserve Imports (2026-03-20)** - Phase 5 now processes ALL .go files (not just *_test.go) for FixturePath replacement and import updates. Fixes migration of helper/utility files (like aws_util.go) that were previously skipped. All existing imports (exutil, compat_otp, etc.) are preserved as-is from source files and never commented out or removed, ensuring compatibility with the OTE framework
 6. **Two-Layer Test Filtering** - Layer 1: Dependency filtering excludes openshift-tests-private; Layer 2: Filesystem path filter includes only local test/e2e/ tests, excluding module cache and vendor
 7. **Vendor Mode Build** - Uses `-mod=vendor` instead of `-mod=mod` to ensure consistent dependency resolution in all build environments
 8. **Go Import Conventions** - Uses `goimports` to automatically fix import ordering after migration, ensuring testdata imports are properly positioned per Go conventions
@@ -851,7 +850,7 @@ The migration workflow has been enhanced with comprehensive test filtering and p
 10. **Smart Go Version Management** - Uses Go 1.25 builder image (`registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.25-openshift-4.22`) for Docker builds. Phase 6 Step 1b ensures k8s.io/kms replace directive exists (redirects to OpenShift fork compatible with Go 1.24+), resolves dependencies with `GOTOOLCHAIN=auto` (Step 2), and vendors with `GOTOOLCHAIN=auto` (Step 3). No version downgrades needed - the k8s.io/kms replace directive ensures all dependencies are compatible
 11. **Enhanced Dependency Management** - Added retry logic and better error handling for all `go get` commands
 12. **Ginkgo Version Alignment** - Automatically aligns with OTE framework's Ginkgo version (December 2024) instead of using OTP's older version (August 2024)
-13. **Old kube-openapi Pin Removal** - Automatically removes stale kube-openapi pins from February 2024 that cause yaml type errors
+14. **Old kube-openapi Pin Removal** - Automatically removes stale kube-openapi pins from February 2024 that cause yaml type errors
 14. **Smart Docker Builder Selection** - Intelligently maps Go versions (1.21-1.27) to appropriate OpenShift builder images
 15. **Comprehensive Troubleshooting** - Added 8 detailed troubleshooting entries based on real-world migration experience
 
@@ -859,16 +858,9 @@ The migration workflow has been enhanced with comprehensive test filtering and p
 
 See the "Test Filtering to Prevent Unwanted Tests" section above for comprehensive details on how these layers work together.
 
-### Documentation
-
-- **[skill-updates-summary.md](../../skill-updates-summary.md)** - Initial three-layer filtering implementation
-- **[latest-skill-updates.md](../../latest-skill-updates.md)** - Latest framework initialization fix and enhancements
-
 ## Resources
 
 - [OTE Framework Enhancement](https://github.com/openshift/enhancements/pull/1676)
 - [OTE Framework Repository](https://github.com/openshift-eng/openshift-tests-extension)
 - [Example Implementation](https://github.com/openshift-eng/openshift-tests-extension/blob/main/cmd/example-tests/main.go)
-- [Complete Design Document](../../OTE_PLUGIN_COMPLETE_DESIGN.md) - Comprehensive technical documentation with detailed directory structures, complete Dockerfile examples, and troubleshooting guides for both monorepo and single-module strategies
-- [Skill Updates Summary](../../skill-updates-summary.md) - Initial three-layer test filtering implementation
-- [Latest Skill Updates](../../latest-skill-updates.md) - Framework initialization fix and recent enhancements
+- [Complete Design Document](https://redhat.atlassian.net/wiki/spaces/OCPERT/pages/265782250/OTE-migration+Plugin+Design) - Comprehensive technical documentation with detailed directory structures, complete Dockerfile examples, and troubleshooting guides for both monorepo and single-module strategies

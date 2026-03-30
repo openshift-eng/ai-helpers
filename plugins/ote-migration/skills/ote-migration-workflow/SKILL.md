@@ -48,6 +48,10 @@ The migration is an **8-phase workflow** that collects configuration, sets up re
 - **Single go.mod** (monorepo): All dependencies in root go.mod (no separate test module)
 - **Vendor at root** (monorepo): Only `vendor/` at repository root
 - **No compress/copy targets**: Removed from root Makefile
+- **🚨 REQUIRED IMPORTS (DO NOT MODIFY)**: main.go MUST import both packages:
+  - `exutil "github.com/openshift/origin/test/extended/util"` - provides the actual CLI type (`exutil.CLI`)
+  - `compat_otp "github.com/openshift/origin/test/extended/util/compat_otp"` - provides helper functions (`NewCLI()`, `KubeConfigPath()`)
+  - **CRITICAL**: Use `*exutil.CLI` for type declarations, NOT `*compat_otp.CLI` (which doesn't exist)
 
 ## Migration Phases
 
@@ -213,26 +217,24 @@ if [ "$STRUCTURE_STRATEGY" = "monorepo" ] && [ -d "test/e2e" ]; then
     echo "Tests will be migrated to a subdirectory under test/e2e/"
 
     # Ask for target test directory name
+    read -p "What subdirectory name should be used under test/e2e/ for migrated tests? (default: extension): " TARGET_TEST_DIR_NAME
+    TARGET_TEST_DIR_NAME=${TARGET_TEST_DIR_NAME:-extension}  # Default to "extension" if empty
+else
+    # No subdirectory needed - tests go directly in test/e2e/
     TARGET_TEST_DIR_NAME=""
 fi
 ```
 
-**If test/e2e exists, ask:**
-
-Ask: "What subdirectory name should be used under test/e2e/ for migrated tests? (default: extension):"
+**If test/e2e exists:**
+- Prompts: "What subdirectory name should be used under test/e2e/ for migrated tests? (default: extension):"
 - Default: "extension"
 - Example: If you enter "router", tests will be at `test/e2e/router/`
 - Example: If you press Enter, tests will be at `test/e2e/extension/`
-
-**Store in variable:** `<target-test-dir>` (default: "extension" if empty)
+- **Store in variable:** `<target-test-dir>` (default: "extension" if empty)
 
 **If test/e2e does NOT exist:**
-```bash
-# No subdirectory needed - tests go directly in test/e2e/
-TARGET_TEST_DIR_NAME=""
-```
-
-**Store in variable:** `<target-test-dir>` (empty string)
+- No prompt needed - tests go directly in test/e2e/
+- **Store in variable:** `<target-test-dir>` (empty string "")
 
 #### Input 5: Local Source Repository (Optional)
 
@@ -702,6 +704,43 @@ fi
 
 ### Phase 4: Code Generation
 
+**🚨 CRITICAL: DO NOT MODIFY IMPORTS 🚨**
+
+**The generated main.go file contains REQUIRED imports that MUST NOT be changed:**
+
+```go
+// REQUIRED IMPORTS - DO NOT MODIFY:
+import (
+    exutil "github.com/openshift/origin/test/extended/util"  // Provides CLI type
+    compat_otp "github.com/openshift/origin/test/extended/util/compat_otp"  // Provides helper functions
+    // ...
+)
+
+func main() {
+    exutil.InitStandardFlags()  // Initialize flags
+    // ...
+    componentSpecs.AddBeforeAll(func() {
+        if err := compat_otp.InitTest(false); err != nil {  // Initialize OTE framework
+            panic(err)
+        }
+    })
+}
+```
+
+**Why these imports are required:**
+- `exutil` provides `InitStandardFlags()` to register kubeconfig flags and the `CLI` type
+- `compat_otp` provides `InitTest()` to initialize the test framework and helper functions like `NewCLI()`
+- Both packages exist in `github.com/openshift/origin` and serve different purposes
+- The `compat_otp` package is a REAL package path, NOT a placeholder
+
+**DO NOT:**
+- ❌ Change `*exutil.CLI` to `*compat_otp.CLI` (compat_otp.CLI type doesn't exist)
+- ❌ Remove either import - both are required
+- ❌ Remove the import aliases
+- ❌ "Fix" what you think are incorrect imports
+
+**Verification checks are included in the template generation to catch any modifications.**
+
 #### Step 1: Generate/Update go.mod Files
 
 **For Monorepo Strategy:**
@@ -729,12 +768,14 @@ fi
 echo "✅ OTE dependency added"
 
 echo "Adding origin dependency..."
-if ! GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get "github.com/openshift/origin@main"; then
-    echo "❌ Failed to get github.com/openshift/origin@main"
+# Use a known working version instead of @main to avoid breaking changes
+ORIGIN_VERSION="v1.5.0-alpha.3.0.20260310231025-5d3fd0545b5d"
+if ! GOTOOLCHAIN=auto GOSUMDB=off go get "github.com/openshift/origin@$ORIGIN_VERSION"; then
+    echo "❌ Failed to get github.com/openshift/origin@$ORIGIN_VERSION"
     echo "Retrying..."
     sleep 2
-    if ! GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get "github.com/openshift/origin@main"; then
-        echo "❌ Failed after retry - you may need to run manually: go get github.com/openshift/origin@main"
+    if ! GOTOOLCHAIN=auto GOSUMDB=off go get "github.com/openshift/origin@$ORIGIN_VERSION"; then
+        echo "❌ Failed after retry - you may need to run manually: GOSUMDB=off go get github.com/openshift/origin@$ORIGIN_VERSION"
         exit 1
     fi
 fi
@@ -763,6 +804,16 @@ if ! GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get github.com/onsi/gomega@lates
     fi
 fi
 echo "✅ Gomega dependency added"
+
+# Pin opencontainers dependencies to compatible versions BEFORE go mod tidy
+# This prevents go mod tidy from upgrading to incompatible versions
+echo "Pinning opencontainers dependencies to compatible versions..."
+GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get github.com/cyphar/filepath-securejoin@v0.4.1
+GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get github.com/opencontainers/runtime-spec@v1.2.0
+GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get github.com/opencontainers/cgroups@v0.0.3
+echo "✅ Pinned cyphar/filepath-securejoin to v0.4.1"
+echo "✅ Pinned opencontainers/runtime-spec to v1.2.0"
+echo "✅ Pinned opencontainers/cgroups to v0.0.3"
 
 # Copy replace directives from openshift-tests-private to root go.mod
 # IMPORTANT: Filter out openshift-tests-private itself to avoid importing entire test suite
@@ -849,12 +900,14 @@ fi
 echo "✅ OTE dependency added"
 
 echo "Adding origin dependency..."
-if ! GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get "github.com/openshift/origin@main"; then
-    echo "❌ Failed to get github.com/openshift/origin@main"
+# Use a known working version instead of @main to avoid breaking changes
+ORIGIN_VERSION="v1.5.0-alpha.3.0.20260310231025-5d3fd0545b5d"
+if ! GOTOOLCHAIN=auto GOSUMDB=off go get "github.com/openshift/origin@$ORIGIN_VERSION"; then
+    echo "❌ Failed to get github.com/openshift/origin@$ORIGIN_VERSION"
     echo "Retrying..."
     sleep 2
-    if ! GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get "github.com/openshift/origin@main"; then
-        echo "❌ Failed after retry - you may need to run manually: go get github.com/openshift/origin@main"
+    if ! GOTOOLCHAIN=auto GOSUMDB=off go get "github.com/openshift/origin@$ORIGIN_VERSION"; then
+        echo "❌ Failed after retry - you may need to run manually: GOSUMDB=off go get github.com/openshift/origin@$ORIGIN_VERSION"
         exit 1
     fi
 fi
@@ -883,6 +936,16 @@ if ! GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get github.com/onsi/gomega@lates
     fi
 fi
 echo "✅ Gomega dependency added"
+
+# Pin opencontainers dependencies to compatible versions BEFORE go mod tidy
+# This prevents go mod tidy from upgrading to incompatible versions
+echo "Pinning opencontainers dependencies to compatible versions..."
+GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get github.com/cyphar/filepath-securejoin@v0.4.1
+GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get github.com/opencontainers/runtime-spec@v1.2.0
+GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get github.com/opencontainers/cgroups@v0.0.3
+echo "✅ Pinned cyphar/filepath-securejoin to v0.4.1"
+echo "✅ Pinned opencontainers/runtime-spec to v1.2.0"
+echo "✅ Pinned opencontainers/cgroups to v0.0.3"
 
 # Copy replace directives
 # IMPORTANT: Filter out openshift-tests-private itself to avoid importing entire test suite
@@ -1046,6 +1109,11 @@ func main() {
         if err := compat_otp.InitTest(false); err != nil {
             panic(err)
         }
+        // Set testsStarted = true to allow OTP functions like oc.Run() to work
+        // WithCleanup sets this flag and it remains true for all subsequent tests
+        util.WithCleanup(func() {
+            // Empty function - we just need WithCleanup to set testsStarted = true
+        })
     })
 
     // Process all specs
@@ -1146,6 +1214,31 @@ sed -i "s|<Extension Name>|${EXTENSION_NAME^}|g" "cmd/extension/main.go"
 sed -i "s|<MODULE_PATH>|$MODULE_NAME|g" "cmd/extension/main.go"
 
 echo "✅ Created cmd/extension/main.go"
+
+# CRITICAL VERIFICATION: Imports must be EXACTLY as templated
+echo "🔍 Verifying critical imports in cmd/extension/main.go..."
+if ! grep -q 'compat_otp "github.com/openshift/origin/test/extended/util/compat_otp"' "cmd/extension/main.go"; then
+    echo "❌ CRITICAL ERROR: compat_otp import is missing or modified"
+    echo "   The import MUST be: compat_otp \"github.com/openshift/origin/test/extended/util/compat_otp\""
+    echo "   DO NOT change this to exutil or any other alias"
+    exit 1
+fi
+if ! grep -q '"github.com/openshift/origin/test/extended/util"' "cmd/extension/main.go"; then
+    echo "❌ CRITICAL ERROR: util import is missing"
+    echo "   Both util and compat_otp imports are REQUIRED"
+    exit 1
+fi
+if ! grep -q 'util\.InitStandardFlags()' "cmd/extension/main.go"; then
+    echo "❌ CRITICAL ERROR: util.InitStandardFlags() call is missing or modified"
+    echo "   MUST use 'util.InitStandardFlags()', NOT 'exutil.InitStandardFlags()'"
+    exit 1
+fi
+if ! grep -q 'compat_otp\.InitTest' "cmd/extension/main.go"; then
+    echo "❌ CRITICAL ERROR: compat_otp.InitTest() call is missing or modified"
+    echo "   MUST use 'compat_otp.InitTest(false)', NOT 'exutil.InitTest()' or 'util.InitTest()'"
+    exit 1
+fi
+echo "✅ All critical imports and function calls verified"
 ```
 
 **For Single-Module Strategy:**
@@ -1218,6 +1311,11 @@ func main() {
         if err := compat_otp.InitTest(false); err != nil {
             panic(err)
         }
+        // Set testsStarted = true to allow OTP functions like oc.Run() to work
+        // WithCleanup sets this flag and it remains true for all subsequent tests
+        util.WithCleanup(func() {
+            // Empty function - we just need WithCleanup to set testsStarted = true
+        })
     })
 
     // Process all specs
@@ -1313,6 +1411,33 @@ EOF
 sed -i "s|<extension-name>|$EXTENSION_NAME|g" cmd/main.go
 sed -i "s|<Extension Name>|${EXTENSION_NAME^}|g" cmd/main.go
 sed -i "s|<Extension Name>|${EXTENSION_NAME^}|g" cmd/main.go
+
+echo "✅ Created cmd/main.go"
+
+# CRITICAL VERIFICATION: Imports must be EXACTLY as templated
+echo "🔍 Verifying critical imports in cmd/main.go..."
+if ! grep -q 'compat_otp "github.com/openshift/origin/test/extended/util/compat_otp"' "cmd/main.go"; then
+    echo "❌ CRITICAL ERROR: compat_otp import is missing or modified"
+    echo "   The import MUST be: compat_otp \"github.com/openshift/origin/test/extended/util/compat_otp\""
+    echo "   DO NOT change this to exutil or any other alias"
+    exit 1
+fi
+if ! grep -q '"github.com/openshift/origin/test/extended/util"' "cmd/main.go"; then
+    echo "❌ CRITICAL ERROR: util import is missing"
+    echo "   Both util and compat_otp imports are REQUIRED"
+    exit 1
+fi
+if ! grep -q 'util\.InitStandardFlags()' "cmd/main.go"; then
+    echo "❌ CRITICAL ERROR: util.InitStandardFlags() call is missing or modified"
+    echo "   MUST use 'util.InitStandardFlags()', NOT 'exutil.InitStandardFlags()'"
+    exit 1
+fi
+if ! grep -q 'compat_otp\.InitTest' "cmd/main.go"; then
+    echo "❌ CRITICAL ERROR: compat_otp.InitTest() call is missing or modified"
+    echo "   MUST use 'compat_otp.InitTest(false)', NOT 'exutil.InitTest()' or 'util.InitTest()'"
+    exit 1
+fi
+echo "✅ All critical imports and function calls verified"
 ```
 
 #### Step 3: Create bindata.mk
@@ -1556,6 +1681,10 @@ func init() {
     if err != nil {
         panic(fmt.Sprintf("failed to create fixture directory: %v", err))
     }
+    // Ensure fixture directory has proper permissions for all users
+    if err := os.Chmod(fixtureDir, 0755); err != nil {
+        panic(fmt.Sprintf("failed to set fixture directory permissions: %v", err))
+    }
 }
 
 func FixturePath(elem ...string) string {
@@ -1584,8 +1713,31 @@ func FixturePath(elem ...string) string {
     }
 
     extractedPath := filepath.Join(tempDir, bindataPath)
+
+    // Set permissions on extracted files/directories before moving
+    filepath.Walk(extractedPath, func(path string, info os.FileInfo, err error) error {
+        if err != nil {
+            return err
+        }
+        if info.IsDir() {
+            os.Chmod(path, 0755)
+        } else {
+            os.Chmod(path, 0644)
+        }
+        return nil
+    })
+
     if err := os.Rename(extractedPath, targetPath); err != nil {
         panic(fmt.Sprintf("failed to move extracted files: %v", err))
+    }
+
+    // Ensure final path has correct permissions
+    if info, err := os.Stat(targetPath); err == nil {
+        if info.IsDir() {
+            os.Chmod(targetPath, 0755)
+        } else {
+            os.Chmod(targetPath, 0644)
+        }
     }
 
     return targetPath
@@ -1645,7 +1797,7 @@ echo "✅ Created $TESTDATA_DIR/fixtures.go"
 
 ### Phase 5: Test Migration (Automated with Error Handling)
 
-This phase migrates test files with atomic error handling and rollback capability.
+This phase migrates all Go files (test files AND helper/utility files) with atomic error handling and rollback capability. It replaces FixturePath calls, adds testdata imports, preserves all existing imports, and adds test annotations.
 
 #### Step 0: Setup Error Handling and Backup
 
@@ -1716,20 +1868,29 @@ trap cleanup_on_error EXIT
 ```bash
 echo "Step 1: Replacing FixturePath calls..."
 
-TEST_FILES=$(grep -rl "FixturePath" "$TEST_CODE_DIR" --include="*_test.go" 2>/dev/null || true)
+# Process ALL .go files (including helper/utility files, not just *_test.go)
+ALL_GO_FILES=$(grep -rl "FixturePath" "$TEST_CODE_DIR" --include="*.go" 2>/dev/null || true)
 
-if [ -n "$TEST_FILES" ]; then
-    for file in $TEST_FILES; do
+if [ -n "$ALL_GO_FILES" ]; then
+    for file in $ALL_GO_FILES; do
         # Replace compat_otp.FixturePath
         sed -i 's/compat_otp\.FixturePath/testdata.FixturePath/g' "$file"
 
         # Replace exutil.FixturePath
         sed -i 's/exutil\.FixturePath/testdata.FixturePath/g' "$file"
 
-        # Remove redundant "testdata" prefix
-        sed -i 's/testdata\.FixturePath("testdata", /testdata.FixturePath(/g' "$file"
+        # Remove redundant "testdata" prefix (supports any subfolder name)
+        if [ -n "$TESTDATA_SUBFOLDER" ] && [ "$TESTDATA_SUBFOLDER" != "none" ]; then
+            # Remove testdata subfolder prefix: FixturePath("testdata", "router") -> FixturePath("router")
+            sed -i "s/testdata\.FixturePath(\"testdata\", \"$TESTDATA_SUBFOLDER\"/testdata.FixturePath(\"$TESTDATA_SUBFOLDER\"/g" "$file"
+            # Also handle the generic case for any other testdata references
+            sed -i 's/testdata\.FixturePath("testdata", /testdata.FixturePath(/g' "$file"
+        else
+            # Generic removal for any testdata prefix
+            sed -i 's/testdata\.FixturePath("testdata", /testdata.FixturePath(/g' "$file"
+        fi
     done
-    echo "✅ FixturePath calls replaced"
+    echo "✅ FixturePath calls replaced in all .go files (including helpers)"
 else
     echo "⚠️  No FixturePath usage found"
 fi
@@ -1745,9 +1906,10 @@ MODULE_NAME=$(grep '^module ' go.mod | awk '{print $2}')
 # Testdata import path (uses $TESTDATA_DIR from Step 0)
 TESTDATA_IMPORT="$MODULE_NAME/$TESTDATA_DIR"
 
-TEST_FILES=$(grep -rl "testdata\.FixturePath" "$TEST_CODE_DIR" --include="*_test.go" 2>/dev/null || true)
+# Process ALL .go files that use testdata.FixturePath (including helper files)
+ALL_GO_FILES=$(grep -rl "testdata\.FixturePath" "$TEST_CODE_DIR" --include="*.go" 2>/dev/null || true)
 
-for file in $TEST_FILES; do
+for file in $ALL_GO_FILES; do
     # Check if import already exists (avoid ! operator in if statement)
     if grep -q "\"$TESTDATA_IMPORT\"" "$file"; then
         continue  # Skip if already has import
@@ -1761,7 +1923,7 @@ for file in $TEST_FILES; do
     fi
 done
 
-echo "✅ Testdata imports added"
+echo "✅ Testdata imports added to all .go files (including helpers)"
 
 # Fix import ordering using goimports (Go standard tool)
 if command -v goimports >/dev/null 2>&1; then
@@ -1774,58 +1936,7 @@ else
 fi
 ```
 
-#### Step 3: Add e2e framework import where needed
-
-**IMPORTANT**: If tests use `e2e.Logf()` or `e2e.Failf()`, they need the e2e framework import. Add it to files that use these functions.
-
-```bash
-echo "Step 3: Adding e2e framework import where needed..."
-
-TEST_FILES=$(find "$TEST_CODE_DIR" -name '*.go' -type f)
-
-for file in $TEST_FILES; do
-    # Check if file uses e2e.Logf or e2e.Failf
-    if grep -q "e2e\.Logf\|e2e\.Failf" "$file"; then
-        # Check if e2e import already exists (avoid ! operator)
-        if grep -q "e2e \"k8s.io/kubernetes/test/e2e/framework\"" "$file"; then
-            : # Already has import, do nothing
-        else
-            echo "  Adding e2e framework import to: $file"
-
-            # Add import after other imports in import block
-            if grep -q "^import (" "$file"; then
-                # Find last k8s.io import and add after it, or add before closing paren
-                if grep -q "k8s.io" "$file"; then
-                    sed -i '/k8s\.io.*$/a\	e2e "k8s.io/kubernetes/test/e2e/framework"' "$file"
-                else
-                    sed -i '/^import (/a\	e2e "k8s.io/kubernetes/test/e2e/framework"' "$file"
-                fi
-            else
-                # Create import block
-                sed -i "/^package /a\\\\nimport (\n\te2e \"k8s.io/kubernetes/test/e2e/framework\"\n)" "$file"
-            fi
-        fi
-    fi
-
-    # Comment out compat_otp import if not used (avoid ! operator)
-    HAS_COMPAT_IMPORT=$(grep -c "compat_otp" "$file" || echo 0)
-    HAS_COMPAT_USAGE=$(grep -c "compat_otp\." "$file" || echo 0)
-    if [ "$HAS_COMPAT_IMPORT" -gt 0 ] && [ "$HAS_COMPAT_USAGE" -eq 0 ]; then
-        sed -i 's|^\(\s*\)"\(.*compat_otp\)"|// \1"\2" // Replaced|g' "$file"
-    fi
-
-    # Comment out exutil import if not used (avoid ! operator)
-    HAS_EXUTIL_IMPORT=$(grep -c "github.com/openshift/origin/test/extended/util\"" "$file" || echo 0)
-    HAS_EXUTIL_USAGE=$(grep -c "exutil\." "$file" || echo 0)
-    if [ "$HAS_EXUTIL_IMPORT" -gt 0 ] && [ "$HAS_EXUTIL_USAGE" -eq 0 ]; then
-        sed -i 's|^\(\s*\)"\(github.com/openshift/origin/test/extended/util\)"|// \1"\2" // Replaced|g' "$file"
-    fi
-done
-
-echo "✅ e2e framework imports added where needed"
-```
-
-#### Step 4: Add OTP and Level0 Annotations
+#### Step 3: Add OTP and Level0 Annotations
 
 **ANNOTATION LOGIC:**
 1. Add `[OTP]` at **BEGINNING** of ALL Describe blocks
@@ -1833,7 +1944,7 @@ echo "✅ e2e framework imports added where needed"
 3. Remove "-LEVEL0-" suffix after adding [Level0]
 
 ```bash
-echo "Step 4: Adding [OTP] and [Level0] annotations..."
+echo "Step 3: Adding [OTP] and [Level0] annotations..."
 
 # Create Python script for annotation
 cat > /tmp/annotate_tests.py << 'PYTHON_SCRIPT'
@@ -1927,13 +2038,139 @@ g.Describe("[OTP][sig-router] Router tests", func() {
 })
 ```
 
-#### Step 5: Validate Tags and Annotations
+#### Step 3b: Fix CLI Initialization Pattern for OTE
+
+**CRITICAL FIX**: `compat_otp.NewCLI()` uses OTP-specific initialization that expects tests to be "started" by the OTP harness. In OTE, this causes "May only be called from within a test case" panics.
+
+**The Fix**: Replace `compat_otp.NewCLI()` with `exutil.NewCLIWithoutNamespace()` and ensure exutil import exists.
 
 ```bash
-echo "Step 5: Validating annotations..."
+echo "Step 3b: Fixing CLI initialization pattern for OTE compatibility..."
+
+# Find all test files with CLI initialization
+TEST_FILES=$(find "$TEST_CODE_DIR" -name '*.go' -type f)
+
+for file in $TEST_FILES; do
+    # Check if file uses compat_otp.NewCLI
+    if grep -q 'compat_otp\.NewCLI' "$file"; then
+        echo "  Fixing CLI initialization in: $(basename $file)"
+
+        # Step 1: Ensure exutil import exists
+        if ! grep -q 'exutil "github.com/openshift/origin/test/extended/util"' "$file"; then
+            echo "    Adding exutil import..."
+            # Add after compat_otp import
+            sed -i '/compat_otp "github.com\/openshift\/origin\/test\/extended\/util\/compat_otp"/a\	exutil "github.com/openshift/origin/test/extended/util"' "$file"
+        fi
+
+        # Step 2: Replace compat_otp.NewCLI with exutil.NewCLIWithoutNamespace
+        # Handle different patterns:
+
+        # Pattern 1: var oc *exutil.CLI + BeforeEach
+        if grep -q 'var oc \*exutil\.CLI' "$file" && grep -q 'oc = compat_otp\.NewCLI' "$file"; then
+            # Use Python for multi-line pattern replacement
+            python3 << 'PYTHON_EOF' "$file"
+import sys
+import re
+
+file_path = sys.argv[1]
+
+with open(file_path, 'r') as f:
+    content = f.read()
+
+# Pattern: var oc *exutil.CLI followed by BeforeEach with compat_otp.NewCLI
+pattern = r'(\t)var oc \*exutil\.CLI\s*\n\s*\n\s*g\.BeforeEach\(func\(\) \{\s*\n\s*oc = compat_otp\.NewCLI\("([^"]+)",\s*compat_otp\.KubeConfigPath\(\)\)\s*\n\s*\}\)'
+
+# Replace with exutil.NewCLIWithoutNamespace
+replacement = r'\1oc := exutil.NewCLIWithoutNamespace("\2")'
+
+new_content = re.sub(pattern, replacement, content, flags=re.MULTILINE)
+
+if new_content != content:
+    with open(file_path, 'w') as f:
+        f.write(new_content)
+    sys.exit(0)
+else:
+    sys.exit(1)
+PYTHON_EOF
+            if [ $? -eq 0 ]; then
+                echo "    ✓ Replaced var + BeforeEach pattern with exutil.NewCLIWithoutNamespace"
+            fi
+        fi
+
+        # Pattern 2: Direct compat_otp.NewCLI at Describe level
+        if grep -q 'oc := compat_otp\.NewCLI' "$file"; then
+            # Extract the CLI name
+            sed -i 's/oc := compat_otp\.NewCLI("\([^"]*\)", compat_otp\.KubeConfigPath())/oc := exutil.NewCLIWithoutNamespace("\1")/g' "$file"
+            echo "    ✓ Replaced direct compat_otp.NewCLI with exutil.NewCLIWithoutNamespace"
+        fi
+
+        # Pattern 3: var oc = compat_otp.NewCLI
+        if grep -q 'var oc = compat_otp\.NewCLI' "$file"; then
+            sed -i 's/var oc = compat_otp\.NewCLI("\([^"]*\)", compat_otp\.KubeConfigPath())/oc := exutil.NewCLIWithoutNamespace("\1")/g' "$file"
+            echo "    ✓ Replaced var oc = pattern with exutil.NewCLIWithoutNamespace"
+        fi
+    fi
+done
+
+echo "✅ CLI initialization pattern fixed for OTE compatibility"
+echo ""
+echo "Pattern Changed:"
+echo "  Before: oc := compat_otp.NewCLI(\"name\", compat_otp.KubeConfigPath())"
+echo "          # ❌ Uses OTP-specific setup, requires test to be \"started\""
+echo ""
+echo "  After:  oc := exutil.NewCLIWithoutNamespace(\"name\")"
+echo "          # ✅ Works in OTE without OTP harness"
+echo ""
+echo "Note: compat_otp helpers like By() are still used for test steps"
+```
+
+**Why this is critical:**
+- `compat_otp.NewCLI()` calls `SetupProject()` which uses OTP-specific `requiresTestStart()` check
+- In OTP, the test harness marks tests as "started" before running
+- In OTE, there's no OTP harness, so `requiresTestStart()` panics with "May only be called from within a test case"
+- `exutil.NewCLIWithoutNamespace()` creates a CLI without OTP-specific setup
+- We keep `compat_otp.By()` and other helpers for test step descriptions
+
+#### Step 3c: Clean Up Unused exutil Imports
+
+```bash
+echo "Step 3c: Cleaning up unused exutil imports..."
+
+# Find files with unused exutil imports
+TEST_FILES=$(find "$TEST_CODE_DIR" -name '*.go' -type f ! -name '*_util.go' ! -name 'fixtures.go')
+CLEANED_COUNT=0
+
+for file in $TEST_FILES; do
+    if grep -q 'exutil "github.com/openshift/origin/test/extended/util"' "$file"; then
+        # Check if file actually uses exutil (including NewCLIWithoutNamespace)
+        # Keep exutil import if either:
+        # 1. File has exutil. references (e.g., exutil.NewCLIWithoutNamespace)
+        # 2. File has *exutil.CLI type declarations
+        if ! grep -q 'exutil\.' "$file" && ! grep -q '\*exutil\.CLI' "$file"; then
+            echo "  Removing unused exutil import from: $(basename $file)"
+            sed -i '/exutil "github.com\/openshift\/origin\/test\/extended\/util"/d' "$file"
+            CLEANED_COUNT=$((CLEANED_COUNT + 1))
+        fi
+    fi
+done
+
+echo "✅ Unused exutil imports cleaned up ($CLEANED_COUNT files)"
+```
+
+**Why this is needed:**
+- Step 3b adds exutil imports to files during CLI initialization fixes
+- Some files don't actually use exutil (they only use compat_otp)
+- Unused imports cause compilation errors
+- This cleanup prevents build failures
+
+#### Step 4: Validate Tags and Annotations
+
+```bash
+echo "Step 4: Validating annotations..."
 
 VALIDATION_FAILED=0
-TEST_FILES=$(find "$TEST_CODE_DIR" -name '*_test.go' -type f)
+# Find all .go files (not just *_test.go) but exclude utility files and vendor
+TEST_FILES=$(find "$TEST_CODE_DIR" -name '*.go' -type f | grep -v '_util\.go' | grep -v 'fixtures\.go' | grep -v '/vendor/')
 
 # Check for [OTP] in Describe blocks
 MISSING_OTP=0
@@ -2134,9 +2371,35 @@ if ! grep -q "k8s.io/kms =>" go.mod; then
 fi
 echo "✅ Verification passed: k8s.io/kms replace directive exists"
 
+# Step 1c: Ensure k8s.io/kms uses correct pseudo-version format
+echo "Step 1c: Verifying k8s.io/kms version format..."
+CURRENT_KMS_VERSION=$(grep "k8s.io/kms =>" go.mod | grep -o 'v[0-9]\+\.[0-9]\+\.[0-9]\+-' || echo "")
+
+if [[ "$CURRENT_KMS_VERSION" == "v1."* ]]; then
+    echo "⚠️  Detected incorrect k8s.io/kms version format: $CURRENT_KMS_VERSION"
+    echo "Correcting to v0.0.0- format..."
+
+    # Extract the timestamp and commit hash
+    TIMESTAMP_HASH=$(grep "k8s.io/kms =>" go.mod | grep -o '[0-9]\{14\}-[a-f0-9]\{12\}')
+
+    if [ -n "$TIMESTAMP_HASH" ]; then
+        # Replace with correct v0.0.0- format
+        sed -i "s|k8s.io/kms => github.com/openshift/kubernetes/staging/src/k8s.io/kms v[0-9]\+\.[0-9]\+\.[0-9]\+-$TIMESTAMP_HASH|k8s.io/kms => github.com/openshift/kubernetes/staging/src/k8s.io/kms v0.0.0-$TIMESTAMP_HASH|g" go.mod
+
+        echo "✅ k8s.io/kms version corrected to: v0.0.0-$TIMESTAMP_HASH"
+        grep "k8s.io/kms =>" go.mod
+    else
+        echo "❌ Could not extract timestamp/hash from k8s.io/kms version"
+        exit 1
+    fi
+elif [[ "$CURRENT_KMS_VERSION" == "v0.0.0-"* ]] || [ -z "$CURRENT_KMS_VERSION" ]; then
+    echo "✅ k8s.io/kms version format is correct"
+    grep "k8s.io/kms =>" go.mod || echo "(k8s.io/kms uses default v0.0.0- format)"
+fi
+
 # Step 2: Tidy root module
 echo "Step 2: Running go mod tidy in root module..."
-GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go mod tidy
+GOTOOLCHAIN=auto GOSUMDB=off go mod tidy
 
 if [ $? -ne 0 ]; then
     echo "❌ go mod tidy failed in root module"
@@ -2146,7 +2409,7 @@ echo "✅ Root module dependencies resolved"
 
 # Step 3: Vendor at ROOT
 echo "Step 3: Running go mod vendor in root module..."
-GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go mod vendor
+GOTOOLCHAIN=auto GOSUMDB=off go mod vendor
 
 if [ $? -ne 0 ]; then
     echo "❌ go mod vendor failed in root module"
@@ -2206,7 +2469,7 @@ else
 fi
 
 echo "Step 2: Running go mod tidy..."
-GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go mod tidy
+GOTOOLCHAIN=auto GOSUMDB=off go mod tidy
 
 if [ $? -ne 0 ]; then
     echo "❌ go mod tidy failed"
@@ -2214,7 +2477,7 @@ if [ $? -ne 0 ]; then
 fi
 
 echo "Step 3: Running go mod vendor..."
-GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go mod vendor
+GOTOOLCHAIN=auto GOSUMDB=off go mod vendor
 
 if [ $? -ne 0 ]; then
     echo "❌ go mod vendor failed"
@@ -2872,8 +3135,8 @@ GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go get "github.com/openshift/onsi-ginkgo
 cd ../..  # or ../../.. for subdirectory mode
 grep -q "github.com/onsi/ginkgo/v2 =>" go.mod || echo "replace github.com/onsi/ginkgo/v2 => github.com/openshift/onsi-ginkgo/v2 v2.6.1-0.20241205171354-8006f302fd12" >> go.mod
 
-go mod tidy
-go mod vendor
+GOTOOLCHAIN=auto GOSUMDB=off go mod tidy
+GOTOOLCHAIN=auto GOSUMDB=off go mod vendor
 ```
 
 **Why this works:**
@@ -2908,8 +3171,8 @@ while IFS= read -r replace_line; do
     sed -i "/^replace (/a\\    $replace_line" go.mod
 done < /tmp/k8s_replaces.txt
 
-go mod tidy
-go mod vendor
+GOTOOLCHAIN=auto GOSUMDB=off go mod tidy
+GOTOOLCHAIN=auto GOSUMDB=off go mod vendor
 ```
 
 **Why this works:**
@@ -2936,14 +3199,128 @@ sed -i '/k8s.io\/kube-openapi => k8s.io\/kube-openapi v0.0.0-2024/d' go.mod
 
 # Clean and rebuild
 rm -rf vendor/
-go mod tidy
-go mod vendor
+GOTOOLCHAIN=auto GOSUMDB=off go mod tidy
+GOTOOLCHAIN=auto GOSUMDB=off go mod vendor
 make clean-extension
 make extension
 ```
 
 **Why this works:**
 Removing the old pin allows Go to resolve the correct kube-openapi version naturally based on k8s.io dependencies.
+
+### Import Patterns: main.go vs Test Files
+
+**🚨 CRITICAL: Different files use different import patterns**
+
+**In `cmd/extension/main.go`:**
+```go
+import (
+    "github.com/openshift/origin/test/extended/util"  // NO alias - imported as 'util'
+    compat_otp "github.com/openshift/origin/test/extended/util/compat_otp"
+)
+
+func main() {
+    util.InitStandardFlags()  // Use 'util' (no alias)
+    // ...
+    componentSpecs.AddBeforeAll(func() {
+        if err := compat_otp.InitTest(false); err != nil {
+            panic(err)
+        }
+    })
+}
+```
+
+**In test files (e.g., `test/e2e/*_test.go`):**
+```go
+import (
+    exutil "github.com/openshift/origin/test/extended/util"  // WITH alias - imported as 'exutil'
+    compat_otp "github.com/openshift/origin/test/extended/util/compat_otp"
+)
+
+var _ = g.Describe("[OTP] Test", func() {
+    var oc *exutil.CLI  // Use 'exutil.CLI' as the type (with alias)
+
+    g.BeforeEach(func() {
+        oc = compat_otp.NewCLI(...)  // Use 'compat_otp' helper (returns *exutil.CLI)
+    })
+})
+```
+
+**Why the difference:**
+- `main.go` calls `util.InitStandardFlags()` which expects no alias
+- Test files declare CLI variables with type `*exutil.CLI` which requires the alias
+- Both use `compat_otp` for helper functions like `NewCLI()` and `InitTest()`
+- **NEVER** use `*compat_otp.CLI` as a type - it doesn't exist!
+
+### Test Execution Panic: "May only be called from within a test case"
+
+**Symptom:**
+```text
+[PANICKED] Test Panicked
+In [BeforeEach] at: .../vendor/github.com/openshift/origin/test/extended/util/test_setup.go:140
+
+May only be called from within a test case
+
+Full Stack Trace
+  github.com/openshift/origin/test/extended/util.requiresTestStart(...)
+      .../vendor/github.com/openshift/origin/test/extended/util/test_setup.go:140
+  github.com/openshift/origin/test/extended/util.(*CLI).setupProject(0xc004ff2100?)
+      .../vendor/github.com/openshift/origin/test/extended/util/client.go:365
+```
+
+**Root Cause:**
+CLI is initialized at the Describe block level (package-level variable) instead of in a BeforeEach hook. In OTE, the test framework is initialized in `BeforeAll`, which runs **after** Describe blocks are evaluated. Calling `compat_otp.NewCLI()` before the framework is initialized causes this panic.
+
+**❌ WRONG - OTP Pattern (does not work in OTE):**
+```go
+var _ = g.Describe("[OTP] Test Suite", func() {
+    var oc = compat_otp.NewCLI("my-cli", compat_otp.KubeConfigPath())  // ❌ Runs BEFORE BeforeAll
+
+    g.It("test case", func() {
+        // oc is already initialized here
+    })
+})
+```
+
+**✅ CORRECT - OTE Pattern:**
+```go
+var _ = g.Describe("[OTP] Test Suite", func() {
+    var oc *exutil.CLI  // ✅ Declare variable with actual type (exutil.CLI)
+
+    g.BeforeEach(func() {  // ✅ Initialize in BeforeEach (runs AFTER BeforeAll)
+        oc = compat_otp.NewCLI("my-cli", compat_otp.KubeConfigPath())  // Use compat_otp helper
+    })
+
+    g.It("test case", func() {
+        // oc is initialized by BeforeEach before this runs
+    })
+})
+```
+
+**Why this works:**
+- `BeforeAll` in main.go calls `compat_otp.InitTest()` to initialize the framework
+- `BeforeEach` runs **after** `BeforeAll`, so the framework is ready
+- `compat_otp.NewCLI()` can now safely set up project and client hooks
+
+**Understanding the imports:**
+- `exutil` package defines the `CLI` type - use `*exutil.CLI` for variable declarations
+- `compat_otp` package provides helper functions that return `*exutil.CLI` - use `compat_otp.NewCLI()` for initialization
+- There is NO `compat_otp.CLI` type - using `*compat_otp.CLI` will cause compilation errors
+
+**Migration Pattern:**
+For ALL test files, change from:
+```go
+var oc = compat_otp.NewCLI("name", compat_otp.KubeConfigPath())
+```
+
+To:
+```go
+var oc *exutil.CLI  // Type is exutil.CLI (the actual type)
+
+g.BeforeEach(func() {
+    oc = compat_otp.NewCLI("name", compat_otp.KubeConfigPath())  // compat_otp helper returns *exutil.CLI
+})
+```
 
 ### Test Execution Fails: Unable to Load Kubeconfig
 
@@ -2954,13 +3331,36 @@ unable to load in-cluster configuration, KUBERNETES_SERVICE_HOST and KUBERNETES_
 ```
 
 **Root Cause:**
-Removing `util.InitStandardFlags()` prevents the test framework from registering kubeconfig flags. Tests fail even when KUBECONFIG is set. However, the kubernetes e2e framework import is NOT needed and should be avoided to reduce dependencies.
+Removing `util.InitStandardFlags()` prevents the test framework from registering kubeconfig flags. Tests fail even when KUBECONFIG is set.
 
-**Solution:**
-Keep util.InitStandardFlags() and use compat_otp.InitTest() in BeforeAll:
+**🚨 COMMON MISTAKE - DO NOT DO THIS IN main.go:**
 
 ```go
-// CORRECT main.go setup:
+// ❌ WRONG FOR main.go - DO NOT use exutil alias in main.go:
+import (
+    exutil "github.com/openshift/origin/test/extended/util"  // ❌ WRONG for main.go
+    framework "k8s.io/kubernetes/test/e2e/framework"
+)
+
+func main() {
+    exutil.InitStandardFlags()  // ❌ WRONG for main.go
+    // ...
+    componentSpecs.AddBeforeAll(func() {
+        if err := exutil.InitTest(false); err != nil {  // ❌ WRONG for main.go
+            panic(err)
+        }
+    })
+}
+```
+
+**The above WRONG code removes the required `compat_otp` package and breaks the framework initialization.**
+
+**✅ CORRECT Solution:**
+
+Both `util` and `compat_otp` imports are REQUIRED. The `compat_otp` package is a REAL package at `github.com/openshift/origin/test/extended/util/compat_otp`:
+
+```go
+// ✅ CORRECT main.go setup:
 import (
     "k8s.io/component-base/logs"
     "github.com/openshift/origin/test/extended/util"
@@ -2983,6 +3383,11 @@ func main() {
         if err := compat_otp.InitTest(false); err != nil {
             panic(err)
         }
+        // Set testsStarted = true to allow OTP functions like oc.Run() to work
+        // WithCleanup sets this flag and it remains true for all subsequent tests
+        util.WithCleanup(func() {
+            // Empty function - we just need WithCleanup to set testsStarted = true
+        })
     })
 
     // ... rest of extension setup ...
@@ -2990,11 +3395,11 @@ func main() {
 ```
 
 **What to keep:**
-- ✅ `util.InitStandardFlags()` - Registers kubeconfig, provider, and other test flags
+- ✅ `util.InitStandardFlags()` - Registers kubeconfig, provider, and other test flags (MUST use `util`, NOT `exutil`)
 - ✅ `framework.AfterReadingAllFlags(&framework.TestContext)` - Initializes framework context (REQUIRED)
 - ✅ `logs.InitLogs()` - Initialize logging
-- ✅ `compat_otp.InitTest(false)` in BeforeAll - Sets up test framework context
-- ✅ `e2e "k8s.io/kubernetes/test/e2e/framework"` import - Keep if tests use `e2e.Logf()` or `e2e.Failf()`
+- ✅ `compat_otp.InitTest(false)` in BeforeAll - Sets up test framework context (MUST use `compat_otp`, NOT `util` or `exutil`)
+- ✅ Both `util` and `compat_otp` import lines - BOTH are required
 
 **What to remove:**
 - ❌ `util.WithCleanup()` wrapper - OTE handles cleanup automatically
@@ -3002,9 +3407,14 @@ func main() {
 **Why this works:**
 - `util.InitStandardFlags()` registers framework flags so KUBECONFIG is recognized
 - `framework.AfterReadingAllFlags(&framework.TestContext)` initializes the framework context, preventing nil pointer dereference in framework.BeforeEach
-- `compat_otp.InitTest()` in BeforeAll sets up the framework context when tests start
+- `compat_otp.InitTest()` in BeforeAll sets up the test framework context when tests start
 - OTE framework handles cleanup automatically via its test lifecycle
 - Tests can now connect to the cluster using kubeconfig
+
+**Why you CANNOT use `exutil` alias:**
+- The `compat_otp` package provides `InitTest()` which is different from `util.InitTest()`
+- Using `exutil` as an alias removes the ability to import both `util` and `compat_otp`
+- Both packages serve different purposes and are NOT interchangeable
 
 ### structured-merge-diff v4/v6 Incompatibility (Vendor Mode)
 
@@ -3030,7 +3440,7 @@ go mod verify
 # Rebuild vendor at root
 cd ../..
 rm -rf vendor/
-go mod vendor
+GOTOOLCHAIN=auto GOSUMDB=off go mod vendor
 
 # Clean and rebuild
 make clean-extension
@@ -3088,8 +3498,8 @@ vendor/k8s.io/apimachinery/pkg/util/managedfields/internal/fieldmanager.go:26:2:
 ```bash
 # Regenerate vendor directory to match go.mod
 rm -rf vendor/
-go mod tidy
-go mod vendor
+GOTOOLCHAIN=auto GOSUMDB=off go mod tidy
+GOTOOLCHAIN=auto GOSUMDB=off go mod vendor
 
 # Verify vendor is clean
 go mod verify
@@ -3104,6 +3514,80 @@ docker build -t <component>:test -f <dockerfile> .
 
 **Why this works:**
 The Makefile uses `-mod=vendor` by default, which builds from the vendored code. After updating go.mod, the vendor directory must be regenerated to contain the correct resolved dependencies. This ensures reproducible, offline builds without requiring network access during Docker builds.
+
+### Breaking Changes from origin@main
+
+**Symptom:**
+```text
+cannot use *resourceConfig.PidsLimit (variable of type int64) as *int64 value in assignment
+```
+
+**Root Cause:**
+Using `github.com/openshift/origin@main` pulls the latest changes, which may include breaking API changes. The origin repository evolves rapidly and can introduce incompatibilities.
+
+**Solution:**
+Pin to a known working version instead of using `@main`:
+
+```bash
+# Use a specific working version instead of @main
+ORIGIN_VERSION="v1.5.0-alpha.3.0.20260310231025-5d3fd0545b5d"  # March 10, 2026
+
+# Update with GOSUMDB=off to avoid checksum verification issues
+GOTOOLCHAIN=auto GOSUMDB=off go get "github.com/openshift/origin@$ORIGIN_VERSION"
+
+# Clean and rebuild
+rm -rf vendor/
+GOTOOLCHAIN=auto GOSUMDB=off go mod tidy
+GOTOOLCHAIN=auto GOSUMDB=off go mod vendor
+make clean-extension
+make extension
+```
+
+**Why this works:**
+Pinning to a specific version prevents breaking changes from being pulled automatically. Using `GOSUMDB=off` skips checksum verification for internal packages that may not be in the public Go module proxy.
+
+**Finding a working version:**
+```bash
+# View recent origin commits to find a stable version
+cd /path/to/openshift-tests-private
+git log --oneline --since="1 month ago" | head -20
+
+# Check version in working OTP repository
+grep "github.com/openshift/origin" go.mod
+```
+
+### GOSUMDB Verification Failures
+
+**Symptom:**
+```text
+verifying github.com/openshift/origin@...: reading https://sum.golang.org/lookup/...: 410 Gone
+go: github.com/openshift/origin@...: invalid version: git fetch failed
+```
+
+**Root Cause:**
+Internal OpenShift packages are not available in the public Go checksum database (sum.golang.org). Using `GOSUMDB=sum.golang.org` causes verification failures.
+
+**Solution:**
+Use `GOSUMDB=off` for all go get/tidy/vendor commands:
+
+```bash
+# Disable checksum verification for internal packages
+GOTOOLCHAIN=auto GOSUMDB=off go get "github.com/openshift/origin@$VERSION"
+GOTOOLCHAIN=auto GOSUMDB=off go mod tidy
+GOTOOLCHAIN=auto GOSUMDB=off go mod vendor
+
+# Verify vendor directory is populated
+go mod verify
+```
+
+**Why this works:**
+OpenShift internal packages are not published to the public Go module proxy. Setting `GOSUMDB=off` disables checksum verification, allowing Go to fetch packages directly from their source repositories (e.g., GitHub).
+
+**Security note:**
+This is safe for internal development because:
+- Packages are fetched from trusted OpenShift repositories
+- Vendor directory provides reproducible builds
+- Docker builds use vendored code (`-mod=vendor`)
 
 ### Testdata Fixtures Not Found at Runtime
 
