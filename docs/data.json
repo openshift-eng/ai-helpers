@@ -563,7 +563,7 @@
           "name": "Trigger Payload Job"
         }
       ],
-      "version": "0.0.33"
+      "version": "0.0.34"
     },
     {
       "commands": [
@@ -699,7 +699,7 @@
           "name": "Summarize JIRAs"
         }
       ],
-      "version": "0.0.12"
+      "version": "0.0.13"
     },
     {
       "commands": [
