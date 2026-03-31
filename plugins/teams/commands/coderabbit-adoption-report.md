@@ -26,6 +26,8 @@ It uses a Python script that calls the GitHub search API via `gh` CLI. The scrip
 
 CodeRabbit was enabled across most OCP payload repos on **2026-03-09**. Since many of these repos are open source, CodeRabbit may leave comments on any PR — but only **Pro** reviews (indicated by `Plan: Pro` in the CodeRabbit comment) provide the full-quality analysis we want.
 
+**CodeRabbit does not review bot PRs.** PRs authored by bot accounts (e.g., `dependabot[bot]`, `github-actions[bot]`, `openshift-monitoring-bot[bot]`) are intentionally skipped by CodeRabbit. Bot PRs appearing in the "missed" list are expected and should not be counted against adoption.
+
 The script uses `"Plan: Pro"` as a search term combined with `commenter:coderabbitai[bot]` to directly identify Pro-reviewed PRs, then compares against all merged PRs to find the gap.
 
 The script filters to PRs **created on or after the enablement date** (2026-03-09) to avoid counting old long-lived PRs that merged after enablement but were never seen by CodeRabbit.
@@ -105,7 +107,8 @@ The script filters to PRs **created on or after the enablement date** (2026-03-0
 
 5. **AI Analysis**: After presenting the data, provide brief observations:
    - Highlight any non-bot missed PRs as the key action items
-   - Note whether missed PRs are from bots (expected, not a concern) vs humans (worth investigating)
+   - Note that bot PRs are intentionally not reviewed by CodeRabbit (by design, not a timing issue) and are expected in the missed list
+   - Non-bot missed PRs are worth investigating (possible config gaps or other issues)
    - Any notable patterns in the missed PRs
 
 ## Return Value
