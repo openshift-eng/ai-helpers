@@ -40,7 +40,7 @@ This skill is automatically invoked by the `/jira:create` command when the proje
 - If not specified, prompt user: "Which version did you encounter this bug in?"
 - Multiple versions can be specified if bug affects multiple releases
 
-### Target Version (customfield_12319940)
+### Target Version (customfield_10855)
 **Purpose:** Version where the fix is targeted
 
 **Common default:** `openshift-4.21` (or current development release)
@@ -99,7 +99,7 @@ mcp__atlassian__jira_create_issue(
     components="<component name>",  # if required by team
     additional_fields={
         "versions": [{"name": "4.21"}],           # affects version (user-specified)
-        "customfield_12319940": "openshift-4.21", # target version (default or user-specified)
+        "customfield_10855": "openshift-4.21", # target version (default or user-specified)
         "labels": ["ai-generated-jira"],
         "security": {"name": "Red Hat Employee"}
     }
@@ -116,7 +116,7 @@ mcp__atlassian__jira_create_issue(
 | Description | `description` | Formatted bug template |
 | Component | `components` | Team-specific (optional) |
 | Affects Version | `additional_fields.versions` | `[{"name": "4.21"}]` (user-specified) |
-| Target Version | `additional_fields.customfield_12319940` | `"openshift-4.21"` (default or user-specified) |
+| Target Version | `additional_fields.customfield_10855` | `"openshift-4.21"` (default or user-specified) |
 | Labels | `additional_fields.labels` | `["ai-generated-jira"]` (required) |
 | Security Level | `additional_fields.security` | `{"name": "Red Hat Employee"}` (required) |
 

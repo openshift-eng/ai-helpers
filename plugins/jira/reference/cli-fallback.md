@@ -125,7 +125,7 @@ jira issue edit PROJ-123 -c "HyperShift / ROSA"
 
 ### Set Custom Fields
 
-**Custom field naming:** Use dash-separated lowercase (e.g., `epic-link` for `customfield_12311140`)
+**Custom field naming:** Use dash-separated lowercase (e.g., `epic-link` for `customfield_10014`)
 
 ```bash
 # Epic Link (Link Story/Task to Epic)
@@ -181,10 +181,10 @@ Map between Jira UI field names and jira-cli custom field identifiers:
 
 | UI Name | CLI Name | Custom Field ID | Usage |
 |---------|----------|-----------------|-------|
-| Epic Name | epic-name | customfield_12311141 | Required when creating Epics |
-| Epic Link | epic-link | customfield_12311140 | Link Story/Task → Epic |
-| Parent Link | parent-link | customfield_12313140 | Link Epic → Feature |
-| Target Version | target-version | customfield_12319940 | Set target release version |
+| Epic Name | epic-name | customfield_10011 | Required when creating Epics |
+| Epic Link | epic-link | customfield_10014 | Link Story/Task → Epic |
+| Parent Link | parent-link | customfield_10018 | Link Epic → Feature |
+| Target Version | target-version | customfield_10855 | Set target release version |
 
 ## Troubleshooting
 
@@ -229,7 +229,7 @@ jira issue get GCP-1 # View existing issue structure
 jira issue get GCP-1 -a
 
 # Use full custom field ID instead of CLI name
-jira issue edit PROJ-123 -f 'customfield_12311140=PROJ-456'
+jira issue edit PROJ-123 -f 'customfield_10014=PROJ-456'
 ```
 
 ## Reference

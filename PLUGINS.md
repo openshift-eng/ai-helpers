@@ -11,6 +11,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Doc](#doc-plugin)
 - [Etcd](#etcd-plugin)
 - [Git](#git-plugin)
+- [Golang](#golang-plugin)
 - [Gwapi](#gwapi-plugin)
 - [Hcp](#hcp-plugin)
 - [Hello World](#hello-world-plugin)
@@ -22,13 +23,14 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Olm](#olm-plugin)
 - [Olm Team](#olm-team-plugin)
 - [Openshift](#openshift-plugin)
-- [Operator Test Generator](#operator-test-generator-plugin)
+- [Openshift Tls Profile](#openshift-tls-profile-plugin)
 - [Origin](#origin-plugin)
 - [Ote Migration](#ote-migration-plugin)
 - [Session](#session-plugin)
 - [Sosreport](#sosreport-plugin)
 - [Teams](#teams-plugin)
 - [Test Coverage](#test-coverage-plugin)
+- [Testing](#testing-plugin)
 - [Utils](#utils-plugin)
 - [Workspaces](#workspaces-plugin)
 - [Yaml](#yaml-plugin)
@@ -57,16 +59,23 @@ Tools for working with OpenShift CI and analyzing Prow job results
 
 **Commands:**
 - **`/ci:add-debug-wait` `<workflow-or-job-name> [timeout]`** - Add a wait step to a CI workflow for debugging test failures
+- **`/ci:analyze-payload` `<payload-tag> [--lookback N]`** - Analyze a payload (rejected, accepted, or in-progress) with historical lookback to identify root causes of blocking job failures
+- **`/ci:analyze-pr-reverts` `[limit]`** - Analyze recent PR reverts to identify patterns and recommend preventive measures
 - **`/ci:analyze-prow-job-install-failure` `<prowjob-url>`** - Analyze OpenShift installation failures in Prow CI jobs
 - **`/ci:analyze-prow-job-resource` `prowjob-url resource-name`** - Analyze Kubernetes resource lifecycle in Prow job artifacts
-- **`/ci:analyze-prow-job-test-failure` `prowjob-url test-name [--fast]`** - Analyzes test errors from console logs and Prow CI job artifacts
+- **`/ci:analyze-prow-job-test-failure` `prowjob-url [test-name] [--fast]`** - Analyzes test errors from console logs and Prow CI job artifacts
 - **`/ci:analyze-regression` `<regression id>`** - Analyze details about a Component Readiness regression and suggest next steps
 - **`/ci:ask-sippy` `[question]`** - Ask the Sippy AI agent questions about OpenShift CI payloads, jobs, and test results
 - **`/ci:check-if-jira-regression-is-ongoing` `<jira-key-or-url>`** - Check if the regression described in a Jira bug is still ongoing or has resolved
+- **`/ci:continue-session` `<prowjob-url>`** - Download and continue a Claude session from a Prow CI job's artifacts
+- **`/ci:extract-kubeconfig` `<pr-url>`** - Extract kubeconfig from a running CI job in a PR
 - **`/ci:extract-prow-job-must-gather` `prowjob-url`** - Extract and decompress must-gather archives from Prow job artifacts
+- **`/ci:fetch-payloads` `[architecture] [version] [stream]`** - Fetch recent release payloads from the OpenShift release controller
 - **`/ci:fetch-test-report` `<test-name> [release]`** - Fetch a test report from Sippy showing pass rates, test ID, and Jira component
 - **`/ci:list-step` `<workflow-or-chain-name>`** - List the step for the given workflow or chain name
 - **`/ci:list-unstable-tests` `<version> <keywords> [sippy-url]`** - List unstable tests with pass rate below 95%
+- **`/ci:payload-experiment` `<payload-tag>`** - Open draft revert PRs for medium-confidence payload candidates and trigger payload jobs to experimentally determine which PR is causing failures
+- **`/ci:payload-revert` `<payload-tag>`** - Stage reverts for high-confidence payload candidates identified by analyze-payload
 - **`/ci:query-job-status` `<execution-id>`** - Query the status of a gangway job execution by ID
 - **`/ci:query-test-result` `<version> <keywords> [sippy-url]`** - Query test results from Sippy by version and test keywords
 - **`/ci:revert-pr` `<pr-url> <jira-ticket>`** - Revert a merged PR that is breaking CI or nightly payloads
@@ -142,6 +151,15 @@ Git workflow automation and utilities
 - **`/git:summary`** - Show current branch, git status, and recent commits for quick context
 
 See [plugins/git/README.md](plugins/git/README.md) for detailed documentation.
+
+### Golang Plugin
+
+Run golang codebase related commands and tools
+
+**Commands:**
+- **`/golang:lint-fix`** - Run golangci-lint tool and fix all reported issues
+
+See [plugins/golang/README.md](plugins/golang/README.md) for detailed documentation.
 
 ### Gwapi Plugin
 
@@ -280,13 +298,16 @@ OpenShift development utilities and helpers
 - **`/openshift:expand-test-case` `[test-idea-or-file-or-commands] [format]`** - Expand basic test ideas or existing oc commands into comprehensive test scenarios with edge cases in oc CLI or Ginkgo format
 - **`/openshift:ironic-status`** - Check status of Ironic baremetal nodes in OpenShift cluster
 - **`/openshift:new-e2e-test` `[test-specification]`** - Write and validate new OpenShift E2E tests using Ginkgo framework
+- **`/openshift:node-kernel-conntrack` `<node> <image> [--command <cmd>] [--filter <params>]`** - Get connection tracking entries from Kubernetes node
+- **`/openshift:node-kernel-ip` `<node> <image> --command <cmd> [--options <opts>] [--filter <params>]`** - Inspect routing, network devices, and interfaces on Kubernetes node
+- **`/openshift:node-kernel-iptables` `<node> <image> --command <cmd> [--table <table>] [--filter <params>]`** - Inspect IPv4 and IPv6 packet filter rules on Kubernetes node
+- **`/openshift:node-kernel-nft` `<node> <image> --command <cmd> [--family <family>]`** - Inspect nftables packet filtering and classification rules on Kubernetes node
 - **`/openshift:rebase` `<tag>`** - Rebase OpenShift fork of an upstream repository to a new upstream release.
 - **`/openshift:review-test-cases` `[file-path-or-test-code-or-commands]`** - Review test cases for completeness, quality, and best practices - accepts file path or direct oc commands/test code
 - **`/openshift:visualize-ovn-topology`** - Generate and visualize OVN-Kubernetes network topology diagram
 
 See [plugins/openshift/README.md](plugins/openshift/README.md) for detailed documentation.
 
-### Operator Test Generator Plugin
 
 Generate executable oc test cases for any OpenShift operator PR based on context
 
@@ -295,6 +316,14 @@ Generate executable oc test cases for any OpenShift operator PR based on context
 - **`/operator-test-generator:generate-from-pr` `<pr-url> [--output <path>]`** - Generate test cases with oc commands from any OpenShift operator PR
 
 See [plugins/operator-test-generator/README.md](plugins/operator-test-generator/README.md) for detailed documentation.
+### Openshift Tls Profile Plugin
+
+Implementation requirements and details for OpenShift TLS security profiles
+
+**Commands:**
+- **`/openshift-tls-profile:implement` `[question or implementation request]`** - Use this skill to implement TLS security profiles for operators and workloads on OpenShift. Provides guidance on reading TLS config from APIServer CR and applying it to webhook/metrics servers, HTTP, and gRPC endpoints.
+
+See [plugins/openshift-tls-profile/README.md](plugins/openshift-tls-profile/README.md) for detailed documentation.
 
 ### Origin Plugin
 
@@ -338,6 +367,9 @@ See [plugins/sosreport/README.md](plugins/sosreport/README.md) for detailed docu
 Team structure knowledge and health analysis commands for OpenShift teams
 
 **Commands:**
+- **`/teams:coderabbit-adoption-report` `[--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD]`** - Report on CodeRabbit adoption across OCP payload repos
+- **`/teams:coderabbit-inheritance-scanner` `[--dry-run]`** - Scan openshift org repos for .coderabbit.yaml/.coderabbit.yml files missing inheritance
+- **`/teams:coderabbit-rules-from-pr-reviews` `<repo> [--count N]`** - Analyze PR review comments to propose CodeRabbit rules for a repository
 - **`/teams:health-check-jiras` `--project <project> [--component comp1 comp2 ...] [--team <team-name>] [--status status1 status2 ...] [--include-closed] [--limit N]`** - Query and summarize JIRA bugs for a specific project with counts by component
 - **`/teams:health-check-regressions` `<release> [--components comp1 comp2 ...] [--team <team-name>] [--start YYYY-MM-DD] [--end YYYY-MM-DD]`** - Query and summarize regression data for OpenShift releases with counts and metrics
 - **`/teams:health-check` `<release> [--components comp1 comp2 ...] [--team <team-name>] [--project JIRAPROJECT]`** - Analyze and grade component health based on regression and JIRA bug metrics
@@ -357,6 +389,15 @@ Analyze code coverage and identify untested paths
 - **`/test-coverage:gaps` `<test-file-or-url> [--output <path>]`** - Identify E2E test scenario gaps in OpenShift/Kubernetes tests (component-agnostic)
 
 See [plugins/test-coverage/README.md](plugins/test-coverage/README.md) for detailed documentation.
+
+### Testing Plugin
+
+Comprehensive testing utilities for operators and applications
+
+**Commands:**
+- **`/testing:mutation-test` `[operator-path] [--controllers <controller1,controller2>] [--mutation-types <types>] [--report-format <format>]`** - Test operator controller quality through mutation testing - validates test suite catches code mutations
+
+See [plugins/testing/README.md](plugins/testing/README.md) for detailed documentation.
 
 ### Utils Plugin
 

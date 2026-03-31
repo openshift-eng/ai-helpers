@@ -87,7 +87,11 @@ class TriageManager:
         try:
             with urllib.request.urlopen(req, timeout=30) as response:
                 return json.loads(response.read().decode('utf-8'))
-        except Exception:
+        except urllib.error.HTTPError as e:
+            print(f"HTTP {e.code} fetching triage {self.triage_id}: {e.reason}", file=sys.stderr)
+            return None
+        except urllib.error.URLError as e:
+            print(f"Network error fetching triage {self.triage_id}: {e.reason}", file=sys.stderr)
             return None
 
     def create(self) -> Dict[str, Any]:
@@ -273,7 +277,7 @@ def main():
         print("", file=sys.stderr)
         print("Required Options:", file=sys.stderr)
         print("  --token <token>        OAuth Bearer token for sippy-auth (use oc-auth skill to obtain)", file=sys.stderr)
-        print("  --url <jira_url>       JIRA bug URL (e.g., https://issues.redhat.com/browse/OCPBUGS-12345)", file=sys.stderr)
+        print("  --url <jira_url>       JIRA bug URL (e.g., https://redhat.atlassian.net/browse/OCPBUGS-12345)", file=sys.stderr)
         print("  --type <triage_type>   Triage type: product, test, ci-infra, product-infra", file=sys.stderr)
         print("", file=sys.stderr)
         print("Options:", file=sys.stderr)
@@ -283,16 +287,16 @@ def main():
         print("", file=sys.stderr)
         print("Examples:", file=sys.stderr)
         print("  # Create a new triage for one regression", file=sys.stderr)
-        print("  triage_regression.py 33639 --token $TOKEN --url https://issues.redhat.com/browse/OCPBUGS-12345 --type product", file=sys.stderr)
+        print("  triage_regression.py 33639 --token $TOKEN --url https://redhat.atlassian.net/browse/OCPBUGS-12345 --type product", file=sys.stderr)
         print("", file=sys.stderr)
         print("  # Create a new triage for multiple regressions", file=sys.stderr)
-        print("  triage_regression.py 33639,33640,33641 --token $TOKEN --url https://issues.redhat.com/browse/OCPBUGS-12345 --type product", file=sys.stderr)
+        print("  triage_regression.py 33639,33640,33641 --token $TOKEN --url https://redhat.atlassian.net/browse/OCPBUGS-12345 --type product", file=sys.stderr)
         print("", file=sys.stderr)
         print("  # Update an existing triage to add more regressions", file=sys.stderr)
-        print("  triage_regression.py 33639,33640 --token $TOKEN --triage-id 456 --url https://issues.redhat.com/browse/OCPBUGS-12345 --type product", file=sys.stderr)
+        print("  triage_regression.py 33639,33640 --token $TOKEN --triage-id 456 --url https://redhat.atlassian.net/browse/OCPBUGS-12345 --type product", file=sys.stderr)
         print("", file=sys.stderr)
         print("  # Create with a description", file=sys.stderr)
-        print("  triage_regression.py 33639 --token $TOKEN --url https://issues.redhat.com/browse/OCPBUGS-12345 --type test --description 'Flaky test in discovery suite'", file=sys.stderr)
+        print("  triage_regression.py 33639 --token $TOKEN --url https://redhat.atlassian.net/browse/OCPBUGS-12345 --type test --description 'Flaky test in discovery suite'", file=sys.stderr)
         sys.exit(1)
 
     # Parse regression IDs (first positional argument)

@@ -197,39 +197,53 @@ def filter_by_test_name(data: list, test_name: str = None, test_name_contains: s
     return filtered
 
 
+def simplify_time_field(value):
+    """
+    Simplify a single time field from nested structure to timestamp or null.
+
+    Converts from: {"Time": "2025-09-27T12:04:24.966914Z", "Valid": true}
+    To either the timestamp string (if Valid is true) or None (if Valid is false).
+    Non-dict values are returned as-is.
+    """
+    if isinstance(value, dict):
+        if value.get('Valid') is True:
+            return value.get('Time')
+        else:
+            return None
+    return value
+
+
 def simplify_time_fields(data: list) -> list:
     """
     Simplify time fields in regression data.
-    
+
     Converts time fields from a nested structure like:
       {"Time": "2025-09-27T12:04:24.966914Z", "Valid": true}
     to either:
       - The timestamp string if Valid is true
       - null if Valid is false
-    
-    This applies to fields: 'closed', 'last_failure'
-    
+
+    This applies to fields: 'closed', 'last_failure' on regressions,
+    and 'resolved' on triage objects.
+
     Args:
         data: List of regression dictionaries
-    
+
     Returns:
         List of regressions with simplified time fields
     """
     time_fields = ['closed', 'last_failure']
-    
+
     for regression in data:
         for field in time_fields:
             if field in regression:
-                value = regression[field]
-                # Check if the field is a dict with Valid and Time fields
-                if isinstance(value, dict):
-                    if value.get('Valid') is True:
-                        # Replace with just the timestamp string
-                        regression[field] = value.get('Time')
-                    else:
-                        # Replace with null if not valid
-                        regression[field] = None
-    
+                regression[field] = simplify_time_field(regression[field])
+
+        # Simplify 'resolved' field on triage objects
+        for triage in regression.get('triages', []):
+            if 'resolved' in triage:
+                triage['resolved'] = simplify_time_field(triage['resolved'])
+
     return data
 
 
@@ -422,19 +436,18 @@ def calculate_summary(regressions: list, filtered_suspected_infra: int = 0) -> d
     closed_total = 0
     closed_triaged = 0
     closed_triage_times = []
-    closed_times = []
-    triaged_to_closed_times = []
-    
+    resolve_times = []
+
     # Get current time for calculating open duration
     current_time = datetime.now(timezone.utc)
     current_time_str = current_time.isoformat().replace('+00:00', 'Z')
-    
+
     # Single pass through all regressions
     for regression in regressions:
         total += 1
         triages = regression.get('triages', [])
         is_triaged = bool(triages)
-        
+
         # Calculate time to triage if regression is triaged
         time_to_triage_hrs = None
         if is_triaged and regression.get('opened'):
@@ -443,7 +456,7 @@ def calculate_summary(regressions: list, filtered_suspected_infra: int = 0) -> d
                 earliest_triage_time = min(
                     t['created_at'] for t in triages if t.get('created_at')
                 )
-                
+
                 # Calculate difference in hours
                 time_to_triage_hrs = calculate_hours_between(
                     regression['opened'],
@@ -452,10 +465,10 @@ def calculate_summary(regressions: list, filtered_suspected_infra: int = 0) -> d
             except (ValueError, KeyError, TypeError):
                 # Skip if timestamp parsing fails
                 pass
-        
-        # It is common for a triage to be reused as new regressions appear, which makes this a very tricky case to calculate time to triage. 
-        # If you triaged a first round of regressions, then added more 24 hours later, we don't actually know when you triaged them in the db. 
-        # Treating them as if they were immediately triaged would skew results. 
+
+        # It is common for a triage to be reused as new regressions appear, which makes this a very tricky case to calculate time to triage.
+        # If you triaged a first round of regressions, then added more 24 hours later, we don't actually know when you triaged them in the db.
+        # Treating them as if they were immediately triaged would skew results.
         # Best we can do is ignore these from consideration. They will count as if they got triaged, but we have no idea what to do with the time to triage.
         if regression.get('closed') is None:
             # Open regression
@@ -464,7 +477,7 @@ def calculate_summary(regressions: list, filtered_suspected_infra: int = 0) -> d
                 open_triaged += 1
                 if time_to_triage_hrs is not None and time_to_triage_hrs > 0:
                     open_triage_times.append(time_to_triage_hrs)
-            
+
             # Calculate how long regression has been open
             if regression.get('opened'):
                 try:
@@ -485,38 +498,30 @@ def calculate_summary(regressions: list, filtered_suspected_infra: int = 0) -> d
                 closed_triaged += 1
                 if time_to_triage_hrs is not None and time_to_triage_hrs > 0:
                     closed_triage_times.append(time_to_triage_hrs)
-                
-                # Calculate time from triage to closed
-                if regression.get('closed') and triages:
+
+                # Calculate time to resolve using triage resolved timestamp
+                # This measures regression opened -> triage resolved (JIRA bug completed),
+                # which is a better indicator of team response time than waiting for
+                # the regression to close (bad data rolling off can lag by a week+).
+                if regression.get('opened') and triages:
                     try:
-                        earliest_triage_time = min(
-                            t['created_at'] for t in triages if t.get('created_at')
-                        )
-                        time_triaged_to_closed_hrs = calculate_hours_between(
-                            earliest_triage_time,
-                            regression['closed']
-                        )
-                        # Only include positive time differences:
-                        if time_triaged_to_closed_hrs > 0:
-                            triaged_to_closed_times.append(time_triaged_to_closed_hrs)
+                        # Find earliest resolved timestamp among triages
+                        resolved_times = [
+                            t['resolved'] for t in triages
+                            if t.get('resolved')
+                        ]
+                        if resolved_times:
+                            earliest_resolved = min(resolved_times)
+                            time_to_resolve_hrs = calculate_hours_between(
+                                regression['opened'],
+                                earliest_resolved
+                            )
+                            if time_to_resolve_hrs > 0:
+                                resolve_times.append(time_to_resolve_hrs)
                     except (ValueError, KeyError, TypeError):
                         # Skip if timestamp parsing fails
                         pass
-                
-            # Calculate time to close
-            if regression.get('opened') and regression.get('closed'):
-                try:
-                    time_to_close_hrs = calculate_hours_between(
-                        regression['opened'],
-                        regression['closed']
-                    )
-                    # Only include positive time differences
-                    if time_to_close_hrs > 0:
-                        closed_times.append(time_to_close_hrs)
-                except (ValueError, KeyError, TypeError):
-                    # Skip if timestamp parsing fails
-                    pass
-    
+
     # Calculate averages and maximums
     open_avg_triage_time = round(sum(open_triage_times) / len(open_triage_times)) if open_triage_times else None
     open_max_triage_time = max(open_triage_times) if open_triage_times else None
@@ -524,24 +529,20 @@ def calculate_summary(regressions: list, filtered_suspected_infra: int = 0) -> d
     open_max_time = max(open_times) if open_times else None
     closed_avg_triage_time = round(sum(closed_triage_times) / len(closed_triage_times)) if closed_triage_times else None
     closed_max_triage_time = max(closed_triage_times) if closed_triage_times else None
-    closed_avg_time = round(sum(closed_times) / len(closed_times)) if closed_times else None
-    closed_max_time = max(closed_times) if closed_times else None
-    triaged_to_closed_avg_time = round(sum(triaged_to_closed_times) / len(triaged_to_closed_times)) if triaged_to_closed_times else None
-    triaged_to_closed_max_time = max(triaged_to_closed_times) if triaged_to_closed_times else None
+    resolve_avg_time = round(sum(resolve_times) / len(resolve_times)) if resolve_times else None
+    resolve_max_time = max(resolve_times) if resolve_times else None
 
     # Calculate triage percentages
     total_triaged = open_triaged + closed_triaged
     triage_percentage = round((total_triaged / total * 100), 1) if total > 0 else 0
     open_triage_percentage = round((open_triaged / open_total * 100), 1) if open_total > 0 else 0
     closed_triage_percentage = round((closed_triaged / closed_total * 100), 1) if closed_total > 0 else 0
-    
+
     # Calculate overall time to triage (combining open and closed)
     all_triage_times = open_triage_times + closed_triage_times
     overall_avg_triage_time = round(sum(all_triage_times) / len(all_triage_times)) if all_triage_times else None
     overall_max_triage_time = max(all_triage_times) if all_triage_times else None
-    
-    # Time to close is only for closed regressions (already calculated in closed_avg_time/closed_max_time)
-    
+
     return {
         "total": total,
         "triaged": total_triaged,
@@ -549,8 +550,8 @@ def calculate_summary(regressions: list, filtered_suspected_infra: int = 0) -> d
         "filtered_suspected_infra_regressions": filtered_suspected_infra,
         "time_to_triage_hrs_avg": overall_avg_triage_time,
         "time_to_triage_hrs_max": overall_max_triage_time,
-        "time_to_close_hrs_avg": closed_avg_time,
-        "time_to_close_hrs_max": closed_max_time,
+        "time_to_resolve_hrs_avg": resolve_avg_time,
+        "time_to_resolve_hrs_max": resolve_max_time,
         "open": {
             "total": open_total,
             "triaged": open_triaged,
@@ -566,10 +567,8 @@ def calculate_summary(regressions: list, filtered_suspected_infra: int = 0) -> d
             "triage_percentage": closed_triage_percentage,
             "time_to_triage_hrs_avg": closed_avg_triage_time,
             "time_to_triage_hrs_max": closed_max_triage_time,
-            "time_to_close_hrs_avg": closed_avg_time,
-            "time_to_close_hrs_max": closed_max_time,
-            "time_triaged_closed_hrs_avg": triaged_to_closed_avg_time,
-            "time_triaged_closed_hrs_max": triaged_to_closed_max_time
+            "time_to_resolve_hrs_avg": resolve_avg_time,
+            "time_to_resolve_hrs_max": resolve_max_time
         }
     }
 

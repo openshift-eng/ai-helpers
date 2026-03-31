@@ -235,7 +235,7 @@ Different projects may use versions differently:
 
 **OCPBUGS:**
 - **Affects Version/s** (`versions`): Version where bug was found
-- **Target Version** (`customfield_12319940`): Version where fix is targeted
+- **Target Version** (`customfield_10855`): Version where fix is targeted
 - Never set **Fix Version/s** (`fixVersions`)
 
 **General projects:**
@@ -325,7 +325,7 @@ Logs attached.
     components="HyperShift",
     additional_fields={
         "versions": [{"name": "4.21"}],           # affects version
-        "customfield_12319940": "4.21",            # target version
+        "customfield_10855": "4.21",            # target version
         "labels": ["ai-generated-jira"],
         "security": {"name": "Red Hat Employee"}   # if required
     }

@@ -130,7 +130,7 @@ Grading is subjective and not meant to be a critique of team performance. This i
         - 24-72 hours: Good ⚠️
         - 72-168 hours (1 week): Needs Improvement ⚠️
         - >168 hours: Poor ❌
-      - Resolution Speed: Average hours to close
+      - Resolution Speed: Average hours to resolve
         - <168 hours (1 week): Excellent ✅
         - 168-336 hours (1-2 weeks): Good ⚠️
         - 336-720 hours (2-4 weeks): Needs Improvement ⚠️
@@ -387,7 +387,8 @@ If HTML report is generated:
 2. **JIRA Authentication**: Environment variables must be configured for bug data
 
    - `JIRA_URL`: Your JIRA instance URL
-   - `JIRA_PERSONAL_TOKEN`: Your JIRA bearer token or personal access token
+   - `JIRA_API_TOKEN`: Your Jira API token
+   - `JIRA_USERNAME`: Your Jira email address
    - See `/teams:health-check-jiras` for setup instructions
 
 3. **Network Access**: Must be able to reach both component health API and JIRA

@@ -28,7 +28,7 @@ Use this skill when you need to:
 
 3. **Input Data**: Requires regression IDs, a JIRA bug URL, and a triage type
    - Regression IDs: from Component Readiness UI or `fetch-regression-details` skill
-   - JIRA URL: an existing JIRA bug (e.g., `https://issues.redhat.com/browse/OCPBUGS-12345`)
+   - JIRA URL: an existing JIRA bug (e.g., `https://redhat.atlassian.net/browse/OCPBUGS-12345`)
    - Triage type: `product`, `test`, `ci-infra`, or `product-infra`
 
 ## Implementation Steps
@@ -72,14 +72,14 @@ script_path="plugins/ci/skills/triage-regression/triage_regression.py"
 # Create a new triage for one regression
 python3 "$script_path" 33639 \
   --token "$TOKEN" \
-  --url "https://issues.redhat.com/browse/OCPBUGS-12345" \
+  --url "https://redhat.atlassian.net/browse/OCPBUGS-12345" \
   --type product \
   --format json
 
 # Create a new triage for multiple regressions
 python3 "$script_path" 33639,33640,33641 \
   --token "$TOKEN" \
-  --url "https://issues.redhat.com/browse/OCPBUGS-12345" \
+  --url "https://redhat.atlassian.net/browse/OCPBUGS-12345" \
   --type product \
   --description "API discovery regression across metal variants" \
   --format json
@@ -109,7 +109,7 @@ python3 "$script_path" 33639,33640,33641,33642 \
 ```bash
 output=$(python3 "$script_path" 33639 \
   --token "$TOKEN" \
-  --url "https://issues.redhat.com/browse/OCPBUGS-12345" \
+  --url "https://redhat.atlassian.net/browse/OCPBUGS-12345" \
   --type product \
   --format json)
 
@@ -146,7 +146,7 @@ fi
 - Body:
   ```json
   {
-    "url": "https://issues.redhat.com/browse/OCPBUGS-12345",
+    "url": "https://redhat.atlassian.net/browse/OCPBUGS-12345",
     "type": "product",
     "description": "Optional description",
     "regressions": [{"id": 33639}, {"id": 33640}]
@@ -171,7 +171,7 @@ fi
   "regression_ids": [33639],
   "triage": {
     "id": 456,
-    "url": "https://issues.redhat.com/browse/OCPBUGS-12345",
+    "url": "https://redhat.atlassian.net/browse/OCPBUGS-12345",
     "type": "product",
     "description": "API discovery regression",
     "regressions": [
@@ -202,7 +202,7 @@ Triage Create - SUCCESS
 ============================================================
 
 Triage ID: 456
-URL: https://issues.redhat.com/browse/OCPBUGS-12345
+URL: https://redhat.atlassian.net/browse/OCPBUGS-12345
 Type: product
 Description: API discovery regression
 Linked Regressions: 1
@@ -256,7 +256,7 @@ Error: Invalid type 'invalid'. Must be one of: product, test, ci-infra, product-
 python3 plugins/ci/skills/triage-regression/triage_regression.py \
   33639 \
   --token "$TOKEN" \
-  --url "https://issues.redhat.com/browse/OCPBUGS-12345" \
+  --url "https://redhat.atlassian.net/browse/OCPBUGS-12345" \
   --type product \
   --format json
 ```
@@ -267,7 +267,7 @@ python3 plugins/ci/skills/triage-regression/triage_regression.py \
 python3 plugins/ci/skills/triage-regression/triage_regression.py \
   33639,33640,33641 \
   --token "$TOKEN" \
-  --url "https://issues.redhat.com/browse/OCPBUGS-12345" \
+  --url "https://redhat.atlassian.net/browse/OCPBUGS-12345" \
   --type product \
   --description "Same root cause: API discovery failure across metal variants" \
   --format json
@@ -293,7 +293,7 @@ python3 plugins/ci/skills/triage-regression/triage_regression.py \
 python3 plugins/ci/skills/triage-regression/triage_regression.py \
   33639 \
   --token "$TOKEN" \
-  --url "https://issues.redhat.com/browse/OCPBUGS-67890" \
+  --url "https://redhat.atlassian.net/browse/OCPBUGS-67890" \
   --type test \
   --description "Flaky test: intermittent timeout in discovery suite" \
   --format json

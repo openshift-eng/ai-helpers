@@ -24,7 +24,7 @@ This command:
 - Creates a revert branch and performs `git revert -m1` of the merge commit
 - Pushes the revert branch to the user's fork
 - Creates a revert PR using the [Revertomatic](https://github.com/stbenjam/revertomatic) template format
-- Generates CI override commands (`/override`) for jobs that need to be bypassed on the revert PR
+- Generates a list of CI override commands (`/override`) for jobs that may need to be bypassed on the revert PR
 
 This command is useful when:
 
@@ -34,7 +34,7 @@ This command is useful when:
 
 ## Implementation
 
-1. **Parse Arguments**: Extract the PR URL and JIRA ticket
+1. **Parse Arguments**: Extract the PR URL, JIRA ticket, and flags
 
    - PR URL format: `https://github.com/{owner}/{repo}/pull/{number}`
    - JIRA ticket: e.g., `TRT-1234` or `OCPBUGS-56789`
@@ -66,12 +66,11 @@ This command is useful when:
    - Pushing to the user's fork
    - Generating CI override commands (filtering out unoverridable jobs)
    - Creating the revert PR with the Revertomatic template (adapting title format for UPSTREAM carry repos)
-   - Optionally posting override commands as a PR comment
 
-4. **Report Results**: Display the revert PR URL and next steps
+4. **Report Results**: Display the revert PR URL, override commands, and next steps
 
    - Link to the revert PR
-   - List of override commands generated
+   - List of override commands that can be used to force the PR in (do NOT post these as a comment on the PR automatically)
    - Instructions for the original author to unrevert
 
 ## Return Value
@@ -119,7 +118,7 @@ This command is useful when:
 - This command follows the [Revertomatic](https://github.com/stbenjam/revertomatic) PR template format for consistency
 - The original PR author is CC'd in the revert PR body
 - To unrevert, the original author should revert the revert PR and layer a fix commit on top
-- For repos using `UPSTREAM: <carry>:` commit conventions (e.g., openshift/kubernetes), the PR title adapts automatically
+- For repos using `UPSTREAM: <tag>:` commit conventions (e.g., openshift/kubernetes and other repos carrying upstream patches), the commit message and PR title adapt automatically
 - Merge conflicts are handled automatically when possible: trivial conflicts are resolved directly, non-trivial ones trigger reverting dependent commits
 
 ## See Also

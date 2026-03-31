@@ -68,7 +68,7 @@ Check that the gh2jira utility is available and configured:
 3. **Verify tokens are configured**:
    - Check that `tokenstore.yaml` contains actual tokens (not placeholder values)
    - GitHub token should not contain "YOUR_GITHUB_TOKEN"
-   - Jira token should not contain "YOUR_JIRA_TOKEN"
+   - Jira token should not contain "YOUR_JIRA_API_TOKEN"
 
 **IMPORTANT**: All gh2jira commands MUST be executed from the `$GH2JIRA_DIR` directory to ensure configuration files are properly loaded.
 
@@ -76,7 +76,7 @@ Check that the gh2jira utility is available and configured:
 - Inform user about missing requirements
 - Provide instructions from gh2jira README on setting up:
   - GitHub Personal Access Token (scope: public_repo, read:project)
-  - Jira Personal Access Token
+  - Jira API Token
   - Creating tokenstore.yaml file
 
 ### 🔍 Phase 2: Parse Arguments
@@ -159,7 +159,7 @@ Format and display results to the user:
 ```
 ✓ Cloned GitHub issue #123 → OCPBUGS-4567
   Title: <issue title>
-  URL: https://issues.redhat.com/browse/OCPBUGS-4567
+  URL: https://redhat.atlassian.net/browse/OCPBUGS-4567
   GitHub link: https://github.com/org/repo/issues/123
 ```
 
@@ -337,7 +337,7 @@ Alternatively, you can manually create the tokenstore.yaml file:
    - Go to: https://github.com/settings/tokens
    - Scopes: public_repo, read:project
 
-2. Create Jira Personal Access Token:
+2. Create Jira API Token:
    - Follow your organization's process
 
 3. Create tokenstore.yaml in the gh2jira installation directory:
@@ -345,7 +345,7 @@ Alternatively, you can manually create the tokenstore.yaml file:
 cat > tokenstore.yaml << 'EOF'
 schema: gh2jira.tokenstore
 authTokens:
-  jira: YOUR_JIRA_TOKEN
+  jira: YOUR_JIRA_API_TOKEN
   github: YOUR_GITHUB_TOKEN
 EOF
 ```
@@ -403,7 +403,7 @@ A Jira issue may already exist for GitHub #123
 
 Existing issue: OCPBUGS-4567
 Created: 2024-01-15
-URL: https://issues.redhat.com/browse/OCPBUGS-4567
+URL: https://redhat.atlassian.net/browse/OCPBUGS-4567
 
 Options:
 1. Skip this issue (recommended)

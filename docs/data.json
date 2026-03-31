@@ -76,7 +76,7 @@
           "name": "Suggest Reviewers Helper"
         }
       ],
-      "version": "0.0.4"
+      "version": "0.0.5"
     },
     {
       "commands": [
@@ -278,7 +278,7 @@
           "name": "Jira Status Analysis Engine"
         }
       ],
-      "version": "0.3.1"
+      "version": "0.3.6"
     },
     {
       "commands": [
@@ -287,6 +287,18 @@
           "description": "Add a wait step to a CI workflow for debugging test failures",
           "name": "add-debug-wait",
           "synopsis": "/ci:add-debug-wait <workflow-or-job-name> [timeout]"
+        },
+        {
+          "argument_hint": "<payload-tag> [--lookback N]",
+          "description": "Analyze a payload (rejected, accepted, or in-progress) with historical lookback to identify root causes of blocking job failures",
+          "name": "analyze-payload",
+          "synopsis": "/ci:analyze-payload <payload-tag> [--lookback N]"
+        },
+        {
+          "argument_hint": "[limit]",
+          "description": "Analyze recent PR reverts to identify patterns and recommend preventive measures",
+          "name": "analyze-pr-reverts",
+          "synopsis": "/ci:analyze-pr-reverts [limit]"
         },
         {
           "argument_hint": "<prowjob-url>",
@@ -301,7 +313,7 @@
           "synopsis": ""
         },
         {
-          "argument_hint": "prowjob-url test-name [--fast]",
+          "argument_hint": "prowjob-url [test-name] [--fast]",
           "description": "Analyzes test errors from console logs and Prow CI job artifacts",
           "name": "analyze-prow-job-test-failure",
           "synopsis": ""
@@ -325,10 +337,28 @@
           "synopsis": "/ci:check-if-jira-regression-is-ongoing <jira-key-or-url>"
         },
         {
+          "argument_hint": "<prowjob-url>",
+          "description": "Download and continue a Claude session from a Prow CI job's artifacts",
+          "name": "continue-session",
+          "synopsis": "bash"
+        },
+        {
+          "argument_hint": "<pr-url>",
+          "description": "Extract kubeconfig from a running CI job in a PR",
+          "name": "extract-kubeconfig",
+          "synopsis": "bash"
+        },
+        {
           "argument_hint": "prowjob-url",
           "description": "Extract and decompress must-gather archives from Prow job artifacts",
           "name": "extract-prow-job-must-gather",
           "synopsis": "bash"
+        },
+        {
+          "argument_hint": "[architecture] [version] [stream]",
+          "description": "Fetch recent release payloads from the OpenShift release controller",
+          "name": "fetch-payloads",
+          "synopsis": "/ci:fetch-payloads [architecture] [version] [stream]"
         },
         {
           "argument_hint": "<test-name> [release]",
@@ -347,6 +377,18 @@
           "description": "List unstable tests with pass rate below 95%",
           "name": "list-unstable-tests",
           "synopsis": "/ci:list-unstable-tests <version> <keywords> [sippy-url]"
+        },
+        {
+          "argument_hint": "<payload-tag>",
+          "description": "Open draft revert PRs for medium-confidence payload candidates and trigger payload jobs to experimentally determine which PR is causing failures",
+          "name": "payload-experiment",
+          "synopsis": "/ci:payload-experiment <payload-tag>"
+        },
+        {
+          "argument_hint": "<payload-tag>",
+          "description": "Stage reverts for high-confidence payload candidates identified by analyze-payload",
+          "name": "payload-revert",
+          "synopsis": "/ci:payload-revert <payload-tag>"
         },
         {
           "argument_hint": "<execution-id>",
@@ -391,14 +433,29 @@
       "name": "ci",
       "skills": [
         {
+          "description": "Analyze a payload (rejected, accepted, or in-progress) with historical lookback to identify root causes of blocking job failures and produce an HTML report",
+          "id": "analyze-payload",
+          "name": "Analyze Payload"
+        },
+        {
           "description": "Fetch JIRA issue details including status, assignee, comments, and progress classification",
           "id": "fetch-jira-issue",
           "name": "Fetch JIRA Issue"
         },
         {
+          "description": "Fetch a Prow job run summary from Sippy showing all failed tests grouped by SIG with error messages",
+          "id": "fetch-job-run-summary",
+          "name": "Fetch Job Run Summary"
+        },
+        {
           "description": "Fetch pull requests that are new in a given OpenShift payload compared to the previous payload",
           "id": "fetch-new-prs-in-payload",
           "name": "Fetch New PRs in Payload"
+        },
+        {
+          "description": "Fetch recent release payloads from the OpenShift release controller",
+          "id": "fetch-payloads",
+          "name": "Fetch Payloads"
         },
         {
           "description": "Fetch and return key data from a Prow job's prowjob.json artifact given a Prow job URL",
@@ -434,6 +491,21 @@
           "description": "Helper skill to retrieve OAuth tokens from the correct OpenShift cluster context when multiple clusters are configured",
           "id": "oc-auth",
           "name": "OC Authentication Helper"
+        },
+        {
+          "description": "Schema for the autodl JSON data file produced by analyze-payload for database ingestion \u2014 you must use this skill whenever generating the autodl JSON file",
+          "id": "payload-autodl-json",
+          "name": "Payload Autodl JSON"
+        },
+        {
+          "description": "Experimentally test medium-confidence payload candidates by opening draft revert PRs and triggering payload jobs",
+          "id": "payload-experimental-reverts",
+          "name": "Payload Experimental Reverts"
+        },
+        {
+          "description": "State management for agentic payload triage actions \u2014 you must use this skill whenever reading or writing the payload results YAML file",
+          "id": "payload-results-yaml",
+          "name": "Payload Results YAML"
         },
         {
           "description": "Analyze OpenShift installation failures in Prow CI jobs by examining installer logs, log bundles, and sosreports. Use when CI job fails \"install should succeed\" tests at bootstrap, cluster creation or other stages.",
@@ -476,15 +548,43 @@
           "name": "Set Release Blocker"
         },
         {
+          "description": "Create TRT JIRA bugs, open revert PRs, and trigger payload jobs for high-confidence revert candidates",
+          "id": "stage-payload-reverts",
+          "name": "Stage Payload Reverts"
+        },
+        {
           "description": "Create or update a Component Readiness triage record linking regressions to a JIRA bug",
           "id": "triage-regression",
           "name": "Triage Regression"
+        },
+        {
+          "description": "MUST be used whenever triggering payload testing on a PR. Do not post payload commands without following this skill \u2014 the command syntax is specific and other formats will be silently ignored by the bot.",
+          "id": "trigger-payload-job",
+          "name": "Trigger Payload Job"
         }
       ],
-      "version": "0.0.7"
+      "version": "0.0.33"
     },
     {
       "commands": [
+        {
+          "argument_hint": "[--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD]",
+          "description": "Report on CodeRabbit adoption across OCP payload repos",
+          "name": "coderabbit-adoption-report",
+          "synopsis": "/teams:coderabbit-adoption-report"
+        },
+        {
+          "argument_hint": "[--dry-run]",
+          "description": "Scan openshift org repos for .coderabbit.yaml/.coderabbit.yml files missing inheritance",
+          "name": "coderabbit-inheritance-scanner",
+          "synopsis": "/teams:coderabbit-inheritance-scanner"
+        },
+        {
+          "argument_hint": "<repo> [--count N]",
+          "description": "Analyze PR review comments to propose CodeRabbit rules for a repository",
+          "name": "coderabbit-rules-from-pr-reviews",
+          "synopsis": "/teams:coderabbit-rules-from-pr-reviews openshift/origin"
+        },
         {
           "argument_hint": "--project <project> [--component comp1 comp2 ...] [--team <team-name>] [--status status1 status2 ...] [--include-closed] [--limit N]",
           "description": "Query and summarize JIRA bugs for a specific project with counts by component",
@@ -539,6 +639,36 @@
           "name": "Analyze Regressions"
         },
         {
+          "description": "Report on CodeRabbit adoption across OpenShift org PRs",
+          "id": "coderabbit-adoption",
+          "name": "CodeRabbit Adoption Report"
+        },
+        {
+          "description": "Check a repo's .coderabbit.yaml for inheritance: true",
+          "id": "coderabbit-inheritance-scanner-check",
+          "name": "CodeRabbit Inheritance Scanner - Check"
+        },
+        {
+          "description": "Search for an existing fix PR on a repo before opening a new one",
+          "id": "coderabbit-inheritance-scanner-existing-pr",
+          "name": "CodeRabbit Inheritance Scanner - Existing PR Check"
+        },
+        {
+          "description": "Fork, sync, and open a fix PR to add inheritance: true to a repo's .coderabbit.yaml",
+          "id": "coderabbit-inheritance-scanner-open-pr",
+          "name": "CodeRabbit Inheritance Scanner - Open PR"
+        },
+        {
+          "description": "Search for repos with .coderabbit.yaml files in the openshift GitHub org",
+          "id": "coderabbit-inheritance-scanner-search",
+          "name": "CodeRabbit Inheritance Scanner - Search"
+        },
+        {
+          "description": "Fetch and filter human review comments from recent merged PRs in a GitHub repository",
+          "id": "coderabbit-rules-from-pr-reviews",
+          "name": "CodeRabbit Rules from PR Reviews - Fetch Comments"
+        },
+        {
           "description": "Fetch OpenShift release dates and metadata from Sippy API",
           "id": "get-release-dates",
           "name": "Get Release Dates"
@@ -569,7 +699,7 @@
           "name": "Summarize JIRAs"
         }
       ],
-      "version": "0.0.3"
+      "version": "0.0.12"
     },
     {
       "commands": [
@@ -707,7 +837,7 @@
       "hooks": [],
       "name": "utils",
       "skills": [],
-      "version": "0.0.5"
+      "version": "0.0.7"
     },
     {
       "commands": [
@@ -783,7 +913,7 @@
       "hooks": [],
       "name": "olm",
       "skills": [],
-      "version": "0.1.0"
+      "version": "0.1.1"
     },
     {
       "commands": [
@@ -833,7 +963,7 @@
       "hooks": [],
       "name": "agendas",
       "skills": [],
-      "version": "0.0.2"
+      "version": "0.0.3"
     },
     {
       "commands": [
@@ -898,6 +1028,30 @@
           "synopsis": "/new-e2e-test [test-specification]"
         },
         {
+          "argument_hint": "<node> <image> [--command <cmd>] [--filter <params>]",
+          "description": "Get connection tracking entries from Kubernetes node",
+          "name": "node-kernel-conntrack",
+          "synopsis": "/openshift:node-kernel-conntrack <node> <image> [--command <cmd>] [--filter <params>]"
+        },
+        {
+          "argument_hint": "<node> <image> --command <cmd> [--options <opts>] [--filter <params>]",
+          "description": "Inspect routing, network devices, and interfaces on Kubernetes node",
+          "name": "node-kernel-ip",
+          "synopsis": "/openshift:node-kernel-ip <node> <image> --command <cmd> [--options <opts>] [--filter <params>]"
+        },
+        {
+          "argument_hint": "<node> <image> --command <cmd> [--table <table>] [--filter <params>]",
+          "description": "Inspect IPv4 and IPv6 packet filter rules on Kubernetes node",
+          "name": "node-kernel-iptables",
+          "synopsis": "/openshift:node-kernel-iptables <node> <image> --command <cmd> [--table <table>] [--filter <params>]"
+        },
+        {
+          "argument_hint": "<node> <image> --command <cmd> [--family <family>]",
+          "description": "Inspect nftables packet filtering and classification rules on Kubernetes node",
+          "name": "node-kernel-nft",
+          "synopsis": "/openshift:node-kernel-nft <node> <image> --command <cmd> [--family <family>]"
+        },
+        {
           "argument_hint": "<tag>",
           "description": "Rebase OpenShift fork of an upstream repository to a new upstream release.",
           "name": "rebase",
@@ -925,9 +1079,36 @@
           "description": "Generates and displays OVN-Kubernetes network topology diagrams showing logical switches, routers, ports with IP/MAC addresses in Mermaid format",
           "id": "generating-ovn-topology",
           "name": "generating-ovn-topology"
+        },
+        {
+          "description": "Inspect kernel-level networking configuration on OpenShift/Kubernetes nodes using oc debug",
+          "id": "openshift-node-kernel",
+          "name": "OpenShift Node Kernel Inspection"
         }
       ],
-      "version": "0.0.3"
+      "version": "0.0.5"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "[question or implementation request]",
+          "description": "Use this skill to implement TLS security profiles for operators and workloads on OpenShift. Provides guidance on reading TLS config from APIServer CR and applying it to webhook/metrics servers, HTTP, and gRPC endpoints.",
+          "name": "implement",
+          "synopsis": "/openshift-tls-profile:implement [question or implementation request]"
+        }
+      ],
+      "description": "Implementation requirements and details for OpenShift TLS security profiles",
+      "has_readme": true,
+      "hooks": [],
+      "name": "openshift-tls-profile",
+      "skills": [
+        {
+          "description": "Use this skill to implement TLS security profiles for operators and workloads on OpenShift. Provides guidance on reading TLS config from APIServer CR and applying it to webhook/metrics servers, HTTP, and gRPC endpoints.",
+          "id": "openshift-tls-profile",
+          "name": "OpenShift TLS Security Profile Configuration"
+        }
+      ],
+      "version": "0.0.1"
     },
     {
       "commands": [
@@ -1022,6 +1203,26 @@
         }
       ],
       "version": "0.1.1"
+    },
+    {
+      "commands": [],
+      "description": "Cross-platform desktop notifications for ai-helpers",
+      "has_readme": true,
+      "hooks": [
+        {
+          "description": "Cross-platform desktop notifications (macOS, Linux desktop, Linux headless)",
+          "name": "Notification",
+          "type": "Notification"
+        },
+        {
+          "description": "Cross-platform desktop notifications (macOS, Linux desktop, Linux headless)",
+          "name": "Stop",
+          "type": "Stop"
+        }
+      ],
+      "name": "native-notifications",
+      "skills": [],
+      "version": "0.0.2"
     },
     {
       "commands": [],
@@ -1202,6 +1403,33 @@
     {
       "commands": [
         {
+          "argument_hint": "[operator-path] [--controllers <controller1,controller2>] [--mutation-types <types>] [--report-format <format>]",
+          "description": "Test operator controller quality through mutation testing - validates test suite catches code mutations",
+          "name": "mutation-test",
+          "synopsis": "/testing:mutation-test [operator-path] [--controllers <controller1,controller2>] [--mutation-types <types>] [--report-format <format>]"
+        }
+      ],
+      "description": "Comprehensive testing utilities for operators and applications",
+      "has_readme": true,
+      "hooks": [],
+      "name": "testing",
+      "skills": [
+        {
+          "description": "Generate code mutations for Kubernetes operator controllers to enable mutation testing. Applies operator-specific mutations to reconciliation logic, error handling, and API interactions.",
+          "id": "mutation-generator",
+          "name": "Mutation Generator for Operator Controllers"
+        },
+        {
+          "description": "Execute tests against generated mutants and analyze results to validate test suite quality for Kubernetes operators",
+          "id": "mutation-tester",
+          "name": "Mutation Testing Executor"
+        }
+      ],
+      "version": "0.1.0"
+    },
+    {
+      "commands": [
+        {
           "argument_hint": "[--url PR_URL] [<pr>] [--depth quick|full]",
           "description": "Expert review tool for PRs that add or modify Two Node (Fencing or Arbiter) tests under test/extended/two_node/ in openshift/origin.",
           "name": "two-node-origin-pr-helper",
@@ -1362,7 +1590,29 @@
           "name": "HyperShift Project Profile"
         }
       ],
-      "version": "0.0.4"
+      "version": "0.0.5"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "",
+          "description": "Run golangci-lint tool and fix all reported issues",
+          "name": "lint-fix",
+          "synopsis": "/golang:lint-fix"
+        }
+      ],
+      "description": "Run golang codebase related commands and tools",
+      "has_readme": true,
+      "hooks": [],
+      "name": "golang",
+      "skills": [
+        {
+          "description": "Detect and run golangci-lint in a Go repository using the best available method",
+          "id": "lint",
+          "name": "Go Lint"
+        }
+      ],
+      "version": "0.1.0"
     },
     {
       "commands": [

@@ -16,6 +16,11 @@ Use this skill when:
 - You need the exact Revertomatic template format for the revert PR body
 - You need to generate CI override commands for a revert PR
 
+## Optional Parameters
+
+- **`--draft`**: When set, create the revert PR as a draft (`gh pr create --draft`). Used by the experimental revert workflow to open experimental revert PRs that may be closed if the suspect is cleared.
+- **`--context`**: When the caller passes context directly (e.g., from an autonomous pipeline that already has all context in memory), skip the JIRA lookup in Step 5. The provided context string is used as-is for the `{CONTEXT}` template variable.
+
 ## Prerequisites
 
 1. **GitHub CLI (`gh`)**: Installed and authenticated
@@ -64,7 +69,7 @@ Parse the PR URL to determine owner and repository:
 # Get authenticated user
 gh_user=$(gh api user --jq '.login')
 
-# Check if fork exists
+# Check if fork exists; create one if not
 if ! gh api "repos/$gh_user/$repo" &>/dev/null; then
     echo "Creating fork of $owner/$repo..."
     gh repo fork "$owner/$repo" --clone=false
@@ -78,25 +83,35 @@ fi
 If no local repository is available:
 
 ```bash
-# Clone upstream (shallow for speed)
+# Clone upstream repo
 git clone -b "$base_branch" "https://github.com/$owner/$repo.git" /tmp/revert-workdir
 cd /tmp/revert-workdir
 
-# Add fork as remote
+# Rename the default remote to 'upstream' so later steps can reference it consistently
+git remote rename origin upstream
+
+# Add the user's fork as the 'fork' remote (used for pushing the revert branch)
 git remote add fork "git@github.com:$gh_user/$repo.git"
 ```
 
 If using an existing local clone, ensure remotes are configured correctly:
 
 ```bash
-# Verify upstream remote points to the correct repository
-# Verify fork remote points to user's fork
+# Verify remotes: 'upstream' must point to the canonical repo, 'fork' to the user's fork
 git remote -v
+
+# If 'upstream' is missing but 'origin' points to the canonical repo, rename it:
+# git remote rename origin upstream
+
+# If 'fork' is missing, add it:
+# git remote add fork "git@github.com:$gh_user/$repo.git"
 ```
 
 ### Step 5: Look Up JIRA Ticket for Context
 
-When a JIRA ticket is provided, use the `fetch-jira-issue` skill to automatically gather context about what broke and which jobs need verification before unreverting.
+**If `--context` was provided**: Skip the JIRA lookup entirely. Use the provided context string as-is for the `{CONTEXT}` template variable and proceed to Step 6. The caller has already gathered all necessary context.
+
+**Otherwise**, when a JIRA ticket is provided, use the `fetch-jira-issue` skill to automatically gather context about what broke and which jobs need verification before unreverting.
 
 ```bash
 # Path to the fetch-jira-issue script
@@ -137,7 +152,7 @@ If the user also provided inline context as arguments, combine it with the JIRA-
 
 ### Step 6: Detect Commit Message Convention
 
-Before creating the revert, check recent commits in the repository to determine if it uses a special commit/PR title prefix convention.
+**YOU MUST ALWAYS DO THIS.** Before creating the revert, check recent commits in the repository to determine if it uses a special commit/PR title prefix convention. Skipping this step will cause `verify-commits` CI jobs to fail.
 
 ```bash
 # Check the last 20 commit subjects on the base branch
@@ -175,6 +190,35 @@ git revert -m1 --no-edit "$merge_sha"
 ```
 
 **Important**: The `-m1` flag tells git to revert relative to the first parent of the merge commit, which is the base branch. This effectively undoes the changes introduced by the PR.
+
+#### Amend Commit Message for UPSTREAM Convention
+
+If the UPSTREAM convention was detected in Step 6, you **MUST** amend the revert commit message to include the appropriate `UPSTREAM: <tag>:` prefix. The default `git revert` message (`Revert "..."`) will fail `verify-commits` CI checks.
+
+Determine the appropriate tag by looking at the commit being reverted and the repo conventions (e.g., `<carry>`, `<drop>`).
+
+```bash
+# Set the tag based on the convention detected in Step 6
+upstream_tag="carry"  # or "drop", or a cherry-pick number — based on context
+
+# Get the current commit message
+current_msg=$(git log -1 --format=%B)
+
+# Prepend the UPSTREAM: <tag>: prefix to the first line
+amended_msg=$(echo "$current_msg" | sed "1s/^/UPSTREAM: <$upstream_tag>: /")
+
+# Amend the commit
+git commit --amend -m "$amended_msg"
+```
+
+This transforms the commit message from:
+```text
+Revert "Merge pull request #638 from author/branch"
+```
+to:
+```text
+UPSTREAM: <carry>: Revert "Merge pull request #638 from author/branch"
+```
 
 #### Handling Merge Conflicts
 
@@ -264,19 +308,19 @@ Format remaining jobs as override commands:
 
 ### Step 9: Create the Revert PR with Revertomatic Template
 
-**PR Title Format** depends on the commit convention detected in Step 5:
+**PR Title Format** depends on the commit convention detected in Step 6:
 
 **Standard repositories**:
-```
+```text
 {JIRA}: Revert #{PR_NUMBER} "{ORIGINAL_TITLE}"
 ```
 Example: `TRT-9999: Revert #1703 "Fix kubelet crash on restart"`
 
 **UPSTREAM carry repositories** (e.g., openshift/kubernetes):
+```text
+{JIRA}: UPSTREAM: <tag>: Revert "{ORIGINAL_TITLE}"
 ```
-{JIRA}: UPSTREAM: <carry>: Revert "{ORIGINAL_TITLE}" because {REASON}
-```
-Example: `TRT-9999: UPSTREAM: <carry>: Revert "UPSTREAM: 12345: Fix kubelet crash" because it broke e2e-aws nightly jobs`
+Example: `TRT-9999: UPSTREAM: <carry>: Revert "UPSTREAM: 12345: Fix kubelet crash"`
 
 **PR Body - Revertomatic Template**:
 
@@ -316,17 +360,23 @@ gh pr create \
   --body "$rendered_body"
 ```
 
-### Step 10: Post Override Commands (Optional)
-
-After the revert PR is created, the override commands can be posted as a comment on the PR to make it easy to copy-paste:
+**If `--draft` was set**, add the `--draft` flag to the `gh pr create` command:
 
 ```bash
-gh pr comment "$revert_pr_url" --body "/override ci/prow/e2e-aws
-/override ci/prow/e2e-gcp
-..."
+gh pr create \
+  --repo "$owner/$repo" \
+  --base "$base_branch" \
+  --head "$gh_user:$revert_branch" \
+  --title "$jira: Revert #$pr_number \"$pr_title\"" \
+  --body "$rendered_body" \
+  --draft
 ```
 
-**Note**: Override commands may need to be posted after CI jobs have started running and reported their status contexts. If no statuses are available yet, inform the user they can run `/ci:revert-pr` override commands later, or manually check the PR for required overrides.
+### Step 10: Return Override Commands
+
+After generating override commands in Step 8, return them to the user as a list. **Do NOT post them as a comment on the PR automatically.** The user can copy-paste them manually if needed.
+
+**Note**: Override commands may need to be posted after CI jobs have started running and reported their status contexts. If no statuses are available yet, inform the user they can check the PR later for required overrides.
 
 ## Error Handling
 

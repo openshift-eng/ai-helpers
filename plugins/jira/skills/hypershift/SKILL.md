@@ -76,7 +76,7 @@ HyperShift team uses specific version defaults:
 
 ### CNTRLPLANE Issues
 
-**Target Version** (customfield_12319940):
+**Target Version** (customfield_10855):
 - **Default:** `openshift-4.21`
 - **Override:** User may specify different versions (e.g., `4.20`, `4.22`, `4.23`)
 
@@ -86,7 +86,7 @@ HyperShift team uses specific version defaults:
 - **Default:** `4.21`
 - **User should specify:** The actual version where the bug was found
 
-**Target Version** (customfield_12319940):
+**Target Version** (customfield_10855):
 - **Default:** `4.21`
 - **Override:** May be different based on severity and backport requirements
 
@@ -122,7 +122,7 @@ mcp__atlassian__jira_create_issue(
     description="<formatted description>",
     components="HyperShift / ARO" | "HyperShift / ROSA" | "HyperShift",
     additional_fields={
-        "customfield_12319940": "openshift-4.21",  # target version
+        "customfield_10855": "openshift-4.21",  # target version
         "labels": ["ai-generated-jira"],
         "security": {"name": "Red Hat Employee"}
     }
@@ -140,7 +140,7 @@ mcp__atlassian__jira_create_issue(
     components="HyperShift / ARO" | "HyperShift / ROSA" | "HyperShift",
     additional_fields={
         "versions": [{"name": "4.21"}],          # affects version
-        "customfield_12319940": "4.21",           # target version
+        "customfield_10855": "4.21",           # target version
         "labels": ["ai-generated-jira"],
         "security": {"name": "Red Hat Employee"}
     }

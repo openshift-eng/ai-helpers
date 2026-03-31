@@ -52,7 +52,7 @@ class TestRunsFetcher:
 
     def _build_url(self) -> str:
         """Build the API URL with query parameters."""
-        url = f"{self.BASE_URL}?test_id={self.test_id}"
+        url = f"{self.BASE_URL}?test_id={urllib.parse.quote(self.test_id, safe='')}"
 
         if self.job_run_ids:
             url += f"&prow_job_run_ids={','.join(self.job_run_ids)}"

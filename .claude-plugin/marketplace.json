@@ -8,7 +8,7 @@
       "name": "git",
       "source": "./plugins/git",
       "description": "Git Plugin",
-      "version": "0.0.4"
+      "version": "0.0.5"
     },
     {
       "name": "hello-world",
@@ -20,19 +20,19 @@
       "name": "jira",
       "source": "./plugins/jira",
       "description": "A plugin to automate tasks with Jira",
-      "version": "0.3.1"
+      "version": "0.3.6"
     },
     {
       "name": "ci",
       "source": "./plugins/ci",
       "description": "A plugin to work with OpenShift CI and analyze Prow job results",
-      "version": "0.0.7"
+      "version": "0.0.33"
     },
     {
       "name": "teams",
       "source": "./plugins/teams",
       "description": "Team structure knowledge and health analysis commands for OpenShift teams",
-      "version": "0.0.3"
+      "version": "0.0.12"
     },
     {
       "name": "doc",
@@ -56,13 +56,13 @@
       "name": "utils",
       "source": "./plugins/utils",
       "description": "A generic utilities plugin serving as a catch-all for various helper commands",
-      "version": "0.0.5"
+      "version": "0.0.7"
     },
     {
       "name": "olm",
       "source": "./plugins/olm",
       "description": "OLM (Operator Lifecycle Manager) plugin for operator management and debugging",
-      "version": "0.1.0"
+      "version": "0.1.1"
     },
     {
       "name": "olm-team",
@@ -74,13 +74,19 @@
       "name": "agendas",
       "source": "./plugins/agendas",
       "description": "A plugin to create various meeting agendas",
-      "version": "0.0.2"
+      "version": "0.0.3"
     },
     {
       "name": "openshift",
       "source": "./plugins/openshift",
       "description": "OpenShift development utilities and helpers",
-      "version": "0.0.3"
+      "version": "0.0.5"
+    },
+    {
+      "name": "openshift-tls-profile",
+      "source": "./plugins/openshift-tls-profile",
+      "description": "Implementation requirements and details for OpenShift TLS security profiles",
+      "version": "0.0.1"
     },
     {
       "name": "etcd",
@@ -105,6 +111,12 @@
       "source": "./plugins/lvms",
       "description": "LVMS (Logical Volume Manager Storage) plugin for troubleshooting and debugging storage issues",
       "version": "0.1.1"
+    },
+    {
+      "name": "native-notifications",
+      "source": "./plugins/native-notifications",
+      "description": "Cross-platform desktop notifications for ai-helpers",
+      "version": "0.0.2"
     },
     {
       "name": "metrics",
@@ -135,6 +147,12 @@
       "source": "./plugins/node-tuning",
       "description": "Generate and analyze OpenShift node tuning profiles",
       "version": "1.0.0"
+    },
+    {
+      "name": "testing",
+      "source": "./plugins/testing",
+      "description": "Comprehensive testing utilities for operators and applications",
+      "version": "0.1.0"
     },
     {
       "name": "origin",
@@ -176,7 +194,13 @@
       "name": "code-review",
       "source": "./plugins/code-review",
       "description": "Automated code quality review with language-aware analysis for pre-commit verification",
-      "version": "0.0.4"
+      "version": "0.0.5"
+    },
+    {
+      "name": "golang",
+      "source": "./plugins/golang",
+      "description": "Run golang codebase related commands and tools",
+      "version": "0.1.0"
     },
     {
       "name": "operator-test-generator",

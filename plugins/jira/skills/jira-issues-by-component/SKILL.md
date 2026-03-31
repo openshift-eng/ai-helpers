@@ -38,24 +38,26 @@ jira_curl.sh [curl arguments...]
 ```
 
 **Required Environment Variables**:
-- `JIRA_URL`: JIRA instance URL (e.g., `https://issues.redhat.com`)
-- `JIRA_PERSONAL_TOKEN` or `JIRA_API_TOKEN`: Authentication token
+- `JIRA_URL`: JIRA instance URL (e.g., `https://redhat.atlassian.net`)
+- `JIRA_API_TOKEN`: Authentication token
+- `JIRA_USERNAME`: Atlassian account email for Basic auth
 
 **Example**:
 ```bash
 # Set credentials
-export JIRA_URL="https://issues.redhat.com"
-export JIRA_PERSONAL_TOKEN="your-token-here"
+export JIRA_URL="https://redhat.atlassian.net"
+export JIRA_API_TOKEN="your-token-here"
+export JIRA_USERNAME="user@redhat.com"
 
 # Use wrapper (token hidden from process list)
-jira_curl.sh -s https://issues.redhat.com/rest/api/2/search?jql=project=OCPBUGS
+jira_curl.sh -s -X POST -d '{"jql":"project=OCPBUGS"}' https://redhat.atlassian.net/rest/api/3/search/jql
 ```
 
 ## How It Works
 
 1. **Environment Check**: Validates that `JIRA_URL` and authentication token are set
-2. **Token Selection**: Prefers `JIRA_PERSONAL_TOKEN` (Red Hat JIRA), falls back to `JIRA_API_TOKEN` (JIRA Cloud)
-3. **Header Injection**: Constructs `Authorization: Bearer <token>` header inside the script
+2. **Token Selection**: Uses `JIRA_API_TOKEN` for Atlassian Cloud authentication
+3. **Header Injection**: Constructs `Authorization: Basic <base64>` header inside the script using `JIRA_USERNAME` and `JIRA_API_TOKEN`
 4. **Process Replacement**: Uses `exec curl` to replace the script process with curl
 5. **Clean Execution**: Token never crosses process boundaries as a visible argument
 
@@ -64,12 +66,14 @@ jira_curl.sh -s https://issues.redhat.com/rest/api/2/search?jql=project=OCPBUGS
 The wrapper uses the same security pattern as the `oc auth` skill:
 
 ```bash
-# Token is read from environment variable inside the script
-AUTH_TOKEN="${JIRA_PERSONAL_TOKEN:-${JIRA_API_TOKEN:-}}"
+# Token and username are read from environment variables inside the script
+AUTH_TOKEN="${JIRA_API_TOKEN:-}"
+JIRA_USER="${JIRA_USERNAME:-}"
 
-# Execute curl with the Authorization header
-# Token is added here, never visible in parent process command line
-exec curl -H "Authorization: Bearer $AUTH_TOKEN" -H "Accept: application/json" "$@"
+# Execute curl with Basic authentication header
+# Credentials are constructed here, never visible in parent process command line
+AUTH_HEADER=$(printf '%s:%s' "$JIRA_USER" "$AUTH_TOKEN" | base64)
+exec curl -H "Authorization: Basic $AUTH_HEADER" -H "Accept: application/json" "$@"
 ```
 
 **Why `exec`?**
@@ -86,8 +90,8 @@ The script provides clear error messages for common scenarios:
 Error: JIRA_URL environment variable is required
 
 Please set JIRA credentials:
-  export JIRA_URL='https://issues.redhat.com'
-  export JIRA_PERSONAL_TOKEN='your-token-here'
+  export JIRA_URL='https://redhat.atlassian.net'
+  export JIRA_API_TOKEN='your-token-here'
 
 Alternatively, source a credentials file:
   source ~/.jira-credentials
@@ -97,12 +101,11 @@ Alternatively, source a credentials file:
 ```
 Error: JIRA authentication token is required
 
-Please set either:
-  export JIRA_PERSONAL_TOKEN='your-token-here'  # Preferred for Red Hat JIRA
-  export JIRA_API_TOKEN='your-token-here'       # For JIRA Cloud
+Please set:
+  export JIRA_API_TOKEN='your-token-here'
+  export JIRA_USERNAME='user@redhat.com'
 
 Get your token from:
-  - Red Hat JIRA PAT: https://issues.redhat.com/secure/ViewProfile.jspa?...
   - Atlassian API Token: https://id.atlassian.com/manage-profile/security/api-tokens
 ```
 
@@ -111,8 +114,9 @@ Get your token from:
 ### Option 1: Export Directly
 
 ```bash
-export JIRA_URL="https://issues.redhat.com"
-export JIRA_PERSONAL_TOKEN="your-token-here"
+export JIRA_URL="https://redhat.atlassian.net"
+export JIRA_API_TOKEN="your-token-here"
+export JIRA_USERNAME="user@redhat.com"
 ```
 
 ### Option 2: Credentials File (Recommended)
@@ -120,8 +124,9 @@ export JIRA_PERSONAL_TOKEN="your-token-here"
 Create `~/.jira-credentials`:
 ```bash
 # ~/.jira-credentials
-export JIRA_URL="https://issues.redhat.com"
-export JIRA_PERSONAL_TOKEN="your-token-here"
+export JIRA_URL="https://redhat.atlassian.net"
+export JIRA_API_TOKEN="your-token-here"
+export JIRA_USERNAME="user@redhat.com"
 ```
 
 Secure the file:
@@ -136,15 +141,7 @@ source ~/.jira-credentials
 
 ## Getting Your Token
 
-### Red Hat JIRA (Personal Access Token)
-
-1. Visit: https://issues.redhat.com/secure/ViewProfile.jspa?selectedTab=com.atlassian.pats.pats-plugin:jira-user-personal-access-tokens
-2. Click "Create token"
-3. Give it a name (e.g., "CLI Access")
-4. Copy the token (shown only once)
-5. Set as `JIRA_PERSONAL_TOKEN`
-
-### JIRA Cloud (API Token)
+### Atlassian Cloud (API Token)
 
 1. Visit: https://id.atlassian.com/manage-profile/security/api-tokens
 2. Click "Create API token"
@@ -156,9 +153,11 @@ source ~/.jira-credentials
 
 ### Insecure Approach (Don't Do This)
 ```bash
-# Token exposed in process list and history!
-curl -H "Authorization: Bearer ${JIRA_PERSONAL_TOKEN}" \
-  https://issues.redhat.com/rest/api/2/search
+# Credentials exposed in process list and history!
+curl -u "user@redhat.com:${JIRA_API_TOKEN}" -X POST \
+  -H "Content-Type: application/json" \
+  -d '{"jql":"..."}' \
+  https://redhat.atlassian.net/rest/api/3/search/jql
 ```
 
 **Problems**:
@@ -170,7 +169,8 @@ curl -H "Authorization: Bearer ${JIRA_PERSONAL_TOKEN}" \
 ### Secure Approach (Use This)
 ```bash
 # Token hidden inside wrapper script
-jira_curl.sh https://issues.redhat.com/rest/api/2/search
+jira_curl.sh -X POST -H "Content-Type: application/json" \
+  -d '{"jql":"..."}' https://redhat.atlassian.net/rest/api/3/search/jql
 ```
 
 **Benefits**:

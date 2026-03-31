@@ -16,7 +16,7 @@ This skill is invoked automatically by the `/jira:categorize-activity-type` comm
 
 - MCP Jira server must be configured (see [plugin README](../../README.md))
 - MCP tools available: `mcp__atlassian__jira_get_issue`, `mcp__atlassian__jira_update_issue`
-- Access to JIRA instance with Activity Type custom field (`customfield_12320040`)
+- Access to JIRA instance with Activity Type custom field (`customfield_10464`)
 
 ## Activity Type Categories
 
@@ -161,10 +161,10 @@ When a ticket is a subtask or linked to an Epic, apply inheritance logic:
    if parent_key:
        parent_issue = mcp__atlassian__jira_get_issue(
            issue_key=parent_key,
-           fields="summary,customfield_12320040"
+           fields="summary,customfield_10464"
        )
        parent_summary = parent_issue["fields"].get("summary", "")
-       parent_activity_type = parent_issue["fields"].get("customfield_12320040", {}).get("value", None)
+       parent_activity_type = parent_issue["fields"].get("customfield_10464", {}).get("value", None)
    ```
 
 2. **Evaluate Parent Category:**
@@ -242,7 +242,7 @@ issue_type = issue_data["fields"]["issuetype"]["name"]
 labels = issue_data["fields"].get("labels", [])
 parent_key = issue_data["fields"].get("parent", {}).get("key", None)
 components = [c["name"] for c in issue_data["fields"].get("components", [])]
-current_activity_type = issue_data["fields"].get("customfield_12320040", {}).get("value", None)
+current_activity_type = issue_data["fields"].get("customfield_10464", {}).get("value", None)
 
 # Normalize text for keyword matching
 combined_text = (summary + " " + description).lower()
@@ -396,10 +396,10 @@ if not final_category and parent_key:
     try:
         parent_issue = mcp__atlassian__jira_get_issue(
             issue_key=parent_key,
-            fields="summary,customfield_12320040"
+            fields="summary,customfield_10464"
         )
         parent_summary = parent_issue["fields"].get("summary", "")
-        parent_activity_type = parent_issue["fields"].get("customfield_12320040", {}).get("value", None)
+        parent_activity_type = parent_issue["fields"].get("customfield_10464", {}).get("value", None)
 
         if parent_activity_type:
             # Parent has Activity Type already set
@@ -539,7 +539,7 @@ if issue_type not in ["Bug", "Story", "Task", "Epic", "Vulnerability", "Weakness
 try:
     parent_issue = mcp__atlassian__jira_get_issue(
         issue_key=parent_key,
-        fields="summary,customfield_12320040"
+        fields="summary,customfield_10464"
     )
 except Exception as e:
     # Continue without parent context

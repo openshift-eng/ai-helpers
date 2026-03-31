@@ -31,7 +31,7 @@ This skill is automatically invoked by the `/jira:create-release-note` command a
    ```
    mcp__atlassian__jira_get_issue(
      issue_key=<issue-key>,
-     fields="summary,description,issuetype,status,issuelinks,customfield_12320850,customfield_12317313,comment"
+     fields="summary,description,issuetype,status,issuelinks,customfield_10785,customfield_10783,comment"
    )
    ```
 
@@ -39,8 +39,8 @@ This skill is automatically invoked by the `/jira:create-release-note` command a
    - Extract `issuetype.name` - verify it's "Bug"
    - Extract `description` - full bug description text
    - Extract `issuelinks` - array of linked issues
-   - Extract `customfield_12320850` - current Release Note Type (if already set)
-   - Extract `customfield_12317313` - current Release Note Text (if already set)
+   - Extract `customfield_10785` - current Release Note Type (if already set)
+   - Extract `customfield_10783` - current Release Note Text (if already set)
    - Extract `comment.comments` - array of comment objects
 
 3. **Validate issue type**:
@@ -52,7 +52,7 @@ This skill is automatically invoked by the `/jira:create-release-note` command a
    - If user says no, exit gracefully
 
 4. **Check if release note already exists**:
-   - If `customfield_12317313` is not empty, show warning:
+   - If `customfield_10783` is not empty, show warning:
      ```
      This bug already has a release note:
      ---
@@ -622,15 +622,15 @@ questions = [{
 mcp__atlassian__jira_update_issue(
   issue_key=<issue-key>,
   fields={
-    "customfield_12320850": {"value": "<selected_type>"},
-    "customfield_12317313": "<formatted_release_note_text>"
+    "customfield_10785": {"value": "<selected_type>"},
+    "customfield_10783": "<formatted_release_note_text>"
   }
 )
 ```
 
 **Field details**:
-- `customfield_12320850`: Release Note Type (must be exact match from dropdown)
-- `customfield_12317313`: Release Note Text (plain text)
+- `customfield_10785`: Release Note Type (must be exact match from dropdown)
+- `customfield_10783`: Release Note Text (plain text)
 
 **Error handling**:
 
@@ -661,7 +661,7 @@ mcp__atlassian__jira_update_issue(
    ```
    Failed to update {issue-key}.
 
-   Error: Field customfield_12320850 not found
+   Error: Field customfield_10785 not found
 
    This may indicate a different Jira instance or configuration.
    Please manually add the release note.
@@ -674,8 +674,8 @@ mcp__atlassian__jira_update_issue(
   "issue": {
     "key": "OCPBUGS-38358",
     "fields": {
-      "customfield_12320850": {"value": "Bug Fix"},
-      "customfield_12317313": "Cause: ... Consequence: ... Fix: ... Result: ..."
+      "customfield_10785": {"value": "Bug Fix"},
+      "customfield_10783": "Cause: ... Consequence: ... Fix: ... Result: ..."
     }
   }
 }
@@ -696,7 +696,7 @@ Text:
 {Release Note Text with proper formatting}
 ---
 
-Updated: https://issues.redhat.com/browse/{issue-key}
+Updated: https://redhat.atlassian.net/browse/{issue-key}
 
 Next steps:
 - Review the release note in Jira
@@ -718,7 +718,7 @@ Fix: Added nil check for CloudProviderConfig.Subnet before accessing Subnet.ID f
 Result: The control-plane-operator no longer crashes when CloudProviderConfig.Subnet is not specified
 ---
 
-Updated: https://issues.redhat.com/browse/OCPBUGS-38358
+Updated: https://redhat.atlassian.net/browse/OCPBUGS-38358
 
 Next steps:
 - Review the release note in Jira

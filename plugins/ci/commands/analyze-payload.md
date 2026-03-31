@@ -1,0 +1,95 @@
+---
+description: Analyze a payload (rejected, accepted, or in-progress) with historical lookback to identify root causes of blocking job failures
+argument-hint: "<payload-tag> [--lookback N]"
+---
+
+## Name
+
+ci:analyze-payload
+
+## Synopsis
+
+```
+/ci:analyze-payload <payload-tag> [--lookback N]
+```
+
+## Description
+
+The `ci:analyze-payload` command analyzes a specific payload tag, investigates every failed blocking job, and produces a self-contained HTML report summarizing what went wrong.
+
+It supports **Rejected** payloads (full analysis), **Ready** payloads (early analysis of blocking jobs that have already failed, to determine if the payload is on track for rejection), and **Accepted** payloads (which may have been force-accepted despite blocking job failures).
+
+It performs **historical lookback** through consecutive rejected payloads to determine when each failure first appeared. For each originating payload (where a job first started failing), it fetches the new PRs introduced in that payload as likely culprits. This distinguishes new failures from persistent/permafailing jobs and helps identify the root cause commits.
+
+When a candidate PR can be correlated with high confidence (>= 85 rubric score) to a blocking job failure — based on component match, error analysis, and timing — the report will **recommend it for immediate revert**. Per OCP policy, PRs that break payloads MUST be reverted; fixes can be re-landed after the revert restores payload health. The `/ci:payload-revert` command can then be used to automatically create TRT JIRA bugs, open revert PRs, and trigger payload validation jobs for all high-confidence candidates.
+
+The payload results YAML output (`payload-results-{tag}.yaml`) can be consumed by composable downstream commands: `/ci:payload-revert` stages reverts for high-confidence candidates, and `/ci:payload-experiment` opens draft revert PRs for medium-confidence candidates to experimentally determine causality.
+
+Failed jobs are investigated **in parallel** using subagents with the appropriate analysis skill (install failure vs test failure).
+
+### Key Features
+
+- **Historical lookback**: Walks back through up to N consecutive rejected payloads (default 10) to find when each job first started failing
+- **PR correlation**: Uses the `fetch-new-prs-in-payload` skill to identify PRs that landed in the originating payload for each failure
+- **Parallel investigation**: Kicks off subagents for each failed blocking job using the appropriate CI analysis skill
+- **Revert recommendations**: Proposes specific PRs to revert when the evidence strongly links them to a failure
+- **HTML report**: Generates an attractive, self-contained HTML report with collapsible sections, color-coded severity, and executive summary
+## Implementation
+
+Load the "Analyze Payload" skill and follow its implementation steps. The skill orchestrates:
+
+1. Fetching recent rejected payloads using the `fetch-payloads` skill
+2. Walking back through consecutive rejected payloads to build failure history
+3. Fetching new PRs in originating payloads using the `fetch-new-prs-in-payload` skill
+4. Launching parallel subagents to investigate each failed job
+5. Generating the final HTML report
+
+## Return Value
+
+- **Format**: Self-contained HTML file + payload results YAML saved to the current working directory
+- **Filenames**:
+  - `payload-analysis-{tag}-summary.html` — HTML report
+  - `payload-analysis-{tag}-autodl.json` — JSON data for database ingestion
+  - `payload-results-{tag}.yaml` — Scored candidates for downstream commands
+- **Contents** (all `<a>` links must use `target="_blank"` to open in a new tab):
+  - Executive summary with overall payload health
+  - Summary table of all blocking jobs (pass/fail)
+  - Per-job failure analysis with root cause, error messages, and logs
+  - Failure streak length (how many consecutive payloads each job has failed)
+  - Originating payload and candidate PRs for each persistent failure
+  - Recommended reverts section with PR links, rationale, and ready-to-use Claude Code copy-paste text for immediate revert
+  - Color-coded severity and collapsible detail sections
+
+## Examples
+
+1. **Analyze an amd64 nightly payload**:
+   ```
+   /ci:analyze-payload 4.22.0-0.nightly-2026-02-25-152806
+   ```
+
+2. **Analyze a CI stream payload**:
+   ```
+   /ci:analyze-payload 4.22.0-0.ci-2026-02-25-152806
+   ```
+
+3. **Analyze an arm64 nightly payload** (architecture is inferred from the tag):
+   ```
+   /ci:analyze-payload 4.22.0-0.nightly-arm64-2026-02-25-152806
+   ```
+
+4. **Analyze with deeper lookback**:
+   ```
+   /ci:analyze-payload 4.22.0-0.nightly-2026-02-25-152806 --lookback 20
+   ```
+
+## Arguments
+
+- $1: A full payload tag (e.g., `4.22.0-0.nightly-2026-02-25-152806`). Version, stream, and architecture are parsed from the tag automatically. Tags without an architecture suffix (e.g., `4.22.0-0.nightly-...`) are amd64. Tags with an architecture suffix (e.g., `4.22.0-0.nightly-arm64-...`, `4.22.0-0.nightly-ppc64le-...`) use that architecture. (required)
+- `--lookback N`: Maximum number of consecutive rejected payloads to examine (optional, default: 10)
+
+## Skills Used
+
+- `fetch-payloads`: Fetches recent payloads from the release controller
+- `fetch-new-prs-in-payload`: Identifies PRs new in a given payload vs its predecessor
+- `prow-job-analyze-install-failure`: Analyzes install failures (used by subagents)
+- `prow-job-analyze-test-failure`: Analyzes test failures (used by subagents)

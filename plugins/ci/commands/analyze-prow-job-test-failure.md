@@ -1,6 +1,6 @@
 ---
 description: Analyzes test errors from console logs and Prow CI job artifacts
-argument-hint: prowjob-url test-name [--fast]
+argument-hint: prowjob-url [test-name] [--fast]
 ---
 
 ## Name
@@ -9,7 +9,7 @@ ci:analyze-prow-job-test-failure
 ## Synopsis
 Generate a test failure analysis for the given test:
 ```text
-/ci:analyze-prow-job-test-failure <prowjob-url> <test-name> [--fast]
+/ci:analyze-prow-job-test-failure <prowjob-url> [test-name] [--fast]
 ```
 
 ## Description
@@ -27,18 +27,25 @@ The command provides comprehensive analysis by:
 
 **Default (comprehensive analysis)**:
 ```text
-/ci:analyze-test-failure <url> <test-name>
+/ci:analyze-prow-job-test-failure <url>
 ```
+- No test name needed — analyzes all failed CI steps from JUnit XML, build logs, and step artifacts
 - Detects must-gather availability
-- Prompts user whether to include cluster diagnostics
-- Provides correlated test + cluster analysis
+- Provides correlated step + cluster analysis
+- This is the common case for multi-step CI workflows (e.g. HyperShift, bare-metal OADP jobs)
+
+**With specific test name**:
+```text
+/ci:analyze-prow-job-test-failure <url> <test-name>
+```
+- Focuses analysis on the named test's stack trace and logs
 
 **Fast mode (skip must-gather)**:
 ```text
-/ci:analyze-test-failure <url> <test-name> --fast
+/ci:analyze-prow-job-test-failure <url> [test-name] --fast
 ```
-- Skips must-gather detection and extraction
-- Only analyzes test-level artifacts (build-log, intervals)
+- Skips must-gather detection and extraction only
+- Scope is preserved: test-level when `test-name` is provided, step-level across all failed CI steps when omitted
 - Faster results, but may miss cluster-level root causes
 
 **JIRA export (prompted at end)**:
@@ -86,6 +93,6 @@ The skill handles all the implementation details including:
 
 ## Arguments:
 - $1: Prow job URL (required)
-- $2: Test name (required)
-- $3: Optional flags:
+- $2: Test name (optional) — when omitted, all failed steps are analyzed from JUnit XML and step build logs
+- Flags:
   - `--fast` - Skip must-gather extraction and analysis for faster results

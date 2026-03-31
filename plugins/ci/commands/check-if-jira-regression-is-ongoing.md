@@ -29,7 +29,7 @@ This command is useful for:
 1. **Parse Arguments**: Extract the Jira key
 
    Accept either a full URL or a bare key:
-   - `https://issues.redhat.com/browse/OCPBUGS-74690` → `OCPBUGS-74690`
+   - `https://redhat.atlassian.net/browse/OCPBUGS-74690` → `OCPBUGS-74690`
    - `OCPBUGS-74690` → `OCPBUGS-74690`
 
    Strip the URL prefix if present:
@@ -242,34 +242,35 @@ This command is useful for:
 
    ```bash
    # Add comment to the bug
+   JIRA_AUTH=$(printf '%s' "$JIRA_USERNAME:$JIRA_API_TOKEN" | base64 | tr -d '\r\n')
    curl -s -X POST \
-     -H "Authorization: Bearer $JIRA_TOKEN" \
+     -H "Authorization: Basic $JIRA_AUTH" \
      -H "Content-Type: application/json" \
      -d '{"body": "<comment text>"}' \
-     "https://issues.redhat.com/rest/api/2/issue/<jira_key>/comment"
+     "https://redhat.atlassian.net/rest/api/3/issue/<jira_key>/comment"
    ```
 
    **Transition the bug back to ASSIGNED**:
 
    First, fetch available transitions to find the correct transition ID:
    ```bash
-   transitions=$(curl -s -H "Authorization: Bearer $JIRA_TOKEN" \
-     "https://issues.redhat.com/rest/api/2/issue/<jira_key>/transitions")
+   transitions=$(curl -s -H "Authorization: Basic $JIRA_AUTH" \
+     "https://redhat.atlassian.net/rest/api/3/issue/<jira_key>/transitions")
    ```
 
    Look through the transitions for one that moves to "Assigned" status, then execute it:
    ```bash
    curl -s -X POST \
-     -H "Authorization: Bearer $JIRA_TOKEN" \
+     -H "Authorization: Basic $JIRA_AUTH" \
      -H "Content-Type: application/json" \
      -d '{"transition": {"id": "<transition_id>"}}' \
-     "https://issues.redhat.com/rest/api/2/issue/<jira_key>/transitions"
+     "https://redhat.atlassian.net/rest/api/3/issue/<jira_key>/transitions"
    ```
 
    Display confirmation:
-   ```
+   ```text
    Bug reopened:
-   - JIRA: https://issues.redhat.com/browse/<jira_key>
+   - JIRA: https://redhat.atlassian.net/browse/<jira_key>
    - Status: ASSIGNED
    - Comment added explaining regression is still active
    ```
@@ -288,7 +289,7 @@ This command is useful for:
 
 1. **Check a bug by URL**:
    ```
-   /ci:check-if-jira-regression-is-ongoing https://issues.redhat.com/browse/OCPBUGS-74690
+   /ci:check-if-jira-regression-is-ongoing https://redhat.atlassian.net/browse/OCPBUGS-74690
    ```
 
 2. **Check a bug by key**:
@@ -299,16 +300,20 @@ This command is useful for:
 ## Arguments
 
 - `$1` (required): Jira issue key or URL
-  - Format: Either a bare key (`OCPBUGS-74690`) or a full URL (`https://issues.redhat.com/browse/OCPBUGS-74690`)
+  - Format: Either a bare key (`OCPBUGS-74690`) or a full URL (`https://redhat.atlassian.net/browse/OCPBUGS-74690`)
 
 ## Prerequisites
 
-1. **JIRA_TOKEN**: Required to read the Jira issue
+1. **JIRA_USERNAME**: Required for Jira authentication
 
-   - Set environment variable: `export JIRA_TOKEN="your-jira-api-token"`
-   - Obtain from: https://issues.redhat.com (Profile → Personal Access Tokens)
+   - Set environment variable: `export JIRA_USERNAME="your-atlassian-email"`
 
-2. **Python 3**: Required for all skill scripts
+2. **JIRA_API_TOKEN**: Required to read the Jira issue
+
+   - Set environment variable: `export JIRA_API_TOKEN="your-jira-api-token"`
+   - Obtain from: https://id.atlassian.com/manage-profile/security/api-tokens
+
+3. **Python 3**: Required for all skill scripts
 
    - Version: 3.6 or later
 

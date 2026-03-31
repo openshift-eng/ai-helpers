@@ -5,7 +5,7 @@ description: Fetch pull requests that are new in a given OpenShift payload compa
 
 # Fetch New PRs in Payload
 
-This skill fetches the list of pull requests that are new in a given OpenShift payload tag compared to the previous payload. It uses the Sippy payload diff API to identify which PRs were merged between two consecutive payloads.
+This skill fetches the list of pull requests that are new in a given OpenShift payload tag compared to the previous payload. It tries the Sippy payload diff API first, and falls back to the release controller API when Sippy has not yet ingested the payload (e.g., in-progress or very recent payloads).
 
 ## When to Use This Skill
 
@@ -21,9 +21,10 @@ The payload tag can be obtained from the `fetch-prowjob-json` skill (`release.op
 
 ## Prerequisites
 
-1. **Network Access**: Must be able to reach the Sippy API
-   - Check: `curl -s https://sippy.dptools.openshift.org/api/health`
-   - No authentication required for public API endpoints
+1. **Network Access**: Must be able to reach the Sippy API and/or the release controller
+   - Sippy: `curl -s https://sippy.dptools.openshift.org/api/health`
+   - Release controller: `curl -s https://amd64.ocp.releases.ci.openshift.org/api/v1/releasestream/4-stable/latest`
+   - No authentication required for either
 
 2. **Python 3**: Python 3.6 or later
    - Check: `python3 --version`
@@ -36,14 +37,18 @@ The payload tag can be obtained from the `fetch-prowjob-json` skill (`release.op
 The skill uses a Python script to fetch and format the payload diff data:
 
 ```bash
-# Path to the Python script
-script_path="plugins/ci/skills/fetch-new-prs-in-payload/fetch_new_prs_in_payload.py"
+# Locate the Python script
+FETCH_NEW_PRS="${CLAUDE_PLUGIN_ROOT}/skills/fetch-new-prs-in-payload/fetch_new_prs_in_payload.py"
+if [ ! -f "$FETCH_NEW_PRS" ]; then
+  FETCH_NEW_PRS=$(find ~/.claude/plugins -type f -path "*/ci/skills/fetch-new-prs-in-payload/fetch_new_prs_in_payload.py" 2>/dev/null | sort | head -1)
+fi
+if [ -z "$FETCH_NEW_PRS" ] || [ ! -f "$FETCH_NEW_PRS" ]; then echo "ERROR: fetch_new_prs_in_payload.py not found" >&2; exit 2; fi
 
 # Fetch new PRs in JSON format
-python3 "$script_path" <payload_tag> --format json
+python3 "$FETCH_NEW_PRS" <payload_tag> --format json
 
 # Or fetch as human-readable summary grouped by component
-python3 "$script_path" <payload_tag> --format summary
+python3 "$FETCH_NEW_PRS" <payload_tag> --format summary
 ```
 
 ### Step 2: Parse the Output
@@ -80,14 +85,14 @@ The structured data includes all PR details from the payload diff:
       "pull_request_id": "8594",
       "component": "agent-installer-api-server",
       "description": "Create Enhancement Document for 3rd Party CNI / No CNI Support in Assisted Installer",
-      "bug_url": "https://issues.redhat.com/browse/MGMT-22584"
+      "bug_url": "https://redhat.atlassian.net/browse/MGMT-22584"
     },
     {
       "url": "https://github.com/openshift/hypershift/pull/7470",
       "pull_request_id": "7470",
       "component": "hypershift",
       "description": "use InfraStatus.APIPort for custom DNS kubeconfig",
-      "bug_url": "https://issues.redhat.com/browse/OCPBUGS-72258"
+      "bug_url": "https://redhat.atlassian.net/browse/OCPBUGS-72258"
     }
   ]
 }
@@ -125,9 +130,18 @@ python3 fetch_new_prs_in_payload.py
 - `0`: Success
 - `1`: Error (invalid input, API error, network error, etc.)
 
+## Data Sources
+
+The script tries two APIs in order:
+
+1. **Sippy** (primary) — has longer history but only includes completed payloads
+2. **Release controller** (fallback) — available immediately for in-progress and recent payloads, but has shorter retention
+
+The output format is identical regardless of which source is used. The fallback is automatic and transparent.
+
 ## API Details
 
-### Endpoint
+### Sippy Endpoint
 
 ```text
 GET https://sippy.dptools.openshift.org/api/payloads/diff?toPayload={payload_tag}
@@ -152,7 +166,7 @@ The API returns a JSON array of PR objects:
     "pull_request_id": "7470",
     "name": "hypershift",
     "description": "use InfraStatus.APIPort for custom DNS kubeconfig",
-    "bug_url": "https://issues.redhat.com/browse/OCPBUGS-72258"
+    "bug_url": "https://redhat.atlassian.net/browse/OCPBUGS-72258"
   }
 ]
 ```
@@ -172,7 +186,7 @@ The Python script remaps `name` to `component` in its output for clarity.
 ### Example 1: Fetch PRs as JSON
 
 ```bash
-python3 plugins/ci/skills/fetch-new-prs-in-payload/fetch_new_prs_in_payload.py 4.22.0-0.nightly-2026-01-15-114134 --format json
+python3 "$FETCH_NEW_PRS" 4.22.0-0.nightly-2026-01-15-114134 --format json
 ```
 
 **Expected Output:**
@@ -186,14 +200,14 @@ python3 plugins/ci/skills/fetch-new-prs-in-payload/fetch_new_prs_in_payload.py 4
       "pull_request_id": "8594",
       "component": "agent-installer-api-server",
       "description": "Create Enhancement Document for 3rd Party CNI / No CNI Support in Assisted Installer",
-      "bug_url": "https://issues.redhat.com/browse/MGMT-22584"
+      "bug_url": "https://redhat.atlassian.net/browse/MGMT-22584"
     },
     {
       "url": "https://github.com/openshift/machine-config-operator/pull/5509",
       "pull_request_id": "5509",
       "component": "machine-config-operator",
       "description": "Set `NodeDegraded` MCN condition when node state annotation is set to `Degraded`",
-      "bug_url": "https://issues.redhat.com/browse/OCPBUGS-67229"
+      "bug_url": "https://redhat.atlassian.net/browse/OCPBUGS-67229"
     }
   ]
 }
@@ -202,7 +216,7 @@ python3 plugins/ci/skills/fetch-new-prs-in-payload/fetch_new_prs_in_payload.py 4
 ### Example 2: Fetch PRs as Summary
 
 ```bash
-python3 plugins/ci/skills/fetch-new-prs-in-payload/fetch_new_prs_in_payload.py 4.22.0-0.nightly-2026-01-15-114134 --format summary
+python3 "$FETCH_NEW_PRS" 4.22.0-0.nightly-2026-01-15-114134 --format summary
 ```
 
 **Expected Output:**
@@ -212,23 +226,23 @@ New PRs in payload 4.22.0-0.nightly-2026-01-15-114134
 Total: 17 new pull requests
 
   agent-installer-api-server (1 PRs):
-    - Create Enhancement Document for 3rd Party CNI / No CNI Support in Assisted Installer [https://issues.redhat.com/browse/MGMT-22584]
+    - Create Enhancement Document for 3rd Party CNI / No CNI Support in Assisted Installer [https://redhat.atlassian.net/browse/MGMT-22584]
       https://github.com/openshift/assisted-service/pull/8594
 
   hypershift (4 PRs):
-    - [kubevirt] Make L3 migration labeling conditional [https://issues.redhat.com/browse/OCPBUGS-66205]
+    - [kubevirt] Make L3 migration labeling conditional [https://redhat.atlassian.net/browse/OCPBUGS-66205]
       https://github.com/openshift/hypershift/pull/7308
-    - feat(api): add support for graceful service account signing key rotation [https://issues.redhat.com/browse/CNTRLPLANE-1768]
+    - feat(api): add support for graceful service account signing key rotation [https://redhat.atlassian.net/browse/CNTRLPLANE-1768]
       https://github.com/openshift/hypershift/pull/7324
-    - Scaffold OpenShiftManager controller [https://issues.redhat.com/browse/API-1835]
+    - Scaffold OpenShiftManager controller [https://redhat.atlassian.net/browse/API-1835]
       https://github.com/openshift/hypershift/pull/7445
-    - use InfraStatus.APIPort for custom DNS kubeconfig [https://issues.redhat.com/browse/OCPBUGS-72258]
+    - use InfraStatus.APIPort for custom DNS kubeconfig [https://redhat.atlassian.net/browse/OCPBUGS-72258]
       https://github.com/openshift/hypershift/pull/7470
 
   machine-config-operator (2 PRs):
-    - Set `NodeDegraded` MCN condition when node state annotation is set to `Degraded` [https://issues.redhat.com/browse/OCPBUGS-67229]
+    - Set `NodeDegraded` MCN condition when node state annotation is set to `Degraded` [https://redhat.atlassian.net/browse/OCPBUGS-67229]
       https://github.com/openshift/machine-config-operator/pull/5509
-    - Prevent unnecessary systemd unit disable [https://issues.redhat.com/browse/OCPBUGS-58023]
+    - Prevent unnecessary systemd unit disable [https://redhat.atlassian.net/browse/OCPBUGS-58023]
       https://github.com/openshift/machine-config-operator/pull/5527
 ```
 
@@ -242,15 +256,14 @@ Combine with the `fetch-prowjob-json` skill to get the payload tag from a Prow j
 #    e.g., "4.22.0-0.ci-2026-02-06-195709"
 
 # 2. Fetch new PRs in that payload
-script_path="plugins/ci/skills/fetch-new-prs-in-payload/fetch_new_prs_in_payload.py"
-python3 "$script_path" "$payload_tag" --format json
+python3 "$FETCH_NEW_PRS" "$payload_tag" --format json
 ```
 
 ## Notes
 
-- The API does not require authentication for read-only access
+- Neither API requires authentication for read-only access
 - The Python script uses only standard library modules (no external dependencies)
-- The API automatically determines the previous payload to diff against; you only provide the target payload
+- The previous payload is determined automatically; you only provide the target payload
 - Payload tags follow the format: `{version}-0.{stream}-{date}-{time}` (e.g., `4.22.0-0.ci-2026-02-06-195709` or `4.22.0-0.nightly-2026-01-15-114134`)
 - The `component` field (called `name` in the raw API) may contain multiple comma-separated component names for PRs that affect multiple components
 - PRs without an associated bug will have an empty string for `bug_url`

@@ -20,13 +20,13 @@ Use this skill when you need to:
 ## Prerequisites
 
 1. **JIRA API Token**: Required for authentication
-   - Set environment variable: `export JIRA_TOKEN="your-token"`
-   - Obtain from: https://issues.redhat.com (Profile > Personal Access Tokens)
-   - Alternatively, pass `--token TOKEN` on the command line
+   - Set environment variable: `export JIRA_API_TOKEN="your-token"`
+   - Set environment variable: `export JIRA_USERNAME="your-atlassian-email"`
+   - Obtain from: https://id.atlassian.com/manage-profile/security/api-tokens
+   - Alternatively, pass `--token TOKEN` and `--username USERNAME` on the command line
 
-2. **Network Access**: Must be able to reach issues.redhat.com
-   - Check: `curl -s -o /dev/null -w '%{http_code}' https://issues.redhat.com`
-   - VPN may be required
+2. **Network Access**: Must be able to reach redhat.atlassian.net
+   - Check: `curl -s -o /dev/null -w '%{http_code}' https://redhat.atlassian.net`
 
 3. **Python 3**: Python 3.6 or later
    - Check: `python3 --version`
@@ -46,7 +46,7 @@ python3 "$script_path" OCPBUGS-74401 --format json
 # Or fetch as human-readable summary
 python3 "$script_path" OCPBUGS-74401 --format summary
 
-# Pass token explicitly instead of using JIRA_TOKEN env var
+# Pass token explicitly instead of using JIRA_API_TOKEN env var
 python3 "$script_path" OCPBUGS-74401 --token "your-token" --format json
 ```
 
@@ -103,16 +103,16 @@ esac
 
 The script exits with code 1 and prints errors to stderr for these cases:
 
-- **No token**: `JIRA_TOKEN` not set and `--token` not provided
+- **No token**: `JIRA_API_TOKEN` not set and `--token` not provided
 - **Auth failure (401)**: Token is invalid or expired
 - **Access denied (403)**: Token lacks permissions for the project
 - **Not found (404)**: Issue key doesn't exist
-- **Network error**: Cannot reach issues.redhat.com (VPN may be required)
+- **Network error**: Cannot reach redhat.atlassian.net
 
 ```bash
 # Example: Handle missing token gracefully
-if [ -z "$JIRA_TOKEN" ]; then
-  echo "Warning: JIRA_TOKEN not set. Skipping JIRA analysis."
+if [ -z "$JIRA_API_TOKEN" ] || [ -z "$JIRA_USERNAME" ]; then
+  echo "Warning: JIRA_API_TOKEN or JIRA_USERNAME not set. Skipping JIRA analysis."
 else
   jira_data=$(python3 "$script_path" "$jira_key" --format json 2>/dev/null)
   if [ $? -ne 0 ]; then
@@ -128,7 +128,7 @@ fi
 ```json
 {
   "key": "OCPBUGS-74401",
-  "url": "https://issues.redhat.com/browse/OCPBUGS-74401",
+  "url": "https://redhat.atlassian.net/browse/OCPBUGS-74401",
   "summary": "ovn-ipsec-host creates duplicate openssl attribute",
   "status": "Modified",
   "resolution": null,
@@ -174,7 +174,7 @@ JIRA Issue: OCPBUGS-74401
 ============================================================
 
 Summary: ovn-ipsec-host creates duplicate openssl attribute
-URL: https://issues.redhat.com/browse/OCPBUGS-74401
+URL: https://redhat.atlassian.net/browse/OCPBUGS-74401
 Status: Modified
 Priority: Critical
 
@@ -206,7 +206,7 @@ Recent Comments (1 of 5 total):
 - All comments are returned in the JSON output; the summary format shows only the last 3
 - PR links are extracted from comment bodies using pattern matching for GitHub PR URLs
 - Progress classification uses configurable thresholds: 7 days for "recent", 14 days for "stale"
-- The `--token` flag takes precedence over the `JIRA_TOKEN` environment variable
+- The `--token` flag takes precedence over the `JIRA_API_TOKEN` environment variable
 
 ## See Also
 

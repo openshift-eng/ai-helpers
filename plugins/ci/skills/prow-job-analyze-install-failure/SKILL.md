@@ -166,6 +166,26 @@ Use the `fetch-prowjob-json` skill to fetch the prowjob.json for this job. See `
    - Extract the failure stage for targeted log analysis
    - Use the failure mode to guide which logs to prioritize
 
+### Step 4b: Check for Known Symptom Labels
+
+The CI system may attach **symptom labels** to job runs — machine-detected patterns (e.g., "test failures during high CPU events") stored as JSON artifacts. These are **not root causes** but provide useful environmental context that may help explain failures when no other cause is found.
+
+1. **List the job_labels directory**
+   ```bash
+   gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/job_labels/" 2>/dev/null
+   ```
+   - If the directory does not exist or returns an error, skip this step silently
+
+2. **Download any JSON symptom files** (exclude `label-summary.html`)
+   ```bash
+   gcloud storage cp "gs://test-platform-results/{bucket-path}/artifacts/job_labels/*.json" \
+     .work/prow-job-analyze-install-failure/{build_id}/logs/job_labels/ --no-user-output-enabled 2>/dev/null || true
+   ```
+
+3. **Parse symptom labels** — each JSON file describes a detected symptom with a summary and explanation. Collect all symptom summaries for inclusion in the report.
+
+4. **Use symptoms as investigative context** — symptoms are environmental observations, NOT definitive causes. They should inform your investigation but you must still perform thorough root cause analysis. Include them in the "Known Symptoms Seen" section of the report.
+
 ### Step 5: Locate and Download Installer Logs
 
 1. **List all artifacts to find installer logs**
@@ -315,13 +335,15 @@ OpenShift installations exhibit "eventual consistency" behavior, which means:
 2. **Analyze based on failure mode from junit_install.xml**
 
    **For "cluster bootstrap" failures:**
-   - Check `bootstrap/journals/bootkube.log` for bootkube errors
-   - Check `bootstrap/journals/kubelet.log` for kubelet issues
-   - Check `clusterapi/kube-apiserver.log` for API server startup issues
-   - Check `clusterapi/etcd.log` for etcd cluster formation issues
-   - Check `serial/{cluster-name}-bootstrap-serial.log` for bootstrap VM boot issues
-   - Look for temporary control plane startup problems
-   - This is an early failure - focus on bootstrap node and initial control plane
+
+   Bootstrap failures are varied and complex. You MUST thoroughly examine the log bundle to build a complete timeline — do not guess the root cause from a single error.
+
+   - Read `bootstrap/journals/bootkube.log` thoroughly. Identify every process that started, crashed, or errored, noting timestamps to build a chronological sequence.
+   - For any crashed process (non-zero exit status, ContainerDied), read its stderr/stdout in the surrounding lines. Exit codes tell you *that* it crashed; the error output tells you *why*. Treat a crash as a potential bug but validate the termination reason (OOM, host restart, killed by signal, resource limits, etc.) by examining container exit status, kernel messages, and host metrics before assigning root cause. Consult surrounding logs and infra signals — exit codes, ContainerDied event details, dmesg/journal entries, and resource utilization — to distinguish software defects from infra/resource-induced terminations.
+   - Pursue errors: read surrounding context, follow references to other components' logs, and trace the chain of causation back to the originating failure. The first error is often a symptom, not the cause.
+   - Check supporting logs: `clusterapi/kube-apiserver.log`, `clusterapi/etcd.log`, `bootstrap/journals/kubelet.log`. Cross-reference timestamps with bootkube.log.
+   - Check `serial/{cluster-name}-bootstrap-serial.log` for kernel panics, ignition failures, disk errors.
+   - Check `failed-units.txt` for failed systemd units.
 
    **For "infrastructure" failures:**
    - Primary focus on installer log, not log bundle (failure happens before bootstrap)
@@ -398,6 +420,12 @@ OpenShift installations exhibit "eventual consistency" behavior, which means:
    Prow URL: {original-url}
 
    Failure Stage: {stage from junit_install.xml}
+
+   Known Symptoms Seen (only if symptom labels found in Step 4b — omit if none)
+   ---------------------
+   - {symptom summary}: {symptom explanation}
+   Note: Symptoms are machine-detected environmental observations, not definitive
+   causes. They add context to help explain failures when correlated with other evidence.
 
    Summary
    -------
@@ -609,52 +637,57 @@ See that skill's documentation for details on dev-scripts, libvirt logs, sosrepo
 - Pay attention to job name clues: fips, ipv6, dualstack, metal, single-node, upgrade
 - IPv6 jobs are often disconnected and use mirror registries
 - Only suggest must-gather if the .tar file exists; if not, cluster was too unstable
+- **TechPreview jobs** (names containing "techpreview") enable additional feature gates not active in Default clusters. Bootstrap failures in TechPreview jobs may be in TechPreview-gated code paths (e.g., on-cluster layering, OS image management) that won't reproduce in Default clusters. Note this in your analysis when relevant.
 
 ## Important Notes
 
-1. **Eventual Consistency Behavior**
+1. **Bootstrap Failures Require Log Bundle Analysis**
+   - Bootstrap timeout failures can have many causes — always download and examine the installer log bundle to determine the actual root cause
+   - Do not classify bootstrap failures without examining the logs
+
+2. **Eventual Consistency Behavior**
    - OpenShift installations exhibit eventual consistency
    - Components report errors while waiting for dependencies
    - Early errors are EXPECTED and usually resolve automatically
    - **Always analyze backwards from the final timeout, not forwards from the start**
    - Only errors that persist until failure are relevant root causes
 
-2. **Upgrade Jobs and Installation**
+3. **Upgrade Jobs and Installation**
    - Jobs with "upgrade" in the name perform installation FIRST, then upgrade
    - If you're analyzing an installation failure in an upgrade job, it never got to the upgrade phase
    - "minor" upgrade: Installs 4.n-1 version (e.g., 4.20 for a 4.21 upgrade job)
    - "micro" upgrade: Installs earlier payload in same stream
 
-3. **Log Bundle Availability**
+4. **Log Bundle Availability**
    - Not all jobs produce log bundles
    - Older jobs may not have this feature
    - Installation must reach a certain point to generate log bundle
 
-4. **Must-Gather Availability**
+5. **Must-Gather Availability**
    - Must-gather only exists if a `must-gather*.tar` file is present
    - If no .tar file exists, the cluster was too unstable to collect diagnostics
    - **Never suggest downloading must-gather unless you verified the .tar file exists**
 
-5. **Metal Job Specifics**
+6. **Metal Job Specifics**
    - Metal jobs are analyzed using the specialized `prow-job-analyze-metal-install-failure` skill
    - That skill handles dev-scripts, libvirt console logs, sosreport, and squid logs
    - See the metal skill documentation for details
 
-6. **Debugging Workflow**
+7. **Debugging Workflow**
    - Start with installer log to find **LAST** error (not first)
    - Use failure stage to guide which logs to examine
    - Log bundle provides node-level details
    - For metal jobs, invoke the metal-specific skill for additional analysis
    - Work backwards in time to trace dependency chains
 
-7. **Common Failure Patterns**
+8. **Common Failure Patterns**
    - **Bootstrap etcd not starting**: Check etcd.log and bootkube.log
    - **API server not responding**: Check kube-apiserver.log
    - **Masters not joining**: Check master serial logs
    - **Operators degraded**: Check specific operator logs in must-gather (if it exists)
    - **Network issues**: Check network configuration in bootstrap/network/
 
-8. **File Formats**
+9. **File Formats**
    - Installer log: Plain text, structured format
    - Journal logs: systemd journal format (plain text export)
    - Serial logs: Raw console output
