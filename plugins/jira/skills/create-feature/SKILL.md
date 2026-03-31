@@ -19,8 +19,7 @@ This skill is automatically invoked by the `/jira:create feature` command to gui
 - Product/business context for the feature
 
 **Reference Documentation:**
-- [Wiki Markup Reference](../../reference/wiki-markup.md) - JIRA formatting syntax
-- [MCP Tools Reference](../../reference/mcp-tools.md) - MCP tool signatures and custom fields
+- [MCP Tools Reference](../../reference/mcp-tools.md) - Custom fields and JQL queries
 - [CLI Fallback Reference](../../reference/cli-fallback.md) - jira-cli commands (only if MCP unavailable)
 
 ## What is a Feature?
@@ -62,7 +61,7 @@ Every feature should clearly state:
 
 **Good example:**
 ```
-h2. Market Problem
+## Market Problem
 
 Enterprise customers managing multiple ROSA HCP clusters (10+) struggle with operational visibility and control. They must navigate between separate dashboards for each cluster, making it difficult to:
 - Identify issues across their cluster fleet
@@ -88,21 +87,21 @@ Explain why this feature matters to the business:
 
 **Example:**
 ```
-h2. Strategic Value
+## Strategic Value
 
-h3. Customer Value
+### Customer Value
 - 60% reduction in time spent on cluster management
 - Faster incident detection and response (10min → 2min)
 - Better resource optimization across cluster fleet
 - Improved operational confidence at scale
 
-h3. Business Impact
+### Business Impact
 - Supports enterprise expansion (critical for deals >100 clusters)
 - Reduces support burden (fewer escalations, faster resolution)
 - Competitive differentiator (no competitor offers unified HCP observability)
 - Enables upsell opportunities (advanced monitoring add-ons)
 
-h3. Strategic Alignment
+### Strategic Alignment
 - Aligns with "Enterprise-First" product strategy for FY2025
 - Prerequisite for multi-cluster management capabilities in roadmap
 - Supports OpenShift Hybrid Cloud Platform vision
@@ -118,23 +117,23 @@ Define how you'll measure success (not just completion):
 
 **Example:**
 ```
-h2. Success Criteria
+## Success Criteria
 
-h3. Adoption
+### Adoption
 - 50% of customers with 10+ clusters adopt within 6 months of GA
 - Feature enabled by default for new cluster deployments
 
-h3. Usage
+### Usage
 - Average of 5 dashboard views per day per customer
 - Alert configuration adoption >30% of customers
 - API usage growing 20% month-over-month
 
-h3. Outcomes
+### Outcomes
 - 40% reduction in time-to-detect incidents (measured via support metrics)
 - Customer satisfaction (CSAT) improvement from 7.2 to 8.5 for multi-cluster users
 - 25% reduction in cluster management support tickets
 
-h3. Business
+### Business
 - Closes 10+ enterprise deals blocked by observability gap
 - Reduces support costs by $200K annually
 - Enables $500K in advanced monitoring upsell revenue
@@ -262,56 +261,58 @@ Before submitting the feature, validate:
 ### Basic Feature Creation
 
 ```python
-mcp__atlassian__jira_create_issue(
-    project_key="<PROJECT_KEY>",
+mcp__plugin_atlassian_atlassian__createJiraIssue(
+    cloudId="redhat.atlassian.net",
+    projectKey="<PROJECT_KEY>",
     summary="<feature summary>",
-    issue_type="Feature",
+    issueTypeName="Feature",
+    contentFormat="markdown",
     description="""
 <Brief overview of the feature>
 
-h2. Market Problem
+## Market Problem
 
 <Describe the customer/business problem this solves>
 
-h2. Proposed Solution
+## Proposed Solution
 
 <Describe the capability/solution being delivered>
 
-h2. Strategic Value
+## Strategic Value
 
-h3. Customer Value
-* <Customer benefit 1>
-* <Customer benefit 2>
+### Customer Value
+- <Customer benefit 1>
+- <Customer benefit 2>
 
-h3. Business Impact
-* <Business impact 1>
-* <Business impact 2>
+### Business Impact
+- <Business impact 1>
+- <Business impact 2>
 
-h3. Strategic Alignment
+### Strategic Alignment
 <How this aligns with product strategy>
 
-h2. Success Criteria
+## Success Criteria
 
-h3. Adoption
-* <Adoption metric 1>
+### Adoption
+- <Adoption metric 1>
 
-h3. Outcomes
-* <Outcome metric 1>
+### Outcomes
+- <Outcome metric 1>
 
-h3. Business
-* <Business metric 1>
+### Business
+- <Business metric 1>
 
-h2. Scope
+## Scope
 
-h3. Epics (Planned)
-* Epic 1: <epic name>
-* Epic 2: <epic name>
-* Epic 3: <epic name>
+### Epics (Planned)
+- Epic 1: <epic name>
+- Epic 2: <epic name>
+- Epic 3: <epic name>
 
-h2. Timeline
+## Timeline
 
-* Target: <release/timeframe>
-* Key milestones: <major deliverables>
+- Target: <release/timeframe>
+- Key milestones: <major deliverables>
     """,
     components="<component name>",  # if required
     additional_fields={
@@ -323,132 +324,134 @@ h2. Timeline
 ### With Project-Specific Fields (e.g., CNTRLPLANE)
 
 ```python
-mcp__atlassian__jira_create_issue(
-    project_key="CNTRLPLANE",
+mcp__plugin_atlassian_atlassian__createJiraIssue(
+    cloudId="redhat.atlassian.net",
+    projectKey="CNTRLPLANE",
     summary="Advanced observability for hosted control planes",
-    issue_type="Feature",
+    issueTypeName="Feature",
+    contentFormat="markdown",
     description="""
 Deliver unified observability capabilities for ROSA and ARO hosted control planes, enabling enterprise customers to manage large cluster fleets with centralized monitoring, alerting, and compliance reporting.
 
-h2. Market Problem
+## Market Problem
 
 Enterprise customers managing multiple ROSA HCP clusters (50+) face significant operational challenges:
 
-* Must navigate separate dashboards for each cluster (time-consuming, error-prone)
-* Cannot track compliance posture across cluster fleet
-* Slow incident detection and response (10-30 minutes to identify cross-cluster issues)
-* Difficulty optimizing resources and costs across clusters
-* High operational overhead preventing scaling to larger deployments
+- Must navigate separate dashboards for each cluster (time-consuming, error-prone)
+- Cannot track compliance posture across cluster fleet
+- Slow incident detection and response (10-30 minutes to identify cross-cluster issues)
+- Difficulty optimizing resources and costs across clusters
+- High operational overhead preventing scaling to larger deployments
 
 This problem affects our largest customers and is blocking expansion into enterprise segments. Competitors are beginning to offer fleet management capabilities, creating competitive pressure.
 
-h2. Proposed Solution
+## Proposed Solution
 
 Build a comprehensive observability platform for hosted control planes that provides:
 
-* Centralized metrics aggregation across all customer clusters
-* Unified dashboards for cluster health, performance, and capacity
-* Fleet-wide alerting with intelligent cross-cluster correlation
-* Compliance and audit reporting across cluster fleet
-* APIs and CLI for programmatic access and automation
-* Integration with existing customer monitoring tools
+- Centralized metrics aggregation across all customer clusters
+- Unified dashboards for cluster health, performance, and capacity
+- Fleet-wide alerting with intelligent cross-cluster correlation
+- Compliance and audit reporting across cluster fleet
+- APIs and CLI for programmatic access and automation
+- Integration with existing customer monitoring tools
 
-h2. Strategic Value
+## Strategic Value
 
-h3. Customer Value
-* 60% reduction in time spent on cluster operational tasks
-* 80% faster incident detection and response (30min → 6min)
-* Improved compliance posture with automated reporting
-* Confidence to scale to 100+ clusters
-* Better resource optimization (20% cost savings through right-sizing)
+### Customer Value
+- 60% reduction in time spent on cluster operational tasks
+- 80% faster incident detection and response (30min → 6min)
+- Improved compliance posture with automated reporting
+- Confidence to scale to 100+ clusters
+- Better resource optimization (20% cost savings through right-sizing)
 
-h3. Business Impact
-* Unblocks $5M in enterprise pipeline (15+ deals require this capability)
-* Reduces support escalations by 40% (better self-service visibility)
-* Competitive differentiator (no competitor offers unified HCP observability at this level)
-* Enables $500K annual upsell revenue (advanced monitoring add-ons)
-* Improves customer retention (reducing churn in enterprise segment)
+### Business Impact
+- Unblocks $5M in enterprise pipeline (15+ deals require this capability)
+- Reduces support escalations by 40% (better self-service visibility)
+- Competitive differentiator (no competitor offers unified HCP observability at this level)
+- Enables $500K annual upsell revenue (advanced monitoring add-ons)
+- Improves customer retention (reducing churn in enterprise segment)
 
-h3. Competitive Advantage
-* First-to-market with truly unified HCP observability
-* Deep integration with OpenShift ecosystem
-* AI-powered insights (future capability)
+### Competitive Advantage
+- First-to-market with truly unified HCP observability
+- Deep integration with OpenShift ecosystem
+- AI-powered insights (future capability)
 
-h3. Strategic Alignment
-* Aligns with "Enterprise-First" product strategy for FY2025
-* Supports "Hybrid Cloud Platform" vision
-* Prerequisite for future multi-cluster management capabilities on roadmap
-* Enables shift to "fleet management" business model
+### Strategic Alignment
+- Aligns with "Enterprise-First" product strategy for FY2025
+- Supports "Hybrid Cloud Platform" vision
+- Prerequisite for future multi-cluster management capabilities on roadmap
+- Enables shift to "fleet management" business model
 
-h2. Success Criteria
+## Success Criteria
 
-h3. Adoption
-* 50% of customers with 10+ clusters adopt within 6 months of GA
-* Feature enabled by default for all new ROSA HCP deployments
-* 30% adoption in ARO HCP customer base within 9 months
+### Adoption
+- 50% of customers with 10+ clusters adopt within 6 months of GA
+- Feature enabled by default for all new ROSA HCP deployments
+- 30% adoption in ARO HCP customer base within 9 months
 
-h3. Usage
-* Daily active usage by SREs in 80% of adopting customers
-* Average 10+ dashboard views per customer per day
-* Alert configuration adoption >40% of customers
-* API usage growing 25% month-over-month
+### Usage
+- Daily active usage by SREs in 80% of adopting customers
+- Average 10+ dashboard views per customer per day
+- Alert configuration adoption >40% of customers
+- API usage growing 25% month-over-month
 
-h3. Outcomes
-* 40% reduction in time-to-detect incidents (measured via support metrics)
-* 50% reduction in time-to-resolve incidents (via support ticket analysis)
-* Customer satisfaction (CSAT) improvement from 7.2 to 8.5 for multi-cluster customers
-* 30% reduction in cluster management support tickets
+### Outcomes
+- 40% reduction in time-to-detect incidents (measured via support metrics)
+- 50% reduction in time-to-resolve incidents (via support ticket analysis)
+- Customer satisfaction (CSAT) improvement from 7.2 to 8.5 for multi-cluster customers
+- 30% reduction in cluster management support tickets
 
-h3. Business Metrics
-* Close 15 blocked enterprise deals ($5M+ in ARR)
-* Reduce support costs by $250K annually
-* Generate $500K in upsell revenue (advanced monitoring)
-* Improve enterprise customer retention by 15%
+### Business Metrics
+- Close 15 blocked enterprise deals ($5M+ in ARR)
+- Reduce support costs by $250K annually
+- Generate $500K in upsell revenue (advanced monitoring)
+- Improve enterprise customer retention by 15%
 
-h2. Scope
+## Scope
 
-h3. Epics (Planned)
-* Epic 1: Multi-cluster metrics aggregation infrastructure
-* Epic 2: Unified observability dashboard and visualization
-* Epic 3: Fleet-wide alerting and intelligent correlation
-* Epic 4: Compliance and audit reporting
-* Epic 5: API and CLI for programmatic access
-* Epic 6: Customer monitoring tool integrations (Datadog, Splunk)
-* Epic 7: Documentation, training, and customer enablement
+### Epics (Planned)
+- Epic 1: Multi-cluster metrics aggregation infrastructure
+- Epic 2: Unified observability dashboard and visualization
+- Epic 3: Fleet-wide alerting and intelligent correlation
+- Epic 4: Compliance and audit reporting
+- Epic 5: API and CLI for programmatic access
+- Epic 6: Customer monitoring tool integrations (Datadog, Splunk)
+- Epic 7: Documentation, training, and customer enablement
 
-h3. Out of Scope (Future Considerations)
-* Log aggregation (separate feature planned for 2026)
-* AI-powered predictive analytics (follow-on feature)
-* Support for standalone OpenShift clusters (not HCP)
-* Cost optimization recommendations (different feature)
+### Out of Scope (Future Considerations)
+- Log aggregation (separate feature planned for 2026)
+- AI-powered predictive analytics (follow-on feature)
+- Support for standalone OpenShift clusters (not HCP)
+- Cost optimization recommendations (different feature)
 
-h2. Timeline
+## Timeline
 
-* Total duration: 9 months (3 releases)
-* Target GA: Q3 2025 (OpenShift 4.23)
+- Total duration: 9 months (3 releases)
+- Target GA: Q3 2025 (OpenShift 4.23)
 
-h3. Milestones
-* Q1 2025 (4.21): MVP metrics aggregation, basic dashboard (Epics 1-2)
-* Q2 2025 (4.22): Alerting, compliance reporting (Epics 3-4)
-* Q3 2025 (4.23): API, integrations, GA (Epics 5-7)
+### Milestones
+- Q1 2025 (4.21): MVP metrics aggregation, basic dashboard (Epics 1-2)
+- Q2 2025 (4.22): Alerting, compliance reporting (Epics 3-4)
+- Q3 2025 (4.23): API, integrations, GA (Epics 5-7)
 
-h2. Dependencies
+## Dependencies
 
-* Centralized metrics storage infrastructure ([CNTRLPLANE-50])
-* Cluster registration and inventory service ([CNTRLPLANE-75])
-* Identity and access management for multi-cluster ([CNTRLPLANE-120])
+- Centralized metrics storage infrastructure ([CNTRLPLANE-50])
+- Cluster registration and inventory service ([CNTRLPLANE-75])
+- Identity and access management for multi-cluster ([CNTRLPLANE-120])
 
-h2. Risks and Mitigation
+## Risks and Mitigation
 
-h3. Risks
-* Performance degradation with >500 clusters (scalability testing needed)
-* Integration complexity with third-party monitoring tools
-* Customer adoption if migration from existing tools is complex
+### Risks
+- Performance degradation with >500 clusters (scalability testing needed)
+- Integration complexity with third-party monitoring tools
+- Customer adoption if migration from existing tools is complex
 
-h3. Mitigation
-* Performance benchmarking sprint in Epic 1
-* Partner early with Datadog/Splunk on integration design
-* Provide migration tools and dedicated customer success support
+### Mitigation
+- Performance benchmarking sprint in Epic 1
+- Partner early with Datadog/Splunk on integration design
+- Provide migration tools and dedicated customer success support
     """,
     components="HyperShift",
     additional_fields={
@@ -461,84 +464,84 @@ h3. Mitigation
 
 ## Jira Description Formatting
 
-Use Jira's native formatting (Wiki markup):
+Use Markdown format (set `contentFormat: "markdown"` on create/edit calls):
 
 ### Feature Template Format
 
-```
+```markdown
 <Brief feature overview>
 
-h2. Market Problem
+## Market Problem
 
 <Detailed description of customer/business problem>
 <Who is affected, what pain they experience, impact of not solving>
 
-h2. Proposed Solution
+## Proposed Solution
 
 <Description of the capability/solution being delivered>
 
-h2. Strategic Value
+## Strategic Value
 
-h3. Customer Value
-* <Benefit 1>
-* <Benefit 2>
+### Customer Value
+- <Benefit 1>
+- <Benefit 2>
 
-h3. Business Impact
-* <Impact 1>
-* <Impact 2>
+### Business Impact
+- <Impact 1>
+- <Impact 2>
 
-h3. Competitive Advantage
+### Competitive Advantage
 <How this differentiates us>
 
-h3. Strategic Alignment
+### Strategic Alignment
 <How this supports product/company strategy>
 
-h2. Success Criteria
+## Success Criteria
 
-h3. Adoption
-* <Adoption metrics>
+### Adoption
+- <Adoption metrics>
 
-h3. Usage
-* <Usage metrics>
+### Usage
+- <Usage metrics>
 
-h3. Outcomes
-* <Customer outcome metrics>
+### Outcomes
+- <Customer outcome metrics>
 
-h3. Business Metrics
-* <Revenue, cost, satisfaction metrics>
+### Business Metrics
+- <Revenue, cost, satisfaction metrics>
 
-h2. Scope
+## Scope
 
-h3. Epics (Planned)
-* Epic 1: <name>
-* Epic 2: <name>
-* Epic 3: <name>
+### Epics (Planned)
+- Epic 1: <name>
+- Epic 2: <name>
+- Epic 3: <name>
 
-h3. Out of Scope
-* <Related work NOT in this feature>
+### Out of Scope
+- <Related work NOT in this feature>
 
-h2. Timeline
+## Timeline
 
-* Total duration: <timeframe>
-* Target GA: <date/release>
+- Total duration: <timeframe>
+- Target GA: <date/release>
 
-h3. Milestones
-* <Quarter/Release>: <deliverable>
-* <Quarter/Release>: <deliverable>
+### Milestones
+- <Quarter/Release>: <deliverable>
+- <Quarter/Release>: <deliverable>
 
-h2. Dependencies (if any)
+## Dependencies (if any)
 
-* [PROJ-XXX] - <dependency description>
+- [PROJ-XXX] - <dependency description>
 
-h2. Risks and Mitigation (optional)
+## Risks and Mitigation (optional)
 
-h3. Risks
-* <Risk 1>
-* <Risk 2>
+### Risks
+- <Risk 1>
+- <Risk 2>
 
-h3. Mitigation
-* <Mitigation strategy 1>
-* <Mitigation strategy 2>
+### Mitigation
+- <Mitigation strategy 1>
+- <Mitigation strategy 2>
 ```
 
 ## Error Handling
@@ -745,7 +748,7 @@ If this is a public Jira project, please sanitize:
 7. 💬 Collect epic breakdown and timeline
 8. 🔒 Scan for sensitive data
 9. ✅ Validate feature quality and scope
-10. 📝 Format description with Jira markup
+10. 📝 Format description with Markdown
 11. ✅ Create feature via MCP tool
 12. 📤 Return issue key and URL
 

@@ -55,13 +55,13 @@ The command executes in two phases:
    - User filters support exclusion by prefixing with an exclamation mark (example: !<user@example.com>)
 
 2. **If project key is NOT provided:**
-   - Use `mcp__atlassian-mcp__jira_get_all_projects` to list all accessible projects
+   - Use `mcp__plugin_atlassian_atlassian__getVisibleJiraProjects` (with `cloudId="redhat.atlassian.net"`) to list all accessible projects
    - Present projects in a numbered list with keys and names
    - Ask: "Please enter the number of the project you want to update:"
    - Parse response and extract project key
 
 3. **Validate project access:**
-   - Use `mcp__atlassian-mcp__jira_search` with JQL: `project = "{project-key}" AND status != Closed`
+   - Use `mcp__plugin_atlassian_atlassian__searchJiraIssuesUsingJql` (with `cloudId="redhat.atlassian.net"`) with JQL: `project = "{project-key}" AND status != Closed`
    - Verify the project exists and is accessible
 
 #### Step 2. Determine Target Component(s)
@@ -70,8 +70,8 @@ The command executes in two phases:
    - Use the component name directly
 
 2. **If `--component` is NOT provided:**
-   - Use `mcp__atlassian-mcp__jira_search_fields` with keyword "component" to find the component field ID
-   - Use `mcp__atlassian-mcp__jira_search` with JQL: `project = "{project-key}" AND status != Closed` and `fields=components`
+   - Use `mcp__plugin_atlassian_atlassian__getJiraIssueTypeMetaWithFields` (with `cloudId="redhat.atlassian.net"`) to find the component field metadata
+   - Use `mcp__plugin_atlassian_atlassian__searchJiraIssuesUsingJql` (with `cloudId="redhat.atlassian.net"`) with JQL: `project = "{project-key}" AND status != Closed` and `fields=["components"]`
    - Extract all unique component names from the search results
    - Present components in a numbered list
    - Ask: "Please enter the number(s) of the component(s) you want to update (space-separated), or press Enter to skip:"
@@ -84,7 +84,7 @@ For each user filter parameter:
 1. **Check if it's an email** (contains `@`): Use as-is for script parameter
 
 2. **If it's a display name** (doesn't contain `@`):
-   - Use `mcp__atlassian-mcp__jira_get_user_profile` with the name as the `user_identifier` parameter
+   - Use `mcp__plugin_atlassian_atlassian__lookupJiraAccountId` (with `cloudId="redhat.atlassian.net"`) with the name as the query parameter
    - Show found user details and ask for confirmation
    - If confirmed, use the email address; if not, ask for email directly
 
@@ -273,11 +273,12 @@ Options:
 
 ##### e. Update the Issue
 
-Use `mcp__atlassian-mcp__jira_update_issue`:
+Use `mcp__plugin_atlassian_atlassian__editJiraIssue`:
 
 ```json
 {
-  "issue_key": "{ISSUE-KEY}",
+  "cloudId": "redhat.atlassian.net",
+  "issueIdOrKey": "{ISSUE-KEY}",
   "fields": {
     "customfield_10814": "{formatted-status-text}"
   }
@@ -432,10 +433,10 @@ The Python script (`gather_status_data.py`) handles efficient batch data collect
 5. **With specific users (by email)**:
 
    ```bash
-   /jira:update-weekly-status OCPBUGS antoni@redhat.com jdoe@redhat.com
+   /jira:update-weekly-status OCPBUGS user1@redhat.com user2@redhat.com
    ```
 
-   Output: Only processes issues assigned to Antoni or Jane
+   Output: Only processes issues assigned to User1 or User2
 
 6. **With excluded users (by email)**:
 
@@ -448,7 +449,7 @@ The Python script (`gather_status_data.py`) handles efficient batch data collect
 7. **With usernames (requires confirmation)**:
 
    ```bash
-   /jira:update-weekly-status OCPSTRAT "Antoni Segura" "Jane Doe"
+   /jira:update-weekly-status OCPSTRAT "<user1-name>" "<user2-name>"
    ```
 
    Output: Looks up users by name, asks for confirmation, then processes their issues
@@ -456,10 +457,10 @@ The Python script (`gather_status_data.py`) handles efficient batch data collect
 8. **Full example with all options**:
 
    ```bash
-   /jira:update-weekly-status OCPSTRAT --component "Control Plane" --label strategic-work antoni@redhat.com !dave@redhat.com
+   /jira:update-weekly-status OCPSTRAT --component "Control Plane" --label strategic-work user1@redhat.com !user3@redhat.com
    ```
 
-   Output: Processes OCPSTRAT issues in "Control Plane" component with "strategic-work" label, assigned to Antoni, excluding Dave
+   Output: Processes OCPSTRAT issues in "Control Plane" component with "strategic-work" label, assigned to User1, excluding User3
 
 ## Arguments
 

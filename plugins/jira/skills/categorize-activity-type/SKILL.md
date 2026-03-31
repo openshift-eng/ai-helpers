@@ -15,7 +15,7 @@ This skill is invoked automatically by the `/jira:categorize-activity-type` comm
 ## Prerequisites
 
 - MCP Jira server must be configured (see [plugin README](../../README.md))
-- MCP tools available: `mcp__atlassian__jira_get_issue`, `mcp__atlassian__jira_update_issue`
+- MCP tools available: `mcp__plugin_atlassian_atlassian__getJiraIssue` (with `cloudId="redhat.atlassian.net"`), `mcp__plugin_atlassian_atlassian__editJiraIssue`
 - Access to JIRA instance with Activity Type custom field (`customfield_10464`)
 
 ## Activity Type Categories
@@ -159,9 +159,11 @@ When a ticket is a subtask or linked to an Epic, apply inheritance logic:
 1. **Fetch Parent Epic/Story:**
    ```python
    if parent_key:
-       parent_issue = mcp__atlassian__jira_get_issue(
-           issue_key=parent_key,
-           fields="summary,customfield_10464"
+       parent_issue = mcp__plugin_atlassian_atlassian__getJiraIssue(
+           cloudId="redhat.atlassian.net",
+           issueIdOrKey=parent_key,
+           fields=["summary", "customfield_10464"],
+           responseContentFormat="markdown"
        )
        parent_summary = parent_issue["fields"].get("summary", "")
        parent_activity_type = parent_issue["fields"].get("customfield_10464", {}).get("value", None)
@@ -394,9 +396,11 @@ else:
 ```python
 if not final_category and parent_key:
     try:
-        parent_issue = mcp__atlassian__jira_get_issue(
-            issue_key=parent_key,
-            fields="summary,customfield_10464"
+        parent_issue = mcp__plugin_atlassian_atlassian__getJiraIssue(
+            cloudId="redhat.atlassian.net",
+            issueIdOrKey=parent_key,
+            fields=["summary", "customfield_10464"],
+            responseContentFormat="markdown"
         )
         parent_summary = parent_issue["fields"].get("summary", "")
         parent_activity_type = parent_issue["fields"].get("customfield_10464", {}).get("value", None)
@@ -537,9 +541,11 @@ if issue_type not in ["Bug", "Story", "Task", "Epic", "Vulnerability", "Weakness
 **Parent fetch failure:**
 ```python
 try:
-    parent_issue = mcp__atlassian__jira_get_issue(
-        issue_key=parent_key,
-        fields="summary,customfield_10464"
+    parent_issue = mcp__plugin_atlassian_atlassian__getJiraIssue(
+        cloudId="redhat.atlassian.net",
+        issueIdOrKey=parent_key,
+        fields=["summary", "customfield_10464"],
+        responseContentFormat="markdown"
     )
 except Exception as e:
     # Continue without parent context

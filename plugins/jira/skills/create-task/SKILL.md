@@ -18,8 +18,7 @@ This skill is automatically invoked by the `/jira:create task` command to guide 
 - Understanding of the technical work to be performed
 
 **Reference Documentation:**
-- [Wiki Markup Reference](../../reference/wiki-markup.md) - JIRA formatting syntax
-- [MCP Tools Reference](../../reference/mcp-tools.md) - MCP tool signatures and custom fields
+- [MCP Tools Reference](../../reference/mcp-tools.md) - Custom fields and JQL queries
 - [CLI Fallback Reference](../../reference/cli-fallback.md) - jira-cli commands (only if MCP unavailable)
 
 ## Tasks vs Stories
@@ -105,21 +104,21 @@ Use this structure for consistency:
 ```
 <What needs to be done>
 
-h2. Why
+## Why
 
 <Context, motivation, or reason this is needed>
 
-h2. Acceptance Criteria
+## Acceptance Criteria
 
-* <Criterion 1>
-* <Criterion 2>
-* <Criterion 3>
+- <Criterion 1>
+- <Criterion 2>
+- <Criterion 3>
 
-h2. Technical Details (optional)
+## Technical Details (optional)
 
-* Files to modify: <list>
-* Dependencies: <related issues or work>
-* Approach: <suggested implementation approach>
+- Files to modify: <list>
+- Dependencies: <related issues or work>
+- Approach: <suggested implementation approach>
 ```
 
 ## Interactive Task Collection Workflow
@@ -231,23 +230,25 @@ Before submitting the task, validate:
 ### Basic Task Creation
 
 ```python
-mcp__atlassian__jira_create_issue(
-    project_key="<PROJECT_KEY>",
+mcp__plugin_atlassian_atlassian__createJiraIssue(
+    cloudId="redhat.atlassian.net",
+    projectKey="<PROJECT_KEY>",
     summary="<task summary>",
-    issue_type="Task",
+    issueTypeName="Task",
+    contentFormat="markdown",
     description="""
 <What needs to be done>
 
-h2. Why
+## Why
 
 <Context and motivation>
 
-h2. Acceptance Criteria
+## Acceptance Criteria
 
-* <Criterion 1>
-* <Criterion 2>
+- <Criterion 1>
+- <Criterion 2>
 
-h2. Technical Details
+## Technical Details
 
 <Optional technical details>
     """,
@@ -261,31 +262,33 @@ h2. Technical Details
 ### With Project-Specific Fields (e.g., CNTRLPLANE)
 
 ```python
-mcp__atlassian__jira_create_issue(
-    project_key="CNTRLPLANE",
+mcp__plugin_atlassian_atlassian__createJiraIssue(
+    cloudId="redhat.atlassian.net",
+    projectKey="CNTRLPLANE",
     summary="Update autoscaling documentation for 4.21 release",
-    issue_type="Task",
+    issueTypeName="Task",
+    contentFormat="markdown",
     description="""
 Update the autoscaling documentation to reflect API changes in the 4.21 release.
 
-h2. Why
+## Why
 
 The autoscaling API changed in 4.21 with new fields (maxNodeGracePeriod, scaleDownDelay) and modified behavior. Current documentation reflects 4.20 API and will confuse users upgrading to 4.21.
 
-h2. Acceptance Criteria
+## Acceptance Criteria
 
-* All autoscaling examples updated to use 4.21 API syntax
-* New fields (maxNodeGracePeriod, scaleDownDelay) documented with descriptions and examples
-* Deprecated fields marked as deprecated with migration guidance
-* Documentation builds successfully without warnings or broken links
-* Changes reviewed by docs team
+- All autoscaling examples updated to use 4.21 API syntax
+- New fields (maxNodeGracePeriod, scaleDownDelay) documented with descriptions and examples
+- Deprecated fields marked as deprecated with migration guidance
+- Documentation builds successfully without warnings or broken links
+- Changes reviewed by docs team
 
-h2. Technical Details
+## Technical Details
 
 Files to update:
-* docs/content/how-to/cluster-autoscaling.md
-* docs/content/reference/api/nodepool.md
-* docs/content/tutorials/autoscaling-rosa.md
+- docs/content/how-to/cluster-autoscaling.md
+- docs/content/reference/api/nodepool.md
+- docs/content/tutorials/autoscaling-rosa.md
 
 Reference: API changes introduced in PR #1234
     """,
@@ -301,55 +304,53 @@ Reference: API changes introduced in PR #1234
 ### With Parent Link
 
 ```python
-mcp__atlassian__jira_create_issue(
-    project_key="MYPROJECT",
+mcp__plugin_atlassian_atlassian__createJiraIssue(
+    cloudId="redhat.atlassian.net",
+    projectKey="MYPROJECT",
     summary="Add unit tests for scaling validation",
-    issue_type="Task",
+    issueTypeName="Task",
+    contentFormat="markdown",
     description="<task content>",
-    additional_fields={
-        "parent": {"key": "MYPROJECT-100"}  # link to story or epic
-    }
+    parent="MYPROJECT-100"  # link to story or epic
 )
 ```
 
 ## Jira Description Formatting
 
-Use Jira's native formatting (Wiki markup):
+Use markdown format (set `contentFormat: "markdown"` on create/edit calls):
 
 ### Task Template Format
 
 ```
 <Brief description of what needs to be done>
 
-h2. Why
+## Why
 
 <Context, motivation, or problem this solves>
 
-h2. Acceptance Criteria
+## Acceptance Criteria
 
-* <Criterion 1>
-* <Criterion 2>
-* <Criterion 3>
+- <Criterion 1>
+- <Criterion 2>
+- <Criterion 3>
 
-h2. Technical Details
+## Technical Details
 
-h3. Files to Modify
-* {{path/to/file1.go}}
-* {{path/to/file2.go}}
+### Files to Modify
+- `path/to/file1.go`
+- `path/to/file2.go`
 
-h3. Dependencies
-* Must complete after [PROJ-100]
-* Requires library X version Y
+### Dependencies
+- Must complete after [PROJ-100]
+- Requires library X version Y
 
-h3. Approach
+### Approach
 <Suggested implementation approach or technical notes>
 
-h2. Additional Context
+## Additional Context
 
 <Optional: Links to designs, related issues, background>
 ```
-
-For complete JIRA Wiki Markup formatting reference, see [Wiki Markup Reference](../../reference/wiki-markup.md).
 
 ## Error Handling
 
@@ -532,22 +533,21 @@ Any technical details?
 ```
 Investigate intermittent timeout errors occurring in etcd health checks on ROSA HCP clusters.
 
-h2. Why
+## Why
 
 Users report clusters occasionally showing unhealthy status despite normal operation. Logs show intermittent timeout errors from etcd health checks.
 
-h2. Acceptance Criteria
+## Acceptance Criteria
 
-* Root cause identified and documented
-* Recommendation provided (fix, workaround, or "no action needed")
-* Findings shared with team in investigation summary
+- Root cause identified and documented
+- Recommendation provided (fix, workaround, or "no action needed")
+- Findings shared with team in investigation summary
 
-h2. Technical Details
+## Technical Details
 
 Error pattern:
-{code}
-etcd health check failed: context deadline exceeded (timeout: 2s)
-{code}
+
+    etcd health check failed: context deadline exceeded (timeout: 2s)
 
 Frequency: ~5% of health checks
 Affected clusters: ROSA HCP in us-east-1
@@ -610,7 +610,7 @@ Description: <empty>
 6. 💬 Optionally collect technical details
 7. 🔒 Scan for sensitive data
 8. ✅ Validate task is appropriate (not a story)
-9. 📝 Format description with Jira markup
+9. 📝 Format description with markdown
 10. ✅ Create task via MCP tool
 11. 📤 Return issue key and URL
 

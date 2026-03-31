@@ -13,35 +13,15 @@ Generate structured meeting agendas to streamline team collaboration and decisio
 ## Prerequisites
 
 - Claude Code installed
-- Jira MCP server configured (same as Jira plugin)
+- Official Atlassian plugin for Claude Code installed
 
-### Setting up Jira MCP Server
+### Setting up Atlassian MCP
 
-```bash
-# Add the Atlassian MCP server
-claude mcp add atlassian npx @modelcontextprotocol/server-atlassian
-```
-
-OR you can use an already running Jira MCP Server:
+The Atlassian MCP tools are available automatically when you install the official Atlassian plugin for Claude Code. No API tokens or manual server setup required.
 
 ```bash
-# Add the Atlassian MCP server
-claude mcp add --transport sse atlassian http https://localhost:8080/sse
+/plugin install atlassian@claude-plugins-official
 ```
-
-Configure your Jira credentials according to the [Atlassian MCP documentation](https://github.com/modelcontextprotocol/servers/tree/main/src/atlassian).
-
-### Running Jira MCP Server locally with podman
-
-```bash
-# Start the atlassian mcp server using podman
-podman run -i --rm -p 8080:8080 -e "JIRA_URL=https://redhat.atlassian.net" -e "JIRA_USERNAME" -e "JIRA_API_TOKEN" ghcr.io/sooperset/mcp-atlassian:latest --transport sse --port 8080 -vv
-```
-
-#### Getting Tokens
-You'll need to generate your own API token:
-
-- For JIRA_API_TOKEN, use https://id.atlassian.com/manage-profile/security/api-tokens
 
 ## Installation
 

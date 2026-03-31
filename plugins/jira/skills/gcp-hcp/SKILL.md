@@ -73,7 +73,7 @@ The GCP project uses these components for organizing work:
 
 **Usage:**
 - Components are **optional** - only specify if the work clearly fits a component
-- Use the direct `components` parameter (NOT in `additional_fields`)
+- Use `components` inside the `additional_fields` object (e.g., `additional_fields={"components": [{"name": "..."}]}`)
 - If work doesn't fit any existing component, leave empty - do not request new components
 
 ## MCP Tool Integration
@@ -81,13 +81,15 @@ The GCP project uses these components for organizing work:
 ### For GCP HCP Stories in GCP Project
 
 ```python
-mcp__atlassian__jira_create_issue(
-    project_key="GCP",
+mcp__plugin_atlassian_atlassian__createJiraIssue(
+    cloudId="redhat.atlassian.net",
+    projectKey="GCP",
+    issueTypeName="Story",
     summary="<story summary>",
-    issue_type="Story",
     description="<formatted story description>",
-    components="<component name>",  # Optional - see Components section
+    contentFormat="markdown",
     additional_fields={
+        "components": [{"name": "<component name>"}],  # Optional - see Components section
         "customfield_10014": "GCP-456",  # Epic Link - parent epic
         "customfield_10028": 3.0,        # Story Points - auto-estimated per Sizing Guide
         "priority": {"name": "Major"},      # Priority - OMIT unless user specifies
@@ -104,13 +106,15 @@ mcp__atlassian__jira_create_issue(
 ### For GCP HCP Epics in GCP Project
 
 ```python
-mcp__atlassian__jira_create_issue(
-    project_key="GCP",
+mcp__plugin_atlassian_atlassian__createJiraIssue(
+    cloudId="redhat.atlassian.net",
+    projectKey="GCP",
+    issueTypeName="Epic",
     summary="<epic summary>",
-    issue_type="Epic",
     description="<formatted epic description>",
-    components="<component name>",  # Optional - see Components section
+    contentFormat="markdown",
     additional_fields={
+        "components": [{"name": "<component name>"}],  # Optional - see Components section
         "customfield_10011": "Multi-cluster metrics aggregation",  # Epic Name (required, same as summary)
         "labels": ["ai-generated-jira"],
         "security": {"name": "Red Hat Employee"}
@@ -130,10 +134,12 @@ mcp__atlassian__jira_create_issue(
 **Example:**
 ```python
 # Step 1: Create Epic
-epic = mcp__atlassian__jira_create_issue(
-    project_key="GCP",
-    issue_type="Epic",
+epic = mcp__plugin_atlassian_atlassian__createJiraIssue(
+    cloudId="redhat.atlassian.net",
+    projectKey="GCP",
+    issueTypeName="Epic",
     summary="Multi-cluster monitoring",
+    contentFormat="markdown",
     additional_fields={
         "customfield_10011": "Multi-cluster monitoring",  # Epic Name
         "labels": ["ai-generated-jira"],
@@ -142,10 +148,10 @@ epic = mcp__atlassian__jira_create_issue(
 )
 
 # Step 2: Link to Feature
-mcp__atlassian__jira_update_issue(
-    issue_key=epic["key"],
-    fields={},
-    additional_fields={
+mcp__plugin_atlassian_atlassian__editJiraIssue(
+    cloudId="redhat.atlassian.net",
+    issueIdOrKey=epic["key"],
+    fields={
         "customfield_10018": "GCP-100"  # Parent Link (Feature key)
     }
 )
@@ -516,15 +522,15 @@ Summary: Multi-cluster monitoring and observability
 Description:
 Implement comprehensive monitoring and observability for GCP-hosted control planes across multiple GKE clusters, enabling operators to detect and respond to issues proactively.
 
-h2. Scope
+## Scope
 
-* Metrics collection from control plane pods
-* Central metrics aggregation and storage
-* Dashboards for monitoring cluster health
-* Alerting framework for critical metrics
-* Log aggregation and analysis
+- Metrics collection from control plane pods
+- Central metrics aggregation and storage
+- Dashboards for monitoring cluster health
+- Alerting framework for critical metrics
+- Log aggregation and analysis
 
-h2. Acceptance Criteria
+## Acceptance Criteria
 
 - Test that metrics are collected from all control plane pods
 - Test that metrics are available within 30 seconds of generation

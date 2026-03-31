@@ -42,16 +42,13 @@ For single-issue analysis, fetch data directly from Jira:
 2. Discover descendants via childIssuesOf()
          │
          ▼
-3. Fetch details for all issues (batch where possible)
+3. Fetch details for all issues (with expand=changelog)
          │
          ▼
-4. Fetch changelogs (batch via jira_batch_get_changelogs)
+4. Build IssueActivityData structures
          │
          ▼
-5. Build IssueActivityData structures
-         │
-         ▼
-6. Optionally cache to temp file
+5. Optionally cache to temp file
 ```
 
 ---
@@ -260,11 +257,12 @@ For `status-rollup` or when pre-gathered data is not available.
 For each root issue key in `config.root_issues`:
 
 ```
-mcp__atlassian-mcp__jira_get_issue(
-  issue_key = "{root-issue-key}",
-  fields = "summary,status,assignee,issuetype,created,updated,description,issuelinks,comment,{status-summary-field-id}",
+mcp__plugin_atlassian_atlassian__getJiraIssue(
+  cloudId = "redhat.atlassian.net",
+  issueIdOrKey = "{root-issue-key}",
+  fields = ["summary", "status", "assignee", "issuetype", "created", "updated", "description", "issuelinks", "comment", "{status-summary-field-id}"],
   expand = "changelog",
-  comment_limit = 20
+  responseContentFormat = "markdown"
 )
 ```
 
@@ -291,10 +289,12 @@ mcp__atlassian-mcp__jira_get_issue(
 Use the `childIssuesOf()` JQL function to find all descendants:
 
 ```
-mcp__atlassian-mcp__jira_search(
+mcp__plugin_atlassian_atlassian__searchJiraIssuesUsingJql(
+  cloudId = "redhat.atlassian.net",
   jql = "issue in childIssuesOf({root-issue-key})",
-  fields = "key",
-  limit = 100
+  fields = ["key"],
+  maxResults = 100,
+  responseContentFormat = "markdown"
 )
 ```
 
@@ -302,14 +302,16 @@ mcp__atlassian-mcp__jira_search(
 - `childIssuesOf()` is **already recursive** - returns ALL descendants at any depth
 - Single JQL query gets the entire hierarchy
 - Only fetch `key` field here - will fetch full details in Step 3
-- If more than 100 descendants, increase `limit` or use pagination
+- If more than 100 descendants, use `nextPageToken` for pagination
 
 **Optional date filter**: To focus on recently active issues:
 ```
-mcp__atlassian-mcp__jira_search(
+mcp__plugin_atlassian_atlassian__searchJiraIssuesUsingJql(
+  cloudId = "redhat.atlassian.net",
   jql = "issue in childIssuesOf({root-issue-key}) AND updated >= {start-date}",
-  fields = "key",
-  limit = 100
+  fields = ["key"],
+  maxResults = 100,
+  responseContentFormat = "markdown"
 )
 ```
 
@@ -326,11 +328,12 @@ mcp__atlassian-mcp__jira_search(
 For each descendant issue key (and root if not already fetched):
 
 ```
-mcp__atlassian-mcp__jira_get_issue(
-  issue_key = "{issue-key}",
-  fields = "summary,status,assignee,issuetype,created,updated,issuelinks,comment",
+mcp__plugin_atlassian_atlassian__getJiraIssue(
+  cloudId = "redhat.atlassian.net",
+  issueIdOrKey = "{issue-key}",
+  fields = ["summary", "status", "assignee", "issuetype", "created", "updated", "issuelinks", "comment"],
   expand = "changelog",
-  comment_limit = 20
+  responseContentFormat = "markdown"
 )
 ```
 
@@ -355,28 +358,10 @@ mcp__atlassian-mcp__jira_get_issue(
 }
 ```
 
-### Step 4: Fetch Changelogs (Batch)
+### Step 4: Build IssueActivityData Structures
 
-For efficiency, use batch changelog fetching for all issue keys:
+Changelogs are already included in the Step 3 responses via `expand=changelog`. Extract changelog entries from each issue's response:
 
-```
-mcp__atlassian-mcp__jira_batch_get_changelogs(
-  issue_ids_or_keys = ["OCPSTRAT-1234", "OCPSTRAT-1235", "OCPSTRAT-1236", ...],
-  fields = ["status", "assignee", "Status Summary"],
-  limit = -1
-)
-```
-
-**Parameters**:
-- `issue_ids_or_keys`: Array of all issue keys (root + descendants)
-- `fields`: Filter to relevant fields only (reduces response size)
-  - `"status"`: Status transitions
-  - `"assignee"`: Assignee changes
-  - `"Status Summary"`: Status Summary field updates (for recent update warnings)
-- `limit`: `-1` for all changelogs, or a positive number to limit per issue
-
-**Extract from response**:
-For each issue, extract changelog entries:
 ```json
 {
   "issue_key": "OCPSTRAT-1235",
@@ -399,9 +384,10 @@ For each issue, extract changelog entries:
 }
 ```
 
-**Note**: This batch endpoint is only available on Jira Cloud. For Jira Server/Data Center, fall back to per-issue changelog extraction from the `expand=changelog` response in Step 3.
-
-### Step 5: Build IssueActivityData Structures
+Filter changelog entries to relevant fields:
+- `"status"`: Status transitions
+- `"assignee"`: Assignee changes
+- `"Status Summary"`: Status Summary field updates (for recent update warnings)
 
 For each issue (root and descendants), combine all collected data into an `IssueActivityData` structure:
 
@@ -478,7 +464,7 @@ For each issue (root and descendants), combine all collected data into an `Issue
 5. **Preserve issuelinks**:
    - Store for external-links module to process
 
-### Step 6: Cache to Temp File (Optional)
+### Step 5: Cache to Temp File (Optional)
 
 If `config.cache_to_file` is true (used by status-rollup for refinement):
 
@@ -560,10 +546,13 @@ Total issues: {count}
 
 **Finding custom field IDs**:
 ```
-mcp__atlassian-mcp__jira_search_fields(
-  keyword = "status summary"
+mcp__plugin_atlassian_atlassian__getJiraIssueTypeMetaWithFields(
+  cloudId = "redhat.atlassian.net",
+  projectKey = "{project-key}",
+  issueTypeId = "{issue-type-id}"
 )
 ```
+Search the returned fields for "status summary" or similar names.
 
 ## Error Handling
 
@@ -580,9 +569,9 @@ mcp__atlassian-mcp__jira_search_fields(
 ## Performance Tips
 
 1. **Use pre-gathered data**: For batch operations, always prefer the Python data gatherer
-2. **Batch where possible**: Use `jira_batch_get_changelogs` instead of per-issue fetches
-3. **Limit fields**: Only request fields you need
-4. **Limit comments**: Use `comment_limit=20` unless you need full history
-5. **Parallelize**: Issue detail fetches can run concurrently
-6. **Filter in JQL**: Apply date filters in the query, not post-fetch
-7. **Cache results**: Use temp file to avoid re-fetching during refinement
+2. **Use `expand=changelog`**: Include changelog data in issue fetch calls to avoid separate requests
+3. **Limit fields**: Only request fields you need via the `fields` array
+4. **Parallelize**: Issue detail fetches can run concurrently via multiple MCP calls
+5. **Filter in JQL**: Apply date filters in the query, not post-fetch
+6. **Cache results**: Use temp file to avoid re-fetching during refinement
+7. **Paginate large results**: Use `nextPageToken` when results exceed `maxResults` (capped at 100)

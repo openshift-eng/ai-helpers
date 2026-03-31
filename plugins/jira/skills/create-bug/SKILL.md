@@ -18,8 +18,7 @@ This skill is automatically invoked by the `/jira:create bug` command to guide t
 - Bug information available (problem description, steps to reproduce, etc.)
 
 **Reference Documentation:**
-- [Wiki Markup Reference](../../reference/wiki-markup.md) - JIRA formatting syntax
-- [MCP Tools Reference](../../reference/mcp-tools.md) - MCP tool signatures and custom fields
+- [MCP Tools Reference](../../reference/mcp-tools.md) - Custom fields and JQL queries
 - [CLI Fallback Reference](../../reference/cli-fallback.md) - jira-cli commands (only if MCP unavailable)
 
 ## Bug Report Best Practices
@@ -271,10 +270,12 @@ Before submitting the bug, validate:
 ### Basic Bug Creation
 
 ```python
-mcp__atlassian__jira_create_issue(
-    project_key="<PROJECT_KEY>",  # e.g., "OCPBUGS", "MYPROJECT"
+mcp__plugin_atlassian_atlassian__createJiraIssue(
+    cloudId="redhat.atlassian.net",
+    projectKey="<PROJECT_KEY>",  # e.g., "OCPBUGS", "MYPROJECT"
     summary="<bug summary>",
-    issue_type="Bug",
+    issueTypeName="Bug",
+    contentFormat="markdown",
     description="<formatted bug template>",
     components="<component name>",  # optional, if required by project
     additional_fields={
@@ -287,38 +288,40 @@ mcp__atlassian__jira_create_issue(
 ### With Project-Specific Fields (e.g., OCPBUGS)
 
 ```python
-mcp__atlassian__jira_create_issue(
-    project_key="OCPBUGS",
+mcp__plugin_atlassian_atlassian__createJiraIssue(
+    cloudId="redhat.atlassian.net",
+    projectKey="OCPBUGS",
     summary="Control plane pods crash on upgrade",
-    issue_type="Bug",
+    issueTypeName="Bug",
+    contentFormat="markdown",
     description="""
-h2. Description of problem
+## Description of problem
 
 Control plane pods crash immediately after upgrading from 4.20 to 4.21.
 
-h2. Version-Release number
+## Version-Release number
 
 4.21.0
 
-h2. How reproducible
+## How reproducible
 
 Always
 
-h2. Steps to Reproduce
+## Steps to Reproduce
 
-# Create a cluster on 4.20
-# Upgrade to 4.21
-# Observe control plane pod status
+1. Create a cluster on 4.20
+1. Upgrade to 4.21
+1. Observe control plane pod status
 
-h2. Actual results
+## Actual results
 
 Pods enter CrashLoopBackOff state.
 
-h2. Expected results
+## Expected results
 
 Pods should start successfully.
 
-h2. Additional info
+## Additional info
 
 Logs attached.
     """,
@@ -334,7 +337,7 @@ Logs attached.
 
 ## Jira Description Formatting
 
-Use Jira's native formatting (Wiki markup). For complete formatting reference, see [Wiki Markup Reference](../../reference/wiki-markup.md).
+Use Markdown format (set `contentFormat: "markdown"` on create/edit calls). Descriptions should use standard Markdown syntax for headings, lists, code blocks, and other formatting.
 
 ## Error Handling
 
@@ -359,7 +362,7 @@ Example: "API server crashes when creating namespaces"
 **Scenario:** Specified version doesn't exist in project.
 
 **Action:**
-1. Use `mcp__atlassian__jira_get_project_versions` to fetch valid versions
+1. Use the Jira API to fetch valid versions for the project
 2. Suggest closest match or list available versions
 3. Ask user to confirm or select different version
 
@@ -509,7 +512,7 @@ Any additional context?
 4. 💬 Interactively collect bug template sections
 5. 🔒 Scan for sensitive data
 6. ✅ Validate required fields
-7. 📝 Format description with Jira markup
+7. 📝 Format description with Markdown
 8. ✅ Create bug via MCP tool
 9. 📤 Return issue key and URL
 

@@ -18,7 +18,7 @@ This skill is invoked automatically when the `/jira:validate-blockers` command i
 ## Prerequisites
 
 - Jira MCP server must be configured (see plugin README)
-- MCP tools available: `mcp__atlassian__jira_*`
+- MCP tools available: `mcp__plugin_atlassian_atlassian__*` (with `cloudId="redhat.atlassian.net"`)
 - Read-only access to JIRA APIs (no credentials required for public Red Hat JIRA issues)
 - For single bug mode: bug must be accessible and exist
 
@@ -45,7 +45,7 @@ This skill is invoked automatically when the `/jira:validate-blockers` command i
 
 1. **Single bug mode** (if `--bug` is provided):
    - Skip JQL query construction
-   - Use `mcp__atlassian__jira_get_issue` to fetch the single bug
+   - Use `mcp__plugin_atlassian_atlassian__getJiraIssue` to fetch the single bug
    - Target version and component filter are ignored in this mode
    - Proceed to analysis with single bug only
 
@@ -116,25 +116,28 @@ project = OCPBUGS AND type = Bug AND "Release Blocker" = Proposed AND ("Target V
 
 **Use MCP tools to fetch proposed blockers:**
 
-For version/component mode, use `mcp__atlassian__jira_search`:
+For version/component mode, use `mcp__plugin_atlassian_atlassian__searchJiraIssuesUsingJql`:
+- **cloudId**: `"redhat.atlassian.net"`
 - **jql**: The constructed JQL query from Phase 2
-- **fields**: "key,summary,priority,severity,status,assignee,created,updated,labels,components,description,reporter,customfield_10847,customfield_10855"
-- **expand**: "renderedFields" (to get comments for workaround analysis)
-- **limit**: 1000 (adjust based on expected results)
+- **fields**: `["key","summary","priority","severity","status","assignee","created","updated","labels","components","description","reporter","customfield_10847","customfield_10855"]`
+- **maxResults**: 100 (capped at 100; use `nextPageToken` for pagination if more results)
+- **responseContentFormat**: `"markdown"`
 
 Parse the response to extract:
 - Total count of proposed blockers
 - List of bug objects with all required fields
+- Use `nextPageToken` to paginate through all results if count exceeds 100
 
 Custom fields to include:
 - `customfield_10847` - Release Blocker status (should be "Proposed")
 - `customfield_10855` - Target Version
 
-For single bug mode (`--bug` flag), use `mcp__atlassian__jira_get_issue`:
-- **issue_key**: The bug key provided by user
+For single bug mode (`--bug` flag), use `mcp__plugin_atlassian_atlassian__getJiraIssue`:
+- **cloudId**: `"redhat.atlassian.net"`
+- **issueIdOrKey**: The bug key provided by user
 - **fields**: Same fields as above plus custom fields
-- **expand**: "renderedFields"
-- **comment_limit**: 100 (need to check for workaround mentions)
+- **expand**: `"renderedFields"`
+- **responseContentFormat**: `"markdown"`
 
 **Handle query results:**
 - If total is 0, display message: "✅ No proposed blockers found" with filter summary
@@ -207,7 +210,7 @@ If a workaround doesn't meet all three criteria, it's NOT an acceptable workarou
    - ⚠️ **DISCUSS** - Edge cases requiring team discussion
 
 **Use MCP tools:**
-- `mcp__atlassian__jira_get_issue` with expand="renderedFields" to get comments
+- `mcp__plugin_atlassian_atlassian__getJiraIssue` with `cloudId="redhat.atlassian.net"`, `issueIdOrKey=<bug-key>`, `expand="renderedFields"`, `responseContentFormat="markdown"` to get comments
 - Analyze comment text for workaround mentions
 
 ### Phase 5: Generate Validation Report
@@ -278,8 +281,8 @@ When `--bug` flag is used, adapt the report to focus on a single bug:
 - Confirm no blocker decisions needed
 
 **MCP tool errors:**
-- If `mcp__atlassian__jira_search` fails, display JQL query and error message
-- If `mcp__atlassian__jira_get_issue` fails:
+- If `mcp__plugin_atlassian_atlassian__searchJiraIssuesUsingJql` fails, display JQL query and error message (ensure `cloudId="redhat.atlassian.net"` is set)
+- If `mcp__plugin_atlassian_atlassian__getJiraIssue` fails (ensure `issueIdOrKey` and `cloudId` are set):
   1. **Fallback to WebFetch**: Try fetching via `https://redhat.atlassian.net/browse/{issue-key}`
   2. **If WebFetch succeeds**: Parse the web page to extract bug details (summary, severity, description) and continue with validation
   3. **If WebFetch also fails**: Display clear error indicating bug doesn't exist or isn't accessible
@@ -293,7 +296,7 @@ When `--bug` flag is used, adapt the report to focus on a single bug:
 
 - **Query optimization**: Only fetch proposed blockers (cf[12319940] = "Proposed")
 - **Component scoping**: Use component filters to reduce result set size
-- **Batch operations**: Use `mcp__atlassian__jira_search` with appropriate limits (avoid pagination when possible)
+- **Batch operations**: Use `mcp__plugin_atlassian_atlassian__searchJiraIssuesUsingJql` with `maxResults=100` and `nextPageToken` for pagination
 - **Caching**: Store bug data in memory during execution to avoid re-querying JIRA
 
 ## JQL Query Examples

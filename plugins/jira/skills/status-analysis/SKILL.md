@@ -86,7 +86,7 @@ Do NOT invoke this skill directly. Use the commands above.
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                   Jira comment (wiki markup)                    │
+│                   Jira comment (markdown)                       │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -112,7 +112,7 @@ Both commands share the same engine with different configuration:
 | `root_issues` | Single issue key | Multiple (from manifest.json) |
 | `date_range.start` | User-specified or issue creation | `today - 7 days` |
 | `date_range.end` | User-specified or today | `today` |
-| `output_format` | `wiki_comment` | `ryg_field` |
+| `output_format` | `markdown_comment` | `ryg_field` |
 | `output_target` | Comment on root issue | Status Summary field |
 | `external_links` | Via `gh` CLI | Pre-gathered in JSON |
 | `user_review` | Yes (before posting comment) | Yes (approve/modify/skip per issue) |
@@ -159,7 +159,7 @@ Configuration passed from calling command:
     "start": "2025-01-06",
     "end": "2025-01-13"
   },
-  "output_format": "wiki_comment",
+  "output_format": "markdown_comment",
   "output_target": "comment",
   "external_links_enabled": true,
   "cache_to_file": true,
@@ -235,7 +235,7 @@ The calling command provides an AnalysisConfig. Parse and validate:
 REQUIRED parameters:
   - root_issues: Array of issue keys to analyze
   - date_range: {start, end} in YYYY-MM-DD format
-  - output_format: "wiki_comment" or "ryg_field"
+  - output_format: "markdown_comment" or "ryg_field"
 
 OPTIONAL parameters:
   - external_links_enabled: boolean (default: true)
@@ -264,7 +264,7 @@ Data has already been collected by the Python script (`gather_status_data.py`):
 2. **Discover all descendants**:
    - Use `issue in childIssuesOf({root-issue})` to get full hierarchy
    - Optionally filter by date range: `AND updated >= {start-date}`
-   - Use `limit=100` (increase if needed for large hierarchies)
+   - Use `maxResults=100` (use `nextPageToken` for pagination if needed)
 
 3. **For each descendant issue**:
    - Fetch issue details and changelog
@@ -330,25 +330,31 @@ Follow `external-links.md` to:
 
 Follow `formatting.md` to generate output based on `output_format`:
 
-**For `wiki_comment` (status-rollup)**:
+**For `markdown_comment` (status-rollup)**:
 
-```
-h2. Status Rollup From: {start-date} to {end-date}
+```markdown
+## Status Rollup: {start-date} to {end-date}
 
-*Overall Status:* [Health assessment]
+**Overall Status:** [Health assessment]
 
-*This Week:*
-* Completed:
-*# [ISSUE-KEY] - [Achievement]
-* In Progress:
-*# [ISSUE-KEY] - [Current state]
-* Blocked:
-*# [ISSUE-KEY] - [Blocker reason]
+### This Period
 
-*Next Week:*
-* [Planned items]
+**Completed:**
+1. [ISSUE-KEY](issue-url) - [Achievement]
 
-*Metrics:* X/Y issues complete (Z%)
+**In Progress:**
+1. [ISSUE-KEY](issue-url) - [Current state]
+
+**Blocked:**
+1. [ISSUE-KEY](issue-url) - [Blocker reason]
+
+### Next Steps
+
+- [Planned items]
+
+### Metrics
+
+- **Completed:** X/Y issues (Z%)
 ```
 
 **For `ryg_field` (update-weekly-status)**:
@@ -404,11 +410,11 @@ All modules should handle these error cases:
 
 - **Use pre-gathered data**: For batch operations (update-weekly-status), always use the Python data gatherer
 - **Minimize API calls**: Only fetch fields you need (for status-rollup)
-- **Use batch endpoints**: `jira_batch_get_changelogs` for multiple issues
+- **Use `expand=changelog`**: Include changelog data in issue fetch calls to avoid separate requests
 - **Single JQL for hierarchy**: `childIssuesOf()` returns all descendants in one call
 - **Cache data**: Store in temp file for refinement iterations
 - **Parallelize**: Python script handles parallel fetching; MCP calls can run concurrently
-- **Limit comments**: Use `comment_limit=20` to reduce response size
+- **Limit response size**: Only request fields you need via the `fields` array
 - **Filter early**: Data gatherer pre-filters to date range; apply in JQL for MCP calls
 
 ## Prerequisites
