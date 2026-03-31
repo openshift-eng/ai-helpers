@@ -19,8 +19,7 @@ The `ci:add-debug-wait` command adds a `wait` step to a CI job/workflow for debu
 1. Takes job name, OCP version, and optional timeout as input
 2. Finds and edits the job config or workflow file
 3. Adds `- ref: wait` before the last test step (with optional timeout configuration)
-4. Commits and pushes the change
-5. Gives you a GitHub link to create the PR
+4. Commits, pushes, and creates a PR via `gh`
 
 **That's it!** Simple, fast, and automated.
 
@@ -48,8 +47,8 @@ The command performs the following steps:
    - If not provided, uses the wait step's default behavior (3 hours)
    - Format: Integer followed by 'h' (e.g., "1h", "2h", "8h")
    - Valid range: 1h to 72h (maximum enforced by wait step's timeout setting)
-   - Will be normalized to Go duration format (e.g., "8h" → "8h0m0s")
-   - This will be set as the `timeout:` property on the wait step in the workflow/job YAML
+   - **For job config files** (`ci-operator/config/`): Set as the `TIMEOUT` env var (e.g., `TIMEOUT: +8 hours`) in the job's `env:` section. Do NOT add `timeout:` or `best_effort:` properties on the `- ref:` line — ci-operator config validation forbids mixing `ref:` with literal step properties like `timeout:`, `best_effort:`, etc.
+   - **For workflow files** (`ci-operator/step-registry/`): Set as `timeout:` (normalized to Go duration format, e.g., "8h" → "8h0m0s") and `best_effort: true` properties on the ref step (this is valid in workflow YAML schema)
 
 3. **OCP Version**: (prompt - REQUIRED for searching job configs)
    ```
@@ -66,9 +65,9 @@ The command performs the following steps:
    Default: ~/repos/openshift-release
    ```
 
-### Step 2: Validate Environment
+### Step 2: Validate Environment and Prepare Branch
 
-**Silently validate** (no user prompts):
+**Silently validate and prepare** (no user prompts):
 
 ```bash
 cd <repo-path>
@@ -76,8 +75,16 @@ cd <repo-path>
 # Check 1: Repository exists and is correct
 git remote -v | grep "openshift/release" || exit 1
 
-# Skip repo update - work with current state
-# User can manually update their repo if needed
+# Check 2: Determine the default branch name (main or master)
+default_branch=$(git remote show upstream 2>/dev/null | grep "HEAD branch" | awk '{print $NF}')
+# Fallback: check which branch exists locally
+if [ -z "$default_branch" ]; then
+  default_branch=$(git branch -l main master | head -1 | tr -d '* ')
+fi
+
+# Check 3: Checkout default branch and update from upstream
+git checkout "${default_branch}"
+git pull --rebase upstream "${default_branch}"
 ```
 
 ### Step 3: Search for Job/Test Configuration
@@ -270,15 +277,24 @@ No changes needed. The workflow is already set up for debugging.
 ```
 
 **If no test section exists**:
-```
-ℹ️  Workflow has no test: section
+Add a `test:` section with the wait step before the `post:` section. Since these are debug PRs (never merged), it is safe to add a test section even if the workflow didn't have one.
 
-This workflow is provision/deprovision only.
-The test steps must be defined in the job config.
-
-Please provide the full job name to modify the job config instead.
+```yaml
+    test:
+      - ref: wait
+    post:
+      - chain: cucushift-installer-rehearse-aws-ipi-deprovision
 ```
-→ Exit or prompt for job name
+
+Or with custom timeout:
+```yaml
+    test:
+      - ref: wait
+        timeout: 8h0m0s
+        best_effort: true
+    post:
+      - chain: cucushift-installer-rehearse-aws-ipi-deprovision
+```
 
 → Continue to **Step 5b: Modify Workflow File**
 
@@ -288,9 +304,19 @@ Please provide the full job name to modify the job config instead.
 
 ```bash
 # Add wait step before the last test step
-# If timeout is provided, add it as a step property
+# If timeout is provided, set it via the TIMEOUT env var in the job's env section
 # See Step 6 for the YAML modification algorithm
 ```
+
+**IMPORTANT**: In ci-operator job config files (`ci-operator/config/`), you MUST NOT add `timeout:` or `best_effort:` properties on a `- ref:` step. The ci-operator config validator treats any properties alongside `ref:` as a literal test step definition, which requires `as`, `commands`, `from`, and `resources` — causing validation errors like:
+```
+only one of `ref`, `chain`, or a literal test step can be set
+`as` is required
+`from` or `from_image` is required
+`commands` is required
+```
+
+Instead, to customize the wait timeout in job configs, use the `TIMEOUT` env var.
 
 **Two scenarios**:
 
@@ -300,23 +326,25 @@ Please provide the full job name to modify the job config instead.
    - ref: wait
    - chain: openshift-e2e-test-qe
    ```
-   Note: No timeout or best_effort needed - the wait step will use its default TIMEOUT env var (3 hours)
+   Note: No timeout or env change needed - the wait step will use its default TIMEOUT env var (3 hours)
 
 2. **With custom timeout** (user provided timeout parameter):
+   Add `TIMEOUT` to the existing `env:` section within the job's `steps:` block, and add `- ref: wait` to the `test:` section:
    ```yaml
+   env:
+     BASE_DOMAIN: qe.devcluster.openshift.com
+     TIMEOUT: +8 hours
    test:
    - ref: wait
-     timeout: 8h0m0s
-     best_effort: true
    - chain: openshift-e2e-test-qe
    ```
-   Note: `best_effort: true` is required when timeout is customized to prevent the wait step from failing the job if it times out
+   Note: The wait ref reads the `TIMEOUT` env var to determine how long to wait. Format: `+N hours` where N is the number of hours (e.g., `+1 hours`, `+8 hours`, `+24 hours`, `+72 hours`). Do NOT quote the value — the `determinize-ci-operator` tool strips quotes. If the job already has an `env:` section, add the `TIMEOUT` key to it. If not, create the `env:` section under `steps:`.
 
 **Show brief confirmation**:
 ```
 ✅ Modified: ${job_name} (OCP ${ocp_version})
    File: <job-config-file-path>
-   Added: - ref: wait${timeout:+ (timeout: ${timeout})}
+   Added: - ref: wait${timeout:+ (TIMEOUT: +${hours} hours)}
 ```
 
 ### Step 5b: Modify Workflow File
@@ -368,7 +396,7 @@ Example: `debug-baremetalds-two-node-arbiter-4.21-20250131`
 
 **Git operations**:
 ```bash
-# Create branch
+# Create branch from the updated default branch (already checked out and updated in Step 2)
 git checkout -b "${branch_name}"
 
 # Modify the file (add wait step using the implementation below)
@@ -406,23 +434,52 @@ The modification process for both job configs and workflow files follows the sam
 
 4. **Insert wait step**: Add before the **last** test step with matching indentation
 
-5. **Handle timeout**:
-   - Without timeout: Add simple `- ref: wait`
-   - With timeout: Add as multi-line with `timeout` and `best_effort` properties
+5. **Handle timeout** (differs between job configs and workflow files):
 
-**Example transformation:**
+   **For job config files** (`ci-operator/config/`):
+   - Without timeout: Add simple `- ref: wait`
+   - With timeout: Add simple `- ref: wait` AND add `TIMEOUT: +N hours` to the job's `env:` section
+   - NEVER add `timeout:` or `best_effort:` properties on a `- ref:` line in job configs
+
+   **For workflow files** (`ci-operator/step-registry/`):
+   - Without timeout: Add simple `- ref: wait`
+   - With timeout: Add `- ref: wait` with `timeout:` and `best_effort:` properties (valid in workflow schema)
+
+**Example transformation (job config):**
 
 Before:
 ```yaml
+env:
+  BASE_DOMAIN: qe.devcluster.openshift.com
 test:
 - chain: openshift-e2e-test-qe
 ```
 
 After (without timeout):
 ```yaml
+env:
+  BASE_DOMAIN: qe.devcluster.openshift.com
 test:
 - ref: wait
 - chain: openshift-e2e-test-qe
+```
+
+After (with timeout=8h):
+```yaml
+env:
+  BASE_DOMAIN: qe.devcluster.openshift.com
+  TIMEOUT: +8 hours
+test:
+- ref: wait
+- chain: openshift-e2e-test-qe
+```
+
+**Example transformation (workflow file):**
+
+Before:
+```yaml
+test:
+- chain: baremetalds-ipi-test
 ```
 
 After (with timeout=8h):
@@ -431,29 +488,47 @@ test:
 - ref: wait
   timeout: 8h0m0s
   best_effort: true
-- chain: openshift-e2e-test-qe
+- chain: baremetalds-ipi-test
 ```
 
 **Critical constraints:**
 - Preserve exact YAML indentation (typically 2 spaces per level)
 - Insert BEFORE the last step, not after
-- When timeout is set, `best_effort: true` is required to prevent job failure
-- Normalize timeout format to Go duration (e.g., "8h" → "8h0m0s")
+- In job configs: NEVER add `timeout:`/`best_effort:` on `- ref:` lines — use `TIMEOUT` env var instead
+- In workflow files: `timeout:` and `best_effort: true` on `- ref:` lines is valid
+- Normalize timeout format: for job configs use `+N hours`, for workflow files use Go duration (e.g., "8h" → "8h0m0s")
 
-### Step 7: Push and Show GitHub Link
+### Step 7: Push and Create PR
 
 **Auto-push the branch**:
 ```bash
 git push origin "${branch_name}"
 ```
 
-**Display GitHub PR creation link**:
+**Create the PR using `gh`**:
+```bash
+gh pr create --repo openshift/release --title "[Debug] Add wait step to ${job_name} for OCP ${ocp_version}" --body "$(cat <<'EOF'
+## Summary
+- Adds a wait step to enable debugging of test failures in OCP ${ocp_version}
+- Job: ${job_name}
+- Timeout: ${timeout:-default (3h)}
+
+The wait step pauses the workflow before tests run, allowing QE to:
+- SSH into the test environment
+- Inspect system state and logs
+- Debug configuration issues
+- Investigate test failures
+
+⚠️ **DO NOT MERGE** — close this PR after debugging is complete.
+EOF
+)"
 ```
-✅ Changes pushed successfully!
 
-Create PR here:
-https://github.com/openshift/release/compare/master...${branch_name}
+**Display the PR URL**:
+```
+✅ PR created successfully!
 
+PR: <pr_url>
 Branch: ${branch_name}
 Job: ${job_name}
 OCP: ${ocp_version}
@@ -536,7 +611,7 @@ When a user provides a timeout like "8h", the implementation should normalize it
 
 ## Return Value
 
-- **Success**: PR URL and debugging instructions
+- **Success**: Created PR URL and debugging instructions
 - **Error**: Error message with suggestions for resolution
 - **Format**: Text output with emoji indicators for status
 
@@ -557,9 +632,9 @@ test:
 - chain: openshift-e2e-test-qe
 ```
 
-Returns: PR creation link
+Returns: PR URL
 
-### Example 2: With Custom Timeout
+### Example 2: With Custom Timeout (Job Config)
 
 ```bash
 /ci:add-debug-wait aws-ipi-f7-longduration-workload 8h
@@ -567,18 +642,19 @@ Returns: PR creation link
 
 Prompts for: OCP version (4.21), repo path
 
-Result:
+Result (adds TIMEOUT env var + ref: wait):
 ```yaml
+env:
+  BASE_DOMAIN: qe.devcluster.openshift.com
+  TIMEOUT: +8 hours
 test:
 - ref: wait
-  timeout: 8h0m0s
-  best_effort: true
 - chain: openshift-e2e-test-qe
 ```
 
-Returns: PR creation link with timeout info
+Returns: PR URL
 
-### Example 3: Workflow File
+### Example 3: With Custom Timeout (Workflow File)
 
 ```bash
 /ci:add-debug-wait baremetalds-two-node-arbiter-upgrade 24h
@@ -586,7 +662,16 @@ Returns: PR creation link with timeout info
 
 Behavior: Searches job config first, falls back to workflow if not found. Warns that workflow changes affect ALL jobs using it.
 
-Returns: PR creation link
+Result (timeout/best_effort on ref is valid in workflow files):
+```yaml
+test:
+- ref: wait
+  timeout: 24h0m0s
+  best_effort: true
+- chain: baremetalds-ipi-test
+```
+
+Returns: PR URL
 
 ## Arguments
 
