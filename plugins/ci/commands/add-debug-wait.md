@@ -19,7 +19,9 @@ The `ci:add-debug-wait` command adds a `wait` step to a CI job/workflow for debu
 1. Takes job name, OCP version, and optional timeout as input
 2. Finds and edits the job config or workflow file
 3. Adds `- ref: wait` before the last test step (with optional timeout configuration)
-4. Commits, pushes, and creates a PR via `gh`
+4. Creates a git commit
+5. Pushes the commit to your fork (`origin` remote)
+6. Creates a PR via `gh`
 
 **That's it!** Simple, fast, and automated.
 
@@ -47,8 +49,8 @@ The command performs the following steps:
    - If not provided, uses the wait step's default behavior (3 hours)
    - Format: Integer followed by 'h' (e.g., "1h", "2h", "8h")
    - Valid range: 1h to 72h (maximum enforced by wait step's timeout setting)
-   - **For job config files** (`ci-operator/config/`): Set as the `TIMEOUT` env var (e.g., `TIMEOUT: +8 hours`) in the job's `env:` section. Do NOT add `timeout:` or `best_effort:` properties on the `- ref:` line — ci-operator config validation forbids mixing `ref:` with literal step properties like `timeout:`, `best_effort:`, etc.
-   - **For workflow files** (`ci-operator/step-registry/`): Set as `timeout:` (normalized to Go duration format, e.g., "8h" → "8h0m0s") and `best_effort: true` properties on the ref step (this is valid in workflow YAML schema)
+   - **For job config files** (`ci-operator/config/`): Set as the `TIMEOUT` env var (e.g., `TIMEOUT: +8 hours`) in the job's `env:` section
+   - **For workflow files** (`ci-operator/step-registry/`): Set as `timeout:` (normalized to Go duration format, e.g., "8h" → "8h0m0s") and `best_effort: true` properties on the ref step
 
 3. **OCP Version**: (prompt - REQUIRED for searching job configs)
    ```
@@ -77,13 +79,20 @@ git remote -v | grep "openshift/release" || exit 1
 
 # Check 2: Determine the default branch name (main or master)
 default_branch=$(git remote show upstream 2>/dev/null | grep "HEAD branch" | awk '{print $NF}')
-# Fallback: check which branch exists locally
 if [ -z "$default_branch" ]; then
-  default_branch=$(git branch -l main master | head -1 | tr -d '* ')
+  # Fallback: check which branch exists locally
+  for branch in main master; do
+    if git rev-parse --verify "$branch" >/dev/null 2>&1; then
+      default_branch="$branch"
+      break
+    fi
+  done
 fi
 
 # Check 3: Checkout default branch and update from upstream
-git checkout "${default_branch}"
+# Use --track -B to handle fresh clones where the local branch may not exist
+git checkout --track -B "${default_branch}" "upstream/${default_branch}" 2>/dev/null \
+  || git checkout "${default_branch}"
 git pull --rebase upstream "${default_branch}"
 ```
 
@@ -308,15 +317,11 @@ Or with custom timeout:
 # See Step 6 for the YAML modification algorithm
 ```
 
-**IMPORTANT**: In ci-operator job config files (`ci-operator/config/`), you MUST NOT add `timeout:` or `best_effort:` properties on a `- ref:` step. The ci-operator config validator treats any properties alongside `ref:` as a literal test step definition, which requires `as`, `commands`, `from`, and `resources` — causing validation errors like:
+**After editing, validate the file** by running the ref-step linter:
+```bash
+python3 <ai-helpers-repo>/plugins/ci/scripts/validate-ref-steps.py <job-config-file>
 ```
-only one of `ref`, `chain`, or a literal test step can be set
-`as` is required
-`from` or `from_image` is required
-`commands` is required
-```
-
-Instead, to customize the wait timeout in job configs, use the `TIMEOUT` env var.
+This catches invalid properties (e.g., `timeout:`, `best_effort:`) on `ref:` steps in job config files. If validation fails, fix the file before committing — use the `TIMEOUT` env var instead.
 
 **Two scenarios**:
 
@@ -328,7 +333,7 @@ Instead, to customize the wait timeout in job configs, use the `TIMEOUT` env var
    ```
    Note: No timeout or env change needed - the wait step will use its default TIMEOUT env var (3 hours)
 
-2. **With custom timeout** (user provided timeout parameter):
+2. **With custom timeout** (user-provided timeout parameter):
    Add `TIMEOUT` to the existing `env:` section within the job's `steps:` block, and add `- ref: wait` to the `test:` section:
    ```yaml
    env:
@@ -341,7 +346,7 @@ Instead, to customize the wait timeout in job configs, use the `TIMEOUT` env var
    Note: The wait ref reads the `TIMEOUT` env var to determine how long to wait. Format: `+N hours` where N is the number of hours (e.g., `+1 hours`, `+8 hours`, `+24 hours`, `+72 hours`). Do NOT quote the value — the `determinize-ci-operator` tool strips quotes. If the job already has an `env:` section, add the `TIMEOUT` key to it. If not, create the `env:` section under `steps:`.
 
 **Show brief confirmation**:
-```
+```text
 ✅ Modified: ${job_name} (OCP ${ocp_version})
    File: <job-config-file-path>
    Added: - ref: wait${timeout:+ (TIMEOUT: +${hours} hours)}
@@ -367,7 +372,7 @@ Instead, to customize the wait timeout in job configs, use the `TIMEOUT` env var
    ```
    Note: No timeout or best_effort needed - the wait step will use its default TIMEOUT env var (3 hours)
 
-2. **With custom timeout** (user provided timeout parameter):
+2. **With custom timeout** (user-provided timeout parameter):
    ```yaml
    test:
    - ref: wait
@@ -439,7 +444,6 @@ The modification process for both job configs and workflow files follows the sam
    **For job config files** (`ci-operator/config/`):
    - Without timeout: Add simple `- ref: wait`
    - With timeout: Add simple `- ref: wait` AND add `TIMEOUT: +N hours` to the job's `env:` section
-   - NEVER add `timeout:` or `best_effort:` properties on a `- ref:` line in job configs
 
    **For workflow files** (`ci-operator/step-registry/`):
    - Without timeout: Add simple `- ref: wait`
@@ -491,19 +495,21 @@ test:
 - chain: baremetalds-ipi-test
 ```
 
+6. **Validate**: Run `validate-ref-steps.py` on the modified file (see Step 5a). Fix any errors before committing.
+
 **Critical constraints:**
 - Preserve exact YAML indentation (typically 2 spaces per level)
 - Insert BEFORE the last step, not after
-- In job configs: NEVER add `timeout:`/`best_effort:` on `- ref:` lines — use `TIMEOUT` env var instead
-- In workflow files: `timeout:` and `best_effort: true` on `- ref:` lines is valid
 - Normalize timeout format: for job configs use `+N hours`, for workflow files use Go duration (e.g., "8h" → "8h0m0s")
 
-### Step 7: Push and Create PR
+### Step 7: Push to Fork
 
-**Auto-push the branch**:
+**Push the branch to the user's fork** (`origin` remote):
 ```bash
 git push origin "${branch_name}"
 ```
+
+### Step 8: Create PR
 
 **Create the PR using `gh`**:
 ```bash
@@ -525,7 +531,7 @@ EOF
 ```
 
 **Display the PR URL**:
-```
+```text
 ✅ PR created successfully!
 
 PR: <pr_url>
