@@ -24,6 +24,9 @@ python3 plugins/ci/skills/set-release-blocker/set_release_blocker.py OCPBUGS-765
 # Explicitly set to Approved
 python3 plugins/ci/skills/set-release-blocker/set_release_blocker.py OCPBUGS-76523 --value Approved
 
+# Set to Proposed
+python3 plugins/ci/skills/set-release-blocker/set_release_blocker.py OCPBUGS-76523 --value Proposed
+
 # Set to Rejected
 python3 plugins/ci/skills/set-release-blocker/set_release_blocker.py OCPBUGS-76523 --value Rejected
 
@@ -40,8 +43,9 @@ python3 plugins/ci/skills/set-release-blocker/set_release_blocker.py OCPBUGS-765
 - **Field name**: Release Blocker
 - **Type**: Select dropdown
 - **Options**:
-  - `Approved` (option ID: `25755`)
-  - `Rejected` (option ID: `25756`)
+  - `Approved` (option ID: `16772`)
+  - `Proposed` (option ID: `16773`)
+  - `Rejected` (option ID: `16774`)
 
 ## Output
 

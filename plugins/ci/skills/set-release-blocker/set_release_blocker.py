@@ -3,11 +3,12 @@
 Set the Release Blocker field on a JIRA issue.
 
 Usage:
-    python3 set_release_blocker.py <issue_key> [--value Approved|Rejected|""]
+    python3 set_release_blocker.py <issue_key> [--value Approved|Proposed|Rejected|""]
 
 Examples:
     python3 set_release_blocker.py OCPBUGS-76523
     python3 set_release_blocker.py OCPBUGS-76523 --value Approved
+    python3 set_release_blocker.py OCPBUGS-76523 --value Proposed
     python3 set_release_blocker.py OCPBUGS-76523 --value Rejected
     python3 set_release_blocker.py OCPBUGS-76523 --value ""  # Clear the field
 
@@ -27,8 +28,9 @@ RELEASE_BLOCKER_FIELD = "customfield_10847"
 
 # Option IDs for the Release Blocker select field
 RELEASE_BLOCKER_OPTIONS = {
-    "Approved": "25755",
-    "Rejected": "25756",
+    "Approved": "16772",
+    "Proposed": "16773",
+    "Rejected": "16774",
 }
 
 
@@ -37,7 +39,7 @@ def set_release_blocker(issue_key: str, value: str, token: str, username: str) -
 
     Args:
         issue_key: JIRA issue key (e.g., OCPBUGS-76523)
-        value: "Approved", "Rejected", or "" to clear
+        value: "Approved", "Proposed", "Rejected", or "" to clear
         token: JIRA API token
         username: Atlassian account email
 
@@ -120,6 +122,7 @@ def main():
 Examples:
   %(prog)s OCPBUGS-76523
   %(prog)s OCPBUGS-76523 --value Approved
+  %(prog)s OCPBUGS-76523 --value Proposed
   %(prog)s OCPBUGS-76523 --value Rejected
   %(prog)s OCPBUGS-76523 --value ""
 """,
@@ -129,7 +132,7 @@ Examples:
     parser.add_argument(
         "--value",
         default="Approved",
-        help='Value to set: "Approved" (default), "Rejected", or "" to clear',
+        help='Value to set: "Approved" (default), "Proposed", "Rejected", or "" to clear',
     )
     parser.add_argument(
         "--format",
