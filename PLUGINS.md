@@ -92,7 +92,7 @@ Automated code quality review with language-aware analysis for pre-commit verifi
 
 **Commands:**
 - **`/code-review:pr` `<pr-url-or-number> [--language <lang>] [--profile <name>] [--skip-build] [--skip-tests]`** - Automated PR code quality review with language-aware analysis and project-specific profiles
-- **`/code-review:pre-commit-review` `[--language <lang>] [--profile <name>] [--skip-build] [--skip-tests]`** - Automated pre-commit code quality review with language-aware analysis and project-specific profiles
+- **`/code-review:pre-commit-review` `[--language <lang>] [--profile <name>] [--resolve] [--skip-build] [--skip-tests]`** - Automated pre-commit code quality review with language-aware analysis and project-specific profiles
 
 See [plugins/code-review/README.md](plugins/code-review/README.md) for detailed documentation.
 

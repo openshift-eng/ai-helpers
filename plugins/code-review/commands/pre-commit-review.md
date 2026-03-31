@@ -1,6 +1,6 @@
 ---
 description: "Automated pre-commit code quality review with language-aware analysis and project-specific profiles"
-argument-hint: "[--language <lang>] [--profile <name>] [--skip-build] [--skip-tests]"
+argument-hint: "[--language <lang>] [--profile <name>] [--resolve] [--skip-build] [--skip-tests]"
 ---
 
 ## Name
@@ -8,7 +8,7 @@ code-review:pre-commit-review
 
 ## Synopsis
 ```
-/code-review:pre-commit-review [--language <lang>] [--profile <name>] [--skip-build] [--skip-tests]
+/code-review:pre-commit-review [--language <lang>] [--profile <name>] [--resolve] [--skip-build] [--skip-tests]
 ```
 
 ## Description
@@ -29,6 +29,7 @@ The two layers compose: `--language go --profile hypershift` applies both Go idi
 - Parse `$ARGUMENTS` for the following flags:
   - `--language <lang>`: Language skill to load (e.g., `go`, `python`, `rust`, `typescript`, `java`)
   - `--profile <name>`: Project profile skill to load (e.g., `hypershift`)
+  - `--resolve`: Enable the iterative review and resolve cycle to automatically fix identified issues
   - `--skip-build`: Skip build verification step
   - `--skip-tests`: Skip unit test coverage review step
 - If `--language` is not specified, auto-detect the primary language from the file extensions of changed files:
@@ -139,6 +140,15 @@ After all sub-agents and build verification complete, aggregate findings into a 
 9. **Required Actions**: Issues that must be fixed before committing (blocking).
 10. **Recommended Improvements**: Suggestions that are not blocking but would improve code quality.
 
+### Step 5 — Resolve (if enabled)
+
+If the `--resolve` flag was provided and the Overall Verdict is FAIL or PASS WITH RECOMMENDATIONS:
+1. Present the current report to the user and announce the beginning of the resolve cycle.
+2. Attempt to automatically fix the identified Required Actions and Recommended Improvements in the codebase using appropriate file editing tools.
+3. After making changes, loop back to Step 1 to re-run the review on the newly modified code.
+4. Continue this cycle until the Overall Verdict is PASS, or a maximum of 3 iterations is reached.
+5. If the maximum iterations are reached and issues remain, report the final state to the user and stop.
+
 ### Critical Rules
 
 - **Never approve without build verification** unless `--skip-build` is explicitly specified.
@@ -187,8 +197,15 @@ After all sub-agents and build verification complete, aggregate findings into a 
    ```
    Applies Rust idiomatic checks with no project-specific profile.
 
+6. **Review and resolve issues**:
+   ```
+   /code-review:pre-commit-review --resolve
+   ```
+   Runs the review and automatically loops to fix identified issues until passing.
+
 ## Arguments:
 - `--language <lang>`: Language skill to load. Currently shipped: `go`. Planned: `python`, `rust`, `typescript`, `java`. If omitted, auto-detected from changed file extensions.
 - `--profile <name>`: Project profile skill to load. Loads `skills/profile-<name>/SKILL.md` for project-specific conventions. If omitted, no profile-specific checks are applied.
+- `--resolve`: Enable the iterative review and resolve cycle (Step 5) to automatically fix identified issues.
 - `--skip-build`: Skip the build verification step (Step 3). Useful for documentation-only changes or when build infrastructure is not available locally.
 - `--skip-tests`: Skip the unit test coverage review step (Unit Test Coverage sub-agent). Useful when changes do not affect testable code.

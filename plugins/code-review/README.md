@@ -10,12 +10,13 @@ Performs a comprehensive code quality review of staged and unstaged changes befo
 
 **Usage:**
 ```bash
-/code-review:pre-commit-review [--language <lang>] [--profile <name>] [--skip-build] [--skip-tests]
+/code-review:pre-commit-review [--language <lang>] [--profile <name>] [--resolve] [--skip-build] [--skip-tests]
 ```
 
 **Arguments:**
 - `--language <lang>`: Language skill to load. Currently shipped: `go`. Planned: `python`, `rust`, `typescript`, `java`. Auto-detected if omitted.
 - `--profile <name>`: Project profile to load for project-specific conventions.
+- `--resolve`: Enable the iterative review and resolve cycle to automatically fix identified issues.
 - `--skip-build`: Skip build verification.
 - `--skip-tests`: Skip unit test coverage review.
 
@@ -87,6 +88,7 @@ The command runs in a defined sequence of steps:
 7. **Build verification** using profile, language, or auto-detected build commands.
 8. **Project-specific checks** from the profile (if loaded).
 9. **Generate report** with verdict and actionable findings.
+10. **Resolve** identified issues (if enabled) by iterating up to 3 times to fix them.
 
 ## Examples
 
@@ -102,4 +104,7 @@ The command runs in a defined sequence of steps:
 
 # Python review without test checks
 /code-review:pre-commit-review --language python --skip-tests
+
+# Review and automatically fix identified issues
+/code-review:pre-commit-review --resolve
 ```
