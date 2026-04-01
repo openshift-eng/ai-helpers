@@ -127,6 +127,12 @@
           "synopsis": "/jira:create <type> [project-key] <summary> [options]"
         },
         {
+          "argument_hint": "<issue-key>",
+          "description": "Generate OpenShift enhancement proposal markdown from a Jira epic or feature",
+          "name": "generate-enhancement",
+          "synopsis": "/jira:generate-enhancement <issue-key>"
+        },
+        {
           "argument_hint": "<feature-key>",
           "description": "Generate comprehensive feature documentation from Jira feature and all related issues and PRs",
           "name": "generate-feature-doc",
@@ -248,6 +254,11 @@
           "name": "GCP HCP Jira Conventions"
         },
         {
+          "description": "Generate OpenShift enhancement proposal markdown from Jira epic or feature content",
+          "id": "generate-enhancement",
+          "name": "Generate Enhancement from Jira Epic or Feature"
+        },
+        {
           "description": "HyperShift team-specific Jira requirements for component selection and conventions",
           "id": "hypershift",
           "name": "HyperShift Jira Conventions"
@@ -278,7 +289,7 @@
           "name": "Jira Status Analysis Engine"
         }
       ],
-      "version": "0.3.6"
+      "version": "0.3.7"
     },
     {
       "commands": [
