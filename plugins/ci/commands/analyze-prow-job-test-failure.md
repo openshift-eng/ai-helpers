@@ -48,12 +48,6 @@ The command provides comprehensive analysis by:
 - Scope is preserved: test-level when `test-name` is provided, step-level across all failed CI steps when omitted
 - Faster results, but may miss cluster-level root causes
 
-**JIRA export (prompted at end)**:
-- After analysis completes, you'll be asked if you want to export to JIRA format
-- If yes, generates JIRA-formatted output using OCPBUGS template
-- Perfect for copy-pasting directly into JIRA OCPBUGS issues
-- Uses standard OCPBUGS fields: Description, Version, How reproducible, Steps to Reproduce, Actual results, Expected results, Additional info
-
 ### HyperShift Support
 
 For HyperShift jobs with hosted clusters, the command automatically:
@@ -74,7 +68,7 @@ The skill handles all the implementation details including:
 - URL parsing and artifact downloading
 - Archive extraction and must-gather analysis (if requested)
 - Test failure analysis with cluster correlation
-- **JIRA export (if requested)**: After analysis completes, user can choose to generate JIRA OCPBUGS-formatted output for direct copy-paste into JIRA issues
+- Markdown report generation (can be copied directly to JIRA Description field)
 
 ## Return Value
 
@@ -88,8 +82,7 @@ The skill handles all the implementation details including:
   - `logs/` - Test artifacts (build-log, interval files)
   - `must-gather/logs/` - Cluster diagnostics (if extracted, standard OpenShift)
   - `must-gather-mgmt/logs/` and `must-gather-hosted/logs/` - Dual cluster diagnostics (if extracted, HyperShift)
-  - `analysis.md` - Markdown analysis report (always generated)
-  - `analysis-jira.txt` - JIRA OCPBUGS-formatted analysis (generated if user chooses to export)
+  - `analysis.md` - Markdown analysis report (can be copied to JIRA Description field)
 
 ## Arguments:
 - $1: Prow job URL (required)
