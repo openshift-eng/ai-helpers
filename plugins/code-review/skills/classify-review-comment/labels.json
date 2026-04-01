@@ -1,4 +1,16 @@
 {
+  "allowed_bots": [
+    {
+      "author": "coderabbitai[bot]",
+      "description": "CodeRabbit AI reviewer — classify substantive review comments (code issues, suggestions, questions)"
+    }
+  ],
+  "noise_patterns": [
+    "No actionable comments were generated",
+    "Skipped: comment is from another GitHub bot",
+    "<!-- walkthrough_start -->",
+    "skip review by coderabbit.ai"
+  ],
   "severity": [
     {
       "value": "nitpick",

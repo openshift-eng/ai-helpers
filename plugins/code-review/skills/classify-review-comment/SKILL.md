@@ -13,7 +13,7 @@ This enables tracking review feedback patterns: what kinds of issues reviewers c
 
 **Read the labels file before classifying any comments:**
 
-```
+```text
 labels.json (in the same directory as this skill)
 ```
 
@@ -64,14 +64,13 @@ gh api repos/{owner}/{repo}/pulls/{number}/comments --paginate --jq '.[] | {id: 
 
 **Before classifying, filter out noise comments** (these carry no review signal):
 - Pure slash commands: body starts with `/` followed by a command word (e.g., `/lgtm`, `/test e2e-aws`, `/approve`, `/retest`, `/cc`)
-- CI bot notifications: authors like `openshift-ci-robot`, `openshift-ci[bot]`, `cwbotbot`, or any `*[bot]` author except `coderabbitai[bot]`
-- CodeRabbit noise: "No actionable comments were generated", "Skipped: comment is from another GitHub bot", walkthrough summaries (`<!-- walkthrough_start -->`), review-skipped notices (`skip review by coderabbit.ai`)
+- CI bot notifications: authors like `openshift-ci-robot`, `openshift-ci[bot]`, `cwbotbot`, or any `*[bot]` author **not listed** in the `allowed_bots` section of labels.json
+- Comments matching any pattern in the `noise_patterns` section of labels.json
 - Auto-CC commands: `/auto-cc`
 
 **Do classify** comments from:
 - Human reviewers (all comments, including those directing bots)
-- `coderabbitai[bot]` (substantive review comments — code issues, suggestions, questions)
-- `hypershift-jira-solve-ci[bot]` responding to review feedback (these show how the AI addressed the review)
+- Any bot listed in `allowed_bots` in labels.json (classify their substantive review comments — code issues, suggestions, questions)
 
 ## Classification Approach
 
