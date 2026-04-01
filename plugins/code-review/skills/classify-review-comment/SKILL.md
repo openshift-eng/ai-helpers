@@ -14,7 +14,7 @@ This enables tracking review feedback patterns: what kinds of issues reviewers c
 **Read the labels file before classifying any comments:**
 
 ```text
-labels.json (in the same directory as this skill)
+config.json (in the same directory as this skill)
 ```
 
 The labels file defines the **exact** set of valid values for `severity` and `topic`. You MUST select from these values — do not invent new labels. Each label includes a description and signal words or examples to guide your selection.
@@ -64,19 +64,19 @@ gh api repos/{owner}/{repo}/pulls/{number}/comments --paginate --jq '.[] | {id: 
 
 **Before classifying, filter out noise comments** (these carry no review signal):
 - Pure slash commands: body starts with `/` followed by a command word (e.g., `/lgtm`, `/test e2e-aws`, `/approve`, `/retest`, `/cc`)
-- CI bot notifications: authors like `openshift-ci-robot`, `openshift-ci[bot]`, `cwbotbot`, or any `*[bot]` author **not listed** in the `allowed_bots` section of labels.json
-- Comments matching any pattern in the `noise_patterns` section of labels.json
+- CI bot notifications: authors like `openshift-ci-robot`, `openshift-ci[bot]`, `cwbotbot`, or any `*[bot]` author **not listed** in the `allowed_bots` section of config.json
+- Comments matching any pattern in the `noise_patterns` section of config.json
 - Auto-CC commands: `/auto-cc`
 
 **Do classify** comments from:
 - Human reviewers (all comments, including those directing bots)
-- Any bot listed in `allowed_bots` in labels.json (classify their substantive review comments — code issues, suggestions, questions)
+- Any bot listed in `allowed_bots` in config.json (classify their substantive review comments — code issues, suggestions, questions)
 
 ## Classification Approach
 
 For each comment:
 
-1. **Read labels.json** to load the valid severity and topic values
+1. **Read config.json** to load the valid severity and topic values
 2. **Scan the comment body** for signal words and patterns that match label descriptions
 3. **Select exactly one severity** — match the comment's urgency/tone to the severity descriptions and signals
 4. **Select exactly one topic** — match the comment's subject matter to the topic descriptions and examples
@@ -92,8 +92,8 @@ Additional classification rules:
 ### Single comment
 ```json
 {
-  "severity": "<value from labels.json severity list>",
-  "topic": "<value from labels.json topic list>",
+  "severity": "<value from config.json severity list>",
+  "topic": "<value from config.json topic list>",
   "rationale": "Brief one-line explanation of why this classification was chosen"
 }
 ```
@@ -110,8 +110,8 @@ Additional classification rules:
       "id": 2871360513,
       "author": "jparrill",
       "body_preview": "small nit: I would move the vars...",
-      "severity": "<value from labels.json>",
-      "topic": "<value from labels.json>",
+      "severity": "<value from config.json>",
+      "topic": "<value from config.json>",
       "rationale": "Reviewer suggests moving variable declarations for consistency"
     }
   ],
