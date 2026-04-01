@@ -29,7 +29,7 @@ Key capabilities:
 - **Efficient batch data gathering** using async Python script
 - Interactive component selection from available project components
 - User filtering by email or display name (with auto-resolution)
-- Intelligent activity analysis using `childIssuesOf()` for full hierarchy traversal
+- Intelligent activity analysis using `parent = KEY` JQL for full hierarchy traversal (Atlassian Cloud compatible)
 - GitHub PR and GitLab MR integration via external links
 - Recent update warnings to prevent duplicate updates
 - Batch processing with selective skip options

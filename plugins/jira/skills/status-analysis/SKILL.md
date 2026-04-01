@@ -120,7 +120,7 @@ Both commands share the same engine with different configuration:
 
 ## Hierarchy Traversal
 
-Both commands use the same traversal mechanism via `childIssuesOf()` JQL:
+Both commands use the same traversal mechanism via `parent = KEY` JQL with BFS recursion (Atlassian Cloud compatible — `childIssuesOf()` is not supported on Cloud):
 
 ```
 Root Issue (FEATURE-123)
@@ -133,11 +133,13 @@ Root Issue (FEATURE-123)
     └── Epic 2 (EPIC-789)
         └── Story 2.1
 
-JQL: issue in childIssuesOf(FEATURE-123)
-Returns: ALL descendants at any depth (EPIC-456, Story 1.1, Subtask 1.1.1, Story 1.2, EPIC-789, Story 2.1)
+JQL per level: parent = FEATURE-123  →  [EPIC-456, EPIC-789]
+               parent = EPIC-456     →  [Story 1.1, Story 1.2]
+               ... (BFS until no more children)
+Returns: ALL descendants at any depth via recursive BFS
 ```
 
-**Key benefit**: `childIssuesOf()` is already recursive - a single JQL query returns the entire hierarchy regardless of depth. No manual recursion needed.
+**Note**: `childIssuesOf()` is not available on Atlassian Cloud. The data gatherer script uses `parent = KEY` with BFS to traverse the full hierarchy.
 
 The difference between commands is not in traversal but in:
 
@@ -262,9 +264,9 @@ Data has already been collected by the Python script (`gather_status_data.py`):
    - Fetch changelog with `expand=changelog`
 
 2. **Discover all descendants**:
-   - Use `issue in childIssuesOf({root-issue})` to get full hierarchy
+   - Use `parent = {root-issue}` JQL with BFS recursion to get full hierarchy (Cloud-compatible; `childIssuesOf()` is not supported on Atlassian Cloud)
    - Optionally filter by date range: `AND updated >= {start-date}`
-   - Use `limit=100` (increase if needed for large hierarchies)
+   - Use `maxResults=100` per page; handle cursor pagination via `nextPageToken`
 
 3. **For each descendant issue**:
    - Fetch issue details and changelog
@@ -405,7 +407,7 @@ All modules should handle these error cases:
 - **Use pre-gathered data**: For batch operations (update-weekly-status), always use the Python data gatherer
 - **Minimize API calls**: Only fetch fields you need (for status-rollup)
 - **Use batch endpoints**: `jira_batch_get_changelogs` for multiple issues
-- **Single JQL for hierarchy**: `childIssuesOf()` returns all descendants in one call
+- **BFS hierarchy traversal**: Use `parent = KEY` per level with recursive BFS (Cloud-compatible replacement for `childIssuesOf()`)
 - **Cache data**: Store in temp file for refinement iterations
 - **Parallelize**: Python script handles parallel fetching; MCP calls can run concurrently
 - **Limit comments**: Use `comment_limit=20` to reduce response size
