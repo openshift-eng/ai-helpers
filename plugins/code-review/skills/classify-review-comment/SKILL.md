@@ -37,6 +37,7 @@ Fetch a specific comment by its GitHub URL and classify it.
 **URL formats supported:**
 - `https://github.com/{owner}/{repo}/pull/{number}#issuecomment-{id}`
 - `https://github.com/{owner}/{repo}/pull/{number}#discussion_r{id}`
+- `https://github.com/{owner}/{repo}/pull/{number}#pullrequestreview-{id}`
 
 **Fetch with:**
 ```bash
@@ -45,6 +46,9 @@ gh api repos/{owner}/{repo}/issues/comments/{id} --jq '{author: .user.login, bod
 
 # Review comment (discussion)
 gh api repos/{owner}/{repo}/pulls/comments/{id} --jq '{author: .user.login, body: .body}'
+
+# Review body comment
+gh api repos/{owner}/{repo}/pulls/{number}/reviews/{id} --jq '{author: .user.login, body: .body}'
 ```
 
 ### 3. Full PR
@@ -60,6 +64,9 @@ gh api repos/{owner}/{repo}/issues/{number}/comments --paginate --jq '.[] | {id:
 
 # Inline review comments
 gh api repos/{owner}/{repo}/pulls/{number}/comments --paginate --jq '.[] | {id: .id, author: .user.login, body: .body}'
+
+# Review body comments (approvals, rejections, general review summaries)
+gh api repos/{owner}/{repo}/pulls/{number}/reviews --paginate --jq '.[] | select(.body != null and .body != "") | {id: .id, author: .user.login, body: .body}'
 ```
 
 **Before classifying, filter out noise comments** (these carry no review signal):
