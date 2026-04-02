@@ -1,0 +1,564 @@
+---
+name: Phase Completion
+description: Update Jira, verify deployment, and generate completion report (Phase 7 of SDLC orchestrator)
+---
+
+# Phase Completion
+
+This skill implements Phase 7 of the SDLC orchestrator: Completion & Verification. It updates the Jira issue, verifies deployment, and generates a completion report.
+
+## Prerequisites
+
+1. **Required Skill Loaded**: `sdlc-state-yaml` must be loaded
+2. **Phase 6 Complete**: Merge phase must be completed (or PR merged manually)
+3. **Jira Access**: Valid Jira credentials configured
+4. **MCP Tools**: Jira MCP tools must be available for updating issues
+
+## Inputs
+
+Read from state file:
+- `metadata.jira_key`: Jira issue key
+- `metadata.jira_url`: Jira issue URL
+- All phase outputs from previous phases
+
+## Outputs
+
+Written to state file:
+- `phases.completion.outputs.jira_updated`: Whether Jira was successfully updated
+- `phases.completion.outputs.completion_timestamp`: When orchestration completed
+- `phases.completion.outputs.final_status`: Final status (success/partial/failed)
+- `phases.completion.outputs.completion_report_path`: Path to completion report
+- `phases.completion.verification_gates[]`: Verification gate statuses
+
+## Implementation Steps
+
+### Step 1: Update State - Phase Start
+
+1. Read state file
+2. Update state using "Update Phase Start" operation:
+   - `current_phase.name`: `"completion"`
+   - `current_phase.status`: `"in_progress"`
+   - `phases.completion.status`: `"in_progress"`
+   - `phases.completion.started_at`: Current timestamp
+3. Write state file
+
+### Step 2: Generate Completion Report
+
+Create a comprehensive completion report:
+
+1. Create report file: `.work/sdlc/{jira-key}/completion-report.md`
+
+2. Generate report content:
+
+```markdown
+# SDLC Orchestration Completion Report
+
+**Jira Issue**: {jira_key}
+**Feature**: {feature_summary}
+**Orchestration Started**: {metadata.initiated_at}
+**Orchestration Completed**: {current_timestamp}
+**Duration**: {duration_calculation}
+
+---
+
+## Executive Summary
+
+SDLC orchestration completed successfully for {jira_key}. All 7 phases executed:
+
+- ✅ Enhancement Generation
+- ✅ Design & Planning
+- ✅ Implementation
+- ✅ Testing & Validation
+- ✅ PR Creation & Review
+- ✅ Merge & Deployment Tracking
+- ✅ Completion & Verification
+
+{If any warnings or issues:}
+### Warnings
+
+{List of warnings}
+
+---
+
+## Phase Details
+
+### Phase 1: Enhancement Generation
+
+- **Status**: {phases.enhancement.status}
+- **Duration**: {duration}
+- **Output**: {enhancement_doc_path}
+- **Summary**: {description}
+
+### Phase 2: Design & Planning
+
+- **Status**: {phases.design.status}
+- **Duration**: {duration}
+- **Complexity**: {estimated_complexity}
+- **Files to Modify**: {count}
+- **Specification**: {spec_path}
+
+### Phase 3: Implementation
+
+- **Status**: {phases.implementation.status}
+- **Duration**: {duration}
+- **Branch**: {branch_name}
+- **Commits**: {commit_count}
+- **Files Changed**: {files_changed}
+- **Tests Added**: {test_files_added}
+
+**Verification Results**:
+- make lint-fix: {result}
+- make verify: {result}
+- make test: {result}
+- make build: {result}
+
+### Phase 4: Testing & Validation
+
+- **Status**: {phases.testing.status}
+- **Duration**: {duration}
+- **Tests Run**: {tests_run}
+- **Tests Passed**: {tests_passed}
+- **Coverage**: {coverage_percentage}%
+- **New Failures**: {new_failures_count}
+- **Pre-existing Failures**: {preexisting_failures_count}
+
+### Phase 5: PR Creation & Review
+
+- **Status**: {phases.pr_review.status}
+- **Duration**: {duration}
+- **PR**: {pr_url}
+- **PR Number**: #{pr_number}
+- **CI Status**: {ci_status}
+
+### Phase 6: Merge & Deployment Tracking
+
+- **Status**: {phases.merge.status}
+- **Duration**: {duration}
+- **Merged By**: @{merged_by}
+- **Merged At**: {merge_timestamp}
+- **Merge SHA**: {merge_sha}
+
+{If OpenShift repo:}
+- **First Payload**: {first_payload}
+- **Payload Status**: {payload_status}
+
+### Phase 7: Completion & Verification
+
+- **Status**: Completed
+- **Jira Updated**: {jira_updated}
+- **Final Status**: {final_status}
+
+---
+
+## Artifacts
+
+All artifacts are available in `.work/sdlc/{jira-key}/`:
+
+- **Enhancement Proposal**: `enhancement-proposal.md`
+- **Implementation Spec**: `implementation-spec.md`
+- **Test Output**: `test-output.txt`
+- **Coverage Report**: `coverage.html`
+- **PR Description**: `pr-description.md`
+- **State File**: `sdlc-state.yaml`
+- **This Report**: `completion-report.md`
+
+---
+
+## Links
+
+- **Jira Issue**: {jira_url}
+- **Pull Request**: {pr_url}
+- **Enhancement Proposal**: {enhancement_doc_path}
+- **Implementation Spec**: {spec_path}
+
+---
+
+## Statistics
+
+- **Total Duration**: {total_duration}
+- **Commits Created**: {commit_count}
+- **Files Modified**: {files_changed}
+- **Tests Added**: {test_files_added}
+- **Test Coverage**: {coverage_percentage}%
+
+---
+
+## Recommendations
+
+{AI-generated recommendations based on orchestration experience}
+
+1. {Recommendation 1}
+2. {Recommendation 2}
+...
+
+---
+
+🤖 Generated by SDLC Orchestrator v{orchestrator_version}
+Generated at: {timestamp}
+```
+
+3. Write report to file
+
+### Step 3: Verify Deployment
+
+Verify the feature is deployed:
+
+**For OpenShift repositories with payload tracking:**
+
+1. Check `phases.merge.outputs.payload_status`
+2. If `"accepted"`:
+   - Deployment verified
+   - Mark verification gate as "passed"
+3. If `"rejected"` or `"pending"`:
+   - Check if payload is still processing
+   - If rejected and this PR was cause: Mark as "failed"
+   - If pending: Mark as "warning"
+
+**For non-OpenShift repositories:**
+
+1. Verify PR is merged
+2. Verify merge commit exists in target branch:
+   ```bash
+   git log origin/main --oneline | grep {merge_sha}
+   ```
+3. If found: Deployment verified
+4. If not found: May need time for replication, mark as "pending"
+
+### Step 4: Add Jira Comment
+
+Add a comprehensive comment to the Jira issue:
+
+**Fetch Jira MCP tool**:
+```
+tool: mcp__jira__jira_add_comment
+```
+
+**Comment content**:
+
+```markdown
+✅ *SDLC Orchestration Complete*
+
+The SDLC orchestrator successfully completed all phases for this issue.
+
+*Phase Summary*
+• ✅ Enhancement Generation - Enhancement proposal created
+• ✅ Design & Planning - Implementation specification approved
+• ✅ Implementation - Code changes implemented and verified
+• ✅ Testing & Validation - Tests passed with {coverage}% coverage
+• ✅ PR Creation & Review - Pull request created and reviewed
+• ✅ Merge & Deployment - PR merged and deployed
+• ✅ Completion - Jira updated and report generated
+
+*Pull Request*
+{pr_url}
+
+*Deployment Status*
+{If OpenShift:}
+• First Payload: {first_payload}
+• Payload Status: {payload_status}
+{If non-OpenShift:}
+• Merged to {target_branch}
+• Merge SHA: {merge_sha}
+
+*Test Results*
+• Tests Run: {tests_run}
+• Tests Passed: {tests_passed}
+• Coverage: {coverage_percentage}%
+
+*Artifacts*
+All orchestration artifacts are available in the repository at `.work/sdlc/{jira-key}/`
+
+*Duration*
+Total time from initiation to completion: {duration}
+
+---
+🤖 SDLC Orchestrator v{orchestrator_version}
+Completion Report: `.work/sdlc/{jira-key}/completion-report.md`
+```
+
+**Add comment using MCP tool**:
+
+```
+mcp__jira__jira_add_comment(
+  issue_key: "{jira_key}",
+  comment: "{comment_content}"
+)
+```
+
+**Handle errors**:
+- If MCP tool not available: Skip Jira update, mark as "skipped"
+- If Jira API fails: Retry up to 3 times
+- If still fails: Log error, mark as "failed" but continue
+
+### Step 5: Update Jira Status (Optional)
+
+Optionally transition Jira issue to appropriate status:
+
+**In interactive mode:**
+
+1. Get available transitions:
+   ```
+   mcp__jira__jira_get_transitions(issue_key: "{jira_key}")
+   ```
+
+2. Parse available transitions (e.g., "In Progress" → "Done", "Resolved", "Closed")
+
+3. Ask user:
+   ```
+   Would you like to transition {jira_key} to a new status?
+
+   Available transitions:
+   1. Done
+   2. Resolved
+   3. (Keep current status)
+   ```
+
+4. If user selects a transition:
+   ```
+   mcp__jira__jira_transition_issue(
+     issue_key: "{jira_key}",
+     transition_name: "{selected_transition}"
+   )
+   ```
+
+5. Record transition in state:
+   ```yaml
+   jira_transition:
+     from: "{old_status}"
+     to: "{new_status}"
+     timestamp: "{timestamp}"
+   ```
+
+**In automation mode:**
+- Skip status transition
+- User can manually transition later
+
+### Step 6: Verify Completion Gates
+
+Run verification gates:
+
+**Gate 1: Completion Report Generated**
+
+```yaml
+- gate: "completion_report_generated"
+  status: "passed"
+  timestamp: "{timestamp}"
+```
+
+**Gate 2: Jira Comment Added**
+
+```yaml
+- gate: "jira_comment_added"
+  status: "passed"  # or "failed"/"skipped"
+  timestamp: "{timestamp}"
+```
+
+**Gate 3: Deployment Verified**
+
+```yaml
+- gate: "deployment_verified"
+  status: "passed"  # or "pending"/"warning"
+  timestamp: "{timestamp}"
+```
+
+**Gate 4: All Phases Completed**
+
+```yaml
+- gate: "all_phases_completed"
+  status: "passed"
+  timestamp: "{timestamp}"
+```
+
+### Step 7: Determine Final Status
+
+Calculate overall final status:
+
+1. **Success** if:
+   - All 7 phases completed
+   - All verification gates passed
+   - No critical errors
+   - Deployment verified (or pending for valid reasons)
+
+2. **Partial Success** if:
+   - Most phases completed
+   - Some warnings or non-critical issues
+   - Deployment pending
+   - Jira update failed but PR merged
+
+3. **Failed** if:
+   - Any phase failed critically
+   - PR not merged
+   - Deployment failed/rejected due to this PR
+
+**Record final status**:
+```yaml
+final_status: "success"  # or "partial" or "failed"
+```
+
+### Step 8: Archive State File
+
+Create archived copy of state file:
+
+1. Copy state file:
+   ```bash
+   cp .work/sdlc/{jira-key}/sdlc-state.yaml \
+      .work/sdlc/{jira-key}/sdlc-state-completed-{timestamp}.yaml
+   ```
+
+2. Update archived state:
+   - Add `archived: true` field
+   - Add `archived_at` timestamp
+
+3. Keep original state file for potential future reference
+
+### Step 9: Update State - Phase Complete
+
+1. Read current state
+2. Update state with outputs:
+   ```yaml
+   phases:
+     completion:
+       status: "completed"
+       completed_at: "{timestamp}"
+       outputs:
+         jira_updated: true
+         jira_comment_id: "{comment_id}"
+         jira_transitioned: true  # or false
+         completion_timestamp: "{timestamp}"
+         final_status: "success"
+         completion_report_path: ".work/sdlc/{jira-key}/completion-report.md"
+         archived_state_path: ".work/sdlc/{jira-key}/sdlc-state-completed-{timestamp}.yaml"
+       verification_gates: [{gates array}]
+   ```
+3. Update top-level fields:
+   ```yaml
+   orchestration_completed: true
+   final_status: "success"
+   completed_at: "{timestamp}"
+   ```
+4. Update `resumability.can_resume: false` (orchestration complete)
+5. Write state file
+
+### Step 10: Display Final Summary
+
+Display comprehensive completion summary:
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎉 SDLC ORCHESTRATION COMPLETE 🎉
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Issue: {jira_key}
+Feature: {feature_summary}
+
+━━━ Summary ━━━
+
+✅ All 7 phases completed successfully
+   ✅ Enhancement Generation
+   ✅ Design & Planning
+   ✅ Implementation
+   ✅ Testing & Validation
+   ✅ PR Creation & Review
+   ✅ Merge & Deployment
+   ✅ Completion
+
+━━━ Results ━━━
+
+• Pull Request: {pr_url}
+• Merge SHA: {merge_sha}
+• Test Coverage: {coverage_percentage}%
+• Commits Created: {commit_count}
+• Files Modified: {files_changed}
+
+{If OpenShift repo:}
+• Deployment: {payload_status} in {first_payload}
+
+━━━ Jira Update ━━━
+
+• Comment added: ✅
+• Status transitioned: {yes/no}
+
+━━━ Artifacts ━━━
+
+All artifacts saved to: .work/sdlc/{jira-key}/
+
+• Enhancement Proposal
+• Implementation Specification
+• Test Output & Coverage
+• Completion Report
+• State File (archived)
+
+━━━ Duration ━━━
+
+Total time: {duration}
+
+━━━ Next Steps ━━━
+
+1. ✅ Feature is live in {target_environment}
+2. Monitor deployment in production
+3. Address any follow-up items from testing
+4. Archive orchestration artifacts if desired
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Completion Report: .work/sdlc/{jira-key}/completion-report.md
+
+🤖 SDLC Orchestrator v{orchestrator_version}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+## Error Handling
+
+### Jira Comment Fails
+
+If unable to add Jira comment:
+
+1. Retry up to 3 times with exponential backoff
+2. If still fails:
+   - Log error with details
+   - Save comment content to file:
+     `.work/sdlc/{jira-key}/jira-comment-failed.txt`
+   - Mark `jira_updated: false`
+   - Append error to state
+   - Continue (not critical failure)
+3. In interactive mode:
+   - Show user the comment content
+   - Ask: "Would you like to manually add this comment to Jira?"
+
+### Deployment Verification Fails
+
+If unable to verify deployment:
+
+1. Log warning
+2. Mark deployment_verified as "unknown"
+3. Note in completion report
+4. Continue (deployment may succeed even if verification failed)
+
+### Report Generation Fails
+
+If unable to create completion report:
+
+1. Attempt to create minimal report with error details
+2. If that fails:
+   - Log error
+   - Mark completion_report_path as "failed"
+   - Continue (state file has all data)
+
+## Success Criteria
+
+Phase 7 is successful when:
+
+- ✅ Completion report generated
+- ✅ Jira comment added (or attempt made)
+- ✅ Deployment status verified (or pending)
+- ✅ Final status determined
+- ✅ State file archived
+- ✅ All verification gates passed or acceptable warnings
+- ✅ Orchestration marked as complete
+
+## See Also
+
+- Related MCP Tool: `mcp__jira__jira_add_comment` — adds comment to Jira
+- Related MCP Tool: `mcp__jira__jira_transition_issue` — transitions Jira status
+- Related Skill: `sdlc-state-yaml` — state schema and operations
+- Previous Phase: `phase-merge` — tracks PR merge and deployment

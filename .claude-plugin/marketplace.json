@@ -47,6 +47,12 @@
       "version": "0.0.2"
     },
     {
+      "name": "sdlc",
+      "source": "./plugins/sdlc",
+      "description": "Software Development Lifecycle orchestrator for OpenShift development workflows",
+      "version": "0.1.0"
+    },
+    {
       "name": "sosreport",
       "source": "./plugins/sosreport",
       "description": "Analyze sosreport archives for system diagnostics and troubleshooting",
