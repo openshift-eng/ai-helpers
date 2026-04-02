@@ -747,6 +747,28 @@
     {
       "commands": [
         {
+          "argument_hint": "<projects> [months] [--sample [N]] [--todo | --all]",
+          "description": "Classify Jira issues into activity types using AI and generate an interactive sankey report",
+          "name": "activity-type-report",
+          "synopsis": "bash"
+        }
+      ],
+      "description": "Snowflake data analysis commands for engineering metrics and reports",
+      "has_readme": true,
+      "hooks": [],
+      "name": "snowflake",
+      "skills": [
+        {
+          "description": "This skill should be used before any Snowflake command to verify MCP connectivity, guide users through access provisioning, and set the session context. Invoke this skill proactively whenever a command needs Snowflake data access.",
+          "id": "setup-snowflake",
+          "name": "Setup Snowflake"
+        }
+      ],
+      "version": "0.3.0"
+    },
+    {
+      "commands": [
+        {
           "argument_hint": "<path-to-sosreport> [--only <areas>] [--skip <areas>]",
           "description": "Analyze sosreport archive for system diagnostics and issues",
           "name": "analyze",

@@ -1,0 +1,8 @@
+{
+  "name": "snowflake",
+  "description": "Snowflake data analysis commands for engineering metrics and reports",
+  "version": "0.3.0",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}
