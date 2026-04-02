@@ -126,6 +126,8 @@ You MUST use the following prompt verbatim (substituting the placeholder values)
 > - **Install failure**: Use the `ci:prow-job-analyze-install-failure` skill. For metal/bare-metal jobs (job name contains "metal"), perform additional analysis using the `ci:prow-job-analyze-metal-install-failure` skill as needed for dev-scripts, Metal3/Ironic, and BareMetalHost-specific diagnostics.
 > - **Test failure**: Use the `ci:prow-job-analyze-test-failure` skill. Do NOT use `--fast` — always perform the full analysis including must-gather extraction and analysis.
 >
+> **Informing (non-blocking) tests**: JUnit `<testcase>` elements may have a `lifecycle` attribute. Tests with `lifecycle="informing"` are non-blocking — their failures do not cause the job to fail. Tests with `lifecycle="blocking"` or no `lifecycle` attribute are blocking. Focus your analysis on **blocking** test failures only. Informing test failures may appear in JUnit results but should not be treated as the cause of the job failure. You may reference them as supporting evidence when they help explain why a blocking test failed.
+>
 > **IMPORTANT** — Trace every failure to its specific root cause by examining actual logs. Never stop at high-level symptoms like "0 nodes ready", "operator degraded", or "containers are crash-looping". Download and read the actual log bundles, pod logs, and container previous logs. Cite specific error messages. The root cause must be actionable, not a restatement of the symptom.
 >
 > Return a concise summary including: failure type (install vs test), root cause, key error messages, and any relevant log excerpts. Do not ask user questions. Keep the output concise for inclusion in a summary report.
