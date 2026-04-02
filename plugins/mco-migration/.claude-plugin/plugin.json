@@ -1,0 +1,8 @@
+{
+    "name": "mco-migration",
+    "description": "Automate MCO test migration from openshift-tests-private to machine-config-operator",
+    "version": "0.0.1",
+    "author": {
+      "name": "github.com/openshift-eng"
+    }
+}

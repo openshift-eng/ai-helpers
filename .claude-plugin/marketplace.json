@@ -207,6 +207,12 @@
       "source": "./plugins/ote-migration",
       "description": "Automate OpenShift Tests Extension (OTE) migration for component repositories",
       "version": "0.0.1"
+    },
+    {
+      "name": "mco-migration",
+      "source": "./plugins/mco-migration",
+      "description": "Automate MCO test migration from openshift-tests-private to machine-config-operator",
+      "version": "0.0.1"
     }
   ]
 }

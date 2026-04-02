@@ -17,6 +17,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Hello World](#hello-world-plugin)
 - [Jira](#jira-plugin)
 - [Lvms](#lvms-plugin)
+- [Mco Migration](#mco-migration-plugin)
 - [Must Gather](#must-gather-plugin)
 - [Node](#node-plugin)
 - [Node Tuning](#node-tuning-plugin)
@@ -222,6 +223,15 @@ LVMS (Logical Volume Manager Storage) plugin for troubleshooting and debugging s
 - **`/lvms:analyze` `[must-gather-path|--live] [--component storage|operator|volumes]`** - Comprehensive LVMS troubleshooting - analyzes LVMCluster, volume groups, PVCs, and storage issues on live clusters or must-gather
 
 See [plugins/lvms/README.md](plugins/lvms/README.md) for detailed documentation.
+
+### Mco Migration Plugin
+
+Automate MCO test migration from openshift-tests-private to machine-config-operator
+
+**Commands:**
+- **`/mco-migration:migrate`** - Automate MCO test migration from openshift-tests-private to machine-config-operator
+
+See [plugins/mco-migration/README.md](plugins/mco-migration/README.md) for detailed documentation.
 
 ### Must Gather Plugin
 

@@ -1635,6 +1635,28 @@
         }
       ],
       "version": "0.0.1"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "",
+          "description": "Automate MCO test migration from openshift-tests-private to machine-config-operator",
+          "name": "migrate",
+          "synopsis": "bash"
+        }
+      ],
+      "description": "Automate MCO test migration from openshift-tests-private to machine-config-operator",
+      "has_readme": true,
+      "hooks": [],
+      "name": "mco-migration",
+      "skills": [
+        {
+          "description": "Automated workflow for migrating MCO tests from openshift-tests-private to machine-config-operator",
+          "id": "mco-migration-workflow",
+          "name": "MCO Migration Workflow"
+        }
+      ],
+      "version": "0.0.1"
     }
   ]
 }
