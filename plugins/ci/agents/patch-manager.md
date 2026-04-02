@@ -52,8 +52,27 @@ Check the nightly amd64 payload status for all GA z-stream releases (4.14 throug
    - Overall health assessment: HEALTHY, WARNING, or CRITICAL
 
 **Assessment criteria**:
-- **HEALTHY**: Recent accepted payload (within ~24h), no repeated blocking job failures
-- **WARNING**: Accepted payload is 1-2 days old, or a small streak of rejections (2-3), or a blocking job has failed more than once in a row
-- **CRITICAL**: No accepted payload in 2+ days, or a long streak of rejections (4+), or a single blocking job is consistently failing across many payloads
+- **HEALTHY**: Accepted payload within the last 3 days, no repeated blocking job failures
+- **WARNING**: Accepted payload is 2-3 days old, or a small streak of rejections (2-3), or a blocking job has failed more than once in a row
+- **CRITICAL**: No accepted payload in 3+ days, or a long streak of rejections (4+), or a single blocking job is consistently failing across many payloads
 
 Occasional isolated payload rejections are normal and should not trigger concern on their own.
+
+4. **Investigate repeat failures**: When a blocking job is failing repeatedly (across multiple payloads in the same release, or the same job name appearing across multiple releases), dig deeper using the `fetch-job-run-summary` skill to check whether the failing tests are consistent:
+
+   ```bash
+   FETCH_SUMMARY="${CLAUDE_PLUGIN_ROOT}/skills/fetch-job-run-summary/fetch_job_run_summary.py"
+   if [ ! -f "$FETCH_SUMMARY" ]; then
+     FETCH_SUMMARY=$(find ~/.claude/plugins -type f -path "*/ci/skills/fetch-job-run-summary/fetch_job_run_summary.py" 2>/dev/null | sort | head -1)
+   fi
+   python3 "$FETCH_SUMMARY" <prow_job_run_id>
+   ```
+
+   The job run ID is the last path segment of the Prow URL returned by fetch-payloads for each failed blocking job.
+
+   For each repeatedly failing job, fetch the summary from the most recent failure and look for:
+   - **Dominant error patterns** — a single error appearing across many tests suggests a systemic issue (e.g. a broken operator, infrastructure problem)
+   - **Consistent test names** — the same tests failing across runs of the same job confirm a real regression rather than flakiness
+   - **Cross-release patterns** — if the same job and same tests are failing across multiple releases (e.g. 4.19, 4.20, and 4.21), this likely points to a shared infrastructure or test framework issue rather than a release-specific regression
+
+   Include these findings in the health report: for any WARNING or CRITICAL release, list the dominant error patterns and consistently failing tests alongside the job name.
