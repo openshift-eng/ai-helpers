@@ -258,6 +258,31 @@ If a revert PR is found:
 
 3. **If a revert PR is open but not merged**, still recommend the revert but note that a revert PR already exists and link to it, so the reader can help expedite the merge.
 
+#### 6.3b: Search for Existing TRT Incident Cards
+
+Search JIRA for existing incident cards that may already track the failures found in this payload. Incident cards are JIRA issues in the **TRT** or **OCPBUGS** project labeled with `trt-incident`. They may have been created by the `ci:stage-payload-reverts` skill or filed manually by humans.
+
+**Prerequisites**: Requires `JIRA_API_TOKEN` and `JIRA_USERNAME` environment variables (same credentials used by the `fetch-jira-issue` skill). If either is not set, skip this step silently — incident card lookup is informational and must not block the analysis.
+
+**Search**: Fetch all open `trt-incident` cards — there are typically very few at any given time:
+
+```jql
+project in (TRT, OCPBUGS) AND labels = "trt-incident" AND statusCategory != Done ORDER BY created DESC
+```
+
+Query the JIRA REST API search endpoint (`POST https://redhat.atlassian.net/rest/api/3/search/jql`) with Basic authentication (`JIRA_USERNAME:JIRA_API_TOKEN`, base64-encoded). Request fields: `summary`, `status`, `description`, `labels`, `components`. Limit to 50 results. Avoid exposing credentials in process arguments — use Python `urllib` (as in `fetch_jira_issue.py`) rather than passing the auth header as a CLI argument.
+
+**Match**: For each returned issue, read its summary and description and check whether it relates to any of the failing jobs or candidate PRs found in this analysis. Prefer exact matches first (PR URL, PR number, full job name) before falling back to fuzzy matches (component name, error description keywords). Record each match:
+- `jira_key`: Issue key (e.g., `TRT-1234` or `OCPBUGS-54321`)
+- `jira_url`: `https://redhat.atlassian.net/browse/{jira_key}`
+- `summary`: Issue summary text
+- `status`: Issue status (e.g., `New`, `In Progress`)
+- `matched_jobs`: List of failing job names this card relates to
+
+Include each incident card in the detail section of every job listed in its `matched_jobs`.
+
+If the API call fails, log a warning and continue without incident card data.
+
 #### 6.4: Write Payload Results YAML
 
 After scoring all (job, candidate PR) pairs and checking for existing reverts, use the `payload-results-yaml` skill to create the results file in the current working directory: `payload-results-{tag}.yaml` (sanitize the tag for filename safety).
@@ -292,6 +317,8 @@ The report must include the following sections:
   <p>{total_blocking} blocking jobs: {succeeded} passed, {failed} failed</p>
   <p>{new_failures} new failure(s), {persistent_failures} persistent failure(s)</p>
   <p>Rejected payload streak: {streak} consecutive rejected payloads</p>
+  <!-- Omit this line entirely if no incident cards were found in Step 6.3b -->
+  <p>{N} existing TRT incident card(s) linked to failures in this payload</p>
 </div>
 ```
 
@@ -329,6 +356,13 @@ For each failed job, a collapsible section containing:
     <h4>First Failed In</h4>
     <p><a href="{originating_payload_url}">{originating_payload_tag}</a></p>
 
+    <!-- Only include if incident cards matched this job in Step 6.3b -->
+    <h4>TRT Incident Cards</h4>
+    <ul>
+      <li><a href="{jira_url}">{jira_key}</a>: {summary} <span class="badge badge-infra">{status}</span></li>
+      <!-- One item per matched incident card -->
+    </ul>
+
     <h4>Candidate PRs (introduced in {originating_payload_tag})</h4>
     <table>
       <tr><th>Component</th><th>PR</th><th>Description</th><th>Bug</th></tr>
@@ -358,6 +392,7 @@ If any revert candidates were identified in Step 6.2, show copy-paste revert ins
       <th>Description</th>
       <th>Caused Failure In</th>
       <th>Failing Since</th>
+      <th>Incident</th>
       <th>Rationale</th>
     </tr>
     <tr>
@@ -366,6 +401,7 @@ If any revert candidates were identified in Step 6.2, show copy-paste revert ins
       <td>{pr_description}</td>
       <td>{job_name(s) this PR is blamed for}</td>
       <td>{originating_payload_tag} ({streak_length} payloads ago)</td>
+      <td><!-- Link to all incident cards whose matched_jobs overlap with this PR's blamed jobs, or "—" if none --><a href="{jira_url}">{jira_key}</a></td>
       <td>{confidence_rationale}</td>
     </tr>
   </table>
