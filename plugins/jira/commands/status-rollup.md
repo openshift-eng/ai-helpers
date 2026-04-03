@@ -234,3 +234,4 @@ _Generated with [Claude Code|https://claude.com/claude-code] via {{/jira:status-
 
 - **Shared skill**: `plugins/jira/skills/status-analysis/SKILL.md`
 - **Batch updates**: `/jira:update-weekly-status` - Update Status Summary field for multiple issues
+- **Feature updates**: `/jira:generate-feature-updates` - Generate strategic feature updates for weekly status documents

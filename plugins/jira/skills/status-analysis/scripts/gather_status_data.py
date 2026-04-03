@@ -526,7 +526,7 @@ class GitHubClient:
                         reviewDecision
                         reviews(last: 30) {{
                             nodes {{
-                                author {{ login }}
+                                author {{ login ... on User {{ name }} }}
                                 state
                                 body
                                 submittedAt
@@ -537,7 +537,7 @@ class GitHubClient:
                                 isResolved
                                 comments(first: 5) {{
                                     nodes {{
-                                        author {{ login }}
+                                        author {{ login ... on User {{ name }} }}
                                         body
                                         createdAt
                                         path
@@ -552,7 +552,7 @@ class GitHubClient:
                                     oid
                                     messageHeadline
                                     committedDate
-                                    author {{ email }}
+                                    author {{ email name }}
                                 }}
                             }}
                         }}
@@ -808,8 +808,10 @@ class StatusDataGatherer:
         for review in (pr_data.get("reviews", {}).get("nodes") or []):
             submitted = self._parse_datetime(review.get("submittedAt"))
             if submitted and date_range.contains(submitted):
+                author_obj = review.get("author") or {}
                 reviews_in_range.append({
-                    "author": (review.get("author") or {}).get("login", "Unknown"),
+                    "author": author_obj.get("login", "Unknown"),
+                    "author_name": author_obj.get("name") or author_obj.get("login", "Unknown"),
                     "state": review.get("state"),
                     "body": (review.get("body") or "")[:500],
                     "submitted_at": review.get("submittedAt"),
@@ -821,11 +823,13 @@ class StatusDataGatherer:
             commit = node.get("commit", {})
             committed = self._parse_datetime(commit.get("committedDate"))
             if committed and date_range.contains(committed):
+                commit_author = commit.get("author") or {}
                 commits_in_range.append({
                     "sha": (commit.get("oid") or "")[:7],
                     "message": commit.get("messageHeadline", ""),
                     "date": commit.get("committedDate"),
-                    "author": (commit.get("author") or {}).get("email", "Unknown"),
+                    "author": commit_author.get("email", "Unknown"),
+                    "author_name": commit_author.get("name") or commit_author.get("email", "Unknown"),
                 })
 
         # Filter review comments
@@ -834,8 +838,10 @@ class StatusDataGatherer:
             for comment in (thread.get("comments", {}).get("nodes") or []):
                 created = self._parse_datetime(comment.get("createdAt"))
                 if created and date_range.contains(created):
+                    comment_author = comment.get("author") or {}
                     review_comments_in_range.append({
-                        "author": (comment.get("author") or {}).get("login", "Unknown"),
+                        "author": comment_author.get("login", "Unknown"),
+                        "author_name": comment_author.get("name") or comment_author.get("login", "Unknown"),
                         "path": comment.get("path"),
                         "line": comment.get("line"),
                         "body": (comment.get("body") or "")[:300],
@@ -1180,6 +1186,7 @@ class StatusDataGatherer:
 
             # Build issue data
             assignee = fields.get("assignee") or {}
+            labels = [l for l in fields.get("labels", []) if isinstance(l, str)]
             issue_data = {
                 "issue": {
                     "key": issue_key,
@@ -1189,6 +1196,7 @@ class StatusDataGatherer:
                         "email": assignee.get("emailAddress"),
                         "name": assignee.get("displayName"),
                     },
+                    "labels": labels,
                     "current_status_summary": fields.get(self.config.status_summary_field),
                     "last_status_summary_update": last_status_update,
                 },

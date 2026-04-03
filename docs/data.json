@@ -139,6 +139,12 @@
           "synopsis": "/jira:generate-feature-doc <feature-key>"
         },
         {
+          "argument_hint": "[project-key] [--component name] [--label label-name] [user-filters...]",
+          "description": "Generate strategic feature updates for weekly status documents",
+          "name": "generate-feature-updates",
+          "synopsis": "/jira:generate-feature-updates [project-key] [--component <component-name>] [--label <label-name>] [user-filters...]"
+        },
+        {
           "argument_hint": "[JIRA issue key] [GitHub PR URLs]",
           "description": "Generate test steps for a JIRA issue",
           "name": "generate-test-plan",

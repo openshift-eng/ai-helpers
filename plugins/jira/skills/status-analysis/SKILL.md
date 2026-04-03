@@ -5,7 +5,7 @@ description: Shared engine for analyzing Jira issue activity and generating stat
 
 # Jira Status Analysis Engine
 
-This skill provides the core analysis logic shared by status-related commands (`/jira:status-rollup` and `/jira:update-weekly-status`). It handles data collection, activity analysis, and status generation in a unified way.
+This skill provides the core analysis logic shared by status-related commands (`/jira:status-rollup`, `/jira:update-weekly-status`, and `/jira:generate-feature-updates`). It handles data collection, activity analysis, and status generation in a unified way.
 
 **IMPORTANT FOR AI**: This is a **procedural skill** - when invoked by a command, you should execute the implementation steps defined in this document and its sub-modules. The calling command determines the configuration parameters.
 
@@ -15,6 +15,7 @@ This skill is invoked automatically by:
 
 - `/jira:status-rollup` - Single root issue, outputs as Jira comment
 - `/jira:update-weekly-status` - Multiple root issues (batch), outputs to Status Summary field
+- `/jira:generate-feature-updates` - Multiple root issues (batch), outputs as markdown to stdout
 
 Do NOT invoke this skill directly. Use the commands above.
 
@@ -106,17 +107,17 @@ This skill is composed of four sub-modules. Read each when executing the analysi
 
 Both commands share the same engine with different configuration:
 
-| Parameter | status-rollup | update-weekly-status |
-|-----------|---------------|----------------------|
-| `data_source` | MCP API calls | Pre-gathered JSON files |
-| `root_issues` | Single issue key | Multiple (from manifest.json) |
-| `date_range.start` | User-specified or issue creation | `today - 7 days` |
-| `date_range.end` | User-specified or today | `today` |
-| `output_format` | `wiki_comment` | `ryg_field` |
-| `output_target` | Comment on root issue | Status Summary field |
-| `external_links` | Via `gh` CLI | Pre-gathered in JSON |
-| `user_review` | Yes (before posting comment) | Yes (approve/modify/skip per issue) |
-| `caching` | Temp file for refinement | JSON files in `.work/` |
+| Parameter | status-rollup | update-weekly-status | generate-feature-updates |
+|-----------|---------------|----------------------|--------------------------|
+| `data_source` | MCP API calls | Pre-gathered JSON files | Pre-gathered JSON files |
+| `root_issues` | Single issue key | Multiple (from manifest.json) | Multiple (from manifest.json) |
+| `date_range.start` | User-specified or issue creation | `today - 7 days` | `today - 7 days` |
+| `date_range.end` | User-specified or today | `today` | `today` |
+| `output_format` | `wiki_comment` | `ryg_field` | `feature_markdown` |
+| `output_target` | Comment on root issue | Status Summary field | stdout |
+| `external_links` | Via `gh` CLI | Pre-gathered in JSON | Pre-gathered in JSON |
+| `user_review` | Yes (before posting comment) | Yes (approve/modify/skip per issue) | Yes (full-section review) |
+| `caching` | Temp file for refinement | JSON files in `.work/` | JSON files in `.work/` |
 
 ## Hierarchy Traversal
 
@@ -235,7 +236,7 @@ The calling command provides an AnalysisConfig. Parse and validate:
 REQUIRED parameters:
   - root_issues: Array of issue keys to analyze
   - date_range: {start, end} in YYYY-MM-DD format
-  - output_format: "wiki_comment" or "ryg_field"
+  - output_format: "wiki_comment", "ryg_field", or "feature_markdown"
 
 OPTIONAL parameters:
   - external_links_enabled: boolean (default: true)
@@ -360,6 +361,15 @@ h2. Status Rollup From: {start-date} to {end-date}
      ** Thing 2 that happened since last week
  * Risks:
      ** Risk 1 (or "None at this time")
+```
+
+**For `feature_markdown` (generate-feature-updates)**:
+
+```
+- [ISSUE-KEY](https://issues.redhat.com/browse/ISSUE-KEY): Issue summary
+    - 1-3 sentences of executive prose. No metrics, no R/Y/G.
+- [ISSUE-KEY-2](https://issues.redhat.com/browse/ISSUE-KEY-2): Issue summary
+    - Prose focusing on significant progress, deliveries, blockers, or risks.
 ```
 
 ### Step 6: Return to Calling Command

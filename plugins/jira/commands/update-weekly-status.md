@@ -156,31 +156,23 @@ For each issue listed in the manifest:
 
 ##### a. Read Pre-Gathered Data
 
-Read the issue's JSON file from `.work/weekly-status/{date}/issues/{ISSUE-KEY}.json`
+Use the `summarize_issue.py` script to extract a structured, human-readable summary from the pre-gathered JSON. This avoids reading large JSON files directly (which can exceed context limits) and produces output optimized for LLM analysis.
 
-The file contains:
-
-```json
-{
-  "issue": {
-    "key": "OCPSTRAT-1234",
-    "summary": "...",
-    "status": "In Progress",
-    "assignee": {"email": "...", "name": "..."},
-    "current_status_summary": "...",
-    "last_status_summary_update": "..."
-  },
-  "descendants": {
-    "total": 15,
-    "by_status": {"Closed": 5, "In Progress": 8, "To Do": 2},
-    "updated_in_range": [...],
-    "completion_pct": 33.3
-  },
-  "changelog_in_range": [...],
-  "comments_in_range": [...],
-  "prs": [...]
-}
+```bash
+python3 {plugins-dir}/jira/skills/status-analysis/scripts/summarize_issue.py \
+  {ISSUE-KEY} --date-dir .work/weekly-status/{date}
 ```
+
+The script outputs a structured summary with sections for:
+- Issue header (key, summary, status, assignee, current status summary)
+- Descendants (total, completion %, by-status breakdown, updated in range)
+- Changelog entries (formatted as `date by author: field: old -> new`)
+- Comments (non-bot only, with body truncated to 300 chars)
+- PRs (active in range, merged this week, open)
+
+**Script location**: `plugins/jira/skills/status-analysis/scripts/summarize_issue.py`
+
+The underlying JSON file is at `.work/weekly-status/{date}/issues/{ISSUE-KEY}.json` if you need to read additional details not shown in the summary.
 
 ##### b. Analyze Activity (using Status Analysis Engine)
 
@@ -546,4 +538,6 @@ See the Jira plugin's skills directory for examples of project-specific customiz
 
 - **Shared skill**: `plugins/jira/skills/status-analysis/SKILL.md`
 - **Data gatherer script**: `plugins/jira/skills/status-analysis/scripts/gather_status_data.py`
+- **Issue summarizer script**: `plugins/jira/skills/status-analysis/scripts/summarize_issue.py`
 - **Single-issue rollup**: `/jira:status-rollup` - Generate comprehensive status comment for one issue
+- **Feature updates**: `/jira:generate-feature-updates` - Generate strategic feature updates for weekly status documents
