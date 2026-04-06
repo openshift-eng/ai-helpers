@@ -3,6 +3,8 @@ name: Jira Wiki Markup Reference
 description: JIRA Wiki Markup syntax for formatting issue descriptions
 ---
 
+> **Note:** When using MCP tools to create or update Jira issues, use Markdown format instead of wiki markup. The MCP tool automatically converts Markdown to Jira wiki markup. See [Markdown for Jira Reference](./markdown-for-jira.md) for the Markdown formatting guide.
+
 # Jira Wiki Markup Reference
 
 This guide provides JIRA Wiki Markup formatting syntax for creating well-formatted issue descriptions and comments in Jira.

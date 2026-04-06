@@ -18,7 +18,7 @@ This skill is automatically invoked by the `/jira:create story` command to guide
 - Understanding of the user story and acceptance criteria to be created
 
 **Reference Documentation:**
-- [Wiki Markup Reference](../../reference/wiki-markup.md) - JIRA formatting syntax
+- [Markdown for Jira Reference](../../reference/markdown-for-jira.md) - Markdown formatting for Jira descriptions
 - [MCP Tools Reference](../../reference/mcp-tools.md) - MCP tool signatures and custom fields
 - [CLI Fallback Reference](../../reference/cli-fallback.md) - jira-cli commands (only if MCP unavailable)
 
@@ -386,13 +386,13 @@ mcp__atlassian__jira_create_issue(
     description="""
 As a <user>, I want to <action>, so that <value>.
 
-h2. Acceptance Criteria
+## Acceptance Criteria
 
-* Test that <criteria 1>
-* Test that <criteria 2>
-* Verify that <criteria 3>
+- Test that <criteria 1>
+- Test that <criteria 2>
+- Verify that <criteria 3>
 
-h2. Additional Context
+## Additional Context
 
 <context if provided>
     """,
@@ -413,16 +413,16 @@ mcp__atlassian__jira_create_issue(
     description="""
 As a cluster admin, I want to configure automatic node pool scaling based on CPU utilization, so that I can handle traffic spikes without manual intervention.
 
-h2. Acceptance Criteria
+## Acceptance Criteria
 
-* Test that node pools scale up when average CPU exceeds 80% for 5 minutes
-* Test that node pools scale down when average CPU drops below 30% for 10 minutes
-* Test that scaling respects configured min/max node limits
-* Verify that when scaling is disabled, node count remains constant regardless of load
-* Verify that scaling events are logged to the cluster audit trail
-* Demonstrate that scaling policies can be configured via rosa CLI
+- Test that node pools scale up when average CPU exceeds 80% for 5 minutes
+- Test that node pools scale down when average CPU drops below 30% for 10 minutes
+- Test that scaling respects configured min/max node limits
+- Verify that when scaling is disabled, node count remains constant regardless of load
+- Verify that scaling events are logged to the cluster audit trail
+- Demonstrate that scaling policies can be configured via rosa CLI
 
-h2. Additional Context
+## Additional Context
 
 This builds on the existing monitoring infrastructure. Must integrate with Prometheus metrics for CPU utilization data.
 
@@ -460,32 +460,32 @@ mcp__atlassian__jira_create_issue(
 
 ## Jira Description Formatting
 
-Use Jira's native formatting (Wiki markup):
+Use Markdown formatting (the MCP tool converts it to Jira wiki markup automatically):
 
 ### Story Template Format
 
-```
+```markdown
 As a <user>, I want to <action>, so that <value>.
 
-h2. Acceptance Criteria
+## Acceptance Criteria
 
-* Test that <criteria 1>
-* Verify that <criteria 2>
-* Given <context> when <event> then <outcome>
+- Test that <criteria 1>
+- Verify that <criteria 2>
+- Given <context> when <event> then <outcome>
 
-h2. Additional Context
+## Additional Context
 
 <optional context>
 
-h3. Dependencies
-* [PROJ-123] - Parent epic or related story
+### Dependencies
+- PROJ-123 - Parent epic or related story
 
-h3. Out of Scope
-* Feature X (will be separate story)
-* Platform Y support (future release)
+### Out of Scope
+- Feature X (will be separate story)
+- Platform Y support (future release)
 ```
 
-For complete JIRA Wiki Markup formatting reference, see [Wiki Markup Reference](../../reference/wiki-markup.md).
+For complete Markdown formatting reference, see [Markdown for Jira Reference](../../reference/markdown-for-jira.md).
 
 ## Error Handling
 
@@ -752,7 +752,7 @@ As a user, I want to create, edit, delete, and share documents
 6. 💬 Optionally collect additional context
 7. 🔒 Scan for sensitive data
 8. ✅ Validate story quality and completeness
-9. 📝 Format description with Jira markup
+9. 📝 Format description with Markdown
 10. ✅ Create story via MCP tool
 11. 📤 Return issue key and URL
 

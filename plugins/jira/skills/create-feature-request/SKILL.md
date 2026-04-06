@@ -19,7 +19,7 @@ This skill is automatically invoked by the `/jira:create feature-request RFE` co
 - Knowledge of affected components/teams
 
 **Reference Documentation:**
-- [Wiki Markup Reference](../../reference/wiki-markup.md) - JIRA formatting syntax
+- [Markdown for Jira Reference](../../reference/markdown-for-jira.md) - Markdown formatting for Jira descriptions
 - [MCP Tools Reference](../../reference/mcp-tools.md) - MCP tool signatures and custom fields
 - [CLI Fallback Reference](../../reference/cli-fallback.md) - jira-cli commands (only if MCP unavailable)
 
@@ -82,24 +82,24 @@ Clearly describe:
 
 **Good example:**
 ```
-h2. Nature and Description of Request
+## Nature and Description of Request
 
 Customers need the ability to use Foo for ProductA managed control plane endpoints, rather than relying on vendor-provided defaults.
 
-h3. Current Limitation
+### Current Limitation
 Today, ProductA clusters use vendor-managed configuration for the API server endpoint. Customers cannot provide their own configuration, which creates issues for:
 - Corporate security policies requiring organization-specific settings
 - Integration with existing enterprise infrastructure
 - Compliance requirements (SOC2, ISO 27001)
 
-h3. Desired Behavior
+### Desired Behavior
 Customers should be able to:
 - Upload their own configuration during cluster creation
 - Rotate configuration after cluster creation
 - Validate configuration before cluster becomes active
 - Receive alerts when configuration changes are needed
 
-h3. Use Case
+### Use Case
 Enterprise customers with strict security policies need all infrastructure to use internally-managed configuration. This blocks ProductA adoption in regulated industries (finance, healthcare, government) where configuration management is a compliance requirement.
 ```
 
@@ -119,28 +119,28 @@ Explain **why** the customer needs this:
 
 **Good example:**
 ```
-h2. Business Requirements
+## Business Requirements
 
-h3. Customer Impact
+### Customer Impact
 - **Primary segment**: Enterprise customers in regulated industries (finance, healthcare, government)
 - **Affected customers**: 10+ customers have requested this capability
 - **Deal blockers**: Multiple active deals blocked by this limitation
 - **Escalations**: Several P1 customer escalations due to compliance failures
 
-h3. Regulatory Requirements
+### Regulatory Requirements
 - SOC2 Type II compliance requires organization-specific configuration
 - ISO 27001 mandates lifecycle management
 - Financial services regulations (PCI-DSS) require integration with enterprise infrastructure
 - Government contracts require validated configuration chains
 
-h3. Business Justification
+### Business Justification
 Without this capability:
 - Cannot close enterprise deals in regulated industries
 - Risk losing existing customers to competitors during renewals
 - Increasing support burden from compliance audit failures
 - Limiting market expansion into high-value segments
 
-h3. Competitive Context
+### Competitive Context
 Major competitors (CompetitorA, CompetitorB, CompetitorC) all support this capability for managed Kubernetes control planes. This is a gap that affects product competitive positioning.
 ```
 
@@ -159,25 +159,25 @@ Identify:
 
 **Good example:**
 ```
-h2. Affected Packages and Components
+## Affected Packages and Components
 
-h3. Teams
+### Teams
 - **HyperShift Team**: Control plane infrastructure, configuration management
 - **ROSA SRE Team**: Operational validation, configuration rotation
 - **OCM Team**: Console and API for configuration upload
 - **Networking Team**: Networking and configuration distribution
 
-h3. Technical Components
+### Technical Components
 - **cluster-ingress-operator**: Configuration provisioning and installation
 - **hypershift-operator**: Control plane configuration
 - **openshift-console**: UI for configuration upload and management
 - **rosa CLI**: CLI support for configuration operations
 
-h3. Jira Component
+### Jira Component
 Based on the primary team and technical area, this should be filed under:
 **Component**: HyperShift / ProductA
 
-h3. Related Services
+### Related Services
 - Product API (configuration upload endpoint)
 - Configuration management service (validation, storage)
 - Control plane API server (configuration installation)
@@ -329,40 +329,40 @@ mcp__atlassian__jira_create_issue(
     description="""
 <Brief overview of the request>
 
-h2. Nature and Description of Request
+## Nature and Description of Request
 
 <What is being requested - capability, current limitations, desired behavior, use case>
 
-h2. Business Requirements
+## Business Requirements
 
-h3. Customer Impact
-* <Customer segment affected>
-* <Number of customers requesting>
-* <Deals blocked or escalations>
+### Customer Impact
+- <Customer segment affected>
+- <Number of customers requesting>
+- <Deals blocked or escalations>
 
-h3. Regulatory/Compliance Requirements (if applicable)
-* <Compliance driver 1>
-* <Compliance driver 2>
+### Regulatory/Compliance Requirements (if applicable)
+- <Compliance driver 1>
+- <Compliance driver 2>
 
-h3. Business Justification
+### Business Justification
 <Why this is important, what happens without it>
 
-h3. Competitive Context (if applicable)
+### Competitive Context (if applicable)
 <How competitors handle this, gaps>
 
-h2. Affected Packages and Components
+## Affected Packages and Components
 
-h3. Teams
-* <Team 1>: <Responsibility>
-* <Team 2>: <Responsibility>
+### Teams
+- <Team 1>: <Responsibility>
+- <Team 2>: <Responsibility>
 
-h3. Technical Components
-* <Operator/component 1>
-* <Operator/component 2>
+### Technical Components
+- <Operator/component 1>
+- <Operator/component 2>
 
-h3. Related Services
-* <Service 1>
-* <Service 2>
+### Related Services
+- <Service 1>
+- <Service 2>
     """,
     components="<component name>",  # Based on affected teams/areas
     additional_fields={
@@ -386,81 +386,81 @@ mcp__atlassian__jira_create_issue(
     description="""
 Enable customers to use Foo for ProductA managed control plane API server endpoints, replacing the current vendor-managed approach.
 
-h2. Nature and Description of Request
+## Nature and Description of Request
 
 Customers need the ability to use Foo for ProductA API endpoints rather than relying on vendor-provided defaults.
 
-h3. Current Limitation
+### Current Limitation
 ProductA clusters currently use vendor-managed configuration for the API server endpoint. Customers cannot provide their own configuration, which creates issues for:
-* Corporate security policies requiring organization-specific settings
-* Integration with existing enterprise infrastructure
-* Compliance requirements (SOC2, ISO 27001, PCI-DSS)
+- Corporate security policies requiring organization-specific settings
+- Integration with existing enterprise infrastructure
+- Compliance requirements (SOC2, ISO 27001, PCI-DSS)
 
-h3. Desired Behavior
+### Desired Behavior
 Customers should be able to:
-* Upload their own configuration during cluster creation
-* Rotate custom configuration after cluster creation without cluster downtime
-* Validate configuration before cluster becomes active
-* Receive proactive alerts when configuration updates are needed (30 days, 7 days)
-* View configuration details in product console
+- Upload their own configuration during cluster creation
+- Rotate custom configuration after cluster creation without cluster downtime
+- Validate configuration before cluster becomes active
+- Receive proactive alerts when configuration updates are needed (30 days, 7 days)
+- View configuration details in product console
 
-h3. Use Case
+### Use Case
 Enterprise customers with strict security policies need all infrastructure components to use internally-managed configuration. This capability is required for ProductA adoption in regulated industries (finance, healthcare, government) where configuration management is a compliance requirement and external configuration violates security policies.
 
-h2. Business Requirements
+## Business Requirements
 
-h3. Customer Impact
-* **Primary segment**: Enterprise customers in regulated industries (finance, healthcare, government, defense)
-* **Affected customers**: 10+ enterprise customers have explicitly requested this capability
-* **Deal blockers**: Multiple active enterprise deals are currently blocked by this limitation
-* **Escalations**: Several Priority 1 customer escalations due to failed compliance audits
+### Customer Impact
+- **Primary segment**: Enterprise customers in regulated industries (finance, healthcare, government, defense)
+- **Affected customers**: 10+ enterprise customers have explicitly requested this capability
+- **Deal blockers**: Multiple active enterprise deals are currently blocked by this limitation
+- **Escalations**: Several Priority 1 customer escalations due to failed compliance audits
 
-h3. Regulatory/Compliance Requirements
-* SOC2 Type II compliance requires use of organization-specific configuration with documented lifecycle management
-* ISO 27001 certification mandates configuration lifecycle management and infrastructure integration
-* PCI-DSS (Payment Card Industry) requires configuration from approved infrastructure
-* Government contracts (FedRAMP, DoD) require validated configuration chains
-* Industry-specific regulations (HIPAA, GDPR) require organizational control of configuration
+### Regulatory/Compliance Requirements
+- SOC2 Type II compliance requires use of organization-specific configuration with documented lifecycle management
+- ISO 27001 certification mandates configuration lifecycle management and infrastructure integration
+- PCI-DSS (Payment Card Industry) requires configuration from approved infrastructure
+- Government contracts (FedRAMP, DoD) require validated configuration chains
+- Industry-specific regulations (HIPAA, GDPR) require organizational control of configuration
 
-h3. Business Justification
+### Business Justification
 Without this capability:
-* Cannot close enterprise deals in regulated industries (blocking market expansion)
-* Risk losing existing customers to competitors during renewal periods
-* Increasing support burden from compliance audit failures and customer escalations
-* Limiting addressable market to non-regulated segments
-* Missing revenue opportunity in high-value enterprise segments
+- Cannot close enterprise deals in regulated industries (blocking market expansion)
+- Risk losing existing customers to competitors during renewal periods
+- Increasing support burden from compliance audit failures and customer escalations
+- Limiting addressable market to non-regulated segments
+- Missing revenue opportunity in high-value enterprise segments
 
-h3. Competitive Context
+### Competitive Context
 All major competitors support this capability for managed Kubernetes control planes:
-* CompetitorA: Supports custom configuration via service manager
-* CompetitorB: Allows bring-your-own configuration for API server
-* CompetitorC: Supports custom configuration for control plane endpoints
+- CompetitorA: Supports custom configuration via service manager
+- CompetitorB: Allows bring-your-own configuration for API server
+- CompetitorC: Supports custom configuration for control plane endpoints
 
 This is a competitive gap affecting ProductA positioning in enterprise sales cycles.
 
-h2. Affected Packages and Components
+## Affected Packages and Components
 
-h3. Teams
-* **HyperShift Team**: Primary owner - control plane infrastructure, configuration management, rotation logic
-* **ROSA SRE Team**: Operational validation, configuration rotation procedures, monitoring and alerting
-* **OCM Team**: Console UI for configuration upload, validation, and lifecycle management
-* **Networking Team**: Networking configuration, configuration distribution to load balancers
-* **Security Team**: Configuration validation, security review, key management
+### Teams
+- **HyperShift Team**: Primary owner - control plane infrastructure, configuration management, rotation logic
+- **ROSA SRE Team**: Operational validation, configuration rotation procedures, monitoring and alerting
+- **OCM Team**: Console UI for configuration upload, validation, and lifecycle management
+- **Networking Team**: Networking configuration, configuration distribution to load balancers
+- **Security Team**: Configuration validation, security review, key management
 
-h3. Technical Components
-* **hypershift-operator**: Control plane configuration and installation
-* **cluster-ingress-operator**: Configuration provisioning for API server
-* **openshift-console**: UI components for configuration upload and management
-* **rosa CLI**: CLI commands for configuration operations (upload, rotate, view)
-* **control-plane-operator**: API server configuration mounting
+### Technical Components
+- **hypershift-operator**: Control plane configuration and installation
+- **cluster-ingress-operator**: Configuration provisioning for API server
+- **openshift-console**: UI components for configuration upload and management
+- **rosa CLI**: CLI commands for configuration operations (upload, rotate, view)
+- **control-plane-operator**: API server configuration mounting
 
-h3. Related Services
-* OCM API: New endpoints for configuration upload, validation, and management
-* Configuration storage service: Secure storage for sensitive data (encryption at rest)
-* Control plane API server: Configuration installation and serving
-* Monitoring and alerting: Configuration monitoring and proactive alerts
+### Related Services
+- OCM API: New endpoints for configuration upload, validation, and management
+- Configuration storage service: Secure storage for sensitive data (encryption at rest)
+- Control plane API server: Configuration installation and serving
+- Monitoring and alerting: Configuration monitoring and proactive alerts
 
-h2. Jira Component
+## Jira Component
 **Component**: HyperShift
 
 (Primary team is HyperShift, primary technical area is control plane infrastructure)
@@ -481,55 +481,55 @@ h2. Jira Component
 
 ## Jira Description Formatting
 
-Use Jira's native formatting (Wiki markup):
+Use Markdown formatting (the MCP tool converts it to Jira wiki markup automatically):
 
 ### Feature Request Template Format
 
-```
+```markdown
 <Brief overview>
 
-h2. Nature and Description of Request
+## Nature and Description of Request
 
 <What is being requested>
 
-h3. Current Limitation
+### Current Limitation
 <What doesn't work today>
 
-h3. Desired Behavior
+### Desired Behavior
 <What should work>
 
-h3. Use Case
+### Use Case
 <How customers will use this>
 
-h2. Business Requirements
+## Business Requirements
 
-h3. Customer Impact
-* <Affected segment>
-* <Number of requests>
-* <Deal impacts>
+### Customer Impact
+- <Affected segment>
+- <Number of requests>
+- <Deal impacts>
 
-h3. Regulatory/Compliance Requirements
-* <Requirement 1>
-* <Requirement 2>
+### Regulatory/Compliance Requirements
+- <Requirement 1>
+- <Requirement 2>
 
-h3. Business Justification
+### Business Justification
 <Why this matters, impact of not having it>
 
-h3. Competitive Context (optional)
+### Competitive Context (optional)
 <Competitor capabilities, market gaps>
 
-h2. Affected Packages and Components
+## Affected Packages and Components
 
-h3. Teams
-* <Team>: <Responsibility>
+### Teams
+- <Team>: <Responsibility>
 
-h3. Technical Components
-* <Component/operator>
+### Technical Components
+- <Component/operator>
 
-h3. Related Services
-* <Service>
+### Related Services
+- <Service>
 
-h2. Jira Component
+## Jira Component
 **Component**: <component name>
 ```
 
@@ -716,7 +716,7 @@ Would you like to revise the content?
 6. 🔍 Determine appropriate Jira Component from team/operator information
 7. 🔒 Scan for sensitive data (credentials, confidential customer info)
 8. ✅ Validate feature request quality and completeness
-9. 📝 Format description with Jira Wiki markup
+9. 📝 Format description with Markdown
 10. ✅ Create Feature Request via MCP tool
 11. 📤 Return issue key and URL
 
