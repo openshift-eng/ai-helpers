@@ -409,7 +409,7 @@ mcp__atlassian__jira_create_issue(
 2. Suggest: "Would you like to create this as a story in CNTRLPLANE, or as a bug in OCPBUGS?"
 3. Wait for user decision
 
-**Note:** Jira description formatting (Wiki markup) is defined in the `/jira:create` command.
+**Note:** Jira description formatting (Markdown) is defined in the `/jira:create` command.
 
 ## Team-Specific Extensions
 

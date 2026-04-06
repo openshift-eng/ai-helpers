@@ -18,7 +18,7 @@ This skill is automatically invoked by the `/jira:create bug` command to guide t
 - Bug information available (problem description, steps to reproduce, etc.)
 
 **Reference Documentation:**
-- [Wiki Markup Reference](../../reference/wiki-markup.md) - JIRA formatting syntax
+- [Markdown for Jira Reference](../../reference/markdown-for-jira.md) - Markdown formatting for Jira descriptions
 - [MCP Tools Reference](../../reference/mcp-tools.md) - MCP tool signatures and custom fields
 - [CLI Fallback Reference](../../reference/cli-fallback.md) - jira-cli commands (only if MCP unavailable)
 
@@ -292,33 +292,33 @@ mcp__atlassian__jira_create_issue(
     summary="Control plane pods crash on upgrade",
     issue_type="Bug",
     description="""
-h2. Description of problem
+## Description of problem
 
 Control plane pods crash immediately after upgrading from 4.20 to 4.21.
 
-h2. Version-Release number
+## Version-Release number
 
 4.21.0
 
-h2. How reproducible
+## How reproducible
 
 Always
 
-h2. Steps to Reproduce
+## Steps to Reproduce
 
-# Create a cluster on 4.20
-# Upgrade to 4.21
-# Observe control plane pod status
+1. Create a cluster on 4.20
+1. Upgrade to 4.21
+1. Observe control plane pod status
 
-h2. Actual results
+## Actual results
 
 Pods enter CrashLoopBackOff state.
 
-h2. Expected results
+## Expected results
 
 Pods should start successfully.
 
-h2. Additional info
+## Additional info
 
 Logs attached.
     """,
@@ -334,7 +334,7 @@ Logs attached.
 
 ## Jira Description Formatting
 
-Use Jira's native formatting (Wiki markup). For complete formatting reference, see [Wiki Markup Reference](../../reference/wiki-markup.md).
+Use Markdown formatting (the MCP tool converts it to Jira wiki markup automatically). For formatting reference, see [Markdown for Jira Reference](../../reference/markdown-for-jira.md).
 
 ## Error Handling
 
@@ -509,7 +509,7 @@ Any additional context?
 4. 💬 Interactively collect bug template sections
 5. 🔒 Scan for sensitive data
 6. ✅ Validate required fields
-7. 📝 Format description with Jira markup
+7. 📝 Format description with Markdown
 8. ✅ Create bug via MCP tool
 9. 📤 Return issue key and URL
 

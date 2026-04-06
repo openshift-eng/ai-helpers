@@ -18,7 +18,7 @@ This skill is automatically invoked by the `/jira:create epic` command to guide 
 - Understanding of the epic scope and related work
 
 **Reference Documentation:**
-- [Wiki Markup Reference](../../reference/wiki-markup.md) - JIRA formatting syntax
+- [Markdown for Jira Reference](../../reference/markdown-for-jira.md) - Markdown formatting for Jira descriptions
 - [MCP Tools Reference](../../reference/mcp-tools.md) - MCP tool signatures and custom fields
 - [CLI Fallback Reference](../../reference/cli-fallback.md) - jira-cli commands (only if MCP unavailable)
 
@@ -84,22 +84,22 @@ Target users: SREs, Platform administrators
 Epic-level acceptance criteria define when the epic is complete:
 
 **Format:**
-```
-h2. Epic Acceptance Criteria
+```markdown
+## Epic Acceptance Criteria
 
-* <High-level outcome 1>
-* <High-level outcome 2>
-* <High-level outcome 3>
+- <High-level outcome 1>
+- <High-level outcome 2>
+- <High-level outcome 3>
 ```
 
 **Example:**
-```
-h2. Epic Acceptance Criteria
+```markdown
+## Epic Acceptance Criteria
 
-* Administrators can view aggregated metrics from all clusters in a single dashboard
-* Alert rules can be configured to fire based on cross-cluster conditions
-* Historical metrics are retained for 30 days across all clusters
-* Documentation is complete for multi-cluster setup and configuration
+- Administrators can view aggregated metrics from all clusters in a single dashboard
+- Alert rules can be configured to fire based on cross-cluster conditions
+- Historical metrics are retained for 30 days across all clusters
+- Documentation is complete for multi-cluster setup and configuration
 ```
 
 **Characteristics:**
@@ -117,12 +117,12 @@ Include timeframe information:
 
 **Example:**
 ```
-h2. Timeline
+## Timeline
 
-* Target: Q1 2025 / OpenShift 4.21
-* Milestone 1: Metrics collection infrastructure (Sprint 1-2)
-* Milestone 2: Dashboard and visualization (Sprint 3-4)
-* Milestone 3: Alerting and historical data (Sprint 5-6)
+- Target: Q1 2025 / OpenShift 4.21
+- Milestone 1: Metrics collection infrastructure (Sprint 1-2)
+- Milestone 2: Dashboard and visualization (Sprint 3-4)
+- Milestone 3: Alerting and historical data (Sprint 5-6)
 ```
 
 ### Parent Link to Feature
@@ -134,9 +134,9 @@ If the epic belongs to a larger feature:
 
 **Example:**
 ```
-h2. Parent Feature
+## Parent Feature
 
-This epic is part of [PROJ-100] "Advanced cluster observability" and specifically addresses the multi-cluster aggregation capability.
+This epic is part of [PROJ-100](https://redhat.atlassian.net/browse/PROJ-100) "Advanced cluster observability" and specifically addresses the multi-cluster aggregation capability.
 ```
 
 ## Interactive Epic Collection Workflow
@@ -256,21 +256,21 @@ mcp__atlassian__jira_create_issue(
     description="""
 <Epic objective and description>
 
-h2. Epic Acceptance Criteria
+## Epic Acceptance Criteria
 
-* <Outcome 1>
-* <Outcome 2>
-* <Outcome 3>
+- <Outcome 1>
+- <Outcome 2>
+- <Outcome 3>
 
-h2. Scope
+## Scope
 
-h3. In Scope
-* <What's included>
+### In Scope
+- <What's included>
 
-h3. Out of Scope
-* <What's not included>
+### Out of Scope
+- <What's not included>
 
-h2. Timeline
+## Timeline
 
 Target: <quarter/release>
     """,
@@ -292,45 +292,45 @@ mcp__atlassian__jira_create_issue(
     description="""
 Enable SREs to manage and monitor multiple ROSA HCP clusters from a unified observability dashboard, reducing operational complexity of multi-cluster environments.
 
-h2. Epic Acceptance Criteria
+## Epic Acceptance Criteria
 
-* SREs can view aggregated metrics from all managed clusters in one dashboard
-* Alert rules can be defined for cross-cluster conditions (e.g., "any cluster CPU >80%")
-* Historical metrics retained for 30 days across all clusters
-* Multi-cluster setup documented and tested with production workloads
-* Performance acceptable with 100+ clusters
+- SREs can view aggregated metrics from all managed clusters in one dashboard
+- Alert rules can be defined for cross-cluster conditions (e.g., "any cluster CPU >80%")
+- Historical metrics retained for 30 days across all clusters
+- Multi-cluster setup documented and tested with production workloads
+- Performance acceptable with 100+ clusters
 
-h2. Scope
+## Scope
 
-h3. In Scope
-* Metrics aggregation across ROSA HCP clusters
-* Unified dashboard for cluster health and performance
-* Cross-cluster alerting capabilities
-* 30-day historical metrics retention
-* Configuration via CLI and API
+### In Scope
+- Metrics aggregation across ROSA HCP clusters
+- Unified dashboard for cluster health and performance
+- Cross-cluster alerting capabilities
+- 30-day historical metrics retention
+- Configuration via CLI and API
 
-h3. Out of Scope
-* Log aggregation (separate epic CNTRLPLANE-200)
-* Cost reporting (different feature)
-* Support for standalone OCP clusters (future consideration)
-* Integration with external monitoring systems (post-MVP)
+### Out of Scope
+- Log aggregation (separate epic CNTRLPLANE-200)
+- Cost reporting (different feature)
+- Support for standalone OCP clusters (future consideration)
+- Integration with external monitoring systems (post-MVP)
 
-h2. Timeline
+## Timeline
 
-* Target: Q1 2025 / OpenShift 4.21
-* Estimated: 6 sprints
-* Key milestone: MVP dashboard by end of Sprint 3
+- Target: Q1 2025 / OpenShift 4.21
+- Estimated: 6 sprints
+- Key milestone: MVP dashboard by end of Sprint 3
 
-h2. Target Users
+## Target Users
 
-* SREs managing multiple ROSA HCP clusters
-* Platform administrators
-* Operations teams
+- SREs managing multiple ROSA HCP clusters
+- Platform administrators
+- Operations teams
 
-h2. Dependencies
+## Dependencies
 
-* Requires centralized metrics storage infrastructure ([CNTRLPLANE-150])
-* Depends on cluster registration API ([CNTRLPLANE-175])
+- Requires centralized metrics storage infrastructure ([CNTRLPLANE-150](https://redhat.atlassian.net/browse/CNTRLPLANE-150))
+- Depends on cluster registration API ([CNTRLPLANE-175](https://redhat.atlassian.net/browse/CNTRLPLANE-175))
     """,
     components="HyperShift / ROSA",
     additional_fields={
@@ -371,47 +371,47 @@ mcp__atlassian__jira_create_issue(
 
 ## Jira Description Formatting
 
-Use Jira's native formatting (Wiki markup):
+Use Markdown formatting (the MCP tool converts it to Jira wiki markup automatically):
 
 ### Epic Template Format
 
 ```
 <Epic objective - what capability will be delivered and why it matters>
 
-h2. Epic Acceptance Criteria
+## Epic Acceptance Criteria
 
-* <High-level outcome 1>
-* <High-level outcome 2>
-* <High-level outcome 3>
+- <High-level outcome 1>
+- <High-level outcome 2>
+- <High-level outcome 3>
 
-h2. Scope
+## Scope
 
-h3. In Scope
-* <Functionality included in this epic>
-* <Capabilities to be delivered>
+### In Scope
+- <Functionality included in this epic>
+- <Capabilities to be delivered>
 
-h3. Out of Scope
-* <Related work NOT in this epic>
-* <Future considerations>
+### Out of Scope
+- <Related work NOT in this epic>
+- <Future considerations>
 
-h2. Timeline
+## Timeline
 
-* Target: <quarter or release>
-* Estimated: <sprints>
-* Key milestones: <major deliverables>
+- Target: <quarter or release>
+- Estimated: <sprints>
+- Key milestones: <major deliverables>
 
-h2. Target Users
+## Target Users
 
-* <User group 1>
-* <User group 2>
+- <User group 1>
+- <User group 2>
 
-h2. Dependencies (optional)
+## Dependencies (optional)
 
-* [PROJ-XXX] - <dependency description>
+- [PROJ-XXX](https://redhat.atlassian.net/browse/PROJ-XXX) - <dependency description>
 
-h2. Parent Feature (if applicable)
+## Parent Feature (if applicable)
 
-This epic is part of [PROJ-YYY] "<feature name>" and addresses <how this epic contributes>.
+This epic is part of [PROJ-YYY](https://redhat.atlassian.net/browse/PROJ-YYY) "<feature name>" and addresses <how this epic contributes>.
 ```
 
 ## Error Handling
@@ -675,7 +675,7 @@ Description: "Improve monitoring"
 7. 🔒 Scan for sensitive data
 8. ✅ Validate epic size and quality
 9. ✅ Set epic name field = summary
-10. 📝 Format description with Jira markup
+10. 📝 Format description with Markdown
 11. ✅ Create epic via MCP tool
 12. 📤 Return issue key and URL
 
