@@ -87,8 +87,28 @@ For each comment:
 2. **Scan the comment body** for signal words and patterns that match label descriptions
 3. **Select exactly one severity** — match the comment's urgency/tone to the severity descriptions and signals
 4. **Select exactly one topic** — match the comment's subject matter to the topic descriptions and examples
-5. **When ambiguous**, prefer the more specific label over `unclassified`
-6. **When a comment spans multiple topics**, pick the primary one — what is the reviewer's main concern?
+5. **Score confidence** using the rubric below
+6. **When ambiguous**, prefer the more specific label over `unclassified`
+7. **When a comment spans multiple topics**, pick the primary one — what is the reviewer's main concern?
+
+## Confidence Scoring Rubric
+
+Each classification includes a `confidence` score (0.00–1.00) indicating how certain the classification is. Accumulate the score from these signals:
+
+| Signal | Weight | Criteria |
+|--------|--------|----------|
+| Signal word match | +0.25 | Comment contains signal words/phrases from config.json for the chosen severity or topic label |
+| Unambiguous category | +0.25 | Comment clearly fits one severity and one topic with no viable alternatives |
+| Example pattern match | +0.25 | Comment closely matches a real-world example in this skill or in config.json |
+| Context reinforcement | +0.15 | Multiple independent indicators point to the same classification (e.g., tone + keywords + structure all agree) |
+| Single viable label | +0.10 | No other severity or topic label is a reasonable alternative |
+
+Maximum score is 1.00. When multiple signals apply, sum them and cap at 1.00.
+
+**Interpretation:**
+- **>= 0.95** — High confidence: classification can be auto-applied for low-risk labels
+- **0.80–0.94** — Moderate confidence: human confirmation recommended
+- **< 0.80** — Low confidence: manual classification required
 
 Additional classification rules:
 - **Slash commands mixed with text** — if a comment has substantive text before a slash command (e.g., "good analysis\n/override ci/prow/e2e"), classify based on the substantive text, not the slash command
@@ -101,6 +121,7 @@ Additional classification rules:
 {
   "severity": "<value from config.json severity list>",
   "topic": "<value from config.json topic list>",
+  "confidence": 0.95,
   "rationale": "Brief one-line explanation of why this classification was chosen"
 }
 ```
@@ -119,12 +140,14 @@ Additional classification rules:
       "body_preview": "small nit: I would move the vars...",
       "severity": "<value from config.json>",
       "topic": "<value from config.json>",
+      "confidence": 0.95,
       "rationale": "Reviewer suggests moving variable declarations for consistency"
     }
   ],
   "summary": {
     "by_severity": {"nitpick": 1, "suggestion": 1, "required_change": 2, "question": 1},
-    "by_topic": {"style": 1, "api_design": 1, "logic_bug": 2, "test_gap": 1}
+    "by_topic": {"style": 1, "api_design": 1, "logic_bug": 2, "test_gap": 1},
+    "by_confidence": {"high": 3, "moderate": 1, "low": 1}
   }
 }
 ```
@@ -135,60 +158,60 @@ These are from actual PRs in openshift/hypershift:
 
 **Comment:** "small nit: I would move the vars `key`, `log` and `cloudName` to `var (` section just to be consistent."
 ```json
-{"severity": "nitpick", "topic": "style", "rationale": "Reviewer suggests grouping variables for consistency — cosmetic, not functional"}
+{"severity": "nitpick", "topic": "style", "confidence": 1.00, "rationale": "Reviewer suggests grouping variables for consistency — cosmetic, not functional"}
 ```
 
 **Comment:** "Why not use NewARMClientOptions here for the clientOptions?"
 ```json
-{"severity": "question", "topic": "api_design", "rationale": "Reviewer asks about API choice for client options construction"}
+{"severity": "question", "topic": "api_design", "confidence": 0.90, "rationale": "Reviewer asks about API choice for client options construction"}
 ```
 
 **Comment:** "This will panic if `items` is nil — needs a nil check before the loop"
 ```json
-{"severity": "required_change", "topic": "logic_bug", "rationale": "Nil pointer dereference would cause runtime panic"}
+{"severity": "required_change", "topic": "logic_bug", "confidence": 1.00, "rationale": "Nil pointer dereference would cause runtime panic"}
 ```
 
 **Comment:** "failing during `hypershift install`\n```\nClusterRoleBinding is invalid: roleRef.kind: Unsupported value\n```"
 ```json
-{"severity": "required_change", "topic": "logic_bug", "rationale": "Installation fails due to missing required roleRef fields"}
+{"severity": "required_change", "topic": "logic_bug", "confidence": 0.90, "rationale": "Installation fails due to missing required roleRef fields"}
 ```
 
 **Comment:** "hypershift-jira-solve-ci - the unit test job is failing and needs fixed"
 ```json
-{"severity": "required_change", "topic": "test_gap", "rationale": "Unit tests are failing — the bot made code changes without ensuring tests pass"}
+{"severity": "required_change", "topic": "test_gap", "confidence": 0.90, "rationale": "Unit tests are failing — the bot made code changes without ensuring tests pass"}
 ```
 
 **Comment:** "hypershift-jira-solve-ci - rebase the PR to fix the konflux issues"
 ```json
-{"severity": "suggestion", "topic": "ci", "rationale": "PR needs rebasing to resolve CI pipeline issues — classify by the problem (CI), not the recipient (bot)"}
+{"severity": "suggestion", "topic": "ci", "confidence": 0.85, "rationale": "PR needs rebasing to resolve CI pipeline issues — classify by the problem (CI), not the recipient (bot)"}
 ```
 
 **Comment:** "hypershift-jira-solve-ci - this still needs fixed since the code did not get pushed"
 ```json
-{"severity": "required_change", "topic": "process", "rationale": "Code changes were not committed/pushed — a process failure, not a code issue"}
+{"severity": "required_change", "topic": "process", "confidence": 0.85, "rationale": "Code changes were not committed/pushed — a process failure, not a code issue"}
 ```
 
 **Comment:** "`e2e-aws-4-21` failed on `Teardown` but due to uncleaned cloud resources, not VPC endpoint blocking the finalizer\n/override ci/prow/e2e-aws-4-21"
 ```json
-{"severity": "suggestion", "topic": "ci", "rationale": "Reviewer explains CI failure root cause and overrides — substantive analysis before the slash command"}
+{"severity": "suggestion", "topic": "ci", "confidence": 0.75, "rationale": "Reviewer explains CI failure root cause and overrides — substantive analysis before the slash command"}
 ```
 
 **Comment:** "Oh no that's ok. I missed that part. No changes requested."
 ```json
-{"severity": "unclassified", "topic": "approval", "rationale": "Reviewer withdrawing their earlier question — acknowledgment"}
+{"severity": "unclassified", "topic": "approval", "confidence": 0.70, "rationale": "Reviewer withdrawing their earlier question — acknowledgment"}
 ```
 
 **Comment:** "dup of https://github.com/openshift/hypershift/pull/7727"
 ```json
-{"severity": "unclassified", "topic": "process", "rationale": "Marking PR as duplicate of another — process meta-comment"}
+{"severity": "unclassified", "topic": "process", "confidence": 0.90, "rationale": "Marking PR as duplicate of another — process meta-comment"}
 ```
 
 **Comment:** "The root cause of the CI failure in this PR has been identified. The fix in `rejectVpcEndpointConnections` doesn't work because of a **case mismatch** between AWS API responses and SDK v2 enum constants."
 ```json
-{"severity": "required_change", "topic": "logic_bug", "rationale": "Detailed root cause analysis identifying a case mismatch bug"}
+{"severity": "required_change", "topic": "logic_bug", "confidence": 1.00, "rationale": "Detailed root cause analysis identifying a case mismatch bug"}
 ```
 
 **CodeRabbit issue flagged** (starting with `_Potential issue_ | _Critical_`):
 ```json
-{"severity": "required_change", "topic": "logic_bug", "rationale": "CodeRabbit identified a critical code issue requiring attention"}
+{"severity": "required_change", "topic": "logic_bug", "confidence": 0.85, "rationale": "CodeRabbit identified a critical code issue requiring attention"}
 ```
