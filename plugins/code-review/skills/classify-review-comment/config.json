@@ -60,6 +60,16 @@
       "examples": ["why is this exported?", "consider a different signature", "interface too broad"]
     },
     {
+      "value": "architecture_design",
+      "description": "System architecture, component boundaries, patterns, layering, coupling",
+      "examples": ["this belongs in the controller", "separate concerns", "wrong abstraction layer", "circular dependency"]
+    },
+    {
+      "value": "security",
+      "description": "Security vulnerabilities, auth issues, input validation, secrets handling",
+      "examples": ["SQL injection", "unsanitized input", "hardcoded secret", "missing RBAC check", "privilege escalation"]
+    },
+    {
       "value": "documentation",
       "description": "Missing docs, comments, READMEs, godoc",
       "examples": ["missing godoc", "add a comment explaining why", "update README"]

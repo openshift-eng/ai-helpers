@@ -211,6 +211,16 @@ These are from actual PRs in openshift/hypershift:
 {"severity": "required_change", "topic": "logic_bug", "confidence": 1.00, "rationale": "Detailed root cause analysis identifying a case mismatch bug"}
 ```
 
+**Comment:** "This controller is doing too much — the reconciler should delegate VPC cleanup to a separate controller instead of inlining it"
+```json
+{"severity": "suggestion", "topic": "architecture_design", "confidence": 0.90, "rationale": "Reviewer identifies a separation-of-concerns issue at the controller level"}
+```
+
+**Comment:** "The service account token is being logged in plain text here — this needs to be redacted"
+```json
+{"severity": "required_change", "topic": "security", "confidence": 1.00, "rationale": "Sensitive credentials exposed in log output — security vulnerability"}
+```
+
 **CodeRabbit issue flagged** (starting with `_Potential issue_ | _Critical_`):
 ```json
 {"severity": "required_change", "topic": "logic_bug", "confidence": 0.85, "rationale": "CodeRabbit identified a critical code issue requiring attention"}
