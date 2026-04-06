@@ -12,17 +12,20 @@ jira:generate-enhancement
 ```
 
 ## Description
-The `jira:generate-enhancement` command generates an OpenShift enhancement proposal markdown file based on a Jira epic or feature. It fetches the feature details, analyzes the content, and creates a properly formatted enhancement document following the OpenShift enhancement template structure.
+The `jira:generate-enhancement` command generates an OpenShift enhancement proposal markdown file based on a Jira epic or feature. It fetches the feature details, analyzes the content, and creates a properly formatted enhancement document following the OpenShift enhancement template structure. You can optionally provide additional links (GitHub PRs, related Jira issues, enhancement proposals, documentation) to enrich the generated enhancement with more context.
 
 This command is particularly useful for:
 - Converting strategic Jira features or epics into formal enhancement proposals
 - Bootstrapping enhancement documents with epic/feature context
+- Enriching enhancements with implementation details from GitHub PRs
+- Incorporating lessons learned from related bugs and issues
 - Maintaining consistency between Jira planning and enhancement documentation
 - Accelerating the enhancement proposal writing process
 
 ## Key Features
 
 - **Automatic Feature Fetching** - Retrieves feature details from Jira including description, epics, and context
+- **Additional Context Links** - Enrich enhancements with GitHub PRs, related Jira issues, documentation, and other enhancement proposals
 - **Template-Based Generation** - Creates enhancement markdown following the official OpenShift template
 - **Content Mapping** - Intelligently maps Jira feature fields to enhancement sections
 - **Epic Integration** - Incorporates linked epics as implementation details
@@ -32,6 +35,13 @@ This command is particularly useful for:
 ## Workflow
 
 The command follows these steps:
+
+### 0. Process Additional Context Links (Optional)
+- When `--additional-links` is provided, fetch and analyze additional context
+- Extract API changes from GitHub PRs
+- Identify risks from related Jira bugs
+- Reference related enhancement proposals
+- Pull context from documentation links
 
 ### 1. Fetch Jira Epic or Feature
 - Retrieve epic/feature details using MCP Jira tools or REST API
@@ -87,19 +97,21 @@ When using `--verify` or `--sync-from-prs` flags:
 
 ## Enhancement Structure Mapping
 
-| Enhancement Section | Source |
-|---------------------|--------|
-| **Metadata** | Issue key, creation date, authors |
-| **Summary** | Epic/Feature description overview |
-| **Motivation** | Problem statement from description |
-| **User Stories** | Derived from description or child stories |
-| **Goals** | Epic/Feature objectives and acceptance criteria |
-| **Non-Goals** | Out of scope items from description |
-| **Proposal** | Implementation details from child issues |
-| **Topology Considerations** | Detected from components (HyperShift, etc.) |
-| **Test Plan** | User prompts or child issue details |
-| **Graduation Criteria** | Derived from acceptance criteria |
-| **Support Procedures** | User prompts |
+| Enhancement Section | Primary Source | Additional Context (via --additional-links) |
+|---------------------|----------------|---------------------------------------------|
+| **Metadata** | Issue key, creation date, authors | See-also from related enhancements |
+| **Summary** | Epic/Feature description overview | Context from documentation links |
+| **Motivation** | Problem statement from description | Background from related enhancements |
+| **User Stories** | Derived from description or child stories | Patterns from related feature requests |
+| **Goals** | Epic/Feature objectives and acceptance criteria | — |
+| **Non-Goals** | Out of scope items from description | — |
+| **API Extensions** | User prompts | **Auto-extracted from GitHub PRs** |
+| **Proposal** | Implementation details from child issues | Implementation patterns from PRs |
+| **Topology Considerations** | Detected from components (HyperShift, etc.) | — |
+| **Risks and Mitigations** | User prompts | **Risks from related Jira bugs** |
+| **Test Plan** | User prompts or child issue details | Test patterns from PR test files |
+| **Graduation Criteria** | Derived from acceptance criteria | — |
+| **Support Procedures** | User prompts | Diagnostic patterns from bugs |
 
 ## Usage Examples
 
@@ -139,6 +151,18 @@ When using `--verify` or `--sync-from-prs` flags:
    ```
    → Shows each change and prompts for confirmation before applying
 
+7. **With additional context links**:
+   ```
+   /jira:generate-enhancement OCPSTRAT-1596 --additional-links "https://github.com/openshift/api/pull/1234,https://issues.redhat.com/browse/OCPBUGS-5678"
+   ```
+   → Uses the provided GitHub PR and Jira issue as additional context for generation
+
+8. **With multiple types of context links**:
+   ```
+   /jira:generate-enhancement HIVE-2589 --additional-links "https://github.com/openshift/api/pull/1234,https://issues.redhat.com/browse/OCPBUGS-5678,https://github.com/openshift/enhancements/blob/master/enhancements/cluster-api/cluster-api-integration.md"
+   ```
+   → Enriches enhancement with API changes from PR, risks from bug, and references related enhancement
+
 ## Arguments
 
 - **$1 – issue-key** *(required)*
@@ -168,6 +192,11 @@ When using `--verify` or `--sync-from-prs` flags:
 - **--repos** *(optional)*
   Comma-separated list of GitHub repos to search for PRs.
   **Default:** `openshift/api,openshift/installer,openshift/machine-api-operator,openshift/cluster-api-provider-aws,openshift/hive`
+
+- **--additional-links** *(optional)*
+  Comma-separated list of additional URLs to use as context for generation.
+  Supported link types: GitHub PRs, Jira issues, OpenShift documentation, enhancement proposals.
+  **Example:** `--additional-links "https://github.com/openshift/api/pull/1234,https://issues.redhat.com/browse/OCPBUGS-5678,https://github.com/openshift/enhancements/blob/master/enhancements/example.md"`
 
 ## Return Value
 

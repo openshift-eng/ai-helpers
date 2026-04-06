@@ -88,6 +88,107 @@ tracking-link:
 
 ## Workflow: Generate Enhancement from Epic or Feature
 
+### Step 0: Process Additional Context Links (Optional)
+
+When `--additional-links` is provided, fetch and analyze additional context before generating the enhancement:
+
+```python
+def process_additional_links(links):
+    """Process additional context links provided by the user."""
+    
+    context = {
+        'github_prs': [],
+        'jira_issues': [],
+        'enhancements': [],
+        'documentation': []
+    }
+    
+    for link in links.split(','):
+        link = link.strip()
+        
+        # GitHub PR
+        if 'github.com' in link and '/pull/' in link:
+            pr_info = fetch_github_pr(link)
+            context['github_prs'].append(pr_info)
+        
+        # Jira issue
+        elif 'issues.redhat.com' in link or 'jira.' in link:
+            issue_key = extract_jira_key(link)
+            issue_info = fetch_jira_issue(issue_key)
+            context['jira_issues'].append(issue_info)
+        
+        # Enhancement proposal
+        elif 'enhancements' in link and link.endswith('.md'):
+            enhancement_content = fetch_url_content(link)
+            context['enhancements'].append({
+                'url': link,
+                'content': enhancement_content
+            })
+        
+        # Documentation
+        elif 'docs.openshift.com' in link or '.md' in link:
+            doc_content = fetch_url_content(link)
+            context['documentation'].append({
+                'url': link,
+                'content': doc_content
+            })
+    
+    return context
+
+def fetch_github_pr(pr_url):
+    """Fetch PR details from GitHub."""
+    match = re.match(r'https://github.com/([^/]+)/([^/]+)/pull/(\d+)', pr_url)
+    org, repo, pr_number = match.groups()
+    
+    # Fetch via GitHub API or gh CLI
+    pr_data = gh_api_get(f'/repos/{org}/{repo}/pulls/{pr_number}')
+    
+    return {
+        'url': pr_url,
+        'number': int(pr_number),
+        'repo': f'{org}/{repo}',
+        'title': pr_data['title'],
+        'body': pr_data['body'],
+        'files': fetch_pr_files(org, repo, pr_number),
+        'state': pr_data['state']
+    }
+
+def fetch_jira_issue(issue_key):
+    """Fetch Jira issue details."""
+    # Use MCP or direct API
+    issue = mcp__atlassian__jira_get_issue(issue_key)
+    
+    return {
+        'key': issue_key,
+        'type': issue['fields']['issuetype']['name'],
+        'summary': issue['fields']['summary'],
+        'description': issue['fields']['description'],
+        'status': issue['fields']['status']['name']
+    }
+```
+
+**Use additional context when generating sections:**
+
+- **API Extensions**: Extract API changes from GitHub PRs
+- **Implementation Details**: Reference related Jira issues and their solutions
+- **Risks and Mitigations**: Learn from issues documented in related bugs
+- **Test Plan**: Extract test patterns from related PRs
+- **Motivation**: Reference similar enhancements for context
+- **User Stories**: Extract patterns from related feature requests
+
+**Example usage:**
+```text
+Processing additional context links:
+  ✓ GitHub PR: openshift/api#1234 (merged) - Add DedicatedHost field
+  ✓ Jira Issue: OCPBUGS-5678 - Bug related to host placement
+  ✓ Enhancement: cluster-api-integration.md - Related enhancement
+  
+Using additional context for:
+  - API Extensions (from openshift/api#1234)
+  - Risks and Mitigations (from OCPBUGS-5678)
+  - Related Enhancements (cluster-api-integration.md)
+```
+
 ### Step 1: Fetch Epic or Feature from Jira
 
 Use direct API calls or MCP tools to retrieve the issue:
@@ -230,7 +331,7 @@ status: provisional
 tracking-link:
   - <jira-feature-url>
 see-also:
-  - # Related enhancements (optional)
+  - # Related enhancements (optional, auto-populated from --additional-links)
 replaces:
   - # If replacing existing enhancement (optional)
 superseded-by:
@@ -247,6 +348,31 @@ superseded-by:
 **Detect API changes:**
 - Search description for: "API", "CRD", "Custom Resource", "field", "endpoint"
 - If detected, prompt: "This feature mentions API changes. Who should review API changes?"
+- If additional GitHub PRs are provided and contain API changes, auto-detect from PR files
+
+**Populate see-also from additional links:**
+```python
+def populate_see_also(additional_context):
+    """Extract related enhancements from additional links."""
+    
+    see_also = []
+    
+    # Add related enhancement proposals
+    for enhancement in additional_context.get('enhancements', []):
+        # Extract path relative to enhancements directory
+        if 'enhancements/' in enhancement['url']:
+            path = enhancement['url'].split('enhancements/')[-1]
+            see_also.append(f"/enhancements/{path}")
+    
+    return see_also
+```
+
+**Example with additional links:**
+```yaml
+see-also:
+  - "/enhancements/cluster-api/cluster-api-integration.md"
+  - "/enhancements/machine-api/dedicated-instances.md"
+```
 
 ### Step 4: Map Content to Enhancement Sections
 
@@ -376,36 +502,56 @@ If yes, describe:
 - Validation webhooks
 ```
 
+**If additional GitHub PRs are provided via `--additional-links`:**
+
+Extract API changes from the PRs:
+
+```python
+def extract_api_from_additional_links(context):
+    """Extract API definitions from additional GitHub PRs."""
+    
+    api_changes = []
+    
+    for pr in context['github_prs']:
+        # Look for PRs in openshift/api repo or API-related files
+        if pr['repo'] == 'openshift/api' or any('types.go' in f['filename'] for f in pr['files']):
+            for file in pr['files']:
+                if file['filename'].endswith('types.go'):
+                    # Extract Go struct definitions from patch
+                    structs = extract_go_structs(file['patch'])
+                    api_changes.extend(structs)
+    
+    return api_changes
+```
+
+**Example with additional context:**
+````markdown
+### API Extensions
+
+Based on implementation in [openshift/api#1234](https://github.com/openshift/api/pull/1234):
+
+#### AWSMachineProviderConfig API
+
+```yaml
+apiVersion: machine.openshift.io/v1beta1
+kind: AWSMachineProviderConfig
+spec:
+  placement:
+    dedicatedHost:
+      id: h-0123456789abcdef0
+      resourceGroupArn: arn:aws:ec2:...
+    tenancy: host
+```
+
+The `placement.dedicatedHost` field was added to support EC2 Dedicated Hosts configuration.
+````
+
 **If no API changes:**
 ```markdown
 ### API Extensions
 
 This enhancement does not introduce new API extensions.
 ```
-
-**If API changes:**
-````markdown
-### API Extensions
-
-#### New CRD: ObservabilityConfiguration
-
-```yaml
-apiVersion: observability.openshift.io/v1alpha1
-kind: ObservabilityConfiguration
-metadata:
-  name: fleet-config
-spec:
-  clusterSelector:
-    matchLabels:
-      fleet: production
-  metricsRetention: 30d
-  alertRules:
-    - name: high-cpu
-      expression: "avg(cpu_usage) > 80"
-```
-
-<Additional API details>
-````
 
 #### Proposal - Topology Considerations
 Auto-detect from feature components and prompt:
@@ -485,8 +631,31 @@ epics = mcp__atlassian__jira_search_issues(
 ```
 
 #### Risks and Mitigations
-Map from **Risks and Mitigation** section in feature (if present), or prompt:
+Map from **Risks and Mitigation** section in feature (if present), or prompt.
 
+**If additional Jira issues are provided via `--additional-links`:**
+
+Extract risks from related bugs or issues:
+
+```python
+def extract_risks_from_additional_links(context):
+    """Extract risks from related Jira bugs."""
+    
+    risks = []
+    
+    for issue in context['jira_issues']:
+        # Look for bugs or issues that highlight potential risks
+        if issue['type'] in ['Bug', 'Task'] and issue['status'] != 'Closed':
+            risks.append({
+                'source': issue['key'],
+                'description': issue['summary'],
+                'details': issue['description']
+            })
+    
+    return risks
+```
+
+**Example with additional context:**
 ```markdown
 ### Risks and Mitigations
 
@@ -505,9 +674,17 @@ Map from **Risks and Mitigation** section in feature (if present), or prompt:
   - Partner early with Datadog/Splunk on integration design
   - Provide standardized export formats (Prometheus, OpenMetrics)
   - Comprehensive integration documentation
+
+**Risk 3: Host placement failures with incompatible instance types** (from [OCPBUGS-5678])
+* **Impact:** Medium - Customer deployments could fail
+* **Likelihood:** Low
+* **Mitigation:**
+  - Pre-validation of instance type compatibility (implemented in openshift/api#1234)
+  - Clear error messages when unsupported configuration is detected
+  - Documentation of supported instance type combinations
 ```
 
-Prompt:
+**If no additional context is available**, prompt:
 ```text
 What are the main risks for this enhancement?
 
@@ -691,6 +868,16 @@ with open(filepath, 'w') as f:
 Created enhancement proposal:
   File: .work/enhancements/hypershift/advanced-hcp-observability.md
   Tracking: https://issues.redhat.com/browse/CNTRLPLANE-100
+
+Additional context used:
+  ✓ 2 GitHub PRs (openshift/api#1234, openshift/installer#5678)
+  ✓ 1 Related Bug (OCPBUGS-5678)
+  ✓ 1 Related Enhancement (cluster-api-integration.md)
+
+Sections auto-populated from additional context:
+  ✓ API Extensions (from openshift/api#1234)
+  ✓ Risks and Mitigations (from OCPBUGS-5678)
+  ✓ See Also (from cluster-api-integration.md)
 
 Next steps:
 1. Review and refine technical details
@@ -1234,6 +1421,50 @@ Preserved manual sections:
 | Success Criteria | Graduation Criteria | Map adoption/outcomes to GA criteria |
 | Timeline | Graduation Criteria | Map milestones to Dev Preview/Tech Preview/GA |
 | Risks | Risks and Mitigations | Direct copy + expand |
+
+### Additional Links → Enhancement Mapping
+
+When `--additional-links` is provided, use additional context to enrich sections:
+
+| Additional Link Type | Enhancement Section | Usage |
+|----------------------|---------------------|--------|
+| GitHub PR (openshift/api) | API Extensions | Extract CRD definitions, API field changes |
+| GitHub PR (with tests) | Test Plan | Extract test patterns, coverage examples |
+| Jira Bug | Risks and Mitigations | Identify known issues and mitigations |
+| Related Enhancement | Motivation, See Also | Reference related work, avoid duplication |
+| Documentation URL | Motivation, Background | Provide context and requirements |
+| GitHub PR (implementation) | Implementation Details | Extract actual approach and patterns |
+
+**Example workflow with additional links:**
+
+```python
+def enrich_enhancement_with_context(enhancement_sections, additional_context):
+    """Enrich enhancement sections with additional context."""
+    
+    # Enrich API Extensions with PR data
+    if additional_context['github_prs']:
+        api_prs = [pr for pr in additional_context['github_prs'] 
+                   if pr['repo'] == 'openshift/api']
+        if api_prs:
+            enhancement_sections['api_extensions'] = generate_api_section_from_prs(api_prs)
+    
+    # Enrich Risks with bug data
+    if additional_context['jira_issues']:
+        bugs = [issue for issue in additional_context['jira_issues']
+                if issue['type'] == 'Bug']
+        if bugs:
+            enhancement_sections['risks'] = enrich_risks_with_bugs(
+                enhancement_sections.get('risks', ''), bugs
+            )
+    
+    # Add related enhancements to See Also
+    if additional_context['enhancements']:
+        enhancement_sections['see_also'] = generate_see_also(
+            additional_context['enhancements']
+        )
+    
+    return enhancement_sections
+```
 
 ## Enhancement Template Placeholders
 
