@@ -63,7 +63,15 @@ jobs:
               echo "::error file=$plugin_json::Plugin '$plugin' has code changes but version not bumped ($old)"
               errors=$((errors + 1))
             else
-              echo "OK: $plugin version bumped $old -> $current"
+              # Verify the version actually increased (no downgrades)
+              # Use sort -V (version sort) to compare semver strings
+              lower=$(printf '%s\n%s' "$old" "$current" | sort -V | head -n1)
+              if [ "$lower" != "$old" ]; then
+                echo "::error file=$plugin_json::Plugin '$plugin' version downgraded: $old -> $current (must increase)"
+                errors=$((errors + 1))
+              else
+                echo "OK: $plugin version bumped $old -> $current"
+              fi
             fi
           done
 
