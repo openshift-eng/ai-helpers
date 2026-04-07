@@ -292,8 +292,9 @@ def main():
             proj_total = sum(1 for i in all_issues
                             if (i.get("PROJECT_KEY", i.get("project_key"))
                                 == proj))
+            pct = (sample_counts[proj] / proj_total * 100) if proj_total else 0.0
             print(f"  {proj:<20s} {sample_counts[proj]:>4d} of {proj_total:>5d} "
-                  f"({sample_counts[proj]/proj_total*100:.1f}%)")
+                  f"({pct:.1f}%)")
 
         print(f"\nSample written to: {args.draw_sample}")
         print("Next: classify this sample with classify_issues.py, "
@@ -342,8 +343,6 @@ def main():
             mean_pct = est["posterior_mean"] * 100
             lo_pct = est["ci_low"] * 100
             hi_pct = est["ci_high"] * 100
-            bar_lo = int(lo_pct)
-            bar_hi = int(hi_pct)
             print(f"{est['category']:<45s} {mean_pct:>5.1f}%  "
                   f"[{lo_pct:>5.1f}% — {hi_pct:>5.1f}%]")
 

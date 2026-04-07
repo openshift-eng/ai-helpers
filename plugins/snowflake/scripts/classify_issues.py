@@ -19,6 +19,7 @@ import sys
 import time
 import urllib.request
 import urllib.error
+from collections import Counter
 
 ACTIVITY_TYPE_DEFINITIONS = {
     "Associate Wellness & Development": (
@@ -146,12 +147,17 @@ def classify_batch(batch, token, endpoint, model):
     resp = urllib.request.urlopen(req, timeout=120)
     resp_body = json.loads(resp.read().decode("utf-8"))
 
-    raw_text = resp_body["content"][0]["text"]
-    # Strip markdown code fences if present
-    clean_text = re.sub(r"^```json\s*", "", raw_text.strip())
-    clean_text = re.sub(r"\s*```$", "", clean_text).strip()
+    try:
+        raw_text = resp_body["content"][0]["text"]
+        # Strip markdown code fences if present
+        clean_text = re.sub(r"^```json\s*", "", raw_text.strip())
+        clean_text = re.sub(r"\s*```$", "", clean_text).strip()
 
-    results = json.loads(clean_text)
+        results = json.loads(clean_text)
+    except (KeyError, IndexError, json.JSONDecodeError) as e:
+        issue_keys = [b.get("ISSUEKEY", b.get("issue_key", "?")) for b in batch]
+        print(f" response parse error: {e}", file=sys.stderr)
+        results = [{"issue_key": k, "activity_type": "Uncategorized"} for k in issue_keys]
 
     # Validate and normalize category names
     for item in results:
@@ -200,6 +206,7 @@ def main():
     print(f"Processing {len(batches)} batches of up to {args.batch_size} issues\n")
 
     all_classifications = []
+    failed_batches = []
     total_input_tokens = 0
     total_output_tokens = 0
     start_time = time.time()
@@ -236,12 +243,25 @@ def main():
                 time.sleep(wait)
         else:
             print(f" FAILED after 3 attempts: {last_error}", file=sys.stderr)
+            issue_key_field = "ISSUEKEY" if "ISSUEKEY" in batch[0] else "issue_key"
+            failed_keys = [b.get(issue_key_field, "?") for b in batch]
+            failed_batches.append(failed_keys)
 
         if i < len(batches) - 1:
             time.sleep(1)
 
+    if failed_batches:
+        total_failed = sum(len(b) for b in failed_batches)
+        print(f"\nWARNING: {total_failed} issues in {len(failed_batches)} "
+              f"batches could not be classified (defaulting to Uncategorized)",
+              file=sys.stderr)
+
     # Build lookup of classifications
     classified_keys = {item["issue_key"]: item["activity_type"] for item in all_classifications}
+
+    if not issues:
+        print("No issues to classify.", file=sys.stderr)
+        return
 
     # Merge classifications back into issues
     issue_key_field = "ISSUEKEY" if "ISSUEKEY" in issues[0] else "issue_key"
@@ -277,7 +297,6 @@ def main():
         print(f"  ({missing} issues defaulted to 'Uncategorized' due to missing API response)")
 
     # Print distribution
-    from collections import Counter
     dist = Counter(item["activity_type"] for item in output)
     print("\nActivity Type Distribution:")
     for cat, count in dist.most_common():

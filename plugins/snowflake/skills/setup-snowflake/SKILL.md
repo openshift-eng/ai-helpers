@@ -17,7 +17,7 @@ Use this skill automatically at the beginning of any Snowflake-dependent command
 
 Attempt to call the Snowflake MCP tool to verify it exists:
 
-```
+```text
 mcp__snowflake__execute_sql(query="SELECT CURRENT_USER()")
 ```
 
@@ -146,7 +146,7 @@ Then **abort the current command gracefully**. Do not attempt to proceed to Step
 
 Once the MCP tool is confirmed available, set the database, schema, and role for the session:
 
-```
+```text
 mcp__snowflake__execute_sql(query="USE ROLE JIRA_CLOUDMARTS_GROUP")
 mcp__snowflake__execute_sql(query="USE DATABASE JIRA_DB")
 mcp__snowflake__execute_sql(query="USE SCHEMA CLOUD_MARTS")

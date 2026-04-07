@@ -306,12 +306,12 @@ After the summary, tell the user the HTML report is available at the path shown 
 
 ## Arguments
 
-- **$1 - projects** (required)
+- **projects** (required)
   - Comma-separated list of Jira project keys
   - Examples: `DPTP`, `DPTP,TRT,ART,OCPERT`
   - Case-sensitive (must match Snowflake data exactly)
 
-- **$2 - months** (optional, default: 6)
+- **months** (optional, default: 6)
   - Number of months to look back from today
   - For completed work (default): filters on `RESOLUTIONDATE` — "work resolved in the last N months"
   - For open work (`--todo`) and all (`--all`): filters on `CREATED` — "issues created in the last N months"

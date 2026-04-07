@@ -117,7 +117,7 @@ Classify Jira issues into activity types and generate an interactive sankey repo
 /snowflake:activity-type-report DPTP,TRT,ART,OCPERT,OCPCRT 12
 ```
 
-**Output:** An interactive HTML report at `.work/snowflake/activity-type-report.html` with:
+**Output:** An interactive HTML report at `.work/snowflake/reports/<run-dir>/activity-type-report.html` with:
 - Sankey diagram showing issue flow from Project to Activity Type
 - Stacked bar chart of Activity Type composition per project
 - Summary statistics

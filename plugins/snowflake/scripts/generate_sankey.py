@@ -23,6 +23,7 @@ Optional fields: issue_type, status, components, description, created
 import argparse
 import json
 import sys
+from html import escape as html_escape
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
@@ -367,7 +368,7 @@ def generate_html(data, title, projects_str, months, usage_info=None,
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{title}</title>
+<title>{html_escape(title)}</title>
 <style>
   :root {{
     --bg: #0f1117;
@@ -534,7 +535,7 @@ def generate_html(data, title, projects_str, months, usage_info=None,
 </head>
 <body>
 <div class="container">
-  <h1>{title}</h1>
+  <h1>{html_escape(title)}</h1>
   <div class="subtitle">
     Projects: {projects_str} &middot; {date_range} &middot; Generated: {generated_date}
     {f' &middot; <span style="color:#F5C542;">&#9888; Sampled estimate ({estimates["sample_size"]} of {estimates["total_population"]} issues, {estimates["sample_fraction"]*100:.1f}%)</span>' if estimates else ""}
