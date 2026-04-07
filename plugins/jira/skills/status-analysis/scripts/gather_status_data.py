@@ -31,6 +31,7 @@ import os
 import re
 import subprocess
 import sys
+from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, date
 from pathlib import Path
@@ -339,18 +340,42 @@ class JiraClient:
         expand: Optional[str] = None,
         max_results: int = 100,
     ) -> List[Dict[str, Any]]:
-        """Search for issues using JQL via POST /rest/api/3/search/jql."""
-        body = {
-            "jql": jql,
-            "maxResults": max_results,
-            "fields": [f.strip() for f in fields.split(",")],
-        }
-        if expand:
-            body["expand"] = [e.strip() for e in expand.split(",")]
+        """Search for issues using JQL via POST /rest/api/3/search/jql (cursor pagination)."""
+        all_issues: List[Dict[str, Any]] = []
+        next_page_token: Optional[str] = None
+        remaining = max_results
 
-        url = f"{self.base_url}/rest/api/3/search/jql"
-        result = await self._fetch_json(url, method="POST", json_body=body)
-        return result.get("issues", []) if result else []
+        while True:
+            page_size = min(remaining, 100)
+            body: Dict[str, Any] = {
+                "jql": jql,
+                "maxResults": page_size,
+                "fields": [f.strip() for f in fields.split(",")],
+            }
+            if expand:
+                body["expand"] = [e.strip() for e in expand.split(",")]
+            if next_page_token:
+                body["nextPageToken"] = next_page_token
+
+            url = f"{self.base_url}/rest/api/3/search/jql"
+            result = await self._fetch_json(url, method="POST", json_body=body)
+            if result is None:
+                raise RuntimeError(
+                    f"Jira search failed for JQL {jql!r} "
+                    f"(collected {len(all_issues)} issues before failure)"
+                )
+
+            issues = result.get("issues", [])
+            if not issues:
+                break
+            all_issues.extend(issues)
+            remaining -= len(issues)
+
+            next_page_token = result.get("nextPageToken")
+            if not next_page_token or remaining <= 0:
+                break
+
+        return all_issues
 
     async def fetch_issues_batch(
         self,
@@ -919,21 +944,32 @@ class StatusDataGatherer:
             logger.warning("No root issues found. Check JQL query and permissions.")
             return self._build_manifest([], {}, {}, {}, start_time)
 
-        # Step 2: Get descendants for all root issues
+        # Step 2: Get descendants for all root issues (iterative BFS to handle multi-level hierarchy)
         logger.info("Step 2/8: Fetching descendants")
         all_descendant_keys: Dict[str, List[str]] = {}
 
         for issue in root_issues:
             issue_key = issue["key"]
-            child_jql = f"issue in childIssuesOf({issue_key})"
             logger.debug(f"  Fetching descendants of {issue_key}")
-            children = await self.jira.search_issues(
-                jql=child_jql,
-                fields="key",
-                max_results=200,
-            )
-            all_descendant_keys[issue_key] = [c["key"] for c in children]
-            logger.debug(f"    {issue_key} has {len(children)} descendants")
+            descendant_keys: List[str] = []
+            queue = deque([issue_key])
+            visited = {issue_key}
+            while queue:
+                current_key = queue.popleft()
+                child_jql = f"parent = {current_key}"
+                children = await self.jira.search_issues(
+                    jql=child_jql,
+                    fields="key",
+                    max_results=1000,
+                )
+                for child in children:
+                    child_key = child["key"]
+                    if child_key not in visited:
+                        visited.add(child_key)
+                        descendant_keys.append(child_key)
+                        queue.append(child_key)
+            all_descendant_keys[issue_key] = descendant_keys
+            logger.debug(f"    {issue_key} has {len(descendant_keys)} descendants")
 
         total_descendants = sum(len(v) for v in all_descendant_keys.values())
         logger.info(f"  Found {total_descendants} total descendants across {len(root_issues)} root issues")
