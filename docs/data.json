@@ -747,6 +747,63 @@
     {
       "commands": [
         {
+          "argument_hint": "",
+          "description": "Orchestrate complete SDLC from Jira issue through deployment",
+          "name": "orchestrate",
+          "synopsis": "/sdlc:orchestrate <jira-key> [remote] [--ci] [--resume]"
+        }
+      ],
+      "description": "Software Development Lifecycle orchestrator for OpenShift development workflows",
+      "has_readme": true,
+      "hooks": [],
+      "name": "sdlc",
+      "skills": [
+        {
+          "description": "Update Jira, verify deployment, and generate completion report (Phase 7 of SDLC orchestrator)",
+          "id": "phase-completion",
+          "name": "Phase Completion"
+        },
+        {
+          "description": "Create detailed implementation specification from enhancement proposal (Phase 2 of SDLC orchestrator)",
+          "id": "phase-design",
+          "name": "Phase Design"
+        },
+        {
+          "description": "Generate OpenShift enhancement proposal from Jira epic or feature (Phase 1 of SDLC orchestrator)",
+          "id": "phase-enhancement",
+          "name": "Phase Enhancement"
+        },
+        {
+          "description": "Execute code changes according to implementation specification (Phase 3 of SDLC orchestrator)",
+          "id": "phase-implementation",
+          "name": "Phase Implementation"
+        },
+        {
+          "description": "Monitor PR merge and track deployment to payloads (Phase 6 of SDLC orchestrator)",
+          "id": "phase-merge",
+          "name": "Phase Merge"
+        },
+        {
+          "description": "Create pull request with comprehensive description and track review status (Phase 5 of SDLC orchestrator)",
+          "id": "phase-pr-review",
+          "name": "Phase PR Review"
+        },
+        {
+          "description": "Run comprehensive test suite and validate coverage (Phase 4 of SDLC orchestrator)",
+          "id": "phase-testing",
+          "name": "Phase Testing"
+        },
+        {
+          "description": "State management for SDLC orchestrator \u2014 you must use this skill whenever reading or writing the SDLC state YAML file",
+          "id": "sdlc-state-yaml",
+          "name": "SDLC State YAML"
+        }
+      ],
+      "version": "0.1.0"
+    },
+    {
+      "commands": [
+        {
           "argument_hint": "<path-to-sosreport> [--only <areas>] [--skip <areas>]",
           "description": "Analyze sosreport archive for system diagnostics and issues",
           "name": "analyze",

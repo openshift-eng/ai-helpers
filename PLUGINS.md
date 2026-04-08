@@ -26,6 +26,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Openshift Tls Profile](#openshift-tls-profile-plugin)
 - [Origin](#origin-plugin)
 - [Ote Migration](#ote-migration-plugin)
+- [Sdlc](#sdlc-plugin)
 - [Session](#session-plugin)
 - [Sosreport](#sosreport-plugin)
 - [Teams](#teams-plugin)
@@ -335,6 +336,15 @@ Automate OpenShift Tests Extension (OTE) migration for component repositories
 - **`/ote-migration:migrate`** - Automate OpenShift Tests Extension (OTE) migration for component repositories
 
 See [plugins/ote-migration/README.md](plugins/ote-migration/README.md) for detailed documentation.
+
+### Sdlc Plugin
+
+Software Development Lifecycle orchestrator for OpenShift development workflows
+
+**Commands:**
+- **`/sdlc:orchestrate`** - Orchestrate complete SDLC from Jira issue through deployment
+
+See [plugins/sdlc/README.md](plugins/sdlc/README.md) for detailed documentation.
 
 ### Session Plugin
 
