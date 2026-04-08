@@ -21,21 +21,15 @@ The OpenShift Z Patch Manager is a weekly rotation among OpenShift Staff Enginee
 
 ### 1. Z-Stream Payload Health Check
 
-Check the nightly amd64 payload status for all GA z-stream releases (4.14 through 4.21).
+Check the nightly amd64 payload status for the releases being managed this week.
+
+The patch manager will provide a short list of 3-4 releases they are responsible for this week (e.g. `4.19 4.20 4.21`), as releases follow a staggered release cycle and not all are active at the same time. If the user does not specify releases, ask them which releases they are managing this week.
 
 **Goal**: Ensure each release has recently accepted payloads. Identify releases that are unhealthy and need attention.
 
 **Procedure**:
 
-1. For each version from 4.14 through 4.21, fetch recent payloads using the `fetch-payloads` skill:
-
-   ```bash
-   FETCH_PAYLOADS="${CLAUDE_PLUGIN_ROOT}/skills/fetch-payloads/fetch_payloads.py"
-   if [ ! -f "$FETCH_PAYLOADS" ]; then
-     FETCH_PAYLOADS=$(find ~/.claude/plugins -type f -path "*/ci/skills/fetch-payloads/fetch_payloads.py" 2>/dev/null | sort | head -1)
-   fi
-   python3 "$FETCH_PAYLOADS" amd64 <version> nightly --limit 10
-   ```
+1. For each version provided by the patch manager, fetch recent payloads by invoking the `ci:fetch-payloads` skill with arguments `amd64 <version> nightly --limit 10`.
 
    Run all versions in parallel using subagents to speed up data collection.
 
@@ -58,15 +52,7 @@ Check the nightly amd64 payload status for all GA z-stream releases (4.14 throug
 
 Occasional isolated payload rejections are normal and should not trigger concern on their own.
 
-4. **Investigate repeat failures**: When a blocking job is failing repeatedly (across multiple payloads in the same release, or the same job name appearing across multiple releases), dig deeper using the `fetch-job-run-summary` skill to check whether the failing tests are consistent:
-
-   ```bash
-   FETCH_SUMMARY="${CLAUDE_PLUGIN_ROOT}/skills/fetch-job-run-summary/fetch_job_run_summary.py"
-   if [ ! -f "$FETCH_SUMMARY" ]; then
-     FETCH_SUMMARY=$(find ~/.claude/plugins -type f -path "*/ci/skills/fetch-job-run-summary/fetch_job_run_summary.py" 2>/dev/null | sort | head -1)
-   fi
-   python3 "$FETCH_SUMMARY" <prow_job_run_id>
-   ```
+4. **Investigate repeat failures**: When a blocking job is failing repeatedly (across multiple payloads in the same release, or the same job name appearing across multiple releases), dig deeper by invoking the `ci:fetch-job-run-summary` skill with the Prow job run ID to check whether the failing tests are consistent.
 
    The job run ID is the last path segment of the Prow URL returned by fetch-payloads for each failed blocking job.
 
@@ -76,3 +62,12 @@ Occasional isolated payload rejections are normal and should not trigger concern
    - **Cross-release patterns** — if the same job and same tests are failing across multiple releases (e.g. 4.19, 4.20, and 4.21), this likely points to a shared infrastructure or test framework issue rather than a release-specific regression
 
    Include these findings in the health report: for any WARNING or CRITICAL release, list the dominant error patterns and consistently failing tests alongside the job name.
+
+5. **Verify upgrade job health**: For each release, check the most recently accepted payload's upgrade jobs by invoking the `ci:fetch-payload-job-runs` skill with the payload tag and `--upgrade` flag to confirm we have proof that upgrades to this version are working.
+
+   For each release, use the most recently accepted payload tag identified in step 2. A succeeded upgrade job means this payload was proven to upgrade from the version shown in `upgrades_from`. Include in the summary:
+   - How many upgrade jobs ran and how many succeeded
+   - Which prior versions were successfully upgraded from (the `upgrades_from` values)
+   - Any failed upgrade jobs — these are a concern even on an accepted payload, as they indicate upgrade paths that may be broken
+
+   If a release has no recently accepted payload (CRITICAL status), fetch the upgrade jobs from the most recent payload (accepted or rejected) to assess whether upgrades are also broken or if the issue is limited to non-upgrade blocking jobs.
