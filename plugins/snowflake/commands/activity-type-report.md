@@ -1,6 +1,6 @@
 ---
 description: Classify Jira issues into activity types using AI and generate an interactive sankey report
-argument-hint: <projects> [months] [--sample [N]] [--todo | --all]
+argument-hint: <projects> [months] [--sample [N]] [--todo | --all] [--uncategorized]
 ---
 
 ## Name
@@ -12,6 +12,8 @@ snowflake:activity-type-report
 /snowflake:activity-type-report <projects> [months] --sample [N]
 /snowflake:activity-type-report <projects> [months] --todo
 /snowflake:activity-type-report <projects> [months] --all
+/snowflake:activity-type-report <projects> [months] --uncategorized
+/snowflake:activity-type-report <projects> [months] --uncategorized --sample [N]
 ```
 
 ## Description
@@ -67,10 +69,12 @@ Parse the arguments from the command invocation. The raw args string may contain
 - `--sample` flag anywhere: enable sampling mode. If followed by an integer, use that as sample size; otherwise auto-recommend.
 - `--todo` flag anywhere: fetch only non-closed issues (open/backlog work)
 - `--all` flag anywhere: fetch all issues regardless of status
+- `--uncategorized` flag anywhere: filter to only issues that do NOT have an Activity Type set in Jira (`customfield_10464`). Compatible with `--todo`, `--all`, and `--sample`.
 - If neither `--todo` nor `--all` is specified, **default to closed issues with work-completed resolutions** (`ji.ISSUESTATUS = 'Closed'` AND resolution is `Done`, `Done-Errata`, or `NULL`). This excludes no-work closures like Duplicate, Won't Do, Obsolete, Not a Bug, Can't Do, Cannot Reproduce, and MirrorOrphan.
 
 For example, `ACM,DPTP,TRT 6 --sample 200` means projects=ACM,DPTP,TRT, months=6, sample mode with N=200, closed issues only.
 And `ACM,DPTP,TRT --todo` means projects=ACM,DPTP,TRT, months=6 (default), open/backlog issues only.
+And `DPTP --uncategorized` means projects=DPTP, months=6 (default), closed issues only, filtered to those missing Activity Type in Jira.
 
 Core query pattern (adapt based on available columns/views):
 
@@ -85,6 +89,8 @@ SELECT
     -- ISSUESTATUS is a string column on JIRA_ISSUE, use directly: ji.ISSUESTATUS AS STATUS
 FROM JIRA_ISSUE ji
 -- adaptive joins based on schema discovery
+-- If --uncategorized: LEFT JOIN JIRA_CUSTOMFIELDVALUE cfv
+--   ON cfv.ISSUE = ji.ID AND cfv.CUSTOMFIELD_ID = 'customfield_10464'
 WHERE ji.PROJECT_KEY IN ('DPTP', 'TRT', ...)
   -- Date filter depends on mode:
   -- Default (completed work): AND ji.RESOLUTIONDATE >= DATEADD(month, -6, CURRENT_DATE())
@@ -95,6 +101,7 @@ WHERE ji.PROJECT_KEY IN ('DPTP', 'TRT', ...)
   --                     AND (ji.RESOLUTION IN ('Done', 'Done-Errata') OR ji.RESOLUTION IS NULL)
   -- --todo:             AND ji.ISSUESTATUS != 'Closed'
   -- --all:              (no status filter, no resolution filter)
+  -- If --uncategorized: AND cfv.STRINGVALUE IS NULL
 ORDER BY ji.CREATED DESC
 ```
 
@@ -108,9 +115,12 @@ FROM JIRA_ISSUE ji
 LEFT JOIN JIRA_NODEASSOCIATION na
     ON na.SOURCE_NODE_ID = ji.ID AND na.ASSOCIATION_TYPE = 'IssueComponent'
 LEFT JOIN JIRA_COMPONENT c ON c.ID = na.SINK_NODE_ID
+-- If --uncategorized: LEFT JOIN JIRA_CUSTOMFIELDVALUE cfv
+--   ON cfv.ISSUE = ji.ID AND cfv.CUSTOMFIELD_ID = 'customfield_10464'
 WHERE ji.PROJECT_KEY IN (...)
   -- Apply same date filter as main query (RESOLUTIONDATE for default, CREATED for --todo/--all)
   -- Apply same status/resolution filter as main query (default/--todo/--all)
+  -- If --uncategorized: AND cfv.STRINGVALUE IS NULL
 GROUP BY ji.ISSUEKEY
 ```
 
@@ -220,10 +230,13 @@ Full mode processes issues in batches of 15. Sample mode classifies only the sam
 
 Locate the `generate_sankey.py` script in the same `scripts/` directory and run it:
 
-Construct the report title based on the status filter and sampling mode:
+Construct the report title based on the status filter, `--uncategorized` flag, and sampling mode. When `--uncategorized` is active, append `" — Uncategorized Only"` after the status modifier but before any `"(Sampled Estimate)"` suffix:
 - Default (closed only): `"Activity Type Report"` or `"Activity Type Report (Sampled Estimate)"`
 - `--todo`: `"Activity Type Report — Open/Backlog"` or `"Activity Type Report — Open/Backlog (Sampled Estimate)"`
 - `--all`: `"Activity Type Report — All Statuses"` or `"Activity Type Report — All Statuses (Sampled Estimate)"`
+- Default + `--uncategorized`: `"Activity Type Report — Uncategorized Only"`
+- `--todo` + `--uncategorized`: `"Activity Type Report — Open/Backlog — Uncategorized Only"`
+- `--all` + `--uncategorized`: `"Activity Type Report — All Statuses — Uncategorized Only"`
 
 #### Full mode:
 ```bash
@@ -256,10 +269,13 @@ python3 "$SCRIPT_DIR/generate_sankey.py" \
 
 **Always** display a text summary directly in the conversation. This is the most important output — leaders need the distribution at a glance without opening a file.
 
-Include the status filter in the summary header:
+Include the status filter in the summary header. When `--uncategorized` is active, add "without Activity Type set" to the description:
 - Default: "1,354 closed issues across 5 projects ..."
 - `--todo`: "441 open issues across 5 projects ..."
 - `--all`: "1,354 issues (all statuses) across 5 projects ..."
+- Default + `--uncategorized`: "32 closed issues without Activity Type set across 1 project ..."
+- `--todo` + `--uncategorized`: "15 open issues without Activity Type set across 1 project ..."
+- `--all` + `--uncategorized`: "47 issues (all statuses) without Activity Type set across 1 project ..."
 
 #### Full mode summary:
 
@@ -334,6 +350,12 @@ After the summary, tell the user the HTML report is available at the path shown 
   - Mutually exclusive with `--todo`
   - Without `--todo` or `--all`, only closed issues are analyzed (completed work)
 
+- **--uncategorized** (optional)
+  - Filter to only Jira issues that do NOT have their Activity Type custom field (`customfield_10464`) set in Jira
+  - Uses a LEFT JOIN to `JIRA_CUSTOMFIELDVALUE` and filters where `STRINGVALUE IS NULL` (catches both missing rows and rows with NULL values)
+  - Compatible with `--todo`, `--all`, and `--sample` — applies as an additional filter on top of the status filter
+  - Useful for finding issues that need Activity Type classification, which can then be set using `/jira:categorize-activity-type` or bulk Jira CLI updates
+
 ## Return Value
 
 **Format**: Interactive self-contained HTML file at `.work/snowflake/reports/{projects}/{start}_{end}/activity-type-report.html`
@@ -388,6 +410,16 @@ The report includes:
    /snowflake:activity-type-report ACM,AGENT,API,ARO,ART,DPTP,TRT 6 --todo --sample
    ```
 
+9. **Uncategorized issues only (missing Activity Type in Jira):**
+   ```bash
+   /snowflake:activity-type-report DPTP --uncategorized
+   ```
+
+10. **Uncategorized with sampling:**
+    ```bash
+    /snowflake:activity-type-report DPTP,TRT,ART 6 --uncategorized --sample
+    ```
+
 ## See Also
 
 - `/jira:categorize-activity-type` -- Classify a single Jira issue via the Atlassian MCP (does not require Snowflake)
@@ -403,3 +435,4 @@ The report includes:
 - **Cached classifications**: Re-running the same projects and date range skips the Vertex AI API call and reuses the existing `classified_issues.json` (or `estimates.json` in sample mode). Delete the run directory to force re-classification.
 - **Completed work by default**: By default, only closed issues with work-completed resolutions (`Done`, `Done-Errata`, or `NULL`) are analyzed — this excludes no-work closures like Duplicate, Won't Do, Obsolete, Not a Bug, Can't Do, Cannot Reproduce, and MirrorOrphan (~25% of closed issues globally). Use `--todo` for open/backlog work, or `--all` for everything.
 - **Sampling mode**: For large datasets (thousands of issues), `--sample` uses Bayesian inference to estimate the activity type distribution from a small classified sample. Uses a Dirichlet-Multinomial conjugate model with uninformative priors — implemented entirely with Python stdlib (`random.gammavariate`). The report clearly labels results as estimates and shows credible intervals.
+- **Uncategorized filter**: The `--uncategorized` flag uses `customfield_10464` (Activity Type) from the `JIRA_CUSTOMFIELDVALUE` table. **This custom field ID is specific to Red Hat JIRA instances.** The typical workflow is: run with `--uncategorized` to find and classify issues missing their Activity Type, review the report, then use `/jira:categorize-activity-type` to apply the classifications back to Jira.
