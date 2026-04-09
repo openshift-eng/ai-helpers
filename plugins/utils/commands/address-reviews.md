@@ -113,7 +113,7 @@ This command automates the process of addressing PR review comments by fetching 
 
 When multiple comments relate to the same concern/fix:
 - Make the code change once
-- Reply to EACH comment individually (don't copy-paste, tailor each reply)
+- Track replies for EACH comment individually (posted in Step 4 — don't copy-paste, tailor each reply)
 - Optional reference: `Done. (Also addresses feedback from @user)`
 
 #### Code Change Requests
@@ -122,7 +122,7 @@ When multiple comments relate to the same concern/fix:
 
 **b. If requested change is valid**:
 - Plan and implement changes
-- Commit and Push **(ALL sub-steps are MANDATORY — do not skip any)**
+- Commit locally **(do NOT push yet — all pushes are batched in Step 4)**
    1. **Review changes**: `git diff`
 
    2. **Sync with remote first**: `git pull --rebase origin <branch>` to ensure local branch is up to date. If the branch is behind or diverged, you MUST rebase before committing.
@@ -139,18 +139,36 @@ When multiple comments relate to the same concern/fix:
       - **When unsure**: Amend (keep git history clean)
       - **Multiple commits**: Use `git rebase -i origin/main` to amend the specific relevant commit
 
-   5. **Create commit AND push (both required)**:
+   5. **Create commit locally**:
       - Follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) format
       - Always include body explaining "why"
-      - **Amend**: `git commit --amend --no-edit && git push --force-with-lease` (or update message if scope changed)
-      - **New commit**: Standard commit with message, then `git push`
-      - **⚠️ A commit without a push is incomplete. You MUST push.**
+      - **Amend**: `git commit --amend --no-edit` (or update message if scope changed)
+      - **New commit**: Standard commit with message
 
-   6. **Verify push succeeded (MANDATORY before replying)**:
-      - Run `git log -1 --format='%H'` locally and `git ls-remote origin <branch>` to confirm the remote has your commit
-      - **If they differ**: The push failed or was never executed. Do NOT post a "Done" reply. Diagnose and retry, or report the failure to the user.
-      - **If uncommitted changes remain** (`git status`): The commit failed. Fix it first.
-      - **⚠️ NEVER post a "Done" or "Fixed" reply unless the push is verified on the remote.** Posting false claims of completion erodes reviewer trust and wastes human reviewers' time.
+- Track what was done for each comment (change description, comment ID, author) so replies can be posted in Step 4
+
+**c. If declining change**:
+- Track the technical explanation for reply in Step 4
+
+**d. If unsure**: Ask user for clarification
+
+#### Clarification Requests
+
+- Prepare clear, detailed answer (2-4 sentences)
+- Include file:line references when applicable
+- Track for reply in Step 4
+
+#### Informational Comments
+
+- No action unless response is courteous
+
+### Step 4: Post Replies and Push
+
+After ALL comments from Step 3 are processed, post replies and push in this order:
+
+#### 4a. Post all replies
+
+For each comment addressed in Step 3, post the reply:
 
 - **Concise Reply template**: `Done. [1-line what changed]. [Optional 1-line why]`
   - Max 2 sentences + attribution footer
@@ -160,27 +178,22 @@ When multiple comments relate to the same concern/fix:
   ```
   If fails: `gh pr comment <PR_NUMBER> --body="@<author> <reply>"`
 
-**c. If declining change**:
-- **Reply with technical explanation** (3-5 sentences):
-  - Why current implementation is correct
-  - Specific reasoning with file:line references
-- Use same posting method as (b)
-
-**d. If unsure**: Ask user for clarification
-
-#### Clarification Requests
-
-- Provide clear, detailed answer (2-4 sentences)
-- Include file:line references when applicable
-- Post using same method as code changes
-
-#### Informational Comments
-
-- No action unless response is courteous
-
 **All replies must include**: `---\n*AI-assisted response via Claude Code*`
 
-### Step 4: Summary
+#### 4b. Push once
+
+After all replies are posted, push all committed changes in a single push:
+
+```bash
+git push --force-with-lease
+```
+
+#### 4c. Verify push
+
+- Run `git log -1 --format='%H'` locally and `git ls-remote origin <branch>` to confirm the remote has your commit
+- **If they differ**: Diagnose and retry the push
+
+### Step 5: Summary
 
 Show user:
 - Total comments found (raw count from API)
