@@ -1,13 +1,13 @@
 ---
 description: Fetch and address all PR review comments
-argument-hint: "[PR number (optional - uses current branch if omitted)]"
+argument-hint: "[PR number] [--preview]"
 ---
 
 ## Name
 utils:address-reviews
 
 ## Synopsis
-/utils:address-reviews [PR number (optional - uses current branch if omitted)]
+/utils:address-reviews [PR number] [--preview]
 
 ## Description
 This command automates the process of addressing PR review comments by fetching all comments from a pull request, categorizing them by priority (blocking, change requests, questions, suggestions), and systematically addressing each one. It intelligently filters out outdated comments, bot-generated content, and oversized responses to optimize context usage. The command handles code changes, posts replies to reviewers, and maintains a clean git history by amending relevant commits rather than creating unnecessary new ones.
@@ -108,6 +108,20 @@ This command automates the process of addressing PR review comments by fetching 
 5. **Present summary**: Show counts by category and file groupings, ask user to confirm
 
 ### Step 3: Address Comments
+
+#### Interactive Preview (`--preview`)
+
+When `--preview` is passed, preview each comment before acting:
+
+1. Show the reviewer's comment
+2. Show your proposed action: code change diff, explanation, or decline reasoning
+3. Show the draft reply you plan to post
+4. **Wait for user approval** before proceeding — the user can:
+   - **Approve** as-is
+   - **Edit** the proposed reply or approach
+   - **Skip** the comment entirely
+
+This applies to all comment types below. Without `--preview`, act autonomously.
 
 #### Grouped Comments
 
@@ -242,4 +256,5 @@ Where `<type>` is one of: `issue_comment`, `review_thread`, or `review_comment`
 
 
 ## Arguments:
-- $1: [PR number to address reviews (optional - uses current branch if omitted)]
+- $1: [PR number (optional - uses current branch if omitted)]
+- --preview: Preview each comment's proposed action and reply before proceeding
