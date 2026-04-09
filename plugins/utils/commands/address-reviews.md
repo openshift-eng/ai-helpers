@@ -205,7 +205,9 @@ git push --force-with-lease
 #### 4c. Verify push
 
 - Run `git log -1 --format='%H'` locally and `git ls-remote origin <branch>` to confirm the remote has your commit
-- **If they differ**: Diagnose and retry the push
+- **If they differ**: The push failed or was never executed. Diagnose and retry.
+- **If uncommitted changes remain** (`git status`): The commit failed. Fix it before pushing.
+- **If push cannot be verified**: Report the failure to the user. Do not silently proceed — replies have already been posted claiming changes were made.
 
 ### Step 5: Summary
 
