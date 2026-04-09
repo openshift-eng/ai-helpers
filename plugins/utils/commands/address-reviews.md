@@ -7,7 +7,7 @@ argument-hint: "[PR number (optional - uses current branch if omitted)] [--previ
 utils:address-reviews
 
 ## Synopsis
-/utils:address-reviews [PR number] [--preview]
+/utils:address-reviews [PR number (optional - uses current branch if omitted)] [--preview]
 
 ## Description
 This command automates the process of addressing PR review comments by fetching all comments from a pull request, categorizing them by priority (blocking, change requests, questions, suggestions), and systematically addressing each one. It intelligently filters out outdated comments, bot-generated content, and oversized responses to optimize context usage. The command handles code changes, posts replies to reviewers, and maintains a clean git history by amending relevant commits rather than creating unnecessary new ones.
@@ -162,7 +162,10 @@ When multiple comments relate to the same concern/fix:
 - Track what was done for each comment (change description, comment ID, author) so replies can be posted in Step 4
 
 **c. If declining change**:
-- Track the technical explanation for reply in Step 4
+- **Prepare technical explanation** (3-5 sentences):
+  - Why current implementation is correct
+  - Specific reasoning with file:line references
+- Track for reply in Step 4
 
 **d. If unsure**: Ask user for clarification
 
