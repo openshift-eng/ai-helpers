@@ -47,6 +47,12 @@
       "version": "0.0.2"
     },
     {
+      "name": "snowflake",
+      "source": "./plugins/snowflake",
+      "description": "Snowflake data analysis commands for engineering metrics and reports",
+      "version": "0.3.0"
+    },
+    {
       "name": "sosreport",
       "source": "./plugins/sosreport",
       "description": "Analyze sosreport archives for system diagnostics and troubleshooting",

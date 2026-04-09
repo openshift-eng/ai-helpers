@@ -27,6 +27,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Origin](#origin-plugin)
 - [Ote Migration](#ote-migration-plugin)
 - [Session](#session-plugin)
+- [Snowflake](#snowflake-plugin)
 - [Sosreport](#sosreport-plugin)
 - [Teams](#teams-plugin)
 - [Test Coverage](#test-coverage-plugin)
@@ -344,6 +345,15 @@ A plugin to save and resume conversation sessions across long time intervals
 - **`/session:save-session` `[optional-description]`** - Save current conversation session to markdown file for future continuation
 
 See [plugins/session/README.md](plugins/session/README.md) for detailed documentation.
+
+### Snowflake Plugin
+
+Snowflake data analysis commands for engineering metrics and reports
+
+**Commands:**
+- **`/snowflake:activity-type-report` `<projects> [months] [--sample [N]] [--todo | --all]`** - Classify Jira issues into activity types using AI and generate an interactive sankey report
+
+See [plugins/snowflake/README.md](plugins/snowflake/README.md) for detailed documentation.
 
 ### Sosreport Plugin
 
