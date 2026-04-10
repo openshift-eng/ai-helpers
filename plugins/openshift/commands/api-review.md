@@ -1,6 +1,6 @@
 ---
 description: Run strict OpenShift API review workflow for PR changes or local changes
-argument-hint: "[pr_url]"
+argument-hint: "<pr_url> [--api-dir <path>]"
 ---
 
 ## Name
@@ -8,12 +8,12 @@ openshift:api-review
 
 ## Synopsis
 ```text
-/openshift:api-review [pr_url]
+/openshift:api-review <pr_url> [--api-dir <path>]
 ```
 
 ## Description
 
-Run a comprehensive API review for OpenShift API changes. This can review either a specific GitHub PR or local changes against upstream master.
+Run a comprehensive API review for OpenShift API changes. Works with any GitHub repository — provide a full PR URL and the command extracts the owner/repo automatically. Optionally specify `--api-dir` to scope the review to a specific directory (e.g., `api/` for HyperShift). If omitted, the command auto-detects API directories.
 
 ## Implementation
 
@@ -36,82 +36,137 @@ You MUST use this EXACT format for ALL review feedback:
 **Explanation:** [Why this change is needed]
 
 
-I'll run a comprehensive API review for OpenShift API changes. This can review either a specific GitHub PR or local changes against upstream master.
-
-## Step 1: Pre-flight checks and determine review mode
-
-First, I'll check the arguments and determine whether to review a PR or local changes:
+## Step 1: Pre-flight checks and parse arguments
 
 ```bash
+set -euo pipefail
+
 # Save current branch
 CURRENT_BRANCH=$(git branch --show-current)
 echo "📍 Current branch: $CURRENT_BRANCH"
 
-# Check if a PR URL was provided
-if [ -n "$ARGUMENTS" ] && [[ "$ARGUMENTS" =~ github\.com.*pull ]]; then
-    REVIEW_MODE="pr"
-    PR_NUMBER=$(echo "$ARGUMENTS" | sed -nE 's#^.*/pull/([0-9]+)([/?].*)?$#\1#p')
-    if [ -z "$PR_NUMBER" ]; then
-        echo "❌ ERROR: Could not parse PR number from: $ARGUMENTS"
-        exit 1
-    fi
-    echo "🔍 PR review mode: Reviewing PR #$PR_NUMBER"
+# Ensure we always return to the original branch on exit
+cleanup() {
+    git checkout "$CURRENT_BRANCH" >/dev/null 2>&1 || true
+}
+trap cleanup EXIT
 
-    # For PR review, check for uncommitted changes
-    if ! git diff --quiet || ! git diff --cached --quiet; then
-        echo "❌ ERROR: Uncommitted changes detected. Cannot proceed with PR review."
-        echo "Please commit or stash your changes before running the API review."
-        git status --porcelain
-        exit 1
+# Parse arguments: extract PR URL and optional --api-dir
+API_DIR=""
+PR_URL=""
+prev_arg=""
+for arg in $ARGUMENTS; do
+    if [ "$prev_arg" = "--api-dir" ]; then
+        API_DIR="$arg"
+        prev_arg=""
+        continue
     fi
-    echo "✅ No uncommitted changes detected. Safe to proceed with PR review."
+    if [ "$arg" = "--api-dir" ]; then
+        prev_arg="$arg"
+        continue
+    fi
+    if [[ "$arg" =~ github\.com.*pull ]]; then
+        PR_URL="$arg"
+    fi
+done
+
+# A PR URL is required
+if [ -z "$PR_URL" ]; then
+    echo "❌ ERROR: A GitHub PR URL is required."
+    echo "Usage: /openshift:api-review <pr_url> [--api-dir <path>]"
+    echo "Example: /openshift:api-review https://github.com/openshift/api/pull/2145"
+    exit 1
+fi
+
+# Extract owner, repo, and PR number from the URL
+OWNER=$(echo "$PR_URL" | sed -nE 's#^.*github\.com/([^/]+)/([^/]+)/pull/([0-9]+).*$#\1#p')
+REPO=$(echo "$PR_URL" | sed -nE 's#^.*github\.com/([^/]+)/([^/]+)/pull/([0-9]+).*$#\2#p')
+PR_NUMBER=$(echo "$PR_URL" | sed -nE 's#^.*github\.com/([^/]+)/([^/]+)/pull/([0-9]+).*$#\3#p')
+
+if [ -z "$OWNER" ] || [ -z "$REPO" ] || [ -z "$PR_NUMBER" ]; then
+    echo "❌ ERROR: Could not parse owner/repo/PR number from: $PR_URL"
+    exit 1
+fi
+
+echo "🔍 Reviewing PR #$PR_NUMBER in $OWNER/$REPO"
+if [ -n "$API_DIR" ]; then
+    echo "📂 API directory: $API_DIR"
+fi
+
+# Check for uncommitted changes
+if ! git diff --quiet || ! git diff --cached --quiet; then
+    echo "❌ ERROR: Uncommitted changes detected. Cannot proceed with PR review."
+    echo "Please commit or stash your changes before running the API review."
+    git status --porcelain
+    exit 1
+fi
+echo "✅ No uncommitted changes detected. Safe to proceed."
+
+# Find or add an upstream remote for the target repository
+UPSTREAM_REMOTE=""
+for remote in $(git remote); do
+    remote_url=$(git remote get-url "$remote" 2>/dev/null || echo "")
+    if [[ "$remote_url" =~ github\.com[/:]${OWNER}/${REPO}(\.git)?$ ]]; then
+        UPSTREAM_REMOTE="$remote"
+        echo "✅ Found remote: '$remote' -> $remote_url"
+        break
+    fi
+done
+
+if [ -z "$UPSTREAM_REMOTE" ]; then
+    echo "⚠️  No remote pointing to $OWNER/$REPO found. Adding upstream-review remote..."
+    git remote add upstream-review "https://github.com/${OWNER}/${REPO}.git"
+    UPSTREAM_REMOTE="upstream-review"
+fi
+
+echo "🔄 Fetching latest changes from $UPSTREAM_REMOTE..."
+git fetch "$UPSTREAM_REMOTE" master || git fetch "$UPSTREAM_REMOTE" main
+```
+
+## Step 2: Checkout the PR and identify API files
+
+```bash
+echo "🔄 Checking out PR #$PR_NUMBER..."
+gh pr checkout "$PR_NUMBER" --repo "$OWNER/$REPO"
+
+echo "📁 Analyzing changed files in PR..."
+ALL_CHANGED_GO=$(gh pr view "$PR_NUMBER" --repo "$OWNER/$REPO" --json files --jq '.files[].path' | grep '\.go$' || true)
+
+# Filter to API files using --api-dir if provided, otherwise auto-detect
+if [ -n "$API_DIR" ]; then
+    # User specified the API directory — scope to that
+    CHANGED_FILES=$(echo "$ALL_CHANGED_GO" | grep "^${API_DIR}" || true)
+    echo "📂 Scoped to --api-dir=$API_DIR"
 else
-    REVIEW_MODE="local"
-    echo "🔍 Local review mode: Reviewing local changes against upstream master"
-
-    # Find a remote pointing to openshift/api repository
-    OPENSHIFT_REMOTE=""
-    for remote in $(git remote); do
-        remote_url=$(git remote get-url "$remote" 2>/dev/null || echo "")
-        if [[ "$remote_url" =~ github\.com[/:]openshift/api(\.git)?$ ]]; then
-            OPENSHIFT_REMOTE="$remote"
-            echo "✅ Found OpenShift API remote: '$remote' -> $remote_url"
-            break
+    # Auto-detect: check for common API directory patterns in the changed files
+    # Priority: api/, apis/, pkg/api/, pkg/apis/, or files matching API version patterns
+    API_DIRS=""
+    for pattern in "^api/" "^apis/" "^pkg/api/" "^pkg/apis/"; do
+        if echo "$ALL_CHANGED_GO" | grep -q "$pattern"; then
+            API_DIRS="$API_DIRS $pattern"
         fi
     done
 
-    # If no existing remote found, add one with a unique name
-    if [ -z "$OPENSHIFT_REMOTE" ]; then
-        echo "⚠️  No remote pointing to openshift/api found. Adding upstream-openshift-api remote..."
-        git remote add upstream-openshift-api https://github.com/openshift/api.git
-        OPENSHIFT_REMOTE="upstream-openshift-api"
-    fi
-
-    # Fetch latest changes from the OpenShift API remote
-    echo "🔄 Fetching latest changes from $OPENSHIFT_REMOTE..."
-    git fetch "$OPENSHIFT_REMOTE" master
-fi
-```
-
-## Step 2: Get changed files based on review mode
-
-```bash
-if [ "$REVIEW_MODE" = "pr" ]; then
-    # PR Review: Checkout the PR and get changed files
-    echo "🔄 Checking out PR #$PR_NUMBER..."
-    gh pr checkout "$PR_NUMBER"
-
-    echo "📁 Analyzing changed files in PR..."
-    CHANGED_FILES=$(gh pr view "$PR_NUMBER" --json files --jq '.files[].path' | grep '\.go$' | grep -E '/(v1|v1alpha1|v1beta1)/')
-else
-    # Local Review: Get changed files compared to openshift remote master
-    echo "📁 Analyzing locally changed files compared to $OPENSHIFT_REMOTE/master..."
-    CHANGED_FILES=$(git diff --name-only "$OPENSHIFT_REMOTE/master...HEAD" | grep '\.go$' | grep -E '/(v1|v1alpha1|v1beta1)/')
-
-    # Also include staged changes
-    STAGED_FILES=$(git diff --cached --name-only | grep '\.go$' | grep -E '/(v1|v1alpha1|v1beta1)/' || true)
-    if [ -n "$STAGED_FILES" ]; then
-        CHANGED_FILES=$(echo -e "$CHANGED_FILES\n$STAGED_FILES" | sort -u)
+    if [ -n "$API_DIRS" ]; then
+        # Filter to files in detected API directories
+        CHANGED_FILES=""
+        for pattern in $API_DIRS; do
+            matches=$(echo "$ALL_CHANGED_GO" | grep "$pattern" || true)
+            CHANGED_FILES=$(echo -e "$CHANGED_FILES\n$matches" | sed '/^$/d' | sort -u)
+        done
+        echo "📂 Auto-detected API directories: $API_DIRS"
+    else
+        # Fallback: look for files with API version directory patterns or types.go
+        CHANGED_FILES=$(echo "$ALL_CHANGED_GO" | grep -E '/(v1|v1alpha[0-9]*|v1beta[0-9]*|v2|v2alpha[0-9]*|v2beta[0-9]*)/' || true)
+        if [ -z "$CHANGED_FILES" ]; then
+            CHANGED_FILES=$(echo "$ALL_CHANGED_GO" | grep -E 'types\.go$' || true)
+        fi
+        if [ -z "$CHANGED_FILES" ]; then
+            # No API files detected — review all changed Go files
+            CHANGED_FILES="$ALL_CHANGED_GO"
+            echo "⚠️  Could not auto-detect API directory. Reviewing all changed Go files."
+            echo "    Tip: Use --api-dir <path> to scope the review (e.g., --api-dir api/)"
+        fi
     fi
 fi
 
@@ -120,29 +175,29 @@ echo "$CHANGED_FILES"
 
 if [ -z "$CHANGED_FILES" ]; then
     echo "ℹ️  No API files changed. Nothing to review."
-    if [ "$REVIEW_MODE" = "pr" ]; then
-        git checkout "$CURRENT_BRANCH"
-    fi
+    git checkout "$CURRENT_BRANCH"
     exit 0
 fi
 ```
 
-## Step 3: Run linting checks on changes
+## Step 3: Run linting checks on changes (if available)
 
 ```bash
-echo "⏳ Running linting checks on changes..."
-make lint
+# Check if a lint target exists in the Makefile before running
+if [ -f Makefile ] && grep -qE '^lint[[:space:]]*:' Makefile; then
+    echo "⏳ Running linting checks on changes..."
+    make lint
 
-if [ $? -ne 0 ]; then
-    echo "❌ Linting checks failed. Please fix the issues before proceeding."
-    if [ "$REVIEW_MODE" = "pr" ]; then
+    if [ $? -ne 0 ]; then
+        echo "❌ Linting checks failed. Please fix the issues before proceeding."
         echo "🔄 Switching back to original branch: $CURRENT_BRANCH"
         git checkout "$CURRENT_BRANCH"
+        exit 1
     fi
-    exit 1
+    echo "✅ Linting checks passed."
+else
+    echo "⚠️  No 'lint' Makefile target found — skipping lint step."
 fi
-
-echo "✅ Linting checks passed."
 ```
 
 ## Step 4: Documentation validation
@@ -178,55 +233,49 @@ I'll provide a comprehensive report showing:
 
 The review will fail if any documentation requirements are not met for the changed files.
 
-## Step 6: Switch back to original branch (PR mode only)
+## Step 6: Switch back to original branch
 
-After completing the review, if we were reviewing a PR, I'll switch back to the original branch:
+After completing the review, switch back to the original branch:
 
 ```bash
-if [ "$REVIEW_MODE" = "pr" ]; then
-    echo "🔄 Switching back to original branch: $CURRENT_BRANCH"
-    git checkout "$CURRENT_BRANCH"
-    echo "✅ API review complete. Back on branch: $(git branch --show-current)"
-else
-    echo "✅ Local API review complete."
-fi
+echo "🔄 Switching back to original branch: $CURRENT_BRANCH"
+git checkout "$CURRENT_BRANCH"
+echo "✅ API review complete. Back on branch: $(git branch --show-current)"
 ```
 
 **CRITICAL WORKFLOW REQUIREMENTS:**
 
-**For PR Review Mode:**
 1. MUST check for uncommitted changes before starting
 2. MUST abort if uncommitted changes are detected
 3. MUST save current branch name before switching
-4. MUST checkout the PR before running `make lint`
+4. MUST checkout the PR before running lint or review steps
 5. MUST switch back to original branch when complete
 6. If any step fails, MUST attempt to switch back to original branch before exiting
 
-**For Local Review Mode:**
-1. MUST detect existing remotes pointing to openshift/api repository (supports any remote name)
-2. MUST add upstream remote only if no existing openshift/api remote is found
-3. MUST fetch latest changes from the detected openshift/api remote
-4. MUST compare against the detected remote's master branch
-5. MUST include both committed and staged changes in analysis
-6. No branch switching required since we're reviewing local changes
-
 ## Examples
 
-1. **Review a PR**:
+1. **Review an openshift/api PR**:
    ```text
    /openshift:api-review https://github.com/openshift/api/pull/2145
    ```
    Checks out the PR, runs lint and convention checks, then switches back to your branch.
 
-2. **Review local changes**:
+2. **Review a HyperShift PR with explicit API directory**:
    ```text
-   /openshift:api-review
+   /openshift:api-review https://github.com/openshift/hypershift/pull/1234 --api-dir api/
    ```
-   Reviews local changes against upstream master in the current openshift/api clone.
+   Scopes the review to files under `api/` in the HyperShift repo.
+
+3. **Review a PR in any repository**:
+   ```text
+   /openshift:api-review https://github.com/openshift/cluster-version-operator/pull/567
+   ```
+   Auto-detects API directories or falls back to reviewing all changed Go files.
 
 ## Arguments
 
-- **pr_url** (optional): GitHub PR URL to review (e.g., `https://github.com/openshift/api/pull/2145`). If not provided, reviews local changes against upstream master.
+- **pr_url** (required): Full GitHub PR URL (e.g., `https://github.com/openshift/api/pull/2145`). Owner and repo are extracted from the URL.
+- **--api-dir** (optional): Path to the API directory within the repository (e.g., `api/`, `pkg/api/`). If omitted, the command auto-detects API directories from common patterns.
 
 ## See Also
 

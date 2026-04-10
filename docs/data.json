@@ -1013,10 +1013,10 @@
           "synopsis": "/openshift:add-enhancement [area] <name> <description> <jira>"
         },
         {
-          "argument_hint": "[pr_url]",
+          "argument_hint": "<pr_url> [--api-dir <path>]",
           "description": "Run strict OpenShift API review workflow for PR changes or local changes",
           "name": "api-review",
-          "synopsis": "text"
+          "synopsis": "/openshift:api-review <pr_url> [--api-dir <path>]"
         },
         {
           "argument_hint": "",
@@ -1131,7 +1131,7 @@
           "name": "OpenShift Node Kernel Inspection"
         }
       ],
-      "version": "0.0.6"
+      "version": "0.0.7"
     },
     {
       "commands": [
