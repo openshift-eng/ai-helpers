@@ -412,6 +412,52 @@ Parse and analyze the JSON output from scripts using your own reasoning capabili
    - For mass test failure regressions: the real affected component(s) based on failing test names
    - Assessment: isolated test issue, targeted product bug with co-failures, or collateral damage from widespread instability
 
+7b. **Deep Install Failure Analysis** (install should succeed regressions only)
+
+   **Only perform this step if the test name contains "install should succeed".**
+
+   Install regressions require deeper per-run analysis because different runs may fail at entirely different installation stages (bootstrap, infrastructure, cluster creation, etc.) for different reasons. This step invokes the `prow-job-analyze-install-failure` skill on a representative sample of failed runs to determine whether all failures share a single root cause or have multiple independent causes.
+
+   **Select runs to analyze**:
+
+   Select up to 5 failed job runs to analyze. Choose from the jobs with the most failures (identified in step 6). If failure counts vary across jobs, spread the selection across jobs to get a representative sample. Extract `job_url` values from `sample_failed_jobs`:
+
+   ```bash
+   # Example: extract up to 5 job URLs from sample_failed_jobs (one per job, preferring high-failure jobs)
+   echo "$regression_data" | jq -r '
+     .sample_failed_jobs
+     | to_entries
+     | sort_by(.value.failed_runs | length)
+     | reverse
+     | .[0:5]
+     | .[]
+     | .value.failed_runs[0].job_url
+   '
+   ```
+
+   **Invoke the install failure skill for each selected run**:
+
+   For each selected `job_url`, use the Skill tool to invoke `ci:prow-job-analyze-install-failure` with the job URL. The skill downloads and analyzes GCS artifacts (installer logs, log bundles, junit XML) and returns a structured report including:
+   - Failure stage (bootstrap, infrastructure, cluster creation, cluster operator stability, configuration, other)
+   - Root cause summary
+   - Key error messages
+
+   **Synthesize findings across runs**:
+
+   After analyzing all runs, compare the failure stages and root causes:
+
+   - **Consistent — single root cause**: All runs fail at the same stage with the same error pattern (e.g., all fail at `cluster bootstrap` with etcd not forming). High confidence this is one bug.
+   - **Consistent stage, multiple root causes**: All runs fail at the same stage but with different error messages (e.g., all `infrastructure` failures but different cloud API errors). May be a single unstable area with varied surface failures.
+   - **Multiple causes**: Runs fail at different stages (e.g., some `bootstrap`, some `cluster creation`). Likely multiple independent issues or an intermittently unstable environment. Each failure mode may need separate investigation.
+   - **Inconclusive**: Skill could not retrieve artifacts or determine root cause for most runs. Note this and continue.
+
+   **Output for report**: Include in Section 4b:
+   - Number of runs analyzed
+   - Failure stage breakdown (e.g., "2/3 runs: cluster bootstrap, 1/3 runs: infrastructure")
+   - Root cause consistency classification
+   - Per-run summary: job URL, failure stage, key error message
+   - Overall assessment and recommended next steps
+
 8. **Determine Regression Start Date**: Use the `fetch-test-runs` skill with full history
 
    For the job with the most failures (identified in step 6), fetch the complete test run history including successes to determine when the regression started. Use 28 days of history to ensure we can find the regression start point.
@@ -1079,6 +1125,20 @@ Generated using the `fetch-job-run-summary` skill (see `plugins/ci/skills/fetch-
 - **Real Affected Component** (for mass test failure regressions): The actual component(s) whose tests are failing, since the regression is attributed to "Test Framework" but the real issue lies elsewhere
 - **Assessment**: Isolated test issue, targeted product bug with co-failures, or collateral damage from widespread instability
 
+#### Install Failure Analysis (install should succeed regressions only)
+
+Generated using the `prow-job-analyze-install-failure` skill for each representative failed run. Only included when the test name contains "install should succeed".
+
+- **Runs Analyzed**: Number of failed job runs analyzed (up to 5), with links to each
+- **Failure Stage Breakdown**: How runs are distributed across installation stages (e.g., "2/3: cluster bootstrap, 1/3: infrastructure")
+- **Root Cause Consistency**:
+  - **Consistent — single root cause**: All runs fail at the same stage with the same error. One bug likely accounts for all failures.
+  - **Consistent stage, multiple root causes**: Same stage but different errors per run. The stage is the weak point but failures vary.
+  - **Multiple causes**: Runs fail at different stages. Multiple independent issues or an unstable environment.
+  - **Inconclusive**: Artifacts unavailable or root cause could not be determined for most runs.
+- **Per-run summary**: For each analyzed run — job URL, failure stage, and key error message
+- **Assessment and recommended next steps**: Based on consistency, whether to file one bug or investigate multiple independent issues
+
 #### Regression Start Analysis (only if determinable)
 
 Generated using the `fetch-test-runs` skill with `--include-success` and `--job-contains`:
@@ -1214,6 +1274,7 @@ Uses the `triage-regression` skill with authentication via the `oc-auth` skill (
   - `triage-regression`: Creates or updates triage records linking regressions to JIRA bugs
   - `set-release-blocker`: Sets the Release Blocker field to "Approved" on filed JIRA bugs
   - `oc-auth`: Provides authentication tokens for sippy-auth API
+  - `prow-job-analyze-install-failure`: Analyzes GCS artifacts for individual failed install runs (used only when test name contains "install should succeed")
 - The regression details skill groups failed jobs by job name and provides pass sequences for pattern analysis
 - The test failure outputs skill compares error messages to determine if failures have a single root cause
 - Follows the guidance: "many regressions can be caused by one bug"
@@ -1238,6 +1299,7 @@ Uses the `triage-regression` skill with authentication via the `oc-auth` skill (
 - Related Skill: `triage-regression` - Creates or updates triage records (`plugins/ci/skills/triage-regression/SKILL.md`)
 - Related Skill: `set-release-blocker` - Sets Release Blocker field on JIRA bugs (`plugins/ci/skills/set-release-blocker/SKILL.md`)
 - Related Skill: `oc-auth` - Authentication tokens for sippy-auth (`plugins/ci/skills/oc-auth/SKILL.md`)
+- Related Skill: `prow-job-analyze-install-failure` - Deep per-run install failure analysis via GCS artifacts (`plugins/ci/skills/prow-job-analyze-install-failure/SKILL.md`)
 - Related Command: `/component-health:list-regressions` (for bulk regression data)
 - Related Command: `/component-health:analyze-regressions` (for overall component health)
 - Component Readiness: https://sippy-auth.dptools.openshift.org/sippy-ng/component_readiness/main
