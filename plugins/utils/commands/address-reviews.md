@@ -1,13 +1,13 @@
 ---
 description: Fetch and address all PR review comments
-argument-hint: "[PR number (optional - uses current branch if omitted)]"
+argument-hint: "[PR number (optional - uses current branch if omitted)] [--preview]"
 ---
 
 ## Name
 utils:address-reviews
 
 ## Synopsis
-/utils:address-reviews [PR number (optional - uses current branch if omitted)]
+/utils:address-reviews [PR number (optional - uses current branch if omitted)] [--preview]
 
 ## Description
 This command automates the process of addressing PR review comments by fetching all comments from a pull request, categorizing them by priority (blocking, change requests, questions, suggestions), and systematically addressing each one. It intelligently filters out outdated comments, bot-generated content, and oversized responses to optimize context usage. The command handles code changes, posts replies to reviewers, and maintains a clean git history by amending relevant commits rather than creating unnecessary new ones.
@@ -109,11 +109,25 @@ This command automates the process of addressing PR review comments by fetching 
 
 ### Step 3: Address Comments
 
+#### Interactive Preview (`--preview`)
+
+When `--preview` is passed, preview each comment before acting:
+
+1. Show the reviewer's comment
+2. Show your proposed action: code change diff, explanation, or decline reasoning
+3. Show the draft reply you plan to post
+4. **Wait for user approval** before proceeding — the user can:
+   - **Approve** as-is
+   - **Edit** the proposed reply or approach
+   - **Skip** the comment entirely
+
+This applies to all comment types below. Without `--preview`, act autonomously.
+
 #### Grouped Comments
 
 When multiple comments relate to the same concern/fix:
 - Make the code change once
-- Reply to EACH comment individually (don't copy-paste, tailor each reply)
+- Track replies for EACH comment individually (posted in Step 4 — don't copy-paste, tailor each reply)
 - Optional reference: `Done. (Also addresses feedback from @user)`
 
 #### Code Change Requests
@@ -122,7 +136,7 @@ When multiple comments relate to the same concern/fix:
 
 **b. If requested change is valid**:
 - Plan and implement changes
-- Commit and Push **(ALL sub-steps are MANDATORY — do not skip any)**
+- Commit locally **(do NOT push yet — all pushes are batched in Step 4)**
    1. **Review changes**: `git diff`
 
    2. **Sync with remote first**: `git pull --rebase origin <branch>` to ensure local branch is up to date. If the branch is behind or diverged, you MUST rebase before committing.
@@ -139,18 +153,39 @@ When multiple comments relate to the same concern/fix:
       - **When unsure**: Amend (keep git history clean)
       - **Multiple commits**: Use `git rebase -i origin/main` to amend the specific relevant commit
 
-   5. **Create commit AND push (both required)**:
+   5. **Create commit locally**:
       - Follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) format
       - Always include body explaining "why"
-      - **Amend**: `git commit --amend --no-edit && git push --force-with-lease` (or update message if scope changed)
-      - **New commit**: Standard commit with message, then `git push`
-      - **⚠️ A commit without a push is incomplete. You MUST push.**
+      - **Amend**: `git commit --amend --no-edit` (or update message if scope changed)
+      - **New commit**: Standard commit with message
 
-   6. **Verify push succeeded (MANDATORY before replying)**:
-      - Run `git log -1 --format='%H'` locally and `git ls-remote origin <branch>` to confirm the remote has your commit
-      - **If they differ**: The push failed or was never executed. Do NOT post a "Done" reply. Diagnose and retry, or report the failure to the user.
-      - **If uncommitted changes remain** (`git status`): The commit failed. Fix it first.
-      - **⚠️ NEVER post a "Done" or "Fixed" reply unless the push is verified on the remote.** Posting false claims of completion erodes reviewer trust and wastes human reviewers' time.
+- Track what was done for each comment (change description, comment ID, author) so replies can be posted in Step 4
+
+**c. If declining change**:
+- **Prepare technical explanation** (3-5 sentences):
+  - Why current implementation is correct
+  - Specific reasoning with file:line references
+- Track for reply in Step 4
+
+**d. If unsure**: Ask user for clarification
+
+#### Clarification Requests
+
+- Prepare clear, detailed answer (2-4 sentences)
+- Include file:line references when applicable
+- Track for reply in Step 4
+
+#### Informational Comments
+
+- No action unless response is courteous
+
+### Step 4: Post Replies and Push
+
+After ALL comments from Step 3 are processed, post replies and push in this order:
+
+#### 4a. Post all replies
+
+For each comment addressed in Step 3, post the reply:
 
 - **Concise Reply template**: `Done. [1-line what changed]. [Optional 1-line why]`
   - Max 2 sentences + attribution footer
@@ -160,27 +195,24 @@ When multiple comments relate to the same concern/fix:
   ```
   If fails: `gh pr comment <PR_NUMBER> --body="@<author> <reply>"`
 
-**c. If declining change**:
-- **Reply with technical explanation** (3-5 sentences):
-  - Why current implementation is correct
-  - Specific reasoning with file:line references
-- Use same posting method as (b)
-
-**d. If unsure**: Ask user for clarification
-
-#### Clarification Requests
-
-- Provide clear, detailed answer (2-4 sentences)
-- Include file:line references when applicable
-- Post using same method as code changes
-
-#### Informational Comments
-
-- No action unless response is courteous
-
 **All replies must include**: `---\n*AI-assisted response via Claude Code*`
 
-### Step 4: Summary
+#### 4b. Push once
+
+After all replies are posted, push all committed changes in a single push:
+
+```bash
+git push --force-with-lease
+```
+
+#### 4c. Verify push
+
+- Run `git log -1 --format='%H'` locally and `git ls-remote origin <branch>` to confirm the remote has your commit
+- **If they differ**: The push failed or was never executed. Diagnose and retry.
+- **If uncommitted changes remain** (`git status`): The commit failed. Fix it before pushing.
+- **If push cannot be verified**: Report the failure to the user. Do not silently proceed — replies have already been posted claiming changes were made.
+
+### Step 5: Summary
 
 Show user:
 - Total comments found (raw count from API)
@@ -229,4 +261,5 @@ Where `<type>` is one of: `issue_comment`, `review_thread`, or `review_comment`
 
 
 ## Arguments:
-- $1: [PR number to address reviews (optional - uses current branch if omitted)]
+- $1: [PR number (optional - uses current branch if omitted)]
+- --preview: Preview each comment's proposed action and reply before proceeding

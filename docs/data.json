@@ -817,7 +817,7 @@
     {
       "commands": [
         {
-          "argument_hint": "[PR number (optional - uses current branch if omitted)]",
+          "argument_hint": "[PR number (optional - uses current branch if omitted)] [--preview]",
           "description": "Fetch and address all PR review comments",
           "name": "address-reviews",
           "synopsis": ""
@@ -876,7 +876,7 @@
       "hooks": [],
       "name": "utils",
       "skills": [],
-      "version": "0.0.7"
+      "version": "0.0.8"
     },
     {
       "commands": [
