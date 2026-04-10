@@ -180,10 +180,16 @@ where failures occur in CI steps rather than named unit tests.
    - A `<failure>` or `<error>` child element is present, OR
    - The `<testcase>` has attribute `status="failed"`
 
+   **Blocking vs informing tests**: Each `<testcase>` element may have a `lifecycle` attribute (e.g., `<testcase lifecycle="informing">` or `<testcase lifecycle="blocking">`). A test with `lifecycle="informing"` is **non-blocking** — its failure does not cause the overall job to fail. A test with `lifecycle="blocking"` or **no** `lifecycle` attribute is blocking. When collecting failed testcases:
+   - Record the `lifecycle` value for each failed test (default to `"blocking"` if absent)
+   - Treat only **blocking** test failures as primary failures for root cause analysis
+   - **Do not focus on informing test failures.** They should be noted separately but not treated as the reason the job failed. They may provide useful supporting evidence — for example, an informing test failure in a related component may help corroborate why a blocking test also failed
+
    For each failed testcase record:
    - `step_name`: value of `classname` or `name` attribute (whichever identifies the CI step)
    - `failure_message`: text content of the `<failure>` or `<error>` element
    - `junit_file`: path of the XML file it came from
+   - `lifecycle`: value of the `lifecycle` attribute (`"blocking"` or `"informing"`; default `"blocking"` if absent)
 
 2. **Classify each failed step by phase**
 
