@@ -300,6 +300,12 @@
           "synopsis": "/ci:add-debug-wait <workflow-or-job-name> [timeout]"
         },
         {
+          "argument_hint": "<prowjob-url-1> [prowjob-url-2 ...] [--backends backend1,backend2,...]",
+          "description": "Analyze and compare disruption across one or more Prow CI job runs",
+          "name": "analyze-disruption",
+          "synopsis": ""
+        },
+        {
           "argument_hint": "<payload-tag> [--lookback N]",
           "description": "Analyze a payload (rejected, accepted, or in-progress) with historical lookback to identify root causes of blocking job failures",
           "name": "analyze-payload",
@@ -444,6 +450,11 @@
       "name": "ci",
       "skills": [
         {
+          "description": "Analyze and compare disruption across one or more Prow CI job runs by examining interval data, audit logs, pod logs, and CPU metrics",
+          "id": "analyze-disruption",
+          "name": "Analyze Disruption"
+        },
+        {
           "description": "Analyze a payload (rejected, accepted, or in-progress) with historical lookback to identify root causes of blocking job failures and produce an HTML report",
           "id": "analyze-payload",
           "name": "Analyze Payload"
@@ -574,7 +585,7 @@
           "name": "Trigger Payload Job"
         }
       ],
-      "version": "0.0.36"
+      "version": "0.0.37"
     },
     {
       "commands": [
