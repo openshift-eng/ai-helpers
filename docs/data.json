@@ -1712,6 +1712,22 @@
         }
       ],
       "version": "0.0.1"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "[role] [start-date] [end-date]",
+          "description": "Build quarterly accomplishment summaries with dense formatting and competency mapping",
+          "name": "build",
+          "synopsis": "/quarterly-connection:build [role] [start-date] [end-date]"
+        }
+      ],
+      "description": "Build quarterly accomplishment summaries with dense formatting and competency mapping",
+      "has_readme": true,
+      "hooks": [],
+      "name": "quarterly-connection",
+      "skills": [],
+      "version": "0.0.1"
     }
   ]
 }

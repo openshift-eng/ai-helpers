@@ -1,0 +1,8 @@
+{
+  "name": "quarterly-connection",
+  "description": "Build quarterly accomplishment summaries with dense formatting and competency mapping",
+  "version": "0.0.1",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}
