@@ -47,7 +47,7 @@ When multiple job runs are provided, the command compares and contrasts disrupti
 ### Responsibility Routing
 
 Disruption responsibility spans multiple teams. The more detail tracked down, the better the routing:
-- **Networking team** — network-related disruption, endpoint slice issues
+- **Networking team** — network-related disruptions, any disruptions related to the network or connectivity
 - **Workloads team** — pod lifecycle, readiness probe issues
 - **API Server team** — API server disruption, audit log gaps
 - **Node team** — node shutdown sequencing, kubelet behavior, high CPU
@@ -71,7 +71,7 @@ The skill handles all implementation details including:
   - **Per-Run Disruption Summary**: Disruption intervals per backend with timestamps and messages
   - **Backend Classification**: Cache vs non-cache vs canary analysis
   - **Audit Log Analysis**: Request gaps correlated with disruption windows
-  - **Cluster Activity Correlation**: What was happening during disruption (etcd leader changes, node events, high CPU)
+  - **Cluster Activity Correlation**: What was happening during disruption (etcd leader changes, node events, high CPU, operator progressing)
   - **Cross-Run Comparison** (multi-run): Patterns consistent across runs vs isolated incidents
   - **Root Cause Hypothesis**: Synthesized analysis with team routing recommendation
 - **Deep links** per run: Prow job page, Sippy intervals view, GCS artifact browser
