@@ -131,13 +131,22 @@ The aggregated junit XML contains links to every underlying job run. Download it
 gs://test-platform-results/{bucket-path}/artifacts/release-analysis-aggregator/openshift-release-analysis-aggregator/artifacts/release-analysis-aggregator/{job-name}/{payload-tag}/junit-aggregated.xml
 ```
 
-Each `<testcase>` element has a `<system-out>` with YAML-formatted data including `passes:`,
-`failures:`, and `skips:` lists. Each entry has:
-- `jobrunid`: The build ID of the underlying job run
-- `humanurl`: Prow URL for the job run (e.g., `https://prow.ci.openshift.org/view/gs/test-platform-results/logs/{job-name}/{jobrunid}`)
-- `gcsartifacturl`: Direct link to GCS artifacts
+Use the `parse-junit` skill to parse the aggregated JUnit XML. It automatically extracts the
+per-run YAML data from `<system-out>` (passes, failures, skips with job run URLs):
 
-Use the `humanurl` links to investigate individual job run failures with the normal
+```bash
+python3 plugins/ci/skills/parse-junit/parse_junit.py \
+  .work/prow-job-analyze-test-failure/{build_id}/logs/junit-aggregated.xml \
+  --format json
+```
+
+Each test result in the JSON output includes an `aggregated` field with `passes`, `failures`,
+and `skips` lists. Each entry has:
+- `jobRunID`: The build ID of the underlying job run
+- `humanURL`: Prow URL for the job run (e.g., `https://prow.ci.openshift.org/view/gs/test-platform-results/logs/{job-name}/{jobrunid}`)
+- `gcsArtifactURL`: Direct link to GCS artifacts
+
+Use the `humanURL` links to investigate individual job run failures with the normal
 (non-aggregated) analysis steps below.
 
 ### Step 4.1: Download build-log.txt
@@ -176,14 +185,30 @@ where failures occur in CI steps rather than named unit tests.
    gcloud storage cp "gs://test-platform-results/{bucket-path}/artifacts/{JOB_NAME}/**/junit*.xml" \
      .work/prow-job-analyze-test-failure/{build_id}/logs/ --no-user-output-enabled --recursive 2>/dev/null || true
    ```
-   Parse each downloaded XML file and collect every `<testcase>` element where:
-   - A `<failure>` or `<error>` child element is present, OR
-   - The `<testcase>` has attribute `status="failed"`
+
+   Use the `parse-junit` skill to parse the downloaded JUnit XML files and extract failures:
+
+   ```bash
+   python3 plugins/ci/skills/parse-junit/parse_junit.py \
+     .work/prow-job-analyze-test-failure/{build_id}/logs/junit*.xml \
+     --status "failed,error" --format json
+   ```
+
+   This returns all failed/error testcases with metadata including:
+   - `name`: test or step name
+   - `classname`: class or package (often identifies the CI step)
+   - `suite_name`: test binary/suite that produced the result
+   - `failure_message`: short failure description
+   - `failure_text`: full failure output
+   - `lifecycle`: `blocking` or `informing` (auto-detected from filename/suite name).
+     Informing test failures do not cause job failures on their own, but badly behaved
+     informing tests could impact the cluster and are worth investigating as a cause.
+   - `source_file`: which JUnit XML file the test came from
 
    For each failed testcase record:
-   - `step_name`: value of `classname` or `name` attribute (whichever identifies the CI step)
-   - `failure_message`: text content of the `<failure>` or `<error>` element
-   - `junit_file`: path of the XML file it came from
+   - `step_name`: value of `classname` or `name` (whichever identifies the CI step)
+   - `failure_message`: from the `failure_message` field
+   - `junit_file`: from the `source_file` field
 
 2. **Classify each failed step by phase**
 
