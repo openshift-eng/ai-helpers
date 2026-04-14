@@ -515,6 +515,11 @@
           "name": "OC Authentication Helper"
         },
         {
+          "description": "Parse JUnit XML files from OpenShift CI jobs to extract test results, failure messages, lifecycle metadata, and aggregated run data",
+          "id": "parse-junit",
+          "name": "Parse JUnit XML"
+        },
+        {
           "description": "Schema for the autodl JSON data file produced by analyze-payload for database ingestion \u2014 you must use this skill whenever generating the autodl JSON file",
           "id": "payload-autodl-json",
           "name": "Payload Autodl JSON"
@@ -585,7 +590,7 @@
           "name": "Trigger Payload Job"
         }
       ],
-      "version": "0.0.37"
+      "version": "0.0.38"
     },
     {
       "commands": [
