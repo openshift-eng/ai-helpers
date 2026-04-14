@@ -1002,6 +1002,28 @@
     {
       "commands": [
         {
+          "argument_hint": "<operator-name> [--namespace <ns>] [--output-dir <dir>]",
+          "description": "Generate OpenShift Console operator dashboard from operator name and CRD discovery",
+          "name": "generate-dashboard",
+          "synopsis": "/operator-dashboard:generate-dashboard <operator-name> [--namespace <ns>] [--output-dir <dir>]"
+        }
+      ],
+      "description": "Generate OpenShift Console operator dashboard: CRD discovery, list/detail components from templates",
+      "has_readme": true,
+      "hooks": [],
+      "name": "operator-dashboard",
+      "skills": [
+        {
+          "description": "Reference components for generating Kubernetes operator CRD dashboards",
+          "id": "dashboard-templates",
+          "name": "Dashboard Template Components"
+        }
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "commands": [
+        {
           "argument_hint": "",
           "description": "Analyze the list of JIRA outcome issues to prepare an outcome refinement meeting agenda.",
           "name": "outcome-refinement",

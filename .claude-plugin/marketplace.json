@@ -77,6 +77,12 @@
       "version": "0.2.0"
     },
     {
+      "name": "operator-dashboard",
+      "source": "./plugins/ai-operator-dashboard-generator",
+      "description": "Generate OpenShift Console operator dashboard: CRD discovery, list/detail components from templates",
+      "version": "0.0.1"
+    },
+    {
       "name": "agendas",
       "source": "./plugins/agendas",
       "description": "A plugin to create various meeting agendas",

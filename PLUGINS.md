@@ -3,6 +3,7 @@
 This document lists all available Claude Code plugins and their commands in the ai-helpers repository.
 
 - [Agendas](#agendas-plugin)
+- [Operator Dashboard](#operator-dashboard-plugin)
 - [Bigquery](#bigquery-plugin)
 - [Ci](#ci-plugin)
 - [Code Review](#code-review-plugin)
@@ -44,6 +45,13 @@ A plugin to create various meeting agendas
 - **`/agendas:outcome-refinement`** - Analyze the list of JIRA outcome issues to prepare an outcome refinement meeting agenda.
 
 See [plugins/agendas/README.md](plugins/agendas/README.md) for detailed documentation.
+
+### Operator Dashboard Plugin
+
+Generate OpenShift Console operator dashboard: CRD discovery, list/detail components from templates
+
+**Commands:**
+- **`/operator-dashboard:generate-dashboard` `<operator-name> [--namespace <ns>] [--output-dir <dir>]`** - Generate OpenShift Console operator dashboard from operator name and CRD discovery
 
 ### Bigquery Plugin
 
