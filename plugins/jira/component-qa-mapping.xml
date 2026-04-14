@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Component-to-QA Contact Mapping for JIRA Plugin
+
+  This file maps JIRA component names to their default QA contact owners.
+  Used by the /jira:update-qa-contact command in dashboard and bugs modes.
+
+  Usage:
+    - Dashboard mode: /jira:update-qa-contact with dashboard parameter
+    - Bug list mode: /jira:update-qa-contact with bugs parameter
+
+  To customize:
+    1. Replace placeholder emails (aaaa@, bbbb@, etc.) with actual QA contacts
+    2. Add/remove component entries as needed
+    3. Component names must match JIRA component field exactly (case-sensitive)
+    4. Use email addresses for unambiguous user identification
+
+  Example:
+    <component name="Installer">
+      <default-qa>alice@redhat.com</default-qa>
+    </component>
+-->
+<component-qa-mapping>
+  <!-- Core Components - Real QA Contacts (Alphabetically sorted) -->
+  <component name="apiserver-auth">
+    <default-qa>ksiddiqui@redhat.com</default-qa>
+  </component>
+  <component name="descheduler">
+    <default-qa>ropatil@redhat.com</default-qa>
+  </component>
+  <component name="etcd">
+    <default-qa>skundu@redhat.com</default-qa>
+  </component>
+  <component name="kube-apiserver">
+    <default-qa>rgangwar@redhat.com</default-qa>
+  </component>
+  <component name="kube-scheduler">
+    <default-qa>ropatil@redhat.com</default-qa>
+  </component>
+  <component name="run-once-duration-override">
+    <default-qa>ropatil@redhat.com</default-qa>
+  </component>
+  <component name="Storage / Operators">
+    <default-qa>rdeore@redhat.com</default-qa>
+  </component>
+  <component name="Workloads">
+    <default-qa>ropatil@redhat.com</default-qa>
+  </component>
+    <component name="mustgather">
+    <default-qa>ropatil@redhat.com</default-qa>
+  </component>
+
+  <!-- Placeholder Components (Alphabetically sorted) -->
+  <component name="Bare Metal Hardware Provisioning / ironic">
+    <default-qa>aaaa@redhat.com</default-qa>
+  </component>
+  <component name="Cloud Compute / IBM Provider">
+    <default-qa>bbbb@redhat.com</default-qa>
+  </component>
+  <component name="GitOps ZTP">
+    <default-qa>cccc@redhat.com</default-qa>
+  </component>
+  <component name="HyperShift">
+    <default-qa>dddd@redhat.com</default-qa>
+  </component>
+  <component name="HyperShift / ROSA">
+    <default-qa>eeee@redhat.com</default-qa>
+  </component>
+  <component name="Installer / Agent based installation">
+    <default-qa>ffff@redhat.com</default-qa>
+  </component>
+  <component name="Management Console">
+    <default-qa>gggg@redhat.com</default-qa>
+  </component>
+  <component name="Networking / nmstate-console-plugin">
+    <default-qa>hhhh@redhat.com</default-qa>
+  </component>
+  <component name="Networking / ovn-kubernetes">
+    <default-qa>iiii@redhat.com</default-qa>
+  </component>
+  <component name="Networking / ptp">
+    <default-qa>jjjj@redhat.com</default-qa>
+  </component>
+  <component name="Networking / SR-IOV">
+    <default-qa>kkkk@redhat.com</default-qa>
+  </component>
+  <component name="Node / CRI-O">
+    <default-qa>llll@redhat.com</default-qa>
+  </component>
+  <component name="Observability UI">
+    <default-qa>mmmm@redhat.com</default-qa>
+  </component>
+  <component name="oc">
+    <default-qa>rgangwar@redhat.com</default-qa>
+  </component>
+</component-qa-mapping>

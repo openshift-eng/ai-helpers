@@ -181,6 +181,12 @@
           "synopsis": "/jira:status-rollup issue-id [--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD]"
         },
         {
+          "argument_hint": "<status> <from> <to> [project] | --issue-key <KEY> <to> | --issue-key <KEY> <from> <to> | --defaultcomponentowners --csv-file <path> | --bugs <list>",
+          "description": "Update QA contact for JIRA issues by status, issue key, component owners from CSV, or bug list",
+          "name": "update-qa-contact",
+          "synopsis": "# Bulk mode - update by status filter"
+        },
+        {
           "argument_hint": "[project-key] [--component name] [--label label-name] [user-filters...]",
           "description": "Update weekly status summaries for Jira issues with component and user filtering",
           "name": "update-weekly-status",
@@ -289,7 +295,7 @@
           "name": "Jira Status Analysis Engine"
         }
       ],
-      "version": "0.3.9"
+      "version": "0.3.12"
     },
     {
       "commands": [
