@@ -5,6 +5,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Agendas](#agendas-plugin)
 - [Operator Dashboard](#operator-dashboard-plugin)
 - [Bigquery](#bigquery-plugin)
+- [Bug Triage](#bug-triage-plugin)
 - [Ci](#ci-plugin)
 - [Code Review](#code-review-plugin)
 - [Compliance](#compliance-plugin)
@@ -61,6 +62,15 @@ BigQuery cost analysis and optimization utilities
 - **`/bigquery:analyze-usage` `<project-id> <timeframe>`** - Analyze BigQuery usage and costs for a project
 
 See [plugins/bigquery/README.md](plugins/bigquery/README.md) for detailed documentation.
+
+### Bug Triage Plugin
+
+AI-powered bug triage for OpenShift teams — analyzes untriaged OCPBUGS issues and posts structured triage comments before bug scrub meetings
+
+**Commands:**
+- **`/bug-triage:scrub` `--team <team-name> [--team-docs <path>] [--since last-week] [--issue OCPBUGS-XXXXX] [--dry-run]`** - Analyze untriaged OCPBUGS bugs for a team and post AI triage comments directly on each issue before bug scrub meetings
+
+See [plugins/bug-triage/README.md](plugins/bug-triage/README.md) for detailed documentation.
 
 ### Ci Plugin
 

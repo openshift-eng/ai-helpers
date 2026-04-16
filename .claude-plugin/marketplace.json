@@ -191,6 +191,12 @@
       "version": "0.0.2"
     },
     {
+      "name": "bug-triage",
+      "source": "./plugins/bug-triage",
+      "description": "AI-powered bug triage for OpenShift teams — analyzes untriaged OCPBUGS issues and posts structured triage comments",
+      "version": "0.1.0"
+    },
+    {
       "name": "workspaces",
       "source": "./plugins/workspaces",
       "description": "Manage isolated git worktree workspaces for multi-repo development",
