@@ -130,13 +130,7 @@
       "description": "Cross-platform desktop notifications for ai-helpers",
       "version": "0.0.2"
     },
-    {
-      "name": "metrics",
-      "source": "./plugins/metrics",
-      "description": "Anonymous metrics usage for ai-helpers",
-      "version": "0.0.2"
-    },
-    {
+{
       "name": "hcp",
       "source": "./plugins/hcp",
       "description": "Generate HyperShift cluster creation commands via hcp CLI from natural language descriptions",

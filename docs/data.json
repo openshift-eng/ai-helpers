@@ -1297,31 +1297,6 @@
       "version": "0.0.2"
     },
     {
-      "commands": [],
-      "description": "Anonymous metrics usage for ai-helpers",
-      "has_readme": true,
-      "hooks": [
-        {
-          "description": "Anonymous Usage Metric Collection",
-          "name": "UserPromptSubmit",
-          "type": "UserPromptSubmit"
-        },
-        {
-          "description": "Anonymous Usage Metric Collection",
-          "name": "PreToolUse",
-          "type": "PreToolUse"
-        },
-        {
-          "description": "Anonymous Usage Metric Collection",
-          "name": "SessionEnd",
-          "type": "SessionEnd"
-        }
-      ],
-      "name": "metrics",
-      "skills": [],
-      "version": "0.0.2"
-    },
-    {
       "commands": [
         {
           "argument_hint": "<cluster-name> [--verbose] [--output-format json|text]",
