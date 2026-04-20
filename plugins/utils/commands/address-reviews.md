@@ -53,13 +53,14 @@ This command automates the process of addressing PR review comments by fetching 
      length: (.body | length),
      path,
      line,
+     original_line,
      created_at,
      type: "review_comment"
    })'
    ```
 
    b. **Apply filtering logic** (DO NOT fetch full body yet):
-   - Filter out: `line == null` (outdated review comments)
+   - Filter out: `line == null AND original_line == null` (truly orphaned review comments). **Keep** comments where `line == null` but `original_line != null` — these are valid comments on a stale diff hunk that still need attention.
    - Filter out: `length > 5000`
    - Filter out: CI/automation bots `author in ["openshift-ci-robot", "openshift-ci"]` (keep coderabbitai for code review insights)
    - Keep track of filtered items and stats for reporting
@@ -73,7 +74,7 @@ This command automates the process of addressing PR review comments by fetching 
    gh api repos/{owner}/{repo}/pulls/<PR_NUMBER>/reviews/<review_id> --jq '{id, body, user: .user.login, state, submitted_at}'
 
    # For review comments - fetch only body and code context:
-   gh api repos/{owner}/{repo}/pulls/comments/<comment_id> --jq '{id, body, user: .user.login, path, position, diff_hunk, created_at}'
+   gh api repos/{owner}/{repo}/pulls/comments/<comment_id> --jq '{id, body, user: .user.login, path, line, original_line, position, diff_hunk, created_at}'
    ```
 
    **Note**: Using `--jq` to select only needed fields minimizes context usage. Avoid fetching full API responses with all metadata.
@@ -96,6 +97,7 @@ This command automates the process of addressing PR review comments by fetching 
    - Pure acknowledgments ("LGTM", "Thanks!", etc.)
 
 2. **Categorize**:
+   - **ACTION_INSTRUCTION**: Repo-level operations — rebase, verify, squash, update branch, run tests. These are NOT code review comments; they are instructions to perform an operation on the branch itself. Common patterns: "please rebase", "make sure verify passes", "squash commits", "run tests before pushing".
    - **BLOCKING**: Critical changes (security, bugs, breaking issues)
    - **CHANGE_REQUEST**: Code improvements or refactoring
    - **QUESTION**: Requests for clarification
@@ -103,7 +105,8 @@ This command automates the process of addressing PR review comments by fetching 
 
 3. **Group by context**: Group by file, then by proximity (within 10 lines)
 
-4. **Prioritize**: BLOCKING → CHANGE_REQUEST → QUESTION → SUGGESTION
+4. **Prioritize**: ACTION_INSTRUCTION → BLOCKING → CHANGE_REQUEST → QUESTION → SUGGESTION
+   - ACTION_INSTRUCTION items run first because they affect the branch state that all subsequent work builds on (e.g. rebase before making code changes)
 
 5. **Present summary**: Show counts by category and file groupings, ask user to confirm
 
@@ -122,6 +125,31 @@ When `--preview` is passed, preview each comment before acting:
    - **Skip** the comment entirely
 
 This applies to all comment types below. Without `--preview`, act autonomously.
+
+#### Action Instructions
+
+Process ACTION_INSTRUCTION items first, before any code changes:
+
+1. **Rebase**: Determine the base remote and branch first:
+   ```bash
+   BASE_BRANCH=$(gh pr view <PR_NUMBER> --json baseRefName -q '.baseRefName')
+   # Prefer 'upstream' remote, then 'origin', then the current branch's tracking remote
+   BASE_REMOTE=$(git remote | grep -m1 '^upstream$')
+   if [ -z "$BASE_REMOTE" ]; then
+     BASE_REMOTE=$(git remote | grep -m1 '^origin$')
+   fi
+   if [ -z "$BASE_REMOTE" ]; then
+     BASE_REMOTE=$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null | cut -d/ -f1)
+   fi
+   BASE_REMOTE=${BASE_REMOTE:-origin}
+   git fetch "$BASE_REMOTE" && git rebase "$BASE_REMOTE/$BASE_BRANCH"
+   ```
+   Resolve conflicts if any. After rebase, note that line numbers and diff hunks from pre-rebase comments may be stale — resolve them against the current file state rather than trusting literally.
+2. **Verify/Test**: Run the repo's verification commands (see Step 3.5 for detection). If the reviewer asks to "make sure X passes", run X and fix failures before continuing.
+3. **Squash/restructure commits**: Follow the reviewer's instructions on commit organization.
+4. **Other**: Execute the requested operation. If unclear, ask the user.
+
+After completing action instructions, reply to each one confirming what was done.
 
 #### Grouped Comments
 
@@ -178,6 +206,35 @@ When multiple comments relate to the same concern/fix:
 #### Informational Comments
 
 - No action unless response is courteous
+
+### Step 3.5: Pre-Push Verification
+
+Before posting replies or pushing, verify the changes compile and pass basic checks.
+
+1. **Detect available verification commands** (check in order, use the first that exists):
+   - `Makefile` or `makefile` with a `verify` target → `make verify`
+   - `Makefile` with a `lint` target → `make lint`
+   - `go.mod` exists → `go build ./...` and `go vet ./...`
+   - `package.json` with a `lint` script → `npm run lint`
+   - If none found, skip verification but log: `⚠️ No verification command detected — skipping pre-push verification`
+
+2. **Run verification** (15-minute timeout):
+   ```bash
+   # Example for a Go repo with Makefile (15-minute timeout):
+   timeout 15m make verify 2>&1
+   ```
+   - If verification fails: fix the issues, amend the relevant commit, and re-run verification
+   - Maximum 3 retry attempts. If verification still fails after 3 fix-and-retry cycles, stop and report to the user: "Verification continues to fail after 3 attempts. Last error: [error]. Manual intervention needed."
+   - Do NOT push code that fails verification
+
+3. **Log result**:
+   ```text
+   ✅ Verification passed (make verify)
+   ```
+   or
+   ```text
+   ❌ Verification failed — fixing issues before push
+   ```
 
 ### Step 4: Post Replies and Push
 
