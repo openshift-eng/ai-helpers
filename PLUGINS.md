@@ -360,7 +360,7 @@ See [plugins/session/README.md](plugins/session/README.md) for detailed document
 Snowflake data analysis commands for engineering metrics and reports
 
 **Commands:**
-- **`/snowflake:activity-type-report` `<projects> [months] [--sample [N]] [--todo | --all]`** - Classify Jira issues into activity types using AI and generate an interactive sankey report
+- **`/snowflake:activity-type-report` `<projects> [months] [--sample [N]] [--todo | --all] [--uncategorized]`** - Classify Jira issues into activity types using AI and generate an interactive sankey report
 
 See [plugins/snowflake/README.md](plugins/snowflake/README.md) for detailed documentation.
 

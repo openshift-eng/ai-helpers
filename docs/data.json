@@ -758,7 +758,7 @@
     {
       "commands": [
         {
-          "argument_hint": "<projects> [months] [--sample [N]] [--todo | --all]",
+          "argument_hint": "<projects> [months] [--sample [N]] [--todo | --all] [--uncategorized]",
           "description": "Classify Jira issues into activity types using AI and generate an interactive sankey report",
           "name": "activity-type-report",
           "synopsis": "/snowflake:activity-type-report <projects> [months]"
@@ -775,7 +775,7 @@
           "name": "Setup Snowflake"
         }
       ],
-      "version": "0.3.0"
+      "version": "0.4.0"
     },
     {
       "commands": [

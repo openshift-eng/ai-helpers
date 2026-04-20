@@ -149,7 +149,7 @@ Once the MCP tool is confirmed available, set the database, schema, and role for
 ```text
 mcp__snowflake__execute_sql(query="USE ROLE JIRA_CLOUDMARTS_GROUP")
 mcp__snowflake__execute_sql(query="USE DATABASE JIRA_DB")
-mcp__snowflake__execute_sql(query="USE SCHEMA CLOUD_MARTS")
+mcp__snowflake__execute_sql(query="USE SCHEMA CLOUDRHAI_MARTS")
 ```
 
 If any of these fail (e.g., role not granted), inform the user:
@@ -164,7 +164,7 @@ Run a quick verification query to confirm the user can read from the expected vi
 
 ```sql
 SELECT TABLE_NAME FROM INFORMATION_SCHEMA.VIEWS
-WHERE TABLE_SCHEMA = 'CLOUD_MARTS'
+WHERE TABLE_SCHEMA = 'CLOUDRHAI_MARTS'
 ORDER BY TABLE_NAME
 LIMIT 5
 ```
@@ -172,6 +172,8 @@ LIMIT 5
 If this returns results, the connection is verified. Report success and return the list of available views for diagnostic purposes.
 
 If this returns an error or zero rows, warn the user that the schema may not be accessible with their current role.
+
+**Note**: `CLOUDRHAI_MARTS` exposes views, not base tables. `SHOW TABLES` will return nothing — use `SHOW VIEWS` or query `INFORMATION_SCHEMA.VIEWS` as above.
 
 ## Error Handling
 
