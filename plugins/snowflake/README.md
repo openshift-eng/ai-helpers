@@ -127,7 +127,7 @@ Classify Jira issues into activity types and generate an interactive sankey repo
 
 ## How Classification Works
 
-1. Issues are fetched from `JIRA_DB.CLOUD_MARTS` via Snowflake MCP
+1. Issues are fetched from `JIRA_DB.CLOUDRHAI_MARTS` (PII-sanitized) via Snowflake MCP
 2. A Python script (`classify_issues.py`) sends issues in batches of ~15 to Claude via Vertex AI
 3. Each API call includes category definitions and classification rules inline
 4. Results are merged and `generate_sankey.py` produces the HTML report
