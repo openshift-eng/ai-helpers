@@ -108,25 +108,44 @@ The structured data includes all necessary regression details:
   "sample_failed_jobs": {
     "periodic-ci-openshift-release-master-nightly-4.22-e2e-metal-ipi-ovn-ipv4-rhcos10-techpreview": {
       "pass_sequence": "FFFFFFFFFFFFFFFFFF",
+      "label_summary": {
+        "ErrImagePullQuay502BadGateway": 3
+      },
       "failed_runs": [
         {
           "job_url": "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/...",
           "job_run_id": "2017184460591599616",
-          "start_time": "2026-01-30T10:33:47"
+          "start_time": "2026-01-30T10:33:47",
+          "test_failures": 3,
+          "job_labels": ["ErrImagePullQuay502BadGateway"]
         }
       ]
     },
     "periodic-ci-openshift-release-master-nightly-4.22-e2e-metal-ipi-ovn-techpreview": {
       "pass_sequence": "SSFSSSSSSSS",
+      "label_summary": {},
       "failed_runs": [
         {
           "job_url": "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/...",
           "job_run_id": "2016460830022832128",
-          "start_time": "2026-01-28T10:37:27"
+          "start_time": "2026-01-28T10:37:27",
+          "test_failures": 1,
+          "job_labels": []
         }
       ]
     }
   },
+  "job_runs": [
+    {
+      "id": 2600,
+      "regression_id": 34446,
+      "prowjob_run_id": "2044678206610477056",
+      "prowjob_name": "periodic-ci-openshift-release-master-nightly-4.22-e2e-metal-ipi-ovn-ipv4-rhcos10-techpreview",
+      "prowjob_url": "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-release-master-nightly-4.22-e2e-metal-ipi-ovn-ipv4-rhcos10-techpreview/2044678206610477056",
+      "start_time": "2026-04-16T07:23:39Z",
+      "test_failures": 3
+    }
+  ],
   "test_details_url": "https://sippy.dptools.openshift.org/api/component_readiness/test_details?...",
   "api_url": "https://sippy.dptools.openshift.org/api/component_readiness/regressions/34446"
 }
@@ -137,7 +156,19 @@ The structured data includes all necessary regression details:
 - `analysis_explanations`: List of human-readable explanations describing the status of the regression.
 - `sample_failed_jobs`: Dictionary keyed by job name. Each job contains:
   - `pass_sequence`: Chronological success/fail pattern for this specific job (newest to oldest). "S" = successful run, "F" = failing run. Example: "FFFFFSSS" shows 5 recent failures, then 3 older successes.
-  - `failed_runs`: List of failed runs for this job, sorted by start_time (newest first).
+  - `label_summary`: Dictionary of `{label: count}` aggregated across all failed runs for this job. A label appearing in many/all failed runs is a strong signal that the labelled symptom is the root cause. Labels are human-defined: a team member wrote a regex that matches specific artifact content and named the symptom (e.g., `"ErrImagePullQuay502BadGateway"`). If many or all failed runs share a label, prioritize investigating that symptom.
+  - `failed_runs`: List of failed runs for this job, sorted by start_time (newest first). Each run includes:
+    - `test_failures`: Total number of tests failing in the entire job run (not just the regressed test). High values (>10) indicate a mass failure run where the regressed test may be collateral damage rather than the primary problem.
+    - `job_labels`: List of symptom labels applied to this specific run. Labels are precise — they fire only when a human-defined regex matches job artifacts. An empty list means no known symptom was detected for this run.
+- `job_runs`: Complete list of all job runs where the failure was observed throughout the entire life of the regression (not just the last reporting period). Sorted by start_time (newest first). Each entry contains:
+  - `id`: Unique ID for this job run record
+  - `regression_id`: The regression this run belongs to
+  - `prowjob_run_id`: The Prow job run ID
+  - `prowjob_name`: The Prow job name
+  - `prowjob_url`: Direct URL to the Prow job run
+  - `start_time`: ISO 8601 timestamp when the job started
+  - `test_failures`: Integer — total number of test failures in this job run. High values (e.g., >10) indicate a mass failure run where the regressed test may just be caught up in a larger issue rather than being the primary problem
+  - This data is useful for: determining when the regression started (earliest entries), how frequently it occurs, whether failures cluster in certain jobs, identifying mass failure runs where the regression may be collateral damage, and linking related regressions that share the same job runs. Sippy uses this data automatically in the `fetch_related_triages` API to find regressions with shared job runs.
 
 ## Error Handling
 
@@ -222,6 +253,17 @@ The API returns a JSON object with the following structure:
     "Valid": true
   },
   "max_failures": 18,
+  "job_runs": [
+    {
+      "id": 2600,
+      "regression_id": 34446,
+      "prowjob_run_id": "2044678206610477056",
+      "prowjob_name": "periodic-ci-openshift-release-master-nightly-4.22-e2e-metal-ipi-ovn-ipv4-rhcos10-techpreview",
+      "prowjob_url": "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/...",
+      "start_time": "2026-04-16T07:23:39Z",
+      "test_failures": 3
+    }
+  ],
   "links": {
     "self": "https://sippy.dptools.openshift.org/api/component_readiness/regressions/34446",
     "test_details": "https://sippy.dptools.openshift.org/api/component_readiness/test_details?..."
@@ -240,6 +282,7 @@ The API returns a JSON object with the following structure:
 - `opened`: ISO 8601 timestamp when regression was first detected
 - `closed`: Object with `Valid` boolean and `Time` (valid if regression is closed)
 - `triages`: Array of triage objects with JIRA URL, type, and resolution status
+- `job_runs`: Array of all job runs where the failure was observed throughout the regression's entire life. Each entry includes `prowjob_run_id`, `prowjob_name`, `prowjob_url`, `start_time`, and `test_failures` (total failures in the run — high values indicate mass failure runs where the regression may be collateral damage)
 - `links.test_details`: Direct URL to Sippy test details page with sample failures
 
 ## Examples
@@ -419,7 +462,9 @@ API URL: https://sippy.dptools.openshift.org/api/...
 - `analysis_explanations` provides human-readable context for the analysis status
 - `sample_failed_jobs` is a dictionary keyed by job name, containing only jobs with at least one failed run
 - Each job includes a `pass_sequence` string (newest to oldest) with "S" for successful runs and "F" for failed runs
-- Each job's `failed_runs` list is sorted by start_time (most recent first)
+- Each job includes a `label_summary` dict aggregating `job_labels` across all failed runs for that job. This is the first place to look for a shared root cause: if most or all failed runs share a label, that symptom is almost certainly the root cause. Labels are human-defined and precise — they only fire when a regex written by a team member matches specific artifact content.
+- Each failed run includes `test_failures` (total tests failing in the job run) and `job_labels` (symptom labels for that specific run). Use `test_failures > 10` as a signal for mass failure runs where the regressed test may be collateral damage.
+- `job_runs` contains the complete history of all job runs where the failure was observed across the regression's entire lifetime, sorted by start_time (newest first). Use this to determine when failures started, how common they were, and which jobs are most affected. The `test_failures` field shows the total failure count in each run — high values (e.g., >10) indicate mass failure runs where the regression may just be caught up in a larger issue rather than being the primary problem
 
 ## See Also
 
