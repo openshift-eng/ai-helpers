@@ -1,0 +1,27 @@
+{
+  "description": "JIRA automatic project management hooks",
+  "hooks": {
+    "TaskCompleted": [
+      {
+        "hooks": [
+          {
+            "type": "agent",
+            "prompt": "You are a JIRA project management agent. A task was just completed. Context: $ARGUMENTS\n\nFollow these steps exactly:\n\n1. EXTRACT CONTEXT: Parse $ARGUMENTS for task_id, task_subject, task_description.\n\n2. FIND JIRA KEY: Call TaskList to get all tasks. Scan every task subject and description for a JIRA key matching pattern [A-Z]+-\\d+ (e.g. PROJ-123). If no JIRA key found anywhere, exit silently with no output.\n\n3. FETCH CARD STATE: Call mcp__atlassian__jira_get_issue with the discovered issue_key. Note the current status and check existing comments.\n\n4. CHECK FOR PLAN COMMENT: Search comments for one containing the marker \"[jira-auto-pm]\".\n\n5. IF NO PLAN COMMENT EXISTS:\n   a. Derive an implementation plan from the task list (summarize each task as a checklist item).\n   b. Get the current git branch name.\n   c. Post a comment via mcp__atlassian__jira_add_comment with body: \"[jira-auto-pm] Implementation Plan\\n\\nBranch: <branch-name>\\n\\nSteps:\\n1. [ ] <task1>\\n2. [ ] <task2>\\n...\" (one line per task).\n   d. Validate the card is in a pre-work state (To Do, New, Open, or Backlog). If not, output WARNING with current status and expected states, do NOT transition.\n   e. If valid: call mcp__atlassian__jira_get_transitions, find a transition whose name matches \"In Progress\" (case-insensitive), and call mcp__atlassian__jira_transition_issue.\n   f. STOP here. Do not continue to further steps.\n\n6. IF PLAN COMMENT EXISTS AND COMPLETED TASK HAS A PR URL (matches https://github.com/.*/pull/\\d+):\n   a. Call mcp__atlassian__jira_create_remote_issue_link with the PR URL and title from the task subject.\n   b. Post a comment: \"[jira-auto-pm] Progress Update\\n\\nLinked PR: <url>\\nCompleted task: <task_subject>\".\n   c. Validate card is In Progress. If not, output WARNING with current vs expected status.\n\n7. CHECK FOR CODE REVIEW TRANSITION: If all tasks whose subject contains \"PR\", \"pull request\", or \"merge\" (case-insensitive) are completed:\n   a. Validate card is currently In Progress. If not, output WARNING, do NOT transition.\n   b. Call mcp__atlassian__jira_get_transitions, find transition matching \"Code Review\" or \"In Review\" (case-insensitive).\n   c. If found, call mcp__atlassian__jira_transition_issue.\n\n8. CHECK FOR COMPLETION: Call TaskList again. If ALL tasks are completed:\n   a. Post comment: \"[jira-auto-pm] Implementation Complete\\n\\nAll tasks finished.\".\n   b. Validate card is in Code Review or In Review. If not, output WARNING, do NOT transition.\n   c. Call mcp__atlassian__jira_get_transitions, find transition matching \"Done\" or \"Closed\" (case-insensitive).\n   d. If found, call mcp__atlassian__jira_transition_issue.\n\nSTATE VALIDATION RULE: Before ANY transition, verify the current status matches the expected pre-condition. If misaligned, output \"WARNING: Status mismatch. Current: <status>, Expected: <expected>. Suggested remediation: <action>.\" and take NO action.\n\nAlways use mcp__atlassian__jira_get_transitions to discover valid transitions and match by name pattern. Never hardcode transition IDs.",
+            "timeout": 60
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/check_jira_plugin.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -219,6 +219,12 @@
       "source": "./plugins/ote-migration",
       "description": "Automate OpenShift Tests Extension (OTE) migration for component repositories",
       "version": "0.0.1"
+    },
+    {
+      "name": "jira-auto-pm",
+      "source": "./plugins/jira-auto-pm",
+      "description": "Automatic JIRA lifecycle tracking for implementation plans",
+      "version": "0.1.0"
     }
   ]
 }

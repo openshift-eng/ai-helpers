@@ -1,0 +1,8 @@
+{
+  "name": "jira-auto-pm",
+  "description": "Automatic JIRA lifecycle tracking for implementation plans",
+  "version": "0.1.0",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}
