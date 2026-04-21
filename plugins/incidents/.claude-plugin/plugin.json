@@ -1,0 +1,9 @@
+{
+  "name": "incidents",
+  "description": "Incident management and historical analysis tools for faster incident resolution",
+  "version": "0.0.1",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}
+
