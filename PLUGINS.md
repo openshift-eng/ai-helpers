@@ -12,6 +12,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Doc](#doc-plugin)
 - [Etcd](#etcd-plugin)
 - [Git](#git-plugin)
+- [Github](#github-plugin)
 - [Golang](#golang-plugin)
 - [Gwapi](#gwapi-plugin)
 - [Hcp](#hcp-plugin)
@@ -161,6 +162,15 @@ Git workflow automation and utilities
 - **`/git:summary`** - Show current branch, git status, and recent commits for quick context
 
 See [plugins/git/README.md](plugins/git/README.md) for detailed documentation.
+
+### Github Plugin
+
+GitHub workflow automation and utilities
+
+**Commands:**
+- **`/github:what-next` `[--contributing path]`** - Identify what to focus on next based on PRs, issues, and milestones
+
+See [plugins/github/README.md](plugins/github/README.md) for detailed documentation.
 
 ### Golang Plugin
 
