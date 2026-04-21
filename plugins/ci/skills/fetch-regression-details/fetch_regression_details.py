@@ -112,6 +112,9 @@ class RegressionFetcher:
         # Parse triages
         regression['triages'] = self._parse_triages(raw_data.get('triages', []))
 
+        # Parse job_runs (all job runs where the failure was observed throughout the regression's life)
+        regression['job_runs'] = self._parse_job_runs(raw_data.get('job_runs', []))
+
         # Parse links
         links = raw_data.get('links', {})
         regression['test_details_url'] = links.get('test_details', '')
@@ -156,6 +159,33 @@ class RegressionFetcher:
             })
 
         return parsed_triages
+
+    def _parse_job_runs(self, job_runs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Parse job_runs array from the regression API response.
+
+        Each entry represents a job run where the test failure was observed
+        throughout the entire life of the regression.
+
+        Args:
+            job_runs: List of job run objects from the API
+
+        Returns:
+            list: Parsed job run entries sorted by start_time (newest first)
+        """
+        parsed = []
+        for run in job_runs:
+            parsed.append({
+                'id': run.get('id'),
+                'regression_id': run.get('regression_id'),
+                'prowjob_run_id': run.get('prowjob_run_id', ''),
+                'prowjob_name': run.get('prowjob_name', ''),
+                'prowjob_url': run.get('prowjob_url', ''),
+                'start_time': run.get('start_time', ''),
+                'test_failures': run.get('test_failures', 0),
+            })
+        parsed.sort(key=lambda x: x['start_time'], reverse=True)
+        return parsed
 
     def fetch_test_details(self, test_details_url: str) -> Dict[str, Any]:
         """
@@ -256,6 +286,8 @@ class RegressionFetcher:
                         'job_url': run_stat.get('job_url', ''),
                         'job_run_id': run_stat.get('job_run_id', ''),
                         'start_time': start_time,
+                        'test_failures': run_stat.get('test_failures', 0),
+                        'job_labels': run_stat.get('job_labels', []),
                     })
 
             # Sort runs by start_time (newest first)
@@ -272,9 +304,16 @@ class RegressionFetcher:
 
             # Only include jobs that have at least one failed run
             if failed_runs:
+                # Aggregate job_labels across failed runs: label -> count of runs with that label
+                label_counts = {}
+                for run in failed_runs:
+                    for label in run.get('job_labels', []):
+                        label_counts[label] = label_counts.get(label, 0) + 1
+
                 jobs_by_name[sample_job_name] = {
                     'pass_sequence': sequence,
                     'failed_runs': failed_runs,
+                    'label_summary': label_counts,
                 }
 
         return jobs_by_name
@@ -399,16 +438,42 @@ def format_summary(regression: Dict[str, Any]) -> str:
                 job_name_short = job_name.split('/')[-1] if '/' in job_name else job_name
                 lines.append(f"  {job_name_short}:")
                 lines.append(f"    Pass Sequence (newest to oldest): {job_data['pass_sequence']}")
-                lines.append(f"    Failed Runs ({len(job_data['failed_runs'])}):")
 
+                # Show label summary if any labels are present
+                label_summary = job_data.get('label_summary', {})
+                if label_summary:
+                    total_failed = len(job_data['failed_runs'])
+                    label_parts = [f"{label} ({count}/{total_failed} runs)" for label, count in sorted(label_summary.items(), key=lambda x: -x[1])]
+                    lines.append(f"    Symptom Labels: {', '.join(label_parts)}")
+
+                lines.append(f"    Failed Runs ({len(job_data['failed_runs'])}):")
                 for run in job_data['failed_runs']:
                     start_date = run['start_time'].split('T')[0] if 'T' in run['start_time'] else run['start_time']
-                    lines.append(f"      - Run ID: {run['job_run_id']}, Started: {start_date}")
+                    test_failures = run.get('test_failures', 0)
+                    mass_failure_note = f" [MASS FAILURE: {test_failures} total test failures]" if test_failures > 10 else ""
+                    labels = run.get('job_labels', [])
+                    label_note = f" [{', '.join(labels)}]" if labels else ""
+                    lines.append(f"      - Run ID: {run['job_run_id']}, Started: {start_date}{mass_failure_note}{label_note}")
                     lines.append(f"        URL: {run['job_url']}")
                 lines.append("")
         else:
             lines.append("Sample Failed Jobs: None found")
             lines.append("")
+
+    # Job Runs (full history across regression lifetime)
+    job_runs = regression.get('job_runs', [])
+    if job_runs:
+        lines.append(f"Job Runs ({len(job_runs)} total across regression lifetime):")
+        high_failure_count = sum(1 for r in job_runs if r.get('test_failures', 0) > 10)
+        if high_failure_count:
+            lines.append(f"  Runs with mass failures (>10 test failures): {high_failure_count}/{len(job_runs)}")
+        if job_runs:
+            oldest = job_runs[-1]
+            newest = job_runs[0]
+            oldest_date = oldest['start_time'].split('T')[0] if 'T' in oldest['start_time'] else oldest['start_time']
+            newest_date = newest['start_time'].split('T')[0] if 'T' in newest['start_time'] else newest['start_time']
+            lines.append(f"  Date range: {oldest_date} to {newest_date}")
+        lines.append("")
 
     # Links
     if regression['test_details_url']:

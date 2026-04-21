@@ -5,7 +5,7 @@ description: Fetch existing triages and untriaged regressions related to a given
 
 # Fetch Related Triages
 
-Queries the Sippy API to find existing triage records and untriaged regressions that may be related to a given Component Readiness regression. The API matches based on similarly named tests and shared last failure times.
+Queries the Sippy API to find existing triage records and untriaged regressions that may be related to a given Component Readiness regression. The API matches based on similarly named tests and shared job runs (using the complete `job_runs` history tracked across each regression's entire lifetime).
 
 ## When to Use This Skill
 
@@ -46,7 +46,7 @@ The API assigns a confidence level (1-10) to each match:
 
 - **10**: High confidence — the triage's regressions include the same test (exact test_id match) or very closely related tests with shared failure patterns
 - **5**: Medium confidence — similarly named tests matched by edit distance, suggesting related tests in the same area
-- **2**: Low confidence — regressions share the same last failure timestamp, which may indicate they were from the same failing job runs but could be coincidental
+- **2**: Low confidence — regressions share the same job runs (identified via the `job_runs` history tracked across each regression's lifetime), which may indicate a shared root cause but could be coincidental in mass failure scenarios
 
 ## Output Format
 
@@ -105,7 +105,7 @@ The API assigns a confidence level (1-10) to each match:
 - **triaged_matches**: Existing triage records that look related, sorted by confidence (highest first). Each includes the JIRA bug info and the regressions already on the triage.
 - **untriaged_regressions**: Open regressions that are not yet triaged but appear related. These are candidates to be triaged together with the current regression. Each includes a `match_reason` field:
   - `similarly_named_test`: Matched by test name edit distance (lower edit_distance = more similar)
-  - `same_last_failure`: Matched by having the same last failure timestamp (likely from the same job runs)
+  - `same_last_failure`: Matched by sharing the same job runs (identified via the `job_runs` history tracked across each regression's lifetime)
 
 ## How the API Matches Work
 
@@ -113,7 +113,7 @@ The API uses two strategies to find related triages:
 
 1. **Similarly named tests**: Compares the regression's test name against test names on existing triages using edit distance. An edit distance of 0 means the same test name (different variants); 1-2 means very similar test names (e.g., L2 vs L3 variant of the same test).
 
-2. **Same last failures**: Finds regressions that share the exact same last failure timestamp. This indicates the regressions failed in the same job runs, which is a strong signal they share the same root cause (e.g., a mass CI infrastructure failure or a broad product regression).
+2. **Shared job runs**: Finds regressions that were observed in the same job runs. The regression data now includes a complete `job_runs` list covering all runs where the failure was observed throughout the regression's entire life (not just the last reporting period). Sippy uses this data to find other regressions that failed in the same Prow job runs, which is a strong signal they share the same root cause (e.g., a mass CI infrastructure failure or a broad product regression). Regressions with high `test_failures` counts in their shared runs are more likely to be collateral damage from a larger issue.
 
 ## Notes
 

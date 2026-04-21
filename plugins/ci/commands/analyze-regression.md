@@ -77,6 +77,10 @@ Parse and analyze the JSON output from scripts using your own reasoning capabili
    - `sample_failed_jobs`: Dictionary keyed by job name, each containing:
      - `pass_sequence`: Chronological S/F pattern (newest to oldest)
      - `failed_runs`: List of failed runs with job_url, job_run_id, start_time
+   - `job_runs`: Complete list of all job runs where the failure was observed throughout the regression's entire life (not just the last reporting period). Each entry contains:
+     - `prowjob_run_id`, `prowjob_name`, `prowjob_url`: Job identification and link
+     - `start_time`: When the job ran
+     - `test_failures`: Total number of test failures in the run. High values (e.g., >10) indicate mass failure runs where the regressed test may just be caught up in a larger issue rather than being the primary problem
 
    **Converting `test_details_url` to UI URL**: The `test_details_url` from the API is an API endpoint not suitable for display or bug reports. Convert it to the UI URL by replacing the base path. The query parameters are identical:
 
@@ -458,15 +462,47 @@ Parse and analyze the JSON output from scripts using your own reasoning capabili
    - Per-run summary: job URL, failure stage, key error message
    - Overall assessment and recommended next steps
 
-8. **Determine Regression Start Date**: Use the `fetch-test-runs` skill with full history
+8. **Determine Regression Start Date**: Analyze `job_runs` data from the regression
 
-   For the job with the most failures (identified in step 6), fetch the complete test run history including successes to determine when the regression started. Use 28 days of history to ensure we can find the regression start point.
+   The regression data from step 3 includes a `job_runs` array containing all job runs where the failure was observed throughout the entire life of the regression. Use this data to determine when the regression started without needing a separate API call.
 
    **Implementation**:
 
    ```bash
-   # Get the job name with the most failures from step 6 analysis
-   # This is the first job in the sorted list (sorted by failure count descending)
+   # Extract job_runs from regression data (already fetched in step 3)
+   # job_runs are sorted newest-first; reverse to walk oldest-first for start date analysis
+   job_runs=$(echo "$regression_data" | jq '.job_runs')
+   num_job_runs=$(echo "$job_runs" | jq 'length')
+   ```
+
+   **How to Determine Regression Start Date from `job_runs`**:
+
+   1. **Walk from oldest to newest**: The `job_runs` array is sorted newest-first (index 0 = most recent). Reverse the order conceptually or iterate from the end to find the earliest entries.
+
+   2. **Find the first failure**: The earliest `job_run` entry (last in the array) represents the earliest observed occurrence of this failure. Its `start_time` gives the approximate regression start date and `prowjob_url` links to that first failing run.
+
+   3. **Analyze the pattern**: Walk through the `job_runs` chronologically to understand:
+      - How quickly failures ramped up after the first occurrence
+      - Whether failures are concentrated in specific jobs (`prowjob_name`)
+      - Whether `test_failures` counts are high in many runs — high values (e.g., >10) indicate mass failure runs where the regressed test may just be caught up in a larger issue (infrastructure instability, a foundational bug, etc.) rather than being the primary problem. If most `job_runs` show high `test_failures`, flag this as a potential mass failure regression.
+
+   4. **Identify the most affected jobs**: Group `job_runs` by `prowjob_name` and count occurrences per job. This complements the `sample_failed_jobs` data from step 6 with full historical coverage.
+
+   5. **Handle Edge Cases**:
+      - If `job_runs` spans the entire tracked period with no gap → the regression may predate the tracked data; note this
+      - If runs are scattered sparsely → likely a flaky test, not a clear regression start
+      - If pattern is unclear → do not include this in the report
+
+   6. **Report the Findings** (only if a clear start date can be determined):
+      - Report the `prowjob_url` of the first failure
+      - Report the `start_time` date when that run occurred
+      - Report the total number of runs tracked
+      - Flag if most runs have high `test_failures` counts (mass failure pattern)
+      - Example: "Regression appears to have started on 2026-01-15 with job run: https://prow.ci.openshift.org/view/gs/..."
+
+   **Fallback**: If `job_runs` is empty or missing (e.g., regression predates this feature), fall back to using the `fetch-test-runs` skill with `--include-success` as before:
+
+   ```bash
    most_failed_job=$(echo "$regression_data" | jq -r '
      .sample_failed_jobs
      | to_entries
@@ -475,68 +511,23 @@ Parse and analyze the JSON output from scripts using your own reasoning capabili
      | .[0].key
    ')
 
-   # Fetch all test runs (including successes) for this specific job, going back 28 days
    script_path="plugins/ci/skills/fetch-test-runs/fetch_test_runs.py"
    job_history=$(python3 "$script_path" "$test_id" --include-success --job-contains "$most_failed_job" --start-days-ago 28 --exclude-output --format json)
    ```
-
-   **Analyze the Run History**:
-
-   The runs are returned in order from most recent to least recent. Iterate through them to find when failures started:
-
-   ```bash
-   # Check if fetch was successful
-   if [ "$(echo "$job_history" | jq -r '.success')" = "true" ]; then
-     runs=$(echo "$job_history" | jq -r '.runs')
-     num_runs=$(echo "$runs" | jq 'length')
-
-     echo "Analyzing $num_runs test runs for regression start date..."
-
-     # AI ANALYSIS: Iterate through runs from newest to oldest
-     # Look for the transition point where failures began
-     #
-     # The goal is to find the approximate date when failures started occurring
-     # more frequently. Look for patterns like:
-     # - A series of recent failures followed by older successes
-     # - A clear transition point from passing to failing
-     #
-     # For each run, check the 'success' field (true/false) and 'timestamp' or 'start_time'
-   fi
-   ```
-
-   **How to Determine Regression Start Date with AI**:
-
-   1. **Scan from Newest to Oldest**: Walk through the runs array (index 0 = newest)
-      - Track the pattern of success/failure as you go back in time
-
-   2. **Look for Transition Point**: Find where the test changed from mostly passing to mostly failing
-      - Example: If runs are [F, F, F, F, F, S, S, S, S, S, S, S], the regression likely started around the 5th run from newest
-
-   3. **Identify the First Failure in a Failure Streak**:
-      - Find the oldest failure that's part of the current regression
-      - The run just before that (if it was a success) marks the approximate start
-
-   4. **Handle Edge Cases**:
-      - If test has always been failing in available history → cannot determine start date
-      - If test is flaky (mixed S/F throughout) → cannot determine clear start date
-      - If pattern is unclear → do not include this in the report
-
-   5. **Report the Findings** (only if a clear start date can be determined):
-      - Report the job URL of the first failure in the regression
-      - Report the timestamp/date when that run occurred
-      - Example: "Regression appears to have started on 2026-01-15 with job run: https://prow.ci.openshift.org/view/gs/..."
 
    **Output Format** (only include if start date can be determined):
 
    ```
    Regression Start Analysis:
-   - Job Analyzed: periodic-ci-openshift-release-master-nightly-4.22-e2e-metal-ipi-ovn
-   - Approximate Start Date: 2026-01-15
    - First Failing Run: https://prow.ci.openshift.org/view/gs/test-platform-results/logs/...
-   - Pattern: 18 consecutive failures followed by 12 successes
+   - Approximate Start Date: 2026-01-15
+   - Total Tracked Runs: 47
+   - Most Affected Job: periodic-ci-openshift-release-master-nightly-4.22-e2e-metal-ipi-ovn (18 occurrences)
+   - Mass Failure Pattern: 35/47 runs had >10 test failures — regression may be collateral damage from a larger issue
+   - Pattern: Failures began 2026-01-15, became consistent by 2026-01-17
    ```
 
-   **Note**: If the API is unavailable or no clear start date can be determined, skip this section entirely. Do not include inconclusive results.
+   **Note**: If no clear start date can be determined, skip this section entirely. Do not include inconclusive results.
 
 9. **Identify Suspect PRs in Payload**: Use `fetch-prowjob-json` and `fetch-new-prs-in-payload` skills
 
@@ -704,10 +695,10 @@ Parse and analyze the JSON output from scripts using your own reasoning capabili
 
    See `plugins/ci/skills/fetch-related-triages/SKILL.md` for complete implementation details.
 
-   The API returns matches based on similarly named tests and shared last failure times, each with a confidence level (1-10):
+   The API returns matches based on similarly named tests and shared job runs (using the complete `job_runs` history tracked across each regression's lifetime), each with a confidence level (1-10):
    - **10**: High confidence — same or very closely related tests
    - **5**: Medium confidence — similarly named tests matched by edit distance
-   - **2**: Low confidence — regressions sharing the same last failure timestamp (same job runs)
+   - **2**: Low confidence — regressions sharing the same job runs (may indicate shared root cause, but could be coincidental in mass failure scenarios)
 
    **Analyze the results**:
 
@@ -1141,16 +1132,18 @@ Generated using the `prow-job-analyze-install-failure` skill for each representa
 
 #### Regression Start Analysis (only if determinable)
 
-Generated using the `fetch-test-runs` skill with `--include-success` and `--job-contains`:
+Generated from the `job_runs` data on the regression record (complete history of all runs where the failure was observed throughout the regression's life):
 
-- **Job Analyzed**: The job with the most failures (from step 6)
-- **Approximate Start Date**: When the test began failing more frequently
-- **First Failing Run URL**: Link to the job run where the regression appears to have started
-- **Pattern Description**: Summary of the pass/fail pattern (e.g., "18 consecutive failures followed by 12 successes")
+- **First Failing Run URL**: Link to the earliest job run where the failure was observed
+- **Approximate Start Date**: When the regression first appeared
+- **Total Tracked Runs**: Number of job runs tracked across the regression's life
+- **Most Affected Job**: The job name with the most occurrences
+- **Mass Failure Assessment**: If many runs have high `test_failures` counts (>10), the regression may be collateral damage from a larger issue rather than the primary problem
+- **Pattern Description**: Summary of how failures progressed (e.g., "Failures began 2026-01-15, became consistent by 2026-01-17")
 - **Note**: This section is only included when a clear regression start date can be determined. It is omitted for:
   - Flaky tests with scattered failures
   - Tests that have been failing throughout the available history
-  - When the API is unavailable
+  - When `job_runs` data is unavailable
   - When the pattern is inconclusive
 
 #### Suspect PRs in Payload (only if regression start was determined)
@@ -1276,6 +1269,7 @@ Uses the `triage-regression` skill with authentication via the `oc-auth` skill (
   - `oc-auth`: Provides authentication tokens for sippy-auth API
   - `prow-job-analyze-install-failure`: Analyzes GCS artifacts for individual failed install runs (used only when test name contains "install should succeed")
 - The regression details skill groups failed jobs by job name and provides pass sequences for pattern analysis
+- The regression data includes a `job_runs` array with all job runs where the failure was observed across the regression's entire life — use this for start date analysis, mass failure detection, and linking related regressions
 - The test failure outputs skill compares error messages to determine if failures have a single root cause
 - Follows the guidance: "many regressions can be caused by one bug"
 - Helps teams consistently follow the documented triage procedure
