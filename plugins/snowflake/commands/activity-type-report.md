@@ -228,7 +228,7 @@ python3 "$SCRIPT_DIR/sample_and_estimate.py" \
   --draw-sample $RUN_DIR/sample_to_classify.json \
   --sample-size ${N:-0}
 ```
-(0 = auto-recommend based on ±2.5% target precision, typically ~400 issues. Stratifies by (project, is_bot) to ensure both human and bot populations are represented in the sample.)
+(0 = auto-recommend independently per population. Each of human and bot gets the sample size needed for ±5% CI width, typically 200-400 each. Within each population, stratifies by project.)
 
 **Step 2: Classify only the sample**
 ```bash
@@ -249,7 +249,7 @@ The script reads `CLOUD_ML_REGION` and `ANTHROPIC_VERTEX_PROJECT_ID` from enviro
 
 If the script fails with an auth error, tell the user to run: `gcloud auth login`
 
-Full mode processes issues in batches of 15. Sample mode classifies only the sample (~369 issues by default), completing in ~3 minutes.
+Full mode processes issues in batches of 15. Sample mode classifies only the sample (auto-sized independently per population, typically ~738 total for mixed human/bot datasets), completing in ~5 minutes.
 
 **Run all steps without asking for confirmation.** Set a generous timeout (600s) on the classify step since it makes sequential API calls. In sample mode, run Steps 1-3 sequentially in a single Bash invocation if possible.
 
@@ -359,7 +359,8 @@ Activity Type Report (Sampled Estimate): $RUN_DIR/activity-type-report.html
 
 4,338 issues across 1 project (2025-10-02 to 2026-04-07)
   Human: 1,237 (28.5%)  |  Automated/Bot: 3,101 (71.5%)
-Sample: 369 classified (8.5%) — 25 API calls, $0.45
+Sample: 738 classified (17.0%) — 50 API calls, $0.82
+  Human: 369 of 1,237 (29.8%)  |  Bot: 369 of 3,101 (11.9%)
 
 Human Work — Activity Type Distribution (95% Credible Intervals):
   Product / Portfolio Work           32.1%  [25.4% — 39.2%]
@@ -383,7 +384,7 @@ When zero bot issues are detected, omit the split and show the original format:
 Activity Type Report (Sampled Estimate): $RUN_DIR/activity-type-report.html
 
 54,478 issues across 52 projects (2025-10-02 to 2026-04-07)
-Sample: 369 classified (0.7%) — 25 API calls, $0.45
+Sample: 369 classified (0.7%) — 25 API calls, ~$0.45
 
 Activity Type Distribution (95% Credible Intervals):
   Quality / Stability / Reliability  43.4%  [38.4% — 48.3%]
@@ -414,10 +415,12 @@ After the summary, tell the user the HTML report is available at the path shown 
 
 - **--sample [N]** (optional)
   - Enable sampling mode: classify a random sample and estimate the full distribution using Bayesian inference (Dirichlet-Multinomial)
-  - N = sample size (default: auto-recommended for ±2.5% precision, typically ~400)
+  - Samples human and bot subpopulations independently, each sized for ±5% CI width (target_width=0.10). This ensures both populations have adequate precision.
+  - N = total sample budget (default: auto-recommended independently per population, typically ~738 total for mixed datasets). When N is specified, it is allocated across populations proportional to their recommended sizes.
   - The report shows posterior means with 95% credible intervals instead of exact counts
-  - Dramatically reduces API cost and time for large datasets (e.g., 27 API calls vs. 1,000+)
-  - Uses stratified sampling by (project, is_bot) to ensure all projects and both human/bot populations are represented
+  - The "All" view uses post-stratification weighted estimates that properly combine human and bot posteriors by population proportion
+  - Dramatically reduces API cost and time for large datasets (e.g., 50 API calls vs. 1,000+)
+  - Within each population, stratifies by project to ensure all projects are represented
 
 - **--todo** (optional)
   - Analyze only open/backlog issues (non-closed statuses: New, In Progress, To Do, Refinement, etc.)

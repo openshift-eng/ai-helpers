@@ -186,16 +186,25 @@ def generate_summary_stats(data, estimates=None, estimates_key="overall"):
             </tr>"""
         header = "<th>Activity Type</th><th style='text-align:right'>Count</th><th style='text-align:right'>%</th>"
 
-    # Build stat cards
+    # Build stat cards — use per-population stats when viewing human or bot
     sample_info = ""
     if estimates:
-        sample_size = estimates.get("sample_size", total)
-        pop_size = estimates.get("total_population", total)
-        sample_frac = estimates.get("sample_fraction", 1.0)
+        if estimates_key in ("human", "bot") and est_section:
+            sample_size = est_section.get("sample_size",
+                                          estimates.get("sample_size", total))
+            pop_size = est_section.get("population",
+                                       estimates.get("total_population", total))
+            sample_frac = sample_size / pop_size if pop_size else 0
+        else:
+            sample_size = estimates.get("sample_size", total)
+            pop_size = estimates.get("total_population", total)
+            sample_frac = estimates.get("sample_fraction", 1.0)
+        pop_label = {"human": "Human Population", "bot": "Bot Population"
+                     }.get(estimates_key, "Total Population")
         sample_info = f"""
       <div class="stat-card">
         <div class="stat-value">{pop_size}</div>
-        <div class="stat-label">Total Population</div>
+        <div class="stat-label">{pop_label}</div>
       </div>
       <div class="stat-card">
         <div class="stat-value">{sample_size}</div>
