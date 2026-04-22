@@ -41,8 +41,19 @@ ACTIVITY_COLORS = {
 }
 
 
-def generate_d3_sankey(data):
-    """Generate a pure-JS D3 sankey when Plotly is not installed."""
+def _get_is_bot(issue):
+    """Extract bot flag from an issue."""
+    val = issue.get("IS_BOT", issue.get("is_bot", False))
+    if isinstance(val, str):
+        return val.lower() in ("true", "1", "yes")
+    return bool(val)
+
+
+def generate_d3_sankey(data, container_id="d3-sankey"):
+    """Generate a pure-JS D3 sankey diagram."""
+    if not data:
+        return f'<div id="{container_id}" style="padding:2rem;text-align:center;color:var(--text-muted);">No issues in this view</div>'
+
     flow_counts = Counter()
     for issue in data:
         flow_counts[(issue["project_key"], issue["activity_type"])] += 1
@@ -72,14 +83,18 @@ def generate_d3_sankey(data):
     )
 
     return f"""
-    <div id="d3-sankey" style="width:100%;min-height:500px;"></div>
-    <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/d3-sankey@0.12/dist/d3-sankey.min.js"></script>
+    <div id="{container_id}" style="width:100%;min-height:500px;"></div>
     <script>
     (function() {{
-      const width = document.getElementById('d3-sankey').clientWidth;
+      var el = document.getElementById('{container_id}');
+      var parent = el.parentElement;
+      if ((parent && parent.style.display === 'none') || el.style.display === 'none') {{
+        el.setAttribute('data-pending', 'true');
+        return;
+      }}
+      const width = el.clientWidth || 800;
       const height = Math.max(500, {len(activity_types)} * 60 + 100);
-      const svg = d3.select('#d3-sankey').append('svg')
+      const svg = d3.select('#{container_id}').append('svg')
         .attr('width', width).attr('height', height);
 
       const sankey = d3.sankey()
@@ -124,11 +139,12 @@ def generate_d3_sankey(data):
 
 
 
-def generate_summary_stats(data, estimates=None):
+def generate_summary_stats(data, estimates=None, estimates_key="overall"):
     """Generate summary statistics HTML.
 
     If estimates is provided (from sample_and_estimate.py), shows Bayesian
-    credible intervals instead of raw counts.
+    credible intervals instead of raw counts. estimates_key selects which
+    sub-estimate to use ("overall", "human", or "bot").
     """
     total = len(data)
     by_type = Counter(issue["activity_type"] for issue in data)
@@ -137,7 +153,10 @@ def generate_summary_stats(data, estimates=None):
     rows = ""
     if estimates:
         # Sampling mode: show posterior estimates with credible intervals
-        overall = estimates.get("overall", estimates)
+        est_section = estimates.get(estimates_key, estimates.get("overall", estimates))
+        if est_section is None:
+            est_section = estimates.get("overall", estimates)
+        overall = est_section
         ci_pct = int(estimates.get("confidence", 0.95) * 100)
         for est in overall.get("estimates", []):
             cat = est["category"]
@@ -326,8 +345,22 @@ def generate_html(data, title, projects_str, months, usage_info=None,
                    the report shows Bayesian credible intervals and marks itself
                    as a sampled estimate.
     """
-    sankey_html = generate_d3_sankey(data)
-    summary_html = generate_summary_stats(data, estimates=estimates)
+    # Split data into human and bot populations
+    human_data = [d for d in data if not _get_is_bot(d)]
+    bot_data = [d for d in data if _get_is_bot(d)]
+    has_bots = len(bot_data) > 0
+
+    # Generate sankeys for each view
+    if has_bots:
+        sankey_human = generate_d3_sankey(human_data, "d3-sankey-human")
+        sankey_bot = generate_d3_sankey(bot_data, "d3-sankey-bot")
+        sankey_all = generate_d3_sankey(data, "d3-sankey-all")
+        summary_human = generate_summary_stats(human_data, estimates=estimates, estimates_key="human")
+        summary_bot = generate_summary_stats(bot_data, estimates=estimates, estimates_key="bot")
+        summary_all = generate_summary_stats(data, estimates=estimates, estimates_key="overall")
+    else:
+        sankey_all = generate_d3_sankey(data, "d3-sankey-all")
+        summary_all = generate_summary_stats(data, estimates=estimates, estimates_key="overall")
 
     table_data = []
     for issue in data:
@@ -340,6 +373,7 @@ def generate_html(data, title, projects_str, months, usage_info=None,
             "status": issue.get("status", ""),
             "components": issue.get("components", ""),
             "created": issue.get("created", ""),
+            "is_bot": _get_is_bot(issue),
             "jira_url": f"{JIRA_BASE_URL}/browse/{issue.get('issue_key', '')}",
         })
 
@@ -531,6 +565,34 @@ def generate_html(data, title, projects_str, months, usage_info=None,
     padding-top: 1rem;
     border-top: 1px solid var(--border);
   }}
+  .view-toggle {{
+    display: flex;
+    gap: 0;
+    margin-bottom: 1.5rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    width: fit-content;
+  }}
+  .toggle-btn {{
+    background: var(--bg);
+    border: none;
+    border-right: 1px solid var(--border);
+    color: var(--text-muted);
+    padding: 0.5rem 1.2rem;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }}
+  .toggle-btn:last-child {{ border-right: none; }}
+  .toggle-btn.active {{
+    background: var(--surface);
+    color: var(--accent);
+    font-weight: 600;
+  }}
+  .toggle-btn:hover {{ color: var(--text); }}
+  .source-human {{ color: #7BC8A4; font-weight: 500; }}
+  .source-bot {{ color: #F5C542; font-weight: 500; }}
 </style>
 </head>
 <body>
@@ -541,9 +603,17 @@ def generate_html(data, title, projects_str, months, usage_info=None,
     {f' &middot; <span style="color:#F5C542;">&#9888; Sampled estimate ({estimates["sample_size"]} of {estimates["total_population"]} issues, {estimates["sample_fraction"]*100:.1f}%)</span>' if estimates else ""}
   </div>
 
+  {f'''<div class="view-toggle">
+    <button class="toggle-btn active" data-view="human" onclick="switchView('human')">Human Only ({len(human_data)})</button>
+    <button class="toggle-btn" data-view="all" onclick="switchView('all')">All ({len(data)})</button>
+    <button class="toggle-btn" data-view="bot" onclick="switchView('bot')">Bot Only ({len(bot_data)})</button>
+  </div>''' if has_bots else ''}
+
   <div class="section">
     <h2>Summary</h2>
-    {summary_html}
+    {f'''<div id="summary-human">{summary_human}</div>
+    <div id="summary-all" style="display:none">{summary_all}</div>
+    <div id="summary-bot" style="display:none">{summary_bot}</div>''' if has_bots else f'''<div id="summary-all">{summary_all}</div>'''}
   </div>
 
   {f"""<div class="section">
@@ -554,9 +624,14 @@ def generate_html(data, title, projects_str, months, usage_info=None,
 
   {generate_ci_chart(estimates) if estimates else ""}
 
+  <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/d3-sankey@0.12/dist/d3-sankey.min.js"></script>
+
   <div class="section">
     <h2>Project &rarr; Activity Type</h2>
-    {sankey_html}
+    {f'''<div id="sankey-human">{sankey_human}</div>
+    <div id="sankey-all" style="display:none">{sankey_all}</div>
+    <div id="sankey-bot" style="display:none">{sankey_bot}</div>''' if has_bots else f'''<div id="sankey-all">{sankey_all}</div>'''}
   </div>
 
   <div class="section">
@@ -593,13 +668,18 @@ __APP_JS__
         "var JQL_URL_KEY_LIMIT = 100;\n"
         "var ACTIVITY_COLORS = " + json.dumps(ACTIVITY_COLORS) + ";\n"
         "var ACTIVITY_TYPES = " + json.dumps(sorted(ACTIVITY_COLORS.keys())) + ";\n"
+        "var HAS_BOTS = " + json.dumps(has_bots) + ";\n"
     )
     app_js += r"""
 var COLUMNS = [
   {key: "issue_key", label: "Issue Key", width: "120px"},
   {key: "project_key", label: "Project", width: "80px"},
   {key: "activity_type", label: "Activity Type", width: "200px"},
-  {key: "summary", label: "Summary", width: ""},
+  {key: "summary", label: "Summary", width: ""}"""
+    if has_bots:
+        app_js += r""",
+  {key: "is_bot", label: "Source", width: "80px"}"""
+    app_js += r""",
   {key: "issue_type", label: "Type", width: "90px"},
   {key: "status", label: "Status", width: "100px"},
   {key: "components", label: "Components", width: "140px"},
@@ -610,15 +690,59 @@ var sortCol = null, sortAsc = true;
 var currentPage = 1, pageSize = 50;
 var filteredData = TABLE_DATA.slice();
 var colFilters = {};
+var currentViewFilter = HAS_BOTS ? "human" : "all";
 
 function escapeHtml(s) {
   if (s == null) return "";
   return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 }
 
+function switchView(view) {
+  currentViewFilter = view;
+  // Update toggle buttons
+  var btns = document.querySelectorAll('.toggle-btn');
+  for (var i = 0; i < btns.length; i++) {
+    var btn = btns[i];
+    if (btn.getAttribute('data-view') === view) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  }
+  // Show/hide sankeys and summaries
+  var views = ['human', 'bot', 'all'];
+  for (var v = 0; v < views.length; v++) {
+    var vName = views[v];
+    var sankey = document.getElementById('sankey-' + vName);
+    var summary = document.getElementById('summary-' + vName);
+    if (sankey) {
+      sankey.style.display = vName === view ? 'block' : 'none';
+      // Render pending sankey on first show
+      if (vName === view) {
+        var pending = sankey.querySelector('[data-pending="true"]');
+        if (pending) {
+          pending.removeAttribute('data-pending');
+          // Re-render by re-running the sankey script
+          var scripts = sankey.querySelectorAll('script');
+          for (var s = 0; s < scripts.length; s++) {
+            var newScript = document.createElement('script');
+            newScript.textContent = scripts[s].textContent;
+            scripts[s].parentNode.replaceChild(newScript, scripts[s]);
+          }
+        }
+      }
+    }
+    if (summary) summary.style.display = vName === view ? 'block' : 'none';
+  }
+  applyFilters();
+}
+
 function applyFilters() {
   var globalTerm = document.getElementById("global-search").value.toLowerCase();
   filteredData = TABLE_DATA.filter(function(row) {
+    // View filter (human/bot/all)
+    if (currentViewFilter === "human" && row.is_bot) return false;
+    if (currentViewFilter === "bot" && !row.is_bot) return false;
     // Global search
     if (globalTerm) {
       var match = false;
@@ -632,8 +756,13 @@ function applyFilters() {
     // Column filters
     for (var col in colFilters) {
       if (!colFilters[col]) continue;
-      var val = String(row[col] || "").toLowerCase();
-      if (val.indexOf(colFilters[col].toLowerCase()) < 0) return false;
+      if (col === "is_bot") {
+        var expected = colFilters[col].toLowerCase() === "bot";
+        if (row.is_bot !== expected) return false;
+      } else {
+        var val = String(row[col] || "").toLowerCase();
+        if (val.indexOf(colFilters[col].toLowerCase()) < 0) return false;
+      }
     }
     return true;
   });
@@ -677,6 +806,10 @@ function renderTable() {
       } else if (key === "activity_type") {
         var color = ACTIVITY_COLORS[val] || "#9E9E9E";
         html += '<td' + cls + '><span class="color-dot" style="background:' + color + '"></span>' + escapeHtml(val) + '</td>';
+      } else if (key === "is_bot") {
+        var label = val ? "Bot" : "Human";
+        var cssClass = val ? "source-bot" : "source-human";
+        html += '<td' + cls + '><span class="' + cssClass + '">' + label + '</span></td>';
       } else {
         html += '<td' + cls + '>' + escapeHtml(val) + '</td>';
       }
@@ -751,6 +884,12 @@ function renderColumnFilters() {
         html += '<option value="' + ACTIVITY_TYPES[t] + '">' + ACTIVITY_TYPES[t] + '</option>';
       }
       html += '</select>';
+    } else if (c.key === "is_bot") {
+      html += '<select class="col-filter" data-col="' + c.key + '" style="width:80px;">';
+      html += '<option value="">All</option>';
+      html += '<option value="Human">Human</option>';
+      html += '<option value="Bot">Bot</option>';
+      html += '</select>';
     } else if (c.key === "summary") {
       // Skip — global search covers this
       continue;
@@ -773,11 +912,15 @@ function renderColumnFilters() {
 }
 
 function updateCount() {
-  var total = TABLE_DATA.length;
+  var viewTotal = TABLE_DATA.filter(function(r) {
+    if (currentViewFilter === "human" && r.is_bot) return false;
+    if (currentViewFilter === "bot" && !r.is_bot) return false;
+    return true;
+  }).length;
   var count = filteredData.length;
-  var isFiltered = count !== total;
+  var isFiltered = count !== viewTotal;
   document.getElementById("row-count").textContent =
-    isFiltered ? count + " of " + total + " issues" : total + " issues";
+    isFiltered ? count + " of " + viewTotal + " issues" : viewTotal + " issues";
   var hint = document.getElementById("jql-hint");
   if (!isFiltered && count > JQL_URL_KEY_LIMIT) {
     hint.textContent = "Filter the table first, or use Copy JQL for large sets";
