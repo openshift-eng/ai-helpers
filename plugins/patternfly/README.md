@@ -73,10 +73,10 @@ Use official codemods for:
 
 ## Resources
 
-- [PatternFly v6 Documentation](https://staging-v6.patternfly.org/)
-- [Migration Guide](https://staging-v6.patternfly.org/get-started/migrate-to-v6/)
-- [Token Reference](https://staging-v6.patternfly.org/tokens/all-patternfly-tokens)
-- [Component Examples](https://staging-v6.patternfly.org/components/all-components)
+- [PatternFly v6 Documentation](https://www.patternfly.org/)
+- [Migration Guide](https://www.patternfly.org/get-started/upgrade/)
+- [Token Reference](https://www.patternfly.org/tokens/all-patternfly-tokens)
+- [Component Examples](https://www.patternfly.org/components/all-components)
 
 ## Contributing
 
