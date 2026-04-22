@@ -308,7 +308,7 @@ Include the status filter in the summary header. When `--uncategorized` is activ
 
 When bot issues are detected (any issue has `IS_BOT=true`), show separate human and bot distributions. The human distribution is the primary output — it shows what engineers are actually working on. The bot distribution is secondary context.
 
-```
+```text
 Activity Type Report: $RUN_DIR/activity-type-report.html
 
 3,114 closed issues across 1 project (2026-01-22 to 2026-04-22)
@@ -333,7 +333,7 @@ Classification cost: 86,313 input + 13,008 output = 99,321 tokens, $0.45
 
 When zero bot issues are detected, omit the human/bot split and show the current format:
 
-```
+```text
 Activity Type Report: $RUN_DIR/activity-type-report.html
 
 247 closed issues across 1 project (2025-10-02 to 2026-04-07)
@@ -354,7 +354,7 @@ Classification cost: 86,313 input + 13,008 output = 99,321 tokens, $0.45
 
 Include credible intervals and sample metadata. When bot issues are detected, show separate human and bot distributions with their own credible intervals.
 
-```
+```text
 Activity Type Report (Sampled Estimate): $RUN_DIR/activity-type-report.html
 
 4,338 issues across 1 project (2025-10-02 to 2026-04-07)
@@ -380,7 +380,7 @@ Automated/Bot Work — Activity Type Distribution (95% Credible Intervals):
 
 When zero bot issues are detected, omit the split and show the original format:
 
-```
+```text
 Activity Type Report (Sampled Estimate): $RUN_DIR/activity-type-report.html
 
 54,478 issues across 52 projects (2025-10-02 to 2026-04-07)

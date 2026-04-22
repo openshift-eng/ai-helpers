@@ -153,8 +153,9 @@ def generate_summary_stats(data, estimates=None, estimates_key="overall"):
     rows = ""
     if estimates:
         # Sampling mode: show posterior estimates with credible intervals
-        est_section = estimates.get(estimates_key, estimates.get("overall", estimates))
-        if est_section is None:
+        if estimates_key in estimates:
+            est_section = estimates[estimates_key]
+        else:
             est_section = estimates.get("overall", estimates)
         ci_pct = int(est_section.get("confidence", estimates.get("confidence", 0.95)) * 100)
         for est in est_section.get("estimates", []):
@@ -240,7 +241,10 @@ def generate_ci_chart(estimates, container_id="ci-chart", estimates_key="overall
     if not estimates:
         return ""
 
-    sub = estimates.get(estimates_key, estimates.get("overall", estimates))
+    if estimates_key in estimates:
+        sub = estimates[estimates_key]
+    else:
+        sub = estimates.get("overall", estimates)
     if not sub or "estimates" not in sub:
         return ""
 

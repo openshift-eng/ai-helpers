@@ -190,7 +190,7 @@ class TestStratifiedSample(unittest.TestCase):
             {"project_key": "X", "is_bot": False, "ISSUEKEY": "X-1"},
             {"project_key": "X", "is_bot": True, "ISSUEKEY": "X-2"},
         ]
-        sample, meta = stratified_sample(issues, 1, 1)
+        sample, _ = stratified_sample(issues, 1, 1)
         self.assertEqual(len(sample), 2)
 
 
