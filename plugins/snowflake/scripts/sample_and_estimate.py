@@ -273,6 +273,9 @@ def main():
     with open(args.input) as f:
         all_issues = json.load(f)
     total = len(all_issues)
+    if total == 0:
+        print("No issues to process.", file=sys.stderr)
+        sys.exit(1)
     print(f"Total issues: {total}")
 
     # Auto-recommend sample size

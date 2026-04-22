@@ -156,9 +156,8 @@ def generate_summary_stats(data, estimates=None, estimates_key="overall"):
         est_section = estimates.get(estimates_key, estimates.get("overall", estimates))
         if est_section is None:
             est_section = estimates.get("overall", estimates)
-        overall = est_section
         ci_pct = int(estimates.get("confidence", 0.95) * 100)
-        for est in overall.get("estimates", []):
+        for est in est_section.get("estimates", []):
             cat = est["category"]
             color = ACTIVITY_COLORS.get(cat, "#9E9E9E")
             mean_pct = est["posterior_mean"] * 100

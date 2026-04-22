@@ -61,6 +61,14 @@ ACTIVITY_TYPE_DEFINITIONS = {
 VALID_CATEGORIES = set(ACTIVITY_TYPE_DEFINITIONS.keys())
 
 
+def _get_is_bot(issue):
+    """Extract bot flag from an issue, handling both Snowflake and processed formats."""
+    val = issue.get("IS_BOT", issue.get("is_bot", False))
+    if isinstance(val, str):
+        return val.lower() in ("true", "1", "yes")
+    return bool(val)
+
+
 def build_prompt(batch):
     """Build the classification prompt for a batch of issues."""
     defs_text = "\n\n".join(
@@ -283,7 +291,7 @@ def main():
             "status": issue.get("STATUS", issue.get("status", "")),
             "components": issue.get("COMPONENTS", issue.get("components", "")),
             "created": issue.get("CREATED", issue.get("created", "")),
-            "is_bot": issue.get("IS_BOT", issue.get("is_bot", False)),
+            "is_bot": _get_is_bot(issue),
         })
 
     # Write output

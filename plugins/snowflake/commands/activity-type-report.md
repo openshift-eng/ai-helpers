@@ -124,19 +124,14 @@ ORDER BY ji.CREATED DESC
 
 The `bot_issues` CTE identifies issues filed by automation bots via labels in `JIRA_LABEL_RHAI`. These labels were verified across 48 HP projects — they reliably distinguish bot-filed tickets (e.g., ART image-build-failure, ACM auto-created CVEs) from human engineering work. Labels describing automation *work* by humans (e.g., `automation`, `qe-automation`, `auto-closed`) are intentionally excluded.
 
-If `JIRA_NODEASSOCIATION_RHAI` and `JIRA_COMPONENT_RHAI` views exist, also fetch components (include the same `bot_issues` CTE):
+If `JIRA_NODEASSOCIATION_RHAI` and `JIRA_COMPONENT_RHAI` views exist, also fetch components (reuse the same `bot_issues` CTE from the query above — identical label list):
 
 ```sql
 WITH bot_issues AS (
+    -- Same CTE as main query above — keep label list in sync
     SELECT DISTINCT ISSUE
     FROM JIRA_LABEL_RHAI
-    WHERE LABEL IN (
-        'auto-created', 'bot-created', 'ai-generated', 'ai-generated-jira',
-        'cloud-automated-jira', 'on-call-bot', 'automated', 'team:automatic_rule',
-        'bot-duplicate',
-        'art:image-build-failure', 'art:reconciliation',
-        'acs-generated', 'triaged-test-automation'
-    )
+    WHERE LABEL IN (<<same 13 labels as main query above>>)
 )
 SELECT
     ji.ISSUE_KEY AS ISSUEKEY,
