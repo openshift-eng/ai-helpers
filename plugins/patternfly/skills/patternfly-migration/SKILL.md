@@ -208,7 +208,7 @@ When migrating code:
 1. Global non-color tokens: Auto-replace with v6 equivalent
 2. Global color tokens: Replace with `t_temp_dev_tbd` + comment for manual update
 3. Component/chart tokens: Warn for manual replacement
-4. Check [v6 token docs](https://staging-v6.patternfly.org/tokens/all-patternfly-tokens)
+4. Check [v6 token docs](https://www.patternfly.org/tokens/all-patternfly-tokens)
 
 ## When to Use This Skill
 
@@ -360,7 +360,7 @@ npx @patternfly/pf-codemods --v6 --fix --exclude "tokens-update,enable-animation
 
 **Solution**:
 - Search codebase for `t_temp_dev_tbd` or `--pf-t--temp--dev--tbd`
-- Reference [v6 token docs](https://staging-v6.patternfly.org/tokens/all-patternfly-tokens) for replacements
+- Reference [v6 token docs](https://www.patternfly.org/tokens/all-patternfly-tokens) for replacements
 - Common replacements:
   - Status colors: Use `--pf-t--global--color--status--{danger|warning|success|info}--default`
   - Brand colors: Use `--pf-t--global--color--brand--default`
@@ -483,11 +483,11 @@ Consider using new v6 features:
 
 ### "Module not found" Errors
 - Verify @patternfly packages are v6: `npm ls @patternfly/react-core`
-- Clear node_modules and reinstall: `rm -rf node_modules package-lock.json && npm install`
+- Reinstall dependencies from lockfile: `npm ci`
 - Check for mixed v5/v6 dependencies in package.json
 
 ### "Property does not exist" TypeScript Errors
-- Ensure TypeScript is up to date: `npm install typescript@latest`
+- If TypeScript version is outdated, bump it through the repository's standard dependency-update process (e.g., open a dependency-update PR and run CI)
 - Check that renamed props were updated: `isActive` → `isClicked`, etc.
 - Verify type imports updated: `TextProps` → `ContentProps`
 
@@ -506,9 +506,9 @@ Consider using new v6 features:
 ## Additional Resources
 
 Point users to:
-- [PatternFly v6 Documentation](https://staging-v6.patternfly.org/)
-- [Migration Guide](https://staging-v6.patternfly.org/get-started/migrate-to-v6/)
-- [Token Reference](https://staging-v6.patternfly.org/tokens/all-patternfly-tokens)
+- [PatternFly v6 Documentation](https://www.patternfly.org/)
+- [Migration Guide](https://www.patternfly.org/get-started/upgrade/)
+- [Token Reference](https://www.patternfly.org/tokens/all-patternfly-tokens)
 - [pf-codemods GitHub](https://github.com/patternfly/pf-codemods)
 - [Breaking Changes](https://github.com/patternfly/patternfly-react/releases)
-- [Component Examples](https://staging-v6.patternfly.org/components/all-components)
+- [Component Examples](https://www.patternfly.org/components/all-components)
