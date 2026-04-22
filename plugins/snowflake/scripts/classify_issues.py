@@ -61,6 +61,14 @@ ACTIVITY_TYPE_DEFINITIONS = {
 VALID_CATEGORIES = set(ACTIVITY_TYPE_DEFINITIONS.keys())
 
 
+def _get_is_bot(issue):
+    """Extract bot flag from an issue, handling both Snowflake and processed formats."""
+    val = issue.get("IS_BOT", issue.get("is_bot", False))
+    if isinstance(val, str):
+        return val.lower() in ("true", "1", "yes")
+    return bool(val)
+
+
 def build_prompt(batch):
     """Build the classification prompt for a batch of issues."""
     defs_text = "\n\n".join(
@@ -283,6 +291,7 @@ def main():
             "status": issue.get("STATUS", issue.get("status", "")),
             "components": issue.get("COMPONENTS", issue.get("components", "")),
             "created": issue.get("CREATED", issue.get("created", "")),
+            "is_bot": _get_is_bot(issue),
         })
 
     # Write output
@@ -302,6 +311,14 @@ def main():
     for cat, count in dist.most_common():
         pct = count / len(output) * 100
         print(f"  {cat:<45s} {count:>4d} ({pct:.1f}%)")
+
+    # Print bot/human split
+    bot_count = sum(1 for item in output if item.get("is_bot"))
+    human_count = len(output) - bot_count
+    if bot_count > 0:
+        print(f"\nBot/Human Split:")
+        print(f"  Human:     {human_count:>6,} ({human_count/len(output)*100:.1f}%)")
+        print(f"  Automated: {bot_count:>6,} ({bot_count/len(output)*100:.1f}%)")
 
     # Print cost summary
     total_tokens = total_input_tokens + total_output_tokens

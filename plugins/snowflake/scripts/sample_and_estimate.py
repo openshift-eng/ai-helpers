@@ -46,70 +46,82 @@ ACTIVITY_TYPES = [
 ]
 
 
-def stratified_sample(issues, sample_size, seed=42):
-    """Draw a stratified random sample proportional to project size.
+def _get_is_bot(issue):
+    """Extract bot flag from an issue, handling both Snowflake and processed formats."""
+    val = issue.get("IS_BOT", issue.get("is_bot", False))
+    if isinstance(val, str):
+        return val.lower() in ("true", "1", "yes")
+    return bool(val)
 
-    Ensures every project gets at least 1 issue in the sample (if possible),
+
+def stratified_sample(issues, sample_size, seed=42):
+    """Draw a stratified random sample proportional to stratum size.
+
+    Stratifies by (project, is_bot) to ensure both human and bot populations
+    are represented. Guarantees at least 1 issue per stratum (if possible),
     then allocates remaining slots proportionally.
     """
     rng = random.Random(seed)
 
-    by_project = {}
+    by_stratum = {}
     for issue in issues:
         proj = issue.get("PROJECT_KEY", issue.get("project_key", "UNKNOWN"))
-        by_project.setdefault(proj, []).append(issue)
+        is_bot = _get_is_bot(issue)
+        stratum = (proj, "bot" if is_bot else "human")
+        by_stratum.setdefault(stratum, []).append(issue)
 
     total = len(issues)
     n = min(sample_size, total)
 
     if n >= total:
-        return list(issues), {p: len(v) for p, v in by_project.items()}
+        counts = {}
+        for s, v in by_stratum.items():
+            counts[s] = len(v)
+        return list(issues), counts
 
-    # Guarantee at least 1 per project, then proportional allocation
+    # Guarantee at least 1 per stratum, then proportional allocation
     allocations = {}
     remaining = n
-    for proj, proj_issues in by_project.items():
-        allocations[proj] = min(1, len(proj_issues))
-        remaining -= allocations[proj]
+    for stratum, stratum_issues in by_stratum.items():
+        allocations[stratum] = min(1, len(stratum_issues))
+        remaining -= allocations[stratum]
 
     # Distribute remaining proportionally
     if remaining > 0:
         proportional = {}
-        for proj, proj_issues in by_project.items():
-            proportional[proj] = len(proj_issues) / total * n
-        # Subtract already-allocated minimum
-        for proj in by_project:
-            proportional[proj] = max(0, proportional[proj] - allocations[proj])
-        # Normalize to fill remaining slots
+        for stratum, stratum_issues in by_stratum.items():
+            proportional[stratum] = len(stratum_issues) / total * n
+        for stratum in by_stratum:
+            proportional[stratum] = max(0, proportional[stratum] - allocations[stratum])
         prop_total = sum(proportional.values())
         if prop_total > 0:
-            for proj in by_project:
-                extra = int(proportional[proj] / prop_total * remaining)
-                extra = min(extra, len(by_project[proj]) - allocations[proj])
-                allocations[proj] += extra
+            for stratum in by_stratum:
+                extra = int(proportional[stratum] / prop_total * remaining)
+                extra = min(extra, len(by_stratum[stratum]) - allocations[stratum])
+                allocations[stratum] += extra
                 remaining -= extra
 
-        # Distribute any leftover slots to largest projects
+        # Distribute any leftover slots to largest strata
         if remaining > 0:
-            projects_by_size = sorted(by_project.keys(),
-                                      key=lambda p: len(by_project[p]),
-                                      reverse=True)
-            for proj in projects_by_size:
+            strata_by_size = sorted(by_stratum.keys(),
+                                    key=lambda s: len(by_stratum[s]),
+                                    reverse=True)
+            for stratum in strata_by_size:
                 if remaining <= 0:
                     break
-                can_add = len(by_project[proj]) - allocations[proj]
+                can_add = len(by_stratum[stratum]) - allocations[stratum]
                 add = min(can_add, remaining)
-                allocations[proj] += add
+                allocations[stratum] += add
                 remaining -= add
 
     # Draw samples
     sample = []
     sample_counts = {}
-    for proj, count in allocations.items():
-        proj_issues = by_project[proj]
-        drawn = rng.sample(proj_issues, min(count, len(proj_issues)))
+    for stratum, count in allocations.items():
+        stratum_issues = by_stratum[stratum]
+        drawn = rng.sample(stratum_issues, min(count, len(stratum_issues)))
         sample.extend(drawn)
-        sample_counts[proj] = len(drawn)
+        sample_counts[stratum] = len(drawn)
 
     rng.shuffle(sample)
     return sample, sample_counts
@@ -261,6 +273,9 @@ def main():
     with open(args.input) as f:
         all_issues = json.load(f)
     total = len(all_issues)
+    if total == 0:
+        print("No issues to process.", file=sys.stderr)
+        sys.exit(1)
     print(f"Total issues: {total}")
 
     # Auto-recommend sample size
@@ -287,14 +302,35 @@ def main():
 
         print(f"\nSample drawn: {len(sample)} of {total} issues "
               f"({len(sample)/total*100:.1f}%)")
+
+        # Aggregate stratum counts to project-level for display
+        proj_sample = {}
+        for (proj, bot_status), count in sample_counts.items():
+            proj_sample.setdefault(proj, {"human": 0, "bot": 0})
+            proj_sample[proj][bot_status] = count
+
+        proj_totals = {}
+        for i in all_issues:
+            proj = i.get("PROJECT_KEY", i.get("project_key", "UNKNOWN"))
+            proj_totals[proj] = proj_totals.get(proj, 0) + 1
+
+        has_bots = any(v.get("bot", 0) > 0 for v in proj_sample.values())
+
         print("Stratification by project:")
-        for proj in sorted(sample_counts.keys()):
-            proj_total = sum(1 for i in all_issues
-                            if (i.get("PROJECT_KEY", i.get("project_key"))
-                                == proj))
-            pct = (sample_counts[proj] / proj_total * 100) if proj_total else 0.0
-            print(f"  {proj:<20s} {sample_counts[proj]:>4d} of {proj_total:>5d} "
-                  f"({pct:.1f}%)")
+        for proj in sorted(proj_sample.keys()):
+            proj_total = proj_totals.get(proj, 0)
+            sampled = proj_sample[proj]["human"] + proj_sample[proj]["bot"]
+            pct = (sampled / proj_total * 100) if proj_total else 0.0
+            bot_info = ""
+            if has_bots and proj_sample[proj]["bot"] > 0:
+                bot_info = f"  (human: {proj_sample[proj]['human']}, bot: {proj_sample[proj]['bot']})"
+            print(f"  {proj:<20s} {sampled:>4d} of {proj_total:>5d} "
+                  f"({pct:.1f}%){bot_info}")
+
+        if has_bots:
+            total_bot = sum(v["bot"] for v in proj_sample.values())
+            total_human = sum(v["human"] for v in proj_sample.values())
+            print(f"\n  Total: {total_human} human + {total_bot} bot = {len(sample)} sampled")
 
         print(f"\nSample written to: {args.draw_sample}")
         print("Next: classify this sample with classify_issues.py, "
@@ -308,6 +344,12 @@ def main():
 
         print(f"Classified sample: {len(classified)} issues")
 
+        # Split by bot status
+        human_classified = [i for i in classified if not _get_is_bot(i)]
+        bot_classified = [i for i in classified if _get_is_bot(i)]
+        human_total = sum(1 for i in all_issues if not _get_is_bot(i))
+        bot_total = total - human_total
+
         # Overall estimates
         overall = estimate_distribution(
             classified, confidence=args.confidence, seed=args.seed
@@ -318,6 +360,25 @@ def main():
             classified, confidence=args.confidence, seed=args.seed
         )
 
+        # Human-only and bot-only estimates
+        human_estimates = None
+        bot_estimates = None
+        if human_classified and bot_classified:
+            human_estimates = {
+                "population": human_total,
+                "sample_size": len(human_classified),
+                **estimate_distribution(
+                    human_classified, confidence=args.confidence, seed=args.seed
+                ),
+            }
+            bot_estimates = {
+                "population": bot_total,
+                "sample_size": len(bot_classified),
+                **estimate_distribution(
+                    bot_classified, confidence=args.confidence, seed=args.seed
+                ),
+            }
+
         result = {
             "method": "Dirichlet-Multinomial Bayesian estimation",
             "total_population": total,
@@ -326,6 +387,8 @@ def main():
             "confidence": args.confidence,
             "seed": args.seed,
             "overall": overall,
+            "human": human_estimates,
+            "bot": bot_estimates,
             "by_project": per_project,
         }
 
@@ -345,6 +408,22 @@ def main():
             hi_pct = est["ci_high"] * 100
             print(f"{est['category']:<45s} {mean_pct:>5.1f}%  "
                   f"[{lo_pct:>5.1f}% — {hi_pct:>5.1f}%]")
+
+        if human_estimates and bot_estimates:
+            print(f"\nBot/Human Split: {human_total} human + {bot_total} bot "
+                  f"= {total} total")
+            print(f"  Sample: {len(human_classified)} human + "
+                  f"{len(bot_classified)} bot = {len(classified)}")
+
+            print(f"\nHuman Work ({len(human_classified)} of {human_total}):")
+            for est in human_estimates["estimates"]:
+                mean_pct = est["posterior_mean"] * 100
+                print(f"  {est['category']:<45s} {mean_pct:>5.1f}%")
+
+            print(f"\nAutomated/Bot Work ({len(bot_classified)} of {bot_total}):")
+            for est in bot_estimates["estimates"]:
+                mean_pct = est["posterior_mean"] * 100
+                print(f"  {est['category']:<45s} {mean_pct:>5.1f}%")
 
         if args.output:
             os.makedirs(os.path.dirname(os.path.abspath(args.output)),
