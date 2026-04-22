@@ -58,118 +58,40 @@ def _get_is_bot(issue):
     return bool(val)
 
 
-def _allocate_proportional(pool_by_project, budget, rng):
-    """Allocate a sample budget across projects proportionally.
-
-    Guarantees at least 1 issue per project (if budget allows),
-    then distributes remaining slots proportional to project size.
-    Returns {project: count} allocations.
-    """
-    total = sum(len(v) for v in pool_by_project.values())
-    n = min(budget, total)
-
-    if n >= total:
-        return {proj: len(issues) for proj, issues in pool_by_project.items()}
-
-    if n <= 0:
-        return {proj: 0 for proj in pool_by_project}
-
-    allocations = {}
-    remaining = n
-    for proj, issues in pool_by_project.items():
-        allocations[proj] = min(1, len(issues))
-        remaining -= allocations[proj]
-
-    if remaining > 0:
-        proportional = {}
-        for proj, issues in pool_by_project.items():
-            proportional[proj] = len(issues) / total * n
-        for proj in pool_by_project:
-            proportional[proj] = max(0, proportional[proj] - allocations[proj])
-        prop_total = sum(proportional.values())
-        if prop_total > 0:
-            for proj in pool_by_project:
-                extra = int(proportional[proj] / prop_total * remaining)
-                extra = min(extra, len(pool_by_project[proj]) - allocations[proj])
-                allocations[proj] += extra
-                remaining -= extra
-
-        if remaining > 0:
-            projects_by_size = sorted(pool_by_project.keys(),
-                                      key=lambda p: len(pool_by_project[p]),
-                                      reverse=True)
-            for proj in projects_by_size:
-                if remaining <= 0:
-                    break
-                can_add = len(pool_by_project[proj]) - allocations[proj]
-                add = min(can_add, remaining)
-                allocations[proj] += add
-                remaining -= add
-
-    return allocations
-
-
 def stratified_sample(issues, human_n, bot_n, seed=42):
-    """Draw independent stratified samples for human and bot populations.
+    """Draw independent random samples for human and bot populations.
 
-    Each population is sampled separately and stratified by project.
-    Guarantees at least 1 issue per project within each population
-    (if budget allows).
+    Each population is sampled via simple random sampling (no per-project
+    stratification). This avoids bias from oversampling small projects.
 
     Returns:
         (sample_list, {
-            "human": {"total": int, "by_project": {proj: count}},
-            "bot":   {"total": int, "by_project": {proj: count}},
+            "human": {"total": int},
+            "bot":   {"total": int},
         })
     """
     rng = random.Random(seed)
 
-    human_by_project = {}
-    bot_by_project = {}
+    human_pool = []
+    bot_pool = []
     for issue in issues:
-        proj = issue.get("PROJECT_KEY", issue.get("project_key", "UNKNOWN"))
         if _get_is_bot(issue):
-            bot_by_project.setdefault(proj, []).append(issue)
+            bot_pool.append(issue)
         else:
-            human_by_project.setdefault(proj, []).append(issue)
+            human_pool.append(issue)
 
-    human_total = sum(len(v) for v in human_by_project.values())
-    bot_total = sum(len(v) for v in bot_by_project.values())
+    human_n = min(human_n, len(human_pool))
+    bot_n = min(bot_n, len(bot_pool))
 
-    human_n = min(human_n, human_total)
-    bot_n = min(bot_n, bot_total)
+    human_sample = rng.sample(human_pool, human_n) if human_n > 0 else []
+    bot_sample = rng.sample(bot_pool, bot_n) if bot_n > 0 else []
 
-    human_alloc = _allocate_proportional(human_by_project, human_n, rng)
-    bot_alloc = _allocate_proportional(bot_by_project, bot_n, rng)
-
-    sample = []
-    human_counts = {}
-    for proj, count in human_alloc.items():
-        if count > 0:
-            drawn = rng.sample(human_by_project[proj],
-                               min(count, len(human_by_project[proj])))
-            sample.extend(drawn)
-            human_counts[proj] = len(drawn)
-
-    bot_counts = {}
-    for proj, count in bot_alloc.items():
-        if count > 0:
-            drawn = rng.sample(bot_by_project[proj],
-                               min(count, len(bot_by_project[proj])))
-            sample.extend(drawn)
-            bot_counts[proj] = len(drawn)
-
+    sample = human_sample + bot_sample
     rng.shuffle(sample)
 
     metadata = {
-        "human": {
-            "total": sum(human_counts.values()),
-            "by_project": human_counts,
-        },
-        "bot": {
-            "total": sum(bot_counts.values()),
-            "by_project": bot_counts,
-        },
+        "human": {"total": len(human_sample)},
+        "bot": {"total": len(bot_sample)},
     }
     return sample, metadata
 
@@ -460,33 +382,27 @@ def main():
             print(f"  Bot:   {b_sampled} of {bot_pop} "
                   f"({b_sampled/bot_pop*100:.1f}%)")
 
-        # Display project-level breakdown
-        all_projects = set(list(sample_meta["human"]["by_project"].keys()) +
-                           list(sample_meta["bot"]["by_project"].keys()))
-
-        proj_totals = {}
+        # Diagnostic table: top projects by human count with bot %
+        human_by_proj = Counter()
+        bot_by_proj = Counter()
         for i in all_issues:
             proj = i.get("PROJECT_KEY", i.get("project_key", "UNKNOWN"))
-            proj_totals[proj] = proj_totals.get(proj, 0) + 1
+            if _get_is_bot(i):
+                bot_by_proj[proj] += 1
+            else:
+                human_by_proj[proj] += 1
 
-        has_bots = b_sampled > 0
-
-        print("\nStratification by project:")
-        for proj in sorted(all_projects):
-            proj_total = proj_totals.get(proj, 0)
-            h_count = sample_meta["human"]["by_project"].get(proj, 0)
-            b_count = sample_meta["bot"]["by_project"].get(proj, 0)
-            sampled = h_count + b_count
-            pct = (sampled / proj_total * 100) if proj_total else 0.0
-            bot_info = ""
-            if has_bots and b_count > 0:
-                bot_info = f"  (human: {h_count}, bot: {b_count})"
-            print(f"  {proj:<20s} {sampled:>4d} of {proj_total:>5d} "
-                  f"({pct:.1f}%){bot_info}")
-
-        if has_bots:
-            print(f"\n  Total: {h_sampled} human + {b_sampled} bot "
-                  f"= {len(sample)} sampled")
+        top_projects = human_by_proj.most_common(10)
+        if top_projects:
+            print(f"\nPopulation by project (top {len(top_projects)} "
+                  f"by human count):")
+            print(f"  {'Project':<16s} {'Human':>6s} {'Bot':>6s} {'Bot%':>6s}")
+            for proj, h_count in top_projects:
+                b_count = bot_by_proj.get(proj, 0)
+                proj_total = h_count + b_count
+                bot_pct = b_count / proj_total * 100 if proj_total else 0
+                print(f"  {proj:<16s} {h_count:>6d} {b_count:>6d} "
+                      f"{bot_pct:>5.1f}%")
 
         print(f"\nSample written to: {args.draw_sample}")
         print("Next: classify this sample with classify_issues.py, "

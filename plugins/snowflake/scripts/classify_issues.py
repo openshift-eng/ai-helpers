@@ -316,13 +316,13 @@ def main():
     bot_count = sum(1 for item in output if item.get("is_bot"))
     human_count = len(output) - bot_count
     if bot_count > 0:
-        print(f"\nBot/Human Split:")
+        print("\nBot/Human Split:")
         print(f"  Human:     {human_count:>6,} ({human_count/len(output)*100:.1f}%)")
         print(f"  Automated: {bot_count:>6,} ({bot_count/len(output)*100:.1f}%)")
 
     # Print cost summary
     total_tokens = total_input_tokens + total_output_tokens
-    print(f"\nAPI Usage:")
+    print("\nAPI Usage:")
     print(f"  Input tokens:  {total_input_tokens:>10,}")
     print(f"  Output tokens: {total_output_tokens:>10,}")
     print(f"  Total tokens:  {total_tokens:>10,}")

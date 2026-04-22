@@ -156,7 +156,7 @@ def generate_summary_stats(data, estimates=None, estimates_key="overall"):
         est_section = estimates.get(estimates_key, estimates.get("overall", estimates))
         if est_section is None:
             est_section = estimates.get("overall", estimates)
-        ci_pct = int(estimates.get("confidence", 0.95) * 100)
+        ci_pct = int(est_section.get("confidence", estimates.get("confidence", 0.95)) * 100)
         for est in est_section.get("estimates", []):
             cat = est["category"]
             color = ACTIVITY_COLORS.get(cat, "#9E9E9E")
@@ -246,7 +246,7 @@ def generate_ci_chart(estimates, container_id="ci-chart", estimates_key="overall
 
     est_data = json.dumps(sub["estimates"])
     colors_json = json.dumps(ACTIVITY_COLORS)
-    ci_pct = int(estimates.get("confidence", 0.95) * 100)
+    ci_pct = int(sub.get("confidence", estimates.get("confidence", 0.95)) * 100)
     sample_size = sub.get("sample_size", estimates.get("sample_size", 0))
     total_pop = sub.get("population", estimates.get("total_population", 0))
     sample_frac = (sample_size / total_pop * 100) if total_pop else 0
@@ -777,7 +777,10 @@ function applyFilters() {
     if (globalTerm) {
       var match = false;
       for (var i = 0; i < COLUMNS.length; i++) {
-        if (String(row[COLUMNS[i].key] || "").toLowerCase().indexOf(globalTerm) >= 0) {
+        var searchVal = COLUMNS[i].key === "is_bot"
+          ? (row.is_bot ? "Bot" : "Human")
+          : String(row[COLUMNS[i].key] || "");
+        if (searchVal.toLowerCase().indexOf(globalTerm) >= 0) {
           match = true; break;
         }
       }
@@ -1014,7 +1017,11 @@ function exportCsv() {
     var row = filteredData[i];
     var cells = [];
     for (var j = 0; j < COLUMNS.length; j++) {
-      var v = String(row[COLUMNS[j].key] || "").replace(/"/g, '""');
+      var colKey = COLUMNS[j].key;
+      var v = colKey === "is_bot"
+        ? (row.is_bot ? "Bot" : "Human")
+        : String(row[colKey] || "");
+      v = v.replace(/"/g, '""');
       cells.push('"' + v + '"');
     }
     rows.push(cells.join(","));

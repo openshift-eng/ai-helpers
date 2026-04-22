@@ -116,7 +116,7 @@ class TestStratifiedSample(unittest.TestCase):
         self.assertEqual(meta["human"]["total"], 0)
         self.assertEqual(meta["bot"]["total"], 0)
 
-    def test_multi_project_human_stratification(self):
+    def test_multi_project_human_sample(self):
         issues = self._make_issues([
             ("A", False, 100),
             ("B", False, 50),
@@ -124,26 +124,18 @@ class TestStratifiedSample(unittest.TestCase):
         ])
         sample, meta = stratified_sample(issues, 20, 0)
         self.assertEqual(len(sample), 20)
-        self.assertIn("A", meta["human"]["by_project"])
-        self.assertIn("B", meta["human"]["by_project"])
-        self.assertIn("C", meta["human"]["by_project"])
-        self.assertGreaterEqual(meta["human"]["by_project"]["A"], 1)
-        self.assertGreaterEqual(meta["human"]["by_project"]["B"], 1)
-        self.assertGreaterEqual(meta["human"]["by_project"]["C"], 1)
+        self.assertEqual(meta["human"]["total"], 20)
 
-    def test_multi_project_bot_stratification(self):
+    def test_multi_project_bot_sample(self):
         issues = self._make_issues([
             ("A", True, 80),
             ("B", True, 20),
         ])
         sample, meta = stratified_sample(issues, 0, 30)
         self.assertEqual(len(sample), 30)
-        self.assertGreaterEqual(meta["bot"]["by_project"]["A"], 1)
-        self.assertGreaterEqual(meta["bot"]["by_project"]["B"], 1)
-        self.assertGreater(meta["bot"]["by_project"]["A"],
-                           meta["bot"]["by_project"]["B"])
+        self.assertEqual(meta["bot"]["total"], 30)
 
-    def test_mixed_projects_independent_allocation(self):
+    def test_mixed_projects_independent_sampling(self):
         issues = self._make_issues([
             ("A", False, 200),
             ("A", True, 100),
@@ -154,10 +146,6 @@ class TestStratifiedSample(unittest.TestCase):
         self.assertEqual(meta["human"]["total"], 30)
         self.assertEqual(meta["bot"]["total"], 20)
         self.assertEqual(len(sample), 50)
-        self.assertIn("A", meta["human"]["by_project"])
-        self.assertIn("B", meta["human"]["by_project"])
-        self.assertIn("A", meta["bot"]["by_project"])
-        self.assertIn("B", meta["bot"]["by_project"])
 
     def test_deterministic_with_seed(self):
         issues = self._make_issues([
