@@ -246,6 +246,12 @@
       "source": "./plugins/marketplace-ops",
       "description": "Maintenance commands for Claude Code plugin marketplaces",
       "version": "0.1.2"
+    },
+    {
+      "name": "patternfly",
+      "source": "./plugins/patternfly",
+      "description": "PatternFly React component migration and development tools",
+      "version": "1.0.0"
     }
   ]
 }

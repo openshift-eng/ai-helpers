@@ -1822,6 +1822,28 @@
       "name": "marketplace-ops",
       "skills": [],
       "version": "0.1.2"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "[file-path]",
+          "description": "Migrate React components from PatternFly 5 to PatternFly 6",
+          "name": "migrate",
+          "synopsis": "/patternfly:migrate [file-path]"
+        }
+      ],
+      "description": "PatternFly React component migration and development tools",
+      "has_readme": true,
+      "hooks": [],
+      "name": "patternfly",
+      "skills": [
+        {
+          "description": "Migrate React components from PatternFly 5 to PatternFly 6",
+          "id": "patternfly-migration",
+          "name": "MigrationPf5ToPf6"
+        }
+      ],
+      "version": "1.0.0"
     }
   ]
 }
