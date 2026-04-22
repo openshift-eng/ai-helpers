@@ -27,6 +27,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Openshift Tls Profile](#openshift-tls-profile-plugin)
 - [Origin](#origin-plugin)
 - [Ote Migration](#ote-migration-plugin)
+- [Patternfly](#patternfly-plugin)
 - [Session](#session-plugin)
 - [Snowflake](#snowflake-plugin)
 - [Sosreport](#sosreport-plugin)
@@ -345,6 +346,15 @@ Automate OpenShift Tests Extension (OTE) migration for component repositories
 - **`/ote-migration:migrate`** - Automate OpenShift Tests Extension (OTE) migration for component repositories
 
 See [plugins/ote-migration/README.md](plugins/ote-migration/README.md) for detailed documentation.
+
+### Patternfly Plugin
+
+PatternFly React component migration and development tools
+
+**Commands:**
+- **`/patternfly:migrate` `[file-path]`** - Migrate React components from PatternFly 5 to PatternFly 6
+
+See [plugins/patternfly/README.md](plugins/patternfly/README.md) for detailed documentation.
 
 ### Session Plugin
 
