@@ -61,12 +61,71 @@ ACTIVITY_TYPE_DEFINITIONS = {
 VALID_CATEGORIES = set(ACTIVITY_TYPE_DEFINITIONS.keys())
 
 
-def _get_is_bot(issue):
-    """Extract bot flag from an issue, handling both Snowflake and processed formats."""
-    val = issue.get("IS_BOT", issue.get("is_bot", False))
-    if isinstance(val, str):
-        return val.lower() in ("true", "1", "yes")
-    return bool(val)
+def _load_noise_filters():
+    """Load noise-filters.json from well-known locations. Returns dict or None."""
+    candidates = []
+    skill_relpath = os.path.join(".claude", "skills", "multi-signal-activity", "noise-filters.json")
+    candidates.append(os.path.join(os.getcwd(), skill_relpath))
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    candidates.append(os.path.join(script_dir, "..", "..", "..", "skills",
+                                   "multi-signal-activity", "noise-filters.json"))
+    d = os.getcwd()
+    for _ in range(10):
+        p = os.path.join(d, skill_relpath)
+        if p not in candidates:
+            candidates.append(p)
+        parent = os.path.dirname(d)
+        if parent == d:
+            break
+        d = parent
+    for path in candidates:
+        path = os.path.normpath(path)
+        if os.path.isfile(path):
+            try:
+                with open(path) as f:
+                    return json.load(f)
+            except (json.JSONDecodeError, OSError):
+                pass
+    return None
+
+
+def _like_match(pattern, text):
+    """Match a SQL LIKE pattern against text (case-insensitive)."""
+    p = pattern.upper()
+    t = text.upper()
+    if p.startswith("%") and p.endswith("%"):
+        return p.strip("%") in t
+    if p.endswith("%"):
+        return t.startswith(p.rstrip("%"))
+    if p.startswith("%"):
+        return t.endswith(p.lstrip("%"))
+    return t == p
+
+
+def _compute_is_bot(issue, noise_filters):
+    """Determine if an issue is bot-created using noise-filter patterns."""
+    summary = issue.get("SUMMARY", issue.get("summary", "")) or ""
+    project = issue.get("PROJECT_KEY", issue.get("project_key", "")) or ""
+    for pat in noise_filters.get("global_exclude", []):
+        if _like_match(pat, summary):
+            return True
+    project_cfg = noise_filters.get("projects", {}).get(project, {})
+    for pat in project_cfg.get("exclude", []):
+        if _like_match(pat, summary):
+            return True
+    return False
+
+
+def _get_is_bot(issue, noise_filters=None):
+    """Extract or compute bot flag from an issue."""
+    val = issue.get("IS_BOT", issue.get("is_bot", None))
+    if val is not None:
+        if isinstance(val, str):
+            return val.lower() in ("true", "1", "yes")
+        return bool(val)
+    if noise_filters:
+        return _compute_is_bot(issue, noise_filters)
+    return False
 
 
 def build_prompt(batch):
@@ -203,6 +262,12 @@ def main():
     with open(args.input) as f:
         issues = json.load(f)
 
+    # Load noise filters for bot detection
+    noise_filters = _load_noise_filters()
+    if noise_filters:
+        print(f"Loaded noise filters ({len(noise_filters.get('global_exclude', []))} global, "
+              f"{len(noise_filters.get('projects', {}))} project-specific)")
+
     print(f"Loaded {len(issues)} issues from {args.input}")
     print(f"Model: {model} | Region: {region} | Project: {project_id}")
 
@@ -291,7 +356,7 @@ def main():
             "status": issue.get("STATUS", issue.get("status", "")),
             "components": issue.get("COMPONENTS", issue.get("components", "")),
             "created": issue.get("CREATED", issue.get("created", "")),
-            "is_bot": _get_is_bot(issue),
+            "is_bot": _get_is_bot(issue, noise_filters),
         })
 
     # Write output
