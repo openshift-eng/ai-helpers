@@ -228,7 +228,7 @@ python3 "$SCRIPT_DIR/sample_and_estimate.py" \
   --draw-sample $RUN_DIR/sample_to_classify.json \
   --sample-size ${N:-0}
 ```
-(0 = auto-recommend independently per population. Each of human and bot gets the sample size needed for ±5% CI width, typically 200-400 each. Within each population, stratifies by project.)
+(0 = auto-recommend independently per population. Each of human and bot gets the sample size needed for ±5% CI width, typically 200-400 each. Within each population, uses simple random sampling.)
 
 **Step 2: Classify only the sample**
 ```bash
@@ -420,7 +420,7 @@ After the summary, tell the user the HTML report is available at the path shown 
   - The report shows posterior means with 95% credible intervals instead of exact counts
   - The "All" view uses post-stratification weighted estimates that properly combine human and bot posteriors by population proportion
   - Dramatically reduces API cost and time for large datasets (e.g., 50 API calls vs. 1,000+)
-  - Within each population, stratifies by project to ensure all projects are represented
+  - Within each population, uses simple random sampling (no per-project stratification)
 
 - **--todo** (optional)
   - Analyze only open/backlog issues (non-closed statuses: New, In Progress, To Do, Refinement, etc.)

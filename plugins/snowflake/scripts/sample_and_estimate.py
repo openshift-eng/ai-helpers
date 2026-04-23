@@ -418,8 +418,8 @@ def main():
 
         human_classified = [i for i in classified if not _get_is_bot(i)]
         bot_classified = [i for i in classified if _get_is_bot(i)]
-        human_total = sum(1 for i in all_issues if not _get_is_bot(i))
-        bot_total = total - human_total
+        human_total = human_pop
+        bot_total = bot_pop
 
         overall = weighted_overall_estimate(
             human_classified, bot_classified,

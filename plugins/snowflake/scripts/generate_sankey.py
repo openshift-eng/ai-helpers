@@ -153,7 +153,7 @@ def generate_summary_stats(data, estimates=None, estimates_key="overall"):
     rows = ""
     if estimates:
         # Sampling mode: show posterior estimates with credible intervals
-        if estimates_key in estimates:
+        if estimates_key in estimates and estimates[estimates_key]:
             est_section = estimates[estimates_key]
         else:
             est_section = estimates.get("overall", estimates)
