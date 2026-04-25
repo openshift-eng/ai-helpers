@@ -55,12 +55,19 @@ The script outputs one block per payload to stdout with job details. Present to 
 
 ## Output Format
 
-For each payload, the script outputs:
+The script outputs a JSON object to stdout:
 
-- **Tag line**: `<tag>  (<phase>)  <timestamp>  <url>`
-- **Rejected payloads**: lists each failed blocking job with retry count, Prow link for the final attempt, and Prow links for all previous attempts
-- **Ready payloads**: summary of succeeded/pending/failed counts
-- **Accepted payloads**: confirmation that all blocking jobs succeeded
+```json
+{
+  "hours_since_last_accepted": 23.5,
+  "last_accepted_tag": "4.22.0-0.nightly-2026-02-24-030944",
+  "payloads": [ ... ]
+}
+```
+
+- **`hours_since_last_accepted`**: Hours since the most recent Accepted payload in the stream (from the full unfiltered history), or `null` if none found.
+- **`last_accepted_tag`**: Tag name of the most recent Accepted payload, or `null` if none found.
+- **`payloads`**: Array of payload objects, each containing tag, phase, release controller URL, and job results (blocking and async jobs with Prow URLs and retry details).
 
 ## Error Handling
 

@@ -37,6 +37,7 @@ The filename **must** end with `-autodl.json`. Sanitize the tag for filename saf
         "rejection_streak": "int64",
         "total_blocking_jobs": "int64",
         "failed_blocking_jobs": "int64",
+        "force_accept_recommended": "int64",
         "job_name": "string",
         "prow_url": "string",
         "failure_type": "string",
@@ -65,6 +66,7 @@ The filename **must** end with `-autodl.json`. Sanitize the tag for filename saf
             "rejection_streak": "5",
             "total_blocking_jobs": "42",
             "failed_blocking_jobs": "4",
+            "force_accept_recommended": "0",
             "job_name": "periodic-ci-openshift-release-main-ci-4.22-e2e-aws-ovn",
             "prow_url": "https://prow.ci.openshift.org/view/gs/...",
             "failure_type": "test",
@@ -91,6 +93,7 @@ The filename **must** end with `-autodl.json`. Sanitize the tag for filename saf
             "rejection_streak": "5",
             "total_blocking_jobs": "42",
             "failed_blocking_jobs": "4",
+            "force_accept_recommended": "0",
             "job_name": "periodic-ci-openshift-release-main-ci-4.22-e2e-gcp-ovn",
             "prow_url": "https://prow.ci.openshift.org/view/gs/...",
             "failure_type": "install",
@@ -149,6 +152,7 @@ The filename **must** end with `-autodl.json`. Sanitize the tag for filename saf
 | `rejection_streak` | int64 | Number of consecutive rejected payloads leading up to the target |
 | `total_blocking_jobs` | int64 | Total number of blocking jobs in the payload |
 | `failed_blocking_jobs` | int64 | Number of failed blocking jobs |
+| `force_accept_recommended` | int64 | `1` if all failures are temporary infrastructure, no more than 2 blocking jobs failed, and no payload accepted in 18+ hours; `0` otherwise |
 
 ### Job-level fields
 
@@ -156,7 +160,7 @@ The filename **must** end with `-autodl.json`. Sanitize the tag for filename saf
 |-------|------|-------------|
 | `job_name` | string | Full periodic job name |
 | `prow_url` | string | Prow URL for the failing run |
-| `failure_type` | string | `"test"`, `"install"`, `"upgrade"`, or `"infrastructure"` |
+| `failure_type` | string | `"test"`, `"install"`, `"upgrade"`, or `"infra"` |
 | `root_cause_summary` | string | Brief description of the failure mode |
 | `streak_length` | int64 | Consecutive payloads this job has been failing |
 | `is_new_failure` | int64 | `1` if the job first started failing in the target payload, `0` otherwise |

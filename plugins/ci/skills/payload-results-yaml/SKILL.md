@@ -35,6 +35,7 @@ metadata:
   architecture: "amd64"
   release_controller_url: "https://amd64.ocp.releases.ci.openshift.org/..."
   analyzed_at: "2026-02-26T10:30:00Z"
+  force_accept_recommended: false
 
 failing_jobs:
   - job_name: "periodic-ci-...-e2e-aws-ovn"
@@ -91,6 +92,7 @@ Written once by `analyze-payload`. Never modified by downstream skills.
 | `architecture` | string | `"amd64"`, `"arm64"`, `"multi"`, etc. |
 | `release_controller_url` | string | URL to the payload on the release controller |
 | `analyzed_at` | string | ISO 8601 timestamp of when the analysis was performed |
+| `force_accept_recommended` | bool | `true` when all failures are temporary infrastructure issues, no more than 2 blocking jobs failed, and no payload has been accepted in the stream for 18+ hours. Determined by `analyze-payload` Step 6.4. |
 
 ### `failing_jobs[]`
 

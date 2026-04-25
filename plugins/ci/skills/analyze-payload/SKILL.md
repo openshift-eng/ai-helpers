@@ -65,9 +65,9 @@ if [ -z "$FETCH_PAYLOADS" ] || [ ! -f "$FETCH_PAYLOADS" ]; then echo "ERROR: fet
 python3 "$FETCH_PAYLOADS" <architecture> <version> <stream> --limit <lookback * 2>
 ```
 
-Parse the output to extract payload tag names, phases, and job details.
+The output is a JSON object with `hours_since_last_accepted` and `last_accepted_tag` at the top level and `payloads` as an array. Extract the payloads array for analysis and retain `hours_since_last_accepted` and `last_accepted_tag` for Step 6.4.
 
-Find the **target payload** (the tag from Step 1) in the fetched list. Based on its phase:
+Find the **target payload** (the tag from Step 1) in the payloads array. Based on its phase:
 
 - **Rejected**: Extract all failed blocking job names, their Prow URLs, and any previous attempt URLs. Proceed with full analysis.
 - **Ready**: Extract blocking jobs that have already **failed** (with their Prow URLs and previous attempt URLs). These are jobs that will not pass — they indicate the payload is on track for rejection. Proceed with analysis of those failed jobs and note in the report that the payload is still in progress.
@@ -136,7 +136,7 @@ You MUST use the following prompt verbatim (substituting the placeholder values)
 
 ```
 ANALYSIS_RESULT:
-- failure_type: install|test
+- failure_type: install|test|upgrade|infra
 - root_cause_summary: <one-line summary>
 - affected_components: <comma-separated list of affected operators/components>
 - key_error_patterns: <comma-separated key error strings for matching>
@@ -256,7 +256,19 @@ If a revert PR is found:
 
 3. **If a revert PR is open but not merged**, still recommend the revert but note that a revert PR already exists and link to it, so the reader can help expedite the merge.
 
-#### 6.4: Write Payload Results YAML
+#### 6.4: Determine Force-Accept Recommendation
+
+Recommend force-accepting the payload when **all** of the following are true:
+
+1. **All failures are temporary infrastructure issues**: Every failed blocking job has `failure_type: "infra"` and the subagent analysis confirms the failures are transient infrastructure problems (cloud quota, API rate limits, CI platform issues, network timeouts) — not product regressions masquerading as infrastructure. If any job has a non-infra failure type, or if any infrastructure failure appears to be caused by a product change, do not recommend.
+
+2. **No more than 2 blocking jobs failed**: A small number of infrastructure failures (1-2) indicates enough signal that the payload is otherwise healthy. If 3 or more blocking jobs failed, do not recommend — too many simultaneous failures reduce confidence even if each appears infrastructure-related.
+
+3. **No payload has been accepted in this stream for more than 18 hours**: Use the `hours_since_last_accepted` field from the `fetch-payloads` output (Step 2). If the value is `null` (no accepted payload in the fetched history) or >= 18, this condition is met.
+
+Record the determination in the payload results YAML and autodl JSON (see their respective schemas for the field).
+
+#### 6.5: Write Payload Results YAML
 
 After scoring all (job, candidate PR) pairs and checking for existing reverts, use the `payload-results-yaml` skill to create the results file in the current working directory: `payload-results-{tag}.yaml` (sanitize the tag for filename safety).
 
@@ -419,7 +431,26 @@ If **no** revert candidates were identified, include a brief note instead:
 </div>
 ```
 
-#### 7.5: Styling
+#### 7.5: Force-Accept Recommendation
+
+If a force-accept was recommended (Step 6.4), include a prominent callout immediately after the revert/no-revert verdict:
+
+```html
+<div class="verdict verdict-infra">
+  <strong>Force-Accept Recommended</strong>
+  <p>All blocking job failures are temporary infrastructure issues and no payload has been accepted
+     in this stream for more than 18 hours. Consider force-accepting this payload to unblock
+     the release stream.</p>
+  <p class="last-accepted">Last accepted payload: <a href="{last_accepted_url}">{last_accepted_tag}</a>
+     ({hours_since} hours ago)</p>
+</div>
+```
+
+Use the `last_accepted_tag` from the `fetch-payloads` output (Step 2) and construct the release controller URL for the link. If `last_accepted_tag` is `null`, replace the last-accepted line with "No accepted payload found in recent history."
+
+If a force-accept was not recommended, omit this section entirely.
+
+#### 7.6: Styling
 
 The HTML must be fully self-contained with embedded CSS. Use a GitHub-inspired dark mode design. Wrap all content in a `<div class="container">`. Use CSS variables for the color palette and the following base styles as a guide:
 
@@ -491,7 +522,7 @@ See the `payload-autodl-json` skill for the complete schema, row cardinality rul
 1. Save all output files to the current working directory:
    - HTML report: `payload-analysis-<sanitized_tag>-summary.html`
    - JSON data file: `payload-analysis-<sanitized_tag>-autodl.json`
-   - Payload results YAML: `payload-results-<sanitized_tag>.yaml` (written in Step 6.4)
+   - Payload results YAML: `payload-results-<sanitized_tag>.yaml` (written in Step 6.5)
    - Sanitize the tag: replace any characters not safe for filenames
 
 2. Tell the user:
