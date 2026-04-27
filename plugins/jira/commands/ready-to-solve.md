@@ -44,7 +44,7 @@ plugins/jira/skills/ready-to-solve/SKILL.md
    - Context/Description section exists and has >= 50 characters
    - Acceptance Criteria section exists and has >= 30 characters
    - Technical Details section exists and has >= 30 characters
-   - AC has multiple list items (warning)
+   - AC has fewer than 2 list items (warning)
    - Overall description length >= 200 characters (warning)
 
 3. **AI Qualitative Assessment**: Evaluate three dimensions using the full description content:

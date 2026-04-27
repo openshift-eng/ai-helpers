@@ -79,8 +79,10 @@ The script outputs JSON with per-check results. Parse the output to get:
 | `ac_not_empty` | AC has content | At least 30 characters below the heading | REQUIRED |
 | `has_tech` | Technical Details present | Heading matching: Technical Details, Technical Context, Implementation Details, Implementation Notes, or Technical Notes | REQUIRED |
 | `tech_not_empty` | Technical Details has content | At least 30 characters below the heading | REQUIRED |
-| `ac_has_items` | AC has multiple items | At least 2 bullet points or numbered items | WARNING |
+| `ac_has_items` | AC has multiple items | Warns if fewer than 2 bullet points or numbered items | WARNING |
 | `min_description_length` | Adequate overall length | Total description at least 200 characters | WARNING |
+
+**Note:** WARNING checks are reported but do not block the overall verdict. Only REQUIRED checks must pass for the issue to be considered ready.
 
 ### Phase 3: AI Qualitative Assessment
 
