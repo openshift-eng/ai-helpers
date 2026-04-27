@@ -100,7 +100,7 @@ Read the full description and evaluate three dimensions. For each, produce a ver
 
 ### Phase 4: Aggregate Verdict
 
-```
+```text
 overall_pass = (all REQUIRED deterministic checks pass) AND (no AI check has verdict FAIL)
 ```
 
@@ -121,9 +121,9 @@ When validation fails and `--fix` is set, generate a revised description that fi
    - **Missing Technical Details**: Generate an `h2. Technical Details` section from any code references, file paths, component mentions, or technical context in the description.
    - **Section too short**: Expand the existing section with additional relevant detail while preserving the original content.
    - **AC lacks list items**: Restructure the existing AC text into proper bullet points and add additional criteria if needed.
-   - **AI qualitative failures (vague AC)**: Rewrite vague criteria to be specific and testable (e.g., "works properly" becomes "returns 200 on valid input").
-   - **AI qualitative failures (insufficient context)**: Add implementation pointers -- component names, likely file paths, related features.
-   - **AI qualitative failures (unclear success conditions)**: Add explicit done criteria and edge cases.
+   - **Vague acceptance criteria**: Rewrite vague criteria to be specific and testable (e.g., "works properly" becomes "returns 200 on valid input").
+   - **Insufficient implementation context**: Add implementation pointers -- component names, likely file paths, related features.
+   - **Unclear success conditions**: Add explicit done criteria and edge cases.
 
 3. **Present proposed changes to the user**: Show the full proposed description, clearly indicating what was added or changed (e.g., mark new sections with a note). Ask the user: "Here is the proposed updated description. Apply this to the Jira issue? (yes/no)"
 
@@ -227,22 +227,22 @@ Output format:
 ## Examples
 
 1. **Basic usage**:
-   ```
+   ```bash
    /jira:ready-to-solve OCPBUGS-12345
    ```
 
 2. **Dry run (no label changes)**:
-   ```
+   ```bash
    /jira:ready-to-solve OCPBUGS-12345 --dry-run
    ```
 
 3. **Verbose output**:
-   ```
+   ```bash
    /jira:ready-to-solve OCPBUGS-12345 --verbose
    ```
 
 4. **Validate and fix failing checks**:
-   ```
+   ```bash
    /jira:ready-to-solve OCPBUGS-12345 --fix
    ```
 

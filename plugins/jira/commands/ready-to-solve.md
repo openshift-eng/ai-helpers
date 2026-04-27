@@ -7,7 +7,7 @@ argument-hint: <jira-issue-key> [--dry-run] [--verbose] [--fix]
 jira:ready-to-solve
 
 ## Synopsis
-```
+```bash
 /jira:ready-to-solve <jira-issue-key> [--dry-run] [--verbose] [--fix]
 ```
 
@@ -28,7 +28,7 @@ With `--fix`, when validation fails the command generates a revised description 
 
 Load the skill file for detailed implementation guidance:
 
-```
+```text
 plugins/jira/skills/ready-to-solve/SKILL.md
 ```
 
@@ -88,22 +88,22 @@ plugins/jira/skills/ready-to-solve/SKILL.md
 ## Examples
 
 1. **Check readiness of an issue**:
-   ```
+   ```bash
    /jira:ready-to-solve OCPBUGS-12345
    ```
 
 2. **Preview without applying labels**:
-   ```
+   ```bash
    /jira:ready-to-solve OCPBUGS-12345 --dry-run
    ```
 
 3. **Get detailed output with section content**:
-   ```
+   ```bash
    /jira:ready-to-solve OCPBUGS-12345 --verbose
    ```
 
 4. **Validate and fix failing checks**:
-   ```
+   ```bash
    /jira:ready-to-solve OCPBUGS-12345 --fix
    ```
 
