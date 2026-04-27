@@ -11,6 +11,7 @@ import re
 import sys
 import urllib.error
 import urllib.request
+from datetime import datetime, timezone
 
 # Architectures that have their own release controller domain.
 KNOWN_ARCHITECTURES = ["amd64", "arm64", "ppc64le", "s390x", "multi"]
@@ -136,8 +137,9 @@ def main():
 
     stream = args.stream
     stream_name = release_stream_name(version, stream, architecture)
-    tags = fetch_tags(architecture, version, stream)
+    all_tags = fetch_tags(architecture, version, stream)
 
+    tags = all_tags
     if args.phase:
         tags = [t for t in tags if t.get("phase") == args.phase]
     if args.limit > 0:
@@ -165,7 +167,26 @@ def main():
             "results": filtered_results,
         })
 
-    print(json.dumps(payloads, indent=2))
+    hours_since_last_accepted = None
+    last_accepted_tag = None
+    for tag in all_tags:
+        if tag.get("phase") == "Accepted":
+            last_accepted_tag = tag.get("name")
+            m = re.search(r"(\d{4}-\d{2}-\d{2}-\d{6})$", last_accepted_tag or "")
+            if m:
+                ts = datetime.strptime(m.group(1), "%Y-%m-%d-%H%M%S").replace(
+                    tzinfo=timezone.utc
+                )
+                delta = datetime.now(timezone.utc) - ts
+                hours_since_last_accepted = delta.total_seconds() / 3600
+                break
+
+    output = {
+        "hours_since_last_accepted": hours_since_last_accepted,
+        "last_accepted_tag": last_accepted_tag,
+        "payloads": payloads,
+    }
+    print(json.dumps(output, indent=2))
 
 
 if __name__ == "__main__":
