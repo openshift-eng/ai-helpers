@@ -157,6 +157,12 @@
           "synopsis": "/jira:issues-by-component <project-key> [time-period] [--component component-name] [--assignee username] [--reporter username] [--status status] [--search search-term] [--search-description]"
         },
         {
+          "argument_hint": "<jira-ticket> [<pr-url>] [--format standup|detailed] [additional-context]",
+          "description": "Post a PR summary or a plain note as a comment on a Jira ticket",
+          "name": "post-summary-comment",
+          "synopsis": "/jira:post-summary-comment <jira-ticket> [<pr-url>] [--format standup|detailed] [additional-context]"
+        },
+        {
           "argument_hint": "[--github-project <org/repo>] [--jira-project <key>] [--profile <name>] [--porcelain] [--output json|yaml]",
           "description": "Reconcile state mismatches between GitHub and Jira issues",
           "name": "reconcile-github",
@@ -289,7 +295,7 @@
           "name": "Jira Status Analysis Engine"
         }
       ],
-      "version": "0.3.9"
+      "version": "0.4.0"
     },
     {
       "commands": [
