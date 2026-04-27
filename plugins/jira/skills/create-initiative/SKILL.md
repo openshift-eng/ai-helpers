@@ -9,7 +9,7 @@ This skill provides implementation guidance for creating Jira initiatives, which
 
 ## When to Use This Skill
 
-This skill is automatically invoked by the `/jira:create initiative` command to guide the initiative creation process.
+Use this skill as a guide when creating Jira initiatives that represent strategic architectural or improvement-focused work. This skill can be used as a standalone reference or integrated into custom workflows for initiative creation.
 
 ## Prerequisites
 
@@ -60,7 +60,7 @@ Every initiative should clearly state:
 - **Why now?** What makes this a priority?
 
 **Good example:**
-```
+```markdown
 ## Goal
 
 Modernize our CI/CD pipeline infrastructure to support faster release cycles and improved developer productivity.
@@ -75,7 +75,7 @@ We're prioritizing this now because our current pipeline infrastructure is block
 ```
 
 **Bad example:**
-```
+```markdown
 Fix CI/CD issues.
 ```
 
@@ -89,7 +89,7 @@ Explain the expected benefits:
 - **Why is this a priority?**
 
 **Example:**
-```
+```markdown
 ## Benefit Hypothesis
 
 ### Expected Outcomes
@@ -117,7 +117,7 @@ Define how you'll measure success (SMART criteria):
 - **Time-bound:** Target dates or milestones
 
 **Example:**
-```
+```markdown
 ## Success Criteria
 
 ### Performance Metrics
@@ -155,7 +155,7 @@ When creating an initiative, guide the user through strategic thinking:
 - What happens if we don't do this?
 
 **Example response:**
-```
+```markdown
 Modernize CI/CD pipeline infrastructure to support faster release cycles. We need to reduce build times from 45min to <15min and improve reliability to >95% to meet quarterly release commitments. Current infrastructure is blocking releases and causing developer frustration.
 ```
 
@@ -170,7 +170,7 @@ Modernize CI/CD pipeline infrastructure to support faster release cycles. We nee
 - Developer/customer experience
 
 **Example response:**
-```
+```markdown
 Operational: 60% reduction in pipeline maintenance time
 Technical: Foundation for automated security scanning
 Risk: Eliminates single point of failure (Jenkins instance)
@@ -189,7 +189,7 @@ Experience: Developers spend 40% less time waiting for builds
 - Time-bound: When will this be achieved?
 
 **Example response:**
-```
+```markdown
 Performance: Build time <15min (from 45min), >95% success rate
 Operational: Maintenance time <8hrs/week (from 20hrs/week)
 Experience: Developer NPS 8/10 (from 4/10)
@@ -205,7 +205,7 @@ Timeline: Full migration complete by end of Q2 2026
 - Explicitly define what's OUT of scope to avoid confusion
 
 **Example response:**
-```
+```markdown
 Included:
 - Migrate from Jenkins to GitHub Actions
 - Implement automated build caching
@@ -229,7 +229,7 @@ NOT Included:
 - Team responsibilities
 
 **Example response:**
-```
+```markdown
 Dependencies:
 - GitHub Enterprise license procurement (HCMPE-500)
 - Infrastructure team to provision build agents
@@ -246,7 +246,7 @@ Responsibilities:
 **Prompt:** "What's the timeline? What are key milestones?"
 
 **Example response:**
-```
+```markdown
 Timeline: 6 months (2 quarters)
 Milestones:
 - Q1 2026: MVP pipeline for 2 pilot teams
@@ -570,7 +570,7 @@ _To be updated quarterly_
 2. Explain initiative should contain multiple features/epics
 
 **Example:**
-```
+```markdown
 This initiative seems small enough to be a single Feature or Epic (1-2 months, single capability).
 
 Initiatives should typically:
@@ -591,7 +591,7 @@ Would you like to create this as a Feature or Epic instead? (yes/no)
 3. Help articulate strategic value
 
 **Example:**
-```
+```markdown
 For an initiative, we need to understand the strategic context:
 
 1. What strategic goal does this support? (technical debt, architecture, operational excellence, scalability)
@@ -613,7 +613,7 @@ Let's start with: What strategic goal does this initiative support?
 3. Suggest measurable alternatives
 
 **Example:**
-```
+```markdown
 Success criteria should be SMART (Specific, Measurable, Achievable, Relevant, Time-bound).
 
 "Pipeline is better" is too vague.
@@ -638,7 +638,7 @@ What specific, measurable metrics would indicate success for this initiative?
 3. Identify what's explicitly out of scope
 
 **Example:**
-```
+```markdown
 Clear scope definition prevents confusion and scope creep.
 
 What's INCLUDED in this initiative? (2-5 major deliverables)
@@ -660,7 +660,7 @@ NOT INCLUDED: Log aggregation, desktop dev env, production deployment automation
 3. Ask for redaction
 
 **Example:**
-```
+```markdown
 I detected confidential information (credentials, API keys).
 
 Please remove sensitive data before proceeding:
