@@ -157,6 +157,12 @@
           "synopsis": "/jira:issues-by-component <project-key> [time-period] [--component component-name] [--assignee username] [--reporter username] [--status status] [--search search-term] [--search-description]"
         },
         {
+          "argument_hint": "<jira-issue-key> [--dry-run] [--verbose] [--fix]",
+          "description": "Check whether a Jira issue is well-groomed and ready for /jira:solve",
+          "name": "ready-to-solve",
+          "synopsis": "/jira:ready-to-solve <jira-issue-key> [--dry-run] [--verbose] [--fix]"
+        },
+        {
           "argument_hint": "[--github-project <org/repo>] [--jira-project <key>] [--profile <name>] [--porcelain] [--output json|yaml]",
           "description": "Reconcile state mismatches between GitHub and Jira issues",
           "name": "reconcile-github",
@@ -284,12 +290,17 @@
           "name": "OCPBUGS Jira Conventions"
         },
         {
+          "description": "Detailed implementation guide for checking Jira issue readiness for /jira:solve",
+          "id": "ready-to-solve",
+          "name": "Jira Issue Readiness Validator"
+        },
+        {
           "description": "Shared engine for analyzing Jira issue activity and generating status summaries",
           "id": "status-analysis",
           "name": "Jira Status Analysis Engine"
         }
       ],
-      "version": "0.3.9"
+      "version": "0.4.1"
     },
     {
       "commands": [
