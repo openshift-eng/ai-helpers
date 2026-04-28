@@ -3,23 +3,24 @@
 Script to fetch regression data for OpenShift components.
 
 Usage:
-    python3 list_regressions.py --release <release> [--components comp1 comp2 ...] [--short]
-    python3 list_regressions.py --release <release> --team "Team Name" [--short]
-    python3 list_regressions.py --release <release> --test-name "exact test name"
-    python3 list_regressions.py --release <release> --test-name-contains "substring"
+    python3 list_regressions.py --view <view> [--components comp1 comp2 ...] [--short]
+    python3 list_regressions.py --view <view> --team "Team Name" [--short]
+    python3 list_regressions.py --view <view> --test-name "exact test name"
+    python3 list_regressions.py --view <view> --test-name-contains "substring"
 
 Example:
-    python3 list_regressions.py --release 4.17
-    python3 list_regressions.py --release 4.21 --components Monitoring etcd
-    python3 list_regressions.py --release 4.21 --team "API Server"
-    python3 list_regressions.py --release 4.21 --short
-    python3 list_regressions.py --release 4.22 --test-name "[Monitor:kubelet-container-restarts]..."
-    python3 list_regressions.py --release 4.22 --test-name-contains "openshift-machine-config-operator"
+    python3 list_regressions.py --view 4.17-main
+    python3 list_regressions.py --view 4.21-main --components Monitoring etcd
+    python3 list_regressions.py --view 4.21-main --team "API Server"
+    python3 list_regressions.py --view 4.21-main --short
+    python3 list_regressions.py --view 4.22-main --test-name "[Monitor:kubelet-container-restarts]..."
+    python3 list_regressions.py --view 4.22-main --test-name-contains "openshift-machine-config-operator"
 """
 
 import argparse
 import os
 import json
+import re
 import sys
 import urllib.request
 import urllib.error
@@ -90,6 +91,56 @@ def calculate_hours_between(start_timestamp: str, end_timestamp: str) -> int:
     
     time_diff = end_time - start_time
     return round(time_diff.total_seconds() / 3600)
+
+
+def extract_release_from_view(view: str) -> str:
+    match = re.match(r'(\d+\.\d+)', view)
+    if not match:
+        raise ValueError(f"Cannot extract release from view name '{view}'. Expected format like '4.22-main'.")
+    return match.group(1)
+
+
+def filter_by_view(data: list, view_name: str) -> list:
+    """
+    Filter regressions to only those present in the specified view, and replace
+    top-level opened/closed fields with view-specific timestamps.
+
+    Args:
+        data: List of regression dictionaries
+        view_name: View name to filter by (e.g., "4.22-main")
+
+    Returns:
+        Filtered list of regressions with view-specific open/closed status
+    """
+    filtered = []
+    for regression in data:
+        views = regression.get('views', [])
+        matching_view = None
+        for v in views:
+            if v.get('view_name') == view_name:
+                matching_view = v
+                break
+
+        if matching_view is None:
+            continue
+
+        regression['opened'] = matching_view.get('opened_at', regression.get('opened'))
+
+        closed_at = matching_view.get('closed_at')
+        if isinstance(closed_at, dict):
+            if closed_at.get('Valid') is True:
+                regression['closed'] = closed_at.get('Time')
+            else:
+                regression['closed'] = None
+        elif matching_view.get('active') is True:
+            regression['closed'] = None
+        else:
+            regression['closed'] = closed_at
+
+        filtered.append(regression)
+
+    print(f"Filtered to {len(filtered)} regressions for view: {view_name}", file=sys.stderr)
+    return filtered
 
 
 def fetch_regressions(release: str) -> dict:
@@ -300,9 +351,9 @@ def remove_unnecessary_fields(regressions: list) -> list:
         List of regression dictionaries with unnecessary fields removed
     """
     for regression in regressions:
-        # Remove links and test_id to reduce response size
         regression.pop('links', None)
         regression.pop('test_id', None)
+        regression.pop('views', None)
     
     return regressions
 
@@ -615,31 +666,31 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # List all regressions for release 4.17
-  %(prog)s --release 4.17
+  # List all regressions for a view
+  %(prog)s --view 4.17-main
 
   # Filter by specific components
-  %(prog)s --release 4.21 --components Monitoring "kube-apiserver"
+  %(prog)s --view 4.21-main --components Monitoring "kube-apiserver"
 
   # Filter by multiple components
-  %(prog)s --release 4.21 --components Monitoring etcd "kube-apiserver"
+  %(prog)s --view 4.21-main --components Monitoring etcd "kube-apiserver"
 
   # Short output mode (summaries only, no regression data)
-  %(prog)s --release 4.17 --short
+  %(prog)s --view 4.17-main --short
 
   # Find all regressions for a specific test (across all variants)
-  %(prog)s --release 4.22 --test-name "exact test name here"
+  %(prog)s --view 4.22-main --test-name "exact test name here"
 
   # Find regressions with test names containing a substring
-  %(prog)s --release 4.22 --test-name-contains "openshift-machine-config-operator"
+  %(prog)s --view 4.22-main --test-name-contains "openshift-machine-config-operator"
         """
     )
-    
+
     parser.add_argument(
-        '--release',
+        '--view',
         type=str,
         required=True,
-        help='Release version (e.g., "4.17", "4.16")'
+        help='View name (e.g., "4.22-main", "4.17-main"). Release is derived from this.'
     )
     
     parser.add_argument(
@@ -707,6 +758,14 @@ Examples:
         print("Error: --test-name and --test-name-contains are mutually exclusive. Use one or the other.", file=sys.stderr)
         return 1
 
+    # Extract release from view name
+    try:
+        release = extract_release_from_view(args.view)
+        print(f"Derived release '{release}' from view '{args.view}'", file=sys.stderr)
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
     # If team is specified, look up components for that team
     components_to_filter = args.components
     team_name = None
@@ -724,8 +783,8 @@ Examples:
             return 1
 
     try:
-        # Fetch regressions
-        regressions = fetch_regressions(args.release)
+        # Fetch regressions using derived release
+        regressions = fetch_regressions(release)
 
         # Filter by components (always called to remove empty component names)
         if isinstance(regressions, list):
@@ -734,6 +793,10 @@ Examples:
         # Filter by test name if specified
         if isinstance(regressions, list) and (args.test_name or args.test_name_contains):
             regressions = filter_by_test_name(regressions, args.test_name, args.test_name_contains)
+
+        # Filter by view and apply view-specific open/closed status
+        if isinstance(regressions, list):
+            regressions = filter_by_view(regressions, args.view)
 
         # Simplify time field structures (closed, last_failure)
         if isinstance(regressions, list):

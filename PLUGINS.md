@@ -87,6 +87,7 @@ Tools for working with OpenShift CI and analyzing Prow job results
 - **`/ci:list-unstable-tests` `<version> <keywords> [sippy-url]`** - List unstable tests with pass rate below 95%
 - **`/ci:payload-experiment` `<payload-tag>`** - Open draft revert PRs for medium-confidence payload candidates and trigger payload jobs to experimentally determine which PR is causing failures
 - **`/ci:payload-revert` `<payload-tag>`** - Stage reverts for high-confidence payload candidates identified by analyze-payload
+- **`/ci:port-tests` `<count> [--from <subdir>] [--to <org/repo>]`** - Port tests from openshift-tests-private to openshift/origin
 - **`/ci:query-job-status` `<execution-id>`** - Query the status of a gangway job execution by ID
 - **`/ci:query-test-result` `<version> <keywords> [sippy-url]`** - Query test results from Sippy by version and test keywords
 - **`/ci:revert-pr` `<pr-url> <jira-ticket>`** - Revert a merged PR that is breaking CI or nightly payloads

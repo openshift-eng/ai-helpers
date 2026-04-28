@@ -430,6 +430,12 @@
           "synopsis": "/ci:payload-revert <payload-tag>"
         },
         {
+          "argument_hint": "<count> [--from <subdir>] [--to <org/repo>]",
+          "description": "Port tests from openshift-tests-private to openshift/origin",
+          "name": "port-tests",
+          "synopsis": "/ci:port-tests <count> [--from <subdir>] [--to <org/repo>]"
+        },
+        {
           "argument_hint": "<execution-id>",
           "description": "Query the status of a gangway job execution by ID",
           "name": "query-job-status",
