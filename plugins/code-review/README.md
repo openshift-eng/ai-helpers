@@ -4,6 +4,33 @@ Automated code quality review with language-aware analysis for pre-commit verifi
 
 ## Commands
 
+### `/code-review:panel-review`
+
+Comprehensive multi-perspective code review with architecture, security, consistency, QA, adversarial, and documentation analysis. Seven specialist reviewers execute in parallel as sub-agents, each examining the changes through a different lens. After all reviewers complete, a Panel Arbiter synthesizes findings, resolves disagreements, and produces a single verdict.
+
+Inspired by Microsoft's [APM Review Panel](https://github.com/microsoft/apm/tree/bb94e789a888d4143e347bff9f37cdbb3ef75a63/.apm/skills/apm-review-panel).
+
+**Usage:**
+```bash
+/code-review:panel-review [pr-url-or-number] [coderabbit]
+```
+
+**Arguments:**
+- PR identifier (optional): Full GitHub PR URL or PR number. If omitted, diffs current branch against its upstream merge base.
+- External reviewers (optional): Names of external review tools to include. Currently supported: `coderabbit`.
+
+**Specialist Panel:**
+
+| Reviewer | Focus |
+|----------|-------|
+| Architecture | Structural patterns, SOLID, cross-file impact, module boundaries |
+| Security & Supply Chain | Vulnerabilities, dependency trust, supply chain integrity |
+| UX & API | Naming, error messages, API ergonomics, backwards compatibility |
+| Codebase Consistency | Duplicate helpers, convention drift, style match |
+| QA Engineer | Test coverage gaps, missing edge-case tests, concrete test suggestions |
+| Devil's Advocate | Assumes every line is wrong; tries to break the code |
+| Technical Writer | Documentation accuracy, staleness, consistency with code changes |
+
 ### `/code-review:pre-commit-review`
 
 Performs a comprehensive code quality review of staged and unstaged changes before committing. Analyzes unit test coverage, idiomatic code patterns, DRY compliance, SOLID principles, and build verification.

@@ -1656,6 +1656,12 @@
     {
       "commands": [
         {
+          "argument_hint": "[pr-url-or-number] [coderabbit]",
+          "description": "Comprehensive multi-perspective code review with architecture, security, consistency, QA, and adversarial analysis",
+          "name": "panel-review",
+          "synopsis": "/code-review:panel-review [pr-url-or-number] [external-reviewer...]"
+        },
+        {
           "argument_hint": "<pr-url-or-number> [--language <lang>] [--profile <name>] [--skip-build] [--skip-tests]",
           "description": "Automated PR code quality review with language-aware analysis and project-specific profiles",
           "name": "pr",
@@ -1687,9 +1693,14 @@
           "description": "Project-specific review profile for the openshift/hypershift repository \u2014 delegates to the repo's own agents and skills",
           "id": "profile-hypershift",
           "name": "HyperShift Project Profile"
+        },
+        {
+          "description": "Multi-specialist panel review. Dispatches 7 parallel sub-agent reviewers (Architecture, Security & Supply Chain, UX/API, Codebase Consistency, QA Engineer, Devil's Advocate, Technical Writer) then a Panel Arbiter synthesizes one verdict.",
+          "id": "review-panel",
+          "name": "review-panel"
         }
       ],
-      "version": "0.0.7"
+      "version": "0.0.8"
     },
     {
       "commands": [
