@@ -23,7 +23,7 @@ import "relevant/package"
 func ExampleImplementation() {
     // Show actual code
 }
-```
+```text
 
 ## Best Practices
 
@@ -36,12 +36,12 @@ func ExampleImplementation() {
 ### Pattern Variant 1
 ```yaml
 # YAML or code example
-```
+```text
 
 ### Pattern Variant 2
 ```go
 // Another code example
-```
+```text
 
 ## Examples in Components
 

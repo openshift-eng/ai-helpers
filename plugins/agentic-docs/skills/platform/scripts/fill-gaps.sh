@@ -38,7 +38,7 @@ check_file_count() {
 
     local count=0
     if [ -d "$AI_DOCS/$dir" ]; then
-        count=$(find "$AI_DOCS/$dir" -name "$pattern" -type f 2>/dev/null | grep -v index.md | wc -l)
+        count=$(find "$AI_DOCS/$dir" -name "$pattern" ! -name "index.md" -type f 2>/dev/null | wc -l)
     fi
 
     echo "  $label: $count files (need $min_count minimum)"

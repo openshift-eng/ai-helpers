@@ -136,7 +136,7 @@ if [ $MISSING_COUNT -eq 0 ]; then
 else
     echo "📊 Summary: $MISSING_COUNT missing files detected"
     echo ""
-    echo "Run /update-docs to add missing content."
+    echo "Run /update-platform-docs to add missing content."
 fi
 
 exit 0

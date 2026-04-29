@@ -26,27 +26,27 @@ spec:
   field2: value
 status:
   condition: value
-```
+```text
 
 ## Common Patterns
 
 ### Pattern 1
 ```yaml
 # Example YAML
-```
+```text
 **Use case**: When to use this pattern
 
 ### Pattern 2
 ```yaml
 # Another example
-```
+```text
 **Use case**: When to use this pattern
 
 ## Lifecycle / Workflow
 
-```
+```text
 Step 1 → Step 2 → Step 3 → Step 4
-```
+```text
 
 Brief explanation of the flow.
 
@@ -55,12 +55,12 @@ Brief explanation of the flow.
 ### Example 1: Common Use Case
 ```yaml
 # Practical example
-```
+```text
 
 ### Example 2: Advanced Use Case
 ```yaml
 # Advanced example
-```
+```text
 
 ## Related Concepts
 
