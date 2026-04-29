@@ -74,7 +74,7 @@ Based on user request, perform ONE OR MORE of:
 #### Update AGENTS.md
 - [ ] Read current `AGENTS.md`
 - [ ] Add new navigation links
-- [ ] Verify line count stays ≤200 lines
+- [ ] Verify line count stays 100-200 lines
 - [ ] Maintain compressed table format
 
 #### Update Existing Files
@@ -86,7 +86,7 @@ Based on user request, perform ONE OR MORE of:
 ### Phase 3: Validation
 - [ ] Run validation: `bash "$SKILL_DIR/scripts/validate.sh" "$REPO_PATH"`
 - [ ] Verify new files follow conventions
-- [ ] Verify AGENTS.md ≤200 lines
+- [ ] Verify AGENTS.md 100-200 lines
 - [ ] Verify internal links work
 
 ### Phase 4: Report
@@ -117,8 +117,7 @@ Based on user request, perform ONE OR MORE of:
 3. Create `workflows/exec-plans/template.md` from template
 4. Update `workflows/index.md` with new section
 5. Add link to `AGENTS.md` under "Workflows"
-6. Update structure in platform/scripts/create-structure.sh
-7. Validate
+6. Validate
 
 ### Scenario 3: Update AGENTS.md
 
@@ -146,7 +145,7 @@ Based on user request, perform ONE OR MORE of:
 
 **MUST follow these conventions:**
 
-1. **Index files**: Use `index.md` NOT `README.md`
+1. **Index files**: Use `index.md` NOT `README.md` (exception: `exec-plans/README.md`)
 2. **ADR naming**: Use `adr-NNNN-` prefix (4 digits with leading zeros)
 3. **Short file names**: Match production conventions
 4. **Separate distinct concepts**: Don't combine multiple topics
@@ -182,7 +181,7 @@ After updates, verify:
 
 ✅ New files use correct naming conventions
 ✅ Index files updated with new entries
-✅ AGENTS.md updated if needed (and ≤200 lines)
+✅ AGENTS.md updated if needed (and 100-200 lines)
 ✅ Internal links work
 ✅ Files follow reference style (tables, checklists)
 ✅ No duplication of dev-guide/guidelines content
@@ -311,7 +310,7 @@ mkdir -p ai-docs/workflows/exec-plans
 
 ## Success Output
 
-```
+```text
 ✅ Platform Documentation Updated
 
 Repository: /path/to/enhancements
@@ -321,7 +320,6 @@ Changes:
   ✅ Created: ai-docs/workflows/exec-plans/template.md
   ✅ Updated: ai-docs/workflows/index.md
   ✅ Updated: AGENTS.md (added exec-plans link)
-  ✅ Updated: skills/platform/scripts/create-structure.sh
 
 Validation:
   ✅ File naming conventions correct
@@ -351,8 +349,8 @@ Next Steps:
 **Right:** Always update corresponding index.md
 
 ### ❌ Mistake 4: Inconsistent Naming
-**Wrong:** Creating `README.md` or `adr-1-topic.md`
-**Right:** Use `index.md` and `adr-0001-topic.md`
+**Wrong:** Creating `README.md` (except in exec-plans/) or `adr-1-topic.md`
+**Right:** Use `index.md` (or `exec-plans/README.md` as exception) and `adr-0001-topic.md`
 
 ### ❌ Mistake 5: Duplicating Content
 **Wrong:** Copying content from dev-guide/guidelines

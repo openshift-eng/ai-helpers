@@ -23,13 +23,13 @@
 | **Add a feature** | workflows/index.md (links to enhancement process) | practices/development/index.md (links to API conventions) | practices/testing/index.md |
 | **Debug an issue** | practices/reliability/index.md | platform/operator-patterns/must-gather.md | references/repo-index.md |
 | **Understand a concept** | DESIGN_PHILOSOPHY.md | domain/kubernetes/ or domain/openshift/ | platform/operator-patterns/ |
-| **Find a component** | references/repo-index.md | Component's AGENTS.md | Component's agentic/ docs |
+| **Find a component** | references/repo-index.md | Component's AGENTS.md | Component's ai-docs/ |
 
 ---
 
 ## Knowledge Map
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │                    DESIGN_PHILOSOPHY.md                      │
 │         (WHY - Core principles, read this first)             │
@@ -70,7 +70,7 @@
 ## Concept Dependencies
 
 ### Operator Development Path
-```
+```text
 DESIGN_PHILOSOPHY.md
   ↓
 controller-runtime.md (how reconciliation works)
@@ -79,11 +79,11 @@ status-conditions.md (how to report health)
   ↓
 clusteroperator.md (how CVO sees your operator)
   ↓
-webhooks.md, rbac-patterns.md, finalizers.md (advanced patterns)
+webhooks.md, rbac.md, finalizers.md (advanced patterns)
 ```
 
 ### API Development Path
-```
+```text
 DESIGN_PHILOSOPHY.md
   ↓
 practices/development/index.md (→ links to dev-guide/api-conventions.md)
@@ -94,7 +94,7 @@ platform/operator-patterns/webhooks.md (validation)
 ```
 
 ### Testing Path
-```
+```text
 practices/testing/index.md (→ links to dev-guide/test-conventions.md)
   ↓
 Testing pyramid concept

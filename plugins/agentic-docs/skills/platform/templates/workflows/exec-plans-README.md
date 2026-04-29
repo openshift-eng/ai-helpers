@@ -33,7 +33,7 @@ Exec-plans are **ephemeral** feature tracking documents that bridge enhancements
 ### Starting a New Feature
 
 ```bash
-# In your component repo: component-repo/agentic/exec-plans/
+# In your component repo: component-repo/ai-docs/exec-plans/
 
 # Copy template from Tier 1
 curl -O https://raw.githubusercontent.com/openshift/enhancements/master/ai-docs/workflows/exec-plans/template.md
@@ -69,14 +69,14 @@ cat active/feature-name.md
 # 2. Extract to permanent docs:
 
 # If architectural decision was made:
-cp agentic/decisions/adr-template.md agentic/decisions/adr-NNNN-decision-name.md
+cp ai-docs/decisions/adr-template.md ai-docs/decisions/adr-NNNN-decision-name.md
 # Document the decision in the ADR
 
 # If architecture changed:
-# Update agentic/architecture/components.md with new structure
+# Update ai-docs/architecture/components.md with new structure
 
 # If new CRD was added:
-# Already documented in agentic/domain/crd-name.md
+# Already documented in ai-docs/domain/crd-name.md
 
 # 3. Delete the exec-plan (it's in git history if needed)
 git rm active/feature-name.md
@@ -89,7 +89,7 @@ Architecture changes in architecture/components.md
 
 **Why delete?**
 - Exec-plans are ephemeral tracking, not permanent docs
-- Git history preserves it if needed: `git log --all -- agentic/exec-plans/active/feature-name.md`
+- Git history preserves it if needed: `git log --all -- ai-docs/exec-plans/active/feature-name.md`
 - Permanent knowledge belongs in ADRs and architecture docs
 
 ## Relationship to Other Docs
@@ -101,7 +101,7 @@ Architecture changes in architecture/components.md
 - Scope: Platform-wide, cross-repo
 
 **Exec-Plan (Tier 2)**:
-- Where: Component repository (`agentic/exec-plans/active/`)
+- Where: Component repository (`ai-docs/exec-plans/active/`)
 - What: Implementation tracking, PR coordination, decisions
 - When: During implementation
 - Scope: Component-specific
@@ -119,10 +119,10 @@ When feature is complete, ask:
 
 | Question | Yes | Action |
 |----------|-----|--------|
-| Did we make an architectural decision? | ✅ | Create ADR in `agentic/decisions/adr-NNNN-*.md` |
-| Did component architecture change? | ✅ | Update `agentic/architecture/components.md` |
-| Did we add a new CRD? | ✅ | Already in `agentic/domain/*.md` |
-| Did we add new components/controllers? | ✅ | Update `agentic/architecture/components.md` |
+| Did we make an architectural decision? | ✅ | Create ADR in `ai-docs/decisions/adr-NNNN-*.md` |
+| Did component architecture change? | ✅ | Update `ai-docs/architecture/components.md` |
+| Did we add a new CRD? | ✅ | Already in `ai-docs/domain/*.md` |
+| Did we add new components/controllers? | ✅ | Update `ai-docs/architecture/components.md` |
 | Just implementation (no architecture)? | ✅ | Delete exec-plan (it's in git history) |
 
 **Then**: Delete the exec-plan. It's ephemeral tracking, not permanent documentation.
@@ -133,7 +133,7 @@ When feature is complete, ask:
 
 1. **New Enhancement Approved**
    - Enhancement: "Add support for custom kernels"
-   - Create: `agentic/exec-plans/active/custom-kernels.md`
+   - Create: `ai-docs/exec-plans/active/custom-kernels.md`
 
 2. **During Development** (Week 1-4)
    - Update exec-plan with PRs
@@ -145,19 +145,19 @@ When feature is complete, ask:
    **Extract permanent knowledge**:
    ```bash
    # Architectural decision made during development
-   vim agentic/decisions/adr-0004-kernel-args-vs-modules.md
+   vim ai-docs/decisions/adr-0004-kernel-args-vs-modules.md
    # Document: Why kernel args? Performance, compatibility, rollback
    
    # Architecture changed (new controller added)
-   vim agentic/architecture/components.md
+   vim ai-docs/architecture/components.md
    # Add: KernelController - manages kernel arguments via MachineConfig
    
    # New CRD added
-   vim agentic/domain/kernelconfig.md
+   vim ai-docs/domain/kernelconfig.md
    # Already documented during development
    
    # Delete ephemeral exec-plan
-   git rm agentic/exec-plans/active/custom-kernels.md
+   git rm ai-docs/exec-plans/active/custom-kernels.md
    git commit -m "Complete custom kernels feature
    
    Architectural decision in adr-0004-kernel-args-vs-modules.md
