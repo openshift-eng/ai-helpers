@@ -101,7 +101,7 @@ Creates AI-optimized platform documentation in `openshift/enhancements` reposito
 
 **Key principle**:
 - Guidance lives in Tier 1 (generic, used by all repos)
-- Actual exec-plans live in Tier 2 component repos (`agentic/exec-plans/active/`)
+- Actual exec-plans live in Tier 2 component repos (`ai-docs/exec-plans/active/`)
 - Exec-plans are ephemeral - extract knowledge to permanent docs, then delete
 
 ### Phase 8: Validation ✅
@@ -124,7 +124,7 @@ Creates AI-optimized platform documentation in `openshift/enhancements` reposito
 **Principle**: Generate documentation that helps AI agents understand and apply OpenShift design philosophy.
 
 **Structure:**
-```
+```text
 AGENTS.md                       # Master entry point (navigation)
 ai-docs/
 ├── DESIGN_PHILOSOPHY.md        # Core principles (copy from templates)
@@ -140,7 +140,7 @@ ai-docs/
 │   ├── enhancement-process.md
 │   └── implementing-features.md
 └── references/                 # Pointer-based navigation (GitHub links, `oc` commands)
-```
+```text
 
 **What gets automated:**
 - `scripts/create-structure.sh`: Creates base directory tree
@@ -170,9 +170,10 @@ ai-docs/
 
 **YOU MUST follow these conventions:**
 
-1. **Index files**: Use `index.md` NOT `README.md`
+1. **Index files**: Use `index.md` NOT `README.md` (exception: `workflows/exec-plans/README.md`)
    - ✅ `decisions/index.md`, `platform/operator-patterns/index.md`
    - ❌ `decisions/README.md`
+   - ✅ `workflows/exec-plans/README.md` (exception: exec-plans uses README for GitHub convention)
 
 2. **ADR naming**: Use `adr-NNNN-` prefix (4 digits with leading zeros)
    - ✅ `decisions/adr-0001-topic-name.md`
@@ -237,7 +238,7 @@ cat "$SKILL_DIR/templates/operator-patterns/status-conditions.md"
 # Create file following same structure
 # Keep: Overview, Key Concepts, Implementation, Best Practices, Examples, References
 # Adapt: Topic-specific content
-```
+```text
 
 ---
 
@@ -350,8 +351,9 @@ For each principle in DESIGN_PHILOSOPHY.md, check:
 ❌ **Component-specific decisions**
 - Example: Technology choices unique to one component
 
-❌ **Component work tracking**
-- Example: exec-plans, feature roadmaps
+❌ **Component-specific work tracking content**
+- Example: component-local sprint plans, team-specific roadmaps
+- Note: Tier-1 exec-plan guidance/templates are allowed; only component-local instances belong in tier-2 repos
 
 ❌ **Verbatim copies of existing docs**
 - Don't copy/paste from guidelines/ or dev-guide/
@@ -416,10 +418,10 @@ For each principle in DESIGN_PHILOSOPHY.md, check:
 ### Validation
 ```bash
 LINE_COUNT=$(wc -l < AGENTS.md)
-if [ $LINE_COUNT -gt 220 ] || [ $LINE_COUNT -lt 80 ]; then
+if [ $LINE_COUNT -gt 200 ] || [ $LINE_COUNT -lt 100 ]; then
     echo "⚠️  WARNING: File is $LINE_COUNT lines (target: 100-200)"
 fi
-```
+```text
 
 ---
 
@@ -428,38 +430,38 @@ fi
 ### 1. Discovery Script
 ```bash
 bash "$SKILL_DIR/scripts/discover.sh" "$REPO_PATH"
-```
+```text
 **Purpose:** Check if ai-docs/ exists, learn naming conventions, identify gaps
 
 ### 2. Structure Creation Script
 ```bash
 bash "$SKILL_DIR/scripts/create-structure.sh" "$REPO_PATH"
-```
+```text
 **Purpose:** Create empty directory tree (only if ai-docs/ doesn't exist)
 
 ### 3. Populate Templates Script
 ```bash
 bash "$SKILL_DIR/scripts/populate-templates.sh" "$REPO_PATH"
-```
+```text
 **Purpose:** Copy DESIGN_PHILOSOPHY.md and KNOWLEDGE_GRAPH.md (only if ai-docs/ doesn't exist)
 
 ### 4. Fill Gaps Script
 ```bash
 bash "$SKILL_DIR/scripts/fill-gaps.sh" "$REPO_PATH"
-```
+```text
 **Purpose:** Identify missing recommended files (only if ai-docs/ already exists)
 
 ### 5. Validation Script
 ```bash
 bash "$SKILL_DIR/scripts/validate.sh" "$REPO_PATH"
-```
+```text
 **Purpose:** Comprehensive validation (content minimums + structural checks)
 
 ---
 
 ## Execution Flow
 
-```
+```text
 User invokes: /platform-docs
 
 ↓
@@ -472,7 +474,7 @@ Phase 1: Setup
 
 ↓
 
-Phase 2: Create OPENSHIFT_AGENTS.md
+Phase 2: Create AGENTS.md
   → Use template reference
   → Validate 150-170 lines
   
@@ -496,7 +498,7 @@ Phase 9: Report
   → Summary of created files
   → Validation status
   → Git commit command
-```
+```text
 
 ---
 
@@ -511,8 +513,8 @@ Phase 9: Report
 **Right:** 100-200 lines with navigation tables
 
 ### ❌ Mistake 3: Duplicating Existing Docs
-**Wrong:** Creating full `workflows/enhancement-process.md` duplicating guidelines/enhancement_template.md
-**Right:** Create `workflows/index.md` that LINKS to guidelines/enhancement_template.md
+**Wrong:** Verbatim-copying `guidelines/enhancement_template.md` into `workflows/enhancement-process.md`
+**Right:** Create `workflows/enhancement-process.md` as an AI-optimized reformatted guide (prose → tables/checklists/YAML), and link the authoritative source from `workflows/index.md`
 
 ### ❌ Mistake 4: Including Component-Specific Content
 **Wrong:** Creating files for component-specific internals
@@ -536,7 +538,7 @@ Phase 9: Report
 
 ```bash
 /platform-docs [--path <repository-path>]
-```
+```text
 
 **Arguments:**
 - `--path <repository-path>`: Path to target repository (default: current directory)
@@ -579,7 +581,7 @@ Phase 9: Report
 
 ## Final Report Template
 
-```
+```text
 ✅ AI-Optimized Documentation Created
 
 Location: ai-docs/
@@ -619,7 +621,7 @@ Next Steps:
      - Repository index for discovery
      
      Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
-```
+```text
 
 ---
 

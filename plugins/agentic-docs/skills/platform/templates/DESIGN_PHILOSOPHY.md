@@ -24,7 +24,7 @@
 
 **Core Principle**: Describe what you want, Kubernetes makes it happen.
 
-```
+```text
 User declares:  "I want 3 replicas"  (Desired State)
 Kubernetes sees: "I have 1 replica"  (Current State)
 Controller:     "I'll create 2 more" (Reconciliation)

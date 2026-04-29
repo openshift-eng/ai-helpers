@@ -26,7 +26,7 @@ if [ -d "$REPO_PATH/ai-docs" ]; then
     # Count existing files
     echo ""
     echo "📊 Existing files:"
-    for dir in platform/operator-patterns practices/testing practices/security practices/reliability practices/development domain/kubernetes domain/openshift decisions workflows references; do
+    for dir in platform/operator-patterns platform/openshift-specifics practices/testing practices/security practices/reliability practices/development domain/kubernetes domain/openshift decisions workflows workflows/exec-plans references; do
         if [ -d "$REPO_PATH/ai-docs/$dir" ]; then
             COUNT=$(find "$REPO_PATH/ai-docs/$dir" -name "*.md" -type f | wc -l)
             echo "  - $dir: $COUNT files"

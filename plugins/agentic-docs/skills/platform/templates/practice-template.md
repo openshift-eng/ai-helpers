@@ -17,7 +17,7 @@ Core principle or diagram explaining the approach.
 ### Step 1: First Action
 ```bash
 # Commands or code
-```
+```text
 
 **What to do**: Explanation
 **When to use**: Guidance
@@ -25,7 +25,7 @@ Core principle or diagram explaining the approach.
 ### Step 2: Second Action
 ```bash
 # More commands
-```
+```text
 
 ## Best Practices
 

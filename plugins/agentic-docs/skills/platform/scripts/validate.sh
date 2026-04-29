@@ -22,7 +22,7 @@ else
     echo "  ✅ AGENTS.md"
     LINE_COUNT=$(wc -l < "$REPO_PATH/AGENTS.md")
     echo "     $LINE_COUNT lines"
-    if [ "$LINE_COUNT" -lt 80 ] || [ "$LINE_COUNT" -gt 220 ]; then
+    if [ "$LINE_COUNT" -lt 100 ] || [ "$LINE_COUNT" -gt 200 ]; then
         echo "     ⚠️  WARNING: Should be 100-200 lines (current: $LINE_COUNT)"
     fi
 fi

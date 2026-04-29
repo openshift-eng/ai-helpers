@@ -26,7 +26,7 @@ When working on OpenShift:
 
 ## Compressed Documentation Index
 
-```
+```text
 [Repo Agentic Docs]|root:./ai-docs|XX files, XXXX lines
 |
 |CRITICAL_READS:{KNOWLEDGE_GRAPH.md,DESIGN_PHILOSOPHY.md}
@@ -36,7 +36,7 @@ When working on OpenShift:
 |domain/kubernetes:{pod.md,node.md,...}
 |domain/openshift:{clusteroperator.md,machine.md,...}
 |decisions:{adr-0001-*.md,...}
-```
+```text
 
 ---
 
