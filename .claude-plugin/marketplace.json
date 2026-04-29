@@ -225,6 +225,12 @@
       "source": "./plugins/console",
       "description": "OpenShift Console dynamic plugin development utilities",
       "version": "0.0.1"
+    },
+    {
+      "name": "agentic-docs",
+      "source": "./plugins/agentic-docs",
+      "description": "Create and maintain AI-optimized documentation for OpenShift",
+      "version": "1.0.0"
     }
   ]
 }
