@@ -246,6 +246,12 @@
       "source": "./plugins/marketplace-ops",
       "description": "Maintenance commands for Claude Code plugin marketplaces",
       "version": "0.1.2"
+    },
+    {
+      "name": "agentic-docs",
+      "source": "./plugins/agentic-docs",
+      "description": "Create and maintain AI-optimized documentation for OpenShift",
+      "version": "1.0.0"
     }
   ]
 }

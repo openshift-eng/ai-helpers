@@ -1822,6 +1822,21 @@
       "name": "marketplace-ops",
       "skills": [],
       "version": "0.1.2"
+    },
+    {
+      "commands": [],
+      "description": "Create and maintain AI-optimized documentation for OpenShift",
+      "has_readme": true,
+      "hooks": [],
+      "name": "agentic-docs",
+      "skills": [
+        {
+          "description": "Create AI-optimized platform documentation for openshift/enhancements",
+          "id": "platform",
+          "name": "platform"
+        }
+      ],
+      "version": "1.0.0"
     }
   ]
 }
