@@ -31,6 +31,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Snowflake](#snowflake-plugin)
 - [Sosreport](#sosreport-plugin)
 - [Teams](#teams-plugin)
+- [Telcoeng Blueprint Workflow](#telcoeng-blueprint-workflow-plugin)
 - [Test Coverage](#test-coverage-plugin)
 - [Testing](#testing-plugin)
 - [Utils](#utils-plugin)
@@ -393,6 +394,19 @@ Team structure knowledge and health analysis commands for OpenShift teams
 - **`/teams:list-teams`** - List all teams from the team component mapping
 
 See [plugins/teams/README.md](plugins/teams/README.md) for detailed documentation.
+
+### Telcoeng Blueprint Workflow Plugin
+
+Create, validate, and manage Telco Engineering partner blueprints against telcoeng-blueprint-standards with JIRA integration and kube-compare-mcp connectivity
+
+**Commands:**
+- **`/telcoeng-blueprint-workflow:fix` `<blueprint-path> [--partner <name>] [--auto] [--jira]`** - Generate fix proposals and diffs for non-compliant blueprint sections, with optional auto-apply and JIRA integration
+- **`/telcoeng-blueprint-workflow:generate` `<section-type> [--partner <name>] [--blueprint <path>] [--ocp-version <version>]`** - Generate standards-compliant paragraphs, tables, and sections for Telco Partner Blueprints
+- **`/telcoeng-blueprint-workflow:ingest` `<file-path> [--partner <name>] [--format word|pdf|markdown|gdocs]`** - Convert partner blueprints from Word/PDF/Google Docs into normalized Markdown aligned with telcoeng-blueprint-standards
+- **`/telcoeng-blueprint-workflow:search` `<query> [--dir <blueprints-directory>]`** - Search across normalized blueprints for patterns, configurations, and cross-references
+- **`/telcoeng-blueprint-workflow:validate` `<blueprint-path> [--partner <name>] [--cluster <kubeconfig>] [--jira]`** - Score a blueprint against telcoeng-blueprint-standards (0-100) with section-by-section compliance report
+
+See [plugins/telcoeng-blueprint-workflow/README.md](plugins/telcoeng-blueprint-workflow/README.md) for detailed documentation.
 
 ### Test Coverage Plugin
 

@@ -231,6 +231,12 @@
       "source": "./plugins/ai-sbom",
       "description": "Generate AI Software Bill of Materials (SBOM) declarations for PR descriptions",
       "version": "0.0.1"
+    },
+    {
+      "name": "telcoeng-blueprint-workflow",
+      "source": "./plugins/telcoeng-blueprint-workflow",
+      "description": "Create, validate, and manage Telco Engineering partner blueprints against telcoeng-blueprint-standards with JIRA integration and kube-compare-mcp connectivity",
+      "version": "0.1.0"
     }
   ]
 }

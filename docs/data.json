@@ -103,12 +103,6 @@
           "synopsis": "/jira:backlog [project-key] [--assignee username] [--days-inactive N]"
         },
         {
-          "argument_hint": "[N | --days N] [--no-cache]",
-          "description": "Triage recent Jira activity \u2014 surface what needs attention, filter out noise",
-          "name": "catch-me-up",
-          "synopsis": "/jira:catch-me-up [14] [--days 7] [--no-cache]"
-        },
-        {
           "argument_hint": "<issue-key> [--auto-apply]",
           "description": "Categorize JIRA tickets into activity types using AI",
           "name": "categorize-activity-type",
@@ -211,11 +205,6 @@
       "name": "jira",
       "skills": [
         {
-          "description": "Gather and classify recent Jira activity to surface what needs attention",
-          "id": "catch-me-up",
-          "name": "Catch Me Up"
-        },
-        {
           "description": "Detailed categorization logic for assigning JIRA tickets to activity type categories",
           "id": "categorize-activity-type",
           "name": "JIRA Activity Type Categorizer"
@@ -311,7 +300,7 @@
           "name": "Jira Status Analysis Engine"
         }
       ],
-      "version": "0.4.3"
+      "version": "0.4.1"
     },
     {
       "commands": [
@@ -1623,7 +1612,7 @@
       "hooks": [],
       "name": "workspaces",
       "skills": [],
-      "version": "1.0.1"
+      "version": "1.0.0"
     },
     {
       "commands": [
@@ -1751,19 +1740,70 @@
       "version": "0.0.1"
     },
     {
-      "commands": [],
-      "description": "Generate AI Software Bill of Materials (SBOM) declarations for PR descriptions",
-      "has_readme": true,
-      "hooks": [],
-      "name": "ai-sbom",
-      "skills": [
+      "commands": [
         {
-          "description": "Generate an AI SBOM declaration for a PR description. Use this skill when the user asks to generate an AI SBOM, create an ai-assisted block, fill out their AI assistance section, or prepare a PR description with AI provenance. Also use when the user says 'what skills did I use' or 'summarize my AI usage'.",
-          "id": "generate",
-          "name": "AI SBOM Generate"
+          "argument_hint": "<blueprint-path> [--partner <name>] [--auto] [--jira]",
+          "description": "Generate fix proposals and diffs for non-compliant blueprint sections, with optional auto-apply and JIRA integration",
+          "name": "fix",
+          "synopsis": "/telcoeng-blueprint-workflow:fix <blueprint-path> [--partner <name>] [--auto] [--jira]"
+        },
+        {
+          "argument_hint": "<section-type> [--partner <name>] [--blueprint <path>] [--ocp-version <version>]",
+          "description": "Generate standards-compliant paragraphs, tables, and sections for Telco Partner Blueprints",
+          "name": "generate",
+          "synopsis": "/telcoeng-blueprint-workflow:generate <section-type> [--partner <name>] [--blueprint <path>] [--ocp-version <version>]"
+        },
+        {
+          "argument_hint": "<file-path> [--partner <name>] [--format word|pdf|markdown|gdocs]",
+          "description": "Convert partner blueprints from Word/PDF/Google Docs into normalized Markdown aligned with telcoeng-blueprint-standards",
+          "name": "ingest",
+          "synopsis": "/telcoeng-blueprint-workflow:ingest <file-path> [--partner <name>] [--format word|pdf|markdown|gdocs]"
+        },
+        {
+          "argument_hint": "<query> [--dir <blueprints-directory>]",
+          "description": "Search across normalized blueprints for patterns, configurations, and cross-references",
+          "name": "search",
+          "synopsis": "/telcoeng-blueprint-workflow:search <query> [--dir <blueprints-directory>]"
+        },
+        {
+          "argument_hint": "<blueprint-path> [--partner <name>] [--cluster <kubeconfig>] [--jira]",
+          "description": "Score a blueprint against telcoeng-blueprint-standards (0-100) with section-by-section compliance report",
+          "name": "validate",
+          "synopsis": "/telcoeng-blueprint-workflow:validate <blueprint-path> [--partner <name>] [--cluster <kubeconfig>] [--jira]"
         }
       ],
-      "version": "0.0.1"
+      "description": "Create, validate, and manage Telco Engineering partner blueprints against telcoeng-blueprint-standards with JIRA integration and kube-compare-mcp connectivity",
+      "has_readme": true,
+      "hooks": [],
+      "name": "telcoeng-blueprint-workflow",
+      "skills": [
+        {
+          "description": "Dynamically reads telcoeng-blueprint-standards to extract the required section hierarchy for partner blueprints",
+          "id": "blueprint-structure",
+          "name": "Blueprint Structure"
+        },
+        {
+          "description": "Scores a blueprint against telcoeng-blueprint-standards using a weighted rubric (0-100)",
+          "id": "compliance-scoring",
+          "name": "Compliance Scoring"
+        },
+        {
+          "description": "Generates standards-compliant text snippets, tables, and sections for Telco Partner Blueprints",
+          "id": "content-generation",
+          "name": "Content Generation"
+        },
+        {
+          "description": "Documents RDS deviations, manages SUPPORTEX ticket references, and creates ECOPS JIRA tickets for blueprint compliance issues",
+          "id": "deviation-tracking",
+          "name": "Deviation Tracking"
+        },
+        {
+          "description": "Integrates with kube-compare-mcp for cluster-level validation against Telco RDS profiles",
+          "id": "kube-compare-integration",
+          "name": "Kube Compare Integration"
+        }
+      ],
+      "version": "0.1.0"
     }
   ]
 }
