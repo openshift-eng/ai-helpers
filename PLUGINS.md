@@ -27,6 +27,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Openshift Tls Profile](#openshift-tls-profile-plugin)
 - [Origin](#origin-plugin)
 - [Ote Migration](#ote-migration-plugin)
+- [Rds Analyzer](#rds-analyzer-plugin)
 - [Session](#session-plugin)
 - [Snowflake](#snowflake-plugin)
 - [Sosreport](#sosreport-plugin)
@@ -346,6 +347,15 @@ Automate OpenShift Tests Extension (OTE) migration for component repositories
 - **`/ote-migration:migrate`** - Automate OpenShift Tests Extension (OTE) migration for component repositories
 
 See [plugins/ote-migration/README.md](plugins/ote-migration/README.md) for detailed documentation.
+
+### Rds Analyzer Plugin
+
+RDS Analyzer workflow: cluster-compare JSON to deviation reports (text/HTML/reporting) and Jira follow-up
+
+**Commands:**
+- **`/rds-analyzer:full-workflow` `[scenario]`** - Run the RDS Analyzer full workflow from cluster-compare JSON to deviation reports (text/HTML/reporting), validate rules, and Jira-oriented follow-up — aligned with rds-analyzer docs/full-workflow.md
+
+See [plugins/rds-analyzer/README.md](plugins/rds-analyzer/README.md) for detailed documentation.
 
 ### Session Plugin
 

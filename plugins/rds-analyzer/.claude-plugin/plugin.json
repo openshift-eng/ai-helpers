@@ -1,0 +1,8 @@
+{
+  "name": "rds-analyzer",
+  "description": "RDS Analyzer workflow: cluster-compare JSON to deviation reports (text/HTML/reporting) and Jira follow-up",
+  "version": "0.0.1",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}
