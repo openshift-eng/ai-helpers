@@ -36,6 +36,8 @@ Based on the blueprint's deployment scenario, select the correct RDS profile:
 
 Use the `kube_compare_resolve_rds` tool to confirm the profile is available and get its reference configuration paths.
 
+For multi-profile blueprints (e.g., Hub + Core), run `kube_compare_resolve_rds` separately for each profile and validate each cluster independently against its corresponding RDS. Cluster validation results should be reported per profile in the integration report.
+
 ### Step 2: Run Cluster Comparison
 
 Invoke `kube_compare_cluster_diff` with the appropriate RDS profile:

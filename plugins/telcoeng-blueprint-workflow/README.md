@@ -142,6 +142,7 @@ This plugin reads `telcoeng-blueprint-standards` dynamically at runtime. When st
 - Section hierarchy updates automatically on next command run
 - Compliance rubric weights can be adjusted in `reference/compliance-rubric.md`
 - No hardcoded section names or compliance rules in commands or skills
+- If standards are unavailable, commands fall back to `reference/blueprint-sections.md` and warn about potentially stale data
 
 ## Reference Files
 

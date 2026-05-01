@@ -24,7 +24,7 @@ This implements WOW #2 (Automated Compliance Checking & Validation) from the pri
 - Scores compliance across 4 weighted categories (presence, completeness, RDS alignment, data quality)
 - Reads the standards document dynamically — adapts when standards change
 - Optionally validates against a live cluster using kube-compare-mcp
-- Optionally creates ECOPS JIRA tickets for non-compliant findings
+- Creates ECOPS JIRA tickets for non-compliant findings (optional, via `--jira` flag)
 - Generates a detailed compliance report with actionable recommendations
 
 ## Implementation
@@ -78,13 +78,13 @@ For each present section, evaluate substantive content per the rubric criteria. 
 4. Verify deviations are itemized with individual explanations. For multi-profile blueprints, each deviation must indicate which profile it applies to (Hub, Core, RAN-DU, or Shared).
 5. Verify SUPPORTEX tickets are linked (search for `SUPPORTEX-` pattern). For multi-profile blueprints, the SUPPORTEX table should include a Profile column.
 6. Verify deviation impact is assessed for each item
-7. **Profile-aware scoring**: A configuration that is baseline for one profile may be a deviation for another. For example, `realTimeKernel.enabled: false` is baseline for Core but a deviation for RAN-DU. Score accordingly.
+7. **Profile-aware scoring**: A configuration that is baseline for one profile may be a deviation for another. For example, `realTimeKernel.enabled: false` is baseline for Core but a deviation for RAN-DU. For multi-profile blueprints, evaluate each profile independently and deduct points only for deviations not documented for the affected profile.
 
 ### Phase 7: Detect Undocumented Deviations
 
 Scan the blueprint content for signals that indicate deviations exist but are not documented in the deviations section. Refer to the deviation detection patterns in the `deviation-tracking` skill, organized by RDS profile (RAN-DU, Core, Hub, Shared).
 
-For each detected undocumented deviation, add it to the compliance report as a gap. These are not scored (scoring only evaluates what is documented), but they are surfaced as actionable findings to guide the `fix` and `generate` commands.
+For each detected undocumented deviation, add it to the compliance report as a gap. Undocumented deviations do not directly reduce the total score, but they may indirectly affect the "Deviations itemized" criterion (6 points) if the documented deviations list is incomplete relative to what exists in the blueprint. They are surfaced as actionable findings to guide the `fix` and `generate` commands.
 
 ### Phase 8: Score Tables and Data Quality (15 points)
 
@@ -185,3 +185,4 @@ If `--jira` flag is provided:
 - **kube-compare-mcp not available**: Skip cluster validation, note in report, proceed with document-only scoring
 - **JIRA not configured**: Skip ticket creation, note in report, provide manual ticket creation guidance
 - **Empty blueprint**: Score 0/100 with rating "Draft", recommend using `generate` to scaffold content
+- **Skill invocation failure**: If a required skill (`compliance-scoring`, `blueprint-structure`, `deviation-tracking`) fails to load, fall back to built-in defaults (e.g., rubric weights 35/30/20/15) and warn the user that scoring may be incomplete

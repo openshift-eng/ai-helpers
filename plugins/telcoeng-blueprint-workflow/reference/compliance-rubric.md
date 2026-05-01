@@ -31,7 +31,7 @@ Sections must contain substantive content, not just headers or TODO placeholders
 
 | Criterion | Points | How to Assess |
 |-----------|--------|---------------|
-| S-BOM has specific versions (not "latest" or "TBD") | 6 | Check each row has concrete version numbers. OCP and RHCOS versions must be stated explicitly, not inferred from operator versions. Blank version fields score 0 for that row. |
+| S-BOM has specific versions (not "latest" or "TBD") | 6 | Check each row has concrete version numbers. OCP and RHCOS versions must be stated explicitly, not inferred from operator versions. Score is proportional: (valid_rows / total_rows) × 6 points, rounded to the nearest integer. |
 | H-BOM has specific hardware models and specs | 6 | Check server vendor, model, CPU arch/model, memory type/capacity, storage, NIC model, SR-IOV config. Each node type must be documented separately. |
 | Architecture diagram is present and renderable | 4 | The diagram must be viewable in the Markdown document itself (inline image or linked file). Pandoc artifact comments or references to external documents score 0. Text descriptions without a renderable diagram score 1 at most. |
 | Deployment scenarios are enumerated | 4 | Check for specific scenario types (5G Core, D-RAN, C-RAN, SNO, multi-node). If only one scenario applies, it must be explicitly stated. |
@@ -77,6 +77,6 @@ Each detected undocumented deviation must be flagged in the compliance report as
 When `telcoeng-blueprint-standards` adds new mandatory sections:
 
 1. Add the section to the Section Presence table
-2. Adjust point distribution to maintain 35-point total
+2. Adjust point distribution to maintain 35-point total by reducing points evenly across existing sections (rounding to maintain integer values)
 3. Add content completeness criteria if the section requires specific data
 4. Bump the plugin version (PATCH for weight adjustments, MINOR for new sections)

@@ -63,7 +63,7 @@ Remove pandoc and conversion artifacts that break Markdown rendering:
 
 **Image and diagram handling**:
 
-Pandoc converts embedded Word images to `![](media/imageN.ext)` references. These files exist only in the pandoc media extraction directory, not in the output Markdown. For each image reference:
+Conversion tools extract embedded images to local paths (e.g., pandoc produces `![](media/imageN.ext)` references). Different tools (MarkItDown, DocLing) may use different extraction paths or filename patterns — check the conversion tool's output directory when locating images. For each image reference:
 1. If the image file was extracted alongside the Markdown, copy it to `.work/blueprints/<partner-name>/media/`
 2. If the image file is not available, replace the reference with a descriptive comment: `<!-- DIAGRAM: [description based on surrounding context] — source: original document -->`
 3. Never leave bare `![](media/imageN.ext)` references that point to nonexistent files
