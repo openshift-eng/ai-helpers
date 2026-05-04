@@ -48,6 +48,10 @@ ${CLAUDE_PLUGIN_ROOT}/commands/delete/list.sh
 
 3. Verify the output shows `CONFIGURATION SAVED` before proceeding to Step 2
 
+**Read configured paths**: From the output, note the `=== CONFIG ===` section values:
+- `REPOS_ROOT` — use this path when doing any direct git operations on repos
+- `WORKSPACES_ROOT` — use this path when referencing workspace locations
+
 Match user's input against the workspace list:
 - **Exact match found**: Proceed to Step 2
 - **Partial matches found**: Use AskUserQuestion to let user select from matches

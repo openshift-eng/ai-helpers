@@ -17,6 +17,11 @@ echo "$PREFLIGHT_OUTPUT"
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/../create/preflight.sh" > /dev/null 2>&1
 
+echo ""
+echo "=== CONFIG ==="
+echo "REPOS_ROOT: ${CLAUDE_GIT_REPOS_ROOT}"
+echo "WORKSPACES_ROOT: ${CLAUDE_WORKSPACES_ROOT}"
+
 echo "=== WORKSPACES ==="
 for dir in "${CLAUDE_WORKSPACES_ROOT}"/*/; do
     [ -d "$dir" ] || continue

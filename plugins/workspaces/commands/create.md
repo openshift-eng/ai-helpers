@@ -56,6 +56,10 @@ ${CLAUDE_PLUGIN_ROOT}/commands/create/gather.sh
 
 ## Step 2: Parse workspace description
 
+**Read configured paths**: From Step 1 output, note the `=== CONFIG ===` section values:
+- `REPOS_ROOT` — use this path when doing any direct git operations on repos (e.g., `git worktree add`)
+- `WORKSPACES_ROOT` — use this path when referencing workspace locations
+
 **Check for custom rules**: From Step 1 output, check if `=== CUSTOM_PROMPT ===` section is present:
 
 - **If present**: Apply the aliases and auto-detect rules defined in that section
