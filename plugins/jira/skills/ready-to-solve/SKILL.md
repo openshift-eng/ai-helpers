@@ -158,55 +158,25 @@ Post or update a Jira comment reflecting the validation result so the ticket aut
 
 #### Step 1: Check for existing automated comment
 
-Fetch existing comments and search for one whose body starts with `**Automated Readiness Check`. Save its `comment_id` if found.
+Fetch the issue with comments included and search for one whose body starts with `**Automated Readiness Check`. Save its `comment_id` if found.
 
 ```python
-comments = mcp__atlassian__jira_get_comments(page_id="{issue_key}")
+issue = mcp__atlassian__jira_get_issue(issue_key="{issue_key}")
 ```
 
-Iterate through the returned comments. If any comment body starts with `**Automated Readiness Check`, store its `comment_id` for editing in Step 3.
+Iterate through the comments in the returned issue payload. If any comment body starts with `**Automated Readiness Check`, store its `comment_id` for editing in Step 3.
 
-#### Step 2a: Build FAIL comment body
+#### Step 2: Build comment body
 
-Skip if verdict is PASS — go to Step 2b.
-
-Build the comment body from the check results (Phase 2) and AI assessment (Phase 3):
-
-```markdown
-**Automated Readiness Check — FAILED**
-
-This issue does not yet meet the requirements for automated solving. Please update the issue description to address the REQUIRED items below.
-
-**Failed Checks:**
-
-| Check | Severity | Details |
-|-------|----------|---------|
-| {check_name} | REQUIRED | {details} |
-| {check_name} | WARNING | {details} |
-
-**AI Assessment:**
-
-| Dimension | Verdict | Reasoning |
-|-----------|---------|-----------|
-| {dimension_name} | FAIL/WARNING | {justification} |
-
----
-*These checks can also be auto-fixed by running `/jira:ready-to-solve {issue-key} --fix` in Claude Code.*
-```
-
-**Filtering rules:**
-- Only include deterministic checks that FAILED or have WARNINGs (skip passed checks)
-- Show severity column (REQUIRED / WARNING) so authors know what blocks vs. what is advisory
-- Only include AI dimensions that returned FAIL or WARNING (skip PASS)
-- If all AI dimensions passed, omit the AI Assessment table entirely
+**On FAIL**: Reuse the same report format defined in Phase 8 (Generate Report), filtered to only show failed and warning checks. Wrap it with:
+- Header: `**Automated Readiness Check — FAILED**` followed by "Please update the issue description to address the REQUIRED items below."
+- Footer: `*These checks can also be auto-fixed by running '/jira:ready-to-solve {issue-key} --fix' in Claude Code.*`
 - If `--fix` was attempted but the issue still fails, replace the footer with:
-  ```
+  ```text
   *Auto-fix was attempted but could not fully resolve all issues. Please address the remaining items manually.*
   ```
 
-#### Step 2b: Build PASS comment body
-
-Only reached if verdict is PASS AND an existing automated comment was found in Step 1. If no existing comment was found, skip to Phase 7 — no comment is needed for a first-time PASS.
+**On PASS**: If an existing automated comment was found in Step 1, use a brief body. If no existing comment was found, skip to Phase 7 — no comment is needed for a first-time PASS.
 
 ```markdown
 **Automated Readiness Check — PASSED**
