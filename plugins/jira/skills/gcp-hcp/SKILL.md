@@ -21,6 +21,8 @@ This skill provides GCP HCP (Hypershift on GKE) team-specific conventions for cr
   - [JIRA Templates](#jira-templates)
     - [Story Template](#story-template)
       - [Story Sizing Guide](#story-sizing-guide)
+    - [Task Template](#task-template)
+      - [When to Use a Task](#when-to-use-a-task)
     - [Epic Template](#epic-template)
     - [Feature Template](#feature-template)
   - [Definition of Done](#definition-of-done)

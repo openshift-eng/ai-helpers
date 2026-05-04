@@ -22,6 +22,7 @@ When this skill needs updating (upstream templates changed, new sections added):
 
 1. Fetch the latest content from each upstream file:
    - https://raw.githubusercontent.com/openshift-online/gcp-hcp/main/docs/jira-story-template.md
+   - https://raw.githubusercontent.com/openshift-online/gcp-hcp/main/docs/jira-task-template.md
    - https://raw.githubusercontent.com/openshift-online/gcp-hcp/main/docs/jira-epic-template.md
    - https://raw.githubusercontent.com/openshift-online/gcp-hcp/main/docs/jira-feature-template.md
    - https://raw.githubusercontent.com/openshift-online/gcp-hcp/main/docs/definition-of-done.md
