@@ -71,9 +71,20 @@ plugins/jira/skills/ready-to-solve/SKILL.md
    - Re-run validation (steps 2-4) on the updated description to confirm the issue now passes
    - If the user declines, skip the update and report the original validation result
 
-6. **Apply Label**: Unless `--dry-run`, update the issue labels via `mcp__atlassian__jira_update_issue`. Fetch current labels first, remove the stale opposite label, add the new label, and PUT the full array in a single call.
+6. **Comment on Result**: If `--dry-run` is NOT set, post or update a Jira comment reflecting the validation result:
+   - **On FAIL**: Post a comment (or edit the existing automated comment) summarizing the failed checks. The comment includes:
+     - A header indicating this is an automated readiness check
+     - A table of check results with severity labels (REQUIRED / WARNING) — only failed and warning checks are shown
+     - AI qualitative assessment verdicts and reasoning for FAIL/WARNING dimensions
+     - Human-readable guidance on what to fix
+     - A note that `/jira:ready-to-solve {issue-key} --fix` can auto-fix some issues (for Claude Code users)
+     - If `--fix` was attempted but didn't fully resolve all failures, a note indicating auto-fix was tried
+   - **On PASS**: If a previous automated failure comment exists, edit it to a brief "PASSED" message. If no previous comment exists, no comment is posted.
+   - **Duplicate prevention**: Automated comments are identified by a marker prefix (`**Automated Readiness Check`). Existing automated comments are edited in place — never duplicated.
 
-7. **Report**: Display a structured markdown report with per-check results, AI assessments, overall verdict, and label applied.
+7. **Apply Label**: Unless `--dry-run`, update the issue labels via `mcp__atlassian__jira_update_issue`. Fetch current labels first, remove the stale opposite label, add the new label, and PUT the full array in a single call.
+
+8. **Report**: Display a structured markdown report with per-check results, AI assessments, overall verdict, and label applied.
 
 ## Return Value
 
@@ -109,6 +120,6 @@ plugins/jira/skills/ready-to-solve/SKILL.md
 
 ## Arguments:
 - $1: Jira issue key (required). Examples: `OCPBUGS-12345`, `HOSTEDCP-999`, `GCP-456`.
-- `--dry-run`: Optional. Skip label application, only report results.
+- `--dry-run`: Optional. Skip label application and comment posting, only report results.
 - `--verbose`: Optional. Show full per-check details including matched section content.
 - `--fix`: Optional. When validation fails, generate a revised description fixing the failing checks, show the proposed changes, and update the issue upon user confirmation.
