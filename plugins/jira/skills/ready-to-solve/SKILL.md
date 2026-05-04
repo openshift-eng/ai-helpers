@@ -150,7 +150,110 @@ curl -s -u "$JIRA_USER:$JIRA_API_TOKEN" -H "Content-Type: application/json" \
 
 6. **If declined**: Skip the update and proceed to label application and reporting with the original validation result.
 
-### Phase 6: Apply Jira Label
+### Phase 6: Comment on Result
+
+Skip if `--dry-run` is set.
+
+Post or update a Jira comment reflecting the validation result so the ticket author knows the outcome without running the check themselves.
+
+#### Step 1: Check for existing automated comment
+
+Fetch existing comments and search for one whose body starts with `**Automated Readiness Check`. Save its `comment_id` if found.
+
+```python
+comments = mcp__atlassian__jira_get_comments(page_id="{issue_key}")
+```
+
+Iterate through the returned comments. If any comment body starts with `**Automated Readiness Check`, store its `comment_id` for editing in Step 3.
+
+#### Step 2a: Build FAIL comment body
+
+Skip if verdict is PASS — go to Step 2b.
+
+Build the comment body from the check results (Phase 2) and AI assessment (Phase 3):
+
+```markdown
+**Automated Readiness Check — FAILED**
+
+This issue does not yet meet the requirements for automated solving. Please update the issue description to address the REQUIRED items below.
+
+**Failed Checks:**
+
+| Check | Severity | Details |
+|-------|----------|---------|
+| {check_name} | REQUIRED | {details} |
+| {check_name} | WARNING | {details} |
+
+**AI Assessment:**
+
+| Dimension | Verdict | Reasoning |
+|-----------|---------|-----------|
+| {dimension_name} | FAIL/WARNING | {justification} |
+
+---
+*These checks can also be auto-fixed by running `/jira:ready-to-solve {issue-key} --fix` in Claude Code.*
+```
+
+**Filtering rules:**
+- Only include deterministic checks that FAILED or have WARNINGs (skip passed checks)
+- Show severity column (REQUIRED / WARNING) so authors know what blocks vs. what is advisory
+- Only include AI dimensions that returned FAIL or WARNING (skip PASS)
+- If all AI dimensions passed, omit the AI Assessment table entirely
+- If `--fix` was attempted but the issue still fails, replace the footer with:
+  ```
+  *Auto-fix was attempted but could not fully resolve all issues. Please address the remaining items manually.*
+  ```
+
+#### Step 2b: Build PASS comment body
+
+Only reached if verdict is PASS AND an existing automated comment was found in Step 1. If no existing comment was found, skip to Phase 7 — no comment is needed for a first-time PASS.
+
+```markdown
+**Automated Readiness Check — PASSED**
+
+All checks passed. This issue is ready for `/jira:solve`.
+```
+
+#### Step 3: Post or edit the comment
+
+If an existing automated comment was found (Step 1), edit it:
+
+```python
+mcp__atlassian__jira_edit_comment(
+    issue_key="{issue_key}",
+    comment_id="{comment_id}",
+    body=comment_body
+)
+```
+
+If no existing comment was found and the verdict is FAIL, post a new one:
+
+```python
+mcp__atlassian__jira_add_comment(
+    issue_key="{issue_key}",
+    body=comment_body
+)
+```
+
+If no existing comment was found and the verdict is PASS, do nothing.
+
+**CLI fallback for adding:**
+```bash
+curl -s -u "$JIRA_USER:$JIRA_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -X POST "https://redhat.atlassian.net/rest/api/2/issue/{issue_key}/comment" \
+  -d '{"body": "...comment_body..."}'
+```
+
+**CLI fallback for editing:**
+```bash
+curl -s -u "$JIRA_USER:$JIRA_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -X PUT "https://redhat.atlassian.net/rest/api/2/issue/{issue_key}/comment/{comment_id}" \
+  -d '{"body": "...comment_body..."}'
+```
+
+### Phase 7: Apply Jira Label
 
 Skip if `--dry-run` is set.
 
@@ -178,7 +281,7 @@ jira issue edit PROJ-123 -l "ready-to-solve"
 
 Note: The `labels` field in Jira REST API replaces the entire array, so always include all existing labels plus the new one.
 
-### Phase 7: Generate Report
+### Phase 8: Generate Report
 
 Output format:
 
@@ -221,6 +324,7 @@ Output format:
 | Python not available | "Python 3 is required. Check: `which python3`" |
 | `check_sections.py` fails | Display script error, proceed with AI-only assessment, note in report |
 | Description is null/empty | Automatic FAIL: "Issue has no description. Add Context and Acceptance Criteria sections." |
+| Comment post/edit fails | Display warning but still proceed with label application and report. Non-fatal. |
 | Label update fails | Display warning but still show report. Non-fatal. |
 | Description update fails (`--fix`) | Display error, report original validation result. Non-fatal. |
 | User declines fix (`--fix`) | Skip update, proceed with original validation result. |
