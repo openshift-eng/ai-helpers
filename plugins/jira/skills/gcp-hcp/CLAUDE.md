@@ -10,6 +10,7 @@ content from the upstream sources and reconcile any changes.
 |-------------------------------------------|--------------------------------------------|
 | Story Template structure                  | docs/jira-story-template.md               |
 | Story Sizing Guide (within story section) | docs/jira-story-template.md               |
+| Task Template structure                   | docs/jira-task-template.md                |
 | Priority Scheme (OJA-PRIS-001)            | *See note below*                           |
 | Epic Template structure                   | docs/jira-epic-template.md                |
 | Feature Template structure                | docs/jira-feature-template.md             |
