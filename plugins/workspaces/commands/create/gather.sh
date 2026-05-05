@@ -27,6 +27,11 @@ if [ ! -d "${CLAUDE_WORKSPACES_ROOT}/.template" ]; then
 fi
 
 echo ""
+echo "=== CONFIG ==="
+echo "REPOS_ROOT: ${CLAUDE_GIT_REPOS_ROOT}"
+echo "WORKSPACES_ROOT: ${CLAUDE_WORKSPACES_ROOT}"
+
+echo ""
 echo "=== REPOS ==="
 # Use portable find syntax (GNU -printf not available on macOS/BSD)
 find "${CLAUDE_GIT_REPOS_ROOT}/" -mindepth 1 -maxdepth 1 -type d -exec basename {} \; | tr '\n' ' ' | sed 's/ $/\n/'

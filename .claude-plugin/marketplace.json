@@ -194,7 +194,7 @@
       "name": "workspaces",
       "source": "./plugins/workspaces",
       "description": "Manage isolated git worktree workspaces for multi-repo development",
-      "version": "1.0.0"
+      "version": "1.0.1"
     },
     {
       "name": "gwapi",
