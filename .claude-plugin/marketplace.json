@@ -224,7 +224,7 @@
       "name": "console",
       "source": "./plugins/console",
       "description": "OpenShift Console dynamic plugin development utilities",
-      "version": "0.0.1"
+      "version": "0.0.2"
     }
   ]
 }

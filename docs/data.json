@@ -1732,12 +1732,17 @@
       "name": "console",
       "skills": [
         {
+          "description": "Create a Jira bug for OpenShift Console with all required fields from the Definition of Ready. Walks the user through providing all mandatory information before creating the issue. Use when user asks to create a Jira bug for OpenShift Console.",
+          "id": "jira-bug-create",
+          "name": "jira-bug-create"
+        },
+        {
           "description": "Assists in the upgrade of an OpenShift Console dynamic plugin to the latest Console SDK version.",
           "id": "upgrade-sdk",
           "name": "upgrade-sdk"
         }
       ],
-      "version": "0.0.1"
+      "version": "0.0.2"
     }
   ]
 }
