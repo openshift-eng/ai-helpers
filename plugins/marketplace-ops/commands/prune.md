@@ -12,9 +12,12 @@ marketplace-ops:prune
 ```
 
 ## Description
-Analyzes the plugin marketplace for stale or low-value plugins, commands, and skills using git history, structural signals, and LLM judgment. By default, creates a branch removing identified candidates, opens a PR with a removal manifest, and provides a `/save` workflow for stakeholders to protect items.
+Analyzes the plugin marketplace for stale content using a two-tier system:
 
-With `--dry-run`, prints the analysis report without creating a branch or PR.
+1. **Plugin-level (mechanical):** A scoring script flags entire plugins for removal based on git history and structural signals. If a plugin meets the scoring threshold, it is removed — no LLM override. The script is the decision-maker.
+2. **Item-level (LLM-assisted):** For plugins that survive the plugin-level cut, a second script flags individual commands and skills. The LLM then reviews flagged items and applies qualitative judgment (AI reasoning required, duplicates, dead references) to decide which to remove.
+
+By default, creates a branch removing identified items and opens a PR with a removal manifest and `/save` workflow. With `--dry-run`, prints the analysis report without taking action.
 
 ## Arguments
 - `--dry-run`: Report pruning candidates without taking any action. No branch, no removals, no PR.
@@ -51,21 +54,23 @@ The script handles:
 
 Maturity signals (commit count, OWNERS, footprint, README) are skipped for plugins younger than 90 days.
 
-The JSON output contains `candidates` (score >= threshold), `protected` (skipped), and `safe` (scored but below threshold) arrays. Use this as the starting point for plugin-level removals.
+The JSON output contains `candidates` (score >= threshold), `protected` (skipped), and `safe` (scored but below threshold) arrays.
 
-### Step 2: Review Plugin Candidates
+### Step 2: Remove All Plugin Candidates
 
-Read through the `candidates` array from the script output. For each candidate, review its `reasons` and `score`. Use your judgment to filter out false positives — a plugin with a high score but genuinely useful functionality should be kept. Add any such plugins to a skip list for this run.
+**Plugin-level pruning is mechanical.** Every plugin in the `candidates` array is removed — no LLM judgment, no second-guessing the score. If the scoring threshold is met, the plugin goes. The `/save` workflow on the PR is the rescue path for false positives.
 
-### Step 3: Command/Skill-Level Analysis (Higher Bar)
+Add all candidate plugin paths to the removal list.
 
-Run the item-level scoring script to get per-command and per-skill metadata for plugins that survived the plugin-level cut:
+### Step 3: Command/Skill-Level Analysis (Higher Bar — LLM Judgment Required)
+
+For plugins that survived Step 2 (not in the candidates list and not protected), run the item-level scoring script:
 
 ```bash
 python3 plugins/marketplace-ops/scripts/score-items.py .
 ```
 
-Or to analyze only specific plugins:
+The script automatically skips protected plugins. To analyze only specific plugins:
 ```bash
 python3 plugins/marketplace-ops/scripts/score-items.py --plugins ci,git,jira .
 ```
