@@ -18,6 +18,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Hello World](#hello-world-plugin)
 - [Jira](#jira-plugin)
 - [Lvms](#lvms-plugin)
+- [Marketplace Ops](#marketplace-ops-plugin)
 - [Must Gather](#must-gather-plugin)
 - [Node](#node-plugin)
 - [Node Tuning](#node-tuning-plugin)
@@ -235,6 +236,16 @@ LVMS (Logical Volume Manager Storage) plugin for troubleshooting and debugging s
 - **`/lvms:analyze` `[must-gather-path|--live] [--component storage|operator|volumes]`** - Comprehensive LVMS troubleshooting - analyzes LVMCluster, volume groups, PVCs, and storage issues on live clusters or must-gather
 
 See [plugins/lvms/README.md](plugins/lvms/README.md) for detailed documentation.
+
+### Marketplace Ops Plugin
+
+Maintenance commands for Claude Code plugin marketplaces
+
+**Commands:**
+- **`/marketplace-ops:prune-update` `[PR number or URL]`** - Process /save comments on a pruning PR, restore items, and update .pruneprotect
+- **`/marketplace-ops:prune` `[--dry-run]`** - Analyze and prune stale plugins, commands, and skills from the marketplace
+
+See [plugins/marketplace-ops/README.md](plugins/marketplace-ops/README.md) for detailed documentation.
 
 ### Must Gather Plugin
 
