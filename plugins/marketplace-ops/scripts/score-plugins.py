@@ -46,17 +46,24 @@ def load_pruneprotect(repo_root):
 
 
 def is_protected(path, protected):
+    norm_path = path.rstrip("/") + "/"
     for prefix in protected:
-        if path.startswith(prefix) or path.rstrip("/") == prefix.rstrip("/"):
+        norm_prefix = prefix.rstrip("/") + "/"
+        if norm_path.startswith(norm_prefix):
             return True
     return False
 
 
 def git(repo_root, *args):
-    result = subprocess.run(
-        ["git", "-C", str(repo_root)] + list(args),
-        capture_output=True, text=True, timeout=30,
-    )
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(repo_root), *args],
+            capture_output=True, text=True, timeout=30, check=True,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(f"git timed out: {' '.join(args)}") from exc
+    except subprocess.CalledProcessError as exc:
+        raise RuntimeError(f"git failed: {' '.join(args)} :: {exc.stderr.strip()}") from exc
     return result.stdout.strip()
 
 
@@ -174,18 +181,18 @@ def score_plugin(plugin_info, now, batch_dates):
     if effective_date:
         days_inactive = (now - effective_date).days
         plugin_info["days_since_last_meaningful_commit"] = days_inactive
-        if days_inactive > 180:
+        if days_inactive >= 180:
             score += 4
-            reasons.append(f"Last meaningful commit {days_inactive} days ago (>180)")
-        elif days_inactive > 150:
+            reasons.append(f"Last meaningful commit {days_inactive} days ago (>=180)")
+        elif days_inactive >= 150:
             score += 3
-            reasons.append(f"Last meaningful commit {days_inactive} days ago (>150)")
-        elif days_inactive > 120:
+            reasons.append(f"Last meaningful commit {days_inactive} days ago (>=150)")
+        elif days_inactive >= 120:
             score += 2
-            reasons.append(f"Last meaningful commit {days_inactive} days ago (>120)")
-        elif days_inactive > 90:
+            reasons.append(f"Last meaningful commit {days_inactive} days ago (>=120)")
+        elif days_inactive >= 90:
             score += 1
-            reasons.append(f"Last meaningful commit {days_inactive} days ago (>90)")
+            reasons.append(f"Last meaningful commit {days_inactive} days ago (>=90)")
     else:
         plugin_info["days_since_last_meaningful_commit"] = None
 

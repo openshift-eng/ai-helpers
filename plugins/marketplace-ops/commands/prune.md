@@ -7,7 +7,7 @@ argument-hint: "[--dry-run]"
 marketplace-ops:prune
 
 ## Synopsis
-```
+```text
 /marketplace-ops:prune [--dry-run]
 ```
 
@@ -134,7 +134,7 @@ And list protected items that were skipped:
 ### Step 7: Create Branch and Remove Items
 
 ```bash
-git checkout -b prune/$(date +%Y%m%d) main
+git checkout -b prune/$(date +%Y%m%d-%H%M%S) main
 ```
 
 For each item in the removal manifest:
@@ -199,25 +199,25 @@ Automated pruning of stale/inactive plugins, commands, and skills.
 
 ## Removal Manifest
 
-{paste the table from Step 7}
+{paste the table from Step 5}
 
 ## Cross-Reference Warnings
-{paste warnings from Step 6, or "None" if clean}
+{paste warnings from Step 4, or "None" if clean}
 
 ## How to Save Items
 To keep something that's being removed, comment on this PR with the path from the manifest table:
 
-```
+~~~text
 /save plugins/foo/
 /save plugins/bar/commands/baz.md
-```
+~~~
 
 Saved items will be restored from git history and added to `.pruneprotect` so they won't be flagged in future pruning cycles. Run `/marketplace-ops:prune-update` to process saves.
 
 ## Protected Items
 Items listed in `.pruneprotect` were excluded from analysis.
 
-{paste protected list from Step 7}
+{paste protected list from Step 5}
 EOF
 )"
 ```
@@ -233,11 +233,11 @@ Print the PR URL and a summary: how many plugins, commands, and skills were prop
 ## Examples
 
 1. **Dry run to see candidates:**
-   ```
+   ```text
    /marketplace-ops:prune --dry-run
    ```
 
 2. **Full pruning with PR creation:**
-   ```
+   ```text
    /marketplace-ops:prune
    ```

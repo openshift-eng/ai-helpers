@@ -7,7 +7,7 @@ argument-hint: "[PR number or URL]"
 marketplace-ops:prune-update
 
 ## Synopsis
-```
+```text
 /marketplace-ops:prune-update [PR number or URL]
 ```
 
@@ -35,21 +35,25 @@ Select the first result. If no pruning PR is found, report this to the user and 
 
 ### Step 2: Read PR Comments for /save Directives
 
-Fetch all comments on the PR (both issue comments and review comments):
+Fetch all comments on the PR (both issue comments and review comments), including the author's association to the repository:
 
 ```bash
 # Issue comments
-gh api repos/{owner}/{repo}/issues/{pr_number}/comments --jq '.[] | {author: .user.login, body: .body}'
+gh api repos/{owner}/{repo}/issues/{pr_number}/comments \
+  --jq '.[] | {author: .user.login, association: .author_association, body: .body}'
 
 # Review comments
-gh api repos/{owner}/{repo}/pulls/{pr_number}/comments --jq '.[] | {author: .user.login, body: .body}'
+gh api repos/{owner}/{repo}/pulls/{pr_number}/comments \
+  --jq '.[] | {author: .user.login, association: .author_association, body: .body}'
 ```
 
-Parse each comment body for lines matching `/save <path>`. For each match, record:
+Parse each comment body for lines matching `/save <path>`. **Only accept `/save` directives from trusted participants** — those with `author_association` of `OWNER`, `MEMBER`, or `COLLABORATOR`. Skip directives from other associations and log a warning (e.g., "Ignoring `/save` from @user — not a repository collaborator").
+
+For each accepted match, record:
 - The path to save
 - The GitHub username of the commenter
 
-Deduplicate paths. If no `/save` directives are found, report this and stop.
+Deduplicate paths. If no valid `/save` directives are found, report this and stop.
 
 ### Step 3: Validate Save Paths
 
@@ -164,11 +168,11 @@ A summary of restored items and the updated PR state.
 ## Examples
 
 1. **Process saves on a specific PR:**
-   ```
+   ```text
    /marketplace-ops:prune-update 42
    ```
 
 2. **Auto-detect the pruning PR:**
-   ```
+   ```text
    /marketplace-ops:prune-update
    ```
