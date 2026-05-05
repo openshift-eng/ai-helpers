@@ -8,26 +8,17 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Ci](#ci-plugin)
 - [Code Review](#code-review-plugin)
 - [Compliance](#compliance-plugin)
-- [Container Image](#container-image-plugin)
-- [Doc](#doc-plugin)
-- [Etcd](#etcd-plugin)
 - [Git](#git-plugin)
-- [Golang](#golang-plugin)
-- [Gwapi](#gwapi-plugin)
 - [Hcp](#hcp-plugin)
 - [Hello World](#hello-world-plugin)
 - [Jira](#jira-plugin)
 - [Lvms](#lvms-plugin)
 - [Must Gather](#must-gather-plugin)
-- [Node](#node-plugin)
-- [Node Tuning](#node-tuning-plugin)
 - [Olm](#olm-plugin)
 - [Olm Team](#olm-team-plugin)
 - [Openshift](#openshift-plugin)
 - [Openshift Tls Profile](#openshift-tls-profile-plugin)
-- [Origin](#origin-plugin)
 - [Ote Migration](#ote-migration-plugin)
-- [Session](#session-plugin)
 - [Snowflake](#snowflake-plugin)
 - [Sosreport](#sosreport-plugin)
 - [Teams](#teams-plugin)
@@ -35,7 +26,6 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Testing](#testing-plugin)
 - [Utils](#utils-plugin)
 - [Workspaces](#workspaces-plugin)
-- [Yaml](#yaml-plugin)
 
 ### Agendas Plugin
 
@@ -114,36 +104,6 @@ Security compliance and vulnerability analysis tools for Go projects
 
 See [plugins/compliance/README.md](plugins/compliance/README.md) for detailed documentation.
 
-### Container Image Plugin
-
-Container image inspection and analysis using skopeo and podman
-
-**Commands:**
-- **`/container-image:compare` `<image1> <image2>`** - Compare two container images to identify differences
-- **`/container-image:inspect` `<image>`** - Inspect and provide detailed breakdown of a container image
-- **`/container-image:tags` `<repository>`** - List and analyze available tags for a container image repository
-
-See [plugins/container-image/README.md](plugins/container-image/README.md) for detailed documentation.
-
-### Doc Plugin
-
-A plugin for engineering documentation and notes
-
-**Commands:**
-- **`/doc:note` `[task description]`** - Generate professional engineering notes and append them to a log file
-
-See [plugins/doc/README.md](plugins/doc/README.md) for detailed documentation.
-
-### Etcd Plugin
-
-Etcd cluster health monitoring and performance analysis utilities
-
-**Commands:**
-- **`/etcd:analyze-performance` `[--duration <minutes>]`** - Analyze etcd performance metrics, latency, and identify bottlenecks
-- **`/etcd:health-check` `[--verbose]`** - Check etcd cluster health, member status, and identify issues
-
-See [plugins/etcd/README.md](plugins/etcd/README.md) for detailed documentation.
-
 ### Git Plugin
 
 Git workflow automation and utilities
@@ -152,35 +112,12 @@ Git workflow automation and utilities
 - **`/git:backport` `<commit> <branch1> [branch2...] [--new-branch]`** - Backport commits to multiple branches
 - **`/git:bisect` `[good-commit] [bad-commit]`** - Interactive git bisect assistant with pattern detection and automation
 - **`/git:branch-cleanup` `[--dry-run] [--merged-only] [--remote]`** - Clean up old and defunct branches that are no longer needed
-- **`/git:cherry-pick-by-patch` `<commit_hash>`** - Cherry-pick git commit into current branch by "patch" command
 - **`/git:commit-suggest` `[N]`** - Generate Conventional Commits style commit messages or summarize existing commits
 - **`/git:debt-scan`** - Analyze technical debt indicators in the repository
-- **`/git:fix-cherrypick-robot-pr` `<pr-url> [error-messages]`** - Fix a cherrypick-robot PR that needs manual intervention
 - **`/git:redescribe` `[pr-url]`** - Adapt and correct a PR description to match its code diffs and commit messages
 - **`/git:suggest-reviewers` `[base-branch]`** - Suggest appropriate reviewers for a PR based on git blame and OWNERS files
-- **`/git:summary`** - Show current branch, git status, and recent commits for quick context
 
 See [plugins/git/README.md](plugins/git/README.md) for detailed documentation.
-
-### Golang Plugin
-
-Run golang codebase related commands and tools
-
-**Commands:**
-- **`/golang:lint-fix`** - Run golangci-lint tool and fix all reported issues
-
-See [plugins/golang/README.md](plugins/golang/README.md) for detailed documentation.
-
-### Gwapi Plugin
-
-Gateway API management for Kubernetes/OpenShift clusters
-
-**Commands:**
-- **`/gwapi:check` `[namespace]`** - Check Gateway API resources status in the cluster
-- **`/gwapi:delete` `[namespace]`** - Delete Gateway API resources from a Kubernetes/OpenShift cluster
-- **`/gwapi:install` `[namespace]`** - Install Gateway API resources to a Kubernetes/OpenShift cluster
-
-See [plugins/gwapi/README.md](plugins/gwapi/README.md) for detailed documentation.
 
 ### Hcp Plugin
 
@@ -247,41 +184,16 @@ A plugin to analyze and report on must-gather data
 
 See [plugins/must-gather/README.md](plugins/must-gather/README.md) for detailed documentation.
 
-### Node Plugin
-
-Kubernetes and OpenShift node health monitoring and diagnostics
-
-**Commands:**
-- **`/node:cluster-node-health-check` `[--node <node-name>] [--verbose] [--output-format json|text]`** - Perform comprehensive health check on cluster nodes and report kubelet, CRI-O, and node-level issues
-
-See [plugins/node/README.md](plugins/node/README.md) for detailed documentation.
-
-### Node Tuning Plugin
-
-Automatically create and apply tuned profile
-
-**Commands:**
-- **`/node-tuning:analyze-node-tuning` `[--sosreport PATH] [--format json|markdown] [--max-irq-samples N]`** - Analyze kernel/sysctl tuning from a live node or sosreport snapshot and propose NTO recommendations
-- **`/node-tuning:generate-tuned-profile` `[profile-name] [--summary ...] [--sysctl ...] [options]`** - Generate a Tuned (tuned.openshift.io/v1) profile manifest for the Node Tuning Operator
-
-See [plugins/node-tuning/README.md](plugins/node-tuning/README.md) for detailed documentation.
-
 ### Olm Plugin
 
 OLM (Operator Lifecycle Manager) plugin for operator management and debugging
 
 **Commands:**
-- **`/olm:approve` `<operator-name> [namespace] [--all]`** - Approve pending InstallPlans for operator installations and upgrades
-- **`/olm:catalog` `<list|add|remove|refresh|status> [arguments]`** - Manage catalog sources for discovering and installing operators
 - **`/olm:debug` `<issue-description> <must-gather-path> [olm-version]`** - Debug OLM issues using must-gather logs and source code analysis
 - **`/olm:diagnose` `[operator-name] [namespace] [--fix] [--cluster]`** - Diagnose and optionally fix common OLM and operator issues
-- **`/olm:install` `<operator-name> [namespace] [channel] [source] [--approval=Automatic|Manual]`** - Install a day-2 operator using Operator Lifecycle Manager
 - **`/olm:list` `[namespace] [--all-namespaces]`** - List installed operators in the cluster
-- **`/olm:opm` `<action> [arguments...]`** - Execute opm (Operator Package Manager) commands for building and managing operator catalogs
 - **`/olm:search` `[query] [--catalog <catalog-name>]`** - Search for available operators in catalog sources
 - **`/olm:status` `<operator-name> [namespace]`** - Get detailed status and health information for an operator
-- **`/olm:uninstall` `<operator-name> [namespace] [--remove-crds] [--remove-namespace]`** - Uninstall a day-2 operator and optionally remove its resources
-- **`/olm:upgrade` `<operator-name> [namespace] [--channel=<channel>] [--approve]`** - Update an operator to the latest version or switch channels
 
 See [plugins/olm/README.md](plugins/olm/README.md) for detailed documentation.
 
@@ -307,7 +219,6 @@ OpenShift development utilities and helpers
 - **`/openshift:cluster-health-check` `[--verbose] [--output-format]`** - Perform comprehensive health check on OpenShift cluster and report issues
 - **`/openshift:crd-review` `[repository-path]`** - Review Kubernetes CRDs against Kubernetes and OpenShift API conventions
 - **`/openshift:create-cluster` `[release-image] [platform] [options]`** - Extract OpenShift installer from release image and create an OCP cluster
-- **`/openshift:destroy-cluster` `[install-dir]`** - Destroy an OpenShift cluster created by create-cluster command
 - **`/openshift:expand-test-case` `[test-idea-or-file-or-commands] [format]`** - Expand basic test ideas or existing oc commands into comprehensive test scenarios with edge cases in oc CLI or Ginkgo format
 - **`/openshift:ironic-status`** - Check status of Ironic baremetal nodes in OpenShift cluster
 - **`/openshift:new-e2e-test` `[test-specification]`** - Write and validate new OpenShift E2E tests using Ginkgo framework
@@ -330,15 +241,6 @@ Implementation requirements and details for OpenShift TLS security profiles
 
 See [plugins/openshift-tls-profile/README.md](plugins/openshift-tls-profile/README.md) for detailed documentation.
 
-### Origin Plugin
-
-Helpers for openshift/origin development.
-
-**Commands:**
-- **`/origin:two-node-origin-pr-helper` `[--url PR_URL] [<pr>] [--depth quick|full]`** - Expert review tool for PRs that add or modify Two Node (Fencing or Arbiter) tests under test/extended/two_node/ in openshift/origin.
-
-See [plugins/origin/README.md](plugins/origin/README.md) for detailed documentation.
-
 ### Ote Migration Plugin
 
 Automate OpenShift Tests Extension (OTE) migration for component repositories
@@ -347,15 +249,6 @@ Automate OpenShift Tests Extension (OTE) migration for component repositories
 - **`/ote-migration:migrate`** - Automate OpenShift Tests Extension (OTE) migration for component repositories
 
 See [plugins/ote-migration/README.md](plugins/ote-migration/README.md) for detailed documentation.
-
-### Session Plugin
-
-A plugin to save and resume conversation sessions across long time intervals
-
-**Commands:**
-- **`/session:save-session` `[optional-description]`** - Save current conversation session to markdown file for future continuation
-
-See [plugins/session/README.md](plugins/session/README.md) for detailed documentation.
 
 ### Snowflake Plugin
 
@@ -419,11 +312,9 @@ A generic utilities plugin serving as a catch-all for various helper commands an
 
 **Commands:**
 - **`/utils:address-reviews` `[PR number (optional - uses current branch if omitted)] [--preview]`** - Fetch and address all PR review comments
-- **`/utils:auto-approve-konflux-prs` `<target-repository>`** - Automate approving Konflux bot PRs for the given repository by adding /lgtm and /approve
 - **`/utils:find-konflux-images` `<PR-URL>`** - Find and verify Konflux-built container images from a GitHub PR
 - **`/utils:generate-test-plan` `[GitHub PR URLs]`** - Generate test steps for one or more related PRs
 - **`/utils:gh-attention` `[--repo <org/repo>]`** - List PRs and issues requiring your attention
-- **`/utils:placeholder`** - Placeholder command for the utils plugin
 - **`/utils:process-renovate-pr` `<PR_NUMBER|open> [JIRA_PROJECT] [COMPONENT]`** - Process Renovate dependency PR(s) to meet repository contribution standards
 - **`/utils:review-ai-helpers-overlap` `[--idea TEXT] [--pr NUMBER] [--verbose]`** - Review potential overlaps with existing ai-helpers (Claude Code Plugins, Commands, Skills, Sub-agents, or Hooks) and open PRs
 - **`/utils:review-security` `[file-paths-or-patterns]`** - Orchestrate security scanners and provide contextual triage of findings
@@ -439,12 +330,3 @@ Manage isolated git worktree workspaces for multi-repo development
 - **`/workspaces:delete` `<workspace-name>`** - Delete a workspace and its git worktrees
 
 See [plugins/workspaces/README.md](plugins/workspaces/README.md) for detailed documentation.
-
-### Yaml Plugin
-
-Generate comprehensive YAML documentation from Go struct definitions with sensible default values
-
-**Commands:**
-- **`/yaml:docs` `[file:StructName] [output.md]`** - Generate comprehensive YAML documentation from Go struct definitions with sensible default values
-
-See [plugins/yaml/README.md](plugins/yaml/README.md) for detailed documentation.
