@@ -205,15 +205,14 @@ Automated pruning of stale/inactive plugins, commands, and skills.
 {paste warnings from Step 6, or "None" if clean}
 
 ## How to Save Items
-Comment `/save <path>` on this PR to protect any item from removal. Examples:
+To keep something that's being removed, comment on this PR with the path from the manifest table:
+
 ```
 /save plugins/foo/
 /save plugins/bar/commands/baz.md
 ```
 
-Then run `/marketplace-ops:prune-update` to process saves. Saved items are:
-1. Restored in the PR branch
-2. Added to `.pruneprotect` permanently (with a note of who requested it)
+Saved items will be restored from git history and added to `.pruneprotect` so they won't be flagged in future pruning cycles. Run `/marketplace-ops:prune-update` to process saves.
 
 ## Protected Items
 Items listed in `.pruneprotect` were excluded from analysis.
