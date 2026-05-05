@@ -150,7 +150,80 @@ curl -s -u "$JIRA_USER:$JIRA_API_TOKEN" -H "Content-Type: application/json" \
 
 6. **If declined**: Skip the update and proceed to label application and reporting with the original validation result.
 
-### Phase 6: Apply Jira Label
+### Phase 6: Comment on Result
+
+Skip if `--dry-run` is set.
+
+Post or update a Jira comment reflecting the validation result so the ticket author knows the outcome without running the check themselves.
+
+#### Step 1: Check for existing automated comment
+
+Fetch the issue with comments included and search for one whose body starts with `**Automated Readiness Check`. Save its `comment_id` if found.
+
+```python
+issue = mcp__atlassian__jira_get_issue(issue_key="{issue_key}")
+```
+
+Iterate through the comments in the returned issue payload. If any comment body starts with `**Automated Readiness Check`, store its `comment_id` for editing in Step 3.
+
+#### Step 2: Build comment body
+
+**On FAIL**: Reuse the same report format defined in Phase 8 (Generate Report), filtered to only show failed and warning checks. Wrap it with:
+- Header: `**Automated Readiness Check — FAILED**` followed by "Please update the issue description to address the REQUIRED items below."
+- Footer: `*These checks can also be auto-fixed by running '/jira:ready-to-solve {issue-key} --fix' in Claude Code.*`
+- If `--fix` was attempted but the issue still fails, replace the footer with:
+  ```text
+  *Auto-fix was attempted but could not fully resolve all issues. Please address the remaining items manually.*
+  ```
+
+**On PASS**: If an existing automated comment was found in Step 1, use a brief body. If no existing comment was found, skip to Phase 7 — no comment is needed for a first-time PASS.
+
+```markdown
+**Automated Readiness Check — PASSED**
+
+All checks passed. This issue is ready for `/jira:solve`.
+```
+
+#### Step 3: Post or edit the comment
+
+If an existing automated comment was found (Step 1), edit it:
+
+```python
+mcp__atlassian__jira_edit_comment(
+    issue_key="{issue_key}",
+    comment_id="{comment_id}",
+    body=comment_body
+)
+```
+
+If no existing comment was found and the verdict is FAIL, post a new one:
+
+```python
+mcp__atlassian__jira_add_comment(
+    issue_key="{issue_key}",
+    body=comment_body
+)
+```
+
+If no existing comment was found and the verdict is PASS, do nothing.
+
+**CLI fallback for adding:**
+```bash
+curl -s -u "$JIRA_USER:$JIRA_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -X POST "https://redhat.atlassian.net/rest/api/2/issue/{issue_key}/comment" \
+  -d '{"body": "...comment_body..."}'
+```
+
+**CLI fallback for editing:**
+```bash
+curl -s -u "$JIRA_USER:$JIRA_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -X PUT "https://redhat.atlassian.net/rest/api/2/issue/{issue_key}/comment/{comment_id}" \
+  -d '{"body": "...comment_body..."}'
+```
+
+### Phase 7: Apply Jira Label
 
 Skip if `--dry-run` is set.
 
@@ -178,7 +251,7 @@ jira issue edit PROJ-123 -l "ready-to-solve"
 
 Note: The `labels` field in Jira REST API replaces the entire array, so always include all existing labels plus the new one.
 
-### Phase 7: Generate Report
+### Phase 8: Generate Report
 
 Output format:
 
@@ -221,6 +294,7 @@ Output format:
 | Python not available | "Python 3 is required. Check: `which python3`" |
 | `check_sections.py` fails | Display script error, proceed with AI-only assessment, note in report |
 | Description is null/empty | Automatic FAIL: "Issue has no description. Add Context and Acceptance Criteria sections." |
+| Comment post/edit fails | Display warning but still proceed with label application and report. Non-fatal. |
 | Label update fails | Display warning but still show report. Non-fatal. |
 | Description update fails (`--fix`) | Display error, report original validation result. Non-fatal. |
 | User declines fix (`--fix`) | Skip update, proceed with original validation result. |
