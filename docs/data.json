@@ -852,6 +852,18 @@
     {
       "commands": [
         {
+          "argument_hint": "<operator-name> [namespace] [--all]",
+          "description": "Approve pending InstallPlans for operator installations and upgrades",
+          "name": "approve",
+          "synopsis": "/olm:approve <operator-name> [namespace] [--all]"
+        },
+        {
+          "argument_hint": "<list|add|remove|refresh|status> [arguments]",
+          "description": "Manage catalog sources for discovering and installing operators",
+          "name": "catalog",
+          "synopsis": "/olm:catalog list"
+        },
+        {
           "argument_hint": "<issue-description> <must-gather-path> [olm-version]",
           "description": "Debug OLM issues using must-gather logs and source code analysis",
           "name": "debug",
@@ -864,10 +876,22 @@
           "synopsis": "/olm:diagnose [operator-name] [namespace] [--fix] [--cluster]"
         },
         {
+          "argument_hint": "<operator-name> [namespace] [channel] [source] [--approval=Automatic|Manual]",
+          "description": "Install a day-2 operator using Operator Lifecycle Manager",
+          "name": "install",
+          "synopsis": "/olm:install <operator-name> [namespace] [channel] [source] [--approval=Automatic|Manual]"
+        },
+        {
           "argument_hint": "[namespace] [--all-namespaces]",
           "description": "List installed operators in the cluster",
           "name": "list",
           "synopsis": "/olm:list [namespace] [--all-namespaces]"
+        },
+        {
+          "argument_hint": "<action> [arguments...]",
+          "description": "Execute opm (Operator Package Manager) commands for building and managing operator catalogs",
+          "name": "opm",
+          "synopsis": "/olm:opm build-index-image <catalog-path> <index-image-tag> [--cacheless] [--arch=<arch>] [--base-image=<image>] [--builder-image=<image>]"
         },
         {
           "argument_hint": "[query] [--catalog <catalog-name>]",
@@ -880,6 +904,18 @@
           "description": "Get detailed status and health information for an operator",
           "name": "status",
           "synopsis": "/olm:status <operator-name> [namespace]"
+        },
+        {
+          "argument_hint": "<operator-name> [namespace] [--remove-crds] [--remove-namespace]",
+          "description": "Uninstall a day-2 operator and optionally remove its resources",
+          "name": "uninstall",
+          "synopsis": "/olm:uninstall <operator-name> [namespace] [--remove-crds] [--remove-namespace]"
+        },
+        {
+          "argument_hint": "<operator-name> [namespace] [--channel=<channel>] [--approve]",
+          "description": "Update an operator to the latest version or switch channels",
+          "name": "upgrade",
+          "synopsis": "/olm:upgrade <operator-name> [namespace] [--channel=<channel>] [--approve]"
         }
       ],
       "description": "OLM (Operator Lifecycle Manager) plugin for operator management and debugging",
@@ -887,7 +923,7 @@
       "hooks": [],
       "name": "olm",
       "skills": [],
-      "version": "0.1.2"
+      "version": "0.1.1"
     },
     {
       "commands": [

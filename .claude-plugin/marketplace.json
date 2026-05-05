@@ -56,7 +56,7 @@
       "name": "olm",
       "source": "./plugins/olm",
       "description": "OLM (Operator Lifecycle Manager) plugin for operator management and debugging",
-      "version": "0.1.2"
+      "version": "0.1.1"
     },
     {
       "name": "olm-team",
