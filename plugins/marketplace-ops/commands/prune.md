@@ -42,9 +42,11 @@ The script handles:
 | Number of commits <= 3 | 2 |
 | Number of commits > 3 and <= 5 | 1 |
 | Single contributor + inactive > 2 months | 1 |
-| Version still at 0.0.x | 1 |
+| Has OWNERS file | -2 |
 | Small plugin footprint (few things inside) | 1 |
 | Minimal README or docs | 1 |
+
+Maturity signals (commit count, OWNERS, footprint, README) are skipped for plugins younger than 90 days.
 
 The JSON output contains `candidates` (score >= threshold), `protected` (skipped), and `safe` (scored but below threshold) arrays. Use this as the starting point for plugin-level removals.
 

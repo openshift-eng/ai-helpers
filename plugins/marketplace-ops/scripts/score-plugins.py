@@ -136,6 +136,10 @@ def has_hooks(plugin_dir):
     return (plugin_dir / "hooks").is_dir()
 
 
+def has_owners(plugin_dir):
+    return (plugin_dir / "OWNERS").exists()
+
+
 def readme_size(plugin_dir):
     readme = plugin_dir / "README.md"
     if readme.exists():
@@ -199,10 +203,9 @@ def score_plugin(plugin_info, now, batch_dates):
                 score += 1
                 reasons.append(f"Single contributor, inactive {days_inactive} days (>60)")
 
-        version = plugin_info.get("version", "")
-        if version.startswith("0.0."):
-            score += 1
-            reasons.append(f"Version stuck at {version}")
+        if plugin_info.get("has_owners"):
+            score -= 2
+            reasons.append("Has OWNERS file (-2)")
 
         num_commands = plugin_info["command_count"]
         num_skills = plugin_info["skill_count"]
@@ -257,6 +260,7 @@ def main():
             "command_count": count_commands(plugin_dir),
             "skill_count": count_skills(plugin_dir),
             "has_hooks": has_hooks(plugin_dir),
+            "has_owners": has_owners(plugin_dir),
             "readme_bytes": readme_size(plugin_dir),
             "first_commit_date": first_date,
             "last_commit_date": last_date,
