@@ -59,17 +59,30 @@ Read through the `candidates` array from the script output. For each candidate, 
 
 ### Step 3: Command/Skill-Level Analysis (Higher Bar)
 
-For plugins that are NOT being fully pruned, evaluate individual commands and skills. This requires a higher bar — use all of the following signals together:
+Run the item-level scoring script to get per-command and per-skill metadata for plugins that survived the plugin-level cut:
 
-1. **Read the command/skill `.md` content.**
-2. **Check contributor count and activity:** single contributor + no commits in 6+ months.
-3. **Apply LLM judgment on utility:**
-   - Does the command require AI reasoning/analysis/decisions? Or could it be a shell alias or Makefile target? Commands that just wrap scripts violate the repo's "AI reasoning required" rule and are candidates.
-   - Does the command duplicate or substantially overlap with another command in the marketplace?
-   - Does the command reference tools, APIs, or services that no longer exist or are deprecated?
-   - Would an engineering organization find this command useful?
+```bash
+python3 plugins/marketplace-ops/scripts/score-items.py .
+```
 
-Only flag a command/skill if both the quantitative signals (low contributors + inactive) AND the qualitative judgment (low utility) agree. When in doubt, keep the item.
+Or to analyze only specific plugins:
+```bash
+python3 plugins/marketplace-ops/scripts/score-items.py --plugins ci,git,jira .
+```
+
+The script scores each command (individual `.md` file) and skill (full skill directory) using:
+- Graduated inactivity (>90d: +1, >120d: +2, >150d: +3, >180d: +4)
+- Low commit count (<=2 commits: +1)
+- Single contributor (+1)
+- Very small size (<500 bytes: +1)
+
+Items with score >= 3 appear in the `flagged` array. For each flagged item, read its content and apply LLM judgment:
+- Does the command require AI reasoning/analysis/decisions? Or could it be a shell alias or Makefile target? Commands that just wrap scripts violate the repo's "AI reasoning required" rule and are candidates.
+- Does the command duplicate or substantially overlap with another command in the marketplace?
+- Does the command reference tools, APIs, or services that no longer exist or are deprecated?
+- Would an engineering organization find this command useful?
+
+Only remove a command/skill if both the quantitative signals (flagged by the script) AND the qualitative judgment (low utility) agree. When in doubt, keep the item.
 
 ### Step 4: Cross-Reference Scan
 
