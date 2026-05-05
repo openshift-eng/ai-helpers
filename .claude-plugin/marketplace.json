@@ -140,7 +140,7 @@
       "name": "bigquery",
       "source": "./plugins/bigquery",
       "description": "BigQuery analysis utilities",
-      "version": "0.0.2"
+      "version": "0.0.3"
     },
     {
       "name": "workspaces",
