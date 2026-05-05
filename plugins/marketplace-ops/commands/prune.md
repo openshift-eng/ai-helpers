@@ -21,70 +21,38 @@ With `--dry-run`, prints the analysis report without creating a branch or PR.
 
 ## Implementation
 
-### Step 1: Load Protection List
+### Step 1: Run the Plugin Scoring Script
 
-Read `.pruneprotect` from the repository root. If the file does not exist, treat the protection list as empty.
+Run the scoring script to get a structured JSON report of all plugins scored by staleness:
 
-Parse rules:
-- Lines starting with `#` are comments — skip them.
-- Empty/whitespace-only lines — skip.
-- All other lines are path prefixes (e.g., `plugins/hello-world/` or `plugins/ci/commands/foo.md`).
-
-A plugin, command, or skill is protected if its path starts with any entry in the protection list.
-
-### Step 2: Inventory All Plugins
-
-For each directory under `plugins/`:
-1. Read `.claude-plugin/plugin.json` — extract `name`, `version`, `description`.
-2. List commands: `find plugins/{name}/commands -name "*.md" -maxdepth 1 2>/dev/null`.
-3. List skills: `find plugins/{name}/skills -name "SKILL.md" 2>/dev/null`.
-4. Check for hooks: test if `plugins/{name}/hooks/` exists.
-5. Check for README: test if `plugins/{name}/README.md` exists and get its size.
-
-Build a structured inventory of every plugin with its commands, skills, hooks, and metadata.
-
-### Step 3: Gather Git Metadata
-
-For each plugin directory, run:
 ```bash
-# Last commit date (ISO format)
-git log -1 --format="%aI" -- "plugins/{name}/"
-
-# Number of unique contributors
-git shortlog -sn --all -- "plugins/{name}/" | wc -l
-
-# Contributors list (for reporting)
-git shortlog -sn --all -- "plugins/{name}/"
+python3 plugins/marketplace-ops/scripts/score-plugins.py .
 ```
 
-For command-level and skill-level analysis, also gather per-file metadata:
-```bash
-git log -1 --format="%aI" -- "path/to/file.md"
-git shortlog -sn --all -- "path/to/file.md" | wc -l
-```
+The script handles:
+- Reading `.pruneprotect` and skipping protected plugins
+- Inventorying all plugins (commands, skills, hooks, README, version)
+- Gathering git metadata (last commit date, commit count, contributor count)
+- Detecting batch-update dates (when 5+ plugins share the same last-commit date) and falling through to the second-most-recent commit
+- Scoring each plugin against these heuristics (candidate threshold: score >= 3):
 
-Calculate the age of the last commit in days from today's date.
+| Signal | Weight |
+|--------|--------|
+| Last meaningful commit > 3 months ago | 2 |
+| Number of commits <= 3 | 2 |
+| Number of commits > 3 and <= 5 | 1 |
+| Single contributor + inactive > 2 months | 1 |
+| Version still at 0.0.x | 1 |
+| Small plugin footprint (few things inside) | 1 |
+| Minimal README or docs | 1 |
 
-**Batch-update detection:** If more than 5 plugins share the exact same last-commit date, that commit is likely a batch infrastructure update. In that case, look at the second-most-recent commit for those plugins to find the last *meaningful* update:
-```bash
-git log -2 --format="%aI" -- "plugins/{name}/"
-```
+The JSON output contains `candidates` (score >= threshold), `protected` (skipped), and `safe` (scored but below threshold) arrays. Use this as the starting point for plugin-level removals.
 
-### Step 4: Plugin-Level Scoring
+### Step 2: Review Plugin Candidates
 
-Apply these heuristics to each non-protected plugin. A plugin is a pruning candidate if its total score is >= 3:
+Read through the `candidates` array from the script output. For each candidate, review its `reasons` and `score`. Use your judgment to filter out false positives — a plugin with a high score but genuinely useful functionality should be kept. Add any such plugins to a skip list for this run.
 
-| Signal | Weight | How to detect |
-|--------|--------|---------------|
-| Last meaningful commit > 6 months ago | 2 | Git log date vs. today |
-| Version stuck at 0.0.x | 1 | Parse `version` field from plugin.json |
-| 1-2 commands and no skills | 1 | Count from inventory |
-| No README or README < 100 bytes | 1 | File existence + size check |
-| Single contributor + inactive > 3 months | 1 | Shortlog count + date |
-
-**Important:** Hook-only plugins (no commands) are NOT penalized for having no commands. Hook-only plugins serve infrastructure purposes and should be evaluated on the same signals as any other plugin.
-
-### Step 5: Command/Skill-Level Analysis (Higher Bar)
+### Step 3: Command/Skill-Level Analysis (Higher Bar)
 
 For plugins that are NOT being fully pruned, evaluate individual commands and skills. This requires a higher bar — use all of the following signals together:
 
@@ -98,7 +66,7 @@ For plugins that are NOT being fully pruned, evaluate individual commands and sk
 
 Only flag a command/skill if both the quantitative signals (low contributors + inactive) AND the qualitative judgment (low utility) agree. When in doubt, keep the item.
 
-### Step 6: Cross-Reference Scan
+### Step 4: Cross-Reference Scan
 
 Before finalizing the removal list, check whether any item being removed is referenced by items NOT being removed:
 
@@ -113,7 +81,7 @@ grep -rl "{command-name}" plugins/ --include="*.md"
 
 Record any cross-references as warnings to include in the report.
 
-### Step 7: Generate Report
+### Step 5: Generate Report
 
 Build a removal manifest table:
 
@@ -136,11 +104,11 @@ And list protected items that were skipped:
 - `plugins/hello-world/` — listed in .pruneprotect
 ```
 
-### Step 8: Dry-Run Exit Point
+### Step 6: Dry-Run Exit Point
 
 **If `--dry-run` was specified:** Print the full report to the user and stop. Do not create a branch, remove files, or open a PR.
 
-### Step 9: Create Branch and Remove Items
+### Step 7: Create Branch and Remove Items
 
 ```bash
 git checkout -b prune/$(date +%Y%m%d) main
@@ -158,7 +126,7 @@ git rm plugins/{plugin-name}/commands/{command}.md
 git rm -rf plugins/{plugin-name}/skills/{skill-name}/
 ```
 
-### Step 10: Sync and Commit
+### Step 8: Sync and Commit
 
 Run `make update` to regenerate marketplace.json and documentation:
 ```bash
@@ -178,7 +146,7 @@ EOF
 )"
 ```
 
-### Step 11: Push and Open PR
+### Step 9: Push and Open PR
 
 Determine the correct remote for the user's fork:
 ```bash
@@ -223,7 +191,7 @@ EOF
 )"
 ```
 
-### Step 12: Report Results
+### Step 10: Report Results
 
 Print the PR URL and a summary: how many plugins, commands, and skills were proposed for removal.
 
