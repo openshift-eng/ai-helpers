@@ -60,6 +60,14 @@ def git(repo_root, *args):
     return result.stdout.strip()
 
 
+def get_first_commit_date(repo_root, path):
+    out = git(repo_root, "log", "--diff-filter=A", "--format=%aI", "--reverse", "--", path)
+    if not out:
+        return None
+    first_line = out.splitlines()[0].strip()
+    return datetime.fromisoformat(first_line) if first_line else None
+
+
 def get_last_commit_date(repo_root, path):
     out = git(repo_root, "log", "-1", "--format=%aI", "--", path)
     if not out:
@@ -160,47 +168,55 @@ def score_plugin(plugin_info, now, batch_dates):
         plugin_info["batch_update_detected"] = False
 
     if effective_date:
-        age_days = (now - effective_date).days
-        plugin_info["days_since_last_meaningful_commit"] = age_days
-        if age_days > 90:
+        days_inactive = (now - effective_date).days
+        plugin_info["days_since_last_meaningful_commit"] = days_inactive
+        if days_inactive > 90:
             score += 2
-            reasons.append(f"Last meaningful commit {age_days} days ago (>90)")
+            reasons.append(f"Last meaningful commit {days_inactive} days ago (>90)")
     else:
         plugin_info["days_since_last_meaningful_commit"] = None
 
-    commit_count = plugin_info["commit_count"]
-    if commit_count <= 3:
-        score += 2
-        reasons.append(f"Only {commit_count} commits total (<=3)")
-    elif commit_count <= 5:
-        score += 1
-        reasons.append(f"Only {commit_count} commits total (<=5)")
+    first_date = plugin_info.get("first_commit_date")
+    plugin_age_days = (now - first_date).days if first_date else None
+    plugin_info["plugin_age_days"] = plugin_age_days
+    is_young = plugin_age_days is not None and plugin_age_days < 90
 
-    contributor_count = plugin_info["contributor_count"]
-    if contributor_count == 1 and effective_date:
-        age_days = (now - effective_date).days
-        if age_days > 60:
+    if is_young:
+        reasons.append(f"Young plugin ({plugin_age_days} days old) — skipping maturity signals")
+    else:
+        commit_count = plugin_info["commit_count"]
+        if commit_count <= 3:
+            score += 2
+            reasons.append(f"Only {commit_count} commits total (<=3)")
+        elif commit_count <= 5:
             score += 1
-            reasons.append(f"Single contributor, inactive {age_days} days (>60)")
+            reasons.append(f"Only {commit_count} commits total (<=5)")
 
-    version = plugin_info.get("version", "")
-    if version.startswith("0.0."):
-        score += 1
-        reasons.append(f"Version stuck at {version}")
+        contributor_count = plugin_info["contributor_count"]
+        if contributor_count == 1 and effective_date:
+            days_inactive = (now - effective_date).days
+            if days_inactive > 60:
+                score += 1
+                reasons.append(f"Single contributor, inactive {days_inactive} days (>60)")
 
-    num_commands = plugin_info["command_count"]
-    num_skills = plugin_info["skill_count"]
-    if num_commands + num_skills <= 2:
-        score += 1
-        reasons.append(f"Small footprint ({num_commands} commands, {num_skills} skills)")
+        version = plugin_info.get("version", "")
+        if version.startswith("0.0."):
+            score += 1
+            reasons.append(f"Version stuck at {version}")
 
-    rs = plugin_info["readme_bytes"]
-    if rs == 0:
-        score += 1
-        reasons.append("No README")
-    elif rs < 100:
-        score += 1
-        reasons.append(f"Minimal README ({rs} bytes)")
+        num_commands = plugin_info["command_count"]
+        num_skills = plugin_info["skill_count"]
+        if num_commands + num_skills <= 2:
+            score += 1
+            reasons.append(f"Small footprint ({num_commands} commands, {num_skills} skills)")
+
+        rs = plugin_info["readme_bytes"]
+        if rs == 0:
+            score += 1
+            reasons.append("No README")
+        elif rs < 100:
+            score += 1
+            reasons.append(f"Minimal README ({rs} bytes)")
 
     plugin_info["score"] = score
     plugin_info["reasons"] = reasons
@@ -228,6 +244,7 @@ def main():
         meta = read_plugin_json(plugin_dir)
 
         last_date = get_last_commit_date(repo_root, rel_path)
+        first_date = get_first_commit_date(repo_root, rel_path)
         all_last_dates.append(last_date)
         dates = get_last_two_commit_dates(repo_root, rel_path)
 
@@ -241,6 +258,7 @@ def main():
             "skill_count": count_skills(plugin_dir),
             "has_hooks": has_hooks(plugin_dir),
             "readme_bytes": readme_size(plugin_dir),
+            "first_commit_date": first_date,
             "last_commit_date": last_date,
             "second_commit_date": dates[1] if len(dates) > 1 else None,
             "commit_count": get_commit_count(repo_root, rel_path),
@@ -262,7 +280,7 @@ def main():
 
     # Serialize datetimes to ISO strings
     for p in plugins:
-        for key in ("last_commit_date", "second_commit_date"):
+        for key in ("first_commit_date", "last_commit_date", "second_commit_date"):
             if isinstance(p[key], datetime):
                 p[key] = p[key].isoformat()
 
