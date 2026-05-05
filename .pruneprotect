@@ -1,0 +1,18 @@
+# Plugins protected from automated pruning
+# One path per line. Lines starting with # are comments.
+
+# Canonical example plugin
+plugins/hello-world/
+
+# Infrastructure plugins (hook-only, by design)
+plugins/metrics/
+plugins/native-notifications/
+
+# Marketplace operations plugin
+plugins/marketplace-ops/
+
+# Saved by @stbenjam on 2026-05-05
+plugins/bigquery/
+plugins/ci/
+plugins/hcp/
+plugins/sosreport/
