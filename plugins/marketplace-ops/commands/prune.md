@@ -149,7 +149,16 @@ git rm plugins/{plugin-name}/commands/{command}.md
 git rm -rf plugins/{plugin-name}/skills/{skill-name}/
 ```
 
-### Step 8: Sync and Commit
+### Step 8: Bump Versions for Modified Plugins
+
+For any surviving plugin that had commands or skills removed (i.e., not a full plugin removal), bump the patch version in its `plugin.json`. This is required by the CI version-check workflow.
+
+For each affected plugin:
+1. Read `plugins/{plugin-name}/.claude-plugin/plugin.json`
+2. Increment the patch version (e.g., `0.0.5` → `0.0.6`)
+3. Write the updated file
+
+### Step 9: Sync and Commit
 
 Run `make update` to regenerate marketplace.json and documentation:
 ```bash
@@ -169,7 +178,7 @@ EOF
 )"
 ```
 
-### Step 9: Push and Open PR
+### Step 10: Push and Open PR
 
 Determine the correct remote for the user's fork:
 ```bash
@@ -214,7 +223,7 @@ EOF
 )"
 ```
 
-### Step 10: Report Results
+### Step 11: Report Results
 
 Print the PR URL and a summary: how many plugins, commands, and skills were proposed for removal.
 
