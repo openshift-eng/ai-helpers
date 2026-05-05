@@ -19,11 +19,17 @@ RUN dnf install -y 'dnf-command(config-manager)' \
     && dnf install -y gh \
     && dnf clean all
 
-# Install PCP tools
-RUN dnf install -y \
+# Install PCP tools (--skip-unavailable for local builds without full RHEL repos)
+RUN dnf install -y --skip-unavailable \
     pcp \
     pcp-export-pcp2json \
-    && dnf clean all
+    ; dnf clean all
+
+# Install Node.js from nodejs.org (pinned version, no package manager dependency)
+ENV NODE_VERSION=22.15.1
+RUN curl -fsSL https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.xz \
+    | tar -xJ -C /usr/local --strip-components=1 \
+    && node --version && npm --version
 
 # Create claude user with root group for OpenShift compatibility
 RUN useradd -m -u 1000 -g 0 -s /bin/bash claude
