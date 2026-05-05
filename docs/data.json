@@ -1738,6 +1738,31 @@
         }
       ],
       "version": "0.0.1"
+    },
+    {
+      "commands": [],
+      "description": "Create and maintain AI-optimized documentation for OpenShift",
+      "has_readme": true,
+      "hooks": [],
+      "name": "agentic-docs",
+      "skills": [
+        {
+          "description": "Create lean tier-2 component documentation for OpenShift repositories",
+          "id": "component",
+          "name": "component-docs"
+        },
+        {
+          "description": "Create AI-optimized platform documentation for openshift/enhancements",
+          "id": "platform",
+          "name": "platform-docs"
+        },
+        {
+          "description": "Update existing platform documentation with automatic gap detection in openshift/enhancements",
+          "id": "update-platform-docs",
+          "name": "update-platform-docs"
+        }
+      ],
+      "version": "1.0.0"
     }
   ]
 }

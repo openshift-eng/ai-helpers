@@ -1,0 +1,1 @@
+../../platform/scripts/gap-detection.sh
