@@ -38,7 +38,10 @@ The script handles:
 
 | Signal | Weight |
 |--------|--------|
-| Last meaningful commit > 3 months ago | 2 |
+| Last meaningful commit > 90 days ago | 1 |
+| Last meaningful commit > 120 days ago | 2 |
+| Last meaningful commit > 150 days ago | 3 |
+| Last meaningful commit > 180 days ago | 4 |
 | Number of commits <= 3 | 2 |
 | Number of commits > 3 and <= 5 | 1 |
 | Single contributor + inactive > 2 months | 1 |

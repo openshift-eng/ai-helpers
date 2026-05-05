@@ -174,8 +174,17 @@ def score_plugin(plugin_info, now, batch_dates):
     if effective_date:
         days_inactive = (now - effective_date).days
         plugin_info["days_since_last_meaningful_commit"] = days_inactive
-        if days_inactive > 90:
+        if days_inactive > 180:
+            score += 4
+            reasons.append(f"Last meaningful commit {days_inactive} days ago (>180)")
+        elif days_inactive > 150:
+            score += 3
+            reasons.append(f"Last meaningful commit {days_inactive} days ago (>150)")
+        elif days_inactive > 120:
             score += 2
+            reasons.append(f"Last meaningful commit {days_inactive} days ago (>120)")
+        elif days_inactive > 90:
+            score += 1
             reasons.append(f"Last meaningful commit {days_inactive} days ago (>90)")
     else:
         plugin_info["days_since_last_meaningful_commit"] = None
