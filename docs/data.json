@@ -1749,6 +1749,21 @@
         }
       ],
       "version": "0.0.1"
+    },
+    {
+      "commands": [],
+      "description": "Generate AI Software Bill of Materials (SBOM) declarations for PR descriptions",
+      "has_readme": true,
+      "hooks": [],
+      "name": "ai-sbom",
+      "skills": [
+        {
+          "description": "Generate an AI SBOM declaration for a PR description. Use this skill when the user asks to generate an AI SBOM, create an ai-assisted block, fill out their AI assistance section, or prepare a PR description with AI provenance. Also use when the user says 'what skills did I use' or 'summarize my AI usage'.",
+          "id": "generate",
+          "name": "AI SBOM Generate"
+        }
+      ],
+      "version": "0.0.1"
     }
   ]
 }

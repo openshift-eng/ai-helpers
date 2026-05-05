@@ -225,6 +225,12 @@
       "source": "./plugins/console",
       "description": "OpenShift Console dynamic plugin development utilities",
       "version": "0.0.1"
+    },
+    {
+      "name": "ai-sbom",
+      "source": "./plugins/ai-sbom",
+      "description": "Generate AI Software Bill of Materials (SBOM) declarations for PR descriptions",
+      "version": "0.0.1"
     }
   ]
 }
