@@ -13,6 +13,8 @@ snowflake:activity-type-report
 /snowflake:activity-type-report <projects> [months] --todo
 /snowflake:activity-type-report <projects> [months] --all
 /snowflake:activity-type-report <projects> [months] --uncategorized
+/snowflake:activity-type-report <projects> [months] --uncategorized --todo
+/snowflake:activity-type-report <projects> [months] --uncategorized --all
 /snowflake:activity-type-report <projects> [months] --uncategorized --sample [N]
 ```
 
@@ -79,15 +81,28 @@ And `DPTP --uncategorized` means projects=DPTP, months=6 (default), closed issue
 Core query pattern (adapt based on available columns/views):
 
 ```sql
+WITH bot_issues AS (
+    SELECT DISTINCT ISSUE
+    FROM JIRA_LABEL_RHAI
+    WHERE LABEL IN (
+        'auto-created', 'bot-created', 'ai-generated', 'ai-generated-jira',
+        'cloud-automated-jira', 'on-call-bot', 'automated', 'team:automatic_rule',
+        'bot-duplicate',
+        'art:image-build-failure', 'art:reconciliation',
+        'acs-generated', 'triaged-test-automation'
+    )
+)
 SELECT
     ji.ISSUE_KEY AS ISSUEKEY,
     ji.PROJECT AS PROJECT_KEY,
     ji.SUMMARY,
     SUBSTR(ji.DESCRIPTION, 1, 2000) AS DESCRIPTION_EXCERPT,
     ji.CREATED,
+    CASE WHEN bi.ISSUE IS NOT NULL THEN TRUE ELSE FALSE END AS IS_BOT,
     -- join for issue type name: jit.PNAME AS ISSUE_TYPE
     -- join for status name: js.PNAME AS STATUS
 FROM JIRA_ISSUE_NON_PII ji
+LEFT JOIN bot_issues bi ON bi.ISSUE = ji.ID
 LEFT JOIN JIRA_ISSUETYPE_RHAI jit ON jit.ID = ji.ISSUETYPE
 LEFT JOIN JIRA_ISSUESTATUS_RHAI js ON js.ID = ji.ISSUESTATUS_ID
 -- If --uncategorized: LEFT JOIN JIRA_CUSTOMFIELDVALUE_NON_PII cfv
@@ -107,13 +122,23 @@ WHERE ji.PROJECT IN ('DPTP', 'TRT', ...)
 ORDER BY ji.CREATED DESC
 ```
 
-If `JIRA_NODEASSOCIATION_RHAI` and `JIRA_COMPONENT_RHAI` views exist, also fetch components:
+The `bot_issues` CTE identifies issues filed by automation bots via labels in `JIRA_LABEL_RHAI`. These labels were verified across 48 HP projects — they reliably distinguish bot-filed tickets (e.g., ART image-build-failure, ACM auto-created CVEs) from human engineering work. Labels describing automation *work* by humans (e.g., `automation`, `qe-automation`, `auto-closed`) are intentionally excluded.
+
+If `JIRA_NODEASSOCIATION_RHAI` and `JIRA_COMPONENT_RHAI` views exist, also fetch components (reuse the same `bot_issues` CTE from the query above — identical label list):
 
 ```sql
+WITH bot_issues AS (
+    -- Same CTE as main query above — keep label list in sync
+    SELECT DISTINCT ISSUE
+    FROM JIRA_LABEL_RHAI
+    WHERE LABEL IN (<<same 13 labels as main query above>>)
+)
 SELECT
     ji.ISSUE_KEY AS ISSUEKEY,
-    LISTAGG(c.CNAME, ', ') WITHIN GROUP (ORDER BY c.CNAME) AS COMPONENTS
+    LISTAGG(c.CNAME, ', ') WITHIN GROUP (ORDER BY c.CNAME) AS COMPONENTS,
+    MAX(CASE WHEN bi.ISSUE IS NOT NULL THEN TRUE ELSE FALSE END) AS IS_BOT
 FROM JIRA_ISSUE_NON_PII ji
+LEFT JOIN bot_issues bi ON bi.ISSUE = ji.ID
 LEFT JOIN JIRA_NODEASSOCIATION_RHAI na
     ON na.SOURCE_NODE_ID = ji.ID AND na.ASSOCIATION_TYPE = 'IssueComponent'
 LEFT JOIN JIRA_COMPONENT_RHAI c ON c.ID = na.SINK_NODE_ID
@@ -177,7 +202,7 @@ All subsequent phases write to `$RUN_DIR/`.
 
 **Cache check**: If `$RUN_DIR/classified_issues.json` already exists (full mode) or `$RUN_DIR/estimates.json` already exists (sample mode), skip classification entirely and go directly to Phase 5. Tell the user: "Found existing classification in `$RUN_DIR/` — skipping Vertex AI API call to save tokens. Delete the directory to force re-classification."
 
-Otherwise, write the fetched issues to `$RUN_DIR/issues.json` as a JSON array. Each object should include: `ISSUEKEY`, `PROJECT_KEY`, `SUMMARY`, `DESCRIPTION_EXCERPT`, `CREATED`, `ISSUE_TYPE`, `STATUS`, and `COMPONENTS` (if available).
+Otherwise, write the fetched issues to `$RUN_DIR/issues.json` as a JSON array. Each object should include: `ISSUEKEY`, `PROJECT_KEY`, `SUMMARY`, `DESCRIPTION_EXCERPT`, `CREATED`, `ISSUE_TYPE`, `STATUS`, `COMPONENTS` (if available), and `IS_BOT`.
 
 Find the scripts directory:
 ```bash
@@ -203,7 +228,7 @@ python3 "$SCRIPT_DIR/sample_and_estimate.py" \
   --draw-sample $RUN_DIR/sample_to_classify.json \
   --sample-size ${N:-0}
 ```
-(0 = auto-recommend based on ±2.5% target precision, typically ~400 issues)
+(0 = auto-recommend independently per population. Each of human and bot gets the sample size needed for ±5% CI width, typically 200-400 each. Within each population, uses simple random sampling.)
 
 **Step 2: Classify only the sample**
 ```bash
@@ -224,7 +249,7 @@ The script reads `CLOUD_ML_REGION` and `ANTHROPIC_VERTEX_PROJECT_ID` from enviro
 
 If the script fails with an auth error, tell the user to run: `gcloud auth login`
 
-Full mode processes issues in batches of 15. Sample mode classifies only the sample (~369 issues by default), completing in ~3 minutes.
+Full mode processes issues in batches of 15. Sample mode classifies only the sample (auto-sized independently per population, typically ~738 total for mixed human/bot datasets), completing in ~5 minutes.
 
 **Run all steps without asking for confirmation.** Set a generous timeout (600s) on the classify step since it makes sequential API calls. In sample mode, run Steps 1-3 sequentially in a single Bash invocation if possible.
 
@@ -281,10 +306,37 @@ Include the status filter in the summary header. When `--uncategorized` is activ
 
 #### Full mode summary:
 
-```
+When bot issues are detected (any issue has `IS_BOT=true`), show separate human and bot distributions. The human distribution is the primary output — it shows what engineers are actually working on. The bot distribution is secondary context.
+
+```text
 Activity Type Report: $RUN_DIR/activity-type-report.html
 
-54,478 issues across 52 projects (2025-10-02 to 2026-04-07)
+3,114 closed issues across 1 project (2026-01-22 to 2026-04-22)
+  Human: 38 (1.2%)  |  Automated/Bot: 3,076 (98.8%)
+
+Human Work — Activity Type Distribution:
+  Product / Portfolio Work             15 (39.5%)
+  Quality / Stability / Reliability     8 (21.1%)
+  Future Sustainability                 6 (15.8%)
+  Incidents & Support                   4 (10.5%)
+  Security & Compliance                 3  (7.9%)
+  Associate Wellness & Development      1  (2.6%)
+  Uncategorized                         1  (2.6%)
+
+Automated/Bot Work — Activity Type Distribution:
+  Quality / Stability / Reliability  3,050 (99.2%)
+  Product / Portfolio Work              15  (0.5%)
+  Uncategorized                         11  (0.4%)
+
+Classification cost: 86,313 input + 13,008 output = 99,321 tokens, $0.45
+```
+
+When zero bot issues are detected, omit the human/bot split and show the current format:
+
+```text
+Activity Type Report: $RUN_DIR/activity-type-report.html
+
+247 closed issues across 1 project (2025-10-02 to 2026-04-07)
 
 Activity Type Distribution:
   Quality / Stability / Reliability    98 (39.7%)
@@ -300,13 +352,39 @@ Classification cost: 86,313 input + 13,008 output = 99,321 tokens, $0.45
 
 #### Sample mode summary:
 
-Include credible intervals and sample metadata:
+Include credible intervals and sample metadata. When bot issues are detected, show separate human and bot distributions with their own credible intervals.
 
+```text
+Activity Type Report (Sampled Estimate): $RUN_DIR/activity-type-report.html
+
+4,338 issues across 1 project (2025-10-02 to 2026-04-07)
+  Human: 1,237 (28.5%)  |  Automated/Bot: 3,101 (71.5%)
+Sample: 738 classified (17.0%) — 50 API calls, $0.82
+  Human: 369 of 1,237 (29.8%)  |  Bot: 369 of 3,101 (11.9%)
+
+Human Work — Activity Type Distribution (95% Credible Intervals):
+  Product / Portfolio Work           32.1%  [25.4% — 39.2%]
+  Quality / Stability / Reliability  22.8%  [17.0% — 29.3%]
+  Future Sustainability              16.5%  [11.4% — 22.4%]
+  Incidents & Support                12.3%  [ 7.9% — 17.5%]
+  Security & Compliance               8.7%  [ 5.1% — 13.3%]
+  Associate Wellness & Development    4.2%  [ 1.8% —  7.8%]
+  Uncategorized                       3.4%  [ 1.3% —  6.6%]
+
+Automated/Bot Work — Activity Type Distribution (95% Credible Intervals):
+  Quality / Stability / Reliability  96.2%  [94.1% — 97.8%]
+  Product / Portfolio Work            1.5%  [ 0.5% —  3.1%]
+  Uncategorized                       1.3%  [ 0.4% —  2.8%]
+  ...
 ```
+
+When zero bot issues are detected, omit the split and show the original format:
+
+```text
 Activity Type Report (Sampled Estimate): $RUN_DIR/activity-type-report.html
 
 54,478 issues across 52 projects (2025-10-02 to 2026-04-07)
-Sample: 369 classified (0.7%) — 25 API calls, $0.45
+Sample: 369 classified (0.7%) — 25 API calls, ~$0.45
 
 Activity Type Distribution (95% Credible Intervals):
   Quality / Stability / Reliability  43.4%  [38.4% — 48.3%]
@@ -318,7 +396,7 @@ Activity Type Distribution (95% Credible Intervals):
   Incidents & Support                 3.5%  [ 1.9% —  5.5%]
 ```
 
-Read the estimates from `$RUN_DIR/estimates.json` (field: `overall.estimates[]`, each with `category`, `posterior_mean`, `ci_low`, `ci_high`) and the usage from `$RUN_DIR/classified_sample_usage.txt` (or `classified_issues_usage.txt` in full mode).
+Read the estimates from `$RUN_DIR/estimates.json`. For the overall distribution, use `overall.estimates[]` (each with `category`, `posterior_mean`, `ci_low`, `ci_high`). When `human` and `bot` keys are present in the JSON, use `human.estimates[]` and `bot.estimates[]` for the separate distributions. Read usage from `$RUN_DIR/classified_sample_usage.txt` (or `classified_issues_usage.txt` in full mode).
 
 After the summary, tell the user the HTML report is available at the path shown and can be opened directly in a browser from their host filesystem.
 
@@ -337,10 +415,12 @@ After the summary, tell the user the HTML report is available at the path shown 
 
 - **--sample [N]** (optional)
   - Enable sampling mode: classify a random sample and estimate the full distribution using Bayesian inference (Dirichlet-Multinomial)
-  - N = sample size (default: auto-recommended for ±2.5% precision, typically ~400)
+  - Samples human and bot subpopulations independently, each sized for ±5% CI width (target_width=0.10). This ensures both populations have adequate precision.
+  - N = total sample budget (default: auto-recommended independently per population, typically ~738 total for mixed datasets). When N is specified, it is allocated across populations proportional to their recommended sizes.
   - The report shows posterior means with 95% credible intervals instead of exact counts
-  - Dramatically reduces API cost and time for large datasets (e.g., 27 API calls vs. 1,000+)
-  - Uses stratified sampling by project to ensure all projects are represented
+  - The "All" view uses post-stratification weighted estimates that properly combine human and bot posteriors by population proportion
+  - Dramatically reduces API cost and time for large datasets (e.g., 50 API calls vs. 1,000+)
+  - Within each population, uses simple random sampling (no per-project stratification)
 
 - **--todo** (optional)
   - Analyze only open/backlog issues (non-closed statuses: New, In Progress, To Do, Refinement, etc.)
@@ -366,8 +446,9 @@ Each run produces a directory under `.work/snowflake/reports/` containing the ra
 
 The report includes:
 - Sankey diagram: Project to Activity Type flows
-- Summary statistics
-- Searchable, paginated detail table with direct Jira links per issue
+- Human/All/Bot toggle (when bot issues are detected) to view distributions separately
+- Summary statistics with human/bot counts
+- Searchable, paginated detail table with direct Jira links per issue and Source column (Human/Bot)
 - CSV export capability
 
 ## Examples
@@ -417,7 +498,17 @@ The report includes:
    /snowflake:activity-type-report DPTP --uncategorized
    ```
 
-10. **Uncategorized with sampling:**
+10. **Uncategorized open/backlog issues:**
+    ```bash
+    /snowflake:activity-type-report DPTP,TRT 6 --uncategorized --todo
+    ```
+
+11. **Uncategorized across all statuses:**
+    ```bash
+    /snowflake:activity-type-report DPTP,TRT 6 --uncategorized --all
+    ```
+
+12. **Uncategorized with sampling:**
     ```bash
     /snowflake:activity-type-report DPTP,TRT,ART 6 --uncategorized --sample
     ```
@@ -436,5 +527,6 @@ The report includes:
 - **Self-contained output**: The HTML report works offline after generation -- no server needed.
 - **Cached classifications**: Re-running the same projects and date range skips the Vertex AI API call and reuses the existing `classified_issues.json` (or `estimates.json` in sample mode). Delete the run directory to force re-classification.
 - **Completed work by default**: By default, only closed issues (ISSUESTATUS_ID=6) with work-completed resolutions (RESOLUTION IN (10000, 10041) i.e. Done/Done-Errata, or NULL) are analyzed — this excludes no-work closures like Duplicate, Won't Do, Obsolete, Not a Bug, Can't Do, Cannot Reproduce, and MirrorOrphan (~25% of closed issues globally). Use `--todo` for open/backlog work, or `--all` for everything.
-- **Sampling mode**: For large datasets (thousands of issues), `--sample` uses Bayesian inference to estimate the activity type distribution from a small classified sample. Uses a Dirichlet-Multinomial conjugate model with uninformative priors — implemented entirely with Python stdlib (`random.gammavariate`). The report clearly labels results as estimates and shows credible intervals.
+- **Bot detection**: Issues filed by automation bots are identified via labels in `JIRA_LABEL_RHAI` (e.g., `auto-created`, `art:image-build-failure`, `ai-generated-jira`). The SQL CTE uses 13 verified bot labels covering general bot patterns and project-specific automation (ART, ACM, OCM, SREP, etc.). When bot issues are detected, the report shows a Human/All/Bot toggle and separate distributions. Labels describing automation *work* by humans (e.g., `automation`, `qe-automation`, `auto-closed`) are intentionally excluded. Projects with no bot issues show the standard single-view report.
+- **Sampling mode**: For large datasets (thousands of issues), `--sample` uses Bayesian inference to estimate the activity type distribution from a small classified sample. Uses a Dirichlet-Multinomial conjugate model with uninformative priors — implemented entirely with Python stdlib (`random.gammavariate`). Stratifies by (project, is_bot) to ensure both human and bot populations are represented. The report clearly labels results as estimates and shows credible intervals, with separate human/bot estimates when applicable.
 - **Uncategorized filter**: The `--uncategorized` flag uses `customfield_10464` (Activity Type) from the `JIRA_CUSTOMFIELDVALUE_NON_PII` view. **This custom field ID is specific to Red Hat JIRA instances.** The typical workflow is: run with `--uncategorized` to find and classify issues missing their Activity Type, review the report, then use `/jira:categorize-activity-type` to apply the classifications back to Jira.

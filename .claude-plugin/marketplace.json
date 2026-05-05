@@ -50,7 +50,7 @@
       "name": "snowflake",
       "source": "./plugins/snowflake",
       "description": "Snowflake data analysis commands for engineering metrics and reports",
-      "version": "0.4.0"
+      "version": "0.5.0"
     },
     {
       "name": "sosreport",

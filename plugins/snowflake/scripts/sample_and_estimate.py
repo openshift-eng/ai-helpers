@@ -4,11 +4,15 @@
 Uses Dirichlet-Multinomial conjugate model to estimate category proportions
 with credible intervals. Only requires Python stdlib (random, math, json).
 
+Samples human and bot subpopulations independently to ensure both have
+adequate precision, then uses post-stratification weighting for the
+combined "overall" estimate.
+
 Workflow:
   1. Read all fetched issues (unclassified)
-  2. Draw a stratified random sample (by project)
+  2. Draw independent stratified samples for human and bot populations
   3. Classify only the sample via classify_issues.py
-  4. Compute Bayesian posterior estimates for the full population
+  4. Compute Bayesian posterior estimates for each population and overall
 
 Usage:
     python3 sample_and_estimate.py \
@@ -46,73 +50,50 @@ ACTIVITY_TYPES = [
 ]
 
 
-def stratified_sample(issues, sample_size, seed=42):
-    """Draw a stratified random sample proportional to project size.
+def _get_is_bot(issue):
+    """Extract bot flag from an issue, handling both Snowflake and processed formats."""
+    val = issue.get("IS_BOT", issue.get("is_bot", False))
+    if isinstance(val, str):
+        return val.lower() in ("true", "1", "yes")
+    return bool(val)
 
-    Ensures every project gets at least 1 issue in the sample (if possible),
-    then allocates remaining slots proportionally.
+
+def stratified_sample(issues, human_n, bot_n, seed=42):
+    """Draw independent random samples for human and bot populations.
+
+    Each population is sampled via simple random sampling (no per-project
+    stratification). This avoids bias from oversampling small projects.
+
+    Returns:
+        (sample_list, {
+            "human": {"total": int},
+            "bot":   {"total": int},
+        })
     """
     rng = random.Random(seed)
 
-    by_project = {}
+    human_pool = []
+    bot_pool = []
     for issue in issues:
-        proj = issue.get("PROJECT_KEY", issue.get("project_key", "UNKNOWN"))
-        by_project.setdefault(proj, []).append(issue)
+        if _get_is_bot(issue):
+            bot_pool.append(issue)
+        else:
+            human_pool.append(issue)
 
-    total = len(issues)
-    n = min(sample_size, total)
+    human_n = min(human_n, len(human_pool))
+    bot_n = min(bot_n, len(bot_pool))
 
-    if n >= total:
-        return list(issues), {p: len(v) for p, v in by_project.items()}
+    human_sample = rng.sample(human_pool, human_n) if human_n > 0 else []
+    bot_sample = rng.sample(bot_pool, bot_n) if bot_n > 0 else []
 
-    # Guarantee at least 1 per project, then proportional allocation
-    allocations = {}
-    remaining = n
-    for proj, proj_issues in by_project.items():
-        allocations[proj] = min(1, len(proj_issues))
-        remaining -= allocations[proj]
-
-    # Distribute remaining proportionally
-    if remaining > 0:
-        proportional = {}
-        for proj, proj_issues in by_project.items():
-            proportional[proj] = len(proj_issues) / total * n
-        # Subtract already-allocated minimum
-        for proj in by_project:
-            proportional[proj] = max(0, proportional[proj] - allocations[proj])
-        # Normalize to fill remaining slots
-        prop_total = sum(proportional.values())
-        if prop_total > 0:
-            for proj in by_project:
-                extra = int(proportional[proj] / prop_total * remaining)
-                extra = min(extra, len(by_project[proj]) - allocations[proj])
-                allocations[proj] += extra
-                remaining -= extra
-
-        # Distribute any leftover slots to largest projects
-        if remaining > 0:
-            projects_by_size = sorted(by_project.keys(),
-                                      key=lambda p: len(by_project[p]),
-                                      reverse=True)
-            for proj in projects_by_size:
-                if remaining <= 0:
-                    break
-                can_add = len(by_project[proj]) - allocations[proj]
-                add = min(can_add, remaining)
-                allocations[proj] += add
-                remaining -= add
-
-    # Draw samples
-    sample = []
-    sample_counts = {}
-    for proj, count in allocations.items():
-        proj_issues = by_project[proj]
-        drawn = rng.sample(proj_issues, min(count, len(proj_issues)))
-        sample.extend(drawn)
-        sample_counts[proj] = len(drawn)
-
+    sample = human_sample + bot_sample
     rng.shuffle(sample)
-    return sample, sample_counts
+
+    metadata = {
+        "human": {"total": len(human_sample)},
+        "bot": {"total": len(bot_sample)},
+    }
+    return sample, metadata
 
 
 def dirichlet_sample(alphas, n_samples=10000, seed=None):
@@ -123,7 +104,6 @@ def dirichlet_sample(alphas, n_samples=10000, seed=None):
         raw = [rng.gammavariate(a, 1.0) for a in alphas]
         total = sum(raw)
         if total == 0:
-            # Degenerate case — uniform
             k = len(alphas)
             samples.append([1.0 / k] * k)
         else:
@@ -133,33 +113,18 @@ def dirichlet_sample(alphas, n_samples=10000, seed=None):
 
 def estimate_distribution(classified_issues, categories=None, prior=1.0,
                           confidence=0.95, n_mc_samples=10000, seed=None):
-    """Bayesian estimation of category proportions with credible intervals.
-
-    Args:
-        classified_issues: list of dicts with 'activity_type' field
-        categories: list of category names (default: ACTIVITY_TYPES)
-        prior: Dirichlet prior concentration per category (1.0 = uniform)
-        confidence: credible interval width (default 0.95)
-        n_mc_samples: Monte Carlo samples for interval estimation
-        seed: random seed for reproducibility
-
-    Returns:
-        dict with 'estimates' (per-category), 'sample_size', 'total_categories'
-    """
+    """Bayesian estimation of category proportions with credible intervals."""
     if categories is None:
         categories = ACTIVITY_TYPES
 
     counts = Counter(issue.get("activity_type", "Uncategorized")
                      for issue in classified_issues)
 
-    # Posterior: Dirichlet(prior + n_i for each category)
     alphas = [prior + counts.get(cat, 0) for cat in categories]
     total_count = sum(counts.values())
 
-    # Monte Carlo sampling from the posterior
     samples = dirichlet_sample(alphas, n_mc_samples, seed=seed)
 
-    # Compute credible intervals
     tail = (1.0 - confidence) / 2.0
     lo_idx = int(tail * n_mc_samples)
     hi_idx = int((1.0 - tail) * n_mc_samples)
@@ -182,7 +147,6 @@ def estimate_distribution(classified_issues, categories=None, prior=1.0,
             "confidence": confidence,
         })
 
-    # Sort by posterior mean descending
     estimates.sort(key=lambda x: x["posterior_mean"], reverse=True)
 
     return {
@@ -191,6 +155,89 @@ def estimate_distribution(classified_issues, categories=None, prior=1.0,
         "total_categories": len(categories),
         "prior": prior,
         "confidence": confidence,
+    }
+
+
+def weighted_overall_estimate(human_classified, bot_classified,
+                              human_pop, bot_pop, categories=None,
+                              prior=1.0, confidence=0.95,
+                              n_mc_samples=10000, seed=None):
+    """Post-stratification weighted estimate combining human and bot posteriors.
+
+    Draws paired MC samples from independent Dirichlet posteriors and
+    weights each draw by population proportion. This properly propagates
+    uncertainty from both subpopulations into the overall CIs.
+
+    Falls back to estimate_distribution() when one population is empty.
+    """
+    if categories is None:
+        categories = ACTIVITY_TYPES
+
+    if not human_classified:
+        return estimate_distribution(bot_classified, categories, prior,
+                                     confidence, n_mc_samples, seed)
+    if not bot_classified:
+        return estimate_distribution(human_classified, categories, prior,
+                                     confidence, n_mc_samples, seed)
+
+    total_pop = human_pop + bot_pop
+    w_human = human_pop / total_pop
+    w_bot = bot_pop / total_pop
+
+    human_counts = Counter(i.get("activity_type", "Uncategorized")
+                           for i in human_classified)
+    bot_counts = Counter(i.get("activity_type", "Uncategorized")
+                         for i in bot_classified)
+
+    human_alphas = [prior + human_counts.get(cat, 0) for cat in categories]
+    bot_alphas = [prior + bot_counts.get(cat, 0) for cat in categories]
+
+    rng = random.Random(seed)
+    seed_h = rng.randint(0, 2**31)
+    seed_b = rng.randint(0, 2**31)
+    human_samples = dirichlet_sample(human_alphas, n_mc_samples, seed=seed_h)
+    bot_samples = dirichlet_sample(bot_alphas, n_mc_samples, seed=seed_b)
+
+    weighted_samples = []
+    for h_draw, b_draw in zip(human_samples, bot_samples):
+        weighted = [w_human * h + w_bot * b for h, b in zip(h_draw, b_draw)]
+        weighted_samples.append(weighted)
+
+    tail = (1.0 - confidence) / 2.0
+    lo_idx = int(tail * n_mc_samples)
+    hi_idx = int((1.0 - tail) * n_mc_samples)
+
+    estimates = []
+    for i, cat in enumerate(categories):
+        col = sorted(s[i] for s in weighted_samples)
+        mean = sum(col) / n_mc_samples
+        ci_low = col[lo_idx]
+        ci_high = col[hi_idx]
+        observed = human_counts.get(cat, 0) + bot_counts.get(cat, 0)
+
+        estimates.append({
+            "category": cat,
+            "observed_count": observed,
+            "posterior_mean": round(mean, 4),
+            "ci_low": round(ci_low, 4),
+            "ci_high": round(ci_high, 4),
+            "ci_width": round(ci_high - ci_low, 4),
+            "confidence": confidence,
+        })
+
+    estimates.sort(key=lambda x: x["posterior_mean"], reverse=True)
+
+    total_sample = len(human_classified) + len(bot_classified)
+    return {
+        "estimates": estimates,
+        "sample_size": total_sample,
+        "total_categories": len(categories),
+        "prior": prior,
+        "confidence": confidence,
+        "weighting": {
+            "human_weight": round(w_human, 4),
+            "bot_weight": round(w_bot, 4),
+        },
     }
 
 
@@ -216,13 +263,8 @@ def estimate_by_project(classified_issues, categories=None, prior=1.0,
 def recommend_sample_size(total_issues, n_categories=7, target_width=0.05):
     """Recommend a sample size for a target credible interval width.
 
-    For a multinomial with k categories, the typical proportion for a
-    well-represented category is ~1/k. The CI width for a proportion p
-    is approximately 2 * z * sqrt(p*(1-p)/n).
-
-    We use the "typical largest category" heuristic: assume the largest
-    category is ~40% (common in practice), giving a more realistic
-    recommendation than worst-case p=0.5.
+    Uses the "typical largest category" heuristic: assume the largest
+    category is ~40%, giving a realistic recommendation.
 
     Returns recommended n, capped at total_issues.
     """
@@ -230,9 +272,28 @@ def recommend_sample_size(total_issues, n_categories=7, target_width=0.05):
     p = 0.4   # assume largest category ~40%
     half_width = target_width / 2.0
     n = math.ceil(z**2 * p * (1 - p) / half_width**2)
-    # Floor at 200, cap at total
     n = max(200, n)
     return min(n, total_issues)
+
+
+def recommend_sample_sizes(issues, target_width=0.10):
+    """Recommend independent sample sizes for human and bot populations.
+
+    Calls recommend_sample_size() independently for each subpopulation,
+    ensuring both get adequate precision for the target CI width.
+    """
+    human_pop = sum(1 for i in issues if not _get_is_bot(i))
+    bot_pop = len(issues) - human_pop
+
+    human_n = recommend_sample_size(human_pop, target_width=target_width) if human_pop > 0 else 0
+    bot_n = recommend_sample_size(bot_pop, target_width=target_width) if bot_pop > 0 else 0
+
+    return {
+        "human_n": human_n,
+        "bot_n": bot_n,
+        "human_pop": human_pop,
+        "bot_pop": bot_pop,
+    }
 
 
 def main():
@@ -248,7 +309,7 @@ def main():
     parser.add_argument("--output", default=None,
                         help="Output: estimation results JSON")
     parser.add_argument("--sample-size", type=int, default=0,
-                        help="Sample size (0 = auto-recommend)")
+                        help="Total sample budget (0 = auto-recommend per population)")
     parser.add_argument("--confidence", type=float, default=0.95,
                         help="Credible interval confidence level (default: 0.95)")
     parser.add_argument("--seed", type=int, default=42,
@@ -257,44 +318,91 @@ def main():
                         help="Target CI width for auto sample size (default: 0.10 = ±5%%)")
     args = parser.parse_args()
 
-    # Load all issues
     with open(args.input) as f:
         all_issues = json.load(f)
     total = len(all_issues)
+    if total == 0:
+        print("No issues to process.", file=sys.stderr)
+        sys.exit(1)
     print(f"Total issues: {total}")
 
-    # Auto-recommend sample size
-    if args.sample_size <= 0:
-        recommended = recommend_sample_size(total, target_width=args.target_width)
-        sample_size = recommended
-        print(f"Auto-recommended sample size: {sample_size} "
-              f"(target CI width: ±{args.target_width*50:.1f}%)")
-    else:
-        sample_size = min(args.sample_size, total)
-        print(f"Requested sample size: {sample_size}")
+    sizes = recommend_sample_sizes(all_issues, target_width=args.target_width)
+    human_pop = sizes["human_pop"]
+    bot_pop = sizes["bot_pop"]
 
-    if sample_size >= total:
+    if args.sample_size <= 0:
+        human_n = sizes["human_n"]
+        bot_n = sizes["bot_n"]
+        print(f"Auto-recommended sample sizes "
+              f"(target CI width: ±{args.target_width*50:.1f}%):")
+        print(f"  Human: {human_n} of {human_pop}")
+        if bot_pop > 0:
+            print(f"  Bot:   {bot_n} of {bot_pop}")
+        print(f"  Total: {human_n + bot_n}")
+    else:
+        budget = min(args.sample_size, total)
+        recommended_total = sizes["human_n"] + sizes["bot_n"]
+        if bot_pop == 0:
+            human_n = budget
+            bot_n = 0
+        else:
+            ratio = sizes["human_n"] / max(recommended_total, 1)
+            human_n = min(int(budget * ratio), human_pop)
+            bot_n = min(budget - human_n, bot_pop)
+            if human_n + bot_n < budget:
+                human_n = min(human_n + (budget - human_n - bot_n), human_pop)
+        if budget < recommended_total:
+            print(f"WARNING: Budget {budget} < recommended {recommended_total}. "
+                  f"CIs will be wider than ±{args.target_width*50:.1f}%.",
+                  file=sys.stderr)
+        print(f"Sample budget: {budget}")
+        print(f"  Human: {human_n} of {human_pop}")
+        if bot_pop > 0:
+            print(f"  Bot:   {bot_n} of {bot_pop}")
+
+    if human_n >= human_pop and bot_n >= bot_pop:
         print("Sample size >= total issues — classify all instead of sampling.")
 
     # Mode 1: Draw sample for classification
     if args.draw_sample:
-        sample, sample_counts = stratified_sample(all_issues, sample_size,
-                                                   seed=args.seed)
+        sample, sample_meta = stratified_sample(all_issues, human_n, bot_n,
+                                                seed=args.seed)
         os.makedirs(os.path.dirname(os.path.abspath(args.draw_sample)),
                     exist_ok=True)
         with open(args.draw_sample, "w") as f:
             json.dump(sample, f, indent=2)
 
+        h_sampled = sample_meta["human"]["total"]
+        b_sampled = sample_meta["bot"]["total"]
         print(f"\nSample drawn: {len(sample)} of {total} issues "
               f"({len(sample)/total*100:.1f}%)")
-        print("Stratification by project:")
-        for proj in sorted(sample_counts.keys()):
-            proj_total = sum(1 for i in all_issues
-                            if (i.get("PROJECT_KEY", i.get("project_key"))
-                                == proj))
-            pct = (sample_counts[proj] / proj_total * 100) if proj_total else 0.0
-            print(f"  {proj:<20s} {sample_counts[proj]:>4d} of {proj_total:>5d} "
-                  f"({pct:.1f}%)")
+        print(f"  Human: {h_sampled} of {human_pop} "
+              f"({h_sampled/human_pop*100:.1f}%)" if human_pop > 0 else "")
+        if bot_pop > 0:
+            print(f"  Bot:   {b_sampled} of {bot_pop} "
+                  f"({b_sampled/bot_pop*100:.1f}%)")
+
+        # Diagnostic table: top projects by human count with bot %
+        human_by_proj = Counter()
+        bot_by_proj = Counter()
+        for i in all_issues:
+            proj = i.get("PROJECT_KEY", i.get("project_key", "UNKNOWN"))
+            if _get_is_bot(i):
+                bot_by_proj[proj] += 1
+            else:
+                human_by_proj[proj] += 1
+
+        top_projects = human_by_proj.most_common(10)
+        if top_projects:
+            print(f"\nPopulation by project (top {len(top_projects)} "
+                  f"by human count):")
+            print(f"  {'Project':<16s} {'Human':>6s} {'Bot':>6s} {'Bot%':>6s}")
+            for proj, h_count in top_projects:
+                b_count = bot_by_proj.get(proj, 0)
+                proj_total = h_count + b_count
+                bot_pct = b_count / proj_total * 100 if proj_total else 0
+                print(f"  {proj:<16s} {h_count:>6d} {b_count:>6d} "
+                      f"{bot_pct:>5.1f}%")
 
         print(f"\nSample written to: {args.draw_sample}")
         print("Next: classify this sample with classify_issues.py, "
@@ -308,24 +416,73 @@ def main():
 
         print(f"Classified sample: {len(classified)} issues")
 
-        # Overall estimates
-        overall = estimate_distribution(
-            classified, confidence=args.confidence, seed=args.seed
+        human_classified = [i for i in classified if not _get_is_bot(i)]
+        bot_classified = [i for i in classified if _get_is_bot(i)]
+        human_total = human_pop
+        bot_total = bot_pop
+
+        overall = weighted_overall_estimate(
+            human_classified, bot_classified,
+            human_total, bot_total,
+            confidence=args.confidence, seed=args.seed
         )
 
-        # Per-project estimates
         per_project = estimate_by_project(
             classified, confidence=args.confidence, seed=args.seed
         )
 
+        human_estimates = None
+        bot_estimates = None
+        if human_classified and bot_classified:
+            human_estimates = {
+                "population": human_total,
+                "sample_size": len(human_classified),
+                **estimate_distribution(
+                    human_classified, confidence=args.confidence, seed=args.seed
+                ),
+            }
+            bot_estimates = {
+                "population": bot_total,
+                "sample_size": len(bot_classified),
+                **estimate_distribution(
+                    bot_classified, confidence=args.confidence, seed=args.seed
+                ),
+            }
+        elif human_classified:
+            human_estimates = {
+                "population": human_total,
+                "sample_size": len(human_classified),
+                **estimate_distribution(
+                    human_classified, confidence=args.confidence, seed=args.seed
+                ),
+            }
+        elif bot_classified:
+            bot_estimates = {
+                "population": bot_total,
+                "sample_size": len(bot_classified),
+                **estimate_distribution(
+                    bot_classified, confidence=args.confidence, seed=args.seed
+                ),
+            }
+
         result = {
-            "method": "Dirichlet-Multinomial Bayesian estimation",
+            "method": "Dirichlet-Multinomial Bayesian estimation (dual-population)",
             "total_population": total,
             "sample_size": len(classified),
             "sample_fraction": round(len(classified) / total, 4),
             "confidence": args.confidence,
             "seed": args.seed,
+            "sampling": {
+                "approach": "independent_per_population",
+                "human_population": human_total,
+                "bot_population": bot_total,
+                "human_sample_size": len(human_classified),
+                "bot_sample_size": len(bot_classified),
+                "target_width": args.target_width,
+            },
             "overall": overall,
+            "human": human_estimates,
+            "bot": bot_estimates,
             "by_project": per_project,
         }
 
@@ -346,6 +503,22 @@ def main():
             print(f"{est['category']:<45s} {mean_pct:>5.1f}%  "
                   f"[{lo_pct:>5.1f}% — {hi_pct:>5.1f}%]")
 
+        if human_estimates and bot_estimates:
+            print(f"\nBot/Human Split: {human_total} human + {bot_total} bot "
+                  f"= {total} total")
+            print(f"  Sample: {len(human_classified)} human + "
+                  f"{len(bot_classified)} bot = {len(classified)}")
+
+            print(f"\nHuman Work ({len(human_classified)} of {human_total}):")
+            for est in human_estimates["estimates"]:
+                mean_pct = est["posterior_mean"] * 100
+                print(f"  {est['category']:<45s} {mean_pct:>5.1f}%")
+
+            print(f"\nAutomated/Bot Work ({len(bot_classified)} of {bot_total}):")
+            for est in bot_estimates["estimates"]:
+                mean_pct = est["posterior_mean"] * 100
+                print(f"  {est['category']:<45s} {mean_pct:>5.1f}%")
+
         if args.output:
             os.makedirs(os.path.dirname(os.path.abspath(args.output)),
                         exist_ok=True)
@@ -353,11 +526,9 @@ def main():
                 json.dump(result, f, indent=2)
             print(f"\nEstimates written to: {args.output}")
         else:
-            # Print JSON to stdout
             print(f"\n{json.dumps(result, indent=2)}")
         return
 
-    # No mode specified
     print("\nSpecify either --draw-sample or --classified-sample.")
     print("  Step 1: --draw-sample sample.json  (draw a sample)")
     print("  Step 2: classify sample.json with classify_issues.py")
