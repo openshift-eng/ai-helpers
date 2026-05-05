@@ -1738,6 +1738,28 @@
         }
       ],
       "version": "0.0.1"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "[scenario]",
+          "description": "Run the RDS Analyzer full workflow from cluster-compare JSON to deviation reports (text/HTML/reporting), validate rules, and Jira-oriented follow-up \u2014 aligned with rds-analyzer docs/full-workflow.md",
+          "name": "full-workflow",
+          "synopsis": "/rds-analyzer:full-workflow [scenario]"
+        }
+      ],
+      "description": "RDS Analyzer workflow: cluster-compare JSON to deviation reports (text/HTML/reporting) and Jira follow-up",
+      "has_readme": true,
+      "hooks": [],
+      "name": "rds-analyzer",
+      "skills": [
+        {
+          "description": "End-to-end workflow from cluster data to deviation reports and optional Jira follow-up",
+          "id": "rds-analyzer-workflow",
+          "name": "RDS Analyzer workflow skill"
+        }
+      ],
+      "version": "0.0.1"
     }
   ]
 }
