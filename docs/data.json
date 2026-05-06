@@ -1694,6 +1694,12 @@
     {
       "commands": [
         {
+          "argument_hint": "[path]",
+          "description": "Analyze and fix Go code quality issues using gopls and go vet",
+          "name": "improve",
+          "synopsis": "/golang:improve [path]"
+        },
+        {
           "argument_hint": "",
           "description": "Run golangci-lint tool and fix all reported issues",
           "name": "lint-fix",
@@ -1711,7 +1717,7 @@
           "name": "Go Lint"
         }
       ],
-      "version": "0.1.0"
+      "version": "0.2.0"
     },
     {
       "commands": [
