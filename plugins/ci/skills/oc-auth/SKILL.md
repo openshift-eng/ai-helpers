@@ -145,7 +145,7 @@ The script provides clear error messages for common scenarios:
 ## Authentication Instructions
 
 ### General Authentication Process:
-```
+
 Please authenticate first:
 1. Visit the cluster's console URL in your browser
 2. Log in through the browser with your credentials
@@ -153,6 +153,7 @@ Please authenticate first:
 4. Paste and execute the 'oc login' command in terminal
 
 Verify authentication with:
+```bash
   oc config get-contexts
   oc cluster-info
 ```
