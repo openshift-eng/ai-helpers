@@ -49,21 +49,22 @@ Fetch all comments on the PR (both issue comments and review comments), includin
 ```bash
 # Issue comments
 gh api repos/{owner}/{repo}/issues/{pr_number}/comments \
-  --jq '.[] | {author: .user.login, association: .author_association, body: .body}'
+  --jq '.[] | {id: .id, created_at: .created_at, author: .user.login, association: .author_association, body: .body}'
 
 # Review comments
 gh api repos/{owner}/{repo}/pulls/{pr_number}/comments \
-  --jq '.[] | {author: .user.login, association: .author_association, body: .body}'
+  --jq '.[] | {id: .id, created_at: .created_at, author: .user.login, association: .author_association, body: .body}'
 ```
 
-Parse each comment body for lines matching `/save <path>` or `/drop <path>`. **Only accept directives from trusted participants** — those with `author_association` of `OWNER`, `MEMBER`, or `COLLABORATOR`. Skip directives from other associations and log a warning (e.g., "Ignoring `/drop` from @user — not a repository collaborator").
+Parse each comment body for lines matching `/save <path>` or `/drop [--force] <path>`. The `--force` flag is optional and only valid on `/drop` directives. **Only accept directives from trusted participants** — those with `author_association` of `OWNER`, `MEMBER`, or `COLLABORATOR`. Skip directives from other associations and log a warning (e.g., "Ignoring `/drop --force` from @user — not a repository collaborator").
 
 For each accepted match, record:
 - The directive type (`save` or `drop`)
 - The path
+- The `force` flag (`true` if `--force` was present, `false` otherwise)
 - The GitHub username of the commenter
 
-Deduplicate paths. If a path has both `/save` and `/drop` from different comments, the **latest comment wins** (last-writer-wins). If no valid directives are found, report this and stop.
+Deduplicate paths. If a path has both `/save` and `/drop` from different comments, the **latest comment wins** (last-writer-wins): sort all collected directives by `created_at` ascending, using `id` as a tiebreaker for comments with identical timestamps, so the newest directive for a given path takes precedence. If no valid directives are found, report this and stop.
 
 ### Step 3: Validate Paths
 
@@ -71,7 +72,7 @@ Deduplicate paths. If a path has both `/save` and `/drop` from different comment
 
 **For `/drop` paths — two valid cases:**
 1. **Undo a previous save:** The path appears in the manifest with `[SAVED]` strikethrough markup. This reverses the save.
-2. **New drop:** The path does NOT appear in the manifest but exists on the base branch. The reviewer is requesting an additional removal beyond what the automated pruning flagged. Verify the path exists on the base branch before accepting. Also verify the path is not listed in `.pruneprotect` — if it is, warn that the item is protected and skip it unless the `/drop` comment explicitly says to override (e.g., `/drop --force plugins/foo/`).
+2. **New drop:** The path does NOT appear in the manifest but exists on the base branch. The reviewer is requesting an additional removal beyond what the automated pruning flagged. Verify the path exists on the base branch before accepting. Also verify the path is not listed in `.pruneprotect` — if it is, warn that the item is protected and skip it unless the directive's `force` flag is `true` (i.e., the commenter used `/drop --force plugins/foo/`).
 
 Report paths that fail validation but continue processing valid ones.
 
