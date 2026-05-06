@@ -12,6 +12,7 @@ Comprehensive Jira integration for Claude Code, providing AI-powered tools to an
 - 🧪 **Test Generation** - Generate comprehensive test steps for JIRA issues by analyzing related PRs
 - ✨ **Issue Creation** - Create well-formed stories, epics, features, tasks, bugs, and feature requests with guided workflows
 - 📝 **Release Note Generation** - Automatically generate bug fix release notes from Jira and linked GitHub PRs
+- 📈 **Workload Analysis** - Retrieve and analyze an associate's workload for a given sprint
 - 🤖 **Automated Workflows** - From issue analysis to PR creation, fully automated
 - 💬 **Smart Comment Analysis** - Extracts blockers, risks, and key insights from comments
 
@@ -276,6 +277,32 @@ Updated: https://redhat.atlassian.net/browse/OCPBUGS-38358
 ```
 
 See [commands/create-release-note.md](commands/create-release-note.md) for full documentation.
+
+### `/jira:workload` - Retrieve Sprint Workload
+
+Retrieve and analyze an associate's workload for a specific sprint. The command provides a comprehensive breakdown of all issues assigned to the associate, including status, priority, story points, and time tracking information.
+
+**Usage:**
+```bash
+# Get workload by username
+/jira:workload jdoe "Sprint 23"
+
+# Get workload by email
+/jira:workload jane.doe@company.com "2025-Q1 Sprint 3"
+
+# Get workload for current sprint
+/jira:workload jsmith "Current Sprint"
+```
+
+**Features:**
+- Groups issues by status (To Do, In Progress, Done, Blocked)
+- Calculates story points and completion metrics
+- Shows priority distribution
+- Identifies blockers and risks
+- Generates actionable insights
+- Exports to Markdown and optionally CSV
+
+See [commands/workload.md](commands/workload.md) for full documentation.
 
 ---
 
