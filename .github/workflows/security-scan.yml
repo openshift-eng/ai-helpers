@@ -63,6 +63,8 @@ jobs:
             --fail-on-severity high \
             --format sarif \
             --output-sarif skill-scanner.sarif \
+            --format html \
+            --output-html skill-scanner-summary.html \
             ${{ steps.scan-target.outputs.dir }}
 
       - name: Upload SARIF to GitHub Code Scanning
@@ -70,3 +72,12 @@ jobs:
         uses: github/codeql-action/upload-sarif@e46ed2cbd01164d986452f91f178727624ae40d7 # v4.35.3
         with:
           sarif_file: skill-scanner.sarif
+
+      - name: Upload results
+        if: success() || failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: security-scan-results
+          path: |
+            skill-scanner.sarif
+            skill-scanner-summary.html
