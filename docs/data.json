@@ -103,6 +103,12 @@
           "synopsis": "/jira:backlog [project-key] [--assignee username] [--days-inactive N]"
         },
         {
+          "argument_hint": "[N | --days N] [--no-cache]",
+          "description": "Triage recent Jira activity \u2014 surface what needs attention, filter out noise",
+          "name": "catch-me-up",
+          "synopsis": "/jira:catch-me-up [14] [--days 7] [--no-cache]"
+        },
+        {
           "argument_hint": "<issue-key> [--auto-apply]",
           "description": "Categorize JIRA tickets into activity types using AI",
           "name": "categorize-activity-type",
@@ -205,6 +211,11 @@
       "name": "jira",
       "skills": [
         {
+          "description": "Gather and classify recent Jira activity to surface what needs attention",
+          "id": "catch-me-up",
+          "name": "Catch Me Up"
+        },
+        {
           "description": "Detailed categorization logic for assigning JIRA tickets to activity type categories",
           "id": "categorize-activity-type",
           "name": "JIRA Activity Type Categorizer"
@@ -300,7 +311,7 @@
           "name": "Jira Status Analysis Engine"
         }
       ],
-      "version": "0.4.1"
+      "version": "0.4.3"
     },
     {
       "commands": [
@@ -1612,7 +1623,7 @@
       "hooks": [],
       "name": "workspaces",
       "skills": [],
-      "version": "1.0.0"
+      "version": "1.0.1"
     },
     {
       "commands": [
@@ -1735,6 +1746,21 @@
           "description": "Assists in the upgrade of an OpenShift Console dynamic plugin to the latest Console SDK version.",
           "id": "upgrade-sdk",
           "name": "upgrade-sdk"
+        }
+      ],
+      "version": "0.0.1"
+    },
+    {
+      "commands": [],
+      "description": "Generate AI Software Bill of Materials (SBOM) declarations for PR descriptions",
+      "has_readme": true,
+      "hooks": [],
+      "name": "ai-sbom",
+      "skills": [
+        {
+          "description": "Generate an AI SBOM declaration for a PR description. Use this skill when the user asks to generate an AI SBOM, create an ai-assisted block, fill out their AI assistance section, or prepare a PR description with AI provenance. Also use when the user says 'what skills did I use' or 'summarize my AI usage'.",
+          "id": "generate",
+          "name": "AI SBOM Generate"
         }
       ],
       "version": "0.0.1"
