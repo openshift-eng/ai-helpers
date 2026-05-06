@@ -7,8 +7,30 @@ Anonymous usage metrics collection for ai-helpers slash commands, skills, and se
 The `metrics` plugin provides anonymous usage tracking for:
 - **Events**: Individual slash commands and skill invocations
 - **Sessions**: Aggregate session-level metrics (duration, tool usage, conversation patterns)
+- **AI Docs Usage**: Track how agentic documentation is used during development
 
 This helps maintainers understand usage patterns and make data-driven decisions about feature development and improvements.
+
+## Commands
+
+### `/metrics:ai-docs-telemetry`
+
+Analyze Claude Code session logs to track ai-docs usage patterns. See [ai-docs-telemetry.md](commands/ai-docs-telemetry.md) for full documentation.
+
+**Quick examples:**
+```bash
+# Scan all recent sessions
+/metrics:ai-docs-telemetry -scan
+
+# Scan only enhancements repo
+/metrics:ai-docs-telemetry -scan -project enhancements
+
+# Analyze specific session
+/metrics:ai-docs-telemetry -session ~/.claude/projects/<project>/<session-id>.jsonl
+
+# Pipe to jq for analysis
+/metrics:ai-docs-telemetry -scan | jq -r '.[] | "\(.documentation.entry_point): \(.documentation.total_files)"'
+```
 
 ## How It Works
 
@@ -305,7 +327,9 @@ All metrics collection logic is open source and available in this repository:
 - **Hook definition**: `plugins/metrics/hooks/hooks.json`
 - **Event collection script**: `plugins/metrics/scripts/send_metrics.py`
 - **Session collection script**: `plugins/metrics/scripts/send_session_metrics.py`
+- **AI docs telemetry script**: `plugins/metrics/scripts/ai_docs_telemetry.py`
 - **Plugin metadata**: `plugins/metrics/.claude-plugin/plugin.json`
+- **Commands**: `plugins/metrics/commands/`
 
 ## Data Usage
 
