@@ -1,7 +1,6 @@
 # Golang Plugin
 
-A Claude Code plugin for running [golangci-lint](https://golangci-lint.run/) to check and fix code quality issues in Go projects.
-
+A Claude Code plugin for Go development, providing LSP integration via `gopls` and automatic `gofmt` formatting.
 
 ## Installation
 
@@ -9,71 +8,53 @@ A Claude Code plugin for running [golangci-lint](https://golangci-lint.run/) to 
 /plugin install golang@ai-helpers
 ```
 
-## Commands
+## Features
 
-| Command | Description |
-|---------|-------------|
-| `/golang:lint-fix` | Run golangci-lint and automatically fix all reported issues |
+### gopls MCP Server
 
-## Skills
+Integrates the `gopls` language server as an MCP server, providing Go-aware code intelligence including go-to-definition, find references, hover documentation, and workspace symbols.
 
-| Skill | Description |
-|-------|-------------|
-| Go Lint | Detects and runs golangci-lint using the best available method for the repository. Loaded automatically when linting is relevant, and used by both commands above. |
+### Automatic gofmt Formatting
+
+A PostToolUse hook automatically runs `gofmt -w -s` on any `.go` file after it is written or edited, keeping code consistently formatted without manual intervention.
+
+### LSP Integration (via dependency)
+
+Depends on the `gopls-lsp` plugin from `claude-plugins-official`, which enables LSP-based operations for Go code navigation and analysis.
 
 ## Prerequisites
 
-- go compiler (available in $PATH)
+- Go toolchain with `gopls` and `gofmt` available in `$PATH`
+- `golangci-lint` available in `$PATH` (required by the `golang:lint` and `golang:lint-fix` skills)
 
-- **Optional**: `make lint` target configured in Makefile, if not present the command will run `golangci-lint` directly.
+Install `gopls` if not already present:
 
-## Recommended Permissions
-
-To allow Claude Code to run the linter commands without prompting for approval, add the following to your project's `.claude/settings.json`:
-
-```json
-{
-  "permissions": {
-    "allow": [
-      "Bash(curl -s https://api.github.com/repos/golangci/golangci-lint/releases/latest)",
-      "Bash(make golangci-lint:*)",
-      "Bash(./bin/golangci-lint:*)",
-      "Bash(GOBIN=/tmp go install:*)",
-      "Bash(/tmp/golangci-lint:*)",
-      "Bash(make lint:*)",
-      "Bash(make lint)"
-    ]
-  }
-}
+```bash
+go install golang.org/x/tools/gopls@latest
 ```
 
-### What these permissions allow:
+Install `golangci-lint` if not already present:
 
-| Permission | Purpose |
-|------------|---------|
-| `curl ... golangci-lint/releases/latest` | Check for latest golangci-lint version |
-| `make golangci-lint:*` | Run make targets for golangci-lint installation |
-| `./bin/golangci-lint:*` | Run golangci-lint from project's bin directory |
-| `GOBIN=/tmp go install:*` | Install golangci-lint to /tmp for temporary use |
-| `/tmp/golangci-lint:*` | Run golangci-lint from /tmp |
-| `make lint:*`, `make lint` | Run the standard `make lint` target |
+```bash
+go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+```
 
-## Usage
+## Skills
 
-### `/golang:lint`: check for linter issues
+### `golang:lint`
 
-This will:
-1. Run golangci-lint using available methods (via the "Go Lint" skill)
-2. Report total number of issues found
-3. Summarize issues by category (goconst, gocyclo, staticcheck, etc.)
-4. Show example issues
+Runs `golangci-lint` to check Go code quality. Discovers the lint command via CLAUDE.md/AGENTS.md, Makefile targets (`lint`, `verify-lint`), or direct `golangci-lint run ./...` invocation. Reports total issue count, breakdown by linter, and examples. Read-only — never modifies files.
 
-The "Go Lint" skill is also loaded automatically when the agent detects that linting is needed (e.g., the user says "run the linter" or "check for lint issues").
+Invoked automatically when linting is appropriate (e.g., before committing Go changes), or on demand.
 
-### `/golang:lint-fix`: check for linter issues and fix them
+### `golang:lint-fix`
 
-This will:
-1. Run the "Go Lint" skill to identify all issues
-2. Systematically fix each category of issues
-3. Re-run linter after each fix to verify
-4. Continue until all issues are resolved
+Runs `golangci-lint --fix` to auto-fix issues, then uses AI to resolve any remaining ones iteratively until the output is clean. Uses the same discovery cascade as `golang:lint`.
+
+User-invocable only (`/golang:lint-fix`) — not triggered automatically due to its destructive nature.
+
+## Dependencies
+
+| Plugin | Marketplace | Purpose |
+|--------|-------------|---------|
+| `gopls-lsp` | `claude-plugins-official` | LSP integration for Go code intelligence |

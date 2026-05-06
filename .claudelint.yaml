@@ -57,6 +57,13 @@ rules:
     enabled: auto
     severity: error
   
+  # MCP rules
+  mcp-prohibited:
+    enabled: true
+    severity: error
+    allowlist:
+      - gopls
+
   # Skills rules
   skill-frontmatter:
     enabled: true
