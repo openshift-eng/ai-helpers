@@ -204,15 +204,23 @@ Automated pruning of stale/inactive plugins, commands, and skills.
 ## Cross-Reference Warnings
 {paste warnings from Step 4, or "None" if clean}
 
-## How to Save Items
-To keep something that's being removed, comment on this PR with the path from the manifest table:
+## How to Save or Drop Items
+To keep something that's being removed, comment on this PR:
 
 ~~~text
 /save plugins/foo/
 /save plugins/bar/commands/baz.md
 ~~~
 
-Saved items will be restored from git history and added to `.pruneprotect` so they won't be flagged in future pruning cycles. Run `/marketplace-ops:prune-update` to process saves.
+Saved items will be restored from git history and added to `.pruneprotect` so they won't be flagged in future pruning cycles.
+
+To manually add a removal (or undo a previous `/save`), comment:
+
+~~~text
+/drop plugins/baz/commands/old-cmd.md
+~~~
+
+Run `/marketplace-ops:prune-update` to process all directives.
 
 ## Protected Items
 Items listed in `.pruneprotect` were excluded from analysis.

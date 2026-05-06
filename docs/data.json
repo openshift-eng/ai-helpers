@@ -1769,7 +1769,7 @@
       "commands": [
         {
           "argument_hint": "[PR number or URL]",
-          "description": "Process /save comments on a pruning PR, restore items, and update .pruneprotect",
+          "description": "Process /save and /drop comments on a pruning PR, restore or remove items, and update .pruneprotect",
           "name": "prune-update",
           "synopsis": "/marketplace-ops:prune-update [PR number or URL]"
         },
@@ -1785,7 +1785,7 @@
       "hooks": [],
       "name": "marketplace-ops",
       "skills": [],
-      "version": "0.1.1"
+      "version": "0.1.2"
     }
   ]
 }

@@ -242,7 +242,7 @@ See [plugins/lvms/README.md](plugins/lvms/README.md) for detailed documentation.
 Maintenance commands for Claude Code plugin marketplaces
 
 **Commands:**
-- **`/marketplace-ops:prune-update` `[PR number or URL]`** - Process /save comments on a pruning PR, restore items, and update .pruneprotect
+- **`/marketplace-ops:prune-update` `[PR number or URL]`** - Process /save and /drop comments on a pruning PR, restore or remove items, and update .pruneprotect
 - **`/marketplace-ops:prune` `[--dry-run]`** - Analyze and prune stale plugins, commands, and skills from the marketplace
 
 See [plugins/marketplace-ops/README.md](plugins/marketplace-ops/README.md) for detailed documentation.
