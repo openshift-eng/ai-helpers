@@ -25,6 +25,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Olm Team](#olm-team-plugin)
 - [Openshift](#openshift-plugin)
 - [Openshift Tls Profile](#openshift-tls-profile-plugin)
+- [Operator Test Generator](#operator-test-generator-plugin)
 - [Origin](#origin-plugin)
 - [Ote Migration](#ote-migration-plugin)
 - [Session](#session-plugin)
@@ -329,6 +330,16 @@ Implementation requirements and details for OpenShift TLS security profiles
 - **`/openshift-tls-profile:implement` `[question or implementation request]`** - Use this skill to implement TLS security profiles for operators and workloads on OpenShift. Provides guidance on reading TLS config from APIServer CR and applying it to webhook/metrics servers, HTTP, and gRPC endpoints.
 
 See [plugins/openshift-tls-profile/README.md](plugins/openshift-tls-profile/README.md) for detailed documentation.
+
+### Operator Test Generator Plugin
+
+Generate executable oc test cases for any OpenShift operator PR based on context
+
+**Commands:**
+- **`/operator-test-generator:generate-execution-steps` `<pr-url> [--env <cluster-type>]`** - Generate step-by-step test execution procedure for any OpenShift operator PR
+- **`/operator-test-generator:generate-from-pr` `<pr-url> [--output <path>]`** - Generate test cases with oc commands from any OpenShift operator PR
+
+See [plugins/operator-test-generator/README.md](plugins/operator-test-generator/README.md) for detailed documentation.
 
 ### Origin Plugin
 

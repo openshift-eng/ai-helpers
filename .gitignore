@@ -6,6 +6,9 @@
 *.dylib
 bin
 
+# accidental anchor/fragment files (e.g. from opening link#section)
+#audience
+
 # editor and IDE paraphernalia
 .idea
 *.swp
