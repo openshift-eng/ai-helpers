@@ -291,7 +291,7 @@ def remove_unnecessary_fields(regressions: list) -> list:
     """
     Remove unnecessary fields from regressions to reduce response size.
     
-    Removes 'links' and 'test_id' fields from each regression object.
+    Removes 'links' field from each regression object.
     
     Args:
         regressions: List of regression dictionaries
@@ -300,9 +300,8 @@ def remove_unnecessary_fields(regressions: list) -> list:
         List of regression dictionaries with unnecessary fields removed
     """
     for regression in regressions:
-        # Remove links and test_id to reduce response size
+        # Remove links to reduce response size
         regression.pop('links', None)
-        regression.pop('test_id', None)
     
     return regressions
 

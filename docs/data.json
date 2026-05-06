@@ -382,6 +382,12 @@
           "synopsis": "/ci:continue-session <prowjob-url>"
         },
         {
+          "argument_hint": "[--current-release <version>] [--lookback N] [--days N]",
+          "description": "Detect regressions that have cascaded from newer releases to older releases due to problematic backports",
+          "name": "detect-backport-regressions",
+          "synopsis": "/ci:detect-backport-regressions [--current-release <version>] [--lookback N] [--days N] [--exclude-install] [--exclude-monitor] [--component <name>] [--min-cascade N] [--include-resolved]"
+        },
+        {
           "argument_hint": "<pr-url>",
           "description": "Extract kubeconfig from a running CI job in a PR",
           "name": "extract-kubeconfig",
@@ -472,6 +478,11 @@
       "name": "ci",
       "skills": [
         {
+          "description": "Perform deep root cause analysis on potential cascades to confirm they are real backport cascades with the same underlying issue",
+          "id": "analyze-cascade-similarity",
+          "name": "Analyze Cascade Similarity"
+        },
+        {
           "description": "Analyze and compare disruption across one or more Prow CI job runs by examining interval data, audit logs, pod logs, and CPU metrics",
           "id": "analyze-disruption",
           "name": "Analyze Disruption"
@@ -480,6 +491,16 @@
           "description": "Analyze a payload (rejected, accepted, or in-progress) with historical lookback to identify root causes of blocking job failures and produce an HTML report",
           "id": "analyze-payload",
           "name": "Analyze Payload"
+        },
+        {
+          "description": "Detect regressions that have cascaded from newer releases to older releases due to problematic backports",
+          "id": "detect-backport-regressions",
+          "name": "Detect Backport Regressions"
+        },
+        {
+          "description": "Identify regressions that appear across multiple releases by matching test names and checking temporal ordering",
+          "id": "detect-potential-cascades",
+          "name": "Detect Potential Cascades"
         },
         {
           "description": "Fetch JIRA issue details including status, assignee, comments, and progress classification",
@@ -530,6 +551,11 @@
           "description": "Fetch test runs from Sippy API including outputs for AI-based similarity analysis",
           "id": "fetch-test-runs",
           "name": "Fetch Test Runs"
+        },
+        {
+          "description": "Generate interactive HTML, Markdown, or JSON reports from confirmed cascade data with similarity analysis results",
+          "id": "generate-cascade-report",
+          "name": "Generate Cascade Report"
         },
         {
           "description": "Helper skill to retrieve OAuth tokens from the correct OpenShift cluster context when multiple clusters are configured",
