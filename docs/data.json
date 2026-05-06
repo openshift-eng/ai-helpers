@@ -1764,6 +1764,28 @@
         }
       ],
       "version": "0.0.1"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "[PR number or URL]",
+          "description": "Process /save and /drop comments on a pruning PR, restore or remove items, and update .pruneprotect",
+          "name": "prune-update",
+          "synopsis": "/marketplace-ops:prune-update [PR number or URL]"
+        },
+        {
+          "argument_hint": "[--dry-run]",
+          "description": "Analyze and prune stale plugins, commands, and skills from the marketplace",
+          "name": "prune",
+          "synopsis": "/marketplace-ops:prune [--dry-run]"
+        }
+      ],
+      "description": "Maintenance commands for Claude Code plugin marketplaces",
+      "has_readme": true,
+      "hooks": [],
+      "name": "marketplace-ops",
+      "skills": [],
+      "version": "0.1.2"
     }
   ]
 }

@@ -1,0 +1,8 @@
+{
+  "name": "marketplace-ops",
+  "description": "Maintenance commands for Claude Code plugin marketplaces",
+  "version": "0.1.2",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}
