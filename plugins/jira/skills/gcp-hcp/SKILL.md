@@ -21,6 +21,8 @@ This skill provides GCP HCP (Hypershift on GKE) team-specific conventions for cr
   - [JIRA Templates](#jira-templates)
     - [Story Template](#story-template)
       - [Story Sizing Guide](#story-sizing-guide)
+    - [Task Template](#task-template)
+      - [When to Use a Task](#when-to-use-a-task)
     - [Epic Template](#epic-template)
     - [Feature Template](#feature-template)
   - [Definition of Done](#definition-of-done)
@@ -288,6 +290,47 @@ When splitting a large story, consider these approaches:
    - "Implement basic health check endpoint" → Story 1
    - "Add detailed health metrics to endpoint" → Story 2
    - "Add automated alerting based on health metrics" → Story 3
+
+#### Acceptance Criteria
+
+- [ ] [Specific testable outcome 1]
+- [ ] [Specific testable outcome 2]
+- [ ] [Specific testable outcome 3]
+
+---
+
+### Task Template
+
+Source: [jira-task-template.md](https://github.com/openshift-online/gcp-hcp/blob/main/docs/jira-task-template.md)
+
+A finite piece of work to be completed. Great for tracking post-meeting follow-ups & action items. Fits within a single sprint.
+
+#### When to Use a Task
+
+**Use a Task for:**
+- Post-meeting follow-ups and action items
+- Finite pieces of work that fit within a single sprint
+- Specific, well-scoped work items that don't require user story format
+- Discrete deliverables or activities
+
+**Use a Story instead for:**
+- User-facing features or capabilities requiring user story format ("As a... I want... so that...")
+
+#### Context / Background
+
+[Why this work is needed, relevant history, links to meeting notes or related tickets]
+
+#### Requirements
+
+[What needs to be delivered or accomplished]
+
+#### Technical Approach
+
+[Proposed solution, major steps, or approach to completing this work]
+
+#### Dependencies
+
+[Blocking items: other tickets, required access/permissions, or external dependencies]
 
 #### Acceptance Criteria
 
