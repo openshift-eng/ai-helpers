@@ -31,6 +31,7 @@ jobs:
               mkdir -p "/tmp/scan-target/$(dirname "$f")"
               cp "$f" "/tmp/scan-target/$f"
             done
+            touch /tmp/scan-target/.scanroot.md
             echo "dir=/tmp/scan-target" >> "$GITHUB_OUTPUT"
           else
             echo "dir=." >> "$GITHUB_OUTPUT"
