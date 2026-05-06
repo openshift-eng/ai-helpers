@@ -1692,26 +1692,30 @@
       "version": "0.0.7"
     },
     {
-      "commands": [
+      "commands": [],
+      "description": "Go development tools: gopls MCP server, LSP integration, automatic gofmt formatting, and golangci-lint linting",
+      "has_readme": true,
+      "hooks": [
         {
-          "argument_hint": "",
-          "description": "Run golangci-lint tool and fix all reported issues",
-          "name": "lint-fix",
-          "synopsis": "/golang:lint-fix"
+          "description": "Auto-format Go files with gofmt after write/edit",
+          "name": "PostToolUse",
+          "type": "PostToolUse"
         }
       ],
-      "description": "Run golang codebase related commands and tools",
-      "has_readme": true,
-      "hooks": [],
       "name": "golang",
       "skills": [
         {
-          "description": "Detect and run golangci-lint in a Go repository using the best available method",
+          "description": "Run golangci-lint to check Go code quality. Use when the user asks to lint, check for lint issues, or verify code quality in a Go project, or when linting is appropriate before committing Go code changes.",
           "id": "lint",
-          "name": "Go Lint"
+          "name": "lint"
+        },
+        {
+          "description": "Run golangci-lint and fix all reported issues. Use only when explicitly asked to fix lint issues in a Go project.",
+          "id": "lint-fix",
+          "name": "lint-fix"
         }
       ],
-      "version": "0.1.0"
+      "version": "0.2.0"
     },
     {
       "commands": [

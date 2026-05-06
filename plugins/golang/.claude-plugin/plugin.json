@@ -1,8 +1,11 @@
 {
   "name": "golang",
-  "description": "Run golang codebase related commands and tools",
-  "version": "0.1.0",
+  "description": "Go development tools: gopls MCP server, LSP integration, automatic gofmt formatting, and golangci-lint linting",
+  "version": "0.2.0",
   "author": {
     "name": "github.com/openshift-eng"
-  }
+  },
+  "dependencies": [
+    { "name": "gopls-lsp", "marketplace": "claude-plugins-official" }
+  ]
 }

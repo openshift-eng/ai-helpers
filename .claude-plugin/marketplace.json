@@ -3,6 +3,7 @@
   "owner": {
     "name": "openshift-eng"
   },
+  "allowCrossMarketplaceDependenciesOn": ["claude-plugins-official"],
   "plugins": [
     {
       "name": "git",
@@ -211,8 +212,8 @@
     {
       "name": "golang",
       "source": "./plugins/golang",
-      "description": "Run golang codebase related commands and tools",
-      "version": "0.1.0"
+      "description": "Go development tools: gopls MCP server, LSP integration, automatic gofmt formatting, and golangci-lint linting",
+      "version": "0.2.0"
     },
     {
       "name": "ote-migration",
