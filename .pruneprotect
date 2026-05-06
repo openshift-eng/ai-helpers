@@ -17,3 +17,6 @@ plugins/ci/
 plugins/hcp/
 plugins/sosreport/
 
+# Saved by @stbenjam on 2026-05-06
+plugins/olm/
+
