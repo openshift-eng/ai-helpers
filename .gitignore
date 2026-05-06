@@ -29,8 +29,12 @@ __pycache__/
 venv/
 *.egg
 
+# Local settings
+*.local.*
+
 # Claude's settings for this repository
-.claude/
+.claude/*
+!.claude/settings.json
 
 # Working directories for skills
 .work/
