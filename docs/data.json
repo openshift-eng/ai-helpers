@@ -1606,6 +1606,28 @@
     {
       "commands": [
         {
+          "argument_hint": "--team <team-name> [--team-docs <path>] [--since last-week] [--issue OCPBUGS-XXXXX] [--dry-run]",
+          "description": "Analyze untriaged OCPBUGS bugs for a team and post AI triage comments directly on each issue before bug scrub meetings",
+          "name": "scrub",
+          "synopsis": "/bug-triage:scrub --team <team-name> [--team-docs <path>] [--since last-week] [--issue OCPBUGS-XXXXX] [--dry-run]"
+        }
+      ],
+      "description": "AI-powered bug triage for OpenShift teams \u2014 analyzes untriaged OCPBUGS issues and posts structured triage comments",
+      "has_readme": true,
+      "hooks": [],
+      "name": "bug-triage",
+      "skills": [
+        {
+          "description": "General-purpose analysis logic and comment template for posting AI triage comments on OCPBUGS issues before bug scrub meetings",
+          "id": "triage-comment",
+          "name": "Bug Triage Comment"
+        }
+      ],
+      "version": "0.1.0"
+    },
+    {
+      "commands": [
+        {
           "argument_hint": "<short-description> <repo1|url> [repo2...]",
           "description": "Create a workspace with git worktrees for multi-repository development",
           "name": "create",
