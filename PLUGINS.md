@@ -100,7 +100,7 @@ See [plugins/ci/README.md](plugins/ci/README.md) for detailed documentation.
 Automated code quality review with language-aware analysis for pre-commit verification
 
 **Commands:**
-- **`/code-review:panel-review` `[pr-url-or-number] [coderabbit]`** - Comprehensive multi-perspective code review with architecture, security, consistency, QA, and adversarial analysis
+- **`/code-review:panel-review` `[--serial] [--comment] [--coderabbit] [pr-url-or-number]`** - Comprehensive multi-perspective code review with architecture, security, consistency, QA, and adversarial analysis
 - **`/code-review:pr` `<pr-url-or-number> [--language <lang>] [--profile <name>] [--skip-build] [--skip-tests]`** - Automated PR code quality review with language-aware analysis and project-specific profiles
 - **`/code-review:pre-commit-review` `[--language <lang>] [--profile <name>] [--skip-build] [--skip-tests]`** - Automated pre-commit code quality review with language-aware analysis and project-specific profiles
 

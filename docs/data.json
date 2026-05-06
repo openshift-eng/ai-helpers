@@ -1656,10 +1656,10 @@
     {
       "commands": [
         {
-          "argument_hint": "[pr-url-or-number] [coderabbit]",
+          "argument_hint": "[--serial] [--comment] [--coderabbit] [pr-url-or-number]",
           "description": "Comprehensive multi-perspective code review with architecture, security, consistency, QA, and adversarial analysis",
           "name": "panel-review",
-          "synopsis": "/code-review:panel-review [pr-url-or-number] [external-reviewer...]"
+          "synopsis": "/code-review:panel-review [--serial] [--comment] [--coderabbit] [pr-url-or-number]"
         },
         {
           "argument_hint": "<pr-url-or-number> [--language <lang>] [--profile <name>] [--skip-build] [--skip-tests]",
@@ -1700,7 +1700,7 @@
           "name": "review-panel"
         }
       ],
-      "version": "0.0.8"
+      "version": "0.0.10"
     },
     {
       "commands": [
