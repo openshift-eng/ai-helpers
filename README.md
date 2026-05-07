@@ -185,7 +185,7 @@ If you're contributing several related commands that warrant their own plugin:
 
 ### Validating Plugins
 
-This repository uses [claudelint](https://github.com/stbenjam/claudelint) to validate plugin structure:
+This repository uses [skillsaw](https://github.com/stbenjam/skillsaw) to validate plugin structure:
 
 ```bash
 make lint

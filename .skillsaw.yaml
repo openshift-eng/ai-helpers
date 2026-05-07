@@ -1,0 +1,64 @@
+custom-rules:
+- .skillsaw-custom.py
+exclude: []
+rules:
+  agentskill-description:
+    enabled: false
+  agentskill-evals:
+    enabled: false
+  agentskill-evals-required:
+    enabled: false
+  agentskill-name:
+    enabled: false
+  agentskill-structure:
+    enabled: false
+  agentskill-valid:
+    enabled: false
+  command-frontmatter:
+    enabled: true
+    severity: error
+  command-name-format:
+    enabled: true
+    severity: warning
+  command-naming:
+    enabled: true
+    severity: warning
+  command-sections:
+    enabled: true
+    severity: warning
+  commands-dir-required:
+    enabled: false
+    severity: warning
+  commands-exist:
+    enabled: false
+    severity: info
+  marketplace-json-valid:
+    enabled: auto
+    severity: error
+  marketplace-registration:
+    enabled: auto
+    severity: error
+  mcp-prohibited:
+    allowlist:
+    - gopls
+    enabled: true
+    severity: error
+  plugin-json-required:
+    enabled: true
+    severity: error
+  plugin-json-valid:
+    enabled: true
+    severity: error
+  plugin-naming:
+    enabled: true
+    severity: warning
+  plugin-readme:
+    enabled: true
+    severity: warning
+  plugins-doc-up-to-date:
+    enabled: true
+    severity: error
+  skill-frontmatter:
+    enabled: true
+    severity: warning
+strict: false
