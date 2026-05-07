@@ -899,6 +899,16 @@ Parse and analyze the JSON output from scripts using your own reasoning capabili
    - Triage: https://sippy-auth.dptools.openshift.org/sippy-ng/component_readiness/triages/<triage_id>
    ```
 
+   Then add the triage record link to the JIRA description using the `add-jira-triage-link` skill:
+
+   ```bash
+   jira_key="<existing_jira_key>"
+   link_script="plugins/ci/skills/add-jira-triage-link/add_jira_triage_link.py"
+   python3 "$link_script" "$jira_key" --triage-id "$triage_id" --format json
+   ```
+
+   If successful, note that the triage link was added to the JIRA description. If it was already present, note that. If JIRA credentials are not set, skip this step silently (the triage itself already succeeded).
+
    **Note**: The triage-regression script automatically fetches the existing triage and merges its regressions with the new ones, so you only need to pass the regression IDs you want to add.
 
    **Scenario B: JIRA bug found but not triaged to any regression** (from step 5 or step 11)
@@ -952,6 +962,15 @@ Parse and analyze the JSON output from scripts using your own reasoning capabili
    - JIRA: https://redhat.atlassian.net/browse/OCPBUGS-67890
    - Triage: https://sippy-auth.dptools.openshift.org/sippy-ng/component_readiness/triages/<triage_id>
    ```
+
+   Then add the triage record link to the JIRA description using the `add-jira-triage-link` skill:
+
+   ```bash
+   link_script="plugins/ci/skills/add-jira-triage-link/add_jira_triage_link.py"
+   python3 "$link_script" "OCPBUGS-67890" --triage-id "$triage_id" --format json
+   ```
+
+   If successful, note that the triage link was added to the JIRA description. If JIRA credentials are not set, skip this step silently.
 
    **Scenario C: No related triage or bug found**
 
@@ -1031,6 +1050,15 @@ Parse and analyze the JSON output from scripts using your own reasoning capabili
    - Release Blocker: Approved
    - Triage: https://sippy-auth.dptools.openshift.org/sippy-ng/component_readiness/triages/<triage_id>
    ```
+
+   Then add the triage record link to the JIRA description using the `add-jira-triage-link` skill:
+
+   ```bash
+   link_script="plugins/ci/skills/add-jira-triage-link/add_jira_triage_link.py"
+   python3 "$link_script" "<new_bug_key>" --triage-id "$triage_id" --format json
+   ```
+
+   If successful, note that the triage link was added to the JIRA description. If JIRA credentials are not set, skip this step silently.
 
    **Scenario D: Regression is already triaged**
 
@@ -1265,6 +1293,7 @@ Uses the `triage-regression` skill with authentication via the `oc-auth` skill (
   - `fetch-related-triages`: Finds existing triages and untriaged regressions related to a regression
   - `fetch-jira-issue`: Fetches JIRA issue details and classifies progress
   - `triage-regression`: Creates or updates triage records linking regressions to JIRA bugs
+  - `add-jira-triage-link`: Adds the triage record link to the JIRA issue description after triaging
   - `set-release-blocker`: Sets the Release Blocker field to "Approved" on filed JIRA bugs
   - `oc-auth`: Provides authentication tokens for sippy-auth API
   - `prow-job-analyze-install-failure`: Analyzes GCS artifacts for individual failed install runs (used only when test name contains "install should succeed")
@@ -1291,6 +1320,7 @@ Uses the `triage-regression` skill with authentication via the `oc-auth` skill (
 - Related Skill: `fetch-related-triages` - Finds existing triages and untriaged regressions related to a regression (`plugins/ci/skills/fetch-related-triages/SKILL.md`)
 - Related Skill: `fetch-jira-issue` - Fetches JIRA issue details and classifies progress (`plugins/ci/skills/fetch-jira-issue/SKILL.md`)
 - Related Skill: `triage-regression` - Creates or updates triage records (`plugins/ci/skills/triage-regression/SKILL.md`)
+- Related Skill: `add-jira-triage-link` - Adds triage record link to JIRA issue description (`plugins/ci/skills/add-jira-triage-link/SKILL.md`)
 - Related Skill: `set-release-blocker` - Sets Release Blocker field on JIRA bugs (`plugins/ci/skills/set-release-blocker/SKILL.md`)
 - Related Skill: `oc-auth` - Authentication tokens for sippy-auth (`plugins/ci/skills/oc-auth/SKILL.md`)
 - Related Skill: `prow-job-analyze-install-failure` - Deep per-run install failure analysis via GCS artifacts (`plugins/ci/skills/prow-job-analyze-install-failure/SKILL.md`)

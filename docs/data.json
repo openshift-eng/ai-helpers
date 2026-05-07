@@ -430,12 +430,6 @@
           "synopsis": "/ci:payload-revert <payload-tag>"
         },
         {
-          "argument_hint": "<count> [--from <subdir>] [--to <org/repo>]",
-          "description": "Port tests from openshift-tests-private to openshift/origin",
-          "name": "port-tests",
-          "synopsis": "/ci:port-tests <count> [--from <subdir>] [--to <org/repo>]"
-        },
-        {
           "argument_hint": "<execution-id>",
           "description": "Query the status of a gangway job execution by ID",
           "name": "query-job-status",
@@ -477,6 +471,11 @@
       "hooks": [],
       "name": "ci",
       "skills": [
+        {
+          "description": "Add a Component Readiness triage record link to a JIRA issue description",
+          "id": "add-jira-triage-link",
+          "name": "Add JIRA Triage Link"
+        },
         {
           "description": "Analyze and compare disruption across one or more Prow CI job runs by examining interval data, audit logs, pod logs, and CPU metrics",
           "id": "analyze-disruption",
@@ -642,10 +641,10 @@
           "synopsis": "/teams:health-check-jiras --project <project> [--component comp1 comp2 ...] [--status status1 status2 ...] [--include-closed] [--limit N]"
         },
         {
-          "argument_hint": "<release> [--components comp1 comp2 ...] [--team <team-name>] [--start YYYY-MM-DD] [--end YYYY-MM-DD]",
+          "argument_hint": "<view> [--components comp1 comp2 ...] [--team <team-name>] [--start YYYY-MM-DD] [--end YYYY-MM-DD]",
           "description": "Query and summarize regression data for OpenShift releases with counts and metrics",
           "name": "health-check-regressions",
-          "synopsis": "/teams:health-check-regressions <release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]"
+          "synopsis": "/teams:health-check-regressions <view> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]"
         },
         {
           "argument_hint": "<release> [--components comp1 comp2 ...] [--team <team-name>] [--project JIRAPROJECT]",
@@ -666,10 +665,10 @@
           "synopsis": "/teams:list-jiras <project> [--component comp1 comp2 ...] [--status status1 status2 ...] [--include-closed] [--limit N]"
         },
         {
-          "argument_hint": "<release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]",
+          "argument_hint": "<view> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]",
           "description": "Fetch and list raw regression data for OpenShift releases",
           "name": "list-regressions",
-          "synopsis": "/teams:list-regressions <release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]"
+          "synopsis": "/teams:list-regressions <view> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]"
         },
         {
           "argument_hint": "",
