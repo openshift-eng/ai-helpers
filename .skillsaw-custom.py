@@ -1,5 +1,5 @@
 """
-Custom claudelint rules for ai-helpers marketplace
+Custom skillsaw rules for ai-helpers marketplace
 """
 
 import subprocess
@@ -10,8 +10,7 @@ try:
     from src.rule import Rule, RuleViolation, Severity
     from src.context import RepositoryContext
 except ImportError:
-    # Fallback for when running as a custom rule
-    from claudelint import Rule, RuleViolation, Severity, RepositoryContext
+    from skillsaw import Rule, RuleViolation, Severity, RepositoryContext
 
 
 class PluginsDocUpToDateRule(Rule):

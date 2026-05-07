@@ -17,14 +17,14 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
-      
-      - name: Pull claudelint Docker image
-        run: docker pull ghcr.io/stbenjam/claudelint:main
 
-      - name: Run claudelint
+      - name: Pull skillsaw Docker image
+        run: docker pull ghcr.io/stbenjam/skillsaw:main
+
+      - name: Run skillsaw
         run: |
           docker run --rm \
             -v ${{ github.workspace }}:/workspace \
             -w /workspace \
-            ghcr.io/stbenjam/claudelint:main \
+            ghcr.io/stbenjam/skillsaw:main \
             -v --strict
