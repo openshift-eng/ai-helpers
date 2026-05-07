@@ -1,0 +1,8 @@
+{
+  "name": "confluence",
+  "description": "Confluence page management, documentation generation from Jira, and meeting notes publishing",
+  "version": "0.1.0",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}
