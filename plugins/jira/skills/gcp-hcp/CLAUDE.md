@@ -10,6 +10,7 @@ content from the upstream sources and reconcile any changes.
 |-------------------------------------------|--------------------------------------------|
 | Story Template structure                  | docs/jira-story-template.md               |
 | Story Sizing Guide (within story section) | docs/jira-story-template.md               |
+| Task Template structure                   | docs/jira-task-template.md                |
 | Priority Scheme (OJA-PRIS-001)            | *See note below*                           |
 | Epic Template structure                   | docs/jira-epic-template.md                |
 | Feature Template structure                | docs/jira-feature-template.md             |
@@ -21,6 +22,7 @@ When this skill needs updating (upstream templates changed, new sections added):
 
 1. Fetch the latest content from each upstream file:
    - https://raw.githubusercontent.com/openshift-online/gcp-hcp/main/docs/jira-story-template.md
+   - https://raw.githubusercontent.com/openshift-online/gcp-hcp/main/docs/jira-task-template.md
    - https://raw.githubusercontent.com/openshift-online/gcp-hcp/main/docs/jira-epic-template.md
    - https://raw.githubusercontent.com/openshift-online/gcp-hcp/main/docs/jira-feature-template.md
    - https://raw.githubusercontent.com/openshift-online/gcp-hcp/main/docs/definition-of-done.md
