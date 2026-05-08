@@ -37,6 +37,27 @@ When calling Python skill scripts via the Bash tool, always run the script direc
 
 Parse and analyze the JSON output from scripts using your own reasoning capabilities rather than shell pipelines.
 
+**Obtaining the DPCR authentication token from mounted kubeconfig**
+
+The triage and bug filing steps (step 14) require a Bearer token from the DPCR cluster (`api.cr.j7t7.p1.openshiftapps.com:6443`). When running in a container with `~/.kube` mounted (read-only), the token is extracted directly from the mounted kubeconfig using `oc`:
+
+```bash
+# Find the oc context for the DPCR cluster from the mounted kubeconfig
+DPCR_CONTEXT=$(oc config get-contexts -o name 2>/dev/null | while read -r ctx; do
+  server=$(oc config view -o jsonpath="{.clusters[?(@.name=='$(oc config view -o jsonpath="{.contexts[?(@.name=='$ctx')].context.cluster}" 2>/dev/null)')].cluster.server}" 2>/dev/null || echo "")
+  server_clean=$(echo "$server" | sed -E 's|^https?://||')
+  if [ "$server_clean" = "api.cr.j7t7.p1.openshiftapps.com:6443" ]; then
+    echo "$ctx"
+    break
+  fi
+done)
+
+# Extract the token from the DPCR context
+TOKEN=$(oc whoami -t --context="$DPCR_CONTEXT" 2>/dev/null)
+```
+
+This works because `oc` reads from `~/.kube/config` which is bind-mounted from the host. The token stored in the kubeconfig was obtained when the user previously ran `oc login` to the DPCR cluster on the host. If the token is expired, instruct the user to re-authenticate on the host: `oc login https://api.cr.j7t7.p1.openshiftapps.com:6443`.
+
 1. **Load CI Context**: Read all documentation files in `plugins/ci/docs/` for context on tests, jobs, and CI conventions. These contain important notes on specific test frameworks, job ownership, and debugging guidance that should inform the analysis.
 
    ```bash
@@ -1259,15 +1280,23 @@ Uses the `triage-regression` skill with authentication via the `oc-auth` skill (
    - Component Readiness API
    - Check firewall and VPN settings if needed
 
-3. **JIRA_USERNAME** and **JIRA_API_TOKEN** (optional): Required for JIRA progress analysis on triaged regressions
+3. **JIRA_URL**, **JIRA_USERNAME**, and **JIRA_API_TOKEN** (optional): Required for JIRA progress analysis and bug filing
 
    - Set environment variables:
      ```bash
+     export JIRA_URL="https://redhat.atlassian.net"
      export JIRA_USERNAME="your.email@redhat.com"
      export JIRA_API_TOKEN="your-api-token"
      ```
    - Obtain your API token from: https://id.atlassian.com/manage-profile/security/api-tokens
-   - If either is not set, JIRA progress analysis will be skipped but other analysis continues
+   - If not set, JIRA progress analysis and bug filing will be skipped but other analysis continues
+
+4. **Kubeconfig with DPCR cluster context** (optional): Required for triaging regressions
+
+   - The kubeconfig (`~/.kube/config`) must contain a context for the DPCR cluster (`api.cr.j7t7.p1.openshiftapps.com:6443`)
+   - When running in a container, mount the host kubeconfig: `-v "$HOME/.kube:/home/claude/.kube:ro,Z"`
+   - The token is extracted via `oc whoami -t` from the mounted kubeconfig
+   - If the token is expired, re-authenticate on the host: `oc login https://api.cr.j7t7.p1.openshiftapps.com:6443`
 
 ## Notes
 
