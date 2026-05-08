@@ -1604,9 +1604,14 @@
           "description": "Comprehensive analysis of BigQuery usage patterns, costs, and query performance",
           "id": "analyze-usage",
           "name": "Analyze BigQuery Usage"
+        },
+        {
+          "description": "Safely query and report on OpenShift CI prow job and test data in BigQuery with cost controls, dry-run validation, and local caching of results",
+          "id": "ci-data-analyst",
+          "name": "CI Data Analyst"
         }
       ],
-      "version": "0.0.2"
+      "version": "0.0.4"
     },
     {
       "commands": [
