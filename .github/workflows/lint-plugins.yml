@@ -10,21 +10,15 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
+      pull-requests: write
 
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          persist-credentials: false
-
-      - name: Pull skillsaw Docker image
-        run: docker pull ghcr.io/stbenjam/skillsaw:main
 
       - name: Run skillsaw
-        run: |
-          docker run --rm \
-            -v ${{ github.workspace }}:/workspace \
-            -w /workspace \
-            ghcr.io/stbenjam/skillsaw:main \
-            -v --strict
+        uses: stbenjam/skillsaw@v0
+        with:
+          strict: true
+          verbose: true
