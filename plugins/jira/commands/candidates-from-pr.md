@@ -7,7 +7,7 @@ argument-hint: "<pr-url-or-number> [--repo <org/repo>] [--project <key>] [--targ
 jira:candidates-from-pr
 
 ## Synopsis
-```
+```text
 /jira:candidates-from-pr <pr-url-or-number> [options]
 ```
 
@@ -84,7 +84,7 @@ plugins/jira/skills/candidates-from-pr/SKILL.md
    - For OCPBUGS, target release is in `customfield_10855` (Target Version), not `fixVersions` (managed by release team — see `plugins/jira/reference/mcp-tools.md:295`). Query both for safety.
 
 6. **Build JQL** and search for candidate Jiras:
-   ```
+   ```jql
    project = <KEY>
      AND statusCategory != Done
      AND component in (<COMPONENT(s)>)
@@ -109,29 +109,29 @@ plugins/jira/skills/candidates-from-pr/SKILL.md
 ## Examples
 
 1. **Basic usage with a PR URL**:
-   ```
+   ```text
    /jira:candidates-from-pr https://github.com/openshift/ovn-kubernetes/pull/4567
    ```
 
 2. **Override the target release** (e.g. when triaging a backport before the base branch is final):
-   ```
+   ```text
    /jira:candidates-from-pr https://github.com/openshift/ovn-kubernetes/pull/4567 --target-release 4.18
    ```
 
 3. **Restrict to a specific component**:
-   ```
+   ```text
    /jira:candidates-from-pr 4567 --repo openshift/ovn-kubernetes \
      --component "Networking / ovn-kubernetes" --project OCPBUGS
    ```
 
 4. **Tighter results, JSON output for downstream tooling**:
-   ```
+   ```text
    /jira:candidates-from-pr https://github.com/openshift/ovn-kubernetes/pull/4567 \
      --limit 5 --min-score 60 --output json
    ```
 
 5. **Re-score even keys already mentioned in the PR description**:
-   ```
+   ```text
    /jira:candidates-from-pr https://github.com/openshift/ovn-kubernetes/pull/4567 --include-explicit
    ```
 
@@ -156,7 +156,7 @@ plugins/jira/skills/candidates-from-pr/SKILL.md
         "status": "New",
         "issuetype": "Bug",
         "priority": "Major",
-        "assignee": "Jane Doe",
+        "assignee": { "display_name": "Jane Doe", "email": "jane@example.com" },
         "components": ["..."],
         "target_release": "4.18",
         "score": 78,

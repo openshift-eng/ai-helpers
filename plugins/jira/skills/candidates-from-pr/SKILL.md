@@ -42,7 +42,8 @@ All scripts read JSON on stdin or via `--` flags and write JSON/text to stdout. 
 
 - `gh` CLI authenticated with read access to the target repo.
 - Jira MCP server configured (`plugins/jira/README.md`).
-- Python 3 (no third-party deps; standard library only).
+- Python 3.10+ (no third-party deps; standard library only).
+- `jq` CLI for JSON field extraction in shell snippets.
 
 ## Output Format
 
@@ -93,7 +94,7 @@ scripts/extract_jira_keys.py --projects "$PROJECTS" < pr.json > explicit_keys.js
 
 For each `key` in the output, call:
 
-```
+```text
 mcp__atlassian__jira_get_issue(
   issue_key=<KEY>,
   fields="summary,status,issuetype,components,fixVersions,customfield_10855,assignee"
@@ -113,11 +114,11 @@ scripts/derive_filters.py \
 
 If `filters.json.target_release_source == "needs_lookup"`:
 
-```
+```text
 mcp__atlassian__jira_get_project_versions(project_key=<KEY>)
 ```
 
-Pick the **smallest** version where `released == false` and rewrite `filters.json` with it (set `target_release_source = "project_versions"`).
+Pick the **highest** unreleased numeric version where `released == false` (the current development release for `main`/`master`) and rewrite `filters.json` with it (set `target_release_source = "project_versions"`).
 
 ### 4. Build JQL and search
 
@@ -127,7 +128,7 @@ scripts/build_jql.py --project "$PROJECT" < filters.json > jql.txt
 
 Run the search:
 
-```
+```text
 mcp__atlassian__jira_search(
   jql=<contents of jql.txt>,
   fields="summary,status,issuetype,priority,assignee,components,fixVersions,customfield_10855,description,updated,labels",

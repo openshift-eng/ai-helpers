@@ -74,7 +74,8 @@ def main() -> None:
         # network glitch. Don't fail the whole pipeline — signals can still be
         # extracted from titles/bodies/file paths/commit messages.
         diff = ""
-        diff_unavailable_reason = (diff_err or "unknown error").strip().splitlines()[-1]
+        _err_lines = (diff_err or "").strip().splitlines()
+        diff_unavailable_reason = _err_lines[-1] if _err_lines else "unknown error"
 
     diff_lines = diff.splitlines()
     truncated = len(diff_lines) > args.diff_max_lines
