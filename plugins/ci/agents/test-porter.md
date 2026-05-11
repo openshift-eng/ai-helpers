@@ -84,9 +84,13 @@ If a directory with the same name exists in origin, use it. If no match, create 
 2. If no equivalent and the helper is small (< 50 lines), copy it to the destination
 4. Copy fixture files (YAML, JSON) to the corresponding `testdata/` directory
 
-### Compilation Verification
+### Compilation and Verification
 
-Always run `go build ./test/extended/...` in the origin repo after porting. Iterate on failures. 
+After porting, run these in order in the origin repo and iterate on failures:
+
+1. `go build ./test/extended/...` — fix compile errors first
+2. `make update-bindata` — regenerate bindata for any new fixture files
+3. `make verify` — fix any linting, formatting, or generated-file issues
 
 ## PR Creation
 
