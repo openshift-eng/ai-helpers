@@ -1790,6 +1790,31 @@
       "name": "marketplace-ops",
       "skills": [],
       "version": "0.1.2"
+    },
+    {
+      "commands": [],
+      "description": "OCP release information: Product Pages schedules, PR-to-release tracing, and Cincinnati upgrade paths",
+      "has_readme": true,
+      "hooks": [],
+      "name": "release-info",
+      "skills": [
+        {
+          "description": "Traces a GitHub PR to the first OCP z-stream release that shipped it. Auto-applies when asked which release contains a PR, when a PR or commit shipped, or to find a PR in a z-stream payload.",
+          "id": "pr-to-release-version",
+          "name": "PR to Release Version"
+        },
+        {
+          "description": "Generates a link to the interactive OpenShift update graph visualizer for a specific channel. Auto-applies when asked to show, visualize, or display the upgrade graph for an OCP version or channel.",
+          "id": "update-graph",
+          "name": "OCP Update Graph Visualizer"
+        },
+        {
+          "description": "Queries Cincinnati to find available OCP upgrade paths from a given version. Auto-applies when asked about upgrade paths, whether a version can upgrade to another, what updates are available, or if a z-stream is in a specific channel.",
+          "id": "upgrade-path",
+          "name": "OCP Upgrade Path"
+        }
+      ],
+      "version": "0.0.1"
     }
   ]
 }

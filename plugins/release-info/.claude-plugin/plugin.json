@@ -1,0 +1,8 @@
+{
+  "name": "release-info",
+  "description": "OCP release information: Product Pages schedules, PR-to-release tracing, and Cincinnati upgrade paths",
+  "version": "0.0.1",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}

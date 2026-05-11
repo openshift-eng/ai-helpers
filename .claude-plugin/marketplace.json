@@ -238,6 +238,12 @@
       "source": "./plugins/marketplace-ops",
       "description": "Maintenance commands for Claude Code plugin marketplaces",
       "version": "0.1.2"
+    },
+    {
+      "name": "release-info",
+      "source": "./plugins/release-info",
+      "description": "OCP release information: Product Pages schedules, PR-to-release tracing, and Cincinnati upgrade paths",
+      "version": "0.0.1"
     }
   ]
 }
