@@ -37,7 +37,7 @@ Activity type categories:
 
 ### Phase 1: Verify Snowflake Connection
 
-Read and follow the `setup-snowflake` skill. This checks for the Snowflake MCP server, guides the user through setup if needed, and sets the session context (`JIRA_CLOUDMARTS_GROUP` role, `JIRA_DB.CLOUDRHAI_MARTS` schema).
+Read and follow the `setup-snowflake` skill. This checks for the Snowflake MCP server, guides the user through setup if needed, and sets the session context (`PUBLIC` role, `JIRA_DB.CLOUDRHAI_MARTS` schema).
 
 If setup fails, abort with the guidance message from the skill. Do not proceed without a working Snowflake connection.
 

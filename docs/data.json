@@ -1,0 +1,1817 @@
+{
+  "name": "ai-helpers",
+  "owner": "openshift-eng",
+  "plugins": [
+    {
+      "commands": [
+        {
+          "argument_hint": "<commit> <branch1> [branch2...] [--new-branch]",
+          "description": "Backport commits to multiple branches",
+          "name": "backport",
+          "synopsis": "/git:backport <commit> <branch1> [branch2...] [--new-branch|-b]"
+        },
+        {
+          "argument_hint": "[good-commit] [bad-commit]",
+          "description": "Interactive git bisect assistant with pattern detection and automation",
+          "name": "bisect",
+          "synopsis": "/git:bisect                       # Fully interactive - will ask for all inputs"
+        },
+        {
+          "argument_hint": "[--dry-run] [--merged-only] [--remote]",
+          "description": "Clean up old and defunct branches that are no longer needed",
+          "name": "branch-cleanup",
+          "synopsis": "/git:branch-cleanup [--dry-run] [--merged-only] [--remote]"
+        },
+        {
+          "argument_hint": "<commit_hash>",
+          "description": "Cherry-pick git commit into current branch by \"patch\" command",
+          "name": "cherry-pick-by-patch",
+          "synopsis": "/git:cherry-pick-by-patch commit_hash"
+        },
+        {
+          "argument_hint": "[N]",
+          "description": "Generate Conventional Commits style commit messages or summarize existing commits",
+          "name": "commit-suggest",
+          "synopsis": "/git:commit-suggest       # Analyze staged changes"
+        },
+        {
+          "argument_hint": "",
+          "description": "Analyze technical debt indicators in the repository",
+          "name": "debt-scan",
+          "synopsis": "/git:debt-scan"
+        },
+        {
+          "argument_hint": "<pr-url> [error-messages]",
+          "description": "Fix a cherrypick-robot PR that needs manual intervention",
+          "name": "fix-cherrypick-robot-pr",
+          "synopsis": "/git:fix-cherrypick-robot-pr <pr-url> [error-messages]"
+        },
+        {
+          "argument_hint": "[pr-url]",
+          "description": "Adapt and correct a PR description to match its code diffs and commit messages",
+          "name": "redescribe",
+          "synopsis": "/git:redescribe              # Redescribe the PR for the current branch"
+        },
+        {
+          "argument_hint": "[base-branch]",
+          "description": "Suggest appropriate reviewers for a PR based on git blame and OWNERS files",
+          "name": "suggest-reviewers",
+          "synopsis": "/git:suggest-reviewers [base-branch]"
+        },
+        {
+          "argument_hint": "",
+          "description": "Show current branch, git status, and recent commits for quick context",
+          "name": "summary",
+          "synopsis": "/git:summary"
+        }
+      ],
+      "description": "Git Plugin",
+      "has_readme": true,
+      "hooks": [],
+      "name": "git",
+      "skills": [
+        {
+          "description": "Git blame analysis helper for the suggest-reviewers command",
+          "id": "suggest-reviewers",
+          "name": "Suggest Reviewers Helper"
+        }
+      ],
+      "version": "0.0.5"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "[name]",
+          "description": "Hello world plugin implementation",
+          "name": "echo",
+          "synopsis": "/hello-world:echo [name]"
+        }
+      ],
+      "description": "Hello World Plugin",
+      "has_readme": true,
+      "hooks": [],
+      "name": "hello-world",
+      "skills": [],
+      "version": "1.0.1"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "[project-key] [--assignee username] [--days-inactive N]",
+          "description": "Find suitable JIRA tickets from the backlog to work on based on priority and activity",
+          "name": "backlog",
+          "synopsis": "/jira:backlog [project-key] [--assignee username] [--days-inactive N]"
+        },
+        {
+          "argument_hint": "[N | --days N] [--no-cache]",
+          "description": "Triage recent Jira activity \u2014 surface what needs attention, filter out noise",
+          "name": "catch-me-up",
+          "synopsis": "/jira:catch-me-up [14] [--days 7] [--no-cache]"
+        },
+        {
+          "argument_hint": "<issue-key> [--auto-apply]",
+          "description": "Categorize JIRA tickets into activity types using AI",
+          "name": "categorize-activity-type",
+          "synopsis": "/jira:categorize-activity-type <issue-key> [--auto-apply]"
+        },
+        {
+          "argument_hint": "<issue-number> [issue-number...] [--github-project <org/repo>] [--jira-project <key>] [--dryrun]",
+          "description": "Clone GitHub issues to Jira with proper formatting and linking",
+          "name": "clone-from-github",
+          "synopsis": "/jira:clone-from-github <issue-number> [issue-number...] [options]"
+        },
+        {
+          "argument_hint": "<issue-key>",
+          "description": "Generate bug fix release notes from Jira tickets and linked GitHub PRs",
+          "name": "create-release-note",
+          "synopsis": "/jira:create-release-note <issue-key>"
+        },
+        {
+          "argument_hint": "<type> [project-key] <summary> [--component <name>] [--version <version>] [--parent <key>]",
+          "description": "Create Jira issues (story, epic, feature, task, bug, feature-request) with proper formatting",
+          "name": "create",
+          "synopsis": "/jira:create <type> [project-key] <summary> [options]"
+        },
+        {
+          "argument_hint": "<issue-key>",
+          "description": "Generate OpenShift enhancement proposal markdown from a Jira epic or feature",
+          "name": "generate-enhancement",
+          "synopsis": "/jira:generate-enhancement <issue-key>"
+        },
+        {
+          "argument_hint": "<feature-key>",
+          "description": "Generate comprehensive feature documentation from Jira feature and all related issues and PRs",
+          "name": "generate-feature-doc",
+          "synopsis": "/jira:generate-feature-doc <feature-key>"
+        },
+        {
+          "argument_hint": "[JIRA issue key] [GitHub PR URLs]",
+          "description": "Generate test steps for a JIRA issue",
+          "name": "generate-test-plan",
+          "synopsis": ""
+        },
+        {
+          "argument_hint": "[project-filter] [time-period] [--component component-name] [--label label-name] [--type issue-type] [--status status] [--story-points]",
+          "description": "Analyze new bugs and cards added over a time period and generate grooming meeting agenda",
+          "name": "grooming",
+          "synopsis": "/jira:grooming [project-filter] [time-period] [--component component-name] [--label label-name] [--type issue-type] [--status status] [--story-points]"
+        },
+        {
+          "argument_hint": "<project-key> [time-period] [--component name] [--assignee username] [--reporter username] [--status status] [--search term] [--search-description]",
+          "description": "List and analyze JIRA issues organized by component with flexible filtering",
+          "name": "issues-by-component",
+          "synopsis": "/jira:issues-by-component <project-key> [time-period] [--component component-name] [--assignee username] [--reporter username] [--status status] [--search search-term] [--search-description]"
+        },
+        {
+          "argument_hint": "<jira-issue-key> [--dry-run] [--verbose] [--fix]",
+          "description": "Check whether a Jira issue is well-groomed and ready for /jira:solve",
+          "name": "ready-to-solve",
+          "synopsis": "/jira:ready-to-solve <jira-issue-key> [--dry-run] [--verbose] [--fix]"
+        },
+        {
+          "argument_hint": "[--github-project <org/repo>] [--jira-project <key>] [--profile <name>] [--porcelain] [--output json|yaml]",
+          "description": "Reconcile state mismatches between GitHub and Jira issues",
+          "name": "reconcile-github",
+          "synopsis": "/jira:reconcile-github [options]"
+        },
+        {
+          "argument_hint": "",
+          "description": "Install and configure the gh2jira utility with all required tools and credentials",
+          "name": "setup-gh2jira",
+          "synopsis": "/jira:setup-gh2jira"
+        },
+        {
+          "argument_hint": "",
+          "description": "Analyze a JIRA issue and create a pull request to solve it.",
+          "name": "solve",
+          "synopsis": "/jira:solve <jira-issue-id> [remote] [--ci]"
+        },
+        {
+          "argument_hint": "issue-id [--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD]",
+          "description": "Generate a status rollup comment for any JIRA issue based on all child issues and a given date range",
+          "name": "status-rollup",
+          "synopsis": "/jira:status-rollup issue-id [--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD]"
+        },
+        {
+          "argument_hint": "[project-key] [--component name] [--label label-name] [user-filters...]",
+          "description": "Update weekly status summaries for Jira issues with component and user filtering",
+          "name": "update-weekly-status",
+          "synopsis": "/jira:update-weekly-status [project-key] [--component <component-name>] [--label <label-name>] [user-filters...]"
+        },
+        {
+          "argument_hint": "[target-version] [component-filter] [--bug issue-key]",
+          "description": "Validate proposed release blockers using Red Hat OpenShift release blocker criteria",
+          "name": "validate-blockers",
+          "synopsis": "/jira:validate-blockers [target-version] [component-filter] [--bug issue-key]"
+        }
+      ],
+      "description": "A plugin to automate tasks with Jira",
+      "has_readme": true,
+      "hooks": [],
+      "name": "jira",
+      "skills": [
+        {
+          "description": "Gather and classify recent Jira activity to surface what needs attention",
+          "id": "catch-me-up",
+          "name": "Catch Me Up"
+        },
+        {
+          "description": "Detailed categorization logic for assigning JIRA tickets to activity type categories",
+          "id": "categorize-activity-type",
+          "name": "JIRA Activity Type Categorizer"
+        },
+        {
+          "description": "Jira conventions for the CNTRLPLANE project used by OpenShift teams",
+          "id": "cntrlplane",
+          "name": "CNTRLPLANE Jira Conventions"
+        },
+        {
+          "description": "Implementation guide for creating well-formed Jira bug reports",
+          "id": "create-bug",
+          "name": "Create Jira Bug"
+        },
+        {
+          "description": "Implementation guide for creating Jira epics with proper scope and parent linking",
+          "id": "create-epic",
+          "name": "Create Jira Epic"
+        },
+        {
+          "description": "Implementation guide for creating Jira features representing strategic objectives and market problems",
+          "id": "create-feature",
+          "name": "Create Jira Feature"
+        },
+        {
+          "description": "Implementation guide for creating Feature Requests in the RFE project",
+          "id": "create-feature-request",
+          "name": "Create Jira Feature Request"
+        },
+        {
+          "description": "Detailed implementation guide for generating bug fix release notes from Jira and GitHub PRs",
+          "id": "create-release-note",
+          "name": "Create Release Note"
+        },
+        {
+          "description": "Implementation guide for creating well-formed Jira user stories with acceptance criteria",
+          "id": "create-story",
+          "name": "Create Jira Story"
+        },
+        {
+          "description": "Implementation guide for creating Jira tasks for technical and operational work",
+          "id": "create-task",
+          "name": "Create Jira Task"
+        },
+        {
+          "description": "Recursively extract GitHub Pull Request links from Jira issues",
+          "id": "extract-prs",
+          "name": "Jira Pull Request Extractor"
+        },
+        {
+          "description": "GCP HCP team-specific Jira requirements for creating issues in the GCP project (Hypershift on GKE)",
+          "id": "gcp-hcp",
+          "name": "GCP HCP Jira Conventions"
+        },
+        {
+          "description": "Generate OpenShift enhancement proposal markdown from Jira epic or feature content",
+          "id": "generate-enhancement",
+          "name": "Generate Enhancement from Jira Epic or Feature"
+        },
+        {
+          "description": "HyperShift team-specific Jira requirements for component selection and conventions",
+          "id": "hypershift",
+          "name": "HyperShift Jira Conventions"
+        },
+        {
+          "description": "Detailed implementation guide for recursively analyzing Jira features and generating comprehensive documentation",
+          "id": "jira-doc-generator",
+          "name": "Jira Feature Documentation Generator"
+        },
+        {
+          "description": "Provides secure curl wrapper for the jira:issues-by-component command to prevent token exposure",
+          "id": "jira-issues-by-component",
+          "name": "JIRA Issues by Component - Helper Skill"
+        },
+        {
+          "description": "Detailed implementation guide for validating proposed release blockers",
+          "id": "jira-validate-blockers",
+          "name": "JIRA Release Blocker Validator"
+        },
+        {
+          "description": "Jira conventions and bug templates for the OCPBUGS project",
+          "id": "ocpbugs",
+          "name": "OCPBUGS Jira Conventions"
+        },
+        {
+          "description": "Detailed implementation guide for checking Jira issue readiness for /jira:solve",
+          "id": "ready-to-solve",
+          "name": "Jira Issue Readiness Validator"
+        },
+        {
+          "description": "Shared engine for analyzing Jira issue activity and generating status summaries",
+          "id": "status-analysis",
+          "name": "Jira Status Analysis Engine"
+        }
+      ],
+      "version": "0.4.4"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "<workflow-or-job-name> [timeout]",
+          "description": "Add a wait step to a CI workflow for debugging test failures",
+          "name": "add-debug-wait",
+          "synopsis": "/ci:add-debug-wait <workflow-or-job-name> [timeout]"
+        },
+        {
+          "argument_hint": "<prowjob-url-1> [prowjob-url-2 ...] [--backends backend1,backend2,...]",
+          "description": "Analyze and compare disruption across one or more Prow CI job runs",
+          "name": "analyze-disruption",
+          "synopsis": ""
+        },
+        {
+          "argument_hint": "<payload-tag> [--lookback N]",
+          "description": "Analyze a payload (rejected, accepted, or in-progress) with historical lookback to identify root causes of blocking job failures",
+          "name": "analyze-payload",
+          "synopsis": "/ci:analyze-payload <payload-tag> [--lookback N]"
+        },
+        {
+          "argument_hint": "[limit]",
+          "description": "Analyze recent PR reverts to identify patterns and recommend preventive measures",
+          "name": "analyze-pr-reverts",
+          "synopsis": "/ci:analyze-pr-reverts [limit]"
+        },
+        {
+          "argument_hint": "<prowjob-url>",
+          "description": "Analyze OpenShift installation failures in Prow CI jobs",
+          "name": "analyze-prow-job-install-failure",
+          "synopsis": "/ci:analyze-prow-job-install-failure <prowjob-url>"
+        },
+        {
+          "argument_hint": "prowjob-url resource-name",
+          "description": "Analyze Kubernetes resource lifecycle in Prow job artifacts",
+          "name": "analyze-prow-job-resource",
+          "synopsis": ""
+        },
+        {
+          "argument_hint": "prowjob-url [test-name] [--fast]",
+          "description": "Analyzes test errors from console logs and Prow CI job artifacts",
+          "name": "analyze-prow-job-test-failure",
+          "synopsis": ""
+        },
+        {
+          "argument_hint": "<regression id>",
+          "description": "Analyze details about a Component Readiness regression and suggest next steps",
+          "name": "analyze-regression",
+          "synopsis": "/ci:analyze-regression <regression id>"
+        },
+        {
+          "argument_hint": "[question]",
+          "description": "Ask the Sippy AI agent questions about OpenShift CI payloads, jobs, and test results",
+          "name": "ask-sippy",
+          "synopsis": "/ask-sippy [question]"
+        },
+        {
+          "argument_hint": "<jira-key-or-url>",
+          "description": "Check if the regression described in a Jira bug is still ongoing or has resolved",
+          "name": "check-if-jira-regression-is-ongoing",
+          "synopsis": "/ci:check-if-jira-regression-is-ongoing <jira-key-or-url>"
+        },
+        {
+          "argument_hint": "<prowjob-url>",
+          "description": "Download and continue a Claude session from a Prow CI job's artifacts",
+          "name": "continue-session",
+          "synopsis": "/ci:continue-session <prowjob-url>"
+        },
+        {
+          "argument_hint": "<pr-url>",
+          "description": "Extract kubeconfig from a running CI job in a PR",
+          "name": "extract-kubeconfig",
+          "synopsis": "/ci:extract-kubeconfig <pr-url>"
+        },
+        {
+          "argument_hint": "prowjob-url",
+          "description": "Extract and decompress must-gather archives from Prow job artifacts",
+          "name": "extract-prow-job-must-gather",
+          "synopsis": "/ci:extract-prow-job-must-gather <prowjob-url>"
+        },
+        {
+          "argument_hint": "[architecture] [version] [stream]",
+          "description": "Fetch recent release payloads from the OpenShift release controller",
+          "name": "fetch-payloads",
+          "synopsis": "/ci:fetch-payloads [architecture] [version] [stream]"
+        },
+        {
+          "argument_hint": "<test-name> [release]",
+          "description": "Fetch a test report from Sippy showing pass rates, test ID, and Jira component",
+          "name": "fetch-test-report",
+          "synopsis": "/ci:fetch-test-report <test-name> [release]"
+        },
+        {
+          "argument_hint": "<workflow-or-chain-name>",
+          "description": "List the step for the given workflow or chain name",
+          "name": "list-step",
+          "synopsis": ""
+        },
+        {
+          "argument_hint": "<version> <keywords> [sippy-url]",
+          "description": "List unstable tests with pass rate below 95%",
+          "name": "list-unstable-tests",
+          "synopsis": "/ci:list-unstable-tests <version> <keywords> [sippy-url]"
+        },
+        {
+          "argument_hint": "<payload-tag>",
+          "description": "Open draft revert PRs for medium-confidence payload candidates and trigger payload jobs to experimentally determine which PR is causing failures",
+          "name": "payload-experiment",
+          "synopsis": "/ci:payload-experiment <payload-tag>"
+        },
+        {
+          "argument_hint": "<payload-tag>",
+          "description": "Stage reverts for high-confidence payload candidates identified by analyze-payload",
+          "name": "payload-revert",
+          "synopsis": "/ci:payload-revert <payload-tag>"
+        },
+        {
+          "argument_hint": "<execution-id>",
+          "description": "Query the status of a gangway job execution by ID",
+          "name": "query-job-status",
+          "synopsis": "/query-job-status <execution-id>"
+        },
+        {
+          "argument_hint": "<version> <keywords> [sippy-url]",
+          "description": "Query test results from Sippy by version and test keywords",
+          "name": "query-test-result",
+          "synopsis": "/ci:query-test-result <version> <keywords> [sippy-url]"
+        },
+        {
+          "argument_hint": "<pr-url> <jira-ticket>",
+          "description": "Revert a merged PR that is breaking CI or nightly payloads",
+          "name": "revert-pr",
+          "synopsis": "/ci:revert-pr <pr-url> <jira-ticket>"
+        },
+        {
+          "argument_hint": "<job-name> [ENV_VAR=value ...]",
+          "description": "Trigger a periodic gangway job with optional environment variable overrides",
+          "name": "trigger-periodic",
+          "synopsis": "/trigger-periodic <job-name> [ENV_VAR=value ...]"
+        },
+        {
+          "argument_hint": "<job-name> <org> <repo> <base-ref> <base-sha> [ENV_VAR=value ...]",
+          "description": "Trigger a postsubmit gangway job with repository refs",
+          "name": "trigger-postsubmit",
+          "synopsis": "/trigger-postsubmit <job-name> <org> <repo> <base-ref> <base-sha> [ENV_VAR=value ...]"
+        },
+        {
+          "argument_hint": "<job-name> <org> <repo> <base-ref> <base-sha> <pr-number> <pr-sha> [ENV_VAR=value ...]",
+          "description": "Trigger a presubmit gangway job (typically use GitHub Prow commands instead)",
+          "name": "trigger-presubmit",
+          "synopsis": "/trigger-presubmit <job-name> <org> <repo> <base-ref> <base-sha> <pr-number> <pr-sha> [ENV_VAR=value ...]"
+        }
+      ],
+      "description": "A plugin to work with OpenShift CI and analyze Prow job results",
+      "has_readme": true,
+      "hooks": [],
+      "name": "ci",
+      "skills": [
+        {
+          "description": "Analyze and compare disruption across one or more Prow CI job runs by examining interval data, audit logs, pod logs, and CPU metrics",
+          "id": "analyze-disruption",
+          "name": "Analyze Disruption"
+        },
+        {
+          "description": "Analyze a payload (rejected, accepted, or in-progress) with historical lookback to identify root causes of blocking job failures and produce an HTML report",
+          "id": "analyze-payload",
+          "name": "Analyze Payload"
+        },
+        {
+          "description": "Fetch JIRA issue details including status, assignee, comments, and progress classification",
+          "id": "fetch-jira-issue",
+          "name": "Fetch JIRA Issue"
+        },
+        {
+          "description": "Fetch a Prow job run summary from Sippy showing all failed tests grouped by SIG with error messages",
+          "id": "fetch-job-run-summary",
+          "name": "Fetch Job Run Summary"
+        },
+        {
+          "description": "Fetch pull requests that are new in a given OpenShift payload compared to the previous payload",
+          "id": "fetch-new-prs-in-payload",
+          "name": "Fetch New PRs in Payload"
+        },
+        {
+          "description": "Fetch recent release payloads from the OpenShift release controller",
+          "id": "fetch-payloads",
+          "name": "Fetch Payloads"
+        },
+        {
+          "description": "Fetch and return key data from a Prow job's prowjob.json artifact given a Prow job URL",
+          "id": "fetch-prowjob-json",
+          "name": "Fetch ProwJob JSON"
+        },
+        {
+          "description": "Fetch detailed information about a Component Readiness regression from the Sippy API",
+          "id": "fetch-regression-details",
+          "name": "Fetch Regression Details"
+        },
+        {
+          "description": "Fetch existing triages and untriaged regressions related to a given regression",
+          "id": "fetch-related-triages",
+          "name": "Fetch Related Triages"
+        },
+        {
+          "description": "Fetch available OpenShift releases from the Sippy API",
+          "id": "fetch-releases",
+          "name": "Fetch Releases"
+        },
+        {
+          "description": "Fetch an OpenShift CI test report by name to get pass rates, test ID, and Jira component from Sippy",
+          "id": "fetch-test-report",
+          "name": "Fetch Test Report"
+        },
+        {
+          "description": "Fetch test runs from Sippy API including outputs for AI-based similarity analysis",
+          "id": "fetch-test-runs",
+          "name": "Fetch Test Runs"
+        },
+        {
+          "description": "Helper skill to retrieve OAuth tokens from the correct OpenShift cluster context when multiple clusters are configured",
+          "id": "oc-auth",
+          "name": "OC Authentication Helper"
+        },
+        {
+          "description": "Schema for the autodl JSON data file produced by analyze-payload for database ingestion \u2014 you must use this skill whenever generating the autodl JSON file",
+          "id": "payload-autodl-json",
+          "name": "Payload Autodl JSON"
+        },
+        {
+          "description": "Experimentally test medium-confidence payload candidates by opening draft revert PRs and triggering payload jobs",
+          "id": "payload-experimental-reverts",
+          "name": "Payload Experimental Reverts"
+        },
+        {
+          "description": "State management for agentic payload triage actions \u2014 you must use this skill whenever reading or writing the payload results YAML file",
+          "id": "payload-results-yaml",
+          "name": "Payload Results YAML"
+        },
+        {
+          "description": "Analyze OpenShift installation failures in Prow CI jobs by examining installer logs, log bundles, and sosreports. Use when CI job fails \"install should succeed\" tests at bootstrap, cluster creation or other stages.",
+          "id": "prow-job-analyze-install-failure",
+          "name": "Prow Job Analyze Install Failure"
+        },
+        {
+          "description": "Analyze OpenShift bare metal installation failures in Prow CI jobs using dev-scripts artifacts. Use for jobs with \"metal\" in name, for debugging Metal3/Ironic provisioning, installation, or dev-scripts setup failures. You may also use the prow-job-analyze-install-failure skill with this one.",
+          "id": "prow-job-analyze-metal-install-failure",
+          "name": "Prow Job Analyze Metal Install Failure"
+        },
+        {
+          "description": "Analyze Kubernetes resource lifecycle in Prow CI job artifacts by parsing audit logs and pod logs from GCS, generating interactive HTML reports with timelines",
+          "id": "prow-job-analyze-resource",
+          "name": "Prow Job Analyze Resource"
+        },
+        {
+          "description": "Analyze failed Prow CI tests by inspecting test code, downloading artifacts, and optionally integrating must-gather cluster diagnostics for root cause analysis",
+          "id": "prow-job-analyze-test-failure",
+          "name": "Prow Job Analyze Test Failure"
+        },
+        {
+          "description": "Search, list, and fetch artifacts from Prow CI job runs stored in GCS using the gcloud CLI",
+          "id": "prow-job-artifact-search",
+          "name": "Prow Job Artifact Search"
+        },
+        {
+          "description": "Extract and decompress must-gather archives from Prow CI job artifacts, generating an interactive HTML file browser with filters",
+          "id": "prow-job-extract-must-gather",
+          "name": "Prow Job Extract Must-Gather"
+        },
+        {
+          "description": "Git revert workflow and Revertomatic PR template for reverting merged PRs",
+          "id": "revert-pr",
+          "name": "Revert PR"
+        },
+        {
+          "description": "Set the Release Blocker field on a JIRA issue",
+          "id": "set-release-blocker",
+          "name": "Set Release Blocker"
+        },
+        {
+          "description": "Create TRT JIRA bugs, open revert PRs, and trigger payload jobs for high-confidence revert candidates",
+          "id": "stage-payload-reverts",
+          "name": "Stage Payload Reverts"
+        },
+        {
+          "description": "Create or update a Component Readiness triage record linking regressions to a JIRA bug",
+          "id": "triage-regression",
+          "name": "Triage Regression"
+        },
+        {
+          "description": "MUST be used whenever triggering payload testing on a PR. Do not post payload commands without following this skill \u2014 the command syntax is specific and other formats will be silently ignored by the bot.",
+          "id": "trigger-payload-job",
+          "name": "Trigger Payload Job"
+        }
+      ],
+      "version": "0.0.39"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "[--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD]",
+          "description": "Report on CodeRabbit adoption across OCP payload repos",
+          "name": "coderabbit-adoption-report",
+          "synopsis": "/teams:coderabbit-adoption-report"
+        },
+        {
+          "argument_hint": "[--dry-run]",
+          "description": "Scan openshift org repos for .coderabbit.yaml/.coderabbit.yml files missing inheritance",
+          "name": "coderabbit-inheritance-scanner",
+          "synopsis": "/teams:coderabbit-inheritance-scanner"
+        },
+        {
+          "argument_hint": "<repo> [--count N]",
+          "description": "Analyze PR review comments to propose CodeRabbit rules for a repository",
+          "name": "coderabbit-rules-from-pr-reviews",
+          "synopsis": "/teams:coderabbit-rules-from-pr-reviews openshift/origin"
+        },
+        {
+          "argument_hint": "--project <project> [--component comp1 comp2 ...] [--team <team-name>] [--status status1 status2 ...] [--include-closed] [--limit N]",
+          "description": "Query and summarize JIRA bugs for a specific project with counts by component",
+          "name": "health-check-jiras",
+          "synopsis": "/teams:health-check-jiras --project <project> [--component comp1 comp2 ...] [--status status1 status2 ...] [--include-closed] [--limit N]"
+        },
+        {
+          "argument_hint": "<release> [--components comp1 comp2 ...] [--team <team-name>] [--start YYYY-MM-DD] [--end YYYY-MM-DD]",
+          "description": "Query and summarize regression data for OpenShift releases with counts and metrics",
+          "name": "health-check-regressions",
+          "synopsis": "/teams:health-check-regressions <release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]"
+        },
+        {
+          "argument_hint": "<release> [--components comp1 comp2 ...] [--team <team-name>] [--project JIRAPROJECT]",
+          "description": "Analyze and grade component health based on regression and JIRA bug metrics",
+          "name": "health-check",
+          "synopsis": "/teams:health-check <release> [--components comp1 comp2 ...] [--project JIRAPROJECT]"
+        },
+        {
+          "argument_hint": "[--team <team-name>]",
+          "description": "List all OCPBUGS components, optionally filtered by team",
+          "name": "list-components",
+          "synopsis": "/teams:list-components [--team <team-name>]"
+        },
+        {
+          "argument_hint": "<project> [--component comp1 comp2 ...] [--status status1 status2 ...] [--include-closed] [--limit N]",
+          "description": "Query and list raw JIRA bug data for a specific project",
+          "name": "list-jiras",
+          "synopsis": "/teams:list-jiras <project> [--component comp1 comp2 ...] [--status status1 status2 ...] [--include-closed] [--limit N]"
+        },
+        {
+          "argument_hint": "<release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]",
+          "description": "Fetch and list raw regression data for OpenShift releases",
+          "name": "list-regressions",
+          "synopsis": "/teams:list-regressions <release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]"
+        },
+        {
+          "argument_hint": "",
+          "description": "List all teams from the team component mapping",
+          "name": "list-teams",
+          "synopsis": "/teams:list-teams"
+        }
+      ],
+      "description": "Team structure knowledge and health analysis commands for OpenShift teams",
+      "has_readme": true,
+      "hooks": [],
+      "name": "teams",
+      "skills": [
+        {
+          "description": "Grade component health based on regression triage metrics for OpenShift releases",
+          "id": "analyze-regressions",
+          "name": "Analyze Regressions"
+        },
+        {
+          "description": "Report on CodeRabbit adoption across OpenShift org PRs",
+          "id": "coderabbit-adoption",
+          "name": "CodeRabbit Adoption Report"
+        },
+        {
+          "description": "Check a repo's .coderabbit.yaml for inheritance: true",
+          "id": "coderabbit-inheritance-scanner-check",
+          "name": "CodeRabbit Inheritance Scanner - Check"
+        },
+        {
+          "description": "Search for an existing fix PR on a repo before opening a new one",
+          "id": "coderabbit-inheritance-scanner-existing-pr",
+          "name": "CodeRabbit Inheritance Scanner - Existing PR Check"
+        },
+        {
+          "description": "Fork, sync, and open a fix PR to add inheritance: true to a repo's .coderabbit.yaml",
+          "id": "coderabbit-inheritance-scanner-open-pr",
+          "name": "CodeRabbit Inheritance Scanner - Open PR"
+        },
+        {
+          "description": "Search for repos with .coderabbit.yaml files in the openshift GitHub org",
+          "id": "coderabbit-inheritance-scanner-search",
+          "name": "CodeRabbit Inheritance Scanner - Search"
+        },
+        {
+          "description": "Fetch and filter human review comments from recent merged PRs in a GitHub repository",
+          "id": "coderabbit-rules-from-pr-reviews",
+          "name": "CodeRabbit Rules from PR Reviews - Fetch Comments"
+        },
+        {
+          "description": "Fetch OpenShift release dates and metadata from Sippy API",
+          "id": "get-release-dates",
+          "name": "Get Release Dates"
+        },
+        {
+          "description": "List all OCPBUGS components, optionally filtered by team",
+          "id": "list-components",
+          "name": "List Components"
+        },
+        {
+          "description": "Query and return raw JIRA bug data for a specific project",
+          "id": "list-jiras",
+          "name": "List JIRAs"
+        },
+        {
+          "description": "Fetch and analyze component health regressions for OpenShift releases",
+          "id": "list-regressions",
+          "name": "List Regressions"
+        },
+        {
+          "description": "List all teams from the team component mapping",
+          "id": "list-teams",
+          "name": "List Teams"
+        },
+        {
+          "description": "Query and summarize JIRA bugs for a specific project with counts by component",
+          "id": "summarize-jiras",
+          "name": "Summarize JIRAs"
+        }
+      ],
+      "version": "0.0.13"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "[task description]",
+          "description": "Generate professional engineering notes and append them to a log file",
+          "name": "note",
+          "synopsis": "/doc:note [task description]"
+        }
+      ],
+      "description": "A plugin for engineering documentation and notes",
+      "has_readme": true,
+      "hooks": [],
+      "name": "doc",
+      "skills": [],
+      "version": "0.0.2"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "[optional-description]",
+          "description": "Save current conversation session to markdown file for future continuation",
+          "name": "save-session",
+          "synopsis": "/save-session"
+        }
+      ],
+      "description": "A plugin for Claude session management and persistence",
+      "has_readme": true,
+      "hooks": [],
+      "name": "session",
+      "skills": [],
+      "version": "0.0.2"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "<projects> [months] [--sample [N]] [--todo | --all] [--uncategorized]",
+          "description": "Classify Jira issues into activity types using AI and generate an interactive sankey report",
+          "name": "activity-type-report",
+          "synopsis": "/snowflake:activity-type-report <projects> [months]"
+        }
+      ],
+      "description": "Snowflake data analysis commands for engineering metrics and reports",
+      "has_readme": true,
+      "hooks": [],
+      "name": "snowflake",
+      "skills": [
+        {
+          "description": "This skill should be used before any Snowflake command to verify MCP connectivity, guide users through access provisioning, and set the session context. Invoke this skill proactively whenever a command needs Snowflake data access.",
+          "id": "setup-snowflake",
+          "name": "Setup Snowflake"
+        }
+      ],
+      "version": "0.5.0"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "<path-to-sosreport> [--only <areas>] [--skip <areas>]",
+          "description": "Analyze sosreport archive for system diagnostics and issues",
+          "name": "analyze",
+          "synopsis": "/sosreport:analyze <path-to-sosreport> [--only <areas>] [--skip <areas>]"
+        },
+        {
+          "argument_hint": "[sosreport-path] [--db] [--flows-only] [--query <json>]",
+          "description": "Analyze OVS data from sosreport (text files or database)",
+          "name": "ovs-db",
+          "synopsis": "/sosreport:ovs-db [sosreport-path] [--db] [--flows-only] [--query <json>]"
+        }
+      ],
+      "description": "Analyze sosreport archives for system diagnostics and troubleshooting",
+      "has_readme": true,
+      "hooks": [],
+      "name": "sosreport",
+      "skills": [
+        {
+          "description": "Analyze system and application log data from sosreport archives, extracting error patterns, kernel panics, OOM events, service failures, and application crashes from journald logs and traditional log files within the sosreport directory structure to identify root causes of system failures and issues",
+          "id": "logs-analysis",
+          "name": "Logs Analysis"
+        },
+        {
+          "description": "Analyze network configuration data from sosreport archives, extracting interface configurations, routing tables, active connections, firewall rules (firewalld/iptables), and DNS settings from the sosreport directory structure to diagnose network connectivity and configuration issues",
+          "id": "network-analysis",
+          "name": "Network Analysis"
+        },
+        {
+          "description": "Analyze Open vSwitch data from sosreport",
+          "id": "ovs-db-analysis",
+          "name": "OVS Database and Flow Analysis"
+        },
+        {
+          "description": "Analyze system resource usage data from sosreport archives, extracting memory statistics, CPU load averages, disk space utilization, and process information from the sosreport directory structure to diagnose resource exhaustion, performance bottlenecks, and capacity issues",
+          "id": "resource-analysis",
+          "name": "Resource Analysis"
+        },
+        {
+          "description": "Analyze system configuration data from sosreport archives, extracting OS details, installed packages, systemd service status, SELinux/AppArmor policies, and kernel parameters from the sosreport directory structure to diagnose configuration-related system issues",
+          "id": "system-config-analysis",
+          "name": "System Configuration Analysis"
+        }
+      ],
+      "version": "0.0.2"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "[PR number (optional - uses current branch if omitted)] [--preview]",
+          "description": "Fetch and address all PR review comments",
+          "name": "address-reviews",
+          "synopsis": ""
+        },
+        {
+          "argument_hint": "<target-repository>",
+          "description": "Automate approving Konflux bot PRs for the given repository by adding /lgtm and /approve",
+          "name": "auto-approve-konflux-prs",
+          "synopsis": ""
+        },
+        {
+          "argument_hint": "<PR-URL>",
+          "description": "Find and verify Konflux-built container images from a GitHub PR",
+          "name": "find-konflux-images",
+          "synopsis": ""
+        },
+        {
+          "argument_hint": "[GitHub PR URLs]",
+          "description": "Generate test steps for one or more related PRs",
+          "name": "generate-test-plan",
+          "synopsis": ""
+        },
+        {
+          "argument_hint": "[--repo <org/repo>]",
+          "description": "List PRs and issues requiring your attention",
+          "name": "gh-attention",
+          "synopsis": "/utils:gh-attention [--repo <org/repo>]"
+        },
+        {
+          "argument_hint": "",
+          "description": "Placeholder command for the utils plugin",
+          "name": "placeholder",
+          "synopsis": "/utils:placeholder"
+        },
+        {
+          "argument_hint": "<PR_NUMBER|open> [JIRA_PROJECT] [COMPONENT]",
+          "description": "Process Renovate dependency PR(s) to meet repository contribution standards",
+          "name": "process-renovate-pr",
+          "synopsis": "/utils:process-renovate-pr <PR_NUMBER|open> [JIRA_PROJECT] [COMPONENT]"
+        },
+        {
+          "argument_hint": "[--idea TEXT] [--pr NUMBER] [--verbose]",
+          "description": "Review potential overlaps with existing ai-helpers (Claude Code Plugins, Commands, Skills, Sub-agents, or Hooks) and open PRs",
+          "name": "review-ai-helpers-overlap",
+          "synopsis": "/utils:review-ai-helpers-overlap [--idea \"description\"] [--pr NUMBER] [--verbose]"
+        },
+        {
+          "argument_hint": "[file-paths-or-patterns]",
+          "description": "Orchestrate security scanners and provide contextual triage of findings",
+          "name": "review-security",
+          "synopsis": "/utils:review-security [file-paths-or-patterns]"
+        }
+      ],
+      "description": "A generic utilities plugin serving as a catch-all for various helper commands",
+      "has_readme": true,
+      "hooks": [],
+      "name": "utils",
+      "skills": [],
+      "version": "0.0.9"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "<operator-name> [namespace] [--all]",
+          "description": "Approve pending InstallPlans for operator installations and upgrades",
+          "name": "approve",
+          "synopsis": "/olm:approve <operator-name> [namespace] [--all]"
+        },
+        {
+          "argument_hint": "<list|add|remove|refresh|status> [arguments]",
+          "description": "Manage catalog sources for discovering and installing operators",
+          "name": "catalog",
+          "synopsis": "/olm:catalog list"
+        },
+        {
+          "argument_hint": "<issue-description> <must-gather-path> [olm-version]",
+          "description": "Debug OLM issues using must-gather logs and source code analysis",
+          "name": "debug",
+          "synopsis": "/olm:debug <issue-description> <must-gather-path> [olm-version]"
+        },
+        {
+          "argument_hint": "[operator-name] [namespace] [--fix] [--cluster]",
+          "description": "Diagnose and optionally fix common OLM and operator issues",
+          "name": "diagnose",
+          "synopsis": "/olm:diagnose [operator-name] [namespace] [--fix] [--cluster]"
+        },
+        {
+          "argument_hint": "<operator-name> [namespace] [channel] [source] [--approval=Automatic|Manual]",
+          "description": "Install a day-2 operator using Operator Lifecycle Manager",
+          "name": "install",
+          "synopsis": "/olm:install <operator-name> [namespace] [channel] [source] [--approval=Automatic|Manual]"
+        },
+        {
+          "argument_hint": "[namespace] [--all-namespaces]",
+          "description": "List installed operators in the cluster",
+          "name": "list",
+          "synopsis": "/olm:list [namespace] [--all-namespaces]"
+        },
+        {
+          "argument_hint": "<action> [arguments...]",
+          "description": "Execute opm (Operator Package Manager) commands for building and managing operator catalogs",
+          "name": "opm",
+          "synopsis": "/olm:opm build-index-image <catalog-path> <index-image-tag> [--cacheless] [--arch=<arch>] [--base-image=<image>] [--builder-image=<image>]"
+        },
+        {
+          "argument_hint": "[query] [--catalog <catalog-name>]",
+          "description": "Search for available operators in catalog sources",
+          "name": "search",
+          "synopsis": "/olm:search [query] [--catalog <catalog-name>]"
+        },
+        {
+          "argument_hint": "<operator-name> [namespace]",
+          "description": "Get detailed status and health information for an operator",
+          "name": "status",
+          "synopsis": "/olm:status <operator-name> [namespace]"
+        },
+        {
+          "argument_hint": "<operator-name> [namespace] [--remove-crds] [--remove-namespace]",
+          "description": "Uninstall a day-2 operator and optionally remove its resources",
+          "name": "uninstall",
+          "synopsis": "/olm:uninstall <operator-name> [namespace] [--remove-crds] [--remove-namespace]"
+        },
+        {
+          "argument_hint": "<operator-name> [namespace] [--channel=<channel>] [--approve]",
+          "description": "Update an operator to the latest version or switch channels",
+          "name": "upgrade",
+          "synopsis": "/olm:upgrade <operator-name> [namespace] [--channel=<channel>] [--approve]"
+        }
+      ],
+      "description": "OLM (Operator Lifecycle Manager) plugin for operator management and debugging",
+      "has_readme": true,
+      "hooks": [],
+      "name": "olm",
+      "skills": [],
+      "version": "0.1.1"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "",
+          "description": "Configure the k8s-ocp-olm-expert agent with local repository paths",
+          "name": "configure-agent",
+          "synopsis": "/olm-team:configure-agent"
+        },
+        {
+          "argument_hint": "[target-directory]",
+          "description": "Set up OLM development repositories and onboard to the team",
+          "name": "dev-setup",
+          "synopsis": "/olm-team:dev-setup [target-directory]"
+        },
+        {
+          "argument_hint": "",
+          "description": "Watch open Enhancement PRs from other teams that may impact OLM",
+          "name": "ep-watch",
+          "synopsis": "/olm-team:ep-watch"
+        }
+      ],
+      "description": "OLM team development utilities and onboarding tools",
+      "has_readme": true,
+      "hooks": [],
+      "name": "olm-team",
+      "skills": [
+        {
+          "description": "Use this agent proactively whenever discussions, questions, or tasks involve Kubernetes (k8s), OpenShift (OCP), or Operator Lifecycle Manager (OLM) v0 or v1. This includes:\\n\\n- Analyzing or debugging Kubernetes resources (pods, deployments, services, etc.)\\n- Working with OpenShift-specific features or configurations\\n- Developing, installing, or troubleshooting operators using OLM\\n- Reviewing manifests, CRDs, or operator bundles\\n- Explaining Kubernetes/OpenShift/OLM concepts or best practices\\n- Investigating cluster issues or failures\\n- Writing or reviewing operator code and configurations\\n\\n**Examples:**\\n\\n1. **Context**: User is debugging a pod failure in their OpenShift cluster\\n   - User: \"I'm seeing CrashLoopBackOff on my etcd pod in OpenShift, can you help me investigate?\"\\n   - Assistant: \"I'm going to use the Task tool to launch the k8s-ocp-olm-expert agent to help debug this pod failure.\"\\n   - Commentary: Since the user is working with an OpenShift pod issue, proactively engage the k8s-ocp-olm-expert agent to provide specialized Kubernetes and OpenShift debugging expertise.\\n\\n2. **Context**: User mentions they're creating an OLM operator\\n   - User: \"I need to create a new operator bundle for OLM v1\"\\n   - Assistant: \"I'm going to use the Task tool to launch the k8s-ocp-olm-expert agent to guide you through creating an OLM v1 operator bundle.\"\\n   - Commentary: Since the user is working with OLM operator development, proactively engage the k8s-ocp-olm-expert agent to provide specialized OLM guidance.\\n\\n3. **Context**: User is reviewing Kubernetes manifests in their code\\n   - User: \"Can you review this deployment.yaml file I just created?\"\\n   - Assistant: \"I'm going to use the Task tool to launch the k8s-ocp-olm-expert agent to review your Kubernetes deployment manifest.\"\\n   - Commentary: Since the user is working with Kubernetes resources, proactively engage the k8s-ocp-olm-expert agent to provide expert review of the manifest.\\n\\n4. **Context**: User asks about OpenShift cluster configuration\\n   - User: \"What's the difference between a Route and an Ingress in OpenShift?\"\\n   - Assistant: \"I'm going to use the Task tool to launch the k8s-ocp-olm-expert agent to explain the differences between Routes and Ingresses.\"\\n   - Commentary: Since the user is asking about OpenShift-specific concepts, proactively engage the k8s-ocp-olm-expert agent to provide accurate technical explanation.",
+          "id": "k8s-ocp-olm-expert",
+          "name": "k8s-ocp-olm-expert"
+        }
+      ],
+      "version": "0.2.0"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "<operator-name> [--namespace <ns>] [--output-dir <dir>]",
+          "description": "Generate OpenShift Console operator dashboard from operator name and CRD discovery",
+          "name": "generate-dashboard",
+          "synopsis": "/operator-dashboard:generate-dashboard <operator-name> [--namespace <ns>] [--output-dir <dir>]"
+        }
+      ],
+      "description": "Generate OpenShift Console operator dashboard: CRD discovery, list/detail components from templates",
+      "has_readme": true,
+      "hooks": [],
+      "name": "operator-dashboard",
+      "skills": [
+        {
+          "description": "Reference components for generating Kubernetes operator CRD dashboards",
+          "id": "dashboard-templates",
+          "name": "Dashboard Template Components"
+        }
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "",
+          "description": "Analyze the list of JIRA outcome issues to prepare an outcome refinement meeting agenda.",
+          "name": "outcome-refinement",
+          "synopsis": "/agendas:outcome-refinement"
+        }
+      ],
+      "description": "A plugin to create various meeting agendas",
+      "has_readme": true,
+      "hooks": [],
+      "name": "agendas",
+      "skills": [],
+      "version": "0.0.3"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "[area] <name> <description> <jira>",
+          "description": "Create a new OpenShift Enhancement Proposal",
+          "name": "add-enhancement",
+          "synopsis": "/openshift:add-enhancement [area] <name> <description> <jira>"
+        },
+        {
+          "argument_hint": "",
+          "description": "Bootstrap OpenShift Manager (OM) integration for OpenShift operators with automated resource discovery",
+          "name": "bootstrap-om",
+          "synopsis": "/openshift:bootstrap-om"
+        },
+        {
+          "argument_hint": "<dependency> [version] [--create-jira] [--create-pr]",
+          "description": "Bump dependencies in OpenShift projects with automated analysis and PR creation",
+          "name": "bump-deps",
+          "synopsis": "/openshift:bump-deps <dependency> [version] [--create-jira] [--create-pr]"
+        },
+        {
+          "argument_hint": "[--verbose] [--output-format]",
+          "description": "Perform comprehensive health check on OpenShift cluster and report issues",
+          "name": "cluster-health-check",
+          "synopsis": "/openshift:cluster-health-check [--verbose] [--output-format json|text]"
+        },
+        {
+          "argument_hint": "[repository-path]",
+          "description": "Review Kubernetes CRDs against Kubernetes and OpenShift API conventions",
+          "name": "crd-review",
+          "synopsis": "/openshift:crd-review [repository-path]"
+        },
+        {
+          "argument_hint": "[release-image] [platform] [options]",
+          "description": "Extract OpenShift installer from release image and create an OCP cluster",
+          "name": "create-cluster",
+          "synopsis": "/openshift:create-cluster [release-image] [platform] [options]"
+        },
+        {
+          "argument_hint": "[install-dir]",
+          "description": "Destroy an OpenShift cluster created by create-cluster command",
+          "name": "destroy-cluster",
+          "synopsis": "/openshift:destroy-cluster [install-dir]"
+        },
+        {
+          "argument_hint": "[test-idea-or-file-or-commands] [format]",
+          "description": "Expand basic test ideas or existing oc commands into comprehensive test scenarios with edge cases in oc CLI or Ginkgo format",
+          "name": "expand-test-case",
+          "synopsis": "/openshift:expand-test-case [test-idea-or-file-or-commands] [format]"
+        },
+        {
+          "argument_hint": "",
+          "description": "Check status of Ironic baremetal nodes in OpenShift cluster",
+          "name": "ironic-status",
+          "synopsis": "/openshift:ironic-status"
+        },
+        {
+          "argument_hint": "[test-specification]",
+          "description": "Write and validate new OpenShift E2E tests using Ginkgo framework",
+          "name": "new-e2e-test",
+          "synopsis": "/new-e2e-test [test-specification]"
+        },
+        {
+          "argument_hint": "<node> <image> [--command <cmd>] [--filter <params>]",
+          "description": "Get connection tracking entries from Kubernetes node",
+          "name": "node-kernel-conntrack",
+          "synopsis": "/openshift:node-kernel-conntrack <node> <image> [--command <cmd>] [--filter <params>]"
+        },
+        {
+          "argument_hint": "<node> <image> --command <cmd> [--options <opts>] [--filter <params>]",
+          "description": "Inspect routing, network devices, and interfaces on Kubernetes node",
+          "name": "node-kernel-ip",
+          "synopsis": "/openshift:node-kernel-ip <node> <image> --command <cmd> [--options <opts>] [--filter <params>]"
+        },
+        {
+          "argument_hint": "<node> <image> --command <cmd> [--table <table>] [--filter <params>]",
+          "description": "Inspect IPv4 and IPv6 packet filter rules on Kubernetes node",
+          "name": "node-kernel-iptables",
+          "synopsis": "/openshift:node-kernel-iptables <node> <image> --command <cmd> [--table <table>] [--filter <params>]"
+        },
+        {
+          "argument_hint": "<node> <image> --command <cmd> [--family <family>]",
+          "description": "Inspect nftables packet filtering and classification rules on Kubernetes node",
+          "name": "node-kernel-nft",
+          "synopsis": "/openshift:node-kernel-nft <node> <image> --command <cmd> [--family <family>]"
+        },
+        {
+          "argument_hint": "<tag>",
+          "description": "Rebase OpenShift fork of an upstream repository to a new upstream release.",
+          "name": "rebase",
+          "synopsis": "/openshift:rebase [tag]"
+        },
+        {
+          "argument_hint": "[file-path-or-test-code-or-commands]",
+          "description": "Review test cases for completeness, quality, and best practices - accepts file path or direct oc commands/test code",
+          "name": "review-test-cases",
+          "synopsis": "/openshift:review-test-cases [file-path-or-test-code-or-commands]"
+        },
+        {
+          "argument_hint": "",
+          "description": "Generate and visualize OVN-Kubernetes network topology diagram",
+          "name": "visualize-ovn-topology",
+          "synopsis": "/openshift:visualize-ovn-topology"
+        }
+      ],
+      "description": "OpenShift development utilities and helpers",
+      "has_readme": true,
+      "hooks": [],
+      "name": "openshift",
+      "skills": [
+        {
+          "description": "Generates and displays OVN-Kubernetes network topology diagrams showing logical switches, routers, ports with IP/MAC addresses in Mermaid format",
+          "id": "generating-ovn-topology",
+          "name": "generating-ovn-topology"
+        },
+        {
+          "description": "Inspect kernel-level networking configuration on OpenShift/Kubernetes nodes using oc debug",
+          "id": "openshift-node-kernel",
+          "name": "OpenShift Node Kernel Inspection"
+        }
+      ],
+      "version": "0.0.5"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "[question or implementation request]",
+          "description": "Use this skill to implement TLS security profiles for operators and workloads on OpenShift. Provides guidance on reading TLS config from APIServer CR and applying it to webhook/metrics servers, HTTP, and gRPC endpoints.",
+          "name": "implement",
+          "synopsis": "/openshift-tls-profile:implement [question or implementation request]"
+        }
+      ],
+      "description": "Implementation requirements and details for OpenShift TLS security profiles",
+      "has_readme": true,
+      "hooks": [],
+      "name": "openshift-tls-profile",
+      "skills": [
+        {
+          "description": "Use this skill to implement TLS security profiles for operators and workloads on OpenShift. Provides guidance on reading TLS config from APIServer CR and applying it to webhook/metrics servers, HTTP, and gRPC endpoints.",
+          "id": "openshift-tls-profile",
+          "name": "OpenShift TLS Security Profile Configuration"
+        }
+      ],
+      "version": "0.0.1"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "[--duration <minutes>]",
+          "description": "Analyze etcd performance metrics, latency, and identify bottlenecks",
+          "name": "analyze-performance",
+          "synopsis": "/etcd:analyze-performance [--duration <minutes>]"
+        },
+        {
+          "argument_hint": "[--verbose]",
+          "description": "Check etcd cluster health, member status, and identify issues",
+          "name": "health-check",
+          "synopsis": "/etcd:health-check [--verbose]"
+        }
+      ],
+      "description": "Etcd cluster health monitoring and performance analysis utilities",
+      "has_readme": true,
+      "hooks": [],
+      "name": "etcd",
+      "skills": [],
+      "version": "0.0.2"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "[file:StructName] [output.md]",
+          "description": "Generate comprehensive YAML documentation from Go struct definitions with sensible default values",
+          "name": "docs",
+          "synopsis": "/yaml:docs [file:StructName] [output.md]"
+        }
+      ],
+      "description": "YAML documentation and utilities",
+      "has_readme": true,
+      "hooks": [],
+      "name": "yaml",
+      "skills": [],
+      "version": "0.0.2"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "[must-gather-path] [component]",
+          "description": "Quick analysis of must-gather data - runs all analysis scripts and provides comprehensive cluster diagnostics",
+          "name": "analyze",
+          "synopsis": "/must-gather:analyze [must-gather-path] [component]"
+        },
+        {
+          "argument_hint": "[must-gather-path]",
+          "description": "Analyze OVN databases from a must-gather using ovsdb-tool",
+          "name": "ovn-dbs",
+          "synopsis": "/must-gather:ovn-dbs [must-gather-path] [--node <node-name>] [--query <json>]"
+        },
+        {
+          "argument_hint": "[must-gather-path] [--component COMPONENT]",
+          "description": "Analyze Windows node logs and issues in must-gather data",
+          "name": "windows",
+          "synopsis": "/must-gather:windows [must-gather-path] [--component COMPONENT] [--errors-only]"
+        }
+      ],
+      "description": "A plugin to analyze and report on must-gather data",
+      "has_readme": true,
+      "hooks": [],
+      "name": "must-gather",
+      "skills": [
+        {
+          "description": "|",
+          "id": "must-gather-analyzer",
+          "name": "Must-Gather Analyzer"
+        }
+      ],
+      "version": "0.0.2"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "[must-gather-path|--live] [--component storage|operator|volumes]",
+          "description": "Comprehensive LVMS troubleshooting - analyzes LVMCluster, volume groups, PVCs, and storage issues on live clusters or must-gather",
+          "name": "analyze",
+          "synopsis": "/lvms:analyze [must-gather-path] [--live] [--component <component>]"
+        }
+      ],
+      "description": "LVMS (Logical Volume Manager Storage) plugin for troubleshooting and debugging storage issues",
+      "has_readme": true,
+      "hooks": [],
+      "name": "lvms",
+      "skills": [
+        {
+          "description": "Analyzes LVMS must-gather data to diagnose storage issues",
+          "id": "lvms-analyzer",
+          "name": "LVMS Analyzer"
+        }
+      ],
+      "version": "0.1.1"
+    },
+    {
+      "commands": [],
+      "description": "Cross-platform desktop notifications for ai-helpers",
+      "has_readme": true,
+      "hooks": [
+        {
+          "description": "Cross-platform desktop notifications (macOS, Linux desktop, Linux headless)",
+          "name": "Notification",
+          "type": "Notification"
+        },
+        {
+          "description": "Cross-platform desktop notifications (macOS, Linux desktop, Linux headless)",
+          "name": "Stop",
+          "type": "Stop"
+        }
+      ],
+      "name": "native-notifications",
+      "skills": [],
+      "version": "0.0.2"
+    },
+    {
+      "commands": [],
+      "description": "Anonymous metrics usage for ai-helpers",
+      "has_readme": true,
+      "hooks": [
+        {
+          "description": "Anonymous Usage Metric Collection",
+          "name": "UserPromptSubmit",
+          "type": "UserPromptSubmit"
+        },
+        {
+          "description": "Anonymous Usage Metric Collection",
+          "name": "PreToolUse",
+          "type": "PreToolUse"
+        },
+        {
+          "description": "Anonymous Usage Metric Collection",
+          "name": "SessionEnd",
+          "type": "SessionEnd"
+        }
+      ],
+      "name": "metrics",
+      "skills": [],
+      "version": "0.0.2"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "<cluster-name> [--verbose] [--output-format json|text]",
+          "description": "Perform comprehensive health check on HCP cluster and report issues",
+          "name": "cluster-health-check",
+          "synopsis": "/hcp:cluster-health-check <cluster-name> [--verbose] [--output-format json|text]"
+        },
+        {
+          "argument_hint": "<provider> <cluster-description>",
+          "description": "Generate ready-to-execute hypershift cluster creation commands from natural language descriptions",
+          "name": "generate",
+          "synopsis": "/hcp:generate <provider> <cluster-description>"
+        }
+      ],
+      "description": "Generate HyperShift cluster creation commands via hcp CLI from natural language descriptions",
+      "has_readme": true,
+      "hooks": [],
+      "name": "hcp",
+      "skills": [
+        {
+          "description": "Use this skill when you need to deploy HyperShift clusters on bare metal, edge environments, or disconnected infrastructures using pre-provisioned agents",
+          "id": "hcp-create-agent",
+          "name": "HyperShift Agent Provider"
+        },
+        {
+          "description": "Use this skill when you need to deploy HyperShift clusters on AWS infrastructure with proper STS credentials, IAM roles, and VPC configuration",
+          "id": "hcp-create-aws",
+          "name": "HyperShift AWS Provider"
+        },
+        {
+          "description": "Use this skill when you need to deploy HyperShift clusters on Microsoft Azure with proper identity configuration and resource management",
+          "id": "hcp-create-azure",
+          "name": "HyperShift Azure Provider"
+        },
+        {
+          "description": "Use this skill when you need to deploy HyperShift clusters on existing Kubernetes clusters using KubeVirt virtualization",
+          "id": "hcp-create-kubevirt",
+          "name": "HyperShift KubeVirt Provider"
+        },
+        {
+          "description": "Use this skill when you need to deploy HyperShift clusters on OpenStack infrastructure with proper flavor selection and network configuration",
+          "id": "hcp-create-openstack",
+          "name": "HyperShift OpenStack Provider"
+        },
+        {
+          "description": "Use this skill when you need to deploy HyperShift clusters on IBM Cloud PowerVS with proper processor configuration and resource management",
+          "id": "hcp-create-powervs",
+          "name": "HyperShift PowerVS Provider"
+        }
+      ],
+      "version": "0.0.2"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "<CVE-ID> [--algo=vta|rta|cha|static]",
+          "description": "Analyze Go codebase for CVE vulnerabilities and suggest fixes",
+          "name": "analyze-cve",
+          "synopsis": "/compliance:analyze-cve <CVE-ID> [--algo=vta|rta|cha|static]"
+        }
+      ],
+      "description": "Security compliance and vulnerability analysis tools for Go projects",
+      "has_readme": true,
+      "hooks": [],
+      "name": "compliance",
+      "skills": [
+        {
+          "description": "Perform definitive call graph analysis to prove whether vulnerable functions are reachable from program entry points",
+          "id": "call-graph-analysis",
+          "name": "Call Graph Reachability Analysis"
+        },
+        {
+          "description": "Analyze a Go codebase to determine if it is impacted by a specific CVE using multiple verification methods and assign a risk level",
+          "id": "codebase-impact-analysis",
+          "name": "Codebase Impact Analysis"
+        },
+        {
+          "description": "Gather comprehensive vulnerability information from multiple authoritative sources with fallback strategies",
+          "id": "cve-intelligence-gathering",
+          "name": "CVE Intelligence Gathering"
+        },
+        {
+          "description": "Generate comprehensive remediation guidance including dependency updates, code changes, workarounds, and verification steps",
+          "id": "remediation-planning",
+          "name": "Remediation Planning"
+        }
+      ],
+      "version": "0.0.3"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "<path-or-url> [--output <path>] [--priority <level>] [--test-structure-only]",
+          "description": "Analyze test code structure without running tests to identify coverage gaps",
+          "name": "analyze",
+          "synopsis": "/test-coverage:analyze <path-or-url> [--output <path>] [--priority <level>] [--test-structure-only]"
+        },
+        {
+          "argument_hint": "<test-file-or-url> [--output <path>]",
+          "description": "Identify E2E test scenario gaps in OpenShift/Kubernetes tests (component-agnostic)",
+          "name": "gaps",
+          "synopsis": "/test-coverage:gaps <test-file-or-url> [--output <path>]"
+        }
+      ],
+      "description": "Analyze test coverage and identify gaps in test scenarios",
+      "has_readme": true,
+      "hooks": [],
+      "name": "test-coverage",
+      "skills": [
+        {
+          "description": "Analyze test code structure directly to provide coverage analysis",
+          "id": "analyze",
+          "name": "Test Structure Analysis"
+        },
+        {
+          "description": "Intelligently identify missing test coverage based on component type",
+          "id": "gaps",
+          "name": "Component-Aware Test Gap Analysis"
+        }
+      ],
+      "version": "0.0.2"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "[--sosreport PATH] [--format json|markdown] [--max-irq-samples N]",
+          "description": "Analyze kernel/sysctl tuning from a live node or sosreport snapshot and propose NTO recommendations",
+          "name": "analyze-node-tuning",
+          "synopsis": "/node-tuning:analyze-node-tuning [--sosreport PATH] [--collect-sosreport|--no-collect-sosreport] [--sosreport-output PATH] [--node NODE] [--kubeconfig PATH] [--oc-binary PATH] [--format json|markdown] [--max-irq-samples N] [--keep-snapshot]"
+        },
+        {
+          "argument_hint": "[profile-name] [--summary ...] [--sysctl ...] [options]",
+          "description": "Generate a Tuned (tuned.openshift.io/v1) profile manifest for the Node Tuning Operator",
+          "name": "generate-tuned-profile",
+          "synopsis": "/node-tuning:generate-tuned-profile [profile-name] [--summary TEXT] [--include VALUE ...] [--sysctl KEY=VALUE ...] [--match-label KEY[=VALUE] ...] [options]"
+        }
+      ],
+      "description": "Generate and analyze OpenShift node tuning profiles",
+      "has_readme": true,
+      "hooks": [],
+      "name": "node-tuning",
+      "skills": [
+        {
+          "description": "Generate tuned manifests and evaluate node tuning snapshots",
+          "id": "scripts",
+          "name": "Node Tuning Helper Scripts"
+        }
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "[operator-path] [--controllers <controller1,controller2>] [--mutation-types <types>] [--report-format <format>]",
+          "description": "Test operator controller quality through mutation testing - validates test suite catches code mutations",
+          "name": "mutation-test",
+          "synopsis": "/testing:mutation-test [operator-path] [--controllers <controller1,controller2>] [--mutation-types <types>] [--report-format <format>]"
+        }
+      ],
+      "description": "Comprehensive testing utilities for operators and applications",
+      "has_readme": true,
+      "hooks": [],
+      "name": "testing",
+      "skills": [
+        {
+          "description": "Generate code mutations for Kubernetes operator controllers to enable mutation testing. Applies operator-specific mutations to reconciliation logic, error handling, and API interactions.",
+          "id": "mutation-generator",
+          "name": "Mutation Generator for Operator Controllers"
+        },
+        {
+          "description": "Execute tests against generated mutants and analyze results to validate test suite quality for Kubernetes operators",
+          "id": "mutation-tester",
+          "name": "Mutation Testing Executor"
+        }
+      ],
+      "version": "0.1.0"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "[--url PR_URL] [<pr>] [--depth quick|full]",
+          "description": "Expert review tool for PRs that add or modify Two Node (Fencing or Arbiter) tests under test/extended/two_node/ in openshift/origin.",
+          "name": "two-node-origin-pr-helper",
+          "synopsis": "/origin:two-node-origin-pr-helper [--url PR_URL] [<pr>] [--depth quick|full]"
+        }
+      ],
+      "description": "Helpers for openshift/origin development.",
+      "has_readme": true,
+      "hooks": [],
+      "name": "origin",
+      "skills": [],
+      "version": "0.0.2"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "<image1> <image2>",
+          "description": "Compare two container images to identify differences",
+          "name": "compare",
+          "synopsis": "/container-image:compare <image1> <image2>"
+        },
+        {
+          "argument_hint": "<image>",
+          "description": "Inspect and provide detailed breakdown of a container image",
+          "name": "inspect",
+          "synopsis": "/container-image:inspect <image>"
+        },
+        {
+          "argument_hint": "<repository>",
+          "description": "List and analyze available tags for a container image repository",
+          "name": "tags",
+          "synopsis": "/container-image:tags <repository>"
+        }
+      ],
+      "description": "Container image inspection and analysis using skopeo and podman",
+      "has_readme": true,
+      "hooks": [],
+      "name": "container-image",
+      "skills": [],
+      "version": "0.0.2"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "[--node <node-name>] [--verbose] [--output-format json|text]",
+          "description": "Perform comprehensive health check on cluster nodes and report kubelet, CRI-O, and node-level issues",
+          "name": "cluster-node-health-check",
+          "synopsis": "/node:cluster-node-health-check [--node <node-name>] [--verbose] [--output-format json|text]"
+        }
+      ],
+      "description": "Kubernetes and OpenShift node health monitoring and diagnostics",
+      "has_readme": true,
+      "hooks": [],
+      "name": "node",
+      "skills": [],
+      "version": "0.0.2"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "<project-id> <timeframe>",
+          "description": "Analyze BigQuery usage and costs for a project",
+          "name": "analyze-usage",
+          "synopsis": "/bigquery:analyze-usage <project-id> <timeframe>"
+        }
+      ],
+      "description": "BigQuery analysis utilities",
+      "has_readme": true,
+      "hooks": [],
+      "name": "bigquery",
+      "skills": [
+        {
+          "description": "Comprehensive analysis of BigQuery usage patterns, costs, and query performance",
+          "id": "analyze-usage",
+          "name": "Analyze BigQuery Usage"
+        }
+      ],
+      "version": "0.0.2"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "<short-description> <repo1|url> [repo2...]",
+          "description": "Create a workspace with git worktrees for multi-repository development",
+          "name": "create",
+          "synopsis": "/workspaces:create <short-description> <repo1|url> [repo2...]"
+        },
+        {
+          "argument_hint": "<workspace-name>",
+          "description": "Delete a workspace and its git worktrees",
+          "name": "delete",
+          "synopsis": "/workspaces:delete <workspace-name>"
+        }
+      ],
+      "description": "Manage isolated git worktree workspaces for multi-repo development",
+      "has_readme": true,
+      "hooks": [],
+      "name": "workspaces",
+      "skills": [],
+      "version": "1.0.1"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "[namespace]",
+          "description": "Check Gateway API resources status in the cluster",
+          "name": "check",
+          "synopsis": "/gwapi:check [namespace]"
+        },
+        {
+          "argument_hint": "[namespace]",
+          "description": "Delete Gateway API resources from a Kubernetes/OpenShift cluster",
+          "name": "delete",
+          "synopsis": "/gwapi:delete [namespace]"
+        },
+        {
+          "argument_hint": "[namespace]",
+          "description": "Install Gateway API resources to a Kubernetes/OpenShift cluster",
+          "name": "install",
+          "synopsis": "/gwapi:install [namespace]"
+        }
+      ],
+      "description": "Gateway API installation utilities for Kubernetes/OpenShift clusters",
+      "has_readme": true,
+      "hooks": [],
+      "name": "gwapi",
+      "skills": [],
+      "version": "0.0.1"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "<pr-url-or-number> [--language <lang>] [--profile <name>] [--skip-build] [--skip-tests]",
+          "description": "Automated PR code quality review with language-aware analysis and project-specific profiles",
+          "name": "pr",
+          "synopsis": "/code-review:pr <pr-url-or-number> [--language <lang>] [--profile <name>] [--skip-build] [--skip-tests]"
+        },
+        {
+          "argument_hint": "[--language <lang>] [--profile <name>] [--skip-build] [--skip-tests]",
+          "description": "Automated pre-commit code quality review with language-aware analysis and project-specific profiles",
+          "name": "pre-commit-review",
+          "synopsis": "/code-review:pre-commit-review [--language <lang>] [--profile <name>] [--skip-build] [--skip-tests]"
+        }
+      ],
+      "description": "Automated code quality review with language-aware analysis for pre-commit verification",
+      "has_readme": true,
+      "hooks": [],
+      "name": "code-review",
+      "skills": [
+        {
+          "description": "Classify GitHub PR review comments by severity and topic. Use when the user wants to categorize, analyze, or understand patterns in code review feedback \u2014 whether for a single comment, a comment URL, or an entire pull request. Triggers on requests like 'classify this comment', 'categorize PR feedback', 'what kind of review comments does this PR have', or 'break down comments by severity'.",
+          "id": "classify-review-comment",
+          "name": "classify-review-comment"
+        },
+        {
+          "description": "Language-specific review guidance for Go code including idiomatic patterns, test conventions, and build commands",
+          "id": "lang-go",
+          "name": "Go Language Review"
+        },
+        {
+          "description": "Project-specific review profile for the openshift/hypershift repository \u2014 delegates to the repo's own agents and skills",
+          "id": "profile-hypershift",
+          "name": "HyperShift Project Profile"
+        }
+      ],
+      "version": "0.0.7"
+    },
+    {
+      "commands": [],
+      "description": "Go development tools: gopls MCP server, LSP integration, automatic gofmt formatting, and golangci-lint linting",
+      "has_readme": true,
+      "hooks": [
+        {
+          "description": "Auto-format Go files with gofmt after write/edit",
+          "name": "PostToolUse",
+          "type": "PostToolUse"
+        }
+      ],
+      "name": "golang",
+      "skills": [
+        {
+          "description": "Run golangci-lint to check Go code quality. Use when the user asks to lint, check for lint issues, or verify code quality in a Go project, or when linting is appropriate before committing Go code changes.",
+          "id": "lint",
+          "name": "lint"
+        },
+        {
+          "description": "Run golangci-lint and fix all reported issues. Use only when explicitly asked to fix lint issues in a Go project.",
+          "id": "lint-fix",
+          "name": "lint-fix"
+        }
+      ],
+      "version": "0.2.0"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "",
+          "description": "Automate OpenShift Tests Extension (OTE) migration for component repositories",
+          "name": "migrate",
+          "synopsis": "/ote-migration:migrate"
+        }
+      ],
+      "description": "Automate OpenShift Tests Extension (OTE) migration for component repositories",
+      "has_readme": true,
+      "hooks": [],
+      "name": "ote-migration",
+      "skills": [
+        {
+          "description": "Automated workflow for migrating OpenShift component repositories to OTE framework",
+          "id": "ote-migration-workflow",
+          "name": "OTE Migration Workflow"
+        }
+      ],
+      "version": "0.0.1"
+    },
+    {
+      "commands": [],
+      "description": "OpenShift Console dynamic plugin development utilities",
+      "has_readme": true,
+      "hooks": [],
+      "name": "console",
+      "skills": [
+        {
+          "description": "Assists in the upgrade of an OpenShift Console dynamic plugin to the latest Console SDK version.",
+          "id": "upgrade-sdk",
+          "name": "upgrade-sdk"
+        }
+      ],
+      "version": "0.0.1"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "[scenario]",
+          "description": "Run the RDS Analyzer full workflow from cluster-compare JSON to deviation reports (text/HTML/reporting), validate rules, and Jira-oriented follow-up \u2014 aligned with rds-analyzer docs/full-workflow.md",
+          "name": "full-workflow",
+          "synopsis": "/rds-analyzer:full-workflow [scenario]"
+        }
+      ],
+      "description": "RDS Analyzer workflow: cluster-compare JSON to deviation reports (text/HTML/reporting) and Jira follow-up",
+      "has_readme": true,
+      "hooks": [],
+      "name": "rds-analyzer",
+      "skills": [
+        {
+          "description": "End-to-end workflow from cluster data to deviation reports and optional Jira follow-up",
+          "id": "rds-analyzer-workflow",
+          "name": "RDS Analyzer workflow skill"
+        }
+      ],
+      "version": "0.0.1"
+    },
+    {
+      "commands": [],
+      "description": "Generate AI Software Bill of Materials (SBOM) declarations for PR descriptions",
+      "has_readme": true,
+      "hooks": [],
+      "name": "ai-sbom",
+      "skills": [
+        {
+          "description": "Generate an AI SBOM declaration for a PR description. Use this skill when the user asks to generate an AI SBOM, create an ai-assisted block, fill out their AI assistance section, or prepare a PR description with AI provenance. Also use when the user says 'what skills did I use' or 'summarize my AI usage'.",
+          "id": "generate",
+          "name": "AI SBOM Generate"
+        }
+      ],
+      "version": "0.0.1"
+    },
+    {
+      "commands": [
+        {
+          "argument_hint": "[PR number or URL]",
+          "description": "Process /save and /drop comments on a pruning PR, restore or remove items, and update .pruneprotect",
+          "name": "prune-update",
+          "synopsis": "/marketplace-ops:prune-update [PR number or URL]"
+        },
+        {
+          "argument_hint": "[--dry-run]",
+          "description": "Analyze and prune stale plugins, commands, and skills from the marketplace",
+          "name": "prune",
+          "synopsis": "/marketplace-ops:prune [--dry-run]"
+        }
+      ],
+      "description": "Maintenance commands for Claude Code plugin marketplaces",
+      "has_readme": true,
+      "hooks": [],
+      "name": "marketplace-ops",
+      "skills": [],
+      "version": "0.1.2"
+    }
+  ]
+}
