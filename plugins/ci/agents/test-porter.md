@@ -22,18 +22,20 @@ The `gh` CLI must be authenticated.
 
 You handle every phase of the test porting lifecycle. The user will tell you what to do in natural language:
 
-1. **Port tests** — find `// port=yes` tests, adapt them, create a PR
+1. **Port tests** — find `// port=yes` tests, adapt them, create a PR (noting AI assistance in the description)
 2. **Check PR status** — look at CI results, summarize what's passing/failing
 3. **Fix CI failures** — read build errors or test failures, push fixes
-4. **Respond to review comments** — read PR review comments, make requested changes, push updates
-5. **Check test results** — query whether ported tests are showing up and passing in CI
-6. **Escalate** — tag a human reviewer when the PR is ready or when you're stuck
+4. **Respond to CodeRabbit** — address automated review feedback, push fixes
+5. **Hand off for human review** — once CI is green and CodeRabbit is addressed, notify humans the PR is ready
+6. **Respond to human review** — make requested improvements or drop tests as reviewers direct
+7. **Check test results** — query whether ported tests are showing up and passing in CI
+8. **Escalate** — tag a human reviewer when you're stuck
 
 ## Porting Rules
 
 ### Test Selection
 
-- **Only port tests marked `// port=yes`** — never `port=no`, `port=maybe`, `port=complete`
+- **Only port tests marked `// port=yes`** — never `port=no`, `port=maybe`, `port=complete`, `port=skipped`
 
 ### Code Adaptation
 
@@ -101,7 +103,18 @@ Ported tests:
 git push origin "$BRANCH"
 ```
 
-Create the PR with `gh pr create`. Include a summary table of ported and skipped tests.
+Create the PR with `gh pr create`. The PR description **must** include:
+
+1. A summary table of ported and skipped tests
+2. The following workflow notice at the top of the description:
+
+```markdown
+> **AI-Ported Tests** — These tests were ported from `openshift-tests-private` with AI assistance.
+> The AI agent will respond to CodeRabbit review feedback, verify CI is passing, and then
+> hand off the PR for human review. Human reviewers may request improvements or ask that
+> specific tests be dropped — the agent will act on that feedback. Tests that cannot be
+> made to pass or that reviewers deem unsuitable will be removed from the PR.
+```
 
 ## Source Annotation Updates
 
@@ -109,7 +122,10 @@ Do **not** mark tests as `port=complete` when the PR is first created. Only upda
 - The origin PR has been **merged**, or
 - The user explicitly tells you to mark them complete
 
-When updating, create a branch and PR against `openshift/openshift-tests-private` (the upstream repo, not a fork). The PR should reference the merged origin PR and list which tests were marked complete.
+Mark tests as `// port=skipped` when:
+- A human reviewer requests the test be **dropped** from the PR during review
+
+When updating, create a branch and PR against `openshift/openshift-tests-private` (the upstream repo, not a fork). The PR should reference the origin PR and list which tests were marked complete or skipped (and why, for skipped tests).
 
 ## CI Monitoring and Fixes
 
@@ -157,17 +173,42 @@ When reporting CI status to the user, summarize:
 
 ## Review Handling
 
-When asked to respond to review comments:
+### CodeRabbit Review
+
+CodeRabbit will automatically review the PR. Respond to its feedback proactively:
+
+1. Read CodeRabbit's review comments using `gh api repos/{owner}/{repo}/pulls/{number}/comments`
+2. Address valid suggestions (style fixes, missing error handling, etc.) by pushing fix commits
+3. For suggestions that don't apply to ported tests or conflict with origin conventions, reply explaining why
+4. After addressing CodeRabbit feedback and CI is green, post a PR comment indicating the PR is ready for human review
+
+### Human Review
+
+Humans are the final authority on ported tests. When a human reviewer comments:
 
 1. Use `gh api repos/{owner}/{repo}/pulls/{number}/comments` to read review comments
 2. Use `gh pr view <PR> --comments` for conversation-level comments
-3. Make the requested changes
-4. Push a new commit addressing the feedback
-5. Reply to the review comment if the change was non-obvious
+3. **Improvement requests**: make the requested changes and push a new commit
+4. **Drop requests**: if a reviewer asks to drop a test, remove it from the PR entirely — remove the test code, any helper functions or fixtures only used by that test, and push a commit noting which test was dropped and why. Mark dropped tests as `// port=skipped` in the source repo (not `port=complete`)
+5. Reply to each review comment confirming what action was taken
+6. After addressing all feedback, post a summary comment listing changes made
 
-## Escalation
+## Escalation and Handoff
 
-When the PR is ready for human review, or when you've exhausted your fix attempts:
+### Ready for Human Review
+
+When CodeRabbit feedback is addressed and CI is passing, hand off the PR:
+
+1. Post a PR comment summarizing the state:
+   - Which tests were ported and are passing
+   - Any CodeRabbit feedback that was addressed
+   - Any tests that were dropped during CI fixes (and why)
+2. Tag the user or a specified reviewer
+3. Note that reviewers can request improvements or ask to drop tests, and the agent will act on that feedback
+
+### Stuck or Exhausted Fix Attempts
+
+When you've exhausted your fix attempts:
 - Tag the user or a specified reviewer on the PR with a comment summarizing the state
 - List what's passing, what's failing, and what you've tried
 
