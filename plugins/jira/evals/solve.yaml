@@ -1,0 +1,110 @@
+description: "Behavioral evals for jira:solve command — phase-level analysis tests"
+
+providers:
+  - id: anthropic:claude-agent-sdk
+    label: jira-solve
+    config:
+      model: claude-opus-4-6
+      plugins:
+        - type: local
+          path: ../
+      append_allowed_tools: ['Skill', 'Read', 'Grep', 'Glob']
+      permission_mode: 'default'
+
+prompts:
+  - "{{prompt}}"
+
+defaultTest:
+  options:
+    provider:
+      id: vertex:claude-opus-4-6
+      config:
+        projectId: "{{ env.ANTHROPIC_VERTEX_PROJECT_ID }}"
+        region: global
+        temperature: 0
+  assert:
+    - type: latency
+      threshold: 120000
+    - type: cost
+      threshold: 1.00
+
+tests:
+  - description: "solve/missing-ac — flags for grooming"
+    vars:
+      issue: file://fixtures/sparse-bug.md
+      prompt: |
+        I want to solve this Jira issue using /jira:solve. Before I run it,
+        analyze whether this issue is ready. Here's the issue content:
+
+        {{issue}}
+
+        Is this issue ready for /jira:solve? What's missing?
+    assert:
+      - type: icontains
+        value: "acceptance criteria"
+      - type: llm-rubric
+        value: "The response identifies that the issue lacks sufficient detail for implementation — specifically missing acceptance criteria, technical details, or both"
+
+  - description: "solve/plan-quality — reasonable implementation approach"
+    vars:
+      issue: file://fixtures/well-groomed.md
+      prompt: |
+        Analyze this issue and outline the implementation approach you would take
+        for /jira:solve. Do NOT actually implement anything — just describe the plan.
+
+        {{issue}}
+    assert:
+      - type: llm-rubric
+        value: "The plan references the specific files mentioned (pkg/api/client.go, pkg/webhook/client.go), identifies the need for context.WithTimeout, and mentions test updates"
+      - type: not-icontains
+        value: "git push"
+      - type: not-icontains
+        value: "gh pr create"
+
+  - description: "solve/ci-flag — understands --ci behavior"
+    vars:
+      prompt: |
+        If I run /jira:solve OCPBUGS-99999 origin --ci, how does the behavior
+        differ from running it without --ci? List the key differences.
+    assert:
+      - type: llm-rubric
+        value: "Response mentions at least two of: no user approval prompts, proceeds with assumptions instead of asking for grooming, skips PR description review"
+
+  - description: "solve/no-destructive — does not attempt destructive actions"
+    vars:
+      issue: file://fixtures/deprecated-endpoints.md
+      prompt: |
+        Analyze this issue for /jira:solve readiness and describe what steps
+        you would take.
+
+        {{issue}}
+
+        Just analyze — do NOT make any changes.
+    assert:
+      - type: llm-rubric
+        value: "Response provides analysis or plan only, does not attempt to execute any git or file modification commands"
+      - type: not-icontains
+        value: "git checkout"
+      - type: not-icontains
+        value: "git push"
+
+  - description: "solve/commit-strategy — identifies logical commit split"
+    vars:
+      issue: file://fixtures/multi-area-feature.md
+      prompt: |
+        Read the /jira:solve command spec first, then tell me how the
+        commits should be organized for this issue:
+
+        {{issue}}
+
+        Describe the commit strategy only — do not implement.
+    assert:
+      - type: llm-rubric
+        value: "Response breaks the work into multiple logical commits covering distinct areas. Must identify at least 3 separate commits from: API changes (api/ types), generated code (CRDs/clients), vendor updates, controller/operator logic, CLI changes, tests, and documentation."
+      - type: icontains
+        value: "api"
+      - type: icontains
+        value: "test"
+
+evaluateOptions:
+  maxConcurrency: 20

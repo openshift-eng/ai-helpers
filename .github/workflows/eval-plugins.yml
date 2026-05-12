@@ -1,0 +1,80 @@
+name: Plugin Evals
+
+on:
+  pull_request:
+
+env:
+  CLAUDE_CODE_USE_VERTEX: 'true'
+
+jobs:
+  detect-changed-plugins:
+    runs-on: ubuntu-latest
+    outputs:
+      plugins: ${{ steps.detect.outputs.plugins }}
+      has_plugins: ${{ steps.detect.outputs.has_plugins }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Detect changed plugins with evals
+        id: detect
+        run: |
+          plugins=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- plugins/ \
+            | sed -n 's|^plugins/\([^/]*\)/.*|\1|p' \
+            | sort -u \
+            | while read plugin; do
+                [ -d "plugins/${plugin}/evals" ] && echo "$plugin"
+              done \
+            | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          echo "plugins=${plugins}" >> "$GITHUB_OUTPUT"
+          if [ "$plugins" = "[]" ] || [ -z "$plugins" ]; then
+            echo "has_plugins=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_plugins=true" >> "$GITHUB_OUTPUT"
+          fi
+          echo "Changed plugins with evals: ${plugins}"
+
+  behavioral-evals:
+    needs: detect-changed-plugins
+    if: needs.detect-changed-plugins.outputs.has_plugins == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        plugin: ${{ fromJson(needs.detect-changed-plugins.outputs.plugins) }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+
+      - name: Setup GCP credentials
+        run: |
+          echo '${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}' > "$RUNNER_TEMP/gcp-key.json"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/gcp-key.json" >> "$GITHUB_ENV"
+
+      - name: Run behavioral evals for ${{ matrix.plugin }}
+        env:
+          ANTHROPIC_VERTEX_PROJECT_ID: ${{ secrets.ANTHROPIC_VERTEX_PROJECT_ID }}
+          EVAL_OUTPUT_DIR: ${{ github.workspace }}/eval-results
+        run: |
+          mkdir -p "$EVAL_OUTPUT_DIR"
+          make eval-plugins EVAL_PLUGIN=${{ matrix.plugin }}
+
+      - name: Upload eval results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: eval-results-${{ matrix.plugin }}
+          path: eval-results/*.xml
+          retention-days: 30

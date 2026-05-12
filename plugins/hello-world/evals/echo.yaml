@@ -1,0 +1,54 @@
+description: "Behavioral evals for hello-world:echo command"
+
+providers:
+  - id: anthropic:claude-agent-sdk
+    label: hello-world
+    config:
+      model: claude-opus-4-6
+      plugins:
+        - type: local
+          path: ../
+      append_allowed_tools: ['Bash']
+      permission_mode: 'auto'
+
+prompts:
+  - "{{prompt}}"
+
+defaultTest:
+  options:
+    provider:
+      id: vertex:claude-opus-4-6
+      config:
+        projectId: "{{ env.ANTHROPIC_VERTEX_PROJECT_ID }}"
+        region: global
+        temperature: 0
+  assert:
+    - type: latency
+      threshold: 30000
+    - type: cost
+      threshold: 0.50
+
+tests:
+  - description: "Default greeting with no arguments"
+    vars:
+      prompt: "Run /hello-world:echo"
+    assert:
+      - type: contains
+        value: "Hello world"
+
+  - description: "Named greeting with single word"
+    vars:
+      prompt: "Run /hello-world:echo Alice"
+    assert:
+      - type: contains
+        value: "Hello Alice"
+
+  - description: "Named greeting with quoted multi-word name"
+    vars:
+      prompt: 'Run /hello-world:echo "John Doe"'
+    assert:
+      - type: contains
+        value: "Hello John Doe"
+
+evaluateOptions:
+  maxConcurrency: 20

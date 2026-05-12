@@ -1,0 +1,6 @@
+{
+  "devDependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.132",
+    "promptfoo": "0.121.11"
+  }
+}
