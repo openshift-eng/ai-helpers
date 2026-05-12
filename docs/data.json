@@ -1161,13 +1161,20 @@
       "version": "unknown"
     },
     {
-      "commands": [],
+      "commands": [
+        {
+          "argument_hint": "[file:StructName] [output.md]",
+          "description": "Generate comprehensive YAML documentation from Go struct definitions with sensible default values",
+          "name": "docs",
+          "synopsis": "/yaml:docs [file:StructName] [output.md]"
+        }
+      ],
       "description": "YAML documentation and utilities",
-      "has_readme": false,
+      "has_readme": true,
       "hooks": [],
       "name": "yaml",
       "skills": [],
-      "version": "unknown"
+      "version": "0.0.2"
     },
     {
       "commands": [

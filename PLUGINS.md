@@ -24,6 +24,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Testing](#testing-plugin)
 - [Utils](#utils-plugin)
 - [Workspaces](#workspaces-plugin)
+- [Yaml](#yaml-plugin)
 
 ### Agendas Plugin
 
@@ -320,3 +321,12 @@ Manage isolated git worktree workspaces for multi-repo development
 - **`/workspaces:delete` `<workspace-name>`** - Delete a workspace and its git worktrees
 
 See [plugins/workspaces/README.md](plugins/workspaces/README.md) for detailed documentation.
+
+### Yaml Plugin
+
+Generate comprehensive YAML documentation from Go struct definitions with sensible default values
+
+**Commands:**
+- **`/yaml:docs` `[file:StructName] [output.md]`** - Generate comprehensive YAML documentation from Go struct definitions with sensible default values
+
+See [plugins/yaml/README.md](plugins/yaml/README.md) for detailed documentation.

@@ -10,3 +10,6 @@ plugins/native-notifications/
 
 # Marketplace operations plugin
 plugins/marketplace-ops/
+
+# Saved by @stbenjam on 2026-05-12
+plugins/yaml/
