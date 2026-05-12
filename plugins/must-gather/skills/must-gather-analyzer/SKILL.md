@@ -1,5 +1,6 @@
 ---
 name: Must-Gather Analyzer
+badYAML: badYAML: 4ijt23oivk
 description: |
   Analyze OpenShift must-gather diagnostic data including cluster operators, pods, nodes,
   and network components. Use this skill when the user asks about cluster health, operator status,
