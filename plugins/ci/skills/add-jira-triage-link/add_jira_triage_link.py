@@ -16,6 +16,7 @@ import argparse
 import base64
 import json
 import os
+import re
 import sys
 import urllib.request
 import urllib.error
@@ -43,7 +44,8 @@ def _description_contains_triage_link(description: Any, triage_url: str) -> bool
     if description is None:
         return False
     text = json.dumps(description)
-    return triage_url in text
+    pattern = re.escape(triage_url) + r"(?!\w)"
+    return re.search(pattern, text) is not None
 
 
 def _build_triage_section(triage_id: int) -> List[Dict[str, Any]]:
@@ -113,7 +115,7 @@ def add_triage_link(issue_key: str, triage_id: int, token: str, username: str) -
             "already_present": True,
         }
 
-    if description is None:
+    if not isinstance(description, dict) or not isinstance(description.get("content"), list):
         description = {"type": "doc", "version": 1, "content": []}
 
     triage_nodes = _build_triage_section(triage_id)
