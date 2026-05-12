@@ -1,18 +1,36 @@
 # marketplace-ops
 
-Maintenance commands for Claude Code plugin marketplaces. Identifies stale or low-value plugins, commands, and skills, then opens a PR to remove them with a structured review workflow.
+Maintenance skills and scripts for Claude Code plugin marketplaces. Identifies stale or low-value plugins, commands, and skills, then opens a PR to remove them with a structured review workflow.
 
-## Commands
+## Skills
 
-### `/marketplace-ops:prune`
+### `marketplace-ops:prune`
 
-Analyzes the repository for inactive content using git history, structural signals, and LLM judgment. Creates a branch removing candidates and opens a PR with a removal manifest.
+LLM-assisted review of flagged items. Receives scored/flagged items from the deterministic scoring scripts and applies qualitative judgment to decide which items should be removed. Used by CI during the pruning workflow.
 
-Use `--dry-run` to see what would be pruned without creating a branch or PR.
+### `marketplace-ops:update`
 
-### `/marketplace-ops:prune-update`
+Processes `/save <path>` and `/drop <path>` comments on a pruning PR. Restores saved items, removes dropped items, updates `.pruneprotect`, and pushes changes.
 
-Processes `/save <path>` comments on a pruning PR. Restores saved items, adds them to `.pruneprotect` permanently, and pushes a new commit to the PR branch.
+## Scripts
+
+Deterministic Python scripts in `scripts/` handle all mechanical operations:
+
+| Script | Purpose |
+|--------|---------|
+| `score-plugins.py` | Score entire plugins for staleness based on git history |
+| `score-items.py` | Score individual commands/skills within plugins |
+| `process-comments.py` | Parse and validate `/save`/`/drop` directives from PR comments |
+| `apply-changes.py` | Apply save/drop changes to the working tree |
+| `build-pr-body.py` | Generate the PR body with removal manifest |
+| `update-pr-body.py` | Update PR body after processing directives |
+| `cross-reference-scan.py` | Detect cross-references to items being removed |
+
+## CI Integration
+
+A weekly Prow job runs this workflow automatically:
+1. If no open prune PR exists: scores plugins/items, invokes Claude for item review, creates a PR
+2. If a prune PR exists: processes new `/save` and `/drop` comments from collaborators
 
 ## Protection
 

@@ -13,6 +13,9 @@ RUN pip3 install --no-cache-dir \
     requests \
     pyyaml
 
+# Install make
+RUN dnf install -y make && dnf clean all
+
 # Install GitHub CLI
 RUN dnf install -y 'dnf-command(config-manager)' \
     && dnf config-manager --add-repo https://cli.github.com/packages/rpm/gh-cli.repo \
