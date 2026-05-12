@@ -1,8 +1,0 @@
-{
-  "name": "sosreport",
-  "description": "Analyze sosreport archives for system diagnostics and troubleshooting",
-  "version": "0.0.2",
-  "author": {
-    "name": "github.com/arkadeepsen"
-  }
-}
