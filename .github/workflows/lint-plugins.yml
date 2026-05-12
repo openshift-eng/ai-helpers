@@ -1,7 +1,7 @@
 name: Lint Plugins
 
 on:
-  pull_request:
+  pull_request_target:
   push:
     branches:
       - main
@@ -16,6 +16,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Run skillsaw
         uses: stbenjam/skillsaw@d475638873e09327262ae82f5657d390a91a3c8a # v0
