@@ -1,0 +1,351 @@
+# Jira Plugin
+
+Comprehensive Jira integration for Claude Code, providing AI-powered tools to analyze issues, create solutions, and generate status rollups.
+
+## Features
+
+- 🔍 **Issue Analysis and Solutions** - Analyze JIRA issues and create pull requests to solve them
+- 📊 **Status Rollups** - Generate comprehensive status rollup comments for any Jira issue given a date range
+- 📝 **Weekly Status Updates** - Automate weekly status summary updates with intelligent activity analysis and color-coded health indicators
+- 📋 **Backlog Grooming** - Analyze new bugs and cards for grooming meetings
+- 🏷️ **Activity Type Categorization** - AI-powered categorization of JIRA tickets into activity types with confidence scoring
+- 🧪 **Test Generation** - Generate comprehensive test steps for JIRA issues by analyzing related PRs
+- ✨ **Issue Creation** - Create well-formed stories, epics, features, tasks, bugs, and feature requests with guided workflows
+- 📝 **Release Note Generation** - Automatically generate bug fix release notes from Jira and linked GitHub PRs
+- 🤖 **Automated Workflows** - From issue analysis to PR creation, fully automated
+- 💬 **Smart Comment Analysis** - Extracts blockers, risks, and key insights from comments
+
+## Prerequisites
+
+- Claude Code installed
+- Jira MCP server configured
+- Optional: `gh` CLI tools installed and configured, for GitHub access.
+
+### Setting up Jira MCP Server
+
+**Option 1: Podman container (recommended if you already have Podman)**
+
+```bash
+# Start the atlassian mcp server using podman
+podman run -i --rm -p 8080:8080 -e "JIRA_URL=https://redhat.atlassian.net" -e "JIRA_USERNAME" -e "JIRA_API_TOKEN" ghcr.io/sooperset/mcp-atlassian:latest --transport sse --port 8080 -vv
+```
+
+Then add it to Claude as an SSE server:
+
+```bash
+claude mcp add --transport sse jira http://localhost:8080/sse
+```
+
+**Option 2: uvx (no container needed)**
+
+```bash
+claude mcp add -e JIRA_URL="https://redhat.atlassian.net" -e JIRA_API_TOKEN="token" -e JIRA_USERNAME="user@redhat.com" --transport stdio jira -- uvx mcp-atlassian
+```
+
+#### Getting Tokens
+
+For your Jira API token, use https://id.atlassian.com/manage-profile/security/api-tokens
+
+### Notes and tips
+
+- Do not commit real tokens. If you must keep a project-local file, prefer committing a `mcp.json.sample` with placeholders, and keep your real `mcp.json` untracked.
+- Consider using the [rh-pre-commit](https://source.redhat.com/departments/it/it_information_security/leaktk/leaktk_components/rh_pre_commit) hook to scan for secrets accidentally left in commits.
+- The `atlassian` server example uses an MCP container image: `ghcr.io/sooperset/mcp-atlassian:latest`.
+- If you prefer Docker, replace the `podman` command with `docker` (arguments are typically the same).
+- If Podman is installed via Podman Machine on macOS, ensure it is running: `podman machine start`.
+- Limit active MCP servers: running too many at once can degrade performance or hit limits. Use Cursor's MCP panel to disable those you don't need for the current session.
+
+## Installation
+
+Ensure you have the ai-helpers marketplace enabled, via [the instructions here](/README.md).
+
+```bash
+# Install the plugin
+/plugin install jira@ai-helpers
+```
+
+## Reference Files
+
+This plugin uses shared reference files for progressive disclosure, following [Claude Code best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#progressive-disclosure-patterns).
+
+Skills reference these files rather than duplicating content:
+
+| File | Purpose |
+|------|---------|
+| [reference/wiki-markup.md](reference/wiki-markup.md) | JIRA Wiki Markup formatting guide |
+| [reference/mcp-tools.md](reference/mcp-tools.md) | MCP tool signatures and custom fields |
+| [reference/cli-fallback.md](reference/cli-fallback.md) | jira-cli commands when MCP unavailable |
+
+**Best Practice:** Keep references one level deep. Link directly from SKILL.md to reference files. Deeply nested references may result in partial file reads.
+
+## Available Commands
+
+### `/jira:solve` - Analyze and Solve JIRA Issues
+
+Analyze a JIRA issue and create a pull request to solve it. The command fetches issue details, analyzes the codebase, creates an implementation plan, makes the necessary changes, and creates a PR with conventional commits.
+
+**Usage:**
+```bash
+/jira:solve OCPBUGS-12345 enxebre
+```
+
+See [commands/solve.md](commands/solve.md) for full documentation.
+
+---
+
+### `/jira:status-rollup` - Generate Weekly Status Rollups
+
+Generate comprehensive status rollup comments for any Jira issue by recursively analyzing all child issues and their activity within a date range. The command extracts insights from changelogs and comments to create well-formatted status summaries.
+
+**Usage:**
+```bash
+/jira:status-rollup FEATURE-123 --start-date 2025-10-08 --end-date 2025-10-14
+```
+
+See [commands/status-rollup.md](commands/status-rollup.md) for full documentation.
+
+---
+
+### `/jira:grooming` - Backlog Grooming Assistant
+
+Analyze and organize new bugs and cards added over a specified time period to prepare for grooming meetings. The command provides automated data collection, intelligent analysis, and generates structured, actionable meeting agendas.
+
+**Usage:**
+```bash
+# Single project
+/jira:grooming OCPSTRAT last-week
+
+# Multiple OpenShift projects
+/jira:grooming "OCPSTRAT,OCPBUGS,HOSTEDCP" last-week
+
+# Filter by component
+/jira:grooming OCPSTRAT last-week --component "Control Plane"
+
+# Filter by label
+/jira:grooming OCPSTRAT last-week --label "technical-debt"
+
+# Combine filters
+/jira:grooming OCPSTRAT last-week --component "Control Plane" --label "security"
+```
+See [commands/grooming.md](commands/grooming.md) for full documentation.
+
+---
+
+### `/jira:categorize-activity-type` - AI-Powered Activity Type Categorization
+
+Analyze JIRA tickets and automatically assign Activity Type categories based on ticket content, issue type, labels, and parent Epic context. Uses AI-powered analysis with confidence scoring to ensure accurate categorizations.
+
+**Usage:**
+```bash
+# Basic usage (prompts for confirmation)
+/jira:categorize-activity-type ROX-12345
+
+# Auto-apply for high confidence categorizations
+/jira:categorize-activity-type ROX-12345 --auto-apply
+```
+
+See [commands/categorize-activity-type.md](commands/categorize-activity-type.md) for full documentation.
+
+---
+
+### `/jira:generate-test-plan` - Generate Test Steps
+
+Generate comprehensive test steps for a JIRA issue by analyzing related pull requests. The command supports auto-discovery of PRs from the JIRA issue or manual specification of specific PRs to analyze.
+
+**Usage:**
+```bash
+# Auto-discover all PRs from JIRA
+/jira:generate-test-plan CNTRLPLANE-205
+
+# Test only specific PRs
+/jira:generate-test-plan CNTRLPLANE-205 https://github.com/openshift/hypershift/pull/6888
+```
+
+See [commands/generate-test-plan.md](commands/generate-test-plan.md) for full documentation.
+
+---
+
+### `/jira:create` - Create Jira Issues
+
+Create well-formed Jira issues (stories, epics, features, tasks, bugs, feature requests) with intelligent defaults, interactive guidance, and validation. The command applies project-specific conventions, suggests components based on context, and provides templates for consistent issue creation.
+
+**Usage:**
+```bash
+# Create a story
+/jira:create story MYPROJECT "Add user dashboard"
+
+# Create a story with options
+/jira:create story MYPROJECT "Add search functionality" --component "Frontend" --version "2.5.0"
+
+# Create an epic with parent
+/jira:create epic MYPROJECT "Mobile application redesign" --parent MYPROJECT-100
+
+# Create a bug
+/jira:create bug MYPROJECT "Login button doesn't work on mobile"
+
+# Create a bug with component
+/jira:create bug MYPROJECT "API returns 500 error" --component "Backend"
+
+# Create a task
+/jira:create task MYPROJECT "Update API documentation" --parent MYPROJECT-456
+
+# Create a feature
+/jira:create feature MYPROJECT "Advanced search capabilities"
+
+# Create a feature request
+/jira:create feature-request RFE "Support custom SSL certificates for ROSA HCP"
+```
+
+**Key Features:**
+- **Universal requirements** - All tickets MUST include Security Level: Red Hat Employee and label: ai-generated-jira
+- **Smart defaults** - Project and team-specific conventions applied automatically
+- **Interactive templates** - Guides you through user story format, acceptance criteria, bug templates
+- **Security validation** - Scans for credentials and secrets before submission
+- **Extensible** - Supports project-specific and team-specific skills for custom workflows
+- **Hybrid workflow** - Required fields as arguments, optional fields as interactive prompts
+
+**Supported Issue Types:**
+- `story` - User stories with acceptance criteria
+- `epic` - Epics with parent feature linking
+- `feature` - Strategic features with market problem analysis
+- `task` - Technical tasks and operational work
+- `bug` - Bug reports with structured templates
+- `feature-request` - Customer-driven feature requests for RFE project with business justification
+
+**Project-Specific Conventions:**
+
+Different projects may have different conventions (security levels, labels, versions, components, etc.). The command automatically detects your project and applies the appropriate conventions via project-specific skills.
+
+**Team-Specific Conventions:**
+
+Teams may have additional conventions layered on top of project conventions (component selection, custom fields, workflows, etc.). The command automatically detects team context and applies team-specific skills.
+
+See [commands/create.md](commands/create.md) for full documentation.
+
+---
+
+### `/jira:create-release-note` - Generate Bug Fix Release Notes
+
+Automatically generate bug fix release notes by analyzing Jira bug tickets and their linked GitHub pull requests. The command extracts Cause and Consequence from the bug description, analyzes PR content (description, commits, code changes, comments), synthesizes the information into a cohesive release note, and updates the Jira ticket.
+
+**Usage:**
+```bash
+/jira:create-release-note OCPBUGS-38358
+```
+
+**What it does:**
+1. Fetches the bug ticket from Jira
+2. Extracts Cause and Consequence sections from bug description
+3. Finds all linked GitHub PRs
+4. Analyzes each PR (description, commits, diff, comments)
+5. Synthesizes Fix, Result, and Workaround information
+6. Validates content for security (no credentials)
+7. Prompts for Release Note Type selection
+8. Updates Jira ticket fields
+
+**Release Note Format:**
+```
+Cause: <extracted from bug description>
+Consequence: <extracted from bug description>
+Fix: <analyzed from PRs>
+Result: <analyzed from PRs>
+Workaround: <analyzed from PRs if applicable>
+```
+
+**Prerequisites:**
+- MCP Jira server configured
+- GitHub CLI (`gh`) installed and authenticated
+- Access to linked GitHub repositories
+- Jira permissions to update Release Note fields
+
+**Example Output:**
+```
+✓ Release Note Created for OCPBUGS-38358
+
+Type: Bug Fix
+
+Text:
+---
+Cause: hostedcontrolplane controller crashes when hcp.Spec.Platform.AWS.CloudProviderConfig.Subnet.ID is undefined
+Consequence: control-plane-operator enters a crash loop
+Fix: Added nil check for CloudProviderConfig.Subnet before accessing Subnet.ID field
+Result: The control-plane-operator no longer crashes when CloudProviderConfig.Subnet is not specified
+---
+
+Updated: https://redhat.atlassian.net/browse/OCPBUGS-38358
+```
+
+See [commands/create-release-note.md](commands/create-release-note.md) for full documentation.
+
+---
+
+### `/jira:update-weekly-status` - Update Weekly Status Summaries
+
+Automate the process of updating weekly status summaries for Jira issues with intelligent activity analysis and color-coded health indicators. The command analyzes recent activity across tickets, GitHub PRs, and GitLab MRs to draft status updates (Red/Yellow/Green), then allows you to review and modify them before updating Jira.
+
+**Usage:**
+```bash
+# Interactive mode (prompts for project and component)
+/jira:update-weekly-status
+
+# Specify project
+/jira:update-weekly-status OCPSTRAT
+
+# Specify project and component
+/jira:update-weekly-status OCPSTRAT --component "Control Plane"
+
+# With label filter
+/jira:update-weekly-status OCPSTRAT --label strategic-work
+
+# With specific users (by email)
+/jira:update-weekly-status OCPBUGS antoni@redhat.com jdoe@redhat.com
+
+# With excluded users
+/jira:update-weekly-status OCPSTRAT !manager@redhat.com
+
+# Full example with all options
+/jira:update-weekly-status OCPSTRAT --component "Control Plane" --label strategic-work user@redhat.com
+```
+
+**Key Features:**
+- Interactive component selection from available project components
+- User filtering by email or display name (with auto-resolution)
+- Intelligent activity analysis (comments, child issues, linked PRs/MRs)
+- Recent update warnings to prevent duplicate updates (24-hour check)
+- Batch processing with selective skip options
+- Formatted status summaries with color-coded health indicators (Red/Yellow/Green)
+- Auto-detects Status Summary custom field or prompts for field ID
+
+**What it does:**
+1. Filters issues by project, component, label, and assignee
+2. Checks recent activity (comments, PR updates, child issues)
+3. Drafts color-coded status summaries with specific accomplishments
+4. Warns about recently-updated issues to avoid duplicates
+5. Allows review and modification before updating
+6. Provides comprehensive summary report with statistics
+
+**Prerequisites:**
+- Jira MCP server configured
+- GitHub CLI (`gh`) installed and authenticated (optional but recommended)
+- Jira permissions to update Status Summary field
+
+See [commands/update-weekly-status.md](commands/update-weekly-status.md) for full documentation.
+
+---
+
+## Troubleshooting
+
+### "Could not find issue {issue-id}"
+- Verify the issue ID is correct
+- Ensure you have access to the issue in Jira
+- Check that your Jira MCP server is properly configured
+
+For command-specific troubleshooting, see the individual command documentation.
+
+## Contributing
+
+Contributions welcome! Please submit pull requests to the [ai-helpers repository](https://github.com/openshift-eng/ai-helpers).
+
+## License
+
+Apache-2.0
