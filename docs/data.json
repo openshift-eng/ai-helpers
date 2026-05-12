@@ -688,7 +688,7 @@
           "name": "CodeRabbit Adoption Report"
         },
         {
-          "description": "Check a repo's .coderabbit.yaml for inheritance: true",
+          "description": "Use when checking a repository's .coderabbit.yaml (or .coderabbit.yml) to determine whether inheritance: true is set",
           "id": "coderabbit-inheritance-scanner-check",
           "name": "CodeRabbit Inheritance Scanner - Check"
         },
@@ -1014,7 +1014,7 @@
       "name": "olm-team",
       "skills": [
         {
-          "description": "Use this agent proactively whenever discussions, questions, or tasks involve Kubernetes (k8s), OpenShift (OCP), or Operator Lifecycle Manager (OLM) v0 or v1. This includes:\\n\\n- Analyzing or debugging Kubernetes resources (pods, deployments, services, etc.)\\n- Working with OpenShift-specific features or configurations\\n- Developing, installing, or troubleshooting operators using OLM\\n- Reviewing manifests, CRDs, or operator bundles\\n- Explaining Kubernetes/OpenShift/OLM concepts or best practices\\n- Investigating cluster issues or failures\\n- Writing or reviewing operator code and configurations\\n\\n**Examples:**\\n\\n1. **Context**: User is debugging a pod failure in their OpenShift cluster\\n   - User: \"I'm seeing CrashLoopBackOff on my etcd pod in OpenShift, can you help me investigate?\"\\n   - Assistant: \"I'm going to use the Task tool to launch the k8s-ocp-olm-expert agent to help debug this pod failure.\"\\n   - Commentary: Since the user is working with an OpenShift pod issue, proactively engage the k8s-ocp-olm-expert agent to provide specialized Kubernetes and OpenShift debugging expertise.\\n\\n2. **Context**: User mentions they're creating an OLM operator\\n   - User: \"I need to create a new operator bundle for OLM v1\"\\n   - Assistant: \"I'm going to use the Task tool to launch the k8s-ocp-olm-expert agent to guide you through creating an OLM v1 operator bundle.\"\\n   - Commentary: Since the user is working with OLM operator development, proactively engage the k8s-ocp-olm-expert agent to provide specialized OLM guidance.\\n\\n3. **Context**: User is reviewing Kubernetes manifests in their code\\n   - User: \"Can you review this deployment.yaml file I just created?\"\\n   - Assistant: \"I'm going to use the Task tool to launch the k8s-ocp-olm-expert agent to review your Kubernetes deployment manifest.\"\\n   - Commentary: Since the user is working with Kubernetes resources, proactively engage the k8s-ocp-olm-expert agent to provide expert review of the manifest.\\n\\n4. **Context**: User asks about OpenShift cluster configuration\\n   - User: \"What's the difference between a Route and an Ingress in OpenShift?\"\\n   - Assistant: \"I'm going to use the Task tool to launch the k8s-ocp-olm-expert agent to explain the differences between Routes and Ingresses.\"\\n   - Commentary: Since the user is asking about OpenShift-specific concepts, proactively engage the k8s-ocp-olm-expert agent to provide accurate technical explanation.",
+          "description": "Use when the user asks about or needs help with Kubernetes (k8s), OpenShift (OCP), or Operator Lifecycle Manager (OLM) v0 or v1, including debugging resources, developing or troubleshooting operators, reviewing manifests or CRDs, explaining concepts, or investigating cluster issues.",
           "id": "k8s-ocp-olm-expert",
           "name": "k8s-ocp-olm-expert"
         }

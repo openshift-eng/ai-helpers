@@ -1,6 +1,6 @@
 ---
 name: CodeRabbit Inheritance Scanner - Open PR
-description: Fork, sync, and open a fix PR to add inheritance: true to a repo's .coderabbit.yaml
+description: "Fork, sync, and open a fix PR to add inheritance: true to a repo's .coderabbit.yaml"
 ---
 
 # CodeRabbit Inheritance Scanner - Open PR

@@ -1,6 +1,6 @@
 ---
 name: CodeRabbit Inheritance Scanner - Check
-description: Check a repo's .coderabbit.yaml for inheritance: true
+description: "Use when checking a repository's .coderabbit.yaml (or .coderabbit.yml) to determine whether inheritance: true is set"
 ---
 
 # CodeRabbit Inheritance Scanner - Check
