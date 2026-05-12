@@ -472,6 +472,11 @@
       "name": "ci",
       "skills": [
         {
+          "description": "Add a Component Readiness triage record link to a JIRA issue description",
+          "id": "add-jira-triage-link",
+          "name": "Add JIRA Triage Link"
+        },
+        {
           "description": "Analyze and compare disruption across one or more Prow CI job runs by examining interval data, audit logs, pod logs, and CPU metrics",
           "id": "analyze-disruption",
           "name": "Analyze Disruption"
@@ -607,7 +612,7 @@
           "name": "Trigger Payload Job"
         }
       ],
-      "version": "0.0.39"
+      "version": "0.0.40"
     },
     {
       "commands": [
@@ -636,10 +641,10 @@
           "synopsis": "/teams:health-check-jiras --project <project> [--component comp1 comp2 ...] [--status status1 status2 ...] [--include-closed] [--limit N]"
         },
         {
-          "argument_hint": "<release> [--components comp1 comp2 ...] [--team <team-name>] [--start YYYY-MM-DD] [--end YYYY-MM-DD]",
+          "argument_hint": "<view> [--components comp1 comp2 ...] [--team <team-name>] [--start YYYY-MM-DD] [--end YYYY-MM-DD]",
           "description": "Query and summarize regression data for OpenShift releases with counts and metrics",
           "name": "health-check-regressions",
-          "synopsis": "/teams:health-check-regressions <release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]"
+          "synopsis": "/teams:health-check-regressions <view> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]"
         },
         {
           "argument_hint": "<release> [--components comp1 comp2 ...] [--team <team-name>] [--project JIRAPROJECT]",
@@ -660,10 +665,10 @@
           "synopsis": "/teams:list-jiras <project> [--component comp1 comp2 ...] [--status status1 status2 ...] [--include-closed] [--limit N]"
         },
         {
-          "argument_hint": "<release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]",
+          "argument_hint": "<view> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]",
           "description": "Fetch and list raw regression data for OpenShift releases",
           "name": "list-regressions",
-          "synopsis": "/teams:list-regressions <release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]"
+          "synopsis": "/teams:list-regressions <view> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]"
         },
         {
           "argument_hint": "",
@@ -743,7 +748,7 @@
           "name": "Summarize JIRAs"
         }
       ],
-      "version": "0.0.13"
+      "version": "0.0.14"
     },
     {
       "commands": [
@@ -1599,9 +1604,14 @@
           "description": "Comprehensive analysis of BigQuery usage patterns, costs, and query performance",
           "id": "analyze-usage",
           "name": "Analyze BigQuery Usage"
+        },
+        {
+          "description": "Safely query and report on OpenShift CI prow job and test data in BigQuery with cost controls, dry-run validation, and local caching of results",
+          "id": "ci-data-analyst",
+          "name": "CI Data Analyst"
         }
       ],
-      "version": "0.0.2"
+      "version": "0.0.4"
     },
     {
       "commands": [

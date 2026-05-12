@@ -37,6 +37,31 @@ When calling Python skill scripts via the Bash tool, always run the script direc
 
 Parse and analyze the JSON output from scripts using your own reasoning capabilities rather than shell pipelines.
 
+**Obtaining the DPCR authentication token from mounted kubeconfig**
+
+The triage and bug filing steps (step 14) require a Bearer token from the DPCR cluster (`api.cr.j7t7.p1.openshiftapps.com:6443`). When running in a container with `~/.kube` mounted (read-only), the token is extracted directly from the mounted kubeconfig using `oc`:
+
+```bash
+# Find the oc context for the DPCR cluster from the mounted kubeconfig
+DPCR_CONTEXT=$(oc config get-contexts -o name 2>/dev/null | while read -r ctx; do
+  server=$(oc config view -o jsonpath="{.clusters[?(@.name=='$(oc config view -o jsonpath="{.contexts[?(@.name=='$ctx')].context.cluster}" 2>/dev/null)')].cluster.server}" 2>/dev/null || echo "")
+  server_clean=$(echo "$server" | sed -E 's|^https?://||')
+  if [ "$server_clean" = "api.cr.j7t7.p1.openshiftapps.com:6443" ]; then
+    echo "$ctx"
+    break
+  fi
+done)
+
+# Extract the token from the DPCR context
+if [ -z "$DPCR_CONTEXT" ]; then
+  echo "ERROR: Could not find a DPCR cluster context in kubeconfig. Set DPCR_CONTEXT manually or run: oc login https://api.cr.j7t7.p1.openshiftapps.com:6443"
+  exit 1
+fi
+TOKEN=$(oc whoami -t --context="$DPCR_CONTEXT" 2>/dev/null)
+```
+
+This works because `oc` reads from `~/.kube/config` which is bind-mounted from the host. The token stored in the kubeconfig was obtained when the user previously ran `oc login` to the DPCR cluster on the host. If the token is expired, instruct the user to re-authenticate on the host: `oc login https://api.cr.j7t7.p1.openshiftapps.com:6443`.
+
 1. **Load CI Context**: Read all documentation files in `plugins/ci/docs/` for context on tests, jobs, and CI conventions. These contain important notes on specific test frameworks, job ownership, and debugging guidance that should inform the analysis.
 
    ```bash
@@ -899,6 +924,16 @@ Parse and analyze the JSON output from scripts using your own reasoning capabili
    - Triage: https://sippy-auth.dptools.openshift.org/sippy-ng/component_readiness/triages/<triage_id>
    ```
 
+   Then add the triage record link to the JIRA description using the `add-jira-triage-link` skill:
+
+   ```bash
+   jira_key="<existing_jira_key>"
+   link_script="plugins/ci/skills/add-jira-triage-link/add_jira_triage_link.py"
+   python3 "$link_script" "$jira_key" --triage-id "$triage_id" --format json
+   ```
+
+   If successful, note that the triage link was added to the JIRA description. If it was already present, note that. If JIRA credentials are not set, skip this step silently (the triage itself already succeeded).
+
    **Note**: The triage-regression script automatically fetches the existing triage and merges its regressions with the new ones, so you only need to pass the regression IDs you want to add.
 
    **Scenario B: JIRA bug found but not triaged to any regression** (from step 5 or step 11)
@@ -952,6 +987,15 @@ Parse and analyze the JSON output from scripts using your own reasoning capabili
    - JIRA: https://redhat.atlassian.net/browse/OCPBUGS-67890
    - Triage: https://sippy-auth.dptools.openshift.org/sippy-ng/component_readiness/triages/<triage_id>
    ```
+
+   Then add the triage record link to the JIRA description using the `add-jira-triage-link` skill:
+
+   ```bash
+   link_script="plugins/ci/skills/add-jira-triage-link/add_jira_triage_link.py"
+   python3 "$link_script" "OCPBUGS-67890" --triage-id "$triage_id" --format json
+   ```
+
+   If successful, note that the triage link was added to the JIRA description. If JIRA credentials are not set, skip this step silently.
 
    **Scenario C: No related triage or bug found**
 
@@ -1031,6 +1075,15 @@ Parse and analyze the JSON output from scripts using your own reasoning capabili
    - Release Blocker: Approved
    - Triage: https://sippy-auth.dptools.openshift.org/sippy-ng/component_readiness/triages/<triage_id>
    ```
+
+   Then add the triage record link to the JIRA description using the `add-jira-triage-link` skill:
+
+   ```bash
+   link_script="plugins/ci/skills/add-jira-triage-link/add_jira_triage_link.py"
+   python3 "$link_script" "<new_bug_key>" --triage-id "$triage_id" --format json
+   ```
+
+   If successful, note that the triage link was added to the JIRA description. If JIRA credentials are not set, skip this step silently.
 
    **Scenario D: Regression is already triaged**
 
@@ -1231,15 +1284,23 @@ Uses the `triage-regression` skill with authentication via the `oc-auth` skill (
    - Component Readiness API
    - Check firewall and VPN settings if needed
 
-3. **JIRA_USERNAME** and **JIRA_API_TOKEN** (optional): Required for JIRA progress analysis on triaged regressions
+3. **JIRA_URL**, **JIRA_USERNAME**, and **JIRA_API_TOKEN** (optional): Required for JIRA progress analysis and bug filing
 
    - Set environment variables:
      ```bash
+     export JIRA_URL="https://redhat.atlassian.net"
      export JIRA_USERNAME="your.email@redhat.com"
      export JIRA_API_TOKEN="your-api-token"
      ```
    - Obtain your API token from: https://id.atlassian.com/manage-profile/security/api-tokens
-   - If either is not set, JIRA progress analysis will be skipped but other analysis continues
+   - If not set, JIRA progress analysis and bug filing will be skipped but other analysis continues
+
+4. **Kubeconfig with DPCR cluster context** (optional): Required for triaging regressions
+
+   - The kubeconfig (`~/.kube/config`) must contain a context for the DPCR cluster (`api.cr.j7t7.p1.openshiftapps.com:6443`)
+   - When running in a container, mount the host kubeconfig: `-v "$HOME/.kube:/home/claude/.kube:ro,Z"`
+   - The token is extracted via `oc whoami -t` from the mounted kubeconfig
+   - If the token is expired, re-authenticate on the host: `oc login https://api.cr.j7t7.p1.openshiftapps.com:6443`
 
 ## Notes
 
@@ -1265,6 +1326,7 @@ Uses the `triage-regression` skill with authentication via the `oc-auth` skill (
   - `fetch-related-triages`: Finds existing triages and untriaged regressions related to a regression
   - `fetch-jira-issue`: Fetches JIRA issue details and classifies progress
   - `triage-regression`: Creates or updates triage records linking regressions to JIRA bugs
+  - `add-jira-triage-link`: Adds the triage record link to the JIRA issue description after triaging
   - `set-release-blocker`: Sets the Release Blocker field to "Approved" on filed JIRA bugs
   - `oc-auth`: Provides authentication tokens for sippy-auth API
   - `prow-job-analyze-install-failure`: Analyzes GCS artifacts for individual failed install runs (used only when test name contains "install should succeed")
@@ -1291,6 +1353,7 @@ Uses the `triage-regression` skill with authentication via the `oc-auth` skill (
 - Related Skill: `fetch-related-triages` - Finds existing triages and untriaged regressions related to a regression (`plugins/ci/skills/fetch-related-triages/SKILL.md`)
 - Related Skill: `fetch-jira-issue` - Fetches JIRA issue details and classifies progress (`plugins/ci/skills/fetch-jira-issue/SKILL.md`)
 - Related Skill: `triage-regression` - Creates or updates triage records (`plugins/ci/skills/triage-regression/SKILL.md`)
+- Related Skill: `add-jira-triage-link` - Adds triage record link to JIRA issue description (`plugins/ci/skills/add-jira-triage-link/SKILL.md`)
 - Related Skill: `set-release-blocker` - Sets Release Blocker field on JIRA bugs (`plugins/ci/skills/set-release-blocker/SKILL.md`)
 - Related Skill: `oc-auth` - Authentication tokens for sippy-auth (`plugins/ci/skills/oc-auth/SKILL.md`)
 - Related Skill: `prow-job-analyze-install-failure` - Deep per-run install failure analysis via GCS artifacts (`plugins/ci/skills/prow-job-analyze-install-failure/SKILL.md`)

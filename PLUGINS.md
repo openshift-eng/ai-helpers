@@ -396,11 +396,11 @@ Team structure knowledge and health analysis commands for OpenShift teams
 - **`/teams:coderabbit-inheritance-scanner` `[--dry-run]`** - Scan openshift org repos for .coderabbit.yaml/.coderabbit.yml files missing inheritance
 - **`/teams:coderabbit-rules-from-pr-reviews` `<repo> [--count N]`** - Analyze PR review comments to propose CodeRabbit rules for a repository
 - **`/teams:health-check-jiras` `--project <project> [--component comp1 comp2 ...] [--team <team-name>] [--status status1 status2 ...] [--include-closed] [--limit N]`** - Query and summarize JIRA bugs for a specific project with counts by component
-- **`/teams:health-check-regressions` `<release> [--components comp1 comp2 ...] [--team <team-name>] [--start YYYY-MM-DD] [--end YYYY-MM-DD]`** - Query and summarize regression data for OpenShift releases with counts and metrics
+- **`/teams:health-check-regressions` `<view> [--components comp1 comp2 ...] [--team <team-name>] [--start YYYY-MM-DD] [--end YYYY-MM-DD]`** - Query and summarize regression data for OpenShift releases with counts and metrics
 - **`/teams:health-check` `<release> [--components comp1 comp2 ...] [--team <team-name>] [--project JIRAPROJECT]`** - Analyze and grade component health based on regression and JIRA bug metrics
 - **`/teams:list-components` `[--team <team-name>]`** - List all OCPBUGS components, optionally filtered by team
 - **`/teams:list-jiras` `<project> [--component comp1 comp2 ...] [--status status1 status2 ...] [--include-closed] [--limit N]`** - Query and list raw JIRA bug data for a specific project
-- **`/teams:list-regressions` `<release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]`** - Fetch and list raw regression data for OpenShift releases
+- **`/teams:list-regressions` `<view> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]`** - Fetch and list raw regression data for OpenShift releases
 - **`/teams:list-teams`** - List all teams from the team component mapping
 
 See [plugins/teams/README.md](plugins/teams/README.md) for detailed documentation.

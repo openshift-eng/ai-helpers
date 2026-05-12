@@ -1,6 +1,6 @@
 ---
 description: Query and summarize regression data for OpenShift releases with counts and metrics
-argument-hint: <release> [--components comp1 comp2 ...] [--team <team-name>] [--start YYYY-MM-DD] [--end YYYY-MM-DD]
+argument-hint: <view> [--components comp1 comp2 ...] [--team <team-name>] [--start YYYY-MM-DD] [--end YYYY-MM-DD]
 ---
 
 ## Name
@@ -10,13 +10,13 @@ teams:health-check-regressions
 ## Synopsis
 
 ```
-/teams:health-check-regressions <release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]
-/teams:health-check-regressions <release> --team <team-name> [--start YYYY-MM-DD] [--end YYYY-MM-DD]
+/teams:health-check-regressions <view> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]
+/teams:health-check-regressions <view> --team <team-name> [--start YYYY-MM-DD] [--end YYYY-MM-DD]
 ```
 
 ## Description
 
-The `teams:health-check-regressions` command queries regression data for a specified OpenShift release and generates summary statistics. It leverages the `list-regressions` command to fetch raw regression data and then presents counts, percentages, and timing metrics to help understand regression trends at a glance.
+The `teams:health-check-regressions` command queries regression data for a specified view (e.g., "4.22-main") and generates summary statistics. A view represents a specific regression tracking context within a release — multiple views can exist per release (e.g., "4.22-main", "4.22-main-mass-failure"). The release is derived from the view name automatically. It leverages the `list-regressions` command to fetch raw regression data filtered to the specified view and then presents counts, percentages, and timing metrics to help understand regression trends at a glance.
 
 By default, the command analyzes:
 - All regressions within the release development window
@@ -42,9 +42,10 @@ This command is useful for:
    - Run: `python3 --version`
    - Verify version 3.6 or later is available
 
-2. **Parse Arguments**: Extract release version and optional filters from arguments
+2. **Parse Arguments**: Extract view name and optional filters from arguments
 
-   - Release format: "X.Y" (e.g., "4.17", "4.21")
+   - View format: "X.Y-suffix" (e.g., "4.22-main", "4.17-main")
+   - The release is derived from the view name (e.g., "4.22" from "4.22-main")
    - Optional filters:
      - `--components`: Space-separated list of component search strings (fuzzy match)
      - `--team`: Team name (looks up all components for that team)
@@ -73,7 +74,8 @@ This command is useful for:
 4. **Fetch Release Dates**: Run the get_release_dates.py script to get development window dates
 
    - Script location: `plugins/teams/skills/get-release-dates/get_release_dates.py`
-   - Pass release as `--release` argument
+   - Derive the release from the view name (e.g., "4.22" from "4.22-main")
+   - Pass derived release as `--release` argument
    - Extract `development_start` and `ga` dates from JSON output
    - Convert timestamps to simple date format (YYYY-MM-DD)
    - Use these dates if `--start` and `--end` are not explicitly provided
@@ -81,7 +83,7 @@ This command is useful for:
 5. **Execute Python Script**: Run the list_regressions.py script with appropriate arguments
 
    - Script location: `plugins/teams/skills/list-regressions/list_regressions.py`
-   - Pass release as `--release` argument
+   - Pass view as `--view` argument (the script derives the release internally)
    - Pass resolved component names as `--components` argument
    - Pass `development_start` date as `--start` argument (if available)
      - Always applied (for both GA'd and in-development releases)
@@ -117,7 +119,7 @@ This command is useful for:
 8. **Error Handling**: Handle common error scenarios
 
    - Network connectivity issues
-   - Invalid release format
+   - Invalid view format
    - API errors (404, 500, etc.)
    - Empty results
    - No matches for component filter
@@ -129,7 +131,7 @@ The command outputs a **Regression Summary Report** with the following informati
 
 ### Overall Summary
 
-- **Release**: OpenShift release version
+- **View**: View name (e.g., "4.22-main")
 - **Development Window**: Start and end dates (or "In Development" if no GA date)
 - **Total Regressions**: `summary.total`
 - **Filtered Infrastructure Regressions**: `summary.filtered_suspected_infra_regressions`
@@ -170,32 +172,33 @@ For each component (from `components.*.summary`):
 ### Additional Information
 
 - **Filters Applied**: Lists any component or date filters used
-- **Data Scope**: Notes which regressions are included based on date filtering
+- **Data Scope**: Notes which regressions are included based on view and date filtering
+  - Regressions are filtered to the specified view (open/closed status comes from the view)
   - For GA'd releases: Regressions within development window (start to GA)
   - For in-development releases: Regressions from development start onwards
 
 ## Examples
 
-1. **Summarize all regressions for a release**:
+1. **Summarize all regressions for a view**:
 
    ```
-   /teams:health-check-regressions 4.17
+   /teams:health-check-regressions 4.17-main
    ```
 
-   Fetches and summarizes all regressions for release 4.17, automatically applying development window date filtering.
+   Fetches and summarizes all regressions for the 4.17-main view, automatically applying development window date filtering.
 
 2. **Filter by specific component (exact match)**:
 
    ```
-   /teams:health-check-regressions 4.21 --components Monitoring
+   /teams:health-check-regressions 4.21-main --components Monitoring
    ```
 
-   Shows summary statistics for only the Monitoring component in release 4.21.
+   Shows summary statistics for only the Monitoring component in the 4.21-main view.
 
 3. **Filter by fuzzy search**:
 
    ```
-   /teams:health-check-regressions 4.21 --components network
+   /teams:health-check-regressions 4.21-main --components network
    ```
 
    Finds all components containing "network" (case-insensitive) and shows summary statistics for all matches (e.g., "Networking / ovn-kubernetes", "Networking / DNS", etc.).
@@ -203,7 +206,7 @@ For each component (from `components.*.summary`):
 4. **Filter by multiple search strings**:
 
    ```
-   /teams:health-check-regressions 4.21 --components etcd kube-
+   /teams:health-check-regressions 4.21-main --components etcd kube-
    ```
 
    Finds all components containing "etcd" OR "kube-" and shows combined summary statistics.
@@ -211,7 +214,7 @@ For each component (from `components.*.summary`):
 5. **Specify custom date range**:
 
    ```
-   /teams:health-check-regressions 4.17 --start 2024-05-17 --end 2024-10-29
+   /teams:health-check-regressions 4.17-main --start 2024-05-17 --end 2024-10-29
    ```
 
    Summarizes regressions within a specific date range:
@@ -221,10 +224,10 @@ For each component (from `components.*.summary`):
 6. **In-development release**:
 
    ```
-   /teams:health-check-regressions 4.21
+   /teams:health-check-regressions 4.22-main
    ```
 
-   Summarizes regressions for an in-development release:
+   Summarizes regressions for an in-development release view:
    - Automatically fetches development_start date
    - No end date filtering (release not yet GA'd)
    - Shows current state of regression management
@@ -232,7 +235,7 @@ For each component (from `components.*.summary`):
 7. **Filter by team**:
 
    ```
-   /teams:health-check-regressions 4.21 --team "API Server"
+   /teams:health-check-regressions 4.21-main --team "API Server"
    ```
 
    Summarizes regressions for all components owned by the "API Server" team:
@@ -243,16 +246,17 @@ For each component (from `components.*.summary`):
 8. **Team summary with custom date range**:
 
    ```
-   /teams:health-check-regressions 4.17 --team "Networking" --start 2024-05-17 --end 2024-10-29
+   /teams:health-check-regressions 4.17-main --team "Networking" --start 2024-05-17 --end 2024-10-29
    ```
 
    Summarizes regressions for the Networking team within a specific date range
 
 ## Arguments
 
-- `$1` (required): Release version
-  - Format: "X.Y" (e.g., "4.17", "4.21")
-  - Must be a valid OpenShift release number
+- `$1` (required): View name
+  - Format: "X.Y-suffix" (e.g., "4.22-main", "4.17-main")
+  - The release is derived from the view name (e.g., "4.22" from "4.22-main")
+  - Multiple views can exist per release (e.g., "4.22-main", "4.22-main-mass-failure")
 
 - `$2+` (optional): Filter flags
   - `--components <search1> [search2 ...]`: Filter by component names using fuzzy search

@@ -1,6 +1,6 @@
 ---
 description: Fetch and list raw regression data for OpenShift releases
-argument-hint: <release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]
+argument-hint: <view> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]
 ---
 
 ## Name
@@ -10,12 +10,12 @@ teams:list-regressions
 ## Synopsis
 
 ```
-/teams:list-regressions <release> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]
+/teams:list-regressions <view> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]
 ```
 
 ## Description
 
-The `teams:list-regressions` command fetches regression data for a specified OpenShift release and returns raw regression details without performing any summarization or analysis. It provides complete regression information including test names, timestamps, triages, and metadata.
+The `teams:list-regressions` command fetches regression data for a specified view (e.g., "4.22-main") and returns raw regression details without performing any summarization or analysis. A view represents a specific regression tracking context within a release — multiple views can exist per release. The release is derived from the view name automatically. Open/closed status for each regression is determined by the view's own tracking (not the regression's global status). It provides complete regression information including test names, timestamps, triages, and metadata.
 
 This command is useful for:
 
@@ -33,9 +33,10 @@ This command is useful for:
    - Run: `python3 --version`
    - Verify version 3.6 or later is available
 
-2. **Parse Arguments**: Extract release version and optional filters from arguments
+2. **Parse Arguments**: Extract view name and optional filters from arguments
 
-   - Release format: "X.Y" (e.g., "4.17", "4.21")
+   - View format: "X.Y-suffix" (e.g., "4.22-main", "4.17-main")
+   - The release is derived from the view name (e.g., "4.22" from "4.22-main")
    - Optional filters:
      - `--components`: Space-separated list of component search strings (fuzzy match)
      - `--start`: Start date for filtering (YYYY-MM-DD)
@@ -46,7 +47,7 @@ This command is useful for:
 
    - Run list_components.py to get all available components:
      ```bash
-     python3 plugins/component-health/skills/list-components/list_components.py --release <release>
+     python3 plugins/teams/skills/list-components/list_components.py --release <release>
      ```
    - If `--components` was provided:
      - For each search string, find all components containing that string (case-insensitive)
@@ -59,15 +60,15 @@ This command is useful for:
 
 4. **Fetch Release Dates** (if date filtering needed): Run the get_release_dates.py script
 
-   - Script location: `plugins/component-health/skills/get-release-dates/get_release_dates.py`
+   - Script location: `plugins/teams/skills/get-release-dates/get_release_dates.py`
    - Pass release as `--release` argument
    - Extract `development_start` and `ga` dates from JSON output
    - Use these dates for `--start` and `--end` parameters if not explicitly provided
 
 5. **Execute Python Script**: Run the list_regressions.py script
 
-   - Script location: `plugins/component-health/skills/list-regressions/list_regressions.py`
-   - Pass release as `--release` argument
+   - Script location: `plugins/teams/skills/list-regressions/list_regressions.py`
+   - Pass view as `--view` argument (the script derives the release internally)
    - Pass resolved component names as `--components` argument
    - Pass `--start` date if filtering by start date
    - Pass `--end` date if filtering by end date
@@ -204,18 +205,18 @@ Each regression object (in `components.*.open` or `components.*.closed` arrays) 
 
 ## Examples
 
-1. **List all regressions for a release**:
+1. **List all regressions for a view**:
 
    ```
-   /teams:list-regressions 4.17
+   /teams:list-regressions 4.17-main
    ```
 
-   Fetches all regression data for release 4.17, including all components.
+   Fetches all regression data for the 4.17-main view, including all components.
 
 2. **Filter by specific component (exact match)**:
 
    ```
-   /teams:list-regressions 4.21 --components Monitoring
+   /teams:list-regressions 4.21-main --components Monitoring
    ```
 
    Returns regression data for only the Monitoring component.
@@ -223,7 +224,7 @@ Each regression object (in `components.*.open` or `components.*.closed` arrays) 
 3. **Filter by fuzzy search**:
 
    ```
-   /teams:list-regressions 4.21 --components network
+   /teams:list-regressions 4.21-main --components network
    ```
 
    Finds all components containing "network" (case-insensitive):
@@ -236,7 +237,7 @@ Each regression object (in `components.*.open` or `components.*.closed` arrays) 
 4. **Filter by multiple search strings**:
 
    ```
-   /teams:list-regressions 4.21 --components etcd kube-
+   /teams:list-regressions 4.21-main --components etcd kube-
    ```
 
    Finds all components containing "etcd" OR "kube-":
@@ -249,7 +250,7 @@ Each regression object (in `components.*.open` or `components.*.closed` arrays) 
 5. **Filter by development window** (GA'd release):
 
    ```
-   /teams:list-regressions 4.17 --start 2024-05-17 --end 2024-10-29
+   /teams:list-regressions 4.17-main --start 2024-05-17 --end 2024-10-29
    ```
 
    Fetches regressions within the development window:
@@ -259,26 +260,27 @@ Each regression object (in `components.*.open` or `components.*.closed` arrays) 
 6. **Filter for in-development release**:
 
    ```
-   /teams:list-regressions 4.21 --start 2025-09-02
+   /teams:list-regressions 4.22-main --start 2025-09-02
    ```
 
-   Fetches regressions for an in-development release:
+   Fetches regressions for an in-development release view:
    - Excludes regressions closed before development started
    - No end date (release still in development)
 
 7. **Combine fuzzy component search and date filters**:
 
    ```
-   /teams:list-regressions 4.21 --components network --start 2025-09-02
+   /teams:list-regressions 4.21-main --components network --start 2025-09-02
    ```
 
    Returns regressions for all networking components from the development window.
 
 ## Arguments
 
-- `$1` (required): Release version
-  - Format: "X.Y" (e.g., "4.17", "4.21")
-  - Must be a valid OpenShift release number
+- `$1` (required): View name
+  - Format: "X.Y-suffix" (e.g., "4.22-main", "4.17-main")
+  - The release is derived from the view name (e.g., "4.22" from "4.22-main")
+  - Multiple views can exist per release (e.g., "4.22-main", "4.22-main-mass-failure")
 
 - `$2+` (optional): Filter flags
   - `--components <search1> [search2 ...]`: Filter by component names using fuzzy search
@@ -316,7 +318,7 @@ Each regression object (in `components.*.open` or `components.*.closed` arrays) 
    - Check firewall and VPN settings if needed
 
 3. **API Configuration**: The API endpoint must be configured in the script
-   - Location: `plugins/component-health/skills/list-regressions/list_regressions.py`
+   - Location: `plugins/teams/skills/list-regressions/list_regressions.py`
    - The script should have the correct API base URL
 
 ## Notes
@@ -334,8 +336,8 @@ Each regression object (in `components.*.open` or `components.*.closed` arrays) 
 
 ## See Also
 
-- Skill Documentation: `plugins/component-health/skills/list-regressions/SKILL.md`
-- Script: `plugins/component-health/skills/list-regressions/list_regressions.py`
+- Skill Documentation: `plugins/teams/skills/list-regressions/SKILL.md`
+- Script: `plugins/teams/skills/list-regressions/list_regressions.py`
 - Related Command: `/teams:summarize-regressions` (for summary statistics)
 - Related Command: `/teams:analyze` (for health grading and analysis)
 - Related Skill: `get-release-dates` (for fetching development window dates)

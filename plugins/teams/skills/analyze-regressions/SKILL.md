@@ -43,21 +43,22 @@ Use this skill when you need to:
 
 ### Step 1: Parse Arguments
 
-Extract the release version and optional component filter from the command arguments:
+Extract the view name and optional component filter from the command arguments:
 
-- **Release format**: "X.Y" (e.g., "4.17", "4.21")
+- **View format**: "X.Y-suffix" (e.g., "4.22-main", "4.17-main")
+- The release is derived from the view name (e.g., "4.22" from "4.22-main")
 - **Components** (optional): List of component names to filter by
 
 **Example argument parsing**:
 
 ```
-/teams:analyze-regressions 4.17
-/teams:analyze-regressions 4.21 --components Monitoring etcd
+/teams:analyze-regressions 4.17-main
+/teams:analyze-regressions 4.21-main --components Monitoring etcd
 ```
 
 ### Step 2: Fetch Release Dates
 
-Run the `get_release_dates.py` script to determine the development window for the release:
+Derive the release from the view name (e.g., "4.17" from "4.17-main"), then run the `get_release_dates.py` script to determine the development window:
 
 ```bash
 python3 plugins/teams/skills/get-release-dates/get_release_dates.py \
@@ -98,7 +99,7 @@ Run the `list_regressions.py` script with the appropriate arguments:
 
 ```bash
 python3 plugins/teams/skills/list-regressions/list_regressions.py \
-  --release 4.17 \
+  --view 4.17-main \
   --start 2024-05-17 \
   --end 2024-10-29 \
   --short
@@ -106,7 +107,7 @@ python3 plugins/teams/skills/list-regressions/list_regressions.py \
 
 **Parameter rules**:
 
-- `--release`: Always required (from Step 1)
+- `--view`: Always required (from Step 1). The release is derived from the view name internally.
 - `--components`: Optional, only if specified by user (from Step 1)
 - `--start`: Use `development_start` date from Step 2 (if not null)
   - **Always applied** for both GA'd and in-development releases
@@ -120,21 +121,21 @@ python3 plugins/teams/skills/list-regressions/list_regressions.py \
   - Only includes summary statistics
   - Prevents truncation problems with large datasets
 
-**Example for GA'd release** (4.17):
+**Example for GA'd release** (4.17-main):
 
 ```bash
 python3 plugins/teams/skills/list-regressions/list_regressions.py \
-  --release 4.17 \
+  --view 4.17-main \
   --start 2024-05-17 \
   --end 2024-10-29 \
   --short
 ```
 
-**Example for in-development release** (4.21 with null GA):
+**Example for in-development release** (4.22-main with null GA):
 
 ```bash
 python3 plugins/teams/skills/list-regressions/list_regressions.py \
-  --release 4.21 \
+  --view 4.22-main \
   --start 2025-09-02 \
   --short
 ```
@@ -143,7 +144,7 @@ python3 plugins/teams/skills/list-regressions/list_regressions.py \
 
 ```bash
 python3 plugins/teams/skills/list-regressions/list_regressions.py \
-  --release 4.21 \
+  --view 4.21-main \
   --components Monitoring etcd \
   --start 2025-09-02 \
   --short
@@ -469,7 +470,7 @@ Opening in your default browser...
 2. **Invalid Release Format**
 
    - **Symptom**: Empty results or error response
-   - **Solution**: Verify the release format (e.g., "4.17", not "v4.17" or "4.17.0")
+   - **Solution**: Verify the view format (e.g., "4.17-main", not "4.17" or "v4.17")
 
 3. **Release Dates Not Found**
 
@@ -500,7 +501,7 @@ Enable verbose output by examining stderr:
 
 ```bash
 python3 plugins/teams/skills/list-regressions/list_regressions.py \
-  --release 4.17 \
+  --view 4.17-main \
   --short 2>&1 | tee debug.log
 ```
 
@@ -567,45 +568,48 @@ The HTML report should include:
 ### Example 1: Grade Overall Release Health
 
 ```
-/teams:analyze-regressions 4.17
+/teams:analyze-regressions 4.17-main
 ```
 
 **Execution flow**:
 
-1. Fetch release dates for 4.17
-2. Run list_regressions.py with --start and --end (GA'd release)
-3. Display overall health grade
-4. Display per-component scorecard
-5. Highlight components needing attention
-6. Offer HTML report generation
+1. Derive release "4.17" from view "4.17-main"
+2. Fetch release dates for 4.17
+3. Run list_regressions.py with --view 4.17-main --start and --end (GA'd release)
+4. Display overall health grade
+5. Display per-component scorecard
+6. Highlight components needing attention
+7. Offer HTML report generation
 
 ### Example 2: Grade Specific Components
 
 ```
-/teams:analyze-regressions 4.21 --components Monitoring etcd
+/teams:analyze-regressions 4.22-main --components Monitoring etcd
 ```
 
 **Execution flow**:
 
-1. Fetch release dates for 4.21 (may have null GA)
-2. Run list_regressions.py with --components and --start only (in-development)
-3. Display health grades for Monitoring and etcd only
-4. Compare the two components
-5. Identify which needs more attention
+1. Derive release "4.22" from view "4.22-main"
+2. Fetch release dates for 4.22 (may have null GA)
+3. Run list_regressions.py with --view --components and --start only (in-development)
+4. Display health grades for Monitoring and etcd only
+5. Compare the two components
+6. Identify which needs more attention
 
 ### Example 3: Grade Single Component
 
 ```
-/teams:analyze-regressions 4.21 --components "kube-apiserver"
+/teams:analyze-regressions 4.21-main --components "kube-apiserver"
 ```
 
 **Execution flow**:
 
-1. Fetch release dates for 4.21
-2. Run list_regressions.py with single component filter
-3. Display detailed health metrics for kube-apiserver
-4. Show open vs closed breakdown
-5. List count of open untriaged regressions (if any)
+1. Derive release "4.21" from view "4.21-main"
+2. Fetch release dates for 4.21
+3. Run list_regressions.py with --view and single component filter
+4. Display detailed health metrics for kube-apiserver
+5. Show open vs closed breakdown
+6. List count of open untriaged regressions (if any)
 
 ## Health Grade Calculation Details
 

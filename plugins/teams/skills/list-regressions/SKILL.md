@@ -58,29 +58,29 @@ plugins/teams/skills/list-regressions/list_regressions.py
 Execute the script with appropriate arguments:
 
 ```bash
-# Basic usage - all regressions for a release
+# Basic usage - all regressions for a view
 python3 plugins/teams/skills/list-regressions/list_regressions.py \
-  --release 4.17
+  --view 4.17-main
 
 # Filter by specific components
 python3 plugins/teams/skills/list-regressions/list_regressions.py \
-  --release 4.21 \
+  --view 4.21-main \
   --components Monitoring "kube-apiserver"
 
 # Filter by multiple components
 python3 plugins/teams/skills/list-regressions/list_regressions.py \
-  --release 4.21 \
+  --view 4.21-main \
   --components Monitoring etcd "kube-apiserver"
 
 # Filter by development window (GA'd release - both start and end)
 python3 plugins/teams/skills/list-regressions/list_regressions.py \
-  --release 4.17 \
+  --view 4.17-main \
   --start 2024-05-17 \
   --end 2024-10-01
 
 # Filter by development window (in-development release - start only)
 python3 plugins/teams/skills/list-regressions/list_regressions.py \
-  --release 4.21 \
+  --view 4.22-main \
   --start 2025-09-02
 ```
 
@@ -293,16 +293,17 @@ Enable verbose output by examining stderr:
 
 ```bash
 python3 plugins/teams/skills/list-regressions/list_regressions.py \
-  --release 4.17 2>&1 | tee debug.log
+  --view 4.17 2>&1 | tee debug.log
 ```
 
 ## Script Arguments
 
 ### Required Arguments
 
-- `--release`: Release version to query
-  - Format: `"X.Y"` (e.g., "4.17", "4.16")
-  - Must be a valid OpenShift release number
+- `--view`: View name to query
+  - Format: `"X.Y-suffix"` (e.g., "4.22-main", "4.17-main")
+  - The release is derived from the view name automatically
+  - Multiple views can exist per release (e.g., "4.22-main", "4.22-main-mass-failure")
 
 ### Optional Arguments
 
@@ -501,46 +502,46 @@ The script outputs JSON with summaries and regressions grouped by component:
 
 ```bash
 python3 plugins/teams/skills/list-regressions/list_regressions.py \
-  --release 4.17
+  --view 4.17-main
 ```
 
-**Expected Output**: JSON containing all regressions for release 4.17
+**Expected Output**: JSON containing all regressions for the 4.17-main view
 
 ### Example 2: Filter by Component
 
 ```bash
 python3 plugins/teams/skills/list-regressions/list_regressions.py \
-  --release 4.21 \
+  --view 4.21-main \
   --components Monitoring etcd
 ```
 
-**Expected Output**: JSON containing regressions for only Monitoring and etcd components in release 4.21
+**Expected Output**: JSON containing regressions for only Monitoring and etcd components in the 4.21-main view
 
 ### Example 3: Filter by Single Component
 
 ```bash
 python3 plugins/teams/skills/list-regressions/list_regressions.py \
-  --release 4.21 \
+  --view 4.21-main \
   --components "kube-apiserver"
 ```
 
-**Expected Output**: JSON containing regressions for the kube-apiserver component in release 4.21
+**Expected Output**: JSON containing regressions for the kube-apiserver component in the 4.21-main view
 
 ### Example 4: Filter by Exact Test Name
 
 ```bash
 python3 plugins/teams/skills/list-regressions/list_regressions.py \
-  --release 4.22 \
+  --view 4.22-main \
   --test-name "[Monitor:kubelet-container-restarts][sig-architecture] platform pods in ns/openshift-machine-config-operator should not exit an excessive amount of times"
 ```
 
-**Expected Output**: JSON containing all regressions (across all components and variants) for this exact test in release 4.22. Useful for finding the same test failing in different variant combinations.
+**Expected Output**: JSON containing all regressions (across all components and variants) for this exact test in the 4.22-main view. Useful for finding the same test failing in different variant combinations.
 
 ### Example 5: Filter by Test Name Substring
 
 ```bash
 python3 plugins/teams/skills/list-regressions/list_regressions.py \
-  --release 4.22 \
+  --view 4.22-main \
   --test-name-contains "openshift-machine-config-operator"
 ```
 
