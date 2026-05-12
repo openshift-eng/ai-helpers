@@ -9,7 +9,6 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Compliance](#compliance-plugin)
 - [Git](#git-plugin)
 - [Hello World](#hello-world-plugin)
-- [Jira](#jira-plugin)
 - [Lvms](#lvms-plugin)
 - [Marketplace Ops](#marketplace-ops-plugin)
 - [Must Gather](#must-gather-plugin)
@@ -120,32 +119,6 @@ A hello world plugin
 - **`/hello-world:echo` `[name]`** - Hello world plugin implementation
 
 See [plugins/hello-world/README.md](plugins/hello-world/README.md) for detailed documentation.
-
-### Jira Plugin
-
-A plugin to automate tasks with Jira
-
-**Commands:**
-- **`/jira:backlog` `[project-key] [--assignee username] [--days-inactive N]`** - Find suitable JIRA tickets from the backlog to work on based on priority and activity
-- **`/jira:catch-me-up` `[N | --days N] [--no-cache]`** - Triage recent Jira activity — surface what needs attention, filter out noise
-- **`/jira:categorize-activity-type` `<issue-key> [--auto-apply]`** - Categorize JIRA tickets into activity types using AI
-- **`/jira:clone-from-github` `<issue-number> [issue-number...] [--github-project <org/repo>] [--jira-project <key>] [--dryrun]`** - Clone GitHub issues to Jira with proper formatting and linking
-- **`/jira:create-release-note` `<issue-key>`** - Generate bug fix release notes from Jira tickets and linked GitHub PRs
-- **`/jira:create` `<type> [project-key] <summary> [--component <name>] [--version <version>] [--parent <key>]`** - Create Jira issues (story, epic, feature, task, bug, feature-request) with proper formatting
-- **`/jira:generate-enhancement` `<issue-key>`** - Generate OpenShift enhancement proposal markdown from a Jira epic or feature
-- **`/jira:generate-feature-doc` `<feature-key>`** - Generate comprehensive feature documentation from Jira feature and all related issues and PRs
-- **`/jira:generate-test-plan` `[JIRA issue key] [GitHub PR URLs]`** - Generate test steps for a JIRA issue
-- **`/jira:grooming` `[project-filter] [time-period] [--component component-name] [--label label-name] [--type issue-type] [--status status] [--story-points]`** - Analyze new bugs and cards added over a time period and generate grooming meeting agenda
-- **`/jira:issues-by-component` `<project-key> [time-period] [--component name] [--assignee username] [--reporter username] [--status status] [--search term] [--search-description]`** - List and analyze JIRA issues organized by component with flexible filtering
-- **`/jira:ready-to-solve` `<jira-issue-key> [--dry-run] [--verbose] [--fix]`** - Check whether a Jira issue is well-groomed and ready for /jira:solve
-- **`/jira:reconcile-github` `[--github-project <org/repo>] [--jira-project <key>] [--profile <name>] [--porcelain] [--output json|yaml]`** - Reconcile state mismatches between GitHub and Jira issues
-- **`/jira:setup-gh2jira`** - Install and configure the gh2jira utility with all required tools and credentials
-- **`/jira:solve`** - Analyze a JIRA issue and create a pull request to solve it.
-- **`/jira:status-rollup` `issue-id [--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD]`** - Generate a status rollup comment for any JIRA issue based on all child issues and a given date range
-- **`/jira:update-weekly-status` `[project-key] [--component name] [--label label-name] [user-filters...]`** - Update weekly status summaries for Jira issues with component and user filtering
-- **`/jira:validate-blockers` `[target-version] [component-filter] [--bug issue-key]`** - Validate proposed release blockers using Red Hat OpenShift release blocker criteria
-
-See [plugins/jira/README.md](plugins/jira/README.md) for detailed documentation.
 
 ### Lvms Plugin
 
