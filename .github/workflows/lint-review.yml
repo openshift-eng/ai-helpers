@@ -1,3 +1,8 @@
+# Separate workflow for posting lint review comments on PRs.
+# The lint workflow runs with a read-only token (safe for fork PRs that
+# execute custom linter rules via subprocess). This workflow triggers
+# after it completes, downloads the report artifact, and posts comments
+# with a write-capable token — without ever checking out untrusted code.
 name: Lint Review
 
 on:
