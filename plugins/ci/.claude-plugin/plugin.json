@@ -3,6 +3,6 @@
   "description": "Tools for working with OpenShift CI and analyzing Prow job results",
   "version": "0.0.39",
   "author": {
-    "name": "openshift"
+    "name": "github.com/openshift-eng"
   }
 }

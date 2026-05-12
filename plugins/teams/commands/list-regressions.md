@@ -336,7 +336,7 @@ Each regression object (in `components.*.open` or `components.*.closed` arrays) 
 
 ## See Also
 
-- Skill Documentation: `plugins/component-health/skills/list-regressions/SKILL.md`
+- Skill Documentation: `plugins/teams/skills/list-regressions/SKILL.md`
 - Script: `plugins/teams/skills/list-regressions/list_regressions.py`
 - Related Command: `/teams:summarize-regressions` (for summary statistics)
 - Related Command: `/teams:analyze` (for health grading and analysis)

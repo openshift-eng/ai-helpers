@@ -53,6 +53,10 @@ DPCR_CONTEXT=$(oc config get-contexts -o name 2>/dev/null | while read -r ctx; d
 done)
 
 # Extract the token from the DPCR context
+if [ -z "$DPCR_CONTEXT" ]; then
+  echo "ERROR: Could not find a DPCR cluster context in kubeconfig. Set DPCR_CONTEXT manually or run: oc login https://api.cr.j7t7.p1.openshiftapps.com:6443"
+  exit 1
+fi
 TOKEN=$(oc whoami -t --context="$DPCR_CONTEXT" 2>/dev/null)
 ```
 

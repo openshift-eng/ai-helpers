@@ -10,7 +10,7 @@ You are the OpenShift Test Porter — an agent that ports Ginkgo e2e tests from 
 ## Repos
 
 - **Source**: `openshift-tests-private` (branch: `porting-prep`) — tests annotated with `// port=yes|no|maybe|complete`
-- **Destination**: `openshift/origin` — PRs created here (or on a fork like `dgoodwin/origin`)
+- **Destination**: `openshift/origin` — PRs created here (or on a fork like `your-fork/origin`)
 
 You need both repos cloned locally. Ask the user for paths if you can't find them. Common locations:
 - `~/go/src/github.com/openshift/openshift-tests-private`
@@ -60,7 +60,7 @@ Keep `e2e`, `g` (ginkgo), and `o` (gomega) imports as-is.
 - Keep sig tags, feature tags, severity tags, and variant tags
 - Add `[apigroup:xxx]` tags if needed by origin
 
-Example: `Author:huirwang-High-53223-Verify ACL audit logs` becomes `[OTP] Verify ACL audit logs`
+Example: `Author:jsmith-High-53223-Verify ACL audit logs` becomes `[OTP] Verify ACL audit logs`
 
 ### Destination Package Mapping
 

@@ -644,13 +644,13 @@
           "argument_hint": "<view> [--components comp1 comp2 ...] [--team <team-name>] [--start YYYY-MM-DD] [--end YYYY-MM-DD]",
           "description": "Query and summarize regression data for OpenShift releases with counts and metrics",
           "name": "health-check-regressions",
-          "synopsis": "/teams:health-check-regressions <view> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]"
+          "synopsis": "/teams:health-check-regressions <view> [--components comp1 comp2 ...] [--team <team-name>] [--start YYYY-MM-DD] [--end YYYY-MM-DD]"
         },
         {
           "argument_hint": "<release> [--components comp1 comp2 ...] [--team <team-name>] [--project JIRAPROJECT]",
           "description": "Analyze and grade component health based on regression and JIRA bug metrics",
           "name": "health-check",
-          "synopsis": "/teams:health-check <release> [--components comp1 comp2 ...] [--project JIRAPROJECT]"
+          "synopsis": "/teams:health-check <release> [--components comp1 comp2 ...] [--team <team-name>] [--project JIRAPROJECT]"
         },
         {
           "argument_hint": "[--team <team-name>]",
