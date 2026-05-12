@@ -19,6 +19,8 @@ produced by the skill caller. If absent, rationale defaults to a comma-joined
 list of matched signal values.
 """
 
+from __future__ import annotations
+
 import argparse
 import json
 import sys

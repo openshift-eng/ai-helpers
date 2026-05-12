@@ -9,6 +9,8 @@ Usage:
     derive_filters.py ... | build_jql.py [--project OCPBUGS]
 """
 
+from __future__ import annotations
+
 import argparse
 import json
 import sys
@@ -32,7 +34,7 @@ def main() -> None:
         parts.append(f"component in ({comps})")
 
     target_release = filters.get("target_release")
-    if target_release:
+    if target_release and target_release.strip():
         parts.append(
             f'("Target Version" = {quote(target_release)} '
             f"OR fixVersion = {quote(target_release)})"

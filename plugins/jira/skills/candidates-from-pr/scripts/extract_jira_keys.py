@@ -15,6 +15,8 @@ The Jira keys are *not* validated here — the skill caller is expected to
 validate via mcp__atlassian__jira_get_issue.
 """
 
+from __future__ import annotations
+
 import argparse
 import json
 import re

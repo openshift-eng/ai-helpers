@@ -36,6 +36,8 @@ The skill caller is responsible for turning matched_signals into a 1-2
 sentence rationale.
 """
 
+from __future__ import annotations
+
 import argparse
 import json
 import sys
@@ -43,10 +45,6 @@ from datetime import datetime, timedelta, timezone
 
 DROPLIKE_TYPES = {"Epic", "Feature", "Initiative"}
 DROP_STATUSES = {"Verified", "Closed"}
-
-
-def lower(value: str | None) -> str:
-    return (value or "").lower()
 
 
 def load(path: str) -> object:
@@ -65,7 +63,7 @@ def find_in_text(needles: list[str], text: str) -> list[str]:
 def find_lower(needles: list[str], text_lower: str) -> list[str]:
     if not needles or not text_lower:
         return []
-    return [n for n in needles if n and n in text_lower]
+    return [n for n in needles if n and n.lower() in text_lower]
 
 
 def score_one(
@@ -120,7 +118,7 @@ def score_one(
                 "value": next(iter(cand_components & derived_components)),
             }
         )
-    elif component_filter_used and not (cand_components & derived_components):
+    elif component_filter_used:
         # JQL should have prevented this; guard anyway.
         score = 0
         return score, matched

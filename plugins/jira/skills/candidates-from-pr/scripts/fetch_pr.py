@@ -14,6 +14,8 @@ Output: JSON on stdout with keys:
     diff (capped), diff_truncated (bool), diff_total_lines
 """
 
+from __future__ import annotations
+
 import argparse
 import json
 import re
