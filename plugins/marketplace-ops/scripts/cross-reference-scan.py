@@ -49,14 +49,26 @@ def main():
 
         if len(parts) >= 2 and parts[0] == "plugins":
             plugin_name = parts[1]
-            patterns = [
-                re.escape(f"/{plugin_name}:"),
-                re.escape(f"plugins/{plugin_name}"),
-            ]
 
-            if len(parts) >= 4:
+            if len(parts) == 2 or (len(parts) == 3 and parts[2] == ""):
+                patterns = [
+                    re.escape(f"/{plugin_name}:"),
+                    re.escape(f"plugins/{plugin_name}"),
+                ]
+            elif len(parts) >= 4 and parts[2] == "commands":
                 item_name = parts[-1].replace(".md", "")
-                patterns.append(re.escape(item_name))
+                patterns = [
+                    re.escape(f"/{plugin_name}:{item_name}"),
+                ]
+            elif len(parts) >= 4 and parts[2] == "skills":
+                skill_name = parts[3]
+                patterns = [
+                    re.escape(f"{plugin_name}:{skill_name}"),
+                ]
+            else:
+                patterns = [
+                    re.escape(removal.strip("/")),
+                ]
 
             exclude = [removal]
             for pattern in patterns:
