@@ -3,6 +3,7 @@
 This document lists all available Claude Code plugins and their commands in the ai-helpers repository.
 
 - [Agendas](#agendas-plugin)
+- [Agentic Docs](#agentic-docs-plugin)
 - [Operator Dashboard](#operator-dashboard-plugin)
 - [Bigquery](#bigquery-plugin)
 - [Ci](#ci-plugin)
@@ -46,6 +47,15 @@ A plugin to create various meeting agendas
 - **`/agendas:outcome-refinement`** - Analyze the list of JIRA outcome issues to prepare an outcome refinement meeting agenda.
 
 See [plugins/agendas/README.md](plugins/agendas/README.md) for detailed documentation.
+
+### Agentic Docs Plugin
+
+Create and maintain AI-optimized documentation for OpenShift
+
+**Commands:**
+- **`/agentic-docs:component`** - Create lean tier-2 agentic documentation for an OpenShift component repository
+
+See [plugins/agentic-docs/README.md](plugins/agentic-docs/README.md) for detailed documentation.
 
 ### Operator Dashboard Plugin
 
@@ -401,6 +411,7 @@ Team structure knowledge and health analysis commands for OpenShift teams
 - **`/teams:list-components` `[--team <team-name>]`** - List all OCPBUGS components, optionally filtered by team
 - **`/teams:list-jiras` `<project> [--component comp1 comp2 ...] [--status status1 status2 ...] [--include-closed] [--limit N]`** - Query and list raw JIRA bug data for a specific project
 - **`/teams:list-regressions` `<view> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]`** - Fetch and list raw regression data for OpenShift releases
+- **`/teams:list-repos` `[--refresh]`** - Report on repository purpose and approvers for github.com/openshift
 - **`/teams:list-teams`** - List all teams from the team component mapping
 
 See [plugins/teams/README.md](plugins/teams/README.md) for detailed documentation.

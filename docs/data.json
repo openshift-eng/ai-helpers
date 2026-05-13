@@ -671,6 +671,12 @@
           "synopsis": "/teams:list-regressions <view> [--components comp1 comp2 ...] [--start YYYY-MM-DD] [--end YYYY-MM-DD]"
         },
         {
+          "argument_hint": "[--refresh]",
+          "description": "Report on repository purpose and approvers for github.com/openshift",
+          "name": "list-repos",
+          "synopsis": "/teams:list-repos"
+        },
+        {
           "argument_hint": "",
           "description": "List all teams from the team component mapping",
           "name": "list-teams",
@@ -718,6 +724,11 @@
           "name": "CodeRabbit Rules from PR Reviews - Fetch Comments"
         },
         {
+          "description": "Helper skill to find repository approvers and ownership information",
+          "id": "find-repo-owner",
+          "name": "Find Repository Owner"
+        },
+        {
           "description": "Fetch OpenShift release dates and metadata from Sippy API",
           "id": "get-release-dates",
           "name": "Get Release Dates"
@@ -736,6 +747,11 @@
           "description": "Fetch and analyze component health regressions for OpenShift releases",
           "id": "list-regressions",
           "name": "List Regressions"
+        },
+        {
+          "description": "Generate cached report of OpenShift repository purpose and approvers",
+          "id": "list-repos",
+          "name": "OpenShift Repository Report"
         },
         {
           "description": "List all teams from the team component mapping",
@@ -1175,6 +1191,11 @@
       "name": "openshift",
       "skills": [
         {
+          "description": "Run `make generate` in openshift/api repository to generate client code, deepcopy methods, informers, and listers. Automatically troubleshoot and fix common errors including working directory issues, missing markers, and import path problems. Use when the user needs to generate OpenShift API stubs, run make generate, or troubleshoot code generation errors in openshift/api. Make sure to use this skill whenever the user mentions running make generate, generating stubs, fixing code generation errors, or working with openshift/api types.",
+          "id": "generate-api-stubs",
+          "name": "Generate API Stubs"
+        },
+        {
           "description": "Generates and displays OVN-Kubernetes network topology diagrams showing logical switches, routers, ports with IP/MAC addresses in Mermaid format",
           "id": "generating-ovn-topology",
           "name": "generating-ovn-topology"
@@ -1185,7 +1206,7 @@
           "name": "OpenShift Node Kernel Inspection"
         }
       ],
-      "version": "0.0.5"
+      "version": "0.0.6"
     },
     {
       "commands": [
