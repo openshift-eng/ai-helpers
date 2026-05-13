@@ -1131,6 +1131,12 @@
           "synopsis": "/openshift:expand-test-case [test-idea-or-file-or-commands] [format]"
         },
         {
+          "argument_hint": "[api-repo-path] [--client-go [client-go-path]]",
+          "description": "Generate OpenShift API stubs with automatic error detection and fixing, optionally updating client-go",
+          "name": "generate-api",
+          "synopsis": "/openshift:generate-api [api-repo-path] [--client-go [client-go-path]]"
+        },
+        {
           "argument_hint": "",
           "description": "Check status of Ironic baremetal nodes in OpenShift cluster",
           "name": "ironic-status",
@@ -1191,7 +1197,7 @@
       "name": "openshift",
       "skills": [
         {
-          "description": "Run `make generate` in openshift/api repository to generate client code, deepcopy methods, informers, and listers. Automatically troubleshoot and fix common errors including working directory issues, missing markers, and import path problems. Use when the user needs to generate OpenShift API stubs, run make generate, or troubleshoot code generation errors in openshift/api. Make sure to use this skill whenever the user mentions running make generate, generating stubs, fixing code generation errors, or working with openshift/api types.",
+          "description": "Run `make generate` in openshift/api repository to generate client code, deepcopy methods, informers, and listers. Automatically troubleshoot and fix common errors including working directory issues, missing markers, and import path problems. Also handles multi-repo workflow with openshift/client-go, updating vendoring and regenerating clients. Use when the user needs to generate OpenShift API stubs, run make generate, update client-go vendoring, troubleshoot code generation errors in openshift/api or openshift/client-go, or mentions working with openshift/api types and client-go together.",
           "id": "generate-api-stubs",
           "name": "Generate API Stubs"
         },
@@ -1206,7 +1212,7 @@
           "name": "OpenShift Node Kernel Inspection"
         }
       ],
-      "version": "0.0.6"
+      "version": "0.0.7"
     },
     {
       "commands": [
