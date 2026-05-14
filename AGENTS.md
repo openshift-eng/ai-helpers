@@ -34,6 +34,6 @@ Canonical example: `plugins/hello-world/`
 - **Follow existing patterns.** Read `[plugins/hello-world/commands/echo.md](plugins/hello-world/commands/echo.md)` for command format; the linter enforces structure.
 - **Use kebab-case** for all plugin names, command files, and skill directories.
 - **Use `.work/{feature-name}/`** for temporary files (gitignored).
-- **Register all plugins** in `[.claude-plugin/marketplace.json](.claude-plugin/marketplace.json)`.
+- **Register all plugins** in [.claude-plugin/marketplace.json](.claude-plugin/marketplace.json).
 - **Set author** to `"github.com/openshift-eng"` in `plugin.json`.
 - **Add new commands** to an existing plugin when they fit its scope, or to `plugins/utils/` if no clear parent. Create a new plugin only for a distinct group of related commands.

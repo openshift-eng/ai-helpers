@@ -32,7 +32,7 @@ rules:
     enabled: false
   # SKILL.md must have valid frontmatter with name and description
   agentskill-rename-refs:
-    enabled: falsie
+    enabled: false
   context-budget:             # TODO: ai-helpers has many skills way over budget, including one with 20K tokens
     enabled: false
   content-weak-language:      # TODO: fix weak language 
