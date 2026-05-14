@@ -1,4 +1,4 @@
-name: Plugin Evals
+name: Evals
 
 on:
   pull_request:
@@ -51,7 +51,7 @@ jobs:
             echo "has_contributing=false" >> "$GITHUB_OUTPUT"
           fi
 
-  behavioral-evals:
+  plugins:
     needs: detect-changes
     if: needs.detect-changes.outputs.has_plugins == 'true'
     runs-on: ubuntu-latest
@@ -95,7 +95,7 @@ jobs:
             eval-results/*.html
           retention-days: 30
 
-  contributing-evals:
+  contributing:
     needs: detect-changes
     if: needs.detect-changes.outputs.has_contributing == 'true'
     runs-on: ubuntu-latest
