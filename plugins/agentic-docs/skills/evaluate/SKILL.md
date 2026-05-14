@@ -4,10 +4,10 @@ description: "Evaluate agentic documentation quality using promptfoo-based behav
 trigger: /agentic-docs:evaluate
 ---
 
-# Agentic-Docs: Evaluate (v5.0)
+# Agentic-Docs: Evaluate (v6.0)
 
 **Trigger**: `/agentic-docs:evaluate`  
-**Purpose**: Evaluate documentation quality by running promptfoo test suite and analyzing results using a two-agent architecture
+**Purpose**: Evaluate documentation quality by running promptfoo test suite and analyzing results
 
 **Framework**: OpenShift Enhancements Agentic Docs Evaluation  
 **Reference**: https://github.com/openshift/enhancements/pull/1992
@@ -25,27 +25,18 @@ Tests measure:
 - **Pattern application**: Does agent apply repository conventions correctly?
 - **Anti-pattern rejection**: Does agent reject incorrect patterns?
 
-## Two-Agent Architecture
+## Architecture (Simplified)
 
 ```
 ┌─────────────────────────────────────────┐
-│ Code Claude Sub-Agent                    │
+│ Main Agent (You - the skill executor)   │
 │                                          │
 │  1. Run bundled run-eval.sh script      │
-│  2. Capture promptfoo JSON results       │
-│  3. Return results to main agent         │
+│  2. Capture promptfoo results           │
+│  3. Collect session metrics              │
+│  4. Spawn judge sub-agent                │
 │                                          │
 │  Script: ${CLAUDE_PLUGIN_ROOT}/scripts/run-eval.sh
-└─────────────────────────────────────────┘
-                    │
-                    │ promptfoo-results.json
-                    ↓
-┌─────────────────────────────────────────┐
-│ Main Agent (You)                         │
-│                                          │
-│  1. Collect session metrics              │
-│  2. Spawn judge sub-agent                │
-│  3. Pass results + metrics to judge      │
 └─────────────────────────────────────────┘
                     │
                     │ results + metrics
@@ -60,7 +51,11 @@ Tests measure:
 └─────────────────────────────────────────┘
 ```
 
-**CRITICAL**: You must spawn BOTH agents - first the code agent, THEN the judge agent after code completes.
+**Why this architecture?**
+- **Simpler**: Only one sub-agent (judge) instead of two
+- **Faster**: No code sub-agent spawn overhead
+- **Cheaper**: Fewer tokens used
+- **Clearer**: Main agent runs tools, judge analyzes results
 
 ## Prerequisites
 
@@ -102,129 +97,143 @@ if [ -z "$ANTHROPIC_API_KEY" ] && [ -z "$ANTHROPIC_VERTEX_PROJECT_ID" ]; then
 fi
 ```
 
-If checks fail, display the error message to the user and STOP. Do NOT proceed to spawn agents.
+**If checks fail**: Display the error message to the user and STOP. Do not proceed to run evaluation.
 
-### Step 2: Spawn Code Sub-Agent
+### Step 2: Run Promptfoo Evaluation
 
-**Purpose**: Run the bundled run-eval.sh script to execute promptfoo evaluation
+**YOU (the main agent) run the evaluation** using the bundled script:
 
-**IMPORTANT**: Use the Agent tool to spawn a sub-agent:
+```bash
+# Navigate to repository
+cd {{repository_path}}
 
-```
-Agent(
-  description="Run promptfoo evaluation using bundled script",
-  prompt="""
-You are a code sub-agent responsible for running the promptfoo evaluation using the bundled script.
+# Run the bundled evaluation script
+bash ${CLAUDE_PLUGIN_ROOT}/scripts/run-eval.sh
 
-Your task:
-1. Navigate to the repository: {{repository_path}}
-2. Run the evaluation script: bash {{skill_scripts_path}}/run-eval.sh
-3. Wait for it to complete (may take 1-5 minutes for 43 tests)
-4. Read the results file: promptfoo-results.json
-5. Return the complete JSON results
-
-CRITICAL INSTRUCTIONS:
-- Use the bundled script at: {{skill_scripts_path}}/run-eval.sh
-- DO NOT run promptfoo commands directly
-- DO NOT install anything manually (script handles it)
-- The script will output results to ./promptfoo-results.json
-- Return ALL contents of promptfoo-results.json
-
-Repository: {{repository_path}}
-Script path: {{skill_scripts_path}}/run-eval.sh
-
-Expected output: Complete promptfoo-results.json content
-"""
-)
+# The script will:
+# - Auto-detect API credentials (Vertex AI or Anthropic API)
+# - Run promptfoo with proper environment setup
+# - Output results to ./promptfoo-results.json
 ```
 
-**Variables to substitute**:
-- `{{repository_path}}`: The repository being evaluated
-- `{{skill_scripts_path}}`: Use `${CLAUDE_PLUGIN_ROOT}/scripts` where CLAUDE_PLUGIN_ROOT points to the evaluate skill directory
+**Important**:
+- Use `${CLAUDE_PLUGIN_ROOT}/scripts/run-eval.sh` (the bundled script)
+- Do NOT run `promptfoo eval` directly
+- The script handles NVM/Node.js setup and proper configuration
+- Wait for script to complete (may take 1-5 minutes for 43 tests)
+- Results are written to `./promptfoo-results.json`
 
-**Expected output from code sub-agent**:
-- Complete contents of `promptfoo-results.json`
-- Promptfoo execution logs showing test progress
-
-**WAIT for code sub-agent to complete before proceeding to Step 3.**
+**After execution completes**:
+1. Read the JSON results: `cat promptfoo-results.json`
+2. Check the terminal output for summary (passed/failed/errors)
+3. Capture both JSON and summary for judge analysis
 
 ### Step 3: Collect Session Metrics
 
-While waiting for or after the code sub-agent completes, collect session metrics:
+**YOU (the main agent) collect session metrics** from the current session:
 
 ```bash
 # Get current session info
 SESSION_DIR=$(ls -td ~/.claude/projects/*/ | head -1)
 SESSION_FILE=$(ls -t "$SESSION_DIR"/*.jsonl | head -1)
 
-# Run metrics collection (if metrics plugin available)
-if command -v metrics:ai-docs-telemetry &> /dev/null; then
+# Run metrics collection using metrics plugin
+if command -v python3 &> /dev/null && [ -f "${CLAUDE_PLUGIN_ROOT}/../../metrics/scripts/ai_docs_telemetry.py" ]; then
   python3 ${CLAUDE_PLUGIN_ROOT}/../../metrics/scripts/ai_docs_telemetry.py \
     -session "$SESSION_FILE" > metrics.json
 else
-  echo '{"warning": "metrics plugin not available"}' > metrics.json
+  # Metrics plugin not available - continue without metrics
+  echo '{"warning": "metrics plugin not available", "files_accessed": []}' > metrics.json
 fi
 ```
 
-**Metrics to capture**:
+**Metrics to capture** (if available):
 - Total tokens used in session
 - Session duration
 - Files accessed (ai-docs/, AGENTS.md, etc.)
 - Entry points used
 - Navigation patterns
 
-**Output**: `metrics.json` file
+**Output**: `metrics.json` file (or warning if metrics unavailable)
+
+**Note**: If metrics collection fails, continue anyway - promptfoo results are the primary data.
 
 ### Step 4: Spawn Judge Sub-Agent
 
-**Purpose**: Analyze promptfoo results and session metrics to generate comprehensive evaluation report
+**YOU (the main agent) spawn the judge sub-agent** using the Agent tool:
 
-**CRITICAL**: This must happen AFTER Step 2 completes. Use the promptfoo results from the code sub-agent.
+Use this exact pattern:
 
-**IMPORTANT**: Use the Agent tool to spawn a sub-agent:
-
-```
+```python
 Agent(
   description="Analyze evaluation results and generate report",
-  prompt="""
+  prompt=f"""
 You are a judge sub-agent responsible for evaluating agentic documentation quality.
 
 You have been provided with:
 1. Promptfoo test results (JSON format)
-2. Session metrics (JSON format)
+2. Session metrics (JSON format if available)
 
 Your task: Analyze the results and generate a comprehensive evaluation report.
 
 ## Inputs
 
 ### Promptfoo Results
-{{promptfoo_results}}
+{promptfoo_results_json}
 
 ### Session Metrics
-{{session_metrics}}
+{session_metrics_json}
 
 ## Evaluation Criteria
 
 ### 1. Test Results Analysis
-- Review all promptfoo test results
-- Group by category: Navigation, Authoring, Anti-patterns, etc.
-- Calculate pass rates for each category
-- Identify failing tests and root causes
-- Check for errors vs actual failures
 
-### 2. Metrics Analysis  
-- Analyze token usage vs documentation quality
-- Evaluate navigation efficiency (entry points, file access patterns)
-- Assess session duration vs complexity
+**First, determine the error rate**:
+- If >50% of tests are errors (not failures): This is a configuration problem, not a documentation problem
+- Errors indicate: provider config wrong, API auth failed, or promptfoo setup issues
+- Failures indicate: documentation gaps or quality issues
+
+**Analyze test results**:
+- Count: passed, failed, errors
+- Group by category (if categories are in test names/descriptions)
+- Calculate pass rate: passed / (passed + failed) - exclude errors from quality calculation
+- Identify patterns in failures vs errors
+
+**For each failing test**:
+- Extract test name/description
+- Identify what was expected vs actual
+- Determine root cause (documentation gap, unclear guidance, missing reference)
+
+**For errors**:
+- Identify error type (provider error, auth error, config error)
+- Common error patterns
+- Recommended fixes for errors (separate from doc improvements)
+
+### 2. Metrics Analysis (if available)
+
+If session metrics provided:
+- Token usage: Normal/High/Low relative to test complexity
+- Files accessed: Which docs were read during evaluation
+- Entry points: Did agents find AGENTS.md or other entry points?
+- Navigation patterns: Sequential or scattered access
+
+If metrics unavailable:
+- Note that metrics analysis is skipped
+- Focus entirely on promptfoo results
 
 ### 3. Overall Assessment
-- Determine if documentation meets quality threshold (>90% pass rate)
-- Identify critical failures (especially anti-pattern tests)
-- Evaluate natural discovery behavior
+
+**Quality threshold** (for non-error tests):
+- PASS: >90% pass rate with zero anti-pattern failures
+- FAIL: <90% pass rate or any anti-pattern failures
+
+**Configuration health**:
+- HEALTHY: <10% error rate
+- NEEDS FIX: >10% error rate (fix config before judging doc quality)
 
 ## Output Format
 
-Generate a detailed evaluation report in markdown format with these sections:
+Generate a detailed evaluation report in markdown format:
 
 ```markdown
 # Agentic Documentation Evaluation Report
@@ -234,98 +243,179 @@ Generate a detailed evaluation report in markdown format with these sections:
 **Evaluator**: Judge Claude Sub-Agent
 
 ## Executive Summary
-- Overall Pass Rate: X%
-- Tests Passed: X/Y
-- Tests Failed: X/Y
-- Errors: X/Y
-- Critical Issues: N
-- Recommendation: PASS/FAIL
+
+### Results Overview
+- **Total Tests**: X
+- **Passed**: X (X%)
+- **Failed**: X (X%)
+- **Errors**: X (X%)
+
+### Configuration Health
+- **Status**: HEALTHY / NEEDS FIX
+- **Error Rate**: X%
+- [If >10% errors] ⚠️  High error rate indicates configuration issues - fix these before evaluating documentation quality
+
+### Documentation Quality (excluding errors)
+- **Pass Rate**: X% (passed / (passed + failed))
+- **Recommendation**: PASS / FAIL
+- **Critical Issues**: N
+
+## Configuration Issues (if error rate >10%)
+
+[Only include this section if errors >10%]
+
+**Error Analysis**:
+- **Error Count**: X/Y tests (X%)
+- **Common Error Pattern**: [describe the error type]
+
+**Likely Causes**:
+1. [Most likely cause based on error messages]
+2. [Second likely cause]
+
+**Recommended Fixes**:
+1. [Specific fix for configuration]
+2. [Specific fix for API setup]
+
+**Action Required**: Fix configuration issues above, then re-run evaluation to assess documentation quality.
+
+---
 
 ## Test Results by Category
 
-[For each category found in promptfoo results]
+[Group tests by category if identifiable from test names/descriptions]
 
-### Category Name (X/Y passed)
-- **Test name**: ✅ PASS or ❌ FAIL
-  - Expected: [what was expected]
-  - Actual: [what happened]
-  - Evidence: [quote from test output]
+### Category: [Category Name]
 
-[Repeat for all tests]
+**Results**: X passed, Y failed, Z errors (Pass rate: X%)
 
-### Critical: Anti-Pattern Tests
-**Zero tolerance**: All anti-pattern tests must pass.
-[List anti-pattern test results with special emphasis]
+#### Passed Tests ✅
+- [Test name]: Brief note on what was validated
+
+#### Failed Tests ❌
+- **[Test name]**
+  - **Expected**: [what should have happened]
+  - **Actual**: [what actually happened]
+  - **Root Cause**: [why it failed - be specific]
+  - **Fix**: [what to change in documentation]
+
+#### Errored Tests ⚠️
+- **[Test name]**: [error type - config/provider/auth]
+
+[Repeat for each category]
+
+### Anti-Pattern Tests (Critical)
+
+**Status**: [ALL PASSED ✅ / FAILURES DETECTED ❌]
+
+[List anti-pattern test results separately - these are zero-tolerance]
 
 ## Session Metrics
+
+[Only include if metrics were provided]
 
 | Metric | Value | Assessment |
 |--------|-------|------------|
 | Total Tokens | X | Normal/High/Low |
 | Duration | X min | Efficient/Slow |
-| Files Accessed | X | Good coverage/Missing files |
-| Entry Point | AGENTS.md/README.md/etc | Optimal/Sub-optimal |
-| Navigation Pattern | Direct/Exploratory | Efficient/Inefficient |
+| Files Accessed | X | Good coverage/Missing key files |
+| Entry Point | [first file accessed] | Optimal (AGENTS.md)/Sub-optimal |
+| Navigation Pattern | [description] | Efficient/Scattered |
 
-## Failure Analysis
+**Key Files Accessed**:
+- [List files that were read, with access counts if available]
 
-[For each failing or erroring test]
+**Missing Files** (if any expected files weren't accessed):
+- [List files that should have been accessed but weren't]
 
-### Test: [test name]
-- **Category**: [category]
-- **Expected**: [expected behavior]
-- **Actual**: [actual behavior]
-- **Root Cause**: [why it failed - documentation gap, unclear guidance, missing reference, config error]
-- **Recommended Fix**: [specific action to take]
+## Documentation Quality Assessment
 
-## Error Analysis
+[Only include this if error rate <10% - otherwise focus on fixing config first]
 
-[If there are errors instead of pass/fail]
+### Strengths
+- [What the documentation does well]
+- [Evidence from passing tests]
 
-**Error Rate**: X%
-**Common Error Type**: [provider error, config error, etc.]
+### Weaknesses
+- [What needs improvement]
+- [Evidence from failing tests]
 
-Likely causes:
-1. [Most likely cause]
-2. [Second likely cause]
-3. [Etc.]
+### Critical Gaps
+- [Any anti-pattern failures or critical knowledge gaps]
 
 ## Recommendations
 
-### High Priority (Critical Fixes)
-- [Issue 1 that must be fixed]
-- [Issue 2 that must be fixed]
+### Critical (Must Fix)
+[Only include if there are critical issues]
+- [Issue 1 that prevents PASS verdict]
+- [Issue 2 that prevents PASS verdict]
 
-### Medium Priority (Documentation Improvements)
-- [Improvement 1]
-- [Improvement 2]
+### High Priority
+- [Important improvement 1]
+- [Important improvement 2]
 
-### Low Priority (Nice-to-have Enhancements)
-- [Enhancement 1]
-- [Enhancement 2]
+### Medium Priority
+- [Nice-to-have improvement 1]
+- [Nice-to-have improvement 2]
+
+### Configuration Fixes (if errors >10%)
+- [Config fix 1]
+- [Config fix 2]
 
 ## Conclusion
 
-[Final assessment - 2-3 paragraphs]
-- Overall quality verdict
-- Key strengths of the documentation
-- Most critical improvements needed
-- Next steps
+[2-3 paragraphs summarizing the evaluation]
+
+**Configuration Status**: [HEALTHY / NEEDS FIX]
+[If needs fix: Explain that doc quality cannot be properly assessed until config is fixed]
+
+**Documentation Quality**: [Only if config healthy: PASS / FAIL]
+[If PASS: Summarize strengths]
+[If FAIL: Summarize critical gaps]
+
+**Next Steps**:
+1. [First action to take]
+2. [Second action to take]
+3. [Etc.]
 
 ---
 
-**Pass Threshold**: >90% pass rate with zero anti-pattern failures
-**Actual Result**: [PASS/FAIL based on criteria]
+### Final Verdict
+
+[If config needs fix]
+⚠️  **FIX CONFIGURATION FIRST**: Error rate of X% indicates configuration issues. Address these before re-evaluating documentation quality.
+
+[If config healthy and docs pass]
+✅ **DOCUMENTATION PASSES**: Pass rate of X% meets the >90% threshold. Documentation enables effective AI agent behavior.
+
+[If config healthy but docs fail]
+❌ **DOCUMENTATION NEEDS IMPROVEMENT**: Pass rate of X% below 90% threshold. Address the high-priority recommendations above.
 ```
 
 ## Important Guidelines
 
-1. **Be specific**: Quote actual test outputs, don't paraphrase
-2. **Categorize clearly**: Group related failures together
-3. **Root cause analysis**: Don't just say "failed" - explain WHY
-4. **Actionable recommendations**: Each recommendation should be implementable
-5. **Distinguish errors from failures**: Errors = config/execution problem, Failures = documentation gaps
-6. **Zero tolerance for anti-patterns**: Even one anti-pattern failure = overall FAIL
+1. **Distinguish errors from failures**: 
+   - Errors = config/setup problems (provider, auth, promptfoo)
+   - Failures = documentation quality problems
+   - If >10% errors, focus on config fixes first
+
+2. **Be specific with evidence**: 
+   - Quote actual error messages
+   - Reference specific test names
+   - Cite actual vs expected behavior
+
+3. **Categorize when possible**:
+   - Group related tests together
+   - Identify patterns in failures
+   - Separate anti-pattern tests (zero tolerance)
+
+4. **Actionable recommendations**:
+   - Each recommendation should be implementable
+   - Prioritize by impact
+   - Distinguish config fixes from doc improvements
+
+5. **Handle missing metrics gracefully**:
+   - If no metrics provided, skip metrics analysis
+   - Don't fail or complain - just focus on promptfoo results
 
 Generate the complete evaluation report now.
 """
@@ -333,35 +423,49 @@ Generate the complete evaluation report now.
 ```
 
 **Variables to substitute**:
-- `{{promptfoo_results}}`: Complete JSON from code sub-agent
-- `{{session_metrics}}`: Complete JSON from metrics collection
+- `{promptfoo_results_json}`: Complete contents of `promptfoo-results.json`
+- `{session_metrics_json}`: Complete contents of `metrics.json`
 - `{{repository_name}}`: Name of repository being evaluated
 - `{{evaluation_date}}`: Current date
 
 **Expected output from judge sub-agent**:
 - Complete markdown evaluation report
-- Analysis of all test results
+- Analysis of all test results  
+- Distinction between config errors and doc failures
 - Recommendations for improvements
 
-### Step 5: Return Evaluation Report
+### Step 5: Display Evaluation Report
 
-Display the judge's evaluation report to the user.
+**YOU (the main agent) display the judge's report** to the user:
 
-**Format**:
-- Show complete markdown report
-- Highlight critical failures
-- Emphasize overall PASS/FAIL verdict
-- Provide next steps
+1. Show the complete markdown report from the judge
+2. Highlight the final verdict (PASS/FAIL or NEEDS CONFIG FIX)
+3. If there were configuration errors, emphasize that config must be fixed first
+4. Point user to next steps from the recommendations
+
+**Example output**:
+```
+Here are the evaluation results for your documentation:
+
+[Insert complete judge report here]
+
+---
+
+**Summary**: [One-line summary of verdict]
+**Next Step**: [Most important action from recommendations]
+```
 
 ## Success Criteria
 
-**Overall PASS requirements**:
-- ✅ Test pass rate: >90%
-- ✅ Anti-pattern tests: 100% pass rate (zero tolerance)
-- ✅ Error rate: <5% (errors indicate config problems, not doc problems)
-- ✅ Metrics: Reasonable token usage, proper entry points
+**Configuration Health**:
+- ✅ Healthy: <10% error rate
+- ❌ Needs Fix: >10% error rate (fix config before judging docs)
 
-**Any anti-pattern failure = FAIL** (critical requirement)
+**Documentation Quality** (only if config healthy):
+- ✅ PASS: >90% pass rate with zero anti-pattern failures
+- ❌ FAIL: <90% pass rate or any anti-pattern failures
+
+**Any anti-pattern failure = FAIL** (zero tolerance)
 
 ## Error Handling
 
@@ -379,7 +483,7 @@ To generate it, run:
 This will create a tailored evaluation suite for this repository.
 ```
 
-**Action**: Display error and STOP. Do not spawn any agents.
+**Action**: Display error and STOP. Do not run evaluation.
 
 ### Missing API Credentials
 
@@ -392,39 +496,34 @@ Set one of:
   export ANTHROPIC_VERTEX_PROJECT_ID='your-project-id'
 ```
 
-**Action**: Display error and STOP. Do not spawn any agents.
+**Action**: Display error and STOP. Do not run evaluation.
 
 ### Promptfoo Execution Errors
 
-If code sub-agent reports errors running promptfoo:
-1. Check the error message from run-eval.sh
+If `run-eval.sh` fails:
+1. Check the error message from the script
 2. Common issues:
-   - Node.js not installed → Tell user to install Node.js 18+
-   - Provider config wrong → Check promptfooconfig.yaml provider format
-   - API authentication failed → Check API key/credentials
+   - Node.js not installed → "Install Node.js 18+"
+   - Script permission denied → "Run: chmod +x scripts/run-eval.sh"
+   - Provider config wrong → "Check promptfooconfig.yaml provider format"
 3. Display the specific error to user
-4. Still spawn judge sub-agent to analyze the error
+4. Still spawn judge sub-agent with whatever results exist (even if partial)
 
 ### High Error Rate (>10%)
 
-If promptfoo results show >10% errors (not failures, but errors):
-- This indicates a configuration problem, not documentation quality
-- Judge should analyze error patterns
-- Recommendations should focus on fixing promptfoo config first
+If promptfoo results show >10% errors:
+- Judge will identify this as configuration problem
+- Report will focus on fixing config issues
+- Documentation quality assessment will be deferred until config is fixed
 
 ### Metrics Collection Failure
 
 If metrics plugin unavailable or fails:
 ```
-WARNING: Session metrics collection failed
-
-Continuing evaluation with promptfoo results only.
-Metrics analysis will be skipped.
-
-Details: {{error_message}}
+Note: Session metrics unavailable - proceeding with promptfoo results only.
 ```
 
-**Action**: Continue with judge sub-agent using only promptfoo results.
+**Action**: Continue with evaluation using only promptfoo results. Judge will note metrics are unavailable.
 
 ## Bundled Scripts
 
@@ -453,47 +552,79 @@ bash ${CLAUDE_PLUGIN_ROOT}/scripts/run-eval.sh "navigation"
 
 ### Makefile
 
-**Purpose**: Convenience targets for common operations
+**Purpose**: Convenience targets for manual usage (not used by skill)
 
-**Available targets**:
+Available targets:
 - `make eval` - Run all evaluations
-- `make eval-filter FILTER=pattern` - Run filtered evaluations
 - `make eval-view` - Open web UI to view results
-- `make eval-clean` - Clean evaluation cache
 
-**Note**: These are for advanced users running evaluations manually, not for the skill's automated workflow.
-
-## Example Usage
+## Complete Example Workflow
 
 **User request**:
 ```
-I just created documentation for the multiarch-tuning-operator. 
-I ran /agentic-docs:generate-evals and now I want to evaluate it.
-The repository is at /path/to/multiarch-tuning-operator.
+I just created documentation for the multiarch-tuning-operator repository at 
+/Users/kpais/workspace/multiarch-tuning-operator. I already ran 
+/agentic-docs:generate-evals. Now I want to evaluate the documentation quality.
 ```
 
-**Your workflow**:
-1. Pre-flight checks (promptfooconfig.yaml exists, API key set)
-2. Spawn code sub-agent → runs `scripts/run-eval.sh` → returns promptfoo-results.json
-3. Collect session metrics → writes metrics.json
-4. Spawn judge sub-agent → analyzes results + metrics → generates report
-5. Display evaluation report to user
+**Your execution**:
 
-**Expected output**: Comprehensive evaluation report showing:
-- 43 test results (pass/fail/error counts)
-- Breakdown by category (navigation, authoring, anti-patterns, etc.)
-- Session metrics (tokens, duration, files accessed)
+```python
+# Step 1: Pre-flight checks
+repository_path = "/Users/kpais/workspace/multiarch-tuning-operator"
+
+# Check if promptfooconfig.yaml exists
+if not file_exists(f"{repository_path}/promptfooconfig.yaml"):
+    print("ERROR: promptfooconfig.yaml not found...")
+    return
+
+# Check API credentials
+if not ($ANTHROPIC_API_KEY or $ANTHROPIC_VERTEX_PROJECT_ID):
+    print("ERROR: No API credentials...")
+    return
+
+# Step 2: Run promptfoo evaluation
+bash(f"cd {repository_path} && bash ${{CLAUDE_PLUGIN_ROOT}}/scripts/run-eval.sh")
+
+# Step 3: Collect results and metrics
+promptfoo_results = read_file(f"{repository_path}/promptfoo-results.json")
+metrics = collect_session_metrics()
+
+# Step 4: Spawn judge sub-agent
+judge_report = Agent(
+    description="Analyze evaluation results",
+    prompt=f"""
+    You are a judge sub-agent...
+    
+    Promptfoo Results: {promptfoo_results}
+    Session Metrics: {metrics}
+    
+    [Full judge prompt from Step 4]
+    """
+)
+
+# Step 5: Display results
+print(judge_report)
+print("\n---\nNext step: [Most important recommendation]")
+```
+
+**Expected output**:
+- Comprehensive evaluation report
+- Test results: 43 tests with X passed, Y failed, Z errors
+- Documentation quality verdict: PASS or FAIL
 - Specific recommendations for improvements
-- Overall PASS/FAIL verdict
+- Session metrics analysis
 
 ## Cost Estimate
 
-**Per evaluation** (43 tests):
-- Code sub-agent: ~$0.02 (runs script)
-- Promptfoo tests: ~$0.15-0.30 (depends on test complexity)
-- Metrics collection: ~$0.00 (local processing)
-- Judge sub-agent: ~$0.05-0.10 (analyzes ~10K tokens of results)
-- **Total**: ~$0.22-0.42 per full evaluation
+**Per evaluation** (simplified architecture):
+- Main agent running promptfoo: ~$0.00 (bash command, no LLM calls)
+- Promptfoo tests (43 tests): ~$0.15-0.30 (depends on test complexity)
+- Metrics collection: ~$0.00 (local script)
+- Judge sub-agent analysis: ~$0.05-0.10 (analyzes ~10-20K tokens)
+- **Total**: ~$0.20-0.40 per evaluation
+
+**Savings vs two-agent architecture**: ~$0.02-0.05 (no code sub-agent overhead)
 
 ## Related Commands
 
@@ -508,56 +639,60 @@ The repository is at /path/to/multiarch-tuning-operator.
 **Symptom**: Promptfoo reports 43 errors, 0 pass, 0 fail
 
 **Causes**:
-1. **Provider configuration wrong** - Check promptfooconfig.yaml uses correct provider format
-2. **API authentication failed** - Verify ANTHROPIC_API_KEY or ANTHROPIC_VERTEX_PROJECT_ID
-3. **Vertex AI project mismatch** - If using Vertex, check project ID matches settings
+1. **Provider configuration wrong** - Check promptfooconfig.yaml
+2. **API authentication failed** - Verify API key/credentials
+3. **Vertex AI project mismatch** - Check project ID
 
-**Fix**: 
-- Check `promptfooconfig.yaml` provider section
-- Should be: `providers: [anthropic:claude-sonnet-4-6]` 
-- NOT: `providers: [{id: anthropic:messages:claude-sonnet-4-6, config: {...}}]`
+**Fix from judge**: 
+Judge will identify this as >50% error rate and recommend configuration fixes before re-evaluating documentation.
 
-### Issue: Code sub-agent spawned but judge never runs
+**Manual check**:
+```bash
+# Check provider format in promptfooconfig.yaml
+grep -A2 "providers:" promptfooconfig.yaml
 
-**Symptom**: Evaluation starts but never produces final report
+# Should see:
+# providers:
+#   - anthropic:claude-sonnet-4-6
 
-**Cause**: You forgot to spawn the judge sub-agent after code completes
+# NOT:
+# providers:
+#   - id: anthropic:messages:claude-sonnet-4-6
+```
 
-**Fix**: 
-- Wait for code sub-agent to finish
-- Read its output (promptfoo-results.json)
-- Collect metrics
-- Spawn judge sub-agent with results + metrics as input
+### Issue: Script permission denied
 
-### Issue: Can't find run-eval.sh script
+**Symptom**: `bash: run-eval.sh: Permission denied`
 
-**Symptom**: Code sub-agent reports "script not found"
+**Fix**:
+```bash
+chmod +x ${CLAUDE_PLUGIN_ROOT}/scripts/run-eval.sh
+```
 
-**Cause**: Using wrong path to script
+### Issue: Node.js not found
 
-**Fix**: 
-- Use `${CLAUDE_PLUGIN_ROOT}/scripts/run-eval.sh`
-- CLAUDE_PLUGIN_ROOT should point to the evaluate skill directory
-- Full path will be something like: `/path/to/plugins/agentic-docs/skills/evaluate/scripts/run-eval.sh`
+**Symptom**: `command not found: node`
+
+**Fix**: Install Node.js 18+ from nodejs.org or use nvm
 
 ## Notes
 
 **CRITICAL WORKFLOW STEPS**:
 1. ✅ Pre-flight checks (fail fast if missing prereqs)
-2. ✅ Spawn code sub-agent (use bundled script, not raw commands)
-3. ✅ Wait for code sub-agent to complete
-4. ✅ Collect session metrics
-5. ✅ Spawn judge sub-agent (with results from step 2 + 4)
-6. ✅ Display judge's report
+2. ✅ Run run-eval.sh script directly (YOU execute it, not a sub-agent)
+3. ✅ Collect session metrics (YOU collect them, not a sub-agent)
+4. ✅ Spawn judge sub-agent with results + metrics
+5. ✅ Display judge's report to user
 
 **DO NOT**:
-- ❌ Skip judge sub-agent
-- ❌ Run promptfoo commands directly (use scripts/run-eval.sh)
-- ❌ Spawn agents in parallel (code must finish before judge starts)
+- ❌ Spawn code sub-agent (not needed - YOU run the script)
+- ❌ Run promptfoo commands directly (use bundled run-eval.sh)
 - ❌ Continue if pre-flight checks fail
+- ❌ Skip judge sub-agent (analysis is required)
 
-**Why this architecture**:
-- Separation of concerns: Code agent runs tools, judge analyzes
-- Bundled scripts: Reliable execution with proper environment setup
-- Sequential execution: Judge needs code's results to analyze
-- Comprehensive analysis: Combines test results + session metrics
+**Why this simplified architecture**:
+- **Simpler**: One sub-agent instead of two
+- **Faster**: No code sub-agent spawn overhead (~20-30 seconds saved)
+- **Cheaper**: ~$0.02-0.05 savings per evaluation
+- **Clearer**: Main agent runs tools, judge analyzes results
+- **More reliable**: Fewer moving parts, fewer failure modes
