@@ -1,8 +1,8 @@
 # AI Helpers
 
 A collection of Claude Code plugins to automate and assist with various development tasks.
-[
-Discover available plugins](https://openshift-eng.github.io/ai-helpers/)
+
+[Discover available plugins](https://openshift-eng.github.io/ai-helpers/)
 
 ## Installation
 
