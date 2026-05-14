@@ -1,6 +1,6 @@
 # [Component Name] - Testing Guide
 
-> **Generic Testing Practices**: See [Tier 1 Testing Practices](https://github.com/openshift/enhancements/tree/master/ai-docs/practices/testing) for test pyramid philosophy (60/30/10), E2E framework patterns, and mock vs real strategies.
+> **Generic Testing Practices**: See [Platform Testing Practices](Platform documentation) for test pyramid philosophy (60/30/10), E2E framework patterns, and mock vs real strategies.
 
 This guide covers **[COMPONENT]-specific** test suites and testing practices.
 
@@ -68,7 +68,7 @@ func TestReconcile(t *testing.T) {
 }
 ```text
 
-**For generic controller patterns**, see [Tier 1 Controller Runtime](https://github.com/openshift/enhancements/tree/master/ai-docs/platform/operator-patterns/controller-runtime.md)
+**For generic controller patterns**, see [Platform Controller Runtime](Platform documentation)
 
 #### Domain Logic Tests
 
@@ -207,7 +207,7 @@ func TestFeatureE2E(t *testing.T) {
 }
 ```text
 
-**For generic E2E patterns**, see [Tier 1 E2E Framework](https://github.com/openshift/enhancements/tree/master/ai-docs/practices/testing)
+**For generic E2E patterns**, see [Platform E2E Framework](Platform documentation)
 
 ### Component-Specific E2E Scenarios
 
@@ -294,4 +294,4 @@ Example:
 
 - [Development Guide](./[COMPONENT]_DEVELOPMENT.md)
 - [Architecture](./architecture/components.md)
-- [Tier 1 Testing Practices](https://github.com/openshift/enhancements/tree/master/ai-docs/practices/testing)
+- [Platform Testing Practices](Platform documentation)

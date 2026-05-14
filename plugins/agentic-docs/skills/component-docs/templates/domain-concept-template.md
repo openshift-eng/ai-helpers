@@ -55,8 +55,8 @@ spec:
 [Document ONLY component-specific behavior, not generic patterns]
 
 **For generic patterns**, see:
-- Controller patterns: [Tier 1](https://github.com/openshift/enhancements/tree/master/ai-docs/platform/operator-patterns)
-- Status conditions: [Tier 1](https://github.com/openshift/enhancements/tree/master/ai-docs/platform/operator-patterns/status-conditions.md)
+- Controller patterns: [Platform](Platform documentation)
+- Status conditions: [Platform](Platform documentation)
 
 ## Related Concepts
 

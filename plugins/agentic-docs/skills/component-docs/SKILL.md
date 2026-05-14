@@ -1,27 +1,27 @@
 ---
 name: component-docs
-description: Create lean tier-2 component documentation for OpenShift repositories
+description: Create lean component documentation for OpenShift repositories
 trigger: explicit
 model: sonnet
 ---
 
 # Component Documentation Creator
 
-Creates lean tier-2 agentic documentation for OpenShift component repositories.
+Creates lean component agentic documentation for OpenShift component repositories.
 
-**Philosophy**: Component docs contain ONLY component-specific knowledge. Generic platform patterns live in tier-1 (openshift/enhancements/ai-docs/).
+**Philosophy**: Component docs contain ONLY component-specific knowledge. Generic platform patterns live in platform (openshift/enhancements/ai-docs/).
 
 ## Two-Tier Architecture
 
-### Tier 1: Platform Hub (openshift/enhancements/ai-docs/)
+### Platform: Platform Hub (openshift/enhancements/ai-docs/)
 **Contains**: Operator patterns, testing practices, security guidelines, Kubernetes/OpenShift fundamentals, cross-repo ADRs
 
-### Tier 2: Component Repos (LEAN)
+### Component: Component Repos (LEAN)
 **Contains**: Component-specific CRDs, component architecture, component ADRs, exec-plans
 
 **Decision Rule**: "Would another repo need to duplicate this?"
-- YES → Tier 1 (platform)
-- NO → Tier 2 (component)
+- YES → Platform (platform)
+- NO → Component (component)
 
 ## What Gets Created
 
@@ -37,14 +37,15 @@ component-repo/
     │   └── adr-template.md
     ├── exec-plans/
     │   ├── active/                # Features being implemented
-    │   └── README.md              # Pointer to Tier 1 guidance
+    │   └── README.md              # Pointer to Platform guidance
     ├── references/
-    │   └── ecosystem.md           # Links to Tier 1 (CRITICAL)
+    │   ├── ecosystem.md           # Links to Platform (CRITICAL)
+    │   └── enhancements.md        # Enhancement proposals & design docs
     ├── [COMPONENT]_DEVELOPMENT.md
     └── [COMPONENT]_TESTING.md
 ```text
 
-## What NOT to Include (lives in Tier 1)
+## What NOT to Include (lives in Platform)
 
 ❌ Generic operator patterns (controller-runtime, status conditions)  
 ❌ Testing practices (test pyramid, E2E framework)  
@@ -56,7 +57,7 @@ component-repo/
 ## Execution Workflow
 
 ### Phase 1: Setup
-- [ ] Find skill directory: `SKILL_DIR=$(find ~/.claude/plugins/cache -path "*/component" -type d | head -1)`
+- [ ] Find skill directory: `SKILL_DIR=$(find ~/.claude/plugins/cache -path "*/component-docs" -type d | head -1)`
 - [ ] Determine repo path: `REPO_PATH="${provided_path:-$PWD}"`
 - [ ] Detect component name from repo (e.g., machine-config-operator → MCO)
 - [ ] Run `bash "$SKILL_DIR/scripts/create-structure.sh" "$REPO_PATH"`
@@ -65,7 +66,7 @@ component-repo/
 - [ ] Create master entry point at repo root
 - [ ] Include compressed index of component docs
 - [ ] Add retrieval-first instruction
-- [ ] Add Tier 1 ecosystem hub links
+- [ ] Add Platform ecosystem hub links
 - [ ] Add component quick navigation
 - [ ] Validate line count: `wc -l AGENTS.md` (target: 80-100)
 
@@ -74,38 +75,52 @@ component-repo/
 - [ ] Create domain/*.md for each CRD
 - [ ] Document CRD purpose, key fields, lifecycle
 - [ ] Use `templates/domain-concept-template.md` for structure
-- [ ] Focus on component-specific behavior, link to Tier 1 for generic patterns
+- [ ] Focus on component-specific behavior, link to Platform for generic patterns
 
-### Phase 4: Component Architecture
+### Phase 4: Enhancement Proposals & Design Docs
+- [ ] Create references/enhancements.md to catalog all design documentation
+- [ ] Search openshift/enhancements repo for component-specific proposals:
+  - Check `https://github.com/openshift/enhancements/tree/master/enhancements/{component-area}/`
+  - Example: MCO → `enhancements/machine-config/*.md`
+  - List all enhancement proposals with links to GitHub
+- [ ] Search component repo for local design docs:
+  - Check docs/, design/, enhancements/ directories
+  - Check for files with "design", "proposal", "enhancement" in name
+  - Include links to local design docs
+- [ ] Categorize by status: implemented/provisional/rejected (from enhancement metadata)
+- [ ] Use `templates/enhancements-template.md` for structure
+- [ ] Keep concise: Just title, status, link (no summaries - enhancement is the source of truth)
+
+### Phase 5: Component Architecture
 - [ ] Create architecture/components.md
 - [ ] Document component structure (pkg/, cmd/, controllers/)
 - [ ] Explain component relationships and data flow
 - [ ] Keep lean (100-200 lines)
 
-### Phase 5: Component ADRs
+### Phase 6: Component ADRs
 - [ ] Create decisions/adr-template.md (copy from templates)
 - [ ] Create 2-3 component-specific ADRs
 - [ ] Example: rpm-ostree choice, Ignition format, config drift detection
-- [ ] NO cross-repo ADRs (those go in Tier 1)
+- [ ] NO cross-repo ADRs (those go in Platform)
 
-### Phase 6: Exec-Plans
+### Phase 7: Exec-Plans
 - [ ] Create exec-plans/active/ directory (for component-specific exec-plans)
-- [ ] Create exec-plans/README.md with pointer to Tier 1 guidance
-- [ ] Link to Tier 1: `https://github.com/openshift/enhancements/tree/master/ai-docs/workflows/exec-plans/`
-- [ ] NO templates or detailed guidance (lives in Tier 1)
+- [ ] Create exec-plans/README.md with pointer to Platform guidance
+- [ ] Link to Platform exec-plans guidance
+- [ ] NO templates or detailed guidance (lives in Platform)
 
-### Phase 7: Ecosystem References
+### Phase 8: Ecosystem References
 - [ ] Create references/ecosystem.md
-- [ ] Link to Tier 1 operator patterns
-- [ ] Link to Tier 1 testing practices
-- [ ] Link to Tier 1 security practices
-- [ ] Link to Tier 1 Kubernetes/OpenShift fundamentals
-- [ ] Link to Tier 1 cross-repo ADRs
+- [ ] Link to Platform operator patterns
+- [ ] Link to Platform testing practices
+- [ ] Link to Platform security practices
+- [ ] Link to Platform Kubernetes/OpenShift fundamentals
+- [ ] Link to Platform cross-repo ADRs
 
-### Phase 8: Development & Testing Docs
+### Phase 9: Development & Testing Docs
 - [ ] Create [COMPONENT]_DEVELOPMENT.md using `templates/DEVELOPMENT-template.md`
 - [ ] Create [COMPONENT]_TESTING.md using `templates/TESTING-template.md`
-- [ ] Link to Tier 1 for generic practices
+- [ ] Link to Platform for generic practices
 - [ ] Document ONLY component-specific details:
   - Build instructions (make targets, go commands)
   - Repository structure (cmd/, pkg/ organization)
@@ -114,11 +129,11 @@ component-repo/
   - Component-specific test patterns
   - Common development tasks (add CRD, add controller, update deps)
 
-### Phase 9: Validation
+### Phase 10: Validation
 - [ ] Run `bash "$SKILL_DIR/scripts/validate.sh" "$REPO_PATH"` (includes link validation)
 - [ ] Verify AGENTS.md ≤100 lines
 - [ ] Verify no generic duplication
-- [ ] Verify ecosystem.md exists with Tier 1 links
+- [ ] Verify ecosystem.md exists with Platform links
 - [ ] Verify all external links (HTTP/HTTPS) are valid
 - [ ] Verify all internal links (relative paths) are valid
 - [ ] Fix any broken links found
@@ -126,7 +141,7 @@ component-repo/
 **Link Validation**:
 - Automatically checks all HTTP/HTTPS links (with timeout and user agent)
 - Validates internal/relative links (file existence)
-- Flags known Tier 1 planned links as "KNOWN BROKEN"
+- Flags known Platform planned links as "KNOWN BROKEN"
 - Use `VERBOSE=true bash "$SKILL_DIR/scripts/validate.sh" "$REPO_PATH"` to see all links
 - Use `bash "$SKILL_DIR/scripts/validate.sh" "$REPO_PATH" false` to skip link validation
 
@@ -135,13 +150,13 @@ component-repo/
 **Length**: 80-100 lines (strict limit)
 
 **Required Sections**:
-1. Component metadata (name, repository, tier)
-2. Tier 1 reference (link to ecosystem hub)
+1. Component metadata (name, repository)
+2. Platform reference (link to ecosystem hub)
 3. Component purpose (what is it?)
 4. Core components (brief)
 5. Documentation structure (compressed)
 6. Knowledge graph (visual)
-7. Tier 1 ecosystem links (operator patterns, testing, security, etc.)
+7. Platform ecosystem links (operator patterns, testing, security, etc.)
 
 **Format**: Compressed, table-based, links not prose
 
@@ -151,9 +166,8 @@ component-repo/
 
 **Component**: Machine Config Operator  
 **Repository**: openshift/machine-config-operator  
-**Documentation Tier**: 2 (Component-specific)
 
-> **Generic Platform Patterns**: See [Tier 1 Hub](https://github.com/openshift/enhancements/tree/master/ai-docs)
+> **Generic Platform Patterns**: See Platform documentation (openshift/enhancements/ai-docs/)
 
 ## What is MCO?
 
@@ -173,9 +187,9 @@ ai-docs/
 └── exec-plans/      # Feature planning
 ```text
 
-## Tier 1 Links
+## Platform Links
 
-**Patterns**: [Operator](tier1-link) | [Testing](tier1-link) | [Security](tier1-link)
+**Patterns**: Operator | Testing | Security (see Platform docs)
 
 ## Component-Specific Domain Concepts
 
@@ -215,7 +229,7 @@ ai-docs/
 **Example Component ADRs**:
 - Why rpm-ostree for OS updates (MCO)
 - Why Ignition format for config (MCO)
-- Why etcd for platform state (Tier 1, NOT component)
+- Why etcd for platform state (Platform, NOT component)
 
 **Template**: `decisions/adr-template.md`
 
@@ -225,34 +239,52 @@ ai-docs/
 
 **Location**: Component repo (`ai-docs/exec-plans/active/`)
 
-**Guidance**: Lives in Tier 1 (platform-docs)
-- **Templates & Usage**: See [Tier 1 Exec-Plans Guide](https://github.com/openshift/enhancements/tree/master/ai-docs/workflows/exec-plans/)
-- **Template**: `ai-docs/workflows/exec-plans/template.md`
-- **README**: `ai-docs/workflows/exec-plans/README.md`
+**Guidance**: See Platform documentation for exec-plans templates and workflows
 
 **Component repo structure**:
 ```text
 ai-docs/exec-plans/
 ├── active/           # Component-specific exec-plans go here
-└── README.md         # Pointer to Tier 1 guidance
+└── README.md         # Pointer to Platform guidance
 ```text
 
 **What component-docs creates**:
 - `active/` directory (empty, ready for exec-plans)
-- `README.md` with pointer to Tier 1
+- `README.md` with pointer to Platform exec-plans guidance
 
-**What component-docs does NOT create**:
-- ❌ Templates (live in Tier 1)
-- ❌ Detailed guidance (lives in Tier 1)
-- ❌ `completed/` directory (exec-plans are deleted after extracting knowledge)
+**Note**: Exec-plans are deleted after completion; knowledge is extracted into ADRs or architecture docs
 
-**Workflow**: See [Tier 1 Exec-Plans Guide](https://github.com/openshift/enhancements/tree/master/ai-docs/workflows/exec-plans/README.md)
+## Enhancement Proposals & Design Docs
+
+**File**: `references/enhancements.md`
+
+**Purpose**: Index all design documentation for this component
+
+**Sources to search**:
+1. openshift/enhancements repo: `https://github.com/openshift/enhancements/tree/master/enhancements/{component-area}/`
+2. Component repo: docs/, design/, enhancements/ directories
+
+**Format**: Simple catalog with title, status, and link (no summaries - the enhancement is the source of truth)
+
+**Example**:
+```markdown
+# Enhancement Proposals & Design Docs
+
+## openshift/enhancements
+- [On-Cluster Layering](https://github.com/openshift/enhancements/blob/master/enhancements/machine-config/on-cluster-layering.md) - Implemented
+- [Admin Node Disruption Policy](https://github.com/openshift/enhancements/blob/master/enhancements/machine-config/admin-defined-node-disruption-policy.md) - Implemented
+
+## Local Design Docs
+- [Config Drift Detection](../docs/design/config-drift.md)
+```
+
+**Distinction from ADRs**: Enhancement proposals are feature designs (often cross-component), ADRs are component architectural decisions
 
 ## Ecosystem References
 
 **File**: `references/ecosystem.md`
 
-**Links to Tier 1**:
+**Links to Platform**:
 - Operator patterns (controller-runtime, status conditions, webhooks, finalizers, RBAC)
 - Testing practices (pyramid, E2E framework)
 - Security practices (STRIDE, RBAC, secrets)
@@ -261,7 +293,7 @@ ai-docs/exec-plans/
 - OpenShift fundamentals (ClusterOperator, release image)
 - Cross-repo ADRs (etcd, CVO orchestration, immutable nodes)
 
-**Purpose**: Single source of truth for Tier 1 links
+**Purpose**: Single source of truth for Platform links
 
 ## Development & Testing Docs
 
@@ -305,7 +337,7 @@ ai-docs/exec-plans/
    - Environment variables
    - Local development quirks
 
-**Link to Tier 1 for**: Generic Go standards, controller-runtime patterns, CI/CD workflows
+**Link to Platform for**: Generic Go standards, controller-runtime patterns, CI/CD workflows
 
 ### TESTING.md Contents
 
@@ -347,7 +379,7 @@ ai-docs/exec-plans/
    - Known flaky tests
    - Test environment requirements
 
-**Link to Tier 1 for**: Test pyramid philosophy (60/30/10), E2E framework patterns, mock vs real strategies
+**Link to Platform for**: Test pyramid philosophy (60/30/10), E2E framework patterns, mock vs real strategies
 
 ### Example from MCO
 
@@ -372,7 +404,7 @@ ai-docs/exec-plans/
 - 80-100 lines
 - Compressed index format
 - Retrieval-first instruction
-- Tier 1 ecosystem links section
+- Platform ecosystem links section
 
 ✅ **No duplication**:
 - No testing pyramid explanations
@@ -381,11 +413,11 @@ ai-docs/exec-plans/
 - No STRIDE threat model
 - No SLO framework
 
-✅ **Ecosystem references**:
-- references/ecosystem.md exists
-- Links to Tier 1 operator patterns
-- Links to Tier 1 testing practices
-- Links to Tier 1 security practices
+✅ **References**:
+- references/ecosystem.md exists with Platform links
+- references/enhancements.md exists with design docs catalog
+- Enhancement proposals from openshift/enhancements discovered
+- Local design docs discovered and linked
 
 ✅ **Component-specific only**:
 - Domain concepts are component CRDs
@@ -395,12 +427,12 @@ ai-docs/exec-plans/
 ✅ **Link validation**:
 - All external links (HTTP/HTTPS) return 200 OK
 - All internal links (relative paths) resolve to existing files/directories
-- No broken links except known Tier 1 planned links
+- No broken links except known Platform planned links
 - Links to upstream documentation are valid and current
 
 ## Anti-Patterns
 
-### ❌ DON'T duplicate Tier 1 content
+### ❌ DON'T duplicate Platform content
 
 **Wrong**:
 ```markdown
@@ -417,7 +449,7 @@ ai-docs/exec-plans/
 ```markdown
 # COMPONENT_TESTING.md (90 lines, 100% component-specific)
 
-> Testing practices: See [Tier 1](tier1-link)
+> Testing practices: See Platform docs
 
 ## Component Test Suites
 [90 lines component-specific]
@@ -426,12 +458,12 @@ ai-docs/exec-plans/
 ### ❌ DON'T explain generic patterns
 
 **Wrong**: Explaining controller-runtime in component docs  
-**Right**: Link to Tier 1, document component-specific usage
+**Right**: Link to Platform, document component-specific usage
 
 ### ❌ DON'T create cross-repo ADRs
 
 **Wrong**: ADR about etcd in component repo  
-**Right**: ADR about etcd in Tier 1
+**Right**: ADR about etcd in Platform
 
 ## Metrics
 
@@ -443,16 +475,15 @@ ai-docs/exec-plans/
 **Benefits**:
 - 58% smaller than single-tier
 - Zero duplication across ecosystem
-- Pattern updates: 1 Tier 1 PR (not 60+ component PRs)
+- Pattern updates: 1 Platform PR (not 60+ component PRs)
 
 ## Prerequisites
 
 **Before running**:
-1. ✅ Tier 1 exists at openshift/enhancements/ai-docs/
+1. ✅ Platform exists at openshift/enhancements/ai-docs/
 2. ✅ Repository is OpenShift component
 3. ✅ You understand two-tier architecture
-
-**If Tier 1 doesn't exist**: Create it first using `/platform-docs`
+4. ✅ Platform documentation exists at openshift/enhancements/ai-docs/
 
 ## Arguments
 
@@ -478,22 +509,20 @@ Structure:
   ✅ Architecture: 1 file (components.md)
   ✅ Component ADRs: 3 files
   ✅ Exec-plans: README.md, active/
-  ✅ Ecosystem references: ecosystem.md with Tier 1 links
+  ✅ References: ecosystem.md, enhancements.md
   ✅ Development: COMPONENT_DEVELOPMENT.md
   ✅ Testing: COMPONENT_TESTING.md
 
 Validation:
   ✅ AGENTS.md at root (80-100 lines)
   ✅ No generic duplication
-  ✅ Tier 1 links present
+  ✅ Platform links present
   ✅ Component-specific content only
 
-Tier 1 Links:
+References:
   - Ecosystem hub: openshift/enhancements/ai-docs
-  - Operator patterns: 6 links
-  - Testing practices: 3 links
-  - Security practices: 2 links
-  - Kubernetes/OpenShift fundamentals: 8 links
+  - Enhancement proposals: Catalogued from openshift/enhancements + local docs
+  - Platform links: Operator patterns, testing, security, Kubernetes/OpenShift fundamentals
 
 Next Steps:
   1. Populate domain/*.md with component CRDs
@@ -523,6 +552,6 @@ Next Steps:
 
 ## See Also
 
-- `/platform-docs` - Create Tier 1 platform documentation
-- [Tier 1 Hub](https://github.com/openshift/enhancements/tree/master/ai-docs)
+- `/update-platform-docs` - Update Platform documentation
+- Platform Documentation (openshift/enhancements/ai-docs/)
 - [MCO Example](https://github.com/openshift/machine-config-operator/tree/master/ai-docs)

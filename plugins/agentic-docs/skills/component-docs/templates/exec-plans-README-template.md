@@ -1,6 +1,6 @@
 # Execution Plans
 
-> **Exec-Plans Guidance**: See [Tier 1 Exec-Plans Guide](https://github.com/openshift/enhancements/tree/master/ai-docs/workflows/exec-plans/) for:
+> **Exec-Plans Guidance**: See [Platform Exec-Plans Guide](Platform documentation) for:
 > - What are exec-plans?
 > - When to create them
 > - How to use them
@@ -19,7 +19,7 @@ exec-plans/
 ## Usage
 
 ```bash
-# Get template from Tier 1
+# Get template from Platform
 curl -O https://raw.githubusercontent.com/openshift/enhancements/master/ai-docs/workflows/exec-plans/template.md
 
 # Create exec-plan
@@ -28,4 +28,4 @@ mv template.md active/feature-name.md
 # Fill in and track during implementation
 ```text
 
-See [Tier 1 Exec-Plans Guide](https://github.com/openshift/enhancements/tree/master/ai-docs/workflows/exec-plans/README.md) for complete documentation.
+See [Platform Exec-Plans Guide](Platform documentation) for complete documentation.

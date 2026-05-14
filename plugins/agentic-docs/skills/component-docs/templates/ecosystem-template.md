@@ -1,10 +1,10 @@
-# Tier 1 Ecosystem References
+# Platform Ecosystem References
 
-This document links to generic OpenShift/Kubernetes patterns in the Tier 1 ecosystem hub. The component inherits these platform-wide patterns and practices.
+This document links to generic OpenShift/Kubernetes patterns in the Platform ecosystem hub. The component inherits these platform-wide patterns and practices.
 
 ## Operator Patterns
 
-**Location**: [ai-docs/platform/operator-patterns/](https://github.com/openshift/enhancements/tree/master/ai-docs/platform/operator-patterns)
+**Location**: [ai-docs/platform/operator-patterns/](Platform documentation)
 
 - **Controller Runtime**: Reconciliation loops, event handling, client patterns
 - **Status Conditions**: Available, Progressing, Degraded condition semantics
@@ -17,7 +17,7 @@ This document links to generic OpenShift/Kubernetes patterns in the Tier 1 ecosy
 
 ## Testing Practices
 
-**Location**: [ai-docs/practices/testing/](https://github.com/openshift/enhancements/tree/master/ai-docs/practices/testing)
+**Location**: [ai-docs/practices/testing/](Platform documentation)
 
 - **Test Pyramid**: Unit > Integration > E2E ratio (60/30/10)
 - **E2E Framework**: OpenShift E2E test patterns
@@ -27,7 +27,7 @@ This document links to generic OpenShift/Kubernetes patterns in the Tier 1 ecosy
 
 ## Security Practices
 
-**Location**: [ai-docs/practices/security/](https://github.com/openshift/enhancements/tree/master/ai-docs/practices/security)
+**Location**: [ai-docs/practices/security/](Platform documentation)
 
 - **STRIDE Threat Model**: Threat modeling framework
 - **RBAC Guidelines**: Role and ClusterRole design
@@ -37,7 +37,7 @@ This document links to generic OpenShift/Kubernetes patterns in the Tier 1 ecosy
 
 ## Reliability Practices
 
-**Location**: [ai-docs/practices/reliability/](https://github.com/openshift/enhancements/tree/master/ai-docs/practices/reliability)
+**Location**: [ai-docs/practices/reliability/](Platform documentation)
 
 - **SLO Framework**: Service Level Objectives and error budgets
 - **Observability**: Metrics, logging, tracing patterns
@@ -47,7 +47,7 @@ This document links to generic OpenShift/Kubernetes patterns in the Tier 1 ecosy
 
 ## Kubernetes Fundamentals
 
-**Location**: [ai-docs/domain/kubernetes/](https://github.com/openshift/enhancements/tree/master/ai-docs/domain/kubernetes)
+**Location**: [ai-docs/domain/kubernetes/](Platform documentation)
 
 - **Pod**: Pod lifecycle, container specs
 - **CRDs**: CustomResourceDefinition patterns
@@ -57,7 +57,7 @@ This document links to generic OpenShift/Kubernetes patterns in the Tier 1 ecosy
 
 ## OpenShift Fundamentals
 
-**Location**: [ai-docs/domain/openshift/](https://github.com/openshift/enhancements/tree/master/ai-docs/domain/openshift)
+**Location**: [ai-docs/domain/openshift/](Platform documentation)
 
 - **ClusterOperator**: Cluster operator status reporting
 - **ClusterVersion**: Platform upgrade orchestration
@@ -67,7 +67,7 @@ This document links to generic OpenShift/Kubernetes patterns in the Tier 1 ecosy
 
 ## Cross-Repository ADRs
 
-**Location**: [ai-docs/decisions/](https://github.com/openshift/enhancements/tree/master/ai-docs/decisions)
+**Location**: [ai-docs/decisions/](Platform documentation)
 
 Platform-wide architectural decisions:
 - **etcd Backend**: Why etcd is used for Kubernetes state
@@ -78,6 +78,6 @@ Platform-wide architectural decisions:
 
 ---
 
-**Note**: These links point to Tier 1 (ecosystem hub) documentation. Component-specific patterns and decisions are documented in the `ai-docs/` directory of this repository.
+**Note**: These links point to Platform (ecosystem hub) documentation. Component-specific patterns and decisions are documented in the `ai-docs/` directory of this repository.
 
 **Last Updated**: YYYY-MM-DD

@@ -24,8 +24,7 @@ Incrementally update existing AI-optimized platform documentation in `openshift/
 - Fixing or enhancing existing files
 
 **Don't use when:**
-- ai-docs/ doesn't exist yet (use `/platform-docs` instead)
-- You want to completely regenerate all docs
+- You want to completely regenerate all docs from scratch
 
 ## Execution Workflow
 
@@ -33,7 +32,7 @@ Incrementally update existing AI-optimized platform documentation in `openshift/
 - [ ] Find skill directory: `SKILL_DIR=$(find ~/.claude/plugins/cache -path "*/update-platform-docs" -type d | head -1)`
 - [ ] Determine repo path: `REPO_PATH="${provided_path:-$PWD}"`
 - [ ] Run discovery: `bash "$SKILL_DIR/scripts/discover.sh" "$REPO_PATH"`
-- [ ] Verify ai-docs/ exists (if not, suggest `/platform-docs`)
+- [ ] Verify ai-docs/ exists (ai-docs/ should already exist in openshift/enhancements)
 - [ ] Run gap detection: `bash "$SKILL_DIR/scripts/gap-detection.sh" "$REPO_PATH"`
 - [ ] Show gap detection results to user
 - [ ] Ask user: Fill detected gaps OR specify custom addition?
@@ -296,17 +295,9 @@ mkdir -p ai-docs/workflows/exec-plans
 ## Prerequisites
 
 **Before running:**
-1. ✅ ai-docs/ already exists (if not, use `/platform-docs`)
+1. ✅ ai-docs/ already exists in openshift/enhancements
 2. ✅ You're in openshift/enhancements repository
 3. ✅ You know what you want to add/update
-
-**If ai-docs/ doesn't exist:**
-```bash
-# First create base documentation
-/platform-docs
-
-# Then use /update-platform-docs for incremental changes
-```
 
 ## Success Output
 
@@ -336,28 +327,23 @@ Next Steps:
 
 ## Common Mistakes to Avoid
 
-### ❌ Mistake 1: Using When ai-docs/ Doesn't Exist
-**Wrong:** Running `/update-platform-docs` on fresh repo
-**Right:** Run `/platform-docs` first, then use `/update-platform-docs`
-
-### ❌ Mistake 2: Making AGENTS.md Too Long
+### ❌ Mistake 1: Making AGENTS.md Too Long
 **Wrong:** Adding verbose descriptions to AGENTS.md
 **Right:** Keep compressed, table-based navigation only
 
-### ❌ Mistake 3: Not Updating Index Files
+### ❌ Mistake 2: Not Updating Index Files
 **Wrong:** Creating new file without updating parent index.md
 **Right:** Always update corresponding index.md
 
-### ❌ Mistake 4: Inconsistent Naming
+### ❌ Mistake 3: Inconsistent Naming
 **Wrong:** Creating `README.md` (except in exec-plans/) or `adr-1-topic.md`
 **Right:** Use `index.md` (or `exec-plans/README.md` as exception) and `adr-0001-topic.md`
 
-### ❌ Mistake 5: Duplicating Content
+### ❌ Mistake 4: Duplicating Content
 **Wrong:** Copying content from dev-guide/guidelines
 **Right:** Link to authoritative source or reformat for AI agents
 
 ## See Also
 
-- `/platform-docs` - Create platform documentation from scratch
-- [Platform SKILL.md](../platform/SKILL.md) - Full platform docs creation guide
-- [Validation Script](../platform/scripts/validate.sh) - Structure validation
+- Platform Documentation (openshift/enhancements/ai-docs/) - Existing platform docs
+- `/component-docs` - Create component documentation
