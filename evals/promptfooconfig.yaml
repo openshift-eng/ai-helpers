@@ -1,0 +1,35 @@
+# Root eval config — smoke test to verify the provider works.
+# For full evals, use make eval-plugins or run individual plugin evals.
+
+description: "ai-helpers — provider smoke test"
+
+providers:
+  - id: anthropic:claude-agent-sdk
+    label: smoke
+    config:
+      model: claude-opus-4-6
+      plugins:
+        - type: local
+          path: ../plugins/hello-world
+      append_allowed_tools: ['Bash']
+      permission_mode: 'auto'
+
+prompts:
+  - "{{prompt}}"
+
+defaultTest:
+  options:
+    provider:
+      id: vertex:claude-opus-4-6
+      config:
+        projectId: "{{ env.ANTHROPIC_VERTEX_PROJECT_ID }}"
+        region: global
+        temperature: 0
+
+tests:
+  - description: "smoke/provider-loads"
+    vars:
+      prompt: "Run /hello-world:echo"
+    assert:
+      - type: icontains
+        value: "Hello world"

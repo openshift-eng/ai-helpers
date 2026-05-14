@@ -1,0 +1,240 @@
+# Skill eval for code-review:classify-review-comment
+#
+# Tests the real skill at ../skills/classify-review-comment/.
+# Uses claude-agent-sdk provider with Vertex AI (set CLAUDE_CODE_USE_VERTEX=true).
+#
+# Usage:
+#   make eval-plugins EVAL_PLUGIN=code-review                    # run all code-review evals
+#   make eval-plugins EVAL_PLUGIN=code-review EVAL_FILTER=nitpick # filter by test name
+
+description: "Skill eval: code-review:classify-review-comment"
+
+providers:
+  - id: anthropic:claude-agent-sdk
+    label: classify-review-comment
+    config:
+      model: claude-opus-4-6
+      plugins:
+        - type: local
+          path: ../
+      skills: ['code-review:classify-review-comment']
+      append_allowed_tools: ['Skill', 'Read']
+      permission_mode: 'auto'
+
+prompts:
+  - "{{prompt}}"
+
+defaultTest:
+  options:
+    disableVarExpansion: true
+    provider:
+      id: vertex:claude-opus-4-6
+      config:
+        projectId: "{{ env.ANTHROPIC_VERTEX_PROJECT_ID }}"
+        region: global
+        temperature: 0
+  assert:
+    - type: skill-used
+      value: code-review:classify-review-comment
+    - type: not-skill-used
+      value: code-review:lang-go
+    - type: not-skill-used
+      value: code-review:profile-hypershift
+    - type: latency
+      threshold: 60000
+    - type: cost
+      threshold: 0.50
+
+tests:
+  # --- Golden tests: known-correct classifications from SKILL.md examples ---
+
+  - description: "classify/nitpick-style — variable grouping nit"
+    metadata: &meta-fast
+      token-usage: medium
+      judge-size: none
+      tier: fast
+    vars:
+      prompt: |
+        Classify this review comment:
+        "small nit: I would move the vars `key`, `log` and `cloudName` to `var (` section just to be consistent."
+    assert:
+      - type: icontains
+        value: "nitpick"
+      - type: icontains
+        value: "style"
+
+  - description: "classify/question-api_design — API choice question"
+    metadata: *meta-fast
+    vars:
+      prompt: |
+        Classify this review comment:
+        "Why not use NewARMClientOptions here for the clientOptions?"
+    assert:
+      - type: icontains
+        value: "question"
+      - type: icontains
+        value: "api_design"
+
+  - description: "classify/required_change-logic_bug — nil panic"
+    metadata: *meta-fast
+    vars:
+      prompt: |
+        Classify this review comment:
+        "This will panic if `items` is nil — needs a nil check before the loop"
+    assert:
+      - type: icontains
+        value: "required_change"
+      - type: icontains
+        value: "logic_bug"
+
+  - description: "classify/required_change-logic_bug — install failure"
+    metadata: *meta-fast
+    vars:
+      prompt: |
+        Classify this review comment:
+        "failing during `hypershift install`\n```\nClusterRoleBinding is invalid: roleRef.kind: Unsupported value\n```"
+    assert:
+      - type: icontains
+        value: "required_change"
+      - type: icontains
+        value: "logic_bug"
+
+  - description: "classify/required_change-test_gap — failing unit tests"
+    metadata: *meta-fast
+    vars:
+      prompt: |
+        Classify this review comment:
+        "hypershift-jira-solve-ci - the unit test job is failing and needs fixed"
+    assert:
+      - type: icontains
+        value: "required_change"
+      - type: icontains
+        value: "test_gap"
+
+  - description: "classify/suggestion-ci — rebase for CI"
+    metadata: *meta-fast
+    vars:
+      prompt: |
+        Classify this review comment:
+        "hypershift-jira-solve-ci - rebase the PR to fix the konflux issues"
+    assert:
+      - type: icontains
+        value: "suggestion"
+      - type: icontains
+        value: "ci"
+
+  - description: "classify/required_change-process — code not pushed"
+    metadata: *meta-fast
+    vars:
+      prompt: |
+        Classify this review comment:
+        "hypershift-jira-solve-ci - this still needs fixed since the code did not get pushed"
+    assert:
+      - type: icontains
+        value: "required_change"
+      - type: icontains
+        value: "process"
+
+  - description: "classify/suggestion-ci — override with analysis"
+    metadata: *meta-fast
+    vars:
+      prompt: |
+        Classify this review comment:
+        "`e2e-aws-4-21` failed on `Teardown` but due to uncleaned cloud resources, not VPC endpoint blocking the finalizer\n/override ci/prow/e2e-aws-4-21"
+    assert:
+      - type: icontains
+        value: "suggestion"
+      - type: icontains
+        value: "ci"
+
+  - description: "classify/unclassified-approval — reviewer withdrawal"
+    metadata: *meta-fast
+    vars:
+      prompt: |
+        Classify this review comment:
+        "Oh no that's ok. I missed that part. No changes requested."
+    assert:
+      - type: icontains
+        value: "unclassified"
+      - type: icontains
+        value: "approval"
+
+  - description: "classify/unclassified-process — duplicate marking"
+    metadata: *meta-fast
+    vars:
+      prompt: |
+        Classify this review comment:
+        "dup of https://github.com/openshift/hypershift/pull/7727"
+    assert:
+      - type: icontains
+        value: "unclassified"
+      - type: icontains
+        value: "process"
+
+  - description: "classify/required_change-logic_bug — case mismatch root cause"
+    metadata: *meta-fast
+    vars:
+      prompt: |
+        Classify this review comment:
+        "The root cause of the CI failure in this PR has been identified. The fix in `rejectVpcEndpointConnections` doesn't work because of a **case mismatch** between AWS API responses and SDK v2 enum constants."
+    assert:
+      - type: icontains
+        value: "required_change"
+      - type: icontains
+        value: "logic_bug"
+
+  - description: "classify/suggestion-architecture_design — controller separation"
+    metadata: *meta-fast
+    vars:
+      prompt: |
+        Classify this review comment:
+        "This controller is doing too much — the reconciler should delegate VPC cleanup to a separate controller instead of inlining it"
+    assert:
+      - type: icontains
+        value: "suggestion"
+      - type: icontains
+        value: "architecture_design"
+
+  - description: "classify/required_change-security — token logging"
+    metadata: *meta-fast
+    vars:
+      prompt: |
+        Classify this review comment:
+        "The service account token is being logged in plain text here — this needs to be redacted"
+    assert:
+      - type: icontains
+        value: "required_change"
+      - type: icontains
+        value: "security"
+
+  # --- Ambiguous boundary cases ---
+
+  - description: "classify/ambiguous — timeout suggestion"
+    metadata: &meta-medium
+      token-usage: medium
+      judge-size: opus
+      tier: medium
+    vars:
+      prompt: |
+        Classify this review comment:
+        "consider using a context.WithTimeout here to avoid hanging forever"
+    assert:
+      - type: llm-rubric
+        value: "The output classifies this as either suggestion or required_change severity, with topic logic_bug or api_design"
+
+  # --- Routing: Go content should still use classify, not lang-go ---
+
+  - description: "classify/routing — Go comment routes to classify, not lang-go"
+    metadata: *meta-medium
+    vars:
+      prompt: |
+        Classify this review comment:
+        "This Go function should return an error instead of panicking"
+    assert:
+      - type: icontains
+        value: "required_change"
+      - type: llm-rubric
+        value: "The output classifies the topic as logic_bug or api_design"
+
+evaluateOptions:
+  maxConcurrency: 20
