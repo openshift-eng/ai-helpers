@@ -31,9 +31,9 @@ Canonical example: `plugins/hello-world/`
 - **AI reasoning required.** Commands must require AI analysis/decisions, not just wrap scripts. If it could be a shell alias or Makefile target, it should not be a plugin command.
 - **Never reference real people** by name, even stylistically. Describe desired qualities explicitly instead.
 - **Check for overlaps** before contributing: run `/utils:review-ai-helpers-overlap --idea "description"`.
-- **Follow existing patterns.** Read `plugins/hello-world/commands/echo.md` for command format; the linter enforces structure.
+- **Follow existing patterns.** Read `[plugins/hello-world/commands/echo.md](plugins/hello-world/commands/echo.md)` for command format; the linter enforces structure.
 - **Use kebab-case** for all plugin names, command files, and skill directories.
 - **Use `.work/{feature-name}/`** for temporary files (gitignored).
-- **Register all plugins** in `.claude-plugin/marketplace.json`.
+- **Register all plugins** in [.claude-plugin/marketplace.json](.claude-plugin/marketplace.json).
 - **Set author** to `"github.com/openshift-eng"` in `plugin.json`.
 - **Add new commands** to an existing plugin when they fit its scope, or to `plugins/utils/` if no clear parent. Create a new plugin only for a distinct group of related commands.

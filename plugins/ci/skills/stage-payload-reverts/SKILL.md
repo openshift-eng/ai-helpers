@@ -106,7 +106,7 @@ If an open or draft revert PR is found for this PR number, reuse its URL — ski
 
 - PR URL: the offending PR
 - JIRA ticket: the TRT key from Step 3 (if available)
-- Context (use `--context`): "This PR is causing blocking job failures ({job names}) in the {stream} {architecture} payload [{payload_tag}]({release_controller_url})."
+- Context (use `--context`): `This PR is causing blocking job failures ({job names}) in the {stream} {architecture} payload [{payload_tag}]({release_controller_url}).`
 - Do NOT prompt the user for any input
 
 Record the revert PR URL (created or reused).

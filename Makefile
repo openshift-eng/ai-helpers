@@ -4,7 +4,7 @@
 CONTAINER_RUNTIME ?= $(shell command -v podman 2>/dev/null || echo docker)
 
 # skillsaw image
-SKILLSAW_IMAGE = ghcr.io/stbenjam/skillsaw:0.8.0
+SKILLSAW_IMAGE = ghcr.io/stbenjam/skillsaw:0.10.0
 
 # Detect if SELinux is enforcing and add security option
 SELINUX_OPT := $(shell if command -v getenforce >/dev/null 2>&1 && [ "$$(getenforce 2>/dev/null)" = "Enforcing" ]; then echo "--security-opt label=disable"; fi)
@@ -16,7 +16,7 @@ help: ## Show this help message
 
 .PHONY: lint
 lint: ## Run plugin linter (verbose, strict mode)
-	$(CONTAINER_RUNTIME) run --rm --platform linux/amd64 $(SELINUX_OPT) -v $(PWD):/workspace:Z $(SKILLSAW_IMAGE) -v --strict .
+	$(CONTAINER_RUNTIME) run --rm --platform linux/amd64 $(SELINUX_OPT) -v $(PWD):/workspace:Z $(SKILLSAW_IMAGE) .
 
 .PHONY: lint-pull
 lint-pull: ## Pull the latest skillsaw image

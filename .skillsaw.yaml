@@ -1,58 +1,107 @@
-custom-rules:
-- .skillsaw-custom.py
-exclude: []
+# skillsaw configuration
+# https://github.com/stbenjam/skillsaw
+version: "0.10.0"
+strict: true
+
 rules:
+  # Plugins should not enable non-allowlisted MCP servers
+  mcp-prohibited:
+    enabled: true
+    severity: error
+    allowlist:
+      - gopls
+  
+  # Instruction files (AGENTS.md, CLAUDE.md, GEMINI.md) must be valid, non-empty with valid references
+  instruction-file-valid:
+    enabled: true
+  instruction-imports-valid:
+    enabled: true
+
+  ##
+  ## TODO: ai-helpers has many issues with meeting the agentskills.io spec,
+  ##       weak lanaguage and context bloat -- we need to fix them.
+  ##
   agentskill-description:
-    enabled: false
-  agentskill-evals:
-    enabled: false
-  agentskill-evals-required:
-    enabled: false
-  agentskill-name:
-    enabled: false
-  agentskill-structure:
-    enabled: false
+    enabled: true
+
+  # SKILL.md must have valid frontmatter with name and description
   agentskill-valid:
     enabled: false
-  command-frontmatter:
-    enabled: true
-    severity: error
-  command-name-format:
-    enabled: true
+  # SKILL.md must have valid frontmatter with name and description
+  agentskill-name:
+    enabled: false
+  # SKILL.md must have valid frontmatter with name and description
+  agentskill-rename-refs:
+    enabled: false
+  context-budget:             # TODO: ai-helpers has many skills way over budget, including one with 20K tokens
+    enabled: false
+  content-weak-language:      # TODO: fix weak language 
+    enabled: false
+
+  # Detect critical instructions in the middle of files where LLM attention is lowest
+  content-critical-position:  # unsure if actually useful here
+    enabled: false
+
+  # This is useful here, prevent large unsectioned blocks
+  # Upgraded severity from INFO 
+  content-cognitive-chunks:
+    enabled: false            # TODO: https://github.com/stbenjam/skillsaw/issues/184
     severity: warning
-  command-naming:
+
+  # Detect potential API keys, tokens, and passwords in instruction files
+  content-embedded-secrets:
     enabled: true
+    severity: error
+
+  # Detect markdown links where the target file does not exist
+  content-broken-internal-reference:
+    enabled: true
+    severity: error
+
+  # Detect prohibitions without a positive alternative (agent has no path forward)
+  content-negative-only:
+    enabled: false  # TODO: enable
+
+  # Detect tautological instructions that the model already follows by default
+  content-tautological:
+    enabled: false  # TODO: enable
+
+  # Detect bare path-like strings not wrapped in markdown link syntax
+  content-unlinked-internal-reference:
+    enabled: false # TODO: Should be turned on and elevated, but has some false positives
+
+  # Too many false positives in examples 
+  content-placeholder-text:
+    enabled: false
     severity: warning
-  command-sections:
-    enabled: true
-    severity: warning
-  marketplace-json-valid:
-    enabled: auto
-    severity: error
-  marketplace-registration:
-    enabled: auto
-    severity: error
-  mcp-prohibited:
-    allowlist:
-    - gopls
+
+  # Validate promptfoo eval YAML config structure and file references
+  promptfoo-valid:
     enabled: true
     severity: error
-  plugin-json-required:
+
+  # Note: we have more complex validations in the custom rules for budgets 
+  promptfoo-assertions:
+    enabled: false
+  promptfoo-metadata:
+    enabled: false
+
+  # .coderabbit.yaml must be valid YAML
+  coderabbit-yaml-valid:
     enabled: true
     severity: error
-  plugin-json-valid:
-    enabled: true
-    severity: error
-  plugin-naming:
-    enabled: true
-    severity: warning
-  plugin-readme:
-    enabled: true
-    severity: warning
-  plugins-doc-up-to-date:
-    enabled: true
-    severity: error
-  skill-frontmatter:
-    enabled: true
-    severity: warning
-strict: false
+
+# Load custom rules from these files
+custom-rules:
+  - ".skillsaw/plugindocs_rule.py"
+  - ".skillsaw/promptfoo_budget_rule.py"
+
+# Exclude patterns (glob format)
+# Use exclude: [] to disable all excludes including defaults
+exclude:
+    # - "**/template/**"
+    # - "**/templates/**"
+    # - "**/_template/**"
+
+# Additional markdown files to run content rules on (glob format)
+content-paths: []

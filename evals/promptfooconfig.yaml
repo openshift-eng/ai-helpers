@@ -27,6 +27,9 @@ defaultTest:
         temperature: 0
 
 tests:
+  # skillsaw-disable promptfoo-budget
+  # skillsaw-disable promptfoo-assertions
+  # skillsaw-disable promptfoo-metadata
   - description: "smoke/provider-loads"
     vars:
       prompt: "Run /hello-world:echo"
