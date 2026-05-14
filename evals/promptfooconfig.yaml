@@ -1,18 +1,16 @@
-# Root eval config — smoke test to verify the provider works.
-# For full evals, use make eval-plugins or run individual plugin evals.
+# Root evals — contributing workflow validation.
+# These test the repo-level behavior, not individual plugins.
 
-description: "ai-helpers — provider smoke test"
+description: "ai-helpers — root evals"
 
 providers:
   - id: anthropic:claude-agent-sdk
-    label: smoke
+    label: ai-helpers
     config:
       model: claude-opus-4-6
-      plugins:
-        - type: local
-          path: ../plugins/hello-world
-      append_allowed_tools: ['Bash']
-      permission_mode: 'auto'
+      working_dir: ../
+      append_allowed_tools: ['Read', 'Grep', 'Glob']
+      permission_mode: 'default'
 
 prompts:
   - "{{prompt}}"
@@ -20,19 +18,40 @@ prompts:
 defaultTest:
   options:
     provider:
-      id: vertex:claude-opus-4-6
+      id: vertex:claude-sonnet-4-6
       config:
         projectId: "{{ env.ANTHROPIC_VERTEX_PROJECT_ID }}"
         region: global
         temperature: 0
+  assert:
+    - type: latency
+      threshold: 30000
+    - type: cost
+      threshold: 0.50
 
 tests:
-  # skillsaw-disable promptfoo-budget
-  # skillsaw-disable promptfoo-assertions
-  # skillsaw-disable promptfoo-metadata
-  - description: "smoke/provider-loads"
+  - description: "contributing/new-plugin-plan — follows contributing rules"
+    metadata:
+      token-usage: small
+      judge-size: sonnet
+      tier: medium
     vars:
-      prompt: "Run /hello-world:echo"
+      prompt: |
+        I want to create a new plugin called "bye-world" with a single command
+        "farewell" that prints "Goodbye world" or "Goodbye <name>".
+        Do NOT create any files — only describe what you would do, what files
+        you would create, and what verification steps you would run.
     assert:
+      - type: llm-rubric
+        value: "The plan includes a verification section that mentions running make lint (or make lint-fix if lint fails)"
+      - type: llm-rubric
+        value: "The plan mentions adding evals or running make eval-plugins for the new plugin"
+      - type: llm-rubric
+        value: "The plan mentions creating a plugin.json with name, description, version, and author fields"
+      - type: llm-rubric
+        value: "The plan mentions registering the plugin in marketplace.json or running make update"
       - type: icontains
-        value: "Hello world"
+        value: "make lint"
+
+evaluateOptions:
+  maxConcurrency: 5

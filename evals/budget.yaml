@@ -67,6 +67,9 @@ budgets:
   jira:
     allowed: 7.00
     current: 6.00      # 3 tests × $1.20 + 4 tests × $0.60
+  contributing:
+    allowed: 1.00
+    current: 0.50      # 1 test × $0.50 (evals/promptfooconfig.yaml)
 
 # Linter validation rules:
 #
