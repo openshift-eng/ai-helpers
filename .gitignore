@@ -35,6 +35,7 @@ venv/
 # Claude's settings for this repository
 .claude/*
 !.claude/settings.json
+!.claude/rules/
 
 # Working directories for skills
 .work/

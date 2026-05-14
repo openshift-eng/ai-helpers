@@ -245,6 +245,23 @@ npx promptfoo view
 
 The workflow requires `ANTHROPIC_VERTEX_PROJECT_ID` and `GOOGLE_APPLICATION_CREDENTIALS` as GitHub secrets.
 
+## Linting
+
+The skillsaw linter validates eval configs (metadata, tier classification, budget compliance) via a custom rule in `.skillsaw/promptfoo_budget_rule.py`. Always run the linter before committing:
+
+```bash
+# Lint
+make lint
+
+# If it fails, auto-fix what it can
+make lint-fix
+```
+
+The linter checks:
+- Every test has `token-usage`, `judge-size`, `tier` metadata
+- Token-usage and tier are correctly classified per `evals/budget.yaml` rules
+- Per-plugin cost stays within budget
+
 ## Adding Evals for a New Plugin
 
 1. Create `plugins/<name>/evals/<test-name>.yaml`
@@ -254,4 +271,5 @@ The workflow requires `ANTHROPIC_VERTEX_PROJECT_ID` and `GOOGLE_APPLICATION_CRED
 5. Add `cost` and `latency` thresholds in `defaultTest.assert` based on observed values (run once, then set 2-3x)
 6. Add per-test `metadata` with `token-usage`, `judge-size`, and `tier` — use YAML anchors to DRY
 7. For test data, create `plugins/<name>/evals/fixtures/` and reference via `file://fixtures/<name>.md`
-8. Run locally: `make eval-plugins EVAL_PLUGIN=<name>`
+8. Run `make lint` — fix any budget or metadata violations
+9. Run locally: `make eval-plugins EVAL_PLUGIN=<name>`
