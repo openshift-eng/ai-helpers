@@ -20,4 +20,3 @@ jobs:
         uses: stbenjam/skillsaw@eee9ebea0f33517bfb3c4d0413471c5165becc7e # v0
         with:
           strict: true
-          verbose: true

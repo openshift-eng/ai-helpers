@@ -16,7 +16,7 @@ help: ## Show this help message
 
 .PHONY: lint
 lint: ## Run plugin linter (verbose, strict mode)
-	$(CONTAINER_RUNTIME) run --rm --platform linux/amd64 $(SELINUX_OPT) -v $(PWD):/workspace:Z $(SKILLSAW_IMAGE) -v --strict .
+	$(CONTAINER_RUNTIME) run --rm --platform linux/amd64 $(SELINUX_OPT) -v $(PWD):/workspace:Z $(SKILLSAW_IMAGE) .
 
 .PHONY: lint-pull
 lint-pull: ## Pull the latest skillsaw image
