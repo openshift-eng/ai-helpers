@@ -1,13 +1,13 @@
 ---
 name: agentic-docs:evaluate
-description: "Evaluate agentic documentation quality using promptfoo-based behavioral validation with natural discovery testing"
+description: "Evaluate agentic documentation quality using promptfoo-based behavioral validation with natural discovery testing. Use this skill when users want to test if AI agents can find and use documentation, run evaluation tests, check documentation quality, or see which documentation files are most accessed. Trigger on phrases like 'evaluate documentation', 'run evaluation', 'test the docs', 'check if agents can find the documentation', or 'see what files are accessed'."
 trigger: /agentic-docs:evaluate
 ---
 
-# Agentic-Docs: Evaluate (v4.0)
+# Agentic-Docs: Evaluate (v5.0)
 
 **Trigger**: `/agentic-docs:evaluate`  
-**Purpose**: Evaluate documentation quality by running promptfoo test suite and analyzing results
+**Purpose**: Evaluate documentation quality by running promptfoo test suite and analyzing results using a two-agent architecture
 
 **Framework**: OpenShift Enhancements Agentic Docs Evaluation  
 **Reference**: https://github.com/openshift/enhancements/pull/1992
@@ -25,52 +25,42 @@ Tests measure:
 - **Pattern application**: Does agent apply repository conventions correctly?
 - **Anti-pattern rejection**: Does agent reject incorrect patterns?
 
-## Architecture
-
-The evaluation uses a **two-agent architecture**:
+## Two-Agent Architecture
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│ Code Claude Sub-Agent                                    │
-│                                                          │
-│  Purpose: Run promptfoo evaluation suite                │
-│                                                          │
-│  Tasks:                                                  │
-│  1. Check if promptfooconfig.yaml exists               │
-│  2. Install promptfoo (if not installed)               │
-│  3. Run: promptfoo eval                                 │
-│  4. Capture results from output                         │
-│  5. Return promptfoo results                            │
-│                                                          │
-│  NO MANUAL TESTS - Only run promptfoo tool              │
-└─────────────────────────────────────────────────────────┘
-                        │
-                        │ promptfoo results
-                        ↓
-┌─────────────────────────────────────────────────────────┐
-│ Judge Claude Sub-Agent                                   │
-│                                                          │
-│  Purpose: Evaluate promptfoo results + session metrics  │
-│                                                          │
-│  Inputs:                                                 │
-│  • Promptfoo test results                               │
-│  • Session metrics (from metrics plugin)                │
-│                                                          │
-│  Tasks:                                                  │
-│  1. Interpret promptfoo pass/fail results              │
-│  2. Analyze test categories (navigation, authoring,     │
-│     anti-patterns)                                       │
-│  3. Evaluate session metrics (tokens, duration, files)  │
-│  4. Generate comprehensive evaluation report            │
-│  5. Provide recommendations for improvement             │
-│                                                          │
-│  Output: Detailed evaluation report with:               │
-│  • Test results summary                                 │
-│  • Metrics analysis                                     │
-│  • Pass/fail breakdown by category                      │
-│  • Recommendations                                      │
-└─────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────┐
+│ Code Claude Sub-Agent                    │
+│                                          │
+│  1. Run bundled run-eval.sh script      │
+│  2. Capture promptfoo JSON results       │
+│  3. Return results to main agent         │
+│                                          │
+│  Script: ${CLAUDE_PLUGIN_ROOT}/scripts/run-eval.sh
+└─────────────────────────────────────────┘
+                    │
+                    │ promptfoo-results.json
+                    ↓
+┌─────────────────────────────────────────┐
+│ Main Agent (You)                         │
+│                                          │
+│  1. Collect session metrics              │
+│  2. Spawn judge sub-agent                │
+│  3. Pass results + metrics to judge      │
+└─────────────────────────────────────────┘
+                    │
+                    │ results + metrics
+                    ↓
+┌─────────────────────────────────────────┐
+│ Judge Claude Sub-Agent                   │
+│                                          │
+│  1. Analyze promptfoo results            │
+│  2. Analyze session metrics              │
+│  3. Generate comprehensive report        │
+│  4. Provide recommendations              │
+└─────────────────────────────────────────┘
 ```
+
+**CRITICAL**: You must spawn BOTH agents - first the code agent, THEN the judge agent after code completes.
 
 ## Prerequisites
 
@@ -79,124 +69,162 @@ The evaluation uses a **two-agent architecture**:
 
 **Environment**:
 - Node.js 18+ (for promptfoo)
-- ANTHROPIC_API_KEY environment variable
+- ANTHROPIC_API_KEY or ANTHROPIC_VERTEX_PROJECT_ID
 
 ## Implementation Workflow
 
-### Phase 1: Pre-flight Checks
+### Step 1: Pre-flight Checks
 
-**Validate prerequisites**:
+Check for required files and environment:
 
 ```bash
 # Check promptfooconfig.yaml exists
 if [ ! -f promptfooconfig.yaml ]; then
-  echo "ERROR: promptfooconfig.yaml not found"
-  echo "Run /agentic-docs:generate-evals first to generate evaluation config"
+  echo "ERROR: Evaluation configuration not found"
+  echo ""
+  echo "The evaluation requires promptfooconfig.yaml to be present in the repository root."
+  echo ""
+  echo "To generate it, run:"
+  echo "  /agentic-docs:generate-evals"
+  echo ""
+  echo "This will create a tailored evaluation suite for this repository."
   exit 1
 fi
 
-# Check ANTHROPIC_API_KEY is set
-if [ -z "$ANTHROPIC_API_KEY" ]; then
-  echo "ERROR: ANTHROPIC_API_KEY environment variable not set"
-  echo "Set with: export ANTHROPIC_API_KEY='your-key-here'"
+# Check API credentials
+if [ -z "$ANTHROPIC_API_KEY" ] && [ -z "$ANTHROPIC_VERTEX_PROJECT_ID" ]; then
+  echo "ERROR: No API credentials found"
+  echo ""
+  echo "Set one of:"
+  echo "  export ANTHROPIC_API_KEY='your-key-here'"
+  echo "  export ANTHROPIC_VERTEX_PROJECT_ID='your-project-id'"
   exit 1
 fi
 ```
 
-### Phase 2: Spawn Code Claude Sub-Agent
+If checks fail, display the error message to the user and STOP. Do NOT proceed to spawn agents.
 
-**Purpose**: Run promptfoo evaluation tool and capture results
+### Step 2: Spawn Code Sub-Agent
 
-**Agent prompt**:
+**Purpose**: Run the bundled run-eval.sh script to execute promptfoo evaluation
+
+**IMPORTANT**: Use the Agent tool to spawn a sub-agent:
 
 ```
-You are a code claude sub-agent responsible for running the promptfoo evaluation suite.
+Agent(
+  description="Run promptfoo evaluation using bundled script",
+  prompt="""
+You are a code sub-agent responsible for running the promptfoo evaluation using the bundled script.
 
 Your task:
-1. Check if promptfoo is installed (run: promptfoo --version)
-2. If not installed, install it: npm install -g promptfoo
-3. Run the evaluation: promptfoo eval
-4. Capture the complete output
-5. Return the results
+1. Navigate to the repository: {{repository_path}}
+2. Run the evaluation script: bash {{skill_scripts_path}}/run-eval.sh
+3. Wait for it to complete (may take 1-5 minutes for 43 tests)
+4. Read the results file: promptfoo-results.json
+5. Return the complete JSON results
 
-IMPORTANT:
-- Do NOT create manual test scenarios
-- Do NOT spawn additional agents
-- ONLY run the promptfoo tool using the existing promptfooconfig.yaml
-- Return ALL output from promptfoo (both stdout and results)
+CRITICAL INSTRUCTIONS:
+- Use the bundled script at: {{skill_scripts_path}}/run-eval.sh
+- DO NOT run promptfoo commands directly
+- DO NOT install anything manually (script handles it)
+- The script will output results to ./promptfoo-results.json
+- Return ALL contents of promptfoo-results.json
 
 Repository: {{repository_path}}
-Config file: promptfooconfig.yaml (should exist in repository root)
+Script path: {{skill_scripts_path}}/run-eval.sh
+
+Expected output: Complete promptfoo-results.json content
+"""
+)
 ```
 
-**Agent configuration**:
-- Description: "Run promptfoo evaluation suite"
-- Model: sonnet (fast execution for tool running)
-- Tools allowed: Bash (for running promptfoo), Read (for checking config)
+**Variables to substitute**:
+- `{{repository_path}}`: The repository being evaluated
+- `{{skill_scripts_path}}`: Use `${CLAUDE_PLUGIN_ROOT}/scripts` where CLAUDE_PLUGIN_ROOT points to the evaluate skill directory
 
-**Expected output**:
-- Promptfoo test results (JSON format)
-- Summary of pass/fail tests
-- Any errors or warnings
+**Expected output from code sub-agent**:
+- Complete contents of `promptfoo-results.json`
+- Promptfoo execution logs showing test progress
 
-### Phase 3: Collect Session Metrics
+**WAIT for code sub-agent to complete before proceeding to Step 3.**
 
-**Use metrics plugin** to collect current session metrics:
+### Step 3: Collect Session Metrics
+
+While waiting for or after the code sub-agent completes, collect session metrics:
 
 ```bash
-# Get current session ID from environment or ~/.claude/projects/
-SESSION_ID=$(ls -t ~/.claude/projects/{{project_name}}/ | head -1 | sed 's/.jsonl//')
+# Get current session info
+SESSION_DIR=$(ls -td ~/.claude/projects/*/ | head -1)
+SESSION_FILE=$(ls -t "$SESSION_DIR"/*.jsonl | head -1)
 
-# Run metrics collection
-/metrics:ai-docs-telemetry -session ~/.claude/projects/{{project_name}}/${SESSION_ID}.jsonl > metrics.json
+# Run metrics collection (if metrics plugin available)
+if command -v metrics:ai-docs-telemetry &> /dev/null; then
+  python3 ${CLAUDE_PLUGIN_ROOT}/../../metrics/scripts/ai_docs_telemetry.py \
+    -session "$SESSION_FILE" > metrics.json
+else
+  echo '{"warning": "metrics plugin not available"}' > metrics.json
+fi
 ```
 
 **Metrics to capture**:
-- Total tokens used
-- Session duration  
+- Total tokens used in session
+- Session duration
 - Files accessed (ai-docs/, AGENTS.md, etc.)
 - Entry points used
 - Navigation patterns
 
-**Output**: `metrics.json` containing session telemetry
+**Output**: `metrics.json` file
 
-### Phase 4: Spawn Judge Claude Sub-Agent
+### Step 4: Spawn Judge Sub-Agent
 
-**Purpose**: Evaluate promptfoo results and session metrics
+**Purpose**: Analyze promptfoo results and session metrics to generate comprehensive evaluation report
 
-**Agent prompt**:
+**CRITICAL**: This must happen AFTER Step 2 completes. Use the promptfoo results from the code sub-agent.
+
+**IMPORTANT**: Use the Agent tool to spawn a sub-agent:
 
 ```
-You are a judge claude sub-agent responsible for evaluating agentic documentation quality.
+Agent(
+  description="Analyze evaluation results and generate report",
+  prompt="""
+You are a judge sub-agent responsible for evaluating agentic documentation quality.
 
 You have been provided with:
-1. Promptfoo test results (from code sub-agent)
-2. Session metrics (from metrics plugin)
+1. Promptfoo test results (JSON format)
+2. Session metrics (JSON format)
 
-Your task:
-Analyze the evaluation results and provide a comprehensive assessment.
+Your task: Analyze the results and generate a comprehensive evaluation report.
+
+## Inputs
+
+### Promptfoo Results
+{{promptfoo_results}}
+
+### Session Metrics
+{{session_metrics}}
 
 ## Evaluation Criteria
 
-### Test Results Analysis
+### 1. Test Results Analysis
 - Review all promptfoo test results
-- Group by category: Navigation, Authoring, Anti-patterns
+- Group by category: Navigation, Authoring, Anti-patterns, etc.
 - Calculate pass rates for each category
 - Identify failing tests and root causes
+- Check for errors vs actual failures
 
-### Metrics Analysis  
+### 2. Metrics Analysis  
 - Analyze token usage vs documentation quality
 - Evaluate navigation efficiency (entry points, file access patterns)
 - Assess session duration vs complexity
 
-### Overall Assessment
+### 3. Overall Assessment
 - Determine if documentation meets quality threshold (>90% pass rate)
 - Identify critical failures (especially anti-pattern tests)
 - Evaluate natural discovery behavior
 
 ## Output Format
 
-Generate a detailed evaluation report with these sections:
+Generate a detailed evaluation report in markdown format with these sections:
 
 ```markdown
 # Agentic Documentation Evaluation Report
@@ -208,20 +236,26 @@ Generate a detailed evaluation report with these sections:
 ## Executive Summary
 - Overall Pass Rate: X%
 - Tests Passed: X/Y
+- Tests Failed: X/Y
+- Errors: X/Y
 - Critical Issues: N
 - Recommendation: PASS/FAIL
 
 ## Test Results by Category
 
-### Navigation Tests (X/Y passed)
-[List each test with pass/fail and explanation]
+[For each category found in promptfoo results]
 
-### Authoring Tests (X/Y passed)
-[List each test with pass/fail and explanation]
+### Category Name (X/Y passed)
+- **Test name**: ✅ PASS or ❌ FAIL
+  - Expected: [what was expected]
+  - Actual: [what happened]
+  - Evidence: [quote from test output]
 
-### Anti-Pattern Tests (X/Y passed)  
-[List each test with pass/fail and explanation]
-**Critical**: All anti-pattern tests must pass (zero tolerance)
+[Repeat for all tests]
+
+### Critical: Anti-Pattern Tests
+**Zero tolerance**: All anti-pattern tests must pass.
+[List anti-pattern test results with special emphasis]
 
 ## Session Metrics
 
@@ -230,71 +264,110 @@ Generate a detailed evaluation report with these sections:
 | Total Tokens | X | Normal/High/Low |
 | Duration | X min | Efficient/Slow |
 | Files Accessed | X | Good coverage/Missing files |
-| Entry Point | AGENTS.md/README.md | Optimal/Sub-optimal |
+| Entry Point | AGENTS.md/README.md/etc | Optimal/Sub-optimal |
+| Navigation Pattern | Direct/Exploratory | Efficient/Inefficient |
 
 ## Failure Analysis
 
-For each failing test:
-1. Test name and category
-2. Expected behavior
-3. Actual behavior
-4. Root cause (documentation gap, unclear guidance, missing reference)
-5. Recommended fix
+[For each failing or erroring test]
+
+### Test: [test name]
+- **Category**: [category]
+- **Expected**: [expected behavior]
+- **Actual**: [actual behavior]
+- **Root Cause**: [why it failed - documentation gap, unclear guidance, missing reference, config error]
+- **Recommended Fix**: [specific action to take]
+
+## Error Analysis
+
+[If there are errors instead of pass/fail]
+
+**Error Rate**: X%
+**Common Error Type**: [provider error, config error, etc.]
+
+Likely causes:
+1. [Most likely cause]
+2. [Second likely cause]
+3. [Etc.]
 
 ## Recommendations
 
-### High Priority
-- [Critical fixes needed for failing tests]
+### High Priority (Critical Fixes)
+- [Issue 1 that must be fixed]
+- [Issue 2 that must be fixed]
 
-### Medium Priority  
-- [Documentation improvements]
+### Medium Priority (Documentation Improvements)
+- [Improvement 1]
+- [Improvement 2]
 
-### Low Priority
-- [Nice-to-have enhancements]
+### Low Priority (Nice-to-have Enhancements)
+- [Enhancement 1]
+- [Enhancement 2]
 
 ## Conclusion
 
-[Final assessment and next steps]
+[Final assessment - 2-3 paragraphs]
+- Overall quality verdict
+- Key strengths of the documentation
+- Most critical improvements needed
+- Next steps
+
+---
+
+**Pass Threshold**: >90% pass rate with zero anti-pattern failures
+**Actual Result**: [PASS/FAIL based on criteria]
 ```
 
-## Inputs Provided
+## Important Guidelines
 
-### Promptfoo Results
-{{promptfoo_results}}
+1. **Be specific**: Quote actual test outputs, don't paraphrase
+2. **Categorize clearly**: Group related failures together
+3. **Root cause analysis**: Don't just say "failed" - explain WHY
+4. **Actionable recommendations**: Each recommendation should be implementable
+5. **Distinguish errors from failures**: Errors = config/execution problem, Failures = documentation gaps
+6. **Zero tolerance for anti-patterns**: Even one anti-pattern failure = overall FAIL
 
-### Session Metrics
-{{session_metrics}}
-
-Please generate the complete evaluation report now.
+Generate the complete evaluation report now.
+"""
+)
 ```
 
-**Agent configuration**:
-- Description: "Evaluate promptfoo results and session metrics"
-- Model: opus (high-quality analysis and reporting)
-- Tools allowed: None (pure analysis, no tool execution needed)
+**Variables to substitute**:
+- `{{promptfoo_results}}`: Complete JSON from code sub-agent
+- `{{session_metrics}}`: Complete JSON from metrics collection
+- `{{repository_name}}`: Name of repository being evaluated
+- `{{evaluation_date}}`: Current date
 
-### Phase 5: Return Evaluation Report
+**Expected output from judge sub-agent**:
+- Complete markdown evaluation report
+- Analysis of all test results
+- Recommendations for improvements
 
-Output the judge's evaluation report to the user.
+### Step 5: Return Evaluation Report
+
+Display the judge's evaluation report to the user.
 
 **Format**:
-- Display complete markdown report
+- Show complete markdown report
 - Highlight critical failures
-- Provide actionable recommendations
+- Emphasize overall PASS/FAIL verdict
+- Provide next steps
 
 ## Success Criteria
 
 **Overall PASS requirements**:
-- ✅ Navigation tests: 100% pass rate (all tests must pass)
-- ✅ Authoring tests: 100% pass rate (all tests must pass)
-- ✅ Anti-pattern tests: 100% pass rate (zero tolerance - all must pass)
-- ✅ Metrics: Normal token usage, efficient navigation, proper entry points
+- ✅ Test pass rate: >90%
+- ✅ Anti-pattern tests: 100% pass rate (zero tolerance)
+- ✅ Error rate: <5% (errors indicate config problems, not doc problems)
+- ✅ Metrics: Reasonable token usage, proper entry points
 
 **Any anti-pattern failure = FAIL** (critical requirement)
 
 ## Error Handling
 
-**If promptfooconfig.yaml missing**:
+### Missing Config File
+
+If `promptfooconfig.yaml` missing:
 ```
 ERROR: Evaluation configuration not found
 
@@ -306,20 +379,42 @@ To generate it, run:
 This will create a tailored evaluation suite for this repository.
 ```
 
-**If promptfoo execution fails**:
+**Action**: Display error and STOP. Do not spawn any agents.
+
+### Missing API Credentials
+
+If both `ANTHROPIC_API_KEY` and `ANTHROPIC_VERTEX_PROJECT_ID` are missing:
 ```
-ERROR: Promptfoo evaluation failed
+ERROR: No API credentials found
 
-Check:
-1. Node.js is installed (node --version)
-2. ANTHROPIC_API_KEY is set
-3. promptfooconfig.yaml is valid YAML
-4. Repository documentation exists
-
-Details: {{error_message}}
+Set one of:
+  export ANTHROPIC_API_KEY='your-key-here'
+  export ANTHROPIC_VERTEX_PROJECT_ID='your-project-id'
 ```
 
-**If metrics collection fails**:
+**Action**: Display error and STOP. Do not spawn any agents.
+
+### Promptfoo Execution Errors
+
+If code sub-agent reports errors running promptfoo:
+1. Check the error message from run-eval.sh
+2. Common issues:
+   - Node.js not installed → Tell user to install Node.js 18+
+   - Provider config wrong → Check promptfooconfig.yaml provider format
+   - API authentication failed → Check API key/credentials
+3. Display the specific error to user
+4. Still spawn judge sub-agent to analyze the error
+
+### High Error Rate (>10%)
+
+If promptfoo results show >10% errors (not failures, but errors):
+- This indicates a configuration problem, not documentation quality
+- Judge should analyze error patterns
+- Recommendations should focus on fixing promptfoo config first
+
+### Metrics Collection Failure
+
+If metrics plugin unavailable or fails:
 ```
 WARNING: Session metrics collection failed
 
@@ -329,50 +424,140 @@ Metrics analysis will be skipped.
 Details: {{error_message}}
 ```
 
+**Action**: Continue with judge sub-agent using only promptfoo results.
+
+## Bundled Scripts
+
+This skill includes helper scripts in `scripts/` directory:
+
+### run-eval.sh
+
+**Purpose**: Run promptfoo evaluation with proper environment setup
+
+**Usage**:
+```bash
+# Run all tests
+bash ${CLAUDE_PLUGIN_ROOT}/scripts/run-eval.sh
+
+# Run tests matching pattern
+bash ${CLAUDE_PLUGIN_ROOT}/scripts/run-eval.sh "navigation"
+```
+
+**Features**:
+- Auto-detects API credentials (Vertex AI or Anthropic API)
+- Handles NVM/Node.js environment setup
+- Runs promptfoo with correct configuration
+- Outputs results to promptfoo-results.json
+
+**CRITICAL**: Always use this script. Do NOT run `promptfoo eval` directly.
+
+### Makefile
+
+**Purpose**: Convenience targets for common operations
+
+**Available targets**:
+- `make eval` - Run all evaluations
+- `make eval-filter FILTER=pattern` - Run filtered evaluations
+- `make eval-view` - Open web UI to view results
+- `make eval-clean` - Clean evaluation cache
+
+**Note**: These are for advanced users running evaluations manually, not for the skill's automated workflow.
+
 ## Example Usage
 
-```bash
-# 1. Generate evaluation config (first time only)
-cd /path/to/repository
-/agentic-docs:generate-evals
-
-# 2. Set API key
-export ANTHROPIC_API_KEY="your-key-here"
-
-# 3. Run evaluation
-/agentic-docs:evaluate
-
-# Expected output:
-# - Spawns code sub-agent → runs promptfoo
-# - Collects session metrics
-# - Spawns judge sub-agent → analyzes results
-# - Displays comprehensive evaluation report
+**User request**:
 ```
+I just created documentation for the multiarch-tuning-operator. 
+I ran /agentic-docs:generate-evals and now I want to evaluate it.
+The repository is at /path/to/multiarch-tuning-operator.
+```
+
+**Your workflow**:
+1. Pre-flight checks (promptfooconfig.yaml exists, API key set)
+2. Spawn code sub-agent → runs `scripts/run-eval.sh` → returns promptfoo-results.json
+3. Collect session metrics → writes metrics.json
+4. Spawn judge sub-agent → analyzes results + metrics → generates report
+5. Display evaluation report to user
+
+**Expected output**: Comprehensive evaluation report showing:
+- 43 test results (pass/fail/error counts)
+- Breakdown by category (navigation, authoring, anti-patterns, etc.)
+- Session metrics (tokens, duration, files accessed)
+- Specific recommendations for improvements
+- Overall PASS/FAIL verdict
 
 ## Cost Estimate
 
-**Per evaluation**:
-- Code sub-agent: ~$0.02 (runs promptfoo tool)
-- Promptfoo tests (43 tests): ~$0.15-0.30 (depends on test complexity)
-- Judge sub-agent: ~$0.05 (analyzes results)
-- **Total**: ~$0.22-0.37 per full evaluation
+**Per evaluation** (43 tests):
+- Code sub-agent: ~$0.02 (runs script)
+- Promptfoo tests: ~$0.15-0.30 (depends on test complexity)
+- Metrics collection: ~$0.00 (local processing)
+- Judge sub-agent: ~$0.05-0.10 (analyzes ~10K tokens of results)
+- **Total**: ~$0.22-0.42 per full evaluation
 
 ## Related Commands
 
-- `/agentic-docs:generate-evals` - Generate promptfooconfig.yaml
-- `/metrics:ai-docs-telemetry` - Collect session metrics
-- `/agentic-docs:component` - Create component documentation
+- `/agentic-docs:generate-evals` - Generate promptfooconfig.yaml before evaluating
+- `/agentic-docs:component` - Create component documentation to evaluate
+- `/metrics:ai-docs-telemetry` - Analyze documentation usage patterns
+
+## Common Issues
+
+### Issue: All tests error (100% error rate)
+
+**Symptom**: Promptfoo reports 43 errors, 0 pass, 0 fail
+
+**Causes**:
+1. **Provider configuration wrong** - Check promptfooconfig.yaml uses correct provider format
+2. **API authentication failed** - Verify ANTHROPIC_API_KEY or ANTHROPIC_VERTEX_PROJECT_ID
+3. **Vertex AI project mismatch** - If using Vertex, check project ID matches settings
+
+**Fix**: 
+- Check `promptfooconfig.yaml` provider section
+- Should be: `providers: [anthropic:claude-sonnet-4-6]` 
+- NOT: `providers: [{id: anthropic:messages:claude-sonnet-4-6, config: {...}}]`
+
+### Issue: Code sub-agent spawned but judge never runs
+
+**Symptom**: Evaluation starts but never produces final report
+
+**Cause**: You forgot to spawn the judge sub-agent after code completes
+
+**Fix**: 
+- Wait for code sub-agent to finish
+- Read its output (promptfoo-results.json)
+- Collect metrics
+- Spawn judge sub-agent with results + metrics as input
+
+### Issue: Can't find run-eval.sh script
+
+**Symptom**: Code sub-agent reports "script not found"
+
+**Cause**: Using wrong path to script
+
+**Fix**: 
+- Use `${CLAUDE_PLUGIN_ROOT}/scripts/run-eval.sh`
+- CLAUDE_PLUGIN_ROOT should point to the evaluate skill directory
+- Full path will be something like: `/path/to/plugins/agentic-docs/skills/evaluate/scripts/run-eval.sh`
 
 ## Notes
 
-**CRITICAL**:
-- Do NOT spawn manual test agents
-- Do NOT create test scenarios inline  
-- ONLY run promptfoo tool with existing config
-- Spawn exactly 2 sub-agents: code + judge
+**CRITICAL WORKFLOW STEPS**:
+1. ✅ Pre-flight checks (fail fast if missing prereqs)
+2. ✅ Spawn code sub-agent (use bundled script, not raw commands)
+3. ✅ Wait for code sub-agent to complete
+4. ✅ Collect session metrics
+5. ✅ Spawn judge sub-agent (with results from step 2 + 4)
+6. ✅ Display judge's report
+
+**DO NOT**:
+- ❌ Skip judge sub-agent
+- ❌ Run promptfoo commands directly (use scripts/run-eval.sh)
+- ❌ Spawn agents in parallel (code must finish before judge starts)
+- ❌ Continue if pre-flight checks fail
 
 **Why this architecture**:
-- Separation of concerns: code agent runs tools, judge analyzes
-- Consistent evaluation: promptfoo config is single source of truth
-- Comprehensive analysis: judge combines test results + metrics
-- No manual intervention: fully automated evaluation pipeline
+- Separation of concerns: Code agent runs tools, judge analyzes
+- Bundled scripts: Reliable execution with proper environment setup
+- Sequential execution: Judge needs code's results to analyze
+- Comprehensive analysis: Combines test results + session metrics

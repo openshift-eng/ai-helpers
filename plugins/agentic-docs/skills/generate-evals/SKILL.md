@@ -241,9 +241,25 @@ Generate anti-pattern test:
 
 ### Phase 5: Generate promptfooconfig.yaml
 
-**CRITICAL**: The promptfooconfig.yaml MUST use ONLY the following provider:
-- Provider ID: `anthropic:claude-sonnet-4-6`
-- Do NOT use any other providers (no OpenAI, no other Claude versions, no other models)
+**CRITICAL**: The promptfooconfig.yaml MUST use this EXACT format:
+
+**Provider Format** (use simple string format, NOT object format):
+```yaml
+# ✅ CORRECT - Simple string format
+providers:
+  - anthropic:claude-sonnet-4-6
+
+# ❌ WRONG - Do NOT use object format with id/config
+# providers:
+#   - id: anthropic:messages:claude-sonnet-4-6
+#     config:
+#       temperature: 0.0
+```
+
+**IMPORTANT**:
+- Provider ID: `anthropic:claude-sonnet-4-6` (this exact string)
+- Do NOT use `anthropic:messages:` prefix (that's the API format, not promptfoo format)
+- Do NOT include config section (temperature, max_tokens, etc.) - promptfoo uses defaults
 - This is the ONLY supported provider for agentic documentation evaluation
 
 Assemble complete configuration using this exact template:
@@ -258,7 +274,7 @@ providers:
   - anthropic:claude-sonnet-4-6
 
 prompts:
-  - "{{execution_plan}}"
+  - file://prompts/system.txt
 
 tests:
   # Navigation tests (2-3)
@@ -274,7 +290,7 @@ defaultTest:
   options:
     provider: anthropic:claude-sonnet-4-6
 
-outputPath: .work/eval/results.json
+outputPath: ./promptfoo-results.json
 ```
 
 **Write to**: `<repository-root>/promptfooconfig.yaml`
