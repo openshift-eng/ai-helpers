@@ -53,6 +53,7 @@ $(EVAL_TARGETS):
 	$(eval EVAL_NAME := $(basename $(notdir $(CONFIG))))
 	@echo "=== Running eval: $(CONFIG) ==="
 	@CLAUDE_CODE_USE_VERTEX=true \
+	$(if $(PROMPTFOO_CONFIG_DIR),PROMPTFOO_CONFIG_DIR=$(PROMPTFOO_CONFIG_DIR)) \
 	PROMPTFOO_PASS_RATE_THRESHOLD=$(EVAL_PASS_RATE_THRESHOLD) \
 		npx promptfoo eval \
 		-c "$(CONFIG)" \
@@ -67,6 +68,7 @@ $(EVAL_TARGETS):
 eval-contributing: ## Run contributing workflow evals (root evals/promptfooconfig.yaml)
 	@npm install
 	@CLAUDE_CODE_USE_VERTEX=true \
+	$(if $(PROMPTFOO_CONFIG_DIR),PROMPTFOO_CONFIG_DIR=$(PROMPTFOO_CONFIG_DIR)) \
 	PROMPTFOO_PASS_RATE_THRESHOLD=$(EVAL_PASS_RATE_THRESHOLD) \
 		npx promptfoo eval \
 		-c evals/promptfooconfig.yaml \
