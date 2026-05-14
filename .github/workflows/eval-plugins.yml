@@ -90,7 +90,9 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: eval-results-${{ matrix.plugin }}
-          path: eval-results/*.xml
+          path: |
+            eval-results/*.xml
+            eval-results/*.html
           retention-days: 30
 
   contributing-evals:
@@ -118,4 +120,17 @@ jobs:
       - name: Run contributing evals
         env:
           ANTHROPIC_VERTEX_PROJECT_ID: ${{ secrets.ANTHROPIC_VERTEX_PROJECT_ID }}
-        run: make eval-contributing
+          EVAL_OUTPUT_DIR: ${{ github.workspace }}/eval-results
+        run: |
+          mkdir -p "$EVAL_OUTPUT_DIR"
+          make eval-contributing
+
+      - name: Upload eval results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: eval-results-contributing
+          path: |
+            eval-results/*.xml
+            eval-results/*.html
+          retention-days: 30

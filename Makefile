@@ -58,7 +58,7 @@ $(EVAL_TARGETS):
 		-c "$(CONFIG)" \
 		$(if $(EVAL_FILTER),--filter-pattern "$(EVAL_FILTER)") \
 		$(if $(EVAL_TIER),--filter-metadata "tier=$(EVAL_TIER)") \
-		$(if $(EVAL_OUTPUT_DIR),--output "$(EVAL_OUTPUT_DIR)/$(EVAL_NAME).xml") \
+		$(if $(EVAL_OUTPUT_DIR),--output "$(EVAL_OUTPUT_DIR)/$(EVAL_NAME).xml" --output "$(EVAL_OUTPUT_DIR)/$(EVAL_NAME).html") \
 		--repeat $(EVAL_REPEAT) \
 		--no-cache \
 		--table-cell-max-length 500
@@ -71,6 +71,7 @@ eval-contributing: ## Run contributing workflow evals (root evals/promptfooconfi
 		npx promptfoo eval \
 		-c evals/promptfooconfig.yaml \
 		$(if $(EVAL_FILTER),--filter-pattern "$(EVAL_FILTER)") \
+		$(if $(EVAL_OUTPUT_DIR),--output "$(EVAL_OUTPUT_DIR)/contributing.xml" --output "$(EVAL_OUTPUT_DIR)/contributing.html") \
 		--repeat $(EVAL_REPEAT) \
 		--no-cache \
 		--table-cell-max-length 500
