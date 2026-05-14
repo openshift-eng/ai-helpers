@@ -1,6 +1,6 @@
 # [Component Name] - Development Guide
 
-> **Generic Development Practices**: See [Tier 1 Development Practices](https://github.com/openshift/enhancements/tree/master/ai-docs/practices/development) for Go standards, controller-runtime patterns, and CI/CD workflows.
+> **Generic Development Practices**: See [Platform Development Practices](Platform documentation) for Go standards, controller-runtime patterns, and CI/CD workflows.
 
 This guide covers **[COMPONENT]-specific** development practices.
 
@@ -127,7 +127,7 @@ Location: `pkg/controller/[name]/`
 - `reconcile.go` - Reconcile logic
 - `*_test.go` - Unit tests
 
-**Generic controller patterns**: See [Tier 1](https://github.com/openshift/enhancements/tree/master/ai-docs/platform/operator-patterns/controller-runtime.md)
+**Generic controller patterns**: See [Platform](Platform documentation)
 
 ### Domain Logic
 
@@ -181,7 +181,7 @@ Component images are built by OpenShift CI on PR merge. See `.ci-operator.yaml`.
 
 ### Release Process
 
-Component is released as part of OpenShift release image. See [Tier 1 Release Process](https://github.com/openshift/enhancements/tree/master/ai-docs/practices/development).
+Component is released as part of OpenShift release image. See [Platform Release Process](Platform documentation).
 
 ## Component-Specific Notes
 
@@ -196,4 +196,4 @@ Component is released as part of OpenShift release image. See [Tier 1 Release Pr
 
 - [Testing Guide](./[COMPONENT]_TESTING.md)
 - [Architecture](./architecture/components.md)
-- [Tier 1 Development Practices](https://github.com/openshift/enhancements/tree/master/ai-docs/practices/development)
+- [Platform Development Practices](Platform documentation)

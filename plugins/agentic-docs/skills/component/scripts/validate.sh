@@ -2,7 +2,7 @@
 #
 # Component Documentation Validator
 #
-# Validates component-tier documentation structure and links.
+# Validates component-level documentation structure and links.
 #
 # Usage:
 #   ./validate.sh [REPO_PATH] [VALIDATE_LINKS]
@@ -234,11 +234,11 @@ else
     echo "     $LINE_COUNT lines (target: 80-100) ✅"
 fi
 
-# Check for Tier 1 references
-if grep -q "Tier 1" "$REPO_PATH/AGENTS.md" || grep -q "openshift/enhancements" "$REPO_PATH/AGENTS.md"; then
-    echo "  ✅ Tier 1 ecosystem references found"
+# Check for Platform references
+if grep -q "Platform" "$REPO_PATH/AGENTS.md" || grep -q "openshift/enhancements" "$REPO_PATH/AGENTS.md"; then
+    echo "  ✅ Platform ecosystem references found"
 else
-    echo "  ⚠️  No Tier 1 ecosystem references found"
+    echo "  ⚠️  No Platform ecosystem references found"
 fi
 
 # Check for retrieval-first instruction
@@ -264,10 +264,10 @@ echo ""
 # Check ecosystem.md
 if [ -f "$REPO_PATH/ai-docs/references/ecosystem.md" ]; then
     echo "  ✅ references/ecosystem.md exists"
-    if grep -q "Tier 1" "$REPO_PATH/ai-docs/references/ecosystem.md"; then
-        echo "     Contains Tier 1 links ✅"
+    if grep -q "Platform" "$REPO_PATH/ai-docs/references/ecosystem.md"; then
+        echo "     Contains Platform links ✅"
     else
-        echo "     ⚠️  No Tier 1 links found"
+        echo "     ⚠️  No Platform links found"
     fi
 else
     echo "  ⚠️  references/ecosystem.md missing"
@@ -289,7 +289,7 @@ FORBIDDEN_PATTERNS=(
 FOUND_DUPLICATION=false
 for pattern in "${FORBIDDEN_PATTERNS[@]}"; do
     if grep -riq "$pattern" "$REPO_PATH/ai-docs/" 2>/dev/null; then
-        echo "  ⚠️  Found generic pattern: '$pattern' (should link to Tier 1)"
+        echo "  ⚠️  Found generic pattern: '$pattern' (should link to Platform)"
         FOUND_DUPLICATION=true
     fi
 done

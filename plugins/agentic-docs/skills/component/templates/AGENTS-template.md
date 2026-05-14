@@ -2,9 +2,8 @@
 
 **Component**: [Component Full Name]  
 **Repository**: openshift/[repo-name]  
-**Documentation Tier**: 2 (Component-specific)
 
-> **Generic Platform Patterns**: See [Tier 1 Ecosystem Hub](https://github.com/openshift/enhancements/tree/master/ai-docs) for operator patterns, testing practices, security guidelines, and cross-repo ADRs.
+> **Generic Platform Patterns**: See Platform documentation (openshift/enhancements/ai-docs/) for operator patterns, testing practices, security guidelines, and cross-repo ADRs.
 
 ## What is [Component Name]?
 
@@ -27,14 +26,14 @@ ai-docs/
 ├── decisions/                 # Component-specific ADRs
 ├── exec-plans/                # Feature planning
 ├── references/
-│   └── ecosystem.md           # Links to Tier 1
+│   └── ecosystem.md           # Links to Platform
 ├── [COMPONENT]_DEVELOPMENT.md # Component dev workflows
 └── [COMPONENT]_TESTING.md     # Component test suites
 ```text
 
-**Exec-Plans**: Use `active/` for new features. See [Tier 1 Exec-Plans Guide](https://github.com/openshift/enhancements/tree/master/ai-docs/workflows/exec-plans).
+**Exec-Plans**: Use `active/` for new features. See [Platform Exec-Plans Guide](Platform documentation).
 
-**Platform Patterns (Tier 1)**: [Operator](https://github.com/openshift/enhancements/tree/master/ai-docs/platform/operator-patterns) | [Testing](https://github.com/openshift/enhancements/tree/master/ai-docs/practices/testing) | [Security](https://github.com/openshift/enhancements/tree/master/ai-docs/practices/security)
+**Platform Patterns (Platform)**: [Operator](Platform documentation) | [Testing](Platform documentation) | [Security](Platform documentation)
 
 ## Knowledge Graph
 
@@ -49,7 +48,7 @@ ai-docs/
               └───────────────┼───────────────┘
                               │
                       [references/ecosystem]
-                      Links to Tier 1
+                      Links to Platform
 ```text
 
 **AI Agent Path**: domain/ → architecture/ → decisions/ → [COMPONENT]_DEVELOPMENT.md
@@ -60,4 +59,4 @@ ai-docs/
 
 ---
 
-**Tier 1 Hub**: https://github.com/openshift/enhancements/tree/master/ai-docs
+**Platform Documentation**: openshift/enhancements/ai-docs/
