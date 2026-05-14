@@ -4,10 +4,10 @@ description: "Evaluate agentic documentation quality using promptfoo-based behav
 trigger: /agentic-docs:evaluate
 ---
 
-# Agentic-Docs: Evaluate (v3.0)
+# Agentic-Docs: Evaluate (v4.0)
 
 **Trigger**: `/agentic-docs:evaluate`  
-**Purpose**: Evaluate documentation quality by testing whether AI agents naturally discover and correctly apply repository conventions
+**Purpose**: Evaluate documentation quality by running promptfoo test suite and analyzing results
 
 **Framework**: OpenShift Enhancements Agentic Docs Evaluation  
 **Reference**: https://github.com/openshift/enhancements/pull/1992
@@ -17,7 +17,7 @@ trigger: /agentic-docs:evaluate
 This evaluation validates **documentation-first natural discovery behavior**:
 
 > Agents are NOT told to read documentation.  
-> They must naturally discover CLAUDE.md and apply guidance correctly.
+> They must naturally discover documentation and apply guidance correctly.
 
 Tests measure:
 - **Natural discovery**: Does agent find documentation without instruction?
@@ -27,426 +27,352 @@ Tests measure:
 
 ## Architecture
 
-### Strict Separation of Responsibility
+The evaluation uses a **two-agent architecture**:
 
 ```
-┌──────────────────────────────────────────────────────┐
-│ Coding Sub-Agent                                      │
-│                                                       │
-│  • Receives task description ONLY                    │
-│  • NOT told to read specific files                   │
-│  • Must naturally discover documentation             │
-│  • Generates execution plan                          │
-│  • Includes "## Documentation Used" section          │
-│                                                       │
-│  NO ACCESS TO: evaluation criteria, test cases       │
-└──────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│ Code Claude Sub-Agent                                    │
+│                                                          │
+│  Purpose: Run promptfoo evaluation suite                │
+│                                                          │
+│  Tasks:                                                  │
+│  1. Check if promptfooconfig.yaml exists               │
+│  2. Install promptfoo (if not installed)               │
+│  3. Run: promptfoo eval                                 │
+│  4. Capture results from output                         │
+│  5. Return promptfoo results                            │
+│                                                          │
+│  NO MANUAL TESTS - Only run promptfoo tool              │
+└─────────────────────────────────────────────────────────┘
                         │
-                        │ execution_plan
+                        │ promptfoo results
                         ↓
-┌──────────────────────────────────────────────────────┐
-│ Promptfoo (Evaluation Engine)                        │
-│                                                       │
-│  • Runs assertions from promptfooconfig.yaml         │
-│  • Uses icontains, contains-any, llm-rubric          │
-│  • Computes weighted scores                          │
-│  • Outputs results to .work/eval/results.json        │
-│                                                       │
-│  SINGLE SOURCE OF TRUTH for all evaluation logic     │
-└──────────────────────────────────────────────────────┘
-                        │
-                        │ results.json
-                        ↓
-┌──────────────────────────────────────────────────────┐
-│ Claude Judge Sub-Agent                                │
-│                                                       │
-│  • Interprets promptfoo outputs                      │
-│  • Validates OpenShift enhancement conventions       │
-│  • Explains why tests passed/failed                  │
-│  • Provides recommendations                          │
-│                                                       │
-│  MUST NOT reimplement evaluation logic               │
-└──────────────────────────────────────────────────────┘
-```
-
-## Test Categories
-
-All tests defined in **`promptfooconfig.yaml`** in the plugin directory (`plugins/agentic-docs/`).
-
-### 1. Navigation Tests (2 scenarios)
-
-**Purpose**: Verify agent discovers documentation naturally
-
-**Tests**:
-- Enhancement process documentation discovery
-- Operator pattern documentation location
-
-**Success criteria**:
-- Agent finds documentation without explicit instruction
-- Agent includes "## Documentation Used" section
-- Agent references specific files consulted
-
-### 2. Enhancement Authoring Tests (1 scenario)
-
-**Purpose**: Verify agent applies OpenShift conventions correctly
-
-**Test**: Design a fictional "ClusterPowerScheduler" enhancement
-
-**Success criteria**:
-- Starts API at v1alpha1 (NOT v1)
-- Uses standard ClusterOperator conditions (Available/Progressing/Degraded)
-- Includes API graduation criteria
-- References relevant documentation
-
-### 3. Anti-Pattern Tests (3 scenarios)
-
-**Purpose**: Verify agent rejects incorrect patterns
-
-**Tests**:
-- **v1 API start rejection**: Must reject starting at v1, require v1alpha1
-- **Custom conditions rejection**: Must reject custom ClusterOperator conditions
-- **Breaking changes rejection**: Must reject API changes without deprecation
-
-**Critical**: Any anti-pattern acceptance = FAIL
-
-## Single Configuration File
-
-All evaluation logic lives in `plugins/agentic-docs/promptfooconfig.yaml`.
-
-**Structure**:
-```yaml
-providers:
-  - id: anthropic:messages:claude-sonnet-4-6
-    config:
-      temperature: 0.0
-
-prompts:
-  - "{{execution_plan}}"
-
-tests:
-  # Navigation tests
-  - description: "Navigation: ..."
-    vars:
-      task_description: "..."
-    assert:
-      - type: icontains
-        value: "## Documentation Used"
-        weight: 3.0
-      # ... more assertions
-
-  # Authoring tests
-  - description: "Authoring: ..."
-    # ...
-
-  # Anti-pattern tests
-  - description: "Anti-pattern: ..."
-    # ...
-```
-
-**Key points**:
-- Single file, no split configs
-- Promptfoo-native assertions only (`icontains`, `contains-any`, `llm-rubric`)
-- Each assertion has explicit weight
-- Tests organized by category (filter with `--filter-description`)
-
-## Execution
-
-### Make Targets
-
-```bash
-# Run all tests (~30-60 min)
-make eval
-
-# Run by category
-make eval-navigation
-make eval-authoring
-make eval-anti-pattern
-
-# View results in web UI
-make eval-view
-
-# Clear cache
-make eval-clean
-```
-
-### Direct Promptfoo Commands
-
-```bash
-# From plugins/agentic-docs directory
-cd plugins/agentic-docs
-
-# All tests
-npx promptfoo eval -c promptfooconfig.yaml
-
-# Filtered by category
-npx promptfoo eval -c promptfooconfig.yaml --filter-description "Navigation:"
-
-# View results
-npx promptfoo view
-```
-
-## Required Output Format
-
-All coding agent responses MUST include:
-
-```markdown
-## Documentation Used
-
-- <file-path> - <why-used>
-- <file-path> - <why-used>
-...
-```
-
-**Example**:
-```markdown
-## Documentation Used
-
-- CLAUDE.md - Entry point discovered naturally, provided navigation to enhancement docs
-- ai-docs/API_CONVENTIONS.md - Referenced for API versioning, found v1alpha1 requirement
-- ai-docs/OPERATORS.md - Consulted for standard ClusterOperator status conditions
-```
-
-This section is evidence of:
-- Natural documentation discovery (not prompted compliance)
-- Correct navigation through documentation
-- Grounding in documented patterns
-
-## Scoring Model
-
-**Promptfoo-Native Assertions Only**
-
-### Deterministic Assertions
-- `icontains`: Case-insensitive substring match
-- `contains-any`: Match any value from list
-- `not-icontains`: Negation (for anti-patterns)
-
-### LLM-Based Assertions
-- `llm-rubric`: Semantic evaluation by Claude
-
-### Weights
-Every assertion has explicit weight in `promptfooconfig.yaml`:
-
-```yaml
-assert:
-  - type: icontains
-    value: "## Documentation Used"
-    weight: 3.0  # Critical section
-
-  - type: llm-rubric
-    value: "Response rejects starting API at v1"
-    weight: 5.0  # Anti-pattern tests have high weight
-```
-
-Promptfoo computes weighted scores. Judge interprets results.
-
-## Documentation-First Natural Discovery
-
-**Critical Design Principle**:
-
-> Agents are NOT instructed to read CLAUDE.md or ai-docs/.  
-> Success depends on whether agents naturally discover and use documentation.
-
-This evaluates **real agentic behavior**, not prompted compliance.
-
-**What this tests**:
-- Is documentation discoverable?
-- Does CLAUDE.md work as an entry point?
-- Can agents navigate documentation structure?
-- Do agents apply guidance correctly?
-
-**What this does NOT test**:
-- Can agents follow explicit instructions to read specific files?
-- Can agents comply when told what to reference?
-
-## Success Criteria
-
-### Per-Category Requirements
-
-**Navigation**: All navigation tests must pass
-- Agent discovers documentation naturally
-- Agent includes "## Documentation Used" section
-- Agent references specific files
-
-**Authoring**: All authoring tests must pass
-- API starts at v1alpha1 (not v1)
-- Uses standard ClusterOperator conditions
-- Includes graduation criteria
-- References documentation
-
-**Anti-Patterns**: ALL anti-pattern tests must pass (zero tolerance)
-- Rejects starting API at v1
-- Rejects custom ClusterOperator conditions
-- Rejects breaking changes without deprecation
-
-### Overall PASS Criteria
-
-```
-✅ Navigation: 2/2 passed
-✅ Authoring: 1/1 passed
-✅ Anti-patterns: 3/3 passed
-```
-
-**Any anti-pattern failure = FAIL** (critical requirement)
-
-## Example Report
-
-Judge interprets promptfoo results:
-
-```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📊 Evaluation Results
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Overall: 6/6 tests passed ✅
-
-Navigation Tests: ✅ 2/2
-- Enhancement process discovery: PASS
-  Agent naturally discovered CLAUDE.md and navigated to enhancement docs
-
-- Operator pattern location: PASS
-  Agent found operator documentation and referenced specific sections
-
-Authoring Tests: ✅ 1/1
-- ClusterPowerScheduler design: PASS
-  * Started API at v1alpha1 ✓
-  * Used Available/Progressing/Degraded conditions ✓
-  * Included alpha → beta → stable graduation ✓
-  * Referenced ai-docs/API_CONVENTIONS.md ✓
-
-Anti-Pattern Tests: ✅ 3/3
-- Reject v1 API start: PASS
-  Agent correctly rejected starting at v1, required v1alpha1
-
-- Reject custom conditions: PASS
-  Agent rejected "Ready/Healthy/Operating", required standard conditions
-
-- Reject breaking changes: PASS
-  Agent rejected field rename without deprecation process
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✅ EVALUATION PASSED
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-All tests passed. Documentation enables:
-✓ Natural discovery behavior
-✓ Correct OpenShift convention application
-✓ Anti-pattern rejection
-
-View detailed results: make eval-view
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+┌─────────────────────────────────────────────────────────┐
+│ Judge Claude Sub-Agent                                   │
+│                                                          │
+│  Purpose: Evaluate promptfoo results + session metrics  │
+│                                                          │
+│  Inputs:                                                 │
+│  • Promptfoo test results                               │
+│  • Session metrics (from metrics plugin)                │
+│                                                          │
+│  Tasks:                                                  │
+│  1. Interpret promptfoo pass/fail results              │
+│  2. Analyze test categories (navigation, authoring,     │
+│     anti-patterns)                                       │
+│  3. Evaluate session metrics (tokens, duration, files)  │
+│  4. Generate comprehensive evaluation report            │
+│  5. Provide recommendations for improvement             │
+│                                                          │
+│  Output: Detailed evaluation report with:               │
+│  • Test results summary                                 │
+│  • Metrics analysis                                     │
+│  • Pass/fail breakdown by category                      │
+│  • Recommendations                                      │
+└─────────────────────────────────────────────────────────┘
 ```
 
 ## Prerequisites
 
-- **Node.js**: 22.22.0+ or 20.20.0+
-- **API Key**: ANTHROPIC_API_KEY or ANTHROPIC_VERTEX_PROJECT_ID
+**Required files**:
+- `promptfooconfig.yaml` in repository root (generated by `/agentic-docs:generate-evals`)
 
-## Working Directory
+**Environment**:
+- Node.js 18+ (for promptfoo)
+- ANTHROPIC_API_KEY environment variable
 
-All commands execute from `plugins/agentic-docs/`:
+## Implementation Workflow
+
+### Phase 1: Pre-flight Checks
+
+**Validate prerequisites**:
 
 ```bash
-working_dir: plugins/agentic-docs
-config: plugins/agentic-docs/promptfooconfig.yaml
-results: plugins/agentic-docs/.work/eval/results.json
+# Check promptfooconfig.yaml exists
+if [ ! -f promptfooconfig.yaml ]; then
+  echo "ERROR: promptfooconfig.yaml not found"
+  echo "Run /agentic-docs:generate-evals first to generate evaluation config"
+  exit 1
+fi
+
+# Check ANTHROPIC_API_KEY is set
+if [ -z "$ANTHROPIC_API_KEY" ]; then
+  echo "ERROR: ANTHROPIC_API_KEY environment variable not set"
+  echo "Set with: export ANTHROPIC_API_KEY='your-key-here'"
+  exit 1
+fi
 ```
+
+### Phase 2: Spawn Code Claude Sub-Agent
+
+**Purpose**: Run promptfoo evaluation tool and capture results
+
+**Agent prompt**:
+
+```
+You are a code claude sub-agent responsible for running the promptfoo evaluation suite.
+
+Your task:
+1. Check if promptfoo is installed (run: promptfoo --version)
+2. If not installed, install it: npm install -g promptfoo
+3. Run the evaluation: promptfoo eval
+4. Capture the complete output
+5. Return the results
+
+IMPORTANT:
+- Do NOT create manual test scenarios
+- Do NOT spawn additional agents
+- ONLY run the promptfoo tool using the existing promptfooconfig.yaml
+- Return ALL output from promptfoo (both stdout and results)
+
+Repository: {{repository_path}}
+Config file: promptfooconfig.yaml (should exist in repository root)
+```
+
+**Agent configuration**:
+- Description: "Run promptfoo evaluation suite"
+- Model: sonnet (fast execution for tool running)
+- Tools allowed: Bash (for running promptfoo), Read (for checking config)
+
+**Expected output**:
+- Promptfoo test results (JSON format)
+- Summary of pass/fail tests
+- Any errors or warnings
+
+### Phase 3: Collect Session Metrics
+
+**Use metrics plugin** to collect current session metrics:
+
+```bash
+# Get current session ID from environment or ~/.claude/projects/
+SESSION_ID=$(ls -t ~/.claude/projects/{{project_name}}/ | head -1 | sed 's/.jsonl//')
+
+# Run metrics collection
+/metrics:ai-docs-telemetry -session ~/.claude/projects/{{project_name}}/${SESSION_ID}.jsonl > metrics.json
+```
+
+**Metrics to capture**:
+- Total tokens used
+- Session duration  
+- Files accessed (ai-docs/, AGENTS.md, etc.)
+- Entry points used
+- Navigation patterns
+
+**Output**: `metrics.json` containing session telemetry
+
+### Phase 4: Spawn Judge Claude Sub-Agent
+
+**Purpose**: Evaluate promptfoo results and session metrics
+
+**Agent prompt**:
+
+```
+You are a judge claude sub-agent responsible for evaluating agentic documentation quality.
+
+You have been provided with:
+1. Promptfoo test results (from code sub-agent)
+2. Session metrics (from metrics plugin)
+
+Your task:
+Analyze the evaluation results and provide a comprehensive assessment.
+
+## Evaluation Criteria
+
+### Test Results Analysis
+- Review all promptfoo test results
+- Group by category: Navigation, Authoring, Anti-patterns
+- Calculate pass rates for each category
+- Identify failing tests and root causes
+
+### Metrics Analysis  
+- Analyze token usage vs documentation quality
+- Evaluate navigation efficiency (entry points, file access patterns)
+- Assess session duration vs complexity
+
+### Overall Assessment
+- Determine if documentation meets quality threshold (>90% pass rate)
+- Identify critical failures (especially anti-pattern tests)
+- Evaluate natural discovery behavior
+
+## Output Format
+
+Generate a detailed evaluation report with these sections:
+
+```markdown
+# Agentic Documentation Evaluation Report
+
+**Repository**: {{repository_name}}
+**Date**: {{evaluation_date}}
+**Evaluator**: Judge Claude Sub-Agent
+
+## Executive Summary
+- Overall Pass Rate: X%
+- Tests Passed: X/Y
+- Critical Issues: N
+- Recommendation: PASS/FAIL
+
+## Test Results by Category
+
+### Navigation Tests (X/Y passed)
+[List each test with pass/fail and explanation]
+
+### Authoring Tests (X/Y passed)
+[List each test with pass/fail and explanation]
+
+### Anti-Pattern Tests (X/Y passed)  
+[List each test with pass/fail and explanation]
+**Critical**: All anti-pattern tests must pass (zero tolerance)
+
+## Session Metrics
+
+| Metric | Value | Assessment |
+|--------|-------|------------|
+| Total Tokens | X | Normal/High/Low |
+| Duration | X min | Efficient/Slow |
+| Files Accessed | X | Good coverage/Missing files |
+| Entry Point | AGENTS.md/README.md | Optimal/Sub-optimal |
+
+## Failure Analysis
+
+For each failing test:
+1. Test name and category
+2. Expected behavior
+3. Actual behavior
+4. Root cause (documentation gap, unclear guidance, missing reference)
+5. Recommended fix
+
+## Recommendations
+
+### High Priority
+- [Critical fixes needed for failing tests]
+
+### Medium Priority  
+- [Documentation improvements]
+
+### Low Priority
+- [Nice-to-have enhancements]
+
+## Conclusion
+
+[Final assessment and next steps]
+```
+
+## Inputs Provided
+
+### Promptfoo Results
+{{promptfoo_results}}
+
+### Session Metrics
+{{session_metrics}}
+
+Please generate the complete evaluation report now.
+```
+
+**Agent configuration**:
+- Description: "Evaluate promptfoo results and session metrics"
+- Model: opus (high-quality analysis and reporting)
+- Tools allowed: None (pure analysis, no tool execution needed)
+
+### Phase 5: Return Evaluation Report
+
+Output the judge's evaluation report to the user.
+
+**Format**:
+- Display complete markdown report
+- Highlight critical failures
+- Provide actionable recommendations
+
+## Success Criteria
+
+**Overall PASS requirements**:
+- ✅ Navigation tests: 100% pass rate (all tests must pass)
+- ✅ Authoring tests: 100% pass rate (all tests must pass)
+- ✅ Anti-pattern tests: 100% pass rate (zero tolerance - all must pass)
+- ✅ Metrics: Normal token usage, efficient navigation, proper entry points
+
+**Any anti-pattern failure = FAIL** (critical requirement)
 
 ## Error Handling
 
-### Missing "## Documentation Used" Section
-
+**If promptfooconfig.yaml missing**:
 ```
-❌ Test Failed: nav-001
+ERROR: Evaluation configuration not found
 
-Assertion: icontains "## Documentation Used"
-Result: FAIL
+The evaluation requires promptfooconfig.yaml to be present in the repository root.
 
-Agent response did not include required "## Documentation Used" section.
+To generate it, run:
+  /agentic-docs:generate-evals
 
-This indicates documentation discovery failed or output format was not followed.
-
-Recommendation: Verify coding agent includes documentation section in all responses.
+This will create a tailored evaluation suite for this repository.
 ```
 
-### Anti-Pattern Acceptance
-
+**If promptfoo execution fails**:
 ```
-❌ CRITICAL FAILURE: Anti-pattern test failed
+ERROR: Promptfoo evaluation failed
 
-Test: anti-001 - Reject starting API at v1
-Expected: Agent rejects v1 start, requires v1alpha1
-Actual: Agent approved starting at v1
+Check:
+1. Node.js is installed (node --version)
+2. ANTHROPIC_API_KEY is set
+3. promptfooconfig.yaml is valid YAML
+4. Repository documentation exists
 
-Evidence: Response stated "starting at v1 is acceptable if you're confident"
-
-This violates OpenShift API graduation requirements.
-
-Recommendation: Strengthen documentation about API versioning and graduation process.
+Details: {{error_message}}
 ```
 
-### Promptfoo Execution Failure
-
+**If metrics collection fails**:
 ```
-❌ Promptfoo Evaluation Failed
+WARNING: Session metrics collection failed
 
-Command: promptfoo eval -c promptfooconfig.yaml
-Exit code: 1
+Continuing evaluation with promptfoo results only.
+Metrics analysis will be skipped.
 
-Error: Provider configuration invalid
-
-Fix promptfooconfig.yaml provider settings and retry.
+Details: {{error_message}}
 ```
 
-## Reproducibility
+## Example Usage
 
-All evaluations are:
-- Executable from plugin directory (`cd plugins/agentic-docs && make eval`)
-- Defined in single promptfooconfig.yaml
-- Repeatable with `make eval`
-- Filterable by category
-- Viewable with `promptfoo view`
+```bash
+# 1. Generate evaluation config (first time only)
+cd /path/to/repository
+/agentic-docs:generate-evals
 
-Deterministic assertions (`icontains`, `contains-any`) produce identical results.  
-LLM-rubric assertions may vary slightly with temperature > 0.
+# 2. Set API key
+export ANTHROPIC_API_KEY="your-key-here"
 
-## Agent Implementation
+# 3. Run evaluation
+/agentic-docs:evaluate
 
-See agent documentation:
-- `agents/coding-agent.md` - Coding sub-agent (natural discovery)
-- `agents/judge-agent.md` - Claude Judge (interpret promptfoo results)
-- `agents/main-orchestrator.md` - Orchestration logic
+# Expected output:
+# - Spawns code sub-agent → runs promptfoo
+# - Collects session metrics
+# - Spawns judge sub-agent → analyzes results
+# - Displays comprehensive evaluation report
+```
 
-## Deprecated Components
+## Cost Estimate
 
-The following v2.0 components are deprecated:
-- Custom MetricsLogger (`lib/metrics_logger.py`)
-- Custom aggregation engine
-- Multi-run variance testing
-- Efficiency telemetry
-- Custom grounding validator
+**Per evaluation**:
+- Code sub-agent: ~$0.02 (runs promptfoo tool)
+- Promptfoo tests (43 tests): ~$0.15-0.30 (depends on test complexity)
+- Judge sub-agent: ~$0.05 (analyzes results)
+- **Total**: ~$0.22-0.37 per full evaluation
 
-See `lib/DEPRECATED.md` for migration guide.
+## Related Commands
 
-All evaluation now uses **promptfoo only**.
+- `/agentic-docs:generate-evals` - Generate promptfooconfig.yaml
+- `/metrics:ai-docs-telemetry` - Collect session metrics
+- `/agentic-docs:component` - Create component documentation
 
-## Version History
+## Notes
 
-**v3.0** (2026-05-14):
-- **BREAKING**: Migration to promptfoo-only evaluation
-- Single unified promptfooconfig.yaml in plugin directory
-- Removed custom evaluation harnesses
-- Aligned with OpenShift Enhancements framework
-- Three test categories: Navigation, Authoring, Anti-patterns
-- Documentation-first natural discovery
-- Required "## Documentation Used" sections
-- Make targets for execution
-- Claude Judge interprets promptfoo outputs only
+**CRITICAL**:
+- Do NOT spawn manual test agents
+- Do NOT create test scenarios inline  
+- ONLY run promptfoo tool with existing config
+- Spawn exactly 2 sub-agents: code + judge
 
-**v2.0** (2026-05-09):
-- [Deprecated] Multi-run variance testing
-- [Deprecated] Custom MetricsLogger
-- [Deprecated] Grounding validation
-- [Deprecated] Efficiency telemetry
-
-**v1.0** (2026-05-08):
-- Initial behavioral validation framework
+**Why this architecture**:
+- Separation of concerns: code agent runs tools, judge analyzes
+- Consistent evaluation: promptfoo config is single source of truth
+- Comprehensive analysis: judge combines test results + metrics
+- No manual intervention: fully automated evaluation pipeline

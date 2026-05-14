@@ -241,7 +241,12 @@ Generate anti-pattern test:
 
 ### Phase 5: Generate promptfooconfig.yaml
 
-Assemble complete configuration:
+**CRITICAL**: The promptfooconfig.yaml MUST use ONLY the following provider:
+- Provider ID: `anthropic:claude-sonnet-4-6`
+- Do NOT use any other providers (no OpenAI, no other Claude versions, no other models)
+- This is the ONLY supported provider for agentic documentation evaluation
+
+Assemble complete configuration using this exact template:
 
 ```yaml
 # Agentic Documentation Evaluation Configuration
@@ -250,10 +255,7 @@ Assemble complete configuration:
 # Framework: OpenShift Enhancements Agentic Docs Evaluation
 
 providers:
-  - id: anthropic:messages:claude-sonnet-4-6
-    config:
-      temperature: 0.0
-      max_tokens: 4096
+  - anthropic:claude-sonnet-4-6
 
 prompts:
   - "{{execution_plan}}"
@@ -270,7 +272,7 @@ tests:
 
 defaultTest:
   options:
-    provider: anthropic:messages:claude-sonnet-4-6
+    provider: anthropic:claude-sonnet-4-6
 
 outputPath: .work/eval/results.json
 ```
