@@ -80,21 +80,11 @@ rules:
     enabled: true
     severity: error
 
-  # Require specific assertion types in all promptfoo eval tests
+  # Note: we have more complex validations in the custom rules for budgets 
   promptfoo-assertions:
-    enabled: true
-    severity: warning
-    required-types:
-      - cost
-      - latency
-
-  # Require specific metadata keys on all promptfoo eval tests
+    enabled: false
   promptfoo-metadata:
-    enabled: true
-    severity: warning
-    required-keys:
-      - tier
-      - token-usage
+    enabled: false
 
   # .coderabbit.yaml must be valid YAML
   coderabbit-yaml-valid:
