@@ -17,13 +17,13 @@
       "name": "hello-world",
       "source": "./plugins/hello-world",
       "description": "Hello World Plugin",
-      "version": "1.0.1"
+      "version": "1.0.2"
     },
     {
       "name": "jira",
       "source": "./plugins/jira",
       "description": "A plugin to automate tasks with Jira",
-      "version": "0.4.4"
+      "version": "0.4.5"
     },
     {
       "name": "ci",
@@ -209,7 +209,7 @@
       "name": "code-review",
       "source": "./plugins/code-review",
       "description": "Automated code quality review with language-aware analysis for pre-commit verification",
-      "version": "0.0.7"
+      "version": "0.0.8"
     },
     {
       "name": "golang",

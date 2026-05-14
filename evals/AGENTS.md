@@ -122,7 +122,7 @@ make eval-plugins EVAL_PLUGIN=code-review EVAL_TIER=fast
 
 #### Budget planning
 
-Measured cost per full run (26 tests, opus agent, Vertex AI): **~$6**
+Measured cost per full run (25 tests, opus agent, Vertex AI): **~$6**
 
 | Plugin              | Tests | Tier        | Actual cost | Per-test avg |
 |---------------------|-------|-------------|-------------|--------------|
