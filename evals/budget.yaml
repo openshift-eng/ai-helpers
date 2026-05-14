@@ -1,0 +1,100 @@
+# Shared eval cost definitions and per-plugin budgets.
+#
+# This file is the single source of truth for:
+# - token-usage size definitions (cost/latency thresholds)
+# - judge-size ordering
+# - tier computation rules
+# - per-plugin budget allowances
+#
+# Linters validate that every test's metadata is consistent with these definitions.
+
+orderings:
+  token-usage: [small, medium, large]
+  judge-size: [none, sonnet, opus]
+  tier: [fast, medium, heavy]
+
+# A test's token-usage is the LOWEST size where BOTH cost AND latency
+# thresholds are at or below the declared limits. If either exceeds,
+# the test belongs to the next size up.
+token-usage:
+  small:
+    max-cost: 0.50
+    max-latency: 30000
+  medium:
+    max-cost: 0.50
+    max-latency: 60000
+  large:
+    max-cost: 1.20
+    max-latency: 180000
+
+# A test's tier is the LOWEST level where BOTH token-usage AND judge-size
+# fit within the max bounds. If either exceeds, the test belongs to the
+# next tier up. Use orderings above for comparison.
+# | token-usage | judge-size | tier   |
+# |-------------|------------|--------|
+# | small       | none       | fast   |
+# | medium      | none       | fast   |
+# | large       | none       | medium |
+# | small       | sonnet     | fast   |
+# | medium      | sonnet     | medium |
+# | large       | sonnet     | heavy  |
+# | small       | opus       | medium |
+# | medium      | opus       | medium |
+# | large       | opus       | heavy  |
+tiers:
+  fast:
+    max-token-usage: medium
+    max-judge-size: none
+  medium:
+    max-token-usage: medium
+    max-judge-size: opus
+  heavy:
+    max-token-usage: large
+    max-judge-size: opus
+
+# Per-plugin budgets.
+# - allowed: admin-set cap — max total cost permitted for this plugin's evals
+# - current: sum of cost thresholds across all tests in this plugin (computed from eval yamls)
+# Linter validates: current <= allowed. If adding tests or raising thresholds
+# would push current above allowed, the linter flags it.
+budgets:
+  hello-world:
+    allowed: 1.50
+    current: 1.50      # 3 tests × $0.50
+  code-review:
+    allowed: 8.00
+    current: 7.50      # 15 tests × $0.50
+  jira:
+    allowed: 7.00
+    current: 6.00      # 3 tests × $1.20 + 4 tests × $0.60
+
+# Linter validation rules:
+#
+# 1. Every test must have metadata with: token-usage, judge-size, tier
+#
+# 2. token-usage validation:
+#    - Value must be in orderings.token-usage
+#    - The test's cost threshold (from defaultTest.assert or per-test assert)
+#      must be <= token-usage[value].max-cost
+#    - The test's latency threshold must be <= token-usage[value].max-latency
+#    - token-usage must be the LOWEST size where both fit — if both thresholds
+#      fit in a smaller size, the test is over-classified
+#
+# 3. judge-size validation:
+#    - Value must be in orderings.judge-size
+#    - If the test has NO llm-rubric assertions (combined with defaultTest):
+#      judge-size must be "none"
+#    - If the test HAS llm-rubric assertions: judge-size must match the
+#      model in defaultTest.options.provider (e.g. vertex:claude-opus-4-6 → opus,
+#      vertex:claude-sonnet-4-6 → sonnet). Must not be "none"
+#
+# 4. tier validation:
+#    - Value must be in orderings.tier
+#    - tier must be the LOWEST level where both token-usage and judge-size
+#      fit: token-usage <= tiers[tier].max-token-usage AND
+#      judge-size <= tiers[tier].max-judge-size (using orderings for comparison)
+#    - If tier is higher than necessary, the test is over-classified
+#
+# 5. budget validation:
+#    - Sum of cost thresholds across all tests in a plugin must be
+#      <= budgets[plugin].allowed

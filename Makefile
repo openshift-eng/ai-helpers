@@ -33,4 +33,30 @@ update: ## Update plugin documentation and website data
 	@echo "Building website data..."
 	@python3 scripts/build-website.py
 
+EVAL_REPEAT ?= 1
+EVAL_PASS_RATE_THRESHOLD ?= 100
+EVAL_CONFIGS := $(shell find plugins/$(or $(EVAL_PLUGIN),*) -path '*/evals/*.yaml' 2>/dev/null | sort)
+EVAL_TARGETS := $(foreach c,$(EVAL_CONFIGS),_run-eval__$(subst /,__,$(c)))
+
+.PHONY: eval-plugins
+eval-plugins: ## Run plugin behavioral evals (EVAL_PLUGIN, EVAL_FILTER, EVAL_OUTPUT, EVAL_REPEAT)
+	@npm install
+	@$(MAKE) -j$(words $(EVAL_CONFIGS)) --no-print-directory $(EVAL_TARGETS)
+
+.PHONY: $(EVAL_TARGETS)
+$(EVAL_TARGETS):
+	$(eval CONFIG := $(subst __,/,$(patsubst _run-eval__%,%,$@)))
+	$(eval EVAL_NAME := $(basename $(notdir $(CONFIG))))
+	@echo "=== Running eval: $(CONFIG) ==="
+	@CLAUDE_CODE_USE_VERTEX=true \
+	PROMPTFOO_PASS_RATE_THRESHOLD=$(EVAL_PASS_RATE_THRESHOLD) \
+		npx promptfoo eval \
+		-c "$(CONFIG)" \
+		$(if $(EVAL_FILTER),--filter-pattern "$(EVAL_FILTER)") \
+		$(if $(EVAL_TIER),--filter-metadata "tier=$(EVAL_TIER)") \
+		$(if $(EVAL_OUTPUT_DIR),--output "$(EVAL_OUTPUT_DIR)/$(EVAL_NAME).xml") \
+		--repeat $(EVAL_REPEAT) \
+		--no-cache \
+		--table-cell-max-length 500
+
 .DEFAULT_GOAL := help

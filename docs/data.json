@@ -92,7 +92,7 @@
       "hooks": [],
       "name": "hello-world",
       "skills": [],
-      "version": "1.0.1"
+      "version": "1.0.2"
     },
     {
       "commands": [
@@ -311,7 +311,7 @@
           "name": "Jira Status Analysis Engine"
         }
       ],
-      "version": "0.4.4"
+      "version": "0.4.5"
     },
     {
       "commands": [
@@ -1699,7 +1699,7 @@
           "name": "HyperShift Project Profile"
         }
       ],
-      "version": "0.0.7"
+      "version": "0.0.8"
     },
     {
       "commands": [],
