@@ -24,20 +24,24 @@ agentic-docs:generate-evals - Generate repository-specific evaluation suites
 
 ## Description
 
-This skill generates a tailored `promptfooconfig.yaml` evaluation suite for a specific OpenShift repository. Instead of using a generic evaluation configuration, it analyzes the repository's:
+This skill generates a tailored `promptfooconfig.yaml` evaluation suite for a specific OpenShift repository **by adapting the canonical template** at `${CLAUDE_PLUGIN_ROOT}/skills/generate-evals/templates/promptfooconfig.example.yaml`.
 
+**Template-First Approach**: 
+The skill reads the reference template and preserves its structure (extensions, providers, defaultTest) while replacing only the `tests` array with repository-specific scenarios.
+
+**Repository Analysis**:
+It analyzes the target repository's:
 - **Documentation structure** (CLAUDE.md, ai-docs/, ARCHITECTURE.md)
 - **Code patterns** (API versions, operator patterns, controller structure)
 - **Repository conventions** (enhancement process, graduation criteria, status conditions)
 - **Technology stack** (Go, Python, operators, CRDs, webhooks)
 
-Then creates repository-specific evaluation scenarios in three categories:
-
+**Generated Test Categories**:
 1. **Navigation tests** - Verify agents can discover and navigate repository documentation
-2. **Enhancement authoring tests** - Verify agents can design features following repository patterns
-3. **Anti-pattern tests** - Verify agents reject approaches that violate repository conventions
+2. **Authoring tests** - Verify agents can design features following repository patterns  
+3. **Convention/anti-pattern tests** - Verify agents reject approaches that violate repository conventions
 
-The generated configuration follows the exact format and structure from the OpenShift enhancements evaluation framework.
+The generated configuration follows the exact format from the template (HyperShift-based evaluation framework).
 
 ### Why Repository-Specific Evals?
 
@@ -54,6 +58,42 @@ The generated configuration follows the exact format and structure from the Open
 - Agent avoids THIS repository's anti-patterns
 
 ## Implementation
+
+### CRITICAL: Always Use the Template
+
+**Base template location**: 
+```
+${CLAUDE_PLUGIN_ROOT}/skills/generate-evals/templates/promptfooconfig.example.yaml
+```
+
+**MANDATORY STEPS**:
+
+1. **Read the template first**:
+   ```bash
+   cat ${CLAUDE_PLUGIN_ROOT}/skills/generate-evals/templates/promptfooconfig.example.yaml
+   ```
+
+2. **Use template as foundation** - Do NOT create promptfoo configs from scratch
+3. **Preserve template structure** - Only modify the `tests` array and `description`
+4. **Keep all template sections** - Extensions, providers, defaultTest unchanged
+
+### Template Structure
+
+The template demonstrates the canonical evaluation format:
+
+- **Extensions**: `file://hooks.js:extensionHook` for test lifecycle hooks
+- **Providers**: `exec: ./run-agent.sh` for custom agent execution
+- **DefaultTest**: Vertex AI provider with standard configuration
+- **Tests**: LLM rubric-based assertions (no weight fields)
+- **Naming**: `category/##-description` pattern
+- **Variables**: Use `vars.prompt` (not `vars.task_description`)
+- **Concurrency**: `evaluateOptions.maxConcurrency` setting
+
+**Template demonstrates**:
+- Multi-agent testing patterns (agent-specific scenarios)
+- Complex API design review scenarios
+- Architectural anti-pattern detection
+- Convention enforcement testing
 
 ### Phase 1: Repository Analysis
 
@@ -88,27 +128,20 @@ The generated configuration follows the exact format and structure from the Open
 
 Generate 2-3 navigation tests that verify agents can find repository-specific documentation.
 
-**Template structure**:
+**Template structure** (following promptfooconfig.example.yaml format):
 ```yaml
-- description: "Navigation: Agent discovers <repository-specific-process> documentation"
+- description: "navigation/01-<specific-discovery-scenario>"
   vars:
-    scenario_id: nav-001
-    task_description: "<repository-specific-question>"
+    agent: <agent-name>  # Optional: if multi-agent setup
+    prompt: |
+      <repository-specific-question>
   assert:
-    - type: icontains
-      value: "CLAUDE.md"
-      weight: 2.0
-    - type: icontains
-      value: "## Documentation Used"
-      weight: 3.0
-    - type: contains-any
-      value:
-        - "<repository-specific-doc-path-1>"
-        - "<repository-specific-doc-path-2>"
-      weight: 2.0
     - type: llm-rubric
-      value: "<repository-specific-success-criteria>"
-      weight: 2.0
+      value: "The output references <repository-specific-doc> for guidance"
+    - type: llm-rubric
+      value: "The output identifies the correct location: <path-to-documentation>"
+    - type: llm-rubric
+      value: "The output demonstrates understanding of <repository-convention>"
 ```
 
 **Example generation logic**:
@@ -142,77 +175,79 @@ Generate 1-2 enhancement authoring tests using repository-specific scenarios.
    - Should exercise documented patterns
    - Should require following conventions
 
-**Template structure**:
+**Template structure** (following promptfooconfig.example.yaml format):
 ```yaml
-- description: "Authoring: Design <repository-specific-feature>"
+- description: "authoring/01-<feature-name>-design"
   vars:
-    scenario_id: auth-001
-    task_description: |
+    agent: <agent-name>  # Optional: if multi-agent setup
+    prompt: |
       Design a new enhancement for "<fictional-feature>" that <repository-appropriate-goal>.
       Include API design, <repository-technology> architecture, and graduation criteria
       following repository conventions.
   assert:
-    - type: icontains
-      value: "## Documentation Used"
-      weight: 3.0
     - type: llm-rubric
       value: "The API design starts with v1alpha1, not v1"
-      weight: 3.0
-    - type: contains-any
-      value:
-        - "<repository-specific-convention-1>"
-        - "<repository-specific-convention-2>"
-      weight: 2.0
     - type: llm-rubric
-      value: "<repository-specific-pattern-validation>"
-      weight: 2.0
+      value: "The output includes <repository-required-section>"
+    - type: llm-rubric
+      value: "The design follows <repository-specific-pattern>"
 ```
 
-**Example for operator repository**:
+**Example for operator repository** (following template format):
 ```yaml
-- description: "Authoring: Design NetworkPolicyAutomation enhancement"
+- description: "authoring/01-network-policy-automation"
   vars:
-    task_description: |
+    prompt: |
       Design a new enhancement for "NetworkPolicyAutomation" that automatically
       generates network policies based on service discovery. Include API design,
       operator architecture, and graduation criteria following repository conventions.
   assert:
     - type: llm-rubric
-      value: "The design follows standard Kubernetes operator patterns with controllers and reconciliation loops."
-      weight: 2.0
+      value: "The design follows standard Kubernetes operator patterns with controllers and reconciliation loops"
+    - type: llm-rubric
+      value: "The API design starts with v1alpha1, not v1"
 ```
 
 ### Phase 4: Anti-Pattern Test Generation
 
 Generate 3-5 anti-pattern tests based on repository-specific conventions.
 
-**Standard anti-patterns** (always include):
+**Standard anti-patterns** (following promptfooconfig.example.yaml format):
 
 1. **API versioning**:
    ```yaml
-   - description: "Anti-pattern: Reject starting API at v1"
+   - description: "conventions/01-api-versioning"
      vars:
-       task_description: |
+       prompt: |
          Review: "We should create a new <RepoSpecificAPI> starting at v1."
          Is this correct?
+     assert:
+       - type: llm-rubric
+         value: "The output rejects starting new APIs at v1 and recommends v1alpha1"
    ```
 
 2. **Status conditions** (for operator repos):
    ```yaml
-   - description: "Anti-pattern: Reject custom ClusterOperator status conditions"
+   - description: "conventions/02-status-conditions"
      vars:
-       task_description: |
+       prompt: |
          Review: "Our operator will use custom conditions: Ready, Healthy, Operating."
          Is this correct?
+     assert:
+       - type: llm-rubric
+         value: "The output rejects custom status conditions and references standard ClusterOperator conditions"
    ```
 
 3. **Breaking changes**:
    ```yaml
-   - description: "Anti-pattern: Reject breaking API changes without deprecation"
+   - description: "conventions/03-breaking-changes"
      vars:
-       task_description: |
+       prompt: |
          Review: "Let's rename field 'oldName' to 'newName' in v1beta1."
          Is this correct?
+     assert:
+       - type: llm-rubric
+         value: "The output rejects breaking changes without deprecation period"
    ```
 
 **Repository-specific anti-patterns**:
@@ -223,77 +258,252 @@ Extract from CLAUDE.md or ai-docs/ sections that say:
 - "Avoid..."
 - "Must not..."
 
-**Example extraction**:
+**Example extraction** (following template format):
 ```
 CLAUDE.md contains: "Never expose secrets in CRD spec fields"
 ↓
 Generate anti-pattern test:
-- description: "Anti-pattern: Reject exposing secrets in CRD spec"
+- description: "conventions/04-secret-exposure"
   vars:
-    task_description: |
+    prompt: |
       Review: "We should add a 'password' field to the CRD spec for convenience."
       Is this correct?
   assert:
     - type: llm-rubric
-      value: "Response rejects exposing secrets in CRD spec"
-      weight: 5.0
+      value: "The output rejects exposing secrets in CRD spec and suggests SecretReference pattern"
 ```
 
 ### Phase 5: Generate promptfooconfig.yaml
 
-**CRITICAL**: The promptfooconfig.yaml MUST use this EXACT format:
+**CRITICAL**: Generate the configuration by reading and adapting the template:
 
-**Provider Format** (use simple string format, NOT object format):
-```yaml
-# ✅ CORRECT - Simple string format
-providers:
-  - anthropic:claude-sonnet-4-6
-
-# ❌ WRONG - Do NOT use object format with id/config
-# providers:
-#   - id: anthropic:messages:claude-sonnet-4-6
-#     config:
-#       temperature: 0.0
+```bash
+# Read the canonical template
+cat ${CLAUDE_PLUGIN_ROOT}/skills/generate-evals/templates/promptfooconfig.example.yaml
 ```
 
-**IMPORTANT**:
-- Provider ID: `anthropic:claude-sonnet-4-6` (this exact string)
-- Do NOT use `anthropic:messages:` prefix (that's the API format, not promptfoo format)
-- Do NOT include config section (temperature, max_tokens, etc.) - promptfoo uses defaults
-- This is the ONLY supported provider for agentic documentation evaluation
+**Template adaptation steps**:
 
-Assemble complete configuration using this exact template:
+1. **Copy template structure**:
+   - Preserve `extensions` and `providers` sections exactly
+   - Keep `defaultTest` configuration
+   - Maintain `evaluateOptions.maxConcurrency` setting
+
+2. **Update description**:
+   ```yaml
+   description: "<repository-name> - Agentic Documentation Evaluation"
+   ```
+
+3. **Adapt prompts section**:
+   ```yaml
+   prompts:
+     - "{{prompt}}"  # Use template variable for dynamic test prompts
+   ```
+
+4. **Replace tests array** with generated test cases:
+   ```yaml
+   tests:
+     # Navigation tests (2-3 generated from Phase 2)
+     - description: "Navigation: <repository-specific-scenario>"
+       vars:
+         agent: <agent-name>  # If multi-agent setup
+         prompt: |
+           <generated-navigation-prompt>
+       assert:
+         - type: llm-rubric
+           value: "<success-criteria>"
+   
+     # Authoring tests (1-2 generated from Phase 3)
+     - description: "Authoring: <repository-specific-feature>"
+       vars:
+         prompt: |
+           <generated-authoring-prompt>
+       assert:
+         - type: llm-rubric
+           value: "<design-quality-criteria>"
+   
+     # Anti-pattern tests (3-5 generated from Phase 4)
+     - description: "Anti-pattern: <violation-scenario>"
+       vars:
+         prompt: |
+           <generated-anti-pattern-prompt>
+       assert:
+         - type: llm-rubric
+           value: "<rejection-criteria>"
+   ```
+
+5. **Preserve provider configuration**:
+   - Keep `exec: ./run-agent.sh` if target repo has agent setup
+   - Keep Vertex AI `defaultTest` provider (standard for OpenShift repos)
+   - Do NOT modify provider format - use template exactly
+
+**Key template elements to preserve**:
 
 ```yaml
-# Agentic Documentation Evaluation Configuration
-# Generated for: <repository-name>
-# Generated: <timestamp>
-# Framework: OpenShift Enhancements Agentic Docs Evaluation
+extensions:
+  - file://hooks.js:extensionHook  # Keep if hooks.js exists in target repo
 
 providers:
-  - anthropic:claude-sonnet-4-6
-
-prompts:
-  - file://prompts/system.txt
-
-tests:
-  # Navigation tests (2-3)
-  <generated-navigation-tests>
-
-  # Authoring tests (1-2)
-  <generated-authoring-tests>
-
-  # Anti-pattern tests (3-5)
-  <generated-anti-pattern-tests>
+  - id: "exec: ./run-agent.sh"     # Keep if run-agent.sh exists
+    label: claude
 
 defaultTest:
   options:
-    provider: anthropic:claude-sonnet-4-6
+    provider:
+      id: vertex:claude-opus-4-6   # Use template provider config
+      config:
+        projectId: "{{ env.ANTHROPIC_VERTEX_PROJECT_ID }}"
+        region: global
+        temperature: 0
 
-outputPath: ./promptfoo-results.json
+evaluateOptions:
+  maxConcurrency: 6  # Adjust based on test count
 ```
 
 **Write to**: `<repository-root>/promptfooconfig.yaml`
+
+**Supporting files** (if not present, create them):
+- `run-agent.sh` - Agent execution wrapper (copy from template repo if needed)
+- `hooks.js` - Pre/post test hooks (copy from template repo if needed)
+
+### Template Adaptation Example
+
+**From template** (preserve these sections):
+```yaml
+description: "HyperShift agent and convention evals"
+
+extensions:
+  - file://hooks.js:extensionHook
+
+providers:
+  - id: "exec: ./run-agent.sh"
+    label: claude
+
+prompts:
+  - "{{prompt}}"
+
+defaultTest:
+  options:
+    provider:
+      id: vertex:claude-opus-4-6
+      config:
+        projectId: "{{ env.ANTHROPIC_VERTEX_PROJECT_ID }}"
+        region: global
+        temperature: 0
+
+tests:
+  # ... (template tests here)
+
+evaluateOptions:
+  maxConcurrency: 6
+```
+
+**To repository-specific** (only change description and tests):
+```yaml
+description: "cluster-network-operator - Agentic Documentation Evaluation"  # ✓ Changed
+
+extensions:
+  - file://hooks.js:extensionHook  # ✓ Preserved
+
+providers:
+  - id: "exec: ./run-agent.sh"     # ✓ Preserved
+    label: claude
+
+prompts:
+  - "{{prompt}}"                   # ✓ Preserved
+
+defaultTest:
+  options:
+    provider:
+      id: vertex:claude-opus-4-6   # ✓ Preserved
+      config:
+        projectId: "{{ env.ANTHROPIC_VERTEX_PROJECT_ID }}"
+        region: global
+        temperature: 0
+
+tests:
+  # ✓ REPLACED with repository-specific tests
+  - description: "navigation/01-operator-pattern-discovery"
+    vars:
+      prompt: |
+        How do I implement a new controller reconciliation loop in this codebase?
+    assert:
+      - type: llm-rubric
+        value: "The output references ai-docs/OPERATORS.md for guidance"
+  
+  - description: "conventions/01-api-versioning"
+    vars:
+      prompt: |
+        Review: "We should create a new NetworkPolicy API starting at v1."
+        Is this correct?
+    assert:
+      - type: llm-rubric
+        value: "The output rejects starting new APIs at v1 and recommends v1alpha1"
+
+evaluateOptions:
+  maxConcurrency: 2  # ✓ Adjusted for test count
+```
+
+### Common Template Mistakes to Avoid
+
+❌ **DO NOT create promptfoo configs from scratch** - Always start with the template
+
+❌ **DO NOT modify provider configuration** - Use template's Vertex AI setup exactly:
+```yaml
+# Keep this from template:
+defaultTest:
+  options:
+    provider:
+      id: vertex:claude-opus-4-6
+      config:
+        projectId: "{{ env.ANTHROPIC_VERTEX_PROJECT_ID }}"
+        region: global
+        temperature: 0
+```
+
+❌ **DO NOT add weight fields** to assertions - Template doesn't use them:
+```yaml
+# WRONG:
+assert:
+  - type: llm-rubric
+    value: "Criteria"
+    weight: 3.0  # ❌ Don't add weights
+
+# CORRECT:
+assert:
+  - type: llm-rubric
+    value: "Criteria"  # ✅ No weight field
+```
+
+❌ **DO NOT use old assertion types** - Template uses `llm-rubric` primarily:
+```yaml
+# WRONG:
+assert:
+  - type: icontains     # ❌ Don't use string matching
+    value: "CLAUDE.md"
+
+# CORRECT:
+assert:
+  - type: llm-rubric    # ✅ Use LLM-based evaluation
+    value: "The output references CLAUDE.md for guidance"
+```
+
+❌ **DO NOT use `vars.task_description`** - Template uses `vars.prompt`:
+```yaml
+# WRONG:
+vars:
+  task_description: "Question"  # ❌ Old pattern
+
+# CORRECT:
+vars:
+  prompt: "Question"  # ✅ Template pattern
+```
+
+✅ **DO preserve these template sections exactly**:
+- `extensions` - Test lifecycle hooks
+- `providers` - Agent execution configuration
+- `defaultTest` - Vertex AI provider config
+- `evaluateOptions` - Concurrency settings
 
 ### Phase 6: Generate Evaluation Documentation
 
@@ -405,19 +615,29 @@ Analyzing repository structure...
 
 **Generation phase**:
 ```
+Reading template: ${CLAUDE_PLUGIN_ROOT}/skills/generate-evals/templates/promptfooconfig.example.yaml
+✓ Template loaded (160 lines)
+✓ Preserving extensions, providers, defaultTest sections
+
 Generating navigation tests...
-  ✓ nav-001: Operator pattern documentation discovery
-  ✓ nav-002: Controller reconciliation guidance location
+  ✓ navigation/01-operator-pattern-discovery
+  ✓ navigation/02-controller-reconciliation-guidance
 
 Generating authoring tests...
-  ✓ auth-001: NetworkPolicyAutomation enhancement design
+  ✓ authoring/01-network-policy-automation
 
 Generating anti-pattern tests...
-  ✓ anti-001: Reject starting API at v1
-  ✓ anti-002: Reject custom ClusterOperator conditions
-  ✓ anti-003: Reject breaking API changes without deprecation
-  ✓ anti-004: Reject synchronous network calls in reconciliation
-  ✓ anti-005: Reject exposing secrets in CRD spec
+  ✓ conventions/01-api-versioning
+  ✓ conventions/02-status-conditions
+  ✓ conventions/03-breaking-changes
+  ✓ conventions/04-sync-network-calls
+  ✓ conventions/05-secret-exposure
+
+Adapting template structure...
+✓ Updated description field
+✓ Replaced tests array (7 tests)
+✓ Preserved provider configuration
+✓ Set maxConcurrency: 7
 ```
 
 **Output**:
@@ -502,14 +722,16 @@ This skill is **automatically invoked** at the end of `/agentic-docs:create`:
 
 Generated evaluation suites must:
 
-1. **Follow promptfoo format exactly**:
-   - Correct YAML structure
-   - Valid assertion types (icontains, contains-any, llm-rubric, not-icontains)
-   - Proper weight assignments
-   - Valid provider configuration
+1. **Follow template structure exactly**:
+   - Read `${CLAUDE_PLUGIN_ROOT}/skills/generate-evals/templates/promptfooconfig.example.yaml`
+   - Preserve `extensions`, `providers`, and `defaultTest` sections
+   - Use `llm-rubric` assertions (primary assertion type in template)
+   - Follow test naming convention: `category/##-description`
+   - Use `vars.prompt` for test input (not `vars.task_description`)
+   - Do NOT add `weight` fields to assertions (not used in template)
 
 2. **Be repository-specific**:
-   - Reference actual documentation paths
+   - Reference actual documentation paths in rubric criteria
    - Test actual repository patterns
    - Use domain-appropriate examples
    - Extract real conventions from docs
@@ -517,14 +739,20 @@ Generated evaluation suites must:
 3. **Cover all categories**:
    - Minimum 2 navigation tests
    - Minimum 1 authoring test
-   - Minimum 3 anti-pattern tests (standard set)
+   - Minimum 3 convention/anti-pattern tests (standard set)
    - Additional repository-specific anti-patterns
 
 4. **Be executable**:
    - promptfooconfig.yaml runs without errors
-   - Assertions are valid and meaningful
-   - Task descriptions are clear
+   - All `llm-rubric` assertions have clear success criteria
+   - Prompts are unambiguous
    - Expected outcomes are achievable
+
+5. **Match template format**:
+   - Use Vertex AI provider configuration from template
+   - Include `evaluateOptions.maxConcurrency` setting
+   - Preserve `temperature: 0` for deterministic evaluation
+   - Use `file://` references for external files if needed
 
 ## Limitations
 
@@ -539,6 +767,15 @@ Generated evaluation suites must:
 - Code is analyzable (Go, Python, YAML)
 
 ## Version History
+
+**v2.0** (2026-05-15):
+- **Template-first approach**: Always use `templates/promptfooconfig.example.yaml` as base
+- Use `llm-rubric` assertions (template pattern)
+- Use `vars.prompt` instead of `vars.task_description`
+- Preserve template's extensions, providers, defaultTest sections
+- Follow `category/##-description` naming convention
+- Remove weight fields from assertions (not in template)
+- Document common template mistakes to avoid
 
 **v1.0** (2026-05-14):
 - Initial repository-specific evaluation generation

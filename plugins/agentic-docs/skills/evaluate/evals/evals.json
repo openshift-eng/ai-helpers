@@ -1,0 +1,52 @@
+{
+  "skill_name": "agentic-docs:evaluate",
+  "evals": [
+    {
+      "id": 1,
+      "eval_name": "happy-path-evaluation",
+      "prompt": "I just created documentation for the multiarch-tuning-operator repository at /Users/kpais/kpais-workspace/claude-tmp/multiarch-tuning-operator-test-plugin. I ran /agentic-docs:generate-evals and it created a promptfooconfig.yaml file with 43 test cases. Now I want to run the evaluation to see if the documentation is good. Can you evaluate it?",
+      "expected_output": "Should spawn code sub-agent to run promptfoo, collect metrics, spawn judge sub-agent to analyze results, and produce comprehensive evaluation report",
+      "files": [],
+      "setup_required": "Repository with promptfooconfig.yaml, ANTHROPIC_API_KEY set",
+      "assertions": [
+        {"name": "detected_invalid_provider_config", "description": "v6.1 should detect the invalid Vertex AI provider format in promptfooconfig.yaml"},
+        {"name": "provided_fix_instructions", "description": "Should provide clear instructions on how to fix the provider configuration"},
+        {"name": "referenced_generate_evals_skill", "description": "Should reference the generate-evals skill documentation for the correct format"},
+        {"name": "did_not_run_promptfoo", "description": "Should NOT run promptfoo when invalid config is detected"},
+        {"name": "clear_next_steps", "description": "Should provide clear next steps (edit config or regenerate)"},
+        {"name": "v60_runs_without_validation", "description": "v6.0 (baseline) should attempt to run promptfoo and encounter API errors"}
+      ]
+    },
+    {
+      "id": 2,
+      "eval_name": "missing-config-error",
+      "prompt": "I want to evaluate the agentic documentation in /tmp/test-repo but I haven't generated the evaluation config yet. What should I do?",
+      "expected_output": "Should detect missing promptfooconfig.yaml and provide helpful error message instructing user to run /agentic-docs:generate-evals first",
+      "files": [],
+      "setup_required": "Repository without promptfooconfig.yaml",
+      "assertions": [
+        {"name": "detected_missing_config", "description": "Should detect that promptfooconfig.yaml is missing"},
+        {"name": "showed_error_message", "description": "Should display the specific error message from the skill"},
+        {"name": "instructed_generate_evals", "description": "Should instruct user to run /agentic-docs:generate-evals"},
+        {"name": "did_not_spawn_subagents", "description": "Should NOT spawn code/judge sub-agents when config is missing"},
+        {"name": "clear_next_steps", "description": "Should provide clear next steps for user"}
+      ]
+    },
+    {
+      "id": 3,
+      "eval_name": "complex-multi-step-request",
+      "prompt": "okay so i just finished writing all the AGENTS.md and ai-docs/ stuff for our kubernetes operator. i want to make sure AI agents can actually find and use this documentation properly. i generated some test config earlier (i think it's called promptfooconfig.yaml or something?) and now i need to run those tests and see what passes/fails. also can you tell me which docs files are getting accessed the most? the repository is at ~/code/my-operator",
+      "expected_output": "Should recognize this as evaluation request, run promptfoo tests, collect session metrics showing file access patterns, and report both test results and documentation usage analytics",
+      "files": [],
+      "setup_required": "Repository with promptfooconfig.yaml, metrics plugin available",
+      "assertions": [
+        {"name": "recognized_evaluation_request", "description": "Should recognize this casual request as an evaluation task"},
+        {"name": "handled_uncertain_config_name", "description": "Should handle user's uncertainty about config filename"},
+        {"name": "ran_promptfoo_tests", "description": "Should run promptfoo tests to answer 'see what passes/fails'"},
+        {"name": "collected_file_access_metrics", "description": "Should collect and report file access metrics"},
+        {"name": "answered_both_questions", "description": "Should address both test results AND file access metrics in response"},
+        {"name": "resolved_tilde_path", "description": "Should correctly handle ~/code/my-operator path"}
+      ]
+    }
+  ]
+}

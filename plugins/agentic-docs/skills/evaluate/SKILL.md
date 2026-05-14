@@ -4,10 +4,13 @@ description: "Evaluate agentic documentation quality using promptfoo-based behav
 trigger: /agentic-docs:evaluate
 ---
 
-# Agentic-Docs: Evaluate (v6.0)
+# Agentic-Docs: Evaluate (v6.2)
 
 **Trigger**: `/agentic-docs:evaluate`  
 **Purpose**: Evaluate documentation quality by running promptfoo test suite and analyzing results
+
+**Changes in v6.2**: Updated provider validation to support both Anthropic API and Vertex AI formats correctly
+**Changes in v6.1**: Added provider configuration validation to detect common config errors before running evaluation
 
 **Framework**: OpenShift Enhancements Agentic Docs Evaluation  
 **Reference**: https://github.com/openshift/enhancements/pull/1992
@@ -70,7 +73,7 @@ Tests measure:
 
 ### Step 1: Pre-flight Checks
 
-Check for required files and environment:
+Check for required files, validate configuration, and verify environment:
 
 ```bash
 # Check promptfooconfig.yaml exists
@@ -96,6 +99,43 @@ if [ -z "$ANTHROPIC_API_KEY" ] && [ -z "$ANTHROPIC_VERTEX_PROJECT_ID" ]; then
   exit 1
 fi
 ```
+
+**Validate provider configuration** using the bundled validation script:
+
+```bash
+# Run provider configuration validation
+bash ${CLAUDE_PLUGIN_ROOT}/scripts/validate-provider.sh
+
+# Check exit code:
+# 0 = valid configuration, proceed
+# 1 = config file not found
+# 2 = invalid provider format detected
+```
+
+**The validation script detects common issues**:
+
+1. **Incorrect Vertex AI format**: `vertex:anthropic:claude-...` 
+   - Should be: `vertex:claude-...` (no "anthropic:" in the middle)
+
+2. **Incorrect Vertex AI config**: `apiKey: vertex://...`
+   - Should use: `projectId` and `region` instead
+
+3. **API format**: `anthropic:messages:claude-...`
+   - Should be: `anthropic:claude-...` (no "messages:")
+
+**Valid provider formats**:
+
+- Simple Anthropic API: `anthropic:claude-sonnet-4-6`
+- Vertex AI: `vertex:claude-sonnet-4-6` (with `projectId` and `region` config)
+
+**If validation fails (exit code 2)**: The script outputs a detailed error message explaining:
+- What issue was detected
+- The current (incorrect) configuration
+- The correct format to use (both Anthropic and Vertex AI options)
+- How to fix it (edit or regenerate)
+- Reference to HyperShift config for Vertex AI examples
+
+Display this error message to the user and STOP. Do not proceed to run evaluation.
 
 **If checks fail**: Display the error message to the user and STOP. Do not proceed to run evaluation.
 
