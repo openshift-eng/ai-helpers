@@ -35,6 +35,7 @@ rules:
   mcp-prohibited:
     allowlist:
     - gopls
+    - productpages
     enabled: true
     severity: error
   plugin-json-required:
