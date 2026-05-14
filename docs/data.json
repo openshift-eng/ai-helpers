@@ -1703,7 +1703,7 @@
     },
     {
       "commands": [],
-      "description": "Go development tools: gopls MCP server, LSP integration, automatic gofmt formatting, and golangci-lint linting",
+      "description": "Go development tools: gopls MCP server, LSP integration, automatic gofmt formatting, golangci-lint linting, and CVE dependency patching",
       "has_readme": true,
       "hooks": [
         {
@@ -1715,6 +1715,11 @@
       "name": "golang",
       "skills": [
         {
+          "description": "|",
+          "id": "fix-cve",
+          "name": "fix-cve"
+        },
+        {
           "description": "Run golangci-lint to check Go code quality. Use when the user asks to lint, check for lint issues, or verify code quality in a Go project, or when linting is appropriate before committing Go code changes.",
           "id": "lint",
           "name": "lint"
@@ -1725,7 +1730,7 @@
           "name": "lint-fix"
         }
       ],
-      "version": "0.2.0"
+      "version": "0.3.0"
     },
     {
       "commands": [

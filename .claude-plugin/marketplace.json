@@ -214,8 +214,8 @@
     {
       "name": "golang",
       "source": "./plugins/golang",
-      "description": "Go development tools: gopls MCP server, LSP integration, automatic gofmt formatting, and golangci-lint linting",
-      "version": "0.2.0"
+      "description": "Go development tools: gopls MCP server, LSP integration, automatic gofmt formatting, golangci-lint linting, and CVE dependency patching",
+      "version": "0.3.0"
     },
     {
       "name": "ote-migration",
