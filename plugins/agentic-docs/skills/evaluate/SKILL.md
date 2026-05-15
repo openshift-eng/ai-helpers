@@ -9,9 +9,6 @@ trigger: /agentic-docs:evaluate
 **Trigger**: `/agentic-docs:evaluate`  
 **Purpose**: Evaluate documentation quality by running promptfoo test suite and analyzing results
 
-**Framework**: OpenShift Enhancements Agentic Docs Evaluation  
-**Reference**: https://github.com/openshift/enhancements/pull/1992
-
 ## Core Principle
 
 This evaluation validates **documentation-first natural discovery behavior**:
