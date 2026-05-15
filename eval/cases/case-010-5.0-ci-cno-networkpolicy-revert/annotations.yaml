@@ -1,0 +1,25 @@
+expected_phase: Rejected
+expected_failed_job_count: 2
+has_revert_candidates: true
+force_accept_expected: false
+
+expected_candidates:
+  - pr_url: "https://github.com/openshift/cluster-network-operator/pull/2959"
+    component: "cluster-network-operator"
+    min_confidence: 80
+    expected_confidence: 90
+    description: "Added remaining CNO NetworkPolicies that blocked egress from cloud-network-config-controller, causing CrashLoopBackOff due to API server timeout"
+    expected_failing_jobs:
+      - "e2e-aws-ovn"
+      - "e2e-azure-ovn"
+      - "e2e-gcp-ovn"
+
+notes: >
+  Textbook true positive. CNO #2959 added NetworkPolicies that blocked egress
+  from cloud-network-config-controller, causing CrashLoopBackOff across all
+  platforms (AWS, Azure, GCP) due to API server connection timeouts. Evidence
+  quality is excellent: 0% pass rate vs 100% historical, cross-platform
+  consistency, precise mechanism match. Reverted by #2999 on 2026-05-08.
+  Tests the agent's ability to identify infrastructure-level networking
+  restrictions causing application failures and to correlate
+  cross-platform failures to a single root cause.

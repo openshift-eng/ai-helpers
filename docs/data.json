@@ -487,6 +487,11 @@
           "name": "Analyze Payload"
         },
         {
+          "description": "Build a hermetic eval archive from an original Claude payload agent session \u2014 extracts all tool call responses, downloads GCS artifacts, and saves reference outputs",
+          "id": "archive-payload-result",
+          "name": "Archive Payload Result"
+        },
+        {
           "description": "Fetch JIRA issue details including status, assignee, comments, and progress classification",
           "id": "fetch-jira-issue",
           "name": "Fetch JIRA Issue"
@@ -612,7 +617,7 @@
           "name": "Trigger Payload Job"
         }
       ],
-      "version": "0.0.40"
+      "version": "0.0.41"
     },
     {
       "commands": [

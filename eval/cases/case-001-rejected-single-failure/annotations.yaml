@@ -1,0 +1,9 @@
+expected_phase: Rejected
+expected_failed_job_count: 1
+has_revert_candidates: false
+force_accept_expected: false
+notes: >
+  Simple case: single failed blocking job (hypershift-aws-ovn-conformance-4.19).
+  This failure also appears in adjacent payloads, suggesting a persistent/intermittent
+  issue rather than a new regression. Expect the analysis to show a streak and likely
+  no high-confidence revert candidate.

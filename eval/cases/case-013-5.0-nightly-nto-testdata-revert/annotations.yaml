@@ -1,0 +1,24 @@
+expected_phase: ""
+expected_failed_job_count: 2
+has_revert_candidates: true
+force_accept_expected: false
+
+expected_candidates:
+  - pr_url: "https://github.com/openshift/cluster-node-tuning-operator/pull/1499"
+    component: "cluster-node-tuning-operator"
+    min_confidence: 85
+    expected_confidence: 95
+    description: "Embedded extended testdata in cluster-node-tuning-operator-test-ext binary, causing node tuning test failures"
+    expected_failing_jobs:
+      - "e2e-aws-ovn"
+
+notes: >
+  True positive with a non-obvious failure mechanism. NTO #1499 embedded
+  testdata into the cluster-node-tuning-operator-test-ext binary, which
+  caused node tuning test failures. Reverted by #1511 on 2026-05-09.
+  This case tests whether the agent can trace build-system changes
+  (testdata embedding) to runtime test failures, which requires
+  understanding the relationship between binary composition and test
+  execution. The failure mechanism is less straightforward than typical
+  code logic bugs. Expected phase is empty because the payload was not
+  formally Rejected.
