@@ -31,6 +31,26 @@ def parse_mod_graph(filename: str) -> tuple[dict[str, list[str]], set[str]]:
     return graph, all_modules
 
 
+def find_roots(graph: dict[str, list[str]], modules: set[str]) -> list[str]:
+    """Return modules with no incoming edges (graph roots), in stable order."""
+    in_degree: dict[str, int] = dict.fromkeys(modules, 0)
+    for targets in graph.values():
+        for target in targets:
+            in_degree[target] = in_degree.get(target, 0) + 1
+    return sorted(m for m, degree in in_degree.items() if degree == 0)
+
+
+def _module_matches(current: str, target: str) -> bool:
+    """Return True if graph node current matches the target module specifier."""
+    if "@" in target:
+        return current == target
+    if current == target or current.startswith(target + "/"):
+        return True
+    # go mod graph nodes are path@version; apply the same rules to the path part.
+    current_path = current.split("@", 1)[0]
+    return current_path == target or current_path.startswith(target + "/")
+
+
 def find_all_paths(
     graph: dict[str, list[str]],
     start: str,
@@ -47,8 +67,7 @@ def find_all_paths(
         if len(path) > max_depth:
             continue
 
-        target_base = target.split("@", 1)[0]
-        if current == target or current.startswith(target_base):
+        if _module_matches(current, target):
             paths.append(path)
             continue
 
@@ -109,14 +128,19 @@ def main() -> None:
 
     graph, modules = parse_mod_graph(args.mod_graph)
 
-    with open(args.mod_graph, encoding="utf-8") as f:
-        first = f.readline().strip().split()
-        if not first:
-            print("mod graph file is empty", file=sys.stderr)
-            sys.exit(1)
-        root = first[0]
+    if not modules:
+        print("mod graph file is empty", file=sys.stderr)
+        sys.exit(1)
 
-    paths = find_all_paths(graph, root, args.vulnerable_pkg, args.max_depth)
+    roots = find_roots(graph, modules)
+    paths: list[list[str]] = []
+    seen: set[tuple[str, ...]] = set()
+    for root in roots:
+        for path in find_all_paths(graph, root, args.vulnerable_pkg, args.max_depth):
+            key = tuple(path)
+            if key not in seen:
+                seen.add(key)
+                paths.append(path)
 
     if not paths:
         print(f"No dependency path found to {args.vulnerable_pkg}")
@@ -134,7 +158,9 @@ def main() -> None:
         print(format_tree(path))
         print(f"\nPath length: {len(path)} modules")
 
-        if len(path) == 2:
+        if len(path) == 1:
+            print("Dependency type: ROOT (target is the main module)")
+        elif len(path) == 2:
             print("Dependency type: DIRECT")
         else:
             print(f"Dependency type: TRANSITIVE (via {extract_package_name(path[1])})")
