@@ -65,7 +65,7 @@ Also find ways we could use /eval-optimize to improve results, identify which
 payloads we could build evals on, etc, and also recocmend ideas I may not have
 thought about.
 
-[ ] Task 2: Improve the payload agent
+[~] Task 2: Improve the payload agent (IN PROGRESS)
 
 Based on the information above, in a git worktree, run /eval-optimize and
 improve the performance of the various payload agent skills.  Consider
@@ -108,7 +108,7 @@ tars, audit logs, large e2e-events JSON) but keep the directory structure and
 smaller files intact so `gcloud storage ls` returns realistic listings. Goal:
 get a full eval archive set under 10-15 GB.
 
-[ ] Task 7: Rerun evals after improvements
+[~] Task 7: Rerun evals after improvements (BLOCKED on Task 2)
 
 After Task 2 produces skill improvements, rerun the full eval suite against
 both the baseline (current) and improved skills. Compare with

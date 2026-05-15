@@ -242,6 +242,11 @@ from the caller's `os.environ`. PATH is automatically forwarded.
 | 007 | 4.22.0-0.ci-2026-03-31-050515 | ci | 3 jobs | cloud-credential-operator#978 (95) |
 | 008 | 4.22.0-0.ci-2026-03-31-170515 | ci | 2 jobs | hypershift#7790 (95), hypershift#8138 (50) |
 | 009 | 4.22.0-0.nightly-2026-03-18-161724 | nightly | 3 jobs | cluster-version-operator#1309 (95) |
+| 010 | 5.0.0-0.ci-2026-05-07-142711 | ci | 2 jobs | cluster-network-operator#2959 (90) |
+| 011 | 5.0.0-0.nightly-2026-04-27-183150 | nightly | 2 jobs | cluster-monitoring-operator#2814 (95) |
+| 012 | 5.0.0-0.ci-2026-04-14-085906 | ci | 1 job | **FALSE POSITIVE** — no valid candidates |
+| 013 | 5.0.0-0.nightly-2026-05-08-191551 | nightly | 2 jobs | cluster-node-tuning-operator#1499 (95) |
+| 014 | 5.0.0-0.ci-2026-05-14-181709 | ci | 1 job | **INFRA ONLY** — no candidates expected |
 
 ### Case 006: Nightly GatewayAPI + oc mirror failures
 
@@ -274,6 +279,42 @@ causing test discovery failures on both metal-ipi-ovn-ipv4 and ipv6. The
 third failure (aggregated-hypershift-ovn-conformance) is infrastructure:
 AWS lease exhaustion, not a code regression. The skill must correctly
 distinguish infrastructure failures from code-caused failures.
+
+### Case 010: CI CNO NetworkPolicy regression
+
+Payload rejected with 2 failed jobs. cluster-network-operator#2959 added
+NetworkPolicies that blocked egress from cloud-network-config-controller,
+causing CrashLoopBackOff across all platforms (AWS, Azure, GCP). 0% pass
+rate vs 100% historical. Textbook true positive — reverted by #2999.
+
+### Case 011: Nightly CMO monitoring regression
+
+Payload with 2 failed jobs. cluster-monitoring-operator#2814 introduced
+monitoring test regressions. Flagged across 2 consecutive payloads with
+score 95. Multi-payload persistence was always a true positive signal.
+Reverted by #2901.
+
+### Case 012: CI HyperShift builder image (FALSE POSITIVE)
+
+Payload rejected with 1 failed AKS e2e job. Agent incorrectly flagged
+hypershift#8194 (builder image update) at score 92, constructing a plausible
+but incorrect causal chain to Azure Graph API auth failure. The failure was
+an Azure-side issue that resolved without code changes. Tests FP detection
+for cloud platform issues.
+
+### Case 013: Nightly NTO testdata embedding
+
+Payload with 2 failed jobs. cluster-node-tuning-operator#1499 embedded
+testdata into the test binary, causing node tuning test failures. Non-obvious
+build-system change — tests whether the agent can trace binary composition
+to test execution failures. Reverted by #1511.
+
+### Case 014: CI infrastructure-only rejection
+
+Payload rejected due to Insights API Gateway HTTP 500 errors — pure
+infrastructure, no code regression. The correct outcome is zero revert
+candidates. Tests the agent's ability to classify and dismiss infrastructure
+issues without producing false positive recommendations.
 
 ## Judges
 
