@@ -1,9 +1,12 @@
 #!/bin/bash
 # gcloud shim — serves archived GCS artifacts for eval testing.
-# When EVAL_ARTIFACT_ARCHIVE is set, intercepts gcloud storage ls/cp/cat
+# When EVAL_ARCHIVES_DIR is set, intercepts gcloud storage ls/cp/cat
 # and serves from the local archive. Falls through to real gcloud otherwise.
 
-ARCHIVE="${EVAL_ARTIFACT_ARCHIVE}"
+ARCHIVE="${EVAL_ARCHIVES_DIR}"
+
+SHIM_LOG="${EVAL_ARCHIVES_DIR:+${EVAL_ARCHIVES_DIR}/.shim-gcloud.log}"
+log_shim() { [[ -n "$SHIM_LOG" ]] && echo "[$(date -u +%H:%M:%S)] gcloud $*" >> "$SHIM_LOG"; }
 
 # Find real gcloud (excluding this shim)
 find_real_gcloud() {
@@ -24,8 +27,11 @@ REAL_GCLOUD="$(find_real_gcloud)"
 
 # Fall through if archive not set or not a storage command
 if [[ -z "$ARCHIVE" ]] || [[ "$1" != "storage" ]]; then
+    log_shim "PASSTHROUGH $*"
     exec "$REAL_GCLOUD" "$@"
 fi
+
+log_shim "INTERCEPT storage $2 $*"
 
 subcmd="$2"
 shift 2

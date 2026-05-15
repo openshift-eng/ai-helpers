@@ -7,15 +7,12 @@ independent of live infrastructure state.
 ## Quick Start
 
 ```bash
-# 1. Set up environment
+# 1. Set up environment (only two variables needed)
+export EVAL_ARCHIVES_DIR="/path/to/archives"
 export PATH="$(pwd)/eval/shims:$PATH"
-export EVAL_ARTIFACT_ARCHIVE="$(pwd)/eval/archives"
-export EVAL_ARCHIVES_DIR="$(pwd)/eval/archives"
-export EVAL_CACHED_RESPONSES="$(pwd)/eval/archives"
-export EVAL_GH_CACHE="$(pwd)/eval/archives"
 
-# 2. Run all archived cases
-/eval-run --case archived --model claude-opus-4-6
+# 2. Run all cases
+/eval-run --model claude-opus-4-6
 
 # 3. Run a specific case
 /eval-run --case case-006 --model claude-opus-4-6
@@ -41,33 +38,50 @@ Archive everything the skill needs into local directories, then intercept
 external calls with shims and cached responses:
 
 ```
-eval/archives/{payload-tag}/
+archives/{payload-tag}/
 ├── api-responses/
 │   ├── fetch-payloads-{arch}-{version}-{stream}.json
-│   └── fetch-new-prs-{payload-tag}.json
+│   ├── fetch-new-prs-{payload-tag}.json
+│   ├── curl-rc-*.json                 # release controller API responses
+│   └── curl-sippy-*.json              # Sippy API responses
 ├── gh-cache/
-└── test-platform-results/
-    └── logs/
-        ├── {job-name}/{build-id}/     # full artifact trees for each failed job
-        └── ...
+│   ├── {org}/{repo}/{pr_number}.json  # gh pr view responses
+│   ├── {repo}/pr-list-*.json          # gh pr list responses
+│   ├── api/*.json                     # gh api responses
+│   └── raw/*                          # raw.githubusercontent.com content
+├── test-platform-results/
+│   └── logs/
+│       ├── {job-name}/{build-id}/     # full artifact trees for each failed job
+│       └── ...
+├── reference/                         # gold-standard outputs from original analysis
+│   ├── payload-results-*.yaml
+│   ├── payload-analysis-*-summary.html
+│   └── payload-analysis-*-autodl.json
+├── failed-direct-jobs.txt
+└── failed-aggregated-jobs.txt
 ```
 
 ### Shims
 
-**`eval/shims/gcloud`** — intercepts `gcloud storage ls/cp/cat` commands. When
-`EVAL_ARTIFACT_ARCHIVE` is set, serves files from local archive directories.
-Supports multi-archive mode: when pointed at `eval/archives/`, automatically
-searches all payload subdirectories for matching GCS paths.
+All shims use a single environment variable: `EVAL_ARCHIVES_DIR`. When set,
+they search `$EVAL_ARCHIVES_DIR/*/` for matching cached data.
 
-**`eval/shims/gh`** — intercepts `gh pr list` and `gh api` commands. Returns
-empty results when `EVAL_GH_CACHE` is set.
+**`eval/shims/gcloud`** — intercepts `gcloud storage ls/cp/cat` commands.
+Serves files from local archive directories. Supports transparent extraction
+of `.tar.gz` archives on demand.
+
+**`eval/shims/curl`** — intercepts curl calls to gcsweb (serves local files
+or generates HTML directory listings), release controller API, Sippy API, and
+GitHub raw content. Falls through to real curl for other URLs.
+
+**`eval/shims/gh`** — intercepts `gh pr view`, `gh pr list`, and `gh api`
+commands. Serves cached responses or returns empty results.
 
 ### Cached API Responses
 
-`fetch_payloads.py` and `fetch_new_prs_in_payload.py` check `EVAL_CACHED_RESPONSES`
-and `EVAL_ARCHIVES_DIR` environment variables. When set, they search for cached
-JSON files matching their arguments before making API calls. For fetch_payloads,
-multiple caches are automatically merged (deduplicated by tag) to support
+`fetch_payloads.py` and `fetch_new_prs_in_payload.py` check `EVAL_ARCHIVES_DIR`
+for cached JSON files matching their arguments before making API calls.
+Multiple caches are automatically merged (deduplicated by tag) to support
 multi-case evaluation.
 
 ## Creating an Archive
@@ -82,7 +96,7 @@ from the session tarball and download GCS artifacts:
 gcloud storage cp "gs://test-platform-results/logs/periodic-ci-openshift-release-main-claude-payload-agent/{build-id}/artifacts/.../claude-sessions-*.tar" /tmp/
 
 # 2. Extract API responses and job lists
-python3 eval/scripts/extract-session-data.py /tmp/claude-sessions-*.tar eval/archives/{payload-tag}
+python3 plugins/ci/skills/archive-payload-result/extract_session_data.py /tmp/claude-sessions-*.tar eval/archives/{payload-tag}
 
 # 3. Download GCS artifacts for failed jobs
 while read p; do
@@ -104,16 +118,17 @@ gcloud storage cp "gs://test-platform-results/logs/periodic-ci-openshift-release
 gcloud storage cp "gs://test-platform-results/logs/periodic-ci-openshift-release-main-claude-payload-agent/{build-id}/artifacts/.../payload-analysis-*-autodl.json" eval/archives/{payload-tag}/reference/
 ```
 
-### Using the Archive Command
+### Using the Archive Skill
 
-For payloads still within the API's rolling window:
+For payloads still within the API's rolling window, invoke the skill:
 
 ```
 /ci:archive-payload-result 4.22.0-0.nightly-2026-03-20-053450
 ```
 
-This automatically fetches API responses, discovers failed jobs, and downloads
-GCS artifacts.
+This automatically fetches API responses, discovers failed jobs, downloads
+GCS artifacts, finds and extracts the Claude session tarball for cached tool
+responses, saves reference outputs, and compresses the archive.
 
 ### Creating the Test Case
 
@@ -373,24 +388,21 @@ $5-7, while multi-candidate cases (008) cost $8-9 due to more investigation.
 
 | Variable | Purpose |
 |----------|---------|
-| `EVAL_ARTIFACT_ARCHIVE` | Root directory for GCS artifact archives (gcloud shim) |
-| `EVAL_ARCHIVES_DIR` | Root directory for multi-archive search (fetch scripts) |
-| `EVAL_CACHED_RESPONSES` | Directory for cached API responses (fetch scripts) |
-| `EVAL_GH_CACHE` | Directory for cached GitHub API responses (gh shim) |
-| `PATH` | Must include `eval/shims/` before system gcloud/gh |
+| `EVAL_ARCHIVES_DIR` | Root directory containing payload archive subdirectories |
+| `PATH` | Must include `eval/shims/` before system gcloud/gh/curl |
 
-All four variables should point to `$(pwd)/eval/archives`. They're separate to
-allow flexible configurations (e.g., pointing `EVAL_ARTIFACT_ARCHIVE` at a
-single payload archive while `EVAL_ARCHIVES_DIR` searches across all).
+All shims and fetch scripts use `EVAL_ARCHIVES_DIR` exclusively. The eval
+harness sets both variables automatically via `eval.yaml`'s `execution.env`.
 
 ## Scripts
 
 | Script | Purpose |
 |--------|---------|
-| `eval/scripts/extract-session-data.py` | Extract API responses from Claude session tarballs |
+| `plugins/ci/skills/archive-payload-result/extract_session_data.py` | Extract API/curl/gh responses from Claude session tarballs |
 | `eval/scripts/download-gcs-artifacts.sh` | Download GCS artifacts using rclone |
 | `eval/scripts/compress-archives.sh` | Compress/decompress payload archive directories |
 | `eval/shims/gcloud` | GCS storage command interceptor (with transparent extraction) |
+| `eval/shims/curl` | HTTP request interceptor (gcsweb, release controller, Sippy, GitHub raw) |
 | `eval/shims/gh` | GitHub CLI interceptor |
 
 ## File Layout
@@ -398,22 +410,18 @@ single payload archive while `EVAL_ARCHIVES_DIR` searches across all).
 ```
 eval/
 ├── README.md                          # this file
-├── archives/
-│   └── {payload-tag}/                 # one dir per archived payload
-│       ├── api-responses/             # cached fetch script responses
-│       ├── gh-cache/                  # cached GitHub API responses
-│       ├── reference/                 # gold-standard output from original analysis
-│       └── test-platform-results/     # GCS artifact mirror
 ├── cases/
-│   ├── case-006-archived-4.22-rejected/
-│   ├── case-007-archived-4.22-ci-cco-revert/
-│   ├── case-008-archived-4.22-ci-hypershift-revert/
-│   └── case-009-archived-4.22-cvo-revert/
+│   ├── case-001-rejected-single-failure/
+│   ├── ...
+│   └── case-install-001-metal-ipi-ipv6-ckao/
 ├── scripts/
-│   ├── extract-session-data.py        # session tarball parser
 │   ├── download-gcs-artifacts.sh      # rclone-based GCS downloader
-│   └── compress-archives.sh           # archive compressor/decompressor
+│   ├── compress-archives.sh           # archive compressor/decompressor
+│   └── trim-archives.sh              # remove large unused files
 └── shims/
     ├── gcloud                         # GCS storage command interceptor
+    ├── curl                           # HTTP request interceptor
     └── gh                             # GitHub CLI interceptor
 ```
+
+Archives live outside the repo (pointed to by `EVAL_ARCHIVES_DIR`).

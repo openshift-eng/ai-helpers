@@ -123,18 +123,12 @@ def main():
 
     args = parser.parse_args()
 
-    cache_dir = os.environ.get("EVAL_CACHED_RESPONSES")
     archives_dir = os.environ.get("EVAL_ARCHIVES_DIR")
     cache_file_name = f"fetch-payloads-{args.architecture}-{args.version}-{args.stream}.json"
 
-    # Search for a cached response: first in EVAL_CACHED_RESPONSES, then
-    # across all archives in EVAL_ARCHIVES_DIR. When multiple caches exist
-    # (different rolling windows), merge them to produce a unified view.
+    # Search for cached responses across all archives in EVAL_ARCHIVES_DIR.
+    # When multiple caches exist (different rolling windows), merge them.
     cached_files = []
-    if cache_dir:
-        cache_file = os.path.join(cache_dir, cache_file_name)
-        if os.path.isfile(cache_file):
-            cached_files.append(cache_file)
 
     if archives_dir and os.path.isdir(archives_dir):
         for subdir in sorted(os.listdir(archives_dir)):

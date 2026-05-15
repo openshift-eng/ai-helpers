@@ -1,0 +1,363 @@
+#!/bin/bash
+# curl shim — intercepts HTTP requests and serves from local archives.
+# When EVAL_ARCHIVES_DIR is set, intercepts requests to gcsweb, release
+# controller, and Sippy APIs. Falls through to real curl for other URLs.
+
+ARCHIVE="${EVAL_ARCHIVES_DIR}"
+
+SHIM_LOG="${EVAL_ARCHIVES_DIR:+${EVAL_ARCHIVES_DIR}/.shim-curl.log}"
+log_shim() { [[ -n "$SHIM_LOG" ]] && echo "[$(date -u +%H:%M:%S)] curl $*" >> "$SHIM_LOG"; }
+
+# Find real curl (excluding this shim)
+find_real_curl() {
+    local self
+    self="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
+    local IFS=:
+    for dir in $PATH; do
+        local candidate="$dir/curl"
+        if [[ -x "$candidate" && "$(realpath "$candidate" 2>/dev/null)" != "$(realpath "$self" 2>/dev/null)" ]]; then
+            echo "$candidate"
+            return
+        fi
+    done
+    echo "/usr/bin/curl"
+}
+
+REAL_CURL="$(find_real_curl)"
+
+if [[ -z "$ARCHIVE" ]]; then
+    exec "$REAL_CURL" "$@"
+fi
+
+# Parse curl arguments to extract URL and flags
+parse_args() {
+    URL=""
+    OUTPUT_FILE=""
+    SILENT=false
+    FAIL=false
+    WRITE_OUT=""
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -o|--output)
+                OUTPUT_FILE="$2"
+                shift 2
+                ;;
+            -s|--silent|-sS|-Ss)
+                SILENT=true
+                shift
+                ;;
+            -sL|-Ls|-sSL|-sLS)
+                SILENT=true
+                shift
+                ;;
+            -S|--show-error)
+                shift
+                ;;
+            -L|--location)
+                shift
+                ;;
+            -f|--fail)
+                FAIL=true
+                shift
+                ;;
+            --max-time|--connect-timeout)
+                shift 2
+                ;;
+            -w|--write-out)
+                WRITE_OUT="$2"
+                shift 2
+                ;;
+            -H|--header)
+                shift 2
+                ;;
+            -d|--data|--data-raw|--data-binary)
+                shift 2
+                ;;
+            -X|--request)
+                shift 2
+                ;;
+            --compressed|--retry|--retry-delay)
+                shift
+                ;;
+            -*)
+                shift
+                ;;
+            *)
+                if [[ -z "$URL" ]]; then
+                    URL="$1"
+                fi
+                shift
+                ;;
+        esac
+    done
+}
+
+# Search archives for a GCS-relative path (same logic as gcloud shim)
+find_in_archive() {
+    local rel_path="$1"
+    rel_path="${rel_path%/}"
+
+    for subdir in "$ARCHIVE"/*/; do
+        if [[ -e "${subdir}${rel_path}" ]]; then
+            echo "${subdir}${rel_path}"
+            return 0
+        fi
+    done
+
+    # Try extracting tar.gz archives
+    for tarball in "$ARCHIVE"/*.tar.gz; do
+        [[ -f "$tarball" ]] || continue
+        local tag
+        tag="$(basename "$tarball" .tar.gz)"
+        local extracted_dir="$ARCHIVE/$tag"
+        [[ -d "$extracted_dir" ]] && continue
+
+        local lockfile="$ARCHIVE/.${tag}.lock"
+        (
+            flock 9
+            if [[ ! -d "$extracted_dir" ]]; then
+                tar xzf "$tarball" -C "$ARCHIVE" >&2
+            fi
+        ) 9>"$lockfile"
+
+        if [[ -e "$extracted_dir/$rel_path" ]]; then
+            echo "$extracted_dir/$rel_path"
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+# Emit content to stdout or to -o file
+emit_content() {
+    if [[ -n "$OUTPUT_FILE" ]]; then
+        mkdir -p "$(dirname "$OUTPUT_FILE")"
+        cat > "$OUTPUT_FILE"
+    else
+        cat
+    fi
+}
+
+# Generate HTML directory listing matching gcsweb format
+generate_dir_listing() {
+    local local_dir="$1"
+    local url_path="$2"
+
+    echo "<html><body>"
+    echo "<h1>$url_path</h1>"
+    echo "<ul>"
+    for entry in "$local_dir"/*; do
+        [[ -e "$entry" ]] || continue
+        local name
+        name="$(basename "$entry")"
+        if [[ -d "$entry" ]]; then
+            echo "  <li><a href=\"${name}/\">${name}/</a></li>"
+        else
+            echo "  <li><a href=\"${name}\">${name}</a></li>"
+        fi
+    done
+    echo "</ul>"
+    echo "</body></html>"
+}
+
+# Handle gcsweb URLs
+handle_gcsweb() {
+    local url="$1"
+    # Strip gcsweb prefix to get GCS path
+    # URL: https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results/logs/...
+    local gcs_path
+    gcs_path="${url#*gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/}"
+
+    local local_path
+    if local_path="$(find_in_archive "$gcs_path")"; then
+        if [[ -d "$local_path" ]]; then
+            log_shim "INTERCEPT gcsweb dir-listing → $local_path"
+            generate_dir_listing "$local_path" "$gcs_path" | emit_content
+            return 0
+        elif [[ -f "$local_path" ]]; then
+            log_shim "INTERCEPT gcsweb file → $local_path"
+            emit_content < "$local_path"
+            return 0
+        fi
+    fi
+
+    # Not found — check if URL ends with / (directory listing request for missing dir)
+    if [[ "$gcs_path" == */ ]]; then
+        log_shim "MISS gcsweb dir → $gcs_path (empty listing)"
+        echo "<html><body><h1>$gcs_path</h1><ul></ul></body></html>" | emit_content
+        return 0
+    fi
+
+    log_shim "MISS gcsweb → $gcs_path"
+    echo "curl: (22) The requested URL returned error: 404" >&2
+    return 22
+}
+
+# Generic API cache lookup: search api-responses/ for a file matching a URL-derived key
+lookup_api_cache() {
+    local prefix="$1"  # e.g. "curl-rc-" or "curl-sippy-"
+    local url_key="$2" # URL path turned into filename fragment
+
+    for subdir in "$ARCHIVE"/*/api-responses/; do
+        [[ -d "$subdir" ]] || continue
+        # Exact match on the key-based filename
+        local candidate="${subdir}${prefix}${url_key}.json"
+        if [[ -f "$candidate" ]]; then
+            echo "$candidate"
+            return 0
+        fi
+        # Partial match: search for files containing the key
+        for f in "$subdir"${prefix}*.json; do
+            [[ -f "$f" ]] || continue
+            if [[ "$f" == *"$url_key"* ]]; then
+                echo "$f"
+                return 0
+            fi
+        done
+    done
+    return 1
+}
+
+# Handle release controller API
+handle_release_controller() {
+    local url="$1"
+
+    # Build cache key from URL path
+    local api_path
+    api_path="${url#*ocp.releases.ci.openshift.org/}"
+    local url_key
+    url_key="${api_path//\//_}"
+    url_key="${url_key%%_$}"
+
+    # Check for curl-rc-* cached files (extracted from session transcripts)
+    local cached
+    if cached="$(lookup_api_cache "curl-rc-" "$url_key")"; then
+        log_shim "INTERCEPT release-controller → $cached"
+        emit_content < "$cached"
+        return 0
+    fi
+
+    # Legacy: check fetch-payloads-*.json for /tags endpoint
+    if [[ "$url" == *"/tags" ]]; then
+        for subdir in "$ARCHIVE"/*/api-responses/; do
+            [[ -d "$subdir" ]] || continue
+            for f in "$subdir"fetch-payloads-*.json; do
+                [[ -f "$f" ]] || continue
+                log_shim "INTERCEPT release-controller tags → $f"
+                emit_content < "$f"
+                return 0
+            done
+        done
+    fi
+
+    # Legacy: /release/{tag} — match by tag in filename
+    if [[ "$url" == *"/release/"* ]]; then
+        local tag
+        tag="${url##*/release/}"
+        tag="${tag%%\?*}"
+        for subdir in "$ARCHIVE"/*/api-responses/; do
+            [[ -d "$subdir" ]] || continue
+            for f in "$subdir"*.json; do
+                [[ -f "$f" ]] || continue
+                if [[ "$f" == *"$tag"* ]]; then
+                    log_shim "INTERCEPT release-controller release → $f"
+                    emit_content < "$f"
+                    return 0
+                fi
+            done
+        done
+    fi
+
+    log_shim "MISS release-controller → $url"
+    echo "curl: (22) The requested URL returned error: 500" >&2
+    return 22
+}
+
+# Handle Sippy API
+handle_sippy() {
+    local url="$1"
+
+    # Build cache key from URL path
+    local api_path
+    api_path="${url#*sippy.dptools.openshift.org/}"
+    local url_key
+    url_key="${api_path//\//_}"
+    url_key="${url_key//[?&]/_}"
+    url_key="${url_key%%_$}"
+
+    local cached
+    if cached="$(lookup_api_cache "curl-sippy-" "$url_key")"; then
+        log_shim "INTERCEPT sippy → $cached"
+        emit_content < "$cached"
+        return 0
+    fi
+
+    # Legacy: match any sippy-related file
+    for subdir in "$ARCHIVE"/*/api-responses/; do
+        [[ -d "$subdir" ]] || continue
+        for f in "$subdir"*sippy*.json; do
+            [[ -f "$f" ]] || continue
+            log_shim "INTERCEPT sippy → $f"
+            emit_content < "$f"
+            return 0
+        done
+    done
+
+    log_shim "MISS sippy → $url"
+    echo "curl: (22) The requested URL returned error: 500" >&2
+    return 22
+}
+
+# Handle GitHub raw content
+handle_github_raw() {
+    local url="$1"
+    local path
+    path="${url#*raw.githubusercontent.com/}"
+    local safe_name="${path//\//_}"
+    [[ ${#safe_name} -gt 200 ]] && safe_name="${safe_name:0:200}"
+
+    for subdir in "$ARCHIVE"/*/gh-cache/raw/; do
+        [[ -d "$subdir" ]] || continue
+        if [[ -f "${subdir}${safe_name}" ]]; then
+            log_shim "INTERCEPT github-raw → ${subdir}${safe_name}"
+            emit_content < "${subdir}${safe_name}"
+            return 0
+        fi
+    done
+
+    log_shim "MISS github-raw → $url"
+    echo "curl: (22) The requested URL returned error: 500" >&2
+    return 22
+}
+
+# Main dispatch
+parse_args "$@"
+
+if [[ -z "$URL" ]]; then
+    exec "$REAL_CURL" "$@"
+fi
+
+case "$URL" in
+    *gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/*)
+        handle_gcsweb "$URL"
+        exit $?
+        ;;
+    *ocp.releases.ci.openshift.org/api/*)
+        handle_release_controller "$URL"
+        exit $?
+        ;;
+    *sippy.dptools.openshift.org/*)
+        handle_sippy "$URL"
+        exit $?
+        ;;
+    *raw.githubusercontent.com/*)
+        handle_github_raw "$URL"
+        exit $?
+        ;;
+    *)
+        log_shim "PASSTHROUGH → $URL"
+        exec "$REAL_CURL" "$@"
+        ;;
+esac

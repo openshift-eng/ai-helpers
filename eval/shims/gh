@@ -1,9 +1,12 @@
 #!/bin/bash
 # gh shim — serves cached GitHub API responses for eval testing.
-# When EVAL_GH_CACHE is set, intercepts `gh pr list` and `gh api` calls
-# and serves from cached files. Falls through to real gh otherwise.
+# When EVAL_ARCHIVES_DIR is set, intercepts gh commands and serves
+# from cached files or returns empty results.
 
-CACHE="${EVAL_GH_CACHE}"
+CACHE="${EVAL_ARCHIVES_DIR}"
+
+SHIM_LOG="${EVAL_ARCHIVES_DIR:+${EVAL_ARCHIVES_DIR}/.shim-gh.log}"
+log_shim() { [[ -n "$SHIM_LOG" ]] && echo "[$(date -u +%H:%M:%S)] gh $*" >> "$SHIM_LOG"; }
 
 # Find real gh (excluding this shim)
 find_real_gh() {
@@ -26,24 +29,71 @@ if [[ -z "$CACHE" ]]; then
     exec "$REAL_GH" "$@"
 fi
 
-# For now, return empty/no-results for all cached gh calls.
-# The analyze-payload skill checks for revert PRs via `gh pr list --search "revert"`.
-# Returning empty results is correct for archived analyses where PRs have been fixed.
+# Look up cached PR data: gh-cache/{org}/{repo}/{pr_number}.json
+lookup_pr_cache() {
+    local pr_num="$1"
+    local repo="$2"
+    [[ -z "$pr_num" || -z "$repo" ]] && return 1
+
+    for subdir in "$CACHE"/*/gh-cache/"$repo"/; do
+        [[ -d "$subdir" ]] || continue
+        local cache_file="${subdir}${pr_num}.json"
+        if [[ -f "$cache_file" ]]; then
+            echo "$cache_file"
+            return 0
+        fi
+    done
+    return 1
+}
+
 case "$1" in
     pr)
         case "$2" in
             list)
-                # Return empty JSON array (no matching PRs)
+                log_shim "INTERCEPT pr list → []"
                 echo "[]"
+                exit 0
+                ;;
+            view)
+                # Try to find cached response
+                # Parse: gh pr view <number> --repo <org/repo> [--json ...]
+                pr_num="" repo=""
+                shift 2
+                while [[ $# -gt 0 ]]; do
+                    case "$1" in
+                        --repo) repo="$2"; shift 2 ;;
+                        --json|--jq) shift 2 ;;
+                        --*) shift ;;
+                        *) [[ -z "$pr_num" ]] && pr_num="$1"; shift ;;
+                    esac
+                done
+
+                cache_file="$(lookup_pr_cache "$pr_num" "$repo")"
+                if [[ $? -eq 0 && -f "$cache_file" ]]; then
+                    log_shim "INTERCEPT pr view $repo#$pr_num → $cache_file"
+                    cat "$cache_file"
+                    exit 0
+                fi
+
+                log_shim "MISS pr view $repo#$pr_num → {}"
+                echo "{}"
+                exit 0
+                ;;
+            *)
+                log_shim "INTERCEPT pr $2 → {}"
+                echo "{}"
                 exit 0
                 ;;
         esac
         ;;
     api)
-        # Return empty JSON object for API calls
+        log_shim "INTERCEPT api $* → {}"
+        echo "{}"
+        exit 0
+        ;;
+    *)
+        log_shim "BLOCKED $*"
         echo "{}"
         exit 0
         ;;
 esac
-
-exec "$REAL_GH" "$@"
