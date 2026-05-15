@@ -1,0 +1,17 @@
+expected_phase: Rejected
+expected_failed_job_count: 1
+has_revert_candidates: false
+force_accept_expected: false
+
+expected_candidates: []
+
+notes: >
+  Infrastructure-only failure test case. This payload was rejected due to
+  Insights API Gateway returning HTTP 500 errors, which is an infrastructure
+  issue unrelated to any code change. The agent correctly identified this
+  as an infrastructure failure and did not blame any PR. The correct
+  outcome is zero revert candidates. This case tests the agent's ability
+  to classify and dismiss infrastructure issues without producing false
+  positive revert recommendations. This is critical for maintaining the
+  agent's overall precision, as incorrectly blaming a PR for infra issues
+  wastes developer time investigating non-existent regressions.

@@ -34,7 +34,7 @@ Where possible, use dedicated subagents.
 
 ## Tasks
 
-[ ] Task 0: Compress archives for cold storage
+[x] Task 0: Compress archives for cold storage
 
 Add transparent compression support to the eval framework. Each payload
 archive (`../../archives/{payload-tag}/`) should be compressible into a
@@ -44,7 +44,7 @@ exist but a `.tar.gz` does, extract it automatically. Add a companion
 `eval/scripts/compress-archives.sh` script to compress all uncompressed
 archives. This frees disk space when archives aren't actively in use.
 
-[ ] Task 1: Analyze payload agent jobs.
+[x] Task 1: Analyze payload agent jobs.
 
 We have a large volume of data here in payload agent jobs:
 
@@ -73,7 +73,7 @@ implementing things like progressive discovery to reduce initial context load,
 or other techniques.  When you have improvements, open a PR to ai-helpers from
 your worktree based on the upstream/main.  Do not touch $PWD, it is our working area for evals.
 
-[ ] Task 3: Install job failures
+[x] Task 3: Install job failures
 
 I would also like to add an eval specifically for just one off job failures, we
 can start with insatll: /ci:analyze-prow-job-install-failure on
@@ -85,19 +85,19 @@ this case I'm interested to see if it can identify the exact problem reliably.
 
 Have a subagent go off independently and create an eval for this specific one.
 
-[ ] Task 4: Other job failures
+[x] Task 4: Other job failures
 
 Find individual job failures from the payload agent, and write evals for those
 similar to the install job failures above.
 
-[ ] Task 5: Think outside the box
+[x] Task 5: Think outside the box
 
 Based on the outputs of the other tasks, especially task 1, decide on ways we
 could improve.
 
 Our goal is more green payloads. Why are we struggling?
 
-[ ] Task 6: Trim archive sizes
+[x] Task 6: Trim archive sizes
 
 The current archives total ~65 GB. Create a script that reduces archive size
 while preserving a realistic artifact tree structure. The skill must still
