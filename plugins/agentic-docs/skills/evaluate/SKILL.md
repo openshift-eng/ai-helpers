@@ -4,13 +4,10 @@ description: "Evaluate agentic documentation quality using promptfoo-based behav
 trigger: /agentic-docs:evaluate
 ---
 
-# Agentic-Docs: Evaluate (v6.2)
+# Agentic-Docs: Evaluate
 
 **Trigger**: `/agentic-docs:evaluate`  
 **Purpose**: Evaluate documentation quality by running promptfoo test suite and analyzing results
-
-**Changes in v6.2**: Updated provider validation to support both Anthropic API and Vertex AI formats correctly
-**Changes in v6.1**: Added provider configuration validation to detect common config errors before running evaluation
 
 **Framework**: OpenShift Enhancements Agentic Docs Evaluation  
 **Reference**: https://github.com/openshift/enhancements/pull/1992
