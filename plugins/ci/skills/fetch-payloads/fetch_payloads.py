@@ -7,6 +7,7 @@ and full API details (blocking jobs, async jobs, retries, Prow URLs).
 
 import argparse
 import json
+import os
 import re
 import sys
 import urllib.error
@@ -121,6 +122,50 @@ def main():
     )
 
     args = parser.parse_args()
+
+    cache_dir = os.environ.get("EVAL_CACHED_RESPONSES")
+    archives_dir = os.environ.get("EVAL_ARCHIVES_DIR")
+    cache_file_name = f"fetch-payloads-{args.architecture}-{args.version}-{args.stream}.json"
+
+    # Search for a cached response: first in EVAL_CACHED_RESPONSES, then
+    # across all archives in EVAL_ARCHIVES_DIR. When multiple caches exist
+    # (different rolling windows), merge them to produce a unified view.
+    cached_files = []
+    if cache_dir:
+        cache_file = os.path.join(cache_dir, cache_file_name)
+        if os.path.isfile(cache_file):
+            cached_files.append(cache_file)
+
+    if archives_dir and os.path.isdir(archives_dir):
+        for subdir in sorted(os.listdir(archives_dir)):
+            cache_file = os.path.join(archives_dir, subdir, "api-responses", cache_file_name)
+            if os.path.isfile(cache_file) and cache_file not in cached_files:
+                cached_files.append(cache_file)
+
+    if cached_files:
+        if len(cached_files) == 1:
+            with open(cached_files[0], "r") as f:
+                print(f.read(), end="")
+            sys.exit(0)
+        else:
+            # Merge multiple caches: deduplicate by tag, keep the most
+            # complete entry (largest JSON) for each tag.
+            import json as _json
+            merged = {}
+            for cf in cached_files:
+                with open(cf, "r") as f:
+                    try:
+                        data = _json.load(f)
+                    except _json.JSONDecodeError:
+                        continue
+                    for entry in data:
+                        tag = entry.get("tag", "")
+                        existing = merged.get(tag)
+                        if existing is None or len(_json.dumps(entry)) > len(_json.dumps(existing)):
+                            merged[tag] = entry
+            result = sorted(merged.values(), key=lambda e: e.get("tag", ""), reverse=True)
+            print(_json.dumps(result))
+            sys.exit(0)
 
     architecture = args.architecture
     if architecture not in KNOWN_ARCHITECTURES:

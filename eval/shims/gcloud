@@ -1,0 +1,232 @@
+#!/bin/bash
+# gcloud shim — serves archived GCS artifacts for eval testing.
+# When EVAL_ARTIFACT_ARCHIVE is set, intercepts gcloud storage ls/cp/cat
+# and serves from the local archive. Falls through to real gcloud otherwise.
+
+ARCHIVE="${EVAL_ARTIFACT_ARCHIVE}"
+
+# Find real gcloud (excluding this shim)
+find_real_gcloud() {
+    local self
+    self="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
+    local IFS=:
+    for dir in $PATH; do
+        local candidate="$dir/gcloud"
+        if [[ -x "$candidate" && "$(realpath "$candidate" 2>/dev/null)" != "$(realpath "$self" 2>/dev/null)" ]]; then
+            echo "$candidate"
+            return
+        fi
+    done
+    echo "/usr/bin/gcloud"
+}
+
+REAL_GCLOUD="$(find_real_gcloud)"
+
+# Fall through if archive not set or not a storage command
+if [[ -z "$ARCHIVE" ]] || [[ "$1" != "storage" ]]; then
+    exec "$REAL_GCLOUD" "$@"
+fi
+
+subcmd="$2"
+shift 2
+
+# Convert gs:// path to local path.
+# Searches all subdirectories of ARCHIVE for the matching path.
+# This allows a single ARCHIVE dir (e.g. eval/archives/) to serve
+# multiple payload archives simultaneously.
+gs_to_local() {
+    local gs_path="$1"
+    gs_path="${gs_path#gs://}"
+    gs_path="${gs_path%/}"
+
+    # Direct match (single-archive mode: ARCHIVE points to a specific payload dir)
+    if [[ -e "$ARCHIVE/$gs_path" ]]; then
+        echo "$ARCHIVE/$gs_path"
+        return
+    fi
+
+    # Multi-archive mode: search subdirectories
+    for subdir in "$ARCHIVE"/*/; do
+        if [[ -e "$subdir$gs_path" ]]; then
+            echo "$subdir$gs_path"
+            return
+        fi
+    done
+
+    # Not found — return the direct path (caller handles the error)
+    echo "$ARCHIVE/$gs_path"
+}
+
+# Handle: gcloud storage ls [flags] <gs://path>
+handle_ls() {
+    local recursive=false
+    local gs_path=""
+    local args=()
+
+    for arg in "$@"; do
+        case "$arg" in
+            --recursive|-r) recursive=true ;;
+            --*) ;; # ignore other flags
+            gs://*) gs_path="$arg" ;;
+            *) ;;
+        esac
+    done
+
+    if [[ -z "$gs_path" ]]; then
+        echo "ERROR: no gs:// path provided" >&2
+        exit 1
+    fi
+
+    local local_path
+    local_path="$(gs_to_local "$gs_path")"
+
+    # Helper to strip archive prefix from a local path and emit gs:// URL
+    emit_gs_path() {
+        local f="$1"
+        # Strip any archive subdir prefix to get the GCS-relative path
+        local rel="${f#$ARCHIVE/}"
+        # In multi-archive mode, strip the payload-tag subdir too
+        if [[ "$rel" == */test-platform-results/* ]]; then
+            rel="test-platform-results/${rel#*/test-platform-results/}"
+        fi
+        echo "gs://$rel"
+    }
+
+    # Glob pattern (contains * or ?)
+    if [[ "$gs_path" == *'*'* || "$gs_path" == *'?'* ]]; then
+        local base_dir
+        # Split at the first glob character
+        base_dir="${local_path%%[\*\?]*}"
+        base_dir="${base_dir%/}"
+        # Walk up to nearest directory
+        while [[ ! -d "$base_dir" && "$base_dir" != "/" ]]; do
+            base_dir="$(dirname "$base_dir")"
+        done
+
+        if [[ ! -d "$base_dir" ]]; then
+            exit 1
+        fi
+
+        # Extract just the filename pattern from the glob
+        local name_pattern="${gs_path##*/}"
+        # Handle ** by searching recursively from the base
+        if [[ "$gs_path" == *'**'* ]]; then
+            find "$base_dir" -type f -name "$name_pattern" 2>/dev/null | while read -r f; do
+                emit_gs_path "$f"
+            done
+        else
+            find "$base_dir" -maxdepth 1 -name "$name_pattern" 2>/dev/null | while read -r f; do
+                emit_gs_path "$f"
+            done
+        fi
+        return
+    fi
+
+    # Directory listing
+    if [[ -d "$local_path" ]]; then
+        if $recursive; then
+            find "$local_path" -type f 2>/dev/null | while read -r f; do
+                emit_gs_path "$f"
+            done
+        else
+            for entry in "$local_path"/*; do
+                [[ -e "$entry" ]] || continue
+                local rel
+                rel="$(emit_gs_path "$entry")"
+                if [[ -d "$entry" ]]; then
+                    echo "${rel}/"
+                else
+                    echo "$rel"
+                fi
+            done
+        fi
+        return
+    fi
+
+    # Specific file
+    if [[ -f "$local_path" ]]; then
+        emit_gs_path "$local_path"
+        return
+    fi
+
+    echo "ERROR: not found in archive: $gs_path" >&2
+    exit 1
+}
+
+# Handle: gcloud storage cp [flags] <gs://src> <dest>
+handle_cp() {
+    local recursive=false
+    local gs_src="" dest=""
+    local positional=()
+
+    for arg in "$@"; do
+        case "$arg" in
+            -r|--recursive) recursive=true ;;
+            --no-user-output-enabled) ;; # ignore
+            --*) ;; # ignore other flags
+            *) positional+=("$arg") ;;
+        esac
+    done
+
+    gs_src="${positional[0]}"
+    dest="${positional[1]}"
+
+    if [[ -z "$gs_src" || -z "$dest" ]]; then
+        echo "ERROR: cp requires source and destination" >&2
+        exit 1
+    fi
+
+    local local_src
+    local_src="$(gs_to_local "$gs_src")"
+
+    if $recursive; then
+        if [[ -d "$local_src" ]]; then
+            mkdir -p "$dest"
+            cp -r "$local_src"/. "$dest"/ 2>/dev/null
+            return $?
+        fi
+    fi
+
+    if [[ -f "$local_src" ]]; then
+        mkdir -p "$(dirname "$dest")"
+        cp "$local_src" "$dest"
+        return $?
+    fi
+
+    echo "ERROR: not found in archive: $gs_src" >&2
+    exit 1
+}
+
+# Handle: gcloud storage cat <gs://path>
+handle_cat() {
+    local gs_path=""
+    for arg in "$@"; do
+        case "$arg" in
+            gs://*) gs_path="$arg" ;;
+            *) ;;
+        esac
+    done
+
+    if [[ -z "$gs_path" ]]; then
+        echo "ERROR: no gs:// path provided" >&2
+        exit 1
+    fi
+
+    local local_path
+    local_path="$(gs_to_local "$gs_path")"
+
+    if [[ -f "$local_path" ]]; then
+        cat "$local_path"
+        return
+    fi
+
+    echo "ERROR: not found in archive: $gs_path" >&2
+    exit 1
+}
+
+case "$subcmd" in
+    ls) handle_ls "$@" ;;
+    cp) handle_cp "$@" ;;
+    cat) handle_cat "$@" ;;
+    *) exec "$REAL_GCLOUD" storage "$subcmd" "$@" ;;
+esac

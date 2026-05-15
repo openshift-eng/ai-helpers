@@ -7,6 +7,7 @@ falling back to the release controller API when Sippy has not yet ingested the p
 
 import argparse
 import json
+import os
 import re
 import sys
 import urllib.error
@@ -194,6 +195,30 @@ def main():
     )
 
     args = parser.parse_args()
+
+    cache_dir = os.environ.get("EVAL_CACHED_RESPONSES")
+    archives_dir = os.environ.get("EVAL_ARCHIVES_DIR")
+    cache_file_name = f"fetch-new-prs-{args.payload_tag}.json"
+
+    # Search for cached response in EVAL_CACHED_RESPONSES, then EVAL_ARCHIVES_DIR
+    if cache_dir:
+        cache_file = os.path.join(cache_dir, cache_file_name)
+        if os.path.isfile(cache_file):
+            with open(cache_file, "r") as f:
+                print(f.read(), end="")
+            sys.exit(0)
+
+    if archives_dir and os.path.isdir(archives_dir):
+        for subdir in sorted(os.listdir(archives_dir)):
+            cache_file = os.path.join(archives_dir, subdir, "api-responses", cache_file_name)
+            if os.path.isfile(cache_file):
+                with open(cache_file, "r") as f:
+                    print(f.read(), end="")
+                sys.exit(0)
+
+    if cache_dir or archives_dir:
+        print("[]")
+        sys.exit(0)
 
     prs = fetch_new_prs(args.payload_tag)
 

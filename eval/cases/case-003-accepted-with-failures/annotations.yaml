@@ -1,0 +1,10 @@
+expected_phase: Accepted
+expected_failed_job_count: 1
+has_revert_candidates: false
+force_accept_expected: false
+notes: >
+  Edge case: payload was Accepted despite 1 failed blocking job
+  (hypershift-ovn-conformance-4.20). Tests that the skill correctly handles
+  force-accepted payloads — it should still analyze the failed job and note
+  that the payload was accepted despite the failure. Should NOT recommend
+  force-accept since the payload was already accepted.

@@ -1,0 +1,11 @@
+expected_phase: Rejected
+expected_failed_job_count: 3
+has_revert_candidates: false
+force_accept_expected: false
+notes: >
+  Rejection streak case: this payload is part of a multi-payload rejection streak
+  (4 consecutive rejections: 2026-05-11-185554, 2026-05-12-035058, 2026-05-12-130101,
+  2026-05-12-225204) before an accepted payload on 2026-05-13. Failed jobs include
+  fips-scan, hypershift-ovn-conformance, and microshift-ovn-conformance-serial.
+  Tests the skill's lookback/streak detection and whether it can distinguish
+  persistent failures from new regressions within a streak.

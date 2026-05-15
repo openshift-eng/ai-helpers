@@ -1,0 +1,10 @@
+expected_phase: Ready
+expected_failed_job_count: 4
+has_revert_candidates: false
+force_accept_expected: false
+notes: >
+  In-progress case: payload is still Ready with 4 already-failed blocking jobs
+  (aws-ovn-serial-1of2, aws-ovn-serial-2of2, aws-ovn-single-node-upgrade,
+  plus one more). Tests early analysis of a payload that is on track for
+  rejection. The report should note the payload is still in progress.
+  Note: by eval time this payload may have transitioned to Rejected or Accepted.

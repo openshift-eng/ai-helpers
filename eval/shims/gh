@@ -1,0 +1,49 @@
+#!/bin/bash
+# gh shim — serves cached GitHub API responses for eval testing.
+# When EVAL_GH_CACHE is set, intercepts `gh pr list` and `gh api` calls
+# and serves from cached files. Falls through to real gh otherwise.
+
+CACHE="${EVAL_GH_CACHE}"
+
+# Find real gh (excluding this shim)
+find_real_gh() {
+    local self
+    self="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
+    local IFS=:
+    for dir in $PATH; do
+        local candidate="$dir/gh"
+        if [[ -x "$candidate" && "$(realpath "$candidate" 2>/dev/null)" != "$(realpath "$self" 2>/dev/null)" ]]; then
+            echo "$candidate"
+            return
+        fi
+    done
+    echo "/usr/bin/gh"
+}
+
+REAL_GH="$(find_real_gh)"
+
+if [[ -z "$CACHE" ]]; then
+    exec "$REAL_GH" "$@"
+fi
+
+# For now, return empty/no-results for all cached gh calls.
+# The analyze-payload skill checks for revert PRs via `gh pr list --search "revert"`.
+# Returning empty results is correct for archived analyses where PRs have been fixed.
+case "$1" in
+    pr)
+        case "$2" in
+            list)
+                # Return empty JSON array (no matching PRs)
+                echo "[]"
+                exit 0
+                ;;
+        esac
+        ;;
+    api)
+        # Return empty JSON object for API calls
+        echo "{}"
+        exit 0
+        ;;
+esac
+
+exec "$REAL_GH" "$@"
