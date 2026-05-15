@@ -48,12 +48,6 @@ Tests measure:
 └─────────────────────────────────────────┘
 ```
 
-**Why this architecture?**
-- **Simpler**: Only one sub-agent (judge) instead of two
-- **Faster**: No code sub-agent spawn overhead
-- **Cheaper**: Fewer tokens used
-- **Clearer**: Main agent runs tools, judge analyzes results
-
 ## Prerequisites
 
 **Required files**:
