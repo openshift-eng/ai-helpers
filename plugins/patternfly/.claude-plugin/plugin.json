@@ -1,7 +1,7 @@
 {
   "name": "patternfly",
-  "description": "PatternFly React component migration and development tools",
-  "version": "1.0.0",
+  "description": "PatternFly v5 to v6 migration — React components, CSS classes, and design tokens",
+  "version": "1.1.0",
   "author": {
     "name": "github.com/openshift-eng"
   }

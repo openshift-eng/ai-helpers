@@ -34,19 +34,17 @@ Migrate React components from PatternFly 5 to PatternFly 6.
 
 ## Skills
 
-### `patternfly-migration`
+### `pf-react-migration`
 
-Expert knowledge for migrating PatternFly React components from v5 to v6.
+Migrate PatternFly React components, CSS classes, and tokens from v5 to v6.
 
 **Coverage includes:**
-- Component replacements (Text → Content, Chip → Label, etc.)
-- Prop renames and removals
-- Import path updates
-- Token migrations
-- Toolbar updates
-- Markup changes
-- Color prop updates
-- Deprecated component guidance
+- React component and prop migrations (Text → Content, Chip → Label, prop renames)
+- CSS class migrations (pf-v5-* → pf-v6-*, legacy classes)
+- Token migrations (--pf-global-* → --pf-t--*)
+- Import path updates and deprecated component guidance
+- Automated codemod integration
+- Actionable scan commands for finding migration issues
 
 ## Installation
 

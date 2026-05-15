@@ -1,7 +1,7 @@
 ---
-description: Migrate React components from PatternFly 5 to PatternFly 6
+description: Migrate PatternFly v5 to v6 (React components, CSS classes, tokens)
 argument-hint: "[file-path]"
-skill: patternfly-migration
+skill: pf-react-migration
 ---
 
 ## Name
@@ -13,48 +13,48 @@ patternfly:migrate
 ```
 
 ## Description
-The `patternfly:migrate` command analyzes and migrates React components from PatternFly v5 to PatternFly v6. It identifies breaking changes, deprecated components, prop renames, and structural updates required for v6 compatibility.
+The `patternfly:migrate` command migrates PatternFly v5 to v6 across React components, CSS classes, and design tokens. It scans for legacy patterns, applies fixes, and identifies items requiring manual updates.
 
-This command leverages AI analysis to:
-- Detect PatternFly v5 patterns in the codebase
-- Apply automated migrations for component renames, prop updates, and import path changes
-- Identify manual updates needed for complex structural changes
-- Provide clear explanations for each migration step
-- Suggest testing strategies for migrated components
+This command provides:
+- Automated detection of v5 patterns (components, CSS classes, tokens)
+- Actionable scan commands using ripgrep for remaining issues
+- Integration guidance for official @patternfly codemods
+- Clear output with file:line references and confidence levels
 
 ## Implementation
-The command uses the `patternfly-migration` skill to:
+The command uses the `pf-react-migration` skill to:
 
-1. **Analyze** the provided file or codebase for PatternFly v5 patterns
-2. **Categorize** findings by migration type (imports, components, props, structure)
-3. **Prioritize** changes: imports → component renames → prop changes → structural changes
-4. **Apply** automated fixes with explanations
-5. **Report** manual updates needed and testing recommendations
+1. **Scan** for PatternFly v5 patterns using ripgrep commands
+2. **Categorize** findings: React code, CSS classes, tokens, deprecated components
+3. **Guide** codemod usage: pf-codemods, class-name-updater, css-vars-updater
+4. **Apply** manual fixes for non-automatable changes
+5. **Report** with confidence levels and testing recommendations
 
-The migration follows the official PatternFly v6 migration guide and pf-codemods patterns.
+Follows the concise, actionable pattern of the pf-class-migration-scanner skill.
 
-## Migration Coverage
+## Migration Scope
 
-### Automated Migrations
-- Component replacements (Text → Content, Chip → Label, etc.)
-- Prop renames (Button.isActive → isClicked, FormGroup.labelIcon → labelHelp)
-- Import path updates (deprecated components, charts, promoted components)
-- Token updates (global tokens, border widths, font weights)
-- Toolbar chip-to-label migrations
-- Color prop updates (cyan → teal, gold → yellow)
+### React Components & Props
+- Component replacements: Text/TextContent → Content, Chip → Label, KebabToggle → MenuToggle
+- Prop updates: isActive → isClicked, labelIcon → labelHelp
+- Import paths: Charts /victory, deprecated → /deprecated
+- Toolbar chip → label prop renames
+
+### CSS Classes & Tokens
+- Legacy classes: pf-v5-*, pf-v4-*, pf-c-*, pf-u-*, pf-l-*
+- Legacy tokens: --pf-v6-*, --pf-global-* → --pf-t--* (semantic)
+- Color tokens requiring manual updates
 
 ### Manual Verification Required
-- Markup changes (EmptyState, Masthead, Button icons, etc.)
-- Deprecated components without direct replacements
-- Component-specific tokens and CSS variables
-- Test updates for DOM structure changes
-- Accessibility and keyboard navigation
+- Markup changes (EmptyState, Masthead, Button icons)
+- Deprecated components (ApplicationLauncher, old Dropdown/Select, PageHeader, Tile)
+- UI testing and accessibility
 
 ## Return Value
-- **Migration report**: Analysis of changes with file:line references
-- **Code changes**: Applied via Edit tool with clear descriptions
-- **Manual checklist**: Items requiring manual verification
-- **Testing recommendations**: Functional, visual, and accessibility tests
+- **Scan results**: File paths, current patterns, PF6 replacements
+- **Confidence levels**: high/medium/low for each finding
+- **Code changes**: Applied fixes with explanations (Why + How to apply)
+- **Manual updates**: Items requiring manual verification with testing guidance
 
 ## Examples
 
