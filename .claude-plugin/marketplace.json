@@ -3,7 +3,9 @@
   "owner": {
     "name": "openshift-eng"
   },
-  "allowCrossMarketplaceDependenciesOn": ["claude-plugins-official"],
+  "allowCrossMarketplaceDependenciesOn": [
+    "claude-plugins-official"
+  ],
   "plugins": [
     {
       "name": "git",
@@ -27,7 +29,7 @@
       "name": "ci",
       "source": "./plugins/ci",
       "description": "A plugin to work with OpenShift CI and analyze Prow job results",
-      "version": "0.0.39"
+      "version": "0.0.40"
     },
     {
       "name": "teams",

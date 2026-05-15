@@ -199,6 +199,13 @@ Wait for all subagents to complete and collect their analysis results. For each 
 
 For each failed job, cross-reference the failure analysis from the subagent with the candidate PRs from the originating payload. Additionally, if a subagent traced the root cause to a PR outside the payload (e.g., an `openshift/release` PR that modified a CI step registry script), include that PR as a candidate — it is a regression like any other and should be scored and treated the same way as payload PRs.
 
+**Infrastructure and platform-specific failure triage**: Before scoring candidate PRs, check whether the failure is caused by cloud provider infrastructure rather than code changes. Key indicators:
+- **Cloud provider API errors**: Azure Graph API auth failures, AWS STS failures, GCP quota exhaustion — these are provider-side issues that resolve without code changes
+- **Single-platform failures**: If a failure occurs on only one cloud platform (e.g., only AKS) and the candidate PR doesn't directly modify platform-specific code, the causal chain requires stronger evidence
+- **Transient resolution**: If the same test passed on the same platform in a very recent payload with no relevant PR changes between the pass and failure
+
+Apply a negative adjustment: **Platform-specific failure without mechanism**: -20 (failure occurs only on one cloud platform and the causal chain from PR to platform-specific behavior requires multiple speculative steps)
+
 Score each (failed job, candidate PR) pair using the following weighted rubric:
 
 | Signal | Weight | Criteria |
@@ -209,8 +216,11 @@ Score each (failed job, candidate PR) pair using the following weighted rubric:
 | Multi-job correlation | +10 | The same PR is a candidate for failures in multiple independent jobs — the more jobs that point to the same PR, the stronger the signal |
 | Presubmit coverage gap | +10 | The failing job tests a scenario (upgrade, FIPS, SNO, techpreview, etc.) that wasn't covered by the PR's presubmit tests |
 | Single candidate | +10 | Only one PR landed in the originating payload that touches the affected component |
+| Test-introduction match | +40 | The candidate PR introduced a new test (visible in its diff) and that specific test is now failing. A PR that both creates a feature and its test, where the test immediately fails, is near-certain evidence of causation. |
 
-The maximum possible score is 130, but scores above 100 should be capped at 100. Record the numeric score for each (job, candidate PR) pair alongside the qualitative rationale.
+The maximum possible score is 170, but scores above 100 should be capped at 100. Record the numeric score for each (job, candidate PR) pair alongside the qualitative rationale.
+
+**Sub-component resolution**: For repos with 3+ PRs in the originating payload, examine each PR's changed file paths to identify sub-components. Score component exclusivity based on sub-component overlap rather than repo-level overlap. For example, in the `hypershift` repo, PRs modifying `control-plane-operator/` vs `hypershift-operator/` vs `test/` are distinct sub-components.
 
 #### 6.2: Propose Revert Candidates
 
