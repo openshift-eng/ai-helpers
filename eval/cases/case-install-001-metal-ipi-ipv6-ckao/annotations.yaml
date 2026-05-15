@@ -1,0 +1,61 @@
+failure_stage: "cluster bootstrap"
+root_cause_pr: "https://github.com/openshift/cluster-kube-apiserver-operator/pull/2032"
+root_cause_component: "cluster-kube-apiserver-operator"
+root_cause_description: >
+  A change in cluster-kube-apiserver-operator (CKAO PR #2032) caused
+  bootstrap failures in metal IPI IPv6 disconnected environments. The PR
+  was ultimately reverted to fix the issue. The failure manifested as a
+  cluster bootstrap failure where the kube-apiserver could not properly
+  start or stabilize during the bootstrap phase.
+is_metal_job: true
+is_disconnected: true
+
+# Artifact archiving notes:
+#
+# GCS path: gs://test-platform-results/logs/periodic-ci-openshift-release-main-nightly-4.22-e2e-metal-ipi-ovn-ipv6/2026582867877826560/
+#
+# Key artifacts to archive for reproducible eval:
+#   1. prowjob.json (top level)
+#   2. artifacts/e2e-metal-ipi-ovn-ipv6/gather-must-gather/artifacts/junit_install.xml
+#   3. artifacts/e2e-metal-ipi-ovn-ipv6/baremetalds-devscripts-setup/artifacts/root/dev-scripts/logs/*.log
+#   4. artifacts/e2e-metal-ipi-ovn-ipv6/baremetalds-devscripts-setup/artifacts/root/dev-scripts/logs/installer-status.txt
+#   5. artifacts/e2e-metal-ipi-ovn-ipv6/baremetalds-devscripts-gather/artifacts/ (journal tars, libvirt-logs.tar, sosreport, squid-logs)
+#   6. artifacts/e2e-metal-ipi-ovn-ipv6/gather-must-gather/artifacts/must-gather/ (if must-gather was collected)
+#   7. artifacts/e2e-metal-ipi-ovn-ipv6/gather-extra/artifacts/ (inspect data with operator logs)
+#   8. artifacts/e2e-metal-ipi-ovn-ipv6/baremetalds-devscripts-ibm/build-log.txt (main install step log)
+#   9. Top-level: build-log.txt, finished.json, started.json, prowjob_junit.xml
+#
+# To archive (from repo root):
+#   mkdir -p eval/archives/install-case-001/test-platform-results/logs/periodic-ci-openshift-release-main-nightly-4.22-e2e-metal-ipi-ovn-ipv6/2026582867877826560/
+#   gcloud storage cp -r \
+#     "gs://test-platform-results/logs/periodic-ci-openshift-release-main-nightly-4.22-e2e-metal-ipi-ovn-ipv6/2026582867877826560/*" \
+#     eval/archives/install-case-001/test-platform-results/logs/periodic-ci-openshift-release-main-nightly-4.22-e2e-metal-ipi-ovn-ipv6/2026582867877826560/
+#
+# WARNING: The full artifact tree may be very large (journal tars, sosreport,
+# libvirt-logs). Consider selective download of only the artifacts the skill
+# actually reads. Check df -h /home before downloading.
+#
+# Expected skill output format:
+#   The skill writes to .work/prow-job-analyze-install-failure/{build_id}/:
+#   - logs/ — downloaded raw artifacts
+#   - analysis/report.txt — main analysis report
+#   - analysis/installer-summary.txt — installer log summary
+#   - analysis/log-bundle-summary.txt — log bundle analysis (if bundle exists)
+#   - analysis/metal-analysis.txt — metal-specific analysis (for metal jobs)
+#
+# The skill also presents its analysis inline in the conversation.
+
+notes: >
+  Metal IPI IPv6 (disconnected) cluster bootstrap failure caused by
+  cluster-kube-apiserver-operator PR #2032. This is a metal bare-metal job
+  using dev-scripts with Ironic for provisioning, in a disconnected IPv6
+  environment with squid proxy. The failure occurs at the cluster bootstrap
+  stage, meaning the bootstrap node's temporary control plane could not
+  properly start. The PR was ultimately reverted
+  (https://github.com/openshift/cluster-kube-apiserver-operator/pull/2032).
+  This case tests the skill's ability to: (1) handle metal IPI jobs by
+  invoking the metal install failure sub-skill, (2) analyze disconnected
+  IPv6-specific issues, (3) trace bootstrap failures through bootkube and
+  kube-apiserver logs, and (4) correlate the failure with CKAO changes.
+  The job name contains "metal" so the skill should set is_metal_job=true
+  and invoke the metal-specific analysis skill.

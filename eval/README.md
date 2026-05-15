@@ -151,6 +151,56 @@ notes: >
   Free-text description of the test case.
 ```
 
+## Archive Compression
+
+Payload archives can be large. The `compress-archives.sh` script compresses
+archive directories into `.tar.gz` files to save disk space, and the gcloud
+shim transparently extracts them on demand during eval runs.
+
+### Compressing Archives
+
+```bash
+# Compress all uncompressed archive directories (removes originals)
+eval/scripts/compress-archives.sh
+
+# Compress but keep the original directories
+eval/scripts/compress-archives.sh --keep
+
+# Specify a custom archives directory
+eval/scripts/compress-archives.sh --archives-dir /path/to/archives
+```
+
+Directories that already have a corresponding `.tar.gz` are skipped. The script
+reports before/after sizes for each archive.
+
+### Decompressing Archives
+
+```bash
+# Extract all .tar.gz files that don't have a corresponding directory
+eval/scripts/compress-archives.sh --decompress
+```
+
+### Transparent Extraction
+
+The gcloud shim automatically extracts compressed archives when needed. If a
+GCS path lookup fails against existing directories, the shim checks for
+`.tar.gz` files, extracts the matching archive (using `flock` to prevent
+concurrent extraction races), and retries the lookup. No manual decompression
+is required before running evals.
+
+### Example Workflow
+
+```bash
+# After creating archives, compress them to save space
+eval/scripts/compress-archives.sh --archives-dir eval/archives
+
+# Run evals as normal — compressed archives are extracted transparently
+/eval-run --case archived --model claude-opus-4-6
+
+# To manually decompress all archives (e.g., for inspection)
+eval/scripts/compress-archives.sh --decompress --archives-dir eval/archives
+```
+
 ## Running an Eval
 
 ### Environment Setup
@@ -298,7 +348,8 @@ single payload archive while `EVAL_ARCHIVES_DIR` searches across all).
 |--------|---------|
 | `eval/scripts/extract-session-data.py` | Extract API responses from Claude session tarballs |
 | `eval/scripts/download-gcs-artifacts.sh` | Download GCS artifacts using rclone |
-| `eval/shims/gcloud` | GCS storage command interceptor |
+| `eval/scripts/compress-archives.sh` | Compress/decompress payload archive directories |
+| `eval/shims/gcloud` | GCS storage command interceptor (with transparent extraction) |
 | `eval/shims/gh` | GitHub CLI interceptor |
 
 ## File Layout
@@ -319,7 +370,8 @@ eval/
 │   └── case-009-archived-4.22-cvo-revert/
 ├── scripts/
 │   ├── extract-session-data.py        # session tarball parser
-│   └── download-gcs-artifacts.sh      # rclone-based GCS downloader
+│   ├── download-gcs-artifacts.sh      # rclone-based GCS downloader
+│   └── compress-archives.sh           # archive compressor/decompressor
 └── shims/
     ├── gcloud                         # GCS storage command interceptor
     └── gh                             # GitHub CLI interceptor
