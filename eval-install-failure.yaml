@@ -1,0 +1,307 @@
+name: ci-analyze-install-failure-eval
+description: Evaluate the analyze-prow-job-install-failure skill's ability to analyze OpenShift installation failures in Prow CI jobs, trace root causes through installer logs and log bundles, and produce actionable analysis reports
+skill: ci:analyze-prow-job-install-failure
+
+execution:
+  mode: case
+  arguments: "{prow_url}"
+  timeout: 1800
+  max_budget_usd: 15.0
+  env:
+    PATH: $PATH
+    EVAL_ARTIFACT_ARCHIVE: $EVAL_ARTIFACT_ARCHIVE
+    EVAL_CACHED_RESPONSES: $EVAL_CACHED_RESPONSES
+    EVAL_GH_CACHE: $EVAL_GH_CACHE
+    EVAL_ARCHIVES_DIR: $EVAL_ARCHIVES_DIR
+
+runner:
+  type: claude-code
+  plugin_dirs:
+    - plugins/ci
+
+models:
+  skill: claude-opus-4-6
+  judge: claude-opus-4-6
+
+permissions:
+  allow:
+    - "Skill"
+    - "Bash"
+    - "Agent"
+    - "WebFetch"
+    - "Write"
+    - "Read"
+  deny: []
+
+mlflow:
+  experiment: ci-analyze-install-failure-eval
+
+dataset:
+  path: eval/cases
+  case_pattern: "case-install-*"
+  schema: |
+    Each case directory contains:
+    - input.yaml: YAML file with fields:
+      - 'prow_url' ([EXTERNAL: Prow CI] — must be a real Prow job URL pointing to
+        a failed install job, e.g.
+        'https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-release-main-nightly-4.22-e2e-metal-ipi-ovn-ipv6/2026582867877826560'.
+        Cannot be synthesized.)
+      - 'gcs_path' (optional — the GCS bucket path for direct artifact access)
+    - annotations.yaml: Expected outcomes and metadata for scoring:
+      - 'failure_stage': string — the junit_install.xml failure mode
+        (cluster bootstrap | infrastructure | cluster creation |
+        cluster operator stability | configuration | other)
+      - 'root_cause_pr': URL of the PR that caused the failure
+      - 'root_cause_component': string — the OpenShift component involved
+      - 'root_cause_description': string — human description of the root cause
+      - 'is_metal_job': boolean — whether this is a bare metal job
+      - 'is_disconnected': boolean — whether this is a disconnected/IPv6 environment
+      - 'notes': free text context about what makes this case interesting
+
+    Test cases require archived GCS artifacts under eval/archives/ to be
+    reproducible. The gcloud shim intercepts GCS calls and serves from
+    local archives when EVAL_ARTIFACT_ARCHIVE is set.
+
+outputs:
+  - path: "output"
+    schema: |
+      The skill writes analysis files to the working directory:
+      1. .work/prow-job-analyze-install-failure/{build_id}/analysis/report.txt —
+         comprehensive analysis report with sections: job info, failure stage,
+         known symptoms, summary, installer log analysis, log bundle analysis,
+         recommended next steps, and artifacts location.
+      2. .work/prow-job-analyze-install-failure/{build_id}/analysis/installer-summary.txt —
+         extracted installer log summary with key errors.
+      3. .work/prow-job-analyze-install-failure/{build_id}/analysis/log-bundle-summary.txt —
+         log bundle analysis findings (if log bundle was available).
+
+      The skill also writes its analysis directly in the conversation output.
+      Judges should check both outputs["files"] / outputs["modified_files"]
+      for files in the .work/ directory tree, and the conversation transcript
+      for the analysis content.
+
+traces:
+  stdout: true
+  stderr: true
+  events: true
+  metrics: true
+
+judges:
+  - name: output_files_exist
+    description: |
+      Verify that analysis output files are produced in the .work directory:
+      the main report.txt and at least one of installer-summary.txt or
+      log-bundle-summary.txt.
+    check: |
+      import os
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      report = [k for k in all_f if k.endswith("/report.txt") and "prow-job-analyze-install-failure" in k]
+      installer_summary = [k for k in all_f if k.endswith("/installer-summary.txt") and "prow-job-analyze-install-failure" in k]
+      bundle_summary = [k for k in all_f if k.endswith("/log-bundle-summary.txt") and "prow-job-analyze-install-failure" in k]
+      # Also check for any analysis files in the .work tree
+      analysis_files = [k for k in all_f if "prow-job-analyze-install-failure" in k and "/analysis/" in k]
+      missing = []
+      if not report and not analysis_files:
+          missing.append("analysis report (report.txt or any analysis file)")
+      if not installer_summary and not bundle_summary and not analysis_files:
+          missing.append("installer-summary.txt or log-bundle-summary.txt")
+      if missing:
+          # Check conversation transcript as fallback — the skill may
+          # present analysis inline rather than writing files
+          transcript = outputs.get("transcript", "")
+          if "Failure Stage" in transcript or "failure stage" in transcript.lower() or "root cause" in transcript.lower():
+              return (True, "Analysis found in conversation transcript (no separate files)")
+          return (False, f"Missing: {', '.join(missing)}")
+      found = []
+      if report:
+          found.append(f"report: {report[0]}")
+      if installer_summary:
+          found.append(f"installer-summary: {installer_summary[0]}")
+      if bundle_summary:
+          found.append(f"bundle-summary: {bundle_summary[0]}")
+      return (True, f"Output files found: {'; '.join(found)}")
+
+  - name: root_cause_identification
+    description: |
+      LLM judge to assess whether the analysis correctly identifies the root
+      cause of the install failure, including tracing back through logs to
+      the actual component and code change that caused the problem.
+    prompt: |
+      You are evaluating the output of an OpenShift install failure analysis
+      skill. The skill analyzes a failed Prow CI job by downloading installer
+      logs, log bundles, and other artifacts, then produces a root cause
+      analysis report.
+
+      Review the skill's output (files and conversation transcript):
+
+      {{ outputs }}
+
+      And the expected outcomes for this test case:
+
+      {{ annotations }}
+
+      Evaluate whether the analysis correctly identifies the root cause on
+      a 1-5 scale:
+
+      Score 1: No root cause identified, or analysis is completely wrong.
+               The actual cause described in annotations is not mentioned.
+      Score 2: Root cause analysis is superficial — restates symptoms (e.g.,
+               "bootstrap failed") without identifying WHY. Does not trace
+               back to the component or code change.
+      Score 3: Identifies the general area of the failure (e.g., correct
+               operator or subsystem) but doesn't pinpoint the specific
+               cause or link to the PR/code change.
+      Score 4: Correctly identifies the root cause component and describes
+               the failure mechanism with specific evidence from logs.
+               May or may not link to the exact PR.
+      Score 5: Precisely identifies the root cause, cites specific log
+               entries as evidence, correctly traces the causal chain,
+               and ideally links to or describes the specific code change
+               that caused the failure.
+
+      Key evaluation criteria:
+      - Does the analysis identify the correct root_cause_component?
+      - Does it describe the failure mechanism matching root_cause_description?
+      - Does it cite specific error messages from the logs?
+      - Does it correctly distinguish root cause from symptoms?
+      - Does it follow the "work backwards from final errors" approach?
+
+  - name: pr_correlation
+    description: |
+      LLM judge to assess whether the analysis links the failure to the
+      correct PR that caused it.
+    prompt: |
+      You are evaluating whether an install failure analysis correctly
+      correlates the failure with the PR that caused it.
+
+      Review the skill's output:
+
+      {{ outputs }}
+
+      Expected outcomes:
+
+      {{ annotations }}
+
+      The key question: Does the analysis identify or reference the correct
+      PR (root_cause_pr in annotations) as the cause of the failure?
+
+      Note: The install failure skill may not always be able to directly
+      link to a PR — it primarily analyzes logs and artifacts. PR correlation
+      may come from identifying the component and recent changes. The skill
+      may identify the correct component without naming the exact PR.
+
+      Score on a 1-5 scale:
+
+      Score 1: No PR or component correlation attempted. Analysis does not
+               connect the failure to any code change.
+      Score 2: Wrong PR or component identified, or only generic statements
+               about potential causes.
+      Score 3: Correct component identified (root_cause_component matches)
+               but no specific PR referenced, OR the analysis describes
+               the type of change that caused the failure without naming it.
+      Score 4: Correct component and the analysis describes the specific
+               type of code change that matches the PR's changes, even if
+               the PR URL is not explicitly mentioned.
+      Score 5: Correct PR explicitly identified by URL or number, with
+               clear evidence linking it to the failure. Or the analysis
+               so precisely describes the code change that there is no
+               ambiguity about which PR is responsible.
+
+  - name: failure_classification
+    description: |
+      Verify the analysis correctly classifies the failure stage and type
+      (install failure vs test failure, and the specific install stage).
+    check: |
+      import yaml
+      ann = annotations
+      expected_stage = ann.get("failure_stage", "").lower()
+      transcript = outputs.get("transcript", "")
+      all_f = {**outputs.get("files", {}), **outputs.get("modified_files", {})}
+      # Search in all output text
+      all_text = transcript
+      for content in all_f.values():
+          if isinstance(content, str):
+              all_text += "\n" + content
+      all_text_lower = all_text.lower()
+      # Check if failure stage is mentioned
+      stage_found = expected_stage in all_text_lower
+      # Check if it's classified as an install failure (not test failure)
+      install_terms = ["install failure", "installation failure", "install should succeed",
+                       "cluster bootstrap", "bootstrap fail", "install fail"]
+      classified_as_install = any(t in all_text_lower for t in install_terms)
+      if not classified_as_install:
+          return (False, "Analysis does not classify this as an installation failure")
+      if not stage_found:
+          # Check for partial matches
+          stage_words = expected_stage.split()
+          partial = any(w in all_text_lower for w in stage_words if len(w) > 4)
+          if partial:
+              return (True, f"Failure stage '{expected_stage}' partially identified (related terms found)")
+          return (False, f"Expected failure stage '{expected_stage}' not found in analysis")
+      return (True, f"Correctly classified as install failure with stage: {expected_stage}")
+
+  - name: analysis_quality
+    description: |
+      LLM judge scoring the overall depth and quality of the root cause
+      analysis, including log examination thoroughness, timeline construction,
+      and actionability of recommendations.
+    prompt: |
+      You are evaluating the overall quality of an OpenShift install failure
+      analysis. The skill should download and analyze installer logs, log
+      bundles, and other artifacts to produce a comprehensive root cause
+      analysis.
+
+      Review the skill's output:
+
+      {{ outputs }}
+
+      Expected outcomes:
+
+      {{ annotations }}
+
+      Evaluate the analysis quality on a 1-5 scale:
+
+      Score 1: Analysis is missing, empty, or completely broken. No meaningful
+               investigation was performed.
+      Score 2: Minimal analysis — downloaded some artifacts but only restated
+               symptoms without investigation. No log excerpts cited, no
+               timeline constructed, no useful recommendations.
+      Score 3: Adequate analysis — examined relevant logs, identified the
+               failure stage correctly, provided some log evidence. May miss
+               some important details or not fully trace the causal chain.
+               Recommendations are generic but relevant.
+      Score 4: Good analysis — thorough log examination with specific error
+               messages cited, clear timeline of events, correct root cause
+               identification with evidence. Recommendations are specific
+               and actionable. Correctly distinguished root cause from
+               symptoms following "work backwards" approach.
+      Score 5: Excellent analysis — comprehensive investigation across
+               multiple log sources (installer log, log bundle journals,
+               serial console, etc.). Precise timeline with timestamps.
+               Root cause fully traced with causal chain explained. For
+               metal jobs: dev-scripts and console logs also examined.
+               Recommendations include specific debugging commands or
+               code paths to investigate. Analysis would be immediately
+               useful to an engineer investigating the failure.
+
+      Key evaluation criteria:
+      - Were the correct log files downloaded and examined?
+      - Are specific error messages cited with context?
+      - Is the "work backwards from final errors" approach followed?
+      - For metal/IPv6 jobs: were metal-specific artifacts examined?
+      - Are recommendations specific and actionable?
+      - Does the analysis correctly identify this as an install failure?
+
+thresholds:
+  output_files_exist:
+    min_pass_rate: 1.0
+  root_cause_identification:
+    min_mean: 3.0
+  pr_correlation:
+    min_mean: 2.5
+  failure_classification:
+    min_pass_rate: 1.0
+  analysis_quality:
+    min_mean: 3.5
