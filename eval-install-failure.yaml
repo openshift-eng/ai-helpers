@@ -20,8 +20,8 @@ runner:
     - plugins/ci
 
 models:
-  skill: claude-opus-4-6
-  judge: claude-opus-4-6
+  skill: ${EVAL_MODEL:-claude-sonnet-4-6}
+  judge: ${EVAL_JUDGE_MODEL:-claude-sonnet-4-6}
 
 permissions:
   allow:
