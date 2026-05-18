@@ -94,39 +94,16 @@ parse_args() {
     done
 }
 
-# Search archives for a GCS-relative path (same logic as gcloud shim)
+# Search archive for a GCS-relative path.
+# EVAL_ARCHIVES_DIR points to a specific case's archive (e.g. /archive/{tag}/artifacts).
 find_in_archive() {
     local rel_path="$1"
     rel_path="${rel_path%/}"
 
-    for subdir in "$ARCHIVE"/*/; do
-        if [[ -e "${subdir}${rel_path}" ]]; then
-            echo "${subdir}${rel_path}"
-            return 0
-        fi
-    done
-
-    # Try extracting tar.gz archives
-    for tarball in "$ARCHIVE"/*.tar.gz; do
-        [[ -f "$tarball" ]] || continue
-        local tag
-        tag="$(basename "$tarball" .tar.gz)"
-        local extracted_dir="$ARCHIVE/$tag"
-        [[ -d "$extracted_dir" ]] && continue
-
-        local lockfile="$ARCHIVE/.${tag}.lock"
-        (
-            flock 9
-            if [[ ! -d "$extracted_dir" ]]; then
-                tar xzf "$tarball" -C "$ARCHIVE" >&2
-            fi
-        ) 9>"$lockfile"
-
-        if [[ -e "$extracted_dir/$rel_path" ]]; then
-            echo "$extracted_dir/$rel_path"
-            return 0
-        fi
-    done
+    if [[ -e "${ARCHIVE}/${rel_path}" ]]; then
+        echo "${ARCHIVE}/${rel_path}"
+        return 0
+    fi
 
     return 1
 }
@@ -201,7 +178,7 @@ lookup_api_cache() {
     local prefix="$1"  # e.g. "curl-rc-" or "curl-sippy-"
     local url_key="$2" # URL path turned into filename fragment
 
-    for subdir in "$ARCHIVE"/*/api-responses/; do
+    for subdir in "$ARCHIVE"/api-responses/; do
         [[ -d "$subdir" ]] || continue
         # Exact match on the key-based filename
         local candidate="${subdir}${prefix}${url_key}.json"
@@ -242,7 +219,7 @@ handle_release_controller() {
 
     # Legacy: check fetch-payloads-*.json for /tags endpoint
     if [[ "$url" == *"/tags" ]]; then
-        for subdir in "$ARCHIVE"/*/api-responses/; do
+        for subdir in "$ARCHIVE"/api-responses/; do
             [[ -d "$subdir" ]] || continue
             for f in "$subdir"fetch-payloads-*.json; do
                 [[ -f "$f" ]] || continue
@@ -258,7 +235,7 @@ handle_release_controller() {
         local tag
         tag="${url##*/release/}"
         tag="${tag%%\?*}"
-        for subdir in "$ARCHIVE"/*/api-responses/; do
+        for subdir in "$ARCHIVE"/api-responses/; do
             [[ -d "$subdir" ]] || continue
             for f in "$subdir"*.json; do
                 [[ -f "$f" ]] || continue
@@ -296,7 +273,7 @@ handle_sippy() {
     fi
 
     # Legacy: match any sippy-related file
-    for subdir in "$ARCHIVE"/*/api-responses/; do
+    for subdir in "$ARCHIVE"/api-responses/; do
         [[ -d "$subdir" ]] || continue
         for f in "$subdir"*sippy*.json; do
             [[ -f "$f" ]] || continue
@@ -319,7 +296,7 @@ handle_github_raw() {
     local safe_name="${path//\//_}"
     [[ ${#safe_name} -gt 200 ]] && safe_name="${safe_name:0:200}"
 
-    for subdir in "$ARCHIVE"/*/gh-cache/raw/; do
+    for subdir in "$ARCHIVE"/gh-cache/raw/; do
         [[ -d "$subdir" ]] || continue
         if [[ -f "${subdir}${safe_name}" ]]; then
             log_shim "INTERCEPT github-raw → ${subdir}${safe_name}"

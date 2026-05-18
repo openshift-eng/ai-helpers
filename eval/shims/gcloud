@@ -37,54 +37,16 @@ subcmd="$2"
 shift 2
 
 # Convert gs:// path to local path.
-# Searches all subdirectories of ARCHIVE for the matching path.
-# This allows a single ARCHIVE dir (e.g. eval/archives/) to serve
-# multiple payload archives simultaneously.
+# EVAL_ARCHIVES_DIR points to a specific case's archive (e.g. /archive/{tag}/artifacts).
 gs_to_local() {
     local gs_path="$1"
     gs_path="${gs_path#gs://}"
     gs_path="${gs_path%/}"
 
-    # Direct match (single-archive mode: ARCHIVE points to a specific payload dir)
     if [[ -e "$ARCHIVE/$gs_path" ]]; then
         echo "$ARCHIVE/$gs_path"
         return
     fi
-
-    # Multi-archive mode: search subdirectories
-    for subdir in "$ARCHIVE"/*/; do
-        if [[ -e "$subdir$gs_path" ]]; then
-            echo "$subdir$gs_path"
-            return
-        fi
-    done
-
-    # Transparent extraction: check for compressed archives (.tar.gz)
-    for tarball in "$ARCHIVE"/*.tar.gz; do
-        [[ -f "$tarball" ]] || continue
-        local tag
-        tag="$(basename "$tarball" .tar.gz)"
-        local extracted_dir="$ARCHIVE/$tag"
-
-        # Skip if already extracted (would have matched above)
-        [[ -d "$extracted_dir" ]] && continue
-
-        # Extract with flock to prevent concurrent extraction
-        local lockfile="$ARCHIVE/.${tag}.lock"
-        (
-            flock 9
-            # Re-check after acquiring lock (another process may have extracted)
-            if [[ ! -d "$extracted_dir" ]]; then
-                tar xzf "$tarball" -C "$ARCHIVE" >&2
-            fi
-        ) 9>"$lockfile"
-
-        # Check the newly extracted directory
-        if [[ -e "$extracted_dir/$gs_path" ]]; then
-            echo "$extracted_dir/$gs_path"
-            return
-        fi
-    done
 
     # Not found — return the direct path (caller handles the error)
     echo "$ARCHIVE/$gs_path"

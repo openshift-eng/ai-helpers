@@ -9,7 +9,7 @@ execution:
   max_budget_usd: 25.0
   env:
     PATH: $PATH
-    EVAL_ARCHIVES_DIR: $EVAL_ARCHIVES_DIR
+    EVAL_ARCHIVES_DIR: "/archive/{payload_tag}/artifacts"
 
 runner:
   type: claude-code

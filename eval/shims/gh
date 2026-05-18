@@ -35,7 +35,7 @@ lookup_pr_cache() {
     local repo="$2"
     [[ -z "$pr_num" || -z "$repo" ]] && return 1
 
-    for subdir in "$CACHE"/*/gh-cache/"$repo"/; do
+    for subdir in "$CACHE"/gh-cache/"$repo"/; do
         [[ -d "$subdir" ]] || continue
         local cache_file="${subdir}${pr_num}.json"
         if [[ -f "$cache_file" ]]; then
