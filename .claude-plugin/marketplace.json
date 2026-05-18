@@ -251,7 +251,7 @@
       "name": "patternfly",
       "source": "./plugins/patternfly",
       "description": "PatternFly React component migration and development tools",
-      "version": "1.0.0"
+      "version": "1.2.0"
     }
   ]
 }

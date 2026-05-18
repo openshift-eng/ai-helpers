@@ -1827,7 +1827,7 @@
       "commands": [
         {
           "argument_hint": "[file-path]",
-          "description": "Migrate React components from PatternFly 5 to PatternFly 6",
+          "description": "Migrate PatternFly v5 to v6 (React components, CSS classes, tokens)",
           "name": "migrate",
           "synopsis": "/patternfly:migrate [file-path]"
         }
@@ -1838,12 +1838,17 @@
       "name": "patternfly",
       "skills": [
         {
-          "description": "Migrate React components from PatternFly 5 to PatternFly 6",
+          "description": "Migrate PatternFly React components from v5 to v6. Scans for component renames, prop updates, and import changes.",
           "id": "patternfly-migration",
-          "name": "MigrationPf5ToPf6"
+          "name": "pf-react-migration"
+        },
+        {
+          "description": "Enable PatternFly 6 glass theme (glassmorphism with backdrop blur and transparency)",
+          "id": "pf-glass-theme",
+          "name": "pf-glass-theme"
         }
       ],
-      "version": "1.0.0"
+      "version": "1.2.0"
     }
   ]
 }

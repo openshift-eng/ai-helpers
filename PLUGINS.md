@@ -353,10 +353,10 @@ See [plugins/ote-migration/README.md](plugins/ote-migration/README.md) for detai
 
 ### Patternfly Plugin
 
-PatternFly React component migration and development tools
+PatternFly v5 to v6 migration and glass theme implementation
 
 **Commands:**
-- **`/patternfly:migrate` `[file-path]`** - Migrate React components from PatternFly 5 to PatternFly 6
+- **`/patternfly:migrate` `[file-path]`** - Migrate PatternFly v5 to v6 (React components, CSS classes, tokens)
 
 See [plugins/patternfly/README.md](plugins/patternfly/README.md) for detailed documentation.
 
