@@ -4,7 +4,7 @@ A Claude Code plugin for migrating and working with PatternFly React components.
 
 ## Overview
 
-PatternFly is Red Hat's open source design system for enterprise product experiences. This plugin helps developers migrate from PatternFly v5 to v6 and understand breaking changes in the component library.
+PatternFly is Red Hat's open source design system for enterprise product experiences. This plugin helps developers migrate from PatternFly v5 to v6 and implement modern glass theme (glassmorphism) effects in React applications.
 
 ## Commands
 
@@ -45,6 +45,18 @@ Migrate PatternFly React components, CSS classes, and tokens from v5 to v6.
 - Import path updates and deprecated component guidance
 - Automated codemod integration
 - Actionable scan commands for finding migration issues
+
+### `pf-glass-theme`
+
+Enable PatternFly 6 glass theme (glassmorphism) for React applications.
+
+**Features:**
+- Add `.pf-v6-theme-glass` class to enable glass effects
+- Global or component-level glass theme support
+- Optional runtime theme toggle component
+- Dark mode compatibility (`.pf-v6-theme-glass.pf-v6-theme-dark`)
+- Glass token usage examples (backdrop blur, transparency)
+- Template components for glass UI patterns
 
 ## Installation
 
