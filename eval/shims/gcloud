@@ -5,8 +5,9 @@
 
 ARCHIVE="${EVAL_ARCHIVES_DIR}"
 
-SHIM_LOG="${EVAL_ARCHIVES_DIR:+${EVAL_ARCHIVES_DIR}/.shim-gcloud.log}"
-log_shim() { [[ -n "$SHIM_LOG" ]] && echo "[$(date -u +%H:%M:%S)] gcloud $*" >> "$SHIM_LOG"; }
+# Log to /tmp to avoid issues with read-only archive directories (OCI volumes)
+SHIM_LOG="${EVAL_ARCHIVES_DIR:+/tmp/shim-gcloud.log}"
+log_shim() { [[ -n "$SHIM_LOG" ]] && echo "[$(date -u +%H:%M:%S)] gcloud $*" >> "$SHIM_LOG" 2>/dev/null || true; }
 
 # Find real gcloud (excluding this shim)
 find_real_gcloud() {
