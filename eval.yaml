@@ -8,8 +8,8 @@ execution:
   timeout: 3600
   max_budget_usd: 25.0
   env:
-    # Prepend shims to PATH for hermetic eval (intercept gcloud/curl/gh)
-    PATH: "${PWD}/eval/shims:${PATH}"
+    # Note: PATH must be set by the runner before invoking the skill.
+    # The eval.yaml env section doesn't expand shell variables at parse time.
     EVAL_ARCHIVES_DIR: "/archive/{payload_tag}/artifacts"
 
 runner:
