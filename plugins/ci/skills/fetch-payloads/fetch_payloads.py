@@ -41,6 +41,17 @@ def release_stream_name(version: str, stream: str, architecture: str) -> str:
     return name
 
 
+GCSWEB_BASE = "https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs"
+PROW_VIEW_PREFIX = "https://prow.ci.openshift.org/view/gs/"
+
+PROW_STATE_MAP = {
+    "success": "Succeeded",
+    "failure": "Failed",
+    "aborted": "Failed",
+    "error": "Failed",
+}
+
+
 def fetch_json(url: str, timeout: int = 30) -> dict:
     """Fetch JSON from a URL."""
     try:
@@ -55,6 +66,28 @@ def fetch_json(url: str, timeout: int = 30) -> dict:
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
+
+
+def try_fetch_json(url: str, timeout: int = 10) -> dict | None:
+    """Fetch JSON from a URL, returning None on any failure."""
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except Exception:
+        return None
+
+
+def resolve_prow_state(prow_url: str) -> str | None:
+    """Query the actual Prow job state via its GCS prowjob.json artifact."""
+    if not prow_url or not prow_url.startswith(PROW_VIEW_PREFIX):
+        return None
+    gcs_path = prow_url[len(PROW_VIEW_PREFIX):]
+    prowjob_url = f"{GCSWEB_BASE}/{gcs_path}/prowjob.json"
+    data = try_fetch_json(prowjob_url)
+    if not data:
+        return None
+    prow_state = data.get("status", {}).get("state", "")
+    return PROW_STATE_MAP.get(prow_state)
 
 
 def fetch_tags(architecture: str, version: str, stream: str) -> list:
@@ -154,15 +187,34 @@ def main():
     payloads = []
     for tag in tags:
         name = tag.get("name", "")
+        phase = tag.get("phase", "Unknown")
         details = fetch_release_details(architecture, stream_name, name)
         all_results = details.get("results", {})
         filtered_results = {
             k: v for k, v in all_results.items()
             if k in ("blockingJobs", "asyncJobs")
         }
+
+        # The release controller can leave jobs as Pending after the payload
+        # reaches a terminal state. Cross-check against Prow to get the real
+        # state so the analysis skill doesn't skip completed jobs.
+        if phase in ("Accepted", "Rejected"):
+            blocking = filtered_results.get("blockingJobs", {})
+            for job_name, job_info in blocking.items():
+                if job_info.get("state") != "Pending":
+                    continue
+                resolved = resolve_prow_state(job_info.get("url", ""))
+                if resolved:
+                    print(
+                        f"  {job_name}: release controller says Pending, "
+                        f"Prow says {resolved}",
+                        file=sys.stderr,
+                    )
+                    job_info["state"] = resolved
+
         payloads.append({
             "tag": name,
-            "phase": tag.get("phase", "Unknown"),
+            "phase": phase,
             "url": release_page_url(architecture, stream_name, name),
             "results": filtered_results,
         })
