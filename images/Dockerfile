@@ -1,14 +1,16 @@
 FROM registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.25-openshift-4.22
 
-# Install Python 3 and development tools
+# Install Python 3.11 (required for agent-eval-harness and modern type syntax)
 RUN dnf install -y \
-    python3 \
-    python3-pip \
-    python3-devel \
-    && dnf clean all
+    python3.11 \
+    python3.11-pip \
+    python3.11-devel \
+    && dnf clean all \
+    && alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1 \
+    && alternatives --set python3 /usr/bin/python3.11
 
 # Install common Python tools
-RUN pip3 install --no-cache-dir \
+RUN python3 -m pip install --no-cache-dir \
     pytest \
     requests \
     pyyaml
