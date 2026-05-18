@@ -1,0 +1,71 @@
+name: hello-world-eval
+description: Simple eval to verify the eval harness works. Tests the hello-world:echo command.
+skill: hello-world:echo
+
+execution:
+  mode: case
+  arguments: "{name}"
+  timeout: 60
+  max_budget_usd: 0.50
+
+runner:
+  type: claude-code
+  plugin_dirs:
+    - plugins/hello-world
+
+models:
+  skill: ${EVAL_MODEL:-claude-sonnet-4-6}
+  judge: ${EVAL_JUDGE_MODEL:-claude-sonnet-4-6}
+
+permissions:
+  allow:
+    - "Skill"
+    - "Bash"
+    - "Read"
+  deny: []
+
+dataset:
+  path: eval/cases-hello-world
+  schema: |
+    Each case directory contains:
+    - input.yaml: YAML with 'name' field (the name to greet)
+    - annotations.yaml: Expected outcomes:
+      - 'expected_greeting': The exact greeting that should appear
+
+outputs:
+  - path: "."
+    schema: |
+      The skill outputs text to stdout. The greeting "Hello {name}" should appear.
+
+judges:
+  - name: greeting_correct
+    description: Verify the greeting contains the expected name
+    check: |
+      transcript = outputs.get("transcript", "")
+      expected = annotations.get("expected_greeting", "Hello world")
+      if expected.lower() in transcript.lower():
+          return (True, f"Found expected greeting: {expected}")
+      return (False, f"Expected '{expected}' not found in output")
+
+  - name: response_quality
+    description: LLM judge to verify the response is appropriate
+    prompt: |
+      You are evaluating a simple hello-world skill that greets users.
+
+      The skill was asked to greet: {{ annotations.get("name", "world") }}
+
+      Here is the skill's output:
+      {{ outputs.get("transcript", "") }}
+
+      Score 1-5:
+      - 1: No greeting at all or completely wrong
+      - 3: Greeting present but wrong name or format issues
+      - 5: Correct greeting with the right name
+
+      This is a simple test - just verify "Hello {name}" appears.
+
+thresholds:
+  greeting_correct:
+    min_pass_rate: 1.0
+  response_quality:
+    min_mean: 4.0
