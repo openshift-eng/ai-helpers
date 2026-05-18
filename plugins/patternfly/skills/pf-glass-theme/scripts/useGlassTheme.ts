@@ -16,19 +16,40 @@ export const useGlassTheme = (options?: { variant?: 'default' | 'redhat' }) => {
   useEffect(() => {
     const htmlElement = document.documentElement;
 
-    // Apply glass theme classes
-    if (variant === 'redhat' && !htmlElement.classList.contains('pf-v6-theme-redhat')) {
-      htmlElement.classList.add('pf-v6-theme-redhat');
-    }
-    if (!htmlElement.classList.contains('pf-v6-theme-glass')) {
-      htmlElement.classList.add('pf-v6-theme-glass');
+    // Increment reference counts
+    const glassCount = parseInt(htmlElement.dataset.pfGlassCount || '0', 10) + 1;
+    htmlElement.dataset.pfGlassCount = glassCount.toString();
+
+    let redhatCount = 0;
+    if (variant === 'redhat') {
+      redhatCount = parseInt(htmlElement.dataset.pfGlassRedhatCount || '0', 10) + 1;
+      htmlElement.dataset.pfGlassRedhatCount = redhatCount.toString();
     }
 
-    // Cleanup: remove glass theme classes on unmount
+    // Apply classes only if this is the first consumer
+    if (glassCount === 1) {
+      htmlElement.classList.add('pf-v6-theme-glass');
+    }
+    if (variant === 'redhat' && redhatCount === 1) {
+      htmlElement.classList.add('pf-v6-theme-redhat');
+    }
+
+    // Cleanup: decrement counts and remove classes only when last consumer unmounts
     return () => {
-      htmlElement.classList.remove('pf-v6-theme-glass');
+      const newGlassCount = parseInt(htmlElement.dataset.pfGlassCount || '1', 10) - 1;
+      htmlElement.dataset.pfGlassCount = Math.max(0, newGlassCount).toString();
+
+      if (newGlassCount === 0) {
+        htmlElement.classList.remove('pf-v6-theme-glass');
+      }
+
       if (variant === 'redhat') {
-        htmlElement.classList.remove('pf-v6-theme-redhat');
+        const newRedhatCount = parseInt(htmlElement.dataset.pfGlassRedhatCount || '1', 10) - 1;
+        htmlElement.dataset.pfGlassRedhatCount = Math.max(0, newRedhatCount).toString();
+
+        if (newRedhatCount === 0) {
+          htmlElement.classList.remove('pf-v6-theme-redhat');
+        }
       }
     };
   }, [variant]);
