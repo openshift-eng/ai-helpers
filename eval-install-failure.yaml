@@ -8,11 +8,9 @@ execution:
   timeout: 1800
   max_budget_usd: 15.0
   env:
-    PATH: $PATH
-    EVAL_ARTIFACT_ARCHIVE: $EVAL_ARTIFACT_ARCHIVE
-    EVAL_CACHED_RESPONSES: $EVAL_CACHED_RESPONSES
-    EVAL_GH_CACHE: $EVAL_GH_CACHE
-    EVAL_ARCHIVES_DIR: $EVAL_ARCHIVES_DIR
+    # Prepend shims to PATH for hermetic eval (intercept gcloud/curl/gh)
+    PATH: "${PWD}/eval/shims:${PATH}"
+    EVAL_ARCHIVES_DIR: ${EVAL_ARCHIVES_DIR}
 
 runner:
   type: claude-code
