@@ -1,2 +1,8 @@
 expected_greeting: "Hello Claude"
 notes: Named greeting with a specific name
+long_description: >
+  This is a multi-line description that tests whether the eval harness
+  correctly handles annotation values that are not file paths. If the
+  harness tries to use this text as a filename, it will fail with
+  OSError: [Errno 36] File name too long because this string is way
+  longer than the maximum filename length allowed by most filesystems.
