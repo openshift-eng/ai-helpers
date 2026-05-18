@@ -29,7 +29,7 @@
       "name": "ci",
       "source": "./plugins/ci",
       "description": "A plugin to work with OpenShift CI and analyze Prow job results",
-      "version": "0.0.40"
+      "version": "0.0.41"
     },
     {
       "name": "teams",
