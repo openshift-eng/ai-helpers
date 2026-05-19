@@ -239,7 +239,7 @@
       "name": "marketplace-ops",
       "source": "./plugins/marketplace-ops",
       "description": "Maintenance commands for Claude Code plugin marketplaces",
-      "version": "0.1.2"
+      "version": "0.2.0"
     }
   ]
 }

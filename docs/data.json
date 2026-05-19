@@ -1777,26 +1777,24 @@
       "version": "0.0.1"
     },
     {
-      "commands": [
-        {
-          "argument_hint": "[PR number or URL]",
-          "description": "Process /save and /drop comments on a pruning PR, restore or remove items, and update .pruneprotect",
-          "name": "prune-update",
-          "synopsis": "/marketplace-ops:prune-update [PR number or URL]"
-        },
-        {
-          "argument_hint": "[--dry-run]",
-          "description": "Analyze and prune stale plugins, commands, and skills from the marketplace",
-          "name": "prune",
-          "synopsis": "/marketplace-ops:prune [--dry-run]"
-        }
-      ],
+      "commands": [],
       "description": "Maintenance commands for Claude Code plugin marketplaces",
       "has_readme": true,
       "hooks": [],
       "name": "marketplace-ops",
-      "skills": [],
-      "version": "0.1.2"
+      "skills": [
+        {
+          "description": "Use when running the marketplace pruning workflow. Analyzes flagged plugin commands and skills for staleness, applying LLM judgment to decide which items should be removed. Invoked by CI after deterministic scoring scripts have already identified candidates.",
+          "id": "prune",
+          "name": "prune"
+        },
+        {
+          "description": "Use when processing /save and /drop comments on a marketplace pruning PR. Reads PR comments, validates directives from trusted collaborators, restores saved items, removes dropped items, updates .pruneprotect, and pushes changes.",
+          "id": "update",
+          "name": "update"
+        }
+      ],
+      "version": "0.2.0"
     }
   ]
 }
