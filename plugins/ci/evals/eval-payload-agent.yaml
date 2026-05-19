@@ -32,7 +32,7 @@ mlflow:
   experiment: ci-analyze-payload-eval
 
 dataset:
-  path: eval/cases
+  path: plugins/ci/evals/cases/payload-agent
   schema: |
     Each case directory contains:
     - input.yaml: YAML file with fields:

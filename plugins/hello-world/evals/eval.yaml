@@ -24,7 +24,7 @@ permissions:
   deny: []
 
 dataset:
-  path: eval/cases-hello-world
+  path: plugins/hello-world/evals/cases
   schema: |
     Each case directory contains:
     - input.yaml: YAML with 'name' field (the name to greet)

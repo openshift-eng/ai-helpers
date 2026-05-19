@@ -32,8 +32,7 @@ mlflow:
   experiment: ci-analyze-install-failure-eval
 
 dataset:
-  path: eval/cases
-  case_pattern: "case-install-*"
+  path: plugins/ci/evals/cases/install-analysis
   schema: |
     Each case directory contains:
     - input.yaml: YAML file with fields:
