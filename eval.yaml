@@ -8,9 +8,7 @@ execution:
   timeout: 3600
   max_budget_usd: 25.0
   env:
-    # Note: PATH must be set by the runner before invoking the skill.
-    # The eval.yaml env section doesn't expand shell variables at parse time.
-    EVAL_ARCHIVES_DIR: "/archive/{payload_tag}/artifacts"
+    EVAL_ARCHIVES_DIR: $EVAL_ARCHIVES_DIR
 
 runner:
   type: claude-code
@@ -18,8 +16,7 @@ runner:
     - plugins/ci
 
 models:
-  skill: ${EVAL_MODEL:-claude-sonnet-4-6}
-  judge: ${EVAL_JUDGE_MODEL:-claude-sonnet-4-6}
+  judge: claude-opus-4-6
 
 permissions:
   allow:

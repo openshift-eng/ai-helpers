@@ -8,9 +8,7 @@ execution:
   timeout: 1800
   max_budget_usd: 15.0
   env:
-    # Note: PATH must be set by the runner before invoking the skill.
-    # The eval.yaml env section doesn't expand shell variables at parse time.
-    EVAL_ARCHIVES_DIR: ${EVAL_ARCHIVES_DIR}
+    EVAL_ARCHIVES_DIR: $EVAL_ARCHIVES_DIR
 
 runner:
   type: claude-code
@@ -18,8 +16,7 @@ runner:
     - plugins/ci
 
 models:
-  skill: ${EVAL_MODEL:-claude-sonnet-4-6}
-  judge: ${EVAL_JUDGE_MODEL:-claude-sonnet-4-6}
+  judge: claude-opus-4-6
 
 permissions:
   allow:
@@ -108,7 +105,7 @@ judges:
       if missing:
           # Check conversation transcript as fallback — the skill may
           # present analysis inline rather than writing files
-          transcript = outputs.get("transcript", "")
+          transcript = outputs.get("conversation", "")
           if "Failure Stage" in transcript or "failure stage" in transcript.lower() or "root cause" in transcript.lower():
               return (True, "Analysis found in conversation transcript (no separate files)")
           return (False, f"Missing: {', '.join(missing)}")
@@ -215,7 +212,7 @@ judges:
       import yaml
       ann = annotations
       expected_stage = ann.get("failure_stage", "").lower()
-      transcript = outputs.get("transcript", "")
+      transcript = outputs.get("conversation", "")
       all_f = {**outputs.get("files", {}), **outputs.get("modified_files", {})}
       # Search in all output text
       all_text = transcript
