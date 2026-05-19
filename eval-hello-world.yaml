@@ -41,7 +41,7 @@ judges:
   - name: greeting_correct
     description: Verify the greeting contains the expected name
     check: |
-      transcript = outputs.get("transcript", "")
+      transcript = outputs.get("conversation", "")
       annotations = outputs.get("annotations", {})
       expected = annotations.get("expected_greeting", "Hello world")
       if expected.lower() in transcript.lower():
@@ -53,17 +53,18 @@ judges:
     prompt: |
       You are evaluating a simple hello-world skill that greets users.
 
-      The skill was asked to greet: {{ annotations.get("name", "world") }}
+      Expected annotations:
+      {{ annotations }}
 
-      Here is the skill's output:
-      {{ outputs.get("transcript", "") }}
+      Here is the skill's conversation output:
+      {{ conversation }}
 
       Score 1-5:
       - 1: No greeting at all or completely wrong
       - 3: Greeting present but wrong name or format issues
       - 5: Correct greeting with the right name
 
-      This is a simple test - just verify "Hello {name}" appears.
+      Verify the greeting matches the expected_greeting annotation.
 
 thresholds:
   greeting_correct:
