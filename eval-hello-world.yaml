@@ -14,8 +14,8 @@ runner:
     - plugins/hello-world
 
 models:
-  skill: ${EVAL_MODEL:-claude-sonnet-4-6}
-  judge: ${EVAL_JUDGE_MODEL:-claude-sonnet-4-6}
+  skill: claude-sonnet-4-6
+  judge: claude-sonnet-4-6
 
 permissions:
   allow:
