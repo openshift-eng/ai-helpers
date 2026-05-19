@@ -42,6 +42,7 @@ judges:
     description: Verify the greeting contains the expected name
     check: |
       transcript = outputs.get("transcript", "")
+      annotations = outputs.get("annotations", {})
       expected = annotations.get("expected_greeting", "Hello world")
       if expected.lower() in transcript.lower():
           return (True, f"Found expected greeting: {expected}")
