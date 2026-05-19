@@ -1781,7 +1781,7 @@
         {
           "argument_hint": "<pr-url-or-number> [--language <lang>] [--profile <name>] [--skip-build] [--skip-tests]",
           "description": "Automated PR code quality review with language-aware analysis and project-specific profiles",
-          "example": "",
+          "example": "/code-review:pr https://github.com/openshift/hypershift/pull/8262 --language golang --profile hypershift",
           "name": "pr",
           "synopsis": "/code-review:pr <pr-url-or-number> [--language <lang>] [--profile <name>] [--skip-build] [--skip-tests]"
         },
@@ -1814,7 +1814,7 @@
           "name": "HyperShift Project Profile"
         }
       ],
-      "version": "0.0.8"
+      "version": "0.0.9"
     },
     {
       "commands": [],
