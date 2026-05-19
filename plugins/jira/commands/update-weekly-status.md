@@ -530,3 +530,4 @@ See the Jira plugin's skills directory for examples of project-specific customiz
 - **Data gatherer script**: `plugins/jira/skills/status-analysis/scripts/gather_status_data.py`
 - **Issue summarizer script**: `plugins/jira/skills/status-analysis/scripts/summarize_issue.py`
 - **Single-issue rollup**: `/jira:status-rollup` - Generate comprehensive status comment for one issue
+- **Feature updates**: `/jira:generate-feature-updates` - Generate strategic feature updates for weekly status documents
