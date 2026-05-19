@@ -4,7 +4,7 @@ skill: hello-world:echo
 
 execution:
   mode: case
-  arguments: "{name}"
+  arguments: "{name?}"
   timeout: 60
   max_budget_usd: 0.50
 
@@ -32,8 +32,11 @@ dataset:
     - annotations.yaml: Expected outcomes:
       - 'expected_greeting': The exact greeting that should appear
 
+traces:
+  stdout: true
+
 outputs:
-  - path: "."
+  - path: "output"
     schema: |
       The skill outputs text to stdout. The greeting "Hello {name}" should appear.
 
