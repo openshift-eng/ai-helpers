@@ -1,5 +1,5 @@
 ---
-name: generate
+name: generate-sbom
 description: "Generate an AI SBOM declaration for a PR description. Use this skill when the user asks to generate an AI SBOM, create an ai-assisted block, fill out their AI assistance section, or prepare a PR description with AI provenance. Also use when the user says 'what skills did I use' or 'summarize my AI usage'."
 ---
 

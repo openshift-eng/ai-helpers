@@ -1,5 +1,5 @@
 ---
-name: lint-fix
+name: go-lint-fix
 description: Run golangci-lint and fix all reported issues. Use only when explicitly asked to fix lint issues in a Go project.
 disable-model-invocation: true
 model: sonnet

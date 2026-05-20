@@ -1,5 +1,5 @@
 ---
-name: lang-go
+name: go-code-review
 description: "Language-specific review guidance for Go code including idiomatic patterns, test conventions, and build commands"
 ---
 

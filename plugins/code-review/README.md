@@ -27,7 +27,7 @@ Language skills provide language-specific guidance for idiomatic code review, te
 
 | Language | Skill Directory | Key Features |
 |----------|----------------|--------------|
-| Go | `skills/lang-go/` | Table-driven tests, `gofmt`, error wrapping, race detection |
+| Go | `skills/go-code-review/` | Table-driven tests, `gofmt`, error wrapping, race detection |
 
 ### Adding a New Language
 
@@ -53,7 +53,7 @@ Profile skills provide project-specific conventions that layer on top of languag
 
 | Profile | Skill Directory | Key Features |
 |---------|----------------|--------------|
-| HyperShift | `skills/profile-hypershift/` | controller-runtime patterns, `support/upsert/`, `make api`, structured logging |
+| HyperShift | `skills/hypershift-code-review/` | controller-runtime patterns, `support/upsert/`, `make api`, structured logging |
 
 ### Adding a New Profile
 

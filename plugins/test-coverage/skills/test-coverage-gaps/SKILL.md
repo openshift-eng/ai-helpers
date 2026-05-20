@@ -1,5 +1,5 @@
 ---
-name: gaps
+name: test-coverage-gaps
 description: Intelligently identify missing test coverage based on component type
 ---
 

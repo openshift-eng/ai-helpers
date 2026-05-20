@@ -1,5 +1,5 @@
 ---
-name: analyze
+name: analyze-test-coverage
 description: Analyze test code structure directly to provide coverage analysis
 ---
 
