@@ -28,10 +28,8 @@ update: ## Update plugin documentation and website data
 	@python3 scripts/fix_frontmatter_quotes.py
 	@echo "Syncing marketplace versions..."
 	@python3 scripts/sync_marketplace_versions.py
-	@echo "Updating plugin documentation..."
-	@python3 scripts/generate_plugin_docs.py
-	@echo "Building website data..."
-	@python3 scripts/build-website.py
+	@echo "Generating docs..."
+	@uvx skillsaw docs --format html -o docs/ .
 
 EVAL_REPEAT ?= 1
 EVAL_PASS_RATE_THRESHOLD ?= 100
