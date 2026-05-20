@@ -1,0 +1,9 @@
+{
+  "installedPlugins": [
+    {
+      "name": "claudezilla",
+      "source": "local",
+      "enabled": true
+    }
+  ]
+}
