@@ -1,0 +1,112 @@
+/**
+ * PatternFly Glass Theme - Enhanced Visibility
+ *
+ * This stylesheet provides minimal enhancements to make glass effects visible:
+ * - Subtle background gradients (adjust opacity as needed)
+ * - Uses official PatternFly glass tokens
+ * - Official glass parameters: 12.5px blur, 80% opacity
+ *
+ * IMPORTANT: Glass effects are only visible when there's layered content.
+ * These gradients ensure there's always something behind glass surfaces.
+ */
+
+/* ==========================================================================
+   Background Gradients (Light Theme)
+   ========================================================================== */
+
+.pf-v6-theme-glass body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: -1;
+  background:
+    radial-gradient(ellipse at 15% 25%, rgba(0, 102, 204, 0.03) 0%, transparent 50%),
+    radial-gradient(ellipse at 85% 75%, rgba(238, 0, 0, 0.025) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, rgba(0, 0, 0, 0.01) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+/* Dark Theme Background Gradients */
+.pf-v6-theme-glass.pf-v6-theme-dark body::before {
+  background:
+    radial-gradient(ellipse at 15% 25%, rgba(0, 136, 206, 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse at 85% 75%, rgba(238, 0, 0, 0.05) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, rgba(255, 255, 255, 0.015) 0%, transparent 70%);
+}
+
+/* ==========================================================================
+   Red Hat Branded Glass Theme (Optional)
+   ========================================================================== */
+
+/* Red Hat Light Glass */
+.pf-v6-theme-redhat.pf-v6-theme-glass body::before {
+  background:
+    radial-gradient(ellipse at 15% 25%, rgba(238, 0, 0, 0.03) 0%, transparent 50%),
+    radial-gradient(ellipse at 85% 75%, rgba(0, 102, 204, 0.025) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, rgba(0, 0, 0, 0.01) 0%, transparent 70%);
+}
+
+/* Red Hat Dark Glass */
+.pf-v6-theme-redhat.pf-v6-theme-glass.pf-v6-theme-dark body::before {
+  background:
+    radial-gradient(ellipse at 15% 25%, rgba(238, 0, 0, 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse at 85% 75%, rgba(0, 136, 206, 0.05) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, rgba(255, 255, 255, 0.015) 0%, transparent 70%);
+}
+
+/* ==========================================================================
+   Optional: Glass Theme Indicator Badge
+   ========================================================================== */
+
+.pf-v6-theme-glass .pf-v6-c-page__main-section:first-child::before {
+  content: 'Glass Theme Active';
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  padding: 8px 16px;
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(12.5px);
+  -webkit-backdrop-filter: blur(12.5px);
+  color: rgba(0, 0, 0, 0.85);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  z-index: 9999;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  pointer-events: none;
+  user-select: none;
+  opacity: 0.5;
+}
+
+.pf-v6-theme-glass.pf-v6-theme-dark .pf-v6-c-page__main-section:first-child::before {
+  background: rgba(36, 36, 48, 0.65);
+  color: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* ==========================================================================
+   Optional: Subtle Card Enhancements
+   ========================================================================== */
+
+.pf-v6-theme-glass .pf-v6-c-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.pf-v6-theme-glass .pf-v6-c-card:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.08),
+    0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+.pf-v6-theme-glass.pf-v6-theme-dark .pf-v6-c-card:hover {
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.3),
+    0 1px 3px rgba(0, 0, 0, 0.4);
+}
