@@ -1,5 +1,5 @@
 ---
-name: Stage Payload Reverts
+name: stage-payload-reverts
 description: Create TRT JIRA bugs, open revert PRs, and trigger payload jobs for high-confidence revert candidates
 ---
 

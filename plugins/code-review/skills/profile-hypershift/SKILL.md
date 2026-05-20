@@ -1,5 +1,5 @@
 ---
-name: "HyperShift Project Profile"
+name: profile-hypershift
 description: "Project-specific review profile for the openshift/hypershift repository — delegates to the repo's own agents and skills"
 ---
 

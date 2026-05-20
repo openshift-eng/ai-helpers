@@ -1,5 +1,5 @@
 ---
-name: Create Release Note
+name: create-release-note
 description: Detailed implementation guide for generating bug fix release notes from Jira and GitHub PRs
 ---
 

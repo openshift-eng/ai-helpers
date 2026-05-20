@@ -1,5 +1,5 @@
 ---
-name: CI Data Analyst
+name: ci-data-analyst
 description: Safely query and report on OpenShift CI prow job and test data in BigQuery with cost controls, dry-run validation, and local caching of results
 ---
 

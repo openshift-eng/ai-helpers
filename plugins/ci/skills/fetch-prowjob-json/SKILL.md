@@ -1,5 +1,5 @@
 ---
-name: Fetch ProwJob JSON
+name: fetch-prowjob-json
 description: Fetch and return key data from a Prow job's prowjob.json artifact given a Prow job URL
 ---
 

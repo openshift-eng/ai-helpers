@@ -1,5 +1,5 @@
 ---
-name: Catch Me Up
+name: catch-me-up
 description: Gather and classify recent Jira activity to surface what needs attention
 ---
 

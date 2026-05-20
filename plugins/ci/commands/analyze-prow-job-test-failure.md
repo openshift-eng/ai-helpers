@@ -13,7 +13,7 @@ Generate a test failure analysis for the given test:
 ```
 
 ## Description
-Analyze a failed test by inspecting the test code in the current project and artifacts in Prow CI job. This is done by invoking the "Prow Job Analyze Test Failure" skill.
+Analyze a failed test by inspecting the test code in the current project and artifacts in Prow CI job. This is done by invoking the "prow-job-analyze-test-failure" skill.
 
 The command provides comprehensive analysis by:
 - Examining test failure stack traces and source code
@@ -61,7 +61,7 @@ For HyperShift jobs with hosted clusters, the command automatically:
 **Note**: HyperShift jobs may use different artifact structures depending on the workflow and test type.
 
 ## Implementation
-- Load the "Prow Job Analyze Test Failure" skill
+- Load the "prow-job-analyze-test-failure" skill
 - Proceed with the analysis by following the implementation steps from the skill
 
 The skill handles all the implementation details including:

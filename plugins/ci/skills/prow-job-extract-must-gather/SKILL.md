@@ -1,5 +1,5 @@
 ---
-name: Prow Job Extract Must-Gather
+name: prow-job-extract-must-gather
 description: Extract and decompress must-gather archives from Prow CI job artifacts, generating an interactive HTML file browser with filters
 ---
 

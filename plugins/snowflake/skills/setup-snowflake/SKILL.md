@@ -1,5 +1,5 @@
 ---
-name: Setup Snowflake
+name: setup-snowflake
 description: This skill should be used before any Snowflake command to verify MCP connectivity, guide users through access provisioning, and set the session context. Invoke this skill proactively whenever a command needs Snowflake data access.
 ---
 

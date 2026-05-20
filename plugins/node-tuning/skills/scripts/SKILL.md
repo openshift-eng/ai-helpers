@@ -1,5 +1,5 @@
 ---
-name: Node Tuning Helper Scripts
+name: scripts
 description: Generate tuned manifests and evaluate node tuning snapshots
 ---
 

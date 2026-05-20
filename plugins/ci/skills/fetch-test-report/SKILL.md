@@ -1,5 +1,5 @@
 ---
-name: Fetch Test Report
+name: fetch-test-report
 description: Fetch an OpenShift CI test report by name to get pass rates, test ID, and Jira component from Sippy
 ---
 

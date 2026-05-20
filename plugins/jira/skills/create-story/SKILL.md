@@ -1,5 +1,5 @@
 ---
-name: Create Jira Story
+name: create-story
 description: Implementation guide for creating well-formed Jira user stories with acceptance criteria
 ---
 

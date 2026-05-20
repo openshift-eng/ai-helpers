@@ -1,5 +1,5 @@
 ---
-name: OVS Database and Flow Analysis
+name: ovs-db-analysis
 description: Analyze Open vSwitch data from sosreport
 ---
 

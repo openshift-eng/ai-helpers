@@ -1,5 +1,5 @@
 ---
-name: HyperShift Azure Provider
+name: hcp-create-azure
 description: Use this skill when you need to deploy HyperShift clusters on Microsoft Azure with proper identity configuration and resource management
 ---
 

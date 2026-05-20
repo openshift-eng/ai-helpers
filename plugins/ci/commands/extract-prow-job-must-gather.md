@@ -12,10 +12,10 @@ ci:extract-prow-job-must-gather
 ```
 
 ## Description
-Extract the must-gather archive from a Prow CI job by invoking the "Prow Job Extract Must-Gather" skill.
+Extract the must-gather archive from a Prow CI job by invoking the "prow-job-extract-must-gather" skill.
 
 ## Implementation
-Extract the must-gather archive from a Prow CI job by invoking the "Prow Job Extract Must-Gather" skill.
+Extract the must-gather archive from a Prow CI job by invoking the "prow-job-extract-must-gather" skill.
 
 Pass the user's request to the skill, which will:
 - Download the must-gather.tar from Google Cloud Storage

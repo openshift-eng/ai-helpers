@@ -1,5 +1,5 @@
 ---
-name: Fetch JIRA Issue
+name: fetch-jira-issue
 description: Fetch JIRA issue details including status, assignee, comments, and progress classification
 ---
 

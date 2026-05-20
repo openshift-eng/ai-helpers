@@ -1,5 +1,5 @@
 ---
-name: List JIRAs
+name: list-jiras
 description: Query and return raw JIRA bug data for a specific project
 ---
 

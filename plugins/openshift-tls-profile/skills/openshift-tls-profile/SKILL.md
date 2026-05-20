@@ -1,5 +1,5 @@
 ---
-name: OpenShift TLS Security Profile Configuration
+name: openshift-tls-profile
 description: Use this skill to implement TLS security profiles for operators and workloads on OpenShift. Provides guidance on reading TLS config from APIServer CR and applying it to webhook/metrics servers, HTTP, and gRPC endpoints.
 ---
 

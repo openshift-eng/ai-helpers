@@ -1,5 +1,5 @@
 ---
-name: LVMS Analyzer
+name: lvms-analyzer
 description: Analyzes LVMS must-gather data to diagnose storage issues
 ---
 

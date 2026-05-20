@@ -1,5 +1,5 @@
 ---
-name: CodeRabbit Adoption Report
+name: coderabbit-adoption
 description: Report on CodeRabbit adoption across OpenShift org PRs
 ---
 

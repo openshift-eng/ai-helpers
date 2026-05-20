@@ -1,5 +1,5 @@
 ---
-name: Create Jira Epic
+name: create-epic
 description: Implementation guide for creating Jira epics with proper scope and parent linking
 ---
 

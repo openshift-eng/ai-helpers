@@ -1,5 +1,5 @@
 ---
-name: Jira Issue Readiness Validator
+name: ready-to-solve
 description: Detailed implementation guide for checking Jira issue readiness for /jira:solve
 command: /jira:ready-to-solve
 ---

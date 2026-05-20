@@ -1,5 +1,5 @@
 ---
-name: Suggest Reviewers Helper
+name: suggest-reviewers
 description: Git blame analysis helper for the suggest-reviewers command
 ---
 

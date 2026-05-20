@@ -1,5 +1,5 @@
 ---
-name: HyperShift KubeVirt Provider
+name: hcp-create-kubevirt
 description: Use this skill when you need to deploy HyperShift clusters on existing Kubernetes clusters using KubeVirt virtualization
 ---
 

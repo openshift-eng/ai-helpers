@@ -1,5 +1,5 @@
 ---
-name: Revert PR
+name: revert-pr
 description: Git revert workflow and Revertomatic PR template for reverting merged PRs
 ---
 

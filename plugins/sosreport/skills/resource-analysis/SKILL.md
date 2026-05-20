@@ -1,5 +1,5 @@
 ---
-name: Resource Analysis
+name: resource-analysis
 description: Analyze system resource usage data from sosreport archives, extracting memory statistics, CPU load averages, disk space utilization, and process information from the sosreport directory structure to diagnose resource exhaustion, performance bottlenecks, and capacity issues
 ---
 

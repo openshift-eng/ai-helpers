@@ -1,5 +1,5 @@
 ---
-name: Analyze BigQuery Usage
+name: analyze-usage
 description: Comprehensive analysis of BigQuery usage patterns, costs, and query performance
 ---
 

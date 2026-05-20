@@ -1,5 +1,5 @@
 ---
-name: HyperShift OpenStack Provider
+name: hcp-create-openstack
 description: Use this skill when you need to deploy HyperShift clusters on OpenStack infrastructure with proper flavor selection and network configuration
 ---
 

@@ -1,5 +1,5 @@
 ---
-name: Analyze Payload
+name: analyze-payload
 description: Analyze a payload (rejected, accepted, or in-progress) with historical lookback to identify root causes of blocking job failures and produce an HTML report
 ---
 

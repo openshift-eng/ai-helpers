@@ -1,5 +1,5 @@
 ---
-name: HyperShift Jira Conventions
+name: hypershift
 description: HyperShift team-specific Jira requirements for component selection and conventions
 ---
 

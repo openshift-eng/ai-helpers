@@ -1,5 +1,5 @@
 ---
-name: Create Jira Feature
+name: create-feature
 description: Implementation guide for creating Jira features representing strategic objectives and market problems
 ---
 

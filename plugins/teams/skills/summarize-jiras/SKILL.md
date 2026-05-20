@@ -1,5 +1,5 @@
 ---
-name: Summarize JIRAs
+name: summarize-jiras
 description: Query and summarize JIRA bugs for a specific project with counts by component
 ---
 

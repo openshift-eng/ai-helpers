@@ -1,5 +1,5 @@
 ---
-name: Call Graph Reachability Analysis
+name: call-graph-analysis
 description: Perform definitive call graph analysis to prove whether vulnerable functions are reachable from program entry points
 ---
 

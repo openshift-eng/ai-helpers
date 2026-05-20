@@ -1,5 +1,5 @@
 ---
-name: Test Structure Analysis
+name: analyze
 description: Analyze test code structure directly to provide coverage analysis
 ---
 

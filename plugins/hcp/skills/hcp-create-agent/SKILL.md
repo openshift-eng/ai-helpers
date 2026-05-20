@@ -1,5 +1,5 @@
 ---
-name: HyperShift Agent Provider
+name: hcp-create-agent
 description: Use this skill when you need to deploy HyperShift clusters on bare metal, edge environments, or disconnected infrastructures using pre-provisioned agents
 ---
 

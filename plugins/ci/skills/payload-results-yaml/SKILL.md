@@ -1,5 +1,5 @@
 ---
-name: Payload Results YAML
+name: payload-results-yaml
 description: State management for agentic payload triage actions — you must use this skill whenever reading or writing the payload results YAML file
 ---
 

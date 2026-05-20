@@ -1,5 +1,5 @@
 ---
-name: JIRA Activity Type Categorizer
+name: categorize-activity-type
 description: Detailed categorization logic for assigning JIRA tickets to activity type categories
 command: /jira:categorize-activity-type
 ---

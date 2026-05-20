@@ -1,5 +1,5 @@
 ---
-name: CodeRabbit Inheritance Scanner - Existing PR Check
+name: coderabbit-inheritance-scanner-existing-pr
 description: Search for an existing fix PR on a repo before opening a new one
 ---
 

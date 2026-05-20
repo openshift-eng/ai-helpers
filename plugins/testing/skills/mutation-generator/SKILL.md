@@ -1,5 +1,5 @@
 ---
-name: Mutation Generator for Operator Controllers
+name: mutation-generator
 description: Generate code mutations for Kubernetes operator controllers to enable mutation testing. Applies operator-specific mutations to reconciliation logic, error handling, and API interactions.
 ---
 

@@ -1,5 +1,5 @@
 ---
-name: JIRA Release Blocker Validator
+name: jira-validate-blockers
 description: Detailed implementation guide for validating proposed release blockers
 command: /jira:validate-blockers
 ---

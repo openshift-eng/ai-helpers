@@ -36,7 +36,7 @@ Failed jobs are investigated **in parallel** using subagents with the appropriat
 - **HTML report**: Generates an attractive, self-contained HTML report with collapsible sections, color-coded severity, and executive summary
 ## Implementation
 
-Load the "Analyze Payload" skill and follow its implementation steps. The skill orchestrates:
+Load the "analyze-payload" skill and follow its implementation steps. The skill orchestrates:
 
 1. Fetching recent rejected payloads using the `fetch-payloads` skill
 2. Walking back through consecutive rejected payloads to build failure history

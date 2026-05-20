@@ -1,5 +1,5 @@
 ---
-name: Prow Job Analyze Test Failure
+name: prow-job-analyze-test-failure
 description: Analyze failed Prow CI tests by inspecting test code, downloading artifacts, and optionally integrating must-gather cluster diagnostics for root cause analysis
 ---
 
@@ -10,7 +10,7 @@ analyzing test source code, and optionally integrating cluster diagnostics from 
 
 ## Prerequisites
 
-Identical with "Prow Job Analyze Resource" skill.
+Identical with "prow-job-analyze-resource" skill.
 
 ## Input Format
 
@@ -39,7 +39,7 @@ The user will provide:
 
 ### Step 1: Parse and Validate URL
 
-Use the "Parse and Validate URL" steps from "Prow Job Analyze Resource" skill
+Use the "Parse and Validate URL" steps from "prow-job-analyze-resource" skill
 
 ### Step 2: Create Working Directory
 
@@ -1242,7 +1242,7 @@ Synthesize all gathered evidence to determine the most likely root cause for the
 
 ## Error Handling
 
-Handle errors in the same way as "Error handling" in "Prow Job Analyze Resource" skill, with these additional must-gather-specific cases:
+Handle errors in the same way as "Error handling" in "prow-job-analyze-resource" skill, with these additional must-gather-specific cases:
 
 1. **Must-gather not available**
    - If `gcloud storage ls` returns 404 for must-gather.tar, this is expected (not all jobs have must-gather)
@@ -1272,4 +1272,4 @@ Handle errors in the same way as "Error handling" in "Prow Job Analyze Resource"
 
 ## Performance Considerations
 
-Follow the instructions in "Performance Considerations" in "Prow Job Analyze Resource" skill
+Follow the instructions in "Performance Considerations" in "prow-job-analyze-resource" skill

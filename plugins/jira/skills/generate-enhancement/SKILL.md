@@ -1,5 +1,5 @@
 ---
-name: Generate Enhancement from Jira Epic or Feature
+name: generate-enhancement
 description: Generate OpenShift enhancement proposal markdown from Jira epic or feature content
 ---
 

@@ -1,5 +1,5 @@
 ---
-name: RDS Analyzer workflow skill
+name: rds-analyzer-workflow
 description: End-to-end workflow from cluster data to deviation reports and optional Jira follow-up
 ---
 # RDS Analyzer workflow skill

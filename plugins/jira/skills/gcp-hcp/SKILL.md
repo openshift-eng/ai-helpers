@@ -1,5 +1,5 @@
 ---
-name: GCP HCP Jira Conventions
+name: gcp-hcp
 description: GCP HCP team-specific Jira requirements for creating issues in the GCP project (Hypershift on GKE)
 ---
 

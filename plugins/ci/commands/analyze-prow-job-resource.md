@@ -17,7 +17,7 @@ Generate a report showing multiple resource lifecycles:
 ```
 
 ## Description
-Analyze the lifecycle of Kubernetes resource(s) in a Prow CI job by invoking the "Prow Job Analyze Resource" skill.
+Analyze the lifecycle of Kubernetes resource(s) in a Prow CI job by invoking the "prow-job-analyze-resource" skill.
 
 ## Implementation
 Pass the user's request to the skill, which will:

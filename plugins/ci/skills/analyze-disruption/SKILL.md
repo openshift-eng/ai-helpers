@@ -1,5 +1,5 @@
 ---
-name: Analyze Disruption
+name: analyze-disruption
 description: Analyze and compare disruption across one or more Prow CI job runs by examining interval data, audit logs, pod logs, and CPU metrics
 ---
 
@@ -37,7 +37,7 @@ The user will provide:
    - Validate at least one URL is provided
 
 2. **Parse each URL** to extract bucket path, job name, and build ID
-   - Use the same URL parsing logic as the "Prow Job Artifact Search" skill
+   - Use the same URL parsing logic as the "prow-job-artifact-search" skill
    - Accept both `prow.ci.openshift.org` and `gcsweb-ci` URL formats
    - Extract `build_id` and `job_name` from each URL
 

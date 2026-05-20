@@ -35,7 +35,7 @@ The command identifies the failure mode from `junit_install.xml` and tailors its
 
 ## Implementation
 
-The command performs the following steps by invoking the "Prow Job Analyze Install Failure" skill:
+The command performs the following steps by invoking the "prow-job-analyze-install-failure" skill:
 
 1. **Parse Job URL**: Extract build ID and job details from the Prow URL
 

@@ -1,5 +1,5 @@
 ---
-name: Prow Job Analyze Install Failure
+name: prow-job-analyze-install-failure
 description: Analyze OpenShift installation failures in Prow CI jobs by examining installer logs, log bundles, and sosreports. Use when CI job fails "install should succeed" tests at bootstrap, cluster creation or other stages.
 ---
 

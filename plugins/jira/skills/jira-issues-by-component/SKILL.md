@@ -1,5 +1,5 @@
 ---
-name: JIRA Issues by Component - Helper Skill
+name: jira-issues-by-component
 description: Provides secure curl wrapper for the jira:issues-by-component command to prevent token exposure
 ---
 

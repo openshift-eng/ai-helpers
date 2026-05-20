@@ -1,5 +1,5 @@
 ---
-name: Remediation Planning
+name: remediation-planning
 description: Generate comprehensive remediation guidance including dependency updates, code changes, workarounds, and verification steps
 ---
 
@@ -35,13 +35,13 @@ Use this skill when:
 
 **Required Inputs from Previous Phases:**
 
-**From Phase 1 (CVE Intelligence Gathering):**
+**From Phase 1 (cve-intelligence-gathering):**
 - CVE ID, severity, CVSS score
 - Affected package/module and vulnerable version range
 - Fixed version (if available)
 - Vulnerability type and remediation guidance
 
-**From Phase 2 (Codebase Impact Analysis):**
+**From Phase 2 (codebase-impact-analysis):**
 - Risk level (HIGH / MEDIUM / LOW / NEEDS REVIEW)
 - Current package version and dependency type
 - Usage locations and functions being called

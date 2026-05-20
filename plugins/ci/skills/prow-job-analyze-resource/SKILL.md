@@ -1,5 +1,5 @@
 ---
-name: Prow Job Analyze Resource
+name: prow-job-analyze-resource
 description: Analyze Kubernetes resource lifecycle in Prow CI job artifacts by parsing audit logs and pod logs from GCS, generating interactive HTML reports with timelines
 ---
 

@@ -1,5 +1,5 @@
 ---
-name: Analyze Regressions
+name: analyze-regressions
 description: Grade component health based on regression triage metrics for OpenShift releases
 ---
 

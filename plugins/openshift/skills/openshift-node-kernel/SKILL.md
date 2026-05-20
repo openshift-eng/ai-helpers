@@ -1,5 +1,5 @@
 ---
-name: OpenShift Node Kernel Inspection
+name: openshift-node-kernel
 description: Inspect kernel-level networking configuration on OpenShift/Kubernetes nodes using oc debug
 ---
 

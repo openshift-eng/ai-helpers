@@ -1,5 +1,5 @@
 ---
-name: Jira Pull Request Extractor
+name: extract-prs
 description: Recursively extract GitHub Pull Request links from Jira issues
 ---
 

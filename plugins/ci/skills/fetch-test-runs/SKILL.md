@@ -1,5 +1,5 @@
 ---
-name: Fetch Test Runs
+name: fetch-test-runs
 description: Fetch test runs from Sippy API including outputs for AI-based similarity analysis
 ---
 

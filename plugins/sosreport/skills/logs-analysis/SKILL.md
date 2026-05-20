@@ -1,5 +1,5 @@
 ---
-name: Logs Analysis
+name: logs-analysis
 description: Analyze system and application log data from sosreport archives, extracting error patterns, kernel panics, OOM events, service failures, and application crashes from journald logs and traditional log files within the sosreport directory structure to identify root causes of system failures and issues
 ---
 

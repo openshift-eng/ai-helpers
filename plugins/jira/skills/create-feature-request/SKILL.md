@@ -1,5 +1,5 @@
 ---
-name: Create Jira Feature Request
+name: create-feature-request
 description: Implementation guide for creating Feature Requests in the RFE project
 ---
 

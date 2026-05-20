@@ -1,5 +1,5 @@
 ---
-name: System Configuration Analysis
+name: system-config-analysis
 description: Analyze system configuration data from sosreport archives, extracting OS details, installed packages, systemd service status, SELinux/AppArmor policies, and kernel parameters from the sosreport directory structure to diagnose configuration-related system issues
 ---
 

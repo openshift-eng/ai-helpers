@@ -1,5 +1,5 @@
 ---
-name: Dashboard Template Components
+name: dashboard-templates
 description: Reference components for generating Kubernetes operator CRD dashboards
 ---
 

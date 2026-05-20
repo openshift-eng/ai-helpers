@@ -1,5 +1,5 @@
 ---
-name: Jira Feature Documentation Generator
+name: jira-doc-generator
 description: Detailed implementation guide for recursively analyzing Jira features and generating comprehensive documentation
 ---
 

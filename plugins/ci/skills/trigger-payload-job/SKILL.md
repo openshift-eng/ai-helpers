@@ -1,5 +1,5 @@
 ---
-name: Trigger Payload Job
+name: trigger-payload-job
 description: MUST be used whenever triggering payload testing on a PR. Do not post payload commands without following this skill — the command syntax is specific and other formats will be silently ignored by the bot.
 ---
 

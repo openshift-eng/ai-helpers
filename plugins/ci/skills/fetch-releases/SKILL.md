@@ -1,5 +1,5 @@
 ---
-name: Fetch Releases
+name: fetch-releases
 description: Fetch available OpenShift releases from the Sippy API
 ---
 

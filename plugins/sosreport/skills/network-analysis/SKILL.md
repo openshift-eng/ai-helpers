@@ -1,5 +1,5 @@
 ---
-name: Network Analysis
+name: network-analysis
 description: Analyze network configuration data from sosreport archives, extracting interface configurations, routing tables, active connections, firewall rules (firewalld/iptables), and DNS settings from the sosreport directory structure to diagnose network connectivity and configuration issues
 ---
 

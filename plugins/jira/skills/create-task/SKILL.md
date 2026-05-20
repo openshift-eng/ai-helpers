@@ -1,5 +1,5 @@
 ---
-name: Create Jira Task
+name: create-task
 description: Implementation guide for creating Jira tasks for technical and operational work
 ---
 

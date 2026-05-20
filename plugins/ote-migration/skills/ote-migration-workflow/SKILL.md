@@ -1,5 +1,5 @@
 ---
-name: OTE Migration Workflow
+name: ote-migration-workflow
 description: Automated workflow for migrating OpenShift component repositories to OTE framework
 ---
 

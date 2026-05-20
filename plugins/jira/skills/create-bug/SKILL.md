@@ -1,5 +1,5 @@
 ---
-name: Create Jira Bug
+name: create-bug
 description: Implementation guide for creating well-formed Jira bug reports
 ---
 

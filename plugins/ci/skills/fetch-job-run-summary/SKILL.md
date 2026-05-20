@@ -1,5 +1,5 @@
 ---
-name: Fetch Job Run Summary
+name: fetch-job-run-summary
 description: Fetch a Prow job run summary from Sippy showing all failed tests grouped by SIG with error messages
 ---
 

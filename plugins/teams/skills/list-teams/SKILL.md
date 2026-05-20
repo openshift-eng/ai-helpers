@@ -1,5 +1,5 @@
 ---
-name: List Teams
+name: list-teams
 description: List all teams from the team component mapping
 ---
 

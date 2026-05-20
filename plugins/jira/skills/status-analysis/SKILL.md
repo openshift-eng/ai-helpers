@@ -1,5 +1,5 @@
 ---
-name: Jira Status Analysis Engine
+name: status-analysis
 description: Shared engine for analyzing Jira issue activity and generating status summaries
 ---
 

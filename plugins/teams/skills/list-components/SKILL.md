@@ -1,5 +1,5 @@
 ---
-name: List Components
+name: list-components
 description: List all OCPBUGS components, optionally filtered by team
 ---
 
