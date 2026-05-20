@@ -30,8 +30,8 @@ jobs:
 
       - name: Regenerate documentation
         run: |
-          python3 scripts/generate_plugin_docs.py
-          python3 scripts/build-website.py
+          pip install skillsaw==0.10.1
+          skillsaw docs -o docs/
 
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@c0f553fe549906ede9cf27b5156039d195d2ece0 # v8.1.0
@@ -44,11 +44,9 @@ jobs:
 
             Changes include:
             - Synced plugin versions from plugin.json to marketplace.json
-            - Regenerated PLUGINS.md
-            - Regenerated docs/data.json
+            - Regenerated docs/index.html
           branch: auto-update-docs
           delete-branch: true
           add-paths: |
             docs/
-            PLUGINS.md
             .claude-plugin/marketplace.json

@@ -1,6 +1,6 @@
 # skillsaw configuration
 # https://github.com/stbenjam/skillsaw
-version: "0.10.0"
+version: "0.10.1"
 strict: true
 
 rules:
@@ -86,53 +86,13 @@ rules:
   plugin-owners-required:
     enabled: true
     severity: error
-    legacy-exceptions:
-      - agendas
-      - ai-operator-dashboard-generator
-      - ai-sbom
-      - bigquery
-      - ci
-      - code-review
-      - compliance
-      - console
-      - container-image
-      - doc
-      - etcd
-      - git
-      - golang
-      - gwapi
-      - hcp
-      - hello-world
-      - jira
-      - lvms
-      - marketplace-ops
-      - metrics
-      - must-gather
-      - native-notifications
-      - node
-      - node-tuning
-      - olm
-      - olm-team
-      - openshift
-      - openshift-tls-profile
-      - origin
-      - ote-migration
-      - rds-analyzer
-      - session
-      - snowflake
-      - sosreport
-      - teams
-      - test-coverage
-      - testing
-      - utils
-      - workspaces
-      - yaml
+
 
 # Load custom rules from these files
 custom-rules:
   - ".skillsaw/plugindocs_rule.py"
-  - ".skillsaw/promptfoo_budget_rule.py"
   - ".skillsaw/owners_rule.py"
+  - ".skillsaw/promptfoo_budget_rule.py"
 
 # Exclude patterns (glob format)
 # Use exclude: [] to disable all excludes including defaults

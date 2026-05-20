@@ -1,6 +1,6 @@
-options:
-  auto_approve_unowned_subfolders: true
 approvers:
 - ai-helpers-admins
+- midu16
 reviewers:
 - ai-helpers-admins
+- midu16

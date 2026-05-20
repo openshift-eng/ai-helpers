@@ -1,6 +1,6 @@
-options:
-  auto_approve_unowned_subfolders: true
 approvers:
 - ai-helpers-admins
+- logonoff
 reviewers:
 - ai-helpers-admins
+- logonoff

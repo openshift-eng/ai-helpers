@@ -14,7 +14,7 @@ except ImportError:
 
 
 class PluginsDocUpToDateRule(Rule):
-    """Check that PLUGINS.md and docs/data.json are up-to-date by running 'make update'"""
+    """Check that docs/ is up-to-date by running 'skillsaw docs'"""
 
     @property
     def rule_id(self) -> str:
@@ -22,7 +22,7 @@ class PluginsDocUpToDateRule(Rule):
 
     @property
     def description(self) -> str:
-        return "PLUGINS.md and docs/data.json must be up-to-date with plugin metadata. Run 'make update' to regenerate."
+        return "docs/ must be up-to-date with plugin metadata. Run 'make update' to regenerate."
 
     def default_severity(self) -> Severity:
         return Severity.ERROR
@@ -30,29 +30,26 @@ class PluginsDocUpToDateRule(Rule):
     def check(self, context: RepositoryContext) -> List[RuleViolation]:
         violations = []
 
-        # Only check marketplace repos
         if not context.has_marketplace():
             return violations
 
-        plugins_md_path = context.root_path / "PLUGINS.md"
-        data_json_path = context.root_path / "docs" / "data.json"
+        docs_path = context.root_path / "docs"
+        index_path = docs_path / "index.html"
 
-        if not plugins_md_path.exists():
-            return violations
-
-        # Check if generate_plugin_docs.py script exists
-        script_path = context.root_path / "scripts" / "generate_plugin_docs.py"
-        if not script_path.exists():
+        if not index_path.exists():
+            violations.append(
+                self.violation(
+                    "docs/index.html is missing. Run 'make update' to generate.",
+                    file_path=docs_path,
+                )
+            )
             return violations
 
         try:
-            # Read current content of files to check
-            original_plugins_md = plugins_md_path.read_text()
-            original_data_json = data_json_path.read_text() if data_json_path.exists() else None
+            original_content = index_path.read_text()
 
-            # Run the docs generation script
             result = subprocess.run(
-                ["python3", str(script_path)],
+                ["skillsaw", "docs", "-o", "docs/"],
                 cwd=str(context.root_path),
                 capture_output=True,
                 text=True,
@@ -62,72 +59,35 @@ class PluginsDocUpToDateRule(Rule):
             if result.returncode != 0:
                 violations.append(
                     self.violation(
-                        f"'make update' failed: {result.stderr}",
-                        file_path=plugins_md_path
+                        f"'skillsaw docs' failed: {result.stderr}",
+                        file_path=index_path
                     )
                 )
                 return violations
 
-            # Also run build-website.py if it exists
-            website_script_path = context.root_path / "scripts" / "build-website.py"
-            if website_script_path.exists():
-                result = subprocess.run(
-                    ["python3", str(website_script_path)],
-                    cwd=str(context.root_path),
-                    capture_output=True,
-                    text=True,
-                    timeout=30
-                )
-
-                if result.returncode != 0:
-                    violations.append(
-                        self.violation(
-                            f"build-website.py failed: {result.stderr}",
-                            file_path=data_json_path if data_json_path.exists() else plugins_md_path
-                        )
-                    )
-                    return violations
-
-            # Check if PLUGINS.md changed
-            generated_plugins_md = plugins_md_path.read_text()
-            if original_plugins_md != generated_plugins_md:
-                # Restore original content
-                plugins_md_path.write_text(original_plugins_md)
+            generated_content = index_path.read_text()
+            if original_content != generated_content:
+                index_path.write_text(original_content)
 
                 violations.append(
                     self.violation(
-                        "PLUGINS.md is out of sync with plugin metadata. Run 'make update' to update.",
-                        file_path=plugins_md_path
+                        "docs/ is out of sync with plugin metadata. Run 'skillsaw docs -o docs/' to update.",
+                        file_path=index_path
                     )
                 )
-
-            # Check if docs/data.json changed
-            if data_json_path.exists():
-                generated_data_json = data_json_path.read_text()
-                if original_data_json != generated_data_json:
-                    # Restore original content
-                    if original_data_json is not None:
-                        data_json_path.write_text(original_data_json)
-
-                    violations.append(
-                        self.violation(
-                            "docs/data.json is out of sync with plugin metadata. Run 'make update' to update.",
-                            file_path=data_json_path
-                        )
-                    )
 
         except subprocess.TimeoutExpired:
             violations.append(
                 self.violation(
-                    "'make update' timed out",
-                    file_path=plugins_md_path
+                    "'skillsaw docs' timed out",
+                    file_path=index_path
                 )
             )
         except Exception as e:
             violations.append(
                 self.violation(
-                    f"Error checking files up-to-date status: {e}",
-                    file_path=plugins_md_path
+                    f"Error checking docs up-to-date status: {e}",
+                    file_path=index_path
                 )
             )
 

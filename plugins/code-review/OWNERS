@@ -1,6 +1,8 @@
-options:
-  auto_approve_unowned_subfolders: true
 approvers:
 - ai-helpers-admins
+- jparrill
+- mgencur
 reviewers:
 - ai-helpers-admins
+- jparrill
+- mgencur
