@@ -41,6 +41,14 @@ go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 
 ## Skills
 
+### `golang:fix-cve`
+
+Patches a Go module dependency to fix a CVE. Determines the right strategy based on Go version compatibility (direct update, Go patch bump, or `openshift-sustaining` fork replace), applies changes across all `go.mod` files, syncs vendors, and runs repo checks.
+
+```bash
+/golang:fix-cve module="google.golang.org/grpc" fix-version="v1.75.1" cve="CVE-2026-33186" ticket="OCPBUGS-83972"
+```
+
 ### `golang:lint`
 
 Runs `golangci-lint` to check Go code quality. Discovers the lint command via CLAUDE.md/AGENTS.md, Makefile targets (`lint`, `verify-lint`), or direct `golangci-lint run ./...` invocation. Reports total issue count, breakdown by linter, and examples. Read-only — never modifies files.
