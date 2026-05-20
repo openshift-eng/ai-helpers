@@ -23,12 +23,13 @@ class PluginInfo:
         self.version = version
         self.commands = []
     
-    def add_command(self, command_name: str, description: str, argument_hint: str = ""):
+    def add_command(self, command_name: str, description: str, argument_hint: str = "", example: str = ""):
         """Add a command to this plugin."""
         self.commands.append({
             'name': command_name,
             'description': description,
-            'argument_hint': argument_hint
+            'argument_hint': argument_hint,
+            'example': example
         })
 
 
@@ -88,7 +89,8 @@ def get_plugin_info(plugin_dir: Path) -> PluginInfo:
             plugin_info.add_command(
                 command_name=command_name,
                 description=frontmatter.get('description', ''),
-                argument_hint=frontmatter.get('argument-hint', '')
+                argument_hint=frontmatter.get('argument-hint', ''),
+                example=frontmatter.get('example', '')
             )
     
     return plugin_info
@@ -140,6 +142,8 @@ def generate_plugin_docs(plugins_dir: Path) -> str:
                 if cmd['argument_hint']:
                     cmd_signature += f" `{cmd['argument_hint']}`"
                 lines.append(f"- **{cmd_signature}** - {cmd['description']}")
+                if cmd['example']:
+                    lines.append(f"  - Example: `{cmd['example']}`")
             lines.append("")
         
         # Link to plugin README if it exists
