@@ -54,7 +54,8 @@ def get_plugin_commands(plugin_path: Path) -> List[Dict[str, str]]:
                 "name": command_name,
                 "description": frontmatter.get("description", ""),
                 "synopsis": synopsis,
-                "argument_hint": frontmatter.get("argument-hint", "")
+                "argument_hint": frontmatter.get("argument-hint", ""),
+                "example": frontmatter.get("example", "")
             })
         except Exception as e:
             print(f"Error processing {cmd_file}: {e}")

@@ -1,6 +1,7 @@
 ---
 description: "Automated PR code quality review with language-aware analysis and project-specific profiles"
 argument-hint: "<pr-url-or-number> [--language <lang>] [--profile <name>] [--skip-build] [--skip-tests]"
+example: "/code-review:pr https://github.com/openshift/hypershift/pull/8262 --language golang --profile hypershift"
 ---
 
 ## Name
