@@ -58,7 +58,7 @@ class PluginsDocUpToDateRule(Rule):
             if result.returncode != 0:
                 violations.append(
                     self.violation(
-                        f"'skillsaw docs' failed: {result.stderr}",
+                        f"'make update' failed: {result.stderr}",
                         file_path=index_path
                     )
                 )
@@ -68,7 +68,7 @@ class PluginsDocUpToDateRule(Rule):
             if original_content != generated_content:
                 violations.append(
                     self.violation(
-                        "docs/ is out of sync with plugin metadata. Run 'skillsaw docs -o docs/' to update.",
+                        "docs/ is out of sync with plugin metadata. Run 'make update' to update.",
                         file_path=index_path
                     )
                 )
@@ -76,7 +76,7 @@ class PluginsDocUpToDateRule(Rule):
         except subprocess.TimeoutExpired:
             violations.append(
                 self.violation(
-                    "'skillsaw docs' timed out",
+                    "'make update' timed out",
                     file_path=index_path
                 )
             )
