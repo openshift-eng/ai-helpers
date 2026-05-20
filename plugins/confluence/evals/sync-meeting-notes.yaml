@@ -38,10 +38,10 @@ tests:
       prompt: |
         Run /confluence:sync-meeting-notes TEAM "Sprint Planning Notes" --parent-id 123456789
         Here are the meeting notes:
-        - Attendees: Alice, Bob, Carol
+        - Attendees: Engineering Lead, Product Owner, QA Lead
         - Discussion: finalize architecture decision for release
         - Decisions: adopt the new API version strategy
-        - Actions: Bob to update the design doc
+        - Actions: Product Owner to update the design doc
     assert:
       - type: icontains
         value: "meeting notes"

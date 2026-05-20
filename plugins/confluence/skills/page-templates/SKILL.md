@@ -159,8 +159,8 @@ to the Admin Console, replacing the current username/password authentication.
 
 ## Meeting Info
 - **Date:** 2026-05-07
-- **Attendees:** Alice, Bob, Carol
-- **Facilitator:** Alice
+- **Attendees:** Engineering Lead, Product Owner, QA Lead
+- **Facilitator:** Engineering Lead
 
 ## Agenda
 1. Review PROJ-101: API rate limiting
@@ -174,6 +174,6 @@ to the Admin Console, replacing the current username/password authentication.
 ## Action Items
 | # | Action Item | Owner | Due Date | Status |
 |---|------------|-------|----------|--------|
-| 1 | Create UX mockups for PROJ-102 | Carol | 2026-05-14 | Open |
-| 2 | Spike on rate limiting libraries | Bob | 2026-05-09 | Open |
+| 1 | Create UX mockups for PROJ-102 | Product Owner | 2026-05-14 | Open |
+| 2 | Spike on rate limiting libraries | Engineering Lead | 2026-05-09 | Open |
 ```
