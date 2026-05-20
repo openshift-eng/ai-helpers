@@ -1,0 +1,14 @@
+name: openshift-developer
+version: 1.0.0
+description: Skills and tools useful to any OpenShift Engineer. 
+
+dependencies:
+  apm:
+    - openshift-eng/ai-helpers/plugins/jira
+    - openshift-eng/ai-helpers/plugins/ci
+    - openshift-eng/ai-helpers/plugins/golang
+  mcp:
+    - name: atlassian
+      registry: false
+      transport: http
+      url: https://mcp.atlassian.com/v1/mcp
