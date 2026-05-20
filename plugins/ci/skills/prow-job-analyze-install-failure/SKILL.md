@@ -529,7 +529,7 @@ OpenShift installations exhibit "eventual consistency" behavior, which means:
      - For metal job failures: Examine VM console logs
    - **IMPORTANT**: Only suggest reviewing must-gather if you verified the .tar file exists
      - Don't suggest downloading must-gather if no .tar file was found
-     - If must-gather doesn't exist, note that the cluster was too unstable to collect it
+     - If must-gather doesn't exist, state that the cluster was too unstable to collect it
 
 3. **Provide artifact locations**
    - List all downloaded files with their paths

@@ -5,7 +5,7 @@ description: This skill should be used before any Snowflake command to verify MC
 
 # Setup Snowflake Connection
 
-This skill verifies that the Snowflake MCP server is available and properly configured. If it is not, it performs automated setup -- the user only needs to provide their Snowflake username. This skill should be invoked at the start of every command that needs Snowflake data.
+This skill verifies that the Snowflake MCP server is available and can execute queries. If it is not, it performs automated setup -- the user only needs to provide their Snowflake username. This skill should be invoked at the start of every command that needs Snowflake data.
 
 ## When to Use This Skill
 
@@ -65,7 +65,7 @@ Ask the user for their Snowflake username. It must be in ALL CAPS (e.g., `BLEANH
 >
 > Once you have access, come back and re-run this command.
 
-Wait for the user to provide the username before proceeding. If they indicate they don't have access, abort gracefully.
+Wait for the user to provide the username before proceeding. If they indicate they don't have access, stop setup and inform them to re-run the command after obtaining access.
 
 #### 2c: Write Snowflake Connection Config
 
@@ -140,7 +140,7 @@ After completing steps 2a-2e, tell the user:
 >
 > After restarting, re-run your command and setup will complete automatically (browser-based SSO will open for authentication on first connect).
 
-Then **abort the current command gracefully**. Do not attempt to proceed to Step 3 -- the MCP server will not be available until Claude Code restarts.
+Then **stop the current command and inform the user why**. Do not attempt to proceed to Step 3 -- the MCP server will not be available until Claude Code restarts.
 
 ### Step 3: Set Session Context
 

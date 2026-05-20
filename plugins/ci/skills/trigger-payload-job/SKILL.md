@@ -85,7 +85,7 @@ gh api "repos/<org>/<repo>/issues/<pr_number>/comments?per_page=100&sort=created
   --jq '[.[] | select(.user.login == "openshift-ci[bot]" and (.body | contains("pr-payload-tests")))] | .[0] | .body'
 ```
 
-If no reply is found, retry up to 3 times with 30-second intervals. If still no reply after ~2 minutes, record the comment URL and note that manual checking is required.
+If no reply is found, retry up to 3 times with 30-second intervals. If still no reply after ~2 minutes, record the comment URL and report that manual checking is required.
 
 ### Step 4: Extract URLs
 

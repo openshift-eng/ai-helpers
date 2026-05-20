@@ -175,7 +175,7 @@ Metal jobs produce several diagnostic archives:
    gcloud storage cp -r gs://test-platform-results/{bucket-path}/artifacts/{target}/baremetalds-devscripts-setup/artifacts/root/dev-scripts/logs/ .work/prow-job-analyze-install-failure/{build_id}/logs/devscripts/ --no-user-output-enabled
    ```
 
-2. **Handle missing dev-scripts logs gracefully**
+2. **Handle missing dev-scripts logs**
    - Some metal jobs may not have dev-scripts artifacts
    - If missing, note this in the analysis and proceed with other artifacts
 

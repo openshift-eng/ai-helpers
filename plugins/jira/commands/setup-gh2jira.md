@@ -468,7 +468,7 @@ Or open a new terminal.
 
 ### ✅ Phase 7: Verify Installation
 
-Run validation checks to ensure everything is configured correctly.
+Run validation checks to ensure gh2jira is accessible and all configuration files exist.
 
 ```bash
 # Check gh2jira is in PATH

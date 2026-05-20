@@ -708,7 +708,7 @@ Returns: PR URL
 
 ### Future Enhancements
 
-Consider adding companion commands:
+Add companion commands:
 - `/ci:close-debug-pr` - Lists open debug PRs, prompts for findings, closes PR
 - `/ci:list-debug-prs` - Show all open debug PRs
 - `/ci:revert-debug-pr` - Revert a debug PR that was merged by mistake

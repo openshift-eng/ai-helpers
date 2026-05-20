@@ -28,7 +28,7 @@ The `tlsAdherence` field in the APIServer CR controls how strictly components ad
 
 **Feature Gate:** The `TLSAdherence` feature gate controls this functionality. It is currently enabled in `DevPreviewNoUpgrade` and `TechPreviewNoUpgrade`.
 
-**Implementation Note:** When implementing TLS profile support in your operator, ensure your component works correctly in both modes. In `Strict` mode, components that fail to apply the configured TLS profile should report degraded status rather than silently falling back to defaults.
+**Implementation Note:** When implementing TLS profile support in your operator, ensure your component applies the configured TLS profile and reports degraded status on failure in both modes. In `Strict` mode, components that fail to apply the configured TLS profile should report degraded status rather than silently falling back to defaults.
 
 ### TLS Profile Sources
 

@@ -339,7 +339,7 @@ kubectl apply -f <rendered-manifest-files>
 No agents found in namespace "default".
 
 Please ensure:
-1. Agents are properly registered
+1. Agents are registered and visible via `kubectl get agents -A`
 2. Agents are in "Available" state
 3. Correct namespace specified
 
@@ -447,7 +447,7 @@ Not checking agent availability before cluster creation
 ```
 Using public image references in airgapped environment
 ```
-✅ Properly configure image content sources and mirror registry
+✅ Configure image content sources and mirror registry to map all public image references to the local mirror
 
 ❌ **Inadequate resource planning**
 ```

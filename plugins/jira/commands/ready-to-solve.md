@@ -77,7 +77,7 @@ plugins/jira/skills/ready-to-solve/SKILL.md
      - A table of check results with severity labels (REQUIRED / WARNING) — only failed and warning checks are shown
      - AI qualitative assessment verdicts and reasoning for FAIL/WARNING dimensions
      - Human-readable guidance on what to fix
-     - A note that `/jira:ready-to-solve {issue-key} --fix` can auto-fix some issues (for Claude Code users)
+     - A reminder that `/jira:ready-to-solve {issue-key} --fix` can auto-fix some issues (for Claude Code users)
      - If `--fix` was attempted but didn't fully resolve all failures, a note indicating auto-fix was tried
    - **On PASS**: If a previous automated failure comment exists, edit it to a brief "PASSED" message. If no previous comment exists, no comment is posted.
    - **Duplicate prevention**: Automated comments are identified by a marker prefix (`**Automated Readiness Check`). Existing automated comments are edited in place — never duplicated.

@@ -89,7 +89,7 @@ The script outputs JSON with per-check results. Parse the output to get:
 Read the full description and evaluate three dimensions. For each, produce a verdict (PASS, FAIL, WARNING) and a 1-2 sentence justification.
 
 1. **AC Specificity and Testability**: Are acceptance criteria specific enough to write tests against? Do they describe observable behavior rather than vague goals?
-   - FAIL examples: "it should work properly", "system performs well", "user can do things"
+   - FAIL examples: "it should work", "system performs well", "user can do things"
    - PASS examples: "when X happens, Y returns Z", "API returns 404 for missing resources", "latency stays under 200ms"
 
 2. **Implementation Context Sufficiency**: Is there enough description of the problem, affected code area, or desired behavior that `/jira:solve` could identify relevant files and implement a solution?
@@ -123,7 +123,7 @@ When validation fails and `--fix` is set, generate a revised description that fi
    - **Missing Technical Details**: Generate an `h2. Technical Details` section from any code references, file paths, component mentions, or technical context in the description.
    - **Section too short**: Expand the existing section with additional relevant detail while preserving the original content.
    - **AC lacks list items**: Restructure the existing AC text into proper bullet points and add additional criteria if needed.
-   - **Vague acceptance criteria**: Rewrite vague criteria to be specific and testable (e.g., "works properly" becomes "returns 200 on valid input").
+   - **Vague acceptance criteria**: Rewrite vague criteria to be specific and testable (e.g., "works" becomes "returns 200 on valid input").
    - **Insufficient implementation context**: Add implementation pointers -- component names, likely file paths, related features.
    - **Unclear success conditions**: Add explicit done criteria and edge cases.
 

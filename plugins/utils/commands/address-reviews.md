@@ -144,7 +144,7 @@ Process ACTION_INSTRUCTION items first, before any code changes:
    BASE_REMOTE=${BASE_REMOTE:-origin}
    git fetch "$BASE_REMOTE" && git rebase "$BASE_REMOTE/$BASE_BRANCH"
    ```
-   Resolve conflicts if any. After rebase, note that line numbers and diff hunks from pre-rebase comments may be stale — resolve them against the current file state rather than trusting literally.
+   Resolve conflicts if any. After rebase, line numbers and diff hunks from pre-rebase comments may be stale — resolve them against the current file state rather than trusting literally.
 2. **Verify/Test**: Run the repo's verification commands (see Step 3.5 for detection). If the reviewer asks to "make sure X passes", run X and fix failures before continuing.
 3. **Squash/restructure commits**: Follow the reviewer's instructions on commit organization.
 4. **Other**: Execute the requested operation. If unclear, ask the user.
@@ -280,7 +280,7 @@ Show user:
 
 ## Guidelines
 
-- Be thorough but efficient
+- Address every non-filtered comment before finishing — do not skip comments silently
 - Maintain professional tone in all replies
 - Prioritize code quality over quick fixes
 - Ensure code builds and passes tests after changes

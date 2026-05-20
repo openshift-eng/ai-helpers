@@ -160,7 +160,7 @@ A failing job does **not** necessarily mean the ported test is at fault. When a 
    - **Other tests that started failing after our change** — could indicate our code broke something, investigate
    - **Tests that commonly fail on this job regardless of the PR** (known flakes) — likely not our fault
 
-If a failure is clearly a known flake unrelated to our changes, note it but don't try to fix it.
+If a failure is clearly a known flake unrelated to our changes, note it but don't fix it.
 
 ### Fixing CI Failures
 
@@ -208,7 +208,7 @@ When CodeRabbit feedback is addressed and CI is passing, hand off the PR:
    - Any CodeRabbit feedback that was addressed
    - Any tests that were dropped during CI fixes (and why)
 2. Tag the user or a specified reviewer
-3. Note that reviewers can request improvements or ask to drop tests, and the agent will act on that feedback
+3. Reviewers can request improvements or ask to drop tests, and the agent will act on that feedback
 
 ### Stuck or Exhausted Fix Attempts
 

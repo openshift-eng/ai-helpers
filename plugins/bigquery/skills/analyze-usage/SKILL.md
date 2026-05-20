@@ -255,7 +255,7 @@ After presenting the analysis, ask the user if they want to save it to a markdow
 
 ## Error Handling
 
-Handle common issues gracefully:
+Handle common issues by displaying a clear error message and suggesting a fix:
 
 **"bq command not found"**
 - Provide installation instructions for user's platform
@@ -304,7 +304,7 @@ Handle common issues gracefully:
 ### Query Optimization
 - Use `--format=json` for easy parsing
 - Use `--use_legacy_sql=false` for standard SQL
-- Limit result sets appropriately
+- Limit result sets to 20 rows unless the user requests more
 - Filter to completed queries only (state = 'DONE')
 
 ## Example Output Insights
@@ -342,7 +342,7 @@ A successful analysis should:
 
 ## Future Enhancements
 
-Consider adding:
+Add:
 - Trend analysis (compare current period to previous periods)
 - Query performance metrics (execution time, slot usage)
 - Automatic detection of partitioning opportunities

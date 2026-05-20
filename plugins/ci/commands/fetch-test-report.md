@@ -35,7 +35,7 @@ The `ci:fetch-test-report` command fetches a report for an OpenShift CI test by 
    python3 plugins/ci/skills/fetch-test-report/fetch_test_report.py "<test-name>" --release "$release" --no-collapse --format summary
    ```
 
-3. **Present the results**: Show the user the test report including test ID, pass rates, Jira component, open bugs, and trend. If `open_bugs > 0`, note that existing Jira bugs mention this test — these may be relevant even if the regression hasn't been triaged in Component Readiness yet.
+3. **Present the results**: Show the user the test report including test ID, pass rates, Jira component, open bugs, and trend. If `open_bugs > 0`, existing Jira bugs mention this test — these may be relevant even if the regression hasn't been triaged in Component Readiness yet.
 
 ## Return Value
 

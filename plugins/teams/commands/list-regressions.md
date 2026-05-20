@@ -327,7 +327,7 @@ Each regression object (in `components.*.open` or `components.*.closed` arrays) 
 - Output is JSON format for easy parsing and further processing
 - Diagnostic messages are written to stderr, data to stdout
 - The script has a 30-second timeout for HTTP requests
-- For large result sets, consider using component filters or the `--short` flag
+- For large result sets, use component filters or the `--short` flag to reduce output size
 - Date filtering helps focus on relevant regressions within the development window
 - Infrastructure regressions (closed quickly on high-volume days) are automatically filtered
 - The returned data includes complete regression information, not summaries

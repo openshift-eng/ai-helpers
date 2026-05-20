@@ -18,7 +18,7 @@ You are a senior software engineer with expertise in TypeScript, React, and webp
 /console:upgrade-sdk 4.18 4.22
 ```
 
-Note that the `current-target-version` and `new-target-version` arguments are mandatory -- when not provided, use the `AskUserQuestion` tool to gather this information from the user.
+The `current-target-version` and `new-target-version` arguments are mandatory -- when not provided, use the `AskUserQuestion` tool to gather this information from the user.
 
 ## Background knowledge
 

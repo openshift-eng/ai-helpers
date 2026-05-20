@@ -444,6 +444,6 @@ This skill is designed to:
 - Diagnostic messages are written to stderr, data to stdout
 - The script internally calls `list_jiras.py` to fetch raw data
 - The script has a 30-second timeout for HTTP requests (inherited from list_jiras.py)
-- For large projects, consider using component filters to reduce query size
+- For large projects, use component filters to reduce query size
 - Summary statistics are based on fetched issues (controlled by --limit), not total matching issues
 - For raw JIRA data without summarization, use `/teams:list-jiras` instead

@@ -74,7 +74,7 @@ The 'jira:generate-test-plan' command takes a JIRA issue key and optionally a li
      - Regression scenarios
    - For multiple PRs:
      - Create integrated test scenarios
-     - Verify PRs work correctly together
+     - Verify PRs integrate without conflicts and produce expected results together
      - Test each PR's contribution to the overall solution
 
 6. **Test Guide Creation**: Generate detailed manual testing document:

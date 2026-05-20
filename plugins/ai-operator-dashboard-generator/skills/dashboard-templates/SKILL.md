@@ -66,7 +66,7 @@ export interface K8sEvent {
 }
 ```
 
-**Fields to adapt**: Extend `RESOURCE_TYPE_TO_KIND` with `plural: 'Kind'` for each new resource type so events display correctly on the inspect page.
+**Fields to adapt**: Extend `RESOURCE_TYPE_TO_KIND` with `plural: 'Kind'` for each new resource type so events are filtered by the matching involvedObject kind on the inspect page.
 
 ### `ExternalSecret.ts`
 
@@ -187,7 +187,7 @@ interface ResourceTableProps {
 1. Add DISPLAY_NAMES entries for each new plural (plural → display name).
 2. Add cases in getResourceModel(resourceType) returning the new kind’s K8sModel.
 3. Add case in getPagePath(resourceType) returning the operator page path (e.g. `'/cert-manager'`).
-4. Add plural → Kind in Events.ts RESOURCE_TYPE_TO_KIND so events load correctly.
+4. Add plural → Kind in Events.ts RESOURCE_TYPE_TO_KIND so events are filtered by the matching involvedObject kind.
 5. Do not change the overall Card + Grid layout or back button; extend only the maps and model lookups.
 
 ## Shared Patterns

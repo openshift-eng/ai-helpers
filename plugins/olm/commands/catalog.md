@@ -94,7 +94,7 @@ This command helps you:
 
 2. **Validate Image**:
    - Check if image format is valid
-   - Optionally test image accessibility (if possible)
+   - Test image accessibility when the cluster has network access to the registry
 
 3. **Create CatalogSource Manifest**:
    ```yaml
@@ -403,7 +403,7 @@ No arguments required.
 - **Image pull errors (disconnected environment)**:
   - Verify image registry is accessible
   - Check pull secrets are configured
-  - Ensure image has been mirrored correctly
+  - Ensure image has been mirrored and the ImageContentSourcePolicy or ImageDigestMirrorSet references the correct registry path
 
 - **Stale catalog data**:
   ```bash

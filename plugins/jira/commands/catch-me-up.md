@@ -91,7 +91,7 @@ List every event. Do not skip, summarize, or group.
 
 ### Step 6: Collect and merge results
 
-Parse the JSON arrays returned by each agent. Merge into a single list. If any agent returned non-JSON output, try to extract the JSON portion.
+Parse the JSON arrays returned by each agent. Merge into a single list. If any agent returned non-JSON output, extract the JSON portion.
 
 Group by tier:
 - Count of tier 1, tier 2, tier 3 events

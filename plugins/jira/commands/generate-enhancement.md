@@ -12,7 +12,7 @@ jira:generate-enhancement
 ```
 
 ## Description
-The `jira:generate-enhancement` command generates an OpenShift enhancement proposal markdown file based on a Jira epic or feature. It fetches the feature details, analyzes the content, and creates a properly formatted enhancement document following the OpenShift enhancement template structure.
+The `jira:generate-enhancement` command generates an OpenShift enhancement proposal markdown file based on a Jira epic or feature. It fetches the feature details, analyzes the content, and creates an enhancement document following the OpenShift enhancement template structure.
 
 This command is particularly useful for:
 - Converting strategic Jira features or epics into formal enhancement proposals

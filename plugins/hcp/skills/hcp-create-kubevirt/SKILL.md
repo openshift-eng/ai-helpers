@@ -462,7 +462,7 @@ Or set a default storage class:
 
 ### KubeVirt Not Ready
 
-**Scenario:** KubeVirt is not properly installed or configured.
+**Scenario:** KubeVirt is not installed or not fully configured.
 
 **Action:**
 ```

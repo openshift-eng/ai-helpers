@@ -23,7 +23,7 @@ This command automates the creation of enhancement proposals by:
   repository
 - Analyzing the provided description to extract what, why, and who information
 - Generating user stories, goals, and non-goals based on the requirements
-- Creating properly formatted enhancement files with all required sections
+- Creating enhancement files with valid YAML metadata, correct heading structure, and all required sections
 - Applying OpenShift-specific conventions for feature gates, API design, and
   testing requirements
 
@@ -68,7 +68,7 @@ Act as an experienced software architect to create a comprehensive enhancement p
      - If the user chooses a different area that doesn't exist, ask if they want to create it (same flow as above)
    - **Creating a new area (if chosen):**
      - Create the directory: `mkdir -p enhancements/<new-area>/`
-     - Consider adding a README.md in the new area directory to document its purpose
+     - Add a README.md in the new area directory to document its purpose
    - Proceed with the validated/created area
 
 2. **Fetch the Enhancement Template**: Before starting, fetch the latest template from the openshift/enhancements repository:
@@ -107,7 +107,7 @@ Act as an experienced software architect to create a comprehensive enhancement p
      - **API Extensions**: Only fill this section if the user confirms the proposal adds/changes CRDs, admission and conversion webhooks, ValidatingAdmissionPlugin, MutatingAdmissionPlugin, aggregated API servers, or finalizers. Per the template, name the API extensions and describe if this enhancement modifies the behaviour of existing resources. Otherwise, add a TODO comment asking the user to complete this section if applicable.
      - **Topology Considerations**: Include subsections for Hypershift/Hosted Control Planes, Standalone Clusters, Single-node Deployments or MicroShift, and OKE (OpenShift Kubernetes Engine). Address how the proposal affects each topology.
      - **Implementation Details/Notes/Constraints**: Provide a high-level overview of the code changes required. Follow the guidance from the template: "While it is useful to go into the details of the code changes required, it is not necessary to show how the code will be rewritten in the enhancement." Keep it as an overview; the developer should fill in the specific implementation details. Include a reminder about creating a feature gate: Per the OpenShift dev guide (https://github.com/openshift/enhancements/blob/master/dev-guide/feature-zero-to-hero.md), all new features must be gated behind a feature gate in https://github.com/openshift/api/blob/master/features/features.go with the appropriate feature set (DevPreviewNoUpgrade or TechPreviewNoUpgrade initially).
-     - **Test Plan**: Add a TODO comment with guidance on required test labels per the OpenShift dev guide (https://github.com/openshift/enhancements/blob/master/dev-guide/feature-zero-to-hero.md): Tests must include `[OCPFeatureGate:FeatureName]` label for the feature gate, `[Jira:"Component Name"]` for the component, and appropriate test type labels like `[Suite:...]`, `[Serial]`, `[Slow]`, or `[Disruptive]` as needed. Reference the test conventions guide (https://github.com/openshift/enhancements/blob/master/dev-guide/test-conventions.md) for details.
+     - **Test Plan**: Add a TODO comment with guidance on required test labels per the OpenShift dev guide (https://github.com/openshift/enhancements/blob/master/dev-guide/feature-zero-to-hero.md): Tests must include `[OCPFeatureGate:FeatureName]` label for the feature gate, `[Jira:"Component Name"]` for the component, and appropriate test type labels like `[Suite:...]`, `[Serial]` for tests that cannot run in parallel, `[Slow]` for tests exceeding 5 minutes, or `[Disruptive]` for tests that impact other workloads. Reference the test conventions guide (https://github.com/openshift/enhancements/blob/master/dev-guide/test-conventions.md) for details.
      - **Graduation Criteria**: Add a TODO comment referencing the specific promotion requirements from the OpenShift dev guide (https://github.com/openshift/enhancements/blob/master/dev-guide/feature-zero-to-hero.md): minimum 5 tests, 7 runs per week, 14 runs per supported platform, 95% pass rate, and tests running on all supported platforms (AWS, Azure, GCP, vSphere, Baremetal with various network stacks).
      - **Metadata**: Fill in creation-date with today's date, tracking-link with the provided JIRA ticket URL, set other fields to TBD. For api-approvers: use "None" if there are no API changes (no new/modified CRDs, webhooks, aggregated API servers, or finalizers); otherwise use "TBD" as a placeholder (the enhancement author will request an API reviewer from the #forum-api-review Slack channel later).
 

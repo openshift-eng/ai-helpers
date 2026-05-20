@@ -267,7 +267,7 @@ Shows only tags that support arm64.
 - **Authentication required**: Guide user to login with `skopeo login`
 - **Network errors**: Check connectivity and registry availability
 - **Tool not available**: Provide installation instructions for `skopeo`
-- **Rate limiting**: Handle registry rate limits gracefully
+- **Rate limiting**: Detect HTTP 429 responses, wait, and retry with exponential backoff
 - **Large repositories**: For repositories with 1000+ tags, sample or paginate results
 
 ## Notes

@@ -154,7 +154,7 @@ This skill performs **ONLY read-only operations** against your Kubernetes cluste
 - ❌ `ovn-nbctl create/set/add/remove/destroy` - No OVN modifications
 - ❌ No pod restarts or service disruptions
 
-**Privacy Consideration**: The generated diagram contains network topology information. Control sharing appropriately based on your security policies.
+**Privacy Consideration**: The generated diagram contains network topology information. Control sharing based on your organization's security policies and data classification requirements.
 
 ---
 

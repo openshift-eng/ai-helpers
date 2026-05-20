@@ -546,7 +546,7 @@ cd $INSTALL_DIR
    - Request quota increase if needed
 
 3. **DNS issues**:
-   - Ensure base domain is properly configured
+   - Ensure base domain has a valid DNS zone configured
    - For AWS, verify Route53 hosted zone exists
 
 4. **SSH key not found**:
@@ -560,7 +560,7 @@ cd $INSTALL_DIR
 
 - **Pull secret**: Contains authentication for Red Hat registries. Keep secure.
 - **kubeadmin password**: Stored in plaintext in auth directory. Rotate after cluster creation.
-- **kubeconfig**: Contains cluster admin credentials. Protect appropriately.
+- **kubeconfig**: Contains cluster admin credentials. Restrict file permissions and do not share.
 - **Cloud credentials**: Never commit to version control.
 
 ## Return Value

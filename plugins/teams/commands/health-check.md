@@ -207,7 +207,7 @@ Grading is subjective and not meant to be a critique of team performance. This i
        - Use URL-encoded JQL queries (e.g., `component%20%3D%20%22oauth-apiserver%22`)
        - Open in new tabs (`target="_blank"`)
        - Include helpful tooltips (`title` attribute)
-       - Sort oldest bugs first when appropriate (`ORDER BY created ASC`)
+       - Sort oldest bugs first for aging bug queries (`ORDER BY created ASC`)
        - Use CSS class `.jira-link` for consistent styling
      - JIRA link patterns:
        - All bugs: `project = OCPBUGS AND component = "X" AND (status != Closed OR resolved >= -30d)`

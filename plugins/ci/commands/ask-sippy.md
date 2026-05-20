@@ -21,8 +21,8 @@ The `ask-sippy` command allows you to query the Sippy AI agent, which has deep k
 - Historical CI data analysis
 
 The command sends your question to the Sippy API and returns the agent's
-response. Note that complex queries may take some time to process as the
-agent analyzes CI data. Please inform the user of this.
+response. Complex queries may take some time to process as the agent
+analyzes CI data. Inform the user of this.
 
 ## Security
 

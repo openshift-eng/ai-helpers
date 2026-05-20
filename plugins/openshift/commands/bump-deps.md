@@ -405,7 +405,7 @@ The command handles common error cases:
 - Supports monorepos with multiple go.mod files
 - All Jira tickets are labeled with "ai-generated" for tracking
 - PR creation requires GitHub CLI (gh) to be installed and authenticated
-- For security updates (CVEs), automatically prioritizes and labels appropriately
+- For security updates (CVEs), automatically prioritizes and adds "security" and "cve" labels
 - Compatible with Renovate - can be used to customize/enhance Renovate PRs
 
 ## Environment Variables

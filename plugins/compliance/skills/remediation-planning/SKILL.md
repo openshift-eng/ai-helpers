@@ -98,7 +98,7 @@ IF risk_level = "NEEDS_REVIEW":
    - Will updating the parent also fix this issue?
    - Is the parent package actively maintained?
    - Do we need to explicitly override the version?
-   - Is a `replace` directive necessary (avoid if possible)?
+   - Is a `replace` directive necessary (avoid unless no other update path exists)?
 
 3. **Research breaking changes:**
    - Search for changelog and release notes
@@ -250,7 +250,7 @@ Based on the vulnerability type, determine the approach:
 **For missing input validation:**
 - Add validation before vulnerable operations
 - Sanitize/escape untrusted data
-- Use type-safe APIs where possible
+- Use type-safe APIs when the language and framework provide them
 
 **For resource management issues:**
 - Add resource limits (size, time, count)
@@ -316,7 +316,7 @@ Based on the vulnerability type, determine the approach:
    - Document what was patched
 
 4. **Verify the patch:**
-   - Confirm changes applied correctly
+   - Confirm all changes applied without conflicts or missing hunks
    - Run tests to ensure no breakage
    - Test the vulnerability is actually fixed
    - Document patch source and date
@@ -361,7 +361,7 @@ Based on vulnerability characteristics, consider appropriate defenses:
 - Validate input size, format, and content before vulnerable code
 - Sanitize/escape untrusted input
 - Reject known malicious patterns
-- Use allowlists instead of denylists where possible
+- Use allowlists instead of denylists when the set of valid inputs is known
 
 **For Algorithmic Complexity / DoS:**
 - Impose timeouts on operations
@@ -391,7 +391,7 @@ Based on vulnerability characteristics, consider appropriate defenses:
 **For Code Execution Vulnerabilities:**
 - Run vulnerable code in sandboxes
 - Reduce privileges (principle of least privilege)
-- Disable dynamic code execution if possible
+- Disable dynamic code execution when the application does not require it
 - Add integrity checks
 
 **Step 3.3: Design Layered Defense**
@@ -440,7 +440,7 @@ For each workaround, specify:
    
    **Dependency Verification:**
    - Confirm the updated version is actually in use
-   - Verify go.mod and go.sum are correctly updated
+   - Verify go.mod and go.sum reflect the target version with no unexpected changes
    - Check for unexpected transitive dependency changes
    - Ensure no conflicts were introduced
    
@@ -454,11 +454,11 @@ For each workaround, specify:
    - Run existing test suites (unit, integration, e2e)
    - Focus on code paths that use the updated dependency
    - Test edge cases related to the vulnerability
-   - Consider adding regression tests for this CVE
+   - Add regression tests for this CVE
    
    **Security Verification:**
    - Re-run vulnerability scanners (govulncheck, etc.)
-   - Confirm the specific CVE is no longer reported
+   - Confirm the specific CVE no longer appears in scan results
    - Check for new vulnerabilities introduced by the update
    - Validate security assumptions haven't changed
    
@@ -472,7 +472,7 @@ For each workaround, specify:
    - Start with fast, cheap checks (dependency verification)
    - Progress to more expensive tests (full test suite)
    - End with manual/exploratory testing if needed
-   - Consider parallel execution where possible
+   - Run independent verification steps in parallel when CI infrastructure supports it
 
 4. **Define success criteria:**
    - What must pass before considering the fix complete?

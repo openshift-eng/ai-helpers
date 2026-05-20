@@ -327,7 +327,7 @@ For each component:
 - Output is JSON format for easy parsing
 - Diagnostic messages are written to stderr, data to stdout
 - The script has a 30-second timeout for HTTP requests
-- For large projects, consider using component filters to reduce query size
+- For large projects, use component filters to reduce query size
 - Summary statistics are based on fetched issues (controlled by --limit), not total matching issues
 - If results show truncation, increase the --limit parameter for more accurate statistics
 - This command internally uses `/teams:list-jiras` to fetch raw data

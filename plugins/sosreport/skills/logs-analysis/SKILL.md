@@ -323,7 +323,7 @@ grep -i "error\|fail" sos_commands/logs/journalctl_--no-pager | \
 3. **Check timestamps**: Correlate errors with the reported incident time
 4. **Consider context**: Read surrounding log lines for context
 5. **Cross-reference**: Correlate log findings with resource analysis
-6. **Be thorough**: Check both journald and traditional logs
+6. **Check all log sources**: Check both journald and traditional logs, as some events may only appear in one
 7. **Document findings**: Note file paths and line numbers for reference
 
 ## Common Log Patterns to Look For

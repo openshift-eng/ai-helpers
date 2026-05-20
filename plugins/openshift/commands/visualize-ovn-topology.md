@@ -41,7 +41,7 @@ This command invokes the `generating-ovn-topology` skill which implements a data
 
 **Key Features:**
 - **Data-driven**: Never generates synthetic data - always queries real cluster
-- **Architecture-aware**: Correctly handles both interconnect and default deployment modes
+- **Architecture-aware**: Detects and handles both interconnect and default deployment modes
 - **Complete topology**: Shows all logical switches, routers, and ports
 - **Visual clarity**: Uses color-coded components and node subgraphs for organization
 

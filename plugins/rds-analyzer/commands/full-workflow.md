@@ -98,7 +98,7 @@ cat results.json | podman run --rm -i -v $(pwd):/data:Z quay.io/rhsysdeseng/rds-
    - `analyze-text` — Text report: `rds-analyzer -i … -r …` (defaults `-o text -m simple`).
    - `analyze-html` — HTML: `rds-analyzer -i … -r … -o html` (redirect stdout to a file).
    - `analyze-reporting` — LLM-oriented: `-m reporting` (still text stream unless combined with `-o html` as appropriate).
-   - `analyze-versioned` — Include `-t <OCP>` and `-r` path as needed.
+   - `analyze-versioned` — Include `-t <OCP>` when targeting a specific OCP version, and `-r` path when using non-default rules.
    - `validate-rules` — Run **`rds-analyzer -r <rules.yaml> --validate-rules-only`** (no `-i`, no stdin JSON).
    - `jira-followup` — How to use reporting output with Jira workflows (reference `/jira:*` commands in ai-helpers).
    - **Omitted or `all`** — Walk through sections 1–5 in order; ask for missing inputs before running commands.

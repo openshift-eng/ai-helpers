@@ -177,7 +177,7 @@ If no files are passed to the script:
 Error: No files specified. Use --file option at least once.
 ```
 
-**Resolution:** Ensure you've detected changed files correctly before invoking the script.
+**Resolution:** Ensure you've detected changed files (via `git diff --name-only`) before invoking the script.
 
 ### Invalid mode
 

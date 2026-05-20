@@ -197,8 +197,8 @@ This works because `oc` reads from `~/.kube/config` which is bind-mounted from t
    - Recommend: Re-opening the bug or filing a new one
 
    **If `triage_count == 0` (regression is NOT triaged)**:
-   - Note that no bug has been filed yet
-   - If step 4's test report found `open_bugs > 0`, note these — someone may have filed a bug that hasn't been triaged yet
+   - No bug has been filed yet
+   - If step 4's test report found `open_bugs > 0`, list these — someone may have filed a bug that hasn't been triaged yet
    - Continue with full investigation (steps 6-11)
    - Bug filing recommendations will be provided in step 12
 
@@ -599,7 +599,7 @@ This works because `oc` reads from `~/.kube/config` which is bind-mounted from t
 
    Select a maximum of **5** candidate PRs to investigate (to avoid excessive API calls). Prioritize PRs whose component or repo most closely matches the regression.
 
-   If no PRs look related based on filtering, note that in the report and skip step 9d.
+   If no PRs look related based on filtering, state that in the report and skip step 9d.
 
    **Step 9d: Check PR details with GitHub CLI**
 
@@ -678,7 +678,7 @@ This works because `oc` reads from `~/.kube/config` which is bind-mounted from t
    similar_test_regressions=$(python3 "$script_path" --release "$release" --test-name-contains "<distinctive_substring>")
    ```
 
-   **Note**: `--test-name` and `--test-name-contains` cannot be combined with `--components` or `--team` — they search across all components automatically.
+   `--test-name` and `--test-name-contains` cannot be combined with `--components` or `--team` — they search across all components automatically.
 
    **Analyze Related Regressions**:
 
@@ -833,7 +833,7 @@ This works because `oc` reads from `~/.kube/config` which is bind-mounted from t
      - Resource or API paths
      - Error messages
    - Sample job URLs for manual inspection
-   - **Note**: If the test outputs API is not available, this section will note: "Test output analysis not available"
+   - If the test outputs API is not available, this section states: "Test output analysis not available"
 
    **Section 4a: Job Run Context** (from `fetch-job-run-summary` skill)
    - Number of job runs analyzed and their individual failure counts
@@ -859,7 +859,7 @@ This works because `oc` reads from `~/.kube/config` which is bind-mounted from t
      - PR URL, title, and associated bug (if any)
      - Brief explanation of why it may or may not be related
      - Key files changed (from `gh pr diff --stat`)
-   - **Note**: This section is omitted if step 8 did not determine a clear regression start, if the prowjob.json lacks release annotations, or if no PRs looked potentially related. It is also omitted if `gh` CLI is not available, though PR URLs are still listed.
+   - This section is omitted if step 8 did not determine a clear regression start, if the prowjob.json lacks release annotations, or if no PRs looked potentially related. It is also omitted if `gh` CLI is not available, though PR URLs are still listed.
 
    **Section 7: Related Regressions and Existing Triages** (from `fetch-related-triages` skill and `list-regressions --test-name`)
    - Existing triages that may cover this regression, ranked by confidence level (10 = high, 5 = medium, 2 = low)
@@ -932,9 +932,9 @@ This works because `oc` reads from `~/.kube/config` which is bind-mounted from t
    python3 "$link_script" "$jira_key" --triage-id "$triage_id" --format json
    ```
 
-   If successful, note that the triage link was added to the JIRA description. If it was already present, note that. If JIRA credentials are not set, skip this step silently (the triage itself already succeeded).
+   If successful, report that the triage link was added to the JIRA description. If it was already present, report that it already exists. If JIRA credentials are not set, skip this step silently (the triage itself already succeeded).
 
-   **Note**: The triage-regression script automatically fetches the existing triage and merges its regressions with the new ones, so you only need to pass the regression IDs you want to add.
+   The triage-regression script automatically fetches the existing triage and merges its regressions with the new ones, so you only need to pass the regression IDs you want to add.
 
    **Scenario B: JIRA bug found but not triaged to any regression** (from step 5 or step 11)
 
@@ -995,7 +995,7 @@ This works because `oc` reads from `~/.kube/config` which is bind-mounted from t
    python3 "$link_script" "OCPBUGS-67890" --triage-id "$triage_id" --format json
    ```
 
-   If successful, note that the triage link was added to the JIRA description. If JIRA credentials are not set, skip this step silently.
+   If successful, report that the triage link was added to the JIRA description. If JIRA credentials are not set, skip this step silently.
 
    **Scenario C: No related triage or bug found**
 
@@ -1083,7 +1083,7 @@ This works because `oc` reads from `~/.kube/config` which is bind-mounted from t
    python3 "$link_script" "<new_bug_key>" --triage-id "$triage_id" --format json
    ```
 
-   If successful, note that the triage link was added to the JIRA description. If JIRA credentials are not set, skip this step silently.
+   If successful, report that the triage link was added to the JIRA description. If JIRA credentials are not set, skip this step silently.
 
    **Scenario D: Regression is already triaged**
 
@@ -1150,7 +1150,7 @@ Generated using the `fetch-test-runs` skill (see `plugins/ci/skills/fetch-test-r
   - Extracted error messages
 - **Sample URLs**: Links to representative failed job runs for manual inspection
 - **Assessment**: Interpretation of consistency (e.g., "Single root cause - API endpoint not available")
-- **Note**: If the test outputs API is not available, this section will note that the analysis could not be performed
+- If the test outputs API is not available, this section states that the analysis could not be performed
 
 #### Job Run Context
 
@@ -1193,7 +1193,7 @@ Generated from the `job_runs` data on the regression record (complete history of
 - **Most Affected Job**: The job name with the most occurrences
 - **Mass Failure Assessment**: If many runs have high `test_failures` counts (>10), the regression may be collateral damage from a larger issue rather than the primary problem
 - **Pattern Description**: Summary of how failures progressed (e.g., "Failures began 2026-01-15, became consistent by 2026-01-17")
-- **Note**: This section is only included when a clear regression start date can be determined. It is omitted for:
+- This section is only included when a clear regression start date can be determined. It is omitted for:
   - Flaky tests with scattered failures
   - Tests that have been failing throughout the available history
   - When `job_runs` data is unavailable
@@ -1212,7 +1212,7 @@ Generated using the `fetch-prowjob-json` and `fetch-new-prs-in-payload` skills:
   - PR URL, title, and associated bug URL
   - Explanation of relevance to the regression
   - Summary of changed files
-- **Note**: This section is only included when step 8 determined a clear regression start and the first failing run's prowjob.json has a `release.openshift.io/tag` annotation. Omitted if `gh` CLI is not available (PR URLs still listed without deep analysis).
+- This section is only included when step 8 determined a clear regression start and the first failing run's prowjob.json has a `release.openshift.io/tag` annotation. Omitted if `gh` CLI is not available (PR URLs still listed without deep analysis).
 
 #### Root Cause Analysis
 

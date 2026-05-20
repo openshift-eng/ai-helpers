@@ -79,7 +79,7 @@ spec:
 
 5. **Apply or distribute**
    - Apply to a cluster with `oc apply -f .work/node-tuning/$PROFILE_NAME/tuned.yaml`.
-   - Commit the manifest to Git or attach to automated pipelines as needed.
+   - Commit the manifest to Git or attach to automated pipelines for deployment.
 
 ## Advanced Workflow: Huge Pages with a Dedicated MachineConfigPool
 Use this workflow when enabling huge pages or other kernel boot parameters that require coordinating the Node Tuning Operator with the Machine Config Operator while minimizing reboots.

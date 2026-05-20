@@ -211,7 +211,7 @@ Use this guide to estimate the size of a story during refinement. Story sizes re
 | **3** | Doesn't have to be complex, but it is usually time consuming. The work should be fairly straightforward. There can be some minor risks. |
 | **5** | Requires investigation, design, discussions, collaboration. Can be time consuming or complex. Risks involved. |
 | **8** | Big task. Requires investigation, design, discussions, collaboration. Solution is challenging. Risks expected. Design doc required. **Consider splitting into smaller stories.** |
-| **13** | Ideally, this shouldn't be used. If you ever see an issue that is this big, **it must be split into smaller stories**. |
+| **13** | Do not use this size. If you ever see an issue that is this big, **it must be split into smaller stories**. |
 
 ##### Story Point Examples (GCP HCP Context)
 

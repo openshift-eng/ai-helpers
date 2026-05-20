@@ -61,7 +61,7 @@ The 'utils:generate-test-plan' command takes one or more GitHub PR URLs, fetches
    - For multiple PRs, create integrated test scenarios that:
      - Test the complete fix/feature with all PRs applied
      - Verify each PR's contribution to the overall solution
-     - Ensure PRs work correctly together without conflicts
+     - Ensure PRs produce expected behavior when applied together without conflicts
    - Generate test scenarios covering:
      - Happy path scenarios
      - Edge cases and error handling
@@ -111,4 +111,4 @@ The 'utils:generate-test-plan' command takes one or more GitHub PR URLs, fetches
   - Single PR: `/utils:generate-test-plan https://github.com/openshift/hypershift/pull/6888`
   - Multiple PRs: `/utils:generate-test-plan https://github.com/openshift/hypershift/pull/6888 https://github.com/openshift/hypershift/pull/6889`
 
-The command will provide a comprehensive manual testing guide that can be used by QE or developers to thoroughly test the PR changes. When multiple PRs are provided, the guide will include integrated test scenarios that verify the PRs work correctly together.
+The command will provide a comprehensive manual testing guide that can be used by QE or developers to thoroughly test the PR changes. When multiple PRs are provided, the guide will include integrated test scenarios that verify the PRs produce the expected results when applied together.

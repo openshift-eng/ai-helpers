@@ -79,7 +79,7 @@ This command uses the `bigquery:analyze-usage` skill to perform the analysis.
 3. If arguments are missing, use AskUserQuestion to collect them
 4. Present the report in a clean, readable format
 5. Always offer to save the report to a markdown file at the end
-6. Handle errors gracefully with helpful suggestions
+6. Handle errors by displaying the specific error message and suggesting a resolution from the Troubleshooting section
 
 ## Examples
 

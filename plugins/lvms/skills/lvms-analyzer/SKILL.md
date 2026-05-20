@@ -409,7 +409,7 @@ pip3 install pyyaml
 ```
 
 **Invalid YAML in must-gather:**
-- Script handles YAML parsing errors gracefully
+- Script catches YAML parsing errors, logs the filename and error, and skips the unparseable file
 - Reports which files failed to parse
 - Continues analysis with available data
 

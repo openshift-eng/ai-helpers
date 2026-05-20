@@ -255,7 +255,7 @@ Invoke the appropriate skill based on issue type using the Skill tool:
 
 ### 🏢 Phase 2: Apply Project-Specific Conventions
 
-Invoke project-specific and team-specific skills using the Skill tool as needed:
+Invoke project-specific and team-specific skills using the Skill tool when the project key or issue type matches a known skill:
 
 **Project-specific skills:**
 - **CNTRLPLANE:** Invoke `cntrlplane` skill for CNTRLPLANE stories/epics/features/tasks
@@ -300,7 +300,7 @@ Analyze summary text for context clues:
 
 **General projects:**
 - Use type-specific skills for issue structure
-- Prompt for required fields as needed
+- Prompt for required fields when no project-specific or team-specific skill applies
 
 ### 💬 Phase 5: Interactive Prompts (Hybrid Approach)
 

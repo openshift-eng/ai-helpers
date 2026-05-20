@@ -64,7 +64,7 @@ This command takes a JIRA URL, fetches the issue description and requirements, a
    - Implement the plan:
     - Make necessary code changes using Edit/MultiEdit tools
     - Follow existing code patterns and conventions
-    - Add or update tests as needed
+    - Add or update tests when code behavior changes or new functions are introduced
     - Update documentation if needed within the docs/ folder
     - If the problem is too complex consider delegating to one of the SME agents.
     - Ensure godoc comments are generated for any newly created public functions
@@ -75,7 +75,7 @@ This command takes a JIRA URL, fetches the issue description and requirements, a
     - **Check for Makefile**: Run `ls Makefile` to see if one exists
     - **If Makefile exists**: Check available targets with `make help` or `grep '^[^#]*:' Makefile | head -20`
     - **Run appropriate verification commands**:
-      - If `make lint-fix` exists: Run it to ensure imports are properly sorted and linting issues are fixed
+      - If `make lint-fix` exists: Run it to ensure imports are sorted and linting issues are fixed
       - If `make verify`, `make build`, `make test` exist: you MUST run these to ensure code builds and passes tests
       - If no Makefile or make targets: Look for alternative commands:
         - Go projects: `go fmt ./...`, `go vet ./...`, `go test ./...`, `go build ./...`

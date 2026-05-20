@@ -15,7 +15,7 @@ olm:status
 The `olm:status` command provides comprehensive health and status information for a specific operator in an OpenShift cluster. It displays detailed information about the operator's CSV, Subscription, InstallPlan, deployments, and pods to help diagnose issues and verify proper operation.
 
 This command helps you:
-- Check if an operator is running correctly
+- Check if an operator is running with all pods ready and no errors
 - Diagnose installation or upgrade problems
 - View operator version and available updates
 - Inspect operator deployments and pods

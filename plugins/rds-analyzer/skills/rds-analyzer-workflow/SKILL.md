@@ -113,7 +113,7 @@ export RDS_ANALYZER_BIN=/path/to/rds-analyzer
 
 ## After the report: Jiras
 
-Use deviation output to open or track issues. In ai-helpers, the **jira** plugin can assist with creating or structuring issues from structured text; combine **reporting** mode output with `/jira:create` or related commands when appropriate.
+Use deviation output to open or track issues. In ai-helpers, the **jira** plugin can assist with creating or structuring issues from structured text; combine **reporting** mode output with `/jira:create` or related commands when deviations require tracking or resolution.
 
 ## Example rules path in rds-analyzer repo
 

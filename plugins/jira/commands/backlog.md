@@ -129,14 +129,14 @@ podman rm mcp-atlassian
 
 ### 4. Verify MCP Server Configuration
 
-To verify your MCP server is properly configured and can connect to JIRA, you can test it with a simple JIRA query in Claude Code:
+To verify your MCP server is configured and can connect to JIRA, you can test it with a simple JIRA query in Claude Code:
 
 ```bash
 Ask Claude Code to run: "Use the mcp__atlassian__jira_get_issue tool to fetch OCPBUGS-1"
 ```
 
-If the MCP server is properly configured, you should see issue details returned. If you see an error:
-- **"Tool not found"**: The MCP server is not properly registered with Claude Code. Re-run the `claude mcp add` command.
+If the MCP server is configured and connected, you should see issue details returned. If you see an error:
+- **"Tool not found"**: The MCP server is not registered with Claude Code. Re-run the `claude mcp add` command.
 - **"Authentication failed"** or **401/403 errors**: Check your `JIRA_API_TOKEN` and `JIRA_USERNAME` are correct.
 - **"Connection refused"**: If using a local MCP server, ensure the podman container is running (`podman ps`).
 - **"Could not find issue"**: Your authentication works! This just means the specific issue doesn't exist or you don't have access.

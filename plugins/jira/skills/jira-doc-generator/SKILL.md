@@ -149,7 +149,7 @@ This skill is automatically invoked by the `/jira:generate-feature-doc` command 
 
 **Issue Not Found** (404, 403, network error):
 - Display error with verification steps (issue key format, permissions, MCP config)
-- Exit gracefully without creating files
+- Display the error message, clean up any temporary state, and exit without creating files
 
 **No PRs Found**:
 - Display warning (feature not implemented, PRs not linked, or small feature)

@@ -12,129 +12,151 @@ reviews:
     drafts: true
   pre_merge_checks:
     custom_checks:
-      - name: "No Real People Names in Style References"
-        mode: error
-        instructions: |
-          Never allow references to real people by name in:
-          - Plugin commands
-          - Skill documentation
-          - Example prompts or instructions
-          - Style references (e.g., "in the style of <person>")
+    - name: "No Real People Names in Style References"
+      mode: error
+      instructions: |
+        Never allow references to real people by name in:
+        - Plugin commands
+        - Skill documentation
+        - Example prompts or instructions
+        - Style references (e.g., "in the style of <person>")
 
-          Instead, require explicit descriptions of desired qualities (e.g., "direct and technically precise"
-          instead of "like <specific person>").
+        Instead, require explicit descriptions of desired qualities (e.g., "direct and technically precise"
+        instead of "like <specific person>").
 
-          Flag ANY instance where a real person's name is used as a style reference or example.
+        Flag ANY instance where a real person's name is used as a style reference or example.
 
-      - name: "No Assumed Git Remote Names"
-        mode: error
-        instructions: |
-          Code should NEVER assume git remote names like "origin" or "upstream" without first discovering them.
+    - name: "No Assumed Git Remote Names"
+      mode: error
+      instructions: |-
+        ## Git Remote Name Discovery
 
-          ❌ Bad examples:
-          - `git push origin main`
-          - `git fetch upstream`
-          - `git remote add origin <url>`
-          - Using "origin" or "upstream" in instructions without checking first
+        Code should NEVER assume git remote names like "origin" or "upstream" without first discovering them.
 
-          ✅ Good examples:
-          - `git remote -v` to discover remotes first
-          - `git branch -vv` to check tracking branches
-          - Instructions that say "discover the remote name first"
+        ### Bad Examples
 
-          Flag any hardcoded remote name usage in commands, skills, or documentation.
+        ❌ Bad examples:
+        - `git push origin main`
+        - `git fetch upstream`
+        - `git remote add origin <url>`
+        - Using "origin" or "upstream" in instructions without checking first
 
-      - name: "Git Push Safety Rules"
-        mode: error
-        instructions: |
-          1. Commands and skills must NEVER push without explicit user permission
-             - Must ask the user before pushing
-             - Cannot push autonomously
+        ### Good Examples
 
-          2. NEVER allow pushing to main or master branches
-             - Reject `git push <remote> main`
-             - Reject `git push <remote> master`
-             - Reject any push to main/master variants
+        ✅ Good examples:
+        - `git remote -v` to discover remotes first
+        - `git branch -vv` to check tracking branches
+        - Instructions that say "discover the remote name first"
 
-          3. NEVER allow force push operations anywhere
-             - Reject `git push -f`
-             - Reject `git push --force`
-             - Reject `git push --force-with-lease`
-             - Reject any force push variant
+        ### Enforcement
 
-          ❌ Always reject:
-          - `git push` without user confirmation
-          - `git push origin main`
-          - `git push upstream master`
-          - `git push -f` (any force push variant)
-          - `git push --force`
-          - `git push --force-with-lease`
-          - Automated push workflows
+        Flag any hardcoded remote name usage in commands, skills, or documentation.
 
-          ✅ Allow:
-          - `git push` to feature branches after asking user
-          - Instructions that say "ask the user before pushing"
-          - Documentation about push workflows (without executing)
+    - name: "Git Push Safety Rules"
+      mode: error
+      instructions: |
+        ## Git Push Safety Rules
 
-          Flag any git push without user confirmation, any push to main/master, or any force push.
+        ### Push Permission Requirements
 
-      - name: "No Untrusted MCP Servers"
-        mode: error
-        instructions: |
-          Code should NEVER introduce MCP (Model Context Protocol) server installations from untrusted sources.
+        1. Commands and skills must NEVER push without explicit user permission
+           - Must ask the user before pushing
+           - Cannot push autonomously
 
-          ❌ Reject:
-          - Random npm packages for MCP servers
-          - Arbitrary GitHub repositories
-          - Unofficial or unverified MCP servers
-          - Any `npx @<random-org>/mcp-server-*` installations
+        ### Protected Branch Restrictions
 
-          Flag any introduction of new MCP server dependencies and require justification and security review.
+        2. NEVER allow pushing to main or master branches
+           - Reject `git push <remote> main`
+           - Reject `git push <remote> master`
+           - Reject any push to main/master variants
 
-      - name: "AI-Helpers Overlap Detection"
-        mode: warning
-        instructions: |
-          When a PR adds or significantly modifies ai-helpers files (plugins/*/commands/*.md,
-          plugins/*/skills/*/SKILL.md, agents/*.md), check for overlapping functionality.
+        ### Force Push Prohibition
 
-          **Phase 1: Filter relevant PRs**
-          1. List open PRs that also modify ai-helpers files:
-             gh pr list --repo openshift-eng/ai-helpers --state open --json number,title,files,body --limit 100
+        3. NEVER allow force push operations anywhere
+           - Reject `git push -f`
+           - Reject `git push --force`
+           - Reject `git push --force-with-lease`
+           - Reject any force push variant
 
-          2. Filter to PRs touching: plugins/*/commands/, plugins/*/skills/, or agents/
-             Skip this check if current PR only modifies README or non-functional docs.
+        ### Quick Reference
 
-          **Phase 2: Quick comparison**
-          3. Compare PR titles and modified file paths:
-             - If titles are semantically similar AND file paths overlap → proceed to Phase 3
-             - Otherwise, pass silently
+        ❌ Always reject:
+        - `git push` without user confirmation
+        - `git push origin main`
+        - `git push upstream master`
+        - `git push -f` (any force push variant)
+        - `git push --force`
+        - `git push --force-with-lease`
+        - Automated push workflows
 
-          **Phase 3: Deep semantic comparison**
-          4. Calculate similarity score (0-100%):
-             - Name overlap (40% weight):
-               * Exact match = 100%, synonym match = 80%, partial = 40%, none = 0%
-             - Description similarity (30% weight):
-               * Count shared keywords in PR body/command descriptions (>70% shared = 100%)
-             - Functionality overlap (30% weight):
-               * Same plugin category + similar file types = 100%
+        ✅ Allow:
+        - `git push` to feature branches after asking user
+        - Instructions that say "ask the user before pushing"
+        - Documentation about push workflows (without executing)
 
-          5. Also check against existing repository content:
-             - Scan all existing commands: plugins/*/commands/*.md
-             - Scan all existing skills: plugins/*/skills/*/SKILL.md
-             - Scan all existing agents: agents/*.md
-             - Extract names (from filenames and headers) and descriptions
-             - Compare new/modified files in PR against existing files using same similarity formula
-             - Flag if similarity ≥60% with any existing content
+        Flag any git push without user confirmation, any push to main/master, or any force push.
 
-          **Semantic equivalents**: "analyze"≈"inspect", "review"≈"check"≈"audit", "generate"≈"create"
+    - name: "No Untrusted MCP Servers"
+      mode: error
+      instructions: |
+        Code should NEVER introduce MCP (Model Context Protocol) server installations from untrusted sources.
 
-          **Phase 4: Report findings**
-          - HIGH (≥85%): Flag immediately, include similarity breakdown, link to PR(s) or existing file path, recommend: "Wait for PR #X to merge or collaborate directly" OR "Similar functionality exists at <path>"
-          - MODERATE (60-84%): Flag with breakdown, recommend: "Consider differentiating approach or commenting on PR #X" OR "Review existing implementation at <path>"
-          - LOW (<60%): Pass silently
+        ❌ Reject:
+        - Random npm packages for MCP servers
+        - Arbitrary GitHub repositories
+        - Unofficial or unverified MCP servers
+        - Any `npx @<random-org>/mcp-server-*` installations
 
-          **Early termination**: Stop after finding first HIGH overlap.
-          **When uncertain**: Default to LOW (silent pass).
+        Flag any introduction of new MCP server dependencies and require justification and security review.
+
+    - name: "AI-Helpers Overlap Detection"
+      mode: warning
+      instructions: |
+        ## Overview
+
+        When a PR adds or significantly modifies ai-helpers files (plugins/*/commands/*.md,
+        plugins/*/skills/*/SKILL.md, agents/*.md), check for overlapping functionality.
+
+        ## Phase 1: Filter Relevant PRs
+        1. List open PRs that also modify ai-helpers files:
+           gh pr list --repo openshift-eng/ai-helpers --state open --json number,title,files,body --limit 100
+
+        2. Filter to PRs touching: plugins/*/commands/, plugins/*/skills/, or agents/
+           Skip this check if current PR only modifies README or non-functional docs.
+
+        ## Phase 2: Quick Comparison
+        3. Compare PR titles and modified file paths:
+           - If titles are semantically similar AND file paths overlap → proceed to Phase 3
+           - Otherwise, pass silently
+
+        ## Phase 3: Deep Semantic Comparison
+        4. Calculate similarity score (0-100%):
+           - Name overlap (40% weight):
+             * Exact match = 100%, synonym match = 80%, partial = 40%, none = 0%
+           - Description similarity (30% weight):
+             * Count shared keywords in PR body/command descriptions (>70% shared = 100%)
+           - Functionality overlap (30% weight):
+             * Same plugin category + similar file types = 100%
+
+        5. Also check against existing repository content:
+           - Scan all existing commands: plugins/*/commands/*.md
+           - Scan all existing skills: plugins/*/skills/*/SKILL.md
+           - Scan all existing agents: agents/*.md
+           - Extract names (from filenames and headers) and descriptions
+           - Compare new/modified files in PR against existing files using same similarity formula
+           - Flag if similarity ≥60% with any existing content
+
+        **Semantic equivalents**: "analyze"≈"inspect", "review"≈"check"≈"audit", "generate"≈"create"
+
+        ## Phase 4: Report Findings
+        - HIGH (≥85%): Flag immediately, include similarity breakdown, link to PR(s) or existing file path, recommend: "Wait for PR #X to merge or collaborate directly" OR "Similar functionality exists at <path>"
+        - MODERATE (60-84%): Flag with breakdown, recommend: "Consider differentiating approach or commenting on PR #X" OR "Review existing implementation at <path>"
+        - LOW (<60%): Pass silently
+
+        ## Early Termination and Defaults
+
+        **Early termination**: Stop after finding first HIGH overlap.
+        **When uncertain**: Default to LOW (silent pass).
 
   tools:
     shellcheck:
