@@ -86,7 +86,7 @@
           "name": "suggest-reviewers"
         }
       ],
-      "version": "0.0.5"
+      "version": "0.0.6"
     },
     {
       "commands": [
@@ -340,7 +340,7 @@
           "name": "status-analysis"
         }
       ],
-      "version": "0.4.5"
+      "version": "0.4.6"
     },
     {
       "commands": [
@@ -666,7 +666,7 @@
           "name": "trigger-payload-job"
         }
       ],
-      "version": "0.0.41"
+      "version": "0.0.42"
     },
     {
       "commands": [
@@ -812,7 +812,7 @@
           "name": "summarize-jiras"
         }
       ],
-      "version": "0.0.14"
+      "version": "0.0.15"
     },
     {
       "commands": [
@@ -869,7 +869,7 @@
           "name": "setup-snowflake"
         }
       ],
-      "version": "0.4.0"
+      "version": "0.4.1"
     },
     {
       "commands": [
@@ -992,7 +992,7 @@
       "hooks": [],
       "name": "utils",
       "skills": [],
-      "version": "0.0.9"
+      "version": "0.0.10"
     },
     {
       "commands": [
@@ -1079,7 +1079,7 @@
       "hooks": [],
       "name": "olm",
       "skills": [],
-      "version": "0.1.1"
+      "version": "0.1.2"
     },
     {
       "commands": [
@@ -1296,7 +1296,7 @@
           "name": "openshift-node-kernel"
         }
       ],
-      "version": "0.0.5"
+      "version": "0.0.6"
     },
     {
       "commands": [
@@ -1319,7 +1319,7 @@
           "name": "openshift-tls-profile"
         }
       ],
-      "version": "0.0.1"
+      "version": "0.0.2"
     },
     {
       "commands": [
@@ -1598,7 +1598,7 @@
           "name": "scripts"
         }
       ],
-      "version": "1.0.0"
+      "version": "1.0.1"
     },
     {
       "commands": [
@@ -1626,7 +1626,7 @@
           "name": "mutation-tester"
         }
       ],
-      "version": "0.1.0"
+      "version": "0.1.1"
     },
     {
       "commands": [
@@ -1674,7 +1674,7 @@
       "hooks": [],
       "name": "container-image",
       "skills": [],
-      "version": "0.0.2"
+      "version": "0.0.3"
     },
     {
       "commands": [
@@ -1691,7 +1691,7 @@
       "hooks": [],
       "name": "node",
       "skills": [],
-      "version": "0.0.2"
+      "version": "0.0.3"
     },
     {
       "commands": [
@@ -1719,7 +1719,7 @@
           "name": "ci-data-analyst"
         }
       ],
-      "version": "0.0.4"
+      "version": "0.0.5"
     },
     {
       "commands": [
@@ -1774,7 +1774,7 @@
       "hooks": [],
       "name": "gwapi",
       "skills": [],
-      "version": "0.0.1"
+      "version": "0.0.2"
     },
     {
       "commands": [
@@ -1868,7 +1868,7 @@
           "name": "ote-migration-workflow"
         }
       ],
-      "version": "0.0.1"
+      "version": "0.0.2"
     },
     {
       "commands": [],
@@ -1906,7 +1906,7 @@
           "name": "rds-analyzer-workflow"
         }
       ],
-      "version": "0.0.1"
+      "version": "0.0.2"
     },
     {
       "commands": [],

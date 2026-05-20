@@ -1,9 +1,8 @@
 {
   "name": "testing",
   "description": "Comprehensive testing utilities for operators and applications",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "author": {
     "name": "github.com/openshift-eng"
   }
 }
-
