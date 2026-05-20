@@ -90,7 +90,7 @@ Even if you're 100% certain, you MUST ask first. No exceptions.
 
 #### Rule 2: Early criterion detection (≥70% confidence)
 
-If the user describes a criterion that you can verify programmatically (e.g., "when dependency X was updated to version > Y"), and you have ≥70% confidence you understand it correctly:
+If the user describes a criterion that you can verify programmatically (e.g., "when dependency X was updated to version > Y"), and you have ≥70% confidence you understand the exact criterion:
 
 1. **BEFORE evaluating any commit**, present your understanding with maximum precision:
 

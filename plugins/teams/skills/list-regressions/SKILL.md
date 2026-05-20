@@ -1,5 +1,5 @@
 ---
-name: List Regressions
+name: list-regressions
 description: Fetch and analyze component health regressions for OpenShift releases
 ---
 

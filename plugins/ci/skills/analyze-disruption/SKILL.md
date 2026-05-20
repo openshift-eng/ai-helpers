@@ -1,5 +1,5 @@
 ---
-name: Analyze Disruption
+name: analyze-disruption
 description: Analyze and compare disruption across one or more Prow CI job runs by examining interval data, audit logs, pod logs, and CPU metrics
 ---
 
@@ -37,7 +37,7 @@ The user will provide:
    - Validate at least one URL is provided
 
 2. **Parse each URL** to extract bucket path, job name, and build ID
-   - Use the same URL parsing logic as the "Prow Job Artifact Search" skill
+   - Use the same URL parsing logic as the "prow-job-artifact-search" skill
    - Accept both `prow.ci.openshift.org` and `gcsweb-ci` URL formats
    - Extract `build_id` and `job_name` from each URL
 
@@ -523,11 +523,11 @@ truncate to the first 5 and append `-and-more` (e.g., `kube-api-oauth-api-opensh
 
 4. **Interval files not found** — If no interval/timeline files are found for a job run, this is a critical error for that run. Report it and skip that run if analyzing multiple runs.
 
-5. **gcloud errors** — Handle `gcloud storage` failures gracefully. Report which artifacts could not be downloaded and continue with available data.
+5. **gcloud errors** — When `gcloud storage` commands fail, log the error, report which artifacts could not be downloaded, and continue analysis with the remaining available data.
 
 ## Performance Considerations
 
-- Download artifacts for multiple runs in parallel where possible
+- Download artifacts for multiple runs in parallel when analyzing more than one run
 - When analyzing multiple runs, process each run independently first, then perform cross-run comparison
 - Use `--max-bytes` limits when fetching large log files to avoid excessive downloads
 - Filter audit logs by timestamp range rather than downloading and scanning entire files when possible

@@ -1,5 +1,5 @@
 ---
-name: CNTRLPLANE Jira Conventions
+name: cntrlplane
 description: Jira conventions for the CNTRLPLANE project used by OpenShift teams
 ---
 

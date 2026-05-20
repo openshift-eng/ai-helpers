@@ -10,43 +10,38 @@ rules:
     severity: error
     allowlist:
       - gopls
-  
+
   # Instruction files (AGENTS.md, CLAUDE.md, GEMINI.md) must be valid, non-empty with valid references
   instruction-file-valid:
     enabled: true
   instruction-imports-valid:
     enabled: true
 
-  ##
-  ## TODO: ai-helpers has many issues with meeting the agentskills.io spec,
-  ##       weak lanaguage and context bloat -- we need to fix them.
-  ##
-  agentskill-description:
-    enabled: true
-
   # SKILL.md must have valid frontmatter with name and description
   agentskill-valid:
-    enabled: false
+    enabled: true
+  agentskill-description:
+    enabled: true
   # SKILL.md must have valid frontmatter with name and description
   agentskill-name:
-    enabled: false
+    enabled: true
   # SKILL.md must have valid frontmatter with name and description
   agentskill-rename-refs:
-    enabled: false
-  context-budget:             # TODO: ai-helpers has many skills way over budget, including one with 20K tokens
-    enabled: false
-  content-weak-language:      # TODO: fix weak language 
-    enabled: false
+    enabled: true
+  content-weak-language:
+    enabled: true
+  content-cognitive-chunks:
+    enabled: true
+    severity: warning
+  content-tautological:
+    enabled: true
 
+  # TODO: ai-helpers has many skills way over budget, including one with 20K tokens
+  context-budget:
+    enabled: false
   # Detect critical instructions in the middle of files where LLM attention is lowest
   content-critical-position:  # unsure if actually useful here
     enabled: false
-
-  # This is useful here, prevent large unsectioned blocks
-  # Upgraded severity from INFO 
-  content-cognitive-chunks:
-    enabled: false            # TODO: https://github.com/stbenjam/skillsaw/issues/184
-    severity: warning
 
   # Detect potential API keys, tokens, and passwords in instruction files
   content-embedded-secrets:
@@ -62,15 +57,11 @@ rules:
   content-negative-only:
     enabled: false  # TODO: enable
 
-  # Detect tautological instructions that the model already follows by default
-  content-tautological:
-    enabled: false  # TODO: enable
-
   # Detect bare path-like strings not wrapped in markdown link syntax
   content-unlinked-internal-reference:
     enabled: false # TODO: Should be turned on and elevated, but has some false positives
 
-  # Too many false positives in examples 
+  # Too many false positives in examples
   content-placeholder-text:
     enabled: false
     severity: warning
@@ -80,7 +71,7 @@ rules:
     enabled: true
     severity: error
 
-  # Note: we have more complex validations in the custom rules for budgets 
+  # Note: we have more complex validations in the custom rules for budgets
   promptfoo-assertions:
     enabled: false
   promptfoo-metadata:

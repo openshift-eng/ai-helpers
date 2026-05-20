@@ -1,5 +1,5 @@
 ---
-name: Mutation Testing Executor
+name: mutation-tester
 description: Execute tests against generated mutants and analyze results to validate test suite quality for Kubernetes operators
 ---
 

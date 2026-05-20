@@ -238,7 +238,7 @@ This command is useful for:
    - Current pass rate and failure count
    - Which variants are still failing
    - Link to the Sippy test details report
-   - A note that the regression was detected as still ongoing by the check command
+   - A statement that the regression was detected as still ongoing by the check command
 
    ```bash
    # Add comment to the bug

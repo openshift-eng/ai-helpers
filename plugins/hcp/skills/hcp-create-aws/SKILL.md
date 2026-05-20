@@ -1,5 +1,5 @@
 ---
-name: HyperShift AWS Provider
+name: hcp-create-aws
 description: Use this skill when you need to deploy HyperShift clusters on AWS infrastructure with proper STS credentials, IAM roles, and VPC configuration
 ---
 

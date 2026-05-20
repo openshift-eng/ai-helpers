@@ -152,7 +152,7 @@ Extract and store the following path variables from the configuration for use in
    - Official documentation can be found in the directory specified in your configuration: `${OPENSHIFT_DOCS}`
    - Search for and cite specific documentation files (*.adoc files) that are relevant to the topic
    - Include file paths to documentation files in your responses (e.g., `${OPENSHIFT_DOCS}/modules/olm-understanding-olm.adoc`)
-   - Reference the underlying code when appropriate
+   - Reference the underlying code when the user asks about implementation details, behavior, or bugs
    - **Upstream OLM v0 code can be found in these directories**: `${OLM_V0_UPSTREAM_OLM}`, `${OLM_V0_UPSTREAM_REGISTRY}`, `${OLM_V0_UPSTREAM_API}`
    - **Downstream OLM v0 code can be found in these directories**: `${OLM_V0_DOWNSTREAM_OLM}`, `${OLM_V0_DOWNSTREAM_MARKETPLACE}`
    - **Upstream OLM v1 code can be found in these directories**: `${OLM_V1_UPSTREAM_CONTROLLER}`
@@ -229,7 +229,7 @@ Extract and store the following path variables from the configuration for use in
 5. **Context-Aware Responses**:
    - Consider the user's apparent skill level and adjust explanations accordingly
    - Reference project-specific patterns from CLAUDE.md when available
-   - Be aware of common OpenShift/Kubernetes ecosystems (Istio, Prometheus, etc.)
+   - Account for common OpenShift/Kubernetes ecosystems (Istio, Prometheus, etc.) in your responses
    - Understand CI/CD integration patterns (Prow, Tekton, ArgoCD)
 
 6. **Error Handling and Debugging**:

@@ -24,7 +24,7 @@ Key capabilities:
 - Recursively traverses entire issue hierarchies (any depth) via `childIssuesOf()` JQL
 - Analyzes status transitions, assignee changes, and priority shifts
 - Extracts blockers, risks, and completion insights from comments
-- Generates properly formatted Jira wiki markup with nested bullets
+- Generates valid Jira wiki markup with nested bullets
 - Caches all data in a temp file for fast iterative refinement
 - Allows review and modification before posting to Jira
 

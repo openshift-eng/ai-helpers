@@ -1,5 +1,5 @@
 ---
-name: Revert PR
+name: revert-pr
 description: Git revert workflow and Revertomatic PR template for reverting merged PRs
 ---
 
@@ -94,7 +94,7 @@ git remote rename origin upstream
 git remote add fork "git@github.com:$gh_user/$repo.git"
 ```
 
-If using an existing local clone, ensure remotes are configured correctly:
+If using an existing local clone, ensure `upstream` points to the canonical repo and `fork` points to the user's fork:
 
 ```bash
 # Verify remotes: 'upstream' must point to the canonical repo, 'fork' to the user's fork

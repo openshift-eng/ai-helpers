@@ -53,7 +53,7 @@ Disruption responsibility spans multiple teams. The more detail tracked down, th
 - **Node team** — node shutdown sequencing, kubelet behavior, high CPU
 
 ## Implementation
-- Load the "Analyze Disruption" skill
+- Load the "analyze-disruption" skill
 - Proceed with the analysis by following the implementation steps from the skill
 
 The skill handles all implementation details including:

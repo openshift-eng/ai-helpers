@@ -90,7 +90,7 @@ For each user filter parameter:
 
 3. **Handle exclusion prefix** (exclamation mark):
    - Strip the prefix before lookup
-   - Remember to use `--exclude-assignee` parameter for the script
+   - Use `--exclude-assignee` parameter for the script
 
 #### Step 4. Run Data Gatherer Script
 

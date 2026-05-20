@@ -1,5 +1,5 @@
 ---
-name: Fetch Test Runs
+name: fetch-test-runs
 description: Fetch test runs from Sippy API including outputs for AI-based similarity analysis
 ---
 
@@ -419,7 +419,7 @@ fi
 
 - The script uses only Python standard library - no external dependencies required
 - Uses the production Sippy URL 
-- Handles API unavailability gracefully with clear error messages
+- Handles API unavailability by returning a JSON error response with `success: false` and a descriptive error message
 - Returns raw outputs for AI-based interpretation and similarity analysis
 - Job run IDs are optional - can fetch all runs for a test
 - `--include-success` allows analyzing both passing and failing runs

@@ -107,7 +107,7 @@ The script filters to PRs **created on or after the enablement date** (2026-03-0
 
 5. **AI Analysis**: After presenting the data, provide brief observations:
    - Highlight any non-bot missed PRs as the key action items
-   - Note that bot PRs are intentionally not reviewed by CodeRabbit (by design, not a timing issue) and are expected in the missed list
+   - Bot PRs are intentionally not reviewed by CodeRabbit (by design, not a timing issue) and are expected in the missed list
    - Non-bot missed PRs are worth investigating (possible config gaps or other issues)
    - Any notable patterns in the missed PRs
 

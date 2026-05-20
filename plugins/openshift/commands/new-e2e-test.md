@@ -22,7 +22,7 @@ This command handles the complete lifecycle of test development:
 - Writes tests following Ginkgo patterns and OpenShift conventions
 - Validates tests for reliability through multiple test runs
 - Ensures proper test naming and structure
-- Handles both origin repository and extension tests appropriately
+- Handles both origin repository and extension tests according to their repository conventions
 
 ## Test Framework Guidelines
 

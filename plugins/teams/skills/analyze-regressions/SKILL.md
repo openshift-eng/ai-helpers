@@ -1,5 +1,5 @@
 ---
-name: Analyze Regressions
+name: analyze-regressions
 description: Grade component health based on regression triage metrics for OpenShift releases
 ---
 
@@ -17,7 +17,7 @@ Use this skill when you need to:
 - Generate component quality scorecards
 - Produce health reports (text or HTML) for stakeholders
 
-**Important Note**: Grading is subjective and not meant to be a critique of team performance. This is intended to help identify where help is needed and track progress as we try to improve our regression response rates.
+**Important Note**: Grading is subjective and not meant to be a critique of team performance. This is intended to help identify where help is needed and track progress as we improve our regression response rates.
 
 ## Prerequisites
 
@@ -82,7 +82,7 @@ python3 plugins/teams/skills/get-release-dates/get_release_dates.py \
 1. Parse the JSON output
 2. Extract `development_start` date - convert to YYYY-MM-DD format
 3. Extract `ga` date - convert to YYYY-MM-DD format (may be null for in-development releases)
-4. Handle null dates appropriately:
+4. Handle null dates as follows:
    - `development_start`: Usually always present; if null, omit `--start` parameter
    - `ga`: Will be null for in-development releases; if null, omit `--end` parameter
 

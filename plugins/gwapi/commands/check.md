@@ -36,7 +36,7 @@ This command helps troubleshoot Gateway API deployments and verify successful in
    - Verify cluster connectivity: `oc whoami` or `kubectl cluster-info`
    - If connection fails, inform the user to authenticate to their cluster:
      - For OpenShift: `oc login <cluster-url>`
-     - For Kubernetes: Configure kubeconfig properly
+     - For Kubernetes: Configure kubeconfig with valid cluster credentials and context
 
 3. **Check GatewayClass Resources**
    - List all GatewayClass resources: `oc get gatewayclass` or `kubectl get gatewayclass`

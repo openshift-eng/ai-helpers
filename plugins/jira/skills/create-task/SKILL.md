@@ -1,5 +1,5 @@
 ---
-name: Create Jira Task
+name: create-task
 description: Implementation guide for creating Jira tasks for technical and operational work
 ---
 
@@ -220,7 +220,7 @@ Before submitting the task, validate:
 - ✅ Work is technical/operational (not user-facing functionality)
 - ✅ Description is detailed enough for someone else to understand
 - ✅ Acceptance criteria present (if work is non-trivial)
-- ✅ Task is sized appropriately (can complete in reasonable time)
+- ✅ Task is sized to complete in days, not weeks
 
 ### Security
 - ✅ No credentials, API keys, or secrets in any field
@@ -519,7 +519,7 @@ Any technical details?
 
 **Result:**
 - Task created under parent story
-- All fields properly set
+- All fields set (component, target version, parent link)
 
 ### Example 4: Investigation Task
 

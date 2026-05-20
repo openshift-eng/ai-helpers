@@ -28,14 +28,14 @@ This command is specifically designed for operator controllers written in Go usi
 - Validate test suite quality beyond coverage percentages
 - Identify missing test cases for edge conditions
 - Find untested error handling paths
-- Ensure reconciliation logic is properly validated
+- Ensure reconciliation logic is verified by failing tests when mutated
 - Improve operator reliability and test confidence
 
 **What makes this operator-focused:**
 - Understands controller-runtime patterns (reconciliation, requeueing, finalizers)
 - Focuses on mutations relevant to operators (condition checks, API calls, status updates)
 - Identifies untested error scenarios in Kubernetes API interactions
-- Validates watch/list/get patterns are tested correctly
+- Validates watch/list/get patterns are tested for expected inputs and outputs
 
 ## Arguments
 
@@ -598,7 +598,7 @@ Test only error handling mutations:
 /testing:mutation-test --mutation-types error-handling,returns
 ```
 
-Use case: After adding error handling code, validate it's properly tested.
+Use case: After adding error handling code, validate that tests detect mutations in error paths.
 
 ---
 

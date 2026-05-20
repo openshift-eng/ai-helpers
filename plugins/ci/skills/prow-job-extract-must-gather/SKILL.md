@@ -1,5 +1,5 @@
 ---
-name: Prow Job Extract Must-Gather
+name: prow-job-extract-must-gather
 description: Extract and decompress must-gather archives from Prow CI job artifacts, generating an interactive HTML file browser with filters
 ---
 
@@ -378,7 +378,7 @@ python3 plugins/ci/skills/prow-job-extract-must-gather/generate_html_report.py \
 
 ## Error Handling
 
-Handle these error scenarios gracefully:
+Handle these error scenarios with specific user-facing messages, continuing to process remaining files on non-fatal errors:
 
 1. **Invalid URL format**
    - Error: "URL must contain 'test-platform-results/' substring"
@@ -482,7 +482,7 @@ Output:
 4. **Regex Pattern Filtering:**
    - Users can enter regex patterns in the filter input
    - Patterns match against full file paths
-   - Invalid regex patterns are ignored gracefully
+   - Invalid regex patterns are caught and silently skipped without filtering
 
 5. **Working with Scripts:**
    - All scripts are in `plugins/ci/skills/prow-job-extract-must-gather/`

@@ -1,5 +1,5 @@
 ---
-name: Fetch Payloads
+name: fetch-payloads
 description: Fetch recent release payloads from the OpenShift release controller
 ---
 

@@ -19,7 +19,7 @@ This command helps you:
 - Switch operators to different channels (e.g., stable to tech-preview)
 - Approve pending upgrade InstallPlans for manual approval mode
 - Monitor upgrade progress
-- Rollback on failure (if possible via OLM)
+- Rollback on failure when OLM supports the operation
 
 ## Implementation
 

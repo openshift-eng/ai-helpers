@@ -1,5 +1,5 @@
 ---
-name: Codebase Impact Analysis
+name: codebase-impact-analysis
 description: Analyze a Go codebase to determine if it is impacted by a specific CVE using multiple verification methods and assign a risk level
 ---
 
@@ -24,7 +24,7 @@ Use this skill when:
 
 ### Required Inputs
 
-**From Phase 1 (CVE Intelligence Gathering skill):**
+**From Phase 1 (cve-intelligence-gathering skill):**
 - CVE ID
 - Affected package/module name(s)
 - Vulnerable version range

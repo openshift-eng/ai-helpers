@@ -1,5 +1,5 @@
 ---
-name: Payload Autodl JSON
+name: payload-autodl-json
 description: Schema for the autodl JSON data file produced by analyze-payload for database ingestion — you must use this skill whenever generating the autodl JSON file
 ---
 

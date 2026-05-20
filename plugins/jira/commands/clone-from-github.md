@@ -70,7 +70,7 @@ Check that the gh2jira utility is available and configured:
    - GitHub token should not contain "YOUR_GITHUB_TOKEN"
    - Jira token should not contain "YOUR_JIRA_API_TOKEN"
 
-**IMPORTANT**: All gh2jira commands MUST be executed from the `$GH2JIRA_DIR` directory to ensure configuration files are properly loaded.
+**IMPORTANT**: All gh2jira commands MUST be executed from the `$GH2JIRA_DIR` directory so that gh2jira can locate and load its configuration files.
 
 **If prerequisites are missing:**
 - Inform user about missing requirements
@@ -149,7 +149,7 @@ gh2jira clone 100 101 102 --profile-name default --dryrun
    - Show created Jira issue keys and URLs
    - Report any errors or failures
 
-**Note**: Running from `$GH2JIRA_DIR` ensures that `tokenstore.yaml`, `profiles.yaml`, and `workflows.yaml` are found correctly.
+**Note**: Running from `$GH2JIRA_DIR` ensures that gh2jira can locate `tokenstore.yaml`, `profiles.yaml`, and `workflows.yaml` in its working directory.
 
 ### 📊 Phase 5: Display Results
 

@@ -1,5 +1,5 @@
 ---
-name: Fetch Related Triages
+name: fetch-related-triages
 description: Fetch existing triages and untriaged regressions related to a given regression
 ---
 

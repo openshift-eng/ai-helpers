@@ -1,5 +1,5 @@
 ---
-name: Prow Job Analyze Metal Install Failure
+name: prow-job-analyze-metal-install-failure
 description: Analyze OpenShift bare metal installation failures in Prow CI jobs using dev-scripts artifacts. Use for jobs with "metal" in name, for debugging Metal3/Ironic provisioning, installation, or dev-scripts setup failures. You may also use the prow-job-analyze-install-failure skill with this one.
 ---
 
@@ -175,7 +175,7 @@ Metal jobs produce several diagnostic archives:
    gcloud storage cp -r gs://test-platform-results/{bucket-path}/artifacts/{target}/baremetalds-devscripts-setup/artifacts/root/dev-scripts/logs/ .work/prow-job-analyze-install-failure/{build_id}/logs/devscripts/ --no-user-output-enabled
    ```
 
-2. **Handle missing dev-scripts logs gracefully**
+2. **Handle missing dev-scripts logs**
    - Some metal jobs may not have dev-scripts artifacts
    - If missing, note this in the analysis and proceed with other artifacts
 

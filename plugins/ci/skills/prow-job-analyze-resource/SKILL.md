@@ -1,5 +1,5 @@
 ---
-name: Prow Job Analyze Resource
+name: prow-job-analyze-resource
 description: Analyze Kubernetes resource lifecycle in Prow CI job artifacts by parsing audit logs and pod logs from GCS, generating interactive HTML reports with timelines
 ---
 
@@ -413,7 +413,7 @@ python3 plugins/ci/skills/prow-job-analyze-resource/generate_html_report.py \
 
 ## Error Handling
 
-Handle these error scenarios gracefully:
+Handle these error scenarios by displaying a clear error message and actionable next steps:
 
 1. **Invalid URL format**
    - Error: "URL must contain 'test-platform-results/' substring"

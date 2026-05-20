@@ -1,5 +1,5 @@
 ---
-name: HyperShift KubeVirt Provider
+name: hcp-create-kubevirt
 description: Use this skill when you need to deploy HyperShift clusters on existing Kubernetes clusters using KubeVirt virtualization
 ---
 
@@ -462,7 +462,7 @@ Or set a default storage class:
 
 ### KubeVirt Not Ready
 
-**Scenario:** KubeVirt is not properly installed or configured.
+**Scenario:** KubeVirt is not installed or not fully configured.
 
 **Action:**
 ```

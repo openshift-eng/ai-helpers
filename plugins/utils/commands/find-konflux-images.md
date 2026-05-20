@@ -129,7 +129,7 @@ gh pr comment ${PR_NUMBER} --repo ${REPO} --body "/retest"
 | quay.io API unreachable | `ERROR: Unable to reach quay.io registry API.` |
 | Image expired (tag exists but past expiration) | Report as EXPIRED with the expiration date, show `--` in Image URL column, offer to retrigger via `/retest` if PR is still open |
 | Image gone (tag not found) | Report as NOT FOUND, show `--` in both Expiration and Image URL columns, offer to retrigger via `/retest` if PR is still open |
-| PR is closed/merged | Do not offer retrigger; note that images can only be rebuilt on open PRs |
+| PR is closed/merged | Do not offer retrigger; images can only be rebuilt on open PRs |
 
 ## Important Notes
 

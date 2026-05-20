@@ -1,5 +1,5 @@
 ---
-name: Get Release Dates
+name: get-release-dates
 description: Fetch OpenShift release dates and metadata from Sippy API
 ---
 

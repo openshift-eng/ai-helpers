@@ -1,5 +1,5 @@
 ---
-name: Set Release Blocker
+name: set-release-blocker
 description: Set the Release Blocker field on a JIRA issue
 ---
 

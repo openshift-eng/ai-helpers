@@ -1,5 +1,5 @@
 ---
-name: Analyze Payload
+name: analyze-payload
 description: Analyze a payload (rejected, accepted, or in-progress) with historical lookback to identify root causes of blocking job failures and produce an HTML report
 ---
 
@@ -123,7 +123,7 @@ You MUST use the following prompt verbatim (substituting the placeholder values)
 > First, check the JUnit results or build log to determine whether this is an install failure (look for `install should succeed: overall` or similar install-related test failures) or a test failure (install passed, specific tests failed).
 >
 > Based on the failure type, use the appropriate skill:
-> - **Install failure**: Use the `ci:prow-job-analyze-install-failure` skill. For metal/bare-metal jobs (job name contains "metal"), perform additional analysis using the `ci:prow-job-analyze-metal-install-failure` skill as needed for dev-scripts, Metal3/Ironic, and BareMetalHost-specific diagnostics.
+> - **Install failure**: Use the `ci:prow-job-analyze-install-failure` skill. For metal/bare-metal jobs (job name contains "metal"), also perform analysis using the `ci:prow-job-analyze-metal-install-failure` skill for dev-scripts, Metal3/Ironic, and BareMetalHost-specific diagnostics.
 > - **Test failure**: Use the `ci:prow-job-analyze-test-failure` skill. Do NOT use `--fast` — always perform the full analysis including must-gather extraction and analysis.
 >
 > **IMPORTANT** — Trace every failure to its specific root cause by examining actual logs. Never stop at high-level symptoms like "0 nodes ready", "operator degraded", or "containers are crash-looping". Download and read the actual log bundles, pod logs, and container previous logs. Cite specific error messages. The root cause must be actionable, not a restatement of the symptom.
@@ -157,7 +157,7 @@ This structured format enables downstream consumers (like the `/ci:payload-rever
 After collecting subagent results, look for patterns across multiple jobs:
 
 - **Same failure across a job family** (e.g., all `techpreview` jobs, all `fips` jobs, all `upgrade` jobs): This often indicates a failure specific to that feature set or configuration. Look at what differentiates that job family (feature gates, install-config options, test parameters).
-- **Same failure across multiple platforms**: Consider whether this points to a product bug in shared code, though note that cross-platform infrastructure issues (e.g., CI platform problems) are also possible.
+- **Same failure across multiple platforms**: This often points to a product bug in shared code, though cross-platform infrastructure issues (e.g., CI platform problems) are also possible.
 
 When patterns emerge, query Sippy for pass rates of related non-blocking jobs to see if the pattern extends beyond blocking jobs.
 
@@ -249,12 +249,12 @@ If a revert PR is found:
 
 1. **Report the revert PR's state** (open, merged, or closed):
    - **Merged**: Note when it merged relative to the analyzed payload's timestamp. If the revert merged after the payload was cut, the fix is expected in the next payload. If it merged before, investigate why the failure persists.
-   - **Open**: Note that a revert is in progress but not yet merged. Link to the PR.
+   - **Open**: A revert is in progress but not yet merged. Link to the PR.
    - **Closed (not merged)**: Ignore — the revert was abandoned.
 
 2. **Do not recommend reverting a PR that already has a merged revert.** The report should still mention the culprit PR and link to the revert, but the action item should reflect the current state (e.g., "Already reverted by #291, fix expected in next payload").
 
-3. **If a revert PR is open but not merged**, still recommend the revert but note that a revert PR already exists and link to it, so the reader can help expedite the merge.
+3. **If a revert PR is open but not merged**, still recommend the revert but mention that a revert PR already exists and link to it, so the reader can help expedite the merge.
 
 #### 6.4: Determine Force-Accept Recommendation
 
@@ -509,7 +509,7 @@ The HTML must be fully self-contained with embedded CSS. Use a GitHub-inspired d
 </style>
 ```
 
-You may add additional classes as needed (e.g., history markers, timeline items, pattern groups) following the same variable-based color palette. Use `var(--red)` / `var(--green)` for fail/pass indicators, `var(--orange)` for infrastructure issues, and `var(--blue)` for links and highlights.
+You may add additional classes (e.g., history markers, timeline items, pattern groups) when the report requires custom visual elements not covered by the base styles. Follow the same variable-based color palette. Use `var(--red)` / `var(--green)` for fail/pass indicators, `var(--orange)` for infrastructure issues, and `var(--blue)` for links and highlights.
 
 ### Step 8: Generate JSON Data File
 
@@ -558,7 +558,7 @@ If the release controller or Sippy API is unreachable, report the error clearly 
 ## Notes
 
 - The lookback examines the job across **all payloads in the lookback window**, regardless of phase. A job may have a pattern like F-F-F-S-F-F-F due to flaky behavior — the lookback captures the full history so the report can distinguish persistent/intermittent failures from new regressions.
-- Subagents should perform a **thorough analysis** — do not skip steps like must-gather extraction to save time. A proper root cause analysis is more important than speed.
+- Subagents must perform a **thorough analysis** — do not skip steps like must-gather extraction to save time. A proper root cause analysis is more important than speed.
 - The HTML report is fully self-contained — no external CSS/JS dependencies.
 - For very large numbers of failed jobs (>8), consider whether some share the same underlying failure and group them in the report.
 

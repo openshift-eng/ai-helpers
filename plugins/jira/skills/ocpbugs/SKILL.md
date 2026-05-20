@@ -1,5 +1,5 @@
 ---
-name: OCPBUGS Jira Conventions
+name: ocpbugs
 description: Jira conventions and bug templates for the OCPBUGS project
 ---
 

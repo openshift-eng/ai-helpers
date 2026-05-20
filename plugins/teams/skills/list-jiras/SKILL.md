@@ -1,5 +1,5 @@
 ---
-name: List JIRAs
+name: list-jiras
 description: Query and return raw JIRA bug data for a specific project
 ---
 
@@ -384,6 +384,6 @@ This skill is designed to:
 - Output is always JSON format for easy parsing and further processing
 - Diagnostic messages are written to stderr, data to stdout
 - The script has a 30-second timeout for HTTP requests
-- For large projects, consider using component filters to reduce query size
+- For large projects, use component filters to reduce query size
 - The returned data includes ALL JIRA fields for complete information
 - Use `/teams:summarize-jiras` if you need summary statistics instead of raw data

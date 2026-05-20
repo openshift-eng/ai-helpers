@@ -1,5 +1,5 @@
 ---
-name: Create Release Note
+name: create-release-note
 description: Detailed implementation guide for generating bug fix release notes from Jira and GitHub PRs
 ---
 
@@ -49,7 +49,7 @@ This skill is automatically invoked by the `/jira:create-release-note` command a
      Warning: {issue-key} is not a Bug (it's a {issuetype.name}).
      Release notes are typically for bugs. Continue anyway? (yes/no)
      ```
-   - If user says no, exit gracefully
+   - If user says no, exit without making changes
 
 4. **Check if release note already exists**:
    - If `customfield_10783` is not empty, show warning:
@@ -61,7 +61,7 @@ This skill is automatically invoked by the `/jira:create-release-note` command a
 
      Do you want to regenerate it? (yes/no)
      ```
-   - If user says no, exit gracefully
+   - If user says no, exit without making changes
 
 ### Step 2: Parse Bug Description for Cause and Consequence
 
@@ -784,7 +784,7 @@ Next steps:
 ## Best Practices for Implementation
 
 1. **Always validate inputs**: Check that issue exists, PRs are accessible, fields are present
-2. **Fail gracefully**: Provide helpful error messages with recovery instructions
+2. **On failure, provide helpful error messages with recovery instructions**
 3. **Be defensive**: Handle missing data, API errors, permission issues
 4. **Log progress**: Show user what's happening at each step
 5. **Preserve data**: If update fails, show generated content so it's not lost

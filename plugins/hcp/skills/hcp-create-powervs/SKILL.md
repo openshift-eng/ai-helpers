@@ -1,5 +1,5 @@
 ---
-name: HyperShift PowerVS Provider
+name: hcp-create-powervs
 description: Use this skill when you need to deploy HyperShift clusters on IBM Cloud PowerVS with proper processor configuration and resource management
 ---
 

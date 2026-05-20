@@ -326,7 +326,7 @@ The command outputs **raw JIRA issue data** in JSON format with the following st
 - Output is JSON format for easy parsing and further processing
 - Diagnostic messages are written to stderr, data to stdout
 - The script has a 30-second timeout for HTTP requests
-- For large projects, consider using component filters to reduce query size
+- For large projects, use component filters to reduce query size
 - The returned data includes ALL JIRA fields for each issue, providing complete information
 - If you need summary statistics, use `/teams:summarize-jiras` instead
 - If results show truncation, increase the --limit parameter to fetch more issues

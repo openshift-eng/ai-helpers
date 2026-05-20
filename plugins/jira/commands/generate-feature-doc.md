@@ -198,7 +198,7 @@ See `jira-doc-generator` SKILL.md Section "Error Handling" for detailed guidance
 
 ## Best Practices
 
-1. **Link issues properly**: Ensure sub-tasks and related issues are properly linked in Jira
+1. **Link issues in Jira**: Ensure sub-tasks and related issues are linked as sub-tasks or parent issues in Jira
 2. **Use Remote Links**: Add GitHub PRs via "Link Issue" in JIRA UI (not just in descriptions)
 3. **Use for completed features**: Best results when feature is fully implemented
 4. **Review and edit**: Generated documentation is a starting point - review and enhance manually

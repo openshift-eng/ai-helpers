@@ -1,5 +1,5 @@
 ---
-name: CodeRabbit Inheritance Scanner - Search
+name: coderabbit-inheritance-scanner-search
 description: Search for repos with .coderabbit.yaml files in the openshift GitHub org
 ---
 

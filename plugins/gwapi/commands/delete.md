@@ -34,7 +34,7 @@ The command uses `oc` (preferred) or `kubectl` to delete the resources safely. I
    - Verify cluster connectivity: `oc whoami` or `kubectl cluster-info`
    - If connection fails, inform the user to authenticate to their cluster:
      - For OpenShift: `oc login <cluster-url>`
-     - For Kubernetes: Configure kubeconfig properly
+     - For Kubernetes: Configure kubeconfig with valid cluster credentials and context
 
 3. **Resource Discovery**
    - Check for existing Gateway resources:
@@ -74,7 +74,7 @@ The command uses `oc` (preferred) or `kubectl` to delete the resources safely. I
      - Delete the specific Gateway from the YAML: `oc delete -f plugins/gwapi/resources/gateway.yaml --ignore-not-found`
      - Alternative: Delete by name if known: `oc delete gateway gateway -n openshift-ingress --ignore-not-found`
    - Display deletion status for each Gateway
-   - Use `--ignore-not-found` flag to handle already-deleted resources gracefully
+   - Use `--ignore-not-found` flag so already-deleted resources return success instead of an error
 
 7. **Delete GatewayClass Resources**
    - Delete the GatewayClass resource: `oc delete -f plugins/gwapi/resources/gatewayclass.yaml --ignore-not-found`

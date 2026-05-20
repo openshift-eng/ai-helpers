@@ -30,7 +30,7 @@ The `openshift-tls-profile:implement` command provides guidance on implementing 
 1. Read the skill documentation from `plugins/openshift-tls-profile/skills/openshift-tls-profile/SKILL.md`
 2. Based on the user's question or request, provide specific guidance from the skill
 3. Include relevant code examples and implementation patterns
-4. Reference OpenShift documentation and API types as needed
+4. Reference OpenShift documentation and API types when the user's question involves specific CRDs, API fields, or configuration options
 
 ## Arguments
 

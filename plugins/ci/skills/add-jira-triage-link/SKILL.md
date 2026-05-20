@@ -1,5 +1,5 @@
 ---
-name: Add JIRA Triage Link
+name: add-jira-triage-link
 description: Add a Component Readiness triage record link to a JIRA issue description
 ---
 

@@ -1,5 +1,5 @@
 ---
-name: Fetch Regression Details
+name: fetch-regression-details
 description: Fetch detailed information about a Component Readiness regression from the Sippy API
 ---
 

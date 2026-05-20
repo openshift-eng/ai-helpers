@@ -23,7 +23,7 @@ Specifically, it performs the following:
 - Detects and validates the availability of oc or kubectl CLI tools and verifies cluster connectivity.
 - Checks all node statuses (Ready, MemoryPressure, DiskPressure, PIDPressure, NetworkUnavailable) and reports any abnormal conditions with detailed reasons and messages.
 - Validates kubelet service health on each node, detecting service failures, high restart counts, and configuration issues.
-- Performs CRI-O runtime health checks to ensure container operations are functioning correctly.
+- Performs CRI-O runtime health checks to ensure the CRI-O service is active, responsive, and free of runtime errors.
 - Inspects resource utilization including CPU, memory, disk space, and process/pod counts against allocatable resources.
 - Evaluates system daemon health (systemd services) critical for node operations.
 - Examines kernel parameters and system tunables relevant to Kubernetes operations.

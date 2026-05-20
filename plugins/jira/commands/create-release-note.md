@@ -550,7 +550,7 @@ These field IDs are specific to Red Hat's Jira instance. If using a different Ji
 The `gh` CLI is subject to GitHub API rate limits:
 - Authenticated: 5,000 requests per hour
 - This command typically uses 3-4 requests per PR (view, diff, comments)
-- For bugs with many linked PRs, be aware of rate limits
+- For bugs with many linked PRs, monitor rate limit usage and reduce concurrent requests if limits are reached
 
 ### Release Note Template
 

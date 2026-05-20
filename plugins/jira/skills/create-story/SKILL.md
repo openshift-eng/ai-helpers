@@ -1,5 +1,5 @@
 ---
-name: Create Jira Story
+name: create-story
 description: Implementation guide for creating well-formed Jira user stories with acceptance criteria
 ---
 
@@ -212,7 +212,7 @@ When creating a story, guide the user through the process:
 
 ### 1. Collect User Story Statement
 
-**Prompt:** "Let's create the user story. I can help you format it properly."
+**Prompt:** "Let's create the user story. I can help you format it."
 
 **Ask three questions:**
 
@@ -368,7 +368,7 @@ Before submitting the story, validate:
 - ✅ Story describes user-facing value (not implementation)
 - ✅ Acceptance criteria are testable
 - ✅ Acceptance criteria are specific (not vague)
-- ✅ Story is sized appropriately (can fit in one sprint)
+- ✅ Story is sized to fit in one sprint
 
 ### Security
 - ✅ No credentials, API keys, or secrets in any field
@@ -497,7 +497,7 @@ For complete Markdown formatting reference, see [Markdown for Jira Reference](..
 1. Identify the issue (missing "Who", "What", or "Why")
 2. Explain the user story format
 3. Ask questions to extract missing components
-4. Reconstruct the story properly
+4. Reconstruct the story using the "As a... I want... So that..." format
 
 **Example:**
 ```

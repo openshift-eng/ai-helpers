@@ -1,5 +1,5 @@
 ---
-name: Node Tuning Helper Scripts
+name: scripts
 description: Generate tuned manifests and evaluate node tuning snapshots
 ---
 
@@ -151,7 +151,7 @@ Inspect either a live node (`/proc`, `/sys`) or an extracted sosreport snapshot 
 
 ### Error Handling
 - Missing `proc/` or `sys/` directories trigger descriptive errors.
-- Unreadable files are skipped gracefully and noted in observations where relevant.
+- Unreadable files are skipped without raising an error and noted in observations where relevant.
 - Non-numeric sysctl values are flagged for manual investigation.
 
 ### Example Output (Markdown excerpt)

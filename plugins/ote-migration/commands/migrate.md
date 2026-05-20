@@ -38,7 +38,7 @@ The `ote-migration:migrate` command automates the complete migration of OpenShif
 
 ## Implementation
 
-**IMPORTANT: Use the OTE Migration Workflow skill for implementation.**
+**IMPORTANT: Use the ote-migration-workflow skill for implementation.**
 
 This command uses the `ote-migration-workflow` skill which provides detailed step-by-step implementation guidance for all 8 phases of the migration.
 

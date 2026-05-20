@@ -22,7 +22,7 @@ This command automates:
 - **Command implementation** - Creates the three required OM commands (input-resources, output-resources, apply-configuration)
 - **Test infrastructure setup** - Configures Makefile targets and test directories
 - **Test scenario creation** - Generates initial test cases with proper structure
-- **Integration validation** - Runs tests to ensure everything works correctly
+- **Integration validation** - Runs tests to ensure commands compile, execute, and produce expected output
 
 **Note:** These instructions are optimized for operators built with github.com/openshift/library-go.
 

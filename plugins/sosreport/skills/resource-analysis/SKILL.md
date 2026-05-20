@@ -1,5 +1,5 @@
 ---
-name: Resource Analysis
+name: resource-analysis
 description: Analyze system resource usage data from sosreport archives, extracting memory statistics, CPU load averages, disk space utilization, and process information from the sosreport directory structure to diagnose resource exhaustion, performance bottlenecks, and capacity issues
 ---
 
@@ -230,7 +230,7 @@ Use this skill when:
 3. **Build timeline**:
    - When did resource issues start?
    - Correlate with log timestamps
-   - Identify triggering event if possible
+   - Identify triggering event when log entries or metric changes indicate a clear cause
 
 ### Step 6: Generate Resource Analysis Summary
 
@@ -427,7 +427,7 @@ $ cat uptime
 3. **Correlate metrics**: High load + high memory + disk full = multiple issues
 4. **Check ratios**: Usage percentages are more meaningful than absolute values
 5. **Validate findings**: Cross-reference with log analysis for confirmation
-6. **Consider capacity**: Is the system appropriately sized for its workload?
+6. **Consider capacity**: Does the system have enough CPU, memory, and disk for its workload?
 
 ## Common Resource Patterns
 

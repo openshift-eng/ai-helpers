@@ -1,5 +1,5 @@
 ---
-name: Component-Aware Test Gap Analysis
+name: test-coverage-gaps
 description: Intelligently identify missing test coverage based on component type
 ---
 

@@ -1,5 +1,5 @@
 ---
-name: OTE Migration Workflow
+name: ote-migration-workflow
 description: Automated workflow for migrating OpenShift component repositories to OTE framework
 ---
 
@@ -623,7 +623,7 @@ echo "Copied $(find test/e2e -name '*_test.go' | wc -l) test files"
 
 **IMPORTANT**: This step copies fixture files from the source OTE repository's testdata directory.
 If testdata files are not copied, bindata generation will only embed fixtures.go, causing runtime panics
-when tests try to load fixture files via FixturePath().
+when tests load fixture files via FixturePath().
 
 **For Monorepo:**
 ```bash
@@ -2332,7 +2332,7 @@ if ! grep -q "k8s.io/kms =>" go.mod; then
 
     # Check if replace section exists
     if grep -q "^replace" go.mod; then
-        # Replace section exists - try to insert alphabetically after k8s.io/kube-scheduler
+        # Replace section exists - insert alphabetically after k8s.io/kube-scheduler
         if grep -q "k8s.io/kube-scheduler =>" go.mod; then
             sed -i "/k8s.io\/kube-scheduler =>/a\	k8s.io/kms => github.com/openshift/kubernetes/staging/src/k8s.io/kms $CURRENT_K8S_VERSION" go.mod
         else
@@ -2428,7 +2428,7 @@ if [ $? -eq 0 ]; then
     ./bin/$EXTENSION_NAME-tests-ext --help > /dev/null 2>&1
 
     if [ $? -eq 0 ]; then
-        echo "✅ Binary executes correctly"
+        echo "✅ Binary executes and responds to --help"
     else
         echo "⚠️  Binary built but execution check failed"
     fi
@@ -2494,7 +2494,7 @@ if [ $? -eq 0 ]; then
     ./bin/$EXTENSION_NAME-tests-ext --help > /dev/null 2>&1
 
     if [ $? -eq 0 ]; then
-        echo "✅ Binary executes correctly"
+        echo "✅ Binary executes and responds to --help"
     fi
 else
     echo "❌ Build failed"
@@ -3400,13 +3400,13 @@ func main() {
 - ✅ `logs.InitLogs()` - Initialize logging
 - ✅ `compat_otp.InitTest(false)` in BeforeAll - Sets up test framework context (MUST use `compat_otp`, NOT `util` or `exutil`)
 - ✅ Both `util` and `compat_otp` import lines - BOTH are required
-- ✅ `util.WithCleanup()` wrapper - Sets `testsStarted = true` to allow OTP functions like `oc.Run()` to work
+- ✅ `util.WithCleanup()` wrapper - Sets `testsStarted = true` so OTP functions like `oc.Run()` execute without "test not started" panics
 
 **Why this works:**
 - `util.InitStandardFlags()` registers framework flags so KUBECONFIG is recognized
 - `framework.AfterReadingAllFlags(&framework.TestContext)` initializes the framework context, preventing nil pointer dereference in framework.BeforeEach
 - `compat_otp.InitTest()` in BeforeAll sets up the test framework context when tests start
-- `util.WithCleanup()` sets the `testsStarted` flag, which is required for OTP helper functions to work correctly
+- `util.WithCleanup()` sets the `testsStarted` flag, which OTP helper functions check before executing — without it, calls like `oc.Run()` panic with "test not started"
 - Tests can now connect to the cluster using kubeconfig
 
 **Why you CANNOT use `exutil` alias:**
@@ -3618,7 +3618,7 @@ make extension
 ```
 
 **Why this works:**
-bindata.go embeds all files from testdata/ directory. If testdata files weren't copied, bindata.go only contains fixtures.go, causing runtime panics when tests try to load fixtures via FixturePath().
+bindata.go embeds all files from testdata/ directory. If testdata files weren't copied, bindata.go only contains fixtures.go, causing runtime panics when tests load fixtures via FixturePath().
 
 ## Summary
 

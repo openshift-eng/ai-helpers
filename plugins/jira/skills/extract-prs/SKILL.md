@@ -1,5 +1,5 @@
 ---
-name: Jira Pull Request Extractor
+name: extract-prs
 description: Recursively extract GitHub Pull Request links from Jira issues
 ---
 
@@ -186,7 +186,7 @@ Extracts PR URLs from two sources:
 - **MCP server not available**: Display error message directing user to configure MCP server (see Prerequisites)
 - **Issue not found**: Log warning and continue with remaining issues
 - **Permission denied**:
-  - If MCP returns 403 for private issues, verify JIRA_API_TOKEN and JIRA_USERNAME are configured correctly
+  - If MCP returns 403 for private issues, verify JIRA_API_TOKEN and JIRA_USERNAME are set and match a valid Jira account
   - MCP authentication handles all Jira access (including changelog and remote links)
 - **Changelog expansion fails**: If `expand="changelog"` returns error, continue with text-based extraction only (graceful degradation)
 - **No PRs found**: Return empty `pull_requests` array (valid result)

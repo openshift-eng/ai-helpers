@@ -1,5 +1,5 @@
 ---
-name: OC Authentication Helper
+name: oc-auth
 description: Helper skill to retrieve OAuth tokens from the correct OpenShift cluster context when multiple clusters are configured
 ---
 

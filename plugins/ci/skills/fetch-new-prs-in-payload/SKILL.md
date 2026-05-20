@@ -1,5 +1,5 @@
 ---
-name: Fetch New PRs in Payload
+name: fetch-new-prs-in-payload
 description: Fetch pull requests that are new in a given OpenShift payload compared to the previous payload
 ---
 

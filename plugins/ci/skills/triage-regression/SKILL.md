@@ -1,5 +1,5 @@
 ---
-name: Triage Regression
+name: triage-regression
 description: Create or update a Component Readiness triage record linking regressions to a JIRA bug
 ---
 

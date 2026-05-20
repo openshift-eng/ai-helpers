@@ -1,5 +1,5 @@
 ---
-name: Payload Experimental Reverts
+name: payload-experimental-reverts
 description: Experimentally test medium-confidence payload candidates by opening draft revert PRs and triggering payload jobs
 ---
 

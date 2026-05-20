@@ -1,5 +1,5 @@
 ---
-name: JIRA Activity Type Categorizer
+name: categorize-activity-type
 description: Detailed categorization logic for assigning JIRA tickets to activity type categories
 command: /jira:categorize-activity-type
 ---
@@ -178,7 +178,7 @@ When a ticket is a subtask or linked to an Epic, apply inheritance logic:
      - Use inferred category with Low-Medium confidence
      - Note in reasoning: "Inferred from parent Epic title"
 
-3. **Override Parent When Appropriate:**
+3. **Override Parent When Keywords Contradict:**
    - If ticket has 3+ strong keywords contradicting parent → override with High confidence
    - If ticket is clearly different nature than parent → override with Medium confidence
    - Example: Parent Epic = "Product Feature X" (Product Work), but child task = "Set up CI pipeline" (Future Sustainability)

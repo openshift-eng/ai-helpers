@@ -36,7 +36,7 @@ The command automatically retrieves the cluster's ingress domain and substitutes
    - Verify cluster connectivity: `oc whoami` or `kubectl cluster-info`
    - If connection fails, inform the user to authenticate to their cluster:
      - For OpenShift: `oc login <cluster-url>`
-     - For Kubernetes: Configure kubeconfig properly
+     - For Kubernetes: Configure kubeconfig with valid cluster credentials and context
 
 3. **Retrieve Cluster Domain**
    - Get the cluster's ingress domain: `DOMAIN=$(oc get ingresses.config/cluster -o jsonpath={.spec.domain})`

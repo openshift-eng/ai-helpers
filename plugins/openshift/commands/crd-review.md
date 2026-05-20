@@ -17,7 +17,7 @@ The `openshift:crd-review` command analyzes Go Kubernetes Custom Resource Defini
 - **Kubernetes API Conventions** as defined in the [Kubernetes community guidelines](https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md)
 - **OpenShift API Conventions** as defined in the [OpenShift development guide](https://github.com/openshift/enhancements/blob/master/dev-guide/api-conventions.md)
 
-This command helps ensure CRDs follow best practices for:
+This command checks CRDs for compliance with these conventions, covering:
 - API naming conventions and patterns
 - Resource structure and field organization
 - Status field design and patterns

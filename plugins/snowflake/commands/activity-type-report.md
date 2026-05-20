@@ -169,7 +169,7 @@ with open(f"{run_dir}/issues.json", "w") as fh: json.dump(deduped, fh)
 with open(f"{run_dir}/projects.txt", "w") as fh: fh.write(projects_str)
 ```
 
-**Important**: Be careful to only include tool result files from the *current* Snowflake fetch queries, not from previous runs. Match files by the tool use IDs from the current session's fetch queries.
+**Important**: Only include tool result files from the *current* Snowflake fetch queries, not from previous runs. Match files by the tool use IDs from the current session's fetch queries.
 
 All subsequent phases write to `$RUN_DIR/`.
 
@@ -226,7 +226,7 @@ If the script fails with an auth error, tell the user to run: `gcloud auth login
 
 Full mode processes issues in batches of 15. Sample mode classifies only the sample (~369 issues by default), completing in ~3 minutes.
 
-**Run all steps without asking for confirmation.** Set a generous timeout (600s) on the classify step since it makes sequential API calls. In sample mode, run Steps 1-3 sequentially in a single Bash invocation if possible.
+**Run all steps without asking for confirmation.** Set a generous timeout (600s) on the classify step since it makes sequential API calls. In sample mode, run Steps 1-3 sequentially in a single Bash invocation when all paths are known at invocation time.
 
 ### Phase 5: Generate Report
 

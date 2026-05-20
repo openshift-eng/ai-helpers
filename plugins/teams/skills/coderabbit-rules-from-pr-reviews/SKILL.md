@@ -1,5 +1,5 @@
 ---
-name: CodeRabbit Rules from PR Reviews - Fetch Comments
+name: coderabbit-rules-from-pr-reviews
 description: Fetch and filter human review comments from recent merged PRs in a GitHub repository
 ---
 

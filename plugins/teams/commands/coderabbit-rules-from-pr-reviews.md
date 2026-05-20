@@ -128,7 +128,7 @@ After analysis, the command offers to open a PR against the repo that adds or up
 
    ### Existing Config
 
-   <Show current .coderabbit.yaml contents if present, or note that none exists>
+   <Show current .coderabbit.yaml contents if present, or state that none exists>
    ```
 
 6. **Offer to open a PR**: After presenting the report, ask the user:

@@ -1,5 +1,5 @@
 ---
-name: Call Graph Reachability Analysis
+name: call-graph-analysis
 description: Perform definitive call graph analysis to prove whether vulnerable functions are reachable from program entry points
 ---
 
@@ -221,7 +221,7 @@ Return structured result to parent analysis:
 ### Missing Entry Points
 - IF `command-line-arguments.main` not found → Look for other entry points
 - Web services: Check HTTP handler registrations
-- Libraries: Note that call graph analysis may not be applicable
+- Libraries: Call graph analysis may not be applicable
 
 ### Tool Installation Issues
 - IF tools cannot be installed → Fall back to lower confidence methods

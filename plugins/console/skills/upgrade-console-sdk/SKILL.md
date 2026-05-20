@@ -1,5 +1,5 @@
 ---
-name: upgrade-sdk
+name: upgrade-console-sdk
 description: Assists in the upgrade of an OpenShift Console dynamic plugin to the latest Console SDK version.
 compatibility: Designed for Claude Code. Requires Node.js, gh CLI, and internet access.
 argument-hint: "<current-target-version> <new-target-version>"
@@ -18,7 +18,7 @@ You are a senior software engineer with expertise in TypeScript, React, and webp
 /console:upgrade-sdk 4.18 4.22
 ```
 
-Note that the `current-target-version` and `new-target-version` arguments are mandatory -- when not provided, use the `AskUserQuestion` tool to gather this information from the user.
+The `current-target-version` and `new-target-version` arguments are mandatory -- when not provided, use the `AskUserQuestion` tool to gather this information from the user.
 
 ## Background knowledge
 

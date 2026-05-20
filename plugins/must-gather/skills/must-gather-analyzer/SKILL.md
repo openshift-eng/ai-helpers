@@ -1,5 +1,5 @@
 ---
-name: Must-Gather Analyzer
+name: must-gather-analyzer
 description: |
   Analyze OpenShift must-gather diagnostic data including cluster operators, pods, nodes,
   and network components. Use this skill when the user asks about cluster health, operator status,

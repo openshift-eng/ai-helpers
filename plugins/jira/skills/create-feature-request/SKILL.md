@@ -1,5 +1,5 @@
 ---
-name: Create Jira Feature Request
+name: create-feature-request
 description: Implementation guide for creating Feature Requests in the RFE project
 ---
 
@@ -302,7 +302,7 @@ Before submitting the feature request, validate:
 - ✅ Nature and description explains what is requested
 - ✅ Business requirements justify why this is needed
 - ✅ Affected components and teams are identified
-- ✅ Jira Component is set appropriately
+- ✅ Jira Component is set to match the primary affected team or technical area
 - ✅ Project is set to "RFE"
 - ✅ Issue type is "Feature Request"
 

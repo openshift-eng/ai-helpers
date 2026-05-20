@@ -1,5 +1,5 @@
 ---
-name: Prow Job Artifact Search
+name: prow-job-artifact-search
 description: Search, list, and fetch artifacts from Prow CI job runs stored in GCS using the gcloud CLI
 ---
 
