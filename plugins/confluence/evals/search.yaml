@@ -1,0 +1,58 @@
+description: "Behavioral evals for confluence:search command"
+
+providers:
+  - id: anthropic:claude-agent-sdk
+    label: confluence-search
+    config:
+      model: claude-opus-4-6
+      plugins:
+        - type: local
+          path: ../
+      append_allowed_tools: ['Bash', 'Skill', 'Read']
+      permission_mode: 'auto'
+
+prompts:
+  - "{{prompt}}"
+
+defaultTest:
+  options:
+    provider:
+      id: vertex:claude-opus-4-6
+      config:
+        projectId: "{{ env.ANTHROPIC_VERTEX_PROJECT_ID }}"
+        region: global
+        temperature: 0
+  assert:
+    - type: latency
+      threshold: 120000
+    - type: cost
+      threshold: 0.60
+
+tests:
+  - description: "search/basic-topic"
+    metadata: &meta-fast
+      token-usage: medium
+      judge-size: none
+      tier: fast
+    vars:
+      prompt: |
+        Run /confluence:search "authentication flow" --space DEV
+    assert:
+      - type: icontains
+        value: "Confluence"
+      - type: icontains
+        value: "search"
+
+  - description: "search/jira-issue-key"
+    metadata: *meta-fast
+    vars:
+      prompt: |
+        Run /confluence:search OCPBUGS-1234 --space TEAM
+    assert:
+      - type: icontains
+        value: "OCPBUGS-1234"
+      - type: icontains
+        value: "Confluence"
+
+evaluateOptions:
+  maxConcurrency: 20
