@@ -45,9 +45,8 @@ class PluginsDocUpToDateRule(Rule):
             )
             return violations
 
+        original_content = index_path.read_text()
         try:
-            original_content = index_path.read_text()
-
             result = subprocess.run(
                 ["skillsaw", "docs", "-o", "docs/"],
                 cwd=str(context.root_path),
@@ -67,8 +66,6 @@ class PluginsDocUpToDateRule(Rule):
 
             generated_content = index_path.read_text()
             if original_content != generated_content:
-                index_path.write_text(original_content)
-
                 violations.append(
                     self.violation(
                         "docs/ is out of sync with plugin metadata. Run 'skillsaw docs -o docs/' to update.",
@@ -90,5 +87,8 @@ class PluginsDocUpToDateRule(Rule):
                     file_path=index_path
                 )
             )
+        finally:
+            if index_path.exists() and index_path.read_text() != original_content:
+                index_path.write_text(original_content)
 
         return violations
