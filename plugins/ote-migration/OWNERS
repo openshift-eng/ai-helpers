@@ -1,6 +1,6 @@
-options:
-  auto_approve_unowned_subfolders: true
 approvers:
 - ai-helpers-admins
+- ming1013
 reviewers:
 - ai-helpers-admins
+- ming1013

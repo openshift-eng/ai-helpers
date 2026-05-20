@@ -124,7 +124,7 @@ This will:
 
 ## Available Plugins
 
-For a complete list of all available plugins and commands, see **[PLUGINS.md](PLUGINS.md)**.
+For a complete list of all available plugins and commands, see the **[AI Helpers Marketplace](https://openshift-eng.github.io/ai-helpers/)**.
 
 ## Plugin Development
 
@@ -191,19 +191,9 @@ This repository uses [skillsaw](https://github.com/stbenjam/skillsaw) to validat
 make lint
 ```
 
-### Updating Plugin Documentation
-
-After adding or modifying plugins, regenerate the PLUGINS.md file:
-
-```bash
-make update
-```
-
-This automatically scans all plugins and regenerates the complete plugin/command documentation in PLUGINS.md.
-
 ## Additional Documentation
 
-- **[PLUGINS.md](PLUGINS.md)** - Complete list of all available plugins and commands
+- **[AI Helpers Marketplace](https://openshift-eng.github.io/ai-helpers/)** - Complete list of all available plugins and commands
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** - Guidelines for contributing plugins, including versioning policy
 - **[AGENTS.md](AGENTS.md)** - Complete guide for AI agents working with this repository
 - **[CLAUDE.md](CLAUDE.md)** - Claude-specific configuration and notes

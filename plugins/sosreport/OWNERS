@@ -1,6 +1,8 @@
-options:
-  auto_approve_unowned_subfolders: true
 approvers:
 - ai-helpers-admins
+- arkadeepsen
+- tssurya
 reviewers:
 - ai-helpers-admins
+- arkadeepsen
+- tssurya
