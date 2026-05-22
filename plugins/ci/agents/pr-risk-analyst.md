@@ -84,8 +84,9 @@ If unsure, default to 10 points.
 | 30+ files changed | 20 |
 | Multiple distinct packages/directories touched | +5 |
 | Code changes with zero test file changes | +5 |
-| Test-only changes | -15 (floor 0) |
 | Docs-only changes | -20 (floor 0) |
+
+**Test-only PRs are NOT automatically low risk.** Do not apply a blanket discount for test-only changes. Tests run across the entire CI system — a bad test can cause widespread job failures and trigger the revert-first policy just like production code. Score test-only PRs using the test risk factors in section C below.
 
 #### C. Code Risk Factors (0-30 points)
 
@@ -100,8 +101,14 @@ Examine the diff for these patterns. Points are additive but capped at 30:
 | Upgrade/migration path changes | +8 | Version-gated logic, migration functions, `upgradeable` conditions |
 | Feature gate additions/removals | +6 | FeatureGate references, feature set changes |
 | Vendor/dependency bumps | +3 | Changes only in `vendor/`, `go.mod`, `go.sum` |
+| New e2e/integration tests added | +7 | New test files or new `It()`/`Describe()` blocks — a flaky or broken new test will fail across every job that runs it |
+| Test framework/infrastructure changes | +6 | Changes to test helpers, fixtures, setup/teardown, test utilities — affects many tests downstream |
+| Existing test modified to be more stable | -3 | Reducing flakiness, adding retries, loosening timing — low risk, helpful |
+| Tests removed or skipped | -2 | Removing dead tests or adding `Skip()` — low risk |
 | Generated code only | -5 | Only `zz_generated*`, `bindata.go` (with no manual changes) |
 | Pure documentation/comments | -10 | Only `.md`, comments, godoc |
+
+**Why test changes can be high risk:** OpenShift has a massive CI system. A new test that is flaky or always-failing will run across hundreds of presubmit and periodic jobs, blocking merges and triggering the revert-first policy. The blast radius of a bad test is often larger than a bug in production code because it affects every contributor, not just one component.
 
 #### D. Historical Risk (0-20 points)
 
@@ -328,17 +335,25 @@ Use `ci:fetch-test-runs` to pull recent runs of anomalous tests and compare erro
 
 ### Step 5: Recommend Overrides for Unrelated Failures
 
-For each failed e2e job that you determined is **not related** to the PR changes (known flakes, infrastructure failures, or failures in code areas the PR does not touch), recommend an `/override` command the user can paste to bypass the failure.
+For each failed e2e job that you determined is **not related** to the PR changes (known flakes, infrastructure failures, or failures in code areas the PR does not touch), produce a ready-to-paste `/override` command.
 
-The override format uses the Prow job's full context name:
+The override command is posted as a **comment on the GitHub PR**. It tells Prow to mark the failed required check as passing so it no longer blocks merge.
+
+**How to construct the override command:**
+
+The job name comes from the check context in `gh pr checks` output or `statusCheckRollup`. Use the full context name exactly as it appears. The format is:
+
 ```
-/override ci/prow/<job-name>
+/override ci/prow/<full-job-name>
 ```
 
-For example:
+For example, if `gh pr checks` shows a failed check named `pull-ci-openshift-machine-config-operator-main-e2e-vsphere-ovn`, the override command is:
+
 ```
 /override ci/prow/pull-ci-openshift-machine-config-operator-main-e2e-vsphere-ovn
 ```
+
+**You MUST output the actual `/override` command with the real job name from the PR's checks, not a placeholder.** The user should be able to copy and paste it directly as a PR comment.
 
 **Prioritize override recommendations for expensive jobs.** If a vsphere or metal e2e job failed due to a known flake or infrastructure issue, the cost of re-running it is very high. Recommend the override with high confidence. For cheaper platforms (AWS, GCP), an override is still useful but a re-run is less wasteful.
 
@@ -416,7 +431,19 @@ Update the state file with a new visit entry:
 <anything unusual that doesn't fit the above categories>
 
 ### Recommended Overrides
-<list of `/override ci/prow/<job-name>` commands for failed jobs deemed unrelated to the PR, with justification for each — prioritize expensive platforms (vsphere, metal)>
+
+To override unrelated failures, paste these commands as comments on the PR:
+
+```
+/override ci/prow/<full-job-name-1>
+/override ci/prow/<full-job-name-2>
+```
+
+| Job | Override Command | Reason |
+|-----|-----------------|--------|
+| <brief job name> | `/override ci/prow/<full-job-name>` | <why this failure is unrelated — e.g., "known flake, 82% pass rate historically"> |
+
+The `/override` command is posted as a comment on the GitHub PR. It tells Prow to mark the failed check as passing so it no longer blocks merge. You must be an org member or repo admin to use it.
 
 ### Verdict: <PASS|LIKELY_PASS|NEEDS_REVIEW|BLOCK>
 <explanation of the verdict>
