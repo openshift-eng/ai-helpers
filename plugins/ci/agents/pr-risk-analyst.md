@@ -31,12 +31,24 @@ gh pr diff <url> --stat
 # Full diff (for code analysis — skip if >2000 lines changed, use stat + selective reads instead)
 gh pr diff <url>
 
+# PR comments — look for reviewer feedback and CodeRabbit analysis
+gh api repos/<org>/<repo>/pulls/<pr_number>/comments --paginate --jq '.[] | {user: .user.login, body: .body}' 2>/dev/null
+gh api repos/<org>/<repo>/issues/<pr_number>/comments --paginate --jq '.[] | {user: .user.login, body: .body}' 2>/dev/null
+
 # Recent reverts in the same repo (last 6 months)
 # Calculate the date 6 months ago as YYYY-MM-DD and use GitHub's merged: search qualifier
 gh pr list --repo <org>/<repo> --search "revert in:title merged:>$(date -v-6m +%Y-%m-%d)" --state merged --limit 50 --json number,title,mergedAt
 ```
 
 For very large PRs (>100 files or >2000 LOC), use `gh pr diff --stat` to identify the highest-risk files, then fetch only those diffs selectively.
+
+#### Reading PR Comments
+
+Pay special attention to comments from:
+
+- **CodeRabbit** (`coderabbitai` user): CodeRabbit performs automated code review and may recommend additional testing. Look for suggestions about e2e tests, upgrade testing, or platform-specific concerns. Incorporate these into your testing recommendation.
+- **Human reviewers**: Reviewers may flag risk areas, request specific tests, or express concerns about the change. Factor these into your assessment.
+- **CI bot comments**: Look for `/payload-job` or `/payload-with-prs` commands that reviewers have already triggered — this tells you what testing is already underway.
 
 ### Step 2: Calculate Risk Score
 
@@ -144,35 +156,66 @@ Include the revert rate and its risk level in the report output so the user can 
 
 ### Step 4: Recommend Testing
 
-Based on the risk tier and the specific changes in the PR:
+#### Understanding the CI Job Landscape
+
+OpenShift PRs have several categories of CI jobs:
+
+- **Cheap/fast jobs** (unit tests, image builds, lint, verify): These always run automatically on every PR. They are not expensive and should never be skipped. Do not include these in your recommendations — they are a given.
+- **e2e jobs** (any job with `e2e` in the name): These are the expensive, long-running integration tests that provision real clusters. Currently presubmit e2e jobs are fixed per repo, but the future direction is for this agent to recommend which e2e jobs to run. Your recommendations should focus exclusively on e2e jobs.
+- **Optional presubmit jobs**: Some repos have optional e2e jobs that can be triggered by PR comments (e.g., `/test <job-name>`).
+- **Payload jobs**: Full release payload testing triggered via `/payload-job` or `/payload-with-prs` comments on the PR. These are the most expensive tier of testing.
+
+#### Platform Cost Awareness
+
+**vsphere e2e jobs are extremely expensive.** The infrastructure for vsphere testing is severely capacity-constrained. Do NOT recommend vsphere e2e jobs unless the PR directly modifies vsphere-specific code (e.g., vsphere cloud provider, vsphere CSI driver, vsphere-specific installer code, machine API vsphere provider). Generic operator or API changes do not warrant vsphere testing even at high risk tiers.
+
+When recommending platform-specific e2e jobs, prefer lower-cost platforms first:
+1. **AWS** — lowest cost, highest capacity, default recommendation
+2. **GCP** — moderate cost, good capacity
+3. **Metal/bare-metal** — moderate cost, use when the change affects bare-metal-specific paths
+4. **vSphere** — high cost, constrained capacity, only when directly relevant
+
+#### Recommendation by Risk Tier
 
 **LOW (0-20)**:
-- Presubmit jobs are sufficient
-- Explicitly state that expensive e2e payload testing can be skipped
+- No e2e testing needed beyond what is already configured
+- Explicitly state that expensive e2e testing can be skipped
 - If test-only or docs-only, say so clearly
+- If CodeRabbit or reviewers flagged specific concerns, note them but still recommend skipping e2e if the code analysis supports it
 
 **MEDIUM (21-45)**:
-- Presubmits should pass
-- Recommend targeted e2e jobs relevant to the changed component
-- Use the repo name and changed packages to suggest specific job names (e.g., if networking code changed, suggest `e2e-aws-ovn` jobs)
-- Suggest `/payload-with-prs` command syntax if the user wants to trigger payload jobs
+- Recommend 1-2 targeted e2e jobs relevant to the changed component
+- Use the repo name and changed packages to suggest specific job names (e.g., if networking code changed, suggest an `e2e-aws-ovn` job)
+- Prefer AWS-based e2e jobs unless the change is platform-specific
+- If an upgrade path is affected, recommend one upgrade e2e job
+- Note any testing suggestions from CodeRabbit or reviewers and incorporate if relevant
 
 **HIGH (46-70)**:
-- All presubmits must pass
-- Recommend comprehensive e2e coverage:
+- Recommend a broader set of e2e jobs:
   - Standard: `e2e-aws-ovn`
-  - Upgrade: `e2e-aws-ovn-upgrade`
-  - Platform-specific: based on what the change affects (metal, vsphere, etc.)
-  - Multi-arch if relevant
-- Suggest payload testing to catch integration issues
+  - Upgrade: `e2e-aws-ovn-upgrade` (if upgrade paths could be affected)
+  - Platform-specific: only if the change directly affects that platform's code
+  - Multi-arch: only if the change affects arch-specific code paths
+- Suggest payload testing via `/payload-with-prs` to catch integration issues
 - Note specific areas of the code that warrant careful review
 
 **CRITICAL (71-100)**:
 - Everything from HIGH
-- Recommend blocking merge until all test results are reviewed
+- Recommend payload testing as essential, not optional
+- Recommend blocking merge until e2e and payload results are reviewed
 - Flag for TRT (Technical Release Team) attention
 - Identify specific risks that make this critical
 - Recommend manual review of the diff by a domain expert
+
+#### E2E Jobs That Could Be Skipped
+
+After determining which e2e jobs you would recommend, check which e2e presubmit jobs are actually configured to run on this PR (from the `statusCheckRollup` data or `gh pr checks`). Identify any e2e jobs that ran (or are running) but that you would NOT have recommended based on your risk analysis. List these in a **"E2E Jobs We Would Not Have Run"** section of the report with a brief reason for each (e.g., "vsphere e2e — no vsphere-specific code changes", "metal-ipi e2e — change is limited to AWS cloud provider").
+
+This data is critical for calibrating future CI configuration. It helps us understand the cost savings available if e2e job selection were driven by this agent's recommendations rather than a fixed per-repo list.
+
+#### Important: Recommendations Only
+
+This agent does NOT trigger any tests. It only recommends what should be run. Output recommendations as a list of specific job names or `/payload-job` commands that a human can copy and invoke. Include a brief justification for each recommended job explaining why this PR's changes warrant it.
 
 ### Step 5: Write State File
 
@@ -230,7 +273,10 @@ Output a structured markdown report:
 - <bullet list of specific risks found in the code>
 
 ### Testing Recommendation
-<tier-appropriate recommendation with specific job names>
+<tier-appropriate recommendation with specific e2e job names and justifications>
+
+### E2E Jobs We Would Not Have Run
+<list of e2e jobs currently configured to run on this PR that are unnecessary based on the risk analysis, with reason for each>
 
 ### Historical Context
 <recent reverts, active regressions if any>
@@ -280,7 +326,34 @@ Compare current failures against historical baselines:
 
 Use `ci:fetch-test-runs` to pull recent runs of anomalous tests and compare error messages.
 
-### Step 5: Update Assessment
+### Step 5: Recommend Overrides for Unrelated Failures
+
+For each failed e2e job that you determined is **not related** to the PR changes (known flakes, infrastructure failures, or failures in code areas the PR does not touch), recommend an `/override` command the user can paste to bypass the failure.
+
+The override format uses the Prow job's full context name:
+```
+/override ci/prow/<job-name>
+```
+
+For example:
+```
+/override ci/prow/pull-ci-openshift-machine-config-operator-main-e2e-vsphere-ovn
+```
+
+**Prioritize override recommendations for expensive jobs.** If a vsphere or metal e2e job failed due to a known flake or infrastructure issue, the cost of re-running it is very high. Recommend the override with high confidence. For cheaper platforms (AWS, GCP), an override is still useful but a re-run is less wasteful.
+
+Only recommend overrides when you have strong evidence the failure is unrelated:
+- The failing test has <90% historical pass rate (known flake)
+- The failure is an infrastructure error (quota, cloud provider, DNS)
+- The failing test is in a component completely unrelated to the PR's changes
+- The same test is failing across many other PRs (not specific to this one)
+
+Do NOT recommend overrides when:
+- The failure could plausibly relate to the PR's changes
+- The failing test has >95% historical pass rate and you can't rule out correlation
+- You are uncertain — err on the side of not overriding
+
+### Step 6: Update Assessment
 
 Decide a verdict:
 
@@ -306,12 +379,13 @@ Update the state file with a new visit entry:
   "known_flakes": ["<test names>"],
   "infra_failures": ["<test names>"],
   "anomalies": ["<descriptions>"],
+  "recommended_overrides": ["/override ci/prow/<job-name>"],
   "verdict": "<PASS|LIKELY_PASS|NEEDS_REVIEW|BLOCK>",
   "notes": "<free text>"
 }
 ```
 
-### Step 6: Produce Test Result Report
+### Step 7: Produce Test Result Report
 
 ```
 ## PR Test Result Analysis: <org>/<repo>#<number>
@@ -340,6 +414,9 @@ Update the state file with a new visit entry:
 
 ### Anomalies
 <anything unusual that doesn't fit the above categories>
+
+### Recommended Overrides
+<list of `/override ci/prow/<job-name>` commands for failed jobs deemed unrelated to the PR, with justification for each — prioritize expensive platforms (vsphere, metal)>
 
 ### Verdict: <PASS|LIKELY_PASS|NEEDS_REVIEW|BLOCK>
 <explanation of the verdict>
