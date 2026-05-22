@@ -497,6 +497,11 @@
           "name": "Fetch Job Run Summary"
         },
         {
+          "description": "Fetch OpenShift CI job reports from Sippy with pass rates, run counts, and trend data for release or presubmit jobs",
+          "id": "fetch-jobs",
+          "name": "Fetch Jobs"
+        },
+        {
           "description": "Fetch pull requests that are new in a given OpenShift payload compared to the previous payload",
           "id": "fetch-new-prs-in-payload",
           "name": "Fetch New PRs in Payload"
@@ -612,7 +617,7 @@
           "name": "Trigger Payload Job"
         }
       ],
-      "version": "0.0.41"
+      "version": "0.0.42"
     },
     {
       "commands": [
