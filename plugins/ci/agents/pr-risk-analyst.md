@@ -93,13 +93,45 @@ Examine the diff for these patterns. Points are additive but capped at 30:
 
 #### D. Historical Risk (0-20 points)
 
+This category uses **revert rate** (reverts / total merged PRs) over the last 6 months, not raw revert counts. A repo with 3 reverts out of 500 PRs is healthy; 3 reverts out of 30 PRs is a red flag.
+
+**Step D1: Gather revert and merge data (last 6 months)**
+
+```bash
+# Count reverts (last 6 months)
+gh pr list --repo <org>/<repo> --search "revert in:title merged:>$(date -v-6m +%Y-%m-%d)" --state merged --limit 100 --json number | jq length
+
+# Count total merged PRs (last 6 months)
+gh pr list --repo <org>/<repo> --search "merged:>$(date -v-6m +%Y-%m-%d)" --state merged --limit 1000 --json number | jq length
+```
+
+**Step D2: Calculate revert rate**
+
+```
+revert_rate = reverts / total_merged_prs * 100
+```
+
+If the repo has fewer than 5 merged PRs in 6 months, skip revert rate scoring (insufficient data) and score 0 for this sub-category.
+
+**Step D3: Score revert rate risk**
+
+These thresholds are calibrated from percentile analysis of revert rates across OpenShift repos (repos with at least 1 revert and 5 merged PRs):
+
+| Revert Rate | Risk Level | Points | Percentile Range |
+|-------------|-----------|--------|-----------------|
+| ≤1% | Low | 0 | Below p25 |
+| 1–3% | Moderate | 3 | p25 to p75 |
+| 3–5% | Elevated | 6 | p75 to p90 |
+| 5–10% | High | 9 | p90 to p95 |
+| >10% | Critical | 12 | Above p95 |
+
+**Step D4: Score active regressions**
+
 | Signal | Points | How to Check |
 |--------|--------|-------------|
-| Reverts in same repo (last 6 months) | +2 per revert (max 10) | `gh pr list --search "revert in:title merged:>DATE" --state merged` |
-| Reverts in the last 30 days specifically | +3 bonus per recent revert (max 6) | Weight recent reverts higher — the repo is actively unstable |
-| Active regressions in component | +5 per regression (max 10) | Use `ci:fetch-regression-details` for the component, or check Sippy |
+| Active regressions in component | +4 per regression (max 8) | Use `ci:fetch-regression-details` for the component, or check Sippy |
 
-When scoring reverts, use a 6-month window to capture the full pattern. A repo with 5 reverts over 6 months is meaningfully riskier than one with zero, even if the last revert was 3 months ago. Reverts in the last 30 days get bonus points because they signal active instability.
+Include the revert rate and its risk level in the report output so the user can see the repo's historical stability at a glance.
 
 ### Step 3: Determine Risk Tier
 
