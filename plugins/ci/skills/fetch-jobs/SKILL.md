@@ -1,5 +1,5 @@
 ---
-name: Fetch Jobs
+name: fetch-jobs
 description: Fetch OpenShift CI job reports from Sippy with pass rates, run counts, and trend data for release or presubmit jobs
 ---
 
