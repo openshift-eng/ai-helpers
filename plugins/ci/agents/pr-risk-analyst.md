@@ -31,8 +31,9 @@ gh pr diff <url> --stat
 # Full diff (for code analysis — skip if >2000 lines changed, use stat + selective reads instead)
 gh pr diff <url>
 
-# Recent reverts in the same repo (last 30 days)
-gh pr list --repo <org>/<repo> --search "revert in:title" --state merged --limit 10 --json number,title,mergedAt
+# Recent reverts in the same repo (last 6 months)
+# Calculate the date 6 months ago as YYYY-MM-DD and use GitHub's merged: search qualifier
+gh pr list --repo <org>/<repo> --search "revert in:title merged:>$(date -v-6m +%Y-%m-%d)" --state merged --limit 50 --json number,title,mergedAt
 ```
 
 For very large PRs (>100 files or >2000 LOC), use `gh pr diff --stat` to identify the highest-risk files, then fetch only those diffs selectively.
@@ -94,8 +95,11 @@ Examine the diff for these patterns. Points are additive but capped at 30:
 
 | Signal | Points | How to Check |
 |--------|--------|-------------|
-| Recent reverts in same repo (last 30 days) | +5 per revert (max 10) | `gh pr list --search "revert in:title" --state merged` |
+| Reverts in same repo (last 6 months) | +2 per revert (max 10) | `gh pr list --search "revert in:title merged:>DATE" --state merged` |
+| Reverts in the last 30 days specifically | +3 bonus per recent revert (max 6) | Weight recent reverts higher — the repo is actively unstable |
 | Active regressions in component | +5 per regression (max 10) | Use `ci:fetch-regression-details` for the component, or check Sippy |
+
+When scoring reverts, use a 6-month window to capture the full pattern. A repo with 5 reverts over 6 months is meaningfully riskier than one with zero, even if the last revert was 3 months ago. Reverts in the last 30 days get bonus points because they signal active instability.
 
 ### Step 3: Determine Risk Tier
 
