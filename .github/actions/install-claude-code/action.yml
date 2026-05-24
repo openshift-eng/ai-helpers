@@ -1,0 +1,92 @@
+# Installs Claude Code with GPG signature and SHA-256 verification.
+# See: https://code.claude.com/docs/en/setup#binary-integrity-and-code-signing
+name: Install Claude Code (Verified)
+description: >
+  Install a pinned version of Claude Code with GPG manifest signature
+  verification and SHA-256 binary checksum validation.
+
+inputs:
+  version:
+    description: Claude Code version to install (e.g. "2.1.150")
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Import and verify GPG key
+      shell: bash
+      run: |
+        curl -fsSL https://downloads.claude.ai/keys/claude-code.asc | gpg --import
+        FINGERPRINT=$(gpg --fingerprint --with-colons security@anthropic.com \
+          | awk -F: '/^fpr:/{print $10; exit}')
+        EXPECTED="31DDDE24DDFAB679F42D7BD2BAA929FF1A7ECACE"
+        if [ "$FINGERPRINT" != "$EXPECTED" ]; then
+          echo "::error::GPG key fingerprint mismatch: got $FINGERPRINT, expected $EXPECTED"
+          exit 1
+        fi
+        echo "GPG key fingerprint verified: $FINGERPRINT"
+
+    - name: Download and verify manifest
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+      run: |
+        REPO="https://downloads.claude.ai/claude-code-releases"
+        curl -fsSL -o manifest.json "$REPO/$VERSION/manifest.json"
+        curl -fsSL -o manifest.json.sig "$REPO/$VERSION/manifest.json.sig"
+        gpg --verify manifest.json.sig manifest.json
+        echo "Manifest signature verified for version $VERSION"
+
+    - name: Download and verify binary
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+      run: |
+        REPO="https://downloads.claude.ai/claude-code-releases"
+        ARCH=$(uname -m)
+        case "$ARCH" in
+          x86_64)  PLATFORM="linux-x64" ;;
+          aarch64) PLATFORM="linux-arm64" ;;
+          *)       echo "::error::Unsupported architecture: $ARCH"; exit 1 ;;
+        esac
+
+        EXPECTED_CHECKSUM=$(python3 -c "
+        import json, sys
+        m = json.load(open('manifest.json'))
+        p = m['platforms'].get('$PLATFORM')
+        if not p:
+            print('::error::Platform $PLATFORM not found in manifest', file=sys.stderr)
+            sys.exit(1)
+        print(p['checksum'])
+        ")
+
+        curl -fsSL -o claude "$REPO/$VERSION/$PLATFORM/claude"
+        ACTUAL_CHECKSUM=$(sha256sum claude | cut -d' ' -f1)
+
+        if [ "$ACTUAL_CHECKSUM" != "$EXPECTED_CHECKSUM" ]; then
+          echo "::error::SHA-256 mismatch for $PLATFORM: got $ACTUAL_CHECKSUM, expected $EXPECTED_CHECKSUM"
+          exit 1
+        fi
+        echo "Binary checksum verified for $PLATFORM"
+
+        chmod +x claude
+        mkdir -p "$HOME/.local/bin"
+        mv claude "$HOME/.local/bin/claude"
+        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+    - name: Verify installation
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+        DISABLE_AUTOUPDATER: "1"
+      run: |
+        INSTALLED=$(claude --version 2>/dev/null | head -1 | awk '{print $1}')
+        if [ "$INSTALLED" != "$VERSION" ]; then
+          echo "::error::Version mismatch: installed $INSTALLED, expected $VERSION"
+          exit 1
+        fi
+        echo "Claude Code $VERSION installed and verified"
+
+    - name: Clean up verification artifacts
+      shell: bash
+      run: rm -f manifest.json manifest.json.sig
