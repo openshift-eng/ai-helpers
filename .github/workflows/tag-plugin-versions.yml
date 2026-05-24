@@ -1,0 +1,77 @@
+# Creates {plugin-name}--v{version} tags for plugin dependency version resolution.
+# See: https://code.claude.com/docs/en/plugin-dependencies#tag-plugin-releases-for-version-resolution
+name: Tag Plugin Versions
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'plugins/*/.claude-plugin/plugin.json'
+  workflow_dispatch:
+
+concurrency:
+  group: tag-plugin-versions-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  tag-plugins:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-tags: true
+
+      - name: Tag plugins
+        run: |
+          set -euo pipefail
+
+          created=0
+          skipped=0
+
+          for plugin_path in plugins/*/; do
+            plugin_json="$plugin_path.claude-plugin/plugin.json"
+
+            if [ ! -f "$plugin_json" ]; then
+              continue
+            fi
+
+            name=$(jq -r '.name' "$plugin_json")
+            version=$(jq -r '.version' "$plugin_json")
+
+            if [ -z "$name" ] || [ "$name" = "null" ] || [ -z "$version" ] || [ "$version" = "null" ]; then
+              continue
+            fi
+
+            if ! echo "$name" | grep -qE '^[a-z0-9][a-z0-9._-]*$'; then
+              echo "ERROR: invalid plugin name '$name' in $plugin_json"
+              exit 1
+            fi
+            if ! echo "$version" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9._-]+)?$'; then
+              echo "ERROR: invalid version '$version' in $plugin_json"
+              exit 1
+            fi
+
+            tag="${name}--v${version}"
+
+            if git tag -l "$tag" | grep -q .; then
+              echo "SKIP: $tag already exists"
+              skipped=$((skipped + 1))
+              continue
+            fi
+
+            git tag "$tag"
+            echo "CREATED: $tag"
+            created=$((created + 1))
+          done
+
+          if [ $created -gt 0 ]; then
+            git push origin --tags
+          fi
+
+          echo ""
+          echo "Summary: $created created, $skipped skipped"
