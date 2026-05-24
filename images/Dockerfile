@@ -48,8 +48,39 @@ WORKDIR /workspace
 # Switch to claude user
 USER claude
 
-# Install Claude Code CLI using the official installation script
-RUN curl -fsSL https://claude.ai/install.sh | bash
+# Install Claude Code CLI with GPG signature and SHA-256 verification.
+# See: https://code.claude.com/docs/en/setup#binary-integrity-and-code-signing
+ARG CLAUDE_CODE_VERSION=2.1.150
+RUN set -eux; \
+    REPO="https://downloads.claude.ai/claude-code-releases"; \
+    KEYURL="https://downloads.claude.ai/keys/claude-code.asc"; \
+    EXPECTED_FPR="31DDDE24DDFAB679F42D7BD2BAA929FF1A7ECACE"; \
+    \
+    curl -fsSL "$KEYURL" | gpg --import; \
+    FPR=$(gpg --fingerprint --with-colons security@anthropic.com \
+          | awk -F: '/^fpr:/{print $10; exit}'); \
+    [ "$FPR" = "$EXPECTED_FPR" ]; \
+    \
+    curl -fsSL -o manifest.json     "$REPO/$CLAUDE_CODE_VERSION/manifest.json"; \
+    curl -fsSL -o manifest.json.sig "$REPO/$CLAUDE_CODE_VERSION/manifest.json.sig"; \
+    gpg --verify manifest.json.sig manifest.json; \
+    \
+    ARCH=$(uname -m); \
+    case "$ARCH" in \
+      x86_64)  PLATFORM="linux-x64" ;; \
+      aarch64) PLATFORM="linux-arm64" ;; \
+      *)       echo "Unsupported architecture: $ARCH" >&2; exit 1 ;; \
+    esac; \
+    EXPECTED_SHA=$(python3 -c "import json; print(json.load(open('manifest.json'))['platforms']['$PLATFORM']['checksum'])"); \
+    \
+    curl -fsSL -o claude "$REPO/$CLAUDE_CODE_VERSION/$PLATFORM/claude"; \
+    ACTUAL_SHA=$(sha256sum claude | cut -d' ' -f1); \
+    [ "$ACTUAL_SHA" = "$EXPECTED_SHA" ]; \
+    \
+    chmod +x claude; \
+    mkdir -p /home/claude/.local/bin; \
+    mv claude /home/claude/.local/bin/claude; \
+    rm -f manifest.json manifest.json.sig
 
 # In CI, OpenShift uses a random UID, but in the root group
 RUN chmod -R g+rwx /home/claude && \
