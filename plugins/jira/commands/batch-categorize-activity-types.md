@@ -1,27 +1,27 @@
 ---
-description: Batch-classify Jira issues into Activity Types using AI and apply updates via MCP
+description: Batch-categorize Jira issues into Activity Types using AI and apply updates via MCP
 argument-hint: "<project-key> [--type Epic] [--limit 100] [--jql 'extra filters'] [--dry-run]"
 ---
 
 ## Name
-jira:batch-classify-activity-types
+jira:batch-categorize-activity-types
 
 ## Synopsis
 ```bash
-/jira:batch-classify-activity-types <project-key> [--type Epic] [--limit 100] [--jql 'AND status != Closed'] [--dry-run]
+/jira:batch-categorize-activity-types <project-key> [--type Epic] [--limit 100] [--jql 'AND status != Closed'] [--dry-run]
 ```
 
 ## Description
 
-Fetches all Jira issues in a project that have no Activity Type set, classifies each into one of six Sankey capacity allocation categories, validates results, generates a report, and (with user approval) applies the updates back to Jira.
+Fetches all Jira issues in a project that have no Activity Type set, categorizes each into one of six Sankey capacity allocation categories, validates results, generates a report, and (with user approval) applies the updates back to Jira.
 
-Classification logic is shared with `/jira:categorize-activity-type` via the `classify-activity-types` skill.
+Classification logic is shared with `/jira:categorize-activity-type` via the `categorize-activity-types` skill.
 
 ## Implementation
 
-Delegate to the `classify-activity-types` skill in **batch mode**. The skill handles all phases: gather, classify, validate, report, apply, and iterate.
+Delegate to the `categorize-activity-types` skill in **batch mode**. The skill handles all phases: gather, classify, validate, report, apply, and iterate.
 
-See [skills/classify-activity-types/SKILL.md](../skills/classify-activity-types/SKILL.md) for the full workflow.
+See [skills/categorize-activity-types/SKILL.md](../skills/categorize-activity-types/SKILL.md) for the full workflow.
 
 If `--dry-run` is set, instruct the skill to skip Phase 4 (apply).
 
@@ -48,22 +48,22 @@ If `--dry-run` is set, instruct the skill to skip Phase 4 (apply).
 
 1. **Classify all Epics in OCM:**
    ```bash
-   /jira:batch-classify-activity-types OCM
+   /jira:batch-categorize-activity-types OCM
    ```
 
 2. **Classify Stories instead of Epics:**
    ```bash
-   /jira:batch-classify-activity-types ARO --type Story
+   /jira:batch-categorize-activity-types ARO --type Story
    ```
 
 3. **Add JQL filter:**
    ```bash
-   /jira:batch-classify-activity-types OCM --jql 'AND resolved >= "2025-01-01"'
+   /jira:batch-categorize-activity-types OCM --jql 'AND resolved >= "2025-01-01"'
    ```
 
 4. **Dry run (classify and report, don't apply):**
    ```bash
-   /jira:batch-classify-activity-types ROX --dry-run
+   /jira:batch-categorize-activity-types ROX --dry-run
    ```
 
 ## See Also

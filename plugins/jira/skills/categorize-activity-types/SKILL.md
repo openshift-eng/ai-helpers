@@ -1,14 +1,14 @@
 ---
-name: classify-activity-types
-description: Classify Jira issues into Red Hat Sankey Activity Type categories using MCP Jira tools. Supports single-issue and batch modes. Use when the user wants to classify or set activity types on Jira issues, or mentions activity types, work types, Sankey, or capacity allocation.
+name: categorize-activity-types
+description: Categorize Jira issues into Red Hat Sankey Activity Type categories using MCP Jira tools. Supports single-issue and batch modes. Use when the user wants to categorize or set activity types on Jira issues, or mentions activity types, work types, Sankey, or capacity allocation.
 ---
 
 # Activity Type Classification
 
-Classify Jira issues into Red Hat's Sankey capacity allocation categories and update them via MCP Jira tools. This skill supports two modes of operation:
+Categorize Jira issues into Red Hat's Sankey capacity allocation categories and update them via MCP Jira tools. This skill supports two modes of operation:
 
-- **Single-issue mode**: Classify one issue by key (invoked by `/jira:categorize-activity-type`)
-- **Batch mode**: Classify all unclassified issues in a project (invoked by `/jira:batch-classify-activity-types`)
+- **Single-issue mode**: Categorize one issue by key (invoked by `/jira:categorize-activity-type`)
+- **Batch mode**: Categorize all unclassified issues in a project (invoked by `/jira:batch-categorize-activity-types`)
 
 Both modes use identical classification logic, validation, and reporting.
 
@@ -56,7 +56,7 @@ Copy this checklist and track progress:
 Classification Progress:
 - [ ] Prerequisites: MCP Jira tools available
 - [ ] Phase 1: Gather issues
-- [ ] Phase 2: Classify each issue
+- [ ] Phase 2: Categorize each issue
 - [ ] Phase 3: Validate & generate report
 - [ ] Phase 4: Apply updates (with approval)
 - [ ] Phase 5: Iterate (batch mode only)
@@ -95,7 +95,7 @@ From each issue, extract: `key`, `summary`, `description` (truncate to 2000 char
 
 Report the count of issues found to the user before proceeding.
 
-### Phase 2: Classify Issues
+### Phase 2: Categorize Issues
 
 **Pre-check — Parent inheritance**: Before classifying each issue, check if it has a parent issue. If the parent has an Activity Type set (`customfield_10464`), inherit it directly — no further classification needed. Set confidence to "High" and reasoning to "Inherited from {PARENT_KEY}". To look up a parent's Activity Type, call `jira_get_issue` with the parent's key and check `customfield_10464`. Cache parent lookups to reduce API calls — multiple children may share the same parent.
 
@@ -125,12 +125,12 @@ Run the validation and report generation scripts. These are located in `scripts/
 
 1. Run the validation script:
    ```bash
-   bash plugins/jira/skills/classify-activity-types/scripts/validate-classifications.sh .work/activity-type-classifier/classifications.json
+   bash plugins/jira/skills/categorize-activity-types/scripts/validate-classifications.sh .work/activity-type-classifier/classifications.json
    ```
 2. Fix any validation errors before proceeding
 3. Generate the report:
    ```bash
-   python3 plugins/jira/skills/classify-activity-types/scripts/generate-report.py .work/activity-type-classifier/classifications.json .work/activity-type-classifier/report.md
+   python3 plugins/jira/skills/categorize-activity-types/scripts/generate-report.py .work/activity-type-classifier/classifications.json .work/activity-type-classifier/report.md
    ```
 4. Display the report summary to the user
 

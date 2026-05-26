@@ -13,15 +13,15 @@ jira:categorize-activity-type
 
 ## Description
 
-Analyzes a single JIRA ticket and assigns an Activity Type category based on ticket content, issue type, labels, and parent context. Classification logic is shared with `/jira:batch-classify-activity-types` via the `classify-activity-types` skill.
+Analyzes a single JIRA ticket and assigns an Activity Type category based on ticket content, issue type, labels, and parent context. Classification logic is shared with `/jira:batch-categorize-activity-types` via the `categorize-activity-types` skill.
 
 ## Implementation
 
 ### Phase 1: Fetch Ticket Data
 
-Use MCP to fetch the issue by key. Delegate to the `classify-activity-types` skill in **single-issue mode**.
+Use MCP to fetch the issue by key. Delegate to the `categorize-activity-types` skill in **single-issue mode**.
 
-See [skills/classify-activity-types/SKILL.md](../skills/classify-activity-types/SKILL.md) for the full classification methodology, including fields to fetch, classification rules, validation, and reporting.
+See [skills/categorize-activity-types/SKILL.md](../skills/categorize-activity-types/SKILL.md) for the full classification methodology, including fields to fetch, classification rules, validation, and reporting.
 
 ### Phase 2: Apply Update (Conditional)
 
@@ -68,4 +68,4 @@ See [skills/classify-activity-types/SKILL.md](../skills/classify-activity-types/
 
 ## See Also
 
-- `jira:batch-classify-activity-types` - Batch classification (shares the same classification skill)
+- `jira:batch-categorize-activity-types` - Batch classification (shares the same classification skill)

@@ -148,26 +148,26 @@ See [commands/categorize-activity-type.md](commands/categorize-activity-type.md)
 
 ---
 
-### `/jira:batch-classify-activity-types` - Batch Activity Type Classification
+### `/jira:batch-categorize-activity-types` - Batch Activity Type Classification
 
-Batch-classify Jira issues that are missing Activity Types. Fetches issues via JQL, classifies each into one of six Sankey capacity allocation categories, validates results with deterministic scripts, generates a report, and applies updates with user approval. Shares the same classification skill as `/jira:categorize-activity-type`.
+Batch-categorize Jira issues that are missing Activity Types. Fetches issues via JQL, classifies each into one of six Sankey capacity allocation categories, validates results with deterministic scripts, generates a report, and applies updates with user approval. Shares the same classification skill as `/jira:categorize-activity-type`.
 
 **Usage:**
 ```bash
 # Classify all Epics in OCM with no Activity Type
-/jira:batch-classify-activity-types OCM
+/jira:batch-categorize-activity-types OCM
 
 # Classify Stories instead of Epics
-/jira:batch-classify-activity-types ARO --type Story
+/jira:batch-categorize-activity-types ARO --type Story
 
 # Add JQL filter
-/jira:batch-classify-activity-types OCM --jql 'AND resolved >= "2025-01-01"'
+/jira:batch-categorize-activity-types OCM --jql 'AND resolved >= "2025-01-01"'
 
 # Dry run (classify and report, don't apply)
-/jira:batch-classify-activity-types ROX --dry-run
+/jira:batch-categorize-activity-types ROX --dry-run
 ```
 
-See [commands/batch-classify-activity-types.md](commands/batch-classify-activity-types.md) for full documentation.
+See [commands/batch-categorize-activity-types.md](commands/batch-categorize-activity-types.md) for full documentation.
 
 ---
 
