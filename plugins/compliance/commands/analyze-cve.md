@@ -212,7 +212,7 @@ The `compliance:analyze-cve` command performs comprehensive security vulnerabili
 
        ### Upgrade Strategy
 
-       **Option 1: Direct Upgrade** (if possible)
+       **Option 1: Direct Upgrade** (when `go get` on the vulnerable module succeeds without version conflicts)
        ```bash
        go get golang.org/x/net@v0.23.0  # Fixed version
        go mod tidy
