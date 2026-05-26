@@ -1,0 +1,23 @@
+name: openshift-developer
+version: 1.0.0
+description: Bundle of curated plugins, skills, and MCP servers useful to any OpenShift engineer.
+
+dependencies:
+  apm:
+    - openshift-eng/ai-helpers/plugins/jira
+    - openshift-eng/ai-helpers/plugins/ci
+    # APM not handling LSP or indirect dependencies yet, which
+    # makes this plugin not fully enabled
+    #   See:
+    #     https://github.com/microsoft/apm/pull/1422
+    #     https://github.com/microsoft/apm/pull/1424
+    - openshift-eng/ai-helpers/plugins/golang
+    # ProdSec Skills, they need to be refactored a bit before
+    # turning these on for everyone. See:
+    #   https://github.com/RedHatProductSecurity/prodsec-skills/issues/24
+    - RedHatProductSecurity/prodsec-skills
+  mcp:
+    - name: atlassian
+      registry: false
+      transport: http
+      url: https://mcp.atlassian.com/v1/mcp
