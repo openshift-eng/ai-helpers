@@ -66,6 +66,15 @@ If `--dry-run` is set, instruct the skill to skip Phase 4 (apply).
    /jira:batch-categorize-activity-types ROX --dry-run
    ```
 
+## Return Value
+
+**Format:** Markdown report with distribution summary, per-category issue tables with Jira links, and apply/skip status.
+
+**Artifacts written to** `.work/activity-type-classifier/`:
+- `issues.json` — Raw fetched issue data
+- `classifications.json` — Classification results with confidence and reasoning
+- `report.md` — Formatted markdown report
+
 ## See Also
 
 - `jira:categorize-activity-type` - Single-issue classification (shares the same classification skill)

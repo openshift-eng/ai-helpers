@@ -66,6 +66,14 @@ See [skills/categorize-activity-types/SKILL.md](../skills/categorize-activity-ty
    ```
    Expected: Issue Type = Vulnerability -> "Security & Compliance" (High confidence, auto-applied)
 
+## Return Value
+
+**Format:** Classification result with confidence level and reasoning, plus optional Jira update confirmation.
+
+**Artifacts written to** `.work/activity-type-classifier/`:
+- `classifications.json` — 1-entry JSON array with the classification result
+- `report.md` — Formatted markdown report
+
 ## See Also
 
 - `jira:batch-categorize-activity-types` - Batch classification (shares the same classification skill)
