@@ -4,7 +4,8 @@
     "name": "openshift-eng"
   },
   "allowCrossMarketplaceDependenciesOn": [
-    "claude-plugins-official"
+    "claude-plugins-official",
+    "prodsec-skills"
   ],
   "plugins": [
     {
@@ -240,6 +241,13 @@
       "source": "./plugins/marketplace-ops",
       "description": "Maintenance commands for Claude Code plugin marketplaces",
       "version": "0.1.2"
+    },
+    {
+      "name": "openshift-developer",
+      "source": "./plugins/openshift-developer",
+      "description": "Bundle of curated plugins, skills, and MCP servers useful to any OpenShift engineer",
+      "version": "1.0.0",
+      "category": "bundle"
     }
   ]
 }

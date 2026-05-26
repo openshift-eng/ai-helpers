@@ -10,6 +10,7 @@ rules:
     severity: error
     allowlist:
       - gopls
+      - atlassian
 
   # Instruction files (AGENTS.md, CLAUDE.md, GEMINI.md) must be valid, non-empty with valid references
   instruction-file-valid:
