@@ -27,6 +27,8 @@ def escape_md(text: str) -> str:
 
 
 def generate_report(classifications: list) -> str:
+    if not isinstance(classifications, list):
+        raise TypeError(f"Expected list, got {type(classifications).__name__}")
     grouped = defaultdict(list)
     for entry in classifications:
         grouped[entry["activityType"]].append(entry)
@@ -89,13 +91,24 @@ def main():
     input_path = sys.argv[1]
     output_path = sys.argv[2]
 
-    with open(input_path) as f:
-        classifications = json.load(f)
+    try:
+        with open(input_path) as f:
+            classifications = json.load(f)
+    except FileNotFoundError:
+        print(f"Error: File not found: {input_path}", file=sys.stderr)
+        sys.exit(1)
+    except json.JSONDecodeError as e:
+        print(f"Error: Invalid JSON in {input_path}: {e}", file=sys.stderr)
+        sys.exit(1)
 
     report = generate_report(classifications)
 
-    with open(output_path, "w") as f:
-        f.write(report)
+    try:
+        with open(output_path, "w") as f:
+            f.write(report)
+    except IOError as e:
+        print(f"Error: Failed to write {output_path}: {e}", file=sys.stderr)
+        sys.exit(1)
 
     print(f"Report generated: {output_path}")
     print(f"Total issues: {len(classifications)}")

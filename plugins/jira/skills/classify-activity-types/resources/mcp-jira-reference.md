@@ -30,7 +30,7 @@ The Activity Type custom field ID is `customfield_10464`. This is constant acros
 
 Template (substitute `{PROJECT}` and `{TYPE}`):
 
-```
+```sql
 project = {PROJECT} AND issuetype = {TYPE} AND "Activity Type" is EMPTY
 ```
 

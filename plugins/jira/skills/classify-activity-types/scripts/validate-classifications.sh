@@ -4,6 +4,11 @@
 
 set -euo pipefail
 
+if ! command -v jq &> /dev/null; then
+  echo "FAIL: jq is required but not installed"
+  exit 1
+fi
+
 FILE="${1:?Usage: validate-classifications.sh <classifications.json>}"
 
 if [[ ! -f "$FILE" ]]; then

@@ -53,7 +53,7 @@ mkdir -p .work/activity-type-classifier
 
 Copy this checklist and track progress:
 
-```
+```text
 Classification Progress:
 - [ ] Prerequisites: MCP Jira tools available
 - [ ] Phase 1: Gather issues
