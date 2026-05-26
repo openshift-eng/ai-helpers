@@ -246,7 +246,8 @@
       "name": "openshift-developer",
       "source": "./plugins/openshift-developer",
       "description": "Bundle of curated plugins, skills, and MCP servers useful to any OpenShift engineer",
-      "version": "1.0.0"
+      "version": "1.0.0",
+      "category": "bundle"
     }
   ]
 }
