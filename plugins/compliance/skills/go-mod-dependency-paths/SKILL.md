@@ -1,5 +1,5 @@
 ---
-name: Go Module Dependency Paths
+name: go-mod-dependency-paths
 description: Parse go mod graph output to enumerate paths from the root module to a vulnerable dependency for CVE impact reports
 ---
 
