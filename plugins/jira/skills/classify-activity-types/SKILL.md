@@ -38,7 +38,6 @@ Before starting any work, verify MCP Jira tools are available:
 1. Attempt to call `jira_search` with a simple query (e.g., `jql: "project = OCM" limit: 1`)
 2. If the tool is not found or returns an MCP connection error, **stop immediately** and tell the user:
    - "The MCP Jira tools are not available. This workflow requires the mcp-atlassian MCP server to be configured with access to redhat.atlassian.net."
-   - See [resources/mcp-jira-reference.md](resources/mcp-jira-reference.md) for setup instructions
 3. Do NOT proceed to any phase if this check fails
 
 ## Working Directory
@@ -80,16 +79,25 @@ Parse user input for:
 
 **Always filter for issues without an Activity Type set.** The `"Activity Type" is EMPTY` condition is mandatory in every query — do not ask the user whether to include it.
 
-Follow the batch fetching instructions in [resources/mcp-jira-reference.md](resources/mcp-jira-reference.md) to:
-1. Construct the JQL query
-2. Execute `jira_search` with pagination (up to 100 issues)
-3. Save raw results to `.work/activity-type-classifier/issues.json`
+Construct the JQL query using this template:
+
+```sql
+project = {PROJECT} AND issuetype = {TYPE} AND "Activity Type" is EMPTY
+```
+
+Common additions:
+- Date filter: `AND resolved >= "2025-01-01"`
+- Open issues only: `AND status != Closed`
+
+Execute `jira_search` with `limit: 50`. If more results exist, make a second call with `start_at: 50` to get up to 100 total. Combine both result sets.
+
+From each issue, extract: `key`, `summary`, `description` (truncate to 2000 chars), `labels`, `issuetype`, `status`, `priority`, `comment`, and `parent`. Save all extracted data to `.work/activity-type-classifier/issues.json`.
 
 Report the count of issues found to the user before proceeding.
 
 ### Phase 2: Classify Issues
 
-**Pre-check — Parent inheritance**: Before classifying each issue, check if it has a parent issue. If the parent has an Activity Type set, inherit it directly — no further classification needed. Set confidence to "High" and reasoning to "Inherited from {PARENT_KEY}". See [resources/mcp-jira-reference.md](resources/mcp-jira-reference.md) for how to look up parent activity types.
+**Pre-check — Parent inheritance**: Before classifying each issue, check if it has a parent issue. If the parent has an Activity Type set (`customfield_10464`), inherit it directly — no further classification needed. Set confidence to "High" and reasoning to "Inherited from {PARENT_KEY}". To look up a parent's Activity Type, call `jira_get_issue` with the parent's key and check `customfield_10464`. Cache parent lookups to reduce API calls — multiple children may share the same parent.
 
 For remaining issues (no parent or parent has no Activity Type), read summary, description, labels, comments, and status. Apply the classification rules below and the detailed guidance in [resources/activity-type-guidance.md](resources/activity-type-guidance.md).
 
@@ -137,8 +145,7 @@ Run the validation and report generation scripts. These are located in `scripts/
 
 1. Ask the user for **explicit approval** before modifying any Jira issues
 2. If `--dry-run` flag is present, skip this phase entirely
-3. If approved, follow the batch update instructions in [resources/mcp-jira-reference.md](resources/mcp-jira-reference.md)
-4. Max 2 concurrent MCP update calls to avoid rate limiting
+3. Max 2 concurrent MCP update calls to avoid rate limiting
 5. Report progress every 10 issues
 6. On error: log the failure, continue with remaining issues
 7. After completion, summarize successes and failures
@@ -195,7 +202,6 @@ For the complete category definitions with subcategories and examples, see [reso
 | File | Purpose | When to Read |
 |---|---|---|
 | [resources/activity-type-guidance.md](resources/activity-type-guidance.md) | Full Sankey category definitions and subcategories | Phase 2 (classifying) |
-| [resources/mcp-jira-reference.md](resources/mcp-jira-reference.md) | MCP tool usage: fetch and update | Phase 1 (gather), Phase 4 (apply) |
 | [resources/report-template.md](resources/report-template.md) | Report format reference | Phase 3 (report generation) |
 | [scripts/validate-classifications.sh](scripts/validate-classifications.sh) | Validate classifications JSON | Phase 3 (validation) |
 | [scripts/generate-report.py](scripts/generate-report.py) | Generate markdown report from JSON | Phase 3 (report generation) |
