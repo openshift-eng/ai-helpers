@@ -17,10 +17,11 @@ Bundle of curated plugins, skills, and MCP servers useful to any OpenShift engin
 
 ## Installation
 
-Add the marketplace (one-time):
+Add the marketplaces (one-time):
 
 ```sh
 claude plugin marketplace add openshift-eng/ai-helpers
+claude plugin marketplace add RedHatProductSecurity/prodsec-skills
 ```
 
 Install the bundle:
