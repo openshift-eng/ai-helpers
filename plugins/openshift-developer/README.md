@@ -17,15 +17,17 @@ Bundle of curated plugins, skills, and MCP servers useful to any OpenShift engin
 
 ## Installation
 
+Add the marketplace (one-time):
+
 ```sh
-claude plugin install openshift-developer
+claude plugin marketplace add openshift-eng/ai-helpers
 ```
 
-## Commands
+Install the bundle:
 
-| Command | Description |
-|---------|-------------|
-| `/openshift-developer:info` | Show what this meta-plugin installs |
+```sh
+claude plugin install openshift-developer@ai-helpers
+```
 
 ## Note for non-Claude Code editors
 
