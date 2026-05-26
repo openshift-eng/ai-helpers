@@ -21,6 +21,11 @@ if ! jq empty "$FILE" 2>/dev/null; then
   exit 1
 fi
 
+if [[ "$(jq -r 'type' "$FILE")" != "array" ]]; then
+  echo "FAIL: Expected top-level JSON array in $FILE"
+  exit 1
+fi
+
 VALID_TYPES=(
   "Associate Wellness & Development"
   "Incidents & Support"
