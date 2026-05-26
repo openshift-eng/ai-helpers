@@ -8,7 +8,7 @@ Comprehensive Jira integration for Claude Code, providing AI-powered tools to an
 - 📊 **Status Rollups** - Generate comprehensive status rollup comments for any Jira issue given a date range
 - 📝 **Weekly Status Updates** - Automate weekly status summary updates with intelligent activity analysis and color-coded health indicators
 - 📋 **Backlog Grooming** - Analyze new bugs and cards for grooming meetings
-- 🏷️ **Activity Type Categorization** - AI-powered categorization of JIRA tickets into activity types with confidence scoring
+- 🏷️ **Activity Type Classification** - AI-powered classification of JIRA tickets into Sankey activity types, with single-issue and batch modes
 - 🧪 **Test Generation** - Generate comprehensive test steps for JIRA issues by analyzing related PRs
 - ✨ **Issue Creation** - Create well-formed stories, epics, features, tasks, bugs, and feature requests with guided workflows
 - 📝 **Release Note Generation** - Automatically generate bug fix release notes from Jira and linked GitHub PRs
@@ -145,6 +145,29 @@ Analyze JIRA tickets and automatically assign Activity Type categories based on 
 ```
 
 See [commands/categorize-activity-type.md](commands/categorize-activity-type.md) for full documentation.
+
+---
+
+### `/jira:batch-categorize-activity-types` - Batch Activity Type Classification
+
+Batch-categorize Jira issues that are missing Activity Types. Fetches issues via JQL, classifies each into one of six Sankey capacity allocation categories, validates results with deterministic scripts, generates a report, and applies updates with user approval. Shares the same classification skill as `/jira:categorize-activity-type`.
+
+**Usage:**
+```bash
+# Classify all Epics in OCM with no Activity Type
+/jira:batch-categorize-activity-types OCM
+
+# Classify Stories instead of Epics
+/jira:batch-categorize-activity-types ARO --type Story
+
+# Add JQL filter
+/jira:batch-categorize-activity-types OCM --jql 'AND resolved >= "2025-01-01"'
+
+# Dry run (classify and report, don't apply)
+/jira:batch-categorize-activity-types ROX --dry-run
+```
+
+See [commands/batch-categorize-activity-types.md](commands/batch-categorize-activity-types.md) for full documentation.
 
 ---
 
