@@ -21,11 +21,13 @@ RUN dnf install -y 'dnf-command(config-manager)' \
     && dnf install -y gh \
     && dnf clean all
 
-# Install PCP tools
+# Install PCP tools with Python bindings
 RUN dnf install -y \
     pcp \
+    pcp-devel \
     pcp-export-pcp2json \
-    && dnf clean all
+    && dnf clean all \
+    && python3 -m pip install --no-cache-dir --use-pep517 pcp
 
 # Create claude user with root group for OpenShift compatibility
 RUN useradd -m -u 1000 -g 0 -s /bin/bash claude
