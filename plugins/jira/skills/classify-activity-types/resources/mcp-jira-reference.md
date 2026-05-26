@@ -81,7 +81,7 @@ To reduce API calls, cache parent Activity Type lookups. Multiple child issues m
 
 Call `jira_update_issue` for each issue with:
 - `issue_key`: The issue key (e.g., `OCM-12345`)
-- `fields`: Include the Activity Type field using `customfield_10464`
+- `additional_fields`: Custom fields like `customfield_10464` must be passed via `additional_fields`, not `fields`
 
 The Activity Type is a select-list field. Set it using the value name directly:
 ```json

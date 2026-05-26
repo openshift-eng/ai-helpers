@@ -148,7 +148,7 @@ Run the validation and report generation scripts. These are located in `scripts/
 ```python
 jira_update_issue(
     issue_key="OCM-12345",
-    fields='{"customfield_10464": {"value": "Product / Portfolio Work"}}'
+    additional_fields={"customfield_10464": {"value": "Product / Portfolio Work"}}
 )
 ```
 
