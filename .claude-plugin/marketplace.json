@@ -143,7 +143,7 @@
       "name": "compliance",
       "source": "./plugins/compliance",
       "description": "Security compliance and vulnerability analysis tools for Go projects",
-      "version": "0.0.3"
+      "version": "0.0.5"
     },
     {
       "name": "test-coverage",
