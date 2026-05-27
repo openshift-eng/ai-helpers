@@ -48,7 +48,7 @@ class PluginsDocUpToDateRule(Rule):
         original_content = index_path.read_text()
         try:
             result = subprocess.run(
-                ["skillsaw", "docs", "-o", "docs/"],
+                ["skillsaw", "docs", "-o", "docs/", "--theme", "crimson-red"],
                 cwd=str(context.root_path),
                 capture_output=True,
                 text=True,

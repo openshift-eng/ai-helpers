@@ -1,6 +1,6 @@
 # skillsaw configuration
 # https://github.com/stbenjam/skillsaw
-version: "0.10.1"
+version: "0.11.2"
 strict: true
 
 rules:

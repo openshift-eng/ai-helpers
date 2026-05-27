@@ -4,7 +4,7 @@
 CONTAINER_RUNTIME ?= $(shell command -v podman 2>/dev/null || echo docker)
 
 # skillsaw image
-SKILLSAW_IMAGE = ghcr.io/stbenjam/skillsaw:0.10.1
+SKILLSAW_IMAGE = ghcr.io/stbenjam/skillsaw:0.11.2
 
 # Detect if SELinux is enforcing and add security option
 SELINUX_OPT := $(shell if command -v getenforce >/dev/null 2>&1 && [ "$$(getenforce 2>/dev/null)" = "Enforcing" ]; then echo "--security-opt label=disable"; fi)
@@ -34,7 +34,7 @@ update: ## Update plugin documentation and website data
 	@echo "Syncing marketplace versions..."
 	@python3 scripts/sync_marketplace_versions.py
 	@echo "Generating docs..."
-	$(CONTAINER_RUNTIME) run --rm --platform linux/amd64 $(SELINUX_OPT) -v $(PWD):/workspace:Z --entrypoint skillsaw $(SKILLSAW_IMAGE) docs -o docs/
+	$(CONTAINER_RUNTIME) run --rm --platform linux/amd64 $(SELINUX_OPT) -v $(PWD):/workspace:Z --entrypoint skillsaw $(SKILLSAW_IMAGE) docs -o docs/ --theme crimson-red
 
 EVAL_REPEAT ?= 1
 EVAL_PASS_RATE_THRESHOLD ?= 100
