@@ -34,7 +34,7 @@ update: ## Update plugin documentation and website data
 	@echo "Syncing marketplace versions..."
 	@python3 scripts/sync_marketplace_versions.py
 	@echo "Generating docs..."
-	$(CONTAINER_RUNTIME) run --rm --platform linux/amd64 $(SELINUX_OPT) -v $(PWD):/workspace:Z --entrypoint skillsaw $(SKILLSAW_IMAGE) docs -o docs/
+	$(CONTAINER_RUNTIME) run --rm --platform linux/amd64 $(SELINUX_OPT) -v $(PWD):/workspace:Z --entrypoint skillsaw $(SKILLSAW_IMAGE) docs -o docs/ --theme crimson-red
 
 EVAL_REPEAT ?= 1
 EVAL_PASS_RATE_THRESHOLD ?= 100
