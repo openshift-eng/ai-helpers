@@ -20,3 +20,4 @@ jobs:
         uses: stbenjam/skillsaw@8518bfff9b4991d08e5cf09931761873ff95e5fa # v0.11.1
         with:
           strict: true
+          version: '0.11.1'
