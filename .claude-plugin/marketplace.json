@@ -14,7 +14,11 @@
       "description": "Git Plugin",
       "version": "0.0.6",
       "category": "tooling",
-      "keywords": ["git", "workflow", "automation"]
+      "keywords": [
+        "git",
+        "workflow",
+        "automation"
+      ]
     },
     {
       "name": "hello-world",
@@ -22,7 +26,11 @@
       "description": "Hello World Plugin",
       "version": "1.0.2",
       "category": "tooling",
-      "keywords": ["example", "template", "hello-world"]
+      "keywords": [
+        "example",
+        "template",
+        "hello-world"
+      ]
     },
     {
       "name": "jira",
@@ -30,7 +38,12 @@
       "description": "A plugin to automate tasks with Jira",
       "version": "0.6.0",
       "category": "productivity",
-      "keywords": ["jira", "tickets", "issues", "project-management"]
+      "keywords": [
+        "jira",
+        "tickets",
+        "issues",
+        "project-management"
+      ]
     },
     {
       "name": "ci",
@@ -38,7 +51,13 @@
       "description": "A plugin to work with OpenShift CI and analyze Prow job results",
       "version": "0.0.42",
       "category": "ci",
-      "keywords": ["prow", "ci", "openshift-ci", "test-failures", "job-analysis"]
+      "keywords": [
+        "prow",
+        "ci",
+        "openshift-ci",
+        "test-failures",
+        "job-analysis"
+      ]
     },
     {
       "name": "teams",
@@ -46,7 +65,11 @@
       "description": "Team structure knowledge and health analysis commands for OpenShift teams",
       "version": "0.0.15",
       "category": "productivity",
-      "keywords": ["teams", "health", "org-structure"]
+      "keywords": [
+        "teams",
+        "health",
+        "org-structure"
+      ]
     },
     {
       "name": "doc",
@@ -54,7 +77,11 @@
       "description": "A plugin for engineering documentation and notes",
       "version": "0.0.2",
       "category": "productivity",
-      "keywords": ["documentation", "notes", "writing"]
+      "keywords": [
+        "documentation",
+        "notes",
+        "writing"
+      ]
     },
     {
       "name": "session",
@@ -62,7 +89,11 @@
       "description": "A plugin for Claude session management and persistence",
       "version": "0.0.2",
       "category": "productivity",
-      "keywords": ["session", "persistence", "resume"]
+      "keywords": [
+        "session",
+        "persistence",
+        "resume"
+      ]
     },
     {
       "name": "snowflake",
@@ -70,7 +101,12 @@
       "description": "Snowflake data analysis commands for engineering metrics and reports",
       "version": "0.4.1",
       "category": "data",
-      "keywords": ["snowflake", "sql", "metrics", "reporting"]
+      "keywords": [
+        "snowflake",
+        "sql",
+        "metrics",
+        "reporting"
+      ]
     },
     {
       "name": "sosreport",
@@ -78,7 +114,12 @@
       "description": "Analyze sosreport archives for system diagnostics and troubleshooting",
       "version": "0.0.2",
       "category": "debugging",
-      "keywords": ["sosreport", "diagnostics", "troubleshooting", "rhel"]
+      "keywords": [
+        "sosreport",
+        "diagnostics",
+        "troubleshooting",
+        "rhel"
+      ]
     },
     {
       "name": "utils",
@@ -86,7 +127,11 @@
       "description": "A generic utilities plugin serving as a catch-all for various helper commands",
       "version": "0.0.10",
       "category": "tooling",
-      "keywords": ["utilities", "helpers", "misc"]
+      "keywords": [
+        "utilities",
+        "helpers",
+        "misc"
+      ]
     },
     {
       "name": "olm",
@@ -94,7 +139,12 @@
       "description": "OLM (Operator Lifecycle Manager) plugin for operator management and debugging",
       "version": "0.1.2",
       "category": "openshift",
-      "keywords": ["olm", "operators", "lifecycle-manager", "debugging"]
+      "keywords": [
+        "olm",
+        "operators",
+        "lifecycle-manager",
+        "debugging"
+      ]
     },
     {
       "name": "olm-team",
@@ -102,7 +152,11 @@
       "description": "OLM team development utilities and onboarding tools",
       "version": "0.2.0",
       "category": "development",
-      "keywords": ["olm", "onboarding", "team-tools"]
+      "keywords": [
+        "olm",
+        "onboarding",
+        "team-tools"
+      ]
     },
     {
       "name": "operator-dashboard",
@@ -110,7 +164,12 @@
       "description": "Generate OpenShift Console operator dashboard: CRD discovery, list/detail components from templates",
       "version": "0.0.1",
       "category": "openshift",
-      "keywords": ["console", "dashboard", "operators", "crd"]
+      "keywords": [
+        "console",
+        "dashboard",
+        "operators",
+        "crd"
+      ]
     },
     {
       "name": "agendas",
@@ -118,7 +177,11 @@
       "description": "A plugin to create various meeting agendas",
       "version": "0.0.3",
       "category": "productivity",
-      "keywords": ["meetings", "agendas", "planning"]
+      "keywords": [
+        "meetings",
+        "agendas",
+        "planning"
+      ]
     },
     {
       "name": "openshift",
@@ -126,7 +189,11 @@
       "description": "OpenShift development utilities and helpers",
       "version": "0.0.6",
       "category": "openshift",
-      "keywords": ["openshift", "development", "helpers"]
+      "keywords": [
+        "openshift",
+        "development",
+        "helpers"
+      ]
     },
     {
       "name": "openshift-tls-profile",
@@ -134,7 +201,11 @@
       "description": "Implementation requirements and details for OpenShift TLS security profiles",
       "version": "0.0.2",
       "category": "openshift",
-      "keywords": ["tls", "security-profiles", "crypto"]
+      "keywords": [
+        "tls",
+        "security-profiles",
+        "crypto"
+      ]
     },
     {
       "name": "etcd",
@@ -142,7 +213,11 @@
       "description": "Etcd cluster health monitoring and performance analysis utilities",
       "version": "0.0.2",
       "category": "debugging",
-      "keywords": ["etcd", "cluster-health", "performance"]
+      "keywords": [
+        "etcd",
+        "cluster-health",
+        "performance"
+      ]
     },
     {
       "name": "yaml",
@@ -150,7 +225,12 @@
       "description": "YAML documentation and utilities",
       "version": "0.0.2",
       "category": "development",
-      "keywords": ["yaml", "go-structs", "documentation", "codegen"]
+      "keywords": [
+        "yaml",
+        "go-structs",
+        "documentation",
+        "codegen"
+      ]
     },
     {
       "name": "must-gather",
@@ -158,7 +238,11 @@
       "description": "A plugin to analyze and report on must-gather data",
       "version": "0.0.2",
       "category": "debugging",
-      "keywords": ["must-gather", "diagnostics", "cluster-analysis"]
+      "keywords": [
+        "must-gather",
+        "diagnostics",
+        "cluster-analysis"
+      ]
     },
     {
       "name": "lvms",
@@ -166,7 +250,12 @@
       "description": "LVMS (Logical Volume Manager Storage) plugin for troubleshooting and debugging storage issues",
       "version": "0.1.1",
       "category": "debugging",
-      "keywords": ["lvms", "storage", "lvm", "troubleshooting"]
+      "keywords": [
+        "lvms",
+        "storage",
+        "lvm",
+        "troubleshooting"
+      ]
     },
     {
       "name": "native-notifications",
@@ -174,7 +263,11 @@
       "description": "Cross-platform desktop notifications for ai-helpers",
       "version": "0.0.2",
       "category": "productivity",
-      "keywords": ["notifications", "desktop", "alerts"]
+      "keywords": [
+        "notifications",
+        "desktop",
+        "alerts"
+      ]
     },
     {
       "name": "hcp",
@@ -182,7 +275,11 @@
       "description": "Generate HyperShift cluster creation commands via hcp CLI from natural language descriptions",
       "version": "0.0.2",
       "category": "openshift",
-      "keywords": ["hypershift", "hosted-control-planes", "cluster-creation"]
+      "keywords": [
+        "hypershift",
+        "hosted-control-planes",
+        "cluster-creation"
+      ]
     },
     {
       "name": "compliance",
@@ -190,7 +287,12 @@
       "description": "Security compliance and vulnerability analysis tools for Go projects",
       "version": "0.0.3",
       "category": "security",
-      "keywords": ["cve", "vulnerabilities", "compliance", "go"]
+      "keywords": [
+        "cve",
+        "vulnerabilities",
+        "compliance",
+        "go"
+      ]
     },
     {
       "name": "test-coverage",
@@ -198,7 +300,12 @@
       "description": "Analyze test coverage and identify gaps in test scenarios",
       "version": "0.0.2",
       "category": "development",
-      "keywords": ["coverage", "testing", "gaps", "analysis"]
+      "keywords": [
+        "coverage",
+        "testing",
+        "gaps",
+        "analysis"
+      ]
     },
     {
       "name": "node-tuning",
@@ -206,7 +313,12 @@
       "description": "Generate and analyze OpenShift node tuning profiles",
       "version": "1.0.1",
       "category": "debugging",
-      "keywords": ["tuned", "node-tuning", "performance", "profiles"]
+      "keywords": [
+        "tuned",
+        "node-tuning",
+        "performance",
+        "profiles"
+      ]
     },
     {
       "name": "testing",
@@ -214,7 +326,12 @@
       "description": "Comprehensive testing utilities for operators and applications",
       "version": "0.1.1",
       "category": "development",
-      "keywords": ["testing", "operators", "e2e", "test-framework"]
+      "keywords": [
+        "testing",
+        "operators",
+        "e2e",
+        "test-framework"
+      ]
     },
     {
       "name": "origin",
@@ -222,7 +339,11 @@
       "description": "Helpers for openshift/origin development.",
       "version": "0.0.2",
       "category": "development",
-      "keywords": ["origin", "openshift", "development"]
+      "keywords": [
+        "origin",
+        "openshift",
+        "development"
+      ]
     },
     {
       "name": "container-image",
@@ -230,7 +351,12 @@
       "description": "Container image inspection and analysis using skopeo and podman",
       "version": "0.0.3",
       "category": "development",
-      "keywords": ["containers", "skopeo", "podman", "images"]
+      "keywords": [
+        "containers",
+        "skopeo",
+        "podman",
+        "images"
+      ]
     },
     {
       "name": "node",
@@ -238,7 +364,12 @@
       "description": "Kubernetes and OpenShift node health monitoring and diagnostics",
       "version": "0.0.3",
       "category": "debugging",
-      "keywords": ["nodes", "health", "kubernetes", "diagnostics"]
+      "keywords": [
+        "nodes",
+        "health",
+        "kubernetes",
+        "diagnostics"
+      ]
     },
     {
       "name": "node-cve",
@@ -250,9 +381,14 @@
       "name": "bigquery",
       "source": "./plugins/bigquery",
       "description": "BigQuery analysis utilities",
-      "version": "0.0.5",
+      "version": "0.0.6",
       "category": "data",
-      "keywords": ["bigquery", "sql", "analytics", "cost-analysis"]
+      "keywords": [
+        "bigquery",
+        "sql",
+        "analytics",
+        "cost-analysis"
+      ]
     },
     {
       "name": "workspaces",
@@ -260,7 +396,12 @@
       "description": "Manage isolated git worktree workspaces for multi-repo development",
       "version": "1.0.1",
       "category": "development",
-      "keywords": ["git", "worktree", "workspace", "multi-repo"]
+      "keywords": [
+        "git",
+        "worktree",
+        "workspace",
+        "multi-repo"
+      ]
     },
     {
       "name": "gwapi",
@@ -268,7 +409,11 @@
       "description": "Gateway API installation utilities for Kubernetes/OpenShift clusters",
       "version": "0.0.2",
       "category": "openshift",
-      "keywords": ["gateway-api", "networking", "ingress"]
+      "keywords": [
+        "gateway-api",
+        "networking",
+        "ingress"
+      ]
     },
     {
       "name": "code-review",
@@ -276,7 +421,12 @@
       "description": "Automated code quality review with language-aware analysis for pre-commit verification",
       "version": "0.0.9",
       "category": "development",
-      "keywords": ["code-review", "quality", "pre-commit", "linting"]
+      "keywords": [
+        "code-review",
+        "quality",
+        "pre-commit",
+        "linting"
+      ]
     },
     {
       "name": "golang",
@@ -284,7 +434,13 @@
       "description": "Go development tools: gopls MCP server, LSP integration, automatic gofmt formatting, golangci-lint linting, and CVE dependency patching",
       "version": "0.3.0",
       "category": "development",
-      "keywords": ["go", "gopls", "lsp", "linting", "formatting"]
+      "keywords": [
+        "go",
+        "gopls",
+        "lsp",
+        "linting",
+        "formatting"
+      ]
     },
     {
       "name": "ote-migration",
@@ -292,7 +448,11 @@
       "description": "Automate OpenShift Tests Extension (OTE) migration for component repositories",
       "version": "0.0.2",
       "category": "development",
-      "keywords": ["ote", "migration", "openshift-tests"]
+      "keywords": [
+        "ote",
+        "migration",
+        "openshift-tests"
+      ]
     },
     {
       "name": "console",
@@ -300,7 +460,11 @@
       "description": "OpenShift Console dynamic plugin development utilities",
       "version": "0.0.1",
       "category": "development",
-      "keywords": ["console", "dynamic-plugins", "frontend"]
+      "keywords": [
+        "console",
+        "dynamic-plugins",
+        "frontend"
+      ]
     },
     {
       "name": "rds-analyzer",
@@ -308,7 +472,11 @@
       "description": "RDS Analyzer workflow: cluster-compare JSON to deviation reports (text/HTML/reporting) and Jira follow-up",
       "version": "0.0.2",
       "category": "debugging",
-      "keywords": ["rds", "cluster-compare", "deviation-reports"]
+      "keywords": [
+        "rds",
+        "cluster-compare",
+        "deviation-reports"
+      ]
     },
     {
       "name": "ai-sbom",
@@ -316,7 +484,11 @@
       "description": "Generate AI Software Bill of Materials (SBOM) declarations for PR descriptions",
       "version": "0.0.1",
       "category": "development",
-      "keywords": ["sbom", "ai-usage", "transparency"]
+      "keywords": [
+        "sbom",
+        "ai-usage",
+        "transparency"
+      ]
     },
     {
       "name": "marketplace-ops",
@@ -324,7 +496,11 @@
       "description": "Maintenance commands for Claude Code plugin marketplaces",
       "version": "0.1.2",
       "category": "tooling",
-      "keywords": ["marketplace", "plugins", "maintenance"]
+      "keywords": [
+        "marketplace",
+        "plugins",
+        "maintenance"
+      ]
     },
     {
       "name": "openshift-developer",
@@ -332,7 +508,11 @@
       "description": "Bundle of curated plugins, skills, and MCP servers useful to any OpenShift engineer",
       "version": "1.0.0",
       "category": "bundle",
-      "keywords": ["openshift", "bundle", "meta-plugin"]
+      "keywords": [
+        "openshift",
+        "bundle",
+        "meta-plugin"
+      ]
     }
   ]
 }
