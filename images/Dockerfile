@@ -28,15 +28,15 @@ RUN dnf install -y \
     && dnf clean all
 
 # Install Claude Code CLI via official RPM repository
-RUN tee /etc/yum.repos.d/claude-code.repo <<'EOF'
-[claude-code]
-name=Claude Code
-baseurl=https://downloads.claude.ai/claude-code/rpm/stable
-enabled=1
-gpgcheck=1
-gpgkey=https://downloads.claude.ai/keys/claude-code.asc
-EOF
-RUN dnf install -y claude-code && dnf clean all
+RUN printf '%s\n' \
+    '[claude-code]' \
+    'name=Claude Code' \
+    'baseurl=https://downloads.claude.ai/claude-code/rpm/stable' \
+    'enabled=1' \
+    'gpgcheck=1' \
+    'gpgkey=https://downloads.claude.ai/keys/claude-code.asc' \
+    > /etc/yum.repos.d/claude-code.repo && \
+    dnf install -y claude-code && dnf clean all
 
 # Create claude user with root group for OpenShift compatibility
 RUN useradd -m -u 1000 -g 0 -s /bin/bash claude
