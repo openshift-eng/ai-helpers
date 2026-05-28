@@ -8,6 +8,10 @@ on:
       - 'plugins/**'
       - '.claude-plugin/marketplace.json'
 
+concurrency:
+  group: update-docs
+  cancel-in-progress: true
+
 jobs:
   update-docs:
     runs-on: ubuntu-latest
