@@ -27,6 +27,17 @@ RUN dnf install -y \
     pcp-export-pcp2json \
     && dnf clean all
 
+# Install Claude Code CLI via official RPM repository
+RUN tee /etc/yum.repos.d/claude-code.repo <<'EOF'
+[claude-code]
+name=Claude Code
+baseurl=https://downloads.claude.ai/claude-code/rpm/stable
+enabled=1
+gpgcheck=1
+gpgkey=https://downloads.claude.ai/keys/claude-code.asc
+EOF
+RUN dnf install -y claude-code && dnf clean all
+
 # Create claude user with root group for OpenShift compatibility
 RUN useradd -m -u 1000 -g 0 -s /bin/bash claude
 
@@ -48,47 +59,11 @@ WORKDIR /workspace
 # Switch to claude user
 USER claude
 
-# Install Claude Code CLI with GPG signature and SHA-256 verification.
-# See: https://code.claude.com/docs/en/setup#binary-integrity-and-code-signing
-ARG CLAUDE_CODE_VERSION=2.1.150
-RUN set -eux; \
-    REPO="https://downloads.claude.ai/claude-code-releases"; \
-    KEYURL="https://downloads.claude.ai/keys/claude-code.asc"; \
-    EXPECTED_FPR="31DDDE24DDFAB679F42D7BD2BAA929FF1A7ECACE"; \
-    \
-    curl -fsSL "$KEYURL" | gpg --import; \
-    FPR=$(gpg --fingerprint --with-colons security@anthropic.com \
-          | awk -F: '/^fpr:/{print $10; exit}'); \
-    [ "$FPR" = "$EXPECTED_FPR" ]; \
-    \
-    curl -fsSL -o manifest.json     "$REPO/$CLAUDE_CODE_VERSION/manifest.json"; \
-    curl -fsSL -o manifest.json.sig "$REPO/$CLAUDE_CODE_VERSION/manifest.json.sig"; \
-    gpg --verify manifest.json.sig manifest.json; \
-    \
-    ARCH=$(uname -m); \
-    case "$ARCH" in \
-      x86_64)  PLATFORM="linux-x64" ;; \
-      aarch64) PLATFORM="linux-arm64" ;; \
-      *)       echo "Unsupported architecture: $ARCH" >&2; exit 1 ;; \
-    esac; \
-    EXPECTED_SHA=$(python3 -c "import json; print(json.load(open('manifest.json'))['platforms']['$PLATFORM']['checksum'])"); \
-    \
-    curl -fsSL -o claude "$REPO/$CLAUDE_CODE_VERSION/$PLATFORM/claude"; \
-    ACTUAL_SHA=$(sha256sum claude | cut -d' ' -f1); \
-    [ "$ACTUAL_SHA" = "$EXPECTED_SHA" ]; \
-    \
-    chmod +x claude; \
-    mkdir -p /home/claude/.local/bin; \
-    mv claude /home/claude/.local/bin/claude; \
-    rm -f manifest.json manifest.json.sig
-
 # In CI, OpenShift uses a random UID, but in the root group
 RUN chmod -R g+rwx /home/claude && \
   chmod -R g+rwx /opt/ai-helpers && \
   chmod -R g+rwx /workspace
 
-# Ensure ~/.local/bin is in PATH for the entrypoint
-ENV PATH="/home/claude/.local/bin:${PATH}"
 ENV CLAUDE_CONFIG_DIR="/home/claude/.claude"
 
 # Set Claude Code as the default command
