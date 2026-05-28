@@ -9,7 +9,7 @@ Thank you for your interest in contributing to the ai-helpers plugin marketplace
 3. Add at least one command in `commands/`
 4. Add an `OWNERS` file listing approvers and reviewers for your plugin
 5. Register your plugin in `.claude-plugin/marketplace.json`
-6. Run `make lint` to validate
+6. Run `make update` to sync marketplace versions, then `make lint` to validate
 
 ### OWNERS File
 
@@ -48,8 +48,9 @@ If your PR modifies plugin code (commands, skills, hooks, or plugin.json), you *
 2. Create a feature branch
 3. Make your changes
 4. Bump the version in `plugin.json` if modifying plugin code
-5. Run `make lint` to validate plugin structure
-6. Submit a PR
+5. Run `make update` to sync marketplace versions
+6. Run `make lint` to validate plugin structure
+7. Submit a PR
 
 ### Testing locally
 
