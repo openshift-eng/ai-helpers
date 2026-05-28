@@ -28,12 +28,14 @@ lint-pull: ## Pull the latest skillsaw image
 	$(CONTAINER_RUNTIME) pull $(SKILLSAW_IMAGE)
 
 .PHONY: update
-update: ## Update plugin documentation and website data
+update: ## Fix frontmatter and sync marketplace versions
 	@echo "Fixing frontmatter quotes, if any..."
 	@python3 scripts/fix_frontmatter_quotes.py
 	@echo "Syncing marketplace versions..."
 	@python3 scripts/sync_marketplace_versions.py
-	@echo "Generating docs..."
+
+.PHONY: docs
+docs: ## Preview generated documentation locally
 	$(CONTAINER_RUNTIME) run --rm --platform linux/amd64 $(SELINUX_OPT) -v $(PWD):/workspace:Z --entrypoint skillsaw $(SKILLSAW_IMAGE) docs -o docs/ --theme crimson-red
 
 EVAL_REPEAT ?= 1
