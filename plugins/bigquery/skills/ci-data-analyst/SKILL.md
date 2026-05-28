@@ -33,18 +33,23 @@ The junit table alone is massive. Every query MUST go through this flow:
 5. **If cost <= $1.00**: proceed, but still report the cost in results
 6. **Never loop or repeat queries.** Run once, cache locally, analyze from the cached data.
 
-### 2. Always Use Partition Filters
+### 2. Always Use Partition and Clustering Filters
 
 Both key tables are partitioned by day:
-- `junit`: partitioned on `modified_time`
+- `junit`: partitioned on `modified_time`, **clustered on `release`**
 - `jobs`: partitioned on `prowjob_start`
 
-**Every query MUST include a filter on the partition column** to avoid full-table scans. Use tight date ranges:
+**Every query MUST include a filter on the partition column** to avoid full-table scans. Use tight date ranges.
+
+**Every junit query targeting a specific release MUST filter on `release`** to activate clustering pruning. This reduces bytes scanned by 60-70%:
 
 ```sql
 WHERE modified_time >= DATETIME("2026-05-01")
   AND modified_time < DATETIME("2026-05-08")
+  AND release = '4.22'
 ```
+
+The `release` column is populated from the variant registry (`job_variants` Release variant). Jobs not in the registry have `release = 'unknown'`. Some rows with `NULL` release exist in historical data for jobs that no longer exist in the registry.
 
 ### 3. Cache Results Locally
 
@@ -72,7 +77,8 @@ Junit test results. Massive table. Partitioned by DAY on `modified_time`.
 | skipped | BOOLEAN | Whether test was skipped |
 | flake_count | INTEGER | >0 means this row is part of a flake |
 | modified_time | DATETIME | **Partition column** - always filter on this |
-| branch | STRING | Release branch (e.g. "release-4.18") |
+| release | STRING | OCP release under test (e.g. "4.22", "5.0"). **Clustering column** - always filter on this when querying for a specific release for ~60-70% cost reduction |
+| branch | STRING | **LEGACY - do not use.** Regex-derived from job name, often wrong. Use `release` column instead |
 | prowjob_name | STRING | Name of the prow job run |
 | duration_ms | INTEGER | Test execution time |
 | test_id | STRING | Stable test identifier |
@@ -203,7 +209,7 @@ Labels/annotations applied to job runs. Partitioned by DAY on `prowjob_start`.
 
 ### QE Dataset: `ci_analysis_qe`
 
-Smaller dataset for QE prow jobs. Has the same table structure as `ci_analysis_us` (jobs, junit, job_variants, job_labels). QE jobs are slowly being migrated to the engineering system.
+Smaller dataset for QE prow jobs. Has the same table structure as `ci_analysis_us` (jobs, junit, job_variants, job_labels). The junit table is also clustered on `release`. QE jobs are slowly being migrated to the engineering system.
 
 **Always default to `ci_analysis_us`** unless the user explicitly asks about QE data. Never assume QE dataset.
 
@@ -233,6 +239,7 @@ WITH deduped AS (
   FROM `openshift-gce-devel.ci_analysis_us.junit`
   WHERE modified_time >= DATETIME("2026-05-01")
     AND modified_time < DATETIME("2026-05-08")
+    AND release = '4.22'  -- always filter on release when targeting a specific version
     AND skipped = false
     AND test_name LIKE '%your test pattern%'
 )
@@ -273,6 +280,7 @@ LEFT JOIN `openshift-gce-devel.ci_analysis_us.job_variants` jv_upgrade
   ON jobs.prowjob_job_name = jv_upgrade.job_name AND jv_upgrade.variant_name = 'Upgrade'
 WHERE junit.modified_time >= DATETIME("2026-05-01")
   AND junit.modified_time < DATETIME("2026-05-08")
+  AND junit.release = '4.22'  -- clustering filter for cost reduction
 ```
 
 Each variant dimension gets its own LEFT JOIN with a unique alias. Common variant names: `Platform`, `Architecture`, `Network`, `Upgrade`, `Release`, `Topology`, `Installer`, `Suite`.
@@ -327,6 +335,7 @@ Parse what the user wants to know. Identify:
 ### Step 2: Build the Query
 Construct the SQL following the patterns above. Always include:
 - Partition column filter with a tight date range
+- **`release` filter on junit queries** when targeting a specific OCP version (clustering pruning)
 - Deduplication CTE if querying junit for aggregation
 - Variant joins if variant-level breakdown is needed
 - `--use_legacy_sql=false` flag
@@ -364,12 +373,14 @@ Parse the cached results and present findings. Include:
 
 ## Query Optimization Tips
 
+- **Always filter on `release`**: When querying junit for a specific OCP version, add `AND release = '4.22'` to activate clustering pruning. This is the single biggest cost optimization — it reduces bytes scanned by 60-70%. Only omit the release filter when you genuinely need data across all releases.
 - **Narrow date ranges first**: Start with 7 days. Widen only if needed.
 - **Use test_id over test_name LIKE**: If the user provides a test_id, use exact match. LIKE with wildcards on test_name forces a full column scan.
 - **Select only needed columns**: Don't SELECT * on the junit table.
 - **Filter early**: Put the most selective filters in the WHERE clause.
 - **Avoid repeated queries**: Cache results and analyze locally.
 - **Consider the jobs table first**: If you only need job-level data (no test results), query jobs directly -- it's much smaller than junit.
+- **Don't use `branch` column**: It's derived from a regex on the job name and is often wrong. Use `release` instead.
 
 ## Error Handling
 
