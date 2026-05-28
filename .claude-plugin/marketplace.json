@@ -241,6 +241,12 @@
       "keywords": ["nodes", "health", "kubernetes", "diagnostics"]
     },
     {
+      "name": "node-cve",
+      "source": "./plugins/node-cve",
+      "description": "CVE triage for OpenShift Node team components",
+      "version": "0.0.1"
+    },
+    {
       "name": "bigquery",
       "source": "./plugins/bigquery",
       "description": "BigQuery analysis utilities",
