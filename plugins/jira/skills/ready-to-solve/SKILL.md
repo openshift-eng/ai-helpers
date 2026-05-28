@@ -12,22 +12,14 @@ Invoked by `/jira:ready-to-solve`. Validates whether a Jira issue is well-groome
 
 ## Prerequisites
 
-- Jira MCP server configured, or `JIRA_PERSONAL_TOKEN` env var for CLI fallback
+- Jira MCP server configured (Atlassian Rovo MCP)
 - Python 3.8+ (`which python3`)
-
-**Reference Documentation:**
-- [MCP Tools](../../reference/mcp-tools.md)
-- [CLI Fallback](../../reference/cli-fallback.md)
 
 ## Implementation Steps
 
 ### Phase 1: Fetch Issue Data
 
-Use MCP as primary method:
-
-```python
-issue = mcp__atlassian__jira_get_issue(issue_key="PROJ-123")
-```
+Fetch the issue via `getJiraIssue` with the issue key.
 
 Extract from the response:
 - `fields.description` -- full description text
@@ -35,13 +27,6 @@ Extract from the response:
 - `fields.labels` -- current labels array (needed for label updates)
 - `fields.status.name` -- current status
 - `fields.issuetype.name` -- issue type
-
-**CLI fallback** if MCP is unavailable:
-
-```bash
-curl -s -H "Authorization: Bearer $JIRA_PERSONAL_TOKEN" \
-  "https://redhat.atlassian.net/rest/api/2/issue/{issue_key}?fields=description,summary,labels,status,issuetype"
-```
 
 If `description` is null or empty, skip to Phase 4 with an automatic FAIL verdict.
 
@@ -129,22 +114,7 @@ When validation fails and `--fix` is set, generate a revised description that fi
 
 3. **Present proposed changes to the user**: Show the full proposed description, clearly indicating what was added or changed (e.g., mark new sections with a note). Ask the user: "Here is the proposed updated description. Apply this to the Jira issue? (yes/no)"
 
-4. **If confirmed**: Update the issue description via MCP:
-
-```python
-mcp__atlassian__jira_update_issue(
-    issue_key="PROJ-123",
-    fields={"description": revised_description},
-    additional_fields={}
-)
-```
-
-**CLI fallback:**
-```bash
-curl -s -u "$JIRA_USER:$JIRA_API_TOKEN" -H "Content-Type: application/json" \
-  -X PUT "https://redhat.atlassian.net/rest/api/2/issue/PROJ-123" \
-  -d '{"fields":{"description":"...revised description..."}}'
-```
+4. **If confirmed**: Update the issue description via `editJiraIssue`, setting the `description` field to the revised text with `contentFormat: "markdown"`.
 
 5. **Re-run validation**: After updating, re-run phases 2-4 on the new description to confirm the issue now passes. Report the re-validation results.
 
@@ -158,11 +128,7 @@ Post or update a Jira comment reflecting the validation result so the ticket aut
 
 #### Step 1: Check for existing automated comment
 
-Fetch the issue with comments included and search for one whose body starts with `**Automated Readiness Check`. Save its `comment_id` if found.
-
-```python
-issue = mcp__atlassian__jira_get_issue(issue_key="{issue_key}")
-```
+Fetch the issue with comments included via `getJiraIssue` and search for one whose body starts with `**Automated Readiness Check`. Save its `comment_id` if found.
 
 Iterate through the comments in the returned issue payload. If any comment body starts with `**Automated Readiness Check`, store its `comment_id` for editing in Step 3.
 
@@ -186,42 +152,11 @@ All checks passed. This issue is ready for `/jira:solve`.
 
 #### Step 3: Post or edit the comment
 
-If an existing automated comment was found (Step 1), edit it:
+If an existing automated comment was found (Step 1), the Atlassian Rovo MCP does not support editing comments directly. Post a new comment instead.
 
-```python
-mcp__atlassian__jira_edit_comment(
-    issue_key="{issue_key}",
-    comment_id="{comment_id}",
-    body=comment_body
-)
-```
-
-If no existing comment was found and the verdict is FAIL, post a new one:
-
-```python
-mcp__atlassian__jira_add_comment(
-    issue_key="{issue_key}",
-    body=comment_body
-)
-```
+Post the comment via `addCommentToJiraIssue` with the issue key, the comment body, and `contentFormat: "markdown"`.
 
 If no existing comment was found and the verdict is PASS, do nothing.
-
-**CLI fallback for adding:**
-```bash
-curl -s -u "$JIRA_USER:$JIRA_API_TOKEN" \
-  -H "Content-Type: application/json" \
-  -X POST "https://redhat.atlassian.net/rest/api/2/issue/{issue_key}/comment" \
-  -d '{"body": "...comment_body..."}'
-```
-
-**CLI fallback for editing:**
-```bash
-curl -s -u "$JIRA_USER:$JIRA_API_TOKEN" \
-  -H "Content-Type: application/json" \
-  -X PUT "https://redhat.atlassian.net/rest/api/2/issue/{issue_key}/comment/{comment_id}" \
-  -d '{"body": "...comment_body..."}'
-```
 
 ### Phase 7: Apply Jira Label
 
@@ -232,24 +167,7 @@ Skip if `--dry-run` is set.
    - If PASS: remove `not-ready-to-solve` (if present), add `ready-to-solve`
    - If FAIL: remove `ready-to-solve` (if present), add `not-ready-to-solve`
 3. Skip update if labels haven't changed
-4. Apply via MCP (single API call to avoid partial updates):
-
-```python
-mcp__atlassian__jira_update_issue(
-    issue_key="PROJ-123",
-    fields={},
-    additional_fields={
-        "labels": updated_labels_list
-    }
-)
-```
-
-**CLI fallback:**
-```bash
-jira issue edit PROJ-123 -l "ready-to-solve"
-```
-
-Note: The `labels` field in Jira REST API replaces the entire array, so always include all existing labels plus the new one.
+4. Apply via `editJiraIssue`, setting the `labels` field to the updated labels list. Note: The `labels` field replaces the entire array, so always include all existing labels plus the new one.
 
 ### Phase 8: Generate Report
 
@@ -290,7 +208,7 @@ Output format:
 | Error | Handling |
 |-------|----------|
 | Issue not found | "Could not find issue {key}. Verify the issue key is correct." |
-| MCP unavailable | Fall back to curl for fetching, jira CLI for label update |
+| MCP unavailable | Display error: "Jira MCP server required. Check plugin README for setup." |
 | Python not available | "Python 3 is required. Check: `which python3`" |
 | `check_sections.py` fails | Display script error, proceed with AI-only assessment, note in report |
 | Description is null/empty | Automatic FAIL: "Issue has no description. Add Context and Acceptance Criteria sections." |

@@ -57,7 +57,7 @@ This skill is automatically invoked by the `/jira:create` command when the proje
 
 When user specifies a different version:
 1. Accept the version as provided
-2. Validate version exists using MCP tool `jira_get_project_versions` if needed
+2. Fetch available versions from the project via `getJiraIssueTypeMetaWithFields` if needed
 3. If version doesn't exist, suggest closest match or ask user to confirm
 
 ## Component Requirements
@@ -88,37 +88,18 @@ Some teams require specific components, while others do not. The OCPBUGS skill d
 
 ## MCP Tool Integration
 
+**Note:** Always include `contentFormat: "markdown"` when calling `createJiraIssue` or `editJiraIssue` so descriptions are interpreted as Markdown.
+
 ### For OCPBUGS Bugs
 
-```python
-mcp__atlassian__jira_create_issue(
-    project_key="OCPBUGS",
-    summary="<bug summary>",
-    issue_type="Bug",
-    description="<formatted bug template>",
-    components="<component name>",  # if required by team
-    additional_fields={
-        "versions": [{"name": "4.21"}],           # affects version (user-specified)
-        "customfield_10855": "openshift-4.21", # target version (default or user-specified)
-        "labels": ["ai-generated-jira"],
-        "security": {"name": "Red Hat Employee"}
-    }
-)
-```
+Use `createJiraIssue` with `contentFormat: "markdown"`, project key `OCPBUGS`, and issue type `Bug`. Set the following fields via `additional_fields`:
 
-### Field Mapping Reference
+- `versions`: affects version, e.g. `[{"name": "4.21"}]` (user-specified)
+- `customfield_10855`: target version, e.g. `"openshift-4.21"` (default or user-specified)
+- `labels`: `["ai-generated-jira"]`
+- `security`: `{"name": "Red Hat Employee"}`
 
-| Requirement | MCP Parameter | Value |
-|-------------|---------------|-------|
-| Project | `project_key` | `"OCPBUGS"` |
-| Issue Type | `issue_type` | `"Bug"` |
-| Summary | `summary` | User-provided text |
-| Description | `description` | Formatted bug template |
-| Component | `components` | Team-specific (optional) |
-| Affects Version | `additional_fields.versions` | `[{"name": "4.21"}]` (user-specified) |
-| Target Version | `additional_fields.customfield_10855` | `"openshift-4.21"` (default or user-specified) |
-| Labels | `additional_fields.labels` | `["ai-generated-jira"]` (required) |
-| Security Level | `additional_fields.security` | `{"name": "Red Hat Employee"}` (required) |
+Set `components` if required by the team.
 
 ## Interactive Prompts
 
@@ -166,7 +147,7 @@ mcp__atlassian__jira_create_issue(
 **Scenario:** User specifies a version that doesn't exist.
 
 **Action:**
-1. Use `mcp__atlassian__jira_get_project_versions` to fetch available versions
+1. Fetch available versions from the project
 2. Suggest closest match: "Version '4.21.5' not found. Did you mean '4.21.0'?"
 3. Show available versions: "Available: 4.20.0, 4.21.0, 4.22.0"
 4. Wait for confirmation or correction
@@ -215,7 +196,7 @@ mcp__atlassian__jira_create_issue(
 2. Suggest: "Would you like to create a bug instead, or change the project to CNTRLPLANE?"
 3. Wait for user decision
 
-**Note:** Jira description formatting (Wiki markup) is defined in the `/jira:create` command.
+**Note:** Jira descriptions use Markdown (`contentFormat: "markdown"`). Formatting conventions are defined in the `/jira:create` command.
 
 ## Team-Specific Extensions
 

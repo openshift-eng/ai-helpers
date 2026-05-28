@@ -21,7 +21,6 @@ This skill is automatically invoked by the `/jira:generate-enhancement` command 
 **Reference Documentation:**
 - [OpenShift Enhancement Template](https://github.com/openshift/enhancements/blob/master/guidelines/enhancement_template.md)
 - [Enhancement Guidelines](https://github.com/openshift/enhancements/tree/master/guidelines)
-- [MCP Tools Reference](../../reference/mcp-tools.md)
 
 ## What is an OpenShift Enhancement?
 
@@ -474,15 +473,7 @@ This enhancement will be delivered through the following epics:
 * Query latency: <1s for 95th percentile
 ```
 
-**Fetch linked epics if available:**
-```python
-# Get linked epics from feature
-epics = mcp__atlassian__jira_search_issues(
-    jql=f'parent = {feature_key} AND type = Epic'
-)
-
-# Include epic summaries and keys in implementation details
-```
+**Fetch linked epics if available:** Query `searchJiraIssuesUsingJql` with `jql: "parent = {feature_key} AND type = Epic"` and include epic summaries and keys in the implementation details.
 
 #### Risks and Mitigations
 Map from **Risks and Mitigation** section in feature (if present), or prompt:

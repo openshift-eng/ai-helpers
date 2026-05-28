@@ -33,7 +33,7 @@ The command performs deep analysis of:
 This command orchestrates two skills in sequence to generate comprehensive feature documentation:
 
 1. **Extract GitHub PRs** (via `jira:extract-prs` skill)
-   - Discovers all descendant issues recursively using `childIssuesOf()` JQL
+   - Discovers all descendant issues recursively using `parent = KEY` BFS
    - Extracts PR URLs from Jira Remote Links (primary) and text content (backup)
    - Fetches PR metadata from GitHub (state, title)
    - Returns structured JSON with deduplicated PRs

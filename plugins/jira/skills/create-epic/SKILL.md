@@ -19,33 +19,21 @@ This skill is automatically invoked by the `/jira:create epic` command to guide 
 
 **Reference Documentation:**
 - [Markdown for Jira Reference](../../reference/markdown-for-jira.md) - Markdown formatting for Jira descriptions
-- [MCP Tools Reference](../../reference/mcp-tools.md) - MCP tool signatures and custom fields
-- [CLI Fallback Reference](../../reference/cli-fallback.md) - jira-cli commands (only if MCP unavailable)
 
-## What is an Epic?
+## Custom Fields (redhat.atlassian.net)
 
-An agile epic is:
-- A **body of work** that can be broken down into specific items (stories/tasks)
-- Based on the needs/requests of customers or end-users
-- An important practice for agile and DevOps teams
-- A tool to **manage work** at a higher level than individual stories
+| Field | ID | Type | Usage |
+|-------|------|------|-------|
+| Epic Name | `customfield_10011` | String | Required for Epics; must match summary |
+| Parent Link | `customfield_10018` | String | Links Epic to parent Feature. Value = Feature issue key |
+| Target Version | `customfield_10855` | Array | Format: `[{"id": "VERSION_ID"}]` |
 
-### Epic Characteristics
+### Parent Linking Fallback
 
-Epics should:
-- Be **more narrow** than a market problem or feature
-- Be **broader** than a user story
-- **Fit inside a time box** (quarter/release)
-- Stories within the epic should **fit inside a sprint**
-- Include **acceptance criteria** that define when the epic is done
-
-### Epic vs Feature vs Story
-
-| Level | Scope | Duration | Example |
-|-------|-------|----------|---------|
-| Feature | Strategic objective, market problem | Multiple releases | "Advanced cluster observability" |
-| Epic | Specific capability, narrower than feature | One quarter/release | "Multi-cluster metrics aggregation" |
-| Story | Single user-facing functionality | One sprint | "As an SRE, I want to view metrics from multiple clusters in one dashboard" |
+If creation fails with a 4xx error that specifically references `customfield_10018` or `customfield_10011` in the error response:
+1. **Duplicate guard:** Search for an issue with the same summary in the target project before retrying — if one exists, the original call may have partially succeeded
+2. Retry WITHOUT the parent/epic link field
+3. After creation succeeds, set `customfield_10018` to the parent Feature key via `editJiraIssue`
 
 ## Epic Name Field Requirement
 
@@ -244,134 +232,26 @@ Before submitting the epic, validate:
 ### Security
 - ✅ No credentials, API keys, or secrets in any field
 
-## MCP Tool Parameters
+## MCP Issue Creation
 
-### Basic Epic Creation
+Create epics via `createJiraIssue` with `contentFormat: "markdown"`. Key parameters:
+- `projectKey`: e.g., `"CNTRLPLANE"`
+- `issueTypeName`: `"Epic"`
+- `summary`: epic summary
+- `description`: formatted epic template (Markdown)
+- `additional_fields`: must include `"customfield_10011"` (Epic Name, same as summary), `"labels": ["ai-generated-jira"]`, `"security": {"name": "Red Hat Employee"}`
 
-```python
-mcp__atlassian__jira_create_issue(
-    project_key="<PROJECT_KEY>",
-    summary="<epic summary>",
-    issue_type="Epic",
-    description="""
-<Epic objective and description>
+### Parent Feature Link
 
-## Epic Acceptance Criteria
+When linking an epic to a parent feature, use **Parent Link** (`customfield_10018`) as a STRING value (the Feature issue key). Do NOT use Epic Link or the standard `parent` field.
 
-- <Outcome 1>
-- <Outcome 2>
-- <Outcome 3>
-
-## Scope
-
-### In Scope
-- <What's included>
-
-### Out of Scope
-- <What's not included>
-
-## Timeline
-
-Target: <quarter/release>
-    """,
-    components="<component name>",  # if required
-    additional_fields={
-        "customfield_epicname": "<epic name>",  # if required, same as summary
-        # Add other project-specific fields
-    }
-)
-```
-
-### With Project-Specific Fields (e.g., CNTRLPLANE)
-
-```python
-mcp__atlassian__jira_create_issue(
-    project_key="CNTRLPLANE",
-    summary="Multi-cluster metrics aggregation for ROSA HCP",
-    issue_type="Epic",
-    description="""
-Enable SREs to manage and monitor multiple ROSA HCP clusters from a unified observability dashboard, reducing operational complexity of multi-cluster environments.
-
-## Epic Acceptance Criteria
-
-- SREs can view aggregated metrics from all managed clusters in one dashboard
-- Alert rules can be defined for cross-cluster conditions (e.g., "any cluster CPU >80%")
-- Historical metrics retained for 30 days across all clusters
-- Multi-cluster setup documented and tested with production workloads
-- Performance acceptable with 100+ clusters
-
-## Scope
-
-### In Scope
-- Metrics aggregation across ROSA HCP clusters
-- Unified dashboard for cluster health and performance
-- Cross-cluster alerting capabilities
-- 30-day historical metrics retention
-- Configuration via CLI and API
-
-### Out of Scope
-- Log aggregation (separate epic CNTRLPLANE-200)
-- Cost reporting (different feature)
-- Support for standalone OCP clusters (future consideration)
-- Integration with external monitoring systems (post-MVP)
-
-## Timeline
-
-- Target: Q1 2025 / OpenShift 4.21
-- Estimated: 6 sprints
-- Key milestone: MVP dashboard by end of Sprint 3
-
-## Target Users
-
-- SREs managing multiple ROSA HCP clusters
-- Platform administrators
-- Operations teams
-
-## Dependencies
-
-- Requires centralized metrics storage infrastructure ([CNTRLPLANE-150](https://redhat.atlassian.net/browse/CNTRLPLANE-150))
-- Depends on cluster registration API ([CNTRLPLANE-175](https://redhat.atlassian.net/browse/CNTRLPLANE-175))
-    """,
-    components="HyperShift / ROSA",
-    additional_fields={
-        "customfield_10855": "openshift-4.21",  # target version
-        "customfield_epicname": "Multi-cluster metrics aggregation for ROSA HCP",  # epic name
-        "labels": ["ai-generated-jira", "observability"],
-        "security": {"name": "Red Hat Employee"}
-    }
-)
-```
-
-### With Parent Feature Link
-
-When linking an epic to a parent feature via `--parent` flag, use the **Parent Link** custom field (NOT Epic Link, NOT standard `parent` field):
-
-```python
-mcp__atlassian__jira_create_issue(
-    project_key="CNTRLPLANE",
-    summary="Multi-cluster monitoring dashboard",
-    issue_type="Epic",
-    description="<epic content with scope and AC>",
-    components="HyperShift",
-    additional_fields={
-        "customfield_10011": "Multi-cluster monitoring dashboard",  # Epic Name (required)
-        "customfield_10018": "CNTRLPLANE-100",  # Parent Link - links to parent FEATURE (STRING!)
-        "labels": ["ai-generated-jira"],
-        "security": {"name": "Red Hat Employee"}
-    }
-)
-```
-
-**IMPORTANT:**
-- Epic→Feature uses **Parent Link** (`customfield_10018`) - value is a STRING
-- Story→Epic uses **Epic Link** (`customfield_10014`) - value is a STRING
-- The standard `parent` field does NOT work for these relationships
-
-**See:** `/jira:create` command documentation for complete parent linking hierarchy and implementation strategy.
+**Linking hierarchy:**
+- Epic to Feature uses **Parent Link** (`customfield_10018`) - value is a STRING
+- Story to Epic uses **Epic Link** (`customfield_10014`) - value is a STRING
 
 ## Jira Description Formatting
 
-Use Markdown formatting (the MCP tool converts it to Jira wiki markup automatically):
+Use Markdown formatting with `contentFormat: "markdown"`:
 
 ### Epic Template Format
 
@@ -422,13 +302,8 @@ This epic is part of [PROJ-YYY](https://redhat.atlassian.net/browse/PROJ-YYY) "<
 
 **Action:**
 1. Check if project requires epic name field
-2. If required, set `customfield_epicname` = summary
+2. If required, set `customfield_10011` = summary
 3. Retry creation
-
-**Note:** Field ID may vary by Jira instance:
-- `customfield_epicname` (common)
-- `customfield_10011` (numbered field)
-- Check project configuration if standard field names don't work
 
 ### Epic Too Large
 

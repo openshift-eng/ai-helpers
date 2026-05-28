@@ -29,7 +29,7 @@ The `jira:create-release-note` command runs in multiple phases:
 
 ### 🎯 Phase 1: Fetch and Validate Jira Bug
 
-1. **Fetch bug ticket** using `mcp__atlassian__jira_get_issue` MCP tool:
+1. **Fetch bug ticket** using `getJiraIssue` MCP tool:
    - Request all fields to ensure we have complete data
    - Verify the issue is a Bug type
    - Extract issue description, links, and custom fields
@@ -212,24 +212,9 @@ Prompt user to select the appropriate Release Note Type:
 
 Update the Jira bug ticket with generated release note:
 
-1. **Prepare fields** for update:
-   ```
-   {
-     "customfield_10785": {"value": "<Release Note Type>"},
-     "customfield_10783": "<Release Note Text>"
-   }
-   ```
-
-2. **Update using MCP tool**:
-   ```
-   mcp__atlassian__jira_update_issue(
-     issue_key=<issue-key>,
-     fields={
-       "customfield_10785": {"value": "Bug Fix"},
-       "customfield_10783": "<formatted release note text>"
-     }
-   )
-   ```
+Use `editJiraIssue` with `contentFormat: "markdown"` to set these fields:
+   - `customfield_10785` (Release Note Type): `{"value": "<selected type>"}` (e.g. `{"value": "Bug Fix"}`)
+   - `customfield_10783` (Release Note Text): the formatted release note text
 
 3. **Handle update errors**:
    - Permission denied: User may not have rights to update these fields

@@ -19,8 +19,20 @@ This skill is automatically invoked by the `/jira:create bug` command to guide t
 
 **Reference Documentation:**
 - [Markdown for Jira Reference](../../reference/markdown-for-jira.md) - Markdown formatting for Jira descriptions
-- [MCP Tools Reference](../../reference/mcp-tools.md) - MCP tool signatures and custom fields
-- [CLI Fallback Reference](../../reference/cli-fallback.md) - jira-cli commands (only if MCP unavailable)
+
+## Custom Fields (redhat.atlassian.net)
+
+| Field | ID | Type | Usage |
+|-------|------|------|-------|
+| Epic Link | `customfield_10014` | String | Links Bug to parent Epic. Value = Epic issue key |
+| Target Version | `customfield_10855` | Array | Format: `[{"id": "VERSION_ID"}]` |
+
+### Parent Linking Fallback
+
+If creation fails with a 4xx error that specifically references `customfield_10014` or `customfield_10018` in the error response:
+1. **Duplicate guard:** Search for an issue with the same summary in the target project before retrying — if one exists, the original call may have partially succeeded
+2. Retry WITHOUT the parent/epic link field
+3. After creation succeeds, add the link via `editJiraIssue` (include `contentFormat: "markdown"`)
 
 ## Bug Report Best Practices
 
@@ -266,75 +278,18 @@ Before submitting the bug, validate:
 - ✅ Logs are sanitized (passwords, tokens redacted)
 - ✅ Screenshots don't expose sensitive information
 
-## MCP Tool Parameters
+## MCP Issue Creation
 
-### Basic Bug Creation
-
-```python
-mcp__atlassian__jira_create_issue(
-    project_key="<PROJECT_KEY>",  # e.g., "OCPBUGS", "MYPROJECT"
-    summary="<bug summary>",
-    issue_type="Bug",
-    description="<formatted bug template>",
-    components="<component name>",  # optional, if required by project
-    additional_fields={
-        "versions": [{"name": "<version>"}],  # affects version, if supported
-        # Add other project-specific fields as needed
-    }
-)
-```
-
-### With Project-Specific Fields (e.g., OCPBUGS)
-
-```python
-mcp__atlassian__jira_create_issue(
-    project_key="OCPBUGS",
-    summary="Control plane pods crash on upgrade",
-    issue_type="Bug",
-    description="""
-## Description of problem
-
-Control plane pods crash immediately after upgrading from 4.20 to 4.21.
-
-## Version-Release number
-
-4.21.0
-
-## How reproducible
-
-Always
-
-## Steps to Reproduce
-
-1. Create a cluster on 4.20
-1. Upgrade to 4.21
-1. Observe control plane pod status
-
-## Actual results
-
-Pods enter CrashLoopBackOff state.
-
-## Expected results
-
-Pods should start successfully.
-
-## Additional info
-
-Logs attached.
-    """,
-    components="HyperShift",
-    additional_fields={
-        "versions": [{"name": "4.21"}],           # affects version
-        "customfield_10855": "4.21",            # target version
-        "labels": ["ai-generated-jira"],
-        "security": {"name": "Red Hat Employee"}   # if required
-    }
-)
-```
+Create bugs via `createJiraIssue` with `contentFormat: "markdown"`. Key parameters:
+- `projectKey`: e.g., `"OCPBUGS"`
+- `issueTypeName`: `"Bug"`
+- `summary`: concise bug summary
+- `description`: formatted bug template (Markdown)
+- `additional_fields`: custom fields including `"labels": ["ai-generated-jira"]`, `"security": {"name": "Red Hat Employee"}`, and version fields when a target version is specified
 
 ## Jira Description Formatting
 
-Use Markdown formatting (the MCP tool converts it to Jira wiki markup automatically). For formatting reference, see [Markdown for Jira Reference](../../reference/markdown-for-jira.md).
+Use Markdown formatting with `contentFormat: "markdown"`. For formatting reference, see [Markdown for Jira Reference](../../reference/markdown-for-jira.md).
 
 ## Error Handling
 
@@ -359,7 +314,7 @@ Example: "API server crashes when creating namespaces"
 **Scenario:** Specified version doesn't exist in project.
 
 **Action:**
-1. Use `mcp__atlassian__jira_get_project_versions` to fetch valid versions
+1. Fetch valid versions via `getJiraIssueTypeMetaWithFields` (check `allowedValues` for the `versions` field)
 2. Suggest closest match or list available versions
 3. Ask user to confirm or select different version
 

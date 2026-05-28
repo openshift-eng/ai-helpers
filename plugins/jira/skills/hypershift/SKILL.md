@@ -112,40 +112,15 @@ In addition to `ai-generated-jira` (from CNTRLPLANE skill), HyperShift issues ma
 
 ## MCP Tool Integration
 
+**Note:** Always include `contentFormat: "markdown"` when calling `createJiraIssue` or `editJiraIssue` so descriptions are interpreted as Markdown.
+
 ### For HyperShift Stories/Tasks in CNTRLPLANE
 
-```python
-mcp__atlassian__jira_create_issue(
-    project_key="CNTRLPLANE",
-    summary="<issue summary>",
-    issue_type="Story" | "Task" | "Epic" | "Feature",
-    description="<formatted description>",
-    components="HyperShift / ARO" | "HyperShift / ROSA" | "HyperShift",
-    additional_fields={
-        "customfield_10855": "openshift-4.21",  # target version
-        "labels": ["ai-generated-jira"],
-        "security": {"name": "Red Hat Employee"}
-    }
-)
-```
+Use `createJiraIssue` with `contentFormat: "markdown"`, project key `CNTRLPLANE`, and set the component to one of `HyperShift / ARO`, `HyperShift / ROSA`, or `HyperShift` based on the auto-detection logic above. Include `customfield_10855` (target version) set to `"openshift-4.21"` (or user-specified version), along with standard labels and security fields.
 
 ### For HyperShift Bugs in OCPBUGS
 
-```python
-mcp__atlassian__jira_create_issue(
-    project_key="OCPBUGS",
-    summary="<bug summary>",
-    issue_type="Bug",
-    description="<formatted bug template>",
-    components="HyperShift / ARO" | "HyperShift / ROSA" | "HyperShift",
-    additional_fields={
-        "versions": [{"name": "4.21"}],          # affects version
-        "customfield_10855": "4.21",           # target version
-        "labels": ["ai-generated-jira"],
-        "security": {"name": "Red Hat Employee"}
-    }
-)
-```
+Use `createJiraIssue` with `contentFormat: "markdown"`, project key `OCPBUGS`, issue type `Bug`, and the appropriate HyperShift component. Include `versions` (affects version) as `[{"name": "4.21"}]`, `customfield_10855` (target version) set to `"4.21"`, along with standard labels and security fields.
 
 ## Examples
 

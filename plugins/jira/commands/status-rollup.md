@@ -21,17 +21,17 @@ This command is particularly useful for:
 - Identifying blockers and risks across multiple issues
 
 Key capabilities:
-- Recursively traverses entire issue hierarchies (any depth) via `childIssuesOf()` JQL
+- Recursively traverses entire issue hierarchies (any depth) via `parent = KEY` BFS
 - Analyzes status transitions, assignee changes, and priority shifts
 - Extracts blockers, risks, and completion insights from comments
-- Generates valid Jira wiki markup with nested bullets
+- Generates valid Jira markdown with nested bullets
 - Caches all data in a temp file for fast iterative refinement
 - Allows review and modification before posting to Jira
 
 This command uses the **Status Analysis Engine** skill for core analysis logic. See `plugins/jira/skills/status-analysis/SKILL.md` for detailed implementation.
 
 **IMPORTANT - Skill Loading Requirement:**
-Before processing any issues, you MUST invoke `Skill(jira:status-analysis)` to load the Status Analysis Engine skill. This ensures proper use of `childIssuesOf()` for hierarchy traversal and consistent analysis methodology. Do NOT rely on conversation summaries or memory - always load the skill explicitly at the start of execution.
+Before processing any issues, you MUST invoke `Skill(jira:status-analysis)` to load the Status Analysis Engine skill. This ensures proper use of `parent = KEY` BFS for hierarchy traversal and consistent analysis methodology. Do NOT rely on conversation summaries or memory - always load the skill explicitly at the start of execution.
 
 ## Implementation
 
@@ -46,10 +46,10 @@ Skill(jira:status-analysis)
 ```
 
 This loads the Status Analysis Engine skill which provides:
-- Proper `childIssuesOf()` usage for hierarchy traversal
+- Proper `parent = KEY` BFS for hierarchy traversal
 - Activity analysis methodology
 - External links processing (GitHub PRs, GitLab MRs)
-- Wiki comment formatting rules
+- Markdown comment formatting rules
 
 **Do NOT skip this step even in continued sessions.** Session summaries do not preserve skill context.
 
@@ -72,7 +72,7 @@ Build the configuration for the Status Analysis Engine:
     "start": "{start-date}",
     "end": "{end-date}"
   },
-  "output_format": "wiki_comment",
+  "output_format": "markdown_comment",
   "output_target": "comment",
   "external_links_enabled": false,
   "cache_to_file": true
@@ -84,8 +84,8 @@ Build the configuration for the Status Analysis Engine:
 Follow the skill documentation in `plugins/jira/skills/status-analysis/`:
 
 1. **Data Collection** (`data-collection.md`):
-   - Fetch the root issue with `mcp__atlassian-mcp__jira_get_issue`
-   - Discover all descendants via JQL: `issue in childIssuesOf({issue-id})`
+   - Fetch the root issue with `getJiraIssue`
+   - Discover all descendants via `parent = {issue-id}` BFS recursion
    - Fetch details and changelogs for all issues
    - Cache data to temp file: `/tmp/jira-status-{issue-id}-{timestamp}.md`
 
@@ -96,7 +96,7 @@ Follow the skill documentation in `plugins/jira/skills/status-analysis/`:
    - Determine overall health (green/yellow/red)
 
 3. **Formatting** (`formatting.md`):
-   - Generate Jira wiki markup using `wiki_comment` format
+   - Generate Jira markdown using `markdown_comment` format
    - Include sections: Overall Status, This Period, Next Steps, Risks, Metrics
 
 ### 4. Present to User for Review
@@ -127,8 +127,8 @@ Regenerate only affected sections and present again.
 
 Once approved:
 
-1. Use `mcp__atlassian-mcp__jira_add_comment` to post to the root issue
-2. Comment includes footer: `_Generated with [Claude Code|https://claude.com/claude-code] via {{/jira:status-rollup {issue-id} --start-date {date} --end-date {date}}}_`
+1. Use `addCommentToJiraIssue` with `contentFormat: "markdown"` to post to the root issue
+2. Comment includes footer: ``_Generated with [Claude Code](https://claude.com/claude-code) via `/jira:status-rollup {issue-id} --start-date {date} --end-date {date}`_``
 3. Confirm success and provide issue URL
 
 ### 7. Temp File Cleanup
@@ -174,45 +174,45 @@ Ask user if they want to keep `/tmp/jira-status-{issue-id}-{timestamp}.md`:
 
 **Example Output:**
 ```
-h2. Status Rollup: 2025-01-06 to 2025-01-13
+## Status Rollup: 2025-01-06 to 2025-01-13
 
-*Overall Status:* (/) Feature is on track. Core authentication work completed this week with 2 PRs merged. UI integration starting with design approved.
+**Overall Status:** Feature is on track. Core authentication work completed this week with 2 PRs merged. UI integration starting with design approved.
 
-h3. This Period
+### This Period
 
-*Completed:*
-*# [AUTH-101|https://redhat.atlassian.net/browse/AUTH-101] - OAuth2 implementation (PR #456 merged, all review feedback addressed)
-*# [AUTH-102|https://redhat.atlassian.net/browse/AUTH-102] - Token validation with comprehensive unit tests
+**Completed:**
+- [AUTH-101](https://redhat.atlassian.net/browse/AUTH-101) - OAuth2 implementation (PR #456 merged, all review feedback addressed)
+- [AUTH-102](https://redhat.atlassian.net/browse/AUTH-102) - Token validation with comprehensive unit tests
 
-*In Progress:*
-*# [UI-201|https://redhat.atlassian.net/browse/UI-201] - Login UI components (design review completed, implementing responsive layout)
-*# [AUTH-103|https://redhat.atlassian.net/browse/AUTH-103] - Session handling refactor (draft PR submitted)
+**In Progress:**
+- [UI-201](https://redhat.atlassian.net/browse/UI-201) - Login UI components (design review completed, implementing responsive layout)
+- [AUTH-103](https://redhat.atlassian.net/browse/AUTH-103) - Session handling refactor (draft PR submitted)
 
-*Blocked:*
-*# [AUTH-104|https://redhat.atlassian.net/browse/AUTH-104] - Azure AD integration (waiting on subscription approval)
-{quote}Need Azure subscription approved before proceeding - submitted ticket #12345{quote}
+**Blocked:**
+- [AUTH-104](https://redhat.atlassian.net/browse/AUTH-104) - Azure AD integration (waiting on subscription approval)
+  > Need Azure subscription approved before proceeding - submitted ticket #12345
 
-h3. Next Steps
+### Next Steps
 
-* Complete session handling refactor (AUTH-103) and submit for review
-* Finish login UI responsive implementation (UI-201)
-* Begin end-to-end testing (AUTH-107) once session handling is merged
+- Complete session handling refactor (AUTH-103) and submit for review
+- Finish login UI responsive implementation (UI-201)
+- Begin end-to-end testing (AUTH-107) once session handling is merged
 
-h3. Risks
+### Risks
 
-* *Medium:* API deprecation in upstream dependency may require refactor in Q2
+- **Medium:** API deprecation in upstream dependency may require refactor in Q2
 
-h3. Metrics
+### Metrics
 
-* *Total Issues:* 15
-* *Completed:* 8 (53%)
-* *In Progress:* 4
-* *Blocked:* 1
-* *Updated This Period:* 6
+- **Total Issues:** 15
+- **Completed:** 8 (53%)
+- **In Progress:** 4
+- **Blocked:** 1
+- **Updated This Period:** 6
 
-----
+---
 
-_Generated with [Claude Code|https://claude.com/claude-code] via {{/jira:status-rollup FEATURE-123 --start-date 2025-01-06 --end-date 2025-01-13}}_
+_Generated with [Claude Code](https://claude.com/claude-code) via `/jira:status-rollup FEATURE-123 --start-date 2025-01-06 --end-date 2025-01-13`_
 ```
 
 ## Arguments

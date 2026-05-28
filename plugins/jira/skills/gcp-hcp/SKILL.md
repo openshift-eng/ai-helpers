@@ -75,83 +75,39 @@ The GCP project uses these components for organizing work:
 
 **Usage:**
 - Components are **optional** - only specify if the work clearly fits a component
-- Use the direct `components` parameter (NOT in `additional_fields`)
+- Set components via `additional_fields` (e.g., `"components": [{"name": "HyperShift"}]`)
 - If work doesn't fit any existing component, leave empty - do not request new components
 
 ## MCP Tool Integration
 
-### For GCP HCP Stories in GCP Project
+**Note:** Always include `contentFormat: "markdown"` when calling `createJiraIssue` or `editJiraIssue` so descriptions are interpreted as Markdown.
 
-```python
-mcp__atlassian__jira_create_issue(
-    project_key="GCP",
-    summary="<story summary>",
-    issue_type="Story",
-    description="<formatted story description>",
-    components="<component name>",  # Optional - see Components section
-    additional_fields={
-        "customfield_10014": "GCP-456",  # Epic Link - parent epic
-        "customfield_10028": 3.0,        # Story Points - auto-estimated per Sizing Guide
-        "priority": {"name": "Major"},      # Priority - OMIT unless user specifies
-        "labels": ["ai-generated-jira"],
-        "security": {"name": "Red Hat Employee"}
-    }
-)
-```
+### Custom Fields by Issue Type
+
+Use `createJiraIssue` with `contentFormat: "markdown"` for all GCP project issues. The table below shows additional custom fields per issue type:
+
+| Issue Type | Key Fields |
+|---|---|
+| Story / Task | `customfield_10014` (Epic Link): parent epic key; `customfield_10028` (Story Points): float, auto-estimated per Sizing Guide; `priority`: `{"name": "Major"}` (omit unless user specifies) |
+| Epic | `customfield_10011` (Epic Name): must match summary. Do NOT include parent link at creation time -- add it via a separate `editJiraIssue` call (see Epic Linking below). |
+| Feature | No type-specific custom fields required. |
+
+All issues include: `"labels": ["ai-generated-jira"]`, `"security": {"name": "Red Hat Employee"}`, and `contentFormat: "markdown"`.
+
+GCP-HCP also uses:
+- `customfield_10028` (Story Points): float value on Fibonacci scale (0, 1, 2, 3, 5, 8, 13)
+- `customfield_10517` (Blocked): `{"value": "True"}` when issue is blocked
 
 **Story Points guidance**: When creating a Story or Task, auto-estimate story points by analyzing the issue summary, description, and acceptance criteria against the [Story Sizing Guide](#story-sizing-guide). Set `customfield_10028` as a float (e.g. `3.0`). Use the Fibonacci scale: 0, 1, 2, 3, 5, 8, 13. For estimates of 8 or higher, add a note in the description recommending the story be split into smaller items. The `ai-generated-jira` label (already applied) serves as an indicator that points were AI-estimated; the team reviews and adjusts estimates during refinement.
 
 **Priority guidance**: Before creating an issue, ask the user if they want to set a specific priority: "Would you like to set a priority for this issue? The default is Normal." Reference the [Priority Scheme (OJA-PRIS-001)](#priority-scheme-oja-pris-001) below to guide the conversation. If yes, set `priority` as an object with `name` field (e.g. `{"name": "Major"}`). If no, omit the field to use the default.
 
-### For GCP HCP Epics in GCP Project
-
-```python
-mcp__atlassian__jira_create_issue(
-    project_key="GCP",
-    summary="<epic summary>",
-    issue_type="Epic",
-    description="<formatted epic description>",
-    components="<component name>",  # Optional - see Components section
-    additional_fields={
-        "customfield_10011": "Multi-cluster metrics aggregation",  # Epic Name (required, same as summary)
-        "labels": ["ai-generated-jira"],
-        "security": {"name": "Red Hat Employee"}
-    }
-    # NOTE: Do NOT include parent link (customfield_10018) here.
-    # Add parent link in a separate update call per "Epic Linking Best Practices" section.
-)
-```
-
 ## Epic Linking Best Practices
 
 **When creating an Epic with a parent Feature:**
 
-1. Create Epic first WITHOUT parent link
-2. Link to Feature in a separate update call
-
-**Example:**
-```python
-# Step 1: Create Epic
-epic = mcp__atlassian__jira_create_issue(
-    project_key="GCP",
-    issue_type="Epic",
-    summary="Multi-cluster monitoring",
-    additional_fields={
-        "customfield_10011": "Multi-cluster monitoring",  # Epic Name
-        "labels": ["ai-generated-jira"],
-        "security": {"name": "Red Hat Employee"}
-    }
-)
-
-# Step 2: Link to Feature
-mcp__atlassian__jira_update_issue(
-    issue_key=epic["key"],
-    fields={},
-    additional_fields={
-        "customfield_10018": "GCP-100"  # Parent Link (Feature key)
-    }
-)
-```
+1. Create the Epic first via `createJiraIssue` WITHOUT the parent link field.
+2. Link to the Feature in a separate call: use `editJiraIssue` to set `customfield_10018` (Parent Link) to the Feature key (e.g. `"GCP-100"`).
 
 ## GCP HCP Team Standards
 
@@ -559,15 +515,15 @@ Summary: Multi-cluster monitoring and observability
 Description:
 Implement comprehensive monitoring and observability for GCP-hosted control planes across multiple GKE clusters, enabling operators to detect and respond to issues proactively.
 
-h2. Scope
+## Scope
 
-* Metrics collection from control plane pods
-* Central metrics aggregation and storage
-* Dashboards for monitoring cluster health
-* Alerting framework for critical metrics
-* Log aggregation and analysis
+- Metrics collection from control plane pods
+- Central metrics aggregation and storage
+- Dashboards for monitoring cluster health
+- Alerting framework for critical metrics
+- Log aggregation and analysis
 
-h2. Acceptance Criteria
+## Acceptance Criteria
 
 - Test that metrics are collected from all control plane pods
 - Test that metrics are available within 30 seconds of generation

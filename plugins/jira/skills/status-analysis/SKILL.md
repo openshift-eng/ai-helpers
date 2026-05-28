@@ -86,7 +86,7 @@ Do NOT invoke this skill directly. Use the commands above.
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                   Jira comment (wiki markup)                    │
+│                   Jira comment (markdown)                       │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -112,7 +112,7 @@ Both commands share the same engine with different configuration:
 | `root_issues` | Single issue key | Multiple (from manifest.json) |
 | `date_range.start` | User-specified or issue creation | `today - 7 days` |
 | `date_range.end` | User-specified or today | `today` |
-| `output_format` | `wiki_comment` | `ryg_field` |
+| `output_format` | `markdown_comment` | `ryg_field` |
 | `output_target` | Comment on root issue | Status Summary field |
 | `external_links` | Via `gh` CLI | Pre-gathered in JSON |
 | `user_review` | Yes (before posting comment) | Yes (approve/modify/skip per issue) |
@@ -161,7 +161,7 @@ Configuration passed from calling command:
     "start": "2025-01-06",
     "end": "2025-01-13"
   },
-  "output_format": "wiki_comment",
+  "output_format": "markdown_comment",
   "output_target": "comment",
   "external_links_enabled": true,
   "cache_to_file": true,
@@ -237,7 +237,7 @@ The calling command provides an AnalysisConfig. Parse and validate:
 REQUIRED parameters:
   - root_issues: Array of issue keys to analyze
   - date_range: {start, end} in YYYY-MM-DD format
-  - output_format: "wiki_comment" or "ryg_field"
+  - output_format: "markdown_comment" or "ryg_field"
 
 OPTIONAL parameters:
   - external_links_enabled: boolean (default: true)
@@ -332,26 +332,28 @@ Follow `external-links.md` to:
 
 Follow `formatting.md` to generate output based on `output_format`:
 
-**For `wiki_comment` (status-rollup)**:
+**For `markdown_comment` (status-rollup)**:
 
+```markdown
+## Status Rollup From: {start-date} to {end-date}
+
+**Overall Status:** [Health assessment]
+
+**This Week:**
+- Completed:
+  1. [ISSUE-KEY] - [Achievement]
+- In Progress:
+  1. [ISSUE-KEY] - [Current state]
+- Blocked:
+  1. [ISSUE-KEY] - [Blocker reason]
+
+**Next Week:**
+- [Planned items]
+
+**Metrics:** X/Y issues complete (Z%)
 ```
-h2. Status Rollup From: {start-date} to {end-date}
 
-*Overall Status:* [Health assessment]
-
-*This Week:*
-* Completed:
-*# [ISSUE-KEY] - [Achievement]
-* In Progress:
-*# [ISSUE-KEY] - [Current state]
-* Blocked:
-*# [ISSUE-KEY] - [Blocker reason]
-
-*Next Week:*
-* [Planned items]
-
-*Metrics:* X/Y issues complete (Z%)
-```
+**Note**: When posting via `addCommentToJiraIssue`, always include `contentFormat: "markdown"`.
 
 **For `ryg_field` (update-weekly-status)**:
 
@@ -406,12 +408,18 @@ All modules should handle these error cases:
 
 - **Use pre-gathered data**: For batch operations (update-weekly-status), always use the Python data gatherer
 - **Minimize API calls**: Only fetch fields you need (for status-rollup)
-- **Use batch endpoints**: `jira_batch_get_changelogs` for multiple issues
+- **Fetch changelogs via expand**: Use `expand=changelog` in `getJiraIssue` calls
 - **BFS hierarchy traversal**: Use `parent = KEY` per level with recursive BFS (Cloud-compatible replacement for `childIssuesOf()`)
 - **Cache data**: Store in temp file for refinement iterations
 - **Parallelize**: Python script handles parallel fetching; MCP calls can run concurrently
-- **Limit comments**: Use `comment_limit=20` to reduce response size
+- **Limit comments**: Truncate comments post-fetch to reduce analysis scope
 - **Filter early**: Data gatherer pre-filters to date range; apply in JQL for MCP calls
+
+## Custom Fields
+
+| Field Name | Field ID | Type | Purpose |
+|---|---|---|---|
+| Status Summary | `customfield_10814` | String | Stores R/Y/G status text for update-weekly-status |
 
 ## Prerequisites
 

@@ -19,8 +19,19 @@ This skill is automatically invoked by the `/jira:create task` command to guide 
 
 **Reference Documentation:**
 - [Markdown for Jira Reference](../../reference/markdown-for-jira.md) - Markdown formatting for Jira descriptions
-- [MCP Tools Reference](../../reference/mcp-tools.md) - MCP tool signatures and custom fields
-- [CLI Fallback Reference](../../reference/cli-fallback.md) - jira-cli commands (only if MCP unavailable)
+
+## Custom Fields (redhat.atlassian.net)
+
+| Field | ID | Type | Usage |
+|-------|------|------|-------|
+| Epic Link | `customfield_10014` | String | Links Task to parent Epic. Value = Epic issue key |
+
+### Parent Linking Fallback
+
+If creation fails with a 4xx error that specifically references `customfield_10014` or `customfield_10018` in the error response:
+1. **Duplicate guard:** Search for an issue with the same summary in the target project before retrying — if one exists, the original call may have partially succeeded
+2. Retry WITHOUT the parent/epic link field
+3. After creation succeeds, add the link via `editJiraIssue` (include `contentFormat: "markdown"`)
 
 ## Tasks vs Stories
 
@@ -226,95 +237,22 @@ Before submitting the task, validate:
 - ✅ No credentials, API keys, or secrets in any field
 - ✅ No sensitive technical details that shouldn't be public
 
-## MCP Tool Parameters
+## MCP Issue Creation
 
-### Basic Task Creation
+Create tasks via `createJiraIssue` with `contentFormat: "markdown"`. Key parameters:
+- `projectKey`: e.g., `"CNTRLPLANE"`
+- `issueTypeName`: `"Task"`
+- `summary`: action-verb task summary
+- `description`: formatted task template (Markdown) with Why, Acceptance Criteria, Technical Details sections
+- `additional_fields`: include `"labels": ["ai-generated-jira"]`, `"security": {"name": "Red Hat Employee"}`
 
-```python
-mcp__atlassian__jira_create_issue(
-    project_key="<PROJECT_KEY>",
-    summary="<task summary>",
-    issue_type="Task",
-    description="""
-<What needs to be done>
+### Parent Link
 
-## Why
-
-<Context and motivation>
-
-## Acceptance Criteria
-
-- <Criterion 1>
-- <Criterion 2>
-
-## Technical Details
-
-<Optional technical details>
-    """,
-    components="<component name>",  # if required
-    additional_fields={
-        # Add project-specific fields
-    }
-)
-```
-
-### With Project-Specific Fields (e.g., CNTRLPLANE)
-
-```python
-mcp__atlassian__jira_create_issue(
-    project_key="CNTRLPLANE",
-    summary="Update autoscaling documentation for 4.21 release",
-    issue_type="Task",
-    description="""
-Update the autoscaling documentation to reflect API changes in the 4.21 release.
-
-## Why
-
-The autoscaling API changed in 4.21 with new fields (maxNodeGracePeriod, scaleDownDelay) and modified behavior. Current documentation reflects 4.20 API and will confuse users upgrading to 4.21.
-
-## Acceptance Criteria
-
-- All autoscaling examples updated to use 4.21 API syntax
-- New fields (maxNodeGracePeriod, scaleDownDelay) documented with descriptions and examples
-- Deprecated fields marked as deprecated with migration guidance
-- Documentation builds successfully without warnings or broken links
-- Changes reviewed by docs team
-
-## Technical Details
-
-Files to update:
-- docs/content/how-to/cluster-autoscaling.md
-- docs/content/reference/api/nodepool.md
-- docs/content/tutorials/autoscaling-rosa.md
-
-Reference: API changes introduced in PR #1234
-    """,
-    components="HyperShift",
-    additional_fields={
-        "customfield_10855": "openshift-4.21",  # target version
-        "labels": ["ai-generated-jira", "documentation"],
-        "security": {"name": "Red Hat Employee"}
-    }
-)
-```
-
-### With Parent Link
-
-```python
-mcp__atlassian__jira_create_issue(
-    project_key="MYPROJECT",
-    summary="Add unit tests for scaling validation",
-    issue_type="Task",
-    description="<task content>",
-    additional_fields={
-        "parent": {"key": "MYPROJECT-100"}  # link to story or epic
-    }
-)
-```
+Link tasks to a parent story or epic using `"customfield_10014"` (Epic Link) as a STRING value.
 
 ## Jira Description Formatting
 
-Use Markdown formatting (the MCP tool converts it to Jira wiki markup automatically):
+Use Markdown formatting with `contentFormat: "markdown"`:
 
 ### Task Template Format
 

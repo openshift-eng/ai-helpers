@@ -20,8 +20,6 @@ This skill is automatically invoked by the `/jira:create feature-request RFE` co
 
 **Reference Documentation:**
 - [Markdown for Jira Reference](../../reference/markdown-for-jira.md) - Markdown formatting for Jira descriptions
-- [MCP Tools Reference](../../reference/mcp-tools.md) - MCP tool signatures and custom fields
-- [CLI Fallback Reference](../../reference/cli-fallback.md) - jira-cli commands (only if MCP unavailable)
 
 ## What is a Feature Request?
 
@@ -317,171 +315,18 @@ Before submitting the feature request, validate:
 - ✅ No credentials, API keys, or secrets in any field
 - ✅ No confidential customer information (use anonymized references if needed)
 
-## MCP Tool Parameters
+## MCP Issue Creation
 
-### Basic Feature Request Creation
-
-```python
-mcp__atlassian__jira_create_issue(
-    project_key="RFE",
-    summary="<title of feature request>",
-    issue_type="Feature Request",
-    description="""
-<Brief overview of the request>
-
-## Nature and Description of Request
-
-<What is being requested - capability, current limitations, desired behavior, use case>
-
-## Business Requirements
-
-### Customer Impact
-- <Customer segment affected>
-- <Number of customers requesting>
-- <Deals blocked or escalations>
-
-### Regulatory/Compliance Requirements (if applicable)
-- <Compliance driver 1>
-- <Compliance driver 2>
-
-### Business Justification
-<Why this is important, what happens without it>
-
-### Competitive Context (if applicable)
-<How competitors handle this, gaps>
-
-## Affected Packages and Components
-
-### Teams
-- <Team 1>: <Responsibility>
-- <Team 2>: <Responsibility>
-
-### Technical Components
-- <Operator/component 1>
-- <Operator/component 2>
-
-### Related Services
-- <Service 1>
-- <Service 2>
-    """,
-    components="<component name>",  # Based on affected teams/areas
-    additional_fields={
-        # NOTE: Custom field IDs need to be discovered for RFE project
-        # Placeholder examples below - replace with actual field IDs
-        # "customfield_12345": "<customer name>",  # If RFE has customer field
-        # "customfield_67890": "<priority level>",  # If RFE has priority field
-        "labels": ["ai-generated-jira"],
-        "security": {"name": "Red Hat Employee"}
-    }
-)
-```
-
-### Example: Foo Feature Request
-
-```python
-mcp__atlassian__jira_create_issue(
-    project_key="RFE",
-    summary="Support Foo for ProductA managed control planes",
-    issue_type="Feature Request",
-    description="""
-Enable customers to use Foo for ProductA managed control plane API server endpoints, replacing the current vendor-managed approach.
-
-## Nature and Description of Request
-
-Customers need the ability to use Foo for ProductA API endpoints rather than relying on vendor-provided defaults.
-
-### Current Limitation
-ProductA clusters currently use vendor-managed configuration for the API server endpoint. Customers cannot provide their own configuration, which creates issues for:
-- Corporate security policies requiring organization-specific settings
-- Integration with existing enterprise infrastructure
-- Compliance requirements (SOC2, ISO 27001, PCI-DSS)
-
-### Desired Behavior
-Customers should be able to:
-- Upload their own configuration during cluster creation
-- Rotate custom configuration after cluster creation without cluster downtime
-- Validate configuration before cluster becomes active
-- Receive proactive alerts when configuration updates are needed (30 days, 7 days)
-- View configuration details in product console
-
-### Use Case
-Enterprise customers with strict security policies need all infrastructure components to use internally-managed configuration. This capability is required for ProductA adoption in regulated industries (finance, healthcare, government) where configuration management is a compliance requirement and external configuration violates security policies.
-
-## Business Requirements
-
-### Customer Impact
-- **Primary segment**: Enterprise customers in regulated industries (finance, healthcare, government, defense)
-- **Affected customers**: 10+ enterprise customers have explicitly requested this capability
-- **Deal blockers**: Multiple active enterprise deals are currently blocked by this limitation
-- **Escalations**: Several Priority 1 customer escalations due to failed compliance audits
-
-### Regulatory/Compliance Requirements
-- SOC2 Type II compliance requires use of organization-specific configuration with documented lifecycle management
-- ISO 27001 certification mandates configuration lifecycle management and infrastructure integration
-- PCI-DSS (Payment Card Industry) requires configuration from approved infrastructure
-- Government contracts (FedRAMP, DoD) require validated configuration chains
-- Industry-specific regulations (HIPAA, GDPR) require organizational control of configuration
-
-### Business Justification
-Without this capability:
-- Cannot close enterprise deals in regulated industries (blocking market expansion)
-- Risk losing existing customers to competitors during renewal periods
-- Increasing support burden from compliance audit failures and customer escalations
-- Limiting addressable market to non-regulated segments
-- Missing revenue opportunity in high-value enterprise segments
-
-### Competitive Context
-All major competitors support this capability for managed Kubernetes control planes:
-- CompetitorA: Supports custom configuration via service manager
-- CompetitorB: Allows bring-your-own configuration for API server
-- CompetitorC: Supports custom configuration for control plane endpoints
-
-This is a competitive gap affecting ProductA positioning in enterprise sales cycles.
-
-## Affected Packages and Components
-
-### Teams
-- **HyperShift Team**: Primary owner - control plane infrastructure, configuration management, rotation logic
-- **ROSA SRE Team**: Operational validation, configuration rotation procedures, monitoring and alerting
-- **OCM Team**: Console UI for configuration upload, validation, and lifecycle management
-- **Networking Team**: Networking configuration, configuration distribution to load balancers
-- **Security Team**: Configuration validation, security review, key management
-
-### Technical Components
-- **hypershift-operator**: Control plane configuration and installation
-- **cluster-ingress-operator**: Configuration provisioning for API server
-- **openshift-console**: UI components for configuration upload and management
-- **rosa CLI**: CLI commands for configuration operations (upload, rotate, view)
-- **control-plane-operator**: API server configuration mounting
-
-### Related Services
-- OCM API: New endpoints for configuration upload, validation, and management
-- Configuration storage service: Secure storage for sensitive data (encryption at rest)
-- Control plane API server: Configuration installation and serving
-- Monitoring and alerting: Configuration monitoring and proactive alerts
-
-## Jira Component
-**Component**: HyperShift
-
-(Primary team is HyperShift, primary technical area is control plane infrastructure)
-    """,
-    components="HyperShift",
-    additional_fields={
-        # TODO: Discover actual custom field IDs for RFE project
-        # These are placeholders - need to query Jira API to get correct field IDs
-        # Common RFE fields might include:
-        #   - Customer name (customfield_XXXXX)
-        #   - Request priority (customfield_XXXXX)
-        #   - Target release (customfield_XXXXX)
-        "labels": ["ai-generated-jira", "security", "compliance", "product-a"],
-        "security": {"name": "Red Hat Employee"}
-    }
-)
-```
+Create feature requests via `createJiraIssue` with `contentFormat: "markdown"`. Key parameters:
+- `projectKey`: `"RFE"`
+- `issueTypeName`: `"Feature Request"`
+- `summary`: clear, customer-focused title
+- `description`: formatted template (Markdown) with Nature/Description, Business Requirements, Affected Packages sections
+- `additional_fields`: include `"labels": ["ai-generated-jira"]`, `"security": {"name": "Red Hat Employee"}`
 
 ## Jira Description Formatting
 
-Use Markdown formatting (the MCP tool converts it to Jira wiki markup automatically):
+Use Markdown formatting with `contentFormat: "markdown"`:
 
 ### Feature Request Template Format
 
@@ -731,22 +576,4 @@ Would you like to revise the content?
 
 ### Custom Field Discovery
 
-This skill uses placeholder comments for custom fields because the actual field IDs for the RFE project need to be discovered. To find the correct field IDs:
-
-1. **Query Jira API for RFE project metadata:**
-   ```bash
-   # Get issue types for the project:
-   curl -X GET "https://redhat.atlassian.net/rest/api/3/issue/createmeta/RFE/issuetypes"
-   # Then get fields for a specific issue type:
-   curl -X GET "https://redhat.atlassian.net/rest/api/3/issue/createmeta/RFE/issuetypes/ISSUETYPE_ID"
-   ```
-
-2. **Look for custom fields** like:
-   - Customer name
-   - Request priority
-   - Target release/version
-   - Business impact
-
-3. **Update `additional_fields` dictionary** with actual field IDs
-
-**TODO:** Once field IDs are discovered, update the MCP tool examples with real field mappings.
+This skill uses placeholder comments for custom fields because the actual field IDs for the RFE project need to be discovered. Use `getJiraIssueTypeMetaWithFields` to query the RFE project for available custom fields and their IDs.
