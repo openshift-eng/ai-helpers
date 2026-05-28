@@ -91,7 +91,6 @@ rules:
 
 # Load custom rules from these files
 custom-rules:
-  - ".skillsaw/plugindocs_rule.py"
   - ".skillsaw/owners_rule.py"
   - ".skillsaw/promptfoo_budget_rule.py"
 
