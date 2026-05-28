@@ -36,11 +36,7 @@ This skill is automatically invoked by the `/jira:generate-feature-doc` command 
 
 3. **Create output directory**: `WORK_DIR=$INITIAL_DIR/.work/jira/feature-doc/<feature-key>` (use `mkdir -p`)
 
-4. **Fetch main feature**: Use MCP Jira tool to get issue with all fields:
-   ```
-   mcp__atlassian__jira_get_issue(issue_key=<feature-key>, fields="*all")
-   ```
-   - If MCP unavailable, display error pointing to `plugins/jira/README.md`
+4. **Fetch main feature** via `getJiraIssue` with the feature key. If MCP is unavailable, display error pointing to `plugins/jira/README.md`.
 
 5. **Parse response**: Extract `key`, `summary`, `description`, `issuetype`, `status`
    - If fetch fails, display error and exit
@@ -211,7 +207,7 @@ User runs: /jira:generate-feature-doc OCPSTRAT-1612
    - Verify prerequisites (jq, gh CLI)
 
 2. Extract PRs (via extract-prs skill)
-   - Discover descendants using childIssuesOf() JQL → 3 issues total
+   - Discover descendants using `parent = KEY` BFS → 3 issues total
    - Extract PRs from remote links (primary) + text (backup) → 7 PRs
    - Fetch PR state from GitHub → 5 MERGED, 1 OPEN, 1 CLOSED
 

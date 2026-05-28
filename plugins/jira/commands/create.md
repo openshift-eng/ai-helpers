@@ -61,58 +61,15 @@ Feature (Strategic objective, market problem)
 - Both are custom fields specific to how Red Hat Jira handles hierarchy
 - The standard `parent` field does NOT work for these relationships
 
-### MCP Code Examples for Parent Linking
+### Parent Linking Field Examples
 
-#### Linking a Story to an Epic
+| Relationship | Field | Value |
+|---|---|---|
+| Story/Task → Epic | `customfield_10014` (Epic Link) | Epic issue key, e.g. `"CNTRLPLANE-456"` |
+| Epic → Feature | `customfield_10018` (Parent Link) | Feature issue key, e.g. `"CNTRLPLANE-100"` |
+| Epic (name field) | `customfield_10011` (Epic Name) | Must match summary, e.g. `"Multi-cluster metrics aggregation"` |
 
-```python
-mcp__atlassian__jira_create_issue(
-    project_key="CNTRLPLANE",
-    summary="Add metrics endpoint for cluster health",
-    issue_type="Story",
-    description="<story description>",
-    components="HyperShift / ROSA",
-    additional_fields={
-        "customfield_10014": "CNTRLPLANE-456",  # Epic Link - links to parent epic
-        "labels": ["ai-generated-jira"],
-        "security": {"name": "Red Hat Employee"}
-    }
-)
-```
-
-#### Linking an Epic to a Feature
-
-```python
-mcp__atlassian__jira_create_issue(
-    project_key="CNTRLPLANE",
-    summary="Multi-cluster metrics aggregation",
-    issue_type="Epic",
-    description="<epic description>",
-    components="HyperShift",
-    additional_fields={
-        "customfield_10011": "Multi-cluster metrics aggregation",  # Epic Name (same as summary)
-        "customfield_10018": "CNTRLPLANE-100",  # Parent Link - links to parent feature (STRING, not object!)
-        "labels": ["ai-generated-jira"],
-        "security": {"name": "Red Hat Employee"}
-    }
-)
-```
-
-#### Linking a Task to an Epic
-
-```python
-mcp__atlassian__jira_create_issue(
-    project_key="CNTRLPLANE",
-    summary="Refactor metrics collection pipeline",
-    issue_type="Task",
-    description="<task description>",
-    additional_fields={
-        "customfield_10014": "CNTRLPLANE-456",  # Epic Link - links to parent epic
-        "labels": ["ai-generated-jira"],
-        "security": {"name": "Red Hat Employee"}
-    }
-)
-```
+All issues must also include `"labels": ["ai-generated-jira"]` and `"security": {"name": "Red Hat Employee"}`.
 
 ### Parent Linking Implementation Strategy
 
@@ -122,14 +79,7 @@ When the `--parent` flag is provided, follow this strategy:
 
 Before creating the issue, validate the parent:
 
-```python
-# Fetch parent issue to verify it exists and is correct type
-parent_issue = mcp__atlassian__jira_get_issue(issue_key="<parent-key>")
-
-# Verify parent type matches expected hierarchy:
-# - If creating Story/Task with --parent, parent should be Epic
-# - If creating Epic with --parent, parent should be Feature
-```
+Fetch the parent issue via `getJiraIssue` to verify it exists and its type matches the expected hierarchy.
 
 **Validation rules:**
 | Creating | Parent Should Be | If Wrong Type |
@@ -163,29 +113,11 @@ If creation fails with an error related to parent linking:
 
 1. **Detect linking error:** Error message contains "epic", "parent", "link", or "customfield"
 
-2. **Create without parent link:**
-   ```python
-   issue = mcp__atlassian__jira_create_issue(
-       # ... same parameters but WITHOUT the parent/epic link field
-   )
-   ```
+2. **Create without parent link:** Call `createJiraIssue` with the same parameters but omit the parent/epic link field
 
-3. **Link via update:**
-   ```python
-   # For Story/Task → Epic:
-   mcp__atlassian__jira_update_issue(
-       issue_key=issue["key"],
-       fields={},
-       additional_fields={"customfield_10014": "<epic-key>"}
-   )
-
-   # For Epic → Feature:
-   mcp__atlassian__jira_update_issue(
-       issue_key=issue["key"],
-       fields={},
-       additional_fields={"customfield_10018": "<feature-key>"}
-   )
-   ```
+3. **Link via update:** Call `editJiraIssue` to add the link field:
+   - Story/Task → Epic: set `customfield_10014` to the epic key
+   - Epic → Feature: set `customfield_10018` to the feature key
 
 4. **Report outcome:**
    ```
@@ -398,7 +330,7 @@ Scan all content (summary, description, comments) for sensitive data:
 
 ### ✅ Phase 7: Create Issue via MCP
 
-Use the `mcp__atlassian__jira_create_issue` MCP tool with collected parameters.
+Use the `createJiraIssue` MCP tool with collected parameters.
 
 **Build additional_fields:**
 
@@ -687,7 +619,7 @@ Refer to project-specific skills for epic linking fallback strategies:
 1. **Target Version format**
    - ❌ Wrong: `"customfield_10855": "openshift-4.21"`
    - ✅ Correct: `"customfield_10855": [{"id": "12448830"}]`
-   - **Action:** Fetch version ID using `mcp__atlassian__jira_get_project_versions`, convert to correct format
+   - **Action:** Fetch version ID using the Jira MCP tools, convert to correct format
 
 2. **Epic Link format**
    - ❌ Wrong: `"parent": {"key": "EPIC-123"}` (for stories)

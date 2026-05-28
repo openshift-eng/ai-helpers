@@ -19,10 +19,22 @@ This skill is automatically invoked by the `/jira:create story` command to guide
 
 **Reference Documentation:**
 - [Markdown for Jira Reference](../../reference/markdown-for-jira.md) - Markdown formatting for Jira descriptions
-- [MCP Tools Reference](../../reference/mcp-tools.md) - MCP tool signatures and custom fields
-- [CLI Fallback Reference](../../reference/cli-fallback.md) - jira-cli commands (only if MCP unavailable)
 
-## ⚠️ Summary vs Description: CRITICAL DISTINCTION
+## Custom Fields (redhat.atlassian.net)
+
+| Field | ID | Type | Usage |
+|-------|------|------|-------|
+| Epic Link | `customfield_10014` | String | Links Story to parent Epic. Value = Epic issue key |
+| Target Version | `customfield_10855` | Array | Format: `[{"id": "VERSION_ID"}]` |
+
+### Parent Linking Fallback
+
+If creation fails with a 4xx error that specifically references `customfield_10014` or `customfield_10018` in the error response:
+1. **Duplicate guard:** Search for an issue with the same summary in the target project before retrying — if one exists, the original call may have partially succeeded
+2. Retry WITHOUT the parent/epic link field
+3. After creation succeeds, add the link via `editJiraIssue` (include `contentFormat: "markdown"`)
+
+## Summary vs Description: CRITICAL DISTINCTION
 
 **This is the #1 mistake when creating stories. The summary field and description field serve different purposes:**
 
@@ -374,93 +386,22 @@ Before submitting the story, validate:
 - ✅ No credentials, API keys, or secrets in any field
 - ✅ No sensitive customer data in examples
 
-## MCP Tool Parameters
+## MCP Issue Creation
 
-### Basic Story Creation
+Create stories via `createJiraIssue` with `contentFormat: "markdown"`. Key parameters:
+- `projectKey`: e.g., `"CNTRLPLANE"`
+- `issueTypeName`: `"Story"`
+- `summary`: concise title (5-10 words, NOT the full user story)
+- `description`: full user story format with Acceptance Criteria (Markdown)
+- `additional_fields`: include `"labels": ["ai-generated-jira"]`, `"security": {"name": "Red Hat Employee"}`
 
-```python
-mcp__atlassian__jira_create_issue(
-    project_key="<PROJECT_KEY>",
-    summary="<concise title>",  # 5-10 words, NOT full user story
-    issue_type="Story",
-    description="""
-As a <user>, I want to <action>, so that <value>.
+### Parent Epic Link
 
-## Acceptance Criteria
-
-- Test that <criteria 1>
-- Test that <criteria 2>
-- Verify that <criteria 3>
-
-## Additional Context
-
-<context if provided>
-    """,
-    components="<component name>",  # if required
-    additional_fields={
-        # Add project-specific fields
-    }
-)
-```
-
-### With Project-Specific Fields (e.g., CNTRLPLANE)
-
-```python
-mcp__atlassian__jira_create_issue(
-    project_key="CNTRLPLANE",
-    summary="Enable automatic node pool scaling for ROSA HCP",
-    issue_type="Story",
-    description="""
-As a cluster admin, I want to configure automatic node pool scaling based on CPU utilization, so that I can handle traffic spikes without manual intervention.
-
-## Acceptance Criteria
-
-- Test that node pools scale up when average CPU exceeds 80% for 5 minutes
-- Test that node pools scale down when average CPU drops below 30% for 10 minutes
-- Test that scaling respects configured min/max node limits
-- Verify that when scaling is disabled, node count remains constant regardless of load
-- Verify that scaling events are logged to the cluster audit trail
-- Demonstrate that scaling policies can be configured via rosa CLI
-
-## Additional Context
-
-This builds on the existing monitoring infrastructure. Must integrate with Prometheus metrics for CPU utilization data.
-
-Out of scope: Custom metrics-based scaling (will be separate story CNTRLPLANE-457)
-    """,
-    components="HyperShift / ROSA",
-    additional_fields={
-        "labels": ["ai-generated-jira"],
-        "security": {"name": "Red Hat Employee"}
-        # Note: Target version omitted (optional in CNTRLPLANE)
-    }
-)
-```
-
-### With Parent Epic Link
-
-When linking a story to a parent epic via `--parent` flag, use the Epic Link custom field:
-
-```python
-mcp__atlassian__jira_create_issue(
-    project_key="CNTRLPLANE",
-    summary="Add metrics endpoint for cluster health",
-    issue_type="Story",
-    description="<story description with user story format and AC>",
-    components="HyperShift / ROSA",
-    additional_fields={
-        "customfield_10014": "CNTRLPLANE-456",  # Epic Link - parent epic key as STRING
-        "labels": ["ai-generated-jira"],
-        "security": {"name": "Red Hat Employee"}
-    }
-)
-```
-
-**Note:** For epic linking, parent field handling, and other project-specific requirements, refer to the appropriate project-specific skill (e.g., CNTRLPLANE, OCPBUGS).
+When linking a story to a parent epic, use **Epic Link** (`customfield_10014`) as a STRING value (the Epic issue key). Do NOT use the standard `parent` field.
 
 ## Jira Description Formatting
 
-Use Markdown formatting (the MCP tool converts it to Jira wiki markup automatically):
+Use Markdown formatting with `contentFormat: "markdown"`:
 
 ### Story Template Format
 

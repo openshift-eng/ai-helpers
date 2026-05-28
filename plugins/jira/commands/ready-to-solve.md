@@ -34,7 +34,7 @@ plugins/jira/skills/ready-to-solve/SKILL.md
 
 ### Process Flow
 
-1. **Fetch Issue**: Use `mcp__atlassian__jira_get_issue` to retrieve the issue. Extract `description`, `summary`, `labels`, `status`, and `issuetype`. If MCP is unavailable, fall back to curl with `JIRA_PERSONAL_TOKEN`.
+1. **Fetch Issue**: Use `getJiraIssue` to retrieve the issue. Extract `description`, `summary`, `labels`, `status`, and `issuetype`.
 
 2. **Deterministic Checks**: Pipe the description as JSON to the section checker script:
    ```bash
@@ -67,7 +67,7 @@ plugins/jira/skills/ready-to-solve/SKILL.md
      - AI qualitative failures: improve vague AC to be specific and testable, add implementation pointers, clarify success/failure conditions
    - Present the proposed new description to the user, clearly showing what was added or changed
    - Ask the user for confirmation before applying
-   - If confirmed, update the issue description via `mcp__atlassian__jira_update_issue` or curl fallback
+   - If confirmed, update the issue description via `editJiraIssue` (with `contentFormat: "markdown"`)
    - Re-run validation (steps 2-4) on the updated description to confirm the issue now passes
    - If the user declines, skip the update and report the original validation result
 
@@ -82,7 +82,7 @@ plugins/jira/skills/ready-to-solve/SKILL.md
    - **On PASS**: If a previous automated failure comment exists, edit it to a brief "PASSED" message. If no previous comment exists, no comment is posted.
    - **Duplicate prevention**: Automated comments are identified by a marker prefix (`**Automated Readiness Check`). Existing automated comments are edited in place — never duplicated.
 
-7. **Apply Label**: Unless `--dry-run`, update the issue labels via `mcp__atlassian__jira_update_issue`. Fetch current labels first, remove the stale opposite label, add the new label, and PUT the full array in a single call.
+7. **Apply Label**: Unless `--dry-run`, update the issue labels via `editJiraIssue`. Fetch current labels first, remove the stale opposite label, add the new label, and PUT the full array in a single call.
 
 8. **Report**: Display a structured markdown report with per-check results, AI assessments, overall verdict, and label applied.
 

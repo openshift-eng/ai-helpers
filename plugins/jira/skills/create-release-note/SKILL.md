@@ -27,13 +27,7 @@ This skill is automatically invoked by the `/jira:create-release-note` command a
 
 **Actions**:
 
-1. **Fetch the bug using MCP**:
-   ```
-   mcp__atlassian__jira_get_issue(
-     issue_key=<issue-key>,
-     fields="summary,description,issuetype,status,issuelinks,customfield_10785,customfield_10783,comment"
-   )
-   ```
+1. **Fetch the bug** via `getJiraIssue` with the issue key and `responseContentFormat: "markdown"`.
 
 2. **Parse the response**:
    - Extract `issuetype.name` - verify it's "Bug"
@@ -617,16 +611,9 @@ questions = [{
 
 **Objective**: Write the release note to the Jira ticket.
 
-**MCP tool call**:
-```
-mcp__atlassian__jira_update_issue(
-  issue_key=<issue-key>,
-  fields={
-    "customfield_10785": {"value": "<selected_type>"},
-    "customfield_10783": "<formatted_release_note_text>"
-  }
-)
-```
+Use `editJiraIssue` with the issue key, `contentFormat: "markdown"`, and set the following fields:
+- `customfield_10785` (Release Note Type): `{"value": "<selected_type>"}`
+- `customfield_10783` (Release Note Text): the formatted release note text
 
 **Field details**:
 - `customfield_10785`: Release Note Type (must be exact match from dropdown)

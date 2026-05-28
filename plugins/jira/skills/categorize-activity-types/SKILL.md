@@ -35,9 +35,9 @@ The Activity Type custom field ID is `customfield_10464`. This is the same acros
 
 Before starting any work, verify MCP Jira tools are available:
 
-1. Attempt to call `jira_search` with a simple query (e.g., `jql: "project = OCM" limit: 1`)
+1. Attempt to call `searchJiraIssuesUsingJql` with a simple query (e.g., `jql: "project = OCM"`, `maxResults: 1`)
 2. If the tool is not found or returns an MCP connection error, **stop immediately** and tell the user:
-   - "The MCP Jira tools are not available. This workflow requires the mcp-atlassian MCP server to be configured with access to redhat.atlassian.net."
+   - "The MCP Jira tools are not available. This workflow requires the Atlassian Rovo MCP server to be configured with access to redhat.atlassian.net."
 3. Do NOT proceed to any phase if this check fails
 
 ## Working Directory
@@ -66,7 +66,7 @@ Classification Progress:
 
 #### Single-Issue Mode
 
-Fetch the issue by key using `jira_get_issue`:
+Fetch the issue by key using `getJiraIssue`:
 - Fields: `summary,description,issuetype,labels,parent,components,priority,customfield_10464`
 - If the issue already has an Activity Type set (`customfield_10464` is not null), inform the user and stop
 
@@ -89,7 +89,7 @@ Common additions:
 - Date filter: `AND resolved >= "2025-01-01"`
 - Open issues only: `AND status != Closed`
 
-Execute `jira_search` with `limit: 50`. If more results exist, make a second call with `start_at: 50` to get up to 100 total. Combine both result sets.
+Execute `searchJiraIssuesUsingJql` with `maxResults: 50`. If more results exist, make a second call with `nextPageToken` to get up to 100 total. Combine both result sets.
 
 From each issue, extract: `key`, `summary`, `description` (truncate to 2000 chars), `labels`, `issuetype`, `status`, `priority`, `comment`, and `parent`. Save all extracted data to `.work/activity-type-classifier/issues.json`.
 
@@ -97,7 +97,7 @@ Report the count of issues found to the user before proceeding.
 
 ### Phase 2: Categorize Issues
 
-**Pre-check — Parent inheritance**: Before classifying each issue, check if it has a parent issue. If the parent has an Activity Type set (`customfield_10464`), inherit it directly — no further classification needed. Set confidence to "High" and reasoning to "Inherited from {PARENT_KEY}". To look up a parent's Activity Type, call `jira_get_issue` with the parent's key and check `customfield_10464`. Cache parent lookups to reduce API calls — multiple children may share the same parent.
+**Pre-check — Parent inheritance**: Before classifying each issue, check if it has a parent issue. If the parent has an Activity Type set (`customfield_10464`), inherit it directly — no further classification needed. Set confidence to "High" and reasoning to "Inherited from {PARENT_KEY}". To look up a parent's Activity Type, call `getJiraIssue` with the parent's key and check `customfield_10464`. Cache parent lookups to reduce API calls — multiple children may share the same parent.
 
 For remaining issues (no parent or parent has no Activity Type), read summary, description, labels, comments, and status. Apply the classification rules below and the detailed guidance in [resources/activity-type-guidance.md](resources/activity-type-guidance.md).
 
@@ -152,12 +152,7 @@ Run the validation and report generation scripts. These are located in `scripts/
 
 #### Update Format
 
-```python
-jira_update_issue(
-    issue_key="OCM-12345",
-    additional_fields={"customfield_10464": {"value": "Product / Portfolio Work"}}
-)
-```
+Use `editJiraIssue` to set `customfield_10464` (Activity Type) to the classified value, e.g. `{"value": "Product / Portfolio Work"}`.
 
 #### Success Confirmation
 

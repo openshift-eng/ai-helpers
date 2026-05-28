@@ -55,13 +55,13 @@ The command executes in two phases:
    - User filters support exclusion by prefixing with an exclamation mark (example: !<user@example.com>)
 
 2. **If project key is NOT provided:**
-   - Use `mcp__atlassian-mcp__jira_get_all_projects` to list all accessible projects
+   - Use `getVisibleJiraProjects` to list all accessible projects
    - Present projects in a numbered list with keys and names
    - Ask: "Please enter the number of the project you want to update:"
    - Parse response and extract project key
 
 3. **Validate project access:**
-   - Use `mcp__atlassian-mcp__jira_search` with JQL: `project = "{project-key}" AND status != Closed`
+   - Use `searchJiraIssuesUsingJql` with JQL: `project = "{project-key}" AND status != Closed`
    - Verify the project exists and is accessible
 
 #### Step 2. Determine Target Component(s)
@@ -70,8 +70,7 @@ The command executes in two phases:
    - Use the component name directly
 
 2. **If `--component` is NOT provided:**
-   - Use `mcp__atlassian-mcp__jira_search_fields` with keyword "component" to find the component field ID
-   - Use `mcp__atlassian-mcp__jira_search` with JQL: `project = "{project-key}" AND status != Closed` and `fields=components`
+   - Use `searchJiraIssuesUsingJql` with JQL: `project = "{project-key}" AND status != Closed` and `fields=components`
    - Extract all unique component names from the search results
    - Present components in a numbered list
    - Ask: "Please enter the number(s) of the component(s) you want to update (space-separated), or press Enter to skip:"
@@ -84,7 +83,7 @@ For each user filter parameter:
 1. **Check if it's an email** (contains `@`): Use as-is for script parameter
 
 2. **If it's a display name** (doesn't contain `@`):
-   - Use `mcp__atlassian-mcp__jira_get_user_profile` with the name as the `user_identifier` parameter
+   - Use `lookupJiraAccountId` with the name as the search string
    - Show found user details and ask for confirmation
    - If confirmed, use the email address; if not, ask for email directly
 
@@ -211,12 +210,12 @@ Using the pre-gathered data, apply the activity analysis rules from `activity-an
 Format using `ryg_field` template:
 
 ```
-* Color Status: {Red, Yellow, Green}
- * Status summary:
-     ** Thing 1 that happened since last week
-     ** Thing 2 that happened since last week
- * Risks:
-     ** Risk 1 (or "None at this time")
+- Color Status: {Red, Yellow, Green}
+  - Status summary:
+    - Thing 1 that happened since last week
+    - Thing 2 that happened since last week
+  - Risks:
+    - Risk 1 (or "None at this time")
 ```
 
 ##### d. Present to User for Review
@@ -268,21 +267,12 @@ Options:
 
 - Show the proposed text in an editable format
 - Ask: "Please provide your updated status text (maintain the bullet format):"
-- Validate format (should start with `* Color Status:`)
+- Validate format (should start with `- Color Status:`)
 - Show modified version and ask for final confirmation
 
 ##### e. Update the Issue
 
-Use `mcp__atlassian-mcp__jira_update_issue`:
-
-```json
-{
-  "issue_key": "{ISSUE-KEY}",
-  "fields": {
-    "customfield_10814": "{formatted-status-text}"
-  }
-}
-```
+Use `editJiraIssue` with `contentFormat: "markdown"` to set `customfield_10814` (Status Summary) to the formatted status text.
 
 Display confirmation: `✓ Updated {ISSUE-KEY}`
 
@@ -499,7 +489,7 @@ The Python script (`gather_status_data.py`) handles efficient batch data collect
 
 5. **Format Validation**:
    - Validate Status Summary text format before updating
-   - Ensure bullet point structure is maintained
+   - Ensure markdown bullet point structure is maintained
    - Check for Color Status line (Red/Yellow/Green)
    - Warn if format doesn't match expected template
 

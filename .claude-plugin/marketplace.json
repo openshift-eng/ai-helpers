@@ -28,7 +28,7 @@
       "name": "jira",
       "source": "./plugins/jira",
       "description": "A plugin to automate tasks with Jira",
-      "version": "0.5.0",
+      "version": "0.6.0",
       "category": "productivity",
       "keywords": ["jira", "tickets", "issues", "project-management"]
     },
