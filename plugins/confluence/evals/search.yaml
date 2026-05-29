@@ -27,6 +27,8 @@ defaultTest:
       threshold: 120000
     - type: cost
       threshold: 0.60
+    - type: skill-used
+      value: confluence:search
 
 tests:
   - description: "search/basic-topic"

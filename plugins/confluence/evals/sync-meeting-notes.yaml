@@ -27,6 +27,8 @@ defaultTest:
       threshold: 120000
     - type: cost
       threshold: 0.60
+    - type: skill-used
+      value: confluence:sync-meeting-notes
 
 tests:
   - description: "sync-meeting-notes/basic-publish"
