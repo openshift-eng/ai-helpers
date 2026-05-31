@@ -1,9 +1,9 @@
 ---
-name: snapshot-payload
+name: payload-snapshot
 description: Snapshot OpenShift payload data (release controller, PR diffs, comments, CI jobs, JUnit results, regression tracking) to a local directory for offline analysis
 ---
 
-# Snapshot Payload
+# Payload Snapshot
 
 This skill downloads all data needed to analyze an OpenShift payload into a local directory tree. The resulting snapshot can be navigated entirely via file reads — no live API calls required during analysis.
 
@@ -41,7 +41,7 @@ Use this skill when you need to:
 ### Step 1: Run the Snapshot Script
 
 ```bash
-script_path="plugins/ci/skills/snapshot-payload/snapshot_payload.py"
+script_path="plugins/ci/skills/payload-snapshot/scripts/payload_snapshot.py"
 
 # Snapshot a specific payload
 python3 "$script_path" 4.22.0-0.nightly-2026-02-25-152806
@@ -135,7 +135,7 @@ jq '.[].name' payload/<version>/<stream>/<tag>/jobs/blocking/<job-name>/junit/re
 ## CLI Reference
 
 ```text
-python3 snapshot_payload.py <payload_tag> [OPTIONS]
+python3 payload_snapshot.py <payload_tag> [OPTIONS]
 
 Positional:
   payload_tag          Payload tag (e.g., 4.22.0-0.nightly-2026-02-25-152806)
