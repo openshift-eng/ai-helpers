@@ -61,11 +61,13 @@ The script will:
 2. Probe all available streams for the version (nightly, ci, across architectures)
 3. Chain backwards through previous payloads until finding one where all blocking jobs passed
 4. For each payload in the chain, download release controller data and the changelog (PR diff)
-5. Split jobs into blocking/informing directories with metadata
+5. Split jobs into blocking/informing directories with metadata and GCS browser links
 6. For each failed blocking job, download and parse JUnit XML test results
-7. Track test failure regressions — when did each failure first appear?
-8. For each unique PR across all changelogs, fetch the git diff, comments, and CI jobs via `gh`
-9. Generate a summary roll-up of stream health
+7. For each failed blocking job, download build-log.txt from GCS and extract error/warning lines + log tail
+8. Track test failure regressions — when did each failure first appear?
+9. Track per-job failure streaks — consecutive failures, originating payload, failure pattern
+10. For each unique PR across all changelogs, fetch the git diff, comments, and CI jobs via `gh`
+11. Generate summary.json with comprehensive triage data, plus AGENTS.md/CLAUDE.md for agent orientation
 
 ### Step 2: Navigate the Snapshot
 
@@ -75,9 +77,10 @@ The output directory is structured for easy navigation:
 payload/
   <version>/
     <stream>/
+      summary.json                         # START HERE — full triage data
+      CLAUDE.md                            # Imports AGENTS.md for Claude Code
+      AGENTS.md                            # Dynamic snapshot orientation doc
       streams.json                         # All streams for this version
-      summary.json                         # Roll-up: failures, regressions, PRs
-      summary.md                           # Human-readable summary
       <tag>/                               # Each payload in the chain
         payload.json                       # Release controller API response
         changelog.json                     # PRs that changed vs. previous payload
@@ -85,14 +88,15 @@ payload/
         jobs/
           blocking/
             <job-name>/
-              job.json                     # Job metadata (state, URL, retries)
+              job.json                     # Job metadata (state, URLs, GCS link, retries)
+              build_log.json               # Error/warning lines + log tail (failed only)
               junit/                       # Only for failed jobs
                 junit_operator.xml         # CI phase results
                 junit-aggregated.xml       # Aggregated jobs only
-                results.json               # Parsed test failures
+                results.json               # Parsed test failures (full output)
           informing/
             <job-name>/
-              job.json                     # Job metadata only (no JUnit)
+              job.json                     # Job metadata only (no JUnit/build log)
         <component>/                       # e.g., machine-config-operator
           prs/
             <pr_number>/
@@ -103,14 +107,9 @@ payload/
 
 ### Step 3: Use the Data
 
-**Read the summary:**
+**Find failed blocking jobs (with streaks):**
 ```bash
-cat payload/<version>/<stream>/summary.md
-```
-
-**Find failed blocking jobs:**
-```bash
-jq -r '.blocking_jobs.failed_jobs[]' payload/<version>/<stream>/summary.json
+jq '.blocking_jobs.failed_jobs[] | {name, state, streak: .streak.streak_length, pattern: .streak.failure_pattern}' payload/<version>/<stream>/summary.json
 ```
 
 **Check test failures and when they started:**
@@ -156,15 +155,17 @@ Lists all available streams for the payload's version.
 
 ### `summary.json`
 
-Stream-level roll-up containing:
-- Payload phase (Accepted/Rejected)
-- Chain length and baseline tag
-- Blocking/informing job pass/fail counts with failed job names
-- Test failure list with regression data (first_failed_in, payloads_failing)
+Comprehensive stream-level triage data — start here. Contains:
+- Payload metadata: `payload_tag`, `phase`, `release_url`, `architecture`, `stream`, `version`
+- Chain data: `chain_length`, `baseline_tag`, `hours_since_baseline`
+- `blocking_jobs.failed_jobs[]` — detailed objects with `name`, `state`, `prow_url`, `gcs_url`, `streak` (streak_length, originating_payload, is_new_failure, failure_pattern), `build_log_errors`, `test_failure_count`, and relative paths to `job_json`, `junit_results`, `build_log`
+- `informing_jobs.failed_jobs[]` — job name strings
+- `test_failures.blocking[]` — `test_name`, `jobs`, `first_failed_in`, `payloads_failing`, `failure_message`, `failure_text` (full, not truncated)
+- `payloads[]` — per-payload entries with `tag`, `phase`, relative file paths, and `prs[]` with component/diff/comments paths
 
-### `summary.md`
+### `AGENTS.md` / `CLAUDE.md`
 
-Human-readable summary with tables for new and persistent test failures.
+Dynamic orientation document generated at snapshot time. Contains the specific payload tag, chain, failed jobs, file layout, key concepts, and summary.json schema. `CLAUDE.md` imports `AGENTS.md` via `@AGENTS.md`.
 
 ### `payload.json`
 
@@ -182,11 +183,19 @@ Per-payload regression tracking data. For each failing test in the target payloa
 - `first_failed_in`: the earliest payload in the chain where it was failing
 - `payloads_failing`: how many consecutive payloads it has been failing
 - `failure_message`: the error message
-- `failure_text`: truncated failure output
+- `failure_text`: full failure output
 
 ### `job.json`
 
-Per-job metadata including name, state, lifecycle (blocking/informing), Prow URL, retry count, whether it's an aggregated job, and GCS bucket path.
+Per-job metadata including name, state, lifecycle (blocking/informing), Prow URL, GCS browser URL (`gcs_url`), retry count, whether it's an aggregated job, and GCS bucket path.
+
+### `build_log.json` (failed blocking jobs only)
+
+Extracted from `build-log.txt` in GCS (handles gzip decompression). Contains:
+- `total_lines`: total line count of the build log
+- `error_warning_count`: number of lines matching error/warning patterns
+- `error_warning_lines[]`: each with `line_number` and `text`
+- `tail_start_line`, `tail_lines[]`: last 20% of the log for context
 
 ### `results.json` (in junit/ subdirectory)
 
@@ -222,8 +231,9 @@ Aggregated jobs run the same underlying test multiple times with statistical ana
 
 - The script uses only Python standard library — no pip dependencies
 - PR data is deduplicated across payloads — each PR is fetched once
-- JUnit download is scoped to failed blocking jobs only (informing jobs get `job.json` but no JUnit)
+- JUnit and build-log download are scoped to failed blocking jobs only (informing jobs get `job.json` but no JUnit or build log)
 - The `--workers` flag controls parallelism for all subprocess calls (default 8)
+- Summary is always regenerated on re-run (not skipped like other files)
 - Progress is printed to stderr; the script produces no stdout output
 
 ## See Also
