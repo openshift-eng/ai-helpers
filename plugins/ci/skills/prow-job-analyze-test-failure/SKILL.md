@@ -142,9 +142,13 @@ python3 plugins/ci/skills/parse-junit/parse_junit.py \
 
 Each test result in the JSON output includes an `aggregated` field with `passes`, `failures`,
 and `skips` lists. Each entry has:
-- `jobRunID`: The build ID of the underlying job run
-- `humanURL`: Prow URL for the job run (e.g., `https://prow.ci.openshift.org/view/gs/test-platform-results/logs/{job-name}/{jobrunid}`)
+- `jobRunID` (or `jobrunid`): The build ID of the underlying job run
+- `humanURL` (or `humanUrl`): Prow URL for the job run (e.g., `https://prow.ci.openshift.org/view/gs/test-platform-results/logs/{job-name}/{jobrunid}`)
 - `gcsArtifactURL`: Direct link to GCS artifacts
+
+> **Note:** Field name casing (e.g., `humanURL` vs `humanUrl`, `jobRunID` vs `jobrunid`) varies
+> depending on the upstream release-analysis-aggregator version. The parser preserves the original
+> casing without normalizing. Code that reads these fields should check both variants.
 
 Use the `humanURL` links to investigate individual job run failures with the normal
 (non-aggregated) analysis steps below.

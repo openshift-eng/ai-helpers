@@ -1,5 +1,5 @@
 ---
-name: Parse JUnit XML
+name: parse-junit
 description: Parse JUnit XML files from OpenShift CI jobs to extract test results, failure messages, lifecycle metadata, and aggregated run data
 ---
 
@@ -153,7 +153,7 @@ python3 "$script_path" junit-aggregated.xml --filter "specific test name" | jq '
 
 ## CLI Reference
 
-```
+```text
 python3 parse_junit.py [FILES...] [OPTIONS]
 
 Positional:
@@ -212,13 +212,13 @@ Options:
 - `system_out`: Raw `<system-out>` content
 - `aggregated`: Only present for aggregated JUnit — contains per-run pass/fail/skip data with Prow URLs
 
-Fields with empty values are omitted from JSON output to reduce noise.
+**Always present:** `name`, `status`, `suite_name`, `classname`, `time_seconds`, `lifecycle`, `source_file`. **Conditionally included** (omitted when empty): `failure_message`, `failure_text`, `error_message`, `error_text`, `skipped_message`, `system_out`, `aggregated`.
 
 ## Error Handling
 
 ### Case 1: File Not Found
 
-```
+```text
 Error: File not found: /path/to/junit.xml
 ```
 
@@ -226,7 +226,7 @@ The script prints an error to stderr and continues processing other files.
 
 ### Case 2: Invalid XML
 
-```
+```text
 Error: Failed to parse XML from junit.xml: syntax error: line 42, column 5
 ```
 
@@ -242,6 +242,7 @@ If a `.gz` file is corrupt, Python's gzip module raises an error. The script wil
 
 **Exit Codes:**
 - `0`: Success (even if no tests matched filters)
+- `1`: One or more files failed to parse (errors printed to stderr, partial results still output)
 - `2`: Argument error (no files and no `--stdin`)
 
 ## Examples
@@ -263,7 +264,7 @@ python3 plugins/ci/skills/parse-junit/parse_junit.py junit_e2e.xml --format fail
 ```
 
 **Example output:**
-```
+```text
 Test Failures (3)
 ============================================================
 
@@ -308,7 +309,10 @@ python3 plugins/ci/skills/parse-junit/parse_junit.py junit*.xml \
 ### Example 5: Pipe from GCS
 
 ```bash
-gcloud storage cat gs://test-platform-results/logs/{job_name}/{build_id}/artifacts/{target}/openshift-e2e-test/artifacts/junit/junit_e2e_*.xml.gz | \
+# Note: --stdin expects a single XML document. Use a specific file path, not a
+# glob that could match multiple files (gcloud storage cat concatenates them,
+# producing invalid XML).
+gcloud storage cat gs://test-platform-results/logs/{job_name}/{build_id}/artifacts/{target}/openshift-e2e-test/artifacts/junit/junit_e2e_20240101-120000.xml.gz | \
   python3 plugins/ci/skills/parse-junit/parse_junit.py --stdin --format summary
 ```
 

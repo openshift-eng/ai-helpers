@@ -125,7 +125,7 @@ def parse_junit_xml(source, source_name: str = "<stdin>") -> list:
     """Parse a JUnit XML file or stream, returning a list of TestResult."""
     try:
         tree = ET.parse(source)
-    except ET.ParseError as e:
+    except (ET.ParseError, OSError) as e:
         print(f"Error: Failed to parse XML from {source_name}: {e}", file=sys.stderr)
         return []
 
@@ -166,15 +166,15 @@ def parse_junit_xml(source, source_name: str = "<stdin>") -> list:
             error_message = error_text = ""
             skipped_message = ""
 
-            if failure_el is not None:
-                status = "failed"
-                failure_message = failure_el.get("message", "")
-                failure_text = failure_el.text or ""
             if error_el is not None:
                 status = "error"
                 error_message = error_el.get("message", "")
                 error_text = error_el.text or ""
-            if skipped_el is not None:
+            elif failure_el is not None:
+                status = "failed"
+                failure_message = failure_el.get("message", "")
+                failure_text = failure_el.text or ""
+            elif skipped_el is not None:
                 status = "skipped"
                 skipped_message = skipped_el.get("message", "")
 
@@ -186,8 +186,8 @@ def parse_junit_xml(source, source_name: str = "<stdin>") -> list:
             agg_passes = []
             agg_failures = []
             agg_skips = []
-            if system_out and any(
-                k in system_out for k in ("passes:", "failures:", "skips:")
+            if system_out and re.search(
+                r"^(?:passes|failures|skips):", system_out, re.MULTILINE
             ):
                 parsed = _parse_system_out_yaml(system_out)
                 agg_passes = parsed["passes"]
@@ -241,7 +241,11 @@ def filter_results(results, name_pattern=None, status_filter=None,
     """Filter results by name regex, status, and/or lifecycle."""
     filtered = results
     if name_pattern:
-        regex = re.compile(name_pattern, re.IGNORECASE)
+        try:
+            regex = re.compile(name_pattern, re.IGNORECASE)
+        except re.error as e:
+            print(f"Error: Invalid filter pattern '{name_pattern}': {e}", file=sys.stderr)
+            return []
         filtered = [r for r in filtered if regex.search(r.name)]
     if status_filter:
         statuses = {s.strip() for s in status_filter.split(",")}
@@ -518,19 +522,27 @@ def main():
         parser.error("Provide file paths or use --stdin")
 
     all_results = []
+    had_errors = False
 
     # Read from stdin
     if args.stdin:
         data = sys.stdin.buffer.read()
         # Transparently decompress gzip
         if data[:2] == b"\x1f\x8b":
-            data = gzip.decompress(data)
+            try:
+                data = gzip.decompress(data)
+            except (OSError, EOFError) as e:
+                print(f"Error: Failed to decompress gzip input from stdin: {e}", file=sys.stderr)
+                sys.exit(1)
         text = data.decode("utf-8", errors="replace")
         all_results.extend(parse_junit_xml(io.StringIO(text), source_name="<stdin>"))
 
     # Read from file arguments
     for filepath in args.files or []:
-        all_results.extend(parse_file(filepath))
+        results = parse_file(filepath)
+        if not results and Path(filepath).exists():
+            had_errors = True
+        all_results.extend(results)
 
     # Apply filters
     all_results = filter_results(
@@ -550,6 +562,9 @@ def main():
     elif args.format == "names":
         for r in all_results:
             print(r.name)
+
+    if had_errors:
+        sys.exit(1)
 
 
 if __name__ == "__main__":
