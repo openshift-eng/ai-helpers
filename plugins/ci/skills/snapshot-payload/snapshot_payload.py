@@ -7,6 +7,7 @@ that an AI agent can navigate without live API calls.
 """
 
 import argparse
+import gzip
 import io
 import json
 import os
@@ -19,6 +20,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
+from datetime import datetime, timezone
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
@@ -112,6 +114,7 @@ class JobInfo:
     previous_attempt_urls: list[str]
     is_aggregated: bool
     gcs_bucket_path: str
+    gcs_url: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -486,6 +489,7 @@ class JobCollector(Collector):
             "state": self.job.state,
             "lifecycle": self.job.lifecycle,
             "url": self.job.url,
+            "gcs_url": self.job.gcs_url,
             "retries": self.job.retries,
             "previousAttemptURLs": self.job.previous_attempt_urls,
             "is_aggregated": self.job.is_aggregated,
@@ -606,6 +610,60 @@ class JUnitCollector(Collector):
         pass  # not used — collect() is overridden
 
 
+class BuildLogCollector(Collector):
+    """Downloads build-log.txt from GCS and extracts error/warning lines."""
+
+    _ERROR_RE = re.compile(
+        r"(?:^|\s)(?:error|ERROR|Error|warning|WARNING|Warning"
+        r"|FATAL|fatal|panic|PANIC)[:\s\[]",
+    )
+
+    def __init__(self, output_path: str, job: JobInfo):
+        super().__init__(output_path)
+        self.job = job
+
+    def _fetch(self) -> Optional[dict]:
+        if not self.job.gcs_bucket_path:
+            return None
+
+        gcs_uri = f"gs://{self.job.gcs_bucket_path}/build-log.txt"
+        raw = _run_gcloud_bytes(
+            ["gcloud", "storage", "cat", gcs_uri], timeout=120
+        )
+        if not raw:
+            return None
+
+        try:
+            text = gzip.decompress(raw).decode("utf-8", errors="replace")
+        except (gzip.BadGzipFile, OSError):
+            text = raw.decode("utf-8", errors="replace")
+
+        lines = text.splitlines()
+        total = len(lines)
+        if total == 0:
+            return {"error_warning_lines": [], "tail_lines": [],
+                    "total_lines": 0}
+
+        error_warning = []
+        for i, line in enumerate(lines):
+            if self._ERROR_RE.search(line):
+                error_warning.append({
+                    "line_number": i + 1,
+                    "text": line.rstrip(),
+                })
+
+        tail_start = max(0, total - total // 5)
+        tail_lines = [l.rstrip() for l in lines[tail_start:]]
+
+        return {
+            "total_lines": total,
+            "error_warning_count": len(error_warning),
+            "error_warning_lines": error_warning,
+            "tail_start_line": tail_start + 1,
+            "tail_lines": tail_lines,
+        }
+
+
 # ---------------------------------------------------------------------------
 # RegressionTracker — traces test failures across the payload chain
 # ---------------------------------------------------------------------------
@@ -646,7 +704,7 @@ class RegressionTracker:
                 "first_failed_in": first_failed_in,
                 "payloads_failing": chain_idx_first + 1,
                 "failure_message": info.get("failure_message", ""),
-                "failure_text": info.get("failure_text", "")[:500],
+                "failure_text": info.get("failure_text", ""),
             })
         return regressions
 
@@ -688,16 +746,100 @@ class RegressionTracker:
 
 
 # ---------------------------------------------------------------------------
+# JobStreakTracker — per-job failure streaks across the payload chain
+# ---------------------------------------------------------------------------
+
+class JobStreakTracker:
+    """Tracks per-job failure streaks across the payload chain."""
+
+    def __init__(self, base_dir: str, chain: list[str]):
+        self.base_dir = base_dir
+        self.chain = chain
+
+    def track(self) -> dict[str, dict]:
+        """Return a dict keyed by job name with streak data.
+
+        Only tracks failed blocking jobs in the target (first) payload.
+        """
+        if not self.chain:
+            return {}
+
+        target_tag = self.chain[0]
+        target_dir = os.path.join(self.base_dir, target_tag)
+
+        failed_jobs = self._get_failed_jobs(target_dir)
+        if not failed_jobs:
+            return {}
+
+        streaks: dict[str, dict] = {}
+        for job_name in failed_jobs:
+            pattern = []
+            for tag in self.chain:
+                tag_dir = os.path.join(self.base_dir, tag)
+                state = self._get_job_state(tag_dir, job_name)
+                if state == "Succeeded":
+                    pattern.append("S")
+                elif state:
+                    pattern.append("F")
+                else:
+                    pattern.append("?")
+
+            streak = 0
+            for p in pattern:
+                if p == "F":
+                    streak += 1
+                else:
+                    break
+
+            originating_idx = min(streak - 1, len(self.chain) - 1)
+            originating_tag = self.chain[originating_idx]
+
+            streaks[job_name] = {
+                "streak_length": streak,
+                "originating_payload": originating_tag,
+                "is_new_failure": streak == 1,
+                "failure_pattern": " ".join(pattern),
+            }
+
+        return streaks
+
+    def _get_failed_jobs(self, tag_dir: str) -> list[str]:
+        blocking_dir = os.path.join(tag_dir, "jobs", "blocking")
+        if not os.path.isdir(blocking_dir):
+            return []
+        failed = []
+        for job_name in os.listdir(blocking_dir):
+            job_data = _read_json(
+                os.path.join(blocking_dir, job_name, "job.json")
+            )
+            if job_data and job_data.get("state") != "Succeeded":
+                failed.append(job_name)
+        return sorted(failed)
+
+    def _get_job_state(self, tag_dir: str, job_name: str) -> Optional[str]:
+        job_path = os.path.join(
+            tag_dir, "jobs", "blocking", job_name, "job.json"
+        )
+        job_data = _read_json(job_path)
+        if job_data:
+            return job_data.get("state", "")
+        return None
+
+
+# ---------------------------------------------------------------------------
 # SummaryGenerator — produces stream-level roll-up
 # ---------------------------------------------------------------------------
 
 class SummaryGenerator:
     """Generates summary.json and summary.md for the stream."""
 
-    def __init__(self, base_dir: str, chain: list[str], target_tag: str):
+    def __init__(self, base_dir: str, chain: list[str], target_tag: str,
+                 tag: "PayloadTag", streaks: Optional[dict] = None):
         self.base_dir = base_dir
         self.chain = chain
         self.target_tag = target_tag
+        self.tag = tag
+        self.streaks = streaks or {}
 
     def generate(self) -> None:
         target_dir = os.path.join(self.base_dir, self.target_tag)
@@ -707,6 +849,8 @@ class SummaryGenerator:
         ) or []
 
         phase = payload_data.get("phase", "Unknown") if payload_data else "Unknown"
+        release_url = (payload_data.get("_release_url", "")
+                       if payload_data else "")
         results = payload_data.get("results", {}) if payload_data else {}
 
         blocking = results.get("blockingJobs", {}) or {}
@@ -719,13 +863,257 @@ class SummaryGenerator:
             1 for v in informing.values() if v.get("state") == "Succeeded"
         )
 
-        failed_blocking_jobs = sorted(
-            k for k, v in blocking.items() if v.get("state") != "Succeeded"
+        hours_since = self._compute_hours_since_baseline()
+
+        failed_blocking_detail = self._build_failed_job_details(
+            "blocking"
         )
-        failed_informing_jobs = sorted(
+        failed_informing_names = sorted(
             k for k, v in informing.items() if v.get("state") != "Succeeded"
         )
 
+        payloads = self._build_payload_entries()
+
+        summary = {
+            "payload_tag": self.target_tag,
+            "phase": phase,
+            "release_url": release_url,
+            "architecture": self.tag.architecture,
+            "stream": self.tag.stream,
+            "version": self.tag.version,
+            "chain_length": len(self.chain),
+            "baseline_tag": self.chain[-1] if self.chain else "",
+            "hours_since_baseline": hours_since,
+            "blocking_jobs": {
+                "total": len(blocking),
+                "passed": blocking_passed,
+                "failed": len(blocking) - blocking_passed,
+                "failed_jobs": failed_blocking_detail,
+            },
+            "informing_jobs": {
+                "total": len(informing),
+                "passed": informing_passed,
+                "failed": len(informing) - informing_passed,
+                "failed_jobs": failed_informing_names,
+            },
+            "test_failures": {
+                "blocking": [
+                    r for r in regressions if r.get("lifecycle") == "blocking"
+                ],
+            },
+            "payloads": payloads,
+        }
+
+        _write_json(os.path.join(self.base_dir, "summary.json"), summary)
+        self._write_agents_md(summary)
+        _log("  Generated summary.json, AGENTS.md, and CLAUDE.md")
+
+    def _write_agents_md(self, summary: dict) -> None:
+        """Write AGENTS.md and CLAUDE.md into the snapshot directory."""
+        tag = summary["payload_tag"]
+        phase = summary["phase"]
+        version = summary["version"]
+        stream = summary["stream"]
+        arch = summary["architecture"]
+        chain_len = summary["chain_length"]
+        baseline = summary["baseline_tag"]
+        hours = summary.get("hours_since_baseline")
+        bj = summary["blocking_jobs"]
+        ij = summary["informing_jobs"]
+
+        failed_names = [
+            j["name"] if isinstance(j, dict) else j
+            for j in bj.get("failed_jobs", [])
+        ]
+
+        hours_str = f" ({hours}h ago)" if hours is not None else ""
+        chain_tags = "\n".join(f"  - {t}" for t in self.chain)
+
+        lines = [
+            f"# Payload Snapshot: {tag}",
+            "",
+            f"OpenShift {version} {stream} ({arch}) — **{phase}**",
+            "",
+            "## Quick Start",
+            "",
+            "Read `summary.json` first. It contains everything you need for",
+            "triage: job states, failure streaks, test regressions, build-log",
+            "error counts, and relative paths to all detailed data files.",
+            "Only drill into per-job or per-PR files when you need specifics.",
+            "",
+            "## This Snapshot",
+            "",
+            f"- **Target payload**: `{tag}`",
+            f"- **Phase**: {phase}",
+            f"- **Blocking jobs**: {bj['failed']}/{bj['total']} failed",
+            f"- **Informing jobs**: {ij['failed']}/{ij['total']} failed",
+            f"- **Chain depth**: {chain_len} payloads back to baseline",
+            f"- **Baseline**: `{baseline}`{hours_str}",
+            "",
+            "### Payload chain (newest first)",
+            "",
+            chain_tags,
+            "",
+        ]
+
+        if failed_names:
+            lines.append("### Failed blocking jobs")
+            lines.append("")
+            for n in failed_names:
+                lines.append(f"  - `{n}`")
+            lines.append("")
+
+        lines.extend([
+            "## File Layout",
+            "",
+            "```",
+            f"{version}/{stream}/",
+            "  summary.json              # START HERE — full triage data",
+            "  CLAUDE.md                  # This file",
+            "  streams.json              # All streams for this OCP version",
+            f"  {tag}/                    # Target payload",
+            "    payload.json            # Release controller API response",
+            "    changelog.json          # PRs changed vs previous payload",
+            "    regressions.json        # Test failure regression tracking",
+            "    jobs/",
+            "      blocking/",
+            "        <job-name>/",
+            "          job.json          # State, prow URL, GCS URL, retries",
+            "          build_log.json    # Error/warning lines + log tail",
+            "          junit/",
+            "            results.json    # Parsed test failures",
+            "            *.xml           # Raw JUnit XML",
+            "      informing/",
+            "        <job-name>/",
+            "          job.json          # State and URLs only (no junit)",
+            "    <component>/",
+            "      prs/",
+            "        <number>/",
+            "          code.diff         # Full git diff",
+            "          comments.json     # PR comments and reviews",
+            "          jobs.json         # CI check runs",
+            "  <older-payload-tag>/      # Each prior payload in the chain",
+            "    ...                     # Same structure",
+            "```",
+            "",
+            "## Key Concepts",
+            "",
+            "- **Blocking vs informing**: Only blocking job failures prevent",
+            "  payload acceptance. Informing jobs are tracked but don't block.",
+            "- **Chain**: The sequence of payloads walking backwards from the",
+            "  target until one where all blocking jobs passed (the baseline).",
+            "- **Streaks**: Per-job consecutive failure count from the target",
+            "  backwards. `failure_pattern` shows the full history (F=fail,",
+            "  S=succeed) across the chain.",
+            "- **Regressions**: Per-test tracking — when did each test failure",
+            "  first appear? `first_failed_in` identifies the originating",
+            "  payload, `payloads_failing` counts how many payloads it spans.",
+            "- **Build log**: Error/warning lines extracted from the Prow",
+            "  build-log.txt, plus the last 20% of the log for context.",
+            "",
+            "## summary.json Schema",
+            "",
+            "Top-level fields:",
+            "- `payload_tag`, `phase`, `release_url`, `architecture`,",
+            "  `stream`, `version`",
+            "- `chain_length`, `baseline_tag`, `hours_since_baseline`",
+            "- `blocking_jobs.failed_jobs[]` — each entry has: `name`,",
+            "  `state`, `prow_url`, `gcs_url`, `streak` (with",
+            "  `streak_length`, `originating_payload`, `is_new_failure`,",
+            "  `failure_pattern`), `build_log_errors`, `test_failure_count`,",
+            "  and relative paths to `job_json`, `junit_results`, `build_log`",
+            "- `informing_jobs.failed_jobs[]` — job name strings only",
+            "- `test_failures.blocking[]` — `test_name`, `jobs`,",
+            "  `first_failed_in`, `payloads_failing`, `failure_message`,",
+            "  `failure_text`",
+            "- `payloads[]` — per-payload entries with `tag`, `phase`,",
+            "  relative paths, and `prs[]` with component/diff/comments paths",
+            "",
+        ])
+
+        _write_text(
+            os.path.join(self.base_dir, "AGENTS.md"),
+            "\n".join(lines),
+        )
+        _write_text(
+            os.path.join(self.base_dir, "CLAUDE.md"),
+            "@AGENTS.md\n",
+        )
+
+    def _compute_hours_since_baseline(self) -> Optional[float]:
+        """Compute hours between target and baseline payload timestamps."""
+        if len(self.chain) < 2:
+            return None
+        try:
+            target_ts = _parse_tag_timestamp(self.chain[0])
+            baseline_ts = _parse_tag_timestamp(self.chain[-1])
+            if target_ts and baseline_ts:
+                delta = target_ts - baseline_ts
+                return round(delta.total_seconds() / 3600, 1)
+        except (ValueError, IndexError):
+            pass
+        return None
+
+    def _build_failed_job_details(self, lifecycle: str) -> list[dict]:
+        """Build detailed entries for each failed job."""
+        target_dir = os.path.join(self.base_dir, self.target_tag)
+        lifecycle_dir = os.path.join(target_dir, "jobs", lifecycle)
+        if not os.path.isdir(lifecycle_dir):
+            return []
+
+        details = []
+        for job_name in sorted(os.listdir(lifecycle_dir)):
+            job_data = _read_json(
+                os.path.join(lifecycle_dir, job_name, "job.json")
+            )
+            if not job_data or job_data.get("state") == "Succeeded":
+                continue
+
+            tag_rel = self.target_tag
+            entry: dict = {
+                "name": job_name,
+                "state": job_data.get("state", ""),
+                "prow_url": job_data.get("url", ""),
+                "gcs_url": job_data.get("gcs_url", ""),
+                "is_aggregated": job_data.get("is_aggregated", False),
+                "retries": job_data.get("retries", 0),
+                "job_json": (
+                    f"{tag_rel}/jobs/{lifecycle}/{job_name}/job.json"
+                ),
+            }
+
+            streak_data = self.streaks.get(job_name)
+            if streak_data:
+                entry["streak"] = streak_data
+
+            results_path = os.path.join(
+                lifecycle_dir, job_name, "junit", "results.json"
+            )
+            if os.path.exists(results_path):
+                entry["junit_results"] = (
+                    f"{tag_rel}/jobs/{lifecycle}/{job_name}/junit/results.json"
+                )
+                results_data = _read_json(results_path) or []
+                entry["test_failure_count"] = len(results_data)
+
+            build_log_path = os.path.join(
+                lifecycle_dir, job_name, "build_log.json"
+            )
+            if os.path.exists(build_log_path):
+                entry["build_log"] = (
+                    f"{tag_rel}/jobs/{lifecycle}/{job_name}/build_log.json"
+                )
+                bl_data = _read_json(build_log_path)
+                if bl_data:
+                    entry["build_log_errors"] = bl_data.get(
+                        "error_warning_count", 0
+                    )
+
+            details.append(entry)
+        return details
+
+    def _build_payload_entries(self) -> list[dict]:
+        """Build the payloads array with all path references."""
         payloads = []
         for tag_name in self.chain:
             tag_rel = tag_name
@@ -733,6 +1121,13 @@ class SummaryGenerator:
                 "tag": tag_name,
                 "payload": f"{tag_rel}/payload.json",
             }
+
+            pd = _read_json(
+                os.path.join(self.base_dir, tag_name, "payload.json")
+            )
+            if pd:
+                entry["phase"] = pd.get("phase", "")
+
             changelog_path = os.path.join(
                 self.base_dir, tag_name, "changelog.json"
             )
@@ -764,35 +1159,7 @@ class SummaryGenerator:
                 entry["jobs"] = job_paths
 
             payloads.append(entry)
-
-        summary = {
-            "payload_tag": self.target_tag,
-            "phase": phase,
-            "chain_length": len(self.chain),
-            "baseline_tag": self.chain[-1] if self.chain else "",
-            "blocking_jobs": {
-                "total": len(blocking),
-                "passed": blocking_passed,
-                "failed": len(blocking) - blocking_passed,
-                "failed_jobs": failed_blocking_jobs,
-            },
-            "informing_jobs": {
-                "total": len(informing),
-                "passed": informing_passed,
-                "failed": len(informing) - informing_passed,
-                "failed_jobs": failed_informing_jobs,
-            },
-            "test_failures": {
-                "blocking": [
-                    r for r in regressions if r.get("lifecycle") == "blocking"
-                ],
-            },
-            "payloads": payloads,
-        }
-
-        _write_json(os.path.join(self.base_dir, "summary.json"), summary)
-        self._write_markdown(summary)
-        _log("  Generated summary.json and summary.md")
+        return payloads
 
     def _collect_job_paths(self, tag_name: str) -> dict:
         """Build path references for jobs in a payload."""
@@ -818,99 +1185,23 @@ class SummaryGenerator:
                     job_entry["junit_results"] = (
                         f"{tag_rel}/jobs/{lifecycle}/{job_name}/junit/results.json"
                     )
+                build_log_path = os.path.join(
+                    lifecycle_dir, job_name, "build_log.json"
+                )
+                if os.path.exists(build_log_path):
+                    job_entry["build_log"] = (
+                        f"{tag_rel}/jobs/{lifecycle}/{job_name}/build_log.json"
+                    )
                 job_data = _read_json(
                     os.path.join(lifecycle_dir, job_name, "job.json")
                 )
                 if job_data:
                     job_entry["state"] = job_data.get("state", "")
+                    job_entry["gcs_url"] = job_data.get("gcs_url", "")
                 job_paths[lifecycle].append(job_entry)
 
         return job_paths
 
-    def _write_markdown(self, summary: dict) -> None:
-        lines = []
-        tag = summary["payload_tag"]
-        phase = summary["phase"]
-        chain_len = summary["chain_length"]
-        baseline = summary["baseline_tag"]
-
-        lines.append(f"# Payload Analysis: {tag}")
-        lines.append("")
-        lines.append(f"**Status**: {phase}")
-        lines.append(f"**Chain**: {chain_len} payloads back to baseline")
-        lines.append(f"**Baseline**: {baseline}")
-        lines.append("")
-
-        bj = summary["blocking_jobs"]
-        lines.append(
-            f"## Blocking Jobs ({bj['failed']}/{bj['total']} failed)"
-        )
-        lines.append("")
-        if bj["failed_jobs"]:
-            for job in bj["failed_jobs"]:
-                lines.append(f"- {job}")
-            lines.append("")
-
-        ij = summary["informing_jobs"]
-        lines.append(
-            f"## Informing Jobs ({ij['failed']}/{ij['total']} failed)"
-        )
-        lines.append("")
-        if ij["failed_jobs"]:
-            for job in ij["failed_jobs"]:
-                lines.append(f"- {job}")
-            lines.append("")
-
-        blocking_tests = summary.get("test_failures", {}).get("blocking", [])
-        if blocking_tests:
-            new_failures = [
-                t for t in blocking_tests if t["payloads_failing"] == 1
-            ]
-            persistent = [
-                t for t in blocking_tests if t["payloads_failing"] > 1
-            ]
-
-            if new_failures:
-                lines.append("## New Test Failures (started in this payload)")
-                lines.append("")
-                lines.append(
-                    "| Test | Jobs | Failure Message |"
-                )
-                lines.append("|------|------|-----------------|")
-                for t in new_failures:
-                    test = t["test_name"][:80]
-                    jobs = ", ".join(t["jobs"][:3])
-                    msg = (t.get("failure_message") or "")[:80]
-                    lines.append(f"| {test} | {jobs} | {msg} |")
-                lines.append("")
-
-            if persistent:
-                lines.append("## Persistent Test Failures")
-                lines.append("")
-                lines.append(
-                    "| Test | Jobs | First Failed In | Payloads |"
-                )
-                lines.append("|------|------|-----------------|----------|")
-                for t in persistent:
-                    test = t["test_name"][:80]
-                    jobs = ", ".join(t["jobs"][:3])
-                    first = t["first_failed_in"]
-                    count = t["payloads_failing"]
-                    lines.append(
-                        f"| {test} | {jobs} | {first} | {count} |"
-                    )
-                lines.append("")
-        elif not blocking_tests:
-            lines.append("## Test Failures")
-            lines.append("")
-            lines.append(
-                "No test-level failure data available. "
-                "Run without `--no-junit` to enable."
-            )
-            lines.append("")
-
-        _write_text(os.path.join(self.base_dir, "summary.md"),
-                     "\n".join(lines) + "\n")
 
 
 # ---------------------------------------------------------------------------
@@ -952,9 +1243,12 @@ class Snapshotter:
 
         if self.collect_junit:
             self._collect_junit(base_dir, chain)
+            self._collect_build_logs(base_dir, chain)
             self._track_regressions(base_dir, chain)
 
-        self._generate_summary(base_dir, chain)
+        streaks = self._track_job_streaks(base_dir, chain)
+
+        self._generate_summary(base_dir, chain, streaks)
 
         _log(f"\nSnapshot complete: {base_dir}/")
 
@@ -1091,6 +1385,7 @@ class Snapshotter:
                     ),
                     is_aggregated=job_data.get("is_aggregated", False),
                     gcs_bucket_path=job_data.get("gcs_bucket_path", ""),
+                    gcs_url=job_data.get("gcs_url", ""),
                 )
 
                 junit_dir = os.path.join(
@@ -1143,15 +1438,93 @@ class Snapshotter:
         _log(f"  Found {len(regressions)} failing tests: "
              f"{new_count} new, {persistent_count} persistent")
 
-    def _generate_summary(self, base_dir: str, chain: list[str]) -> None:
+    def _collect_build_logs(self, base_dir: str, chain: list[str]) -> None:
+        """Download and parse build-log.txt for failed blocking jobs."""
+        collectors: list[BuildLogCollector] = []
+
+        for tag_name in chain:
+            tag_dir = os.path.join(base_dir, tag_name)
+            blocking_dir = os.path.join(tag_dir, "jobs", "blocking")
+            if not os.path.isdir(blocking_dir):
+                continue
+
+            for job_name in os.listdir(blocking_dir):
+                job_json_path = os.path.join(
+                    blocking_dir, job_name, "job.json"
+                )
+                job_data = _read_json(job_json_path)
+                if not job_data:
+                    continue
+                if job_data.get("state") == "Succeeded":
+                    continue
+
+                build_log_path = os.path.join(
+                    blocking_dir, job_name, "build_log.json"
+                )
+                job_info = JobInfo(
+                    name=job_data["name"],
+                    state=job_data["state"],
+                    lifecycle=job_data["lifecycle"],
+                    url=job_data["url"],
+                    retries=job_data.get("retries", 0),
+                    previous_attempt_urls=job_data.get(
+                        "previousAttemptURLs", []
+                    ),
+                    is_aggregated=job_data.get("is_aggregated", False),
+                    gcs_bucket_path=job_data.get("gcs_bucket_path", ""),
+                    gcs_url=job_data.get("gcs_url", ""),
+                )
+                collectors.append(
+                    BuildLogCollector(build_log_path, job_info)
+                )
+
+        if not collectors:
+            _log("\nNo failed blocking jobs for build-log extraction.")
+            return
+
+        _log(f"\nExtracting build logs for {len(collectors)} failed blocking "
+             f"jobs ({self.workers} workers)...")
+
+        with ThreadPoolExecutor(max_workers=self.workers) as pool:
+            futures = {
+                pool.submit(c.collect): c for c in collectors
+            }
+            done = 0
+            for future in as_completed(futures):
+                done += 1
+                collector = futures[future]
+                try:
+                    future.result()
+                    _log(f"  [{done}/{len(collectors)}] {collector.job.name}")
+                except Exception as e:
+                    _log(f"  [{done}/{len(collectors)}] "
+                         f"{collector.job.name}: error: {e}")
+
+    def _track_job_streaks(
+        self, base_dir: str, chain: list[str]
+    ) -> dict[str, dict]:
+        """Track per-job failure streaks across the payload chain."""
+        _log("\nTracking job failure streaks...")
+        tracker = JobStreakTracker(base_dir, chain)
+        streaks = tracker.track()
+        new_count = sum(1 for s in streaks.values() if s["is_new_failure"])
+        _log(f"  {len(streaks)} failed jobs: {new_count} new, "
+             f"{len(streaks) - new_count} persistent")
+        return streaks
+
+    def _generate_summary(
+        self, base_dir: str, chain: list[str],
+        streaks: Optional[dict] = None,
+    ) -> None:
         """Generate the stream-level summary."""
         _log("\nGenerating summary...")
         summary_path = os.path.join(base_dir, "summary.json")
         if os.path.exists(summary_path):
-            _log(f"  skip (exists): {summary_path}")
-            return
+            os.remove(summary_path)
 
-        generator = SummaryGenerator(base_dir, chain, chain[0])
+        generator = SummaryGenerator(
+            base_dir, chain, chain[0], self.tag, streaks=streaks
+        )
         generator.generate()
 
 
@@ -1185,6 +1558,19 @@ def _read_json(path: str) -> Optional[dict]:
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
+        return None
+
+
+def _parse_tag_timestamp(tag: str) -> Optional[datetime]:
+    """Extract and parse the timestamp from a payload tag name."""
+    m = re.search(r"(\d{4}-\d{2}-\d{2}-\d{6})$", tag)
+    if not m:
+        return None
+    try:
+        return datetime.strptime(m.group(1), "%Y-%m-%d-%H%M%S").replace(
+            tzinfo=timezone.utc
+        )
+    except ValueError:
         return None
 
 
@@ -1313,6 +1699,8 @@ def _extract_jobs(payload_data: dict) -> list[JobInfo]:
         job_dict = payload_data.get("results", {}).get(key, {}) or {}
         for name, info in job_dict.items():
             url = info.get("url", "")
+            gcs_path = _prow_url_to_gcs_bucket_path(url) or ""
+            gcs_url = f"{GCSWEB_BASE}/{gcs_path}/" if gcs_path else ""
             jobs.append(JobInfo(
                 name=name,
                 state=info.get("state", ""),
@@ -1321,7 +1709,8 @@ def _extract_jobs(payload_data: dict) -> list[JobInfo]:
                 retries=info.get("retries", 0),
                 previous_attempt_urls=info.get("previousAttemptURLs", []) or [],
                 is_aggregated=name.startswith("aggregated-"),
-                gcs_bucket_path=_prow_url_to_gcs_bucket_path(url) or "",
+                gcs_bucket_path=gcs_path,
+                gcs_url=gcs_url,
             ))
     return jobs
 
