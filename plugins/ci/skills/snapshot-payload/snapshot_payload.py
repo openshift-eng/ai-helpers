@@ -1,0 +1,1568 @@
+#!/usr/bin/env python3
+"""Snapshot OpenShift payload data to a local directory for offline analysis.
+
+Downloads release controller data, PR diffs, comments, and CI job links
+for a payload and its predecessors, building a complete local archive
+that an AI agent can navigate without live API calls.
+"""
+
+import argparse
+import io
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+import urllib.error
+import urllib.parse
+import urllib.request
+import xml.etree.ElementTree as ET
+from abc import ABC, abstractmethod
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Optional
+
+
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
+KNOWN_ARCHITECTURES = ("amd64", "arm64", "ppc64le", "s390x", "multi")
+STREAM_TYPES = ("nightly", "ci")
+
+GCSWEB_BASE = "https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs"
+PROW_VIEW_PREFIX = "https://prow.ci.openshift.org/view/gs/"
+
+PROW_STATE_MAP = {
+    "success": "Succeeded",
+    "failure": "Failed",
+    "aborted": "Failed",
+    "error": "Failed",
+}
+
+
+# ---------------------------------------------------------------------------
+# PayloadTag — immutable value object for parsed payload tags
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class PayloadTag:
+    """Parsed representation of an OpenShift payload tag.
+
+    Example tags:
+        4.22.0-0.nightly-2026-02-25-152806          -> amd64
+        4.22.0-0.nightly-arm64-2026-02-25-152806    -> arm64
+        4.18.0-0.ci-2026-01-15-114134               -> amd64, ci stream
+    """
+
+    raw: str
+    version: str
+    stream: str
+    architecture: str
+    stream_name: str
+    timestamp: str
+
+    @classmethod
+    def parse(cls, tag: str) -> "PayloadTag":
+        """Parse a payload tag string into its components."""
+        m = re.match(r"^(.+)-(\d{4}-\d{2}-\d{2}-\d{6})$", tag)
+        if not m:
+            raise ValueError(f"Cannot parse payload tag: {tag}")
+
+        stream_name = m.group(1)
+        timestamp = m.group(2)
+
+        sm = re.match(
+            r"^(\d+\.\d+)\.0-0\.(\w+?)(?:-(arm64|ppc64le|s390x|multi))?$",
+            stream_name,
+        )
+        if not sm:
+            raise ValueError(f"Cannot parse stream name: {stream_name}")
+
+        version = sm.group(1)
+        stream = sm.group(2)
+        architecture = sm.group(3) or "amd64"
+
+        return cls(
+            raw=tag,
+            version=version,
+            stream=stream,
+            architecture=architecture,
+            stream_name=stream_name,
+            timestamp=timestamp,
+        )
+
+
+# ---------------------------------------------------------------------------
+# JobInfo — metadata for a single CI job
+# ---------------------------------------------------------------------------
+
+@dataclass
+class JobInfo:
+    """Metadata for a CI job extracted from payload.json."""
+
+    name: str
+    state: str
+    lifecycle: str  # "blocking" or "informing"
+    url: str
+    retries: int
+    previous_attempt_urls: list[str]
+    is_aggregated: bool
+    gcs_bucket_path: str
+
+
+# ---------------------------------------------------------------------------
+# HTTP helpers
+# ---------------------------------------------------------------------------
+
+def fetch_json(url: str, timeout: int = 30) -> dict:
+    """Fetch JSON from a URL. Raises on error."""
+    req = urllib.request.Request(url, headers={"Accept": "application/json"})
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
+def try_fetch_json(url: str, timeout: int = 10) -> Optional[dict]:
+    """Fetch JSON from a URL, returning None on any failure."""
+    try:
+        return fetch_json(url, timeout=timeout)
+    except Exception:
+        return None
+
+
+# ---------------------------------------------------------------------------
+# ReleaseController — API client
+# ---------------------------------------------------------------------------
+
+class ReleaseController:
+    """Client for the OpenShift release controller API."""
+
+    def __init__(self, architecture: str = "amd64"):
+        self.architecture = architecture
+        self.domain = f"{architecture}.ocp.releases.ci.openshift.org"
+        self._base = f"https://{self.domain}/api/v1"
+
+    def fetch_tags(self, stream_name: str) -> list[dict]:
+        """Fetch all tags for a release stream, newest first."""
+        url = f"{self._base}/releasestream/{urllib.parse.quote(stream_name)}/tags"
+        data = fetch_json(url)
+        return data.get("tags", [])
+
+    def fetch_release(self, stream_name: str, tag: str) -> dict:
+        """Fetch full release details for a specific tag."""
+        url = (
+            f"{self._base}/releasestream/{urllib.parse.quote(stream_name)}"
+            f"/release/{urllib.parse.quote(tag)}"
+        )
+        return fetch_json(url, timeout=60)
+
+    def fetch_changelog(
+        self, stream_name: str, tag: str, from_tag: str
+    ) -> dict:
+        """Fetch the diff/changelog between two tags."""
+        url = (
+            f"{self._base}/releasestream/{urllib.parse.quote(stream_name)}"
+            f"/release/{urllib.parse.quote(tag)}"
+            f"?from={urllib.parse.quote(from_tag)}"
+        )
+        return fetch_json(url, timeout=60)
+
+    def release_url(self, stream_name: str, tag: str) -> str:
+        """Build the human-readable release controller page URL."""
+        return (
+            f"https://{self.domain}"
+            f"/releasestream/{urllib.parse.quote(stream_name)}"
+            f"/release/{urllib.parse.quote(tag)}"
+        )
+
+    def resolve_prow_state(self, prow_url: str) -> Optional[str]:
+        """Cross-check a Prow job's actual state via its GCS artifact."""
+        if not prow_url or not prow_url.startswith(PROW_VIEW_PREFIX):
+            return None
+        gcs_path = prow_url[len(PROW_VIEW_PREFIX):]
+        prowjob_url = f"{GCSWEB_BASE}/{gcs_path}/prowjob.json"
+        data = try_fetch_json(prowjob_url)
+        if not data:
+            return None
+        prow_state = data.get("status", {}).get("state", "")
+        return PROW_STATE_MAP.get(prow_state)
+
+
+# ---------------------------------------------------------------------------
+# PayloadChain — backward walk to find all-green baseline
+# ---------------------------------------------------------------------------
+
+class PayloadChain:
+    """Walks backwards through payloads to find the all-green baseline."""
+
+    def __init__(self, rc: ReleaseController, stream_name: str, max_depth: int = 20):
+        self.rc = rc
+        self.stream_name = stream_name
+        self.max_depth = max_depth
+
+    def build(self, start_tag: str) -> list[str]:
+        """Return an ordered list of tags from start_tag back to the baseline.
+
+        The baseline (last element) is the first payload where all blocking
+        jobs succeeded.  The start_tag is always the first element.
+        """
+        all_tags = self.rc.fetch_tags(self.stream_name)
+        tag_names = [t["name"] for t in all_tags]
+
+        try:
+            start_idx = tag_names.index(start_tag)
+        except ValueError:
+            raise ValueError(
+                f"Tag {start_tag} not found in stream {self.stream_name}"
+            )
+
+        chain = []
+        for i in range(start_idx, min(start_idx + self.max_depth, len(tag_names))):
+            tag = tag_names[i]
+            chain.append(tag)
+
+            details = self.rc.fetch_release(self.stream_name, tag)
+            if self._all_blocking_passed(details):
+                break
+
+        return chain
+
+    def _all_blocking_passed(self, details: dict) -> bool:
+        """Check if every blocking job in a payload succeeded."""
+        phase = details.get("phase", "")
+        blocking = details.get("results", {}).get("blockingJobs", {})
+        if not blocking:
+            return True
+
+        for job_name, job_info in blocking.items():
+            state = job_info.get("state", "")
+            if state == "Pending" and phase in ("Accepted", "Rejected"):
+                resolved = self.rc.resolve_prow_state(job_info.get("url", ""))
+                if resolved:
+                    state = resolved
+            if state != "Succeeded":
+                return False
+        return True
+
+
+# ---------------------------------------------------------------------------
+# Collector base class
+# ---------------------------------------------------------------------------
+
+class Collector(ABC):
+    """Base class for artifact collectors.
+
+    Subclasses implement ``_fetch()`` to retrieve data and return it.
+    The base ``collect()`` handles idempotency (skip if file exists) and
+    writing the result to disk.
+    """
+
+    def __init__(self, output_path: str):
+        self.output_path = output_path
+
+    def collect(self) -> bool:
+        """Fetch and write the artifact.  Returns True if new data was written."""
+        if os.path.exists(self.output_path):
+            _log(f"  skip (exists): {self.output_path}")
+            return False
+
+        data = self._fetch()
+        if data is None:
+            return False
+
+        os.makedirs(os.path.dirname(self.output_path), exist_ok=True)
+        if isinstance(data, (dict, list)):
+            _write_json(self.output_path, data)
+        else:
+            _write_text(self.output_path, str(data))
+        return True
+
+    @abstractmethod
+    def _fetch(self) -> Any:
+        """Retrieve the artifact data.  Return None to skip writing."""
+
+
+# ---------------------------------------------------------------------------
+# Concrete collectors
+# ---------------------------------------------------------------------------
+
+class StreamsCollector(Collector):
+    """Probes all stream/architecture combinations for a version."""
+
+    def __init__(self, output_path: str, version: str):
+        super().__init__(output_path)
+        self.version = version
+
+    def _fetch(self) -> list[dict]:
+        _log("Fetching streams list...")
+        streams = []
+        for arch in KNOWN_ARCHITECTURES:
+            for stream_type in STREAM_TYPES:
+                if stream_type == "ci" and arch != "amd64":
+                    continue
+                stream_name = _build_stream_name(self.version, stream_type, arch)
+                rc = ReleaseController(arch)
+                url = f"{rc._base}/releasestream/{urllib.parse.quote(stream_name)}/tags"
+                data = try_fetch_json(url)
+                if data and data.get("tags"):
+                    latest = data["tags"][0] if data["tags"] else {}
+                    streams.append({
+                        "architecture": arch,
+                        "stream": stream_type,
+                        "stream_name": stream_name,
+                        "tag_count": len(data["tags"]),
+                        "latest_tag": latest.get("name", ""),
+                        "latest_phase": latest.get("phase", ""),
+                    })
+        return streams
+
+
+class PayloadDetailCollector(Collector):
+    """Fetches release controller details for a single payload tag."""
+
+    def __init__(self, output_path: str, rc: ReleaseController,
+                 stream_name: str, tag: str):
+        super().__init__(output_path)
+        self.rc = rc
+        self.stream_name = stream_name
+        self.tag = tag
+
+    def _fetch(self) -> dict:
+        _log(f"  Fetching payload details: {self.tag}")
+        details = self.rc.fetch_release(self.stream_name, self.tag)
+        details["_release_url"] = self.rc.release_url(self.stream_name, self.tag)
+        return details
+
+
+class ChangelogCollector(Collector):
+    """Fetches the changelog (PR diff) between two consecutive payload tags."""
+
+    def __init__(self, output_path: str, rc: ReleaseController,
+                 stream_name: str, tag: str, from_tag: str):
+        super().__init__(output_path)
+        self.rc = rc
+        self.stream_name = stream_name
+        self.tag = tag
+        self.from_tag = from_tag
+
+    def _fetch(self) -> dict:
+        _log(f"  Fetching changelog: {self.tag} from {self.from_tag}")
+        return self.rc.fetch_changelog(self.stream_name, self.tag, self.from_tag)
+
+
+class PullRequestCollector(Collector):
+    """Fetches diff, comments, and job data for a single GitHub PR.
+
+    Unlike other collectors that produce a single file, this writes three
+    files into a directory.  ``output_path`` is the PR directory.
+    """
+
+    def __init__(self, output_path: str, org: str, repo: str, pr_number: int):
+        super().__init__(output_path)
+        self.org = org
+        self.repo = repo
+        self.pr_number = pr_number
+
+    def collect(self) -> bool:
+        """Fetch all three PR artifacts independently."""
+        os.makedirs(self.output_path, exist_ok=True)
+        wrote_any = False
+
+        artifacts = [
+            (
+                "code.diff",
+                ["gh", "pr", "diff", str(self.pr_number),
+                 "--repo", f"{self.org}/{self.repo}"],
+            ),
+            (
+                "comments.json",
+                ["gh", "pr", "view", str(self.pr_number),
+                 "--repo", f"{self.org}/{self.repo}",
+                 "--json", "comments,reviews"],
+            ),
+            (
+                "jobs.json",
+                ["gh", "pr", "view", str(self.pr_number),
+                 "--repo", f"{self.org}/{self.repo}",
+                 "--json", "statusCheckRollup"],
+            ),
+        ]
+
+        for filename, cmd in artifacts:
+            path = os.path.join(self.output_path, filename)
+            if os.path.exists(path):
+                continue
+            result = _run_gh(cmd)
+            if result is not None:
+                _write_text(path, result)
+                wrote_any = True
+            elif filename == "code.diff":
+                result = self._git_diff_fallback()
+                if result is not None:
+                    _write_text(path, result)
+                    wrote_any = True
+
+        return wrote_any
+
+    def _git_diff_fallback(self) -> Optional[str]:
+        """Clone repo and generate diff locally when gh pr diff fails."""
+        meta_str = _run_gh(
+            ["gh", "pr", "view", str(self.pr_number),
+             "--repo", f"{self.org}/{self.repo}",
+             "--json", "baseRefName"],
+            timeout=30,
+        )
+        if not meta_str:
+            return None
+        try:
+            base_ref = json.loads(meta_str).get("baseRefName", "main")
+        except json.JSONDecodeError:
+            return None
+
+        repo_url = f"https://github.com/{self.org}/{self.repo}.git"
+        tmpdir = tempfile.mkdtemp(prefix="snapshot-diff-")
+        try:
+            _log(f"    fallback: cloning {self.org}/{self.repo} "
+                 f"for PR #{self.pr_number}")
+
+            # Blobless clone — fetches commit/tree objects only, blobs
+            # are pulled on demand when git diff needs them.
+            clone = subprocess.run(
+                ["git", "clone", "--filter=blob:none", "--bare",
+                 "--single-branch", "--branch", base_ref,
+                 "--no-tags", repo_url, tmpdir],
+                capture_output=True, text=True, timeout=300,
+            )
+            if clone.returncode != 0:
+                return None
+
+            fetch = subprocess.run(
+                ["git", "-C", tmpdir, "fetch", "origin",
+                 f"refs/pull/{self.pr_number}/head:refs/heads/pr"],
+                capture_output=True, text=True, timeout=120,
+            )
+            if fetch.returncode != 0:
+                return None
+
+            # Use merge-base for a correct diff against where the PR
+            # branched off, not the current branch tip.
+            mb = subprocess.run(
+                ["git", "-C", tmpdir, "merge-base", base_ref, "pr"],
+                capture_output=True, text=True, timeout=30,
+            )
+            if mb.returncode != 0:
+                return None
+
+            result = subprocess.run(
+                ["git", "-C", tmpdir, "diff",
+                 mb.stdout.strip(), "pr"],
+                capture_output=True, text=True, timeout=120,
+            )
+            if result.returncode == 0:
+                return result.stdout
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            return None
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+        return None
+
+    def _fetch(self) -> Any:
+        pass  # not used — collect() is overridden
+
+
+class JobCollector(Collector):
+    """Writes job metadata to an individual job.json file."""
+
+    def __init__(self, output_path: str, job: JobInfo):
+        super().__init__(output_path)
+        self.job = job
+
+    def _fetch(self) -> dict:
+        return {
+            "name": self.job.name,
+            "state": self.job.state,
+            "lifecycle": self.job.lifecycle,
+            "url": self.job.url,
+            "retries": self.job.retries,
+            "previousAttemptURLs": self.job.previous_attempt_urls,
+            "is_aggregated": self.job.is_aggregated,
+            "gcs_bucket_path": self.job.gcs_bucket_path,
+        }
+
+
+class JUnitCollector(Collector):
+    """Downloads and parses JUnit artifacts for a failed CI job."""
+
+    def __init__(self, output_dir: str, job: JobInfo, payload_tag: str):
+        super().__init__(os.path.join(output_dir, "results.json"))
+        self.output_dir = output_dir
+        self.job = job
+        self.payload_tag = payload_tag
+
+    def collect(self) -> bool:
+        if os.path.exists(self.output_path):
+            _log(f"  skip (exists): {self.output_path}")
+            return False
+
+        if not self.job.gcs_bucket_path:
+            return False
+
+        os.makedirs(self.output_dir, exist_ok=True)
+        all_results: list[_TestResult] = []
+
+        junit_files = self._list_junit_files()
+        for gcs_uri in junit_files:
+            filename = os.path.basename(gcs_uri)
+            local_path = os.path.join(self.output_dir, filename)
+            if not os.path.exists(local_path):
+                data = _run_gcloud_bytes(
+                    ["gcloud", "storage", "cat", gcs_uri], timeout=60
+                )
+                if data:
+                    with open(local_path, "wb") as f:
+                        f.write(data)
+
+            if os.path.exists(local_path):
+                results = _parse_junit_xml(local_path, source_name=filename)
+                all_results.extend(results)
+
+        failures = _test_results_to_json(all_results)
+        _write_json(self.output_path, failures)
+
+        underlying = self._detect_underlying_job_name()
+        if underlying:
+            job_json_path = os.path.join(
+                os.path.dirname(self.output_dir), "job.json"
+            )
+            job_data = _read_json(job_json_path)
+            if job_data:
+                job_data["underlying_job_name"] = underlying
+                _write_json(job_json_path, job_data)
+
+        return True
+
+    def _list_junit_files(self) -> list[str]:
+        """Discover JUnit XML files in GCS for this job."""
+        bucket_path = self.job.gcs_bucket_path
+        base = f"gs://{bucket_path}"
+
+        output = _run_gcloud(
+            ["gcloud", "storage", "ls", f"{base}/artifacts/**/junit*.xml"],
+            timeout=30,
+        )
+        if not output:
+            return []
+
+        files = [l.strip() for l in output.strip().splitlines() if l.strip()]
+
+        if self.job.is_aggregated:
+            # For aggregated jobs, keep junit_operator.xml and the
+            # junit-aggregated.xml. Filter out other junit files that are
+            # less useful.
+            keep = []
+            for f in files:
+                bn = os.path.basename(f)
+                if bn == "junit_operator.xml" or bn == "junit-aggregated.xml":
+                    keep.append(f)
+            return keep if keep else files
+
+        # For regular jobs, keep junit_operator.xml and the main test
+        # results file (largest non-operator junit file).
+        operator = [f for f in files if f.endswith("/junit_operator.xml")]
+        others = [f for f in files if not f.endswith("/junit_operator.xml")]
+        # Prefer files with "e2e" or "analysis" in the name
+        preferred = [f for f in others
+                     if "e2e" in os.path.basename(f)
+                     or "analysis" in os.path.basename(f)]
+        keep = operator + (preferred if preferred else others[:1])
+        return keep if keep else files
+
+    def _detect_underlying_job_name(self) -> Optional[str]:
+        """For aggregated jobs, extract the underlying job name from GCS paths."""
+        if not self.job.is_aggregated:
+            return None
+        agg_xml = os.path.join(self.output_dir, "junit-aggregated.xml")
+        if not os.path.exists(agg_xml):
+            # Try to find it from GCS path structure
+            bucket_path = self.job.gcs_bucket_path
+            output = _run_gcloud(
+                ["gcloud", "storage", "ls",
+                 f"gs://{bucket_path}/artifacts/release-analysis-aggregator/"
+                 f"openshift-release-analysis-aggregator/artifacts/"
+                 f"release-analysis-aggregator/*/"],
+                timeout=30,
+            )
+            if output:
+                for line in output.strip().splitlines():
+                    parts = line.rstrip("/").split("/")
+                    if parts:
+                        return parts[-1]
+        return None
+
+    def _fetch(self) -> Any:
+        pass  # not used — collect() is overridden
+
+
+# ---------------------------------------------------------------------------
+# RegressionTracker — traces test failures across the payload chain
+# ---------------------------------------------------------------------------
+
+class RegressionTracker:
+    """Identifies when each test failure first appeared in the payload chain."""
+
+    def __init__(self, base_dir: str, chain: list[str], target_tag: str):
+        self.base_dir = base_dir
+        self.chain = chain
+        self.target_tag = target_tag
+
+    def track(self) -> list[dict]:
+        """Analyze failures in the target payload and trace their origins."""
+        target_dir = os.path.join(self.base_dir, self.target_tag)
+        target_failures = self._load_all_failures(target_dir)
+
+        if not target_failures:
+            return []
+
+        regressions = []
+        for test_name, info in sorted(target_failures.items()):
+            first_failed_in = self.target_tag
+            for i in range(1, len(self.chain)):
+                prior_tag = self.chain[i]
+                prior_dir = os.path.join(self.base_dir, prior_tag)
+                prior_failures = self._load_all_failures(prior_dir)
+                if test_name in prior_failures:
+                    first_failed_in = prior_tag
+                else:
+                    break
+
+            chain_idx_first = self.chain.index(first_failed_in)
+            regressions.append({
+                "test_name": test_name,
+                "jobs": info["jobs"],
+                "lifecycle": info["lifecycle"],
+                "first_failed_in": first_failed_in,
+                "payloads_failing": chain_idx_first + 1,
+                "failure_message": info.get("failure_message", ""),
+                "failure_text": info.get("failure_text", "")[:500],
+            })
+        return regressions
+
+    def _load_all_failures(self, tag_dir: str) -> dict[str, dict]:
+        """Load all test failures from all jobs in a payload directory."""
+        failures: dict[str, dict] = {}
+        jobs_dir = os.path.join(tag_dir, "jobs")
+        if not os.path.isdir(jobs_dir):
+            return failures
+
+        for lifecycle in ("blocking",):
+            lifecycle_dir = os.path.join(jobs_dir, lifecycle)
+            if not os.path.isdir(lifecycle_dir):
+                continue
+            for job_name in os.listdir(lifecycle_dir):
+                results_path = os.path.join(
+                    lifecycle_dir, job_name, "junit", "results.json"
+                )
+                results = _read_json(results_path)
+                if not results:
+                    continue
+                for test in results:
+                    name = test.get("name", "")
+                    if not name:
+                        continue
+                    if name in failures:
+                        if job_name not in failures[name]["jobs"]:
+                            failures[name]["jobs"].append(job_name)
+                    else:
+                        failures[name] = {
+                            "jobs": [job_name],
+                            "lifecycle": lifecycle,
+                            "failure_message": test.get("failure_message", "")
+                                or test.get("error_message", ""),
+                            "failure_text": test.get("failure_text", "")
+                                or test.get("error_text", ""),
+                        }
+        return failures
+
+
+# ---------------------------------------------------------------------------
+# SummaryGenerator — produces stream-level roll-up
+# ---------------------------------------------------------------------------
+
+class SummaryGenerator:
+    """Generates summary.json and summary.md for the stream."""
+
+    def __init__(self, base_dir: str, chain: list[str], target_tag: str):
+        self.base_dir = base_dir
+        self.chain = chain
+        self.target_tag = target_tag
+
+    def generate(self) -> None:
+        target_dir = os.path.join(self.base_dir, self.target_tag)
+        payload_data = _read_json(os.path.join(target_dir, "payload.json"))
+        regressions = _read_json(
+            os.path.join(target_dir, "regressions.json")
+        ) or []
+
+        phase = payload_data.get("phase", "Unknown") if payload_data else "Unknown"
+        results = payload_data.get("results", {}) if payload_data else {}
+
+        blocking = results.get("blockingJobs", {}) or {}
+        informing = results.get("informingJobs", {}) or {}
+
+        blocking_passed = sum(
+            1 for v in blocking.values() if v.get("state") == "Succeeded"
+        )
+        informing_passed = sum(
+            1 for v in informing.values() if v.get("state") == "Succeeded"
+        )
+
+        failed_blocking_jobs = sorted(
+            k for k, v in blocking.items() if v.get("state") != "Succeeded"
+        )
+        failed_informing_jobs = sorted(
+            k for k, v in informing.items() if v.get("state") != "Succeeded"
+        )
+
+        payloads = []
+        for tag_name in self.chain:
+            tag_rel = tag_name
+            entry: dict = {
+                "tag": tag_name,
+                "payload": f"{tag_rel}/payload.json",
+            }
+            changelog_path = os.path.join(
+                self.base_dir, tag_name, "changelog.json"
+            )
+            if os.path.exists(changelog_path):
+                entry["changelog"] = f"{tag_rel}/changelog.json"
+                changelog = _read_json(changelog_path)
+                prs = _extract_prs(changelog) if changelog else []
+                if prs:
+                    entry["prs"] = [
+                        {
+                            "url": p["url"],
+                            "component": p["component"],
+                            "number": p["number"],
+                            "description": p["description"],
+                            "diff": f"{tag_rel}/{p['component']}/prs/{p['number']}/code.diff",
+                            "comments": f"{tag_rel}/{p['component']}/prs/{p['number']}/comments.json",
+                            "jobs": f"{tag_rel}/{p['component']}/prs/{p['number']}/jobs.json",
+                        }
+                        for p in prs
+                    ]
+            regressions_path = os.path.join(
+                self.base_dir, tag_name, "regressions.json"
+            )
+            if os.path.exists(regressions_path):
+                entry["regressions"] = f"{tag_rel}/regressions.json"
+
+            job_paths = self._collect_job_paths(tag_name)
+            if job_paths:
+                entry["jobs"] = job_paths
+
+            payloads.append(entry)
+
+        summary = {
+            "payload_tag": self.target_tag,
+            "phase": phase,
+            "chain_length": len(self.chain),
+            "baseline_tag": self.chain[-1] if self.chain else "",
+            "blocking_jobs": {
+                "total": len(blocking),
+                "passed": blocking_passed,
+                "failed": len(blocking) - blocking_passed,
+                "failed_jobs": failed_blocking_jobs,
+            },
+            "informing_jobs": {
+                "total": len(informing),
+                "passed": informing_passed,
+                "failed": len(informing) - informing_passed,
+                "failed_jobs": failed_informing_jobs,
+            },
+            "test_failures": {
+                "blocking": [
+                    r for r in regressions if r.get("lifecycle") == "blocking"
+                ],
+            },
+            "payloads": payloads,
+        }
+
+        _write_json(os.path.join(self.base_dir, "summary.json"), summary)
+        self._write_markdown(summary)
+        _log("  Generated summary.json and summary.md")
+
+    def _collect_job_paths(self, tag_name: str) -> dict:
+        """Build path references for jobs in a payload."""
+        tag_rel = tag_name
+        job_paths: dict = {"blocking": [], "informing": []}
+        jobs_dir = os.path.join(self.base_dir, tag_name, "jobs")
+        if not os.path.isdir(jobs_dir):
+            return job_paths
+
+        for lifecycle in ("blocking", "informing"):
+            lifecycle_dir = os.path.join(jobs_dir, lifecycle)
+            if not os.path.isdir(lifecycle_dir):
+                continue
+            for job_name in sorted(os.listdir(lifecycle_dir)):
+                job_entry: dict = {
+                    "name": job_name,
+                    "job_json": f"{tag_rel}/jobs/{lifecycle}/{job_name}/job.json",
+                }
+                results_path = os.path.join(
+                    lifecycle_dir, job_name, "junit", "results.json"
+                )
+                if os.path.exists(results_path):
+                    job_entry["junit_results"] = (
+                        f"{tag_rel}/jobs/{lifecycle}/{job_name}/junit/results.json"
+                    )
+                job_data = _read_json(
+                    os.path.join(lifecycle_dir, job_name, "job.json")
+                )
+                if job_data:
+                    job_entry["state"] = job_data.get("state", "")
+                job_paths[lifecycle].append(job_entry)
+
+        return job_paths
+
+    def _write_markdown(self, summary: dict) -> None:
+        lines = []
+        tag = summary["payload_tag"]
+        phase = summary["phase"]
+        chain_len = summary["chain_length"]
+        baseline = summary["baseline_tag"]
+
+        lines.append(f"# Payload Analysis: {tag}")
+        lines.append("")
+        lines.append(f"**Status**: {phase}")
+        lines.append(f"**Chain**: {chain_len} payloads back to baseline")
+        lines.append(f"**Baseline**: {baseline}")
+        lines.append("")
+
+        bj = summary["blocking_jobs"]
+        lines.append(
+            f"## Blocking Jobs ({bj['failed']}/{bj['total']} failed)"
+        )
+        lines.append("")
+        if bj["failed_jobs"]:
+            for job in bj["failed_jobs"]:
+                lines.append(f"- {job}")
+            lines.append("")
+
+        ij = summary["informing_jobs"]
+        lines.append(
+            f"## Informing Jobs ({ij['failed']}/{ij['total']} failed)"
+        )
+        lines.append("")
+        if ij["failed_jobs"]:
+            for job in ij["failed_jobs"]:
+                lines.append(f"- {job}")
+            lines.append("")
+
+        blocking_tests = summary.get("test_failures", {}).get("blocking", [])
+        if blocking_tests:
+            new_failures = [
+                t for t in blocking_tests if t["payloads_failing"] == 1
+            ]
+            persistent = [
+                t for t in blocking_tests if t["payloads_failing"] > 1
+            ]
+
+            if new_failures:
+                lines.append("## New Test Failures (started in this payload)")
+                lines.append("")
+                lines.append(
+                    "| Test | Jobs | Failure Message |"
+                )
+                lines.append("|------|------|-----------------|")
+                for t in new_failures:
+                    test = t["test_name"][:80]
+                    jobs = ", ".join(t["jobs"][:3])
+                    msg = (t.get("failure_message") or "")[:80]
+                    lines.append(f"| {test} | {jobs} | {msg} |")
+                lines.append("")
+
+            if persistent:
+                lines.append("## Persistent Test Failures")
+                lines.append("")
+                lines.append(
+                    "| Test | Jobs | First Failed In | Payloads |"
+                )
+                lines.append("|------|------|-----------------|----------|")
+                for t in persistent:
+                    test = t["test_name"][:80]
+                    jobs = ", ".join(t["jobs"][:3])
+                    first = t["first_failed_in"]
+                    count = t["payloads_failing"]
+                    lines.append(
+                        f"| {test} | {jobs} | {first} | {count} |"
+                    )
+                lines.append("")
+        elif not blocking_tests:
+            lines.append("## Test Failures")
+            lines.append("")
+            lines.append(
+                "No test-level failure data available. "
+                "Run without `--no-junit` to enable."
+            )
+            lines.append("")
+
+        _write_text(os.path.join(self.base_dir, "summary.md"),
+                     "\n".join(lines) + "\n")
+
+
+# ---------------------------------------------------------------------------
+# Snapshotter — top-level orchestrator
+# ---------------------------------------------------------------------------
+
+class Snapshotter:
+    """Orchestrates the full payload snapshot."""
+
+    def __init__(self, tag: PayloadTag, output_dir: str = "payload",
+                 max_chain: int = 20, workers: int = 8,
+                 collect_junit: bool = True):
+        self.tag = tag
+        self.output_dir = output_dir
+        self.max_chain = max_chain
+        self.workers = workers
+        self.collect_junit = collect_junit
+        self.rc = ReleaseController(tag.architecture)
+
+    def run(self) -> None:
+        """Execute the full snapshot."""
+        base_dir = os.path.join(
+            self.output_dir, self.tag.version, self.tag.stream
+        )
+        os.makedirs(base_dir, exist_ok=True)
+
+        self._collect_streams(base_dir)
+
+        chain = self._build_chain()
+        _log(f"Payload chain: {len(chain)} payloads")
+        for t in chain:
+            _log(f"  {t}")
+
+        pr_tasks = self._collect_payloads(base_dir, chain)
+
+        self._collect_jobs(base_dir, chain)
+
+        self._collect_prs(pr_tasks)
+
+        if self.collect_junit:
+            self._collect_junit(base_dir, chain)
+            self._track_regressions(base_dir, chain)
+
+        self._generate_summary(base_dir, chain)
+
+        _log(f"\nSnapshot complete: {base_dir}/")
+
+    def _collect_streams(self, base_dir: str) -> None:
+        """Collect the streams list for this version."""
+        path = os.path.join(base_dir, "streams.json")
+        StreamsCollector(path, self.tag.version).collect()
+
+    def _build_chain(self) -> list[str]:
+        """Build the backward payload chain."""
+        chain_builder = PayloadChain(
+            self.rc, self.tag.stream_name, self.max_chain
+        )
+        return chain_builder.build(self.tag.raw)
+
+    def _collect_payloads(
+        self, base_dir: str, chain: list[str]
+    ) -> list[PullRequestCollector]:
+        """Collect payload details and changelogs; return PR collectors."""
+        seen_prs: set[tuple[str, str, int]] = set()
+        pr_collectors: list[PullRequestCollector] = []
+
+        for i, tag_name in enumerate(chain):
+            tag_dir = os.path.join(base_dir, tag_name)
+            _log(f"\nProcessing payload: {tag_name}")
+
+            PayloadDetailCollector(
+                os.path.join(tag_dir, "payload.json"),
+                self.rc, self.tag.stream_name, tag_name,
+            ).collect()
+
+            if i >= len(chain) - 1:
+                continue
+
+            prev_tag = chain[i + 1]
+            changelog_path = os.path.join(tag_dir, "changelog.json")
+            ChangelogCollector(
+                changelog_path, self.rc,
+                self.tag.stream_name, tag_name, prev_tag,
+            ).collect()
+
+            changelog = _read_json(changelog_path)
+            if not changelog:
+                continue
+
+            prs = _extract_prs(changelog)
+            for pr in prs:
+                key = (pr["org"], pr["repo"], pr["number"])
+                if key in seen_prs:
+                    continue
+                seen_prs.add(key)
+                pr_dir = os.path.join(
+                    tag_dir, pr["component"], "prs", str(pr["number"])
+                )
+                pr_collectors.append(
+                    PullRequestCollector(pr_dir, pr["org"], pr["repo"], pr["number"])
+                )
+
+        return pr_collectors
+
+    def _collect_prs(self, collectors: list[PullRequestCollector]) -> None:
+        """Fetch PR artifacts in parallel."""
+        if not collectors:
+            _log("\nNo PRs to fetch.")
+            return
+
+        _log(f"\nFetching {len(collectors)} unique PRs ({self.workers} workers)...")
+
+        with ThreadPoolExecutor(max_workers=self.workers) as pool:
+            futures = {
+                pool.submit(c.collect): c for c in collectors
+            }
+            done = 0
+            for future in as_completed(futures):
+                done += 1
+                collector = futures[future]
+                label = f"{collector.org}/{collector.repo}#{collector.pr_number}"
+                try:
+                    future.result()
+                    _log(f"  [{done}/{len(collectors)}] {label}")
+                except Exception as e:
+                    _log(f"  [{done}/{len(collectors)}] {label}: error: {e}")
+
+    def _collect_jobs(self, base_dir: str, chain: list[str]) -> None:
+        """Split payload.json jobs into individual job directories."""
+        _log("\nSplitting jobs into directories...")
+        for tag_name in chain:
+            tag_dir = os.path.join(base_dir, tag_name)
+            payload_path = os.path.join(tag_dir, "payload.json")
+            payload_data = _read_json(payload_path)
+            if not payload_data:
+                continue
+
+            jobs = _extract_jobs(payload_data)
+            for job in jobs:
+                job_path = os.path.join(
+                    tag_dir, "jobs", job.lifecycle, job.name, "job.json"
+                )
+                JobCollector(job_path, job).collect()
+
+            blocking_count = sum(1 for j in jobs if j.lifecycle == "blocking")
+            informing_count = sum(1 for j in jobs if j.lifecycle == "informing")
+            _log(f"  {tag_name}: {blocking_count} blocking, "
+                 f"{informing_count} informing")
+
+    def _collect_junit(self, base_dir: str, chain: list[str]) -> None:
+        """Download and parse JUnit for failed blocking jobs across the chain."""
+        collectors: list[JUnitCollector] = []
+
+        for tag_name in chain:
+            tag_dir = os.path.join(base_dir, tag_name)
+            blocking_dir = os.path.join(tag_dir, "jobs", "blocking")
+            if not os.path.isdir(blocking_dir):
+                continue
+
+            for job_name in os.listdir(blocking_dir):
+                job_json_path = os.path.join(
+                    blocking_dir, job_name, "job.json"
+                )
+                job_data = _read_json(job_json_path)
+                if not job_data:
+                    continue
+                if job_data.get("state") == "Succeeded":
+                    continue
+
+                job_info = JobInfo(
+                    name=job_data["name"],
+                    state=job_data["state"],
+                    lifecycle=job_data["lifecycle"],
+                    url=job_data["url"],
+                    retries=job_data.get("retries", 0),
+                    previous_attempt_urls=job_data.get(
+                        "previousAttemptURLs", []
+                    ),
+                    is_aggregated=job_data.get("is_aggregated", False),
+                    gcs_bucket_path=job_data.get("gcs_bucket_path", ""),
+                )
+
+                junit_dir = os.path.join(
+                    blocking_dir, job_name, "junit"
+                )
+                collectors.append(
+                    JUnitCollector(junit_dir, job_info, tag_name)
+                )
+
+        if not collectors:
+            _log("\nNo failed blocking jobs to fetch JUnit for.")
+            return
+
+        _log(f"\nFetching JUnit for {len(collectors)} failed blocking jobs "
+             f"({self.workers} workers)...")
+
+        with ThreadPoolExecutor(max_workers=self.workers) as pool:
+            futures = {
+                pool.submit(c.collect): c for c in collectors
+            }
+            done = 0
+            for future in as_completed(futures):
+                done += 1
+                collector = futures[future]
+                try:
+                    future.result()
+                    _log(f"  [{done}/{len(collectors)}] {collector.job.name}")
+                except Exception as e:
+                    _log(f"  [{done}/{len(collectors)}] "
+                         f"{collector.job.name}: error: {e}")
+
+    def _track_regressions(self, base_dir: str, chain: list[str]) -> None:
+        """Track test failure regressions across the payload chain."""
+        _log("\nTracking test failure regressions...")
+        target_tag = chain[0]
+        regressions_path = os.path.join(
+            base_dir, target_tag, "regressions.json"
+        )
+
+        if os.path.exists(regressions_path):
+            _log(f"  skip (exists): {regressions_path}")
+            return
+
+        tracker = RegressionTracker(base_dir, chain, target_tag)
+        regressions = tracker.track()
+        _write_json(regressions_path, regressions)
+
+        new_count = sum(1 for r in regressions if r["payloads_failing"] == 1)
+        persistent_count = len(regressions) - new_count
+        _log(f"  Found {len(regressions)} failing tests: "
+             f"{new_count} new, {persistent_count} persistent")
+
+    def _generate_summary(self, base_dir: str, chain: list[str]) -> None:
+        """Generate the stream-level summary."""
+        _log("\nGenerating summary...")
+        summary_path = os.path.join(base_dir, "summary.json")
+        if os.path.exists(summary_path):
+            _log(f"  skip (exists): {summary_path}")
+            return
+
+        generator = SummaryGenerator(base_dir, chain, chain[0])
+        generator.generate()
+
+
+# ---------------------------------------------------------------------------
+# Utility functions
+# ---------------------------------------------------------------------------
+
+def _log(msg: str) -> None:
+    """Print a progress message to stderr."""
+    print(msg, file=sys.stderr)
+
+
+def _write_json(path: str, data: Any) -> None:
+    """Write JSON data to a file."""
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+        f.write("\n")
+
+
+def _write_text(path: str, text: str) -> None:
+    """Write text to a file."""
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(text)
+
+
+def _read_json(path: str) -> Optional[dict]:
+    """Read a JSON file, returning None if it doesn't exist."""
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return None
+
+
+def _build_stream_name(version: str, stream: str, architecture: str) -> str:
+    """Build the release stream name from components."""
+    name = f"{version}.0-0.{stream}"
+    if architecture != "amd64":
+        name += f"-{architecture}"
+    return name
+
+
+def _run_gh(args: list[str], timeout: int = 60) -> Optional[str]:
+    """Run a gh CLI command, returning stdout or None on error."""
+    try:
+        result = subprocess.run(
+            args, capture_output=True, text=True, timeout=timeout
+        )
+        if result.returncode != 0:
+            _log(f"    warning: {' '.join(args[:5])}... failed: "
+                 f"{result.stderr.strip()[:200]}")
+            return None
+        return result.stdout
+    except subprocess.TimeoutExpired:
+        _log(f"    warning: {' '.join(args[:5])}... timed out")
+        return None
+    except FileNotFoundError:
+        _log("    error: 'gh' CLI not found — install it or run 'gh auth login'")
+        return None
+
+
+def _extract_prs(changelog: dict) -> list[dict]:
+    """Extract PR info from a release controller changelog response."""
+    prs = []
+    images = changelog.get("changeLogJson", {}).get("updatedImages", []) or []
+    for image in images:
+        component = image.get("name", "")
+        for commit in image.get("commits", []):
+            pull_url = commit.get("pullURL", "")
+            parsed = _parse_pr_url(pull_url)
+            if parsed:
+                org, repo, number = parsed
+                prs.append({
+                    "org": org,
+                    "repo": repo,
+                    "number": number,
+                    "component": component,
+                    "description": commit.get("subject", ""),
+                    "url": pull_url,
+                })
+    return prs
+
+
+def _parse_pr_url(url: str) -> Optional[tuple[str, str, int]]:
+    """Parse a GitHub PR URL into (org, repo, pr_number)."""
+    m = re.match(r"https://github\.com/([^/]+)/([^/]+)/pull/(\d+)", url)
+    if m:
+        return m.group(1), m.group(2), int(m.group(3))
+    return None
+
+
+def _check_gh_auth() -> bool:
+    """Verify that gh CLI is authenticated."""
+    try:
+        result = subprocess.run(
+            ["gh", "auth", "status"],
+            capture_output=True, text=True, timeout=10,
+        )
+        return result.returncode == 0
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return False
+
+
+def _run_gcloud(args: list[str], timeout: int = 120) -> Optional[str]:
+    """Run a gcloud CLI command, returning stdout or None on error."""
+    try:
+        result = subprocess.run(
+            args, capture_output=True, text=True, timeout=timeout
+        )
+        if result.returncode != 0:
+            return None
+        return result.stdout
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return None
+
+
+def _run_gcloud_bytes(args: list[str], timeout: int = 120) -> Optional[bytes]:
+    """Run a gcloud CLI command, returning raw stdout bytes or None."""
+    try:
+        result = subprocess.run(
+            args, capture_output=True, timeout=timeout
+        )
+        if result.returncode != 0:
+            return None
+        return result.stdout
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return None
+
+
+def _check_gcloud() -> bool:
+    """Verify that gcloud CLI is available."""
+    try:
+        result = subprocess.run(
+            ["gcloud", "--version"],
+            capture_output=True, text=True, timeout=10,
+        )
+        return result.returncode == 0
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return False
+
+
+def _prow_url_to_gcs_bucket_path(prow_url: str) -> Optional[str]:
+    """Extract the GCS bucket path from a Prow URL.
+
+    Returns 'test-platform-results/logs/{job}/{build_id}' or None.
+    """
+    if not prow_url or not prow_url.startswith(PROW_VIEW_PREFIX):
+        return None
+    return prow_url[len(PROW_VIEW_PREFIX):]
+
+
+def _extract_jobs(payload_data: dict) -> list[JobInfo]:
+    """Extract job metadata from a payload.json response."""
+    jobs = []
+    for lifecycle, key in [("blocking", "blockingJobs"),
+                           ("informing", "informingJobs")]:
+        job_dict = payload_data.get("results", {}).get(key, {}) or {}
+        for name, info in job_dict.items():
+            url = info.get("url", "")
+            jobs.append(JobInfo(
+                name=name,
+                state=info.get("state", ""),
+                lifecycle=lifecycle,
+                url=url,
+                retries=info.get("retries", 0),
+                previous_attempt_urls=info.get("previousAttemptURLs", []) or [],
+                is_aggregated=name.startswith("aggregated-"),
+                gcs_bucket_path=_prow_url_to_gcs_bucket_path(url) or "",
+            ))
+    return jobs
+
+
+# ---------------------------------------------------------------------------
+# JUnit XML parsing (embedded from parse_junit.py)
+# ---------------------------------------------------------------------------
+
+@dataclass
+class _TestResult:
+    """Parsed test result from JUnit XML."""
+
+    name: str
+    status: str  # passed, failed, error, skipped
+    suite_name: str = ""
+    failure_message: str = ""
+    failure_text: str = ""
+    error_message: str = ""
+    error_text: str = ""
+    system_out: str = ""
+    agg_passes: list = field(default_factory=list)
+    agg_failures: list = field(default_factory=list)
+    agg_skips: list = field(default_factory=list)
+
+
+def _parse_system_out_yaml(text: str) -> dict:
+    """Parse YAML-like system-out from aggregated JUnit XML."""
+    result = {"passes": [], "failures": [], "skips": []}
+    if not text:
+        return result
+
+    current_section = None
+    current_entry: dict = {}
+
+    for line in text.strip().splitlines():
+        stripped = line.strip()
+        if stripped in ("passes:", "failures:", "skips:"):
+            if current_entry and current_section:
+                result[current_section].append(current_entry)
+                current_entry = {}
+            current_section = stripped.rstrip(":")
+            continue
+        if current_section is None:
+            continue
+        if stripped.startswith("- "):
+            if current_entry:
+                result[current_section].append(current_entry)
+            current_entry = {}
+            kv = stripped[2:]
+            if ":" in kv:
+                key, val = kv.split(":", 1)
+                current_entry[key.strip()] = val.strip().strip('"')
+        elif ":" in stripped:
+            key, val = stripped.split(":", 1)
+            current_entry[key.strip()] = val.strip().strip('"')
+
+    if current_entry and current_section:
+        result[current_section].append(current_entry)
+    return result
+
+
+def _parse_junit_xml(source, source_name: str = "<data>") -> list[_TestResult]:
+    """Parse JUnit XML, returning a list of _TestResult."""
+    try:
+        tree = ET.parse(source)
+    except (ET.ParseError, OSError):
+        return []
+
+    root = tree.getroot()
+    if root.tag == "testsuites":
+        suites = root.findall("testsuite")
+    elif root.tag == "testsuite":
+        suites = [root]
+    else:
+        suites = root.findall(".//testsuite")
+        if not suites:
+            suites = [root]
+
+    results = []
+    for suite in suites:
+        suite_name = suite.get("name", "")
+        for tc in suite.findall("testcase"):
+            name = tc.get("name", "")
+            failure_el = tc.find("failure")
+            error_el = tc.find("error")
+            skipped_el = tc.find("skipped")
+
+            status = "passed"
+            failure_message = failure_text = ""
+            error_message = error_text = ""
+
+            if error_el is not None:
+                status = "error"
+                error_message = error_el.get("message", "")
+                error_text = error_el.text or ""
+            elif failure_el is not None:
+                status = "failed"
+                failure_message = failure_el.get("message", "")
+                failure_text = failure_el.text or ""
+            elif skipped_el is not None:
+                status = "skipped"
+
+            sysout_el = tc.find("system-out")
+            system_out = (sysout_el.text or "") if sysout_el is not None else ""
+
+            agg_passes = []
+            agg_failures = []
+            agg_skips = []
+            if system_out and re.search(
+                r"^(?:passes|failures|skips):", system_out, re.MULTILINE
+            ):
+                parsed = _parse_system_out_yaml(system_out)
+                agg_passes = parsed["passes"]
+                agg_failures = parsed["failures"]
+                agg_skips = parsed["skips"]
+
+            results.append(_TestResult(
+                name=name,
+                status=status,
+                suite_name=suite_name,
+                failure_message=failure_message,
+                failure_text=failure_text,
+                error_message=error_message,
+                error_text=error_text,
+                system_out=system_out,
+                agg_passes=agg_passes,
+                agg_failures=agg_failures,
+                agg_skips=agg_skips,
+            ))
+    return results
+
+
+def _test_results_to_json(results: list[_TestResult]) -> list[dict]:
+    """Convert _TestResult list to JSON-serializable dicts (failures only)."""
+    output = []
+    for r in results:
+        if r.status not in ("failed", "error"):
+            continue
+        d: dict = {
+            "name": r.name,
+            "status": r.status,
+            "suite_name": r.suite_name,
+        }
+        if r.failure_message:
+            d["failure_message"] = r.failure_message
+        if r.failure_text:
+            d["failure_text"] = r.failure_text
+        if r.error_message:
+            d["error_message"] = r.error_message
+        if r.error_text:
+            d["error_text"] = r.error_text
+        if r.agg_passes or r.agg_failures or r.agg_skips:
+            d["aggregated"] = {
+                "passes": r.agg_passes,
+                "failures": r.agg_failures,
+                "skips": r.agg_skips,
+            }
+        output.append(d)
+    return output
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Snapshot OpenShift payload data for offline analysis.",
+        epilog=(
+            "Examples:\n"
+            "  python3 snapshot_payload.py 4.22.0-0.nightly-2026-02-25-152806\n"
+            "  python3 snapshot_payload.py 4.18.0-0.ci-2026-01-15-114134 "
+            "--output-dir .work/snapshot\n"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "payload_tag",
+        help="Payload tag to snapshot (e.g., 4.22.0-0.nightly-2026-02-25-152806)",
+    )
+    parser.add_argument(
+        "--output-dir", default="payload",
+        help="Base output directory (default: payload)",
+    )
+    parser.add_argument(
+        "--max-chain", type=int, default=20,
+        help="Maximum backward chain depth (default: 20)",
+    )
+    parser.add_argument(
+        "--workers", type=int, default=8,
+        help="Parallel workers for GitHub API calls (default: 8)",
+    )
+    parser.add_argument(
+        "--no-junit", action="store_true",
+        help="Skip JUnit download, regression tracking",
+    )
+
+    args = parser.parse_args()
+
+    try:
+        tag = PayloadTag.parse(args.payload_tag)
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(2)
+
+    _log(f"Payload:  {tag.raw}")
+    _log(f"Version:  {tag.version}")
+    _log(f"Stream:   {tag.stream} ({tag.stream_name})")
+    _log(f"Arch:     {tag.architecture}")
+    _log("")
+
+    if not _check_gh_auth():
+        _log("Warning: 'gh' CLI is not authenticated. PR data will not be fetched.")
+        _log("Run 'gh auth login' to enable PR diff/comment/job collection.\n")
+
+    collect_junit = not args.no_junit
+    if collect_junit and not _check_gcloud():
+        _log("Warning: 'gcloud' CLI not found. JUnit data will not be fetched.")
+        _log("Install gcloud SDK to enable JUnit download and regression tracking.\n")
+        collect_junit = False
+
+    try:
+        snapshotter = Snapshotter(
+            tag=tag,
+            output_dir=args.output_dir,
+            max_chain=args.max_chain,
+            workers=args.workers,
+            collect_junit=collect_junit,
+        )
+        snapshotter.run()
+    except urllib.error.HTTPError as e:
+        print(f"Error: HTTP {e.code}: {e.reason}", file=sys.stderr)
+        sys.exit(1)
+    except urllib.error.URLError as e:
+        print(f"Error: Cannot connect to release controller: {e.reason}",
+              file=sys.stderr)
+        sys.exit(1)
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
