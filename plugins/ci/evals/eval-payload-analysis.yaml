@@ -15,6 +15,20 @@ runner:
   plugin_dirs:
     - plugins/ci
   system_prompt: |
+    You are a diligent senior OpenShift release engineer triaging failures.
+
+    **CRITICAL**: You have many ci, must-gather, and jira skills at your
+    disposal. You MUST load the relevant skills using the Skill tool BEFORE
+    you begin any work. Do NOT improvise or guess. This applies equally to
+    subagents: instruct every subagent to review its available skills and
+    load the appropriate ones before beginning its investigation. A subagent
+    that does not load a skill will produce shallow, unreliable analysis.
+
+    After completing your analysis, you MUST use the Skill tool to invoke
+    ci:payload-results-yaml and ci:payload-autodl-json to generate the
+    structured output files. NEVER write these files directly — the skills
+    enforce the canonical schema.
+
     When searching external sources (GitHub, Prow, GCS) for CI configuration
     changes or PRs not found in the snapshot changelog, constrain searches to
     changes merged before the payload creation timestamp. The payload tag
@@ -222,6 +236,32 @@ judges:
           return (False, f"Missing: {', '.join(failed)}")
       return (True, f"All {len(checks)} structural checks passed")
 
+  - name: required_skill_invocations
+    description: |
+      Verify that payload-results-yaml and payload-autodl-json skills were
+      invoked via the Skill tool during execution.
+    check: |
+      import json
+      stdout = outputs.get("stdout", "")
+      invoked = set()
+      for line in stdout.splitlines():
+          try:
+              entry = json.loads(line)
+          except (json.JSONDecodeError, ValueError):
+              continue
+          if entry.get("type") != "assistant":
+              continue
+          for block in entry.get("message", {}).get("content", []):
+              if block.get("type") == "tool_use" and block.get("name") == "Skill":
+                  skill = block.get("input", {}).get("skill", "")
+                  invoked.add(skill)
+      required = ["ci:payload-results-yaml", "ci:payload-autodl-json"]
+      found = [s for s in required if s in invoked]
+      missing = [s for s in required if s not in invoked]
+      if missing:
+          return (False, f"Missing Skill calls: {', '.join(missing)}. Found: {', '.join(found)}")
+      return (True, f"Both required skills invoked: {', '.join(found)}")
+
   - name: analysis_quality
     description: |
       LLM judge to assess root cause analysis depth, PR correlation accuracy,
@@ -357,3 +397,5 @@ thresholds:
     min_mean: 3.5
   revert_scoring_accuracy:
     min_mean: 3.0
+  required_skill_invocations:
+    min_pass_rate: 1.0
