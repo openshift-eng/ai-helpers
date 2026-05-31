@@ -1,0 +1,28 @@
+expected_phase: Rejected
+expected_failed_job_count: 2
+has_revert_candidates: true
+force_accept_expected: false
+
+expected_candidates:
+  - pr_url: "https://github.com/openshift/hypershift/pull/7790"
+    component: "hypershift"
+    min_confidence: 85
+    expected_confidence: 95
+    description: "Added guest cluster metrics forwarder feature and EnsureMetricsForwarderWorking test; HCCO silently skips deployment creation when prerequisites missing"
+    expected_failing_jobs:
+      - "periodic-ci-openshift-hypershift-release-4.22-periodics-e2e-aks"
+      - "periodic-ci-openshift-hypershift-release-4.22-periodics-e2e-aws-ovn"
+  - pr_url: "https://github.com/openshift/hypershift/pull/8138"
+    component: "hypershift"
+    min_confidence: 40
+    expected_confidence: 50
+    description: "Reverted AWS guest resource cleanup timeout extension, causing intermittent teardown timeouts"
+    expected_failing_jobs:
+      - "periodic-ci-openshift-hypershift-release-4.22-periodics-e2e-aws-ovn"
+
+notes: >
+  Payload 4.22.0-0.ci-2026-03-31-170515 was rejected with 2 failed
+  hypershift blocking jobs. Primary revert candidate: hypershift#7790
+  (score 95) introduced the metrics forwarder feature and its test.
+  Secondary candidate: hypershift#8138 (score 50) reduced cleanup
+  timeout causing intermittent teardown failures.

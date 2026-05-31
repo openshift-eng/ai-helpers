@@ -195,6 +195,115 @@ class ReleaseController:
 
 
 # ---------------------------------------------------------------------------
+# SippyClient — fallback API client for historical payloads
+# ---------------------------------------------------------------------------
+
+class SippyClient:
+    """Client for Sippy APIs, used when release controller data is unavailable."""
+
+    SIPPY_BASE = "https://sippy.dptools.openshift.org/api"
+
+    def __init__(self, release: str):
+        self.release = release
+        self._tags_cache: Optional[list] = None
+
+    def _get_tags(self) -> list[dict]:
+        if self._tags_cache is None:
+            url = f"{self.SIPPY_BASE}/releases/tags?release={urllib.parse.quote(self.release)}"
+            self._tags_cache = fetch_json(url, timeout=60)
+        return self._tags_cache
+
+    def find_tag(self, tag_name: str) -> Optional[dict]:
+        for t in self._get_tags():
+            if t.get("release_tag") == tag_name:
+                return t
+        return None
+
+    def fetch_job_runs(self, tag_name: str) -> list[dict]:
+        filter_json = json.dumps({"items": [
+            {"columnField": "release_tag", "operatorValue": "equals",
+             "value": tag_name}
+        ]})
+        url = (f"{self.SIPPY_BASE}/releases/job_runs"
+               f"?filter={urllib.parse.quote(filter_json)}"
+               f"&sortField=kind&sort=asc&limit=200")
+        return fetch_json(url, timeout=60)
+
+    def fetch_changelog(self, tag_name: str, from_tag: Optional[str] = None) -> list[dict]:
+        params = f"toPayload={urllib.parse.quote(tag_name)}"
+        if not from_tag:
+            tag_meta = self.find_tag(tag_name)
+            if tag_meta:
+                from_tag = tag_meta.get("previous_release_tag", "")
+        if from_tag:
+            params += f"&fromPayload={urllib.parse.quote(from_tag)}"
+        url = f"{self.SIPPY_BASE}/payloads/diff?{params}"
+        try:
+            return fetch_json(url, timeout=60)
+        except Exception:
+            return []
+
+    def build_synthetic_payload(self, tag_name: str, tag: "PayloadTag") -> dict:
+        tag_meta = self.find_tag(tag_name)
+        job_runs = self.fetch_job_runs(tag_name)
+
+        phase = tag_meta.get("phase", "Unknown") if tag_meta else "Unknown"
+
+        blocking_jobs: dict = {}
+        informing_jobs: dict = {}
+        for jr in job_runs:
+            name = jr.get("job_name", "")
+            if not name:
+                continue
+            prow_url = jr.get("url", "")
+            entry = {
+                "state": jr.get("state", ""),
+                "url": prow_url,
+                "retries": jr.get("retries", 0),
+            }
+            if jr.get("kind") == "Blocking":
+                blocking_jobs[name] = entry
+            else:
+                informing_jobs[name] = entry
+
+        rc = ReleaseController(tag.architecture)
+        return {
+            "phase": phase,
+            "results": {
+                "blockingJobs": blocking_jobs,
+                "informingJobs": informing_jobs,
+            },
+            "_release_url": rc.release_url(tag.stream_name, tag_name),
+            "_source": "sippy",
+        }
+
+    def build_synthetic_changelog(self, tag_name: str, from_tag: Optional[str] = None) -> dict:
+        prs = self.fetch_changelog(tag_name, from_tag=from_tag)
+        if not isinstance(prs, list):
+            return {"changeLogJson": {"updatedImages": []}, "_source": "sippy"}
+
+        by_component: dict = {}
+        for pr in prs:
+            comp = pr.get("name", "unknown")
+            if comp not in by_component:
+                by_component[comp] = {"name": comp, "commits": []}
+            pr_url = pr.get("url", "")
+            pr_id = pr.get("pull_request_id", "")
+            by_component[comp]["commits"].append({
+                "pullURL": pr_url,
+                "pullID": int(pr_id) if pr_id and str(pr_id).isdigit() else 0,
+                "subject": pr.get("description", ""),
+            })
+
+        return {
+            "changeLogJson": {
+                "updatedImages": list(by_component.values()),
+            },
+            "_source": "sippy",
+        }
+
+
+# ---------------------------------------------------------------------------
 # PayloadChain — backward walk to find all-green baseline
 # ---------------------------------------------------------------------------
 
@@ -249,6 +358,45 @@ class PayloadChain:
             if state != "Succeeded":
                 return False
         return True
+
+
+class SippyPayloadChain:
+    """Walks backwards through payloads using Sippy tag data."""
+
+    def __init__(self, sippy: SippyClient, max_depth: int = 20):
+        self.sippy = sippy
+        self.max_depth = max_depth
+
+    def _has_blocking_failures(self, tag_name: str) -> bool:
+        """Check whether a payload has any failed blocking jobs."""
+        runs = self.sippy.fetch_job_runs(tag_name)
+        return any(
+            r.get("kind") == "Blocking" and r.get("state") == "Failed"
+            for r in runs
+        )
+
+    def build(self, start_tag: str) -> list[str]:
+        chain = [start_tag]
+        current = start_tag
+        for _ in range(self.max_depth - 1):
+            tag_meta = self.sippy.find_tag(current)
+            if not tag_meta:
+                break
+            prev = tag_meta.get("previous_release_tag", "")
+            if not prev:
+                break
+            chain.append(prev)
+            if not self._has_blocking_failures(prev):
+                # First payload with all blocking jobs green — include
+                # one more predecessor so this payload gets a changelog.
+                prev_meta = self.sippy.find_tag(prev)
+                if prev_meta:
+                    anchor = prev_meta.get("previous_release_tag", "")
+                    if anchor:
+                        chain.append(anchor)
+                break
+            current = prev
+        return chain
 
 
 # ---------------------------------------------------------------------------
@@ -1213,13 +1361,17 @@ class Snapshotter:
 
     def __init__(self, tag: PayloadTag, output_dir: str = "payload",
                  max_chain: int = 20, workers: int = 8,
-                 collect_junit: bool = True):
+                 collect_junit: bool = True, use_sippy: bool = False):
         self.tag = tag
         self.output_dir = output_dir
         self.max_chain = max_chain
         self.workers = workers
         self.collect_junit = collect_junit
+        self.use_sippy = use_sippy
         self.rc = ReleaseController(tag.architecture)
+        self.sippy: Optional[SippyClient] = None
+        if use_sippy:
+            self.sippy = SippyClient(tag.version)
 
     def run(self) -> None:
         """Execute the full snapshot."""
@@ -1255,10 +1407,19 @@ class Snapshotter:
     def _collect_streams(self, base_dir: str) -> None:
         """Collect the streams list for this version."""
         path = os.path.join(base_dir, "streams.json")
+        if self.sippy:
+            if os.path.exists(path):
+                return
+            _log("Skipping streams collection in Sippy mode (RC-only feature)")
+            _write_json(path, [])
+            return
         StreamsCollector(path, self.tag.version).collect()
 
     def _build_chain(self) -> list[str]:
         """Build the backward payload chain."""
+        if self.sippy:
+            chain_builder = SippyPayloadChain(self.sippy, self.max_chain)
+            return chain_builder.build(self.tag.raw)
         chain_builder = PayloadChain(
             self.rc, self.tag.stream_name, self.max_chain
         )
@@ -1275,20 +1436,40 @@ class Snapshotter:
             tag_dir = os.path.join(base_dir, tag_name)
             _log(f"\nProcessing payload: {tag_name}")
 
-            PayloadDetailCollector(
-                os.path.join(tag_dir, "payload.json"),
-                self.rc, self.tag.stream_name, tag_name,
-            ).collect()
+            payload_path = os.path.join(tag_dir, "payload.json")
+            if self.sippy:
+                if not os.path.exists(payload_path):
+                    _log(f"  Fetching payload details from Sippy: {tag_name}")
+                    tag_obj = PayloadTag.parse(tag_name)
+                    data = self.sippy.build_synthetic_payload(tag_name, tag_obj)
+                    os.makedirs(os.path.dirname(payload_path), exist_ok=True)
+                    _write_json(payload_path, data)
+                else:
+                    _log(f"  skip (exists): {payload_path}")
+            else:
+                PayloadDetailCollector(
+                    payload_path,
+                    self.rc, self.tag.stream_name, tag_name,
+                ).collect()
 
             if i >= len(chain) - 1:
                 continue
 
             prev_tag = chain[i + 1]
             changelog_path = os.path.join(tag_dir, "changelog.json")
-            ChangelogCollector(
-                changelog_path, self.rc,
-                self.tag.stream_name, tag_name, prev_tag,
-            ).collect()
+            if self.sippy:
+                if not os.path.exists(changelog_path):
+                    _log(f"  Fetching changelog from Sippy: {tag_name}")
+                    data = self.sippy.build_synthetic_changelog(tag_name, from_tag=prev_tag)
+                    os.makedirs(os.path.dirname(changelog_path), exist_ok=True)
+                    _write_json(changelog_path, data)
+                else:
+                    _log(f"  skip (exists): {changelog_path}")
+            else:
+                ChangelogCollector(
+                    changelog_path, self.rc,
+                    self.tag.stream_name, tag_name, prev_tag,
+                ).collect()
 
             changelog = _read_json(changelog_path)
             if not changelog:
@@ -1354,52 +1535,76 @@ class Snapshotter:
             _log(f"  {tag_name}: {blocking_count} blocking, "
                  f"{informing_count} informing")
 
-    def _collect_junit(self, base_dir: str, chain: list[str]) -> None:
-        """Download and parse JUnit for failed blocking jobs across the chain."""
-        collectors: list[JUnitCollector] = []
+    def _find_failed_jobs(
+        self, base_dir: str, chain: list[str],
+        lifecycles: tuple[str, ...] = ("blocking",),
+    ) -> list[tuple[str, str, JobInfo]]:
+        """Find failed jobs across the chain for the given lifecycles.
 
+        Returns (tag_name, job_dir, JobInfo) tuples.
+        """
+        results = []
         for tag_name in chain:
             tag_dir = os.path.join(base_dir, tag_name)
-            blocking_dir = os.path.join(tag_dir, "jobs", "blocking")
-            if not os.path.isdir(blocking_dir):
-                continue
-
-            for job_name in os.listdir(blocking_dir):
-                job_json_path = os.path.join(
-                    blocking_dir, job_name, "job.json"
-                )
-                job_data = _read_json(job_json_path)
-                if not job_data:
+            for lifecycle in lifecycles:
+                jobs_dir = os.path.join(tag_dir, "jobs", lifecycle)
+                if not os.path.isdir(jobs_dir):
                     continue
-                if job_data.get("state") == "Succeeded":
-                    continue
+                for job_name in os.listdir(jobs_dir):
+                    job_json_path = os.path.join(
+                        jobs_dir, job_name, "job.json"
+                    )
+                    job_data = _read_json(job_json_path)
+                    if not job_data:
+                        continue
+                    if job_data.get("state") == "Succeeded":
+                        continue
+                    job_info = JobInfo(
+                        name=job_data["name"],
+                        state=job_data["state"],
+                        lifecycle=job_data["lifecycle"],
+                        url=job_data["url"],
+                        retries=job_data.get("retries", 0),
+                        previous_attempt_urls=job_data.get(
+                            "previousAttemptURLs", []
+                        ),
+                        is_aggregated=job_data.get("is_aggregated", False),
+                        gcs_bucket_path=job_data.get("gcs_bucket_path", ""),
+                        gcs_url=job_data.get("gcs_url", ""),
+                    )
+                    job_dir = os.path.join(jobs_dir, job_name)
+                    results.append((tag_name, job_dir, job_info))
+        return results
 
-                job_info = JobInfo(
-                    name=job_data["name"],
-                    state=job_data["state"],
-                    lifecycle=job_data["lifecycle"],
-                    url=job_data["url"],
-                    retries=job_data.get("retries", 0),
-                    previous_attempt_urls=job_data.get(
-                        "previousAttemptURLs", []
-                    ),
-                    is_aggregated=job_data.get("is_aggregated", False),
-                    gcs_bucket_path=job_data.get("gcs_bucket_path", ""),
-                    gcs_url=job_data.get("gcs_url", ""),
-                )
+    def _collect_junit(self, base_dir: str, chain: list[str]) -> None:
+        """Download and parse JUnit for failed jobs across the chain.
 
-                junit_dir = os.path.join(
-                    blocking_dir, job_name, "junit"
-                )
-                collectors.append(
-                    JUnitCollector(junit_dir, job_info, tag_name)
-                )
+        Blocking jobs: all payloads in chain (for streak/regression tracking).
+        Informing jobs: target payload only (first in chain).
+        """
+        collectors: list[JUnitCollector] = []
+
+        for tag_name, job_dir, job_info in self._find_failed_jobs(
+            base_dir, chain, ("blocking",)
+        ):
+            junit_dir = os.path.join(job_dir, "junit")
+            collectors.append(
+                JUnitCollector(junit_dir, job_info, tag_name)
+            )
+
+        for tag_name, job_dir, job_info in self._find_failed_jobs(
+            base_dir, chain[:1], ("informing",)
+        ):
+            junit_dir = os.path.join(job_dir, "junit")
+            collectors.append(
+                JUnitCollector(junit_dir, job_info, tag_name)
+            )
 
         if not collectors:
-            _log("\nNo failed blocking jobs to fetch JUnit for.")
+            _log("\nNo failed jobs to fetch JUnit for.")
             return
 
-        _log(f"\nFetching JUnit for {len(collectors)} failed blocking jobs "
+        _log(f"\nFetching JUnit for {len(collectors)} failed jobs "
              f"({self.workers} workers)...")
 
         with ThreadPoolExecutor(max_workers=self.workers) as pool:
@@ -1439,50 +1644,34 @@ class Snapshotter:
              f"{new_count} new, {persistent_count} persistent")
 
     def _collect_build_logs(self, base_dir: str, chain: list[str]) -> None:
-        """Download and parse build-log.txt for failed blocking jobs."""
+        """Download and parse build-log.txt for failed jobs.
+
+        Blocking jobs: all payloads in chain.
+        Informing jobs: target payload only (first in chain).
+        """
         collectors: list[BuildLogCollector] = []
 
-        for tag_name in chain:
-            tag_dir = os.path.join(base_dir, tag_name)
-            blocking_dir = os.path.join(tag_dir, "jobs", "blocking")
-            if not os.path.isdir(blocking_dir):
-                continue
+        for _tag_name, job_dir, job_info in self._find_failed_jobs(
+            base_dir, chain, ("blocking",)
+        ):
+            build_log_path = os.path.join(job_dir, "build_log.json")
+            collectors.append(
+                BuildLogCollector(build_log_path, job_info)
+            )
 
-            for job_name in os.listdir(blocking_dir):
-                job_json_path = os.path.join(
-                    blocking_dir, job_name, "job.json"
-                )
-                job_data = _read_json(job_json_path)
-                if not job_data:
-                    continue
-                if job_data.get("state") == "Succeeded":
-                    continue
-
-                build_log_path = os.path.join(
-                    blocking_dir, job_name, "build_log.json"
-                )
-                job_info = JobInfo(
-                    name=job_data["name"],
-                    state=job_data["state"],
-                    lifecycle=job_data["lifecycle"],
-                    url=job_data["url"],
-                    retries=job_data.get("retries", 0),
-                    previous_attempt_urls=job_data.get(
-                        "previousAttemptURLs", []
-                    ),
-                    is_aggregated=job_data.get("is_aggregated", False),
-                    gcs_bucket_path=job_data.get("gcs_bucket_path", ""),
-                    gcs_url=job_data.get("gcs_url", ""),
-                )
-                collectors.append(
-                    BuildLogCollector(build_log_path, job_info)
-                )
+        for _tag_name, job_dir, job_info in self._find_failed_jobs(
+            base_dir, chain[:1], ("informing",)
+        ):
+            build_log_path = os.path.join(job_dir, "build_log.json")
+            collectors.append(
+                BuildLogCollector(build_log_path, job_info)
+            )
 
         if not collectors:
-            _log("\nNo failed blocking jobs for build-log extraction.")
+            _log("\nNo failed jobs for build-log extraction.")
             return
 
-        _log(f"\nExtracting build logs for {len(collectors)} failed blocking "
+        _log(f"\nExtracting build logs for {len(collectors)} failed "
              f"jobs ({self.workers} workers)...")
 
         with ThreadPoolExecutor(max_workers=self.workers) as pool:
@@ -1907,6 +2096,10 @@ def main() -> None:
         "--no-junit", action="store_true",
         help="Skip JUnit download, regression tracking",
     )
+    parser.add_argument(
+        "--sippy", action="store_true",
+        help="Use Sippy APIs instead of release controller (for historical payloads)",
+    )
 
     args = parser.parse_args()
 
@@ -1932,6 +2125,9 @@ def main() -> None:
         _log("Install gcloud SDK to enable JUnit download and regression tracking.\n")
         collect_junit = False
 
+    if args.sippy:
+        _log("Using Sippy APIs for release controller data.\n")
+
     try:
         snapshotter = Snapshotter(
             tag=tag,
@@ -1939,6 +2135,7 @@ def main() -> None:
             max_chain=args.max_chain,
             workers=args.workers,
             collect_junit=collect_junit,
+            use_sippy=args.sippy,
         )
         snapshotter.run()
     except urllib.error.HTTPError as e:

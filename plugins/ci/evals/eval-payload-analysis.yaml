@@ -14,6 +14,12 @@ runner:
   type: claude-code
   plugin_dirs:
     - plugins/ci
+  system_prompt: |
+    When searching external sources (GitHub, Prow, GCS) for CI configuration
+    changes or PRs not found in the snapshot changelog, constrain searches to
+    changes merged before the payload creation timestamp. The payload tag
+    encodes its creation date (e.g., 4.22.0-0.nightly-2026-03-26-231124 was
+    created on 2026-03-26).
 
 models:
   judge: claude-opus-4-6
