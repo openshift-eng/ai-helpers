@@ -1,0 +1,353 @@
+name: ci-payload-analysis-eval
+description: Evaluate the payload-analysis skill's ability to analyze OCP payload snapshots, trace root causes, correlate with PRs, and produce actionable HTML reports with revert recommendations
+skill: ci:payload-analysis
+
+execution:
+  mode: case
+  arguments: "{payload_tag} --snapshot-dir $EVAL_SNAPSHOT_DIR"
+  timeout: 3600
+  max_budget_usd: 25.0
+  env:
+    EVAL_SNAPSHOT_DIR: $EVAL_SNAPSHOT_DIR
+
+runner:
+  type: claude-code
+  plugin_dirs:
+    - plugins/ci
+
+models:
+  judge: claude-opus-4-6
+
+permissions:
+  allow:
+    - "Skill"
+    - "Bash"
+    - "Agent"
+    - "WebFetch"
+    - "Write"
+    - "Read"
+  deny: []
+
+mlflow:
+  experiment: ci-payload-analysis-eval
+
+dataset:
+  path: plugins/ci/evals/cases/payload-analysis
+  schema: |
+    Each case directory contains:
+    - input.yaml: YAML file with fields:
+      - 'payload_tag' — a real payload tag from amd64.ocp.releases.ci.openshift.org
+        (e.g., '5.0.0-0.nightly-2026-05-30-072431')
+    - annotations.yaml: Expected outcomes and metadata for scoring:
+      - 'expected_phase': Rejected|Ready|Accepted
+      - 'expected_failed_job_count': integer
+      - 'has_revert_candidates': boolean
+      - 'force_accept_expected': boolean
+      - 'expected_candidates': list of expected revert candidates with pr_url,
+        component, min_confidence, expected_confidence, description,
+        expected_failing_jobs
+      - 'notes': free text context
+
+    Snapshots are stored as tar.gz archives in
+    plugins/ci/evals/snapshots/payload-analysis/ and must be extracted before
+    running evals. Run:
+      export EVAL_SNAPSHOT_DIR=$(plugins/ci/evals/scripts/extract-payload-analysis-snapshots.sh <tag>)
+
+outputs:
+  - path: "output"
+    schema: |
+      The skill writes three files to the workspace root (not a subdirectory):
+      1. payload-analysis-{sanitized_tag}-summary.html — self-contained HTML report
+         with executive summary, blocking jobs summary table, recommended reverts
+         (or no-revert verdict), optional force-accept recommendation, and per-job
+         collapsible failure details. Uses GitHub dark mode styling with embedded CSS.
+      2. payload-results-{sanitized_tag}.yaml — structured YAML with:
+         - metadata: payload_tag, version, stream, architecture, release_controller_url,
+           analyzed_at, force_accept_recommended
+         - failing_jobs[]: job_name, prow_url, is_aggregated, underlying_job_name,
+           failure_type, root_cause_summary, streak_length, originating_payload_tag,
+           failure_pattern
+         - candidates[]: pr_url, pr_number, component, title, confidence_score,
+           rationale, failing_jobs[], actions[]
+      3. payload-analysis-{sanitized_tag}-autodl.json — flat denormalized JSON object
+         with table_name, schema, and rows array. One row per (failed blocking job,
+         candidate PR) pair. All row values are strings. Fields include payload_tag,
+         version, stream, architecture, phase, job_name, prow_url, failure_type,
+         root_cause_summary, candidate_pr_url, candidate_confidence_score.
+
+      Judges should check outputs["files"] and outputs["modified_files"] for files
+      matching these naming patterns.
+
+traces:
+  stdout: true
+  stderr: true
+  events: true
+  metrics: true
+
+judges:
+  - name: output_files_exist
+    description: |
+      Verify all three required output files are produced: HTML report,
+      payload results YAML, and autodl JSON.
+    check: |
+      import os
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      html = [k for k in all_f if k.endswith("-summary.html")]
+      yaml_f = [k for k in all_f if os.path.basename(k).startswith("payload-results-") and k.endswith(".yaml")]
+      json_f = [k for k in all_f if k.endswith("-autodl.json")]
+      missing = []
+      if not html:
+          missing.append("HTML report (*-summary.html)")
+      if not yaml_f:
+          missing.append("payload results YAML (payload-results-*.yaml)")
+      if not json_f:
+          missing.append("autodl JSON (*-autodl.json)")
+      if missing:
+          return (False, f"Missing: {', '.join(missing)}")
+      return (True, f"All 3 files found: {html[0]}, {yaml_f[0]}, {json_f[0]}")
+
+  - name: yaml_results_valid
+    description: |
+      Verify the payload results YAML has the required schema: metadata block
+      with payload_tag, version, stream, architecture; failing_jobs array;
+      and candidates array with properly structured entries.
+    check: |
+      import yaml, os
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      yaml_files = {k: v for k, v in all_f.items() if os.path.basename(k).startswith("payload-results-") and k.endswith(".yaml")}
+      if not yaml_files:
+          return (False, "No payload results YAML found")
+      content = list(yaml_files.values())[0]
+      try:
+          data = yaml.safe_load(content)
+      except Exception as e:
+          return (False, f"Invalid YAML: {e}")
+      if not isinstance(data, dict):
+          return (False, "YAML root is not a dict")
+      meta = data.get("metadata", {})
+      required_meta = ["payload_tag", "version", "stream", "architecture"]
+      missing = [f for f in required_meta if f not in meta]
+      if missing:
+          return (False, f"Missing metadata: {', '.join(missing)}")
+      if "failing_jobs" not in data:
+          return (False, "Missing failing_jobs array")
+      if "candidates" not in data:
+          return (False, "Missing candidates array")
+      jobs = data.get("failing_jobs", [])
+      cands = data.get("candidates", [])
+      if jobs:
+          required_job_fields = ["job_name", "failure_type", "root_cause_summary"]
+          j0 = jobs[0]
+          jmissing = [f for f in required_job_fields if f not in j0]
+          if jmissing:
+              return (False, f"failing_jobs[0] missing: {', '.join(jmissing)}")
+      if cands:
+          required_cand_fields = ["pr_url", "confidence_score", "failing_jobs"]
+          c0 = cands[0]
+          cmissing = [f for f in required_cand_fields if f not in c0]
+          if cmissing:
+              return (False, f"candidates[0] missing: {', '.join(cmissing)}")
+      return (True, f"Valid: {len(jobs)} failing jobs, {len(cands)} candidates")
+
+  - name: json_data_valid
+    description: |
+      Verify the autodl JSON has the expected structure: table_name, schema dict,
+      rows array with required fields, and all row values are strings.
+    check: |
+      import json
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      json_files = {k: v for k, v in all_f.items() if k.endswith("-autodl.json")}
+      if not json_files:
+          return (False, "No autodl JSON found")
+      content = list(json_files.values())[0]
+      try:
+          data = json.loads(content)
+      except Exception as e:
+          return (False, f"Invalid JSON: {e}")
+      if not isinstance(data, dict):
+          return (False, "JSON root is not a dict (expected object with table_name, schema, rows)")
+      if "table_name" not in data:
+          return (False, "Missing 'table_name' field")
+      if "schema" not in data or not isinstance(data["schema"], dict):
+          return (False, "Missing or invalid 'schema' field")
+      rows = data.get("rows", [])
+      if not isinstance(rows, list):
+          return (False, "'rows' is not an array")
+      if len(rows) == 0:
+          return (False, "rows array is empty")
+      required = ["payload_tag", "job_name", "failure_type", "root_cause_summary"]
+      row = rows[0]
+      missing = [f for f in required if f not in row]
+      if missing:
+          return (False, f"Missing fields in rows[0]: {', '.join(missing)}")
+      non_string = [f for f in row if not isinstance(row[f], str)]
+      if non_string:
+          return (False, f"Non-string values in rows[0]: {', '.join(non_string)} (all values must be strings)")
+      return (True, f"Valid JSON: {len(rows)} rows, table_name={data['table_name']}, all values are strings")
+
+  - name: html_report_structure
+    description: |
+      Verify the HTML report contains required sections: executive summary,
+      blocking jobs table, revert/no-revert verdict, embedded CSS, and
+      per-job details.
+    check: |
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      html_files = {k: v for k, v in all_f.items() if k.endswith("-summary.html")}
+      if not html_files:
+          return (False, "No HTML report found")
+      html = list(html_files.values())[0]
+      checks = {
+          "executive summary": "executive" in html.lower() or "summary" in html.lower(),
+          "blocking jobs table": "<table" in html,
+          "revert verdict": "revert" in html.lower() or "verdict" in html.lower(),
+          "embedded CSS": "<style>" in html,
+          "collapsible details": "<details" in html,
+      }
+      failed = [k for k, v in checks.items() if not v]
+      if failed:
+          return (False, f"Missing: {', '.join(failed)}")
+      return (True, f"All {len(checks)} structural checks passed")
+
+  - name: analysis_quality
+    description: |
+      LLM judge to assess root cause analysis depth, PR correlation accuracy,
+      and overall report quality. Uses only YAML results and HTML report, not
+      the full output tree (which includes the snapshot and exceeds context).
+    prompt: |
+      You are evaluating the output of an OCP payload analysis skill. The skill
+      analyzes failed blocking jobs in an OpenShift CI payload using a local
+      snapshot, traces root causes by examining Prow job logs and artifacts,
+      correlates failures with candidate PRs using a weighted scoring rubric,
+      and produces a comprehensive HTML report with revert recommendations.
+
+      Review the skill's YAML results file:
+
+      {% for path, content in outputs.files.items() if path.endswith('.yaml') and 'payload-results' in path %}
+      ### {{ path }}
+
+      {{ content }}
+      {% endfor %}
+
+      Review the skill's HTML report:
+
+      {% for path, content in outputs.files.items() if path.endswith('-summary.html') %}
+      ### {{ path }}
+
+      {{ content }}
+      {% endfor %}
+
+      Expected outcomes for this test case:
+
+      {{ annotations }}
+
+      Evaluate the YAML results file and HTML report on a 1-5 scale:
+
+      Score 1: Analysis is missing or completely wrong — no root causes identified,
+               no PR correlation, report is empty or broken.
+      Score 2: Superficial analysis — root causes restate symptoms without explanation
+               (e.g., "node not ready" without tracing WHY), PR correlations are
+               absent or random, report structure is incomplete.
+      Score 3: Adequate analysis — root causes go one level deeper than symptoms,
+               some PR correlations are plausible, report has required sections
+               but may have gaps in coverage or depth.
+      Score 4: Good analysis — root causes cite specific error messages from logs,
+               PR correlations reference actual code/components changed, revert
+               recommendations have clear rationale, report is well-structured.
+      Score 5: Excellent analysis — root causes traced to specific code paths with
+               log excerpts, PR correlations demonstrate causal reasoning (not just
+               temporal coincidence), rubric scores are itemized, report is
+               comprehensive and immediately actionable.
+
+      Key evaluation criteria:
+      - Does the number of failing jobs approximately match expected_failed_job_count?
+      - Are the root cause summaries specific (citing error messages, code paths)
+        rather than generic (just restating test names)?
+      - If expected_candidates are listed in annotations, are they identified with
+        evidence-based rationale?
+      - Does the HTML report contain actionable information?
+
+  - name: revert_scoring_accuracy
+    description: |
+      LLM judge to assess whether the confidence scoring rubric was correctly
+      applied and expected revert candidates identified. Uses only YAML results
+      and autodl JSON, not the full output tree.
+    prompt: |
+      You are evaluating whether the payload analysis skill correctly identified
+      revert candidates and applied its confidence scoring rubric.
+
+      The rubric awards points for:
+      - New failure mode: +30 (this specific failure wasn't present in prior payloads)
+      - Component exclusivity: +10 to +30 (fewer PRs touching same component = higher)
+      - Error message match: +40 (errors directly reference code changed by the PR)
+      - Multi-job correlation: +10 (same PR is candidate for multiple failed jobs)
+      - Presubmit coverage gap: +10 (failing scenario not in PR's presubmit tests)
+      - Single candidate: +10 (only one PR touches the affected component)
+      Maximum: 130 (capped at 100). Revert threshold: >= 85.
+
+      Review the YAML results file:
+
+      {% for path, content in outputs.files.items() if path.endswith('.yaml') and 'payload-results' in path %}
+      ### {{ path }}
+
+      {{ content }}
+      {% endfor %}
+
+      Review the autodl JSON file:
+
+      {% for path, content in outputs.files.items() if path.endswith('-autodl.json') %}
+      ### {{ path }}
+
+      {{ content }}
+      {% endfor %}
+
+      Expected outcomes for this test case:
+
+      {{ annotations }}
+
+      If expected_candidates are listed in annotations, those PRs should be
+      identified with confidence >= min_confidence and linked to the
+      expected_failing_jobs. If expected_candidates is empty, no false positive
+      revert recommendations should appear.
+
+      Evaluate on a 1-5 scale:
+
+      Score 1: No scoring applied, or scores are arbitrary. Expected revert
+               candidates (from annotations) are completely missed.
+      Score 2: Some expected candidates identified but confidence scores are way
+               off (>20 points from expected) or key failing job linkages are
+               missing.
+      Score 3: All expected high-confidence candidates (min_confidence >= 85) are
+               identified above threshold, but scores may be off by 10-20 points
+               or rubric components not itemized.
+      Score 4: All expected candidates identified with scores within 10 points of
+               expected_confidence. Rubric correctly applied with itemized
+               breakdown. Most expected failing jobs correctly linked.
+               Infrastructure failures correctly distinguished from product
+               failures.
+      Score 5: All expected candidates identified with scores within 5 points of
+               expected_confidence. Rubric meticulously applied — each component
+               score justified with specific evidence. All expected failing jobs
+               correctly linked. No false positive revert recommendations for
+               unrelated PRs. Cross-job correlation signal clearly documented.
+
+thresholds:
+  output_files_exist:
+    min_pass_rate: 1.0
+  yaml_results_valid:
+    min_pass_rate: 1.0
+  json_data_valid:
+    min_pass_rate: 1.0
+  html_report_structure:
+    min_pass_rate: 1.0
+  analysis_quality:
+    min_mean: 3.5
+  revert_scoring_accuracy:
+    min_mean: 3.0

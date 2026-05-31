@@ -392,50 +392,62 @@ See the `payload-autodl-json` skill for the complete schema, row cardinality rul
 
 ### Step 9: Adversarial Review
 
-After generating the initial report and output files, launch a **dedicated subagent** to review the analysis with fresh eyes. The reviewer should receive **only** the following (NOT the full conversation history):
+After generating the initial report and output files, launch a **dedicated subagent** to review the analysis methodology and depth. The reviewer validates that the investigation was thorough — it does not re-score candidates or override rubric-based confidence scores.
+
+The reviewer should receive **only** the following (NOT the full conversation history):
 
 1. The `summary.json` snapshot data (payload metadata, failed jobs, streaks, test regressions)
-2. The scored candidate list with rationales from Step 6
+2. The scored candidate list with per-component rubric breakdowns from Step 6
 3. The `ANALYSIS_RESULT` blocks from all subagents in Step 4
 4. The revert recommendations (if any)
+5. **Methodology summary** from the parent agent:
+   - Which subagent skills were dispatched for each job (e.g., `prow-job-analyze-install-failure` for install failures, `prow-job-analyze-test-failure` for test failures)
+   - What artifacts each subagent examined (GCS logs, must-gather, pod logs, step logs)
+   - How PR correlation was performed (diff analysis, component matching, error message matching)
+   - Any jobs where subagent analysis was unavailable or incomplete
 
 Use this prompt for the reviewer:
 
-> You are an adversarial reviewer of a payload failure analysis. Your job is to identify weaknesses, logical gaps, and questionable conclusions. You have NOT seen the investigation process — only the evidence and conclusions.
+> You are a methodology reviewer for a payload failure analysis. Your role is to verify the investigation was thorough and used the right tools — NOT to re-score candidates or override the confidence rubric.
 >
 > **Snapshot data**: {summary.json contents — metadata, failed jobs with streaks, test regressions}
 >
 > **Subagent analyses**: {ANALYSIS_RESULT blocks for each failed job}
 >
-> **Scored candidates**: {list of (job, PR, score, rationale) tuples}
+> **Scored candidates**: {list of (job, PR, score, rubric breakdown) tuples}
 >
 > **Revert recommendations**: {list of PRs recommended for revert, or "none"}
 >
-> Review the analysis for these specific failure modes:
+> **Methodology summary**: {which skills were used per job, what artifacts were examined, how PR correlation was done}
 >
-> 1. **Weak correlation dressed as causation**: Is any revert recommendation based primarily on timing ("PR landed in the originating payload") without strong code-level evidence (error messages referencing changed code, component match)?
+> Review the analysis for these specific concerns:
 >
-> 2. **Infrastructure misattribution**: Are infrastructure failures (cloud quota, API rate limits, CI platform issues, network timeouts) being blamed on code changes? Check if the `failure_type` is "infra" but a revert is still recommended.
+> 1. **Wrong skill for the failure type**: Was `prow-job-analyze-install-failure` used for install failures and `prow-job-analyze-test-failure` for test failures? If a job has install-phase failures but was analyzed with the test failure skill, the root cause may be wrong.
 >
-> 3. **Intermittent pattern ignored**: Does the `failure_pattern` show intermittent behavior (e.g., "F S F F S F") but the analysis treats it as a solid regression? Intermittent failures are less likely to be caused by a specific PR.
+> 2. **Shallow root cause analysis**: Do the root cause summaries cite specific error messages from logs, or do they just restate the test/job name? A good root cause traces the failure to a specific code path, binary, or configuration.
 >
-> 4. **Stale streak attribution**: Is a persistent failure (streak > 5) being attributed to a recent PR? Long-running failures are more likely pre-existing issues, not new regressions.
+> 3. **Infrastructure misattribution**: Are infrastructure failures (cloud quota, API rate limits, CI platform issues, network timeouts) being blamed on code changes? Check if the `failure_type` is "infra" but a revert is still recommended.
 >
-> 5. **Missing alternative explanations**: Could the failure be caused by something NOT in the candidate PR list — e.g., a CI infrastructure change, a dependency update, a flaky test?
+> 4. **Intermittent pattern ignored**: Does the `failure_pattern` show intermittent behavior (e.g., "F S F F S F") but the analysis treats it as a solid regression?
 >
-> 6. **Score inflation**: Are multiple weak signals being stacked to reach 85+ without any single strong signal (like error message match)?
+> 5. **Missing artifact examination**: Were GCS artifacts (pod logs, must-gather, step logs) actually downloaded and examined, or were conclusions drawn solely from job metadata?
+>
+> 6. **Incomplete coverage**: Are there failed jobs that received no subagent analysis or only superficial analysis?
+>
+> **Important: Do NOT override confidence scores.** The confidence rubric (Step 6) is mechanically applied based on concrete signals — new failure mode, error message match, component exclusivity, multi-job correlation. If a candidate scored high because multiple rubric components fired with evidence, that score is correct even if you think the underlying issue has a deeper root cause. Your job is to flag methodology gaps, not to second-guess whether a PR "really" caused the failure when the error messages and component matches say it did.
 >
 > For each issue found, provide:
 > - **Issue**: One-line description
-> - **Affected candidate**: Which (job, PR) pair
-> - **Recommendation**: Lower score, remove revert recommendation, add caveat, or investigate further
+> - **Affected job(s)**: Which jobs are affected
+> - **Recommendation**: Deepen analysis (re-run subagent with different skill), add caveat to report, or flag for human review
 >
-> If the analysis is sound, say so explicitly: "No weaknesses identified — analysis is well-supported."
+> If the methodology is sound, say so explicitly: "Investigation methodology is thorough — all failure types were analyzed with appropriate skills and artifacts."
 
 After receiving the reviewer's response:
 
-- If weaknesses are identified: re-evaluate the affected scores and recommendations. Adjust scores downward, remove revert recommendations that lack strong evidence, or add caveats. Regenerate the HTML report and YAML/JSON files with the corrected data.
-- If no weaknesses: proceed as-is.
+- If methodology gaps are found (wrong skill used, missing artifact examination): re-run the affected subagent analyses with the correct approach, then re-score. Update the HTML report and YAML/JSON files.
+- If only caveats are suggested: add them to the report without changing scores.
+- **Do not lower rubric-based confidence scores** based on the reviewer's opinion about root cause. The rubric is mechanical — if the signals fired (error message match, new failure, component match), the score stands. The reviewer can add context ("underlying issue may be pre-existing") as a caveat in the report, but the score and revert recommendation remain.
 - In either case, populate the "Adversarial Review" section (Step 7.6) in the HTML report with the reviewer's findings and any actions taken.
 
 ### Step 10: Save and Present
