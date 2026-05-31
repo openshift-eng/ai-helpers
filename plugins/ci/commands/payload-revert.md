@@ -1,5 +1,5 @@
 ---
-description: Stage reverts for high-confidence payload candidates identified by analyze-payload
+description: Stage reverts for high-confidence payload candidates identified by payload-analysis
 argument-hint: "<payload-tag>"
 ---
 
@@ -15,12 +15,12 @@ ci:payload-revert
 
 ## Description
 
-The `ci:payload-revert` command reads the payload results YAML produced by `/ci:analyze-payload` and stages reverts for all high-confidence candidates (confidence score >= 85) that have not already been reverted.
+The `ci:payload-revert` command reads the payload results YAML produced by `/ci:payload-analysis` and stages reverts for all high-confidence candidates (confidence score >= 85) that have not already been reverted.
 
 For each qualifying candidate, it creates a TRT JIRA bug, opens a revert PR, and triggers payload validation jobs using the `stage-payload-reverts` skill.
 
 This command is one of three composable stages in the payload triage pipeline:
-1. `/ci:analyze-payload` — produces the payload results YAML
+1. `/ci:payload-analysis` — produces the payload results YAML
 2. `/ci:payload-revert` — stages reverts for HIGH confidence candidates (this command)
 3. `/ci:payload-experiment` — opens draft revert PRs for MEDIUM confidence candidates
 
@@ -33,12 +33,12 @@ When the number of failing jobs across all candidates exceeds these limits, prio
 
 ## Implementation
 
-1. **Parse the payload tag** from the argument. Extract `version`, `stream`, and `architecture` from the tag (see `analyze-payload` Step 1 for parsing rules).
+1. **Parse the payload tag** from the argument. Extract `version`, `stream`, and `architecture` from the tag (see `payload-analysis` Step 1 for parsing rules).
 
 2. **Read the payload results YAML** using the `payload-results-yaml` skill: Look for `payload-results-{tag}.yaml` in the current working directory. If not found, print an error and exit:
    ```
    Error: Payload results YAML not found for {payload_tag}.
-   Run `/ci:analyze-payload {payload_tag}` first to generate it.
+   Run `/ci:payload-analysis {payload_tag}` first to generate it.
    ```
 
 3. **Filter candidates**: Select candidates with `confidence_score >= 85`. Exclude any that already have an action with `status` of `"open"` or `"merged"` (pre-existing revert).
@@ -56,13 +56,13 @@ When the number of failing jobs across all candidates exceeds these limits, prio
 
 1. **Stage reverts after analysis**:
    ```
-   /ci:analyze-payload 4.22.0-0.nightly-2026-02-25-152806
+   /ci:payload-analysis 4.22.0-0.nightly-2026-02-25-152806
    /ci:payload-revert 4.22.0-0.nightly-2026-02-25-152806
    ```
 
 ## Arguments
 
-- $1: A full payload tag (e.g., `4.22.0-0.nightly-2026-02-25-152806`). Must match the tag used with `/ci:analyze-payload`. (required)
+- $1: A full payload tag (e.g., `4.22.0-0.nightly-2026-02-25-152806`). Must match the tag used with `/ci:payload-analysis`. (required)
 
 ## Skills Used
 

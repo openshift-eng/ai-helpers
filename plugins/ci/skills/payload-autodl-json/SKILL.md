@@ -1,6 +1,6 @@
 ---
 name: payload-autodl-json
-description: Schema for the autodl JSON data file produced by analyze-payload for database ingestion — you must use this skill whenever generating the autodl JSON file
+description: Schema for the autodl JSON data file produced by payload-analysis for database ingestion — you must use this skill whenever generating the autodl JSON file
 ---
 
 # Payload Autodl JSON
@@ -9,7 +9,7 @@ This skill defines the schema for the `payload-analysis-{tag}-autodl.json` file.
 
 ## When to Use This Skill
 
-Use this skill when you need to generate the autodl JSON file during `analyze-payload` (Step 8).
+Use this skill when you need to generate the autodl JSON file during `payload-analysis` (Step 8).
 
 ## File Location
 
@@ -180,7 +180,7 @@ The filename **must** end with `-autodl.json`. Sanitize the tag for filename saf
 
 ## Operations
 
-### Create (used by `analyze-payload`)
+### Create (used by `payload-analysis`)
 
 Generate the full autodl JSON file with all rows populated from the analysis results. Each failed blocking job produces at least one row. Candidate fields are populated when a PR is correlated to the failure, otherwise they are empty strings / `"0"`.
 
@@ -202,7 +202,7 @@ After staging reverts, find rows matching `candidate_pr_url` and set:
 
 ## See Also
 
-- Related Skill: `analyze-payload` — creates this file in Step 8
+- Related Skill: `payload-analysis` — creates this file in Step 8
 - Related Skill: `stage-payload-reverts` — updates revert fields after staging reverts
 - Related Skill: `payload-experimental-reverts` — updates revert fields after experiments
 - Related Skill: `payload-results-yaml` — the YAML results file for downstream agentic actions

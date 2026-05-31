@@ -10,7 +10,7 @@ This skill defines the schema for the `payload-results-{tag}.yaml` file and prov
 ## When to Use This Skill
 
 Use this skill whenever you need to:
-- **Create** a new results file (during `analyze-payload`)
+- **Create** a new results file (during `payload-analysis`)
 - **Read** candidates or their actions (during `payload-revert`, `payload-experiment`)
 - **Append an action** to a candidate (during `stage-payload-reverts`, `payload-experimental-reverts`)
 - **Update an action's status** (during `payload-experimental-reverts` Phase 2)
@@ -82,7 +82,7 @@ candidates:
 
 ### `metadata`
 
-Written once by `analyze-payload`. Never modified by downstream skills.
+Written once by `payload-analysis`. Never modified by downstream skills.
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -92,11 +92,11 @@ Written once by `analyze-payload`. Never modified by downstream skills.
 | `architecture` | string | `"amd64"`, `"arm64"`, `"multi"`, etc. |
 | `release_controller_url` | string | URL to the payload on the release controller |
 | `analyzed_at` | string | ISO 8601 timestamp of when the analysis was performed |
-| `force_accept_recommended` | bool | `true` when all failures are temporary infrastructure issues, no more than 2 blocking jobs failed, and no payload has been accepted in the stream for 18+ hours. Determined by `analyze-payload` Step 6.4. |
+| `force_accept_recommended` | bool | `true` when all failures are temporary infrastructure issues, no more than 2 blocking jobs failed, and no payload has been accepted in the stream for 18+ hours. Determined by `payload-analysis` Step 6.4. |
 
 ### `failing_jobs[]`
 
-All failed blocking jobs in the payload. Written once by `analyze-payload`. Never modified by downstream skills. This is the authoritative list of failures — every failed blocking job appears here regardless of whether a candidate PR has been identified.
+All failed blocking jobs in the payload. Written once by `payload-analysis`. Never modified by downstream skills. This is the authoritative list of failures — every failed blocking job appears here regardless of whether a candidate PR has been identified.
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -112,7 +112,7 @@ All failed blocking jobs in the payload. Written once by `analyze-payload`. Neve
 
 ### `candidates[]`
 
-Each entry represents a PR identified as a candidate cause of payload failures. Top-level candidate fields are written once by `analyze-payload` and are read-only to downstream skills. The `actions` sub-array is mutable (see below).
+Each entry represents a PR identified as a candidate cause of payload failures. Top-level candidate fields are written once by `payload-analysis` and are read-only to downstream skills. The `actions` sub-array is mutable (see below).
 
 Candidates reference failing jobs by `job_name` via the `failing_jobs` string array, linking back to the top-level `failing_jobs[]` entries.
 
@@ -168,7 +168,7 @@ Payload validation jobs triggered against the revert PR.
 
 ## Operations
 
-### Create (used by `analyze-payload`)
+### Create (used by `payload-analysis`)
 
 Write a new `payload-results-{tag}.yaml` with `metadata`, `failing_jobs`, and `candidates` populated. All failed blocking jobs are recorded in `failing_jobs`. Candidates with no pre-existing revert start with `actions: []`. If a pre-existing revert PR is discovered during analysis, append an action with `type: "revert"` and `status: "open"` or `"merged"`.
 
@@ -190,7 +190,7 @@ Scan all candidates. If any candidate has an action with `type: "experiment"` an
 
 ## See Also
 
-- Related Skill: `analyze-payload` — creates the results file
+- Related Skill: `payload-analysis` — creates the results file
 - Related Skill: `stage-payload-reverts` — appends `type: "revert"` actions
 - Related Skill: `payload-experimental-reverts` — appends `type: "experiment"` actions, updates status in Phase 2
 - Related Command: `/ci:payload-revert` — stages reverts for high-confidence candidates

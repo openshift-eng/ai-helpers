@@ -240,5 +240,5 @@ Aggregated jobs run the same underlying test multiple times with statistical ana
 
 - Related Skill: `fetch-payloads` (fetches recent payloads from the release controller)
 - Related Skill: `fetch-new-prs-in-payload` (fetches PRs new in a specific payload)
-- Related Skill: `analyze-payload` (analyzes a rejected payload for revert candidates)
+- Related Skill: `payload-analysis` (analyzes a payload snapshot for revert candidates)
 

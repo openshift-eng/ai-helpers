@@ -9,7 +9,7 @@ This skill automates the full revert-staging workflow for payload regressions: c
 
 ## When to Use This Skill
 
-Use this skill when revert candidates have already been identified with high confidence by the `analyze-payload` skill. The caller passes all required context in-memory — this skill does not perform its own analysis.
+Use this skill when revert candidates have already been identified with high confidence by the `payload-analysis` skill. The caller passes all required context in-memory — this skill does not perform its own analysis.
 
 **Inputs** (passed in-context by the caller):
 
@@ -151,7 +151,7 @@ Find the existing "Recommended Reverts" section in the HTML. For each candidate 
 - **Payload Jobs**: Link to the pr-payload-tests URL (e.g., `<a href="{payload_test_url}">Payload Test</a>`)
 - **Status**: Badge showing `Revert Staged` (use the `badge-rejected` class for visual consistency)
 
-If the report has no "Recommended Reverts" section (all candidates scored below 85 during analysis), add one before the per-job details section, using the same HTML structure as described in `analyze-payload` Step 7.4.
+If the report has no "Recommended Reverts" section (all candidates scored below 85 during analysis), add one before the per-job details section, using the same HTML structure as described in `payload-analysis` Step 7.4.
 
 ### Update autodl JSON
 
@@ -171,5 +171,5 @@ Return results to the caller for inclusion in the report.
 - Related Skill: `payload-results-yaml` - Schema and operations for the payload results YAML
 - Related Skill: `revert-pr` - The git revert workflow (`plugins/ci/skills/revert-pr/SKILL.md`)
 - Related Skill: `trigger-payload-job` - Triggers payload jobs and collects URLs (`plugins/ci/skills/trigger-payload-job/SKILL.md`)
-- Related Skill: `analyze-payload` - Identifies revert candidates (`plugins/ci/skills/analyze-payload/SKILL.md`)
+- Related Skill: `payload-analysis` - Identifies revert candidates (`plugins/ci/skills/payload-analysis/SKILL.md`)
 - Related Command: `/ci:payload-revert` - Command for staging reverts (`plugins/ci/commands/payload-revert.md`)
