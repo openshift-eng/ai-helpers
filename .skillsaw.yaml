@@ -98,9 +98,10 @@ custom-rules:
 # Exclude patterns (glob format)
 # Use exclude: [] to disable all excludes including defaults
 exclude:
-    # - "**/template/**"
-    # - "**/templates/**"
-    # - "**/_template/**"
+    - "node_modules/**"
+    - "**/template/**"
+    - "**/templates/**"
+    - "**/_template/**"
 
 # Additional markdown files to run content rules on (glob format)
 content-paths: []
