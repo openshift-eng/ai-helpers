@@ -4,7 +4,7 @@ skill: ci:payload-analysis
 
 execution:
   mode: case
-  arguments: "{payload_tag} --snapshot-dir $EVAL_SNAPSHOT_DIR"
+  arguments: "{payload_tag} --snapshot-dir $EVAL_SNAPSHOT_DIR/{payload_tag}"
   timeout: 3600
   max_budget_usd: 25.0
   env:
