@@ -26,7 +26,10 @@ def validate(path):
         print("FAIL: root is not a mapping")
         return 1
 
-    meta = data.get("metadata", {})
+    meta = data.get("metadata")
+    if not isinstance(meta, dict):
+        errors.append("'metadata' is not a mapping")
+        meta = {}
     for field in REQUIRED_METADATA:
         if field not in meta:
             errors.append(f"metadata missing '{field}'")
@@ -37,6 +40,9 @@ def validate(path):
         errors.append("'failing_jobs' is not a list")
     else:
         for i, job in enumerate(data["failing_jobs"]):
+            if not isinstance(job, dict):
+                errors.append(f"failing_jobs[{i}] is not an object")
+                continue
             for field in REQUIRED_JOB_FIELDS:
                 if field not in job:
                     errors.append(f"failing_jobs[{i}] missing '{field}'")
@@ -47,6 +53,9 @@ def validate(path):
         errors.append("'candidates' is not a list")
     else:
         for i, cand in enumerate(data["candidates"]):
+            if not isinstance(cand, dict):
+                errors.append(f"candidates[{i}] is not an object")
+                continue
             for field in REQUIRED_CANDIDATE_FIELDS:
                 if field not in cand:
                     errors.append(f"candidates[{i}] missing '{field}'")

@@ -40,14 +40,15 @@ def validate(path):
         errors.append("'rows' is empty")
     else:
         for i, row in enumerate(rows):
+            if not isinstance(row, dict):
+                errors.append(f"rows[{i}] is not an object")
+                continue
             for field in REQUIRED_ROW_FIELDS:
                 if field not in row:
                     errors.append(f"rows[{i}] missing '{field}'")
             non_string = [k for k, v in row.items() if not isinstance(v, str)]
             if non_string:
                 errors.append(f"rows[{i}] has non-string values: {', '.join(non_string)}")
-            if i > 0:
-                break
 
     if errors:
         print(f"FAIL: {len(errors)} error(s)")
