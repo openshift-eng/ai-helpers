@@ -119,7 +119,7 @@ jq '.[] | {test: .test_name, first_failed: .first_failed_in, payloads: .payloads
 
 **List PRs in a payload:**
 ```bash
-jq '.changeLogJson.updatedImages[].commits[] | {component: .name, pr: .pullURL, subject: .subject}' payload/<version>/<stream>/<tag>/changelog.json
+jq '.changeLogJson.updatedImages[] | . as $img | .commits[] | {component: $img.name, pr: .pullURL, subject: .subject}' payload/<version>/<stream>/<tag>/changelog.json
 ```
 
 **Read a specific PR's diff:**

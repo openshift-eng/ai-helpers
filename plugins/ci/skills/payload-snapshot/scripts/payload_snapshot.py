@@ -19,7 +19,7 @@ import tempfile
 import urllib.error
 import urllib.parse
 import urllib.request
-import xml.etree.ElementTree as ET
+import xml.etree.ElementTree as ET  # noqa: S314 — input is trusted (downloaded from GCS/Prow, not user-supplied)
 from datetime import datetime, timezone
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, as_completed
