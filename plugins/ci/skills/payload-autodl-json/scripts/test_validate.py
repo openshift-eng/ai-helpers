@@ -35,13 +35,16 @@ if __name__ == "__main__":
 
     with tempfile.NamedTemporaryFile(suffix=".json", mode="w", delete=False) as f:
         f.write("{bad json")
-        cases.append(("invalid JSON syntax", f.name, 1))
+        tmp_path = f.name
+        cases.append(("invalid JSON syntax", tmp_path, 1))
 
     for name, path, expected in cases:
         if test(name, path, expected):
             passed += 1
         else:
             failed += 1
+
+    os.unlink(tmp_path)
 
     print(f"\n{passed}/{passed + failed} passed")
     sys.exit(1 if failed else 0)

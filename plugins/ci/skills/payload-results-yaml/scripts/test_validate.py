@@ -37,13 +37,16 @@ if __name__ == "__main__":
     # Test with a non-YAML file
     with tempfile.NamedTemporaryFile(suffix=".yaml", mode="w", delete=False) as f:
         f.write("{{invalid yaml")
-        cases.append(("invalid YAML syntax", f.name, 1))
+        tmp_path = f.name
+        cases.append(("invalid YAML syntax", tmp_path, 1))
 
     for name, path, expected in cases:
         if test(name, path, expected):
             passed += 1
         else:
             failed += 1
+
+    os.unlink(tmp_path)
 
     print(f"\n{passed}/{passed + failed} passed")
     sys.exit(1 if failed else 0)
