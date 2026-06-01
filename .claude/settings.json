@@ -1,6 +1,10 @@
 {
   "enabledPlugins": {
     "plugin-dev@claude-plugins-official": true,
-    "skill-creator@claude-plugins-official": true
+    "skill-creator@claude-plugins-official": true,
+    "payload-agent@ai-helpers": true,
+    "ci@ai-helpers": true,
+    "must-gather@ai-helpers": true,
+    "sosreport@ai-helpers": true
   }
 }

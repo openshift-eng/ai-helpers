@@ -1,0 +1,13 @@
+{
+  "name": "payload-agent",
+  "description": "Bundle of plugins for payload agents: CI analysis, must-gather diagnostics, and sosreport analysis",
+  "version": "1.0.0",
+  "author": {
+    "name": "github.com/openshift-eng"
+  },
+  "dependencies": [
+    { "name": "ci", "version": "0.0.42" },
+    { "name": "must-gather", "version": "0.0.2" },
+    { "name": "sosreport", "version": "0.0.2" }
+  ]
+}

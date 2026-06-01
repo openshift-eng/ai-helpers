@@ -513,6 +513,18 @@
         "bundle",
         "meta-plugin"
       ]
+    },
+    {
+      "name": "payload-agent",
+      "source": "./plugins/payload-agent",
+      "description": "Bundle of plugins for payload agents: CI analysis, must-gather diagnostics, and sosreport analysis",
+      "version": "1.0.0",
+      "category": "bundle",
+      "keywords": [
+        "payload",
+        "bundle",
+        "agent"
+      ]
     }
   ]
 }
