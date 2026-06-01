@@ -9,7 +9,7 @@ ci:payload-analysis
 
 ## Synopsis
 
-```bash
+```
 /ci:payload-analysis <payload-tag> [--snapshot-dir DIR]
 ```
 
@@ -73,17 +73,17 @@ Load the "payload-analysis" skill and follow its implementation steps. The skill
 ## Examples
 
 1. **Analyze an amd64 nightly payload** (auto-creates snapshot if needed):
-   ```text
+   ```
    /ci:payload-analysis 4.22.0-0.nightly-2026-02-25-152806
    ```
 
 2. **Analyze using an existing snapshot directory**:
-   ```text
+   ```
    /ci:payload-analysis 4.22.0-0.nightly-2026-02-25-152806 --snapshot-dir payload/4.22/nightly
    ```
 
 3. **Analyze an arm64 payload** (architecture inferred from tag):
-   ```text
+   ```
    /ci:payload-analysis 4.22.0-0.nightly-arm64-2026-02-25-152806
    ```
 

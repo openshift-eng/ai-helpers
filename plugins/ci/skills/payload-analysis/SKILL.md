@@ -134,7 +134,7 @@ You MUST use the following prompt verbatim (substituting the placeholder values)
 
 **Structured Return Format**: Instruct each subagent to include an `ANALYSIS_RESULT` block at the end of its response:
 
-```text
+```
 ANALYSIS_RESULT:
 - failure_type: install|test|upgrade|infra
 - root_cause_summary: <one-line summary>
@@ -468,14 +468,14 @@ After receiving the reviewer's response:
 ### No Snapshot Available
 
 If no snapshot is found and the snapshot script fails to create one:
-```text
+```
 Error: Could not locate or create a snapshot for {tag}. Run the payload-snapshot skill manually first.
 ```
 
 ### Subagent Failure
 
 If a subagent fails to analyze a job, include the job in the report with:
-```text
+```
 Analysis unavailable: {error_message}
 ```
 Do not let one failed subagent block the entire report.
@@ -483,7 +483,7 @@ Do not let one failed subagent block the entire report.
 ### Missing PR Data
 
 If the snapshot was created without `gh` authentication, PR diffs/comments will be absent. Note this in the report:
-```text
+```
 Note: PR diff data not available in snapshot. Scoring based on component match and timing only.
 ```
 
