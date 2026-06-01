@@ -7,7 +7,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SNAPSHOTS_DIR="$SCRIPT_DIR/../snapshots/payload-analysis"
-BASE_DIR="/tmp/eval-payload-snapshots"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
+BASE_DIR="$REPO_ROOT/.work/eval-payload-snapshots"
 
 if [[ ! -d "$SNAPSHOTS_DIR" ]]; then
     echo "No snapshots directory at $SNAPSHOTS_DIR" >&2
@@ -25,7 +26,7 @@ for archive in "$SNAPSHOTS_DIR"/*.tar.gz; do
     fi
 
     dest="$BASE_DIR/$name"
-    if [[ -d "$dest" && -f "$dest/summary.json" ]]; then
+    if [[ -d "$dest" ]] && find "$dest" -name summary.json -print -quit 2>/dev/null | grep -q .; then
         echo "Already extracted: $dest" >&2
     else
         mkdir -p "$dest"

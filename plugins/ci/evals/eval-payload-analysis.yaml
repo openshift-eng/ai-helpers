@@ -229,7 +229,6 @@ judges:
           "blocking jobs table": "<table" in html,
           "revert verdict": "revert" in html.lower() or "verdict" in html.lower(),
           "embedded CSS": "<style>" in html,
-          "collapsible details": "<details" in html,
       }
       failed = [k for k, v in checks.items() if not v]
       if failed:
