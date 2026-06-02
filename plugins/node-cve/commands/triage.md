@@ -20,7 +20,7 @@ Designed for both interactive use and headless execution via `claude --print`.
 ## Prerequisites
 
 - `jira` CLI ([ankitpokhrel/jira-cli](https://github.com/ankitpokhrel/jira-cli)) configured with Jira credentials
-- Environment variables: `JIRA_API_TOKEN`, `JIRA_USERNAME`
+- Environment variables: `JIRA_API_TOKEN`
 - `git` (for cloning repos)
 - Optional: `curl` and either `SLACK_API_TOKEN` + `SLACK_CHANNEL` or `SLACK_WEBHOOK` (for `--notify-slack`)
 
@@ -309,7 +309,7 @@ The headline format depends on whether cached results were used. On first run (a
 ## Arguments
 
 - `--component <name>`: Filter to a specific OCPBUGS component. Must match a Node team component name exactly (e.g., "Node / CRI-O"). Optional.
-- `--notify-jira`: Post analysis as a comment on each Jira tracker issue. Requires `JIRA_API_TOKEN` and `JIRA_USERNAME`. Also enables cross-run caching via Jira comments.
+- `--notify-jira`: Post analysis as a comment on each Jira tracker issue. Requires `JIRA_API_TOKEN`. Also enables cross-run caching via Jira comments.
 - `--notify-slack`: Send a summary to Slack. Requires either `$SLACK_API_TOKEN` + `$SLACK_CHANNEL` (enables threading) or `$SLACK_WEBHOOK` (no threading).
 - `--days N`: Only include CVEs created or updated in the last N days. Default: all open CVEs.
 

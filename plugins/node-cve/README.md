@@ -47,7 +47,6 @@ Triage all open CVEs for Node team components with automated reachability analys
 
 **Environment variables:**
 - `JIRA_API_TOKEN` - Jira API token (required)
-- `JIRA_USERNAME` - Jira username/email (required)
 - `SLACK_API_TOKEN` - Slack bot token (preferred for `--notify-slack`, enables threaded messages)
 - `SLACK_CHANNEL` - Slack channel ID (required with `SLACK_API_TOKEN`). Default: `GK6BJJ1J5` (`#team-node`)
 - `SLACK_WEBHOOK` - Slack incoming webhook URL (alternative for `--notify-slack`, no threading)
@@ -61,7 +60,6 @@ podman run -it \
   -e CLAUDE_CODE_USE_VERTEX=1 \
   -e ANTHROPIC_VERTEX_PROJECT_ID=your-project \
   -e JIRA_API_TOKEN=... \
-  -e JIRA_USERNAME=... \
   -e SLACK_API_TOKEN=xoxb-... \
   -e SLACK_CHANNEL=GK6BJJ1J5 \
   -v ~/.config/gcloud:/home/claude/.config/gcloud:ro \
