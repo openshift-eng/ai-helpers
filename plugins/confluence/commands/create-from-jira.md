@@ -29,6 +29,28 @@ This command requires AI reasoning to:
 
 ## Implementation
 
+### Phase 0: Verify MCP Availability
+Before processing, verify the Atlassian MCP tools are available. If `mcp__mcp-atlassian__jira_get_issue` or `mcp__mcp-atlassian__confluence_create_page` are not available, stop and display:
+
+> **Atlassian MCP server is not configured.**
+>
+> The `/confluence:create-from-jira` command requires the `mcp-atlassian` MCP server for both Jira and Confluence access. To set it up:
+>
+> 1. Add to your Claude Code MCP settings (`.claude/settings.json` or project `.mcp.json`):
+>    ```json
+>    {
+>      "mcpServers": {
+>        "atlassian": {
+>          "type": "http",
+>          "url": "https://mcp.atlassian.com/v1/mcp"
+>        }
+>      }
+>    }
+>    ```
+> 2. Restart Claude Code and authenticate when prompted.
+
+Do NOT proceed or fabricate issue content.
+
 ### Phase 1: Load Skills
 Invoke the `confluence:page-templates` skill to load page structure guidance for the selected document type.
 
@@ -127,6 +149,7 @@ Using the loaded template from Phase 1 and the Jira context from Phase 2:
 ## Error Handling
 | Error | Cause | Resolution |
 |-------|-------|------------|
+| MCP server not configured | Atlassian MCP tools not available | Display setup instructions (see Phase 0) |
 | Jira issue not found | Invalid issue key or no access | Verify the issue key and Jira authentication |
 | Space not found | Invalid space key | List available spaces and ask user to choose |
 | Permission denied | No write access to the target space | Ask user to specify a different space or check permissions |
@@ -134,6 +157,5 @@ Using the loaded template from Phase 1 and the Jira context from Phase 2:
 
 ## See Also
 - `confluence:search` - Find existing docs before creating new ones
-- `confluence:sync-meeting-notes` - Publish meeting notes to Confluence
 - `jira:create` - Create Jira issues
-- `jira:grooming` - Generate grooming agendas (output can be synced to Confluence)
+- `jira:grooming` - Generate grooming agendas

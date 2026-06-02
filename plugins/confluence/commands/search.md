@@ -28,6 +28,28 @@ This command requires AI reasoning to:
 
 ## Implementation
 
+### Phase 0: Verify MCP Availability
+Before processing the query, verify the Atlassian MCP tools are available. If `mcp__mcp-atlassian__confluence_search` is not available, stop and display:
+
+> **Confluence MCP server is not configured.**
+>
+> The `/confluence:search` command requires the `mcp-atlassian` MCP server. To set it up:
+>
+> 1. Add to your Claude Code MCP settings (`.claude/settings.json` or project `.mcp.json`):
+>    ```json
+>    {
+>      "mcpServers": {
+>        "atlassian": {
+>          "type": "http",
+>          "url": "https://mcp.atlassian.com/v1/mcp"
+>        }
+>      }
+>    }
+>    ```
+> 2. Restart Claude Code and authenticate when prompted.
+
+Do NOT proceed with the search or fabricate results.
+
 ### Phase 1: Parse and Interpret Query
 1. Parse `$1` as the search query. Detect if it is:
    - A Jira issue key (matches `[A-Z]+-\d+`) -> fetch the issue summary and use it as search terms
@@ -112,10 +134,10 @@ If no results are found, suggest alternative search terms or broader queries.
 ## Error Handling
 | Error | Cause | Resolution |
 |-------|-------|------------|
+| MCP server not configured | Atlassian MCP tools not available | Display setup instructions (see Phase 0) |
 | No results found | Query too specific or wrong space | Suggest broader terms or remove space filter |
 | CQL syntax error | Malformed CQL expression | Re-interpret as natural language and retry |
-| Authentication failure | MCP Atlassian server not configured | Guide user to set up Confluence credentials |
+| Authentication failure | MCP server configured but credentials invalid | Guide user to re-authenticate |
 
 ## See Also
 - `confluence:create-from-jira` - Create new docs from Jira context
-- `confluence:sync-meeting-notes` - Publish meeting notes

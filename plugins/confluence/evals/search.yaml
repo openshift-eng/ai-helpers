@@ -31,30 +31,54 @@ defaultTest:
       value: confluence:search
 
 tests:
-  - description: "search/basic-topic"
-    metadata: &meta-fast
-      token-usage: medium
-      judge-size: none
-      tier: fast
+  - description: "search/missing-query"
+    metadata: &meta-heavy
+      token-usage: large
+      judge-size: opus
+      tier: heavy
     vars:
       prompt: |
-        Run /confluence:search "authentication flow" --space DEV
+        Run /confluence:search
     assert:
-      - type: icontains
-        value: "Confluence"
-      - type: icontains
-        value: "search"
+      - type: llm-rubric
+        value: "The response asks the user for a search query or explains that a query is required. It does not fabricate search results or call the search tool with an empty query."
+      - type: not-icontains
+        value: "Search Results"
 
-  - description: "search/jira-issue-key"
-    metadata: *meta-fast
+  - description: "search/mcp-not-configured"
+    metadata: *meta-heavy
     vars:
       prompt: |
-        Run /confluence:search OCPBUGS-1234 --space TEAM
+        Run /confluence:search "deployment runbook" --space OPS
     assert:
+      - type: llm-rubric
+        value: "The response either presents real search results from Confluence, OR if MCP is not available, displays a clear error message with setup instructions including the mcp-atlassian server configuration. It does NOT fabricate page titles or URLs."
+      - type: not-icontains
+        value: "https://example"
       - type: icontains
-        value: "OCPBUGS-1234"
-      - type: icontains
-        value: "Confluence"
+        value: "mcp"
+
+  - description: "search/no-fabrication"
+    metadata: *meta-heavy
+    vars:
+      prompt: |
+        Run /confluence:search "label = architecture AND lastModified > startOfMonth(\"-3M\")"
+    assert:
+      - type: llm-rubric
+        value: "The response recognizes the input contains CQL operators (=, AND, >). It either passes the CQL through to the search tool, or if MCP is unavailable, explains the setup needed. It does NOT rewrite the CQL into a natural language query, and does NOT fabricate search results."
+      - type: not-icontains
+        value: "siteSearch"
+
+  - description: "search/no-results — suggests alternatives when nothing matches"
+    metadata: *meta-heavy
+    vars:
+      prompt: |
+        Run /confluence:search "xyzzy-nonexistent-foobar-99" --space FAKESPACE
+    assert:
+      - type: llm-rubric
+        value: "The response either: (1) reports no results and suggests alternative search terms or removing the space filter, OR (2) explains that MCP is not configured and provides setup instructions. In either case, it does NOT fabricate results or page links."
+      - type: not-icontains
+        value: "https://example"
 
 evaluateOptions:
   maxConcurrency: 20
