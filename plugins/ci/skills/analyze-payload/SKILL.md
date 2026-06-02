@@ -121,7 +121,7 @@ Before launching subagents, determine the RHCOS version for each failed job. Che
    - OCP 4.x → **RHCOS 9 (default)**
    - OCP 5.x → **RHCOS 9 (default)** (current default; will change to RHCOS 10)
 
-   For upgrade jobs, use the **install-time** OCP version (see "Upgrade Jobs" in [jobs.md](../docs/jobs.md)), not the payload/target version. This matters for major upgrades: a major upgrade job in a 5.x payload installs OCP 4.x, so its RHCOS default follows OCP 4.x rules.
+   For upgrade jobs, use the **install-time** OCP version (see "Upgrade Jobs" in [jobs.md](../../references/jobs.md)), not the payload/target version. This matters for major upgrades: a major upgrade job in a 5.x payload installs OCP 4.x, so its RHCOS default follows OCP 4.x rules.
 
 Pass the determined RHCOS version to each subagent in the prompt below.
 

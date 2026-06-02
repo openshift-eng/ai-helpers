@@ -62,10 +62,10 @@ TOKEN=$(oc whoami -t --context="$DPCR_CONTEXT" 2>/dev/null)
 
 This works because `oc` reads from `~/.kube/config` which is bind-mounted from the host. The token stored in the kubeconfig was obtained when the user previously ran `oc login` to the DPCR cluster on the host. If the token is expired, instruct the user to re-authenticate on the host: `oc login https://api.cr.j7t7.p1.openshiftapps.com:6443`.
 
-1. **Load CI Context**: Read all documentation files in `plugins/ci/docs/` for context on tests, jobs, and CI conventions. These contain important notes on specific test frameworks, job ownership, and debugging guidance that should inform the analysis.
+1. **Load CI Context**: Read all documentation files in `plugins/ci/references/` for context on tests, jobs, and CI conventions. These contain important notes on specific test frameworks, job ownership, and debugging guidance that should inform the analysis.
 
    ```bash
-   ls plugins/ci/docs/
+   ls plugins/ci/references/
    ```
 
    Read each file found. Keep this context in mind throughout the analysis — it may affect how you interpret failure patterns, who to recommend contacting, or what the root cause is likely to be.
