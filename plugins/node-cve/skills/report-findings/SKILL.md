@@ -11,7 +11,7 @@ Use this skill when Phase 3 of the `node-cve:triage` command needs to generate t
 
 - `jira` CLI (for `--notify-jira`)
 - `curl` (for `--notify-slack`)
-- Environment variables: `JIRA_API_TOKEN`, `JIRA_USERNAME` (for Jira)
+- Environment variables: `JIRA_API_TOKEN` (for Jira)
 - For Slack: either `SLACK_API_TOKEN` + `SLACK_CHANNEL` (preferred, enables threading) or `SLACK_WEBHOOK` (simpler, no threading)
 
 ## Implementation Steps

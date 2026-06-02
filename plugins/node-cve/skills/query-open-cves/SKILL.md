@@ -10,7 +10,7 @@ Use this skill when Phase 1 of the `node-cve:triage` command needs to fetch all 
 ## Prerequisites
 
 - `jira` CLI configured with valid credentials
-- Environment variables: `JIRA_API_TOKEN`, `JIRA_USERNAME`
+- Environment variables: `JIRA_API_TOKEN`
 - Network access to Jira instance
 
 ## Implementation Steps
