@@ -1,19 +1,21 @@
 FROM registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.25-openshift-4.22
 
+# Copy external rpm repos into the image, and tell the ART wrapper to append them
+ENV ART_DNF_WRAPPER_POLICY=append
+RUN rm /etc/yum.repos.d/ubi.repo
+COPY images/repos/*.repo /etc/yum.repos.d/
+COPY images/repos/RPM-GPG-KEY-* /etc/pki/rpm-gpg/
+
 # Install all system packages in a single dnf transaction to avoid repeated
 # metadata fetches (~800MB each). Disable foreign-arch repos to prevent
 # cross-architecture dependency resolution failures in CI.
 RUN dnf install -y \
-    --disablerepo='*-ppc64le' --disablerepo='*-s390x' --disablerepo='*-aarch64' \
-    'dnf-command(config-manager)' \
-    && dnf config-manager --add-repo https://cli.github.com/packages/rpm/gh-cli.repo \
-    --disablerepo='*-ppc64le' --disablerepo='*-s390x' --disablerepo='*-aarch64' \
-    && dnf install -y \
-    --disablerepo='*-ppc64le' --disablerepo='*-s390x' --disablerepo='*-aarch64' \
+    --disablerepo='*-ppc64le' --disablerepo='*-s390x' \
     python3.11 \
     python3.11-pip \
     python3.11-devel \
     gh \
+    claude-code \
     pcp \
     pcp-devel \
     pcp-export-pcp2json \
@@ -49,16 +51,11 @@ WORKDIR /workspace
 # Switch to claude user
 USER claude
 
-# Install Claude Code CLI using the official installation script
-RUN curl -fsSL https://claude.ai/install.sh | bash
-
 # In CI, OpenShift uses a random UID, but in the root group
 RUN chmod -R g+rwx /home/claude && \
   chmod -R g+rwx /opt/ai-helpers && \
   chmod -R g+rwx /workspace
 
-# Ensure ~/.local/bin is in PATH for the entrypoint
-ENV PATH="/home/claude/.local/bin:${PATH}"
 ENV CLAUDE_CONFIG_DIR="/home/claude/.claude"
 
 # Set Claude Code as the default command
