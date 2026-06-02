@@ -128,6 +128,8 @@ You MUST use the following prompt verbatim (substituting the placeholder values)
 >
 > **IMPORTANT** — Trace every failure to its specific root cause by examining actual logs. Never stop at high-level symptoms like "0 nodes ready", "operator degraded", or "containers are crash-looping". Download and read the actual log bundles, pod logs, and container previous logs. Cite specific error messages. The root cause must be actionable, not a restatement of the symptom.
 >
+> **Do NOT classify a failure as "infrastructure flake" or "transient" unless you have affirmative evidence** of an infrastructure problem (cloud API errors, quota exceeded, network timeouts from the cloud provider, Boskos lease failures, CI platform outages). The absence of an obvious code-level explanation does NOT make something infrastructure — it means you need to investigate deeper. Default to treating failures as potential product regressions until evidence proves otherwise.
+>
 > Return a concise summary including: failure type (install vs test), root cause, key error messages, and any relevant log excerpts. Do not ask user questions. Keep the output concise for inclusion in a summary report.
 >
 > If the job is an aggregated job (has `aggregated-` prefix in the name or an `aggregator` container/step), also return the **underlying job name** (e.g., `periodic-ci-openshift-release-main-ci-4.22-e2e-aws-upgrade-ovn-single-node`). This is found in the junit-aggregated.xml artifacts — each `<testcase>` has `<system-out>` YAML data with a `humanurl` field linking to individual runs whose URL path contains the underlying job name. The underlying job name cannot be derived from the aggregated job name — it must be extracted from the artifacts.
@@ -204,6 +206,8 @@ Score each (failed job, candidate PR) pair using the following weighted rubric:
 | Single candidate | +10 | Only one PR landed in the originating payload that touches the affected component |
 
 Maximum possible score is 130, capped at 100. Record the numeric score alongside qualitative rationale.
+
+**Apply the rubric mechanically.** Calculate the score by summing the weights for each signal that fires based on concrete evidence. Do NOT adjust the score downward based on speculative counter-arguments like "if this were the sole cause, other jobs would also fail" or "this could be a coincidence." If the error messages reference the PR's changes, that's +40 — the fact that some other jobs didn't fail doesn't negate the match. If the failure is new (streak=1) and the PR is the only one touching the component, those signals fire regardless of theoretical alternatives. Trust the rubric — it exists to prevent both over- and under-attribution.
 
 #### 6.2: Propose Revert Candidates
 
@@ -390,9 +394,9 @@ Use the `payload-autodl-json` skill to produce `payload-analysis-<sanitized_tag>
 
 See the `payload-autodl-json` skill for the complete schema, row cardinality rules, and field rules.
 
-### Step 9: Adversarial Review
+### Step 9: Completeness Review
 
-After generating the initial report and output files, launch a **dedicated subagent** to review the analysis methodology and depth. The reviewer validates that the investigation was thorough — it does not re-score candidates or override rubric-based confidence scores.
+After generating the initial report and output files, launch a **dedicated subagent** to check that the analysis is complete and well-supported. The reviewer catches lazy or shallow work — it does NOT challenge or re-score rubric-based confidence scores.
 
 The reviewer should receive **only** the following (NOT the full conversation history):
 
@@ -400,15 +404,10 @@ The reviewer should receive **only** the following (NOT the full conversation hi
 2. The scored candidate list with per-component rubric breakdowns from Step 6
 3. The `ANALYSIS_RESULT` blocks from all subagents in Step 4
 4. The revert recommendations (if any)
-5. **Methodology summary** from the parent agent:
-   - Which subagent skills were dispatched for each job (e.g., `prow-job-analyze-install-failure` for install failures, `prow-job-analyze-test-failure` for test failures)
-   - What artifacts each subagent examined (GCS logs, must-gather, pod logs, step logs)
-   - How PR correlation was performed (diff analysis, component matching, error message matching)
-   - Any jobs where subagent analysis was unavailable or incomplete
 
 Use this prompt for the reviewer:
 
-> You are a methodology reviewer for a payload failure analysis. Your role is to verify the investigation was thorough and used the right tools — NOT to re-score candidates or override the confidence rubric.
+> You are a completeness reviewer for a payload failure analysis. Your job is to catch gaps in coverage and shallow analysis — NOT to challenge correct conclusions or lower confidence scores.
 >
 > **Snapshot data**: {summary.json contents — metadata, failed jobs with streaks, test regressions}
 >
@@ -418,37 +417,34 @@ Use this prompt for the reviewer:
 >
 > **Revert recommendations**: {list of PRs recommended for revert, or "none"}
 >
-> **Methodology summary**: {which skills were used per job, what artifacts were examined, how PR correlation was done}
+> Check for these specific problems:
 >
-> Review the analysis for these specific concerns:
+> 1. **Missing skill invocations**: Were `prow-job-analyze-install-failure` and `prow-job-analyze-test-failure` skills actually loaded and used? A subagent that improvises without loading the appropriate skill produces shallow analysis.
 >
-> 1. **Wrong skill for the failure type**: Was `prow-job-analyze-install-failure` used for install failures and `prow-job-analyze-test-failure` for test failures? If a job has install-phase failures but was analyzed with the test failure skill, the root cause may be wrong.
+> 2. **Shallow root causes**: Do root cause summaries cite specific error messages, code paths, or log excerpts? Or do they just restate test names and job status? "Test X failed" is not a root cause. "Test X failed because pod Y OOMKilled at 512Mi limit after PR Z increased memory usage in function F" is a root cause.
 >
-> 2. **Shallow root cause analysis**: Do the root cause summaries cite specific error messages from logs, or do they just restate the test/job name? A good root cause traces the failure to a specific code path, binary, or configuration.
+> 3. **Incomplete coverage**: Are there failed jobs with no subagent analysis or with only a one-line summary? Every failed blocking job deserves a thorough investigation.
 >
-> 3. **Infrastructure misattribution**: Are infrastructure failures (cloud quota, API rate limits, CI platform issues, network timeouts) being blamed on code changes? Check if the `failure_type` is "infra" but a revert is still recommended.
+> 4. **Wrong skill for failure type**: Was an install failure analyzed with the test failure skill or vice versa?
 >
-> 4. **Intermittent pattern ignored**: Does the `failure_pattern` show intermittent behavior (e.g., "F S F F S F") but the analysis treats it as a solid regression?
->
-> 5. **Missing artifact examination**: Were GCS artifacts (pod logs, must-gather, step logs) actually downloaded and examined, or were conclusions drawn solely from job metadata?
->
-> 6. **Incomplete coverage**: Are there failed jobs that received no subagent analysis or only superficial analysis?
->
-> **Important: Do NOT override confidence scores.** The confidence rubric (Step 6) is mechanically applied based on concrete signals — new failure mode, error message match, component exclusivity, multi-job correlation. If a candidate scored high because multiple rubric components fired with evidence, that score is correct even if you think the underlying issue has a deeper root cause. Your job is to flag methodology gaps, not to second-guess whether a PR "really" caused the failure when the error messages and component matches say it did.
+> **Rules**:
+> - Do NOT suggest lowering confidence scores. If the rubric signals fired (error message match, new failure, component exclusivity), the score is correct. Period.
+> - Do NOT suggest that a failure "might be infrastructure" when there is positive evidence linking it to a PR. Infrastructure classification requires affirmative evidence (cloud API errors, quota limits, network timeouts) — not just uncertainty about the code change.
+> - Do NOT second-guess revert recommendations. When confidence >= 85 based on the rubric, the revert is warranted per OCP policy.
 >
 > For each issue found, provide:
 > - **Issue**: One-line description
 > - **Affected job(s)**: Which jobs are affected
-> - **Recommendation**: Deepen analysis (re-run subagent with different skill), add caveat to report, or flag for human review
+> - **Recommendation**: Re-run subagent with correct skill, deepen analysis, or add missing coverage
 >
-> If the methodology is sound, say so explicitly: "Investigation methodology is thorough — all failure types were analyzed with appropriate skills and artifacts."
+> If the analysis is thorough, say so: "Analysis is complete — all jobs investigated with appropriate skills and specific root causes identified."
 
 After receiving the reviewer's response:
 
-- If methodology gaps are found (wrong skill used, missing artifact examination): re-run the affected subagent analyses with the correct approach, then re-score. Update the HTML report and YAML/JSON files.
-- If only caveats are suggested: add them to the report without changing scores.
-- **Do not lower rubric-based confidence scores** based on the reviewer's opinion about root cause. The rubric is mechanical — if the signals fired (error message match, new failure, component match), the score stands. The reviewer can add context ("underlying issue may be pre-existing") as a caveat in the report, but the score and revert recommendation remain.
-- In either case, populate the "Adversarial Review" section (Step 7.6) in the HTML report with the reviewer's findings and any actions taken.
+- If coverage gaps are found (missing skill invocation, shallow analysis, wrong skill): re-run the affected subagent analyses, then re-score. Update the HTML report and YAML/JSON files.
+- If the analysis is already thorough: note this in the report.
+- **Never lower rubric-based confidence scores** based on the reviewer's response. The rubric is mechanical — if the signals fired, the score stands.
+- Populate the "Adversarial Review" section (Step 7.6) in the HTML report with the reviewer's findings and any actions taken.
 
 ### Step 10: Save and Present
 
