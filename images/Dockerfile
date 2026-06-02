@@ -1,32 +1,31 @@
 FROM registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.25-openshift-4.22
 
-# Install Python 3.11 (required for agent-eval-harness and modern type syntax)
+# Install all system packages in a single dnf transaction to avoid repeated
+# metadata fetches (~800MB each). Disable foreign-arch repos to prevent
+# cross-architecture dependency resolution failures in CI.
 RUN dnf install -y \
+    --disablerepo='*-ppc64le' --disablerepo='*-s390x' --disablerepo='*-aarch64' \
+    'dnf-command(config-manager)' \
+    && dnf config-manager --add-repo https://cli.github.com/packages/rpm/gh-cli.repo \
+    --disablerepo='*-ppc64le' --disablerepo='*-s390x' --disablerepo='*-aarch64' \
+    && dnf install -y \
+    --disablerepo='*-ppc64le' --disablerepo='*-s390x' --disablerepo='*-aarch64' \
     python3.11 \
     python3.11-pip \
     python3.11-devel \
-    && dnf clean all \
-    && alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1 \
-    && alternatives --set python3 /usr/bin/python3.11
-
-# Install common Python tools
-RUN python3 -m pip install --no-cache-dir \
-    pytest \
-    requests \
-    pyyaml
-
-# Install GitHub CLI
-RUN dnf install -y 'dnf-command(config-manager)' \
-    && dnf config-manager --add-repo https://cli.github.com/packages/rpm/gh-cli.repo \
-    && dnf install -y gh \
-    && dnf clean all
-
-# Install PCP tools with Python bindings
-RUN dnf install -y \
+    gh \
     pcp \
     pcp-devel \
     pcp-export-pcp2json \
     && dnf clean all \
+    && alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1 \
+    && alternatives --set python3 /usr/bin/python3.11
+
+# Install Python tools and PCP bindings
+RUN python3 -m pip install --no-cache-dir \
+    pytest \
+    requests \
+    pyyaml \
     && python3 -m pip install --no-cache-dir --use-pep517 pcp
 
 # Create claude user with root group for OpenShift compatibility
