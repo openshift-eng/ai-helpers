@@ -110,6 +110,23 @@ Store the PR data keyed by originating payload tag. These PRs are the **candidat
 
 For each failed blocking job in the **target payload**, launch a **parallel subagent** to investigate the failure. Pass the subagent the final Prow URL **and** all previous attempt URLs from Step 2.
 
+#### RHCOS Version Determination
+
+Before launching subagents, determine the RHCOS version for each failed job. Check the job name for these fragments **in order** (first match wins):
+
+1. Job name contains `rhcos9_10` → **heterogeneous** (mixed RHCOS 9 and RHCOS 10 node pools, or RHCOS upgrade during test)
+2. Job name contains `rhcos10` → **RHCOS 10**
+3. Job name contains `rhcos9` → **RHCOS 9** (explicit)
+4. No fragment → default based on the OCP major version **at install time** (not the payload version):
+   - OCP 4.x → **RHCOS 9 (default)**
+   - OCP 5.x → **RHCOS 9 (default)** (current default; will change to RHCOS 10)
+
+   For upgrade jobs, use the **install-time** OCP version (see "Upgrade Jobs" in [jobs.md](../../references/jobs.md)), not the payload/target version. This matters for major upgrades: a major upgrade job in a 5.x payload installs OCP 4.x, so its RHCOS default follows OCP 4.x rules.
+
+Pass the determined RHCOS version to each subagent in the prompt below.
+
+#### Subagent Prompt
+
 Each subagent should determine whether the failure is an install failure or a test failure by checking the JUnit results (e.g., look for `install should succeed*` test failures), then use the appropriate analysis skill. Almost all blocking jobs install a cluster and then run tests, so the job name alone does not tell you the failure type.
 
 You MUST use the following prompt verbatim (substituting the placeholder values) when launching each subagent. Do NOT paraphrase, shorten, or write your own prompt — the specific instructions below are critical for analysis quality:
@@ -120,6 +137,15 @@ You MUST use the following prompt verbatim (substituting the placeholder values)
 >
 > **Non-aggregated jobs**: **Examine the final attempt first**, then compare with previous attempts to determine whether all retries failed the same way. If retries show different failure modes, note this — it distinguishes consistent regressions from intermittent/infrastructure issues. Consistent failures across all attempts strongly indicate a product regression rather than flakiness.
 >
+> **RHCOS version**: This job's cluster runs on **<rhcos_version>**. <rhcos_context>
+
+Where `<rhcos_version>` is the version determined above, and `<rhcos_context>` is one of:
+- For **RHCOS 9** (explicit or default): "RHCOS 9 is based on RHEL 9 — the standard CoreOS variant for this OCP version."
+- For **RHCOS 10**: "RHCOS 10 is based on RHEL 10 with a different kernel, systemd, SELinux policy, and package versions than RHCOS 9. If the failure involves OS-level components (kernel, bootloader, rpm-ostree, MCO, Ignition), consider whether RHEL 10 differences could be the root cause."
+- For **heterogeneous (rhcos9_10)**: "This is a heterogeneous cluster with both RHCOS 9 and RHCOS 10 nodes. Failures may be specific to one node variant — check whether failing nodes are RHCOS 9 or RHCOS 10 when node-level logs are available."
+
+The prompt then continues with:
+
 > First, check the JUnit results or build log to determine whether this is an install failure (look for `install should succeed: overall` or similar install-related test failures) or a test failure (install passed, specific tests failed).
 >
 > Based on the failure type, use the appropriate skill:
@@ -144,6 +170,7 @@ ANALYSIS_RESULT:
 - underlying_job_name: <for aggregated jobs only, extracted from junit artifacts>
 - retries_consistent: yes|no|no_retries|only_final_examined
 - retry_summary: <brief comparison of failure modes across attempts, e.g. "all 3 attempts failed with same KAS crashloop" or "attempt 1 infra timeout, attempts 2-3 test failure", or "no retries" when there was only a single attempt>
+- rhcos_version: rhcos9|rhcos10|rhcos9_10|rhcos9-default|rhcos10-default
 ```
 
 **Note for aggregated jobs**: Since only the final attempt is examined (retries re-run aggregation only), set `retries_consistent: only_final_examined` and `retry_summary: "Aggregated job — only final attempt examined (retries re-run aggregation only)"`.
@@ -158,6 +185,11 @@ After collecting subagent results, look for patterns across multiple jobs:
 
 - **Same failure across a job family** (e.g., all `techpreview` jobs, all `fips` jobs, all `upgrade` jobs): This often indicates a failure specific to that feature set or configuration. Look at what differentiates that job family (feature gates, install-config options, test parameters).
 - **Same failure across multiple platforms**: This often points to a product bug in shared code, though cross-platform infrastructure issues (e.g., CI platform problems) are also possible.
+- **RHCOS variant isolation**: Check whether any failure's root cause or error pattern appears **only** in jobs of one RHCOS variant and **not** in jobs of the other variant. A failure is "variant-isolated" when:
+  - It appears in one or more RHCOS 10 jobs but in zero RHCOS 9 jobs → `failure_scope: "rhcos10-only"`
+  - It appears in one or more RHCOS 9 jobs but in zero RHCOS 10 jobs → `failure_scope: "rhcos9-only"`
+  - Jobs with `rhcos9_10` (heterogeneous) count toward both variants for this check
+  - Variant isolation is strong diagnostic context — it narrows the root cause to OS-specific changes (kernel, systemd, SELinux, package differences between RHEL 9 and RHEL 10).
 
 When patterns emerge, query Sippy for pass rates of related non-blocking jobs to see if the pattern extends beyond blocking jobs.
 
@@ -309,6 +341,7 @@ The report must include the following sections:
 
 A table showing ALL blocking jobs with columns:
 - Job Name
+- RHCOS (the RHCOS version badge for this job: `rhcos9`, `rhcos10`, `rhcos9_10`, or the default version. Use `badge-rhcos9` / `badge-rhcos10` / `badge-rhcos-mixed` CSS classes. When a failure is variant-isolated, add a `variant-isolated` class to highlight the badge)
 - Status (color-coded: green for passed, red for failed)
 - Streak (how many consecutive payloads it has been failing; "N/A" for passed jobs)
 - History (the failure_pattern across the lookback window, e.g., "F F F S F F", showing most recent first; use color-coded markers — red for F, green for S. Each marker should be a link to that job's Prow URL from that payload, when available from the lookback data)
@@ -323,10 +356,18 @@ For each failed job, a collapsible section containing:
   <summary class="failed-job">
     <span class="job-name">{job_name}</span>
     <span class="badge badge-{new|persistent}">{New Failure|Failing for N payloads}</span>
+    <span class="badge badge-{rhcos9|rhcos10|rhcos-mixed}">{RHCOS 9|RHCOS 10|RHCOS 9+10}</span>
   </summary>
   <div class="job-detail">
     <h4>Prow Job</h4>
     <p><a href="{prow_url}">{prow_url}</a></p>
+
+    <!-- Only include when failure is variant-isolated (see Cross-Job Pattern Recognition) -->
+    <div class="variant-callout">
+      This failure is isolated to RHCOS {version} jobs and does not appear in RHCOS {other_version} jobs,
+      indicating an OS-variant-specific root cause (e.g., kernel, systemd, SELinux, or package differences
+      between RHEL 9 and RHEL 10).
+    </div>
 
     <h4>Failure Analysis</h4>
     <div class="analysis">{analysis_from_subagent}</div>
@@ -484,6 +525,11 @@ The HTML must be fully self-contained with embedded CSS. Use a GitHub-inspired d
   .badge-infra { background: rgba(210,153,34,0.2); color: var(--orange); border: 1px solid var(--orange); }
   .badge-pass { background: rgba(63,185,80,0.15); color: var(--green); font-size: 0.75rem; padding: 0.1rem 0.5rem; }
   .badge-fail { background: rgba(248,81,73,0.15); color: var(--red); font-size: 0.75rem; padding: 0.1rem 0.5rem; }
+  .badge-rhcos9 { background: rgba(139,148,158,0.15); color: var(--text-muted); font-size: 0.75rem; }
+  .badge-rhcos10 { background: rgba(188,140,255,0.15); color: var(--purple); font-size: 0.75rem; }
+  .badge-rhcos-mixed { background: rgba(210,153,34,0.15); color: var(--orange); font-size: 0.75rem; }
+  .badge.variant-isolated { border: 1px solid currentColor; }
+  .variant-callout { background: rgba(188,140,255,0.1); border-left: 4px solid var(--purple); padding: 0.75rem 1rem; border-radius: 0 0.3rem 0.3rem 0; margin: 0.75rem 0; font-size: 0.9rem; }
   .card { background: var(--surface); border: 1px solid var(--border); border-radius: 0.5rem; padding: 1.25rem; margin: 1rem 0; }
   .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin: 1rem 0; }
   .stat { background: var(--surface); border: 1px solid var(--border); border-radius: 0.5rem; padding: 1rem; text-align: center; }
