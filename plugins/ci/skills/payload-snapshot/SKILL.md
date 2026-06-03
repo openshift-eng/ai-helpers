@@ -158,7 +158,7 @@ Lists all available streams for the payload's version.
 Comprehensive stream-level triage data — start here. Contains:
 - Payload metadata: `payload_tag`, `phase`, `release_url`, `architecture`, `stream`, `version`
 - Chain data: `chain_length`, `baseline_tag`, `hours_since_baseline`
-- `blocking_jobs.failed_jobs[]` — detailed objects with `name`, `state`, `prow_url`, `gcs_url`, `rhcos_version`, `streak` (streak_length, originating_payload, is_new_failure, failure_pattern), `build_log_errors`, `test_failure_count`, and relative paths to `job_json`, `junit_results`, `build_log`
+- `blocking_jobs.failed_jobs[]` — detailed objects with `name`, `state`, `prow_url`, `gcs_url`, and relative path `job_json`. May include: `rhcos_version`, `streak` (with `streak_length`, `originating_payload`, `is_new_failure`, `failure_pattern`), `build_log_errors`, `test_failure_count`, and relative paths `junit_results`, `build_log`
 - `informing_jobs.failed_jobs[]` — job name strings
 - `test_failures.blocking[]` — `test_name`, `jobs`, `first_failed_in`, `payloads_failing`, `failure_message`, `failure_text` (full, not truncated)
 - `payloads[]` — per-payload entries with `tag`, `phase`, relative file paths, and `prs[]` with component/diff/comments paths
@@ -193,7 +193,7 @@ The `rhcos_version` field is determined from the job name and OCP version:
 - `rhcos9_10` — heterogeneous cluster (mixed RHCOS 9 and 10 node pools)
 - `rhcos10` — RHCOS 10 only
 - `rhcos9` — RHCOS 9 (explicit)
-- `rhcos9-default` — no explicit fragment; defaulted based on OCP major version at install time
+- `rhcos9-default` — no explicit fragment; currently defaults to RHCOS 9 when no fragment is present
 
 ### `build_log.json` (failed blocking jobs only)
 

@@ -170,6 +170,7 @@ After collecting subagent results, look for patterns across multiple jobs:
 - **RHCOS variant isolation**: Check whether any failure's root cause or error pattern appears **only** in jobs of one RHCOS variant and **not** in jobs of the other variant. A failure is "variant-isolated" when:
   - It appears in one or more RHCOS 10 jobs but in zero RHCOS 9 jobs → `failure_scope: "rhcos10-only"`
   - It appears in one or more RHCOS 9 jobs but in zero RHCOS 10 jobs → `failure_scope: "rhcos9-only"`
+  - Jobs with `rhcos9-default` count as RHCOS 9 for this check
   - Jobs with `rhcos9_10` (heterogeneous) count toward both variants for this check
   - Variant isolation is strong diagnostic context — it narrows the root cause to OS-specific changes (kernel, systemd, SELinux, package differences between RHEL 9 and RHEL 10).
 
@@ -292,7 +293,7 @@ The report must include the following sections:
 
 A table showing ALL blocking jobs with columns:
 - Job Name
-- RHCOS (the RHCOS version badge for this job from the snapshot's `rhcos_version` field: use `badge-rhcos9` / `badge-rhcos10` / `badge-rhcos-mixed` CSS classes. When a failure is variant-isolated, add a `variant-isolated` class to highlight the badge)
+- RHCOS (the RHCOS version badge for this job from the snapshot's `rhcos_version` field: use `badge-rhcos9` / `badge-rhcos10` / `badge-rhcos-mixed` CSS classes; `rhcos9-default` renders with `badge-rhcos9`. When a failure is variant-isolated, add a `variant-isolated` class to highlight the badge)
 - Status (color-coded: green for passed, red for failed)
 - Streak (consecutive failing payloads; "N/A" for passed)
 - History (the `failure_pattern` from the snapshot, e.g., "F F F S F F", with color-coded markers)
