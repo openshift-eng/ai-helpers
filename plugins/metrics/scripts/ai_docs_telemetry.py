@@ -93,7 +93,7 @@ def detect_entry_point(files: List[FileAccess]) -> str:
             return "CLAUDE.md"
         if f.path.endswith("README.md"):
             return "README.md"
-        if f.tool in ("Grep", "Glob", "Bash"):
+        if f.tool in ("Grep", "Glob"):
             return "search"
 
     return "direct-path"
@@ -153,8 +153,6 @@ def process_session(session_path: str) -> Optional[TelemetryEvent]:
                 target = inp.get("path", "")
             elif tool_name == "Glob":
                 target = inp.get("pattern", "")
-            elif tool_name == "Bash":
-                target = inp.get("command", "")
             else:
                 continue
 
