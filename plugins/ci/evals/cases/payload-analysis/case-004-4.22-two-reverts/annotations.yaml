@@ -1,0 +1,30 @@
+expected_phase: Rejected
+expected_failed_job_count: 3
+has_revert_candidates: true
+force_accept_expected: false
+
+expected_candidates:
+  - pr_url: "https://github.com/openshift/cluster-ingress-operator/pull/1354"
+    component: "cluster-ingress-operator"
+    min_confidence: 85
+    expected_confidence: 95
+    description: "Replaced OLM-based Istio install with Sail Library, causing GatewayAPIController failures"
+    expected_failing_jobs:
+      - "e2e-aws-ovn-techpreview"
+      - "e2e-aws-ovn-techpreview-serial"
+  - pr_url: "https://github.com/openshift/oc/pull/2232"
+    component: "oc"
+    min_confidence: 85
+    expected_confidence: 90
+    description: "Changed manifest reading to in-memory, causing nil pointer dereference in oc adm release mirror"
+    expected_failing_jobs:
+      - "metal-ipi-ovn-ipv6"
+
+notes: >
+  Payload 4.22.0-0.nightly-2026-03-20-053450 was rejected with 3 failed
+  blocking jobs: aws-ovn-techpreview (test failure: GatewayAPI/OSSM Sail
+  Library migration), aws-ovn-techpreview-serial-3of3 (same root cause),
+  and metal-ipi-ovn-ipv6 (install failure: oc mirror nil pointer crash).
+  Two high-confidence revert candidates: cluster-ingress-operator#1354
+  (score 95, caused GatewayAPI failures) and oc#2232 (score 90, caused
+  mirror crash).

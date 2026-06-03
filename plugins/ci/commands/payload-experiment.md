@@ -24,7 +24,7 @@ The `ci:payload-experiment` command opens draft revert PRs for medium-confidence
 All state is tracked in the payload results YAML via the `payload-results-yaml` skill — no separate tracking file is created.
 
 This command is one of three composable stages in the payload triage pipeline:
-1. `/ci:analyze-payload` — produces the payload results YAML
+1. `/ci:payload-analysis` — produces the payload results YAML
 2. `/ci:payload-revert` — stages reverts for HIGH confidence candidates
 3. `/ci:payload-experiment` — experimentally tests MEDIUM confidence candidates (this command)
 
@@ -35,12 +35,12 @@ This command is one of three composable stages in the payload triage pipeline:
 
 ## Implementation
 
-1. **Parse the payload tag** from the argument. Extract `version`, `stream`, and `architecture` from the tag (see `analyze-payload` Step 1 for parsing rules).
+1. **Parse the payload tag** from the argument. Extract `version`, `stream`, and `architecture` from the tag (see `payload-analysis` Step 1 for parsing rules).
 
 2. **Read the payload results YAML** using the `payload-results-yaml` skill: Look for `payload-results-{tag}.yaml` in the current working directory. If not found, print an error and exit:
    ```
    Error: Payload results YAML not found for {payload_tag}.
-   Run `/ci:analyze-payload {payload_tag}` first to generate it.
+   Run `/ci:payload-analysis {payload_tag}` first to generate it.
    ```
 
 3. **Detect Phase 2 resume**: If the results YAML contains any action entry with `type: "experiment"` and `status: "pending"`, jump to Phase 2 (step 5). Phase 2 processes only pending experiments — candidates with other statuses are left unchanged.
@@ -60,7 +60,7 @@ This command is one of three composable stages in the payload triage pipeline:
 
 1. **Start experiments after analysis**:
    ```
-   /ci:analyze-payload 4.22.0-0.nightly-2026-02-25-152806
+   /ci:payload-analysis 4.22.0-0.nightly-2026-02-25-152806
    /ci:payload-experiment 4.22.0-0.nightly-2026-02-25-152806
    ```
 
@@ -71,7 +71,7 @@ This command is one of three composable stages in the payload triage pipeline:
 
 ## Arguments
 
-- $1: A full payload tag (e.g., `4.22.0-0.nightly-2026-02-25-152806`). Must match the tag used with `/ci:analyze-payload`. (required)
+- $1: A full payload tag (e.g., `4.22.0-0.nightly-2026-02-25-152806`). Must match the tag used with `/ci:payload-analysis`. (required)
 
 ## Skills Used
 

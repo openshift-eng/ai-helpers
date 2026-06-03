@@ -1,0 +1,37 @@
+expected_phase: Rejected
+expected_failed_job_count: 3
+has_revert_candidates: true
+force_accept_expected: false
+
+expected_candidates:
+  - pr_url: "https://github.com/openshift/cluster-authentication-operator/pull/839"
+    component: "cluster-authentication-operator"
+    min_confidence: 85
+    expected_confidence: 92
+    description: "Ginkgo v2 migration broke test binary stdout output, corrupting JSON test listing in openshift-tests"
+    expected_failing_jobs:
+      - "metal-ipi-ovn-ipv4"
+      - "metal-ipi-ovn-ipv6"
+
+expected_ci_config_issues:
+  - pr_url: "https://github.com/openshift/release/pull/76852"
+    repo: "openshift/release"
+    description: "Changed vSphere VCM default lease to multi-tenant, breaking UPI workflows that require single-tenant leases"
+    expected_failing_jobs:
+      - "install-analysis-all"
+
+notes: >
+  Mixed-root-cause case combining a product regression and a CI configuration
+  issue. Two metal-ipi jobs fail because cluster-authentication-operator#839
+  (Ginkgo v2 migration) introduced a warning message to stdout that corrupts
+  JSON test listing in openshift-tests. The install-analysis-all job fails
+  because openshift/release#76852 changed the default vSphere VCM lease type
+  from single-tenant to multi-tenant, breaking UPI workflows.
+
+  The CI config issue is the key test: openshift/release PRs do NOT appear in
+  payload changelogs. The agent must recognize that install-analysis-all is a
+  CI step failure (not a product bug), dig into the Prow job to find the
+  underlying vsphere-upi error ("SUBNETS.JSON does not contain enough
+  addresses... expected to be a single-tenant lease"), then search
+  openshift/release for recent commits matching the error. This tests the
+  "look beyond the snapshot" capability via the prow-job-analyze sub-skills.

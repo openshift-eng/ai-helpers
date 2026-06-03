@@ -1,0 +1,9 @@
+expected_phase: Rejected
+expected_failed_job_count: 4
+has_revert_candidates: false
+force_accept_expected: false
+notes: >
+  Complex case: 4 failed blocking jobs (aws-ovn-serial, aws-ovn-single-node-upgrade,
+  aws-ovn-upgrade, and one more). Tests the skill's ability to launch parallel
+  subagents, correlate multiple failures, and identify patterns across job families.
+  Previous payload was accepted, so these may be new failures.

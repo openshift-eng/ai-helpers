@@ -1,0 +1,5 @@
+{
+    "table_name": "payload_triage",
+    "schema": {"payload_tag": "string"},
+    "rows": []
+}

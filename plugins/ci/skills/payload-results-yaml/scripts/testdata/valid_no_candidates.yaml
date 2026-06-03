@@ -1,0 +1,12 @@
+metadata:
+  payload_tag: "5.0.0-0.ci-2026-05-01-212308"
+  version: "5.0"
+  stream: "ci"
+  architecture: "amd64"
+
+failing_jobs:
+  - job_name: "periodic-ci-openshift-release-main-ci-5.0-e2e-gcp"
+    failure_type: "infra"
+    root_cause_summary: "GCP quota exceeded"
+
+candidates: []

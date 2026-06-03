@@ -1,0 +1,9 @@
+payload_tag: "5.0.0-0.nightly-2026-05-01-200018"
+phase: "Rejected"
+release_stream: "5.0.0-0.nightly"
+architecture: "amd64"
+
+failed_jobs:
+  - job_name: "aws-ovn-techpreview-serial"
+    failure_type: "test_failure"
+    streak_length: 4
