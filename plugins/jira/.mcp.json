@@ -2,7 +2,7 @@
   "mcpServers": {
     "atlassian": {
       "type": "http",
-      "url": "https://mcp.atlassian.com/v1/mcp"
+      "url": "https://mcp.atlassian.com/v1/mcp?capabilities=READ_JIRA,WRITE_JIRA,SEARCH_JIRA,READ_CONFLUENCE,WRITE_CONFLUENCE,SEARCH_CONFLUENCE,SEARCH_ATLASSIAN"
     }
   }
 }
