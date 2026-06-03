@@ -82,6 +82,7 @@ From `summary.json` top-level fields:
 
 From `summary.json` → `blocking_jobs.failed_jobs[]`, each entry contains:
 - `name`, `state`, `prow_url`, `gcs_url`, `is_aggregated`, `retries`
+- `rhcos_version`: the RHCOS variant for this job (`rhcos9`, `rhcos10`, `rhcos9_10`, or `rhcos9-default`)
 - `streak`: `streak_length`, `originating_payload`, `is_new_failure`, `failure_pattern`
 - `build_log_errors`, `test_failure_count`
 - Paths: `job_json`, `junit_results`, `build_log`
@@ -120,6 +121,8 @@ You MUST use the following prompt verbatim (substituting the placeholder values)
 >
 > **Non-aggregated jobs**: **Examine the final attempt first**, then compare with previous attempts to determine whether all retries failed the same way. If retries show different failure modes, note this — it distinguishes consistent regressions from intermittent/infrastructure issues. Consistent failures across all attempts strongly indicate a product regression rather than flakiness.
 >
+> **RHCOS version**: This job's cluster runs on **<rhcos_version>**. <rhcos_context>
+>
 > First, check the JUnit results or build log to determine whether this is an install failure (look for `install should succeed: overall` or similar install-related test failures) or a test failure (install passed, specific tests failed).
 >
 > Based on the failure type, use the appropriate skill:
@@ -134,6 +137,11 @@ You MUST use the following prompt verbatim (substituting the placeholder values)
 >
 > If the job is an aggregated job (has `aggregated-` prefix in the name or an `aggregator` container/step), also return the **underlying job name** (e.g., `periodic-ci-openshift-release-main-ci-4.22-e2e-aws-upgrade-ovn-single-node`). This is found in the junit-aggregated.xml artifacts — each `<testcase>` has `<system-out>` YAML data with a `humanurl` field linking to individual runs whose URL path contains the underlying job name. The underlying job name cannot be derived from the aggregated job name — it must be extracted from the artifacts.
 
+Where `<rhcos_version>` is the `rhcos_version` field from the snapshot's failed job entry, and `<rhcos_context>` is one of:
+- For **`rhcos9`** or **`rhcos9-default`**: "RHCOS 9 is based on RHEL 9 — the standard CoreOS variant for this OCP version."
+- For **`rhcos10`**: "RHCOS 10 is based on RHEL 10 with a different kernel, systemd, SELinux policy, and package versions than RHCOS 9. If the failure involves OS-level components (kernel, bootloader, rpm-ostree, MCO, Ignition), consider whether RHEL 10 differences could be the root cause."
+- For **`rhcos9_10`** (heterogeneous): "This is a heterogeneous cluster with both RHCOS 9 and RHCOS 10 nodes. Failures may be specific to one node variant — check whether failing nodes are RHCOS 9 or RHCOS 10 when node-level logs are available."
+
 **Structured Return Format**: Instruct each subagent to include an `ANALYSIS_RESULT` block at the end of its response:
 
 ```
@@ -146,6 +154,7 @@ ANALYSIS_RESULT:
 - underlying_job_name: <for aggregated jobs only, extracted from junit artifacts>
 - retries_consistent: yes|no|no_retries|only_final_examined
 - retry_summary: <brief comparison of failure modes across attempts, e.g. "all 3 attempts failed with same KAS crashloop" or "attempt 1 infra timeout, attempts 2-3 test failure", or "no retries" when there was only a single attempt>
+- rhcos_version: rhcos9|rhcos10|rhcos9_10|rhcos9-default
 ```
 
 **Note for aggregated jobs**: Since only the final attempt is examined (retries re-run aggregation only), set `retries_consistent: only_final_examined` and `retry_summary: "Aggregated job — only final attempt examined (retries re-run aggregation only)"`.
@@ -158,6 +167,12 @@ After collecting subagent results, look for patterns across multiple jobs:
 
 - **Same failure across a job family** (e.g., all `techpreview` jobs, all `fips` jobs, all `upgrade` jobs): This often indicates a failure specific to that feature set or configuration.
 - **Same failure across multiple platforms**: This often points to a product bug in shared code.
+- **RHCOS variant isolation**: Check whether any failure's root cause or error pattern appears **only** in jobs of one RHCOS variant and **not** in jobs of the other variant. A failure is "variant-isolated" when:
+  - It appears in one or more RHCOS 10 jobs but in zero RHCOS 9 jobs → `failure_scope: "rhcos10-only"`
+  - It appears in one or more RHCOS 9 jobs but in zero RHCOS 10 jobs → `failure_scope: "rhcos9-only"`
+  - Jobs with `rhcos9-default` count as RHCOS 9 for this check
+  - Jobs with `rhcos9_10` (heterogeneous) count toward both variants for this check
+  - Variant isolation is strong diagnostic context — it narrows the root cause to OS-specific changes (kernel, systemd, SELinux, package differences between RHEL 9 and RHEL 10).
 
 ### Step 4b: Consult Previous Claude Analyses
 
@@ -278,6 +293,7 @@ The report must include the following sections:
 
 A table showing ALL blocking jobs with columns:
 - Job Name
+- RHCOS (the RHCOS version badge for this job from the snapshot's `rhcos_version` field: use `badge-rhcos9` / `badge-rhcos10` / `badge-rhcos-mixed` CSS classes; `rhcos9-default` renders with `badge-rhcos9`. When a failure is variant-isolated, add a `variant-isolated` class to highlight the badge)
 - Status (color-coded: green for passed, red for failed)
 - Streak (consecutive failing payloads; "N/A" for passed)
 - History (the `failure_pattern` from the snapshot, e.g., "F F F S F F", with color-coded markers)
@@ -292,10 +308,18 @@ For each failed job, a collapsible section containing:
   <summary class="failed-job">
     <span class="job-name">{job_name}</span>
     <span class="badge badge-{new|persistent}">{New Failure|Failing for N payloads}</span>
+    <span class="badge badge-{rhcos9|rhcos10|rhcos-mixed}">{RHCOS 9|RHCOS 10|RHCOS 9+10}</span>
   </summary>
   <div class="detail-body">
     <h4>Prow Job</h4>
     <p><a href="{prow_url}">{prow_url}</a> | <a href="{gcs_url}">GCS Artifacts</a></p>
+
+    <!-- Only include when failure is variant-isolated (see Cross-Job Pattern Recognition) -->
+    <div class="variant-callout">
+      This failure is isolated to RHCOS {version} jobs and does not appear in RHCOS {other_version} jobs,
+      indicating an OS-variant-specific root cause (e.g., kernel, systemd, SELinux, or package differences
+      between RHEL 9 and RHEL 10).
+    </div>
 
     <h4>Failure Analysis</h4>
     <div class="analysis">{analysis_from_subagent}</div>
@@ -387,6 +411,16 @@ The HTML must be fully self-contained with embedded CSS. Use a GitHub-inspired d
 ```
 
 Follow the styling conventions from the existing report format. All `<a>` links must use `target="_blank"`.
+
+Include these RHCOS-specific styles:
+
+```css
+.badge-rhcos9 { background: rgba(139,148,158,0.15); color: var(--text-muted); font-size: 0.75rem; }
+.badge-rhcos10 { background: rgba(188,140,255,0.15); color: var(--purple); font-size: 0.75rem; }
+.badge-rhcos-mixed { background: rgba(210,153,34,0.15); color: var(--orange); font-size: 0.75rem; }
+.badge.variant-isolated { border: 1px solid currentColor; }
+.variant-callout { background: rgba(188,140,255,0.1); border-left: 4px solid var(--purple); padding: 0.75rem 1rem; border-radius: 0 0.3rem 0.3rem 0; margin: 0.75rem 0; font-size: 0.9rem; }
+```
 
 ### Step 8: Generate JSON Data File
 

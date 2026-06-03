@@ -2,7 +2,7 @@
 
 This extension provides commands and skills for various development tasks.
 Commands are organized by topic using directory-based namespacing
-(e.g. `/ci:analyze-payload`, `/git:commit-suggest`, `/jira:create`).
+(e.g. `/ci:payload-analysis`, `/git:commit-suggest`, `/jira:create`).
 
 ## Available command groups
 
