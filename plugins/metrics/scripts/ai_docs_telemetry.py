@@ -3,7 +3,8 @@
 AI Docs Telemetry Analysis Script
 
 Analyzes Claude Code session logs to track ai-docs usage patterns.
-Parses session JSONL files to extract Read tool calls to ai-docs files.
+Parses session JSONL files to extract tool calls (Read, Grep, Glob, Bash)
+that reference ai-docs files.
 
 Usage:
   ai_docs_telemetry.py -scan [-project <name>]
@@ -12,7 +13,6 @@ Usage:
 
 import sys
 import json
-import os
 import pathlib
 import datetime
 import argparse
@@ -26,6 +26,7 @@ class FileAccess:
     path: str
     sequence: int
     time: str
+    tool: str = "Read"
 
 
 @dataclass
@@ -43,14 +44,6 @@ class RepositoryInfo:
 
 
 @dataclass
-class DocumentationInfo:
-    """Documentation usage information."""
-    entry_point: str
-    files_accessed: List[Dict[str, Any]]
-    total_files: int
-
-
-@dataclass
 class TelemetryEvent:
     """Complete telemetry event."""
     event_type: str
@@ -60,6 +53,14 @@ class TelemetryEvent:
     platform: Dict[str, str]
     repository: Dict[str, str]
     documentation: Dict[str, Any]
+
+
+_AI_DOCS_MARKERS = ("ai-docs", "AGENTS.md", "CLAUDE.md")
+
+
+def _is_ai_docs_ref(value: str) -> bool:
+    """Return True if value references an ai-docs file or a known index file."""
+    return any(marker in value for marker in _AI_DOCS_MARKERS)
 
 
 def extract_repo_info(session_path: str) -> RepositoryInfo:
@@ -85,13 +86,17 @@ def detect_entry_point(files: List[FileAccess]) -> str:
     if not files:
         return "unknown"
 
-    first = files[0].path
-    if first.endswith("AGENTS.md") or first.endswith("CLAUDE.md"):
-        return "AGENTS.md"
-    if first.endswith("README.md"):
-        return "README.md"
+    for f in files:
+        if f.path.endswith("AGENTS.md"):
+            return "AGENTS.md"
+        if f.path.endswith("CLAUDE.md"):
+            return "CLAUDE.md"
+        if f.path.endswith("README.md"):
+            return "README.md"
+        if f.tool in ("Grep", "Glob", "Bash"):
+            return "search"
 
-    return "direct-search"
+    return "direct-path"
 
 
 def process_session(session_path: str) -> Optional[TelemetryEvent]:
@@ -108,6 +113,7 @@ def process_session(session_path: str) -> Optional[TelemetryEvent]:
 
     lines = content.split('\n')
     ai_docs_files: List[FileAccess] = []
+    sub_agents: List[Dict] = []
     session_id = pathlib.Path(session_path).stem
 
     for line in lines:
@@ -127,34 +133,56 @@ def process_session(session_path: str) -> Optional[TelemetryEvent]:
         content_arr = msg.get("content", [])
 
         for item in content_arr:
-            if not isinstance(item, dict):
+            if not isinstance(item, dict) or item.get("type") != "tool_use":
                 continue
 
-            if item.get("type") == "tool_use" and item.get("name") == "Read":
-                input_data = item.get("input", {})
-                file_path = input_data.get("file_path", "")
+            tool_name = item.get("name", "")
+            inp = item.get("input", {})
 
-                # Check if it's an ai-docs file or AGENTS.md
-                if ("ai-docs/" in file_path or
-                    file_path.endswith("AGENTS.md") or
-                    file_path.endswith("CLAUDE.md")):
+            if tool_name == "Agent":
+                sub_agents.append({
+                    "spawned_at":  event.get("timestamp", ""),
+                    "description": inp.get("description", ""),
+                })
+                continue
 
-                    timestamp = event.get("timestamp", datetime.datetime.now().isoformat())
+            # Extract the target string for each supported tool
+            if tool_name == "Read":
+                target = inp.get("file_path", "")
+            elif tool_name == "Grep":
+                target = inp.get("path", "")
+            elif tool_name == "Glob":
+                target = inp.get("pattern", "")
+            elif tool_name == "Bash":
+                target = inp.get("command", "")
+            else:
+                continue
 
-                    ai_docs_files.append(FileAccess(
-                        path=file_path,
-                        sequence=len(ai_docs_files) + 1,
-                        time=timestamp
-                    ))
+            if target and _is_ai_docs_ref(target):
+                timestamp = event.get("timestamp", datetime.datetime.now().isoformat())
+                ai_docs_files.append(FileAccess(
+                    path=target,
+                    sequence=len(ai_docs_files) + 1,
+                    time=timestamp,
+                    tool=tool_name,
+                ))
 
     if not ai_docs_files:
         return None
+
+    # Deduplicate: keep first occurrence of each path
+    seen_paths: set = set()
+    unique_files: List[FileAccess] = []
+    for f in ai_docs_files:
+        if f.path not in seen_paths:
+            seen_paths.add(f.path)
+            unique_files.append(f)
 
     # Extract repository info
     repo_info = extract_repo_info(session_path)
 
     # Build telemetry event
-    event = TelemetryEvent(
+    telemetry = TelemetryEvent(
         event_type="ai_docs_usage",
         version="1.0",
         timestamp=datetime.datetime.now().isoformat(),
@@ -162,13 +190,17 @@ def process_session(session_path: str) -> Optional[TelemetryEvent]:
         platform=asdict(PlatformInfo()),
         repository=asdict(repo_info),
         documentation={
-            "entry_point": detect_entry_point(ai_docs_files),
-            "files_accessed": [asdict(f) for f in ai_docs_files],
-            "total_files": len(ai_docs_files)
+            "entry_point":       detect_entry_point(ai_docs_files),
+            "files_accessed":    [asdict(f) for f in ai_docs_files],
+            "unique_files":      [asdict(f) for f in unique_files],
+            "total_accesses":    len(ai_docs_files),
+            "unique_file_count": len(unique_files),
+            "total_files":       len(unique_files),
+            "sub_agents":        sub_agents,
         }
     )
 
-    return event
+    return telemetry
 
 
 def scan_recent_sessions(project_filter: Optional[str] = None) -> List[TelemetryEvent]:
@@ -203,7 +235,7 @@ def scan_recent_sessions(project_filter: Optional[str] = None) -> List[Telemetry
         # Quick pre-filter: check if file contains ai-docs markers
         try:
             content = session_file.read_text()
-            if not ("ai-docs/" in content or "AGENTS.md" in content):
+            if not any(marker in content for marker in _AI_DOCS_MARKERS):
                 continue
         except Exception:
             continue
@@ -235,9 +267,7 @@ def main():
 
     if args.scan:
         events = scan_recent_sessions(args.project)
-        if events:
-            # Output as JSON array
-            print(json.dumps([asdict(e) for e in events], indent=2))
+        print(json.dumps([asdict(e) for e in events], indent=2))
     elif args.session:
         event = process_session(args.session)
         if event:
