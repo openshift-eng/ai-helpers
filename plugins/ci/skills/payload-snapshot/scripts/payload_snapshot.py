@@ -115,6 +115,7 @@ class JobInfo:
     is_aggregated: bool
     gcs_bucket_path: str
     gcs_url: str = ""
+    rhcos_version: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -632,7 +633,7 @@ class JobCollector(Collector):
         self.job = job
 
     def _fetch(self) -> dict:
-        return {
+        data = {
             "name": self.job.name,
             "state": self.job.state,
             "lifecycle": self.job.lifecycle,
@@ -643,6 +644,9 @@ class JobCollector(Collector):
             "is_aggregated": self.job.is_aggregated,
             "gcs_bucket_path": self.job.gcs_bucket_path,
         }
+        if self.job.rhcos_version:
+            data["rhcos_version"] = self.job.rhcos_version
+        return data
 
 
 class JUnitCollector(Collector):
@@ -1230,6 +1234,10 @@ class SummaryGenerator:
                 ),
             }
 
+            rhcos = job_data.get("rhcos_version", "")
+            if rhcos:
+                entry["rhcos_version"] = rhcos
+
             streak_data = self.streaks.get(job_name)
             if streak_data:
                 entry["streak"] = streak_data
@@ -1346,6 +1354,9 @@ class SummaryGenerator:
                 if job_data:
                     job_entry["state"] = job_data.get("state", "")
                     job_entry["gcs_url"] = job_data.get("gcs_url", "")
+                    rhcos = job_data.get("rhcos_version", "")
+                    if rhcos:
+                        job_entry["rhcos_version"] = rhcos
                 job_paths[lifecycle].append(job_entry)
 
         return job_paths
@@ -1523,7 +1534,7 @@ class Snapshotter:
             if not payload_data:
                 continue
 
-            jobs = _extract_jobs(payload_data)
+            jobs = _extract_jobs(payload_data, self.tag.version)
             for job in jobs:
                 job_path = os.path.join(
                     tag_dir, "jobs", job.lifecycle, job.name, "job.json"
@@ -1880,7 +1891,7 @@ def _prow_url_to_gcs_bucket_path(prow_url: str) -> Optional[str]:
     return prow_url[len(PROW_VIEW_PREFIX):]
 
 
-def _extract_jobs(payload_data: dict) -> list[JobInfo]:
+def _extract_jobs(payload_data: dict, version: str = "") -> list[JobInfo]:
     """Extract job metadata from a payload.json response."""
     jobs = []
     for lifecycle, key in [("blocking", "blockingJobs"),
@@ -1890,6 +1901,7 @@ def _extract_jobs(payload_data: dict) -> list[JobInfo]:
             url = info.get("url", "")
             gcs_path = _prow_url_to_gcs_bucket_path(url) or ""
             gcs_url = f"{GCSWEB_BASE}/{gcs_path}/" if gcs_path else ""
+            rhcos = _determine_rhcos_version(name, version) if version else ""
             jobs.append(JobInfo(
                 name=name,
                 state=info.get("state", ""),
@@ -1900,8 +1912,40 @@ def _extract_jobs(payload_data: dict) -> list[JobInfo]:
                 is_aggregated=name.startswith("aggregated-"),
                 gcs_bucket_path=gcs_path,
                 gcs_url=gcs_url,
+                rhcos_version=rhcos,
             ))
     return jobs
+
+
+def _determine_rhcos_version(job_name: str, version: str) -> str:
+    """Determine RHCOS version for a job based on its name and OCP version.
+
+    Checks job name fragments in priority order (first match wins):
+      1. rhcos9_10 -> heterogeneous (mixed RHCOS 9 and 10)
+      2. rhcos10   -> RHCOS 10
+      3. rhcos9    -> RHCOS 9 (explicit)
+      4. no match  -> default by OCP major version at install time
+
+    For upgrade jobs, the install-time OCP version determines the default,
+    not the payload version.  Major upgrades in a 5.x payload install 4.x.
+    """
+    if "rhcos9_10" in job_name:
+        return "rhcos9_10"
+    if "rhcos10" in job_name:
+        return "rhcos10"
+    if "rhcos9" in job_name:
+        return "rhcos9"
+
+    install_version = version
+    if "upgrade" in job_name and "major" in job_name:
+        major = int(version.split(".")[0])
+        if major >= 5:
+            install_version = f"{major - 1}.{version.split('.')[1]}"
+
+    major = int(install_version.split(".")[0])
+    if major >= 5:
+        return "rhcos9-default"
+    return "rhcos9-default"
 
 
 # ---------------------------------------------------------------------------
