@@ -11,7 +11,7 @@
       "name": "git",
       "source": "./plugins/git",
       "description": "Git Plugin",
-      "version": "0.0.5"
+      "version": "0.0.6"
     },
     {
       "name": "hello-world",
@@ -23,25 +23,25 @@
       "name": "jira",
       "source": "./plugins/jira",
       "description": "A plugin to automate tasks with Jira",
-      "version": "0.4.5"
+      "version": "0.7.1"
     },
     {
       "name": "ci",
       "source": "./plugins/ci",
       "description": "A plugin to work with OpenShift CI and analyze Prow job results",
-      "version": "0.0.40"
+      "version": "0.0.45"
     },
     {
       "name": "teams",
       "source": "./plugins/teams",
       "description": "Team structure knowledge and health analysis commands for OpenShift teams",
-      "version": "0.0.14"
+      "version": "0.0.15"
     },
     {
       "name": "snowflake",
       "source": "./plugins/snowflake",
       "description": "Snowflake data analysis commands for engineering metrics and reports",
-      "version": "0.4.0"
+      "version": "0.4.1"
     },
     {
       "name": "sosreport",
@@ -59,7 +59,7 @@
       "name": "olm",
       "source": "./plugins/olm",
       "description": "OLM (Operator Lifecycle Manager) plugin for operator management and debugging",
-      "version": "0.1.1"
+      "version": "0.1.2"
     },
     {
       "name": "olm-team",
@@ -83,13 +83,13 @@
       "name": "openshift",
       "source": "./plugins/openshift",
       "description": "OpenShift development utilities and helpers",
-      "version": "0.0.5"
+      "version": "0.0.6"
     },
     {
       "name": "openshift-tls-profile",
       "source": "./plugins/openshift-tls-profile",
       "description": "Implementation requirements and details for OpenShift TLS security profiles",
-      "version": "0.0.1"
+      "version": "0.0.2"
     },
     {
       "name": "etcd",
@@ -119,19 +119,19 @@
       "name": "node-tuning",
       "source": "./plugins/node-tuning",
       "description": "Generate and analyze OpenShift node tuning profiles",
-      "version": "1.0.0"
+      "version": "1.0.1"
     },
     {
       "name": "node",
       "source": "./plugins/node",
       "description": "Kubernetes and OpenShift node health monitoring and diagnostics",
-      "version": "0.0.2"
+      "version": "0.0.3"
     },
     {
       "name": "bigquery",
       "source": "./plugins/bigquery",
       "description": "BigQuery analysis utilities",
-      "version": "0.0.4"
+      "version": "0.0.6"
     },
     {
       "name": "workspaces",
@@ -143,19 +143,19 @@
       "name": "code-review",
       "source": "./plugins/code-review",
       "description": "Automated code quality review with language-aware analysis for pre-commit verification",
-      "version": "0.0.8"
+      "version": "0.0.9"
     },
     {
       "name": "golang",
       "source": "./plugins/golang",
       "description": "Go development tools: gopls MCP server, LSP integration, automatic gofmt formatting, and golangci-lint linting",
-      "version": "0.2.0"
+      "version": "0.3.0"
     },
     {
       "name": "ote-migration",
       "source": "./plugins/ote-migration",
       "description": "Automate OpenShift Tests Extension (OTE) migration for component repositories",
-      "version": "0.0.1"
+      "version": "0.0.2"
     },
     {
       "name": "console",
@@ -167,7 +167,7 @@
       "name": "rds-analyzer",
       "source": "./plugins/rds-analyzer",
       "description": "RDS Analyzer workflow: cluster-compare JSON to deviation reports (text/HTML/reporting) and Jira follow-up",
-      "version": "0.0.1"
+      "version": "0.0.2"
     },
     {
       "name": "ai-sbom",
