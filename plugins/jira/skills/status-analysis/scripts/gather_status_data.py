@@ -1222,7 +1222,7 @@ class StatusDataGatherer:
 
             # Build issue data
             assignee = fields.get("assignee") or {}
-            labels = [l for l in fields.get("labels", []) if isinstance(l, str)]
+            labels = [label for label in fields.get("labels", []) if isinstance(label, str)]
             issue_data = {
                 "issue": {
                     "key": issue_key,

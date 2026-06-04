@@ -68,8 +68,10 @@ def is_significant(d: dict) -> bool:
             field_id = str(item.get("fieldId", ""))
             if "Status Summary" in field or "customfield_12320841" in field_id:
                 for color in ("Red", "Yellow", "Green"):
-                    from_has = color in (item.get("fromString") or "")
-                    to_has = color in (item.get("toString") or "")
+                    before = str(item.get("from", "") or "")
+                    after = str(item.get("to", "") or "")
+                    from_has = color in before
+                    to_has = color in after
                     if from_has != to_has:
                         color_changed = True
 
@@ -111,7 +113,7 @@ def summarize(path: str, date_start: str | None = None) -> None:
     print(f"=== Changelog in range ({len(changelog)} entries) ===")
     for c in changelog:
         items_str = ", ".join(
-            f"{i.get('field', '?')}: {i.get('fromString', '?')} -> {i.get('toString', '?')}"
+            f"{i.get('field', '?')}: {i.get('from', '?')} -> {i.get('to', '?')}"
             for i in c.get("items", [])
         )
         print(f"  {c['date'][:10]} by {c.get('author', '?')}: {items_str}")
@@ -237,7 +239,7 @@ if __name__ == "__main__":
 
     if not args:
         print(f"Usage: {sys.argv[0]} <ISSUE-KEY|issue.json|issues-dir/> [...]  [--date-dir DIR] [--only-significant] [--label LABEL]", file=sys.stderr)
-        print(f"Examples:", file=sys.stderr)
+        print("Examples:", file=sys.stderr)
         print(f"  {sys.argv[0]} OCPSTRAT-1234 --date-dir .work/weekly-status/2026-03-11", file=sys.stderr)
         print(f"  {sys.argv[0]} .work/weekly-status/2026-03-11/issues/OCPSTRAT-1234.json", file=sys.stderr)
         print(f"  {sys.argv[0]} .work/weekly-status/2026-03-11/issues/ --only-significant --label control-plane-work", file=sys.stderr)
@@ -303,7 +305,7 @@ if __name__ == "__main__":
         if unlabeled:
             print(f"=== MISSING LABEL '{label_filter}' ({len(unlabeled)} issues) ===")
             print(f"These issues appeared as descendants but do not carry the '{label_filter}' label.")
-            print(f"Confirm with the user whether to include them in the report.\n")
+            print("Confirm with the user whether to include them in the report.\n")
             for u in unlabeled:
                 print(f"  {u['key']}: {u['summary']}")
             print()
