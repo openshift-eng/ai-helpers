@@ -1621,6 +1621,46 @@ footer a { color: var(--primary); }
       "rules": []
     },
     {
+      "name": "node-cve",
+      "description": "CVE triage for OpenShift Node team components",
+      "version": "0.0.2",
+      "has_readme": true,
+      "commands": [
+        {
+          "name": "triage",
+          "full_name": "node-cve:triage",
+          "description": "Triage all open CVEs for OpenShift Node team components with reachability analysis",
+          "description_html": "Triage all open CVEs for OpenShift Node team components with reachability analysis",
+          "synopsis": "/node-cve:triage [--component \"Node / CRI-O\"] [--notify-jira] [--notify-slack] [--days 7]",
+          "body_html": "\u003cp\u003eQueries all open CVE vulnerability issues in OCPBUGS for Node team components, deduplicates across version trackers, clones affected repositories, and analyzes source code for CVE reachability. Optionally posts analysis comments to Jira trackers and sends a Slack summary.\u003c/p\u003e\u003cp\u003eDesigned for both interactive use and headless execution via \u003ccode\u003eclaude --print\u003c/code\u003e.\u003c/p\u003e"
+        }
+      ],
+      "skills": [
+        {
+          "name": "analyze-cve-repos",
+          "description": "Analyze CVE reachability against downstream repository forks at version-specific release branches",
+          "description_html": "Analyze CVE reachability against downstream repository forks at version-specific release branches",
+          "meta": ""
+        },
+        {
+          "name": "query-open-cves",
+          "description": "Query and deduplicate open CVE vulnerability issues from OCPBUGS for Node team components",
+          "description_html": "Query and deduplicate open CVE vulnerability issues from OCPBUGS for Node team components",
+          "meta": ""
+        },
+        {
+          "name": "report-findings",
+          "description": "Generate triage reports and post findings to Jira and Slack",
+          "description_html": "Generate triage reports and post findings to Jira and Slack",
+          "meta": ""
+        }
+      ],
+      "agents": [],
+      "hooks": [],
+      "mcp_servers": [],
+      "rules": []
+    },
+    {
       "name": "node-tuning",
       "description": "Automatically create and apply tuned profile",
       "version": "1.0.1",
@@ -1958,6 +1998,18 @@ footer a { color: var(--primary); }
           "meta": ""
         }
       ],
+      "agents": [],
+      "hooks": [],
+      "mcp_servers": [],
+      "rules": []
+    },
+    {
+      "name": "openshift-developer",
+      "description": "Bundle of curated plugins, skills, and MCP servers useful to any OpenShift engineer",
+      "version": "1.0.0",
+      "has_readme": true,
+      "commands": [],
+      "skills": [],
       "agents": [],
       "hooks": [],
       "mcp_servers": [],
