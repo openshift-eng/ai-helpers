@@ -22,4 +22,4 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Post review comments
-        uses: stbenjam/skillsaw/review@c85a25ebbde5a9e8b4cae8f7854dbf7e36e59dfa # v0.11.4
+        uses: stbenjam/skillsaw/review@7fd0fe415cc3e3046fa0bb4d096e2c3e206b461c # v0.11.5
