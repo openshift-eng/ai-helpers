@@ -1,0 +1,6 @@
+{
+  "severity": "required_change",
+  "topic": "test_gap",
+  "confidence": 0.95,
+  "rationale": "Unit tests are failing — the bot made code changes without ensuring tests pass"
+}

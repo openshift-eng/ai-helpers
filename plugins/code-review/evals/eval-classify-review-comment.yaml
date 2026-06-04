@@ -1,0 +1,256 @@
+name: classify-review-comment-eval
+description: Evaluate the classify-review-comment skill's ability to correctly classify GitHub PR review comments by severity and topic using the label taxonomy in config.json
+skill: code-review:classify-review-comment
+
+execution:
+  mode: case
+  arguments: "{comment}"
+  timeout: 120
+  max_budget_usd: 1.0
+
+runner:
+  type: claude-code
+  plugin_dirs:
+    - plugins/code-review
+  system_prompt: |
+    After classifying the comment, write ONLY the JSON classification object
+    to a file called classification.json in the current working directory.
+    The file must contain valid JSON with exactly these fields:
+    severity, topic, confidence, rationale.
+    Do not wrap the JSON in markdown code fences in the file.
+
+models:
+  judge: claude-opus-4-6
+
+permissions:
+  allow:
+    - "Read"
+    - "Write"
+    - "Skill"
+  deny:
+    - "Bash"
+    - "Agent"
+    - "mcp__*"
+
+mlflow:
+  experiment: classify-review-comment-eval
+
+dataset:
+  path: cases/classify-review-comment
+  schema: |
+    Each case directory contains:
+    - input.yaml: YAML file with fields:
+      - 'comment' — the raw review comment text to classify
+      - 'author' (optional) — the comment author, for context
+    - annotations.yaml: Expected classification and metadata:
+      - 'expected_severity': one of nitpick, suggestion, required_change, question, unclassified
+      - 'expected_topic': one of style, logic_bug, test_gap, api_design, architecture_design,
+        security, documentation, ci, approval, process, unclassified
+      - 'expected_confidence_min': minimum acceptable confidence score (0.00-1.00)
+      - 'acceptable_severities': list of acceptable severity values (primary + reasonable alternatives)
+      - 'acceptable_topics': list of acceptable topic values (primary + reasonable alternatives)
+      - 'notes': free text explaining the expected classification
+
+outputs:
+  - path: "classification.json"
+    schema: |
+      JSON object with fields:
+      - severity: string — one of the severity values from config.json
+      - topic: string — one of the topic values from config.json
+      - confidence: float — 0.00 to 1.00
+      - rationale: string — brief explanation of classification
+
+traces:
+  stdout: true
+  stderr: true
+  events: false
+  metrics: true
+
+judges:
+  - name: valid_output_json
+    description: Verify output is valid JSON with all required fields (severity, topic, confidence, rationale)
+    check: |
+      import json
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      json_files = {k: v for k, v in all_f.items() if k.endswith("classification.json")}
+      if not json_files:
+          return (False, "No classification.json found")
+      content = list(json_files.values())[0]
+      try:
+          data = json.loads(content)
+      except Exception as e:
+          return (False, f"Invalid JSON: {e}")
+      required = ["severity", "topic", "confidence", "rationale"]
+      missing = [f for f in required if f not in data]
+      if missing:
+          return (False, f"Missing fields: {', '.join(missing)}")
+      return (True, "Valid JSON with all required fields")
+
+  - name: labels_valid
+    description: Verify severity and topic values are from the allowed label set in config.json
+    check: |
+      import json
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      json_files = {k: v for k, v in all_f.items() if k.endswith("classification.json")}
+      if not json_files:
+          return (False, "No classification.json found")
+      content = list(json_files.values())[0]
+      try:
+          data = json.loads(content)
+      except Exception as e:
+          return (False, f"Cannot parse JSON: {e}")
+      valid_severities = ["nitpick", "suggestion", "required_change", "question", "unclassified"]
+      valid_topics = ["style", "logic_bug", "test_gap", "api_design", "architecture_design",
+                      "security", "documentation", "ci", "approval", "process", "unclassified"]
+      errors = []
+      sev = data.get("severity")
+      top = data.get("topic")
+      if sev not in valid_severities:
+          errors.append(f"Invalid severity '{sev}'")
+      if top not in valid_topics:
+          errors.append(f"Invalid topic '{top}'")
+      if errors:
+          return (False, "; ".join(errors))
+      return (True, f"severity={sev}, topic={top} — both valid labels")
+
+  - name: confidence_in_range
+    description: Verify confidence is a number between 0.00 and 1.00
+    check: |
+      import json
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      json_files = {k: v for k, v in all_f.items() if k.endswith("classification.json")}
+      if not json_files:
+          return (False, "No classification.json found")
+      content = list(json_files.values())[0]
+      try:
+          data = json.loads(content)
+      except Exception as e:
+          return (False, f"Cannot parse JSON: {e}")
+      conf = data.get("confidence")
+      if not isinstance(conf, (int, float)):
+          return (False, f"confidence is {type(conf).__name__}, expected number")
+      if conf < 0.0 or conf > 1.0:
+          return (False, f"confidence {conf} outside [0.00, 1.00]")
+      return (True, f"confidence={conf:.2f}")
+
+  - name: severity_correct
+    description: Verify predicted severity matches expected value or an acceptable alternative
+    check: |
+      import json
+      ann = outputs.get("annotations", {})
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      json_files = {k: v for k, v in all_f.items() if k.endswith("classification.json")}
+      if not json_files:
+          return (False, "No classification.json found")
+      content = list(json_files.values())[0]
+      try:
+          data = json.loads(content)
+      except Exception as e:
+          return (False, f"Cannot parse JSON: {e}")
+      predicted = data.get("severity", "")
+      expected = ann.get("expected_severity", "")
+      acceptable = ann.get("acceptable_severities", [expected])
+      if predicted in acceptable:
+          match = "exact" if predicted == expected else "acceptable"
+          return (True, f"{match}: predicted={predicted}, expected={expected}")
+      return (False, f"predicted={predicted}, expected={expected}, acceptable={acceptable}")
+
+  - name: topic_correct
+    description: Verify predicted topic matches expected value or an acceptable alternative
+    check: |
+      import json
+      ann = outputs.get("annotations", {})
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      json_files = {k: v for k, v in all_f.items() if k.endswith("classification.json")}
+      if not json_files:
+          return (False, "No classification.json found")
+      content = list(json_files.values())[0]
+      try:
+          data = json.loads(content)
+      except Exception as e:
+          return (False, f"Cannot parse JSON: {e}")
+      predicted = data.get("topic", "")
+      expected = ann.get("expected_topic", "")
+      acceptable = ann.get("acceptable_topics", [expected])
+      if predicted in acceptable:
+          match = "exact" if predicted == expected else "acceptable"
+          return (True, f"{match}: predicted={predicted}, expected={expected}")
+      return (False, f"predicted={predicted}, expected={expected}, acceptable={acceptable}")
+
+  - name: confidence_calibration
+    description: Verify confidence score meets the minimum threshold for this case
+    check: |
+      import json
+      ann = outputs.get("annotations", {})
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      json_files = {k: v for k, v in all_f.items() if k.endswith("classification.json")}
+      if not json_files:
+          return (False, "No classification.json found")
+      content = list(json_files.values())[0]
+      try:
+          data = json.loads(content)
+      except Exception as e:
+          return (False, f"Cannot parse JSON: {e}")
+      conf = data.get("confidence", 0)
+      min_conf = ann.get("expected_confidence_min", 0.5)
+      if conf >= min_conf:
+          return (True, f"confidence={conf:.2f} >= min={min_conf:.2f}")
+      return (False, f"confidence={conf:.2f} < min={min_conf:.2f}")
+
+  - name: classification_quality
+    description: LLM judge assessing overall classification accuracy and rationale quality
+    prompt: |
+      You are evaluating whether a PR review comment was correctly classified
+      by severity and topic.
+
+      The skill's classification output:
+
+      {% for path, content in outputs.files.items() if path.endswith('classification.json') %}
+      {{ content }}
+      {% endfor %}
+
+      Expected classification from annotations:
+
+      {{ annotations }}
+
+      Evaluate on a 1-5 scale:
+
+      Score 1: Both severity and topic are wrong. Rationale is absent or nonsensical.
+      Score 2: One of severity/topic is correct but the other is wrong. Rationale
+               is generic or doesn't reference the actual comment content.
+      Score 3: Both severity and topic are in the acceptable set. Rationale mentions
+               relevant aspects of the comment but may be vague.
+      Score 4: Severity and topic match the primary expected values. Rationale
+               specifically references signal words or patterns from the comment
+               that justify the classification.
+      Score 5: Perfect match on severity and topic. Rationale is precise, citing
+               specific phrases from the comment. Confidence score is well-calibrated
+               (high for unambiguous comments, lower for ambiguous ones).
+
+thresholds:
+  valid_output_json:
+    min_pass_rate: 1.0
+  labels_valid:
+    min_pass_rate: 1.0
+  confidence_in_range:
+    min_pass_rate: 1.0
+  severity_correct:
+    min_pass_rate: 0.85
+  topic_correct:
+    min_pass_rate: 0.85
+  confidence_calibration:
+    min_pass_rate: 0.80
+  classification_quality:
+    min_mean: 3.5

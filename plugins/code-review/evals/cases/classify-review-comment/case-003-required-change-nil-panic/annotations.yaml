@@ -1,0 +1,9 @@
+expected_severity: required_change
+expected_topic: logic_bug
+expected_confidence_min: 0.90
+acceptable_severities: [required_change]
+acceptable_topics: [logic_bug]
+notes: >
+  Clear-cut: nil pointer dereference would cause runtime panic.
+  Signal words "panic" and "needs" indicate required_change.
+  This is a textbook logic_bug — missing nil check.

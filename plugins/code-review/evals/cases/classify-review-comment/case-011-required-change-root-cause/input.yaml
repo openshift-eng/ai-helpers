@@ -1,0 +1,5 @@
+comment: >
+  The root cause of the CI failure in this PR has been identified. The fix in
+  `rejectVpcEndpointConnections` doesn't work because of a **case mismatch**
+  between AWS API responses and SDK v2 enum constants.
+author: reviewer

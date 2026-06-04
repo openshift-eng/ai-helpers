@@ -1,0 +1,6 @@
+{
+  "severity": "question",
+  "topic": "api_design",
+  "confidence": 0.95,
+  "rationale": "Reviewer asks about API choice for client options construction — 'Why not use X?' is a clarification question about API surface design"
+}

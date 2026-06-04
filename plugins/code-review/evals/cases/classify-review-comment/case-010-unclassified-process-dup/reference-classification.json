@@ -1,0 +1,6 @@
+{
+  "severity": "unclassified",
+  "topic": "process",
+  "confidence": 0.90,
+  "rationale": "Marking PR as duplicate of another — process meta-comment"
+}
