@@ -180,6 +180,18 @@
       "source": "./plugins/marketplace-ops",
       "description": "Maintenance commands for Claude Code plugin marketplaces",
       "version": "0.1.2"
+    },
+    {
+      "name": "node-cve",
+      "source": "./plugins/node-cve",
+      "description": "CVE triage for OpenShift Node team components",
+      "version": "0.0.2"
+    },
+    {
+      "name": "openshift-developer",
+      "source": "./plugins/openshift-developer",
+      "description": "Bundle of curated plugins, skills, and MCP servers useful to any OpenShift engineer",
+      "version": "1.0.0"
     }
   ]
 }
