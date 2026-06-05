@@ -169,6 +169,7 @@ class GatherConfig:
     output_dir: Path
     date_range: DateRange
     component: Optional[str] = None
+    components: List[str] = field(default_factory=list)
     label: Optional[str] = None
     status_summary_field: str = "customfield_10814"
     assignees: List[str] = field(default_factory=list)
@@ -739,7 +740,10 @@ class StatusDataGatherer:
             'status != "Release Pending"',
         ]
 
-        if self.config.component:
+        if self.config.components:
+            comp_list = ", ".join(f'"{c}"' for c in self.config.components)
+            parts.append(f"component IN ({comp_list})")
+        elif self.config.component:
             parts.append(f'component = "{self.config.component}"')
 
         if self.config.label:
@@ -916,7 +920,7 @@ class StatusDataGatherer:
         """Main gathering method."""
         start_time = datetime.now()
         logger.info(f"Starting data gather at {start_time.isoformat()}")
-        logger.debug(f"Config: project={self.config.project}, component={self.config.component}")
+        logger.debug(f"Config: project={self.config.project}, components={self.config.components or self.config.component}")
         logger.debug(f"Date range: {self.config.date_range.start} to {self.config.date_range.end}")
 
         if HAS_AIOHTTP:
@@ -1266,7 +1270,7 @@ class StatusDataGatherer:
             "generated_at": datetime.now().isoformat(),
             "config": {
                 "project": self.config.project,
-                "component": self.config.component,
+                "components": self.config.components or ([self.config.component] if self.config.component else []),
                 "label": self.config.label,
                 "date_range": self.config.date_range.to_dict(),
                 "status_summary_field": self.config.status_summary_field,
@@ -1362,7 +1366,7 @@ Environment Variables:
     )
 
     parser.add_argument("--project", required=True, help="Jira project key (e.g., OCPSTRAT)")
-    parser.add_argument("--component", help="Filter by component name")
+    parser.add_argument("--component", action="append", dest="components", help="Filter by component name (repeatable for multiple components)")
     parser.add_argument("--label", help="Filter by label")
     parser.add_argument("--days", type=int, default=7, help="Number of days to look back (default: 7)")
     parser.add_argument("--start-date", help="Start date (YYYY-MM-DD), overrides --days")
@@ -1401,7 +1405,7 @@ Environment Variables:
 
     config = GatherConfig(
         project=args.project,
-        component=args.component,
+        components=args.components or [],
         label=args.label,
         jira_url=jira_url,
         jira_token=jira_token,
@@ -1419,7 +1423,7 @@ Environment Variables:
     print("Status Data Gatherer", file=sys.stderr)
     print("=" * 60, file=sys.stderr)
     print(f"Project: {config.project}", file=sys.stderr)
-    print(f"Component: {config.component or 'All'}", file=sys.stderr)
+    print(f"Component: {', '.join(config.components) if config.components else 'All'}", file=sys.stderr)
     print(f"Date range: {start_date} to {end_date}", file=sys.stderr)
     print(f"Output: {output_dir}", file=sys.stderr)
     print(f"Mode: {'async (aiohttp)' if HAS_AIOHTTP else 'sync (requests)'}", file=sys.stderr)
@@ -1427,7 +1431,7 @@ Environment Variables:
     print("=" * 60, file=sys.stderr)
     print("", file=sys.stderr)
 
-    logger.debug(f"Full config: project={config.project}, component={config.component}, "
+    logger.debug(f"Full config: project={config.project}, components={config.components}, "
                  f"label={config.label}, assignees={config.assignees}, "
                  f"excluded={config.excluded_assignees}")
 
