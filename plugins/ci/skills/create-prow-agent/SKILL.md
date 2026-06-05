@@ -20,13 +20,55 @@ Use this skill when someone wants to:
 
 Three production agents in the [openshift/release](https://github.com/openshift/release) repository define the patterns this skill follows. All live under `ci-operator/step-registry/` in that repo:
 
-1. **Payload Agent** ([`openshift/claude/payload/`](https://github.com/openshift/release/tree/main/ci-operator/step-registry/openshift/claude/payload)) — Triggers on release payloads. Polls blocking CI jobs, analyzes failures with Claude, generates HTML reports, posts Slack summaries, and stages experimental reverts. Uses `--continue` for multi-phase conversations.
+1. **Payload Agent** ([`openshift/claude/payload/`](https://github.com/openshift/release/tree/main/ci-operator/step-registry/openshift/claude/payload)) — Triggers on release payloads. Polls blocking CI jobs, analyzes failures with Claude, generates HTML reports, and hands off to Chai Bot for autonomous remediation — a multi-agent system.
 
 2. **HyperShift Jira Agent** ([`hypershift/jira-agent/`](https://github.com/openshift/release/tree/main/ci-operator/step-registry/hypershift/jira-agent)) — Runs on a cron schedule. Queries Jira for issues labeled `issue-for-agent`, processes each through a four-phase pipeline (solve → code review → fix → PR creation), tracks state via Jira labels, and uses GitHub App tokens with separate fork/upstream installations.
 
 3. **HyperShift Review Agent** ([`hypershift/review-agent/`](https://github.com/openshift/release/tree/main/ci-operator/step-registry/hypershift/review-agent)) — Runs periodically on weekdays. Finds agent-created PRs with unresolved review threads, rebases stale branches, addresses reviewer feedback via Claude, and fixes failing CI checks. Uses a comment analyzer to prevent duplicate bot responses.
 
 ## Implementation Steps
+
+### Prerequisites Check (Important)
+
+Before starting, verify the user's environment. This check is critical — without these tools, later steps will be blocked or require manual workarounds.
+
+#### Chai Bot MCP
+
+Check if the Chai Bot MCP server is configured:
+
+```bash
+grep -q "chai" ~/.claude.json 2>/dev/null || grep -q "chai" .claude/settings.json 2>/dev/null
+```
+
+If Chai Bot is **not enabled**, strongly recommend it:
+
+> **Recommended:** Enable the Chai Bot MCP server before continuing. Chai Bot can provide guidance on any of the prerequisites you'll need to set up — GitHub App configuration, vault secrets, GCP service accounts, and more. You can ask it questions like "How do I get a GitHub App set up?" or "How do I add a secret to the CI vault?" as we work through this guide.
+
+#### openshift/release Clone
+
+Check if a local clone of `openshift/release` exists:
+
+```bash
+ls ~/git/release 2>/dev/null || ls /tmp/release 2>/dev/null
+```
+
+If a clone is available, use it. If not, offer to fork and clone it for them:
+
+> I don't see a local clone of `openshift/release`. I can fork it to your GitHub account and clone it — would you like me to do that?
+
+If they agree, fork via `gh repo fork openshift/release --clone --remote` into a working directory.
+
+#### GitHub CLI (`gh`)
+
+Check if `gh` is installed and authenticated:
+
+```bash
+gh auth status
+```
+
+If `gh` is set up, you can create PRs to `openshift/release` automatically at the end. If not, let the user know:
+
+> The `gh` CLI isn't configured. I can still generate all the files, but you'll need to push and open the PR manually. You can set it up with `gh auth login` if you'd like automated PR creation.
 
 ### Phase 1: Brainstorm and Design
 
@@ -54,7 +96,7 @@ Ask the user:
 > - **Payload verification** — runs when a release payload is assembled. Best for release-scoped analysis.
 > - **Ad-hoc (Gangway API)** — a periodic job triggered on demand with parameter overrides. Best for one-off tasks like "analyze this specific Jira issue."
 
-Help them choose. If they want ad-hoc triggering, explain that this is implemented as a periodic job with `@yearly` cron (never fires automatically) plus Gangway API overrides using `MULTISTAGE_PARAM_OVERRIDE_*` environment variables. The `ci:trigger-periodic` command can trigger these.
+Help them choose. If they want ad-hoc triggering, explain that this is implemented as a periodic job with `@yearly` cron plus Gangway API overrides using `MULTISTAGE_PARAM_OVERRIDE_*` environment variables. The `ci:trigger-periodic` command can trigger these.
 
 #### Step 1.3: Identify Data Sources and Actions
 
@@ -125,7 +167,7 @@ Common patterns:
 1. Poll until data ready → 2. Snapshot data → 3. Analyze → 4. Report → 5. Notify
 ```
 
-Write a design summary to `.work/create-prow-agent/design.md` capturing:
+Write a design summary capturing:
 - Agent name and purpose
 - Trigger type and schedule
 - Pipeline phases
@@ -138,9 +180,44 @@ Confirm the design with the user before proceeding to Phase 2.
 
 ### Phase 2: Generate CI Artifacts and Prerequisites Checklist
 
-Generate all CI artifacts with placeholder values for credentials, and a prerequisites checklist the developer works through in parallel. Write everything to `.work/create-prow-agent/output/` so it can be reviewed and copied to `openshift/release`.
+#### Step 2.1: Explore Existing Agent Patterns in openshift/release
 
-#### Step 2.1: Choose a Step Registry Path
+Before writing any files, explore the `openshift/release` clone to understand current patterns for AI-based agents. Read the step registry refs, commands scripts, and workflow YAMLs of existing agents:
+
+```bash
+# Find all AI agent step registry entries
+find ci-operator/step-registry -name "*-commands.sh" | xargs grep -l "claude" 2>/dev/null
+find ci-operator/step-registry -name "*-ref.yaml" | xargs grep -l "claude-ai-helpers" 2>/dev/null
+```
+
+Read through at least two of the existing agents to understand:
+- How they structure their workflow YAML (pre/test/post phases)
+- How they configure env vars and credentials in the ref YAML
+- How the commands script invokes Claude (flags, output parsing, error handling)
+- How they handle GitHub App token generation and credential loading
+- How they track token usage and generate reports
+
+Use these real, up-to-date patterns as the template for the new agent — not just the examples in this skill. The existing agents may have evolved since this skill was written.
+
+#### Step 2.2: Set Up Branch and Choose a Step Registry Path
+
+Create a feature branch in the `openshift/release` clone:
+
+```bash
+cd {release-repo-path}
+git checkout -b add-{agent-name}
+```
+
+Generate a prerequisites checklist the developer works through in parallel. When done, open a PR to `openshift/release` — rehearsals will validate the step registry structure even before secrets are wired up.
+
+The step registry path determines the job's identity.
+
+Use the `openshift/release` clone identified in the prerequisites check. Create a feature branch:
+
+```bash
+cd {release-repo-path}
+git checkout -b add-{agent-name}
+```
 
 The step registry path determines the job's identity. Convention: `{team-or-component}/{agent-name}/`. For example:
 
@@ -164,7 +241,7 @@ ci-operator/step-registry/{path}/
     └── {agent-name}-report-commands.sh
 ```
 
-#### Step 2.2: Write the Workflow YAML
+#### Step 2.3: Write the Workflow YAML
 
 Generate the workflow YAML. A typical three-phase workflow:
 
@@ -184,7 +261,7 @@ workflow:
 
 If the agent is simple (single phase, no reporting), a single ref without a workflow may suffice.
 
-#### Step 2.3: Write the Setup Step
+#### Step 2.4: Write the Setup Step
 
 The setup step verifies the environment is ready. Minimal example:
 
@@ -228,7 +305,7 @@ claude --version
 echo "Claude Code CLI verified"
 ```
 
-#### Step 2.4: Write the Process Step
+#### Step 2.5: Write the Process Step
 
 This is the main step. Generate the ref YAML and commands script based on the design.
 
@@ -353,7 +430,7 @@ Key principles for the commands script:
 - Never expose credentials in logs (disable tracing with `set +x` around sensitive operations)
 - For multi-phase pipelines, refresh GitHub App tokens between phases (they expire after 1 hour)
 
-#### Step 2.5: Write the Report Step (Optional)
+#### Step 2.6: Write the Report Step (Optional)
 
 If the agent processes multiple items or the user wants HTML reporting:
 
@@ -367,7 +444,7 @@ Write the report to `${ARTIFACT_DIR}/{agent-name}-report.html`.
 
 Follow the pattern from the HyperShift jira-agent report step.
 
-#### Step 2.6: Write the CI-Operator Config
+#### Step 2.7: Write the CI-Operator Config
 
 Generate the ci-operator config that defines the job. This goes in the target repository's ci-operator config file (e.g., `ci-operator/config/{org}/{repo}/{org}-{repo}-{branch}.yaml`).
 
@@ -398,7 +475,7 @@ Generate the ci-operator config that defines the job. This goes in the target re
   cron: "@yearly"
 ```
 
-#### Step 2.7: Write Custom Skills (If Needed)
+#### Step 2.8: Write Custom Skills (If Needed)
 
 If the design identified gaps in existing ai-helpers skills, help the user write custom skills. Each skill needs:
 
@@ -407,7 +484,7 @@ If the design identified gaps in existing ai-helpers skills, help the user write
 
 If the skill is general-purpose, add it to an existing ai-helpers plugin. If it's team-specific, it can live in the target repo's `.claude/` directory.
 
-#### Step 2.8: Write the Target Repo CLAUDE.md (If Needed)
+#### Step 2.9: Write the Target Repo CLAUDE.md (If Needed)
 
 If the agent operates on a specific repository, the repo should have a `CLAUDE.md` that helps Claude understand the codebase. This is especially important for code generation agents.
 
@@ -417,9 +494,9 @@ The `CLAUDE.md` should include:
 - Coding conventions
 - Key directories and their purposes
 
-#### Step 2.9: Generate Prerequisites Checklist
+#### Step 2.10: Generate Prerequisites Checklist
 
-Generate a `prerequisites.md` file alongside the CI artifacts in `.work/create-prow-agent/output/`. This is the list of blanks the developer needs to fill in. Include only the items relevant to their design:
+Present the developer with a prerequisites checklist — the blanks they need to fill in. Include only the items relevant to their design:
 
 **Always required:**
 - [ ] **Vertex AI service account** — Either reuse the existing `sa-claude-openshift-ci` secret (if your use case is covered by the [existing AIA](https://docs.google.com/document/d/1bppZgkklo4ECLDJEWb6j6TEqxMeIri5XxseLiZTqwkI/edit?tab=t.0): reading public Jira, editing code, examining CI results, opening human-reviewed PRs) or request a new one:
@@ -430,8 +507,8 @@ Generate a `prerequisites.md` file alongside the CI artifacts in `.work/create-p
 
 **If the agent pushes branches or creates PRs:**
 - [ ] **GitHub App** — Request via [PCO DevServices](https://devservices.dpp.openshift.com/support/) with minimum permissions: Contents (R&W), Pull requests (R&W). No admin permissions.
-  - Install on the fork org (for pushing) and upstream org (for PR creation)
-  - Store `app-id`, `private-key`, `installation-id`, and `upstream-installation-id` in your vault secret
+  - Configure the app and install on the fork org (for pushing) and upstream org (for PR creation)
+  - Store the app's `private-key` and `installation-id` (one per org) in your vault secret, along with a generated token for authentication
   - The commands script generates JWT tokens at runtime using RS256 signing and maintains separate tokens for fork push and upstream PR operations
 
 **If the agent reads or writes Jira:**
@@ -456,20 +533,21 @@ Include a secrets mapping table:
 | `app-id` | `/var/run/claude-code-service-account/app-id` | GitHub App JWT | TODO |
 | ... | ... | ... | ... |
 
-#### Step 2.10: Review and Deliver
+#### Step 2.11: Review and Open PR
 
-Present the complete set of generated files to the user. Summarize:
+Commit all generated files in the `/tmp/release` clone and open a PR to `openshift/release`. Ask the user for their GitHub fork to push to, then create the PR using `gh pr create`.
 
-1. **Files for `openshift/release`** — step registry refs, workflow, ci-operator config. These can be submitted as a PR immediately; the job will fail on credential errors until the vault secret is populated, but the CI structure will be validated via rehearsal.
-2. **Files for the target repo** — CLAUDE.md, custom skills (if any)
-3. **Prerequisites checklist** — the blanks to fill in, which can be done while the `openshift/release` PR is in review
+Present the user with a summary of:
+
+1. **The PR to `openshift/release`** — step registry refs, workflow, ci-operator config. Rehearsals will validate the structure even before secrets are wired up.
+2. **Files for the target repo** (if any) — CLAUDE.md, custom skills
+3. **Prerequisites checklist** — the blanks to fill in, which can be done while the PR is in review
 
 Remind them:
 - AI-generated PRs must have human review before merge and must not be configured to auto-merge
 - AI-generated content should be marked with: `Generated with [Claude Code](https://claude.com/claude-code)`
 - The agent should follow the principle of least privilege — restrict `--allowedTools` to the minimum needed
 - Set `--max-turns` and step timeouts to prevent runaway execution
-- Test by submitting the `openshift/release` PR first — rehearsals will validate the step registry structure even before secrets are wired up
 
 ## Notes
 
@@ -477,4 +555,9 @@ Remind them:
 - The image is referenced as `from: claude-ai-helpers` in step registry refs (resolved to `ci/claude-ai-helpers:latest`).
 - Vertex AI authentication uses the `global` region endpoint by default, which routes to the nearest available region.
 - GitHub App tokens expire after 1 hour. For long-running agents, regenerate tokens between phases.
-- All generated files are written to `.work/create-prow-agent/output/` for user review before deployment.
+- All generated files are written directly in a clone of `openshift/release` and submitted as a PR.
+
+## References
+
+- [Autonomous AI Usage in OpenShift CI](https://docs.google.com/document/d/1s_u8gU57ALgvXFODCIzjXlEXUkIKBvt2SJEtyLhgmJI/edit?tab=t.0#heading=h.smmuwphj1oay) — Covers authentication, running Claude Code autonomously, principle of least privilege, and examples of existing agents.
+- [HyperShift AI-Assisted CI Jobs](https://hypershift.pages.dev/how-to/ci/ai-assisted-ci-jobs/) — HyperShift team's documentation on their Jira agent and review agent, including setup and operational details.
