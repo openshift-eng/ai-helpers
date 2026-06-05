@@ -1,0 +1,10 @@
+expected_severity: required_change
+expected_topic: logic_bug
+expected_confidence_min: 0.70
+acceptable_severities: [required_change]
+acceptable_topics: [logic_bug]
+notes: >
+  CodeRabbit flagged a critical issue — missing pre-condition check before
+  VPC deletion. The "_Potential issue_ | _Critical_" prefix is a CodeRabbit
+  formatting pattern. The underlying issue is a logic bug (missing validation
+  before destructive API call).

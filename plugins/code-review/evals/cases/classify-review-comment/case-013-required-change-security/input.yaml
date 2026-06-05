@@ -1,0 +1,2 @@
+comment: "The service account token is being logged in plain text here — this needs to be redacted"
+author: reviewer

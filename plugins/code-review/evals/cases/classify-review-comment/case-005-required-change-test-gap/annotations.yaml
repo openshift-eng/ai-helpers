@@ -1,0 +1,9 @@
+expected_severity: required_change
+expected_topic: test_gap
+expected_confidence_min: 0.75
+acceptable_severities: [required_change]
+acceptable_topics: [test_gap]
+notes: >
+  Directed at a bot but should be classified by the underlying problem:
+  unit tests failing. Topic is test_gap, not process or ci. Signal words
+  "failing" and "needs fixed" indicate required_change.

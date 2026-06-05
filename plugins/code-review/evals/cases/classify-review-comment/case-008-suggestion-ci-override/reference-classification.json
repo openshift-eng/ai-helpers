@@ -1,0 +1,6 @@
+{
+  "severity": "suggestion",
+  "topic": "ci",
+  "confidence": 0.75,
+  "rationale": "Reviewer explains CI failure root cause (uncleaned cloud resources, not VPC endpoint) and overrides — substantive analysis before the slash command"
+}

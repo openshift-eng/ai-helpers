@@ -1,0 +1,6 @@
+{
+  "severity": "nitpick",
+  "topic": "style",
+  "confidence": 1.00,
+  "rationale": "Reviewer suggests grouping variables into a var block for consistency — cosmetic, not functional"
+}

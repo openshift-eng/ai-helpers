@@ -1,0 +1,2 @@
+comment: "This will panic if `items` is nil — needs a nil check before the loop"
+author: reviewer

@@ -1,0 +1,9 @@
+expected_severity: required_change
+expected_topic: security
+expected_confidence_min: 0.90
+acceptable_severities: [required_change]
+acceptable_topics: [security]
+notes: >
+  Sensitive credentials exposed in log output — a security vulnerability.
+  High confidence expected. Signal words "needs to be" indicate required_change,
+  and "token" + "plain text" + "redacted" are strong security signals.

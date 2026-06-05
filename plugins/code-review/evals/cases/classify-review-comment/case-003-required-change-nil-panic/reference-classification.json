@@ -1,0 +1,6 @@
+{
+  "severity": "required_change",
+  "topic": "logic_bug",
+  "confidence": 1.00,
+  "rationale": "Nil pointer dereference would cause runtime panic — must be fixed before merge"
+}

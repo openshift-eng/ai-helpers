@@ -1,0 +1,9 @@
+expected_severity: required_change
+expected_topic: logic_bug
+expected_confidence_min: 0.75
+acceptable_severities: [required_change]
+acceptable_topics: [logic_bug, ci]
+notes: >
+  Installation failure with error message. Primary topic is logic_bug (missing
+  required roleRef fields), but ci is acceptable since it manifests during
+  install. The "failing" signal word indicates required_change severity.

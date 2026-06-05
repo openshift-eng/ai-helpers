@@ -1,0 +1,6 @@
+{
+  "severity": "required_change",
+  "topic": "logic_bug",
+  "confidence": 0.90,
+  "rationale": "Installation fails due to invalid ClusterRoleBinding roleRef.kind — misconfigured RBAC resource causes hypershift install to break"
+}

@@ -1,0 +1,6 @@
+comment: |
+  failing during `hypershift install`
+  ```
+  ClusterRoleBinding is invalid: roleRef.kind: Unsupported value
+  ```
+author: reviewer

@@ -1,0 +1,7 @@
+comment: |
+  _Potential issue_ | _Critical_
+
+  The `deleteVPC` function doesn't check if the VPC has active network
+  interfaces before attempting deletion. This will fail with a
+  `DependencyViolation` error from the AWS API when ENIs are still attached.
+author: "coderabbitai[bot]"

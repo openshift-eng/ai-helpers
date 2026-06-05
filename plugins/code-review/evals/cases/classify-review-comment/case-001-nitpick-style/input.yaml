@@ -1,0 +1,4 @@
+comment: >
+  small nit: I would move the vars `key`, `log` and `cloudName` to `var (`
+  section just to be consistent.
+author: jparrill

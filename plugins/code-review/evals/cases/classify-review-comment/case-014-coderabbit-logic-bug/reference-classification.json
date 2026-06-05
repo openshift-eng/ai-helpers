@@ -1,0 +1,6 @@
+{
+  "severity": "required_change",
+  "topic": "logic_bug",
+  "confidence": 0.90,
+  "rationale": "CodeRabbit identified a missing precondition check: deleteVPC will fail with DependencyViolation when ENIs are still attached — a runtime bug requiring a fix before merge"
+}

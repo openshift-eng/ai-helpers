@@ -1,0 +1,6 @@
+{
+  "severity": "suggestion",
+  "topic": "ci",
+  "confidence": 0.85,
+  "rationale": "PR needs rebasing to resolve Konflux CI pipeline issues — classify by the problem (CI), not the recipient (bot)"
+}

@@ -1,0 +1,9 @@
+expected_severity: suggestion
+expected_topic: ci
+expected_confidence_min: 0.60
+acceptable_severities: [suggestion, unclassified]
+acceptable_topics: [ci]
+notes: >
+  Mixed content: substantive CI failure analysis followed by a slash command.
+  Should classify based on the substantive text (CI analysis), not the
+  /override command. Lower confidence expected due to ambiguity.
