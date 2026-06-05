@@ -34,15 +34,11 @@ Before starting, verify the user's environment. This check is critical — witho
 
 #### Chai Bot MCP
 
-Check if the Chai Bot MCP server is configured:
-
-```bash
-grep -q "chai" ~/.claude.json 2>/dev/null || grep -q "chai" .claude/settings.json 2>/dev/null
-```
-
-If Chai Bot is **not enabled**, strongly recommend it:
+Check if the Chai Bot MCP server is available. If not, strongly recommend it:
 
 > **Recommended:** Enable the Chai Bot MCP server before continuing. Chai Bot can provide guidance on any of the prerequisites you'll need to set up — GitHub App configuration, vault secrets, GCP service accounts, and more. You can ask it questions like "How do I get a GitHub App set up?" or "How do I add a secret to the CI vault?" as we work through this guide.
+>
+> To enable it, go to the **Home Page** of the Chai Bot app in Slack — it will give you a copy-paste command to configure the MCP server.
 
 #### openshift/release Clone
 
