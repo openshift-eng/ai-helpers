@@ -194,8 +194,10 @@ def main():
         sys.exit(1)
 
     model = args.model or os.environ.get("ANTHROPIC_SMALL_FAST_MODEL", "claude-sonnet-4-6")
+    # Global endpoint uses "aiplatform.googleapis.com"; regional uses "{region}-aiplatform.googleapis.com"
+    host = "aiplatform.googleapis.com" if region == "global" else f"{region}-aiplatform.googleapis.com"
     endpoint = (
-        f"https://{region}-aiplatform.googleapis.com/v1/projects/{project_id}"
+        f"https://{host}/v1/projects/{project_id}"
         f"/locations/{region}/publishers/anthropic/models/{model}:rawPredict"
     )
 

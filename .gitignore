@@ -12,8 +12,12 @@ bin
 *.swo
 *~
 .vscode
+.cursor
 .envrc
 .DS_Store
+
+# MCP config (contains auth tokens)
+.mcp.json
 
 .kube
 /kubeconfig
