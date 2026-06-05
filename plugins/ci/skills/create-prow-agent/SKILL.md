@@ -18,13 +18,13 @@ Use this skill when someone wants to:
 
 ## Background: Existing Agents
 
-Three production agents define the patterns this skill follows:
+Three production agents in the [openshift/release](https://github.com/openshift/release) repository define the patterns this skill follows. All live under `ci-operator/step-registry/` in that repo:
 
-1. **Payload Agent** (`openshift/claude/payload/`) — Triggers on release payloads. Polls blocking CI jobs, analyzes failures with Claude, generates HTML reports, posts Slack summaries, and stages experimental reverts. Uses `--continue` for multi-phase conversations.
+1. **Payload Agent** ([`openshift/claude/payload/`](https://github.com/openshift/release/tree/main/ci-operator/step-registry/openshift/claude/payload)) — Triggers on release payloads. Polls blocking CI jobs, analyzes failures with Claude, generates HTML reports, posts Slack summaries, and stages experimental reverts. Uses `--continue` for multi-phase conversations.
 
-2. **HyperShift Jira Agent** (`hypershift/jira-agent/`) — Runs on a cron schedule. Queries Jira for issues labeled `issue-for-agent`, processes each through a four-phase pipeline (solve → code review → fix → PR creation), tracks state via Jira labels, and uses GitHub App tokens with separate fork/upstream installations.
+2. **HyperShift Jira Agent** ([`hypershift/jira-agent/`](https://github.com/openshift/release/tree/main/ci-operator/step-registry/hypershift/jira-agent)) — Runs on a cron schedule. Queries Jira for issues labeled `issue-for-agent`, processes each through a four-phase pipeline (solve → code review → fix → PR creation), tracks state via Jira labels, and uses GitHub App tokens with separate fork/upstream installations.
 
-3. **HyperShift Review Agent** (`hypershift/review-agent/`) — Runs periodically on weekdays. Finds agent-created PRs with unresolved review threads, rebases stale branches, addresses reviewer feedback via Claude, and fixes failing CI checks. Uses a comment analyzer to prevent duplicate bot responses.
+3. **HyperShift Review Agent** ([`hypershift/review-agent/`](https://github.com/openshift/release/tree/main/ci-operator/step-registry/hypershift/review-agent)) — Runs periodically on weekdays. Finds agent-created PRs with unresolved review threads, rebases stale branches, addresses reviewer feedback via Claude, and fixes failing CI checks. Uses a comment analyzer to prevent duplicate bot responses.
 
 ## Implementation Steps
 
