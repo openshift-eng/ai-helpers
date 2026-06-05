@@ -92,8 +92,17 @@ This command takes a JIRA URL, fetches the issue description and requirements, a
       - Do NOT run `go test ./changed/package/` instead of `make test` — running only the packages you changed misses cross-package regressions
       - Do NOT skip `make test` because `make lint-fix` had unrelated failures
       - Do NOT assume targeted package tests are "good enough" as a substitute for the full test suite
+      - Do NOT leave TODO comments in validation regex or CEL rules — resolve character sets and constraints before committing
+      - Do NOT export functions that are only used by tests — keep them unexported or in `_test.go` files
+      - Do NOT leave dead code (functions defined but never called) in the PR
+      - Do NOT include cosmetic formatting or import reordering changes in files unrelated to the JIRA issue — these increase review surface and make the PR harder to revert
 
-4. **Commit Creation**: 
+4. **Commit Creation**:
+   - **Pre-commit code quality checks**:
+     - Search the codebase for how similar problems are already solved before implementing a novel approach. Use `grep -r` and `find` to locate existing patterns, utilities, and helpers.
+     - Verify that every new exported function has at least one unit test covering the happy path and primary error path.
+     - Verify that no functions are defined but never called (dead code). Search for each new function name across the codebase — if it's only referenced at its definition, remove it.
+     - For API validation (regex, CEL): verify character classes match the upstream specification exactly. Do not over-broaden with catch-all classes. Test edge cases: empty string, max-length string, strings with special characters.
    - Create feature branch using the jira-key $1 as the branch name. For example: "git checkout -b fix-{jira-key}"
    - Break commits into logical components based on the nature of the changes
    - Each commit should honor https://www.conventionalcommits.org/en/v1.0.0/ and always include a commit message body articulating the "why"
@@ -116,8 +125,9 @@ This command takes a JIRA URL, fetches the issue description and requirements, a
      - Documentation: Changes in `docs/` directory
        - Example: `git commit -m"docs: Document X feature" -m"Help users understand how to configure and use the new capability"`
 
-5. **PR Creation**: 
+5. **PR Creation**:
    - Push the branch with all commits against the remote specified in argument $2
+   - **After pushing, verify the push succeeded**: Run `git log -1 --format='%H'` locally and `git ls-remote <remote> <branch>` to confirm the remote SHA matches. If they differ, the push failed — diagnose and retry. Do NOT proceed to PR creation with unpushed code.
    - Create pull request with:
      - Clear title referencing JIRA issue as a prefix. For example: "OCPBUGS-12345: ..."
      - The PR description should satisfy the template within .github/PULL_REQUEST_TEMPLATE.md if the file exists

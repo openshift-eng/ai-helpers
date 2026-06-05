@@ -286,6 +286,8 @@ Show user:
 - Ensure code builds and passes tests after changes
 - When in doubt, ask the user
 - Use TodoWrite to track progress through multiple comments
+- **Never claim work is done without verifying the push**: After posting replies that say changes were made, the push in Step 4b MUST succeed and be verified in Step 4c. If the push fails or is skipped, the replies become lies — reviewers will see "Done" but find no code changes. This has been the single most repeated process failure.
+- **Use the restructure-commits skill when asked**: When a reviewer requests commit reorganization (e.g., "restructure commits", "reorganize commits"), use the `restructure-commits` or `restructure-hypershift-commits` skill rather than manually rebasing. Reviewers have had to ask for this multiple times across PRs.
 
 ## Duplicate Prevention
 
