@@ -64,6 +64,32 @@ The command executes in two phases:
    - Use `searchJiraIssuesUsingJql` with JQL: `project = "{project-key}" AND status != Closed`
    - Verify the project exists and is accessible
 
+#### Step 1b. Load Project-Specific Skill (if available)
+
+After determining the project key, check if a project-specific skill exists that overrides default behavior. Project-specific skills can change issue type filtering, status format, milestone prioritization, and data gathering JQL.
+
+**Known project-skill mappings:**
+
+| Project Key | Skill | Key Overrides |
+|-------------|-------|---------------|
+| ARO | `jira:aro-hcp` | Only Features/Initiatives; milestone tiers (HPSTRAT-63/130); prepend format with date stamp |
+| CNTRLPLANE | `jira:cntrlplane` | CNTRLPLANE-specific conventions |
+| GCP | `jira:gcp-hcp` | GCP HCP team requirements |
+| OCPBUGS | `jira:ocpbugs` | OCPBUGS bug conventions |
+
+**Implementation:**
+
+1. Match the resolved project key against the table above
+2. If a match is found, load the skill: `Skill(jira:{skill-name})`
+3. The loaded skill's conventions **override** the defaults in this command for:
+   - **Issue type filter**: Which issue types to process (e.g., ARO → only Features and Initiatives)
+   - **Issue discovery**: How to find target issues (e.g., ARO → milestone-based JQL instead of generic component query)
+   - **Status format**: How to format the status update (e.g., ARO → prepend with date stamp instead of replace)
+   - **Update method**: How to write to Jira (e.g., ARO → ADF via REST API)
+4. If no match is found, use default behavior (all issue types, generic component query, replace format)
+
+**IMPORTANT**: The project-specific skill MUST be loaded before Step 2 (component selection) and before Step 4 (data gathering), because it can change both the JQL used and the issue types collected.
+
 #### Step 2. Determine Target Component(s)
 
 1. **If `--component` parameter is provided:**
