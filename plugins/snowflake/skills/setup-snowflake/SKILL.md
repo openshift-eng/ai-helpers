@@ -147,14 +147,14 @@ Then **stop the current command and inform the user why**. Do not attempt to pro
 Once the MCP tool is confirmed available, set the database, schema, and role for the session:
 
 ```text
-mcp__snowflake__execute_sql(query="USE ROLE JIRA_CLOUDMARTS_GROUP")
+mcp__snowflake__execute_sql(query="USE ROLE PUBLIC")
 mcp__snowflake__execute_sql(query="USE DATABASE JIRA_DB")
 mcp__snowflake__execute_sql(query="USE SCHEMA CLOUDRHAI_MARTS")
 ```
 
 If any of these fail (e.g., role not granted), inform the user:
 
-> Your Snowflake account does not have the `JIRA_CLOUDMARTS_GROUP` role. This role is required to access Jira data in Snowflake. Please request this role through the access provisioning process at:
+> Your Snowflake account does not have the `PUBLIC` role. Please request access through the access provisioning process at:
 >
 > **https://dataverse.pages.redhat.com/data-docs/data-users/**
 
