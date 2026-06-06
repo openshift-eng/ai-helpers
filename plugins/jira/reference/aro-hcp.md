@@ -1,20 +1,12 @@
----
-name: aro-hcp
-description: ARO HCP project-specific Jira conventions for the ARO project — issue type filtering, status summary format, components
----
-
 # ARO HCP Jira Conventions
 
-This skill provides ARO HCP team-specific conventions for working with Jira issues in the ARO project.
+This file provides ARO HCP team-specific conventions for working with Jira issues in the ARO project.
 
-## When to Use This Skill
+## When to Use
 
-This skill is automatically invoked when:
+This file is loaded automatically by `/jira:update-weekly-status` when:
 - Project key is "ARO"
 - Component is one of: `aro-hcp-qe`, `aro-hcp-clusters-service`, `aro-hcp-clusters-service-east`, `aro-hcp-clusters-service-west`
-- User explicitly requests ARO HCP conventions
-
-**IMPORTANT**: When any Jira command targets the ARO project, load this skill first to apply ARO-specific conventions.
 
 ## Project Information
 
@@ -36,30 +28,6 @@ This skill is automatically invoked when:
 
 ## Weekly Status Updates (`/jira:update-weekly-status`)
 
-### Component Expansion
-
-When the user specifies any single CS component, **always expand to include all three**:
-
-| User specifies | Expand to |
-|---------------|-----------|
-| `aro-hcp-clusters-service` | `aro-hcp-clusters-service`, `aro-hcp-clusters-service-east`, `aro-hcp-clusters-service-west` |
-| `aro-hcp-clusters-service-east` | `aro-hcp-clusters-service`, `aro-hcp-clusters-service-east` |
-| `aro-hcp-clusters-service-west` | `aro-hcp-clusters-service`, `aro-hcp-clusters-service-west` |
-
-Issues are often tagged with only `aro-hcp-clusters-service-east` or `aro-hcp-clusters-service-west` (without the parent `aro-hcp-clusters-service`), so querying a single component will miss them.
-
-**Data gatherer invocation** with expanded components:
-```bash
-python3 gather_status_data.py \
-  --project ARO \
-  --component "aro-hcp-clusters-service" \
-  --component "aro-hcp-clusters-service-east" \
-  --component "aro-hcp-clusters-service-west" \
-  --verbose
-```
-
-**JQL equivalent**: `component IN ("aro-hcp-clusters-service", "aro-hcp-clusters-service-east", "aro-hcp-clusters-service-west")`
-
 ### Issue Type Filter
 
 When running `/jira:update-weekly-status` against the ARO project, **only process Features and Initiatives**. The Status Summary field (`customfield_10814`) is only available on these issue types in the ARO project — it cannot be set on Epics, Stories, Tasks, or Bugs.
@@ -79,24 +47,25 @@ Status updates are prioritized by milestone. Process issues in this order:
 To find issues by milestone, use `parent = HPSTRAT-63` and `parent = HPSTRAT-130` JQL queries. These milestones are parents of the Features/Initiatives.
 
 **Step 1**: Fetch HPSTRAT-63 children (mandatory updates):
-```
+```jql
 parent = HPSTRAT-63 AND project = ARO AND issuetype in (Feature, Initiative) AND status != Closed
 ```
 With component filter, add: `AND component = "{component}"`
 
 **Step 2**: Fetch HPSTRAT-130 children updated this week (optional updates):
-```
+```jql
 parent = HPSTRAT-130 AND project = ARO AND issuetype in (Feature, Initiative) AND status != Closed AND updated >= -7d
 ```
+With component filter, add: `AND component = "{component}"`
 
 **Step 3**: Fetch remaining active items not under either milestone:
-```
+```jql
 project = ARO AND issuetype in (Feature, Initiative) AND status != Closed AND updated >= -7d AND NOT parent = HPSTRAT-63 AND NOT parent = HPSTRAT-130
 ```
 With component filter, add: `AND component = "{component}"`
 
 **Presentation**: Group issues by tier in the processing workflow:
-```
+```text
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 HPSTRAT-63 (Public Preview) — {N} Features/Initiatives [ALL require update]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -119,7 +88,7 @@ The ARO project uses a **prepend** model for Status Summary — new updates are 
 
 **Format for each update entry:**
 
-```
+```text
 {YYYY-MM-DD}: Color Status: {Green|Yellow|Red}
 - {Current state bullet 1 — what happened this week}
 - {Current state bullet 2}
@@ -135,7 +104,7 @@ The ARO project uses a **prepend** model for Status Summary — new updates are 
 
 **Example of a Status Summary field after 3 weeks:**
 
-```
+```text
 2026-06-05: Color Status: Green
 - ARO-17759 (Frontend Private KAS) closed. ARO-26913 (api.listening wiring) in review.
 - 72% complete (18/25 descendants closed).
@@ -164,7 +133,7 @@ When writing to `customfield_10814`:
 If the current value is null/empty, just write the new entry.
 
 **MCP call:**
-```
+```javascript
 editJiraIssue(
   cloudId: "redhat.atlassian.net",
   issueIdOrKey: "{ISSUE_KEY}",
@@ -177,7 +146,7 @@ editJiraIssue(
 
 ## Jira Hierarchy (ARO Project)
 
-```
+```text
 Initiative
   └── Feature          ← Status Summary lives here
         └── Epic
