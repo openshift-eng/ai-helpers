@@ -1,23 +1,9 @@
----
-name: ocpbugs
-description: Jira conventions and bug templates for the OCPBUGS project
----
-
 # OCPBUGS Jira Conventions
 
-This skill provides conventions and requirements for creating bug reports in the OCPBUGS project, which is used by all OpenShift product teams for bug tracking.
-
-## When to Use This Skill
-
-Use this skill when creating bugs in the OCPBUGS project:
-- **Project: OCPBUGS** - OpenShift Bugs
-- **Issue Type: Bug** - Bug reports only
-
-This skill is automatically invoked by the `/jira:create` command when the project_key is "OCPBUGS" or when issue type is "bug" without a project specified.
+Conventions and requirements for creating bug reports in the OCPBUGS project, used by all OpenShift product teams for bug tracking.
 
 ## Project Information
 
-### OCPBUGS Project
 **Full name:** OpenShift Bugs
 
 **Key:** OCPBUGS
@@ -64,11 +50,11 @@ When user specifies a different version:
 
 **IMPORTANT:** Component requirements are **team-specific**.
 
-Some teams require specific components, while others do not. The OCPBUGS skill does NOT enforce component selection.
+Some teams require specific components, while others do not. The OCPBUGS conventions do NOT enforce component selection.
 
 **Team-specific component handling:**
-- Teams may have their own skills that define required components
-- For example, HyperShift team uses `hypershift` skill for component selection
+- Teams may have their own conventions that define required components
+- For example, HyperShift team uses specific components (see [hypershift.md](hypershift.md))
 - Other teams may use different components based on their structure
 
 **If component is not specified:**
@@ -109,7 +95,7 @@ Set `components` if required by the team.
 - **Affects Version** (required): "Which version did you encounter this bug in?"
   - Show common versions: 4.19, 4.20, 4.21, 4.22
 - **Target Version** (optional): "Which version should this be fixed in? (default: openshift-4.21)"
-- **Component** (if required by team): Defer to team-specific skills
+- **Component** (if required by team): Defer to team-specific conventions
 
 ## Examples
 
@@ -157,7 +143,7 @@ Set `components` if required by the team.
 **Scenario:** Team requires component, but user didn't specify.
 
 **Action:**
-1. If team skill detected required components, show options
+1. If team conventions require specific components, show options
 2. Otherwise, generic prompt: "Does this bug require a component?"
 3. If yes, ask user to specify component name
 4. If no, proceed without component
@@ -200,40 +186,9 @@ Set `components` if required by the team.
 
 ## Team-Specific Extensions
 
-Teams using OCPBUGS may have additional team-specific requirements defined in separate skills:
+Teams using OCPBUGS may have additional team-specific requirements:
 
-- **HyperShift team:** Uses `hypershift` skill for component selection (HyperShift / ARO, HyperShift / ROSA, HyperShift)
-- **Other teams:** May define their own skills with team-specific components and conventions
+- **HyperShift team:** See [hypershift.md](hypershift.md) for component selection (HyperShift / ARO, HyperShift / ROSA, HyperShift)
+- **Other teams:** May define their own conventions with team-specific components
 
-Team-specific skills are invoked automatically when team keywords are detected in the summary or when specific components are mentioned.
-
-## Workflow Summary
-
-When `/jira:create bug` is invoked:
-
-1. ✅ **OCPBUGS skill loaded:** Applies project-specific conventions
-2. ⚙️ **Apply OCPBUGS defaults:**
-   - Project: OCPBUGS (default for bugs)
-   - Target version: openshift-4.21 (default)
-3. 🔍 **Check for team-specific skills:** If team keywords detected, invoke team skill (e.g., `hypershift`)
-4. 💬 **Interactive prompts:**
-   - Affects version (required)
-   - Bug template sections (see `create-bug` skill)
-   - Component (if required by team)
-
-**Note:** Universal requirements (security, labels), security validation, and issue creation handled by `/jira:create` command.
-
-## Best Practices
-
-1. **Version specificity:** Use exact versions (4.21.0) not just major versions (4.21) for Affects Version
-2. **Template adherence:** Defer to `create-bug` skill for bug template best practices
-3. **Link related issues:** Reference related bugs, PRs, or stories
-
-**Note:** Universal best practices (security, credential sanitization, formatting) are defined in the `/jira:create` command.
-
-## See Also
-
-- `/jira:create` - Main command that invokes this skill
-- `cntrlplane` skill - For CNTRLPLANE stories/epics/features/tasks
-- Team-specific skills (e.g., `hypershift`) - For team-specific conventions
-- `create-bug` skill - General bug report best practices
+Team-specific conventions are invoked automatically when team keywords are detected in the summary or when specific components are mentioned.

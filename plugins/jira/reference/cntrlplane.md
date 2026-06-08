@@ -1,23 +1,9 @@
----
-name: cntrlplane
-description: Jira conventions for the CNTRLPLANE project used by OpenShift teams
----
-
 # CNTRLPLANE Jira Conventions
 
-This skill provides conventions and requirements for creating Jira issues in the CNTRLPLANE project, which is used by various OpenShift teams for feature development, epics, stories, and tasks.
-
-## When to Use This Skill
-
-Use this skill when creating Jira items in the CNTRLPLANE project:
-- **Project: CNTRLPLANE** - Features, Epics, Stories, Tasks for OpenShift teams
-- **Issue Types: Story, Epic, Feature, Task**
-
-This skill is automatically invoked by the `/jira:create` command when the project_key is "CNTRLPLANE".
+Conventions and requirements for creating Jira issues in the CNTRLPLANE project, used by various OpenShift teams for feature development, epics, stories, and tasks.
 
 ## Project Information
 
-### CNTRLPLANE Project
 **Full name:** Red Hat OpenShift Control Planes
 
 **Key:** CNTRLPLANE
@@ -99,7 +85,7 @@ CNTRLPLANE uses different fields for different parent relationships:
 | Task | Epic | `customfield_10014` (Epic Link) | `"CNTRLPLANE-123"` (string) |
 | Epic | Feature | `customfield_10018` (Parent Link) | `"CNTRLPLANE-123"` (string) |
 
-**⚠️ CRITICAL:**
+**CRITICAL:**
 - Story/Task → Epic uses **Epic Link** (`customfield_10014`)
 - Epic → Feature uses **Parent Link** (`customfield_10018`)
 - Both fields take STRING values (issue key), NOT objects
@@ -126,11 +112,11 @@ Follow the implementation strategy documented in `/jira:create` command:
 
 **IMPORTANT:** Component requirements are **team-specific**.
 
-Some teams require specific components, while others do not. The CNTRLPLANE skill does NOT enforce component selection.
+Some teams require specific components, while others do not. The CNTRLPLANE conventions do NOT enforce component selection.
 
 **Team-specific component handling:**
-- Teams may have their own skills that define required components
-- For example, HyperShift team uses `hypershift` skill for component selection
+- Teams may have their own conventions that define required components
+- For example, HyperShift team uses specific components (see [hypershift.md](hypershift.md))
 - Other teams may use different components based on their structure
 
 **If component is not specified:**
@@ -179,11 +165,9 @@ All issues include: `"labels": ["ai-generated-jira"]`, `"security": {"name": "Re
 
 ## Interactive Prompts
 
-**Note:** Detailed prompts for each issue type are defined in type-specific skills (create-story, create-epic, create-feature, create-task).
-
 **CNTRLPLANE-specific prompts:**
 - **Target version** (optional): "Which OpenShift version should this target? (e.g., 4.22, openshift 4.22, OCP 4.22) or press Enter to skip"
-- **Component** (if required by team): Defer to team-specific skills
+- **Component** (if required by team): Defer to team-specific conventions
 - **Parent link** (for epics/tasks): "Link to parent Feature/Epic?" (optional)
 
 ## Examples
@@ -250,7 +234,7 @@ All issues include: `"labels": ["ai-generated-jira"]`, `"security": {"name": "Re
 **Scenario:** Team requires component, but user didn't specify.
 
 **Action:**
-1. If team skill detected required components, show options
+1. If team conventions require specific components, show options
 2. Otherwise, generic prompt: "Does this issue require a component?"
 3. If yes, ask user to specify component name
 4. If no, proceed without component
@@ -306,40 +290,9 @@ All issues include: `"labels": ["ai-generated-jira"]`, `"security": {"name": "Re
 
 ## Team-Specific Extensions
 
-Teams using CNTRLPLANE may have additional team-specific requirements defined in separate skills:
+Teams using CNTRLPLANE may have additional team-specific requirements:
 
-- **HyperShift team:** Uses `hypershift` skill for component selection (HyperShift / ARO, HyperShift / ROSA, HyperShift)
-- **Other teams:** May define their own skills with team-specific components and conventions
+- **HyperShift team:** See [hypershift.md](hypershift.md) for component selection (HyperShift / ARO, HyperShift / ROSA, HyperShift)
+- **Other teams:** May define their own conventions with team-specific components
 
-Team-specific skills are invoked automatically when team keywords are detected in the summary or when specific components are mentioned.
-
-## Workflow Summary
-
-When `/jira:create` is invoked for CNTRLPLANE:
-
-1. ✅ **CNTRLPLANE skill loaded:** Applies project-specific conventions
-2. ⚙️ **Apply CNTRLPLANE requirements:**
-   - Epic name field (for epics)
-3. 🔍 **Check for team-specific skills:** If team keywords detected, invoke team skill (e.g., `hypershift`)
-4. 💬 **Interactive prompts:** Collect missing information:
-   - Target version (optional): Prompt user, normalize input (e.g., "4.22" → "openshift-4.22")
-   - See type-specific skills for additional prompts
-
-**Note:** Universal requirements (security, labels), security validation, and issue creation handled by `/jira:create` command.
-
-## Best Practices
-
-1. **Version input:** Always normalize user version input (e.g., "4.22", "OCP 4.22" → "openshift-4.22")
-2. **Template adherence:** Defer to type-specific skills for templates (create-story, create-epic, etc.)
-3. **Link hierarchy:** Link epics to features, tasks to stories/epics using `--parent` flag
-4. **Descriptive summaries:** Use clear, searchable issue summaries
-5. **Component selection:** Defer to team-specific skills when applicable (e.g., HyperShift)
-
-**Note:** Universal best practices (security, labels, formatting, credential scanning) are defined in the `/jira:create` command.
-
-## See Also
-
-- `/jira:create` - Main command that invokes this skill (includes Issue Hierarchy and Parent Linking documentation)
-- `ocpbugs` skill - For OCPBUGS bugs
-- Team-specific skills (e.g., `hypershift`) - For team-specific conventions
-- Type-specific skills (create-story, create-epic, create-feature, create-task) - For issue type best practices
+Team-specific conventions are invoked automatically when team keywords are detected in the summary or when specific components are mentioned.

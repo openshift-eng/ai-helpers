@@ -537,5 +537,5 @@ If this is a public Jira project, please sanitize:
 
 - `/jira:create` - Main command that invokes this skill
 - `create-epic` skill - For epics within features
-- `cntrlplane` skill - CNTRLPLANE specific conventions
+- `jira-conventions` skill - Project and team-specific conventions (CNTRLPLANE, OCPBUGS, GCP, HyperShift)
 - Product management and roadmap planning resources

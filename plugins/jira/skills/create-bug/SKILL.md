@@ -256,7 +256,7 @@ Different projects may use versions differently:
 
 ### Project-Specific Overrides
 
-If bug is for a known project with specific conventions (e.g., CNTRLPLANE/OCPBUGS), the cntrlplane skill will be invoked automatically and will override defaults.
+If bug is for a known project with specific conventions (e.g., CNTRLPLANE/OCPBUGS), the jira-conventions skill will be invoked automatically and will override defaults.
 
 ## Field Validation
 
@@ -415,7 +415,7 @@ Any additional context?
 /jira:create bug "ROSA HCP control plane pods crash on upgrade"
 ```
 
-**Auto-applied (via cntrlplane skill):**
+**Auto-applied (via jira-conventions skill):**
 - Project: OCPBUGS (default for bugs)
 - Component: HyperShift / ROSA (detected from "ROSA HCP")
 - Affects Version: 4.21
@@ -471,5 +471,5 @@ Any additional context?
 ## See Also
 
 - `/jira:create` - Main command that invokes this skill
-- `cntrlplane` skill - CNTRLPLANE/OCPBUGS specific conventions
+- `jira-conventions` skill - Project and team-specific conventions (CNTRLPLANE, OCPBUGS, GCP, HyperShift)
 - Jira documentation on bug workflows

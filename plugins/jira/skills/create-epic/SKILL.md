@@ -468,7 +468,7 @@ Timeframe?
 /jira:create epic CNTRLPLANE "Advanced node pool autoscaling for ARO HCP"
 ```
 
-**Auto-applied (via cntrlplane skill):**
+**Auto-applied (via jira-conventions skill):**
 - Component: HyperShift / ARO (detected from "ARO HCP")
 - Target Version: openshift-4.21
 - Epic Name: Same as summary
@@ -559,5 +559,5 @@ Description: "Improve monitoring"
 - `/jira:create` - Main command that invokes this skill (includes Issue Hierarchy and Parent Linking documentation)
 - `create-feature` skill - For creating parent features
 - `create-story` skill - For stories within epics (uses Epic Link field, NOT parent field)
-- `cntrlplane` skill - CNTRLPLANE specific conventions
+- `jira-conventions` skill - Project and team-specific conventions (CNTRLPLANE, OCPBUGS, GCP, HyperShift)
 - Agile epic management best practices
