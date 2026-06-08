@@ -189,10 +189,10 @@ Invoke the appropriate skill based on issue type using the Skill tool:
 
 Invoke the `jira-conventions` skill when the project key or keywords match a known project or team. The skill uses progressive disclosure — it routes to the appropriate reference file(s) under `reference/`:
 
-- **CNTRLPLANE** → reads `reference/cntrlplane.md`
-- **OCPBUGS** → reads `reference/ocpbugs.md`
-- **GCP** → reads `reference/gcp-hcp.md`
-- **HyperShift/ARO/ROSA keywords** → also reads `reference/hypershift.md` (layers on top of project conventions)
+- **CNTRLPLANE** → reads [reference/cntrlplane.md](../reference/cntrlplane.md)
+- **OCPBUGS** → reads [reference/ocpbugs.md](../reference/ocpbugs.md)
+- **GCP-HCP** → reads [reference/gcp-hcp.md](../reference/gcp-hcp.md)
+- **HyperShift/ARO/ROSA keywords** → also reads [reference/hypershift.md](../reference/hypershift.md) (layers on top of project conventions)
 
 **General projects** (no matching conventions) use only the type-specific skills (create-story, create-bug, etc.) for best practices.
 
@@ -478,10 +478,10 @@ Applied defaults:
 
 The command automatically detects and applies conventions via the `jira-conventions` skill, which routes to reference files under `reference/`:
 
-- **CNTRLPLANE** → `reference/cntrlplane.md`
-- **OCPBUGS** → `reference/ocpbugs.md`
-- **GCP** → `reference/gcp-hcp.md`
-- **HyperShift team** → `reference/hypershift.md` (layered on top of project conventions)
+- **CNTRLPLANE** → [reference/cntrlplane.md](../reference/cntrlplane.md)
+- **OCPBUGS** → [reference/ocpbugs.md](../reference/ocpbugs.md)
+- **GCP-HCP** → [reference/gcp-hcp.md](../reference/gcp-hcp.md)
+- **HyperShift team** → [reference/hypershift.md](../reference/hypershift.md) (layered on top of project conventions)
 - **Other projects:** Uses general best practices from type-specific skills
 
 To add conventions for your project or team, create a reference file at `reference/your-project.md` and add an entry to the `jira-conventions` skill.
