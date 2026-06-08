@@ -700,7 +700,7 @@ As a user, I want to create, edit, delete, and share documents
 ## See Also
 
 - `/jira:create` - Main command that invokes this skill (includes Issue Hierarchy and Parent Linking documentation)
-- `jira-conventions` skill - Project and team-specific conventions (CNTRLPLANE, OCPBUGS, GCP, HyperShift)
+- `jira-conventions` skill - Always load when working with Jira to learn conventions
 - `create-epic` skill - For creating parent epics
 - Agile Alliance: User Story resources
 - Mike Cohn: User Stories Applied

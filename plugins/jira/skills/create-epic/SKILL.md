@@ -559,5 +559,5 @@ Description: "Improve monitoring"
 - `/jira:create` - Main command that invokes this skill (includes Issue Hierarchy and Parent Linking documentation)
 - `create-feature` skill - For creating parent features
 - `create-story` skill - For stories within epics (uses Epic Link field, NOT parent field)
-- `jira-conventions` skill - Project and team-specific conventions (CNTRLPLANE, OCPBUGS, GCP, HyperShift)
+- `jira-conventions` skill - Always load when working with Jira to learn conventions
 - Agile epic management best practices

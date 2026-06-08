@@ -256,7 +256,7 @@ Different projects may use versions differently:
 
 ### Project-Specific Overrides
 
-If bug is for a known project with specific conventions (e.g., CNTRLPLANE/OCPBUGS), the jira-conventions skill will be invoked automatically and will override defaults.
+If the bug targets a project with known conventions, the jira-conventions skill will be invoked automatically and will override defaults.
 
 ## Field Validation
 
@@ -471,5 +471,5 @@ Any additional context?
 ## See Also
 
 - `/jira:create` - Main command that invokes this skill
-- `jira-conventions` skill - Project and team-specific conventions (CNTRLPLANE, OCPBUGS, GCP, HyperShift)
+- `jira-conventions` skill - Always load when working with Jira to learn conventions
 - Jira documentation on bug workflows
