@@ -22,7 +22,6 @@ from dataclasses import dataclass, asdict
 
 @dataclass
 class FileAccess:
-    """Represents a single file access in the session."""
     path: str
     sequence: int
     time: str
@@ -31,21 +30,18 @@ class FileAccess:
 
 @dataclass
 class PlatformInfo:
-    """Platform information."""
     name: str = "claude-code"
     version: str = "unknown"
 
 
 @dataclass
 class RepositoryInfo:
-    """Repository information extracted from session path."""
     name: str
     path: str
 
 
 @dataclass
 class TelemetryEvent:
-    """Complete telemetry event."""
     event_type: str
     version: str
     timestamp: str
@@ -59,57 +55,30 @@ _AI_DOCS_MARKERS = ("ai-docs", "AGENTS.md", "CLAUDE.md")
 
 
 def _is_ai_docs_ref(value: str) -> bool:
-    """Return True if value references an ai-docs file or a known index file."""
     return any(marker in value for marker in _AI_DOCS_MARKERS)
 
 
 def extract_repo_info(session_path: str) -> RepositoryInfo:
-    """
-    Extract repository information from session path.
-    Path format: ~/.claude/projects/<repo-path-hash>/<session-id>.jsonl
-    """
+    # Path format: ~/.claude/projects/<repo-path-hash>/<session-id>.jsonl
     parts = session_path.split("/projects/")
     if len(parts) < 2:
         return RepositoryInfo(name="unknown", path="unknown")
 
-    # Get the project directory name
-    project_dir = parts[1].split("/")[0]
-
-    # Decode project name (simplified - just replace dashes with slashes)
+    project_dir = parts[-1].split("/")[0]
+    # Simplified: dashes are used as path separators in the encoded project dir name
     repo_name = project_dir.replace("-", "/")
 
     return RepositoryInfo(name=repo_name, path=project_dir)
 
 
-def detect_entry_point(files: List[FileAccess]) -> str:
-    """Determine how user discovered ai-docs."""
-    if not files:
-        return "unknown"
-
-    for f in files:
-        if f.path.endswith("AGENTS.md"):
-            return "AGENTS.md"
-        if f.path.endswith("CLAUDE.md"):
-            return "CLAUDE.md"
-        if f.path.endswith("README.md"):
-            return "README.md"
-        if f.tool in ("Grep", "Glob"):
-            return "search"
-
-    return "direct-path"
-
-
-def process_session(session_path: str) -> Optional[TelemetryEvent]:
-    """
-    Analyze a Claude Code session log and extract ai-docs usage.
-    Returns None if no ai-docs usage detected.
-    """
-    try:
-        with open(session_path, 'r') as f:
-            content = f.read()
-    except Exception as e:
-        print(f"Error reading session: {e}", file=sys.stderr)
-        return None
+def process_session(session_path: str, content: Optional[str] = None) -> Optional[TelemetryEvent]:
+    if content is None:
+        try:
+            with open(session_path, 'r') as f:
+                content = f.read()
+        except Exception as e:
+            print(f"Error reading session: {e}", file=sys.stderr)
+            return None
 
     lines = content.split('\n')
     ai_docs_files: List[FileAccess] = []
@@ -125,11 +94,10 @@ def process_session(session_path: str) -> Optional[TelemetryEvent]:
         except json.JSONDecodeError:
             continue
 
-        # Look for Read tool calls to ai-docs files
         if event.get("type") != "assistant":
             continue
 
-        msg = event.get("message", {})
+        msg = event.get("message") or {}
         content_arr = msg.get("content", [])
 
         for item in content_arr:
@@ -137,7 +105,7 @@ def process_session(session_path: str) -> Optional[TelemetryEvent]:
                 continue
 
             tool_name = item.get("name", "")
-            inp = item.get("input", {})
+            inp = item.get("input") or {}
 
             if tool_name == "Agent":
                 sub_agents.append({
@@ -146,7 +114,6 @@ def process_session(session_path: str) -> Optional[TelemetryEvent]:
                 })
                 continue
 
-            # Extract the target string for each supported tool
             if tool_name == "Read":
                 target = inp.get("file_path", "")
             elif tool_name == "Grep":
@@ -168,7 +135,6 @@ def process_session(session_path: str) -> Optional[TelemetryEvent]:
     if not ai_docs_files:
         return None
 
-    # Deduplicate: keep first occurrence of each path
     seen_paths: set = set()
     unique_files: List[FileAccess] = []
     for f in ai_docs_files:
@@ -176,10 +142,8 @@ def process_session(session_path: str) -> Optional[TelemetryEvent]:
             seen_paths.add(f.path)
             unique_files.append(f)
 
-    # Extract repository info
     repo_info = extract_repo_info(session_path)
 
-    # Build telemetry event
     telemetry = TelemetryEvent(
         event_type="ai_docs_usage",
         version="1.0",
@@ -188,7 +152,6 @@ def process_session(session_path: str) -> Optional[TelemetryEvent]:
         platform=asdict(PlatformInfo()),
         repository=asdict(repo_info),
         documentation={
-            "entry_point":       detect_entry_point(ai_docs_files),
             "files_accessed":    [asdict(f) for f in ai_docs_files],
             "unique_files":      [asdict(f) for f in unique_files],
             "total_accesses":    len(ai_docs_files),
@@ -202,10 +165,6 @@ def process_session(session_path: str) -> Optional[TelemetryEvent]:
 
 
 def scan_recent_sessions(project_filter: Optional[str] = None) -> List[TelemetryEvent]:
-    """
-    Scan ~/.claude/projects/ for recent sessions with ai-docs usage.
-    Returns list of telemetry events.
-    """
     home_dir = pathlib.Path.home()
     projects_dir = home_dir / ".claude" / "projects"
 
@@ -217,20 +176,17 @@ def scan_recent_sessions(project_filter: Optional[str] = None) -> List[Telemetry
     processed_count = 0
     seven_days_ago = datetime.datetime.now() - datetime.timedelta(days=7)
 
-    # Walk through all project directories
     for session_file in projects_dir.glob("**/*.jsonl"):
-        # Skip files older than 7 days
         mtime = datetime.datetime.fromtimestamp(session_file.stat().st_mtime)
         if mtime < seven_days_ago:
             continue
 
-        # Filter by project if specified
         if project_filter and project_filter not in str(session_file):
             continue
 
         processed_count += 1
 
-        # Quick pre-filter: check if file contains ai-docs markers
+        # Pre-filter: skip files that contain no ai-docs markers (avoids full parse)
         try:
             content = session_file.read_text()
             if not any(marker in content for marker in _AI_DOCS_MARKERS):
@@ -238,8 +194,7 @@ def scan_recent_sessions(project_filter: Optional[str] = None) -> List[Telemetry
         except Exception:
             continue
 
-        # Process session
-        event = process_session(str(session_file))
+        event = process_session(str(session_file), content=content)
         if event:
             events.append(event)
 
@@ -250,7 +205,6 @@ def scan_recent_sessions(project_filter: Optional[str] = None) -> List[Telemetry
 
 
 def main():
-    """Main entry point."""
     parser = argparse.ArgumentParser(
         description="Analyze Claude Code session logs for ai-docs usage"
     )

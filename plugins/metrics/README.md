@@ -29,7 +29,7 @@ Analyze Claude Code session logs to track ai-docs usage patterns. See [ai-docs-t
 /metrics:ai-docs-telemetry -session ~/.claude/projects/<project>/<session-id>.jsonl
 
 # Pipe to jq for analysis
-/metrics:ai-docs-telemetry -scan | jq -r '.[] | "\(.documentation.entry_point): \(.documentation.total_files)"'
+/metrics:ai-docs-telemetry -scan | jq -r '.[] | "\(.session_id): \(.documentation.total_files) files"'
 ```
 
 ## How It Works

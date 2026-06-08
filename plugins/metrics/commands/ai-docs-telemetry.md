@@ -18,7 +18,6 @@ The `metrics:ai-docs-telemetry` command analyzes Claude Code session logs to tra
 This helps measure:
 - Documentation effectiveness and usage patterns
 - Which files are accessed most frequently
-- Entry points for documentation discovery (AGENTS.md, direct search, etc.)
 - Navigation paths through documentation
 
 All output is JSON to stdout, making it easy to pipe to `jq` for analysis.
@@ -32,7 +31,6 @@ The script:
 - Parses `~/.claude/projects/` JSONL files
 - Detects Read tool calls to files matching `ai-docs/`, `AGENTS.md`, or `CLAUDE.md`
 - Tracks access sequence and timestamps
-- Identifies entry points (AGENTS.md vs direct search)
 - Privacy-first: Only file paths tracked, no code/prompts/user data
 
 ## Return Value
@@ -52,7 +50,6 @@ The script:
        "event_type": "ai_docs_usage",
        "session_id": "a0350e3f-1853-4a56-be01-865cd0df1944",
        "documentation": {
-         "entry_point": "AGENTS.md",
          "files_accessed": [...],
          "total_files": 5
        }
@@ -77,12 +74,9 @@ The script:
 
 5. **Pipe to jq for analysis**:
    ```bash
-   # Count files by entry point
-   /metrics:ai-docs-telemetry -scan | jq -r '.[] | "\(.documentation.entry_point): \(.documentation.total_files)"'
-   
    # List most accessed files
    /metrics:ai-docs-telemetry -scan | jq -r '.[] | .documentation.files_accessed[].path' | sort | uniq -c | sort -rn
-   
+
    # Filter sessions with >5 files accessed
    /metrics:ai-docs-telemetry -scan | jq '.[] | select(.documentation.total_files > 5)'
    ```
