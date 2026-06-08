@@ -1114,6 +1114,79 @@ footer a { color: var(--primary); }
       }
     },
     {
+      "name": "dra-ocp-validator",
+      "description": "Comprehensive DRA feature validation for OpenShift clusters",
+      "version": "1.0.0",
+      "has_readme": true,
+      "commands": [
+        {
+          "name": "analyze",
+          "full_name": "dra-ocp-validator:analyze",
+          "description": "Analyze DRA test failure and provide debugging guidance",
+          "description_html": "Analyze DRA test failure and provide debugging guidance",
+          "synopsis": "/dra-ocp-validator:analyze \u003ctest-output-directory\u003e",
+          "body_html": "\u003cp\u003eThe \u003ccode\u003edra-ocp-validator:analyze\u003c/code\u003e command analyzes a failed DRA test and provides:\u003cbr\u003e- Failure root cause analysis from logs and events\u003cbr\u003e- Common issue detection (scheduling failures, allocation errors, permissions)\u003cbr\u003e- Test-specific debugging guidance\u003cbr\u003e- Recommended next steps\u003c/p\u003e\u003cp\u003eThis is useful when:\u003cbr\u003e- A test fails and you need to understand why\u003cbr\u003e- You want automated analysis of collected debug artifacts\u003cbr\u003e- You need specific debugging commands for the failure type\u003c/p\u003e\u003cp\u003eThe command analyzes:\u003cbr\u003e1. Test summary and validation status\u003cbr\u003e2. Kubernetes events (scheduling/allocation failures)\u003cbr\u003e3. ResourceClaim status and conditions\u003cbr\u003e4. Pod status and scheduling decisions\u003cbr\u003e5. DRA driver logs for errors\u003cbr\u003e6. Test-specific patterns\u003c/p\u003e"
+        },
+        {
+          "name": "cleanup",
+          "full_name": "dra-ocp-validator:cleanup",
+          "description": "Clean up DRA test resources and optionally uninstall drivers",
+          "description_html": "Clean up DRA test resources and optionally uninstall drivers",
+          "synopsis": "/dra-ocp-validator:cleanup \u003ckubeconfig-path\u003e [options]",
+          "body_html": "\u003cp\u003eThe \u003ccode\u003edra-ocp-validator:cleanup\u003c/code\u003e command performs complete cleanup of DRA resources from an OpenShift cluster, auto-detecting and removing the installed driver type (NVIDIA or example).\u003c/p\u003e\u003cp\u003e\u003cstrong\u003eDefault behavior\u003c/strong\u003e (no flags):\u003cbr\u003e- Deletes all test namespaces (\u003ccode\u003edra-*-test\u003c/code\u003e)\u003cbr\u003e- Auto-detects driver type (NVIDIA or example)\u003cbr\u003e- Removes DRA driver (Helm release + namespace)\u003cbr\u003e- Removes GPU operator (if present)\u003cbr\u003e- Preserves NFD (foundational cluster infrastructure)\u003c/p\u003e\u003cp\u003e\u003cstrong\u003eSelective preservation flags\u003c/strong\u003e:\u003cbr\u003e- \u003ccode\u003e--keep-driver\u003c/code\u003e: Preserve DRA driver installation\u003cbr\u003e- \u003ccode\u003e--keep-operator\u003c/code\u003e: Preserve GPU operator installation\u003cbr\u003e- Both can be combined to clean only test namespaces\u003c/p\u003e\u003cp\u003eThis is useful for:\u003cbr\u003e- Complete teardown after DRA testing/validation\u003cbr\u003e- Freeing cluster resources\u003cbr\u003e- Resetting cluster to clean state\u003cbr\u003e- Partial cleanup when preserving infrastructure components\u003c/p\u003e"
+        },
+        {
+          "name": "list-features",
+          "full_name": "dra-ocp-validator:list-features",
+          "description": "List all DRA features with metadata, graduation status, and requirements",
+          "description_html": "List all DRA features with metadata, graduation status, and requirements",
+          "synopsis": "/dra-ocp-validator:list-features \u003ckubeconfig-path\u003e [--detailed]",
+          "body_html": "\u003cp\u003eThe \u003ccode\u003elist-features\u003c/code\u003e command displays comprehensive information about all Dynamic Resource Allocation (DRA) features supported by the plugin, including:\u003c/p\u003e\u003cp\u003e- Feature graduation levels (Alpha/Beta/GA) for the current cluster\u003cbr\u003e- Kubernetes version requirements\u003cbr\u003e- Feature gate requirements and status\u003cbr\u003e- Setup prerequisites and enablement commands\u003cbr\u003e- Test coverage information\u003c/p\u003e\u003cp\u003eThis command helps answer:\u003cbr\u003e- What DRA features are available on my cluster?\u003cbr\u003e- Which features require feature gates to be enabled?\u003cbr\u003e- What is the graduation status of each feature?\u003cbr\u003e- Which features are testable on my K8s version?\u003c/p\u003e"
+        },
+        {
+          "name": "setup",
+          "full_name": "dra-ocp-validator:setup",
+          "description": "Install DRA stack (auto-detects hardware and installs appropriate driver)",
+          "description_html": "Install DRA stack (auto-detects hardware and installs appropriate driver)",
+          "synopsis": "/dra-ocp-validator:setup \u003ckubeconfig-path\u003e [options]",
+          "body_html": "\u003cp\u003eThe \u003ccode\u003edra-ocp-validator:setup\u003c/code\u003e command installs and configures the appropriate DRA driver on an OpenShift cluster based on detected hardware, without running validation tests. This is useful when you want to:\u003c/p\u003e\u003cp\u003e- Prepare a cluster for manual DRA testing\u003cbr\u003e- Install prerequisites before running tests at a later time\u003cbr\u003e- Verify installation works before committing to full validation\u003c/p\u003e\u003cp\u003e\u003cstrong\u003eThe command performs:\u003c/strong\u003e\u003cbr\u003e1. Cluster access verification\u003cbr\u003e2. NFD installation (always - required for hardware detection)\u003cbr\u003e3. Hardware discovery via NFD labels\u003cbr\u003e4. \u003cstrong\u003eAuto-select driver\u003c/strong\u003e based on detected hardware:\u003cbr\u003e   - \u003cstrong\u003eNVIDIA GPUs detected\u003c/strong\u003e → Install GPU operator + NVIDIA DRA driver\u003cbr\u003e   - \u003cstrong\u003eAMD GPUs detected\u003c/strong\u003e → Install GPU operator + AMD DRA driver  \u003cbr\u003e   - \u003cstrong\u003eNo GPUs detected\u003c/strong\u003e → Install dra-example-driver (software-only)\u003cbr\u003e5. Driver installation (conditional based on step 4)\u003cbr\u003e6. Installation verification (DeviceClasses, ResourceSlices)\u003c/p\u003e\u003cp\u003eAfter setup completes, you can run \u003ccode\u003e/dra-ocp-validator:test\u003c/code\u003e to execute validation tests.\u003c/p\u003e"
+        },
+        {
+          "name": "test",
+          "full_name": "dra-ocp-validator:test",
+          "description": "Run DRA feature tests on a cluster with prerequisites already installed",
+          "description_html": "Run DRA feature tests on a cluster with prerequisites already installed",
+          "synopsis": "/dra-ocp-validator:test \u003ckubeconfig-path\u003e [options]",
+          "body_html": "\u003cp\u003eThe \u003ccode\u003edra-ocp-validator:test\u003c/code\u003e command runs DRA feature validation tests on a cluster where the DRA driver and GPU operator have already been installed (via \u003ccode\u003e/dra-ocp-validator:setup\u003c/code\u003e or manually).\u003c/p\u003e\u003cp\u003eThis is useful when you want to:\u003cbr\u003e- Re-run tests after fixing issues\u003cbr\u003e- Test a subset of features\u003cbr\u003e- Run tests on a pre-configured cluster\u003cbr\u003e- Validate after cluster or driver configuration changes\u003c/p\u003e\u003cp\u003eThe command performs:\u003cbr\u003e1. Cluster access verification\u003cbr\u003e2. DRA driver readiness check (DeviceClass, ResourceSlice)\u003cbr\u003e3. K8s version detection and feature availability mapping\u003cbr\u003e4. CDMM detection (Grace-Blackwell) for MIG test skipping\u003cbr\u003e5. Feature gate validation (Alpha features only)\u003cbr\u003e6. Test execution for selected features\u003cbr\u003e7. Artifact collection and report generation\u003c/p\u003e"
+        },
+        {
+          "name": "validate",
+          "full_name": "dra-ocp-validator:validate",
+          "description": "Complete DRA validation (setup + test + report) on OpenShift clusters",
+          "description_html": "Complete DRA validation (setup + test + report) on OpenShift clusters",
+          "synopsis": "/dra-ocp-validator:validate \u003ckubeconfig-path\u003e [options]",
+          "body_html": "\u003cp\u003eThe \u003ccode\u003edra-ocp-validator:validate\u003c/code\u003e command performs comprehensive end-to-end validation of Dynamic Resource Allocation (DRA) features on an OpenShift cluster. It combines cluster setup, feature testing, and report generation into a single workflow.\u003c/p\u003e\u003cp\u003e\u003cstrong\u003eComplete workflow:\u003c/strong\u003e\u003cbr\u003e1. Verify cluster access and detect hardware\u003cbr\u003e2. Install prerequisites (NFD, GPU operator, DRA driver)\u003cbr\u003e3. Determine available DRA features based on K8s version\u003cbr\u003e4. Check CDMM status and feature gates\u003cbr\u003e5. Run feature validation tests\u003cbr\u003e6. Collect artifacts and generate validation report\u003cbr\u003e7. Package results in tarball for JIRA attachment\u003c/p\u003e\u003cp\u003eThis is the recommended command for full DRA validation.\u003c/p\u003e"
+        }
+      ],
+      "skills": [],
+      "agents": [],
+      "hooks": [],
+      "mcp_servers": [],
+      "rules": [],
+      "category": "testing",
+      "keywords": [
+        "dra",
+        "gpu",
+        "validation",
+        "nvidia",
+        "testing",
+        "openshift"
+      ],
+      "author": {
+        "name": "github.com/openshift-eng"
+      }
+    },
+    {
       "name": "etcd",
       "description": "Etcd cluster health monitoring and performance analysis utilities",
       "version": "0.0.2",
