@@ -1,6 +1,6 @@
 ---
 name: jira-conventions
-description: Jira conventions — project (CNTRLPLANE, OCPBUGS, GCP-HCP), team (HyperShift), and formatting (Markdown for Jira)
+description: Use this skill to load relevant Jira conventions, like project-specific field mappings, team component requirements, version handling, and Markdown formatting
 ---
 
 # Jira Conventions
