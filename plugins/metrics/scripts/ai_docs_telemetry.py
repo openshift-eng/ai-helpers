@@ -3,7 +3,7 @@
 AI Docs Telemetry Analysis Script
 
 Analyzes Claude Code session logs to track ai-docs usage patterns.
-Parses session JSONL files to extract tool calls (Read, Grep, Glob, Bash)
+Parses session JSONL files to extract tool calls (Read, Grep, Glob)
 that reference ai-docs files.
 
 Usage:
@@ -65,10 +65,8 @@ def extract_repo_info(session_path: str) -> RepositoryInfo:
         return RepositoryInfo(name="unknown", path="unknown")
 
     project_dir = parts[-1].split("/")[0]
-    # Simplified: dashes are used as path separators in the encoded project dir name
-    repo_name = project_dir.replace("-", "/")
 
-    return RepositoryInfo(name=repo_name, path=project_dir)
+    return RepositoryInfo(name=project_dir, path=project_dir)
 
 
 def process_session(session_path: str, content: Optional[str] = None) -> Optional[TelemetryEvent]:
@@ -94,11 +92,11 @@ def process_session(session_path: str, content: Optional[str] = None) -> Optiona
         except json.JSONDecodeError:
             continue
 
-        if event.get("type") != "assistant":
+        if not isinstance(event, dict) or event.get("type") != "assistant":
             continue
 
         msg = event.get("message") or {}
-        content_arr = msg.get("content", [])
+        content_arr = msg.get("content") or []
 
         for item in content_arr:
             if not isinstance(item, dict) or item.get("type") != "tool_use":
@@ -191,7 +189,8 @@ def scan_recent_sessions(project_filter: Optional[str] = None) -> List[Telemetry
             content = session_file.read_text()
             if not any(marker in content for marker in _AI_DOCS_MARKERS):
                 continue
-        except Exception:
+        except Exception as e:
+            print(f"Warning: skipping {session_file}: {e}", file=sys.stderr)
             continue
 
         event = process_session(str(session_file), content=content)

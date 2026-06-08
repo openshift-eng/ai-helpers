@@ -29,8 +29,8 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/ai_docs_telemetry.py "$@"
 
 The script:
 - Parses `~/.claude/projects/` JSONL files
-- Detects Read tool calls to files matching `ai-docs/`, `AGENTS.md`, or `CLAUDE.md`
-- Tracks access sequence and timestamps
+- Detects `Read`, `Grep`, and `Glob` tool calls referencing `ai-docs/`, `AGENTS.md`, or `CLAUDE.md`
+- Tracks access sequence, tool used, and timestamps
 - Privacy-first: Only file paths tracked, no code/prompts/user data
 
 ## Return Value
@@ -51,7 +51,11 @@ The script:
        "session_id": "a0350e3f-1853-4a56-be01-865cd0df1944",
        "documentation": {
          "files_accessed": [...],
-         "total_files": 5
+         "unique_files": [...],
+         "total_accesses": 7,
+         "unique_file_count": 5,
+         "total_files": 5,
+         "sub_agents": []
        }
      }
    ]
@@ -74,11 +78,20 @@ The script:
 
 5. **Pipe to jq for analysis**:
    ```bash
-   # List most accessed files
+   # List most accessed files (all accesses, including re-reads)
    /metrics:ai-docs-telemetry -scan | jq -r '.[] | .documentation.files_accessed[].path' | sort | uniq -c | sort -rn
 
-   # Filter sessions with >5 files accessed
-   /metrics:ai-docs-telemetry -scan | jq '.[] | select(.documentation.total_files > 5)'
+   # Sessions where re-reads occurred (total_accesses > unique_file_count)
+   /metrics:ai-docs-telemetry -scan | jq '.[] | select(.documentation.total_accesses > .documentation.unique_file_count)'
+
+   # Filter sessions with >5 unique files accessed
+   /metrics:ai-docs-telemetry -scan | jq '.[] | select(.documentation.unique_file_count > 5)'
+
+   # Sessions that spawned sub-agents
+   /metrics:ai-docs-telemetry -scan | jq '.[] | select(.documentation.sub_agents | length > 0)'
+
+   # Show which tools (Read/Grep/Glob) were used per session
+   /metrics:ai-docs-telemetry -scan | jq '.[] | {session: .session_id, tools: [.documentation.files_accessed[].tool] | unique}'
    ```
 
 ## Arguments
