@@ -1,6 +1,6 @@
 ---
 name: jira-conventions
-description: Project-specific and team-specific Jira conventions for CNTRLPLANE, OCPBUGS, GCP-HCP, and HyperShift
+description: Jira conventions — project (CNTRLPLANE, OCPBUGS, GCP-HCP), team (HyperShift), and formatting (Markdown for Jira)
 ---
 
 # Jira Conventions
