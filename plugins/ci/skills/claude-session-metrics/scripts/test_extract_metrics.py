@@ -1,0 +1,167 @@
+#!/usr/bin/env python3
+"""Tests for extract_metrics.py."""
+
+import json
+import os
+import subprocess
+import sys
+import tempfile
+
+SCRIPT = os.path.join(os.path.dirname(__file__), "extract_metrics.py")
+TESTDATA = os.path.join(os.path.dirname(__file__), "testdata")
+
+
+def run_script(log_file, output_file=None):
+    args = [sys.executable, SCRIPT, log_file]
+    if output_file:
+        args.append(output_file)
+    result = subprocess.run(args, capture_output=True, text=True)
+    return result
+
+
+def load_autodl(path):
+    with open(path) as f:
+        return json.load(f)
+
+
+def test_valid_output():
+    with tempfile.NamedTemporaryFile(suffix="-autodl.json", delete=False) as tmp:
+        out_path = tmp.name
+    try:
+        r = run_script(os.path.join(TESTDATA, "valid_output.jsonl"), out_path)
+        assert r.returncode == 0, f"Script failed: {r.stderr}"
+
+        data = load_autodl(out_path)
+        assert data["table_name"] == "claude_session_metrics"
+        assert data["schema_mapping"] is None
+        assert data["chunk_size"] == 0
+        assert len(data["rows"]) == 1
+
+        row = data["rows"][0]
+
+        # All values must be strings
+        for k, v in row.items():
+            assert isinstance(v, str), f"Field '{k}' is {type(v).__name__}, expected str"
+
+        assert row["session_id"] == "test-session-001"
+        assert row["model"] == "claude-opus-4-6"
+        assert row["claude_code_version"] == "2.1.153"
+        assert row["duration_ms"] == "30000"
+        assert row["duration_api_ms"] == "28000"
+        assert row["ttft_ms"] == "1500"
+        assert row["num_turns"] == "4"
+        assert row["total_cost_usd"] == "0.125000"
+        assert row["input_tokens"] == "180"
+        assert row["output_tokens"] == "250"
+        assert row["cache_read_input_tokens"] == "17500"
+        assert row["cache_creation_input_tokens"] == "6700"
+        assert row["is_error"] == "0"
+        assert row["terminal_reason"] == "completed"
+        assert row["plugins_loaded"] == "ci"
+
+        # Tool calls: Skill(1) + Read(2) + Write(1) = 4
+        assert row["total_tool_calls"] == "4"
+        breakdown = json.loads(row["tool_call_breakdown"])
+        assert breakdown["Read"] == 2
+        assert breakdown["Write"] == 1
+        assert breakdown["Skill"] == 1
+
+        assert row["skills_invoked"] == "ci:payload-analysis"
+        assert row["files_written"] == "1"
+        assert row["num_thinking_blocks"] == "1"
+        assert row["num_subagents"] == "0"
+
+        # Prompt inferred from first Skill call
+        assert "ci:payload-analysis" in row["prompt"]
+
+        print("PASS: test_valid_output")
+    finally:
+        os.unlink(out_path)
+
+
+def test_error_output():
+    with tempfile.NamedTemporaryFile(suffix="-autodl.json", delete=False) as tmp:
+        out_path = tmp.name
+    try:
+        r = run_script(os.path.join(TESTDATA, "error_output.jsonl"), out_path)
+        assert r.returncode == 0, f"Script failed: {r.stderr}"
+
+        data = load_autodl(out_path)
+        row = data["rows"][0]
+
+        assert row["is_error"] == "1"
+        assert row["terminal_reason"] == "error"
+        assert row["total_cost_usd"] == "0.010000"
+        assert row["num_turns"] == "1"
+        assert row["total_tool_calls"] == "0"
+        assert row["plugins_loaded"] == ""
+
+        print("PASS: test_error_output")
+    finally:
+        os.unlink(out_path)
+
+
+def test_with_subagents():
+    with tempfile.NamedTemporaryFile(suffix="-autodl.json", delete=False) as tmp:
+        out_path = tmp.name
+    try:
+        r = run_script(os.path.join(TESTDATA, "with_subagent.jsonl"), out_path)
+        assert r.returncode == 0, f"Script failed: {r.stderr}"
+
+        data = load_autodl(out_path)
+        row = data["rows"][0]
+
+        assert row["num_subagents"] == "2"
+        assert row["subagent_total_tool_uses"] == "15"  # 12 + 3
+        assert row["subagent_total_duration_ms"] == "85000"  # 60000 + 25000
+        assert row["plugins_loaded"] == "ci,jira"
+
+        # Main session tool calls: Agent(2) = 2
+        assert row["total_tool_calls"] == "2"
+        breakdown = json.loads(row["tool_call_breakdown"])
+        assert breakdown["Agent"] == 2
+
+        print("PASS: test_with_subagents")
+    finally:
+        os.unlink(out_path)
+
+
+def test_no_result_message():
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as tmp:
+        tmp.write('{"type":"system","subtype":"init","session_id":"x","model":"test"}\n')
+        tmp.write('{"type":"assistant","message":{"id":"m1","content":[{"type":"text","text":"hi"}],"usage":{"input_tokens":1}},"uuid":"a1","type":"assistant"}\n')
+        log_path = tmp.name
+    try:
+        r = run_script(log_path)
+        assert r.returncode != 0, "Should fail without result message"
+        assert "no result message" in r.stderr.lower()
+        print("PASS: test_no_result_message")
+    finally:
+        os.unlink(log_path)
+
+
+def test_schema_matches_row_fields():
+    with tempfile.NamedTemporaryFile(suffix="-autodl.json", delete=False) as tmp:
+        out_path = tmp.name
+    try:
+        run_script(os.path.join(TESTDATA, "valid_output.jsonl"), out_path)
+        data = load_autodl(out_path)
+        schema_fields = set(data["schema"].keys())
+        row_fields = set(data["rows"][0].keys())
+        assert schema_fields == row_fields, (
+            f"Schema/row mismatch: "
+            f"in schema only: {schema_fields - row_fields}, "
+            f"in row only: {row_fields - schema_fields}"
+        )
+        print("PASS: test_schema_matches_row_fields")
+    finally:
+        os.unlink(out_path)
+
+
+if __name__ == "__main__":
+    test_valid_output()
+    test_error_output()
+    test_with_subagents()
+    test_no_result_message()
+    test_schema_matches_row_fields()
+    print("\nAll tests passed.")

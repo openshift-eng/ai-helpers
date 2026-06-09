@@ -487,7 +487,7 @@ footer a { color: var(--primary); }
     {
       "name": "ci",
       "description": "Tools for working with OpenShift CI and analyzing Prow job results",
-      "version": "0.0.45",
+      "version": "0.0.46",
       "has_readme": true,
       "commands": [
         {
@@ -702,6 +702,12 @@ footer a { color: var(--primary); }
           "name": "analyze-disruption",
           "description": "Analyze and compare disruption across one or more Prow CI job runs by examining interval data, audit logs, pod logs, and CPU metrics",
           "description_html": "Analyze and compare disruption across one or more Prow CI job runs by examining interval data, audit logs, pod logs, and CPU metrics",
+          "meta": ""
+        },
+        {
+          "name": "claude-session-metrics",
+          "description": "Extract cost, token, duration, and tool-usage metrics from a claude-output.log and produce an autodl JSON file for BigQuery ingestion",
+          "description_html": "Extract cost, token, duration, and tool-usage metrics from a claude-output.log and produce an autodl JSON file for BigQuery ingestion",
           "meta": ""
         },
         {
