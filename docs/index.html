@@ -1906,7 +1906,7 @@ footer a { color: var(--primary); }
     {
       "name": "native-notifications",
       "description": "Cross-platform desktop notifications (macOS, Linux desktop, Linux headless)",
-      "version": "0.0.2",
+      "version": "0.0.3",
       "has_readme": true,
       "commands": [],
       "skills": [],
@@ -1915,12 +1915,12 @@ footer a { color: var(--primary); }
         {
           "event_type": "Notification",
           "matcher": ".*",
-          "hooks_json": "[\n  {\n    \"command\": \"if command -v osascript \u003e/dev/null 2\u003e&1; then osascript -e 'display notification \\\"Claude needs your input\\\" with title \\\"\\ud83d\\udd14 Claude Code\\\"'; elif command -v notify-send \u003e/dev/null 2\u003e&1 && [ -n \\\"${DISPLAY:-}${WAYLAND_DISPLAY:-}\\\" ]; then notify-send '\\ud83d\\udd14 Claude Code' 'Claude needs your input'; else printf '\\\\a'; fi\",\n    \"type\": \"command\"\n  }\n]"
+          "hooks_json": "[\n  {\n    \"command\": \"bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/notify.sh '\\ud83d\\udd14 Claude Code' 'Claude needs your input'\",\n    \"type\": \"command\"\n  }\n]"
         },
         {
           "event_type": "Stop",
           "matcher": ".*",
-          "hooks_json": "[\n  {\n    \"command\": \"if command -v osascript \u003e/dev/null 2\u003e&1; then osascript -e 'display notification \\\"Claude finished your task\\\" with title \\\"\\u2705 Claude Code\\\"'; elif command -v notify-send \u003e/dev/null 2\u003e&1 && [ -n \\\"${DISPLAY:-}${WAYLAND_DISPLAY:-}\\\" ]; then notify-send '\\u2705 Claude Code' 'Claude finished your task'; else printf '\\\\a'; fi\",\n    \"type\": \"command\"\n  }\n]"
+          "hooks_json": "[\n  {\n    \"command\": \"bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/notify.sh '\\u2705 Claude Code' 'Claude finished your task'\",\n    \"type\": \"command\"\n  }\n]"
         }
       ],
       "mcp_servers": [],
