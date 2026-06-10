@@ -1,43 +1,28 @@
----
-name: gcp-hcp
-description: GCP HCP team-specific Jira requirements for creating issues in the GCP project (Hypershift on GKE)
----
-
 # GCP HCP Jira Conventions
 
-This skill provides GCP HCP (Hypershift on GKE) team-specific conventions for creating Jira issues in the GCP project.
+GCP HCP (Hypershift on GKE) team-specific conventions for creating Jira issues in the GCP project.
 
 ## Table of Contents
 
-- [When to Use This Skill](#when-to-use-this-skill)
 - [Project Information](#project-information)
 - [Custom Fields](#custom-fields)
 - [Components](#components)
 - [MCP Tool Integration](#mcp-tool-integration)
-  - [For GCP HCP Stories in GCP Project](#for-gcp-hcp-stories-in-gcp-project)
-  - [For GCP HCP Epics in GCP Project](#for-gcp-hcp-epics-in-gcp-project)
 - [Epic Linking Best Practices](#epic-linking-best-practices)
 - [GCP HCP Team Standards](#gcp-hcp-team-standards)
   - [JIRA Templates](#jira-templates)
     - [Story Template](#story-template)
       - [Story Sizing Guide](#story-sizing-guide)
     - [Task Template](#task-template)
-      - [When to Use a Task](#when-to-use-a-task)
     - [Epic Template](#epic-template)
     - [Feature Template](#feature-template)
   - [Definition of Done](#definition-of-done)
-    - [Story DoD](#story-dod)
-    - [Spike DoD](#spike-dod)
-    - [Bug DoD](#bug-dod)
   - [Priority Scheme (OJA-PRIS-001)](#priority-scheme-oja-pris-001)
 - [Examples](#examples)
-  - [Example 1: GCP HCP Story](#example-1-gcp-hcp-story)
-  - [Example 2: GCP HCP Epic](#example-2-gcp-hcp-epic)
-- [See Also](#see-also)
 
-## When to Use This Skill
+## When These Conventions Apply
 
-This skill is automatically invoked when:
+These conventions apply when:
 - Summary or description contains GCP HCP keywords: "GCP HCP", "Hypershift on GKE", "GKE hosted control plane"
 - Project key is "GCP"
 - User explicitly requests GCP HCP conventions
@@ -536,8 +521,49 @@ Parent: GCP-100 (Feature)
 Labels: ai-generated-jira
 ```
 
-## See Also
+## Maintenance
 
-- `/jira:create` command - Main Jira issue creation command
-- `cntrlplane` skill - CNTRLPLANE project conventions (similar structure)
-- `hypershift` skill - HyperShift team conventions (on AWS/Azure)
+Sections of this file are sourced from upstream files in openshift-online/gcp-hcp. When updating, fetch the latest content from the upstream sources and reconcile any changes.
+
+### Upstream Sources
+
+| Section | Upstream File |
+|---------|--------------|
+| Story Template structure | docs/jira-story-template.md |
+| Story Sizing Guide (within story section) | docs/jira-story-template.md |
+| Task Template structure | docs/jira-task-template.md |
+| Priority Scheme (OJA-PRIS-001) | *See note below* |
+| Epic Template structure | docs/jira-epic-template.md |
+| Feature Template structure | docs/jira-feature-template.md |
+| Definition of Done | docs/definition-of-done.md |
+
+### Sync Instructions
+
+When this file needs updating (upstream templates changed, new sections added):
+
+1. Fetch the latest content from each upstream file:
+   - https://raw.githubusercontent.com/openshift-online/gcp-hcp/main/docs/jira-story-template.md
+   - https://raw.githubusercontent.com/openshift-online/gcp-hcp/main/docs/jira-task-template.md
+   - https://raw.githubusercontent.com/openshift-online/gcp-hcp/main/docs/jira-epic-template.md
+   - https://raw.githubusercontent.com/openshift-online/gcp-hcp/main/docs/jira-feature-template.md
+   - https://raw.githubusercontent.com/openshift-online/gcp-hcp/main/docs/definition-of-done.md
+2. Compare against the embedded content in this file
+3. Update with any new or changed content
+4. Run `make lint` from the `ai-helpers` repo root to validate
+
+### Notes on Sources
+
+**Priority Scheme (OJA-PRIS-001):**
+- This content is **not** from upstream openshift-online/gcp-hcp
+- Source: Red Hat internal priority scheme OJA-PRIS-001
+- This is team-agnostic guidance maintained directly in ai-helpers
+- Keep this section synchronized with other Jira conventions that reference OJA-PRIS-001
+
+### Intentional Omissions
+
+The following upstream content was intentionally excluded and should not be re-introduced during sync:
+
+- **Feature Template worked example** (`jira-feature-template.md` "Example Feature" section): Omitted to keep this file focused on template structure rather than filled-in examples.
+- **Epic Template worked example** (`jira-epic-template.md` "Example Epic" section): Omitted to keep this file focused on template structure rather than filled-in examples.
+
+All upstream URLs reference the `main` branch. If the canonical branch changes, update the URLs above accordingly.

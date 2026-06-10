@@ -185,22 +185,16 @@ Invoke the appropriate skill based on issue type using the Skill tool:
   - Offers component mapping from teams/operators
   - Targets RFE project
 
-### 🏢 Phase 2: Apply Project-Specific Conventions
+### 🏢 Phase 2: Apply Project and Team Conventions
 
-Invoke project-specific and team-specific skills using the Skill tool when the project key or issue type matches a known skill:
+Invoke the `jira-conventions` skill when the project key or keywords match a known project or team. The skill uses progressive disclosure — it routes to the appropriate reference file(s) under `reference/`:
 
-**Project-specific skills:**
-- **CNTRLPLANE:** Invoke `cntrlplane` skill for CNTRLPLANE stories/epics/features/tasks
-- **OCPBUGS:** Invoke `ocpbugs` skill for OCPBUGS bugs
-- **Other projects:** Use only type-specific skills for best practices
+- **CNTRLPLANE** → reads [reference/cntrlplane.md](../reference/cntrlplane.md)
+- **OCPBUGS** → reads [reference/ocpbugs.md](../reference/ocpbugs.md)
+- **GCP-HCP** → reads [reference/gcp-hcp.md](../reference/gcp-hcp.md)
+- **HyperShift/ARO/ROSA keywords** → also reads [reference/hypershift.md](../reference/hypershift.md) (layers on top of project conventions)
 
-**Team-specific skills:**
-- Detected based on keywords in summary/description or component
-- Apply team-specific conventions (component selection, custom fields, workflows)
-- Layer on top of project-specific conventions
-- Example: HyperShift team → invoke `hypershift` skill
-
-**General projects** use only the type-specific skills (create-story, create-bug, etc.) for best practices.
+**General projects** (no matching conventions) use only the type-specific skills (create-story, create-bug, etc.) for best practices.
 
 ### 📝 Phase 3: Parse Arguments & Detect Context
 
@@ -480,20 +474,17 @@ Applied defaults:
 
 ## Configuration
 
-### Project-Specific Skills
+### Project and Team Conventions
 
-The command automatically detects and applies project-specific conventions:
+The command automatically detects and applies conventions via the `jira-conventions` skill, which routes to reference files under `reference/`:
 
-- **CNTRLPLANE:** Uses `cntrlplane` skill for CNTRLPLANE stories/epics/features/tasks
-- **OCPBUGS:** Uses `ocpbugs` skill for OCPBUGS bugs
+- **CNTRLPLANE** → [reference/cntrlplane.md](../reference/cntrlplane.md)
+- **OCPBUGS** → [reference/ocpbugs.md](../reference/ocpbugs.md)
+- **GCP-HCP** → [reference/gcp-hcp.md](../reference/gcp-hcp.md)
+- **HyperShift team** → [reference/hypershift.md](../reference/hypershift.md) (layered on top of project conventions)
 - **Other projects:** Uses general best practices from type-specific skills
 
-To add conventions for your project, create a skill at:
-```
-plugins/jira/skills/your-project-name/SKILL.md
-```
-
-Then update the command implementation to invoke your skill when the project is detected.
+To add conventions for your project or team, create a reference file at `reference/your-project.md` and add an entry to the `jira-conventions` skill.
 
 ### Environment Variables
 
@@ -691,20 +682,12 @@ The following skills are automatically invoked by this command:
 - **create-bug** - Bug report templates
 - **create-feature-request** - Customer-driven feature request workflow for RFE project
 
-**Project-specific skills:**
-- **cntrlplane** - CNTRLPLANE project conventions (stories, epics, features, tasks)
-- **ocpbugs** - OCPBUGS project conventions (bugs only)
+**Project and team conventions:**
+- **jira-conventions** - Routes to project/team-specific conventions under `reference/` (CNTRLPLANE, OCPBUGS, GCP, HyperShift)
 
-**Team-specific skills:**
-- **gcp-hcp** - GCP HCP team conventions (GCP project for Hypershift on GKE)
-- **hypershift** - HyperShift team conventions (component selection for ARO/ROSA/HyperShift)
-
-To view skill details:
+To view convention details:
 ```bash
-ls plugins/jira/skills/
-cat plugins/jira/skills/create-story/SKILL.md
-cat plugins/jira/skills/create-feature-request/SKILL.md
-cat plugins/jira/skills/cntrlplane/SKILL.md
-cat plugins/jira/skills/ocpbugs/SKILL.md
-cat plugins/jira/skills/hypershift/SKILL.md
+ls plugins/jira/reference/
+cat plugins/jira/skills/jira-conventions/SKILL.md
+cat plugins/jira/reference/cntrlplane.md
 ```

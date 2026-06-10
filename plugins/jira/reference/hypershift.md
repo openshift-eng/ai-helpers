@@ -1,20 +1,13 @@
----
-name: hypershift
-description: HyperShift team-specific Jira requirements for component selection and conventions
----
+# HyperShift Team Jira Conventions
 
-# HyperShift Jira Conventions
+HyperShift team-specific conventions for creating Jira issues in CNTRLPLANE and OCPBUGS projects. This layers on top of the [CNTRLPLANE](cntrlplane.md) and [OCPBUGS](ocpbugs.md) project conventions.
 
-This skill provides HyperShift team-specific conventions for creating Jira issues in CNTRLPLANE and OCPBUGS projects.
+## When These Conventions Apply
 
-## When to Use This Skill
-
-This skill is automatically invoked when:
+These conventions apply when:
 - Summary or description contains HyperShift keywords: "HyperShift", "ARO HCP", "ROSA HCP", "hosted control plane"
 - Component contains "HyperShift"
 - User explicitly requests HyperShift conventions
-
-This skill works **in conjunction with** the `cntrlplane` skill, adding HyperShift-specific requirements on top of generic CNTRLPLANE/OCPBUGS conventions.
 
 ## Component Requirements
 
@@ -92,7 +85,7 @@ HyperShift team uses specific version defaults:
 
 ## Labels
 
-In addition to `ai-generated-jira` (from CNTRLPLANE skill), HyperShift issues may include:
+In addition to `ai-generated-jira` (applied universally), HyperShift issues may include:
 
 **Platform-specific:**
 - `aro-hcp` - ARO HCP specific
@@ -137,14 +130,6 @@ Use `createJiraIssue` with `contentFormat: "markdown"`, project key `OCPBUGS`, i
 - Labels: ai-generated-jira
 - Security: Red Hat Employee
 
-**Interactive prompts:**
-- User story format (As a... I want... So that...)
-- Acceptance criteria
-
-**Result:**
-- Story created with HyperShift / ROSA component
-- All CNTRLPLANE conventions applied
-
 ### Example 2: ARO HCP Bug
 
 **Input:**
@@ -157,14 +142,6 @@ Use `createJiraIssue` with `contentFormat: "markdown"`, project key `OCPBUGS`, i
 - Component: **HyperShift / ARO** (detected from "ARO HCP")
 - Affected Version: 4.21 (default, user can override)
 - Target Version: 4.21
-- Labels: ai-generated-jira
-- Security: Red Hat Employee
-
-**Interactive prompts:**
-- Bug template sections
-
-**Result:**
-- Bug created in OCPBUGS with HyperShift / ARO component
 
 ### Example 3: Platform-Agnostic Epic
 
@@ -177,39 +154,8 @@ Use `createJiraIssue` with `contentFormat: "markdown"`, project key `OCPBUGS`, i
 - Component: **HyperShift** (platform-agnostic, from "HyperShift operator")
 - Target Version: openshift-4.21
 - Epic Name: Same as summary
-- Labels: ai-generated-jira
-- Security: Red Hat Employee
 
-**Interactive prompts:**
-- Epic objective and scope
-- Acceptance criteria
-
-**Result:**
-- Epic created with HyperShift component (not platform-specific)
-
-### Example 4: Multi-Platform Feature
-
-**Input:**
-```bash
-/jira:create feature CNTRLPLANE "Advanced observability for ROSA and ARO HCP"
-```
-
-**Auto-detected:**
-- Component: **HyperShift** (affects both platforms)
-- Target Version: openshift-4.21
-- Labels: ai-generated-jira
-- Security: Red Hat Employee
-
-**Interactive prompts:**
-- Market problem
-- Strategic value
-- Success criteria
-- Epic breakdown
-
-**Result:**
-- Feature with HyperShift component (since it affects both platforms)
-
-### Example 5: Uncertain Component (Prompts User)
+### Example 4: Uncertain Component (Prompts User)
 
 **Input:**
 ```bash
@@ -228,11 +174,6 @@ Which HyperShift platform does this issue affect?
 
 Select (1-3):
 ```
-
-**User selects:** 3
-
-**Result:**
-- Component set to **HyperShift**
 
 ## Component Override
 
@@ -278,27 +219,11 @@ HyperShift issues require a component. Which component?
 Select (1-3):
 ```
 
-## Workflow Summary
-
-When creating a HyperShift issue:
-
-1. ✅ **CNTRLPLANE skill loads** - Applies generic conventions (security, labels, versions)
-2. ✅ **HyperShift skill loads** - Adds HyperShift-specific requirements
-3. 🔍 **Auto-detect component** - Analyze summary/description for ARO/ROSA keywords
-4. ⚙️ **Apply component:**
-   - If auto-detected with high confidence → Use detected component
-   - If uncertain → Prompt user for component selection
-   - If `--component` flag provided → Use specified component (validate it's HyperShift)
-5. 💬 **Interactive prompts** - Collect issue type-specific information
-6. 🔒 **Security scan** - Validate no credentials/secrets
-7. ✅ **Create issue** - Use MCP tool with HyperShift component
-8. 📤 **Return result** - Issue key, URL, applied defaults (including component)
-
 ## Best Practices
 
 1. **Include platform keywords in summary** - Makes auto-detection more accurate
-   - ✅ "Enable autoscaling for ROSA HCP"
-   - ❌ "Enable autoscaling" (unclear which platform)
+   - Good: "Enable autoscaling for ROSA HCP"
+   - Bad: "Enable autoscaling" (unclear which platform)
 
 2. **Be specific about platform when known**
    - If issue is ARO-specific, mention "ARO" or "Azure" in summary
@@ -311,9 +236,3 @@ When creating a HyperShift issue:
 4. **Component consistency within epic**
    - Stories within an epic should generally have the same component as the epic
    - Exception: Epic is platform-agnostic but stories target specific platforms
-
-## See Also
-
-- `/jira:create` - Main command that invokes this skill
-- `cntrlplane` skill - Generic CNTRLPLANE/OCPBUGS conventions
-- HyperShift team documentation

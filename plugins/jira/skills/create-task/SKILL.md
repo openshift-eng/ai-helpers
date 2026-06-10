@@ -556,5 +556,5 @@ Description: <empty>
 
 - `/jira:create` - Main command that invokes this skill
 - `create-story` skill - For user-facing functionality
-- `cntrlplane` skill - CNTRLPLANE specific conventions
+- `jira-conventions` skill - Always load when working with Jira to learn conventions
 - Agile task management best practices
