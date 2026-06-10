@@ -26,3 +26,9 @@ def _load_rule_module(filename):
 def owners_rule():
     mod = _load_rule_module("owners_rule.py")
     return mod.PluginOwnersRequiredRule
+
+
+@pytest.fixture
+def opencode_color_rule():
+    mod = _load_rule_module("opencode_color_rule.py")
+    return mod.OpencodeAgentColorRule

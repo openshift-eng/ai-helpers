@@ -88,12 +88,18 @@ rules:
     enabled: true
     severity: error
 
+  # Agent color frontmatter must be hex or opencode preset (not CSS names)
+  opencode-agent-color:
+    enabled: true
+    severity: error
+
 
 # Load custom rules from these files
 custom-rules:
   - ".skillsaw/plugindocs_rule.py"
   - ".skillsaw/owners_rule.py"
   - ".skillsaw/promptfoo_budget_rule.py"
+  - ".skillsaw/opencode_color_rule.py"
 
 # Exclude patterns (glob format)
 # Use exclude: [] to disable all excludes including defaults
