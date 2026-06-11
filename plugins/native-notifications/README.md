@@ -15,8 +15,8 @@ It automatically detects the platform and uses the best available notification m
 
 ### Hook Configuration
 
-The plugin is defined in `plugins/macos-notifications/hooks/hooks.json`.
-To customize the contents displayed by the notification, edit the script call:
+The plugin is defined in `plugins/native-notifications/hooks/hooks.json`.
+To customize the notification messages, edit the title and message arguments to `notify.sh`:
 
 ```json
 {
@@ -27,7 +27,7 @@ To customize the contents displayed by the notification, edit the script call:
         "hooks": [
           {
             "type": "command",
-            "command": "if command -v osascript &>/dev/null; then osascript -e 'display notification \"Claude needs your input\" with title \"🔔 Claude Code\"'; elif command -v notify-send &>/dev/null && [ -n \"${DISPLAY:-}${WAYLAND_DISPLAY:-}\" ]; then notify-send '🔔 Claude Code' 'Claude needs your input'; else printf '\\a'; fi"
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/notify.sh '🔔 Claude Code' 'Claude needs your input'"
           }
         ]
       }
@@ -37,7 +37,7 @@ To customize the contents displayed by the notification, edit the script call:
         "hooks": [
           {
             "type": "command",
-            "command": "if command -v osascript &>/dev/null; then osascript -e 'display notification \"Claude finished your task\" with title \"✅ Claude Code\"'; elif command -v notify-send &>/dev/null && [ -n \"${DISPLAY:-}${WAYLAND_DISPLAY:-}\" ]; then notify-send '✅ Claude Code' 'Claude finished your task'; else printf '\\a'; fi"
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/notify.sh '✅ Claude Code' 'Claude finished your task'"
           }
         ]
       }

@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "if command -v osascript >/dev/null 2>&1; then osascript -e 'display notification \"Claude needs your input\" with title \"🔔 Claude Code\"'; elif command -v notify-send >/dev/null 2>&1 && [ -n \"${DISPLAY:-}${WAYLAND_DISPLAY:-}\" ]; then notify-send '🔔 Claude Code' 'Claude needs your input'; else printf '\\a'; fi"
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/notify.sh '🔔 Claude Code' 'Claude needs your input'"
           }
         ]
       }
@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "if command -v osascript >/dev/null 2>&1; then osascript -e 'display notification \"Claude finished your task\" with title \"✅ Claude Code\"'; elif command -v notify-send >/dev/null 2>&1 && [ -n \"${DISPLAY:-}${WAYLAND_DISPLAY:-}\" ]; then notify-send '✅ Claude Code' 'Claude finished your task'; else printf '\\a'; fi"
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/notify.sh '✅ Claude Code' 'Claude finished your task'"
           }
         ]
       }

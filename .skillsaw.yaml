@@ -1,9 +1,24 @@
 # skillsaw configuration
 # https://github.com/stbenjam/skillsaw
-version: "0.11.4"
+version: "0.13.1"
 strict: true
 
 rules:
+  # Supply chain protection rules
+  hooks-dangerous:
+    enabled: true
+    severity: error
+  hooks-prohibited:
+    enabled: true
+    severity: error
+    allowlist:
+      - "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/gofmt.sh"
+      - "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/notify.sh '🔔 Claude Code' 'Claude needs your input'"
+      - "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/notify.sh '✅ Claude Code' 'Claude finished your task'"
+  settings-dangerous:
+    enabled: true
+    severity: error
+
   # Plugins should not enable non-allowlisted MCP servers
   mcp-prohibited:
     enabled: true

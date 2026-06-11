@@ -30,7 +30,7 @@ jobs:
 
       - name: Regenerate documentation
         run: |
-          pip install skillsaw==0.11.4
+          pip install skillsaw==0.13.1
           skillsaw docs -o docs/ --theme crimson-red
 
       - name: Create Pull Request
