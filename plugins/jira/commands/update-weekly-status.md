@@ -64,6 +64,32 @@ The command executes in two phases:
    - Use `searchJiraIssuesUsingJql` with JQL: `project = "{project-key}" AND status != Closed`
    - Verify the project exists and is accessible
 
+#### Step 1b. Load Project-Specific Conventions (if available)
+
+After determining the project key, check if project-specific conventions exist that override default behavior. These can change issue type filtering, status format, milestone prioritization, and data gathering JQL.
+
+**Known project mappings:**
+
+| Project Key | Source | Key Overrides |
+|-------------|--------|---------------|
+| ARO | Read [../reference/aro-hcp.md](../reference/aro-hcp.md) | Only Features/Initiatives; milestone tiers (HPSTRAT-63/130); prepend format with date stamp |
+| CNTRLPLANE | `Skill(jira:cntrlplane)` | CNTRLPLANE-specific conventions |
+| GCP | `Skill(jira:gcp-hcp)` | GCP HCP team requirements |
+| OCPBUGS | `Skill(jira:ocpbugs)` | OCPBUGS bug conventions |
+
+**Implementation:**
+
+1. Match the resolved project key against the table above
+2. If a match is found, load the conventions using the source method shown (either `Read` the reference file or invoke the `Skill`)
+3. The loaded conventions **override** the defaults in this command for:
+   - **Issue type filter**: Which issue types to process (e.g., ARO → only Features and Initiatives)
+   - **Issue discovery**: How to find target issues (e.g., ARO → milestone-based JQL instead of generic component query)
+   - **Status format**: How to format the status update (e.g., ARO → prepend with date stamp instead of replace)
+   - **Update method**: How to write to Jira (e.g., ARO → ADF via REST API)
+4. If no match is found, use default behavior (all issue types, generic component query, replace format)
+
+**IMPORTANT**: The project-specific conventions MUST be loaded before Step 2 (component selection) and before Step 4 (data gathering), because they can change both the JQL used and the issue types collected.
+
 #### Step 2. Determine Target Component(s)
 
 1. **If `--component` parameter is provided:**
