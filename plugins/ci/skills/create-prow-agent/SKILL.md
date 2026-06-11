@@ -149,17 +149,17 @@ Based on the answers above, design the agent's pipeline. Most agents follow a mu
 Common patterns:
 
 **Single-phase (analysis only):**
-```
+```text
 1. Gather data → 2. Analyze with Claude → 3. Report results
 ```
 
 **Multi-phase (code changes):**
-```
+```text
 1. Query work items → 2. Solve each item → 3. Code review → 4. Fix review findings → 5. Create PR → 6. Notify
 ```
 
 **Multi-phase (with polling):**
-```
+```text
 1. Poll until data ready → 2. Snapshot data → 3. Analyze → 4. Report → 5. Notify
 ```
 
@@ -171,6 +171,34 @@ Write a design summary capturing:
 - Existing skills to reuse
 - Custom skills to write
 - Target repository (where the agent operates)
+
+#### Step 1.6: Design Evals
+
+Evals must be designed alongside the agent, not added after the fact. Ask the user:
+
+> How will we verify this agent works correctly? Let's define evals now so they ship with the initial PR.
+
+Every agent should have at minimum these baseline evals:
+
+1. **Smoke test** — Does the agent start, authenticate, and complete without errors on a trivial input?
+2. **Golden-path eval** — Given a known input (e.g., a specific Jira issue, a test PR, a sample payload), does the agent produce the expected output?
+3. **Guardrail eval** — Does the agent correctly refuse or skip inputs outside its scope?
+
+Beyond the baseline, design evals specific to the agent's purpose:
+
+| Agent Type | Example Evals |
+|------------|---------------|
+| Code generation | Generated code compiles, passes lint, tests pass |
+| Triage/analysis | Output matches human-labeled ground truth on N sample inputs |
+| PR creation | PR has correct base branch, labels, description format |
+| Jira updates | Fields set correctly, no duplicate comments |
+
+Use [promptfoo](https://www.promptfoo.dev/) for eval harness. Define eval cases in a `promptfooconfig.yaml` alongside the agent's step registry files. The eval suite should run in a presubmit job against the agent's own PR so regressions are caught before merge.
+
+Add to the design summary:
+- Eval cases (at least smoke, golden-path, and guardrail)
+- Test fixtures or sample inputs needed
+- Pass/fail criteria for each eval
 
 Confirm the design with the user before proceeding to Phase 2.
 
@@ -223,7 +251,7 @@ The step registry path determines the job's identity. Convention: `{team-or-comp
 
 Ask the user for their preferred path. The full directory structure will be:
 
-```
+```text
 ci-operator/step-registry/{path}/
 ├── {agent-name}-workflow.yaml
 ├── setup/
@@ -480,7 +508,59 @@ If the design identified gaps in existing ai-helpers skills, help the user write
 
 If the skill is general-purpose, add it to an existing ai-helpers plugin. If it's team-specific, it can live in the target repo's `.claude/` directory.
 
-#### Step 2.9: Write the Target Repo CLAUDE.md (If Needed)
+#### Step 2.9: Implement Evals
+
+Generate the eval suite designed in Step 1.6. Every agent PR must include evals that run before merge.
+
+Create a `promptfooconfig.yaml` alongside the agent's step registry files:
+
+```yaml
+description: "{agent-name} evals"
+prompts:
+  - file://process/{agent-name}-process-commands.sh
+providers:
+  - id: exec
+    config:
+      command: "bash -c 'source process/{agent-name}-process-commands.sh'"
+tests:
+  - description: "Smoke: agent starts and completes without error"
+    vars:
+      # minimal/trivial input
+    assert:
+      - type: not-contains
+        value: "FATAL"
+      - type: cost
+        threshold: 5  # USD ceiling for the smoke test
+
+  - description: "Golden path: known input produces expected output"
+    vars:
+      # known test fixture
+    assert:
+      - type: contains
+        value: "{expected output marker}"
+
+  - description: "Guardrail: out-of-scope input is skipped gracefully"
+    vars:
+      # input the agent should refuse/skip
+    assert:
+      - type: not-contains
+        value: "Processing"
+```
+
+Adapt the template above to the agent's specific eval cases from the design. The eval config is a starting point — the developer should flesh out test fixtures and assertions for their domain.
+
+Add a presubmit job to run the evals on PRs that modify the agent's step registry files:
+
+```yaml
+- as: {agent-name}-evals
+  steps:
+    test:
+      - ref: {agent-name}-evals
+  run_if_changed: "ci-operator/step-registry/{path}/.*"
+  optional: true
+```
+
+#### Step 2.10: Write the Target Repo CLAUDE.md (If Needed)
 
 If the agent operates on a specific repository, the repo should have a `CLAUDE.md` that helps Claude understand the codebase. This is especially important for code generation agents.
 
@@ -490,7 +570,7 @@ The `CLAUDE.md` should include:
 - Coding conventions
 - Key directories and their purposes
 
-#### Step 2.10: Generate Prerequisites Checklist
+#### Step 2.11: Generate Prerequisites Checklist
 
 Present the developer with a prerequisites checklist — the blanks they need to fill in. Include only the items relevant to their design:
 
@@ -529,7 +609,7 @@ Include a secrets mapping table:
 | `app-id` | `/var/run/claude-code-service-account/app-id` | GitHub App JWT | TODO |
 | ... | ... | ... | ... |
 
-#### Step 2.11: Review and Open PR
+#### Step 2.12: Review and Open PR
 
 Commit all generated files in the `/tmp/release` clone and open a PR to `openshift/release`. Ask the user for their GitHub fork to push to, then create the PR using `gh pr create`.
 
