@@ -12,58 +12,31 @@
 | Config drop-in dir | `/etc/crio/crio.conf.d/` |
 | Linkmode | dynamic |
 
-## Build Dependencies (Debian/Bookworm)
+## Building the Binary
 
-```dockerfile
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libseccomp-dev \
-    libgpgme-dev \
-    libassuan-dev \
-    libgpg-error-dev \
-    libselinux1-dev \
-    pkg-config \
-    make \
-    git \
-    && rm -rf /var/lib/apt/lists/*
-```
+Derive everything from the cri-o checkout you are building — do not rely on
+hardcoded lists, they go stale and can differ between release branches:
 
-## Dynamic Libraries
+- **Build dependencies**: listed in [`install.md`](https://github.com/cri-o/cri-o/blob/main/install.md)
+  ("Build and install CRI-O from source" section) in the checkout. Read the
+  version of that file from the branch you are building, not from `main`.
+- **Go version**: check `go.mod` in the checkout; use the matching
+  `golang:<version>-bookworm` Docker image.
+- **Build command**: `make bin/crio`. The Makefile auto-detects build tags
+  based on available libraries (`BUILDTAGS` is a Makefile variable computed by
+  `hack/*_tag.sh` probes, not a target) — verify the chosen tags in the
+  `-tags "..."` portion of the build output, or after building with
+  `bin/crio version` (BuildTags field).
+- **Dynamic libraries**: after building, run `ldd bin/crio` and compare the
+  sonames against `ldd /usr/bin/crio` on the target node. They must match —
+  a missing soname on the node means a build dependency mismatch.
 
-CRI-O links against these shared libraries. The cross-compiled binary must show the same sonames in `ldd` output:
-
-```text
-libseccomp.so.2
-libgpgme.so.11
-libassuan.so.0
-libgpg-error.so.0
-libc.so.6
-```
-
-## Build Command
-
-```bash
-make bin/crio
-```
-
-The Makefile auto-detects build tags based on available libraries. Expected tags on RHCOS-compatible builds:
-
-```text
-containers_image_ostree_stub
-exclude_graphdriver_btrfs
-btrfs_noversion
-seccomp
-selinux
-```
-
-## Go Version
-
-Check `go.mod` for the required Go version. Use the matching `golang:<version>-bookworm` Docker image.
-
-## Example Dockerfile
+### Example Dockerfile (illustrative snapshot — verify against install.md)
 
 ```dockerfile
 FROM --platform=linux/amd64 golang:1.23-bookworm
 
+# Snapshot of build deps as of cri-o 1.33 — re-derive from install.md
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libseccomp-dev libgpgme-dev libassuan-dev \
     libgpg-error-dev libselinux1-dev \
@@ -112,9 +85,16 @@ If `crio config` fails, the binary may have been built without required build ta
 
 ## CRI-O Restart Behavior
 
-**Restarting CRI-O terminates all running containers on the node** and disconnects kubelet from the container runtime. Kubelet will go inactive and the node will become `NotReady`.
+Restarting CRI-O does **not** kill running containers: each container is
+supervised by its own conmon process, which runs independently of the CRI-O
+daemon, and CRI-O re-attaches to running containers on startup. Kubelet's CRI
+connection drops briefly and re-establishes automatically. One side effect to
+expect: a container whose liveness probe depends on the CRI socket (e.g. an
+exec probe running `crictl`) can fail its probe during the restart window and
+be restarted by kubelet — probe-driven, not CRI-O killing it.
 
-After starting CRI-O, **always restart kubelet**:
+After starting CRI-O, restart kubelet to ensure it cleanly re-establishes the
+CRI connection:
 
 ```bash
 sudo systemctl restart crio
@@ -127,7 +107,34 @@ Wait ~15 seconds, then verify the node returns to `Ready`:
 oc get node <node-name>
 ```
 
-This is why you must cordon/drain before restarting CRI-O. Without draining, all running workloads will be killed.
+Cordon/drain before the swap is still recommended — not because the restart
+kills workloads (it does not), but because you are putting an untested debug
+binary in charge of the node's containers: if it crashes or misbehaves, you do
+not want production workloads on the node when it does.
+
+### Restarting via `oc debug` (no SSH access)
+
+If the cluster has no SSH/bastion access, run the restart through a node debug
+pod, wrapping commands in `chroot /host`:
+
+```bash
+oc debug node/<node-name> -- chroot /host sh -c 'systemctl restart crio && systemctl restart kubelet'
+```
+
+Caveat: the debug pod is itself a container running on the node you are
+restarting. A CRI-O restart does not kill running containers (they are held by
+their conmon processes and CRI-O re-attaches on startup), so the session
+usually survives — but if it does drop mid-sequence, the kubelet restart never
+runs and the node stays `NotReady`. To make the sequence immune to the session
+dying, detach it with `systemd-run`:
+
+```bash
+oc debug node/<node-name> -- chroot /host \
+  systemd-run --unit=debug-restart sh -c 'systemctl restart crio && systemctl restart kubelet'
+```
+
+Then verify from your workstation with `oc get node <node-name>` and
+`oc debug node/<node-name> -- chroot /host systemctl is-active crio kubelet`.
 
 ## Config Drop-ins
 
@@ -184,7 +191,7 @@ oc delete pod test-pod
 
 ## CRI-O Rollback
 
-Follow the standard rollback procedure in [rollback.md](rollback.md) with these values:
+Follow the standard rollback procedure in the Rollback section of [deploy.md](deploy.md) with these values:
 
 | Parameter | Value |
 |-----------|-------|

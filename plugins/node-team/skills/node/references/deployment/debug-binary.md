@@ -32,15 +32,15 @@ See [debug-binary/ssh-bastion.md](debug-binary/ssh-bastion.md)
 
 ### Phase 3: Deploy (Bind Mount)
 
-Transfer the binary to the node, verify it works, cordon/drain the node, set SELinux context, bind-mount over the original, restart the service. This phase has the most gotchas around SELinux, systemd, and service dependencies.
+Transfer the binary to the node, verify it works, cordon/drain the node, set SELinux context, point the service at the new binary (systemd drop-in override or bind mount), restart the service. This phase has the most gotchas around SELinux, systemd, and service dependencies.
 
 See [debug-binary/deploy.md](debug-binary/deploy.md)
 
-### Phase 4: Rollback (Unmount)
+### Phase 4: Rollback
 
-Unmount the bind mount, remove any config drop-ins, restart the service. The original binary is untouched underneath.
+Remove the drop-in (or unmount the bind mount), remove any config drop-ins, restart the service. The original binary is untouched.
 
-See [debug-binary/rollback.md](debug-binary/rollback.md)
+See the Rollback section in [debug-binary/deploy.md](debug-binary/deploy.md)
 
 ## Binary-Specific References
 
@@ -66,7 +66,7 @@ These are non-negotiable. Skipping any of these can take a node out of the clust
    ```
    Without the correct context (e.g., `container_runtime_exec_t` for CRI-O), systemd will refuse to execute the binary with `Permission denied`.
 
-6. **Know how to rollback before you deploy.** The rollback is: unmount, restart service. Read [debug-binary/rollback.md](debug-binary/rollback.md) before starting.
+6. **Know how to rollback before you deploy.** The rollback is: remove the drop-in (or unmount), restart service. Read the Rollback section in [debug-binary/deploy.md](debug-binary/deploy.md) before starting.
 
 ## Quick Reference
 

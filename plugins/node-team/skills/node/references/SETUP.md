@@ -60,13 +60,18 @@ To investigate or fix a Jira issue:
 | `conmonrs` | conmon-rs |
 | `kueue` | kueue-operator |
 
-## Enable Node Assistant in the Worktree
+> For CVE analysis, the `node-cve` plugin maintains its own more detailed
+> mapping (downstream forks, branch patterns, languages) in
+> `plugins/node-cve/skills/analyze-cve-repos/SKILL.md` — that one is
+> authoritative for CVE work; this table only routes day-to-day dev tasks.
 
-After creating a worktree, install the skill locally so it's available when you launch Claude there:
+## Enable the Node Team Plugin in the Worktree
+
+After creating a worktree, install the plugin locally so it's available when you launch Claude there:
 
 ```bash
 cd .worktrees/<name>
-claude plugin install node-assistant@node-skills --scope local
+claude plugin install node-team@ai-helpers --scope local
 ```
 
 ## Repo URLs

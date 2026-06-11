@@ -7,15 +7,21 @@ For build commands, repo layout, dependencies, and test targets — browse the r
 
 ## Branch Mapping
 
-OCP 4.X uses CRI-O 1.(X-4+17).x. The formula: **CRI-O minor = OCP minor + 13**.
+**CRI-O's minor version tracks the Kubernetes minor version shipped in the OCP
+release.** This rule holds across OCP major versions (including 5.x) — find
+the Kubernetes version via `oc version` or the OCP release notes.
 
-| OCP | CRI-O |
-|-----|-------|
-| 4.18 | 1.31.x |
-| 4.17 | 1.30.x |
-| 4.16 | 1.29.x |
+| OCP | Kubernetes | CRI-O |
+|-----|------------|-------|
+| 5.0 | 1.36 | 1.36.x |
+| 4.23 | 1.36 | 1.36.x (shares the 5.0 base) |
+| 4.18 | 1.31 | 1.31.x |
+| 4.17 | 1.30 | 1.30.x |
+| 4.16 | 1.29 | 1.29.x |
 
-Downstream branches are `release-4.X`, upstream are `release-1.X`.
+Shortcut for OCP 4.x only: CRI-O minor = OCP minor + 13.
+
+Downstream branches are `release-4.X` / `release-5.X`, upstream are `release-1.X`.
 
 ## OpenShift-Specific
 

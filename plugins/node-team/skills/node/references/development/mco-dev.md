@@ -20,9 +20,18 @@ The MCD **does not** reboot when:
 - Only SSH keys are updated
 - Only node annotations change
 
-## On-Cluster Layering (OCP 4.13+)
+## Image Mode for OpenShift (formerly RHCOS Image Layering)
 
-On-cluster layering builds custom OS images using `MachineOSConfig` and `MachineOSBuild` resources. The MCD applies layered images via `rpm-ostree rebase` or `bootc switch`.
+Renamed in 4.19: "RHCOS image layering" is now "image mode for OpenShift",
+and the on-/out-of-cluster variants are "image mode" rather than "layering".
+
+- **Out-of-cluster image mode (OCP 4.13+)**: build a custom layered OS image
+  outside the cluster, apply it via a MachineConfig that overrides
+  `osImageURL`.
+- **On-cluster image mode (TP in 4.16; GA in 4.19 and 4.18.20+)**: the
+  cluster builds the image itself via `MachineOSConfig` and `MachineOSBuild`
+  resources. The MCD applies layered images via `rpm-ostree rebase` or
+  `bootc switch`.
 
 ## Other Notes
 

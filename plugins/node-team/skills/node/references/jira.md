@@ -1,6 +1,11 @@
 # Node Team Jira Reference
 
-Red Hat Jira: `redhat.atlassian.net`. REST API v3. Use `curl` directly.
+Red Hat Jira: `redhat.atlassian.net`. REST API v3. Use `curl` directly —
+this skill's workflows need endpoints the `jira` CLI doesn't cover (Agile
+boards/sprints, attachment downloads, ADF bodies, custom-field writes), and
+curl needs no extra install/config and keeps `allowed-tools` narrow
+(`Bash(curl:*)`). The node-cve plugin uses the `jira` CLI for its simpler
+list/comment flows; both hit the same REST API.
 
 ## Authentication
 
@@ -64,7 +69,14 @@ When **reading** ADF from responses: recursively walk `content` arrays, extract 
 
 ## Components We Own
 
+The canonical definition is the Jira saved filter **"Node Components"** (ID
+91645) — prefer `filter = "Node Components"` in JQL over hardcoding the list.
+Mirrored here for reference:
+
 Node, Node / CRI-O, Node / Kubelet, Node / CPU manager, Node / Memory manager, Node / Topology manager, Node / Numa aware Scheduling, Node / Device Manager, Node / Pod resource API, Node / Node Problem Detector, Node / Kueue, Node / Instaslice-operator
+
+The team additionally owns **Driver Toolkit** and **Machine Config Operator**
+for CVE triage; those are not in filter 91645 (see the node-cve plugin).
 
 ## Boards & Sprints
 
@@ -78,7 +90,7 @@ Sprint naming: `OCP Node Core Sprint N`, `OCP Node Devices Sprint N`, `OCP Kueue
 
 Filter sprints to Node-related by checking if `"Node"` or `"Kueue"` appears in the sprint name.
 
-Team queue: `aos-node@redhat.com`
+Team mailing list: `aos-node@redhat.com`
 
 ## Team Roster
 
@@ -138,8 +150,6 @@ Use in JQL via `filter = "Name"`:
 | Node Components | 91645 | Component list |
 | Node Bugs | 83963 | Node component bugs |
 | Node Core Team | 66331 | Core team members |
-| Node Green Team | 89708 | Green team assignees |
-| Node Blue Team | 64253 | Blue team assignees |
 | Node Epics | 96318 | OCPNODE epics |
 | Node CR bugs | 94401 | Component regression bugs |
 
@@ -172,6 +182,10 @@ Base all queries on `filter = "Node Bugs"` and append:
 | Customer Issues | `"Customer Impact" = "Customer Escalated" OR "SFDC Cases Counter" is not EMPTY` |
 | CVE | `labels in (SecurityTracking) OR issuetype in (Vulnerability, Weakness)` |
 | CR | `labels = component-regression` |
+
+> The CVE row is for counting/bucketing only. For actual CVE triage with
+> reachability analysis, deduplication, and reporting, use the `node-cve`
+> plugin (`/node-cve:triage`) instead.
 
 ## Carryover Detection
 

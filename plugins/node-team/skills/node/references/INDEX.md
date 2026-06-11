@@ -15,7 +15,7 @@ Root: `./`
 ## Deployment
 
 |deployment:{debug-binary.md}
-|deployment/debug-binary:{crio.md,cross-compile.md,deploy.md,rollback.md,ssh-bastion.md}
+|deployment/debug-binary:{crio.md,cross-compile.md,deploy.md,ssh-bastion.md}
 
 ## Jira
 

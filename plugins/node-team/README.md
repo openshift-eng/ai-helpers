@@ -2,6 +2,8 @@
 
 An OpenShift Node team assistant for development, deployment, debugging, and workflow tasks across the node layer — kubelet, MCO, CRI-O, crun, conmonrs, the Kueue operator, Jira, Red Hat KB/support cases, Prometheus, and platform docs.
 
+This plugin is the team's umbrella: a hierarchical overview of how the Node team works, routing specialized work to dedicated plugins (e.g. CVE triage → [`node-cve`](../node-cve/)) rather than duplicating them. Over time it will absorb the team's onboarding docs, making it the starting point for understanding what the team does and which tool to use for what.
+
 ## Installation
 
 ```bash
@@ -28,4 +30,4 @@ The skill starts at [`skills/node/references/INDEX.md`](skills/node/references/I
 
 Jira access uses a token from the `JIRA_API_TOKEN` environment variable or the macOS Keychain. See [`skills/node/references/jira.md`](skills/node/references/jira.md) for details.
 
-Team rosters are maintained as `team-roster-*.json` attachments on the Jira config issue `OCPNODE-4230` and synced to `~/.node-assistant/`; see the Team Roster section of [`jira.md`](skills/node/references/jira.md).
+Team rosters are maintained as `team-roster-*.json` attachments on the Jira config issue `OCPNODE-4230` (override with the `NODE_ASSISTANT_CONFIG_ISSUE` environment variable) and synced to `~/.node-assistant/`; see the Team Roster section of [`jira.md`](skills/node/references/jira.md).
