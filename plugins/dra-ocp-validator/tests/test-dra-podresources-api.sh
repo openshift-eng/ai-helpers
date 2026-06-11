@@ -43,7 +43,32 @@ NAMESPACE="dra-podresources-test"
 echo "=== PHASE 0: Prerequisites ==="
 oc version | tee ${LOG_DIR}/00-version.txt
 
-NODE_NAME=$(oc get nodes -o jsonpath='{.items[0].metadata.name}')
+# Detect available DeviceClass dynamically
+DEVICE_CLASS=$(oc get deviceclass -o jsonpath='{.items[0].metadata.name}')
+if [ -z "${DEVICE_CLASS}" ]; then
+    echo "❌ ERROR: No DeviceClass found - DRA driver not installed"
+    exit 1
+fi
+echo "Using DeviceClass: ${DEVICE_CLASS}" | tee ${LOG_DIR}/00-deviceclass.txt
+
+# Detect driver type and appropriate test attributes
+SAMPLE_DEVICE=$(oc get resourceslice -o json | jq -r '.items[0].spec.devices[0]' 2>/dev/null || echo "{}")
+HAS_NVIDIA_PROFILE=$(echo "${SAMPLE_DEVICE}" | jq -r 'has("attributes") and (.attributes | has("profile"))')
+
+if [ "${HAS_NVIDIA_PROFILE}" == "true" ]; then
+    DRIVER_TYPE="nvidia"
+    SELECTOR_EXPR='device.attributes["profile"].string == "1g.35gb"'
+    CONTAINER_IMAGE="nvidia/cuda:12.2.0-base-ubi8"
+    CONTAINER_CMD='["sh", "-c", "nvidia-smi -L && sleep 180"]'
+else
+    DRIVER_TYPE="example"
+    SELECTOR_EXPR='has(device.attributes.model)'
+    CONTAINER_IMAGE="registry.access.redhat.com/ubi8/ubi-minimal:latest"
+    CONTAINER_CMD='["sh", "-c", "echo DRA device allocated && sleep 180"]'
+fi
+echo "Driver type: ${DRIVER_TYPE}" | tee -a ${LOG_DIR}/00-deviceclass.txt
+
+NODE_NAME=$(oc get nodes -l node-role.kubernetes.io/worker -o jsonpath='{.items[0].metadata.name}')
 echo "Target node: ${NODE_NAME}" | tee ${LOG_DIR}/01-node.txt
 oc get nodes -o wide | tee -a ${LOG_DIR}/01-node.txt
 
@@ -56,22 +81,22 @@ echo ""
 #==============================================
 echo "=== PHASE 1: Create Pods with DRA Claims ==="
 
-echo "--- Pod 1: MIG 1g.35gb ---"
+echo "--- Pod 1: DRA Device Request ---"
 cat <<EOF | tee ${LOG_DIR}/test1-claim1.yaml | oc apply -f -
 apiVersion: resource.k8s.io/v1
 kind: ResourceClaim
 metadata:
-  name: claim-mig-small
+  name: claim-device-1
   namespace: ${NAMESPACE}
 spec:
   devices:
     requests:
-    - name: mig-small
+    - name: device-request
       exactly:
-        deviceClassName: mig.nvidia.com
+        deviceClassName: ${DEVICE_CLASS}
         selectors:
         - cel:
-            expression: "device.attributes['gpu.nvidia.com'].profile == '1g.35gb'"
+            expression: "${SELECTOR_EXPR}"
         count: 1
 EOF
 
@@ -79,58 +104,58 @@ cat <<EOF | tee ${LOG_DIR}/test1-pod1.yaml | oc apply -f -
 apiVersion: v1
 kind: Pod
 metadata:
-  name: pod-mig-small
+  name: pod-device-1
   namespace: ${NAMESPACE}
   labels:
     test: podresources-api
 spec:
   restartPolicy: Never
   containers:
-  - name: cuda
-    image: nvidia/cuda:12.2.0-base-ubi8
-    command: ["sh", "-c", "nvidia-smi -L && sleep 180"]
+  - name: test-container
+    image: ${CONTAINER_IMAGE}
+    command: ${CONTAINER_CMD}
     resources:
       claims:
       - name: gpu
   resourceClaims:
   - name: gpu
-    resourceClaimName: claim-mig-small
+    resourceClaimName: claim-device-1
 EOF
 
 echo ""
 sleep 10
-oc wait --for=condition=Ready pod/pod-mig-small -n ${NAMESPACE} --timeout=60s || true
+oc wait --for=condition=Ready pod/pod-device-1 -n ${NAMESPACE} --timeout=60s || true
 sleep 3
 
-POD1_STATUS=$(oc get pod pod-mig-small -n ${NAMESPACE} -o jsonpath='{.status.phase}')
-POD1_UID=$(oc get pod pod-mig-small -n ${NAMESPACE} -o jsonpath='{.metadata.uid}')
+POD1_STATUS=$(oc get pod pod-device-1 -n ${NAMESPACE} -o jsonpath='{.status.phase}')
+POD1_UID=$(oc get pod pod-device-1 -n ${NAMESPACE} -o jsonpath='{.metadata.uid}')
 
 echo "Pod 1 Status: ${POD1_STATUS}"
 echo "Pod 1 UID: ${POD1_UID}" | tee ${LOG_DIR}/test1-pod1-uid.txt
 
 if [ "${POD1_STATUS}" == "Running" ]; then
     echo "✅ Pod 1 running"
-    oc logs pod-mig-small -n ${NAMESPACE} | tee ${LOG_DIR}/test1-pod1-logs.txt
-    oc get resourceclaim claim-mig-small -n ${NAMESPACE} -o json | jq '.status.allocation' > ${LOG_DIR}/test1-allocation1.json
+    oc logs pod-device-1 -n ${NAMESPACE} | tee ${LOG_DIR}/test1-pod1-logs.txt
+    oc get resourceclaim claim-device-1 -n ${NAMESPACE} -o json | jq '.status.allocation' > ${LOG_DIR}/test1-allocation1.json
 fi
 echo ""
 
-echo "--- Pod 2: MIG 1g.70gb ---"
+echo "--- Pod 2: Second DRA Device Request ---"
 cat <<EOF | tee ${LOG_DIR}/test1-claim2.yaml | oc apply -f -
 apiVersion: resource.k8s.io/v1
 kind: ResourceClaim
 metadata:
-  name: claim-mig-large
+  name: claim-device-2
   namespace: ${NAMESPACE}
 spec:
   devices:
     requests:
-    - name: mig-large
+    - name: device-request
       exactly:
-        deviceClassName: mig.nvidia.com
+        deviceClassName: ${DEVICE_CLASS}
         selectors:
         - cel:
-            expression: "device.attributes['gpu.nvidia.com'].profile == '1g.70gb'"
+            expression: "${SELECTOR_EXPR}"
         count: 1
 EOF
 
@@ -138,39 +163,39 @@ cat <<EOF | tee ${LOG_DIR}/test1-pod2.yaml | oc apply -f -
 apiVersion: v1
 kind: Pod
 metadata:
-  name: pod-mig-large
+  name: pod-device-2
   namespace: ${NAMESPACE}
   labels:
     test: podresources-api
 spec:
   restartPolicy: Never
   containers:
-  - name: cuda
-    image: nvidia/cuda:12.2.0-base-ubi8
-    command: ["sh", "-c", "nvidia-smi -L && sleep 180"]
+  - name: test-container
+    image: ${CONTAINER_IMAGE}
+    command: ${CONTAINER_CMD}
     resources:
       claims:
       - name: gpu
   resourceClaims:
   - name: gpu
-    resourceClaimName: claim-mig-large
+    resourceClaimName: claim-device-2
 EOF
 
 echo ""
 sleep 10
-oc wait --for=condition=Ready pod/pod-mig-large -n ${NAMESPACE} --timeout=60s || true
+oc wait --for=condition=Ready pod/pod-device-2 -n ${NAMESPACE} --timeout=60s || true
 sleep 3
 
-POD2_STATUS=$(oc get pod pod-mig-large -n ${NAMESPACE} -o jsonpath='{.status.phase}')
-POD2_UID=$(oc get pod pod-mig-large -n ${NAMESPACE} -o jsonpath='{.metadata.uid}')
+POD2_STATUS=$(oc get pod pod-device-2 -n ${NAMESPACE} -o jsonpath='{.status.phase}')
+POD2_UID=$(oc get pod pod-device-2 -n ${NAMESPACE} -o jsonpath='{.metadata.uid}')
 
 echo "Pod 2 Status: ${POD2_STATUS}"
 echo "Pod 2 UID: ${POD2_UID}" | tee ${LOG_DIR}/test1-pod2-uid.txt
 
 if [ "${POD2_STATUS}" == "Running" ]; then
     echo "✅ Pod 2 running"
-    oc logs pod-mig-large -n ${NAMESPACE} | tee ${LOG_DIR}/test1-pod2-logs.txt
-    oc get resourceclaim claim-mig-large -n ${NAMESPACE} -o json | jq '.status.allocation' > ${LOG_DIR}/test1-allocation2.json
+    oc logs pod-device-2 -n ${NAMESPACE} | tee ${LOG_DIR}/test1-pod2-logs.txt
+    oc get resourceclaim claim-device-2 -n ${NAMESPACE} -o json | jq '.status.allocation' > ${LOG_DIR}/test1-allocation2.json
 fi
 echo ""
 
@@ -181,30 +206,30 @@ echo "=== PHASE 2: Pod ResourceClaim Status ==="
 
 if [ "${POD1_STATUS}" == "Running" ]; then
     echo "--- Pod 1 ResourceClaim Status ---"
-    oc get pod pod-mig-small -n ${NAMESPACE} -o json | jq '.status.resourceClaimStatuses' | tee ${LOG_DIR}/test2-pod1-claim-status.json
+    oc get pod pod-device-1 -n ${NAMESPACE} -o json | jq '.status.resourceClaimStatuses' | tee ${LOG_DIR}/test2-pod1-claim-status.json
     
     echo "--- Pod 1 Claim Info ---"
-    oc get pod pod-mig-small -n ${NAMESPACE} -o json | jq -r '.spec.resourceClaims[] | "Claim: \(.name) -> \(.resourceClaimName)"'
+    oc get pod pod-device-1 -n ${NAMESPACE} -o json | jq -r '.spec.resourceClaims[] | "Claim: \(.name) -> \(.resourceClaimName)"'
     echo ""
 fi
 
 if [ "${POD2_STATUS}" == "Running" ]; then
     echo "--- Pod 2 ResourceClaim Status ---"
-    oc get pod pod-mig-large -n ${NAMESPACE} -o json | jq '.status.resourceClaimStatuses' | tee ${LOG_DIR}/test2-pod2-claim-status.json
+    oc get pod pod-device-2 -n ${NAMESPACE} -o json | jq '.status.resourceClaimStatuses' | tee ${LOG_DIR}/test2-pod2-claim-status.json
     
     echo "--- Pod 2 Claim Info ---"
-    oc get pod pod-mig-large -n ${NAMESPACE} -o json | jq -r '.spec.resourceClaims[] | "Claim: \(.name) -> \(.resourceClaimName)"'
+    oc get pod pod-device-2 -n ${NAMESPACE} -o json | jq -r '.spec.resourceClaims[] | "Claim: \(.name) -> \(.resourceClaimName)"'
     echo ""
 fi
 
 echo "--- DRA Allocations Summary ---"
 if [ "${POD1_STATUS}" == "Running" ]; then
-    DEVICE1=$(oc get resourceclaim claim-mig-small -n ${NAMESPACE} -o jsonpath='{.status.allocation.devices.results[0].device}')
+    DEVICE1=$(oc get resourceclaim claim-device-1 -n ${NAMESPACE} -o jsonpath='{.status.allocation.devices.results[0].device}')
     echo "Pod 1: ${DEVICE1}"
 fi
 
 if [ "${POD2_STATUS}" == "Running" ]; then
-    DEVICE2=$(oc get resourceclaim claim-mig-large -n ${NAMESPACE} -o jsonpath='{.status.allocation.devices.results[0].device}')
+    DEVICE2=$(oc get resourceclaim claim-device-2 -n ${NAMESPACE} -o jsonpath='{.status.allocation.devices.results[0].device}')
     echo "Pod 2: ${DEVICE2}"
 fi
 echo ""

@@ -75,29 +75,38 @@ echo "✓ Saved to: ${LOG_DIR}/04-resourceslice-full.yaml"
 echo ""
 
 echo "--- Verifying Partitionable Devices Prerequisites ---"
-# Note: Test runner (run-tests.sh) already checked prerequisites at Step 3.5
-# This test should only run if prerequisites are met
+# Check if driver supports partitionable devices (sharedCounters)
 echo ""
 
-echo "--- Extracting SharedCounter Structure ---"
+echo "--- Checking for SharedCounter Support ---"
 SLICES_WITH_COUNTERS=$(oc get resourceslice -o json | jq -r '.items[] | select(.spec.sharedCounters != null) | .metadata.name' | wc -l)
 echo "ResourceSlices with sharedCounters: ${SLICES_WITH_COUNTERS}"
 
-if [ "${SLICES_WITH_COUNTERS}" -gt 0 ]; then
+if [ "${SLICES_WITH_COUNTERS}" -eq 0 ]; then
     echo ""
-    echo "Sample SharedCounter:"
-    oc get resourceslice -o json | jq '.items[0].spec.sharedCounters[0]' | tee ${LOG_DIR}/05-sharedcounter-sample.json
+    echo "⚠️  SKIP: Driver does not support partitionable devices"
     echo ""
-    echo "✓ Saved to: ${LOG_DIR}/05-sharedcounter-sample.json"
-
+    echo "Reason: No sharedCounters found in ResourceSlices"
     echo ""
-    echo "All SharedCounters:"
-    oc get resourceslice -o json | jq '[.items[].spec.sharedCounters]' > ${LOG_DIR}/05-sharedcounters-all.json
-    echo "✓ Saved to: ${LOG_DIR}/05-sharedcounters-all.json"
-else
-    echo "❌ ERROR: No SharedCounters found - DRAPartitionableDevices not enabled"
-    exit 1
+    echo "For NVIDIA GPUs:"
+    echo "  Re-run setup with: /dra-ocp-validator:setup <kubeconfig> --driver nvidia --enable-dynamic-mig"
+    echo ""
+    echo "For example driver:"
+    echo "  Re-run setup with: /dra-ocp-validator:setup <kubeconfig> --driver example --enable-dynamic-mig"
+    echo ""
+    exit 0  # Exit 0 = SKIP (not a failure)
 fi
+
+echo ""
+echo "Sample SharedCounter:"
+oc get resourceslice -o json | jq '.items[0].spec.sharedCounters[0]' | tee ${LOG_DIR}/05-sharedcounter-sample.json
+echo ""
+echo "✓ Saved to: ${LOG_DIR}/05-sharedcounter-sample.json"
+
+echo ""
+echo "All SharedCounters:"
+oc get resourceslice -o json | jq '[.items[].spec.sharedCounters]' > ${LOG_DIR}/05-sharedcounters-all.json
+echo "✓ Saved to: ${LOG_DIR}/05-sharedcounters-all.json"
 echo ""
 
 echo "--- Extracting Device Structure ---"

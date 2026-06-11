@@ -248,31 +248,64 @@ echo "=========================================="
 echo "Summary"
 echo "=========================================="
 
-# Count features by graduation level
-ALPHA_COUNT=0
-BETA_COUNT=0
-GA_COUNT=0
-UNAVAILABLE_COUNT=0
+# Group features by graduation level
+ALPHA_FEATURES=()
+BETA_FEATURES=()
+GA_FEATURES=()
+UNAVAILABLE_FEATURES=()
 
 for feature in ${FEATURES}; do
     if is_feature_available "${feature}" "${K8S_MINOR}" 2>/dev/null; then
         GRADUATION=$(get_feature_graduation "${feature}" "${K8S_VERSION_FULL}" 2>/dev/null)
         case "${GRADUATION}" in
-            alpha) ALPHA_COUNT=$((ALPHA_COUNT + 1)) ;;
-            beta) BETA_COUNT=$((BETA_COUNT + 1)) ;;
-            ga) GA_COUNT=$((GA_COUNT + 1)) ;;
+            alpha) ALPHA_FEATURES+=("${feature}") ;;
+            beta) BETA_FEATURES+=("${feature}") ;;
+            ga) GA_FEATURES+=("${feature}") ;;
         esac
     else
-        UNAVAILABLE_COUNT=$((UNAVAILABLE_COUNT + 1))
+        UNAVAILABLE_FEATURES+=("${feature}")
     fi
 done
 
 echo "Features available on K8s ${K8S_VERSION}:"
-echo "  Alpha: ${ALPHA_COUNT}"
-echo "  Beta:  ${BETA_COUNT}"
-echo "  GA:    ${GA_COUNT}"
-if [ ${UNAVAILABLE_COUNT} -gt 0 ]; then
-    echo "  Unavailable (K8s too old): ${UNAVAILABLE_COUNT}"
+echo ""
+
+if [ ${#GA_FEATURES[@]} -gt 0 ]; then
+    echo "GA (${#GA_FEATURES[@]}):"
+    for feature in "${GA_FEATURES[@]}"; do
+        FEATURE_NAME=$(get_feature_name "${feature}")
+        echo "  • ${feature} - ${FEATURE_NAME}"
+    done
+    echo ""
+fi
+
+if [ ${#BETA_FEATURES[@]} -gt 0 ]; then
+    echo "Beta (${#BETA_FEATURES[@]}):"
+    for feature in "${BETA_FEATURES[@]}"; do
+        FEATURE_NAME=$(get_feature_name "${feature}")
+        echo "  • ${feature} - ${FEATURE_NAME}"
+    done
+    echo ""
+fi
+
+if [ ${#ALPHA_FEATURES[@]} -gt 0 ]; then
+    echo "Alpha (${#ALPHA_FEATURES[@]}) - Require manual feature gate enablement:"
+    for feature in "${ALPHA_FEATURES[@]}"; do
+        FEATURE_NAME=$(get_feature_name "${feature}")
+        GATE_NAME=$(get_feature_gate "${feature}")
+        echo "  • ${feature} - ${FEATURE_NAME} (${GATE_NAME})"
+    done
+    echo ""
+fi
+
+if [ ${#UNAVAILABLE_FEATURES[@]} -gt 0 ]; then
+    echo "Unavailable (${#UNAVAILABLE_FEATURES[@]}) - K8s version too old:"
+    for feature in "${UNAVAILABLE_FEATURES[@]}"; do
+        FEATURE_NAME=$(get_feature_name "${feature}")
+        MIN_VERSION=$(yq eval ".features.${feature}.kubernetes.introduced" "${METADATA_FILE}")
+        echo "  • ${feature} - ${FEATURE_NAME} (requires K8s ${MIN_VERSION}+)"
+    done
+    echo ""
 fi
 
 echo ""

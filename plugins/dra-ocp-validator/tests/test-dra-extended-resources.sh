@@ -61,93 +61,109 @@ oc get deviceclass -o yaml > ${LOG_DIR}/03-deviceclass-full.yaml
 oc create namespace ${NAMESPACE} 2>/dev/null || true
 echo ""
 
-# Define implicit resource names
-IMPLICIT_MIG="deviceclass.resource.kubernetes.io/mig.nvidia.com"
-IMPLICIT_GPU="deviceclass.resource.kubernetes.io/gpu.nvidia.com"
+# Detect available DeviceClass dynamically
+DEVICE_CLASS=$(oc get deviceclass -o jsonpath='{.items[0].metadata.name}')
+if [ -z "${DEVICE_CLASS}" ]; then
+    echo "❌ ERROR: No DeviceClass found - DRA driver not installed"
+    exit 1
+fi
 
-echo "Implicit extended resource names:"
-echo "  MIG: ${IMPLICIT_MIG}"
-echo "  GPU: ${IMPLICIT_GPU}"
+# Build implicit extended resource name
+IMPLICIT_RESOURCE="deviceclass.resource.kubernetes.io/${DEVICE_CLASS}"
+
+echo "Detected DeviceClass: ${DEVICE_CLASS}"
+echo "Implicit extended resource name: ${IMPLICIT_RESOURCE}"
 echo ""
 
-# Test 1: MIG implicit
-echo "=== Test 1: MIG Implicit Extended Resource ==="
+# Detect driver type for appropriate container image
+if [[ "${DEVICE_CLASS}" == *"nvidia"* ]]; then
+    CONTAINER_IMAGE="nvidia/cuda:12.2.0-base-ubi8"
+    CONTAINER_CMD='["sh", "-c", "nvidia-smi -L && sleep 300"]'
+else
+    CONTAINER_IMAGE="registry.access.redhat.com/ubi8/ubi-minimal:latest"
+    CONTAINER_CMD='["sh", "-c", "echo DRA device allocated && env | grep -i device && sleep 300"]'
+fi
+echo ""
+
+# Test 1: Extended resource request
+echo "=== Test 1: Implicit Extended Resource (${DEVICE_CLASS}) ==="
 cat <<EOF | tee ${LOG_DIR}/test1-manifest.yaml | oc apply -f -
 apiVersion: v1
 kind: Pod
 metadata:
-  name: pod-mig
+  name: pod-extended-resource
   namespace: ${NAMESPACE}
 spec:
   restartPolicy: Never
   containers:
-  - name: cuda
-    image: nvidia/cuda:12.2.0-base-ubi8
-    command: ["sh", "-c", "nvidia-smi -L && sleep 300"]
+  - name: test-container
+    image: ${CONTAINER_IMAGE}
+    command: ${CONTAINER_CMD}
     resources:
       requests:
-        ${IMPLICIT_MIG}: "1"
+        ${IMPLICIT_RESOURCE}: "1"
       limits:
-        ${IMPLICIT_MIG}: "1"
+        ${IMPLICIT_RESOURCE}: "1"
 EOF
 
 sleep 10
-oc wait --for=condition=Ready pod/pod-mig -n ${NAMESPACE} --timeout=90s || true
+oc wait --for=condition=Ready pod/pod-extended-resource -n ${NAMESPACE} --timeout=90s || true
 sleep 5
 
-POD1=$(oc get pod pod-mig -n ${NAMESPACE} -o jsonpath='{.status.phase}')
+POD1=$(oc get pod pod-extended-resource -n ${NAMESPACE} -o jsonpath='{.status.phase}')
 echo "Pod status: ${POD1}"
 
-oc get pod pod-mig -n ${NAMESPACE} -o yaml > ${LOG_DIR}/test1-pod.yaml
+oc get pod pod-extended-resource -n ${NAMESPACE} -o yaml > ${LOG_DIR}/test1-pod.yaml
 oc get resourceclaim -n ${NAMESPACE} -o wide | tee ${LOG_DIR}/test1-claims.txt
 
 if [ "${POD1}" == "Running" ]; then
-    echo "✅ MIG pod running"
-    oc logs pod-mig -n ${NAMESPACE} > ${LOG_DIR}/test1-logs.txt
-    oc get pod pod-mig -n ${NAMESPACE} -o json | jq '.status.extendedResourceClaimStatus' | tee ${LOG_DIR}/test1-claim-status.json
-    CLAIM=$(oc get pod pod-mig -n ${NAMESPACE} -o jsonpath='{.status.extendedResourceClaimStatus.resourceClaimName}')
+    echo "✅ Pod running with extended resource"
+    oc logs pod-extended-resource -n ${NAMESPACE} > ${LOG_DIR}/test1-logs.txt
+    oc get pod pod-extended-resource -n ${NAMESPACE} -o json | jq '.status.extendedResourceClaimStatus' | tee ${LOG_DIR}/test1-claim-status.json
+    CLAIM=$(oc get pod pod-extended-resource -n ${NAMESPACE} -o jsonpath='{.status.extendedResourceClaimStatus.resourceClaimName}')
     if [ -n "${CLAIM}" ]; then
         oc get resourceclaim ${CLAIM} -n ${NAMESPACE} -o yaml > ${LOG_DIR}/test1-resourceclaim.yaml
+        echo "✅ Automatic ResourceClaim created: ${CLAIM}"
     fi
 else
-    echo "❌ MIG pod failed"
-    oc describe pod pod-mig -n ${NAMESPACE} > ${LOG_DIR}/test1-describe.txt
+    echo "❌ Pod failed"
+    oc describe pod pod-extended-resource -n ${NAMESPACE} > ${LOG_DIR}/test1-describe.txt
 fi
 echo ""
 
-# Test 2: GPU implicit
-echo "=== Test 2: GPU Implicit Extended Resource ==="
+# Test 2: Multiple resource requests
+echo "=== Test 2: Multiple Extended Resource Requests ==="
 cat <<EOF | tee ${LOG_DIR}/test2-manifest.yaml | oc apply -f -
 apiVersion: v1
 kind: Pod
 metadata:
-  name: pod-gpu
+  name: pod-multi-resource
   namespace: ${NAMESPACE}
 spec:
   restartPolicy: Never
   containers:
-  - name: cuda
-    image: nvidia/cuda:12.2.0-base-ubi8
-    command: ["sh", "-c", "nvidia-smi -L && sleep 300"]
+  - name: test-container
+    image: ${CONTAINER_IMAGE}
+    command: ${CONTAINER_CMD}
     resources:
       requests:
-        ${IMPLICIT_GPU}: "1"
+        ${IMPLICIT_RESOURCE}: "2"
       limits:
-        ${IMPLICIT_GPU}: "1"
+        ${IMPLICIT_RESOURCE}: "2"
 EOF
 
 sleep 10
-oc wait --for=condition=Ready pod/pod-gpu -n ${NAMESPACE} --timeout=90s || true
+oc wait --for=condition=Ready pod/pod-multi-resource -n ${NAMESPACE} --timeout=90s || true
 sleep 5
 
-POD2=$(oc get pod pod-gpu -n ${NAMESPACE} -o jsonpath='{.status.phase}')
+POD2=$(oc get pod pod-multi-resource -n ${NAMESPACE} -o jsonpath='{.status.phase}')
 echo "Pod status: ${POD2}"
 
-oc get pod pod-gpu -n ${NAMESPACE} -o yaml > ${LOG_DIR}/test2-pod.yaml
+oc get pod pod-multi-resource -n ${NAMESPACE} -o yaml > ${LOG_DIR}/test2-pod.yaml
 
 if [ "${POD2}" == "Running" ]; then
-    echo "✅ GPU pod running"
-    oc logs pod-gpu -n ${NAMESPACE} > ${LOG_DIR}/test2-logs.txt
+    echo "✅ Pod running with 2 extended resources"
+    oc logs pod-multi-resource -n ${NAMESPACE} > ${LOG_DIR}/test2-logs.txt
     oc get pod pod-gpu -n ${NAMESPACE} -o json | jq '.status.extendedResourceClaimStatus' > ${LOG_DIR}/test2-claim-status.json
 fi
 echo ""

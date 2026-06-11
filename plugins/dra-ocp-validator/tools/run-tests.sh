@@ -114,8 +114,11 @@ fi
 source "${METADATA_HELPER}"
 
 K8S_MINOR=$(echo "${K8S_VERSION}" | sed -E 's/v1\.([0-9]+)\..*/\1/')
+K8S_VERSION_NORMALIZED="1.${K8S_MINOR}"
 
 # Use metadata system to discover available features
+# Note: is_feature_available expects minor version number only (e.g., "35")
+# get_feature_graduation expects full version (e.g., "1.35")
 AVAILABLE_FEATURES=()
 for feature in $(list_all_features); do
   if is_feature_available "${feature}" "${K8S_MINOR}" 2>/dev/null; then
@@ -128,17 +131,70 @@ echo ""
 
 # Parse features to test
 TEST_FEATURES=()
+ALPHA_FEATURES_REQUESTED=()
+
 if [ "${FEATURES}" = "all" ]; then
-  TEST_FEATURES=("${AVAILABLE_FEATURES[@]}")
+  # Default: Only test Beta + GA features (exclude Alpha)
+  echo "Default mode: Testing Beta and GA features only"
+  for feature in "${AVAILABLE_FEATURES[@]}"; do
+    graduation=$(get_feature_graduation "${feature}" "${K8S_VERSION_NORMALIZED}")
+    if [ "${graduation}" != "alpha" ]; then
+      TEST_FEATURES+=("${feature}")
+    fi
+  done
 else
+  # User specified features - check for Alpha features
   IFS=',' read -ra REQUESTED_FEATURES <<< "${FEATURES}"
   for feature in "${REQUESTED_FEATURES[@]}"; do
     if [[ " ${AVAILABLE_FEATURES[@]} " =~ " ${feature} " ]]; then
-      TEST_FEATURES+=("${feature}")
+      graduation=$(get_feature_graduation "${feature}" "${K8S_VERSION_NORMALIZED}")
+      if [ "${graduation}" = "alpha" ]; then
+        ALPHA_FEATURES_REQUESTED+=("${feature}")
+      else
+        TEST_FEATURES+=("${feature}")
+      fi
     else
       echo "⚠ Feature '${feature}' not available on K8s ${K8S_VERSION} - skipping"
     fi
   done
+fi
+
+# Error out if Alpha features requested
+if [ ${#ALPHA_FEATURES_REQUESTED[@]} -gt 0 ]; then
+  echo ""
+  echo "❌ ERROR: Alpha features requested but not enabled"
+  echo ""
+  echo "The following Alpha features require feature gate enablement:"
+  for feature in "${ALPHA_FEATURES_REQUESTED[@]}"; do
+    gate_name=$(get_feature_gate "${feature}")
+    echo "  - ${feature} → requires '${gate_name}' feature gate"
+  done
+  echo ""
+  echo "⚠️  IMPORTANT: OpenShift only allows ONE featureset at a time:"
+  echo "  - TechPreviewNoUpgrade (for officially supported tech preview features)"
+  echo "  - CustomNoUpgrade (for upstream Alpha features not in downstream)"
+  echo ""
+  echo "You cannot enable features from different featuresets simultaneously."
+  echo ""
+  echo "To enable Alpha features, you must:"
+  echo "  1. Determine which featureset each feature requires"
+  echo "  2. Choose features from the SAME featureset"
+  echo "  3. Enable the feature gate(s) manually via:"
+  echo ""
+  echo "     For TechPreviewNoUpgrade (e.g., DRAPartitionableDevices):"
+  echo "       oc patch featuregate cluster --type=merge \\"
+  echo "         -p '{\"spec\":{\"featureSet\":\"TechPreviewNoUpgrade\"}}'"
+  echo ""
+  echo "     For CustomNoUpgrade (e.g., DRADeviceTaints, DRAConsumableCapacity):"
+  echo "       oc patch featuregate cluster --type=merge \\"
+  echo "         -p '{\"spec\":{\"customNoUpgrade\":{\"enabled\":[\"<GATE_NAME>\"]}}}'"
+  echo ""
+  echo "  4. Re-run setup if driver configuration is needed:"
+  echo "       /dra-ocp-validator:setup ${KUBECONFIG_PATH} [--enable-dynamic-mig]"
+  echo ""
+  echo "  5. Re-run tests with the same --features flag"
+  echo ""
+  exit 1
 fi
 
 echo "Features to test: ${TEST_FEATURES[*]}"
@@ -257,6 +313,8 @@ echo ""
 PASSED=0
 FAILED=0
 SKIPPED=0
+PASSED_FEATURES=()
+FAILED_FEATURES=()
 
 for feature in "${TEST_FEATURES[@]}"; do
   # Get test script path and feature name from metadata
@@ -276,11 +334,13 @@ for feature in "${TEST_FEATURES[@]}"; do
   if "${TEST_SCRIPT}" "${KUBECONFIG_PATH}" > "${TEST_OUTPUT}" 2>&1; then
     echo "  ✅ ${TEST_NAME}: PASS"
     PASSED=$((PASSED + 1))
+    PASSED_FEATURES+=("${feature}")
   else
     EXIT_CODE=$?
     echo "  ❌ ${TEST_NAME}: FAIL (exit code: ${EXIT_CODE})"
     echo "     See: ${TEST_OUTPUT}"
     FAILED=$((FAILED + 1))
+    FAILED_FEATURES+=("${feature}")
   fi
 done
 
@@ -305,10 +365,32 @@ echo "  ❌ Failed:  ${FAILED}"
 echo "  ⚠ Skipped: ${SKIPPED} (prerequisite checks) + ${#SKIPPED_FEATURES[@]} (feature gates)"
 echo ""
 
+# List passed features
+if [ ${#PASSED_FEATURES[@]} -gt 0 ]; then
+  echo "Passed (${#PASSED_FEATURES[@]}):"
+  for feature in "${PASSED_FEATURES[@]}"; do
+    FEATURE_NAME=$(get_feature_name "${feature}" 2>/dev/null || echo "${feature}")
+    echo "  ✅ ${feature} - ${FEATURE_NAME}"
+  done
+  echo ""
+fi
+
+# List failed features
+if [ ${#FAILED_FEATURES[@]} -gt 0 ]; then
+  echo "Failed (${#FAILED_FEATURES[@]}):"
+  for feature in "${FAILED_FEATURES[@]}"; do
+    FEATURE_NAME=$(get_feature_name "${feature}" 2>/dev/null || echo "${feature}")
+    echo "  ❌ ${feature} - ${FEATURE_NAME}"
+  done
+  echo ""
+fi
+
+# List skipped features with reasons
 if [ "${#SKIPPED_FEATURES[@]}" -gt 0 ]; then
-  echo "Skipped due to prerequisites:"
+  echo "Skipped (${#SKIPPED_FEATURES[@]}) - Prerequisites not met:"
   for feature in "${SKIPPED_FEATURES[@]}"; do
-    echo "  - ${feature}"
+    FEATURE_NAME=$(get_feature_name "${feature}" 2>/dev/null || echo "${feature}")
+    echo "  ⚠ ${feature} - ${FEATURE_NAME}"
   done
   echo ""
 fi
@@ -318,6 +400,15 @@ echo ""
 
 if [ "${FAILED}" -gt 0 ]; then
   echo "⚠ Some tests failed - see logs in ${OUTPUT_DIR}/"
+  echo ""
+  echo "For detailed failure analysis, check:"
+  for feature in "${FAILED_FEATURES[@]}"; do
+    LOG_FILE=$(find "${OUTPUT_DIR}" -name "*${feature}*test.log" -o -name "*${feature}*output.log" 2>/dev/null | head -1)
+    if [ -n "${LOG_FILE}" ]; then
+      echo "  • ${feature}: ${LOG_FILE}"
+    fi
+  done
+  echo ""
   exit 1
 else
   echo "✓ All tests passed or skipped with valid reasons"

@@ -62,15 +62,22 @@ This command executes comprehensive DRA feature tests on a cluster where the DRA
       - Verify cluster-admin access for test operations
    
    b. **Feature Selection**:
-      - Parse `--features` flag or use defaults (all Beta features)
+      - Parse `--features` flag or use defaults (Beta + GA features only)
       - Map features to their graduation level for this K8s version
       - Filter out features unavailable on this K8s version
-      - Check CDMM status for MIG test skipping (Grace-Blackwell systems)
+      - **IMPORTANT**: Default behavior excludes Alpha features
+      - If Alpha features are explicitly requested via `--features`, the test runner will ERROR and require manual feature gate enablement
    
-   c. **Feature Gate Validation** (Alpha features only):
-      - Query cluster FeatureGate status
-      - Skip Alpha features if their feature gate is not enabled
-      - Provide enablement command in skip message
+   c. **Alpha Feature Handling**:
+      - If user requests Alpha features explicitly (e.g., `--features partitionable,device-taints`), the test runner will:
+        - Detect that Alpha features require feature gates
+        - ERROR with detailed message explaining:
+          - Which feature gates are required
+          - OpenShift featureset conflict (TechPreviewNoUpgrade vs CustomNoUpgrade)
+          - Manual steps to enable feature gates
+        - Exit without running tests
+      - User must manually enable feature gates and re-run tests
+      - This prevents automatic featureset conflicts
    
    d. **Test Execution**:
       - For each feature in the selected list:
@@ -133,14 +140,28 @@ This command executes comprehensive DRA feature tests on a cluster where the DRA
 - `kubeconfig-path` - Path to cluster kubeconfig file
 
 ### Optional
-- `--features <list>` - Comma-separated features to test (default: all Beta features)
-  - `partitionable` - DRA Partitionable Devices (KEP-4815)
-  - `admin-access` - DRA Admin Access
-  - `prioritized-list` - DRA Prioritized List (KEP-4816)
-  - `podresources-api` - PodResources API for DRA
-  - `device-taints` - Device Taints (Alpha in K8s 1.34-1.35, Beta in 1.36+)
-  - `extended-resources` - Extended Resources (requires K8s 1.35+)
-  - `all` - All Beta features available for this K8s version
+- `--features <list>` - Comma-separated features to test (default: `all` = Beta + GA only)
+  
+  **Beta/GA Features** (safe to test without manual feature gate setup):
+  - `structured-parameters` - DRA Structured Parameters (GA in K8s 1.34+)
+  - `admin-access` - Namespace Admin Access Control (Beta in K8s 1.34-1.35)
+  - `prioritized-list` - Scheduler Preference Ordering (Beta in K8s 1.34-1.35)
+  - `resource-claim-status` - Enhanced Claim Status (Beta in K8s 1.32+)
+  - `podresources-api` - Kubelet PodResources API (Beta in K8s 1.34+)
+  
+  **Alpha Features** (require manual feature gate enablement - will ERROR if requested):
+  - `partitionable` - GPU Partitioning/MIG Support (Alpha, requires DRAPartitionableDevices gate)
+  - `device-taints` - Automatic Node Tainting (Alpha, requires DRADeviceTaints gate)
+  - `consumable-capacity` - Consumable Resources (Alpha, requires DRAConsumableCapacity gate)
+  - `extended-resources` - Extended Resource Requests (Alpha, requires DRAExtendedResources gate)
+  - `resource-health-status` - Device Health Info (Alpha, requires DRAResourceHealthStatus gate)
+  - `device-binding-conditions` - Enhanced Binding Conditions (Alpha, requires DRADeviceBindingConditions gate)
+  
+  **Special values**:
+  - `all` - All Beta + GA features (excludes Alpha)
+  
+  **⚠️ Important**: Requesting Alpha features will ERROR with instructions to manually enable feature gates
+  
 - `--output-dir <path>` - Output directory for artifacts (default: ./dra-validation-<timestamp>)
 
 ## Return Value
@@ -154,7 +175,7 @@ Test results summary:
 
 ## Examples
 
-### Example 1: Run all Beta tests
+### Example 1: Run all Beta + GA tests (default)
 ```
 /dra-ocp-validator:test ~/kubeconfig
 ```
@@ -162,51 +183,72 @@ Test results summary:
 **Output:**
 ```
 ✓ Cluster accessible (OCP 4.21.16, K8s 1.34.7)
-✓ DRA driver ready (DeviceClass: mig.nvidia.com, ResourceSlices: 4)
-✓ Available features: partitionable, admin-access, prioritized-list, podresources-api
-✓ CDMM disabled - MIG tests can run
+✓ DRA driver ready (DeviceClass: gpu.example.com, ResourceSlices: 3)
+Default mode: Testing Beta and GA features only
 
 Running tests:
-  ✅ Partitionable Devices: PASS (4 pods scheduled, SharedCounters verified)
+  ✅ Structured Parameters: PASS
   ✅ Admin Access: PASS (namespace enforcement validated)
   ✅ Prioritized List: PASS (scheduler preference confirmed)
+  ✅ Resource Claim Status: PASS
   ✅ PodResources API: PASS (claim status populated)
 
 ✓ Artifacts collected: ./dra-validation-20260603/
 ✓ Report generated: ./dra-validation-20260603/DRA-VALIDATION-REPORT.md
 
-Results: 4/4 PASS
+Results: 5/5 PASS
 ```
 
-### Example 2: Test specific features
+### Example 2: Test specific Beta features
 ```
-/dra-ocp-validator:test ~/kubeconfig --features partitionable,prioritized-list
+/dra-ocp-validator:test ~/kubeconfig --features admin-access,prioritized-list
 ```
 
 **Output:**
 ```
 Running tests:
-  ✅ Partitionable Devices: PASS
+  ✅ Admin Access: PASS
   ✅ Prioritized List: PASS
 
 Results: 2/2 PASS
 ```
 
-### Example 3: Alpha feature (requires feature gate)
+### Example 3: Request Alpha feature (ERROR with instructions)
 ```
-/dra-ocp-validator:test ~/kubeconfig --features device-taints
+/dra-ocp-validator:test ~/kubeconfig --features device-taints,consumable-capacity
 ```
 
 **Output:**
 ```
-Running tests:
-  ⚠️ Device Taints: SKIP (DRADeviceTaints feature gate not enabled)
+❌ ERROR: Alpha features requested but not enabled
 
-To enable:
-  oc patch featuregate cluster --type=merge \
-    -p '{"spec":{"customNoUpgrade":{"enabled":["DRADeviceTaints"]}}}'
+The following Alpha features require feature gate enablement:
+  - device-taints → requires 'DRADeviceTaints' feature gate
+  - consumable-capacity → requires 'DRAConsumableCapacity' feature gate
 
-Results: 0/1 PASS, 1 SKIP
+⚠️  IMPORTANT: OpenShift only allows ONE featureset at a time:
+  - TechPreviewNoUpgrade (for officially supported tech preview features)
+  - CustomNoUpgrade (for upstream Alpha features not in downstream)
+
+You cannot enable features from different featuresets simultaneously.
+
+To enable Alpha features, you must:
+  1. Determine which featureset each feature requires
+  2. Choose features from the SAME featureset
+  3. Enable the feature gate(s) manually via:
+
+     For TechPreviewNoUpgrade (e.g., DRAPartitionableDevices):
+       oc patch featuregate cluster --type=merge \
+         -p '{"spec":{"featureSet":"TechPreviewNoUpgrade"}}'
+
+     For CustomNoUpgrade (e.g., DRADeviceTaints, DRAConsumableCapacity):
+       oc patch featuregate cluster --type=merge \
+         -p '{"spec":{"customNoUpgrade":{"enabled":["DRADeviceTaints","DRAConsumableCapacity"]}}}'
+
+  4. Re-run setup if driver configuration is needed:
+       /dra-ocp-validator:setup ~/kubeconfig [--enable-dynamic-mig]
+
+  5. Re-run tests with the same --features flag
 ```
 
 ### Example 4: MIG test with CDMM enabled (auto-skip)

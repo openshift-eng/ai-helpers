@@ -54,13 +54,46 @@ fi
 echo "Using DeviceClass: ${DEVICE_CLASS}" | tee ${LOG_DIR}/03-deviceclass-detected.txt
 echo ""
 
-AVAILABLE_1G70=$(oc get resourceslice -o json | jq -r '[.items[].spec.devices[] | select(.attributes.profile.string == "1g.70gb")] | length')
-AVAILABLE_1G35=$(oc get resourceslice -o json | jq -r '[.items[].spec.devices[] | select(.attributes.profile.string == "1g.35gb")] | length')
+# Detect available attributes from actual ResourceSlice
+echo "Detecting driver attributes..." | tee ${LOG_DIR}/03-attribute-detection.txt
+SAMPLE_DEVICE=$(oc get resourceslice -o json | jq -r '.items[0].spec.devices[0]' 2>/dev/null || echo "{}")
+echo "${SAMPLE_DEVICE}" | jq '.' > ${LOG_DIR}/03-sample-device.json
 
-echo "" | tee ${LOG_DIR}/03-devices.txt
-echo "Available MIG Profiles:" | tee -a ${LOG_DIR}/03-devices.txt
-echo "  - 1g.70gb (large): ${AVAILABLE_1G70} instances" | tee -a ${LOG_DIR}/03-devices.txt
-echo "  - 1g.35gb (small): ${AVAILABLE_1G35} instances" | tee -a ${LOG_DIR}/03-devices.txt
+# Check if NVIDIA profile attribute exists
+HAS_NVIDIA_PROFILE=$(echo "${SAMPLE_DEVICE}" | jq -r 'has("attributes") and (.attributes | has("profile"))')
+
+if [ "${HAS_NVIDIA_PROFILE}" == "true" ]; then
+    DRIVER_TYPE="nvidia"
+    AVAILABLE_1G70=$(oc get resourceslice -o json | jq -r '[.items[].spec.devices[] | select(.attributes.profile.string == "1g.70gb")] | length')
+    AVAILABLE_1G35=$(oc get resourceslice -o json | jq -r '[.items[].spec.devices[] | select(.attributes.profile.string == "1g.35gb")] | length')
+
+    echo "" | tee -a ${LOG_DIR}/03-devices.txt
+    echo "Driver Type: NVIDIA GPU (MIG profiles detected)" | tee -a ${LOG_DIR}/03-devices.txt
+    echo "Available MIG Profiles:" | tee -a ${LOG_DIR}/03-devices.txt
+    echo "  - 1g.70gb (large): ${AVAILABLE_1G70} instances" | tee -a ${LOG_DIR}/03-devices.txt
+    echo "  - 1g.35gb (small): ${AVAILABLE_1G35} instances" | tee -a ${LOG_DIR}/03-devices.txt
+
+    # CEL expressions for NVIDIA
+    SELECTOR_PREFERRED='device.attributes["profile"].string == "1g.70gb"'
+    SELECTOR_FALLBACK='device.attributes["profile"].string == "1g.35gb"'
+    COUNT_PREFERRED=1
+    COUNT_FALLBACK=2
+else
+    DRIVER_TYPE="example"
+    AVAILABLE_DEVICES=$(oc get resourceslice -o json | jq -r '[.items[].spec.devices[]] | length')
+
+    echo "" | tee -a ${LOG_DIR}/03-devices.txt
+    echo "Driver Type: Example Driver (software simulation)" | tee -a ${LOG_DIR}/03-devices.txt
+    echo "Available Devices: ${AVAILABLE_DEVICES}" | tee -a ${LOG_DIR}/03-devices.txt
+
+    # CEL expressions for example driver - test prioritization with any available device
+    # Preferred: Request 2 devices (might not be available)
+    # Fallback: Request 1 device (should always succeed)
+    SELECTOR_PREFERRED='has(device.attributes.model)'
+    SELECTOR_FALLBACK='has(device.attributes.model)'
+    COUNT_PREFERRED=2
+    COUNT_FALLBACK=1
+fi
 echo ""
 
 oc create namespace ${NAMESPACE}
@@ -70,7 +103,11 @@ echo ""
 #==============================================
 # Phase 1: Single Preferred Request
 #==============================================
-echo "=== PHASE 1: Single Preferred Request (1g.70gb) ==="
+if [ "${DRIVER_TYPE}" == "nvidia" ]; then
+    echo "=== PHASE 1: Single Preferred Request (1g.70gb) ==="
+else
+    echo "=== PHASE 1: Single Preferred Request (${COUNT_PREFERRED} devices) ==="
+fi
 
 cat <<EOF | tee ${LOG_DIR}/test1-claim.yaml | oc apply -f -
 apiVersion: resource.k8s.io/v1
@@ -81,14 +118,23 @@ metadata:
 spec:
   devices:
     requests:
-    - name: large-mig
+    - name: preferred-request
       exactly:
         deviceClassName: ${DEVICE_CLASS}
         selectors:
         - cel:
-            expression: "device.attributes['gpu.nvidia.com'].profile == '1g.70gb'"
-        count: 1
+            expression: "${SELECTOR_PREFERRED}"
+        count: ${COUNT_PREFERRED}
 EOF
+
+# Choose appropriate container image based on driver type
+if [ "${DRIVER_TYPE}" == "nvidia" ]; then
+    CONTAINER_IMAGE="nvidia/cuda:12.2.0-base-ubi8"
+    CONTAINER_CMD='["sh", "-c", "nvidia-smi -L && sleep 60"]'
+else
+    CONTAINER_IMAGE="registry.access.redhat.com/ubi8/ubi-minimal:latest"
+    CONTAINER_CMD='["sh", "-c", "echo DRA device allocated && env | grep -i device && sleep 60"]'
+fi
 
 cat <<EOF | tee ${LOG_DIR}/test1-pod.yaml | oc apply -f -
 apiVersion: v1
@@ -99,9 +145,9 @@ metadata:
 spec:
   restartPolicy: Never
   containers:
-  - name: cuda
-    image: nvidia/cuda:12.2.0-base-ubi8
-    command: ["sh", "-c", "nvidia-smi -L && sleep 60"]
+  - name: test-container
+    image: ${CONTAINER_IMAGE}
+    command: ${CONTAINER_CMD}
     resources:
       claims:
       - name: gpu
@@ -134,7 +180,11 @@ echo ""
 #==============================================
 # Phase 2: Prioritized List (Preferred + Fallback)
 #==============================================
-echo "=== PHASE 2: Prioritized List (1g.70gb OR 2x 1g.35gb) ==="
+if [ "${DRIVER_TYPE}" == "nvidia" ]; then
+    echo "=== PHASE 2: Prioritized List (1g.70gb OR 2x 1g.35gb) ==="
+else
+    echo "=== PHASE 2: Prioritized List (${COUNT_PREFERRED} devices OR ${COUNT_FALLBACK} device) ==="
+fi
 
 cat <<EOF | tee ${LOG_DIR}/test2-claim.yaml | oc apply -f -
 apiVersion: resource.k8s.io/v1
@@ -145,20 +195,20 @@ metadata:
 spec:
   devices:
     requests:
-    - name: preferred-large
+    - name: preferred-request
       exactly:
         deviceClassName: ${DEVICE_CLASS}
         selectors:
         - cel:
-            expression: "device.attributes['gpu.nvidia.com'].profile == '1g.70gb'"
-        count: 1
-    - name: fallback-small
+            expression: "${SELECTOR_PREFERRED}"
+        count: ${COUNT_PREFERRED}
+    - name: fallback-request
       exactly:
         deviceClassName: ${DEVICE_CLASS}
         selectors:
         - cel:
-            expression: "device.attributes['gpu.nvidia.com'].profile == '1g.35gb'"
-        count: 2
+            expression: "${SELECTOR_FALLBACK}"
+        count: ${COUNT_FALLBACK}
 EOF
 
 cat <<EOF | tee ${LOG_DIR}/test2-pod.yaml | oc apply -f -
@@ -170,9 +220,9 @@ metadata:
 spec:
   restartPolicy: Never
   containers:
-  - name: cuda
-    image: nvidia/cuda:12.2.0-base-ubi8
-    command: ["sh", "-c", "nvidia-smi -L && sleep 60"]
+  - name: test-container
+    image: ${CONTAINER_IMAGE}
+    command: ${CONTAINER_CMD}
     resources:
       claims:
       - name: gpu
