@@ -27,7 +27,7 @@ To customize the notification messages, edit the title and message arguments to 
         "hooks": [
           {
             "type": "command",
-            "command": "${PLUGIN_DIR}/scripts/notify.sh '🔔 Claude Code' 'Claude needs your input'"
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/notify.sh '🔔 Claude Code' 'Claude needs your input'"
           }
         ]
       }
@@ -37,7 +37,7 @@ To customize the notification messages, edit the title and message arguments to 
         "hooks": [
           {
             "type": "command",
-            "command": "${PLUGIN_DIR}/scripts/notify.sh '✅ Claude Code' 'Claude finished your task'"
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/notify.sh '✅ Claude Code' 'Claude finished your task'"
           }
         ]
       }

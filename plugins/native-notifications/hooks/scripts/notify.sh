@@ -13,5 +13,5 @@ if command -v osascript >/dev/null 2>&1; then
 elif command -v notify-send >/dev/null 2>&1 && [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]; then
   notify-send "$title" "$message" || true
 else
-  printf '\a'
+  printf '\a' || true
 fi
