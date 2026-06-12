@@ -1474,7 +1474,7 @@ footer a { color: var(--primary); }
     {
       "name": "jira",
       "description": "A plugin to automate tasks with Jira",
-      "version": "0.7.2",
+      "version": "0.7.3",
       "has_readme": true,
       "commands": [
         {
@@ -1508,6 +1508,14 @@ footer a { color: var(--primary); }
           "description_html": "Categorize JIRA tickets into activity types using AI",
           "synopsis": "/jira:categorize-activity-type \u003cissue-key\u003e [--auto-apply]",
           "body_html": "Analyzes a single JIRA ticket and assigns an Activity Type category based on ticket content, issue type, labels, and parent context. Classification logic is shared with \u003ccode\u003e/jira:batch-categorize-activity-types\u003c/code\u003e via the \u003ccode\u003ecategorize-activity-types\u003c/code\u003e skill."
+        },
+        {
+          "name": "check-bug-exists",
+          "full_name": "jira:check-bug-exists",
+          "description": "Check if a bug already exists in Jira before creating a new one",
+          "description_html": "Check if a bug already exists in Jira before creating a new one",
+          "synopsis": "/jira:check-bug-exists \u003cdescription-or-issue-key\u003e [project] [--component name] [--include-closed] [--link issue-key] [--verbose]",
+          "body_html": "\u003cp\u003eThe \u003ccode\u003ejira:check-bug-exists\u003c/code\u003e command searches Jira for existing bugs that match a given description or issue, helping avoid duplicate bug creation. It extracts keywords from the input, runs multiple JQL queries for broad coverage, and uses AI analysis to rank matches by confidence.\u003c/p\u003e\u003cp\u003eThis command is useful for:\u003cbr\u003e- Checking whether a bug already exists before filing a new one\u003cbr\u003e- Finding related bugs when triaging a reported issue\u003cbr\u003e- Linking duplicate bugs together\u003c/p\u003e"
         },
         {
           "name": "clone-from-github",
@@ -1649,6 +1657,12 @@ footer a { color: var(--primary); }
           "name": "categorize-activity-types",
           "description": "Categorize Jira issues into Red Hat Sankey Activity Type categories using MCP Jira tools. Supports single-issue and batch modes. Use when the user wants to categorize or set activity types on Jira issues, or mentions activity types, work types, Sankey, or capacity allocation.",
           "description_html": "Categorize Jira issues into Red Hat Sankey Activity Type categories using MCP Jira tools. Supports single-issue and batch modes. Use when the user wants to categorize or set activity types on Jira issues, or mentions activity types, work types, Sankey, or capacity allocation.",
+          "meta": ""
+        },
+        {
+          "name": "check-bug-exists",
+          "description": "Search for potential duplicate Jira bugs before creating new ones — matches by summary, description keywords, and component",
+          "description_html": "Search for potential duplicate Jira bugs before creating new ones — matches by summary, description keywords, and component",
           "meta": ""
         },
         {
