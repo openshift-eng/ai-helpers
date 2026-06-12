@@ -1,0 +1,755 @@
+# DRA Features Metadata
+# Single source of truth for DRA feature requirements, versions, and configuration
+#
+# This file defines:
+# - K8s/OCP version requirements for each DRA feature
+# - Feature gate names and default status per version
+# - Driver prerequisites and configuration
+# - Setup flags and test file locations
+#
+# Source: https://docs.google.com/presentation/d/1COH8dG8qZ9jEMXzQVdco74XmroZQTMYcUgwAES8FYWU/
+
+version: "1.1"
+last_updated: "2026-06-05"
+
+features:
+
+  # ============================================
+  # KEP-4831: Structured Parameters
+  # ============================================
+  structured-parameters:
+    name: "Structured Parameters"
+    description: "DRA: Structured Parameters for device allocation requests"
+    kep: "KEP-4831"
+    status_tracker: "https://github.com/kubernetes/enhancements/tree/master/keps/sig-node/4831-dra-structured-parameters"
+
+    kubernetes:
+      introduced: "1.32"
+      alpha: []
+      beta: ["1.32", "1.33"]
+      ga: "1.34"
+
+    openshift:
+      min_version: "4.19"
+      max_version: null
+      tested_versions: ["4.21"]
+
+    feature_gate:
+      name: null  # GA in 1.34+, always enabled
+
+    prerequisites: []
+
+    setup:
+      flags: []
+
+    test:
+      script: "tests/test-dra-structured-parameters.sh"
+      namespaces_created: ["dra-structured-params-test"]
+      cleanup_pattern: "dra-structured-params-test"
+      estimated_duration: "3-5 minutes"
+
+
+  # ============================================
+  # KEP-5018: Namespace Controlled Admin Access
+  # ============================================
+  admin-access:
+    name: "Namespace Controlled Admin Access"
+    description: "Namespace-based admin access control for device allocation"
+    kep: "KEP-5018"
+    status_tracker: "https://github.com/kubernetes/enhancements/tree/master/keps/sig-node/5018-dra-admin-access"
+
+    kubernetes:
+      introduced: "1.33"
+      alpha: ["1.33"]
+      beta: ["1.34", "1.35"]
+      ga: "1.36"
+
+    openshift:
+      min_version: "4.20"
+      max_version: null
+      tested_versions: ["4.21"]
+
+    feature_gate:
+      name: null  # Beta by default in 1.34+
+
+    prerequisites: []
+
+    setup:
+      flags: []
+
+    test:
+      script: "tests/test-dra-admin-access.sh"
+      namespaces_created: ["dra-no-admin", "dra-with-admin"]
+      cleanup_pattern: "dra-(no|with)-admin"
+      estimated_duration: "3-5 minutes"
+
+
+  # ============================================
+  # KEP-4816: Prioritized Alternatives in Device Requests
+  # ============================================
+  prioritized-list:
+    name: "Prioritized Alternatives in Device Requests"
+    description: "Scheduler preference ordering for device allocation (KEP-4816)"
+    kep: "KEP-4816"
+    status_tracker: "https://github.com/kubernetes/enhancements/tree/master/keps/sig-node/4816-dra-prioritized-list"
+
+    kubernetes:
+      introduced: "1.33"
+      alpha: ["1.33"]
+      beta: ["1.34", "1.35"]
+      ga: "1.36"
+
+    openshift:
+      min_version: "4.20"
+      max_version: null
+      tested_versions: ["4.21"]
+
+    feature_gate:
+      name: null  # Beta by default in 1.34+
+
+    prerequisites: []
+
+    setup:
+      flags: []
+
+    test:
+      script: "tests/test-dra-prioritized-list.sh"
+      namespaces_created: ["dra-prioritized-test"]
+      cleanup_pattern: "dra-prioritized-test"
+      estimated_duration: "3-5 minutes"
+
+
+  # ============================================
+  # KEP-4817: Resource Claim Status
+  # ============================================
+  resource-claim-status:
+    name: "Resource Claim Status"
+    description: "Enhanced status reporting for ResourceClaim objects"
+    kep: "KEP-4817"
+    status_tracker: "https://github.com/kubernetes/enhancements/tree/master/keps/sig-node/4817-dra-claim-status"
+
+    kubernetes:
+      introduced: "1.32"
+      alpha: ["1.32"]
+      beta: ["1.33", "1.34", "1.35", "1.36"]
+      ga: null  # Still in beta as of 1.36
+
+    openshift:
+      min_version: "4.19"
+      max_version: null
+      tested_versions: ["4.21"]
+
+    feature_gate:
+      name: null  # Beta by default in 1.33+
+
+    prerequisites: []
+
+    setup:
+      flags: []
+
+    test:
+      script: "tests/test-dra-claim-status.sh"
+      namespaces_created: ["dra-claim-status-test"]
+      cleanup_pattern: "dra-claim-status-test"
+      estimated_duration: "3-5 minutes"
+
+
+  # ============================================
+  # KEP-5004: Extended Resource Requests via DRA
+  # ============================================
+  extended-resources:
+    name: "Extended Resource Requests via DRA"
+    description: "Additional resource attributes beyond basic device allocation"
+    kep: "KEP-5004"
+    status_tracker: "https://github.com/kubernetes/enhancements/tree/master/keps/sig-node/5004-dra-extended-resources"
+
+    kubernetes:
+      introduced: "1.34"
+      alpha: ["1.34", "1.35"]
+      beta: ["1.36"]
+      ga: null
+
+    openshift:
+      min_version: "4.21"
+      max_version: null
+      tested_versions: []
+
+    feature_gate:
+      name: "DRAExtendedResources"
+      enablement:
+        openshift: |
+          oc patch featuregate cluster --type=merge \
+            -p '{"spec":{"customNoUpgrade":{"enabled":["DRAExtendedResources"]}}}'
+
+    prerequisites:
+      - type: "k8s_version"
+        min_version: "1.34"
+        error_message: "Extended Resources requires Kubernetes 1.34+ (cluster has {version})"
+      - type: "feature_gate"
+        name: "DRAExtendedResources"
+        check_method: "featuregate_enabled"
+        error_message: "DRAExtendedResources feature gate not enabled"
+
+    setup:
+      flags: []
+
+    test:
+      script: "tests/test-dra-extended-resources.sh"
+      namespaces_created: ["dra-extended-test"]
+      cleanup_pattern: "dra-extended-test"
+      estimated_duration: "3-5 minutes"
+
+
+  # ============================================
+  # KEP-5055: Device Taints and Tolerations
+  # ============================================
+  device-taints:
+    name: "Device Taints and Tolerations"
+    description: "Automatic node tainting based on device health"
+    kep: "KEP-5055"
+    status_tracker: "https://github.com/kubernetes/enhancements/tree/master/keps/sig-node/5055-dra-device-taints"
+
+    kubernetes:
+      introduced: "1.33"
+      alpha: ["1.33", "1.34", "1.35"]
+      beta: ["1.36"]
+      ga: null
+
+    openshift:
+      min_version: "4.20"
+      max_version: null
+      tested_versions: ["4.21"]
+
+    feature_gate:
+      name: "DRADeviceTaints"
+      enablement:
+        openshift: |
+          oc patch featuregate cluster --type=merge \
+            -p '{"spec":{"customNoUpgrade":{"enabled":["DRADeviceTaints"]}}}'
+
+    prerequisites:
+      - type: "feature_gate"
+        name: "DRADeviceTaints"
+        check_method: "featuregate_enabled"
+        error_message: "DRADeviceTaints feature gate not enabled (Alpha feature)"
+
+    setup:
+      flags: []
+
+    test:
+      script: "tests/test-dra-device-taints.sh"
+      namespaces_created: ["dra-taints-test"]
+      cleanup_pattern: "dra-taints-test"
+      estimated_duration: "3-5 minutes"
+
+
+  # ============================================
+  # KEP-5075: Consumable Capacity
+  # ============================================
+  consumable-capacity:
+    name: "Consumable Capacity"
+    description: "Support for consumable resources that can be shared across pods"
+    kep: "KEP-5075"
+    status_tracker: "https://github.com/kubernetes/enhancements/tree/master/keps/sig-node/5075-dra-consumable-capacity"
+
+    kubernetes:
+      introduced: "1.34"
+      alpha: ["1.34", "1.35"]
+      beta: ["1.36"]
+      ga: null
+
+    openshift:
+      min_version: "4.21"
+      max_version: null
+      tested_versions: []
+
+    feature_gate:
+      name: "DRAConsumableCapacity"
+      enablement:
+        openshift: |
+          oc patch featuregate cluster --type=merge \
+            -p '{"spec":{"customNoUpgrade":{"enabled":["DRAConsumableCapacity"]}}}'
+
+    prerequisites:
+      - type: "feature_gate"
+        name: "DRAConsumableCapacity"
+        check_method: "featuregate_enabled"
+        error_message: "DRAConsumableCapacity feature gate not enabled"
+
+    setup:
+      flags: []
+
+    test:
+      script: "tests/test-dra-consumable-capacity.sh"
+      namespaces_created: ["dra-consumable-test"]
+      cleanup_pattern: "dra-consumable-test"
+      estimated_duration: "3-5 minutes"
+
+
+  # ============================================
+  # KEP-4815: Partitionable Devices
+  # ============================================
+  partitionable:
+    name: "Partitionable Devices"
+    description: "Support for GPU partitioning via SharedCounters (e.g., NVIDIA MIG)"
+    kep: "KEP-4815"
+    status_tracker: "https://github.com/kubernetes/enhancements/tree/master/keps/sig-node/4815-dra-partitionable"
+
+    kubernetes:
+      introduced: "1.33"
+      alpha: ["1.33", "1.34", "1.35"]
+      beta: ["1.36"]
+      ga: null
+
+    openshift:
+      min_version: "4.20"
+      max_version: null
+      tested_versions: ["4.21"]
+
+    feature_gate:
+      name: "DRAPartitionableDevices"
+      enablement:
+        command: |
+          oc patch featuregate cluster --type=merge \
+            -p '{"spec":{"customNoUpgrade":{"enabled":["DRAPartitionableDevices"]}}}'
+
+    prerequisites:
+      - type: "feature_gate"
+        name: "DRAPartitionableDevices"
+        check_method: "featuregate_enabled"
+        error_message: "DRAPartitionableDevices feature gate not enabled (use --enable-dynamic-mig during setup)"
+
+      - type: "driver_capability"
+        capability: "partitioning_support"
+        check_method: "resourceslice_has_sharedcounters"
+        description: "Driver must have partition support (SharedCounters in ResourceSlices)"
+        error_message: "Driver does not have partition support (reinstall with --enable-dynamic-mig)"
+
+    setup:
+      flags: ["--enable-dynamic-mig"]
+
+      driver_config:
+        nvidia:
+          type: "helm_values"
+          values:
+            env:
+              DYNAMIC_MIG: "true"
+          description: "Enables NVIDIA MIG (Multi-Instance GPU) dynamic partitioning"
+
+        example:
+          type: "helm_values"
+          values:
+            kubeletPlugin:
+              gpuPartitions: 4
+          description: "Configures example driver with 4 simulated GPU partitions"
+
+    test:
+      script: "tests/test-dra-partitionable.sh"
+      namespaces_created: ["dra-e2e-test"]
+      cleanup_pattern: "dra-e2e-test"
+      estimated_duration: "5-10 minutes"
+
+
+  # ============================================
+  # KEP-4680: Resource Health Status in Pod Status
+  # ============================================
+  resource-health-status:
+    name: "Resource Health Status in Pod Status"
+    description: "Device health information exposed in Pod status"
+    kep: "KEP-4680"
+    status_tracker: "https://github.com/kubernetes/enhancements/tree/master/keps/sig-node/4680-dra-health-status"
+
+    kubernetes:
+      introduced: "1.32"
+      alpha: ["1.32", "1.33", "1.34", "1.35"]
+      beta: ["1.36"]
+      ga: null
+
+    openshift:
+      min_version: "4.19"
+      max_version: null
+      tested_versions: []
+
+    feature_gate:
+      name: "DRAResourceHealthStatus"
+      enablement:
+        openshift: |
+          oc patch featuregate cluster --type=merge \
+            -p '{"spec":{"customNoUpgrade":{"enabled":["DRAResourceHealthStatus"]}}}'
+
+    prerequisites:
+      - type: "feature_gate"
+        name: "DRAResourceHealthStatus"
+        check_method: "featuregate_enabled"
+        error_message: "DRAResourceHealthStatus feature gate not enabled"
+
+    setup:
+      flags: []
+
+    test:
+      script: "tests/test-dra-health-status.sh"
+      namespaces_created: ["dra-health-test"]
+      cleanup_pattern: "dra-health-test"
+      estimated_duration: "3-5 minutes"
+
+
+  # ============================================
+  # KEP-5007: Device Binding Conditions
+  # ============================================
+  device-binding-conditions:
+    name: "Device Binding Conditions"
+    description: "Enhanced conditions for device binding status"
+    kep: "KEP-5007"
+    status_tracker: "https://github.com/kubernetes/enhancements/tree/master/keps/sig-node/5007-dra-binding-conditions"
+
+    kubernetes:
+      introduced: "1.34"
+      alpha: ["1.34", "1.35"]
+      beta: ["1.36"]
+      ga: null
+
+    openshift:
+      min_version: "4.21"
+      max_version: null
+      tested_versions: []
+
+    feature_gate:
+      name: "DRADeviceBindingConditions"
+      enablement:
+        openshift: |
+          oc patch featuregate cluster --type=merge \
+            -p '{"spec":{"customNoUpgrade":{"enabled":["DRADeviceBindingConditions"]}}}'
+
+    prerequisites:
+      - type: "feature_gate"
+        name: "DRADeviceBindingConditions"
+        check_method: "featuregate_enabled"
+        error_message: "DRADeviceBindingConditions feature gate not enabled"
+
+    setup:
+      flags: []
+
+    test:
+      script: "tests/test-dra-binding-conditions.sh"
+      namespaces_created: ["dra-binding-test"]
+      cleanup_pattern: "dra-binding-test"
+      estimated_duration: "3-5 minutes"
+
+
+  # ============================================
+  # KEP-5304: Attributes Downward API
+  # ============================================
+  attributes-downward-api:
+    name: "Attributes Downward API"
+    description: "Expose device attributes via Downward API to containers"
+    kep: "KEP-5304"
+    status_tracker: "https://github.com/kubernetes/enhancements/tree/master/keps/sig-node/5304-dra-attributes-downward-api"
+
+    kubernetes:
+      introduced: "1.36"
+      alpha: ["1.36"]
+      beta: []
+      ga: null
+
+    openshift:
+      min_version: "4.23"
+      max_version: null
+      tested_versions: []
+
+    feature_gate:
+      name: "DRAAttributesDownwardAPI"
+      enablement:
+        openshift: |
+          oc patch featuregate cluster --type=merge \
+            -p '{"spec":{"customNoUpgrade":{"enabled":["DRAAttributesDownwardAPI"]}}}'
+
+    prerequisites:
+      - type: "k8s_version"
+        min_version: "1.36"
+        error_message: "Attributes Downward API requires Kubernetes 1.36+ (cluster has {version})"
+      - type: "feature_gate"
+        name: "DRAAttributesDownwardAPI"
+        check_method: "featuregate_enabled"
+        error_message: "DRAAttributesDownwardAPI feature gate not enabled"
+
+    setup:
+      flags: []
+
+    test:
+      script: "tests/test-dra-attributes-downward-api.sh"
+      namespaces_created: ["dra-downward-api-test"]
+      cleanup_pattern: "dra-downward-api-test"
+      estimated_duration: "3-5 minutes"
+
+
+  # ============================================
+  # KEP-5729: ResourceClaim Support for Workloads
+  # ============================================
+  resourceclaim-workloads:
+    name: "ResourceClaim Support for Workloads"
+    description: "Direct ResourceClaim support in workload controllers (Jobs, StatefulSets, etc.)"
+    kep: "KEP-5729"
+    status_tracker: "https://github.com/kubernetes/enhancements/tree/master/keps/sig-node/5729-dra-resourceclaim-workloads"
+
+    kubernetes:
+      introduced: "1.36"
+      alpha: ["1.36"]
+      beta: []
+      ga: null
+
+    openshift:
+      min_version: "4.23"
+      max_version: null
+      tested_versions: []
+
+    feature_gate:
+      name: "DRAResourceClaimWorkloads"
+      enablement:
+        openshift: |
+          oc patch featuregate cluster --type=merge \
+            -p '{"spec":{"customNoUpgrade":{"enabled":["DRAResourceClaimWorkloads"]}}}'
+
+    prerequisites:
+      - type: "k8s_version"
+        min_version: "1.36"
+        error_message: "ResourceClaim Workloads requires Kubernetes 1.36+ (cluster has {version})"
+      - type: "feature_gate"
+        name: "DRAResourceClaimWorkloads"
+        check_method: "featuregate_enabled"
+        error_message: "DRAResourceClaimWorkloads feature gate not enabled"
+
+    setup:
+      flags: []
+
+    test:
+      script: "tests/test-dra-resourceclaim-workloads.sh"
+      namespaces_created: ["dra-workloads-test"]
+      cleanup_pattern: "dra-workloads-test"
+      estimated_duration: "5-7 minutes"
+
+
+  # ============================================
+  # KEP-5517: Native Resource Requests
+  # ============================================
+  native-resource-requests:
+    name: "Native Resource Requests"
+    description: "Native Kubernetes resource request syntax for DRA devices"
+    kep: "KEP-5517"
+    status_tracker: "https://github.com/kubernetes/enhancements/tree/master/keps/sig-node/5517-dra-native-requests"
+
+    kubernetes:
+      introduced: "1.36"
+      alpha: ["1.36"]
+      beta: []
+      ga: null
+
+    openshift:
+      min_version: "4.23"
+      max_version: null
+      tested_versions: []
+
+    feature_gate:
+      name: "DRANativeResourceRequests"
+      enablement:
+        openshift: |
+          oc patch featuregate cluster --type=merge \
+            -p '{"spec":{"customNoUpgrade":{"enabled":["DRANativeResourceRequests"]}}}'
+
+    prerequisites:
+      - type: "k8s_version"
+        min_version: "1.36"
+        error_message: "Native Resource Requests requires Kubernetes 1.36+ (cluster has {version})"
+      - type: "feature_gate"
+        name: "DRANativeResourceRequests"
+        check_method: "featuregate_enabled"
+        error_message: "DRANativeResourceRequests feature gate not enabled"
+
+    setup:
+      flags: []
+
+    test:
+      script: "tests/test-dra-native-requests.sh"
+      namespaces_created: ["dra-native-test"]
+      cleanup_pattern: "dra-native-test"
+      estimated_duration: "3-5 minutes"
+
+
+  # ============================================
+  # KEP-5677: Resource Availability Visibility
+  # ============================================
+  resource-availability:
+    name: "Resource Availability Visibility"
+    description: "Enhanced visibility into device resource availability across the cluster"
+    kep: "KEP-5677"
+    status_tracker: "https://github.com/kubernetes/enhancements/tree/master/keps/sig-node/5677-dra-resource-availability"
+
+    kubernetes:
+      introduced: "1.36"
+      alpha: ["1.36"]
+      beta: []
+      ga: null
+
+    openshift:
+      min_version: "4.23"
+      max_version: null
+      tested_versions: []
+
+    feature_gate:
+      name: "DRAResourceAvailability"
+      enablement:
+        openshift: |
+          oc patch featuregate cluster --type=merge \
+            -p '{"spec":{"customNoUpgrade":{"enabled":["DRAResourceAvailability"]}}}'
+
+    prerequisites:
+      - type: "k8s_version"
+        min_version: "1.36"
+        error_message: "Resource Availability requires Kubernetes 1.36+ (cluster has {version})"
+      - type: "feature_gate"
+        name: "DRAResourceAvailability"
+        check_method: "featuregate_enabled"
+        error_message: "DRAResourceAvailability feature gate not enabled"
+
+    setup:
+      flags: []
+
+    test:
+      script: "tests/test-dra-resource-availability.sh"
+      namespaces_created: ["dra-availability-test"]
+      cleanup_pattern: "dra-availability-test"
+      estimated_duration: "3-5 minutes"
+
+
+  # ============================================
+  # KEP-5491: List Types for Attributes
+  # ============================================
+  list-types-attributes:
+    name: "List Types for Attributes"
+    description: "Support for list-type attributes in device specifications"
+    kep: "KEP-5491"
+    status_tracker: "https://github.com/kubernetes/enhancements/tree/master/keps/sig-node/5491-dra-list-attributes"
+
+    kubernetes:
+      introduced: "1.36"
+      alpha: ["1.36"]
+      beta: []
+      ga: null
+
+    openshift:
+      min_version: "4.23"
+      max_version: null
+      tested_versions: []
+
+    feature_gate:
+      name: "DRAListTypeAttributes"
+      enablement:
+        openshift: |
+          oc patch featuregate cluster --type=merge \
+            -p '{"spec":{"customNoUpgrade":{"enabled":["DRAListTypeAttributes"]}}}'
+
+    prerequisites:
+      - type: "k8s_version"
+        min_version: "1.36"
+        error_message: "List Types for Attributes requires Kubernetes 1.36+ (cluster has {version})"
+      - type: "feature_gate"
+        name: "DRAListTypeAttributes"
+        check_method: "featuregate_enabled"
+        error_message: "DRAListTypeAttributes feature gate not enabled"
+
+    setup:
+      flags: []
+
+    test:
+      script: "tests/test-dra-list-attributes.sh"
+      namespaces_created: ["dra-list-attrs-test"]
+      cleanup_pattern: "dra-list-attrs-test"
+      estimated_duration: "3-5 minutes"
+
+
+  # ============================================
+  # PodResources API (Enhancement to existing API)
+  # ============================================
+  podresources-api:
+    name: "PodResources API"
+    description: "Kubelet PodResources API support for DRA devices"
+    kep: "Enhancement to existing PodResources API"
+    status_tracker: "https://kubernetes.io/docs/concepts/extend-kubernetes/compute-storage-net/device-plugins/"
+
+    kubernetes:
+      introduced: "1.34"
+      alpha: []
+      beta: ["1.34", "1.35", "1.36"]
+      ga: "1.37"
+
+    openshift:
+      min_version: "4.21"
+      max_version: null
+      tested_versions: ["4.21"]
+
+    feature_gate:
+      name: null  # Beta by default
+
+    prerequisites: []
+
+    setup:
+      flags: []
+
+    test:
+      script: "tests/test-dra-podresources-api.sh"
+      namespaces_created: ["dra-podresources-test"]
+      cleanup_pattern: "dra-podresources-test"
+      estimated_duration: "3-5 minutes"
+
+
+# ============================================
+# Check Methods Registry
+# ============================================
+# Defines how to check each prerequisite type
+check_methods:
+
+  featuregate_enabled:
+    description: "Check if a feature gate is enabled in the cluster"
+    implementation: |
+      # Check CustomNoUpgrade first
+      ENABLED=$(oc get featuregate cluster -o json | \
+        jq -r --arg fg "${FEATURE_GATE_NAME}" \
+        '.spec.customNoUpgrade.enabled[]? | select(. == $fg)' || true)
+
+      # Check default FeatureSet
+      if [ -z "${ENABLED}" ]; then
+        ENABLED=$(oc get featuregate cluster -o json | \
+          jq -r --arg fg "${FEATURE_GATE_NAME}" \
+          '.status.featureGates[].enabled[]? | select(.name == $fg).name' || true)
+      fi
+
+      [ -n "${ENABLED}" ]
+
+  resourceslice_has_sharedcounters:
+    description: "Check if ResourceSlices have SharedCounters (partition support)"
+    implementation: |
+      COUNT=$(oc get resourceslice -o json | \
+        jq -r '.items[] | select(.spec.sharedCounters != null) | .metadata.name' | \
+        wc -l || echo "0")
+      [ "${COUNT}" -gt 0 ]
+
+  k8s_version:
+    description: "Check if K8s version meets minimum requirement"
+    implementation: |
+      CURRENT_MINOR=$(echo "${K8S_VERSION}" | sed -E 's/v1\.([0-9]+)\..*/\1/')
+      [ "${CURRENT_MINOR}" -ge "${MIN_VERSION_MINOR}" ]
+
+
+# ============================================
+# Cleanup Patterns
+# ============================================
+# Used by cleanup-dra.sh to identify test namespaces
+cleanup:
+  test_namespace_patterns:
+    - "dra-*-test"
+    - "dra-*-admin"
+
+  driver_namespaces:
+    - "dra-example-driver"
+    - "nvidia-dra-driver"
+    - "dra-nvidia-driver"
+    - "nvidia-gpu-operator"

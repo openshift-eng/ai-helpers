@@ -1,0 +1,8 @@
+{
+  "name": "dra-ocp-validator",
+  "description": "Comprehensive DRA feature validation for OpenShift clusters",
+  "version": "1.0.0",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}

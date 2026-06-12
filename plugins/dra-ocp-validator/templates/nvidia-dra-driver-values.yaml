@@ -1,0 +1,46 @@
+# Helm values for NVIDIA DRA Driver
+# Used by tools/install-nvidia-stack.sh
+
+nfd:
+  enabled: true
+
+devicePlugin:
+  enabled: false
+
+dra:
+  driver:
+    image:
+      repository: nvcr.io/nvidia/cloud-native/k8s-dra-driver
+      tag: v0.6.0
+      pullPolicy: IfNotPresent
+
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 1000m
+        memory: 512Mi
+
+    # Feature gates
+    extraEnv:
+    - name: DYNAMIC_MIG
+      value: "false"  # Set to "true" to enable Partitionable Devices (MIG support)
+    - name: LOG_VERBOSITY
+      value: "4"      # Log level (0-5, higher = more verbose)
+    - name: MASK_NVIDIA_DRIVER_PARAMS
+      value: ""
+    - name: NVIDIA_DRIVER_ROOT
+      value: "/run/nvidia/driver"
+    - name: CDI_ROOT
+      value: "/var/run/cdi"
+
+    # Node selector (optional)
+    # nodeSelector:
+    #   feature.node.kubernetes.io/pci-10de.present: "true"
+
+    # Tolerations (optional)
+    # tolerations:
+    # - key: nvidia.com/gpu
+    #   operator: Exists
+    #   effect: NoSchedule

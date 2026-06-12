@@ -513,6 +513,21 @@
         "bundle",
         "meta-plugin"
       ]
+    },
+    {
+      "name": "dra-ocp-validator",
+      "source": "./plugins/dra-ocp-validator",
+      "description": "Comprehensive DRA feature validation for OpenShift clusters with GPU hardware",
+      "version": "1.0.0",
+      "category": "testing",
+      "keywords": [
+        "dra",
+        "gpu",
+        "validation",
+        "nvidia",
+        "testing",
+        "openshift"
+      ]
     }
   ]
 }
