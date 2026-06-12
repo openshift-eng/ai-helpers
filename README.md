@@ -1,5 +1,7 @@
 # AI Helpers
 
+[![skillsaw grade](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fopenshift-eng%2Fai-helpers%2Fmain%2F.skillsaw-badge.json)](https://skillsaw.org/)
+
 A collection of Claude Code plugins to automate and assist with various development tasks.
 
 [Discover available plugins](https://openshift-eng.github.io/ai-helpers/)
