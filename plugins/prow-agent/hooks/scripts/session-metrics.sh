@@ -1,12 +1,11 @@
 #!/bin/bash
 set -euo pipefail
 
-if [[ -z "${ARTIFACT_DIR:-}" ]]; then
+if [[ -z "${ARTIFACT_DIR:-}" ]] || [[ -z "${CLAUDE_OUTPUT_LOG:-}" ]]; then
   exit 0
 fi
 
-log_file="${ARTIFACT_DIR}/claude-output.log"
-if [[ ! -f "$log_file" ]]; then
+if [[ ! -f "$CLAUDE_OUTPUT_LOG" ]]; then
   exit 0
 fi
 
@@ -16,4 +15,4 @@ cat > /dev/null
 script_dir="$(cd "$(dirname "$0")" && pwd)"
 output_path="${ARTIFACT_DIR}/claude-session-metrics-autodl.json"
 
-python3 "${script_dir}/extract_metrics.py" "$log_file" "$output_path"
+python3 "${script_dir}/extract_metrics.py" "$CLAUDE_OUTPUT_LOG" "$output_path"

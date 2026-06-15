@@ -10,11 +10,15 @@ Claude session and writes an autodl JSON file for BigQuery ingestion.
 ### How it works
 
 A Stop hook fires at the end of every `claude -p` invocation. It reads the
-session transcript, extracts aggregate metrics (including subagents), and writes
-a `claude-session-metrics-autodl.json` file.
+streaming output log, extracts aggregate metrics (including subagents), and
+writes a `claude-session-metrics-autodl.json` file.
 
-The hook is gated on the `ARTIFACT_DIR` environment variable. If
-unset, the hook is a silent no-op — so it does nothing during interactive use.
+The hook requires two environment variables:
+- `ARTIFACT_DIR` — where to write the autodl output
+- `CLAUDE_OUTPUT_LOG` — path to the streaming output log (`--output-format stream-json`)
+
+If either is unset, the hook is a silent no-op — so it does nothing during
+interactive use.
 
 For CI jobs that use `--continue`, the hook fires after each invocation and
 overwrites the output file. The final run produces the authoritative result since
@@ -22,13 +26,13 @@ the `result` message accumulates totals across the full session.
 
 ### Setup
 
-Set the environment variable before running Claude:
-
 ```bash
-claude -p "..." --output-file claude-output.log
+export CLAUDE_OUTPUT_LOG="${ARTIFACT_DIR}/claude-output.log"
+claude -p "..." --output-format stream-json 2>&1 | tee "${CLAUDE_OUTPUT_LOG}"
 ```
 
-In Prow jobs, `ARTIFACT_DIR` is already set. The autodl file will appear at `${ARTIFACT_DIR}/claude-session-metrics-autodl.json`.
+In Prow jobs, `ARTIFACT_DIR` is already set. The autodl file will appear at
+`${ARTIFACT_DIR}/claude-session-metrics-autodl.json`.
 
 ### Standalone usage
 
