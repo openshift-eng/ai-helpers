@@ -15,7 +15,6 @@ rules:
       - "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/gofmt.sh"
       - "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/notify.sh '🔔 Claude Code' 'Claude needs your input'"
       - "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/notify.sh '✅ Claude Code' 'Claude finished your task'"
-      - "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/session-metrics.sh"
   settings-dangerous:
     enabled: true
     severity: error
