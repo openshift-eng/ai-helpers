@@ -1,6 +1,7 @@
 ---
 name: payload-analysis
 description: Analyze a payload snapshot to identify root causes of blocking job failures, score candidate PRs, and produce an HTML report with revert recommendations
+argument-hint: "<payload-tag> [--snapshot-dir DIR]"
 ---
 
 # Payload Analysis
@@ -20,6 +21,23 @@ Use this skill when you need to:
 - Identify which PRs likely caused new failures
 - Get a comprehensive overview of payload health with actionable root cause analysis
 - Re-analyze a historical payload against its original snapshot data
+
+## Examples
+
+1. **Analyze an amd64 nightly payload** (auto-creates snapshot if needed):
+   ```
+   /ci:payload-analysis 4.22.0-0.nightly-2026-02-25-152806
+   ```
+
+2. **Analyze using an existing snapshot directory**:
+   ```
+   /ci:payload-analysis 4.22.0-0.nightly-2026-02-25-152806 --snapshot-dir payload/4.22/nightly
+   ```
+
+3. **Analyze an arm64 payload** (architecture inferred from tag):
+   ```
+   /ci:payload-analysis 4.22.0-0.nightly-arm64-2026-02-25-152806
+   ```
 
 ## Required Skills
 
