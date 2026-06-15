@@ -133,7 +133,10 @@ Classify Jira issues into activity types and generate an interactive sankey repo
 4. Results are merged and `generate_sankey.py` produces the HTML report
 
 **Requirements:** The classification script calls Claude via Vertex AI and requires:
-- `gcloud` CLI authenticated (`gcloud auth login`)
+- `gcloud` CLI authenticated via one of:
+  - `gcloud auth login` (traditional user authentication)
+  - `gcloud auth application-default login` (application default credentials)
+  - Workload identity environment (automatic in some GCP services)
 - Environment variables: `CLOUD_ML_REGION`, `ANTHROPIC_VERTEX_PROJECT_ID` (already set in the org's devcontainer)
 - Optional: `ANTHROPIC_SMALL_FAST_MODEL` to override the model (default: `claude-sonnet-4-6`)
 
@@ -166,7 +169,7 @@ This plugin runs Python scripts via shell commands during report generation. You
 - `python3 .../classify_issues.py` -- Classifies issues by calling Claude via Vertex AI
 - `python3 .../generate_sankey.py` -- Generates the interactive HTML report
 - `python3 .../open_report.py` -- Starts a temporary HTTP server (auto-shuts down after 30s) and opens the report in your browser via VS Code port forwarding
-- `gcloud auth print-access-token` -- Called by the classification script for Vertex AI authentication
+- `gcloud auth print-access-token` or `gcloud auth application-default print-access-token` -- Called by the classification script for Vertex AI authentication (tries both methods)
 
 These scripts are located in the plugin's `scripts/` directory and only read/write local files.
 
