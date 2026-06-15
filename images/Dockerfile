@@ -2,7 +2,8 @@ FROM registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.25-openshift-4.22 AS 
 COPY images/repos/claude-code-latest.repo /etc/yum.repos.d/
 COPY images/repos/RPM-GPG-KEY-claude-code /etc/pki/rpm-gpg/
 RUN rm /etc/yum.repos.d/ubi.repo && \
-    dnf install -y --disablerepo='*-ppc64le' --disablerepo='*-s390x' --disablerepo='claude-code' --enablerepo='claude-code-latest' claude-code && \
+    sed -i 's/enabled=0/enabled=1/' /etc/yum.repos.d/claude-code-latest.repo && \
+    dnf install -y --disablerepo='*-ppc64le' --disablerepo='*-s390x' claude-code && \
     dnf clean all
 
 FROM registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.25-openshift-4.22
