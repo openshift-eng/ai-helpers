@@ -1,0 +1,4 @@
+comment: |
+  `e2e-aws-4-21` failed on `Teardown` but due to uncleaned cloud resources, not VPC endpoint blocking the finalizer
+  /override ci/prow/e2e-aws-4-21
+author: reviewer

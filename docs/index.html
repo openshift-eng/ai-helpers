@@ -401,7 +401,16 @@ footer a { color: var(--primary); }
       "agents": [],
       "hooks": [],
       "mcp_servers": [],
-      "rules": []
+      "rules": [],
+      "category": "productivity",
+      "keywords": [
+        "meetings",
+        "agendas",
+        "planning"
+      ],
+      "author": {
+        "name": "github.com/openshift-eng"
+      }
     },
     {
       "name": "ai-sbom",
@@ -420,7 +429,16 @@ footer a { color: var(--primary); }
       "agents": [],
       "hooks": [],
       "mcp_servers": [],
-      "rules": []
+      "rules": [],
+      "category": "development",
+      "keywords": [
+        "sbom",
+        "ai-usage",
+        "transparency"
+      ],
+      "author": {
+        "name": "github.com/openshift-eng"
+      }
     },
     {
       "name": "bigquery",
@@ -454,12 +472,22 @@ footer a { color: var(--primary); }
       "agents": [],
       "hooks": [],
       "mcp_servers": [],
-      "rules": []
+      "rules": [],
+      "category": "data",
+      "keywords": [
+        "bigquery",
+        "sql",
+        "analytics",
+        "cost-analysis"
+      ],
+      "author": {
+        "name": "github.com/openshift-eng"
+      }
     },
     {
       "name": "ci",
       "description": "Tools for working with OpenShift CI and analyzing Prow job results",
-      "version": "0.0.45",
+      "version": "0.0.48",
       "has_readme": true,
       "commands": [
         {
@@ -853,12 +881,23 @@ footer a { color: var(--primary); }
       ],
       "hooks": [],
       "mcp_servers": [],
-      "rules": []
+      "rules": [],
+      "category": "ci",
+      "keywords": [
+        "prow",
+        "ci",
+        "openshift-ci",
+        "test-failures",
+        "job-analysis"
+      ],
+      "author": {
+        "name": "github.com/openshift-eng"
+      }
     },
     {
       "name": "code-review",
       "description": "Automated code quality review with language-aware analysis for pre-commit verification",
-      "version": "0.0.9",
+      "version": "0.0.10",
       "has_readme": true,
       "commands": [
         {
@@ -901,7 +940,17 @@ footer a { color: var(--primary); }
       "agents": [],
       "hooks": [],
       "mcp_servers": [],
-      "rules": []
+      "rules": [],
+      "category": "development",
+      "keywords": [
+        "code-review",
+        "quality",
+        "pre-commit",
+        "linting"
+      ],
+      "author": {
+        "name": "github.com/openshift-eng"
+      }
     },
     {
       "name": "compliance",
@@ -947,7 +996,17 @@ footer a { color: var(--primary); }
       "agents": [],
       "hooks": [],
       "mcp_servers": [],
-      "rules": []
+      "rules": [],
+      "category": "security",
+      "keywords": [
+        "cve",
+        "vulnerabilities",
+        "compliance",
+        "go"
+      ],
+      "author": {
+        "name": "chiragkyal"
+      }
     },
     {
       "name": "console",
@@ -966,7 +1025,16 @@ footer a { color: var(--primary); }
       "agents": [],
       "hooks": [],
       "mcp_servers": [],
-      "rules": []
+      "rules": [],
+      "category": "development",
+      "keywords": [
+        "console",
+        "dynamic-plugins",
+        "frontend"
+      ],
+      "author": {
+        "name": "github.com/openshift-eng"
+      }
     },
     {
       "name": "etcd",
@@ -995,7 +1063,16 @@ footer a { color: var(--primary); }
       "agents": [],
       "hooks": [],
       "mcp_servers": [],
-      "rules": []
+      "rules": [],
+      "category": "debugging",
+      "keywords": [
+        "etcd",
+        "cluster-health",
+        "performance"
+      ],
+      "author": {
+        "name": "github.com/openshift-eng"
+      }
     },
     {
       "name": "git",
@@ -1095,7 +1172,16 @@ footer a { color: var(--primary); }
       "agents": [],
       "hooks": [],
       "mcp_servers": [],
-      "rules": []
+      "rules": [],
+      "category": "tooling",
+      "keywords": [
+        "git",
+        "workflow",
+        "automation"
+      ],
+      "author": {
+        "name": "github.com/openshift-eng"
+      }
     },
     {
       "name": "golang",
@@ -1144,7 +1230,18 @@ footer a { color: var(--primary); }
           "source": ".mcp.json"
         }
       ],
-      "rules": []
+      "rules": [],
+      "category": "development",
+      "keywords": [
+        "go",
+        "gopls",
+        "lsp",
+        "linting",
+        "formatting"
+      ],
+      "author": {
+        "name": "github.com/openshift-eng"
+      }
     },
     {
       "name": "hcp",
@@ -1210,7 +1307,16 @@ footer a { color: var(--primary); }
       "agents": [],
       "hooks": [],
       "mcp_servers": [],
-      "rules": []
+      "rules": [],
+      "category": "openshift",
+      "keywords": [
+        "hypershift",
+        "hosted-control-planes",
+        "cluster-creation"
+      ],
+      "author": {
+        "name": "github.com/openshift-eng"
+      }
     },
     {
       "name": "hello-world",
@@ -1231,12 +1337,21 @@ footer a { color: var(--primary); }
       "agents": [],
       "hooks": [],
       "mcp_servers": [],
-      "rules": []
+      "rules": [],
+      "category": "tooling",
+      "keywords": [
+        "example",
+        "template",
+        "hello-world"
+      ],
+      "author": {
+        "name": "Developer"
+      }
     },
     {
       "name": "jira",
       "description": "A plugin to automate tasks with Jira",
-      "version": "0.7.1",
+      "version": "0.7.2",
       "has_readme": true,
       "commands": [
         {
@@ -1310,6 +1425,14 @@ footer a { color: var(--primary); }
           "description_html": "Generate comprehensive feature documentation from Jira feature and all related issues and PRs",
           "synopsis": "/jira:generate-feature-doc \u003cfeature-key\u003e",
           "body_html": "\u003cp\u003eThe \u003ccode\u003ejira:generate-feature-doc\u003c/code\u003e command generates comprehensive feature documentation by recursively analyzing a Jira feature ticket and all its related issues, sub-tasks, and linked GitHub pull requests.\u003c/p\u003e\u003cp\u003eThis command is particularly useful for:\u003cbr\u003e- Creating complete feature documentation after implementation\u003cbr\u003e- Understanding the full scope and implementation details of a feature\u003cbr\u003e- Generating onboarding materials for new team members\u003cbr\u003e- Creating technical design documents from actual implementation\u003cbr\u003e- Documenting complex features with multiple related issues and PRs\u003c/p\u003e\u003cp\u003eThe command performs deep analysis of:\u003cbr\u003e- The main feature issue and all related Jira tickets (recursively)\u003cbr\u003e- All linked GitHub PRs, commits, and code changes\u003cbr\u003e- Design decisions captured in PR discussions and code reviews\u003cbr\u003e- Implementation details from actual code changes\u003c/p\u003e"
+        },
+        {
+          "name": "generate-feature-updates",
+          "full_name": "jira:generate-feature-updates",
+          "description": "Generate strategic feature updates for weekly status documents",
+          "description_html": "Generate strategic feature updates for weekly status documents",
+          "synopsis": "/jira:generate-feature-updates [project-key] [--component \u003ccomponent-name\u003e] [--label \u003clabel-name\u003e] [user-filters...]",
+          "body_html": "\u003cp\u003eThe \u003ccode\u003ejira:generate-feature-updates\u003c/code\u003e command generates concise executive-level feature summaries for weekly status documents. It analyzes recent activity across Jira issues and their descendants to produce prose-style updates suitable for the &quot;Key Strategic Feature Updates&quot; section of weekly reports.\u003c/p\u003e\u003cp\u003eThis command is particularly useful for:\u003c/p\u003e\u003cp\u003e- Weekly executive status documents\u003cbr\u003e- Strategic feature progress summaries\u003cbr\u003e- Stakeholder communication on feature delivery\u003cbr\u003e- Identifying blocked or at-risk features\u003c/p\u003e\u003cp\u003eKey capabilities:\u003c/p\u003e\u003cp\u003e- \u003cstrong\u003eEfficient batch data gathering\u003c/strong\u003e using async Python script\u003cbr\u003e- Interactive component selection from available project components\u003cbr\u003e- User filtering by email or display name (with auto-resolution)\u003cbr\u003e- Intelligent activity analysis using \u003ccode\u003echildIssuesOf()\u003c/code\u003e for full hierarchy traversal\u003cbr\u003e- GitHub PR and GitLab MR integration via external links\u003cbr\u003e- Automatic filtering: skips issues with no significant activity\u003cbr\u003e- Batch processing with full-section review\u003cbr\u003e- Nested list output: feature link as top-level bullet, update prose as nested bullet\u003c/p\u003e\u003cp\u003eThis command uses the \u003cstrong\u003eStatus Analysis Engine\u003c/strong\u003e skill for core analysis logic. See \u003ccode\u003eplugins/jira/skills/status-analysis/SKILL.md\u003c/code\u003e for detailed implementation.\u003c/p\u003e"
         },
         {
           "name": "generate-test-plan",
@@ -1524,7 +1647,17 @@ footer a { color: var(--primary); }
           "source": ".mcp.json"
         }
       ],
-      "rules": []
+      "rules": [],
+      "category": "productivity",
+      "keywords": [
+        "jira",
+        "tickets",
+        "issues",
+        "project-management"
+      ],
+      "author": {
+        "name": "github.com/openshift-eng"
+      }
     },
     {
       "name": "marketplace-ops",
@@ -1553,7 +1686,16 @@ footer a { color: var(--primary); }
       "agents": [],
       "hooks": [],
       "mcp_servers": [],
-      "rules": []
+      "rules": [],
+      "category": "tooling",
+      "keywords": [
+        "marketplace",
+        "plugins",
+        "maintenance"
+      ],
+      "author": {
+        "name": "github.com/openshift-eng"
+      }
     },
     {
       "name": "must-gather",
@@ -1597,7 +1739,16 @@ footer a { color: var(--primary); }
       "agents": [],
       "hooks": [],
       "mcp_servers": [],
-      "rules": []
+      "rules": [],
+      "category": "debugging",
+      "keywords": [
+        "must-gather",
+        "diagnostics",
+        "cluster-analysis"
+      ],
+      "author": {
+        "name": "openshift"
+      }
     },
     {
       "name": "node",
@@ -1618,7 +1769,17 @@ footer a { color: var(--primary); }
       "agents": [],
       "hooks": [],
       "mcp_servers": [],
-      "rules": []
+      "rules": [],
+      "category": "debugging",
+      "keywords": [
+        "nodes",
+        "health",
+        "kubernetes",
+        "diagnostics"
+      ],
+      "author": {
+        "name": "github.com/openshift-eng"
+      }
     },
     {
       "name": "node-cve",
@@ -1661,6 +1822,36 @@ footer a { color: var(--primary); }
       "rules": []
     },
     {
+      "name": "node-team",
+      "description": "OpenShift Node team assistant for development, deployment, debugging, and workflow tasks across kubelet, MCO, CRI-O, crun, conmonrs, Kueue operator, Jira, Red Hat KB/support cases, Prometheus, and platform docs.",
+      "version": "0.15.0",
+      "has_readme": true,
+      "commands": [],
+      "skills": [
+        {
+          "name": "node",
+          "description": "OpenShift Node team assistant. Covers kubelet, MCO, CRI-O, crun, conmonrs, Kueue operator, Jira (OCPNODE/OCPBUGS), Red Hat KB/support cases, Prometheus, and K8s/OCP docs. Triggers on OpenShift node-layer development, deployment, debugging, or team workflow tasks. For CVE/vulnerability triage, analysis, or reporting, defer to the node-cve plugin.",
+          "description_html": "OpenShift Node team assistant. Covers kubelet, MCO, CRI-O, crun, conmonrs, Kueue operator, Jira (OCPNODE/OCPBUGS), Red Hat KB/support cases, Prometheus, and K8s/OCP docs. Triggers on OpenShift node-layer development, deployment, debugging, or team workflow tasks. For CVE/vulnerability triage, analysis, or reporting, defer to the node-cve plugin.",
+          "meta": "Tools: Bash(curl:*)"
+        }
+      ],
+      "agents": [],
+      "hooks": [],
+      "mcp_servers": [],
+      "rules": [],
+      "category": "openshift",
+      "keywords": [
+        "openshift",
+        "node",
+        "kubelet",
+        "cri-o",
+        "mco"
+      ],
+      "author": {
+        "name": "github.com/openshift-eng"
+      }
+    },
+    {
       "name": "node-tuning",
       "description": "Automatically create and apply tuned profile",
       "version": "1.0.1",
@@ -1694,7 +1885,17 @@ footer a { color: var(--primary); }
       "agents": [],
       "hooks": [],
       "mcp_servers": [],
-      "rules": []
+      "rules": [],
+      "category": "debugging",
+      "keywords": [
+        "tuned",
+        "node-tuning",
+        "performance",
+        "profiles"
+      ],
+      "author": {
+        "name": "github.com/openshift-eng"
+      }
     },
     {
       "name": "olm",
@@ -1795,7 +1996,17 @@ footer a { color: var(--primary); }
       "agents": [],
       "hooks": [],
       "mcp_servers": [],
-      "rules": []
+      "rules": [],
+      "category": "openshift",
+      "keywords": [
+        "olm",
+        "operators",
+        "lifecycle-manager",
+        "debugging"
+      ],
+      "author": {
+        "name": "github.com/openshift-eng"
+      }
     },
     {
       "name": "olm-team",
@@ -1839,7 +2050,16 @@ footer a { color: var(--primary); }
       "agents": [],
       "hooks": [],
       "mcp_servers": [],
-      "rules": []
+      "rules": [],
+      "category": "development",
+      "keywords": [
+        "olm",
+        "onboarding",
+        "team-tools"
+      ],
+      "author": {
+        "name": "github.com/openshift-eng"
+      }
     },
     {
       "name": "openshift",
@@ -2001,7 +2221,16 @@ footer a { color: var(--primary); }
       "agents": [],
       "hooks": [],
       "mcp_servers": [],
-      "rules": []
+      "rules": [],
+      "category": "openshift",
+      "keywords": [
+        "openshift",
+        "development",
+        "helpers"
+      ],
+      "author": {
+        "name": "github.com/openshift-eng"
+      }
     },
     {
       "name": "openshift-developer",
@@ -2013,7 +2242,16 @@ footer a { color: var(--primary); }
       "agents": [],
       "hooks": [],
       "mcp_servers": [],
-      "rules": []
+      "rules": [],
+      "category": "bundle",
+      "keywords": [
+        "openshift",
+        "bundle",
+        "meta-plugin"
+      ],
+      "author": {
+        "name": "github.com/openshift-eng"
+      }
     },
     {
       "name": "openshift-tls-profile",
@@ -2041,7 +2279,16 @@ footer a { color: var(--primary); }
       "agents": [],
       "hooks": [],
       "mcp_servers": [],
-      "rules": []
+      "rules": [],
+      "category": "openshift",
+      "keywords": [
+        "tls",
+        "security-profiles",
+        "crypto"
+      ],
+      "author": {
+        "name": "github.com/openshift-eng"
+      }
     },
     {
       "name": "operator-dashboard",
@@ -2069,7 +2316,17 @@ footer a { color: var(--primary); }
       "agents": [],
       "hooks": [],
       "mcp_servers": [],
-      "rules": []
+      "rules": [],
+      "category": "openshift",
+      "keywords": [
+        "console",
+        "dashboard",
+        "operators",
+        "crd"
+      ],
+      "author": {
+        "name": "github.com/openshift-eng"
+      }
     },
     {
       "name": "ote-migration",
@@ -2097,7 +2354,16 @@ footer a { color: var(--primary); }
       "agents": [],
       "hooks": [],
       "mcp_servers": [],
-      "rules": []
+      "rules": [],
+      "category": "development",
+      "keywords": [
+        "ote",
+        "migration",
+        "openshift-tests"
+      ],
+      "author": {
+        "name": "minl@redhat.com"
+      }
     },
     {
       "name": "rds-analyzer",
@@ -2125,12 +2391,21 @@ footer a { color: var(--primary); }
       "agents": [],
       "hooks": [],
       "mcp_servers": [],
-      "rules": []
+      "rules": [],
+      "category": "debugging",
+      "keywords": [
+        "rds",
+        "cluster-compare",
+        "deviation-reports"
+      ],
+      "author": {
+        "name": "github.com/openshift-eng"
+      }
     },
     {
       "name": "snowflake",
       "description": "Snowflake data analysis commands for engineering metrics and reports",
-      "version": "0.4.1",
+      "version": "0.5.0",
       "has_readme": true,
       "commands": [
         {
@@ -2138,7 +2413,7 @@ footer a { color: var(--primary); }
           "full_name": "snowflake:activity-type-report",
           "description": "Classify Jira issues into activity types using AI and generate an interactive sankey report",
           "description_html": "Classify Jira issues into activity types using AI and generate an interactive sankey report",
-          "synopsis": "/snowflake:activity-type-report \u003cprojects\u003e [months]\n/snowflake:activity-type-report \u003cprojects\u003e [months] --sample [N]\n/snowflake:activity-type-report \u003cprojects\u003e [months] --todo\n/snowflake:activity-type-report \u003cprojects\u003e [months] --all\n/snowflake:activity-type-report \u003cprojects\u003e [months] --uncategorized\n/snowflake:activity-type-report \u003cprojects\u003e [months] --uncategorized --sample [N]",
+          "synopsis": "/snowflake:activity-type-report \u003cprojects\u003e [months]\n/snowflake:activity-type-report \u003cprojects\u003e [months] --sample [N]\n/snowflake:activity-type-report \u003cprojects\u003e [months] --todo\n/snowflake:activity-type-report \u003cprojects\u003e [months] --all\n/snowflake:activity-type-report \u003cprojects\u003e [months] --uncategorized\n/snowflake:activity-type-report \u003cprojects\u003e [months] --uncategorized --todo\n/snowflake:activity-type-report \u003cprojects\u003e [months] --uncategorized --all\n/snowflake:activity-type-report \u003cprojects\u003e [months] --uncategorized --sample [N]",
           "body_html": "\u003cp\u003eFetches Jira issues from Snowflake, classifies each into an activity type using AI, and generates an interactive HTML report with sankey diagrams, charts, and a searchable detail table with direct Jira links.\u003c/p\u003e\u003cp\u003eActivity type categories:\u003cbr\u003e1. \u003cstrong\u003eAssociate Wellness &amp; Development\u003c/strong\u003e -- training, learning, mentorship, team building\u003cbr\u003e2. \u003cstrong\u003eIncidents &amp; Support\u003c/strong\u003e -- production incidents, customer escalations, on-call, firefighting\u003cbr\u003e3. \u003cstrong\u003eSecurity &amp; Compliance\u003c/strong\u003e -- CVE remediation, security vulnerabilities, compliance, audits\u003cbr\u003e4. \u003cstrong\u003eQuality / Stability / Reliability\u003c/strong\u003e -- bug fixes, flaky tests, CI reliability, monitoring\u003cbr\u003e5. \u003cstrong\u003eFuture Sustainability\u003c/strong\u003e -- tech debt, architecture improvements, infrastructure modernization\u003cbr\u003e6. \u003cstrong\u003eProduct / Portfolio Work\u003c/strong\u003e -- features, enhancements, roadmap items, integrations\u003cbr\u003e7. \u003cstrong\u003eUncategorized\u003c/strong\u003e -- insufficient information to classify\u003c/p\u003e"
         }
       ],
@@ -2153,7 +2428,17 @@ footer a { color: var(--primary); }
       "agents": [],
       "hooks": [],
       "mcp_servers": [],
-      "rules": []
+      "rules": [],
+      "category": "data",
+      "keywords": [
+        "snowflake",
+        "sql",
+        "metrics",
+        "reporting"
+      ],
+      "author": {
+        "name": "github.com/openshift-eng"
+      }
     },
     {
       "name": "sosreport",
@@ -2213,7 +2498,17 @@ footer a { color: var(--primary); }
       "agents": [],
       "hooks": [],
       "mcp_servers": [],
-      "rules": []
+      "rules": [],
+      "category": "debugging",
+      "keywords": [
+        "sosreport",
+        "diagnostics",
+        "troubleshooting",
+        "rhel"
+      ],
+      "author": {
+        "name": "github.com/arkadeepsen"
+      }
     },
     {
       "name": "teams",
@@ -2385,12 +2680,21 @@ footer a { color: var(--primary); }
       "agents": [],
       "hooks": [],
       "mcp_servers": [],
-      "rules": []
+      "rules": [],
+      "category": "productivity",
+      "keywords": [
+        "teams",
+        "health",
+        "org-structure"
+      ],
+      "author": {
+        "name": "github.com/openshift-eng"
+      }
     },
     {
       "name": "utils",
       "description": "A generic utilities plugin serving as a catch-all for various helper commands and agents",
-      "version": "0.0.10",
+      "version": "0.0.11",
       "has_readme": true,
       "commands": [
         {
@@ -2462,7 +2766,16 @@ footer a { color: var(--primary); }
       "agents": [],
       "hooks": [],
       "mcp_servers": [],
-      "rules": []
+      "rules": [],
+      "category": "tooling",
+      "keywords": [
+        "utilities",
+        "helpers",
+        "misc"
+      ],
+      "author": {
+        "name": "github.com/openshift-eng"
+      }
     },
     {
       "name": "workspaces",
@@ -2492,6 +2805,7 @@ footer a { color: var(--primary); }
       "hooks": [],
       "mcp_servers": [],
       "rules": [],
+      "category": "development",
       "keywords": [
         "git",
         "worktree",

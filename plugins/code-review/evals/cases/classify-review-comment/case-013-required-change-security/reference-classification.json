@@ -1,0 +1,6 @@
+{
+  "severity": "required_change",
+  "topic": "security",
+  "confidence": 1.00,
+  "rationale": "Sensitive credentials exposed in log output — security vulnerability"
+}

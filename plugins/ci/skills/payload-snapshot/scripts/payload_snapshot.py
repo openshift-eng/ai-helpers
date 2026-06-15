@@ -11,11 +11,13 @@ import gzip
 import io
 import json
 import os
+import random
 import re
 import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -122,11 +124,40 @@ class JobInfo:
 # HTTP helpers
 # ---------------------------------------------------------------------------
 
-def fetch_json(url: str, timeout: int = 30) -> dict:
-    """Fetch JSON from a URL. Raises on error."""
+def _retry_delay(attempt: int, http_error=None) -> float:
+    """Compute retry delay: use Retry-After for 429s, otherwise exponential backoff."""
+    if http_error and http_error.code == 429:
+        retry_after = http_error.headers.get("Retry-After")
+        if retry_after:
+            try:
+                return float(retry_after)
+            except ValueError:
+                pass
+    return 2 ** (attempt + 1) + random.uniform(0, 1)
+
+
+def fetch_json(url: str, timeout: int = 30, max_retries: int = 4) -> dict:
+    """Fetch JSON from a URL with retries for transient errors."""
     req = urllib.request.Request(url, headers={"Accept": "application/json"})
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        return json.loads(resp.read().decode("utf-8"))
+    for attempt in range(max_retries + 1):
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            retryable = e.code >= 500 or e.code == 429
+            if not retryable or attempt >= max_retries:
+                raise
+            delay = _retry_delay(attempt, e if e.code == 429 else None)
+            reason = f"HTTP {e.code}"
+        except urllib.error.URLError:
+            if attempt >= max_retries:
+                raise
+            delay = _retry_delay(attempt)
+            reason = "connection error"
+        else:
+            continue
+        print(f"  Retry {attempt + 1}/{max_retries}: {reason} from {url}, waiting {delay:.1f}s", file=sys.stderr)
+        time.sleep(delay)
 
 
 def try_fetch_json(url: str, timeout: int = 10) -> Optional[dict]:

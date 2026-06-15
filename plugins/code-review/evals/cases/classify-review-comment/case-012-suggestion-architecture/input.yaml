@@ -1,0 +1,4 @@
+comment: >
+  This controller is doing too much — the reconciler should delegate VPC
+  cleanup to a separate controller instead of inlining it
+author: reviewer

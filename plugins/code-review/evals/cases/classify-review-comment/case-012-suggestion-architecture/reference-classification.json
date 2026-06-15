@@ -1,0 +1,6 @@
+{
+  "severity": "suggestion",
+  "topic": "architecture_design",
+  "confidence": 0.90,
+  "rationale": "Reviewer identifies a separation-of-concerns issue — reconciler should delegate VPC cleanup to a separate controller instead of inlining it"
+}

@@ -1,0 +1,10 @@
+expected_severity: suggestion
+expected_topic: architecture_design
+expected_confidence_min: 0.75
+acceptable_severities: [suggestion, required_change]
+acceptable_topics: [architecture_design]
+notes: >
+  Reviewer identifies a separation-of-concerns issue at the controller level.
+  This is about system architecture (component boundaries, delegation) not
+  API design. Severity could be suggestion or required_change depending on
+  how strongly the reviewer feels about it.

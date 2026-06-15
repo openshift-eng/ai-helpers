@@ -1,0 +1,6 @@
+{
+  "severity": "required_change",
+  "topic": "process",
+  "confidence": 0.85,
+  "rationale": "Code changes were not committed/pushed — a process failure, not a code issue"
+}

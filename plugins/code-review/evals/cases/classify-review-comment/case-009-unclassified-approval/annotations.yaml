@@ -1,0 +1,9 @@
+expected_severity: unclassified
+expected_topic: approval
+expected_confidence_min: 0.55
+acceptable_severities: [unclassified]
+acceptable_topics: [approval, process]
+notes: >
+  Reviewer withdrawing their earlier question — an acknowledgment/retraction.
+  Low confidence expected because the comment is conversational and ambiguous.
+  Topic could be approval (withdrawing objection) or process (meta-discussion).

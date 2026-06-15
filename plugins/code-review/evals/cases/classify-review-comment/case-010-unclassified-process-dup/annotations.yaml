@@ -1,0 +1,9 @@
+expected_severity: unclassified
+expected_topic: process
+expected_confidence_min: 0.75
+acceptable_severities: [unclassified]
+acceptable_topics: [process]
+notes: >
+  Marking PR as duplicate of another — a process meta-comment. Clear
+  process topic (duplicate tracking). Severity is unclassified because
+  it's not requesting a code change or asking a question.

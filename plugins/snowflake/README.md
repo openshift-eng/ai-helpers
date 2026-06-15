@@ -4,7 +4,7 @@ Snowflake data analysis commands for engineering metrics and reports. Uses the [
 
 ## Prerequisites
 
-1. **Snowflake access** -- You need an account on your organization's Snowflake instance with the appropriate role (e.g., `JIRA_CLOUDMARTS_GROUP` for Jira data). See [the data platform documentation](https://dataverse.pages.redhat.com/data-docs/data-users/) for access provisioning.
+1. **Snowflake access** -- You need an account on your organization's Snowflake instance with the `PUBLIC` role. See [the data platform documentation](https://dataverse.pages.redhat.com/data-docs/data-users/) for access provisioning.
 
 2. **Python 3** -- Required for report generation. Most systems have this pre-installed.
 

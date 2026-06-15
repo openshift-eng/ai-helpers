@@ -1,0 +1,8 @@
+expected_severity: nitpick
+expected_topic: style
+expected_confidence_min: 0.85
+acceptable_severities: [nitpick]
+acceptable_topics: [style]
+notes: >
+  Classic nitpick — reviewer suggests grouping variables for consistency.
+  The signal word "nit" appears explicitly. Cosmetic, not functional.

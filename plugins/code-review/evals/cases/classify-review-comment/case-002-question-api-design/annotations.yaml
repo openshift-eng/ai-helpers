@@ -1,0 +1,8 @@
+expected_severity: question
+expected_topic: api_design
+expected_confidence_min: 0.75
+acceptable_severities: [question, suggestion]
+acceptable_topics: [api_design]
+notes: >
+  Reviewer asks about API choice for client options. Phrased as a question
+  ("Why not use...") but could also be interpreted as a suggestion.

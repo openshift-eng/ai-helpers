@@ -1,0 +1,6 @@
+{
+  "severity": "required_change",
+  "topic": "logic_bug",
+  "confidence": 1.00,
+  "rationale": "Detailed root cause analysis identifying a case mismatch bug that causes the fix to not work — must be addressed before merge"
+}

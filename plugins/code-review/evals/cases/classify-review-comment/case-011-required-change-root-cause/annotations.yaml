@@ -1,0 +1,9 @@
+expected_severity: required_change
+expected_topic: logic_bug
+expected_confidence_min: 0.85
+acceptable_severities: [required_change]
+acceptable_topics: [logic_bug]
+notes: >
+  Detailed root cause analysis identifying a case mismatch bug. High
+  confidence expected — the comment identifies a specific code defect
+  (case mismatch) with technical specifics (AWS API vs SDK v2 enums).
