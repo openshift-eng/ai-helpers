@@ -30,7 +30,8 @@ RUN dnf install -y \
     && alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1 \
     && alternatives --set python3 /usr/bin/python3.11
 
-# Copy the latest Claude Code binary from the builder stage
+# The "latest" channel binary lets users try newer features not yet in stable,
+# or compare behavior between versions, without disrupting the default entrypoint.
 COPY --from=claude-latest /usr/bin/claude /usr/local/bin/claude-latest
 
 # Install Python tools and PCP bindings
