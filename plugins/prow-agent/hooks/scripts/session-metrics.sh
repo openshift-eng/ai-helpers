@@ -5,14 +5,15 @@ if [[ -z "${ARTIFACT_DIR:-}" ]]; then
   exit 0
 fi
 
-input=$(cat)
-transcript_path=$(echo "$input" | jq -r '.transcript_path // empty')
-
-if [[ -z "$transcript_path" ]] || [[ ! -f "$transcript_path" ]]; then
+log_file="${ARTIFACT_DIR}/claude-output.log"
+if [[ ! -f "$log_file" ]]; then
   exit 0
 fi
+
+# Drain stdin so the hook doesn't block
+cat > /dev/null
 
 script_dir="$(cd "$(dirname "$0")" && pwd)"
 output_path="${ARTIFACT_DIR}/claude-session-metrics-autodl.json"
 
-python3 "${script_dir}/extract_metrics.py" "$transcript_path" "$output_path"
+python3 "${script_dir}/extract_metrics.py" "$log_file" "$output_path"
