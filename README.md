@@ -79,8 +79,12 @@ Then run `apm install`.  It can install to your project only, or with a `--globa
 
 ## Using the Container
 
-A container is available with Claude Code and the marketplace already
-available. This is primarily for use in OpenShift CI.
+A container is available with Claude Code and all plugins pre-installed. This is primarily for use in OpenShift CI.
+
+The image includes two Claude Code binaries:
+
+- **`claude`** (default entrypoint) — installed from the **stable** RPM channel
+- **`claude-latest`** — installed from the **latest** RPM channel, for trying newer features or comparing behavior between versions
 
 ### Building the Container
 
