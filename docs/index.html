@@ -697,12 +697,6 @@ footer a { color: var(--primary); }
           "meta": ""
         },
         {
-          "name": "claude-session-metrics",
-          "description": "Extract cost, token, duration, and tool-usage metrics from a claude-output.log and produce an autodl JSON file for BigQuery ingestion",
-          "description_html": "Extract cost, token, duration, and tool-usage metrics from a claude-output.log and produce an autodl JSON file for BigQuery ingestion",
-          "meta": ""
-        },
-        {
           "name": "fetch-jira-issue",
           "description": "Fetch JIRA issue details including status, assignee, comments, and progress classification",
           "description_html": "Fetch JIRA issue details including status, assignee, comments, and progress classification",
@@ -2361,6 +2355,34 @@ footer a { color: var(--primary); }
       ],
       "author": {
         "name": "minl@redhat.com"
+      }
+    },
+    {
+      "name": "prow-agent",
+      "description": "Hooks and utilities for Claude Code sessions running inside Prow CI jobs",
+      "version": "0.0.1",
+      "has_readme": true,
+      "commands": [],
+      "skills": [],
+      "agents": [],
+      "hooks": [
+        {
+          "event_type": "Stop",
+          "matcher": "",
+          "hooks_json": "[\n  {\n    \"command\": \"bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/session-metrics.sh\",\n    \"timeout\": 30,\n    \"type\": \"command\"\n  }\n]"
+        }
+      ],
+      "mcp_servers": [],
+      "rules": [],
+      "category": "ci",
+      "keywords": [
+        "prow",
+        "ci",
+        "metrics",
+        "bigquery"
+      ],
+      "author": {
+        "name": "github.com/openshift-eng"
       }
     },
     {
