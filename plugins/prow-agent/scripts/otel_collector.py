@@ -201,8 +201,10 @@ def main():
     with open(args.port_file, "w") as f:
         f.write(str(port))
 
+    import threading
+
     def shutdown(signum, frame):
-        server.shutdown()
+        threading.Thread(target=server.shutdown).start()
 
     signal.signal(signal.SIGTERM, shutdown)
     signal.signal(signal.SIGINT, shutdown)
