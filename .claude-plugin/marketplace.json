@@ -407,7 +407,7 @@
       "name": "prow-agent",
       "source": "./plugins/prow-agent",
       "description": "Utilities for Claude Code sessions running inside Prow CI jobs",
-      "version": "0.0.1",
+      "version": "0.0.2",
       "category": "ci",
       "keywords": [
         "prow",

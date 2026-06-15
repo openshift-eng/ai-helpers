@@ -35,10 +35,10 @@ def parse_log(path):
         sys.exit(1)
 
     init = inits[0] if inits else {}
-    result = results[-1]
+    last_result = results[-1]
 
     # --- Identity ---
-    session_id = init.get("session_id", result.get("session_id", ""))
+    session_id = init.get("session_id", last_result.get("session_id", ""))
     model = init.get("model", "")
     claude_code_version = init.get("claude_code_version", "")
     permission_mode = init.get("permissionMode", "")
@@ -74,24 +74,25 @@ def parse_log(path):
             if prompt:
                 break
 
-    # --- Duration ---
-    duration_ms = result.get("duration_ms", 0)
-    duration_api_ms = result.get("duration_api_ms", 0)
-    ttft_ms = result.get("ttft_ms", 0)
-    num_turns = result.get("num_turns", 0)
+    # --- Duration, turns, cost & tokens ---
+    # Each `claude -p --continue` invocation emits its own result message
+    # with per-invocation totals. Sum across all results for the full session.
+    duration_ms = sum(r.get("duration_ms", 0) for r in results)
+    duration_api_ms = sum(r.get("duration_api_ms", 0) for r in results)
+    ttft_ms = results[0].get("ttft_ms", 0)
+    num_turns = sum(r.get("num_turns", 0) for r in results)
 
-    # --- Cost & tokens (modelUsage includes subagents) ---
-    model_usage = result.get("modelUsage", {})
-    total_cost_usd = result.get("total_cost_usd", 0.0)
+    total_cost_usd = sum(r.get("total_cost_usd", 0.0) for r in results)
     input_tokens = 0
     output_tokens = 0
     cache_read_tokens = 0
     cache_creation_tokens = 0
-    for mu in model_usage.values():
-        input_tokens += mu.get("inputTokens", 0)
-        output_tokens += mu.get("outputTokens", 0)
-        cache_read_tokens += mu.get("cacheReadInputTokens", 0)
-        cache_creation_tokens += mu.get("cacheCreationInputTokens", 0)
+    for r in results:
+        for mu in r.get("modelUsage", {}).values():
+            input_tokens += mu.get("inputTokens", 0)
+            output_tokens += mu.get("outputTokens", 0)
+            cache_read_tokens += mu.get("cacheReadInputTokens", 0)
+            cache_creation_tokens += mu.get("cacheCreationInputTokens", 0)
 
     total_input = input_tokens + cache_read_tokens + cache_creation_tokens
     cache_hit_rate = (cache_read_tokens / total_input * 100) if total_input > 0 else 0
@@ -138,10 +139,10 @@ def parse_log(path):
     subagent_total_tool_uses = sum(t.get("usage", {}).get("tool_uses", 0) for t in task_notifications)
     subagent_total_duration_ms = sum(t.get("usage", {}).get("duration_ms", 0) for t in task_notifications)
 
-    # --- Outcome ---
-    is_error = 1 if result.get("is_error", False) else 0
-    terminal_reason = result.get("terminal_reason", "")
-    stop_reason = result.get("stop_reason", "")
+    # --- Outcome (from last invocation) ---
+    is_error = 1 if last_result.get("is_error", False) else 0
+    terminal_reason = last_result.get("terminal_reason", "")
+    stop_reason = last_result.get("stop_reason", "")
 
     # --- Timestamps ---
     analyzed_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")

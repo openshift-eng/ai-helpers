@@ -140,6 +140,48 @@ def test_no_result_message():
         os.unlink(log_path)
 
 
+def test_multi_continue():
+    """Multiple --continue invocations: costs/tokens/duration/turns should be summed."""
+    with tempfile.NamedTemporaryFile(suffix="-autodl.json", delete=False) as tmp:
+        out_path = tmp.name
+    try:
+        r = run_script(os.path.join(TESTDATA, "multi_continue.jsonl"), out_path)
+        assert r.returncode == 0, f"Script failed: {r.stderr}"
+
+        data = load_autodl(out_path)
+        row = data["rows"][0]
+
+        # Cost: 3.50 + 0.75 + 0.25 = 4.50
+        assert row["total_cost_usd"] == "4.500000", f"Expected 4.500000, got {row['total_cost_usd']}"
+        # Duration: 60000 + 15000 + 5000 = 80000
+        assert row["duration_ms"] == "80000", f"Expected 80000, got {row['duration_ms']}"
+        # API duration: 55000 + 12000 + 4000 = 71000
+        assert row["duration_api_ms"] == "71000", f"Expected 71000, got {row['duration_api_ms']}"
+        # Turns: 10 + 3 + 1 = 14
+        assert row["num_turns"] == "14", f"Expected 14, got {row['num_turns']}"
+        # TTFT: from first result only
+        assert row["ttft_ms"] == "1200", f"Expected 1200, got {row['ttft_ms']}"
+        # Tokens: summed across all results
+        assert row["input_tokens"] == "8000"  # 5000+2000+1000
+        assert row["output_tokens"] == "12500"  # 8000+3000+1500
+        assert row["cache_read_input_tokens"] == "180000"  # 100000+50000+30000
+        assert row["cache_creation_input_tokens"] == "27000"  # 20000+5000+2000
+
+        # Identity from first init
+        assert row["session_id"] == "test-session-multi"
+        assert row["model"] == "claude-opus-4-6"
+
+        # Tool calls: Skill(1) + Read(1) + Write(1) = 3 across all invocations
+        assert row["total_tool_calls"] == "3"
+
+        # Outcome from last result
+        assert row["is_error"] == "0"
+
+        print("PASS: test_multi_continue")
+    finally:
+        os.unlink(out_path)
+
+
 def test_schema_matches_row_fields():
     with tempfile.NamedTemporaryFile(suffix="-autodl.json", delete=False) as tmp:
         out_path = tmp.name
@@ -162,6 +204,7 @@ if __name__ == "__main__":
     test_valid_output()
     test_error_output()
     test_with_subagents()
+    test_multi_continue()
     test_no_result_message()
     test_schema_matches_row_fields()
     print("\nAll tests passed.")

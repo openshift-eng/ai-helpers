@@ -21,4 +21,5 @@ python3 "${EXTRACT_METRICS}" "${CLAUDE_OUTPUT_LOG}" "${ARTIFACT_DIR}/claude-sess
 ```
 
 For `--continue` workflows, run the extraction once after the final invocation.
-The `result` message in the log accumulates totals across the full session.
+Each `result` message contains per-invocation totals; the script sums across
+all result messages to produce aggregate session metrics.
