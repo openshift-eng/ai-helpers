@@ -71,7 +71,10 @@ $ ln -s ai-helpers ~/.cursor/commands/ai-helpers
 
 ## Using the Docker Container
 
-A container is available with Claude Code and all plugins pre-installed.
+A container is available with Claude Code and all plugins pre-installed. The image includes two Claude Code binaries:
+
+- **`claude`** (default entrypoint) — installed from the **stable** RPM channel
+- **`claude-latest`** — installed from the **latest** RPM channel, for trying newer features or comparing behavior between versions
 
 ### Building the Container
 
