@@ -1,4 +1,4 @@
-FROM registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.25-openshift-4.22 AS claude-unstable
+FROM registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.25-openshift-4.22 AS claude-latest
 COPY images/repos/claude-code-latest.repo /etc/yum.repos.d/
 COPY images/repos/RPM-GPG-KEY-claude-code /etc/pki/rpm-gpg/
 RUN rm /etc/yum.repos.d/ubi.repo && \
@@ -31,8 +31,8 @@ RUN dnf install -y \
     && alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1 \
     && alternatives --set python3 /usr/bin/python3.11
 
-# Copy the latest/unstable Claude Code binary from the builder stage
-COPY --from=claude-unstable /usr/bin/claude /usr/local/bin/claude-unstable
+# Copy the latest Claude Code binary from the builder stage
+COPY --from=claude-latest /usr/bin/claude /usr/local/bin/claude-latest
 
 # Install Python tools and PCP bindings
 RUN python3 -m pip install --no-cache-dir \
