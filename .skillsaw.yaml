@@ -1,9 +1,24 @@
 # skillsaw configuration
 # https://github.com/stbenjam/skillsaw
-version: "0.11.4"
+version: "0.14.0"
 strict: true
 
 rules:
+  # Supply chain protection rules
+  hooks-dangerous:
+    enabled: true
+    severity: error
+  hooks-prohibited:
+    enabled: true
+    severity: error
+    allowlist:
+      - "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/gofmt.sh"
+      - "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/notify.sh '🔔 Claude Code' 'Claude needs your input'"
+      - "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/notify.sh '✅ Claude Code' 'Claude finished your task'"
+  settings-dangerous:
+    enabled: true
+    severity: error
+
   # Plugins should not enable non-allowlisted MCP servers
   mcp-prohibited:
     enabled: true
@@ -88,12 +103,18 @@ rules:
     enabled: true
     severity: error
 
+  # Agent color frontmatter must be hex or opencode preset (not CSS names)
+  opencode-agent-color:
+    enabled: true
+    severity: error
+
 
 # Load custom rules from these files
 custom-rules:
   - ".skillsaw/plugindocs_rule.py"
   - ".skillsaw/owners_rule.py"
   - ".skillsaw/promptfoo_budget_rule.py"
+  - ".skillsaw/opencode_color_rule.py"
 
 # Exclude patterns (glob format)
 # Use exclude: [] to disable all excludes including defaults

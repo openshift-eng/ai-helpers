@@ -108,13 +108,13 @@ Use AskUserQuestion to let the user select a session by number.
 
 The extracted archive contains sessions under a CI-specific project path (e.g., `projects/-home-prow-go-src-github.com-org-repo/`). This path reflects where the repo was checked out in CI and will not match the local project path.
 
-Determine the **local project path** that Claude uses for the current working directory. Claude's projects directory structure encodes the absolute path of the project by replacing `/` with `-` and stripping the leading slash. For example, if the current working directory is `/Users/stbenjam/git/my-repo`, the local project path is:
+Determine the **local project path** that Claude uses for the current working directory. Claude's projects directory structure encodes the absolute path of the project by replacing both `/` and `.` with `-` and stripping the leading slash. For example, if the current working directory is `/Users/stbenjam/git/github.com/my-repo`, the local project path is:
 
 ```text
-~/.claude/projects/-Users-stbenjam-git-my-repo/
+~/.claude/projects/-Users-stbenjam-git-github-com-my-repo/
 ```
 
-Compute this by taking `pwd` and replacing all `/` with `-`. Since absolute paths start with `/`, this naturally produces a leading `-`.
+Compute this by taking `pwd` and replacing all `/` and `.` with `-`. Since absolute paths start with `/`, this naturally produces a leading `-`.
 
 Before copying, check if the session UUID already exists locally (either the `.jsonl` file or the directory). If it does, warn the user that a local session with this UUID already exists and ask whether to overwrite it. If the user declines, stop.
 
@@ -122,7 +122,7 @@ Copy both the selected session's JSONL file and its corresponding directory into
 
 ```bash
 # Determine local project path
-LOCAL_PROJECT_DIR="$HOME/.claude/projects/$(pwd | tr '/' '-')"
+LOCAL_PROJECT_DIR="$HOME/.claude/projects/$(pwd | tr '/.' '--')"
 mkdir -p "$LOCAL_PROJECT_DIR"
 
 # Copy the session JSONL file

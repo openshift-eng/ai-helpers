@@ -1,5 +1,7 @@
 # AI Helpers
 
+[![skillsaw grade](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fopenshift-eng%2Fai-helpers%2Fmain%2F.skillsaw-badge.json)](https://skillsaw.org/)
+
 A collection of Claude Code plugins to automate and assist with various development tasks.
 
 [Discover available plugins](https://openshift-eng.github.io/ai-helpers/)
@@ -56,20 +58,33 @@ Add a SessionStart hook to automatically sync the marketplace catalog on each se
 
 **Note:** This only refreshes the catalog (what's available). To actually update an installed plugin to a newer version, you still need to reinstall it with `/plugin install <plugin>@ai-helpers`.
 
-### Using Cursor
+### Other Tools
 
-Cursor is able to find the various commands defined in this repo by
-making it available inside your `~/.cursor/commands` directory.
+Coding agents like OpenCode, Gemini, Cursor and more can consume Claude Code
+plugins using the [Agent Package Manager (APM)](https://github.com/microsoft/apm).
 
+Example `apm.yml`:
+
+```yaml
+name: my-project
+version: 1.0.0
+description: My project is great. 
+target: [claude, cursor, gemini, opencode]
+
+dependencies:
+  - openshift-eng/ai-helpers/plugins/bigquery
 ```
-$ mkdir -p ~/.cursor/commands
-$ git clone git@github.com:openshift-eng/ai-helpers.git
-$ ln -s ai-helpers ~/.cursor/commands/ai-helpers
-```
 
-## Using the Docker Container
+Then run `apm install`.  It can install to your project only, or with a `--global` scope.
 
-A container is available with Claude Code and all plugins pre-installed.
+## Using the Container
+
+A container is available with Claude Code and all plugins pre-installed. This is primarily for use in OpenShift CI.
+
+The image includes two Claude Code binaries:
+
+- **`claude`** (default entrypoint) — installed from the **stable** RPM channel
+- **`claude-latest`** — installed from the **latest** RPM channel, for trying newer features or comparing behavior between versions
 
 ### Building the Container
 

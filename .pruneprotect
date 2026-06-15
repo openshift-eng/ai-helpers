@@ -4,9 +4,5 @@
 # Canonical example plugin
 plugins/hello-world/
 
-# Infrastructure plugins (hook-only, by design)
-plugins/metrics/
-plugins/native-notifications/
-
 # Marketplace operations plugin
 plugins/marketplace-ops/
