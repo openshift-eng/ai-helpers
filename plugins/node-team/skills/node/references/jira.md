@@ -69,14 +69,13 @@ When **reading** ADF from responses: recursively walk `content` arrays, extract 
 
 ## Components We Own
 
+See [shared/components.md](shared/components.md) for the full component list,
+repo mappings, and sub-team assignments.
+
 The canonical definition is the Jira saved filter **"Node Components"** (ID
-91645) — prefer `filter = "Node Components"` in JQL over hardcoding the list.
-Mirrored here for reference:
-
-Node, Node / CRI-O, Node / Kubelet, Node / CPU manager, Node / Memory manager, Node / Topology manager, Node / Numa aware Scheduling, Node / Device Manager, Node / Pod resource API, Node / Node Problem Detector, Node / Kueue, Node / Instaslice-operator
-
+91645). Prefer `filter = "Node Components"` in JQL over hardcoding the list.
 The team additionally owns **Driver Toolkit** and **Machine Config Operator**
-for CVE triage; those are not in filter 91645 (see the node-cve plugin).
+for CVE triage; those are not in filter 91645.
 
 ## Boards & Sprints
 

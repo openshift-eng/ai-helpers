@@ -4,6 +4,13 @@ Reference files contain only tribal knowledge and non-obvious nuances. For disco
 
 Root: `./`
 
+## Shared Data
+
+Canonical data used by this and other Node team plugins (e.g. `node-cve`).
+Other plugins reference these files instead of maintaining their own copies.
+
+|shared:{components.md,version-map.md}
+
 ## Setup
 
 |SETUP.md

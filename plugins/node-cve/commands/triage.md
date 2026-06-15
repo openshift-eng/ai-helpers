@@ -57,10 +57,10 @@ Designed for both interactive use and headless execution via `claude --print`.
 
 **Steps:**
 
-1. Build the JQL query using OCPBUGS component names from the Node team in `team_component_map.json`:
+1. Build the JQL query using the CVE-tracked component list from the [node-team shared components reference](../../node-team/skills/node/references/shared/components.md) (the full Jira component list plus Driver Toolkit and Machine Config Operator):
 
    ```bash
-   jira issue list -q "project = OCPBUGS AND type = Vulnerability AND component in (\"Node / CRI-O\", \"Node / Kubelet\", \"Node / CPU manager\", \"Node / Device Manage\", \"Node / Memory manager\", \"Node / Numa aware Scheduling\", \"Node / Pod resource API\", \"Node / Topology manager\", \"Driver Toolkit\", \"Machine Config Operator\") AND status not in (Closed, Done, Verified)" --plain --no-headers --columns KEY,SUMMARY,COMPONENT,STATUS,ASSIGNEE,LABELS
+   jira issue list -q "project = OCPBUGS AND type = Vulnerability AND component in (<components from shared reference>) AND status not in (Closed, Done, Verified)" --plain --no-headers --columns KEY,SUMMARY,COMPONENT,STATUS,ASSIGNEE,LABELS
    ```
 
    If `--component` is specified, replace the component list with the single component.
@@ -127,46 +127,9 @@ Print which CVEs are skipped or partially cached: "CVE-XXXX-XXXXX: reusing prior
 
 Analysis must target the release branch that corresponds to each affected OpenShift version. The `main` branch may have newer dependencies or Go versions that mask vulnerabilities present in older release branches. Analysis targets downstream forks only. If the downstream fork or branch does not exist, classify as Uncertain with note "downstream fork/branch not found" and skip analysis.
 
-**Component to repository mapping:**
+**Component to repository mapping:** Read from the [node-team shared components reference](../../node-team/skills/node/references/shared/components.md). Use the "Component to Repository Mapping" table for downstream forks and branch patterns, and the "pscomponent Label Mapping" table for label-based repo resolution.
 
-| Component | Downstream Fork | Upstream Repo | Branch Pattern | Language |
-|-----------|----------------|--------------|---------------|----------|
-| Node / CRI-O | https://github.com/openshift/cri-o | https://github.com/cri-o/cri-o | `release-1.X` | Go |
-| Node / Kubelet | https://github.com/openshift/kubernetes | https://github.com/kubernetes/kubernetes | `release-1.X` | Go |
-| Node / CPU manager | https://github.com/openshift/kubernetes | https://github.com/kubernetes/kubernetes | `release-1.X` | Go |
-| Node / Device Manage | https://github.com/openshift/kubernetes | https://github.com/kubernetes/kubernetes | `release-1.X` | Go |
-| Node / Memory manager | https://github.com/openshift/kubernetes | https://github.com/kubernetes/kubernetes | `release-1.X` | Go |
-| Node / Numa aware Scheduling | https://github.com/openshift/kubernetes | https://github.com/kubernetes/kubernetes | `release-1.X` | Go |
-| Node / Pod resource API | https://github.com/openshift/kubernetes | https://github.com/kubernetes/kubernetes | `release-1.X` | Go |
-| Node / Topology manager | https://github.com/openshift/kubernetes | https://github.com/kubernetes/kubernetes | `release-1.X` | Go |
-| Driver Toolkit | https://github.com/openshift/driver-toolkit | - | `release-4.Y` | Go |
-| Machine Config Operator | https://github.com/openshift/machine-config-operator | - | `release-4.Y` | Go |
-
-Also check labels for `pscomponent:` and map to repos:
-- `pscomponent:cadvisor` -> https://github.com/openshift/google-cadvisor (`release-4.Y`) (Go)
-- `pscomponent:conmon` -> https://github.com/openshift/conmon (`release-4.Y`) (C)
-- `pscomponent:conmon-rs` -> https://github.com/openshift/conmon-rs (`release-4.Y`) (Rust + Go)
-- `pscomponent:cri-tools` -> downstream: https://github.com/openshift/cri-tools, upstream: https://github.com/kubernetes-sigs/cri-tools (`release-1.X`) (Go)
-
-**OpenShift version to release branch mapping:**
-
-Each OCP version maps to a specific Kubernetes/CRI-O minor version. For OCP 4.Y, the formula is `K8s/CRI-O minor = Y + 13`. When OCP 5.x is released, the formula will change; check the OCP release notes or `go.mod` in the downstream fork to determine the correct Kubernetes version. Branch naming depends on the repo:
-
-| OpenShift | K8s/CRI-O | CRI-O branch | Kubernetes branch | MCO branch | Driver Toolkit branch |
-|-----------|-----------|-------------|-------------------|------------|----------------------|
-| 4.21 | 1.34 | `release-1.34` | `release-1.34` | `release-4.21` | `release-4.21` |
-| 4.20 | 1.33 | `release-1.33` | `release-1.33` | `release-4.20` | `release-4.20` |
-| 4.19 | 1.32 | `release-1.32` | `release-1.32` | `release-4.19` | `release-4.19` |
-| 4.18 | 1.31 | `release-1.31` | `release-1.31` | `release-4.18` | `release-4.18` |
-| 4.17 | 1.30 | `release-1.30` | `release-1.30` | `release-4.17` | `release-4.17` |
-| 4.16 | 1.29 | `release-1.29` | `release-1.29` | `release-4.16` | `release-4.16` |
-| 4.15 | 1.28 | `release-1.28` | `release-1.28` | `release-4.15` | `release-4.15` |
-| 4.14 | 1.27 | `release-1.27` | `release-1.27` | `release-4.14` | `release-4.14` |
-| 4.13 | 1.26 | `release-1.26` | `release-1.26` | `release-4.13` | `release-4.13` |
-| 4.12 | 1.25 | `release-1.25` | `release-1.25` | `release-4.12` | `release-4.12` |
-
-Repos using K8s-aligned versioning (`release-1.X`): openshift/cri-o, openshift/kubernetes, openshift/cri-tools.
-Repos using OCP-aligned versioning (`release-4.Y`): openshift/machine-config-operator, openshift/driver-toolkit, openshift/google-cadvisor, openshift/conmon, openshift/conmon-rs.
+**OpenShift version to release branch mapping:** Read from the [node-team shared version map](../../node-team/skills/node/references/shared/version-map.md). For OCP 4.Y, the formula is `K8s/CRI-O minor = Y + 13`. Use the formula and branch naming conventions to derive the correct release branch for each repo.
 
 **Clone strategy:**
 
@@ -337,7 +300,7 @@ The headline format depends on whether cached results were used. On first run (a
 
 ## Notes
 
-- The Jira query uses OCPBUGS component names from `team_component_map.json` in the teams plugin.
+- The Jira query uses OCPBUGS component names from the [node-team shared components reference](../../node-team/skills/node/references/shared/components.md).
 - Each CVE typically has multiple tracker issues (one per OCP version). The command deduplicates by CVE ID and analyzes ALL affected release branches. Features can be added, removed, or refactored across releases, so a CVE may be reachable on one version but not affected on another.
 - Analysis targets downstream forks only (e.g., openshift/cri-o). If the downstream fork or branch does not exist, the CVE is classified as Uncertain. Dependency versions and Go toolchain versions differ across releases, so version-specific branches are used.
 - Each version tracker receives the analysis result specific to its release branch. The overall classification for a CVE is the most severe result across all analyzed branches.
