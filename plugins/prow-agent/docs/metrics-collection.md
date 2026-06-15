@@ -44,25 +44,7 @@ Without metrics, prow agents are black boxes. We need visibility into:
   [agent-eval-harness](https://github.com/opendatahub-io/agent-eval-harness)
   with production-level signal.
 
-## Current State
-
-### Stream-JSON Parsing (PR #536)
-
-The `prow-agent` plugin currently includes
-[`extract_metrics.py`](https://github.com/openshift-eng/ai-helpers/blob/main/plugins/prow-agent/scripts/extract_metrics.py),
-which parses the streaming JSON output log (`claude --output-format
-stream-json`) after Claude exits. It extracts:
-
-- Identity: session ID, model, version, plugins, prompt
-- Cost: total USD, per-model token breakdown, cache hit rate
-- Performance: duration, API duration, TTFT, turns
-- Tool usage: per-tool call counts, skills invoked, files written
-- Subagent metrics: count, total tool calls, total duration
-- Outcome: error status, terminal reason
-
-The script produces an **autodl JSON** file for BigQuery ingestion.
-
-### What is Autodl?
+## What is Autodl?
 
 Autodl is the ingestion format for the team's BigQuery data pipeline. An
 autodl JSON file declares a table name, schema, and rows:
@@ -85,34 +67,16 @@ automatically picked up by the pipeline and loaded into BigQuery. This
 is the same mechanism used for payload triage data
 (`payload_triage` table) and other CI artifacts.
 
-### Limitations of the Current Approach
-
-1. **Session-level granularity only.** The `result` message in stream-json
-   provides aggregate totals. We cannot see individual API requests, tool
-   execution times, or per-turn cost breakdown.
-
-2. **Per-invocation results, not cumulative.** Each `claude -p --continue`
-   invocation emits its own `result` message with per-invocation totals.
-   The script must sum across all results — a fragile approach that was
-   only discovered through testing (the original assumption of cumulative
-   totals was wrong).
-
-3. **Output format dependency.** The script is tightly coupled to the
-   stream-json output format. Any change to Claude Code's output structure
-   would break extraction.
-
-4. **No tracing.** We get totals but no trace of *how* the agent reached
-   those totals — which API calls were made, which tools were called in
-   what order, how long each took.
-
 ## Approach: OpenTelemetry Collection
-
-### Overview
 
 An embedded OTLP (OpenTelemetry) collector receives structured telemetry
 directly from Claude Code. This is the same approach used by
 [agentic-ci](https://github.com/opendatahub-io/agentic-ci), adapted for
 our Prow environment and BigQuery pipeline.
+
+Stream-json parsing is still supported as a fallback (auto-detected),
+but OTEL is preferred because it provides per-request granularity,
+tool execution timing, and decouples metrics from the output format.
 
 ```
 ┌─────────────────────────────────────────────────────┐
@@ -162,21 +126,7 @@ Claude Code emits structured telemetry when
 
 Distributed trace spans covering the full session lifecycle.
 
-### Advantages Over Stream-JSON Parsing
-
-| Capability | Stream-JSON | OTEL |
-|-----------|-------------|------|
-| Session-level cost | Yes | Yes |
-| Per-model cost breakdown | Yes (from `modelUsage`) | Yes (native) |
-| Per-request granularity | No | Yes (`api_request` log events) |
-| Tool execution timing | No | Yes (`active_time` metric) |
-| Real-time monitoring | No (post-hoc) | Yes (10s intervals) |
-| Multi-invocation handling | Manual summing | Automatic (collector aggregates) |
-| Output format coupling | High | None (separate data path) |
-| Distributed tracing | No | Yes (traces) |
-| MLflow integration path | N/A | Direct (OTLP JSONL → MLflow push) |
-
-### OTEL Collector Design
+### Collector Design
 
 A minimal Python HTTP server (no external dependencies) that accepts OTLP
 payloads and writes them to a JSONL file. Based on the
@@ -245,24 +195,14 @@ python3 "${EXTRACT_METRICS}" "${OTEL_LOG}" \
 
 ### BigQuery autodl Generation
 
-`extract_metrics.py` is updated to parse OTEL JSONL instead of
-stream-json. The autodl schema (`claude_session_metrics` table) remains
-unchanged — downstream BigQuery queries are unaffected.
-
-The OTEL data is richer than stream-json, so some fields become more
-accurate:
-
-| Field | Stream-JSON source | OTEL source |
-|-------|-------------------|-------------|
-| `total_cost_usd` | Sum of `result.total_cost_usd` across invocations | Sum of `claude_code.cost.usage` metric |
-| `input_tokens` | Sum from `result.modelUsage` | Sum of `claude_code.token.usage` where `type=input` |
-| `duration_ms` | Sum of `result.duration_ms` | Wall-clock time (collector start → stop) |
-| `total_tool_calls` | Counted from assistant message blocks | Count of `claude_code.api_request` log events with tool attribution |
+`extract_metrics.py` parses the OTEL JSONL and produces an autodl JSON
+file for the `claude_session_metrics` BigQuery table. Cost, tokens, tool
+usage, and timing come from OTEL metrics and logs.
 
 Identity fields (`session_id`, `model`, `claude_code_version`, `prompt`,
-etc.) that are not available in OTEL data are still read from the
-stream-json `init` message — the stream-json output log is still written
-for Slack summary extraction and real-time build log visibility.
+etc.) are not available in OTEL data, so they are read from the
+stream-json log via `--stream-log`. The stream-json output is still
+written for Slack summary extraction and real-time build log visibility.
 
 ### Raw OTEL JSONL as Artifact
 
