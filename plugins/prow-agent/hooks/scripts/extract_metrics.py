@@ -97,6 +97,9 @@ def parse_log(path):
     cache_hit_rate = (cache_read_tokens / total_input * 100) if total_input > 0 else 0
 
     # --- Tool usage (from assistant messages) ---
+    # Deduplicate by tool_use id — each content block gets its own JSONL line,
+    # but the same tool_use block (same id) should only be counted once.
+    seen_tool_ids = set()
     tool_counts = Counter()
     skills_invoked = []
     files_written = []
@@ -113,6 +116,10 @@ def parse_log(path):
             if not isinstance(block, dict):
                 continue
             if block.get("type") == "tool_use":
+                tool_id = block.get("id", "")
+                if tool_id and tool_id in seen_tool_ids:
+                    continue
+                seen_tool_ids.add(tool_id)
                 tool_counts[block.get("name", "unknown")] += 1
                 inp = block.get("input", {})
                 if block.get("name") == "Skill":
@@ -121,27 +128,6 @@ def parse_log(path):
                     files_written.append(inp.get("file_path", ""))
             elif block.get("type") == "thinking":
                 num_thinking_blocks += 1
-
-    # Deduplicate tool counts — each content block gets its own JSONL line,
-    # but the same tool_use block (same id) should only be counted once
-    seen_tool_ids = set()
-    tool_counts = Counter()
-    for l in lines:
-        if l.get("type") != "assistant":
-            continue
-        msg = l.get("message", l)
-        content = msg.get("content", [])
-        if not isinstance(content, list):
-            continue
-        for block in content:
-            if not isinstance(block, dict):
-                continue
-            if block.get("type") == "tool_use":
-                tool_id = block.get("id", "")
-                if tool_id and tool_id in seen_tool_ids:
-                    continue
-                seen_tool_ids.add(tool_id)
-                tool_counts[block.get("name", "unknown")] += 1
 
     total_tool_calls = sum(tool_counts.values())
 
