@@ -1,0 +1,8 @@
+{
+  "name": "docs-tools",
+  "version": "0.0.82",
+  "description": "Documentation review, writing, and workflow tools for Red Hat AsciiDoc and Markdown documentation.",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}

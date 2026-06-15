@@ -1,0 +1,4 @@
+skills/docs-orchestrator-workspace/
+__pycache__/
+*.pyc
+node_modules/

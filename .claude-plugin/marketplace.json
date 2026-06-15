@@ -527,6 +527,22 @@
         "cri-o",
         "mco"
       ]
+    },
+    {
+      "name": "docs-tools",
+      "source": "./plugins/docs-tools",
+      "description": "Documentation review, writing, and workflow tools for Red Hat AsciiDoc and Markdown documentation.",
+      "version": "0.0.82",
+      "category": "productivity",
+      "keywords": [
+        "documentation",
+        "docs",
+        "writing",
+        "review",
+        "style-guide",
+        "asciidoc",
+        "workflow"
+      ]
     }
   ]
 }

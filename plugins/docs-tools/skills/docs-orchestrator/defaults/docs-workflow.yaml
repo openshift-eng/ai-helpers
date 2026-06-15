@@ -1,0 +1,54 @@
+workflow:
+  name: docs-workflow
+  description: Multi-stage documentation workflow for a JIRA ticket. Requirements analysis, code-learner analysis, scope audit, optional PR analysis, planning, writing, technical review, and style review. Source repo discovery is attempted automatically; if no repo is found, source-dependent steps are skipped unless --no-source-repo is passed to skip source resolution entirely.
+
+  # All step outputs go to: .agent_workspace/<ticket>/<step-name>/
+  # Each step reads its inputs from upstream step folders by convention.
+  steps:
+    - name: requirements
+      skill: docs-workflow-requirements
+      description: Analyze documentation requirements
+
+    - name: code-analysis
+      skill: docs-workflow-code-analysis
+      description: Analyze source repository with code-learner (module map, API surface, relationships)
+      when: has_source_repo
+      inputs: [requirements]
+
+    - name: scope-req-audit
+      skill: docs-workflow-scope-req-audit
+      description: Classify requirements by code evidence status
+      when: has_source_repo
+      inputs: [requirements, code-analysis]
+
+    - name: pr-analysis
+      skill: docs-workflow-pr-analysis
+      description: Analyze PR/MR changes for documentation context
+      when: has_pr
+      inputs: [code-analysis]
+
+    - name: planning
+      skill: docs-workflow-planning
+      description: Create documentation plan
+      inputs: [requirements, code-analysis, pr-analysis, scope-req-audit]
+
+    - name: writing
+      skill: docs-workflow-writing
+      description: Write documentation
+      inputs: [planning, code-analysis]
+
+    - name: technical-review
+      skill: docs-workflow-tech-review
+      description: Technical accuracy review
+      inputs: [writing, code-analysis]
+
+    - name: style-review
+      skill: docs-workflow-style-review
+      description: Style guide compliance review
+      inputs: [writing, technical-review]
+
+    - name: create-merge-request
+      skill: docs-tools:docs-workflow-create-merge-request
+      description: Commit, push, and create merge request or pull request
+      when: create_merge_request
+      inputs: [writing, style-review, technical-review]

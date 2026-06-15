@@ -1,0 +1,96 @@
+# Git file filtering patterns for release note generation
+# These patterns exclude files that are typically not relevant for understanding
+# functional changes in release notes (tests, configs, generated code, etc.)
+
+exclude_patterns:
+  # Build and task files
+  - Makefile
+  - Tiltfile
+
+  # Hidden files and directories
+  - ^\..*
+
+  # Test directories and files
+  - ^tests/
+  - ^test/
+  - /__tests__/
+  - .*[Tt]est\.py$
+  - .*spec\.ts$
+  - .*\.test\.js$
+  - .*_test\.go$
+  - ^src/test/
+  - .*/testdata
+
+  # Virtual environments
+  - ^venv/
+  - ^env/
+
+  # Coverage and build output
+  - ^coverage/
+  - ^cypress/
+  - ^dist/
+  - ^build/
+  - ^target/
+  - ^bin/
+  - \.class$
+
+  # Dependencies and vendor
+  - ^node_modules/
+  - vendor/
+
+  # Lock files
+  - package-lock\.json
+  - yarn\.lock
+  - pnpm-lock\.yaml
+  - requirements\.txt
+  - Pipfile\.lock
+  - Gemfile\.lock
+  - go\.mod
+  - go\.sum
+  - .*\.lock
+
+  # Git and editor config
+  - \.gitattributes$
+  - \.editorconfig$
+  - \.gitignore$
+
+  # CI/CD configurations
+  - \.github/workflows/
+  - \.gitlab-ci\.yml
+  - \.travis\.yml
+  - jenkinsfile
+
+  # Code quality configs
+  - \.eslintrc(\.js)?$
+  - \.prettierrc(\.js)?$
+  - pyproject\.toml
+
+  # Container configs
+  - Dockerfile
+  - docker-compose\.yml
+
+  # Terraform state
+  - \.tfstate$
+  - \.tfstate\.backup$
+
+  # Documentation (usually not needed for release notes)
+  - ^CHANGELOG\.md$
+  - ^LICENSE$
+
+  # Images and media
+  - \.png$
+  - \.jpg$
+  - \.svg$
+  - \.gif$
+
+  # Generated code
+  - .*\.pb\.go$
+  - .*\.gen\.go$
+
+  # Hack/utility scripts
+  - hack/
+
+# Optional: Patterns to explicitly include (overrides excludes)
+# include_patterns:
+#   - ^src/.*\.py$
+#   - ^lib/.*\.js$

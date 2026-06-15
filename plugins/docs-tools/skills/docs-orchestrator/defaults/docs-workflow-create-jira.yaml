@@ -1,0 +1,20 @@
+workflow:
+  name: docs-workflow-create-jira
+  description: Analyze requirements, create a documentation plan, and create a linked JIRA ticket.
+
+  # All step outputs go to: .agent_workspace/<ticket>/<step-name>/
+  # Each step reads its inputs from upstream step folders by convention.
+  steps:
+    - name: requirements
+      skill: docs-workflow-requirements
+      description: Analyze documentation requirements
+
+    - name: planning
+      skill: docs-workflow-planning
+      description: Create documentation plan
+      inputs: [requirements]
+
+    - name: create-jira
+      skill: docs-workflow-create-jira
+      description: Create linked JIRA ticket
+      inputs: [planning]

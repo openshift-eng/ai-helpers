@@ -1114,6 +1114,360 @@ footer a { color: var(--primary); }
       }
     },
     {
+      "name": "docs-tools",
+      "description": "Documentation review, writing, and workflow tools for Red Hat AsciiDoc and Markdown documentation.",
+      "version": "0.0.82",
+      "has_readme": true,
+      "commands": [],
+      "skills": [
+        {
+          "name": "article-extractor",
+          "description": "Download HTML from websites and extract article content, removing HTML bloat. Specifically designed to extract content from \u003carticle\u003e tags with aria-live=\"polite\" attribute. Outputs clean, readable content for documentation sites like Red Hat docs.",
+          "description_html": "Download HTML from websites and extract article content, removing HTML bloat. Specifically designed to extract content from &lt;article&gt; tags with aria-live=&quot;polite&quot; attribute. Outputs clean, readable content for documentation sites like Red Hat docs.",
+          "meta": "Tools: Read, Bash, Write"
+        },
+        {
+          "name": "docs-convert-gdoc-md",
+          "description": "Read a Google Docs document, Google Slides presentation, or Google Sheets spreadsheet and output as Markdown or CSV. Use this skill when asked to read, fetch, import, or convert a Google Doc, Google Slides, or Google Sheets URL.",
+          "description_html": "Read a Google Docs document, Google Slides presentation, or Google Sheets spreadsheet and output as Markdown or CSV. Use this skill when asked to read, fetch, import, or convert a Google Doc, Google Slides, or Google Sheets URL.",
+          "meta": "Tools: Bash, Read, Write"
+        },
+        {
+          "name": "docs-orchestrator",
+          "description": "Documentation workflow orchestrator. Reads the step list from .agent_workspace/docs-workflow.yaml (or the plugin default). Runs steps sequentially, manages progress state, handles iteration and confirmation gates. Claude is the orchestrator — the YAML is a step list, not a workflow engine.",
+          "description_html": "Documentation workflow orchestrator. Reads the step list from .agent_workspace/docs-workflow.yaml (or the plugin default). Runs steps sequentially, manages progress state, handles iteration and confirmation gates. Claude is the orchestrator — the YAML is a step list, not a workflow engine.",
+          "meta": "Tools: Read, Write, Glob, Grep, Edit, Bash, Skill, AskUserQuestion"
+        },
+        {
+          "name": "docs-review-content-quality",
+          "description": "Review documentation for content quality — logical flow, user journey alignment, scannability, conciseness, fluff removal, and customer focus. Use this skill whenever someone asks to check if docs are well-organized, too wordy, have unnecessary content, lack logical flow, or need tightening. Also use for content quality peer reviews, minimalism checks, or when asked to \"cut the fluff\" or \"make it more concise.\"",
+          "description_html": "Review documentation for content quality — logical flow, user journey alignment, scannability, conciseness, fluff removal, and customer focus. Use this skill whenever someone asks to check if docs are well-organized, too wordy, have unnecessary content, lack logical flow, or need tightening. Also use for content quality peer reviews, minimalism checks, or when asked to &quot;cut the fluff&quot; or &quot;make it more concise.&quot;",
+          "meta": ""
+        },
+        {
+          "name": "docs-review-modular-docs",
+          "description": "Review AsciiDoc (.adoc) files for Red Hat modular documentation compliance — module types (concept, procedure, reference), assembly structure, anchor IDs, context variables, leveloffset, and include directives. Use this skill whenever someone asks about modular docs, checks .adoc file structure, asks if a module is the right type, needs to verify anchor IDs have _{context}, or reviews assemblies. Also triggers for questions about concept vs procedure vs reference modules, prerequisites formatting, or Red Hat doc structure.",
+          "description_html": "Review AsciiDoc (.adoc) files for Red Hat modular documentation compliance — module types (concept, procedure, reference), assembly structure, anchor IDs, context variables, leveloffset, and include directives. Use this skill whenever someone asks about modular docs, checks .adoc file structure, asks if a module is the right type, needs to verify anchor IDs have _{context}, or reviews assemblies. Also triggers for questions about concept vs procedure vs reference modules, prerequisites formatting, or Red Hat doc structure.",
+          "meta": ""
+        },
+        {
+          "name": "docs-review-style",
+          "description": "Multi-agent style guide and modular docs review with confidence scoring. Supports local branch review, PR/MR review with optional inline comment posting, interactive comment actioning, and fix mode. MUST BE USED when the user asks for style guide compliance review, modular docs structure review, content quality checks, or wants to review documentation for formatting and language issues.",
+          "description_html": "Multi-agent style guide and modular docs review with confidence scoring. Supports local branch review, PR/MR review with optional inline comment posting, interactive comment actioning, and fix mode. MUST BE USED when the user asks for style guide compliance review, modular docs structure review, content quality checks, or wants to review documentation for formatting and language issues.",
+          "meta": "Tools: Read, Write, Glob, Grep, Edit, Bash, Skill, Agent, WebSearch, WebFetch, AskUserQuestion"
+        },
+        {
+          "name": "docs-review-technical",
+          "description": "Technical accuracy review and code-aware validation with confidence scoring. Supports local branch review, PR/MR review with optional inline comment posting, interactive comment actioning, and code-aware technical validation against source code repos. MUST BE USED when the user asks to validate documentation against code, check technical accuracy, verify commands/APIs/configs in docs match source code, or run a technical review. Also use when the user provides a --code URL or mentions code-aware review.",
+          "description_html": "Technical accuracy review and code-aware validation with confidence scoring. Supports local branch review, PR/MR review with optional inline comment posting, interactive comment actioning, and code-aware technical validation against source code repos. MUST BE USED when the user asks to validate documentation against code, check technical accuracy, verify commands/APIs/configs in docs match source code, or run a technical review. Also use when the user provides a --code URL or mentions code-aware review.",
+          "meta": "Tools: Read, Write, Glob, Grep, Edit, Bash, Skill, Agent, WebSearch, WebFetch, AskUserQuestion"
+        },
+        {
+          "name": "docs-workflow-code-analysis",
+          "description": "Run code-learner analysis on a source repository for the docs orchestrator workflow. Dispatches a subagent to run learn-code, keeping the heavy orchestration out of the main context. Produces ONBOARDING.md, module registry, per-module summaries, and cross-module relationship data.",
+          "description_html": "Run code-learner analysis on a source repository for the docs orchestrator workflow. Dispatches a subagent to run learn-code, keeping the heavy orchestration out of the main context. Produces ONBOARDING.md, module registry, per-module summaries, and cross-module relationship data.",
+          "meta": "Tools: Read, Write, Bash, Agent, Glob, Grep"
+        },
+        {
+          "name": "docs-workflow-create-jira",
+          "description": "Create a linked JIRA ticket for documentation work. No agent dispatch. Uses direct JIRA REST API calls via a shell script. Checks for existing links, handles public/private project visibility, converts markdown to JIRA wiki markup.",
+          "description_html": "Create a linked JIRA ticket for documentation work. No agent dispatch. Uses direct JIRA REST API calls via a shell script. Checks for existing links, handles public/private project visibility, converts markdown to JIRA wiki markup.",
+          "meta": "Tools: Read, Write, Bash"
+        },
+        {
+          "name": "docs-workflow-create-merge-request",
+          "description": "Commit, push, and create a merge request (GitLab) or pull request (GitHub) for documentation changes. Creates a feature branch if the repo is on main/master. Replaces docs-workflow-prepare-branch, docs-workflow-commit, and docs-workflow-create-mr.",
+          "description_html": "Commit, push, and create a merge request (GitLab) or pull request (GitHub) for documentation changes. Creates a feature branch if the repo is on main/master. Replaces docs-workflow-prepare-branch, docs-workflow-commit, and docs-workflow-create-mr.",
+          "meta": "Tools: Bash, Read"
+        },
+        {
+          "name": "docs-workflow-jira-ready",
+          "description": "Check whether a JIRA query returns tickets ready for the docs workflow. Queries JIRA via jira_reader.py, filters out tickets that already have a workflow progress file or a \"docs-workflow-started\" label, and outputs a JSON list of actionable ticket IDs. Designed as the entry point for cron-triggered or CI-triggered docs-orchestrator runs.",
+          "description_html": "Check whether a JIRA query returns tickets ready for the docs workflow. Queries JIRA via jira_reader.py, filters out tickets that already have a workflow progress file or a &quot;docs-workflow-started&quot; label, and outputs a JSON list of actionable ticket IDs. Designed as the entry point for cron-triggered or CI-triggered docs-orchestrator runs.",
+          "meta": "Tools: Read, Bash, Glob, Grep"
+        },
+        {
+          "name": "docs-workflow-planning",
+          "description": "Create a documentation plan from requirements analysis output. Dispatches the docs-planner agent. Invoked by the orchestrator.",
+          "description_html": "Create a documentation plan from requirements analysis output. Dispatches the docs-planner agent. Invoked by the orchestrator.",
+          "meta": "Tools: Read, Write, Glob, Grep, Edit, Bash, Skill, Agent"
+        },
+        {
+          "name": "docs-workflow-pr-analysis",
+          "description": "Run PR/MR analysis for the docs orchestrator workflow. Dispatches a subagent to run understand-pull-request, keeping the heavy orchestration out of the main context. Produces a structured PR-ANALYSIS.md. Conditional on has_pr — skipped when no PR URL is available.",
+          "description_html": "Run PR/MR analysis for the docs orchestrator workflow. Dispatches a subagent to run understand-pull-request, keeping the heavy orchestration out of the main context. Produces a structured PR-ANALYSIS.md. Conditional on has_pr — skipped when no PR URL is available.",
+          "meta": "Tools: Read, Write, Bash, Agent, Glob, Grep"
+        },
+        {
+          "name": "docs-workflow-requirements",
+          "description": "Analyze documentation requirements for a JIRA ticket using a two-pass fanout. Pass 1 dispatches a discovery agent to enumerate requirements. Pass 2 fans out one deep-analysis agent per requirement for isolated, thorough analysis. Assembles the standard requirements.md output. Invoked by the orchestrator.",
+          "description_html": "Analyze documentation requirements for a JIRA ticket using a two-pass fanout. Pass 1 dispatches a discovery agent to enumerate requirements. Pass 2 fans out one deep-analysis agent per requirement for isolated, thorough analysis. Assembles the standard requirements.md output. Invoked by the orchestrator.",
+          "meta": "Tools: Read, Write, Glob, Grep, Edit, Bash, Skill, Agent, WebSearch, WebFetch"
+        },
+        {
+          "name": "docs-workflow-scope-req-audit",
+          "description": "Classify JIRA requirements by code evidence status before planning. Uses learn-code analysis data and source code inspection to determine if each requirement is grounded, partial, or absent. Fans out one subagent per requirement for isolated classification. Prevents hallucinated documentation for unimplemented features and surfaces gaps for implemented ones. Conditional on has_source_repo.",
+          "description_html": "Classify JIRA requirements by code evidence status before planning. Uses learn-code analysis data and source code inspection to determine if each requirement is grounded, partial, or absent. Fans out one subagent per requirement for isolated classification. Prevents hallucinated documentation for unimplemented features and surfaces gaps for implemented ones. Conditional on has_source_repo.",
+          "meta": "Tools: Read, Write, Glob, Grep, Bash, Agent, Skill"
+        },
+        {
+          "name": "docs-workflow-start",
+          "description": "Interactive guided setup for the docs workflow. Only invoke this skill when the user explicitly requests docs-workflow-start (e.g., /docs-workflow-start). Do NOT invoke this skill when the user requests docs-orchestrator — that skill runs directly. When invoked with no CLI switches, uses AskUserQuestion to gather configuration. Supports full workflow, individual steps with auto-resolved prerequisites, and resuming previous runs. When switches are provided, passes through directly to docs-orchestrator.",
+          "description_html": "Interactive guided setup for the docs workflow. Only invoke this skill when the user explicitly requests docs-workflow-start (e.g., /docs-workflow-start). Do NOT invoke this skill when the user requests docs-orchestrator — that skill runs directly. When invoked with no CLI switches, uses AskUserQuestion to gather configuration. Supports full workflow, individual steps with auto-resolved prerequisites, and resuming previous runs. When switches are provided, passes through directly to docs-orchestrator.",
+          "meta": "Tools: Read, Write, Glob, Grep, Bash, Skill, AskUserQuestion"
+        },
+        {
+          "name": "docs-workflow-style-review",
+          "description": "Style guide compliance review of documentation drafts. Dispatches the docs-tools:docs-reviewer agent with Vale linting and 18+ style guide review skills.",
+          "description_html": "Style guide compliance review of documentation drafts. Dispatches the docs-tools:docs-reviewer agent with Vale linting and 18+ style guide review skills.",
+          "meta": "Tools: Read, Write, Glob, Grep, Edit, Bash, Skill, Agent, WebSearch, WebFetch"
+        },
+        {
+          "name": "docs-workflow-tech-review",
+          "description": "Technical accuracy review of documentation drafts with optional code-learner validation. When code analysis is available, validates documentation claims against learn-code analysis data before dispatching the technical-reviewer agent. Iteration logic is owned by the orchestrator, not this skill.",
+          "description_html": "Technical accuracy review of documentation drafts with optional code-learner validation. When code analysis is available, validates documentation claims against learn-code analysis data before dispatching the technical-reviewer agent. Iteration logic is owned by the orchestrator, not this skill.",
+          "meta": "Tools: Read, Write, Glob, Grep, Edit, Bash, Skill, Agent, WebSearch, WebFetch"
+        },
+        {
+          "name": "docs-workflow-writing",
+          "description": "Write documentation from a documentation plan. Dispatches the docs-writer agent. Supports AsciiDoc (default) and MkDocs formats. Default placement is UPDATE-IN-PLACE; use --draft for staging area. Also supports fix mode for applying technical review corrections.",
+          "description_html": "Write documentation from a documentation plan. Dispatches the docs-writer agent. Supports AsciiDoc (default) and MkDocs formats. Default placement is UPDATE-IN-PLACE; use --draft for staging area. Also supports fix mode for applying technical review corrections.",
+          "meta": "Tools: Read, Write, Glob, Grep, Edit, Bash, Skill, Agent"
+        },
+        {
+          "name": "git-pr-reader",
+          "description": "Unified interface for GitHub PRs and GitLab MRs: read PR/MR data with file filtering, list changed files, get review comments, post inline review comments, extract line numbers from diffs, validate comments, auto-detect PR/MR for current branch, and get unified diffs. Automatically detects GitHub vs GitLab from URL. Use this skill for analyzing code changes, posting review feedback, and documentation workflows.",
+          "description_html": "Unified interface for GitHub PRs and GitLab MRs: read PR/MR data with file filtering, list changed files, get review comments, post inline review comments, extract line numbers from diffs, validate comments, auto-detect PR/MR for current branch, and get unified diffs. Automatically detects GitHub vs GitLab from URL. Use this skill for analyzing code changes, posting review feedback, and documentation workflows.",
+          "meta": "Tools: Read, Bash, Grep, Glob"
+        },
+        {
+          "name": "ibm-sg-audience-and-medium",
+          "description": "Review documentation for IBM Style Guide audience and medium issues — accessibility (alt text, color, headings), global audience readiness (idioms, date formats, cultural references), tone (active voice, no \"please\" or \"simply\"), AI assistant style, marketing claims, and mobile/video content. Use this skill when reviewing docs for accessibility, internationalization, tone problems, or audience appropriateness. For Red Hat docs, prefer the rh-ssg-accessibility skill for accessibility-specific checks.",
+          "description_html": "Review documentation for IBM Style Guide audience and medium issues — accessibility (alt text, color, headings), global audience readiness (idioms, date formats, cultural references), tone (active voice, no &quot;please&quot; or &quot;simply&quot;), AI assistant style, marketing claims, and mobile/video content. Use this skill when reviewing docs for accessibility, internationalization, tone problems, or audience appropriateness. For Red Hat docs, prefer the rh-ssg-accessibility skill for accessibility-specific checks.",
+          "meta": ""
+        },
+        {
+          "name": "ibm-sg-language-and-grammar",
+          "description": "Review documentation for IBM Style Guide language and grammar — abbreviations/acronyms, capitalization, active voice, inclusive language (master/slave, blacklist/whitelist, gendered pronouns), contractions, anthropomorphism, and preferred terminology (avoid \"utilize,\" \"leverage,\" \"via,\" \"in order to,\" \"please\"). Use this skill when checking grammar, word choice, inclusive language, or terminology compliance. For Red Hat docs, the rh-ssg-grammar-and-language skill takes precedence on conscious language and contractions.",
+          "description_html": "Review documentation for IBM Style Guide language and grammar — abbreviations/acronyms, capitalization, active voice, inclusive language (master/slave, blacklist/whitelist, gendered pronouns), contractions, anthropomorphism, and preferred terminology (avoid &quot;utilize,&quot; &quot;leverage,&quot; &quot;via,&quot; &quot;in order to,&quot; &quot;please&quot;). Use this skill when checking grammar, word choice, inclusive language, or terminology compliance. For Red Hat docs, the rh-ssg-grammar-and-language skill takes precedence on conscious language and contractions.",
+          "meta": ""
+        },
+        {
+          "name": "ibm-sg-legal-information",
+          "description": "Review documentation for IBM Style Guide legal issues — unsubstantiated claims, superlatives, trademarks (™/® usage), copyright notices, personal information (PII in examples), and republishing/attribution of external content. Use this skill when checking for legal risks, trademark compliance, PII exposure in examples, unsupported marketing claims, or content attribution issues. For Red Hat docs, the rh-ssg-legal-and-support skill takes precedence on Technology Preview and Developer Preview.",
+          "description_html": "Review documentation for IBM Style Guide legal issues — unsubstantiated claims, superlatives, trademarks (™/® usage), copyright notices, personal information (PII in examples), and republishing/attribution of external content. Use this skill when checking for legal risks, trademark compliance, PII exposure in examples, unsupported marketing claims, or content attribution issues. For Red Hat docs, the rh-ssg-legal-and-support skill takes precedence on Technology Preview and Developer Preview.",
+          "meta": ""
+        },
+        {
+          "name": "ibm-sg-numbers-and-measurement",
+          "description": "Review documentation for IBM Style Guide number and measurement formatting — numerals vs. spelled-out numbers, commas in large numbers, currency codes (USD/EUR), date formats, 24-hour time, units of measurement (KB/MB/GB with spaces), IEC binary prefixes (KiB/MiB/GiB), and phone numbers. Use this skill when checking number formatting, date/time consistency, unit abbreviations, or measurement conventions in documentation.",
+          "description_html": "Review documentation for IBM Style Guide number and measurement formatting — numerals vs. spelled-out numbers, commas in large numbers, currency codes (USD/EUR), date formats, 24-hour time, units of measurement (KB/MB/GB with spaces), IEC binary prefixes (KiB/MiB/GiB), and phone numbers. Use this skill when checking number formatting, date/time consistency, unit abbreviations, or measurement conventions in documentation.",
+          "meta": ""
+        },
+        {
+          "name": "ibm-sg-punctuation",
+          "description": "Review documentation for IBM Style Guide punctuation — serial/Oxford commas, colons before lists, em dashes vs. en dashes vs. hyphens, compound adjective hyphenation, quotation marks (US style), semicolon avoidance, ellipses, exclamation points, parentheses, slashes (\"and/or\"), and period consistency in lists. Use this skill when checking punctuation, hyphenation, comma usage, dash types, or list punctuation consistency.",
+          "description_html": "Review documentation for IBM Style Guide punctuation — serial/Oxford commas, colons before lists, em dashes vs. en dashes vs. hyphens, compound adjective hyphenation, quotation marks (US style), semicolon avoidance, ellipses, exclamation points, parentheses, slashes (&quot;and/or&quot;), and period consistency in lists. Use this skill when checking punctuation, hyphenation, comma usage, dash types, or list punctuation consistency.",
+          "meta": ""
+        },
+        {
+          "name": "ibm-sg-references",
+          "description": "Review documentation for IBM Style Guide reference issues — citations, footnotes, geographic locations, product and service names (official capitalization, trademark usage), product version formatting (\"version 4.12 and later\" not \"recent versions\"), and name/title conventions. Use this skill when checking product names, version references, citation formatting, geographic references, or footnote usage in documentation.",
+          "description_html": "Review documentation for IBM Style Guide reference issues — citations, footnotes, geographic locations, product and service names (official capitalization, trademark usage), product version formatting (&quot;version 4.12 and later&quot; not &quot;recent versions&quot;), and name/title conventions. Use this skill when checking product names, version references, citation formatting, geographic references, or footnote usage in documentation.",
+          "meta": ""
+        },
+        {
+          "name": "ibm-sg-structure-and-format",
+          "description": "Review documentation for IBM Style Guide structure and format — headings (sentence case, no gerunds), lists (parallel structure, lead-in sentences), procedures (imperative verbs, one action per step, max 9 steps), tables (headers, alignment, captions), notes/warnings/tips, bold/monospace/italic formatting, and figures with alt text. Use this skill when checking doc structure, heading style, list formatting, procedure steps, table layout, or emphasis conventions. For Red Hat docs, the rh-ssg-structure and rh-ssg-formatting skills take precedence.",
+          "description_html": "Review documentation for IBM Style Guide structure and format — headings (sentence case, no gerunds), lists (parallel structure, lead-in sentences), procedures (imperative verbs, one action per step, max 9 steps), tables (headers, alignment, captions), notes/warnings/tips, bold/monospace/italic formatting, and figures with alt text. Use this skill when checking doc structure, heading style, list formatting, procedure steps, table layout, or emphasis conventions. For Red Hat docs, the rh-ssg-structure and rh-ssg-formatting skills take precedence.",
+          "meta": ""
+        },
+        {
+          "name": "ibm-sg-technical-elements",
+          "description": "Review documentation for IBM Style Guide technical elements — code examples (language tags, realistic values, RFC 2606/5737 addresses), command-line formatting (prompts, line continuation), command syntax notation (\u003cvariable\u003e, [optional], {choice1|choice2}), file names/paths (monospace), keyboard keys (bold, Ctrl+C), menus (bold, File \u003e Save), UI elements (bold, correct interaction verbs: click/select/enter/clear), and web/IP/email addresses. Use this skill when checking code blocks, CLI examples, UI element formatting, keyboard shortcuts, or command syntax in docs. For Red Hat docs, rh-ssg-technical-examples and rh-ssg-gui-and-links take precedence.",
+          "description_html": "Review documentation for IBM Style Guide technical elements — code examples (language tags, realistic values, RFC 2606/5737 addresses), command-line formatting (prompts, line continuation), command syntax notation (&lt;variable&gt;, [optional], {choice1|choice2}), file names/paths (monospace), keyboard keys (bold, Ctrl+C), menus (bold, File &gt; Save), UI elements (bold, correct interaction verbs: click/select/enter/clear), and web/IP/email addresses. Use this skill when checking code blocks, CLI examples, UI element formatting, keyboard shortcuts, or command syntax in docs. For Red Hat docs, rh-ssg-technical-examples and rh-ssg-gui-and-links take precedence.",
+          "meta": ""
+        },
+        {
+          "name": "jira-reader",
+          "description": "Read and analyze JIRA issues from Red Hat Issue Tracker. Use this skill to fetch issue details, search issues, extract comments and discussions, categorize issues (bugs, CVEs, features, stories), analyze custom fields (release notes, fix versions), retrieve Git links, traverse ticket graphs (parent, children, siblings, links), and generate summaries. This skill is read-only and cannot modify JIRA issues. Requires jira and ratelimit Python packages.",
+          "description_html": "Read and analyze JIRA issues from Red Hat Issue Tracker. Use this skill to fetch issue details, search issues, extract comments and discussions, categorize issues (bugs, CVEs, features, stories), analyze custom fields (release notes, fix versions), retrieve Git links, traverse ticket graphs (parent, children, siblings, links), and generate summaries. This skill is read-only and cannot modify JIRA issues. Requires jira and ratelimit Python packages.",
+          "meta": "Tools: Read, Bash, Grep, Glob"
+        },
+        {
+          "name": "jira-writer",
+          "description": "Update and modify JIRA issues on Red Hat Issue Tracker. Use this skill to push release notes, update custom fields (release note content, status), manage labels (add/remove), and modify issue properties. This skill performs write operations and will prompt for user approval before making changes. Requires jira and ratelimit Python packages. Only use when explicitly asked to update or modify JIRA issues.",
+          "description_html": "Update and modify JIRA issues on Red Hat Issue Tracker. Use this skill to push release notes, update custom fields (release note content, status), manage labels (add/remove), and modify issue properties. This skill performs write operations and will prompt for user approval before making changes. Requires jira and ratelimit Python packages. Only use when explicitly asked to update or modify JIRA issues.",
+          "meta": ""
+        },
+        {
+          "name": "learn-code",
+          "description": "Analyze a codebase for engineer onboarding. Detects language, maps modules, analyzes each module in parallel, discovers cross-module relationships, and produces an ONBOARDING.md guide.",
+          "description_html": "Analyze a codebase for engineer onboarding. Detects language, maps modules, analyzes each module in parallel, discovers cross-module relationships, and produces an ONBOARDING.md guide.",
+          "meta": "Tools: Read, Write, Bash, Glob, Grep, Agent"
+        },
+        {
+          "name": "query-code",
+          "description": "Answer questions about a previously analyzed codebase. Reads learn-code output and dispatches an agent that can also Read/Grep the actual source code to provide file:line-grounded answers.",
+          "description_html": "Answer questions about a previously analyzed codebase. Reads learn-code output and dispatches an agent that can also Read/Grep the actual source code to provide file:line-grounded answers.",
+          "meta": "Tools: Read, Write, Bash, Glob, Grep, Skill, Agent"
+        },
+        {
+          "name": "redhat-docs-toc",
+          "description": "Extract distinct article URLs from Red Hat documentation table of contents pages. Parse the TOC navigation to find all separate documentation articles. Useful for crawling and processing multi-page Red Hat documentation.",
+          "description_html": "Extract distinct article URLs from Red Hat documentation table of contents pages. Parse the TOC navigation to find all separate documentation articles. Useful for crawling and processing multi-page Red Hat documentation.",
+          "meta": "Tools: Read, Bash, Write"
+        },
+        {
+          "name": "rh-ssg-accessibility",
+          "description": "Review Red Hat documentation for accessibility compliance (WCAG) — alt text for images/icons, color not as sole information carrier, no directional language (\"left\"/\"right\"/\"above\"), descriptive link text (no \"click here\"), table structure (no irregular headers, no blank header cells), and correct heading nesting. Use this skill whenever checking Red Hat docs for accessibility, screen reader compatibility, alt text, link text, or WCAG compliance. This skill takes precedence over ibm-sg-audience-and-medium for accessibility checks on Red Hat content.",
+          "description_html": "Review Red Hat documentation for accessibility compliance (WCAG) — alt text for images/icons, color not as sole information carrier, no directional language (&quot;left&quot;/&quot;right&quot;/&quot;above&quot;), descriptive link text (no &quot;click here&quot;), table structure (no irregular headers, no blank header cells), and correct heading nesting. Use this skill whenever checking Red Hat docs for accessibility, screen reader compatibility, alt text, link text, or WCAG compliance. This skill takes precedence over ibm-sg-audience-and-medium for accessibility checks on Red Hat content.",
+          "meta": ""
+        },
+        {
+          "name": "rh-ssg-formatting",
+          "description": "Review Red Hat documentation for SSG formatting compliance — code blocks (one command per step, bold via subs=\"+quotes\", separate input/output), user-replaced values (angle brackets, italics, underscores), sentence-style capitalization in titles, product name/version attributes (not hard-coded), date formats (\"3 October 2019\"), single-step procedures (bullet not number), non-breaking spaces in \"Red Hat\", and man page references. Use this skill when checking Red Hat docs for code block formatting, placeholder values, title capitalization, product name attributes, or date formats.",
+          "description_html": "Review Red Hat documentation for SSG formatting compliance — code blocks (one command per step, bold via subs=&quot;+quotes&quot;, separate input/output), user-replaced values (angle brackets, italics, underscores), sentence-style capitalization in titles, product name/version attributes (not hard-coded), date formats (&quot;3 October 2019&quot;), single-step procedures (bullet not number), non-breaking spaces in &quot;Red Hat&quot;, and man page references. Use this skill when checking Red Hat docs for code block formatting, placeholder values, title capitalization, product name attributes, or date formats.",
+          "meta": ""
+        },
+        {
+          "name": "rh-ssg-grammar-and-language",
+          "description": "Review Red Hat documentation for SSG grammar and language compliance — conscious language (no blacklist/whitelist, no master/slave), no contractions in product docs, conversational style levels, minimalism principles (action-oriented, scannable, concise), animate vs. inanimate user pronouns (who vs. that), and homograph avoidance. Use this skill when checking Red Hat docs for inclusive/conscious language, contraction usage, minimalism, wordiness, or grammar compliance. This skill takes precedence over ibm-sg-language-and-grammar for Red Hat content.",
+          "description_html": "Review Red Hat documentation for SSG grammar and language compliance — conscious language (no blacklist/whitelist, no master/slave), no contractions in product docs, conversational style levels, minimalism principles (action-oriented, scannable, concise), animate vs. inanimate user pronouns (who vs. that), and homograph avoidance. Use this skill when checking Red Hat docs for inclusive/conscious language, contraction usage, minimalism, wordiness, or grammar compliance. This skill takes precedence over ibm-sg-language-and-grammar for Red Hat content.",
+          "meta": ""
+        },
+        {
+          "name": "rh-ssg-gui-and-links",
+          "description": "Review Red Hat documentation for SSG graphical interface and link compliance — UI element formatting (bold text, correct verbs: click/select/enter), screenshot guidelines, text entry (\"enter\" not \"type\"), cross-reference format (xref), external link rules (no bare URLs, no shorteners, descriptive link text), Red Hat docs links (use \"latest\" in URL path), and Knowledgebase article link formatting. Use this skill when checking Red Hat docs for UI element formatting, link text, cross-references, screenshot usage, or URL formatting. Takes precedence over ibm-sg-technical-elements for UI and link checks on Red Hat content.",
+          "description_html": "Review Red Hat documentation for SSG graphical interface and link compliance — UI element formatting (bold text, correct verbs: click/select/enter), screenshot guidelines, text entry (&quot;enter&quot; not &quot;type&quot;), cross-reference format (xref), external link rules (no bare URLs, no shorteners, descriptive link text), Red Hat docs links (use &quot;latest&quot; in URL path), and Knowledgebase article link formatting. Use this skill when checking Red Hat docs for UI element formatting, link text, cross-references, screenshot usage, or URL formatting. Takes precedence over ibm-sg-technical-elements for UI and link checks on Red Hat content.",
+          "meta": ""
+        },
+        {
+          "name": "rh-ssg-legal-and-support",
+          "description": "Review Red Hat documentation for SSG legal and support compliance — no cost/pricing references, no future release promises, Developer Preview requirements (IMPORTANT admonition, no \"supported\"), and Technology Preview requirements (IMPORTANT admonition, never \"Tech Preview\" or \"Technical Preview\", no \"supported as a Technology Preview\"). Use this skill when checking Red Hat docs for Technology Preview, Developer Preview, TP/DP admonitions, cost language, future release statements, or support scope compliance. Takes precedence over ibm-sg-legal-information for Red Hat content.",
+          "description_html": "Review Red Hat documentation for SSG legal and support compliance — no cost/pricing references, no future release promises, Developer Preview requirements (IMPORTANT admonition, no &quot;supported&quot;), and Technology Preview requirements (IMPORTANT admonition, never &quot;Tech Preview&quot; or &quot;Technical Preview&quot;, no &quot;supported as a Technology Preview&quot;). Use this skill when checking Red Hat docs for Technology Preview, Developer Preview, TP/DP admonitions, cost language, future release statements, or support scope compliance. Takes precedence over ibm-sg-legal-information for Red Hat content.",
+          "meta": ""
+        },
+        {
+          "name": "rh-ssg-release-notes",
+          "description": "Review Red Hat release notes for SSG compliance — tense rules (present default, past for \"before this update\"), informative headings (sentence case, no gerunds, under 120 chars), Jira references on known/fixed issues, AsciiDoc formatting (description lists, + attachment), and release note types: new features, enhancements, rebases (X.Y.Z format), Technology Preview entries, deprecated features, removed features, known issues (Cause \u003e Consequence \u003e Workaround \u003e Result), and fixed issues (CCFR pattern). Use this skill whenever reviewing, writing, or checking release notes for any Red Hat product.",
+          "description_html": "Review Red Hat release notes for SSG compliance — tense rules (present default, past for &quot;before this update&quot;), informative headings (sentence case, no gerunds, under 120 chars), Jira references on known/fixed issues, AsciiDoc formatting (description lists, + attachment), and release note types: new features, enhancements, rebases (X.Y.Z format), Technology Preview entries, deprecated features, removed features, known issues (Cause &gt; Consequence &gt; Workaround &gt; Result), and fixed issues (CCFR pattern). Use this skill whenever reviewing, writing, or checking release notes for any Red Hat product.",
+          "meta": ""
+        },
+        {
+          "name": "rh-ssg-structure",
+          "description": "Review Red Hat documentation for SSG structural compliance — admonitions (NOTE/IMPORTANT/WARNING/TIP only, no CAUTION, no clustering, modules never start with admonitions), lead-in sentences (only when needed after Prerequisites/Procedure headings), prerequisites (written as completed states not imperative commands), and short descriptions/abstracts (2-3 sentences, customer-centric, no self-referential language). Use this skill when checking Red Hat docs for admonition usage, prerequisite formatting, short descriptions, or structural compliance. Takes precedence over ibm-sg-structure-and-format for Red Hat content.",
+          "description_html": "Review Red Hat documentation for SSG structural compliance — admonitions (NOTE/IMPORTANT/WARNING/TIP only, no CAUTION, no clustering, modules never start with admonitions), lead-in sentences (only when needed after Prerequisites/Procedure headings), prerequisites (written as completed states not imperative commands), and short descriptions/abstracts (2-3 sentences, customer-centric, no self-referential language). Use this skill when checking Red Hat docs for admonition usage, prerequisite formatting, short descriptions, or structural compliance. Takes precedence over ibm-sg-structure-and-format for Red Hat content.",
+          "meta": ""
+        },
+        {
+          "name": "rh-ssg-technical-examples",
+          "description": "Review Red Hat documentation for SSG technical example compliance — root privilege commands (use sudo with $ prompt, not su -), YAML ellipses (use \"# ...\" not bare \"...\"), IP addresses (RFC 5737 for IPv4, RFC 3849 for IPv6), MAC addresses (RFC 7042), code block quality (accurate, copy-paste friendly), and syntax highlighting (never use \"bash\" for terminal commands — use \"terminal\", \"console\", or omit). Use this skill when checking Red Hat docs for code examples, IP/MAC addresses in examples, sudo usage, YAML formatting, or source language tags on code blocks. Takes precedence over ibm-sg-technical-elements for Red Hat content.",
+          "description_html": "Review Red Hat documentation for SSG technical example compliance — root privilege commands (use sudo with $ prompt, not su -), YAML ellipses (use &quot;# ...&quot; not bare &quot;...&quot;), IP addresses (RFC 5737 for IPv4, RFC 3849 for IPv6), MAC addresses (RFC 7042), code block quality (accurate, copy-paste friendly), and syntax highlighting (never use &quot;bash&quot; for terminal commands — use &quot;terminal&quot;, &quot;console&quot;, or omit). Use this skill when checking Red Hat docs for code examples, IP/MAC addresses in examples, sudo usage, YAML formatting, or source language tags on code blocks. Takes precedence over ibm-sg-technical-elements for Red Hat content.",
+          "meta": ""
+        },
+        {
+          "name": "understand-pull-request",
+          "description": "Analyze a pull request or merge request. Fetches PR metadata via git-pr-reader, identifies affected modules, analyzes changes in context, and produces a PR-ANALYSIS.md document with a brief repo overview and detailed change analysis.",
+          "description_html": "Analyze a pull request or merge request. Fetches PR metadata via git-pr-reader, identifies affected modules, analyzes changes in context, and produces a PR-ANALYSIS.md document with a brief repo overview and detailed change analysis.",
+          "meta": "Tools: Read, Write, Bash, Glob, Grep, Agent"
+        }
+      ],
+      "agents": [
+        {
+          "name": "code-questioner",
+          "description": "Answers questions about an analyzed codebase using learn-code output and direct source code inspection. Provides file:line-grounded answers.",
+          "description_html": "Answers questions about an analyzed codebase using learn-code output and direct source code inspection. Provides file:line-grounded answers."
+        },
+        {
+          "name": "docs-planner",
+          "description": "Use PROACTIVELY when planning documentation structure, performing gap analysis, or creating documentation plans. Analyzes requirements, applies JTBD framework, and creates comprehensive documentation plans. MUST BE USED for any documentation planning or content architecture task.",
+          "description_html": "Use PROACTIVELY when planning documentation structure, performing gap analysis, or creating documentation plans. Analyzes requirements, applies JTBD framework, and creates comprehensive documentation plans. MUST BE USED for any documentation planning or content architecture task."
+        },
+        {
+          "name": "docs-reviewer",
+          "description": "Use PROACTIVELY when reviewing documentation for style guide compliance. Uses Vale linting and 18 style guide review skills (IBM Style Guide + Red Hat SSG) to review AsciiDoc files, edit in place, and generate review reports. MUST BE USED for any style review or documentation quality check.",
+          "description_html": "Use PROACTIVELY when reviewing documentation for style guide compliance. Uses Vale linting and 18 style guide review skills (IBM Style Guide + Red Hat SSG) to review AsciiDoc files, edit in place, and generate review reports. MUST BE USED for any style review or documentation quality check."
+        },
+        {
+          "name": "docs-writer",
+          "description": "Use PROACTIVELY when writing or drafting documentation. Creates complete CONCEPT, PROCEDURE, REFERENCE, and ASSEMBLY modules in AsciiDoc (default) or Material for MkDocs Markdown format. MUST BE USED for any documentation writing, drafting, or content creation task.",
+          "description_html": "Use PROACTIVELY when writing or drafting documentation. Creates complete CONCEPT, PROCEDURE, REFERENCE, and ASSEMBLY modules in AsciiDoc (default) or Material for MkDocs Markdown format. MUST BE USED for any documentation writing, drafting, or content creation task."
+        },
+        {
+          "name": "module-analyzer",
+          "description": "Deep analysis agent for a single codebase module. Receives full source and a targeted question. Returns structured JSON with purpose, public API, dependencies, data flow, gotchas, and onboarding priority.",
+          "description_html": "Deep analysis agent for a single codebase module. Receives full source and a targeted question. Returns structured JSON with purpose, public API, dependencies, data flow, gotchas, and onboarding priority."
+        },
+        {
+          "name": "pr-change-analyzer",
+          "description": "Analyzes the changes a pull request makes to a single module. Receives module source, diffs, and PR context. Returns structured JSON with change purpose, impact, and risks.",
+          "description_html": "Analyzes the changes a pull request makes to a single module. Receives module source, diffs, and PR context. Returns structured JSON with change purpose, impact, and risks."
+        },
+        {
+          "name": "pr-repo-summarizer",
+          "description": "Produces a brief overview of a repository's purpose and architecture. Used when no prior learn-code analysis exists.",
+          "description_html": "Produces a brief overview of a repository&#x27;s purpose and architecture. Used when no prior learn-code analysis exists."
+        },
+        {
+          "name": "pr-synthesis-writer",
+          "description": "Combines PR metadata, repo overview, and per-module change analyses to produce a PR-ANALYSIS.md document.",
+          "description_html": "Combines PR metadata, repo overview, and per-module change analyses to produce a PR-ANALYSIS.md document."
+        },
+        {
+          "name": "relationship-analyzer",
+          "description": "Analyzes the relationship between two codebase modules. Receives source of module A and API surface of module B. Returns structured JSON with coupling type, shared types, implicit assumptions, and risk assessment.",
+          "description_html": "Analyzes the relationship between two codebase modules. Receives source of module A and API surface of module B. Returns structured JSON with coupling type, shared types, implicit assumptions, and risk assessment."
+        },
+        {
+          "name": "repo-mapper",
+          "description": "Maps a codebase by analyzing detection data and config files to produce a per-module registry with tailored analysis questions. One orchestrator call — does not read source code.",
+          "description_html": "Maps a codebase by analyzing detection data and config files to produce a per-module registry with tailored analysis questions. One orchestrator call — does not read source code."
+        },
+        {
+          "name": "requirement-classifier",
+          "description": "Classifies a single documentation requirement by code evidence status. Receives learn-code analysis context, searches source code with Read/Grep for evidence, and returns structured JSON classification with gap analysis.",
+          "description_html": "Classifies a single documentation requirement by code evidence status. Receives learn-code analysis context, searches source code with Read/Grep for evidence, and returns structured JSON classification with gap analysis."
+        },
+        {
+          "name": "requirements-analyst",
+          "description": "Deep analysis agent for a single documentation requirement. Receives one requirement skeleton from the discovery pass, fetches detailed source content (JIRA, PRs, specs), performs web search expansion, and returns structured JSON with full requirement details including acceptance criteria and references.",
+          "description_html": "Deep analysis agent for a single documentation requirement. Receives one requirement skeleton from the discovery pass, fetches detailed source content (JIRA, PRs, specs), performs web search expansion, and returns structured JSON with full requirement details including acceptance criteria and references."
+        },
+        {
+          "name": "requirements-discoverer",
+          "description": "Lightweight discovery agent for requirements analysis pass 1. Performs JIRA traversal, PR listing, and spec identification to produce a structured JSON skeleton of requirements. Does NOT perform deep analysis, web search expansion, or acceptance criteria writing — those belong to the per-requirement deep analysis pass.",
+          "description_html": "Lightweight discovery agent for requirements analysis pass 1. Performs JIRA traversal, PR listing, and spec identification to produce a structured JSON skeleton of requirements. Does NOT perform deep analysis, web search expansion, or acceptance criteria writing — those belong to the per-requirement deep analysis pass."
+        },
+        {
+          "name": "synthesis-writer",
+          "description": "Combines all module summaries and relationship data to produce the final ONBOARDING.md onboarding guide. One synthesis call.",
+          "description_html": "Combines all module summaries and relationship data to produce the final ONBOARDING.md onboarding guide. One synthesis call."
+        },
+        {
+          "name": "technical-reviewer",
+          "description": "Use PROACTIVELY when reviewing documentation for technical accuracy. Reads docs as a developer or architect consumer to catch issues that style-focused review misses — broken code examples, missing prerequisites, incorrect commands, false architectural claims, and absent failure paths. MUST BE USED for technical review of procedures, API docs, tutorials, operator guides, and conceptual overviews.",
+          "description_html": "Use PROACTIVELY when reviewing documentation for technical accuracy. Reads docs as a developer or architect consumer to catch issues that style-focused review misses — broken code examples, missing prerequisites, incorrect commands, false architectural claims, and absent failure paths. MUST BE USED for technical review of procedures, API docs, tutorials, operator guides, and conceptual overviews."
+        }
+      ],
+      "hooks": [],
+      "mcp_servers": [],
+      "rules": [],
+      "category": "productivity",
+      "keywords": [
+        "documentation",
+        "docs",
+        "writing",
+        "review",
+        "style-guide",
+        "asciidoc",
+        "workflow"
+      ],
+      "author": {
+        "name": "github.com/openshift-eng"
+      }
+    },
+    {
       "name": "etcd",
       "description": "Etcd cluster health monitoring and performance analysis utilities",
       "version": "0.0.2",

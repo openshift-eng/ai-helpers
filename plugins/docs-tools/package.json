@@ -1,0 +1,13 @@
+{
+  "name": "docs-tools",
+  "version": "0.0.78",
+  "private": true,
+  "type": "module",
+  "description": "Tree-sitter dependencies for code-learner analysis in docs-tools",
+  "dependencies": {
+    "web-tree-sitter": "^0.24.0",
+    "tree-sitter-go": "^0.23.0",
+    "tree-sitter-javascript": "^0.23.0",
+    "tree-sitter-typescript": "^0.23.0"
+  }
+}
