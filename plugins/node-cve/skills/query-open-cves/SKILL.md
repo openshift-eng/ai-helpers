@@ -17,29 +17,18 @@ Use this skill when Phase 1 of the `node-cve:triage` command needs to fetch all 
 
 ### Step 1: Load Node team components
 
-The Node team components are defined in the teams plugin's `team_component_map.json`. The full list:
-
-- Node / CRI-O
-- Node / Kubelet
-- Node / CPU manager
-- Node / Device Manage
-- Node / Memory manager
-- Node / Numa aware Scheduling
-- Node / Pod resource API
-- Node / Topology manager
-- Driver Toolkit
-- Machine Config Operator
+Read the CVE-tracked component list from the [node-team shared components reference](../../../node-team/skills/node/references/shared/components.md). Use the full "Jira Components (OCPBUGS)" list plus the additional CVE triage components (Driver Toolkit, Machine Config Operator).
 
 If `--component` was specified, use only that component instead of the full list.
 
-**Alternative:** A shared Jira filter named "Node Components" could replace the hardcoded list, making it a single place to update when components change. However, as of 2026-05-20, that filter does not include "Driver Toolkit" and "Machine Config Operator", so the explicit list is used to ensure completeness. If the filter gets updated to match the full list, prefer using `filter = "Node Components"` in the JQL instead.
+The Jira saved filter "Node Components" (ID 91645) does not include Driver Toolkit and Machine Config Operator, so the explicit list from the shared reference is used for CVE queries to ensure completeness.
 
 ### Step 2: Query Jira
 
 Build and execute the JQL query:
 
 ```bash
-jira issue list -q "project = OCPBUGS AND type = Vulnerability AND component in (\"Node / CRI-O\", \"Node / Kubelet\", \"Node / CPU manager\", \"Node / Device Manage\", \"Node / Memory manager\", \"Node / Numa aware Scheduling\", \"Node / Pod resource API\", \"Node / Topology manager\", \"Driver Toolkit\", \"Machine Config Operator\") AND status not in (Closed, Done, Verified)" --plain --no-headers --columns KEY,SUMMARY,COMPONENT,STATUS,ASSIGNEE,LABELS
+jira issue list -q "project = OCPBUGS AND type = Vulnerability AND component in (<components from shared reference>) AND status not in (Closed, Done, Verified)" --plain --no-headers --columns KEY,SUMMARY,COMPONENT,STATUS,ASSIGNEE,LABELS
 ```
 
 If `--days N` was specified, add `AND updated >= -${N}d` to the JQL.

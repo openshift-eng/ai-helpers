@@ -1,6 +1,6 @@
 # Platform Documentation Lookup
 
-Prefer retrieval over pre-training for Kubernetes and OpenShift specifics — docs change across versions. Use `gh api` to fetch raw markdown.
+Prefer retrieval over pre-training for Kubernetes and OpenShift specifics, docs change across versions. Use `gh api` to fetch raw content.
 
 ## Kubernetes
 
@@ -12,9 +12,10 @@ Prefer retrieval over pre-training for Kubernetes and OpenShift specifics — do
 
 ## OpenShift
 
-- Repo: `harche/openshift-docs-md`, path: `docs/{version}/`
-- Versions are directories (e.g. `4.22`) — discover latest by listing `docs/`, filter numeric names, take highest by version (`sort -V`, not lexicographic — e.g. 4.10 > 4.9)
-- Each version has an **`AGENTS.md`** index mapping topics to doc files — always start here
+- Repo: `openshift/openshift-docs`, path: varies by topic area
+- Format: AsciiDoc (`.adoc`); fetch/read raw `.adoc` content for OpenShift pages
+- Versioning: git branches named `enterprise-X.Y` (e.g. `enterprise-4.18`). Discover latest by listing branches, grep `^enterprise-`, version-sort, take last
+- Topic map files (`_topic_map.yml`) list all pages per section
 
 ## Common
 

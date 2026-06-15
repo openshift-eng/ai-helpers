@@ -42,7 +42,7 @@ To investigate or fix a Jira issue:
    ```bash
    curl -s -u "$JIRA_USER:$JIRA_API_TOKEN" "https://redhat.atlassian.net/rest/api/3/issue/OCPNODE-1234?fields=summary,components"
    ```
-2. Map the component to a repo (see Repo URLs below), confirm with the user, and clone if needed.
+2. Map the component to a repo (see [shared/components.md](shared/components.md)), confirm with the user, and clone if needed.
 3. Create a worktree named after the ticket:
    ```bash
    git worktree add .worktrees/ocpnode-1234 -b wt/ocpnode-1234
@@ -51,19 +51,12 @@ To investigate or fix a Jira issue:
 
 ## Component to Repo Mapping
 
-| Jira Label / Component | Repo |
-|-------------------------|------|
-| `crio` | cri-o |
-| `kubelet` | kubernetes |
-| `mco` | machine-config-operator |
-| `crun` | crun |
-| `conmonrs` | conmon-rs |
-| `kueue` | kueue-operator |
+See [shared/components.md](shared/components.md) for the full component list,
+downstream fork URLs, branch patterns, and languages. The "Day-to-Day Dev
+Shorthand" section there provides a quick lookup for common dev tasks.
 
-> For CVE analysis, the `node-cve` plugin maintains its own more detailed
-> mapping (downstream forks, branch patterns, languages) in
-> `plugins/node-cve/skills/analyze-cve-repos/SKILL.md` — that one is
-> authoritative for CVE work; this table only routes day-to-day dev tasks.
+For upstream features and bug fixes, clone upstream. For OpenShift-specific
+work, clone downstream.
 
 ## Enable the Node Team Plugin in the Worktree
 
@@ -73,19 +66,6 @@ After creating a worktree, install the plugin locally so it's available when you
 cd .worktrees/<name>
 claude plugin install node-team@ai-helpers --scope local
 ```
-
-## Repo URLs
-
-| Component | Upstream | Downstream (OpenShift) |
-|-----------|----------|------------------------|
-| CRI-O | `https://github.com/cri-o/cri-o.git` | `https://github.com/openshift/cri-o.git` |
-| Kubelet | `https://github.com/kubernetes/kubernetes.git` | `https://github.com/openshift/kubernetes.git` |
-| MCO | — | `https://github.com/openshift/machine-config-operator.git` |
-| crun | `https://github.com/containers/crun.git` | — |
-| conmon-rs | `https://github.com/containers/conmon-rs.git` | — |
-| Kueue Operator | `https://github.com/kubernetes-sigs/kueue.git` | `https://github.com/openshift/kueue-operator.git` |
-
-For upstream features and bug fixes, clone upstream. For OpenShift-specific work, clone downstream.
 
 ## Cleanup
 
