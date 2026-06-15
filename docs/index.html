@@ -1775,44 +1775,6 @@ footer a { color: var(--primary); }
       }
     },
     {
-      "name": "lvms",
-      "description": "LVMS (Logical Volume Manager Storage) plugin for troubleshooting and debugging storage issues",
-      "version": "0.1.1",
-      "has_readme": true,
-      "commands": [
-        {
-          "name": "analyze",
-          "full_name": "lvms:analyze",
-          "description": "Comprehensive LVMS troubleshooting - analyzes LVMCluster, volume groups, PVCs, and storage issues on live clusters or must-gather",
-          "description_html": "Comprehensive LVMS troubleshooting - analyzes LVMCluster, volume groups, PVCs, and storage issues on live clusters or must-gather",
-          "synopsis": "/lvms:analyze [must-gather-path] [--live] [--component \u003ccomponent\u003e]",
-          "body_html": "\u003cp\u003eThe \u003ccode\u003elvms:analyze\u003c/code\u003e command provides comprehensive troubleshooting for OpenShift LVMS (Logical Volume Manager Storage). It analyzes the health and configuration of LVMCluster, volume groups, PVCs, TopoLVM CSI driver, and node-level storage to identify and diagnose common LVMS issues.\u003c/p\u003e\u003cp\u003eThe command can operate in two modes:\u003cbr\u003e- \u003cstrong\u003eMust-gather analysis\u003c/strong\u003e: Analyzes LVMS must-gather data offline\u003cbr\u003e- \u003cstrong\u003eLive cluster analysis\u003c/strong\u003e: Connects to a running cluster and performs real-time diagnostics\u003c/p\u003e\u003cp\u003eCommon issues detected:\u003cbr\u003e- PVCs stuck in Pending state\u003cbr\u003e- LVMCluster not reaching Ready state\u003cbr\u003e- Volume group creation failures\u003cbr\u003e- Missing or unhealthy physical volumes\u003cbr\u003e- TopoLVM CSI driver issues\u003cbr\u003e- Node-level disk availability problems\u003cbr\u003e- Thin pool configuration issues\u003cbr\u003e- Device class misconfigurations\u003cbr\u003e- Operator and vg-manager pod errors (from log analysis)\u003c/p\u003e"
-        }
-      ],
-      "skills": [
-        {
-          "name": "lvms-analyzer",
-          "description": "Analyzes LVMS must-gather data to diagnose storage issues",
-          "description_html": "Analyzes LVMS must-gather data to diagnose storage issues",
-          "meta": ""
-        }
-      ],
-      "agents": [],
-      "hooks": [],
-      "mcp_servers": [],
-      "rules": [],
-      "category": "debugging",
-      "keywords": [
-        "lvms",
-        "storage",
-        "lvm",
-        "troubleshooting"
-      ],
-      "author": {
-        "name": "github.com/openshift-eng"
-      }
-    },
-    {
       "name": "marketplace-ops",
       "description": "Maintenance commands for Claude Code plugin marketplaces",
       "version": "0.1.2",

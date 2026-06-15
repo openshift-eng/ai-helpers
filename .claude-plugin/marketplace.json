@@ -245,19 +245,6 @@
       ]
     },
     {
-      "name": "lvms",
-      "source": "./plugins/lvms",
-      "description": "LVMS (Logical Volume Manager Storage) plugin for troubleshooting and debugging storage issues",
-      "version": "0.1.1",
-      "category": "debugging",
-      "keywords": [
-        "lvms",
-        "storage",
-        "lvm",
-        "troubleshooting"
-      ]
-    },
-    {
       "name": "native-notifications",
       "source": "./plugins/native-notifications",
       "description": "Cross-platform desktop notifications for ai-helpers",
