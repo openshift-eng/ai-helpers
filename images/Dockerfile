@@ -1,3 +1,10 @@
+FROM registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.25-openshift-4.22 AS claude-unstable
+COPY images/repos/claude-code-latest.repo /etc/yum.repos.d/
+COPY images/repos/RPM-GPG-KEY-claude-code /etc/pki/rpm-gpg/
+RUN rm /etc/yum.repos.d/ubi.repo && \
+    dnf install -y --disablerepo='*-ppc64le' --disablerepo='*-s390x' claude-code && \
+    dnf clean all
+
 FROM registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.25-openshift-4.22
 
 # Copy external rpm repos into the image, and tell the ART wrapper to append them
@@ -11,6 +18,7 @@ COPY images/repos/RPM-GPG-KEY-* /etc/pki/rpm-gpg/
 # cross-architecture dependency resolution failures in CI.
 RUN dnf install -y \
     --disablerepo='*-ppc64le' --disablerepo='*-s390x' \
+    --disablerepo='claude-code-latest' \
     python3.11 \
     python3.11-pip \
     python3.11-devel \
@@ -22,6 +30,9 @@ RUN dnf install -y \
     && dnf clean all \
     && alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1 \
     && alternatives --set python3 /usr/bin/python3.11
+
+# Copy the latest/unstable Claude Code binary from the builder stage
+COPY --from=claude-unstable /usr/bin/claude /usr/local/bin/claude-unstable
 
 # Install Python tools and PCP bindings
 RUN python3 -m pip install --no-cache-dir \
