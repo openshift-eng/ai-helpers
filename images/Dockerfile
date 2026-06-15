@@ -1,4 +1,5 @@
 FROM registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.25-openshift-4.22 AS claude-latest
+ENV ART_DNF_WRAPPER_POLICY=append
 COPY images/repos/claude-code-latest.repo /etc/yum.repos.d/
 COPY images/repos/RPM-GPG-KEY-claude-code /etc/pki/rpm-gpg/
 RUN rm /etc/yum.repos.d/ubi.repo && \
