@@ -193,7 +193,8 @@ The `rhcos_version` field is determined from the job name and OCP version:
 - `rhcos9_10` — heterogeneous cluster (mixed RHCOS 9 and 10 node pools)
 - `rhcos10` — RHCOS 10 only
 - `rhcos9` — RHCOS 9 (explicit)
-- `rhcos9-default` — no explicit fragment; currently defaults to RHCOS 9 when no fragment is present
+- `rhcos9-default` — no explicit fragment; defaults to RHCOS 9 for OCP 4.x installs (including major upgrades to 5.x)
+- `rhcos10-default` — no explicit fragment; defaults to RHCOS 10 for OCP 5.x fresh installs
 
 ### `build_log.json` (failed blocking jobs only)
 

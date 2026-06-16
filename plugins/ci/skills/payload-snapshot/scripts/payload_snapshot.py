@@ -1975,7 +1975,7 @@ def _determine_rhcos_version(job_name: str, version: str) -> str:
 
     major = int(install_version.split(".")[0])
     if major >= 5:
-        return "rhcos9-default"
+        return "rhcos10-default"
     return "rhcos9-default"
 
 
