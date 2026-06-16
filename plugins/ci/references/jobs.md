@@ -41,7 +41,7 @@ Job names may contain fragments that indicate which RHCOS variant the cluster us
    - Example: `periodic-ci-openshift-release-main-nightly-5.0-e2e-aws-ovn-rhcos9`
 4. **No fragment** — default by OCP major version **at install time** (not the payload/target version):
    - OCP 4.x → RHCOS 9
-   - OCP 5.x → RHCOS 9 (current default, will change to RHCOS 10)
+   - OCP 5.x → RHCOS 10
 
 For upgrade jobs, use the **install-time** OCP version (see "Upgrade Jobs" above), not the payload/target version. This matters for major upgrades: a major upgrade job in a 5.x payload installs OCP 4.x, so its RHCOS default follows OCP 4.x rules.
 
