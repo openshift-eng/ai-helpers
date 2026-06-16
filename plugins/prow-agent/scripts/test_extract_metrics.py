@@ -160,10 +160,77 @@ def test_missing_stream_log():
         os.unlink(out_path)
 
 
+def test_tool_decision_events():
+    """Tool counts should come from tool_decision events (real Claude Code format)."""
+    otel_data = [
+        {"ts": "2026-06-16T00:00:00Z", "path": "/v1/metrics", "payload": {
+            "resourceMetrics": [{"scopeMetrics": [{"metrics": [
+                {"name": "claude_code.cost.usage", "sum": {"dataPoints": [
+                    {"attributes": [{"key": "model", "value": {"stringValue": "claude-opus-4-6"}}], "asDouble": 1.0}
+                ]}},
+                {"name": "claude_code.token.usage", "sum": {"dataPoints": [
+                    {"attributes": [{"key": "model", "value": {"stringValue": "claude-opus-4-6"}},
+                                    {"key": "type", "value": {"stringValue": "input"}}], "asInt": 1000},
+                    {"attributes": [{"key": "model", "value": {"stringValue": "claude-opus-4-6"}},
+                                    {"key": "type", "value": {"stringValue": "output"}}], "asInt": 500},
+                ]}}
+            ]}]}]
+        }},
+        {"ts": "2026-06-16T00:00:01Z", "path": "/v1/logs", "payload": {
+            "resourceLogs": [{"scopeLogs": [{"logRecords": [
+                {"attributes": [
+                    {"key": "event.name", "value": {"stringValue": "api_request"}},
+                    {"key": "model", "value": {"stringValue": "claude-opus-4-6"}},
+                    {"key": "duration_ms", "value": {"intValue": 2000}},
+                ]},
+                {"attributes": [
+                    {"key": "event.name", "value": {"stringValue": "tool_decision"}},
+                    {"key": "tool_name", "value": {"stringValue": "Read"}},
+                    {"key": "decision", "value": {"stringValue": "accept"}},
+                ]},
+                {"attributes": [
+                    {"key": "event.name", "value": {"stringValue": "tool_decision"}},
+                    {"key": "tool_name", "value": {"stringValue": "Read"}},
+                    {"key": "decision", "value": {"stringValue": "accept"}},
+                ]},
+                {"attributes": [
+                    {"key": "event.name", "value": {"stringValue": "tool_decision"}},
+                    {"key": "tool_name", "value": {"stringValue": "Bash"}},
+                    {"key": "decision", "value": {"stringValue": "accept"}},
+                ]},
+                {"attributes": [
+                    {"key": "event.name", "value": {"stringValue": "tool_result"}},
+                    {"key": "tool_name", "value": {"stringValue": "Read"}},
+                ]},
+            ]}]}]
+        }},
+    ]
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as tmp:
+        for record in otel_data:
+            tmp.write(json.dumps(record) + "\n")
+        log_path = tmp.name
+    with tempfile.NamedTemporaryFile(suffix="-autodl.json", delete=False) as tmp:
+        out_path = tmp.name
+    try:
+        r = run_script(log_path, out_path)
+        assert r.returncode == 0, f"Script failed: {r.stderr}"
+        data = load_autodl(out_path)
+        row = data["rows"][0]
+        assert row["total_tool_calls"] == "3", f"Got {row['total_tool_calls']}"
+        breakdown = json.loads(row["tool_call_breakdown"])
+        assert breakdown["Read"] == 2, f"Got Read={breakdown.get('Read')}"
+        assert breakdown["Bash"] == 1, f"Got Bash={breakdown.get('Bash')}"
+        print("PASS: test_tool_decision_events")
+    finally:
+        os.unlink(log_path)
+        os.unlink(out_path)
+
+
 if __name__ == "__main__":
     test_otel_input()
     test_otel_with_stream_enrichment()
     test_otel_schema_matches_row()
     test_empty_otel_log()
     test_missing_stream_log()
+    test_tool_decision_events()
     print("\nAll tests passed.")
