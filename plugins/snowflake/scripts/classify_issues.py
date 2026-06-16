@@ -5,10 +5,11 @@ Reads a JSON array of issues, sends them in batches to Claude for
 classification, and writes the results back with an activity_type field.
 
 Requires:
-  - gcloud CLI authenticated via one of:
-    - gcloud auth login (traditional user auth)
-    - gcloud auth application-default login (workload identity/ADC)
-    - Workload identity environment (automatic in some GCP services)
+  - Authentication via one of:
+    - google-auth library (recommended): uses Application Default Credentials
+    - gcloud CLI: gcloud auth application-default login or gcloud auth login
+    - Workload identity: automatic in GCP environments (GCE, Cloud Run, GKE)
+    - Service account: set GOOGLE_APPLICATION_CREDENTIALS env var
   - Environment variables: CLOUD_ML_REGION, ANTHROPIC_VERTEX_PROJECT_ID
   - Optional: ANTHROPIC_SMALL_FAST_MODEL (default: claude-sonnet-4-6)
 """
@@ -17,12 +18,19 @@ import argparse
 import json
 import os
 import re
-import subprocess
 import sys
 import time
 import urllib.request
 import urllib.error
 from collections import Counter
+
+try:
+    from google.auth.transport.requests import Request
+    import google.auth
+    USE_GOOGLE_AUTH = True
+except ImportError:
+    import subprocess
+    USE_GOOGLE_AUTH = False
 
 ACTIVITY_TYPE_DEFINITIONS = {
     "Associate Wellness & Development": (
@@ -116,45 +124,67 @@ def build_prompt(batch):
 
 
 def get_gcloud_token():
-    """Get OAuth token via gcloud CLI or workload identity.
+    """Get OAuth token via google.auth or gcloud CLI.
 
-    First tries 'gcloud auth print-access-token' (traditional auth).
-    If that fails, tries 'gcloud auth application-default print-access-token'
-    (workload identity, ADC).
+    Prefers google.auth.default() which automatically supports:
+    - Application Default Credentials (ADC)
+    - Workload identity
+    - Service account keys
+    - User credentials via gcloud auth application-default login
+
+    Falls back to gcloud CLI if google-auth library is not available.
     """
-    try:
-        # Try traditional user authentication first
-        result = subprocess.run(
-            ["gcloud", "auth", "print-access-token"],
-            capture_output=True, text=True, check=True, timeout=30,
-        )
-        token = result.stdout.strip()
-        if not token:
-            raise RuntimeError("gcloud auth print-access-token returned empty")
-        return token
-    except (subprocess.CalledProcessError, RuntimeError):
-        # Fall back to application default credentials (workload identity)
+    if USE_GOOGLE_AUTH:
         try:
+            credentials, project = google.auth.default()
+            # Refresh credentials if needed
+            if not credentials.valid:
+                credentials.refresh(Request())
+            return credentials.token
+        except google.auth.exceptions.DefaultCredentialsError as e:
+            print(f"Error: Failed to get credentials via google.auth.default(): {e}", file=sys.stderr)
+            print("\nTry one of:", file=sys.stderr)
+            print("  - gcloud auth application-default login (for ADC)", file=sys.stderr)
+            print("  - gcloud auth login (for user authentication)", file=sys.stderr)
+            print("  - Set GOOGLE_APPLICATION_CREDENTIALS to point to a service account key", file=sys.stderr)
+            print("  - Ensure workload identity is properly configured", file=sys.stderr)
+            sys.exit(1)
+    else:
+        # Fallback to gcloud CLI if google-auth is not installed
+        try:
+            # Try traditional user authentication first
             result = subprocess.run(
-                ["gcloud", "auth", "application-default", "print-access-token"],
+                ["gcloud", "auth", "print-access-token"],
                 capture_output=True, text=True, check=True, timeout=30,
             )
             token = result.stdout.strip()
             if not token:
-                raise RuntimeError("gcloud auth application-default print-access-token returned empty")
+                raise RuntimeError("gcloud auth print-access-token returned empty")
             return token
-        except subprocess.CalledProcessError as e:
-            print("Error: Both gcloud auth methods failed:", file=sys.stderr)
-            print(f"  1. User auth: Not authenticated", file=sys.stderr)
-            print(f"  2. Application default auth (workload identity): {e.stderr}", file=sys.stderr)
-            print("\nTry one of:", file=sys.stderr)
-            print("  - gcloud auth login (for user authentication)", file=sys.stderr)
-            print("  - gcloud auth application-default login (for ADC)", file=sys.stderr)
-            print("  - Or ensure workload identity is properly configured", file=sys.stderr)
+        except (subprocess.CalledProcessError, RuntimeError):
+            # Fall back to application default credentials
+            try:
+                result = subprocess.run(
+                    ["gcloud", "auth", "application-default", "print-access-token"],
+                    capture_output=True, text=True, check=True, timeout=30,
+                )
+                token = result.stdout.strip()
+                if not token:
+                    raise RuntimeError("gcloud auth application-default print-access-token returned empty")
+                return token
+            except subprocess.CalledProcessError as e:
+                print("Error: Both gcloud auth methods failed:", file=sys.stderr)
+                print(f"  1. User auth: Not authenticated", file=sys.stderr)
+                print(f"  2. Application default auth: {e.stderr}", file=sys.stderr)
+                print("\nTry: gcloud auth application-default login", file=sys.stderr)
+                print("Or install google-auth: pip install google-auth", file=sys.stderr)
+                sys.exit(1)
+        except FileNotFoundError:
+            print("Error: gcloud CLI not found and google-auth not installed.", file=sys.stderr)
+            print("Install one of:", file=sys.stderr)
+            print("  - gcloud CLI: https://cloud.google.com/sdk", file=sys.stderr)
+            print("  - google-auth: pip install google-auth", file=sys.stderr)
             sys.exit(1)
-    except FileNotFoundError:
-        print("Error: gcloud CLI not found. Install it from https://cloud.google.com/sdk", file=sys.stderr)
-        sys.exit(1)
 
 
 def classify_batch(batch, token, endpoint, model):

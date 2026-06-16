@@ -133,12 +133,13 @@ Classify Jira issues into activity types and generate an interactive sankey repo
 4. Results are merged and `generate_sankey.py` produces the HTML report
 
 **Requirements:** The classification script calls Claude via Vertex AI and requires:
-- `gcloud` CLI authenticated via one of:
-  - `gcloud auth login` (traditional user authentication)
-  - `gcloud auth application-default login` (application default credentials)
-  - Workload identity environment (automatic in some GCP services)
-- Environment variables: `CLOUD_ML_REGION`, `ANTHROPIC_VERTEX_PROJECT_ID` (already set in the org's devcontainer)
-- Optional: `ANTHROPIC_SMALL_FAST_MODEL` to override the model (default: `claude-sonnet-4-6`)
+- **Authentication** via one of (automatically detected):
+  - Application Default Credentials: `gcloud auth application-default login`
+  - Workload identity: automatic in GCP environments (GCE, Cloud Run, GKE)
+  - Service account key: set `GOOGLE_APPLICATION_CREDENTIALS` env var
+  - User credentials: `gcloud auth login` (fallback if google-auth not installed)
+- **Environment variables**: `CLOUD_ML_REGION`, `ANTHROPIC_VERTEX_PROJECT_ID` (already set in the org's devcontainer)
+- **Optional**: `ANTHROPIC_SMALL_FAST_MODEL` to override the model (default: `claude-sonnet-4-6`)
 
 The AI considers each issue's summary, description, type, status, components, and project context when classifying. Categories are:
 
@@ -166,10 +167,11 @@ Classification calls Vertex AI directly (no sub-agents), processing ~15 issues p
 
 This plugin runs Python scripts via shell commands during report generation. You will be prompted to approve these commands:
 
-- `python3 .../classify_issues.py` -- Classifies issues by calling Claude via Vertex AI
+- `python3 .../classify_issues.py` -- Classifies issues by calling Claude via Vertex AI (uses google.auth.default() for authentication)
 - `python3 .../generate_sankey.py` -- Generates the interactive HTML report
 - `python3 .../open_report.py` -- Starts a temporary HTTP server (auto-shuts down after 30s) and opens the report in your browser via VS Code port forwarding
-- `gcloud auth print-access-token` or `gcloud auth application-default print-access-token` -- Called by the classification script for Vertex AI authentication (tries both methods)
+
+The classification script uses the `google-auth` library which automatically discovers credentials via Application Default Credentials (ADC), workload identity, service account keys, or user credentials.
 
 These scripts are located in the plugin's `scripts/` directory and only read/write local files.
 
