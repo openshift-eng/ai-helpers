@@ -33,6 +33,7 @@ def parse_otel(path):
     cost_totals = defaultdict(float)
     active_time = defaultdict(float)
     api_requests = []
+    tool_uses = []
 
     for rec in records:
         rpath = rec.get("path", "")
@@ -78,8 +79,12 @@ def parse_otel(path):
                             event_attrs[key] = v
                             if key == "event.name":
                                 event_name = v
-                        if event_name == "claude_code.api_request":
+                        if event_name in ("api_request", "claude_code.api_request"):
                             api_requests.append(event_attrs)
+                        elif event_name == "tool_decision":
+                            tool = event_attrs.get("tool_name", "")
+                            if tool:
+                                tool_uses.append(tool)
 
     total_cost_usd = sum(cost_totals.values())
     input_tokens = int(sum(v for (m, t), v in token_totals.items() if t == "input"))
@@ -91,10 +96,13 @@ def parse_otel(path):
     cache_hit_rate = (cache_read_tokens / total_input * 100) if total_input > 0 else 0
 
     tool_counts = Counter()
-    for req in api_requests:
-        tool = req.get("tool_name", "")
-        if tool:
-            tool_counts[tool] += 1
+    if tool_uses:
+        tool_counts.update(tool_uses)
+    else:
+        for req in api_requests:
+            tool = req.get("tool_name", "")
+            if tool:
+                tool_counts[tool] += 1
     total_tool_calls = sum(tool_counts.values())
 
     duration_api_s = active_time.get("api", 0)

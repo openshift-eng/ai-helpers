@@ -131,7 +131,7 @@ def parse_metrics(log_file):
                             event_attrs[key] = v
                             if key == "event.name":
                                 event_name = v
-                        if event_name == "claude_code.api_request":
+                        if event_name in ("api_request", "claude_code.api_request"):
                             api_requests.append(event_attrs)
 
     return dict(token_totals), dict(cost_totals), api_requests, dict(active_time)
