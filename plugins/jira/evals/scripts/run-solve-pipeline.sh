@@ -63,19 +63,11 @@ extract_text() {
   jq -j 'select(.type == "assistant") | .message.content[]? | select(.type == "text") | .text // empty' "$file" 2>/dev/null || true
 }
 
-# ── Install tool dependencies ──
-echo ""
-echo "--- Installing dependencies ---"
-GOFLAGS="" go install golang.org/x/tools/gopls@latest 2>&1 | tail -1 || true
-python3 -m pip install --user pre-commit 2>&1 | tail -1 || true
+# ── Verify tool dependencies ──
 export PATH="${GOPATH:-$HOME/go}/bin:$HOME/.local/bin:$PATH"
-
-echo "Installing Claude Code plugins..."
-claude plugin marketplace add openshift-eng/ai-helpers 2>/dev/null || true
-claude plugin install utils@ai-helpers 2>/dev/null || true
-claude plugin install golang@ai-helpers 2>/dev/null || true
-claude plugin marketplace add enxebre/ai-scripts 2>/dev/null || true
-claude plugin install git@enxebre 2>/dev/null || true
+for cmd in gopls cov-diff; do
+  command -v "$cmd" >/dev/null 2>&1 || echo "WARNING: $cmd not found — install before running eval"
+done
 
 # ── Setup: clone repo and prepare workspace ──
 echo ""

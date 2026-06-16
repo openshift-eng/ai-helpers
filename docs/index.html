@@ -1474,7 +1474,7 @@ footer a { color: var(--primary); }
     {
       "name": "jira",
       "description": "A plugin to automate tasks with Jira",
-      "version": "0.7.2",
+      "version": "0.7.3",
       "has_readme": true,
       "commands": [
         {
@@ -1612,6 +1612,14 @@ footer a { color: var(--primary); }
           "description_html": "Analyze a JIRA issue and create a pull request to solve it.",
           "synopsis": "/jira:solve \u003cjira-issue-id\u003e [remote] [--ci]",
           "body_html": "\u003cp\u003eThe \u003ccode\u003ejira:solve\u003c/code\u003e command analyzes a JIRA issue and creates a pull request to solve it.\u003c/p\u003e\u003cp\u003eThis command takes a JIRA URL, fetches the issue description and requirements, analyzes the codebase to understand how to implement the solution, and creates a comprehensive pull request with the necessary changes.\u003c/p\u003e\u003cp\u003e\u003cstrong\u003eUsage Examples:\u003c/strong\u003e\u003c/p\u003e\u003cp\u003e1. \u003cstrong\u003eSolve a specific JIRA issue\u003c/strong\u003e:\u003cbr\u003e   ``\u003ccode\u003e\u003cbr\u003e   /jira:solve OCPBUGS-12345 origin\u003cbr\u003e   \u003c/code\u003e``\u003c/p\u003e"
+        },
+        {
+          "name": "solve-pipeline",
+          "full_name": "jira:solve-pipeline",
+          "description": "Run the 3-phase jira-agent pipeline (solve → review → address-review) for eval.",
+          "description_html": "Run the 3-phase jira-agent pipeline (solve → review → address-review) for eval.",
+          "synopsis": "/jira:solve-pipeline \u003cissue_key\u003e \u003crepo_url\u003e \u003ceval_branch\u003e",
+          "body_html": "Runs the full jira-agent pipeline against a snapshot branch for evaluation purposes.\u003cbr\u003eDoes NOT create PRs or push code."
         },
         {
           "name": "status-rollup",
