@@ -135,6 +135,22 @@ Use the `fetch-prowjob-json` skill to fetch the prowjob.json for this job. See `
    - Capture the target value (e.g., `e2e-aws-ovn-techpreview`)
    - Store for constructing artifact paths
 
+### Step 3b: Confirm RHCOS Version
+
+Use `prow-job-artifact-search` to look for `nodes.json` in gather-extra:
+
+```
+artifacts/{target}/gather-extra/artifacts/nodes.json
+```
+
+If found, parse the JSON and extract `.status.nodeInfo.osImage` from each Node item — the version number after "Red Hat Enterprise Linux CoreOS" indicates the RHEL base:
+- Version starts with `9.` → RHCOS 9 (e.g., `Red Hat Enterprise Linux CoreOS 9.8.20260613-0 (Plow)`)
+- Version starts with `10.` → RHCOS 10 (e.g., `Red Hat Enterprise Linux CoreOS 10.2.20260521-0 (Coughlan)`)
+
+Report the confirmed RHCOS version(s) in the analysis output. If nodes show mixed osImage values, the cluster is heterogeneous (RHCOS 9 + 10).
+
+This file may not exist for early install failures (bootstrap, infrastructure) where the cluster never progressed far enough to have nodes or run gather-extra. If unavailable, skip — this step is informational, not blocking.
+
 ### Step 4: Download JUnit XML to Identify Failure Stage
 
 **Note on install-status.txt**: You may see an `install-status.txt` file in the artifacts. This file contains only the installer's exit code (a single number). The junit_install.xml file translates this exit code into a human-readable failure mode, so always prefer junit_install.xml for determining the failure stage.

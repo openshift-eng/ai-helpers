@@ -92,6 +92,20 @@ Use the `fetch-prowjob-json` skill to fetch the prowjob.json for this job. See `
    - Note: on PR jobs `{target}` and `{JOB_NAME}` often differ. All artifact-path lookups
      (JUnit XML, step logs, step artifacts) must use `{JOB_NAME}`, not `{target}`
 
+### Step 3b: Confirm RHCOS Version
+
+Use `prow-job-artifact-search` to fetch `nodes.json` from the gather-extra artifacts:
+
+```
+artifacts/{target}/gather-extra/artifacts/nodes.json
+```
+
+Parse the JSON and extract `.status.nodeInfo.osImage` from each Node item. This confirms the actual RHCOS variant the cluster ran — the version number after "Red Hat Enterprise Linux CoreOS" indicates the RHEL base:
+- Version starts with `9.` → RHCOS 9 (e.g., `Red Hat Enterprise Linux CoreOS 9.8.20260613-0 (Plow)`)
+- Version starts with `10.` → RHCOS 10 (e.g., `Red Hat Enterprise Linux CoreOS 10.2.20260521-0 (Coughlan)`)
+
+If nodes show mixed osImage values, the cluster is heterogeneous (RHCOS 9 + 10). Report the confirmed RHCOS version(s) in the analysis output. If `nodes.json` is unavailable (e.g., gather-extra didn't run), skip this step — it's informational, not blocking.
+
 ### Step 4: Analyze Test Failure
 
 ### Step 4.0: Detect Aggregated Jobs
