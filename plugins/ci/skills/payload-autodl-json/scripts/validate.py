@@ -2,12 +2,16 @@
 """Validate a payload-analysis autodl JSON file against the canonical schema."""
 
 import json
+import re
 import sys
 
 REQUIRED_ROW_FIELDS = [
     "payload_tag", "version", "stream", "architecture", "phase",
     "job_name", "prow_url", "failure_type", "root_cause_summary",
 ]
+
+VALID_STREAMS = {"ci", "nightly"}
+VERSION_RE = re.compile(r"^\d+\.\d+$")
 
 
 def validate(path):
@@ -49,6 +53,12 @@ def validate(path):
             non_string = [k for k, v in row.items() if not isinstance(v, str)]
             if non_string:
                 errors.append(f"rows[{i}] has non-string values: {', '.join(non_string)}")
+            stream = row.get("stream", "")
+            if stream and stream not in VALID_STREAMS:
+                errors.append(f"rows[{i}] invalid stream '{stream}' (must be 'ci' or 'nightly')")
+            version = row.get("version", "")
+            if version and not VERSION_RE.match(version):
+                errors.append(f"rows[{i}] invalid version '{version}' (must be 'X.Y')")
 
     if errors:
         print(f"FAIL: {len(errors)} error(s)")
