@@ -53,11 +53,11 @@ def validate(path):
             non_string = [k for k, v in row.items() if not isinstance(v, str)]
             if non_string:
                 errors.append(f"rows[{i}] has non-string values: {', '.join(non_string)}")
-            stream = row.get("stream", "")
-            if stream and stream not in VALID_STREAMS:
+            stream = row.get("stream")
+            if isinstance(stream, str) and stream not in VALID_STREAMS:
                 errors.append(f"rows[{i}] invalid stream '{stream}' (must be 'ci' or 'nightly')")
-            version = row.get("version", "")
-            if version and not VERSION_RE.match(version):
+            version = row.get("version")
+            if isinstance(version, str) and not VERSION_RE.fullmatch(version):
                 errors.append(f"rows[{i}] invalid version '{version}' (must be 'X.Y')")
 
     if errors:
