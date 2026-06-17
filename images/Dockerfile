@@ -37,6 +37,7 @@ COPY --from=claude-latest /usr/bin/claude /usr/local/bin/claude-latest
 
 # Install Python tools and PCP bindings
 RUN python3 -m pip install --no-cache-dir \
+    agentic-ci \
     pytest \
     requests \
     pyyaml \
