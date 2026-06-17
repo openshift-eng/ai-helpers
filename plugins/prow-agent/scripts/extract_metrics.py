@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Extract Claude session metrics from OTEL JSONL and produce an autodl JSON file for BigQuery.
 
-Parses the JSONL output from the OTLP collector (otel_collector.py).
+Parses the OTEL JSONL output produced by agentic-ci's OTLP collector.
 Identity fields (session_id, model, etc.) can be supplemented from a
 stream-json log via --stream-log.
 
