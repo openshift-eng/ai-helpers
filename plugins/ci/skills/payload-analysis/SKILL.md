@@ -217,7 +217,7 @@ If a job fails in two consecutive payloads but for **different reasons**, treat 
 
 For each failed job, check whether changes to the CI step-registry in the `openshift/release` repo correlate with the failure. These changes (modified step scripts, updated URLs, changed environment variables) will never appear in the snapshot's component PR list because they are not payload component changes — but they can break jobs just as effectively.
 
-Extract the date from the `originating_payload` tag (format: `<version>-0.<stream>-YYYY-MM-DD-HHMMSS`). Convert the timestamp to an ISO date (e.g., `2026-06-16` from `5.0.0-0.nightly-2026-06-16-185706`). Compute a time window: `since` = originating date minus 1 day, `until` = originating date plus 1 day (ISO 8601 format with `T00:00:00Z` suffix).
+Extract the date from the `originating_payload` tag (format: `<version>-0.<stream>-YYYY-MM-DD-HHMMSS` or `<version>-0.<stream>-<arch>-YYYY-MM-DD-HHMMSS` for non-amd64). The date is always the last `YYYY-MM-DD` segment before the `HHMMSS` suffix (e.g., `2026-06-16` from `5.0.0-0.nightly-2026-06-16-185706` or `5.0.0-0.nightly-arm64-2026-06-16-185706`). Compute a time window: `since` = originating date minus 1 day, `until` = originating date plus 1 day (ISO 8601 format with `T00:00:00Z` suffix).
 
 From the Step 4 subagent results, identify the step-registry path of the step that actually errored (e.g., `gather/must-gather`, `baremetalds/devscripts/proxy`, `ipi/install/install`). Search for recent changes to that step:
 

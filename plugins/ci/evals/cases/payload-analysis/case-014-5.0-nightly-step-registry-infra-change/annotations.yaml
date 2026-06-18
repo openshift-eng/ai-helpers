@@ -14,14 +14,14 @@ expected_candidates:
       - "metal-ipi-ovn-ipv6"
 
 notes: >
-  CI infrastructure change detection test case (Step 3.6). PR #78140
+  CI infrastructure change detection test case (Step 5b). PR #78140
   (openshift/release) migrated mirror downloads from mirror.openshift.com
   to openshift-mirror-list.ci-systems.workers.dev on 2026-06-16. The
   bare-metal devscripts proxy NO_PROXY list was not updated to include
   workers.dev, causing curl exit code 56 (CURLE_RECV_ERROR) in the
   gather-must-gather post step. This PR will NOT appear in the snapshot's
   component PR list because it is a release repo change, not a payload
-  component change. The agent must use Step 3.6 (git log of
+  component change. The agent must use Step 5b (git log of
   ci-operator/step-registry/ around the originating payload date) to
   discover it. Both metal-ipi jobs have streak=3, originating from
   5.0.0-0.nightly-2026-06-16-185706. The aggregated-aws and
