@@ -26,6 +26,7 @@ rules:
     allowlist:
       - gopls
       - atlassian
+      - openshift-ci-mcp
 
   # Instruction files (AGENTS.md, CLAUDE.md, GEMINI.md) must be valid, non-empty with valid references
   instruction-file-valid:
@@ -56,7 +57,7 @@ rules:
   context-budget:
     enabled: false
   # Detect critical instructions in the middle of files where LLM attention is lowest
-  content-critical-position:  # unsure if actually useful here
+  content-critical-position: # unsure if actually useful here
     enabled: false
 
   # Detect potential API keys, tokens, and passwords in instruction files
@@ -71,7 +72,7 @@ rules:
 
   # Detect prohibitions without a positive alternative (agent has no path forward)
   content-negative-only:
-    enabled: false  # TODO: enable
+    enabled: false # TODO: enable
 
   # Detect bare path-like strings not wrapped in markdown link syntax
   content-unlinked-internal-reference:
@@ -108,7 +109,6 @@ rules:
     enabled: true
     severity: error
 
-
 # Load custom rules from these files
 custom-rules:
   - ".skillsaw/plugindocs_rule.py"
@@ -119,10 +119,10 @@ custom-rules:
 # Exclude patterns (glob format)
 # Use exclude: [] to disable all excludes including defaults
 exclude:
-    - "node_modules/**"
-    - "**/template/**"
-    - "**/templates/**"
-    - "**/_template/**"
+  - "node_modules/**"
+  - "**/template/**"
+  - "**/templates/**"
+  - "**/_template/**"
 
 # Additional markdown files to run content rules on (glob format)
 content-paths: []

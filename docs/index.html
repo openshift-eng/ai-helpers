@@ -912,6 +912,46 @@ footer a { color: var(--primary); }
       }
     },
     {
+      "name": "ci-extras",
+      "description": "MCP server and extended tooling for OpenShift CI data access",
+      "version": "0.0.1",
+      "has_readme": true,
+      "commands": [
+        {
+          "name": "check-release-health",
+          "full_name": "ci-extras:check-release-health",
+          "description": "Summarize the CI health of an OpenShift release using live data from the openshift-ci-mcp server",
+          "description_html": "Summarize the CI health of an OpenShift release using live data from the openshift-ci-mcp server",
+          "synopsis": "/ci-extras:check-release-health \u003crelease version\u003e",
+          "body_html": "\u003cp\u003eFetches live CI health data for a given OpenShift release and produces a concise summary covering payload acceptance, test regressions, and recent failures.\u003c/p\u003e\u003cp\u003eUseful for a quick read on overall release quality before a payload promotion decision or during a release readiness review.\u003c/p\u003e"
+        }
+      ],
+      "skills": [],
+      "agents": [],
+      "hooks": [],
+      "mcp_servers": [
+        {
+          "name": "openshift-ci-mcp",
+          "type": "stdio",
+          "endpoint": "go",
+          "source": ".mcp.json"
+        }
+      ],
+      "rules": [],
+      "category": "ci",
+      "keywords": [
+        "openshift-ci",
+        "mcp",
+        "ci",
+        "sippy",
+        "prow",
+        "test-failures"
+      ],
+      "author": {
+        "name": "github.com/openshift-eng"
+      }
+    },
+    {
       "name": "code-review",
       "description": "Automated code quality review with language-aware analysis for pre-commit verification",
       "version": "0.0.10",
