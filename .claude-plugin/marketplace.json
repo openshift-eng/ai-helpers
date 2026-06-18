@@ -436,6 +436,19 @@
       "source": "./plugins/agentic-docs",
       "description": "Create and maintain AI-optimized documentation for OpenShift",
       "version": "1.0.0"
+    },
+    {
+      "name": "metrics",
+      "source": "./plugins/metrics",
+      "description": "Anonymous usage metrics and local OTEL telemetry for ai-helpers sessions",
+      "version": "0.1.0",
+      "category": "tooling",
+      "keywords": [
+        "metrics",
+        "telemetry",
+        "otel",
+        "observability"
+      ]
     }
   ]
 }

@@ -53,3 +53,7 @@ package-lock.json
 # Various logs and metrics tracking info
 *.log
 .anonymous_id
+
+# OTEL telemetry session files (runtime artifacts, not source)
+otel-current.json
+otel-current.jsonl

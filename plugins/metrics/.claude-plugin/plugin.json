@@ -1,0 +1,8 @@
+{
+  "name": "metrics",
+  "description": "Anonymous usage metrics and local OTEL telemetry for ai-helpers sessions",
+  "version": "0.1.0",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}

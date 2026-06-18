@@ -1,0 +1,32 @@
+{
+  "description": "Local OTEL Telemetry Collection",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/scripts/collector.py --log-file ${CLAUDE_PLUGIN_ROOT}/otel-current.jsonl --pid-file /tmp/claude-otel-collector.pid --daemon --fresh",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/scripts/collector.py --stop --pid-file /tmp/claude-otel-collector.pid",
+            "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/scripts/ingest.py --otel-log ${CLAUDE_PLUGIN_ROOT}/otel-current.jsonl --from-hook",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}
