@@ -125,53 +125,6 @@ From `summary.json` → `test_failures.blocking[]`:
 
 For deeper context, read `build_log.json` (at the `build_log` path) for any failed job. It contains `error_warning_lines[]` with `line_number` and `text`, plus `tail_lines[]` (last 20% of the log).
 
-#### 3.6: Check for CI Infrastructure Changes (Streak >= 3 Only)
-
-For any failed job with `streak_length >= 3`, check whether changes to the CI step-registry in the `openshift/release` repo correlate with the streak's start. These changes (modified step scripts, updated URLs, changed environment variables) will never appear in the snapshot's component PR list because they are not payload component changes — but they can break jobs just as effectively.
-
-Extract the date from the `originating_payload` tag (format: `<version>-0.<stream>-YYYY-MM-DD-HHMMSS`). Convert the timestamp to an ISO date for the GitHub API (e.g., `2026-06-16` from `5.0.0-0.nightly-2026-06-16-185706`). Compute a time window: `since` = originating date minus 1 day, `until` = originating date plus 1 day (ISO 8601 format with `T00:00:00Z` suffix).
-
-Use the GitHub Commits API (no authentication required) to find step-registry changes around the originating payload date.
-
-**First, get all step-registry commits in the time window:**
-
-```bash
-curl -s "https://api.github.com/repos/openshift/release/commits?path=ci-operator/step-registry&since=<since_date>T00:00:00Z&until=<until_date>T23:59:59Z&per_page=50" \
-    | jq '.[] | {sha: .sha[0:11], date: .commit.committer.date, message: .commit.message | split("\n")[0]}'
-```
-
-This typically returns 20-50 commits. If the result count equals 50, there may be more — add `&page=2` to paginate.
-
-**Triage the results using failure context from Steps 3.4 and 3.5.** Extract the key signals from the failure: error messages, failing URLs/domains, exit codes, failing script names, and affected subsystems. Then scan each commit message for overlap. Relevant commits typically mention the same subsystem, tool, or infrastructure that appears in the error (e.g., a commit mentioning "mirror" or "CloudFlare" when the failure shows curl errors to a CloudFlare domain; a commit mentioning "proxy" when the failure is a connection refused through a proxy). Ignore commits that clearly target unrelated teams or subsystems (hypervisor updates, unrelated repo onboarding, OWNERS file changes).
-
-For each commit that looks potentially related, inspect the changed files and diffs:
-
-```bash
-curl -s "https://api.github.com/repos/openshift/release/commits/<sha>" \
-    | jq '.files[] | {filename, patch}'
-```
-
-Look for URL changes, configuration modifications, or script logic changes that could cause the observed failure. Extract the PR number from the commit message (format: `(#NNNNN)`). Get PR details:
-
-```bash
-curl -s "https://api.github.com/repos/openshift/release/pulls/<pr_number>" \
-    | jq '{number, title, html_url, merged_at, body}'
-```
-
-**After Step 4 subagent results are available**, do a targeted search using the specific step that failed. From the subagent's build log analysis, identify the step-registry path of the step that actually errored (e.g., `gather/must-gather`, `baremetalds/devscripts/proxy`, `ipi/install/install`). Search for recent changes to that exact step and to related steps in the same workflow chain:
-
-```bash
-# Search the specific failing step
-curl -s "https://api.github.com/repos/openshift/release/commits?path=ci-operator/step-registry/<step_subpath>&since=<since_date>T00:00:00Z&until=<until_date>T23:59:59Z&per_page=10" \
-    | jq '.[] | {sha: .sha[0:11], date: .commit.committer.date, message: .commit.message | split("\n")[0]}'
-```
-
-If this finds nothing, also check steps that run earlier in the workflow and set up infrastructure the failing step depends on (e.g., if `openshift-e2e-test` fails due to connectivity, check `baremetalds/devscripts/proxy` or `ipi/conf` steps that configure networking).
-
-**Scoring CI infrastructure candidates.** If a commit/PR modified a step that the failing job executes (or a shared dependency of that step), flag it as a **CI infrastructure candidate** — include it in Step 6.1 scoring alongside component PR candidates. When the failure's error messages reference URLs, domains, binaries, or configurations that were changed by the PR, the error message match signal (+40) should fire strongly. The key test: does the PR's diff introduce, modify, or remove something that appears in the error output?
-
-This step catches failures caused by CI tooling changes (mirror URL migrations, proxy configuration updates, script refactors) that are invisible to the snapshot's PR tracking.
-
 ### Step 4: Investigate Each Failed Job in Parallel
 
 For each failed blocking job in the **target payload**, launch a **parallel subagent** to investigate the failure. Pass the subagent the Prow URL and all previous attempt URLs from Step 3.2.
@@ -259,6 +212,30 @@ After collecting all subagent results, verify that consecutive failures across p
 Compare the subagent's root cause analysis for the target payload against previous payload analyses (from Step 4b) or the failure signatures in the snapshot's streak data.
 
 If a job fails in two consecutive payloads but for **different reasons**, treat each as a separate streak=1 failure with its own originating payload and candidate PRs. Re-split the streak and re-assign originating payloads before proceeding to scoring.
+
+### Step 5b: Check for CI Infrastructure Changes
+
+For each failed job, check whether changes to the CI step-registry in the `openshift/release` repo correlate with the failure. These changes (modified step scripts, updated URLs, changed environment variables) will never appear in the snapshot's component PR list because they are not payload component changes — but they can break jobs just as effectively.
+
+Extract the date from the `originating_payload` tag (format: `<version>-0.<stream>-YYYY-MM-DD-HHMMSS`). Convert the timestamp to an ISO date (e.g., `2026-06-16` from `5.0.0-0.nightly-2026-06-16-185706`). Compute a time window: `since` = originating date minus 1 day, `until` = originating date plus 1 day (ISO 8601 format with `T00:00:00Z` suffix).
+
+From the Step 4 subagent results, identify the step-registry path of the step that actually errored (e.g., `gather/must-gather`, `baremetalds/devscripts/proxy`, `ipi/install/install`). Search for recent changes to that step:
+
+```bash
+gh api "repos/openshift/release/commits?path=ci-operator/step-registry/<step_subpath>&since=<since_date>T00:00:00Z&until=<until_date>T23:59:59Z&per_page=10" \
+    --jq '.[] | {sha: .sha[0:11], date: .commit.committer.date, message: (.commit.message | split("\n")[0])}'
+```
+
+If this finds nothing, also check steps that run earlier in the workflow and set up infrastructure the failing step depends on (e.g., if `openshift-e2e-test` fails due to connectivity, check `baremetalds/devscripts/proxy` or `ipi/conf` steps that configure networking).
+
+For each matching commit, inspect the changed files and extract the PR number from the commit message (format: `(#NNNNN)`):
+
+```bash
+gh api "repos/openshift/release/commits/<sha>" --jq '.files[] | {filename, patch}'
+gh pr view <pr_number> --repo openshift/release --json number,title,url,mergedAt,body
+```
+
+**Scoring CI infrastructure candidates.** If a commit/PR modified a step that the failing job executes (or a shared dependency of that step), flag it as a **CI infrastructure candidate** — include it in Step 6.1 scoring alongside component PR candidates. When the failure's error messages reference URLs, domains, binaries, or configurations that were changed by the PR, the error message match signal (+40) should fire strongly. The key test: does the PR's diff introduce, modify, or remove something that appears in the error output?
 
 ### Step 6: Collect Investigation Results and Identify Revert Candidates
 
