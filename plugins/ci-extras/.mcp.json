@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "openshift-ci-mcp": {
+      "command": "go",
+      "args": [
+        "run",
+        "github.com/openshift-eng/openshift-ci-mcp/cmd/openshift-ci-mcp@latest"
+      ]
+    }
+  }
+}

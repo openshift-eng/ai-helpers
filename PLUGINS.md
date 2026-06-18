@@ -6,6 +6,7 @@ This document lists all available Claude Code plugins and their commands in the 
 - [Operator Dashboard](#operator-dashboard-plugin)
 - [Bigquery](#bigquery-plugin)
 - [Ci](#ci-plugin)
+- [Ci Extras](#ci-extras-plugin)
 - [Code Review](#code-review-plugin)
 - [Compliance](#compliance-plugin)
 - [Etcd](#etcd-plugin)
@@ -86,6 +87,15 @@ Tools for working with OpenShift CI and analyzing Prow job results
 - **`/ci:trigger-presubmit` `<job-name> <org> <repo> <base-ref> <base-sha> <pr-number> <pr-sha> [ENV_VAR=value ...]`** - Trigger a presubmit gangway job (typically use GitHub Prow commands instead)
 
 See [plugins/ci/README.md](plugins/ci/README.md) for detailed documentation.
+
+### Ci Extras Plugin
+
+MCP server and extended tooling for OpenShift CI data access. Bundles the [openshift-ci-mcp](https://github.com/openshift-eng/openshift-ci-mcp) server, exposing 19 tools covering releases, payloads, jobs, tests, PRs, and CI log search.
+
+**Commands:**
+- **`/ci-extras:check-release-health` `<release version>`** - Summarize the CI health of an OpenShift release using live data from the openshift-ci-mcp server (example command)
+
+See [plugins/ci-extras/README.md](plugins/ci-extras/README.md) for detailed documentation.
 
 ### Code Review Plugin
 
