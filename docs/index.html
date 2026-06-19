@@ -1770,17 +1770,7 @@ footer a { color: var(--primary); }
         },
         {
           "event_type": "SessionStart",
-          "matcher": "startup",
-          "hooks_json": "[\n  {\n    \"command\": \"bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/start-collector.sh\",\n    \"timeout\": 10,\n    \"type\": \"command\"\n  }\n]"
-        },
-        {
-          "event_type": "SessionStart",
-          "matcher": "resume",
-          "hooks_json": "[\n  {\n    \"command\": \"bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/start-collector.sh\",\n    \"timeout\": 10,\n    \"type\": \"command\"\n  }\n]"
-        },
-        {
-          "event_type": "SessionStart",
-          "matcher": "clear",
+          "matcher": ".*",
           "hooks_json": "[\n  {\n    \"command\": \"bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/start-collector.sh\",\n    \"timeout\": 10,\n    \"type\": \"command\"\n  }\n]"
         }
       ],
