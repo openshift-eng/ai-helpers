@@ -4,7 +4,7 @@ Automatic OpenTelemetry and OpenInference telemetry for Claude Code CLI sessions
 
 This plugin configures an `otelcol-contrib` pipeline that receives Claude Code's native OTLP telemetry, maps it to OpenInference semantic conventions, filters sensitive content, and writes enriched spans to a local JSONL file. It optionally exports to MLflow.
 
-No commands. No hooks. No shell scripts. All OTLP environment variables are set automatically by the plugin's `.claude/settings.json`. The only setup required is starting `otelcol-contrib` with the bundled config.
+No commands. All OTLP environment variables are set automatically by the plugin's `.claude/settings.json`. The `otelcol-contrib` binary starts automatically when a Claude Code session begins and terminates when the session ends via `SessionStart`/`SessionEnd` hooks — no manual operation required.
 
 ## Architecture
 
@@ -60,15 +60,7 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318
 OTEL_SERVICE_NAME=claude-code-agent
 ```
 
-The only manual step is starting `otelcol-contrib`:
-
-```
-mkdir -p ~/.local/share/claude-metrics
-CLAUDE_METRICS_LOG_DIR=~/.local/share/claude-metrics \
-  otelcol-contrib --config /path/to/plugins/metrics/config/otelcol.yaml
-```
-
-For persistent operation, register it as a user-level service using `launchd` (macOS) or `systemd --user` (Linux).
+The `SessionStart` hook starts `otelcol-contrib` automatically on session startup, resume, or clear, and the `SessionEnd` hook terminates it. Traces are written to `~/.local/share/claude-metrics/claude-metrics.jsonl` and collector logs to `~/.local/share/claude-metrics/otelcol.log`.
 
 To add team/repo context to every span:
 
