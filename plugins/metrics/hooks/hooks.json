@@ -3,27 +3,6 @@
   "hooks": {
     "SessionStart": [
       {
-        "matcher": "startup",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/start-collector.sh",
-            "timeout": 10
-          }
-        ]
-      },
-      {
-        "matcher": "resume",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/start-collector.sh",
-            "timeout": 10
-          }
-        ]
-      },
-      {
-        "matcher": "clear",
         "hooks": [
           {
             "type": "command",
