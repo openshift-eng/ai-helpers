@@ -50,7 +50,7 @@ Before starting, you **MUST** load the following skills (they define output sche
 
 1. **Python 3** (3.10 or later) — for running the snapshot script if needed
 2. **gcloud CLI** — for subagent artifact download (must-gather, pod logs)
-3. **GitHub CLI (`gh`)** — for checking existing revert PRs (Step 6.3)
+3. **GitHub CLI (`gh`)** — for step-registry change detection (Step 3.6) and checking existing revert PRs (Step 6.3)
 
 ## Implementation Steps
 
@@ -138,7 +138,7 @@ gh api "repos/openshift/release/commits?path=ci-operator/step-registry&since=<si
     --jq '.[] | {sha: .sha[0:11], date: .commit.committer.date, message: (.commit.message | split("\n")[0])}'
 ```
 
-If the result count equals 100, there may be additional pages — add `&page=2` to paginate.
+If exactly 100 results are returned, fetch subsequent pages by appending `&page=2`, `&page=3`, etc. until a page returns fewer than 100 results.
 
 **Triage the results using failure context from Steps 3.4 and 3.5.** Extract the key signals from the failure: error messages, failing URLs/domains, exit codes, failing script names, and affected subsystems. Use commit messages as an initial filter, but prioritize inspection of diffs when filenames or modified directories appear relevant even if the commit message is generic — many `openshift/release` commits have uninformative messages like "Fix typo" or "Update image" while the actual diff contains the interesting change. Relevant commits typically touch the same subsystem, tool, or infrastructure that appears in the error (e.g., a commit modifying mirror URLs when the failure shows curl errors to a new domain; a commit changing proxy configuration when the failure is a connection refused through a proxy). Ignore commits that clearly target unrelated teams or subsystems (hypervisor updates, unrelated repo onboarding, OWNERS file changes).
 
