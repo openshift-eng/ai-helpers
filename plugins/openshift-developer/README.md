@@ -33,12 +33,16 @@ Repeat steps 4-5 until the PR is approved.
 - `ci` — OpenShift CI / Prow job analysis
 - `golang` — Go development tools
 - `prodsec-skills` — Product security skills
+- `git` — Git workflow automation and utilities
 
 ### Skills
 
-- **address-review-pr** — Fetch and address all PR review comments: categorizes by priority, makes code changes, posts replies, and pushes.
+- **jira:solve** — Pick up a Jira issue, analyze it, implement the fix, and open a PR. (via `jira` plugin)
+- **git:git-commit-format** — Conventional commit formatting rules: types, scopes, required footers (Signed-off-by, Commit-Message-Assisted-by), and gitlint validation. (via `git` plugin)
+- **code-review:pre-commit-review** — Run a code review on local changes before pushing. (via `code-review` plugin)
 - **address-review-precommit** — Fix code review findings in the current branch before committing: applies fixes, runs verification, and pushes.
-- **git-commit-format** — Conventional commit formatting rules: types, scopes, required footers (Signed-off-by, Commit-Message-Assisted-by), and gitlint validation.
+- **code-review:pr** — Review an open PR for correctness and improvements. (via `code-review` plugin)
+- **address-review-pr** — Fetch and address all PR review comments: categorizes by priority, makes code changes, posts replies, and pushes.
 
 ### Hooks
 

@@ -182,7 +182,7 @@ When multiple comments relate to the same concern/fix:
 #### 4b. Push once
 
 ```bash
-git push --force-with-lease
+git push
 ```
 
 #### 4c. Verify push

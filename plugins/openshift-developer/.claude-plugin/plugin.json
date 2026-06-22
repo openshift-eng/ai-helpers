@@ -9,6 +9,7 @@
     { "name": "jira", "version": "^0.7.0" },
     { "name": "ci", "version": "^0.0.42" },
     { "name": "golang", "version": "^0.3.0" },
-    { "name": "prodsec-skills", "marketplace": "prodsec-skills" }
+    { "name": "prodsec-skills", "marketplace": "prodsec-skills" },
+    { "name": "git", "version": "^0.0.6" }
   ]
 }

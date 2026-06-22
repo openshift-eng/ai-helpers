@@ -46,7 +46,7 @@ make verify 2>&1
 1. Amend existing commits or create new commits as appropriate
 2. Push the branch to origin:
    ```bash
-   git push --force-with-lease
+   git push
    ```
 
 ## Return Value

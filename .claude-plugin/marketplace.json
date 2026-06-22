@@ -12,7 +12,7 @@
       "name": "git",
       "source": "./plugins/git",
       "description": "Git Plugin",
-      "version": "0.0.6",
+      "version": "0.0.7",
       "category": "tooling",
       "keywords": [
         "git",
