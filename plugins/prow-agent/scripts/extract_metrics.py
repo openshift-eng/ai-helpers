@@ -16,6 +16,107 @@ from collections import Counter, defaultdict
 from datetime import datetime, timezone
 
 
+def _parse_span_attrs(span):
+    """Extract span attributes as a flat dict."""
+    attrs = {}
+    for a in span.get("attributes", []):
+        key = a["key"]
+        val = a.get("value", {})
+        v = val.get("stringValue", val.get("intValue", val.get("doubleValue")))
+        if v is not None:
+            attrs[key] = v
+    return attrs
+
+
+class TraceAccumulator:
+    """Accumulates session metadata across batched /v1/traces payloads."""
+
+    def __init__(self):
+        self.session_id = ""
+        self.claude_code_version = ""
+        self.permission_mode = ""
+        self.min_start_ns = None
+        self.max_end_ns = None
+        self.first_interaction_start_ns = None
+        self.first_ttft_ms = 0
+        self.num_turns = 0
+        self.last_stop_reason = ""
+        self.skills = []
+        self.files_written = 0
+        self.num_subagents = 0
+
+    def add(self, payload):
+        """Process one /v1/traces payload."""
+        for rs in payload.get("resourceSpans", []):
+            for ra in rs.get("resource", {}).get("attributes", []):
+                if ra["key"] == "service.version" and not self.claude_code_version:
+                    val = ra.get("value", {})
+                    self.claude_code_version = val.get("stringValue", "")
+
+            for ss in rs.get("scopeSpans", []):
+                for span in ss.get("spans", []):
+                    attrs = _parse_span_attrs(span)
+                    name = span.get("name", "")
+                    start_ns = span.get("startTimeUnixNano")
+                    end_ns = span.get("endTimeUnixNano")
+
+                    if start_ns is not None:
+                        start_ns = int(start_ns)
+                        if self.min_start_ns is None or start_ns < self.min_start_ns:
+                            self.min_start_ns = start_ns
+                    if end_ns is not None:
+                        end_ns = int(end_ns)
+                        if self.max_end_ns is None or end_ns > self.max_end_ns:
+                            self.max_end_ns = end_ns
+
+                    if not self.session_id:
+                        self.session_id = str(attrs.get("session.id", ""))
+                    if not self.permission_mode:
+                        self.permission_mode = str(attrs.get("permission_mode", ""))
+
+                    if name == "claude_code.llm_request":
+                        context = attrs.get("llm_request.context", "")
+                        if context == "interaction":
+                            self.num_turns += 1
+                            if start_ns is not None:
+                                if (self.first_interaction_start_ns is None
+                                        or start_ns < self.first_interaction_start_ns):
+                                    self.first_interaction_start_ns = start_ns
+                                    ttft = attrs.get("ttft_ms")
+                                    if ttft is not None:
+                                        self.first_ttft_ms = int(float(str(ttft)))
+                        self.last_stop_reason = str(attrs.get("stop_reason", ""))
+
+                    elif name == "claude_code.tool":
+                        tool_name = attrs.get("tool_name", "")
+                        if tool_name == "Skill":
+                            skill = attrs.get("skill_name", "")
+                            if skill:
+                                self.skills.append(skill)
+                        elif tool_name == "Write":
+                            self.files_written += 1
+                        elif tool_name == "Agent":
+                            self.num_subagents += 1
+
+    def result(self):
+        duration_ms = 0
+        if self.min_start_ns is not None and self.max_end_ns is not None:
+            duration_ms = (self.max_end_ns - self.min_start_ns) // 1_000_000
+
+        return {
+            "session_id": self.session_id,
+            "claude_code_version": self.claude_code_version,
+            "permission_mode": self.permission_mode,
+            "duration_ms": duration_ms,
+            "ttft_ms": self.first_ttft_ms,
+            "num_turns": self.num_turns,
+            "stop_reason": self.last_stop_reason,
+            "skills": self.skills,
+            "files_written": self.files_written,
+            "num_subagents": self.num_subagents,
+        }
+
+
 def parse_otel(path):
     """Parse an OTEL JSONL log and return a metrics row dict."""
     records = []
@@ -34,6 +135,7 @@ def parse_otel(path):
     active_time = defaultdict(float)
     api_requests = []
     tool_uses = []
+    traces = TraceAccumulator()
 
     for rec in records:
         rpath = rec.get("path", "")
@@ -86,6 +188,9 @@ def parse_otel(path):
                             if tool:
                                 tool_uses.append(tool)
 
+        elif "/v1/traces" in rpath:
+            traces.add(payload)
+
     total_cost_usd = sum(cost_totals.values())
     input_tokens = int(sum(v for (m, t), v in token_totals.items() if t == "input"))
     output_tokens = int(sum(v for (m, t), v in token_totals.items() if t == "output"))
@@ -109,19 +214,23 @@ def parse_otel(path):
     model = max(cost_totals, key=cost_totals.get) if cost_totals else ""
     analyzed_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
+    trace_data = traces.result()
+    skills = trace_data.get("skills", [])
+    skills_str = ",".join(dict.fromkeys(skills)) if skills else ""
+
     return {
-        "session_id": "",
+        "session_id": trace_data.get("session_id", ""),
         "model": model,
-        "claude_code_version": "",
-        "permission_mode": "",
+        "claude_code_version": trace_data.get("claude_code_version", ""),
+        "permission_mode": trace_data.get("permission_mode", ""),
         "entrypoint": "",
         "prompt": "",
         "plugins_loaded": "",
         "analyzed_at": analyzed_at,
-        "duration_ms": "0",
+        "duration_ms": str(trace_data.get("duration_ms", 0)),
         "duration_api_ms": str(int(duration_api_s * 1000)),
-        "ttft_ms": "0",
-        "num_turns": "0",
+        "ttft_ms": str(trace_data.get("ttft_ms", 0)),
+        "num_turns": str(trace_data.get("num_turns", 0)),
         "total_cost_usd": f"{total_cost_usd:.6f}",
         "input_tokens": str(input_tokens),
         "output_tokens": str(output_tokens),
@@ -130,15 +239,15 @@ def parse_otel(path):
         "cache_hit_rate_pct": f"{cache_hit_rate:.1f}",
         "total_tool_calls": str(total_tool_calls),
         "tool_call_breakdown": json.dumps(dict(tool_counts.most_common())),
-        "skills_invoked": "",
-        "files_written": "0",
+        "skills_invoked": skills_str,
+        "files_written": str(trace_data.get("files_written", 0)),
         "num_thinking_blocks": "0",
-        "num_subagents": "0",
+        "num_subagents": str(trace_data.get("num_subagents", 0)),
         "subagent_total_tool_uses": "0",
         "subagent_total_duration_ms": "0",
         "is_error": "0",
         "terminal_reason": "",
-        "stop_reason": "",
+        "stop_reason": trace_data.get("stop_reason", ""),
     }
 
 
