@@ -41,6 +41,8 @@ class TraceAccumulator:
         self.first_ttft_ms = 0
         self.num_turns = 0
         self.last_stop_reason = ""
+        self.prompt = ""
+        self.first_prompt_start_ns = None
         self.skills = []
         self.files_written = 0
         self.num_subagents = 0
@@ -87,6 +89,15 @@ class TraceAccumulator:
                                         self.first_ttft_ms = int(float(str(ttft)))
                         self.last_stop_reason = str(attrs.get("stop_reason", ""))
 
+                    elif name == "claude_code.interaction":
+                        user_prompt = str(attrs.get("user_prompt", ""))
+                        if user_prompt and start_ns is not None:
+                            start_ns_val = int(start_ns) if not isinstance(start_ns, int) else start_ns
+                            if (self.first_prompt_start_ns is None
+                                    or start_ns_val < self.first_prompt_start_ns):
+                                self.first_prompt_start_ns = start_ns_val
+                                self.prompt = user_prompt[:500]
+
                     elif name == "claude_code.tool":
                         tool_name = attrs.get("tool_name", "")
                         if tool_name == "Skill":
@@ -110,6 +121,7 @@ class TraceAccumulator:
             "duration_ms": duration_ms,
             "ttft_ms": self.first_ttft_ms,
             "num_turns": self.num_turns,
+            "prompt": self.prompt,
             "stop_reason": self.last_stop_reason,
             "skills": self.skills,
             "files_written": self.files_written,
@@ -224,7 +236,7 @@ def parse_otel(path):
         "claude_code_version": trace_data.get("claude_code_version", ""),
         "permission_mode": trace_data.get("permission_mode", ""),
         "entrypoint": "",
-        "prompt": "",
+        "prompt": trace_data.get("prompt", ""),
         "plugins_loaded": "",
         "analyzed_at": analyzed_at,
         "duration_ms": str(trace_data.get("duration_ms", 0)),
