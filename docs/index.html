@@ -1134,7 +1134,7 @@ footer a { color: var(--primary); }
     {
       "name": "git",
       "description": "Git workflow automation and utilities",
-      "version": "0.0.6",
+      "version": "0.0.7",
       "has_readme": true,
       "commands": [
         {
@@ -1219,6 +1219,12 @@ footer a { color: var(--primary); }
         }
       ],
       "skills": [
+        {
+          "name": "git-commit-format",
+          "description": "Apply conventional commit formatting rules. Use when generating commit messages or creating commits.",
+          "description_html": "Apply conventional commit formatting rules. Use when generating commit messages or creating commits.",
+          "meta": ""
+        },
         {
           "name": "suggest-reviewers",
           "description": "Git blame analysis helper for the suggest-reviewers command",
@@ -2317,12 +2323,31 @@ footer a { color: var(--primary); }
     {
       "name": "openshift-developer",
       "description": "Bundle of curated plugins, skills, and MCP servers useful to any OpenShift engineer",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "has_readme": true,
       "commands": [],
-      "skills": [],
+      "skills": [
+        {
+          "name": "address-review-pr",
+          "description": "Fetch and address all PR review comments — categorize by priority, make code changes, post replies, and push. Use when the user wants to address, respond to, or work through PR review feedback.",
+          "description_html": "Fetch and address all PR review comments — categorize by priority, make code changes, post replies, and push. Use when the user wants to address, respond to, or work through PR review feedback.",
+          "meta": ""
+        },
+        {
+          "name": "address-review-precommit",
+          "description": "Fix code review findings before committing. Use when the user wants to address pre-commit review feedback, fix review findings in the current branch, or apply code review fixes and push.",
+          "description_html": "Fix code review findings before committing. Use when the user wants to address pre-commit review feedback, fix review findings in the current branch, or apply code review fixes and push.",
+          "meta": ""
+        }
+      ],
       "agents": [],
-      "hooks": [],
+      "hooks": [
+        {
+          "event_type": "SessionStart",
+          "matcher": ".*",
+          "hooks_json": "[\n  {\n    \"command\": \"${CLAUDE_PLUGIN_ROOT}/scripts/ensure-precommit.sh\",\n    \"type\": \"command\"\n  }\n]"
+        }
+      ],
       "mcp_servers": [],
       "rules": [],
       "category": "bundle",
@@ -2798,17 +2823,9 @@ footer a { color: var(--primary); }
     {
       "name": "utils",
       "description": "A generic utilities plugin serving as a catch-all for various helper commands and agents",
-      "version": "0.0.11",
+      "version": "0.0.12",
       "has_readme": true,
       "commands": [
-        {
-          "name": "address-reviews",
-          "full_name": "utils:address-reviews",
-          "description": "Fetch and address all PR review comments",
-          "description_html": "Fetch and address all PR review comments",
-          "synopsis": "/utils:address-reviews [PR number (optional - uses current branch if omitted)] [--preview]",
-          "body_html": "This command automates the process of addressing PR review comments by fetching all comments from a pull request, categorizing them by priority (blocking, change requests, questions, suggestions), and systematically addressing each one. It intelligently filters out outdated comments, bot-generated content, and oversized responses to optimize context usage. The command handles code changes, posts replies to reviewers, and maintains a clean git history by amending relevant commits rather than creating unnecessary new ones."
-        },
         {
           "name": "auto-approve-konflux-prs",
           "full_name": "utils:auto-approve-konflux-prs",

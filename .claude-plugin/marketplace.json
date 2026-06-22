@@ -12,7 +12,7 @@
       "name": "git",
       "source": "./plugins/git",
       "description": "Git Plugin",
-      "version": "0.0.6",
+      "version": "0.0.7",
       "category": "tooling",
       "keywords": [
         "git",
@@ -116,7 +116,7 @@
       "name": "utils",
       "source": "./plugins/utils",
       "description": "A generic utilities plugin serving as a catch-all for various helper commands",
-      "version": "0.0.11",
+      "version": "0.0.12",
       "category": "tooling",
       "keywords": [
         "utilities",
@@ -396,7 +396,7 @@
       "name": "openshift-developer",
       "source": "./plugins/openshift-developer",
       "description": "Bundle of curated plugins, skills, and MCP servers useful to any OpenShift engineer",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "category": "bundle",
       "keywords": [
         "openshift",

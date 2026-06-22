@@ -8,10 +8,6 @@ General-purpose utilities and helper commands for development workflows.
 
 Generate comprehensive test steps for one or more related GitHub PRs.
 
-### `/utils:address-reviews`
-
-Process and address code review comments on pull requests.
-
 ### `/utils:process-renovate-pr`
 
 Automate processing of Renovate dependency update PRs.
