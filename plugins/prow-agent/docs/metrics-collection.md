@@ -13,11 +13,11 @@ created regularly as adoption grows
 ([ai-helpers PR #532](https://github.com/openshift-eng/ai-helpers/pull/532)
 adds a skill to scaffold new agents).
 
-Each agent runs `claude -p` (and sometimes `--continue` for retry /
-summarization) with `--output-format stream-json`. The
+Each agent uses `agentic-ci run --backend local` to execute Claude Code
+with automatic OTEL telemetry collection. The
 [prow-agent](https://github.com/openshift-eng/ai-helpers/tree/main/plugins/prow-agent)
-plugin provides shared utilities for these CI sessions. As the fleet of
-agents grows, the need for centralized observability becomes critical.
+plugin provides `extract_metrics.py` for producing BigQuery autodl from
+the collected OTEL data.
 
 ### Why Measure?
 
@@ -67,22 +67,29 @@ automatically picked up by the pipeline and loaded into BigQuery. This
 is the same mechanism used for payload triage data
 (`payload_triage` table) and other CI artifacts.
 
-## Approach: OpenTelemetry Collection
+## Approach: OpenTelemetry via agentic-ci
 
-An embedded OTLP (OpenTelemetry) collector receives structured telemetry
-directly from Claude Code. This is the same approach used by
-[agentic-ci](https://github.com/opendatahub-io/agentic-ci), adapted for
-our Prow environment and BigQuery pipeline.
+[agentic-ci](https://github.com/opendatahub-io/agentic-ci) manages the
+OTEL collector lifecycle automatically. Each `agentic-ci run` starts an
+ephemeral OTLP HTTP collector, configures the Claude Code OTEL env vars,
+and writes telemetry to a JSONL file. For multi-invocation flows (e.g.
+main analysis → nudge → validation retries), the per-run JSONL files are
+concatenated into a single log for metrics extraction.
 
 ```
 ┌───────────────────────────────────────────────────────┐
 │  Prow Job Container                                   │
 │                                                       │
-│  ┌──────────────┐     OTLP/HTTP       ┌─────────────┐ │
-│  │ Claude Code  │  ──────────────────▶│  OTEL       │ │
-│  │ (agent)      │   metrics/logs/     │  Collector  │ │
-│  │              │   traces @ 10s      │  (Python)   │ │
-│  └──────────────┘                     └──────┬──────┘ │
+│  ┌──────────────┐                                     │
+│  │ agentic-ci   │ starts/stops OTEL collector per run │
+│  │ run --backend│                                     │
+│  │ local        │                                     │
+│  │  ┌──────────┐│     OTLP/HTTP       ┌─────────────┐│
+│  │  │Claude    ││ ──────────────────▶ │  OTEL       ││
+│  │  │Code      ││   metrics/logs/     │  Collector  ││
+│  │  │          ││   traces @ 10s      │  (agentic-  ││
+│  │  └──────────┘│                     │   ci)       ││
+│  └──────────────┘                     └──────┬──────┘│
 │                                              │        │
 │                                     ┌────────▼──────┐ │
 │                                     │ claude-otel   │ │
@@ -104,7 +111,8 @@ our Prow environment and BigQuery pipeline.
 ### What OTEL Provides
 
 Claude Code emits structured telemetry when
-`CLAUDE_CODE_ENABLE_TELEMETRY=1` is set:
+`CLAUDE_CODE_ENABLE_TELEMETRY=1` is set (configured automatically by
+agentic-ci):
 
 **Metrics** (`/v1/metrics`, pushed every 10 seconds):
 
@@ -124,69 +132,31 @@ Claude Code emits structured telemetry when
 
 Distributed trace spans covering the full session lifecycle.
 
-### Collector Design
-
-A minimal Python HTTP server (no external dependencies) that accepts OTLP
-payloads and writes them to a JSONL file. Based on the
-[agentic-ci implementation](https://github.com/opendatahub-io/agentic-ci/blob/main/src/agentic_ci/otel.py):
-
-```python
-class OTLPHandler(BaseHTTPRequestHandler):
-    def do_POST(self):
-        # Accept POST on /v1/metrics, /v1/logs, /v1/traces
-        # Parse JSON body
-        # Append {ts, path, payload} to JSONL log file
-        # Return 200 {"partialSuccess": {}}
-```
-
-Key design decisions:
-- **Ephemeral port** (`0`) with port file for discovery — avoids conflicts
-- **127.0.0.1 binding** — no network exposure
-- **1MB max payload** — prevents memory issues
-- **No external dependencies** — stdlib only (`http.server`, `json`)
-
-### Environment Variables
-
-Set on Claude Code before invocation:
-
-```bash
-export CLAUDE_CODE_ENABLE_TELEMETRY=1
-export OTEL_METRICS_EXPORTER=otlp
-export OTEL_LOGS_EXPORTER=otlp
-export OTEL_TRACES_EXPORTER=otlp
-export OTEL_EXPORTER_OTLP_PROTOCOL=http/json
-export OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:${OTEL_PORT}
-export OTEL_METRIC_EXPORT_INTERVAL=10000
-export CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1
-export OTEL_LOG_USER_PROMPTS=1
-export OTEL_LOG_TOOL_DETAILS=1
-export OTEL_LOG_TOOL_CONTENT=1
-```
-
 ### CI Step Lifecycle
 
 ```bash
-# 1. Start collector
-OTEL_PORT_FILE=$(mktemp)
+# agentic-ci manages OTEL collector per invocation
 OTEL_LOG="${ARTIFACT_DIR}/claude-otel.jsonl"
-python3 "${OTEL_COLLECTOR}" \
-    --port-file "${OTEL_PORT_FILE}" \
-    --log-file "${OTEL_LOG}" &
-COLLECTOR_PID=$!
 
-# Wait for port
-while [ ! -s "${OTEL_PORT_FILE}" ]; do sleep 0.1; done
-OTEL_PORT=$(cat "${OTEL_PORT_FILE}")
+run_claude() {
+    local prompt="$1"; shift
+    agentic-ci run --backend local --harness claude-code \
+        --model "${CLAUDE_MODEL}" --workdir "${WORKDIR}" \
+        "${prompt}" -- --allowedTools "${ALLOWED_TOOLS}" --verbose "$@"
+    local rc=$?
+    # Concatenate per-invocation OTEL JSONL
+    for f in /tmp/agentic-ci-run.*/claude-otel.jsonl; do
+        [ -f "$f" ] && cat "$f" >> "${OTEL_LOG}"
+    done
+    rm -rf /tmp/agentic-ci-run.*
+    return $rc
+}
 
-# 2. Set OTEL env vars (see above)
+# Run agent (may include --continue invocations)
+run_claude "Analyze payload" --max-turns 100
+run_claude "Wrap up" --continue --max-turns 20
 
-# 3. Run Claude (may include --continue invocations)
-claude -p "..." --output-format stream-json ...
-
-# 4. Stop collector
-kill ${COLLECTOR_PID} 2>/dev/null; wait ${COLLECTOR_PID} 2>/dev/null
-
-# 5. Generate BigQuery autodl from OTEL data
+# Generate BigQuery autodl from collected OTEL data
 python3 "${EXTRACT_METRICS}" "${OTEL_LOG}" \
     "${ARTIFACT_DIR}/claude-session-metrics-autodl.json"
 ```
@@ -196,11 +166,6 @@ python3 "${EXTRACT_METRICS}" "${OTEL_LOG}" \
 `extract_metrics.py` parses the OTEL JSONL and produces an autodl JSON
 file for the `claude_session_metrics` BigQuery table. Cost, tokens, tool
 usage, and timing come from OTEL metrics and logs.
-
-Identity fields (`session_id`, `model`, `claude_code_version`, `prompt`,
-etc.) are not available in OTEL data, so they are read from the
-stream-json log via `--stream-log`. The stream-json output is still
-written for Slack summary extraction and real-time build log visibility.
 
 ### Raw OTEL JSONL as Artifact
 
@@ -247,26 +212,9 @@ metrics. MLflow adds trace-level observability on top.
 
 | File | Purpose |
 |------|---------|
-| `scripts/otel_collector.py` | OTLP HTTP server — starts on ephemeral port, writes JSONL |
-| `scripts/extract_metrics.py` | Parses OTEL JSONL (or legacy stream-json) → autodl JSON for BigQuery |
-| `scripts/test_otel_collector.py` | Collector tests: lifecycle, parsing, summary |
-| `scripts/test_extract_metrics.py` | Extract tests: both OTEL and stream-json paths |
+| `scripts/extract_metrics.py` | Parses OTEL JSONL → autodl JSON for BigQuery |
+| `scripts/test_extract_metrics.py` | Extract tests: OTEL parsing paths |
 | `scripts/testdata/otel_metrics.jsonl` | Test fixture with sample OTLP payloads |
 
 The autodl schema (`claude_session_metrics` table) is unchanged — no
 BigQuery migration needed.
-
-## Open Questions
-
-1. **Should the agent-eval step also use the collector?** The eval harness
-   has its own cost tracking via `RunResult.cost_usd`. Adding OTEL
-   collection there would give per-request visibility into eval runs too.
-
-2. **OTEL data volume.** With `OTEL_LOG_TOOL_CONTENT=1`, the JSONL can
-   get large (tool outputs are included). Should we default to
-   `OTEL_LOG_TOOL_CONTENT=0` for production runs and only enable it for
-   debugging?
-
-3. **Identity fields.** Session ID, model, version, and prompt are
-   currently extracted from the stream-json `init` message. Should we
-   continue reading both files, or find these in OTEL resource attributes?

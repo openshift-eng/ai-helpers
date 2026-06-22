@@ -1,7 +1,7 @@
 {
   "name": "prow-agent",
   "description": "Utilities for Claude Code sessions running inside Prow CI jobs",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "author": {
     "name": "github.com/openshift-eng"
   }
