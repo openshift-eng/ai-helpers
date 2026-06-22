@@ -1,0 +1,3 @@
+pyyaml
+pytest
+skillsaw==0.14.0
