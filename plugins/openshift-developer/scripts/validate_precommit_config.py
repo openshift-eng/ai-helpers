@@ -22,10 +22,14 @@ TRUSTED_REPOS = {
 
 def main():
     try:
-        with open(".pre-commit-config.yaml") as f:
+        with open(".pre-commit-config.yaml", encoding="utf-8") as f:
             cfg = yaml.safe_load(f)
-    except Exception as e:
+    except (OSError, yaml.YAMLError) as e:
         print(f"ERROR: failed to parse .pre-commit-config.yaml: {e}", file=sys.stderr)
+        return 2
+
+    if not isinstance(cfg, dict):
+        print("ERROR: .pre-commit-config.yaml must contain a top-level mapping", file=sys.stderr)
         return 2
 
     blocked_repos = []
