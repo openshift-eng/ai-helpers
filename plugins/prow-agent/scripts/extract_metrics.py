@@ -314,12 +314,15 @@ def enrich_from_stream_log(row, stream_log_path):
 
     if results:
         last_result = results[-1]
-        row["duration_ms"] = str(sum(r.get("duration_ms", 0) for r in results))
-        row["ttft_ms"] = str(results[0].get("ttft_ms", 0))
-        row["num_turns"] = str(sum(r.get("num_turns", 0) for r in results))
+        if row["duration_ms"] in ("", "0"):
+            row["duration_ms"] = str(sum(r.get("duration_ms", 0) for r in results))
+        if row["ttft_ms"] in ("", "0"):
+            row["ttft_ms"] = str(results[0].get("ttft_ms", 0))
+        if row["num_turns"] in ("", "0"):
+            row["num_turns"] = str(sum(r.get("num_turns", 0) for r in results))
         row["is_error"] = str(1 if last_result.get("is_error", False) else 0)
         row["terminal_reason"] = last_result.get("terminal_reason", "")
-        row["stop_reason"] = last_result.get("stop_reason", "")
+        row["stop_reason"] = row["stop_reason"] or last_result.get("stop_reason", "")
 
     seen_tool_ids = set()
     skills = []
@@ -446,6 +449,20 @@ def main():
           f"cache_read={row['cache_read_input_tokens']} "
           f"cache_create={row['cache_creation_input_tokens']} "
           f"hit_rate={row['cache_hit_rate_pct']}%")
+
+    required = {
+        "session_id": row.get("session_id", ""),
+        "duration_ms": row.get("duration_ms", "0"),
+        "num_turns": row.get("num_turns", "0"),
+        "total_cost_usd": row.get("total_cost_usd", "0.000000"),
+        "prompt": row.get("prompt", ""),
+    }
+    missing = [k for k, v in required.items()
+               if not v or v in ("0", "0.000000")]
+    if missing:
+        print(f"ERROR: required fields are empty or zero: {', '.join(missing)}",
+              file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

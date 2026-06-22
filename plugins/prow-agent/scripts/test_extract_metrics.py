@@ -62,6 +62,15 @@ def test_otel_input():
         assert breakdown["Bash"] == 1
         # API duration from active_time
         assert row["duration_api_ms"] == "45500"  # 45.5s
+        # Trace-derived fields
+        assert row["session_id"] == "test-session-traces"
+        assert row["claude_code_version"] == "2.1.185"
+        assert row["prompt"] == "Analyze this payload"
+        assert row["num_turns"] == "2"
+        assert row["duration_ms"] == "30000"
+        assert row["ttft_ms"] == "3500"
+        assert row["stop_reason"] == "end_turn"
+        assert row["files_written"] == "1"
 
         print("PASS: test_otel_input")
     finally:
@@ -86,14 +95,16 @@ def test_otel_with_stream_enrichment():
 
         # Cost/tokens from OTEL
         assert row["total_cost_usd"] == "3.750000"
-        # Identity from stream-json
-        assert row["session_id"] == "test-session-001"
-        assert row["claude_code_version"] == "2.1.153"
+        # Trace-derived fields take priority over stream-json
+        assert row["session_id"] == "test-session-traces"
+        assert row["claude_code_version"] == "2.1.185"
+        # Stream-json fills in fields not available from traces
         assert row["plugins_loaded"] == "ci"
-        assert "ci:payload-analysis" in row["prompt"]
-        # Duration/turns from stream results
+        # Prompt from traces (interaction span)
+        assert row["prompt"] == "Analyze this payload"
+        # Duration/turns from traces
         assert row["duration_ms"] == "30000"
-        assert row["num_turns"] == "4"
+        assert row["num_turns"] == "2"
         # Outcome from stream results
         assert row["is_error"] == "0"
         assert row["terminal_reason"] == "completed"
@@ -154,7 +165,7 @@ def test_missing_stream_log():
         data = load_autodl(out_path)
         row = data["rows"][0]
         assert row["total_cost_usd"] == "3.750000"
-        assert row["session_id"] == ""
+        assert row["session_id"] == "test-session-traces"
         print("PASS: test_missing_stream_log")
     finally:
         os.unlink(out_path)
@@ -204,6 +215,25 @@ def test_tool_decision_events():
                 ]},
             ]}]}]
         }},
+        {"ts": "2026-06-16T00:00:01Z", "path": "/v1/traces", "payload": {
+            "resourceSpans": [{"resource": {"attributes": [
+                {"key": "service.version", "value": {"stringValue": "2.1.185"}}
+            ]}, "scopeSpans": [{"spans": [
+                {"traceId": "aa", "spanId": "11", "name": "claude_code.interaction", "kind": 1,
+                 "startTimeUnixNano": "1718452800000000000", "endTimeUnixNano": "1718452810000000000",
+                 "attributes": [
+                     {"key": "session.id", "value": {"stringValue": "tool-test-session"}},
+                     {"key": "user_prompt", "value": {"stringValue": "test prompt"}},
+                 ]},
+                {"traceId": "aa", "spanId": "22", "parentSpanId": "11", "name": "claude_code.llm_request", "kind": 1,
+                 "startTimeUnixNano": "1718452800500000000", "endTimeUnixNano": "1718452805000000000",
+                 "attributes": [
+                     {"key": "llm_request.context", "value": {"stringValue": "interaction"}},
+                     {"key": "ttft_ms", "value": {"intValue": 1000}},
+                     {"key": "stop_reason", "value": {"stringValue": "end_turn"}},
+                 ]},
+            ]}]}]
+        }},
     ]
     with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as tmp:
         for record in otel_data:
@@ -226,6 +256,43 @@ def test_tool_decision_events():
         os.unlink(out_path)
 
 
+def test_missing_required_fields_errors():
+    """OTEL data without traces should fail validation (missing session_id, prompt, etc)."""
+    otel_data = [
+        {"ts": "2026-06-16T00:00:00Z", "path": "/v1/metrics", "payload": {
+            "resourceMetrics": [{"scopeMetrics": [{"metrics": [
+                {"name": "claude_code.cost.usage", "sum": {"dataPoints": [
+                    {"attributes": [{"key": "model", "value": {"stringValue": "claude-opus-4-6"}}], "asDouble": 1.0}
+                ]}},
+                {"name": "claude_code.token.usage", "sum": {"dataPoints": [
+                    {"attributes": [{"key": "model", "value": {"stringValue": "claude-opus-4-6"}},
+                                    {"key": "type", "value": {"stringValue": "input"}}], "asInt": 1000},
+                    {"attributes": [{"key": "model", "value": {"stringValue": "claude-opus-4-6"}},
+                                    {"key": "type", "value": {"stringValue": "output"}}], "asInt": 500},
+                ]}}
+            ]}]}]
+        }},
+    ]
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as tmp:
+        for record in otel_data:
+            tmp.write(json.dumps(record) + "\n")
+        log_path = tmp.name
+    with tempfile.NamedTemporaryFile(suffix="-autodl.json", delete=False) as tmp:
+        out_path = tmp.name
+    try:
+        r = run_script(log_path, out_path)
+        assert r.returncode != 0, "Should fail when required fields are missing"
+        assert "required fields" in r.stderr.lower(), f"Expected validation error, got: {r.stderr}"
+        # File should still be written for debugging
+        assert os.path.exists(out_path)
+        data = load_autodl(out_path)
+        assert data["rows"][0]["total_cost_usd"] == "1.000000"
+        print("PASS: test_missing_required_fields_errors")
+    finally:
+        os.unlink(log_path)
+        os.unlink(out_path)
+
+
 if __name__ == "__main__":
     test_otel_input()
     test_otel_with_stream_enrichment()
@@ -233,4 +300,5 @@ if __name__ == "__main__":
     test_empty_otel_log()
     test_missing_stream_log()
     test_tool_decision_events()
+    test_missing_required_fields_errors()
     print("\nAll tests passed.")
