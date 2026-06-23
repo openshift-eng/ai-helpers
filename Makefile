@@ -14,10 +14,21 @@ help: ## Show this help message
 	@echo "Available targets:"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
+PLUGIN_TESTS := $(shell find plugins -name 'test_*.py' -o -name '*_test.py' 2>/dev/null | sort)
+
 .PHONY: test
-test: ## Run unit tests for custom lint rules
-	$(CONTAINER_RUNTIME) run --rm --platform linux/amd64 $(SELINUX_OPT) -v $(PWD):/workspace:Z \
-		--entrypoint sh $(SKILLSAW_IMAGE) -c "pip install --quiet pytest && pytest tests/ -v"
+test: ## Run all tests
+	pytest tests/ -v
+	@failures=0; \
+	for t in $(PLUGIN_TESTS); do \
+		echo "=== $$t ==="; \
+		python3 "$$t" || failures=$$((failures + 1)); \
+		echo; \
+	done; \
+	if [ $$failures -gt 0 ]; then \
+		echo "$$failures test file(s) failed"; \
+		exit 1; \
+	fi
 
 .PHONY: lint
 lint: ## Run plugin linter (verbose, strict mode)

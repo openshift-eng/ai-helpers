@@ -62,6 +62,15 @@ def test_otel_input():
         assert breakdown["Bash"] == 1
         # API duration from active_time
         assert row["duration_api_ms"] == "45500"  # 45.5s
+        # Trace-derived fields
+        assert row["session_id"] == "test-session-traces"
+        assert row["claude_code_version"] == "2.1.185"
+        assert row["prompt"] == "Analyze this payload"
+        assert row["num_turns"] == "2"
+        assert row["duration_ms"] == "30000"
+        assert row["ttft_ms"] == "3500"
+        assert row["stop_reason"] == "end_turn"
+        assert row["files_written"] == "1"
 
         print("PASS: test_otel_input")
     finally:
@@ -86,14 +95,16 @@ def test_otel_with_stream_enrichment():
 
         # Cost/tokens from OTEL
         assert row["total_cost_usd"] == "3.750000"
-        # Identity from stream-json
-        assert row["session_id"] == "test-session-001"
-        assert row["claude_code_version"] == "2.1.153"
+        # Trace-derived fields take priority over stream-json
+        assert row["session_id"] == "test-session-traces"
+        assert row["claude_code_version"] == "2.1.185"
+        # Stream-json fills in fields not available from traces
         assert row["plugins_loaded"] == "ci"
-        assert "ci:payload-analysis" in row["prompt"]
-        # Duration/turns from stream results
+        # Prompt from traces (interaction span)
+        assert row["prompt"] == "Analyze this payload"
+        # Duration/turns from traces
         assert row["duration_ms"] == "30000"
-        assert row["num_turns"] == "4"
+        assert row["num_turns"] == "2"
         # Outcome from stream results
         assert row["is_error"] == "0"
         assert row["terminal_reason"] == "completed"
@@ -154,7 +165,7 @@ def test_missing_stream_log():
         data = load_autodl(out_path)
         row = data["rows"][0]
         assert row["total_cost_usd"] == "3.750000"
-        assert row["session_id"] == ""
+        assert row["session_id"] == "test-session-traces"
         print("PASS: test_missing_stream_log")
     finally:
         os.unlink(out_path)
@@ -204,6 +215,25 @@ def test_tool_decision_events():
                 ]},
             ]}]}]
         }},
+        {"ts": "2026-06-16T00:00:01Z", "path": "/v1/traces", "payload": {
+            "resourceSpans": [{"resource": {"attributes": [
+                {"key": "service.version", "value": {"stringValue": "2.1.185"}}
+            ]}, "scopeSpans": [{"spans": [
+                {"traceId": "aa", "spanId": "11", "name": "claude_code.interaction", "kind": 1,
+                 "startTimeUnixNano": "1718452800000000000", "endTimeUnixNano": "1718452810000000000",
+                 "attributes": [
+                     {"key": "session.id", "value": {"stringValue": "tool-test-session"}},
+                     {"key": "user_prompt", "value": {"stringValue": "test prompt"}},
+                 ]},
+                {"traceId": "aa", "spanId": "22", "parentSpanId": "11", "name": "claude_code.llm_request", "kind": 1,
+                 "startTimeUnixNano": "1718452800500000000", "endTimeUnixNano": "1718452805000000000",
+                 "attributes": [
+                     {"key": "llm_request.context", "value": {"stringValue": "interaction"}},
+                     {"key": "ttft_ms", "value": {"intValue": 1000}},
+                     {"key": "stop_reason", "value": {"stringValue": "end_turn"}},
+                 ]},
+            ]}]}]
+        }},
     ]
     with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as tmp:
         for record in otel_data:
@@ -226,6 +256,340 @@ def test_tool_decision_events():
         os.unlink(out_path)
 
 
+def test_missing_required_fields_errors():
+    """OTEL data without traces should fail validation (missing session_id, prompt, etc)."""
+    otel_data = [
+        {"ts": "2026-06-16T00:00:00Z", "path": "/v1/metrics", "payload": {
+            "resourceMetrics": [{"scopeMetrics": [{"metrics": [
+                {"name": "claude_code.cost.usage", "sum": {"dataPoints": [
+                    {"attributes": [{"key": "model", "value": {"stringValue": "claude-opus-4-6"}}], "asDouble": 1.0}
+                ]}},
+                {"name": "claude_code.token.usage", "sum": {"dataPoints": [
+                    {"attributes": [{"key": "model", "value": {"stringValue": "claude-opus-4-6"}},
+                                    {"key": "type", "value": {"stringValue": "input"}}], "asInt": 1000},
+                    {"attributes": [{"key": "model", "value": {"stringValue": "claude-opus-4-6"}},
+                                    {"key": "type", "value": {"stringValue": "output"}}], "asInt": 500},
+                ]}}
+            ]}]}]
+        }},
+    ]
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as tmp:
+        for record in otel_data:
+            tmp.write(json.dumps(record) + "\n")
+        log_path = tmp.name
+    with tempfile.NamedTemporaryFile(suffix="-autodl.json", delete=False) as tmp:
+        out_path = tmp.name
+    try:
+        r = run_script(log_path, out_path)
+        assert r.returncode != 0, "Should fail when required fields are missing"
+        assert "required fields" in r.stderr.lower(), f"Expected validation error, got: {r.stderr}"
+        # File should still be written for debugging
+        assert os.path.exists(out_path)
+        data = load_autodl(out_path)
+        assert data["rows"][0]["total_cost_usd"] == "1.000000"
+        print("PASS: test_missing_required_fields_errors")
+    finally:
+        os.unlink(log_path)
+        os.unlink(out_path)
+
+
+def test_trace_accumulator_skill_and_agent_spans():
+    """TraceAccumulator should count Skill, Write, and Agent tool spans."""
+    otel_data = [
+        {"ts": "2026-06-16T00:00:00Z", "path": "/v1/metrics", "payload": {
+            "resourceMetrics": [{"scopeMetrics": [{"metrics": [
+                {"name": "claude_code.cost.usage", "sum": {"dataPoints": [
+                    {"attributes": [{"key": "model", "value": {"stringValue": "claude-opus-4-6"}}], "asDouble": 1.0}
+                ]}},
+                {"name": "claude_code.token.usage", "sum": {"dataPoints": [
+                    {"attributes": [{"key": "model", "value": {"stringValue": "claude-opus-4-6"}},
+                                    {"key": "type", "value": {"stringValue": "input"}}], "asInt": 1000},
+                    {"attributes": [{"key": "model", "value": {"stringValue": "claude-opus-4-6"}},
+                                    {"key": "type", "value": {"stringValue": "output"}}], "asInt": 500},
+                ]}}
+            ]}]}]
+        }},
+        {"ts": "2026-06-16T00:00:01Z", "path": "/v1/traces", "payload": {
+            "resourceSpans": [{"resource": {"attributes": [
+                {"key": "service.version", "value": {"stringValue": "2.1.185"}}
+            ]}, "scopeSpans": [{"spans": [
+                {"traceId": "aa", "spanId": "11", "name": "claude_code.interaction", "kind": 1,
+                 "startTimeUnixNano": "1718452800000000000", "endTimeUnixNano": "1718452810000000000",
+                 "attributes": [
+                     {"key": "session.id", "value": {"stringValue": "tool-spans-session"}},
+                     {"key": "user_prompt", "value": {"stringValue": "test prompt"}},
+                 ]},
+                {"traceId": "aa", "spanId": "22", "parentSpanId": "11", "name": "claude_code.llm_request", "kind": 1,
+                 "startTimeUnixNano": "1718452800500000000", "endTimeUnixNano": "1718452805000000000",
+                 "attributes": [
+                     {"key": "llm_request.context", "value": {"stringValue": "interaction"}},
+                     {"key": "ttft_ms", "value": {"intValue": 1000}},
+                     {"key": "stop_reason", "value": {"stringValue": "end_turn"}},
+                 ]},
+                {"traceId": "aa", "spanId": "30", "parentSpanId": "11", "name": "claude_code.tool", "kind": 1,
+                 "startTimeUnixNano": "1718452801000000000", "endTimeUnixNano": "1718452802000000000",
+                 "attributes": [
+                     {"key": "tool_name", "value": {"stringValue": "Skill"}},
+                     {"key": "skill_name", "value": {"stringValue": "code-review"}},
+                 ]},
+                {"traceId": "aa", "spanId": "31", "parentSpanId": "11", "name": "claude_code.tool", "kind": 1,
+                 "startTimeUnixNano": "1718452802000000000", "endTimeUnixNano": "1718452803000000000",
+                 "attributes": [
+                     {"key": "tool_name", "value": {"stringValue": "Skill"}},
+                     {"key": "skill_name", "value": {"stringValue": "simplify"}},
+                 ]},
+                {"traceId": "aa", "spanId": "32", "parentSpanId": "11", "name": "claude_code.tool", "kind": 1,
+                 "startTimeUnixNano": "1718452803000000000", "endTimeUnixNano": "1718452804000000000",
+                 "attributes": [
+                     {"key": "tool_name", "value": {"stringValue": "Write"}},
+                 ]},
+                {"traceId": "aa", "spanId": "33", "parentSpanId": "11", "name": "claude_code.tool", "kind": 1,
+                 "startTimeUnixNano": "1718452804000000000", "endTimeUnixNano": "1718452805000000000",
+                 "attributes": [
+                     {"key": "tool_name", "value": {"stringValue": "Write"}},
+                 ]},
+                {"traceId": "aa", "spanId": "34", "parentSpanId": "11", "name": "claude_code.tool", "kind": 1,
+                 "startTimeUnixNano": "1718452805000000000", "endTimeUnixNano": "1718452806000000000",
+                 "attributes": [
+                     {"key": "tool_name", "value": {"stringValue": "Agent"}},
+                 ]},
+            ]}]}]
+        }},
+    ]
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as tmp:
+        for record in otel_data:
+            tmp.write(json.dumps(record) + "\n")
+        log_path = tmp.name
+    with tempfile.NamedTemporaryFile(suffix="-autodl.json", delete=False) as tmp:
+        out_path = tmp.name
+    try:
+        r = run_script(log_path, out_path)
+        assert r.returncode == 0, f"Script failed: {r.stderr}"
+        data = load_autodl(out_path)
+        row = data["rows"][0]
+        assert row["skills_invoked"] == "code-review,simplify", f"Got {row['skills_invoked']}"
+        assert row["files_written"] == "2", f"Got {row['files_written']}"
+        assert row["num_subagents"] == "1", f"Got {row['num_subagents']}"
+        print("PASS: test_trace_accumulator_skill_and_agent_spans")
+    finally:
+        os.unlink(log_path)
+        os.unlink(out_path)
+
+
+def test_trace_accumulator_multi_batch():
+    """TraceAccumulator should accumulate across multiple /v1/traces payloads."""
+    otel_data = [
+        {"ts": "2026-06-16T00:00:00Z", "path": "/v1/metrics", "payload": {
+            "resourceMetrics": [{"scopeMetrics": [{"metrics": [
+                {"name": "claude_code.cost.usage", "sum": {"dataPoints": [
+                    {"attributes": [{"key": "model", "value": {"stringValue": "claude-opus-4-6"}}], "asDouble": 1.0}
+                ]}},
+                {"name": "claude_code.token.usage", "sum": {"dataPoints": [
+                    {"attributes": [{"key": "model", "value": {"stringValue": "claude-opus-4-6"}},
+                                    {"key": "type", "value": {"stringValue": "input"}}], "asInt": 1000},
+                    {"attributes": [{"key": "model", "value": {"stringValue": "claude-opus-4-6"}},
+                                    {"key": "type", "value": {"stringValue": "output"}}], "asInt": 500},
+                ]}}
+            ]}]}]
+        }},
+        {"ts": "2026-06-16T00:00:01Z", "path": "/v1/traces", "payload": {
+            "resourceSpans": [{"resource": {"attributes": [
+                {"key": "service.version", "value": {"stringValue": "2.1.185"}}
+            ]}, "scopeSpans": [{"spans": [
+                {"traceId": "aa", "spanId": "11", "name": "claude_code.interaction", "kind": 1,
+                 "startTimeUnixNano": "1718452800000000000", "endTimeUnixNano": "1718452810000000000",
+                 "attributes": [
+                     {"key": "session.id", "value": {"stringValue": "multi-batch-session"}},
+                     {"key": "user_prompt", "value": {"stringValue": "first prompt"}},
+                 ]},
+                {"traceId": "aa", "spanId": "22", "parentSpanId": "11", "name": "claude_code.llm_request", "kind": 1,
+                 "startTimeUnixNano": "1718452800500000000", "endTimeUnixNano": "1718452805000000000",
+                 "attributes": [
+                     {"key": "llm_request.context", "value": {"stringValue": "interaction"}},
+                     {"key": "ttft_ms", "value": {"intValue": 1000}},
+                     {"key": "stop_reason", "value": {"stringValue": "end_turn"}},
+                 ]},
+            ]}]}]
+        }},
+        {"ts": "2026-06-16T00:00:02Z", "path": "/v1/traces", "payload": {
+            "resourceSpans": [{"resource": {"attributes": [
+                {"key": "service.version", "value": {"stringValue": "2.1.185"}}
+            ]}, "scopeSpans": [{"spans": [
+                {"traceId": "bb", "spanId": "33", "name": "claude_code.llm_request", "kind": 1,
+                 "startTimeUnixNano": "1718452815000000000", "endTimeUnixNano": "1718452820000000000",
+                 "attributes": [
+                     {"key": "llm_request.context", "value": {"stringValue": "interaction"}},
+                     {"key": "ttft_ms", "value": {"intValue": 2000}},
+                     {"key": "stop_reason", "value": {"stringValue": "tool_use"}},
+                 ]},
+                {"traceId": "bb", "spanId": "34", "parentSpanId": "33", "name": "claude_code.tool", "kind": 1,
+                 "startTimeUnixNano": "1718452816000000000", "endTimeUnixNano": "1718452817000000000",
+                 "attributes": [
+                     {"key": "tool_name", "value": {"stringValue": "Agent"}},
+                 ]},
+            ]}]}]
+        }},
+    ]
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as tmp:
+        for record in otel_data:
+            tmp.write(json.dumps(record) + "\n")
+        log_path = tmp.name
+    with tempfile.NamedTemporaryFile(suffix="-autodl.json", delete=False) as tmp:
+        out_path = tmp.name
+    try:
+        r = run_script(log_path, out_path)
+        assert r.returncode == 0, f"Script failed: {r.stderr}"
+        data = load_autodl(out_path)
+        row = data["rows"][0]
+        assert row["num_turns"] == "2", f"Got {row['num_turns']}"
+        assert row["num_subagents"] == "1", f"Got {row['num_subagents']}"
+        # Duration spans from first batch start to second batch end
+        assert int(row["duration_ms"]) == 20000, f"Got {row['duration_ms']}"
+        # ttft should be from the first interaction span (earlier start_ns)
+        assert row["ttft_ms"] == "1000", f"Got {row['ttft_ms']}"
+        # stop_reason should be the last one seen
+        assert row["stop_reason"] == "tool_use", f"Got {row['stop_reason']}"
+        print("PASS: test_trace_accumulator_multi_batch")
+    finally:
+        os.unlink(log_path)
+        os.unlink(out_path)
+
+
+def test_trace_accumulator_prompt_ordering():
+    """TraceAccumulator should use the prompt from the earliest interaction span."""
+    otel_data = [
+        {"ts": "2026-06-16T00:00:00Z", "path": "/v1/metrics", "payload": {
+            "resourceMetrics": [{"scopeMetrics": [{"metrics": [
+                {"name": "claude_code.cost.usage", "sum": {"dataPoints": [
+                    {"attributes": [{"key": "model", "value": {"stringValue": "claude-opus-4-6"}}], "asDouble": 1.0}
+                ]}},
+                {"name": "claude_code.token.usage", "sum": {"dataPoints": [
+                    {"attributes": [{"key": "model", "value": {"stringValue": "claude-opus-4-6"}},
+                                    {"key": "type", "value": {"stringValue": "input"}}], "asInt": 1000},
+                    {"attributes": [{"key": "model", "value": {"stringValue": "claude-opus-4-6"}},
+                                    {"key": "type", "value": {"stringValue": "output"}}], "asInt": 500},
+                ]}}
+            ]}]}]
+        }},
+        {"ts": "2026-06-16T00:00:01Z", "path": "/v1/traces", "payload": {
+            "resourceSpans": [{"resource": {"attributes": [
+                {"key": "service.version", "value": {"stringValue": "2.1.185"}}
+            ]}, "scopeSpans": [{"spans": [
+                # Second interaction (later timestamp, but appears first in the payload)
+                {"traceId": "aa", "spanId": "22", "name": "claude_code.interaction", "kind": 1,
+                 "startTimeUnixNano": "1718452820000000000", "endTimeUnixNano": "1718452830000000000",
+                 "attributes": [
+                     {"key": "session.id", "value": {"stringValue": "prompt-order-session"}},
+                     {"key": "user_prompt", "value": {"stringValue": "second prompt"}},
+                 ]},
+                # First interaction (earlier timestamp)
+                {"traceId": "aa", "spanId": "11", "name": "claude_code.interaction", "kind": 1,
+                 "startTimeUnixNano": "1718452800000000000", "endTimeUnixNano": "1718452810000000000",
+                 "attributes": [
+                     {"key": "session.id", "value": {"stringValue": "prompt-order-session"}},
+                     {"key": "user_prompt", "value": {"stringValue": "first prompt"}},
+                 ]},
+                {"traceId": "aa", "spanId": "33", "parentSpanId": "11", "name": "claude_code.llm_request", "kind": 1,
+                 "startTimeUnixNano": "1718452800500000000", "endTimeUnixNano": "1718452805000000000",
+                 "attributes": [
+                     {"key": "llm_request.context", "value": {"stringValue": "interaction"}},
+                     {"key": "ttft_ms", "value": {"intValue": 1500}},
+                     {"key": "stop_reason", "value": {"stringValue": "end_turn"}},
+                 ]},
+            ]}]}]
+        }},
+    ]
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as tmp:
+        for record in otel_data:
+            tmp.write(json.dumps(record) + "\n")
+        log_path = tmp.name
+    with tempfile.NamedTemporaryFile(suffix="-autodl.json", delete=False) as tmp:
+        out_path = tmp.name
+    try:
+        r = run_script(log_path, out_path)
+        assert r.returncode == 0, f"Script failed: {r.stderr}"
+        data = load_autodl(out_path)
+        row = data["rows"][0]
+        assert row["prompt"] == "first prompt", f"Got {row['prompt']}"
+        print("PASS: test_trace_accumulator_prompt_ordering")
+    finally:
+        os.unlink(log_path)
+        os.unlink(out_path)
+
+
+def test_stream_log_fallback_when_traces_zero():
+    """When traces produce zero for duration/ttft/num_turns, stream-log should fill them."""
+    # OTEL data with traces that have no interaction spans (so duration/ttft/turns are all zero)
+    otel_data = [
+        {"ts": "2026-06-16T00:00:00Z", "path": "/v1/metrics", "payload": {
+            "resourceMetrics": [{"scopeMetrics": [{"metrics": [
+                {"name": "claude_code.cost.usage", "sum": {"dataPoints": [
+                    {"attributes": [{"key": "model", "value": {"stringValue": "claude-opus-4-6"}}], "asDouble": 1.0}
+                ]}},
+                {"name": "claude_code.token.usage", "sum": {"dataPoints": [
+                    {"attributes": [{"key": "model", "value": {"stringValue": "claude-opus-4-6"}},
+                                    {"key": "type", "value": {"stringValue": "input"}}], "asInt": 1000},
+                    {"attributes": [{"key": "model", "value": {"stringValue": "claude-opus-4-6"}},
+                                    {"key": "type", "value": {"stringValue": "output"}}], "asInt": 500},
+                ]}}
+            ]}]}]
+        }},
+        {"ts": "2026-06-16T00:00:01Z", "path": "/v1/traces", "payload": {
+            "resourceSpans": [{"resource": {"attributes": [
+                {"key": "service.version", "value": {"stringValue": "2.1.185"}}
+            ]}, "scopeSpans": [{"spans": [
+                # Only a non-interaction span; no llm_request or interaction spans
+                {"traceId": "aa", "spanId": "11", "name": "claude_code.tool", "kind": 1,
+                 "startTimeUnixNano": "1718452800000000000", "endTimeUnixNano": "1718452801000000000",
+                 "attributes": [
+                     {"key": "session.id", "value": {"stringValue": "fallback-session"}},
+                     {"key": "tool_name", "value": {"stringValue": "Read"}},
+                 ]},
+            ]}]}]
+        }},
+    ]
+    # Stream log with duration, ttft, and turns
+    stream_data = [
+        {"type": "system", "subtype": "init", "session_id": "fallback-session",
+         "model": "claude-opus-4-6", "claude_code_version": "2.1.185",
+         "permissionMode": "plan", "plugins": []},
+        {"type": "queue-operation", "operation": "enqueue", "content": "fallback prompt"},
+        {"type": "result", "duration_ms": 45000, "ttft_ms": 2500, "num_turns": 3,
+         "is_error": False, "terminal_reason": "completed", "stop_reason": "end_turn"},
+    ]
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as tmp:
+        for record in otel_data:
+            tmp.write(json.dumps(record) + "\n")
+        log_path = tmp.name
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as tmp:
+        for record in stream_data:
+            tmp.write(json.dumps(record) + "\n")
+        stream_path = tmp.name
+    with tempfile.NamedTemporaryFile(suffix="-autodl.json", delete=False) as tmp:
+        out_path = tmp.name
+    try:
+        r = run_script(log_path, out_path, extra_args=["--stream-log", stream_path])
+        assert r.returncode == 0, f"Script failed: {r.stderr}"
+        data = load_autodl(out_path)
+        row = data["rows"][0]
+        # Trace-derived duration_ms is 1000ms (1s from the single tool span),
+        # but since it's non-zero the stream-log should NOT overwrite it
+        assert row["duration_ms"] == "1000", f"Got {row['duration_ms']}"
+        # ttft_ms is 0 from traces (no interaction spans), so stream-log fills in
+        assert row["ttft_ms"] == "2500", f"Got {row['ttft_ms']}"
+        # num_turns is 0 from traces (no interaction spans), so stream-log fills in
+        assert row["num_turns"] == "3", f"Got {row['num_turns']}"
+        # session_id from traces
+        assert row["session_id"] == "fallback-session"
+        # prompt from stream-log (no interaction spans in traces)
+        assert row["prompt"] == "fallback prompt"
+        print("PASS: test_stream_log_fallback_when_traces_zero")
+    finally:
+        os.unlink(log_path)
+        os.unlink(stream_path)
+        os.unlink(out_path)
+
+
 if __name__ == "__main__":
     test_otel_input()
     test_otel_with_stream_enrichment()
@@ -233,4 +597,9 @@ if __name__ == "__main__":
     test_empty_otel_log()
     test_missing_stream_log()
     test_tool_decision_events()
+    test_missing_required_fields_errors()
+    test_trace_accumulator_skill_and_agent_spans()
+    test_trace_accumulator_multi_batch()
+    test_trace_accumulator_prompt_ordering()
+    test_stream_log_fallback_when_traces_zero()
     print("\nAll tests passed.")

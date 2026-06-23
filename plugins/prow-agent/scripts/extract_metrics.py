@@ -16,6 +16,118 @@ from collections import Counter, defaultdict
 from datetime import datetime, timezone
 
 
+def _parse_span_attrs(span):
+    """Extract span attributes as a flat dict."""
+    attrs = {}
+    for a in span.get("attributes", []):
+        key = a["key"]
+        val = a.get("value", {})
+        v = val.get("stringValue", val.get("intValue", val.get("doubleValue")))
+        if v is not None:
+            attrs[key] = v
+    return attrs
+
+
+class TraceAccumulator:
+    """Accumulates session metadata across batched /v1/traces payloads."""
+
+    def __init__(self):
+        self.session_id = ""
+        self.claude_code_version = ""
+        self.permission_mode = ""
+        self.min_start_ns = None
+        self.max_end_ns = None
+        self.first_interaction_start_ns = None
+        self.first_ttft_ms = 0
+        self.num_turns = 0
+        self.last_stop_reason = ""
+        self.prompt = ""
+        self.first_prompt_start_ns = None
+        self.skills = []
+        self.files_written = 0
+        self.num_subagents = 0
+
+    def add(self, payload):
+        """Process one /v1/traces payload."""
+        for rs in payload.get("resourceSpans", []):
+            for ra in rs.get("resource", {}).get("attributes", []):
+                if ra["key"] == "service.version" and not self.claude_code_version:
+                    val = ra.get("value", {})
+                    self.claude_code_version = val.get("stringValue", "")
+
+            for ss in rs.get("scopeSpans", []):
+                for span in ss.get("spans", []):
+                    attrs = _parse_span_attrs(span)
+                    name = span.get("name", "")
+                    start_ns = span.get("startTimeUnixNano")
+                    end_ns = span.get("endTimeUnixNano")
+
+                    if start_ns is not None:
+                        start_ns = int(start_ns)
+                        if self.min_start_ns is None or start_ns < self.min_start_ns:
+                            self.min_start_ns = start_ns
+                    if end_ns is not None:
+                        end_ns = int(end_ns)
+                        if self.max_end_ns is None or end_ns > self.max_end_ns:
+                            self.max_end_ns = end_ns
+
+                    if not self.session_id:
+                        self.session_id = str(attrs.get("session.id", ""))
+                    if not self.permission_mode:
+                        self.permission_mode = str(attrs.get("permission_mode", ""))
+
+                    if name == "claude_code.llm_request":
+                        context = attrs.get("llm_request.context", "")
+                        if context == "interaction":
+                            self.num_turns += 1
+                            self.last_stop_reason = str(attrs.get("stop_reason", ""))
+                            if start_ns is not None:
+                                if (self.first_interaction_start_ns is None
+                                        or start_ns < self.first_interaction_start_ns):
+                                    self.first_interaction_start_ns = start_ns
+                                    ttft = attrs.get("ttft_ms")
+                                    if ttft is not None:
+                                        self.first_ttft_ms = int(float(ttft))
+
+                    elif name == "claude_code.interaction":
+                        user_prompt = str(attrs.get("user_prompt", ""))
+                        if user_prompt and start_ns is not None:
+                            if (self.first_prompt_start_ns is None
+                                    or start_ns < self.first_prompt_start_ns):
+                                self.first_prompt_start_ns = start_ns
+                                self.prompt = user_prompt[:500]
+
+                    elif name == "claude_code.tool":
+                        tool_name = attrs.get("tool_name", "")
+                        if tool_name == "Skill":
+                            skill = attrs.get("skill_name", "")
+                            if skill:
+                                self.skills.append(skill)
+                        elif tool_name == "Write":
+                            self.files_written += 1
+                        elif tool_name == "Agent":
+                            self.num_subagents += 1
+
+    def result(self):
+        duration_ms = 0
+        if self.min_start_ns is not None and self.max_end_ns is not None:
+            duration_ms = (self.max_end_ns - self.min_start_ns) // 1_000_000
+
+        return {
+            "session_id": self.session_id,
+            "claude_code_version": self.claude_code_version,
+            "permission_mode": self.permission_mode,
+            "duration_ms": duration_ms,
+            "ttft_ms": self.first_ttft_ms,
+            "num_turns": self.num_turns,
+            "prompt": self.prompt,
+            "stop_reason": self.last_stop_reason,
+            "skills": self.skills,
+            "files_written": self.files_written,
+            "num_subagents": self.num_subagents,
+        }
+
+
 def parse_otel(path):
     """Parse an OTEL JSONL log and return a metrics row dict."""
     records = []
@@ -34,6 +146,7 @@ def parse_otel(path):
     active_time = defaultdict(float)
     api_requests = []
     tool_uses = []
+    traces = TraceAccumulator()
 
     for rec in records:
         rpath = rec.get("path", "")
@@ -86,6 +199,9 @@ def parse_otel(path):
                             if tool:
                                 tool_uses.append(tool)
 
+        elif "/v1/traces" in rpath:
+            traces.add(payload)
+
     total_cost_usd = sum(cost_totals.values())
     input_tokens = int(sum(v for (m, t), v in token_totals.items() if t == "input"))
     output_tokens = int(sum(v for (m, t), v in token_totals.items() if t == "output"))
@@ -109,19 +225,23 @@ def parse_otel(path):
     model = max(cost_totals, key=cost_totals.get) if cost_totals else ""
     analyzed_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
+    trace_data = traces.result()
+    skills = trace_data.get("skills", [])
+    skills_str = ",".join(dict.fromkeys(skills)) if skills else ""
+
     return {
-        "session_id": "",
+        "session_id": trace_data.get("session_id", ""),
         "model": model,
-        "claude_code_version": "",
-        "permission_mode": "",
+        "claude_code_version": trace_data.get("claude_code_version", ""),
+        "permission_mode": trace_data.get("permission_mode", ""),
         "entrypoint": "",
-        "prompt": "",
+        "prompt": trace_data.get("prompt", ""),
         "plugins_loaded": "",
         "analyzed_at": analyzed_at,
-        "duration_ms": "0",
+        "duration_ms": str(trace_data.get("duration_ms", 0)),
         "duration_api_ms": str(int(duration_api_s * 1000)),
-        "ttft_ms": "0",
-        "num_turns": "0",
+        "ttft_ms": str(trace_data.get("ttft_ms", 0)),
+        "num_turns": str(trace_data.get("num_turns", 0)),
         "total_cost_usd": f"{total_cost_usd:.6f}",
         "input_tokens": str(input_tokens),
         "output_tokens": str(output_tokens),
@@ -130,15 +250,15 @@ def parse_otel(path):
         "cache_hit_rate_pct": f"{cache_hit_rate:.1f}",
         "total_tool_calls": str(total_tool_calls),
         "tool_call_breakdown": json.dumps(dict(tool_counts.most_common())),
-        "skills_invoked": "",
-        "files_written": "0",
+        "skills_invoked": skills_str,
+        "files_written": str(trace_data.get("files_written", 0)),
         "num_thinking_blocks": "0",
-        "num_subagents": "0",
+        "num_subagents": str(trace_data.get("num_subagents", 0)),
         "subagent_total_tool_uses": "0",
         "subagent_total_duration_ms": "0",
         "is_error": "0",
         "terminal_reason": "",
-        "stop_reason": "",
+        "stop_reason": trace_data.get("stop_reason", ""),
     }
 
 
@@ -193,12 +313,15 @@ def enrich_from_stream_log(row, stream_log_path):
 
     if results:
         last_result = results[-1]
-        row["duration_ms"] = str(sum(r.get("duration_ms", 0) for r in results))
-        row["ttft_ms"] = str(results[0].get("ttft_ms", 0))
-        row["num_turns"] = str(sum(r.get("num_turns", 0) for r in results))
+        if row["duration_ms"] in ("", "0"):
+            row["duration_ms"] = str(sum(r.get("duration_ms", 0) for r in results))
+        if row["ttft_ms"] in ("", "0"):
+            row["ttft_ms"] = str(results[0].get("ttft_ms", 0))
+        if row["num_turns"] in ("", "0"):
+            row["num_turns"] = str(sum(r.get("num_turns", 0) for r in results))
         row["is_error"] = str(1 if last_result.get("is_error", False) else 0)
         row["terminal_reason"] = last_result.get("terminal_reason", "")
-        row["stop_reason"] = last_result.get("stop_reason", "")
+        row["stop_reason"] = row["stop_reason"] or last_result.get("stop_reason", "")
 
     seen_tool_ids = set()
     skills = []
@@ -228,13 +351,15 @@ def enrich_from_stream_log(row, stream_log_path):
                 num_thinking += 1
 
     if skills:
-        row["skills_invoked"] = ",".join(dict.fromkeys(skills))
-    row["files_written"] = str(files_written_count)
+        row["skills_invoked"] = row["skills_invoked"] or ",".join(dict.fromkeys(skills))
+    if row["files_written"] in ("", "0"):
+        row["files_written"] = str(files_written_count)
     row["num_thinking_blocks"] = str(num_thinking)
 
     task_starts = [l for l in lines if l.get("subtype") == "task_started"]
     task_notifications = [l for l in lines if l.get("subtype") == "task_notification"]
-    row["num_subagents"] = str(len(task_starts))
+    if row["num_subagents"] in ("", "0"):
+        row["num_subagents"] = str(len(task_starts))
     row["subagent_total_tool_uses"] = str(sum(t.get("usage", {}).get("tool_uses", 0) for t in task_notifications))
     row["subagent_total_duration_ms"] = str(sum(t.get("usage", {}).get("duration_ms", 0) for t in task_notifications))
 
@@ -325,6 +450,20 @@ def main():
           f"cache_read={row['cache_read_input_tokens']} "
           f"cache_create={row['cache_creation_input_tokens']} "
           f"hit_rate={row['cache_hit_rate_pct']}%")
+
+    required = {
+        "session_id": row.get("session_id", ""),
+        "duration_ms": row.get("duration_ms", "0"),
+        "num_turns": row.get("num_turns", "0"),
+        "total_cost_usd": row.get("total_cost_usd", "0.000000"),
+        "prompt": row.get("prompt", ""),
+    }
+    missing = [k for k, v in required.items()
+               if not v or v in ("0", "0.000000")]
+    if missing:
+        print(f"ERROR: required fields are empty or zero: {', '.join(missing)}",
+              file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":
