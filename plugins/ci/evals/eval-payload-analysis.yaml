@@ -9,6 +9,7 @@ execution:
   max_budget_usd: 25.0
   env:
     EVAL_SNAPSHOT_DIR: $EVAL_SNAPSHOT_DIR
+    GITHUB_TOKEN: $GITHUB_TOKEN
 
 runner:
   type: claude-code
