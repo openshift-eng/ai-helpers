@@ -80,6 +80,7 @@ class TraceAccumulator:
                         context = attrs.get("llm_request.context", "")
                         if context == "interaction":
                             self.num_turns += 1
+                            self.last_stop_reason = str(attrs.get("stop_reason", ""))
                             if start_ns is not None:
                                 if (self.first_interaction_start_ns is None
                                         or start_ns < self.first_interaction_start_ns):
@@ -87,7 +88,6 @@ class TraceAccumulator:
                                     ttft = attrs.get("ttft_ms")
                                     if ttft is not None:
                                         self.first_ttft_ms = int(float(ttft))
-                        self.last_stop_reason = str(attrs.get("stop_reason", ""))
 
                     elif name == "claude_code.interaction":
                         user_prompt = str(attrs.get("user_prompt", ""))
@@ -351,13 +351,15 @@ def enrich_from_stream_log(row, stream_log_path):
                 num_thinking += 1
 
     if skills:
-        row["skills_invoked"] = ",".join(dict.fromkeys(skills))
-    row["files_written"] = str(files_written_count)
+        row["skills_invoked"] = row["skills_invoked"] or ",".join(dict.fromkeys(skills))
+    if row["files_written"] in ("", "0"):
+        row["files_written"] = str(files_written_count)
     row["num_thinking_blocks"] = str(num_thinking)
 
     task_starts = [l for l in lines if l.get("subtype") == "task_started"]
     task_notifications = [l for l in lines if l.get("subtype") == "task_notification"]
-    row["num_subagents"] = str(len(task_starts))
+    if row["num_subagents"] in ("", "0"):
+        row["num_subagents"] = str(len(task_starts))
     row["subagent_total_tool_uses"] = str(sum(t.get("usage", {}).get("tool_uses", 0) for t in task_notifications))
     row["subagent_total_duration_ms"] = str(sum(t.get("usage", {}).get("duration_ms", 0) for t in task_notifications))
 
