@@ -1,0 +1,8 @@
+{
+  "name": "github",
+  "description": "GitHub utilities for image uploads, asset management, and PR automation",
+  "version": "0.1.0",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}

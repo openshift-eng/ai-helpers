@@ -1247,6 +1247,47 @@ footer a { color: var(--primary); }
       }
     },
     {
+      "name": "github",
+      "description": "GitHub utilities for image uploads, asset management, and PR automation",
+      "version": "0.1.0",
+      "has_readme": true,
+      "commands": [],
+      "skills": [
+        {
+          "name": "check-pr-ci-status",
+          "description": "Check CI status on a GitHub PR and detect new failures. Use when monitoring a PR for CI regressions, deciding if CI failures need attention, or building a review-response loop.",
+          "description_html": "Check CI status on a GitHub PR and detect new failures. Use when monitoring a PR for CI regressions, deciding if CI failures need attention, or building a review-response loop.",
+          "meta": ""
+        },
+        {
+          "name": "fetch-pr-comments",
+          "description": "Fetch new review comments from a GitHub PR, filtered to trusted users (org members + allowed bots). Use when monitoring a PR for feedback, checking for new review comments, or building a review-response workflow.",
+          "description_html": "Fetch new review comments from a GitHub PR, filtered to trusted users (org members + allowed bots). Use when monitoring a PR for feedback, checking for new review comments, or building a review-response workflow.",
+          "meta": ""
+        },
+        {
+          "name": "upload-screenshot",
+          "description": "Upload screenshots or images to GitHub and get back embeddable URLs for PR comments and issues. Use this when you have taken a screenshot, captured a UI change, or have any image file that needs to be shared in a GitHub PR or issue.",
+          "description_html": "Upload screenshots or images to GitHub and get back embeddable URLs for PR comments and issues. Use this when you have taken a screenshot, captured a UI change, or have any image file that needs to be shared in a GitHub PR or issue.",
+          "meta": ""
+        }
+      ],
+      "agents": [],
+      "hooks": [],
+      "mcp_servers": [],
+      "rules": [],
+      "category": "tooling",
+      "keywords": [
+        "github",
+        "screenshots",
+        "images",
+        "uploads"
+      ],
+      "author": {
+        "name": "github.com/openshift-eng"
+      }
+    },
+    {
       "name": "golang",
       "description": "Go development tools: gopls MCP server, LSP integration, automatic gofmt formatting, golangci-lint linting, and CVE dependency patching",
       "version": "0.3.1",
