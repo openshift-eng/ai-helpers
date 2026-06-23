@@ -86,16 +86,15 @@ class TraceAccumulator:
                                     self.first_interaction_start_ns = start_ns
                                     ttft = attrs.get("ttft_ms")
                                     if ttft is not None:
-                                        self.first_ttft_ms = int(float(str(ttft)))
+                                        self.first_ttft_ms = int(float(ttft))
                         self.last_stop_reason = str(attrs.get("stop_reason", ""))
 
                     elif name == "claude_code.interaction":
                         user_prompt = str(attrs.get("user_prompt", ""))
                         if user_prompt and start_ns is not None:
-                            start_ns_val = int(start_ns) if not isinstance(start_ns, int) else start_ns
                             if (self.first_prompt_start_ns is None
-                                    or start_ns_val < self.first_prompt_start_ns):
-                                self.first_prompt_start_ns = start_ns_val
+                                    or start_ns < self.first_prompt_start_ns):
+                                self.first_prompt_start_ns = start_ns
                                 self.prompt = user_prompt[:500]
 
                     elif name == "claude_code.tool":
