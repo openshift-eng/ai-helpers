@@ -413,6 +413,31 @@ footer a { color: var(--primary); }
       }
     },
     {
+      "name": "agentic-docs",
+      "description": "Create and maintain AI-optimized documentation for OpenShift",
+      "version": "1.0.0",
+      "has_readme": true,
+      "commands": [],
+      "skills": [
+        {
+          "name": "component-docs",
+          "description": "Create lean component documentation for OpenShift repositories",
+          "description_html": "Create lean component documentation for OpenShift repositories",
+          "meta": ""
+        },
+        {
+          "name": "update-platform-docs",
+          "description": "Update existing platform documentation with automatic gap detection in openshift/enhancements",
+          "description_html": "Update existing platform documentation with automatic gap detection in openshift/enhancements",
+          "meta": ""
+        }
+      ],
+      "agents": [],
+      "hooks": [],
+      "mcp_servers": [],
+      "rules": []
+    },
+    {
       "name": "ai-sbom",
       "description": "Generate AI Software Bill of Materials (SBOM) declarations for PR descriptions",
       "version": "0.0.1",
@@ -487,7 +512,7 @@ footer a { color: var(--primary); }
     {
       "name": "ci",
       "description": "Tools for working with OpenShift CI and analyzing Prow job results",
-      "version": "0.0.49",
+      "version": "0.0.52",
       "has_readme": true,
       "commands": [
         {
@@ -617,14 +642,6 @@ footer a { color: var(--primary); }
           "description_html": "List unstable tests with pass rate below 95%",
           "synopsis": "/ci:list-unstable-tests \u003cversion\u003e \u003ckeywords\u003e [sippy-url]",
           "body_html": "\u003cp\u003eThe \u003ccode\u003eci:list-unstable-tests\u003c/code\u003e command queries OpenShift CI test results from Sippy and lists all tests matching the keywords that have a pass rate below 95%. This is useful for quickly identifying unstable tests that need attention.\u003c/p\u003e\u003cp\u003eBy default, it queries the production Sippy instance at \u003ccode\u003esippy.dptools.openshift.org\u003c/code\u003e. You can optionally specify a different Sippy instance URL to query alternative environments (e.g., QE component readiness).\u003c/p\u003e\u003cp\u003eThis command is useful for:\u003cbr\u003e- Identifying unstable tests with inconsistent pass rates\u003cbr\u003e- Finding regression candidates for investigation\u003cbr\u003e- Generating reports of unstable test cases\u003cbr\u003e- Prioritizing test stabilization efforts\u003cbr\u003e- Quality gate checks before releases\u003c/p\u003e"
-        },
-        {
-          "name": "payload-analysis",
-          "full_name": "ci:payload-analysis",
-          "description": "Analyze a payload snapshot to identify root causes of blocking job failures and produce an HTML report with revert recommendations",
-          "description_html": "Analyze a payload snapshot to identify root causes of blocking job failures and produce an HTML report with revert recommendations",
-          "synopsis": "/ci:payload-analysis \u003cpayload-tag\u003e [--snapshot-dir DIR]",
-          "body_html": "\u003cp\u003eThe \u003ccode\u003eci:payload-analysis\u003c/code\u003e command analyzes a specific payload tag using a local snapshot (from the \u003ccode\u003epayload-snapshot\u003c/code\u003e skill), investigates every failed blocking job, and produces a self-contained HTML report summarizing what went wrong.\u003c/p\u003e\u003cp\u003eIt supports \u003cstrong\u003eRejected\u003c/strong\u003e payloads (full analysis), \u003cstrong\u003eReady\u003c/strong\u003e payloads (early analysis of blocking jobs that have already failed), and \u003cstrong\u003eAccepted\u003c/strong\u003e payloads (which may have been force-accepted despite blocking failures).\u003c/p\u003e\u003cp\u003eThe analysis reads from a pre-built snapshot that contains all release controller, GitHub, and CI data frozen at the time of snapshot creation. This means:\u003c/p\u003e\u003cp\u003e- \u003cstrong\u003eReproducible\u003c/strong\u003e: Re-running the analysis on the same snapshot produces consistent results\u003cbr\u003e- \u003cstrong\u003eHistorical replay\u003c/strong\u003e: Analyze old payloads against their original data, even after the world has moved on\u003cbr\u003e- \u003cstrong\u003eModel-friendly\u003c/strong\u003e: Less capable models can perform analysis without orchestrating complex multi-skill data gathering\u003c/p\u003e\u003cp\u003eIf no snapshot exists for the requested payload, one is created automatically.\u003c/p\u003e\u003cp\u003eThe analysis performs \u003cstrong\u003ehistorical lookback\u003c/strong\u003e through the snapshot&#x27;s payload chain to determine when each failure first appeared. For each originating payload, it identifies the PRs introduced as likely culprits. When a candidate PR can be correlated with high confidence (&gt;= 85 rubric score), the report recommends it for \u003cstrong\u003eimmediate revert\u003c/strong\u003e per OCP policy.\u003c/p\u003e\u003cp\u003eAn \u003cstrong\u003eadversarial review\u003c/strong\u003e subagent checks the analysis for weak correlations, misattributions, and logical gaps before finalizing the report.\u003c/p\u003e\u003cp\u003eThe payload results YAML output (\u003ccode\u003epayload-results-{tag}.yaml\u003c/code\u003e) can be consumed by composable downstream commands: \u003ccode\u003e/ci:payload-revert\u003c/code\u003e stages reverts for high-confidence candidates, and \u003ccode\u003e/ci:payload-experiment\u003c/code\u003e opens draft revert PRs for medium-confidence candidates.\u003c/p\u003e\u003cp\u003e### Key Features\u003c/p\u003e\u003cp\u003e- \u003cstrong\u003eSnapshot-based\u003c/strong\u003e: All data pre-gathered locally — no live API orchestration during analysis\u003cbr\u003e- \u003cstrong\u003eHistorical lookback\u003c/strong\u003e: Uses the snapshot&#x27;s chain data to identify when each job first started failing\u003cbr\u003e- \u003cstrong\u003ePR correlation\u003c/strong\u003e: Reads local PR diffs from the snapshot to match error messages with code changes\u003cbr\u003e- \u003cstrong\u003eParallel investigation\u003c/strong\u003e: Kicks off subagents for each failed blocking job using the appropriate CI analysis skill\u003cbr\u003e- \u003cstrong\u003eAdversarial review\u003c/strong\u003e: A dedicated reviewer subagent checks conclusions before finalizing\u003cbr\u003e- \u003cstrong\u003eRevert recommendations\u003c/strong\u003e: Proposes specific PRs to revert when evidence strongly links them to a failure\u003cbr\u003e- \u003cstrong\u003eHTML report\u003c/strong\u003e: Self-contained HTML report with collapsible sections, color-coded severity, and executive summary\u003c/p\u003e"
         },
         {
           "name": "payload-experiment",
@@ -901,6 +918,46 @@ footer a { color: var(--primary); }
       }
     },
     {
+      "name": "ci-extras",
+      "description": "MCP server and extended tooling for OpenShift CI data access",
+      "version": "0.0.1",
+      "has_readme": true,
+      "commands": [
+        {
+          "name": "check-release-health",
+          "full_name": "ci-extras:check-release-health",
+          "description": "Summarize the CI health of an OpenShift release using live data from the openshift-ci-mcp server",
+          "description_html": "Summarize the CI health of an OpenShift release using live data from the openshift-ci-mcp server",
+          "synopsis": "/ci-extras:check-release-health \u003crelease version\u003e",
+          "body_html": "\u003cp\u003eFetches live CI health data for a given OpenShift release and produces a concise summary covering payload acceptance, test regressions, and recent failures.\u003c/p\u003e\u003cp\u003eUseful for a quick read on overall release quality before a payload promotion decision or during a release readiness review.\u003c/p\u003e"
+        }
+      ],
+      "skills": [],
+      "agents": [],
+      "hooks": [],
+      "mcp_servers": [
+        {
+          "name": "openshift-ci-mcp",
+          "type": "stdio",
+          "endpoint": "go",
+          "source": ".mcp.json"
+        }
+      ],
+      "rules": [],
+      "category": "ci",
+      "keywords": [
+        "openshift-ci",
+        "mcp",
+        "ci",
+        "sippy",
+        "prow",
+        "test-failures"
+      ],
+      "author": {
+        "name": "github.com/openshift-eng"
+      }
+    },
+    {
       "name": "code-review",
       "description": "Automated code quality review with language-aware analysis for pre-commit verification",
       "version": "0.0.10",
@@ -1043,83 +1100,6 @@ footer a { color: var(--primary); }
       }
     },
     {
-      "name": "container-image",
-      "description": "Container image inspection and analysis using skopeo and podman",
-      "version": "0.0.3",
-      "has_readme": true,
-      "commands": [
-        {
-          "name": "compare",
-          "full_name": "container-image:compare",
-          "description": "Compare two container images to identify differences",
-          "description_html": "Compare two container images to identify differences",
-          "synopsis": "/container-image:compare \u003cimage1\u003e \u003cimage2\u003e",
-          "body_html": "\u003cp\u003eThe \u003ccode\u003econtainer-image:compare\u003c/code\u003e command compares two container images and identifies their differences. This is useful for understanding what changed between image versions, comparing images from different registries, or verifying image rebuilds.\u003c/p\u003e\u003cp\u003eThe command analyzes and compares:\u003cbr\u003e- Image metadata (digests, creation dates)\u003cbr\u003e- Layer differences (added, removed, modified)\u003cbr\u003e- Size differences\u003cbr\u003e- Configuration changes (environment variables, labels, entrypoints)\u003cbr\u003e- Platform/architecture support\u003cbr\u003e- Security and vulnerability differences (if scanning tools available)\u003c/p\u003e\u003cp\u003eThis command is useful for:\u003cbr\u003e- Understanding changes between image versions\u003cbr\u003e- Verifying image rebuilds match expectations\u003cbr\u003e- Comparing images across registries (e.g., production vs staging)\u003cbr\u003e- Identifying what layers changed in an update\u003cbr\u003e- Troubleshooting deployment issues\u003cbr\u003e- Security auditing and change tracking\u003c/p\u003e"
-        },
-        {
-          "name": "inspect",
-          "full_name": "container-image:inspect",
-          "description": "Inspect and provide detailed breakdown of a container image",
-          "description_html": "Inspect and provide detailed breakdown of a container image",
-          "synopsis": "/container-image:inspect \u003cimage\u003e",
-          "body_html": "\u003cp\u003eThe \u003ccode\u003econtainer-image:inspect\u003c/code\u003e command provides a comprehensive breakdown of a container image using \u003ccode\u003eskopeo\u003c/code\u003e and \u003ccode\u003epodman\u003c/code\u003e. It analyzes the image metadata, configuration, and layers to give you detailed information about the image structure, size, architecture, and contents.\u003c/p\u003e\u003cp\u003eThis command is useful for:\u003cbr\u003e- Understanding image composition and layers\u003cbr\u003e- Verifying image architecture and OS\u003cbr\u003e- Checking image size and disk usage\u003cbr\u003e- Inspecting image labels and annotations\u003cbr\u003e- Validating image configuration\u003cbr\u003e- Troubleshooting image-related issues\u003cbr\u003e- Verifying multi-architecture image support\u003cbr\u003e- Checking which platforms are available for an image\u003cbr\u003e- Comparing platform-specific image differences\u003cbr\u003e- Planning multi-arch image builds\u003c/p\u003e\u003cp\u003eThe command works with images from any registry (quay.io, docker.io, registry.redhat.io, etc.) and automatically detects whether an image is a manifest list (multi-architecture) or a single image, providing detailed analysis for both cases.\u003c/p\u003e"
-        },
-        {
-          "name": "tags",
-          "full_name": "container-image:tags",
-          "description": "List and analyze available tags for a container image repository",
-          "description_html": "List and analyze available tags for a container image repository",
-          "synopsis": "/container-image:tags \u003crepository\u003e",
-          "body_html": "\u003cp\u003eThe \u003ccode\u003econtainer-image:tags\u003c/code\u003e command lists and analyzes all available tags for a container image repository. It provides detailed information about each tag including creation date, size, architecture support, and digest.\u003c/p\u003e\u003cp\u003eThis command helps you:\u003cbr\u003e- Discover available image versions\u003cbr\u003e- Identify the latest stable releases\u003cbr\u003e- Find images for specific architectures\u003cbr\u003e- Track image update frequency\u003cbr\u003e- Identify deprecated or outdated tags\u003cbr\u003e- Plan image upgrades\u003cbr\u003e- Understand tagging conventions\u003c/p\u003e\u003cp\u003eThe command works with any OCI-compliant registry and can filter, sort, and analyze tags based on various criteria.\u003c/p\u003e"
-        }
-      ],
-      "skills": [],
-      "agents": [],
-      "hooks": [],
-      "mcp_servers": [],
-      "rules": [],
-      "category": "development",
-      "keywords": [
-        "containers",
-        "skopeo",
-        "podman",
-        "images"
-      ],
-      "author": {
-        "name": "github.com/openshift-eng"
-      }
-    },
-    {
-      "name": "doc",
-      "description": "A plugin for engineering documentation and notes",
-      "version": "0.0.2",
-      "has_readme": true,
-      "commands": [
-        {
-          "name": "note",
-          "full_name": "doc:note",
-          "description": "Generate professional engineering notes and append them to a log file",
-          "description_html": "Generate professional engineering notes and append them to a log file",
-          "synopsis": "/doc:note [task description]",
-          "body_html": "\u003cp\u003eThe \u003ccode\u003edoc:note\u003c/code\u003e command generates professional engineering notes about completed tasks and appends them to a persistent log file (\u003ccode\u003e~/engineering-notes.md\u003c/code\u003e). It automatically searches for relevant context including GitHub PR URLs, issue numbers, and Jira ticket references in the conversation history and git repository.\u003c/p\u003e\u003cp\u003eThis command helps engineers maintain a structured record of their daily work, making it easier to:\u003cbr\u003e- Track accomplishments for performance reviews\u003cbr\u003e- Generate status reports and weekly updates\u003cbr\u003e- Maintain a searchable history of technical decisions\u003cbr\u003e- Document completed work with proper attribution\u003c/p\u003e"
-        }
-      ],
-      "skills": [],
-      "agents": [],
-      "hooks": [],
-      "mcp_servers": [],
-      "rules": [],
-      "category": "productivity",
-      "keywords": [
-        "documentation",
-        "notes",
-        "writing"
-      ],
-      "author": {
-        "name": "OpenShift Engineering"
-      }
-    },
-    {
       "name": "etcd",
       "description": "Etcd cluster health monitoring and performance analysis utilities",
       "version": "0.0.2",
@@ -1160,7 +1140,7 @@ footer a { color: var(--primary); }
     {
       "name": "git",
       "description": "Git workflow automation and utilities",
-      "version": "0.0.6",
+      "version": "0.0.7",
       "has_readme": true,
       "commands": [
         {
@@ -1246,6 +1226,12 @@ footer a { color: var(--primary); }
       ],
       "skills": [
         {
+          "name": "git-commit-format",
+          "description": "Apply conventional commit formatting rules. Use when generating commit messages or creating commits.",
+          "description_html": "Apply conventional commit formatting rules. Use when generating commit messages or creating commits.",
+          "meta": ""
+        },
+        {
           "name": "suggest-reviewers",
           "description": "Git blame analysis helper for the suggest-reviewers command",
           "description_html": "Git blame analysis helper for the suggest-reviewers command",
@@ -1321,52 +1307,6 @@ footer a { color: var(--primary); }
         "lsp",
         "linting",
         "formatting"
-      ],
-      "author": {
-        "name": "github.com/openshift-eng"
-      }
-    },
-    {
-      "name": "gwapi",
-      "description": "Gateway API management for Kubernetes/OpenShift clusters",
-      "version": "0.0.2",
-      "has_readme": true,
-      "commands": [
-        {
-          "name": "check",
-          "full_name": "gwapi:check",
-          "description": "Check Gateway API resources status in the cluster",
-          "description_html": "Check Gateway API resources status in the cluster",
-          "synopsis": "/gwapi:check [namespace]",
-          "body_html": "\u003cp\u003eThe \u003ccode\u003egwapi:check\u003c/code\u003e command verifies the status of Gateway API resources in a Kubernetes or OpenShift cluster. It checks:\u003cbr\u003e1. Presence and status of GatewayClass resources\u003cbr\u003e2. Presence and status of Gateway resources\u003cbr\u003e3. Gateway listener configuration and readiness\u003cbr\u003e4. Gateway addresses and connectivity\u003c/p\u003e\u003cp\u003eThis command helps troubleshoot Gateway API deployments and verify successful installation.\u003c/p\u003e"
-        },
-        {
-          "name": "delete",
-          "full_name": "gwapi:delete",
-          "description": "Delete Gateway API resources from a Kubernetes/OpenShift cluster",
-          "description_html": "Delete Gateway API resources from a Kubernetes/OpenShift cluster",
-          "synopsis": "/gwapi:delete [namespace]",
-          "body_html": "\u003cp\u003eThe \u003ccode\u003egwapi:delete\u003c/code\u003e command removes Gateway API resources from a Kubernetes or OpenShift cluster. It deletes:\u003cbr\u003e1. Gateway resources (namespace-scoped)\u003cbr\u003e2. GatewayClass resources (cluster-scoped)\u003c/p\u003e\u003cp\u003eThe command uses \u003ccode\u003eoc\u003c/code\u003e (preferred) or \u003ccode\u003ekubectl\u003c/code\u003e to delete the resources safely. It provides confirmation before deletion and verifies successful removal.\u003c/p\u003e"
-        },
-        {
-          "name": "install",
-          "full_name": "gwapi:install",
-          "description": "Install Gateway API resources to a Kubernetes/OpenShift cluster",
-          "description_html": "Install Gateway API resources to a Kubernetes/OpenShift cluster",
-          "synopsis": "/gwapi:install [namespace]",
-          "body_html": "\u003cp\u003eThe \u003ccode\u003egwapi:install\u003c/code\u003e command applies Gateway API YAML resources to a Kubernetes or OpenShift cluster. It installs:\u003cbr\u003e1. \u003ccode\u003egatewayclass.yaml\u003c/code\u003e - Defines the GatewayClass resource\u003cbr\u003e2. \u003ccode\u003egateway.yaml\u003c/code\u003e - Defines the Gateway resource with cluster-specific domain configuration\u003c/p\u003e\u003cp\u003eThe command automatically retrieves the cluster&#x27;s ingress domain and substitutes it into the gateway.yaml before applying. It uses \u003ccode\u003eoc\u003c/code\u003e (preferred) or \u003ccode\u003ekubectl\u003c/code\u003e to install the resources.\u003c/p\u003e\u003cp\u003e\u003cstrong\u003eThe command waits for all resources to reach a successful status before completing\u003c/strong\u003e (up to 5 minutes timeout). This ensures that the Gateway API resources are fully reconciled and ready for use.\u003c/p\u003e"
-        }
-      ],
-      "skills": [],
-      "agents": [],
-      "hooks": [],
-      "mcp_servers": [],
-      "rules": [],
-      "category": "openshift",
-      "keywords": [
-        "gateway-api",
-        "networking",
-        "ingress"
       ],
       "author": {
         "name": "github.com/openshift-eng"
@@ -1480,7 +1420,7 @@ footer a { color: var(--primary); }
     {
       "name": "jira",
       "description": "A plugin to automate tasks with Jira",
-      "version": "0.7.1",
+      "version": "0.7.2",
       "has_readme": true,
       "commands": [
         {
@@ -1554,6 +1494,14 @@ footer a { color: var(--primary); }
           "description_html": "Generate comprehensive feature documentation from Jira feature and all related issues and PRs",
           "synopsis": "/jira:generate-feature-doc \u003cfeature-key\u003e",
           "body_html": "\u003cp\u003eThe \u003ccode\u003ejira:generate-feature-doc\u003c/code\u003e command generates comprehensive feature documentation by recursively analyzing a Jira feature ticket and all its related issues, sub-tasks, and linked GitHub pull requests.\u003c/p\u003e\u003cp\u003eThis command is particularly useful for:\u003cbr\u003e- Creating complete feature documentation after implementation\u003cbr\u003e- Understanding the full scope and implementation details of a feature\u003cbr\u003e- Generating onboarding materials for new team members\u003cbr\u003e- Creating technical design documents from actual implementation\u003cbr\u003e- Documenting complex features with multiple related issues and PRs\u003c/p\u003e\u003cp\u003eThe command performs deep analysis of:\u003cbr\u003e- The main feature issue and all related Jira tickets (recursively)\u003cbr\u003e- All linked GitHub PRs, commits, and code changes\u003cbr\u003e- Design decisions captured in PR discussions and code reviews\u003cbr\u003e- Implementation details from actual code changes\u003c/p\u003e"
+        },
+        {
+          "name": "generate-feature-updates",
+          "full_name": "jira:generate-feature-updates",
+          "description": "Generate strategic feature updates for weekly status documents",
+          "description_html": "Generate strategic feature updates for weekly status documents",
+          "synopsis": "/jira:generate-feature-updates [project-key] [--component \u003ccomponent-name\u003e] [--label \u003clabel-name\u003e] [user-filters...]",
+          "body_html": "\u003cp\u003eThe \u003ccode\u003ejira:generate-feature-updates\u003c/code\u003e command generates concise executive-level feature summaries for weekly status documents. It analyzes recent activity across Jira issues and their descendants to produce prose-style updates suitable for the &quot;Key Strategic Feature Updates&quot; section of weekly reports.\u003c/p\u003e\u003cp\u003eThis command is particularly useful for:\u003c/p\u003e\u003cp\u003e- Weekly executive status documents\u003cbr\u003e- Strategic feature progress summaries\u003cbr\u003e- Stakeholder communication on feature delivery\u003cbr\u003e- Identifying blocked or at-risk features\u003c/p\u003e\u003cp\u003eKey capabilities:\u003c/p\u003e\u003cp\u003e- \u003cstrong\u003eEfficient batch data gathering\u003c/strong\u003e using async Python script\u003cbr\u003e- Interactive component selection from available project components\u003cbr\u003e- User filtering by email or display name (with auto-resolution)\u003cbr\u003e- Intelligent activity analysis using \u003ccode\u003echildIssuesOf()\u003c/code\u003e for full hierarchy traversal\u003cbr\u003e- GitHub PR and GitLab MR integration via external links\u003cbr\u003e- Automatic filtering: skips issues with no significant activity\u003cbr\u003e- Batch processing with full-section review\u003cbr\u003e- Nested list output: feature link as top-level bullet, update prose as nested bullet\u003c/p\u003e\u003cp\u003eThis command uses the \u003cstrong\u003eStatus Analysis Engine\u003c/strong\u003e skill for core analysis logic. See \u003ccode\u003eplugins/jira/skills/status-analysis/SKILL.md\u003c/code\u003e for detailed implementation.\u003c/p\u003e"
         },
         {
           "name": "generate-test-plan",
@@ -1781,44 +1729,6 @@ footer a { color: var(--primary); }
       }
     },
     {
-      "name": "lvms",
-      "description": "LVMS (Logical Volume Manager Storage) plugin for troubleshooting and debugging storage issues",
-      "version": "0.1.1",
-      "has_readme": true,
-      "commands": [
-        {
-          "name": "analyze",
-          "full_name": "lvms:analyze",
-          "description": "Comprehensive LVMS troubleshooting - analyzes LVMCluster, volume groups, PVCs, and storage issues on live clusters or must-gather",
-          "description_html": "Comprehensive LVMS troubleshooting - analyzes LVMCluster, volume groups, PVCs, and storage issues on live clusters or must-gather",
-          "synopsis": "/lvms:analyze [must-gather-path] [--live] [--component \u003ccomponent\u003e]",
-          "body_html": "\u003cp\u003eThe \u003ccode\u003elvms:analyze\u003c/code\u003e command provides comprehensive troubleshooting for OpenShift LVMS (Logical Volume Manager Storage). It analyzes the health and configuration of LVMCluster, volume groups, PVCs, TopoLVM CSI driver, and node-level storage to identify and diagnose common LVMS issues.\u003c/p\u003e\u003cp\u003eThe command can operate in two modes:\u003cbr\u003e- \u003cstrong\u003eMust-gather analysis\u003c/strong\u003e: Analyzes LVMS must-gather data offline\u003cbr\u003e- \u003cstrong\u003eLive cluster analysis\u003c/strong\u003e: Connects to a running cluster and performs real-time diagnostics\u003c/p\u003e\u003cp\u003eCommon issues detected:\u003cbr\u003e- PVCs stuck in Pending state\u003cbr\u003e- LVMCluster not reaching Ready state\u003cbr\u003e- Volume group creation failures\u003cbr\u003e- Missing or unhealthy physical volumes\u003cbr\u003e- TopoLVM CSI driver issues\u003cbr\u003e- Node-level disk availability problems\u003cbr\u003e- Thin pool configuration issues\u003cbr\u003e- Device class misconfigurations\u003cbr\u003e- Operator and vg-manager pod errors (from log analysis)\u003c/p\u003e"
-        }
-      ],
-      "skills": [
-        {
-          "name": "lvms-analyzer",
-          "description": "Analyzes LVMS must-gather data to diagnose storage issues",
-          "description_html": "Analyzes LVMS must-gather data to diagnose storage issues",
-          "meta": ""
-        }
-      ],
-      "agents": [],
-      "hooks": [],
-      "mcp_servers": [],
-      "rules": [],
-      "category": "debugging",
-      "keywords": [
-        "lvms",
-        "storage",
-        "lvm",
-        "troubleshooting"
-      ],
-      "author": {
-        "name": "github.com/openshift-eng"
-      }
-    },
-    {
       "name": "marketplace-ops",
       "description": "Maintenance commands for Claude Code plugin marketplaces",
       "version": "0.1.2",
@@ -1910,38 +1820,6 @@ footer a { color: var(--primary); }
       }
     },
     {
-      "name": "native-notifications",
-      "description": "Cross-platform desktop notifications (macOS, Linux desktop, Linux headless)",
-      "version": "0.0.2",
-      "has_readme": true,
-      "commands": [],
-      "skills": [],
-      "agents": [],
-      "hooks": [
-        {
-          "event_type": "Notification",
-          "matcher": ".*",
-          "hooks_json": "[\n  {\n    \"command\": \"if command -v osascript \u003e/dev/null 2\u003e&1; then osascript -e 'display notification \\\"Claude needs your input\\\" with title \\\"\\ud83d\\udd14 Claude Code\\\"'; elif command -v notify-send \u003e/dev/null 2\u003e&1 && [ -n \\\"${DISPLAY:-}${WAYLAND_DISPLAY:-}\\\" ]; then notify-send '\\ud83d\\udd14 Claude Code' 'Claude needs your input'; else printf '\\\\a'; fi\",\n    \"type\": \"command\"\n  }\n]"
-        },
-        {
-          "event_type": "Stop",
-          "matcher": ".*",
-          "hooks_json": "[\n  {\n    \"command\": \"if command -v osascript \u003e/dev/null 2\u003e&1; then osascript -e 'display notification \\\"Claude finished your task\\\" with title \\\"\\u2705 Claude Code\\\"'; elif command -v notify-send \u003e/dev/null 2\u003e&1 && [ -n \\\"${DISPLAY:-}${WAYLAND_DISPLAY:-}\\\" ]; then notify-send '\\u2705 Claude Code' 'Claude finished your task'; else printf '\\\\a'; fi\",\n    \"type\": \"command\"\n  }\n]"
-        }
-      ],
-      "mcp_servers": [],
-      "rules": [],
-      "category": "productivity",
-      "keywords": [
-        "notifications",
-        "desktop",
-        "alerts"
-      ],
-      "author": {
-        "name": "openshift"
-      }
-    },
-    {
       "name": "node",
       "description": "Kubernetes and OpenShift node health monitoring and diagnostics",
       "version": "0.0.3",
@@ -1975,7 +1853,7 @@ footer a { color: var(--primary); }
     {
       "name": "node-cve",
       "description": "CVE triage for OpenShift Node team components",
-      "version": "0.0.2",
+      "version": "0.0.3",
       "has_readme": true,
       "commands": [
         {
@@ -2011,6 +1889,61 @@ footer a { color: var(--primary); }
       "hooks": [],
       "mcp_servers": [],
       "rules": []
+    },
+    {
+      "name": "node-team",
+      "description": "OpenShift Node team assistant for development, deployment, debugging, and workflow tasks across kubelet, MCO, CRI-O, crun, conmonrs, Kueue operator, Jira, Red Hat KB/support cases, Prometheus, and platform docs.",
+      "version": "0.16.0",
+      "has_readme": true,
+      "commands": [
+        {
+          "name": "overview",
+          "full_name": "node-team:overview",
+          "description": "Show Node team component ownership, repos, sub-teams, and specialized plugin routing",
+          "description_html": "Show Node team component ownership, repos, sub-teams, and specialized plugin routing",
+          "synopsis": "/node-team:overview [--sub-team core|dra]",
+          "body_html": "\u003cp\u003eDisplays a structured overview of the OpenShift Node team: which components\u003cbr\u003ethe team owns, which repos map to each component, sub-team assignments, active\u003cbr\u003esprint info, and which specialized plugins handle which domain.\u003c/p\u003e\u003cp\u003eThis is the entry point for understanding the Node team&#x27;s scope and navigating\u003cbr\u003eto the right tool for a given task.\u003c/p\u003e"
+        },
+        {
+          "name": "preflight",
+          "full_name": "node-team:preflight",
+          "description": "Verify that GitHub and Jira tokens are valid and the environment is ready for Node team workflows",
+          "description_html": "Verify that GitHub and Jira tokens are valid and the environment is ready for Node team workflows",
+          "synopsis": "/node-team:preflight [--fix]",
+          "body_html": "\u003cp\u003eTests all authentication tokens and CLI tools required by Node team workflows\u003cbr\u003ein a single pass. Reports pass/fail for each check so you can fix all auth\u003cbr\u003eissues at once instead of discovering them one at a time.\u003c/p\u003e\u003cp\u003eRun this before \u003ccode\u003e/node-team:setup\u003c/code\u003e or \u003ccode\u003e/node-cve:triage\u003c/code\u003e to catch expired or\u003cbr\u003emissing credentials early.\u003c/p\u003e"
+        },
+        {
+          "name": "setup",
+          "full_name": "node-team:setup",
+          "description": "Clone a Node team repo and set up a worktree for development",
+          "description_html": "Clone a Node team repo and set up a worktree for development",
+          "synopsis": "/node-team:setup \u003ccomponent\u003e [--ticket OCPNODE-1234] [--pr 456]",
+          "body_html": "\u003cp\u003eSets up a development environment for a Node team component. Clones the\u003cbr\u003eappropriate downstream or upstream repo (based on the component-to-repo\u003cbr\u003emapping), creates a git worktree for the task, and installs the node-team\u003cbr\u003eplugin locally in the worktree.\u003c/p\u003e\u003cp\u003eWhen given a Jira ticket or PR number, names the worktree after it and (for\u003cbr\u003etickets) fetches the issue summary to confirm the right component.\u003c/p\u003e"
+        }
+      ],
+      "skills": [
+        {
+          "name": "node",
+          "description": "OpenShift Node team assistant. Covers kubelet, MCO, CRI-O, crun, conmonrs, Kueue operator, Jira (OCPNODE/OCPBUGS), Red Hat KB/support cases, Prometheus, and K8s/OCP docs. Triggers on OpenShift node-layer development, deployment, debugging, or team workflow tasks. For CVE/vulnerability triage, analysis, or reporting, defer to the node-cve plugin.",
+          "description_html": "OpenShift Node team assistant. Covers kubelet, MCO, CRI-O, crun, conmonrs, Kueue operator, Jira (OCPNODE/OCPBUGS), Red Hat KB/support cases, Prometheus, and K8s/OCP docs. Triggers on OpenShift node-layer development, deployment, debugging, or team workflow tasks. For CVE/vulnerability triage, analysis, or reporting, defer to the node-cve plugin.",
+          "meta": "Tools: Bash(curl:*)"
+        }
+      ],
+      "agents": [],
+      "hooks": [],
+      "mcp_servers": [],
+      "rules": [],
+      "category": "openshift",
+      "keywords": [
+        "openshift",
+        "node",
+        "kubelet",
+        "cri-o",
+        "mco"
+      ],
+      "author": {
+        "name": "github.com/openshift-eng"
+      }
     },
     {
       "name": "node-tuning",
@@ -2396,12 +2329,31 @@ footer a { color: var(--primary); }
     {
       "name": "openshift-developer",
       "description": "Bundle of curated plugins, skills, and MCP servers useful to any OpenShift engineer",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "has_readme": true,
       "commands": [],
-      "skills": [],
+      "skills": [
+        {
+          "name": "address-review-pr",
+          "description": "Fetch and address all PR review comments — categorize by priority, make code changes, post replies, and push. Use when the user wants to address, respond to, or work through PR review feedback.",
+          "description_html": "Fetch and address all PR review comments — categorize by priority, make code changes, post replies, and push. Use when the user wants to address, respond to, or work through PR review feedback.",
+          "meta": ""
+        },
+        {
+          "name": "address-review-precommit",
+          "description": "Fix code review findings before committing. Use when the user wants to address pre-commit review feedback, fix review findings in the current branch, or apply code review fixes and push.",
+          "description_html": "Fix code review findings before committing. Use when the user wants to address pre-commit review feedback, fix review findings in the current branch, or apply code review fixes and push.",
+          "meta": ""
+        }
+      ],
       "agents": [],
-      "hooks": [],
+      "hooks": [
+        {
+          "event_type": "SessionStart",
+          "matcher": ".*",
+          "hooks_json": "[\n  {\n    \"command\": \"${CLAUDE_PLUGIN_ROOT}/scripts/ensure-precommit.sh\",\n    \"type\": \"command\"\n  }\n]"
+        }
+      ],
       "mcp_servers": [],
       "rules": [],
       "category": "bundle",
@@ -2490,36 +2442,6 @@ footer a { color: var(--primary); }
       }
     },
     {
-      "name": "origin",
-      "description": "Helpers for openshift/origin development.",
-      "version": "0.0.2",
-      "has_readme": true,
-      "commands": [
-        {
-          "name": "two-node-origin-pr-helper",
-          "full_name": "/origin:two-node-origin-pr-helper — Review Two Node (Fencing/Arbiter) tests in openshift/origin.",
-          "description": "Expert review tool for PRs that add or modify Two Node (Fencing or Arbiter) tests under test/extended/two_node/ in openshift/origin.",
-          "description_html": "Expert review tool for PRs that add or modify Two Node (Fencing or Arbiter) tests under test/extended/two_node/ in openshift/origin.",
-          "synopsis": "/origin:two-node-origin-pr-helper [--url PR_URL] [\u003cpr\u003e] [--depth quick|full]",
-          "body_html": "\u003cp\u003eThe /origin:two-node-origin-pr-helper command is an expert review tool for PRs that add or modify\u003cbr\u003eTwo Node (Fencing or Arbiter) tests under test/extended/two_node/ in openshift/origin.\u003c/p\u003e\u003cp\u003eIt:\u003c/p\u003e\u003cp\u003e- Discovers changed Two Node test files from the current branch.\u003cbr\u003e- Analyzes Ginkgo Describe / Context / It blocks, suite tags, and [Serial] markers.\u003cbr\u003e- Reviews test logic, structure, cleanup, and determinism.\u003cbr\u003e- Suggests reuse of existing Origin and Kubernetes helpers instead of ad-hoc code.\u003cbr\u003e- Recommends suite + [Serial] tagging and CI coverage.\u003cbr\u003e- Generates ready-to-paste PR description text for the Origin PR.\u003cbr\u003e- Suggests CI lane characteristics for openshift/release (without generating full PR text).\u003c/p\u003e\u003cp\u003eUse this command when creating or reviewing Origin PRs that touch the Two Node test suite and you\u003cbr\u003ewant a focused, reproducible review of test design, helper usage, and CI integration.\u003c/p\u003e\u003cp\u003eThis is a specialized Origin review helper focused on Two Node tests and is intended as a building\u003cbr\u003eblock toward a future generic Origin review command.\u003c/p\u003e"
-        }
-      ],
-      "skills": [],
-      "agents": [],
-      "hooks": [],
-      "mcp_servers": [],
-      "rules": [],
-      "category": "development",
-      "keywords": [
-        "origin",
-        "openshift",
-        "development"
-      ],
-      "author": {
-        "name": "openshift"
-      }
-    },
-    {
       "name": "ote-migration",
       "description": "Automate OpenShift Tests Extension (OTE) migration for component repositories",
       "version": "0.0.2",
@@ -2554,6 +2476,28 @@ footer a { color: var(--primary); }
       ],
       "author": {
         "name": "minl@redhat.com"
+      }
+    },
+    {
+      "name": "prow-agent",
+      "description": "Utilities for Claude Code sessions running inside Prow CI jobs",
+      "version": "0.0.5",
+      "has_readme": true,
+      "commands": [],
+      "skills": [],
+      "agents": [],
+      "hooks": [],
+      "mcp_servers": [],
+      "rules": [],
+      "category": "ci",
+      "keywords": [
+        "prow",
+        "ci",
+        "metrics",
+        "bigquery"
+      ],
+      "author": {
+        "name": "github.com/openshift-eng"
       }
     },
     {
@@ -2594,39 +2538,9 @@ footer a { color: var(--primary); }
       }
     },
     {
-      "name": "session",
-      "description": "A plugin to save and resume conversation sessions across long time intervals",
-      "version": "0.0.2",
-      "has_readme": true,
-      "commands": [
-        {
-          "name": "save-session",
-          "full_name": "session:save-session",
-          "description": "Save current conversation session to markdown file for future continuation",
-          "description_html": "Save current conversation session to markdown file for future continuation",
-          "synopsis": "/save-session\n/save-session [description]",
-          "body_html": "\u003cp\u003eSaves the current conversation session to a comprehensive markdown file that enables seamless resumption of work after extended time intervals (days, weeks, or months).\u003c/p\u003e\u003cp\u003eThis command addresses limitations of Claude Code&#x27;s built-in session management by capturing:\u003cbr\u003e- Complete conversation context and technical rationale\u003cbr\u003e- Detailed file modification tracking with line numbers\u003cbr\u003e- Key technical decisions and alternatives considered\u003cbr\u003e- Commands executed during the session\u003cbr\u003e- Clear resumption instructions\u003c/p\u003e\u003cp\u003eThe generated session file is designed for engineers working across multiple projects with long gaps between sessions, providing all necessary context to continue work without losing momentum.\u003c/p\u003e"
-        }
-      ],
-      "skills": [],
-      "agents": [],
-      "hooks": [],
-      "mcp_servers": [],
-      "rules": [],
-      "category": "productivity",
-      "keywords": [
-        "session",
-        "persistence",
-        "resume"
-      ],
-      "author": {
-        "name": "github.com/kuiwang02"
-      }
-    },
-    {
       "name": "snowflake",
       "description": "Snowflake data analysis commands for engineering metrics and reports",
-      "version": "0.5.0",
+      "version": "0.5.1",
       "has_readme": true,
       "commands": [
         {
@@ -2913,115 +2827,11 @@ footer a { color: var(--primary); }
       }
     },
     {
-      "name": "test-coverage",
-      "description": "Analyze code coverage and identify untested paths",
-      "version": "0.0.2",
-      "has_readme": true,
-      "commands": [
-        {
-          "name": "analyze",
-          "full_name": "test-coverage:analyze",
-          "description": "Analyze test code structure without running tests to identify coverage gaps",
-          "description_html": "Analyze test code structure without running tests to identify coverage gaps",
-          "synopsis": "/test-coverage:analyze \u003cpath-or-url\u003e [--output \u003cpath\u003e] [--priority \u003clevel\u003e] [--test-structure-only]",
-          "body_html": "\u003cp\u003eThe \u003ccode\u003etest-coverage:analyze\u003c/code\u003e command analyzes test code structure \u003cstrong\u003ewithout running tests\u003c/strong\u003e. This command examines test files and source files to identify:\u003cbr\u003e- What e2e/integration tests exist in the codebase\u003cbr\u003e- What source code has corresponding tests\u003cbr\u003e- What source code lacks tests\u003cbr\u003e- Test organization and coverage gaps\u003c/p\u003e\u003cp\u003e\u003cstrong\u003eFocus on E2E Tests:\u003c/strong\u003e By default, this command focuses on e2e (end-to-end) and integration tests, excluding unit tests. This ensures analysis targets higher-level test coverage gaps that validate real-world scenarios and system integration.\u003c/p\u003e\u003cp\u003e\u003cstrong\u003eLanguage Support:\u003c/strong\u003e This command currently supports Go projects only.\u003c/p\u003e\u003cp\u003eThis command is the foundation for QE or Dev teams to understand their e2e test coverage baseline and identify areas requiring additional testing.\u003c/p\u003e"
-        },
-        {
-          "name": "gaps",
-          "full_name": "test-coverage:gaps",
-          "description": "Identify E2E test scenario gaps in OpenShift/Kubernetes tests (component-agnostic)",
-          "description_html": "Identify E2E test scenario gaps in OpenShift/Kubernetes tests (component-agnostic)",
-          "synopsis": "/test-coverage:gaps \u003ctest-file-or-url\u003e [--output \u003cpath\u003e]",
-          "body_html": "\u003cp\u003eThe \u003ccode\u003etest-coverage:gaps\u003c/code\u003e command \u003cstrong\u003eintelligently analyzes OpenShift/Kubernetes test files to identify missing test coverage\u003c/strong\u003e. It is \u003cstrong\u003ecomponent-agnostic\u003c/strong\u003e and works for any OpenShift/K8s component (networking, storage, ETCD, Kube API, operators, etc.). \u003cstrong\u003eThis command always generates three report formats: HTML (interactive), JSON (machine-readable), and Text (terminal-friendly).\u003c/strong\u003e\u003c/p\u003e\u003cp\u003e\u003cstrong\u003eComponent-Agnostic Analysis\u003c/strong\u003e (works for all OpenShift/K8s components):\u003cbr\u003e- \u003cstrong\u003ePlatform Coverage\u003c/strong\u003e: Which platforms (AWS, Azure, GCP, vSphere, Bare Metal, etc.) lack tests\u003cbr\u003e- \u003cstrong\u003eScenario Coverage\u003c/strong\u003e: Missing error handling, upgrade, security/RBAC, scale, performance tests\u003cbr\u003e- \u003cstrong\u003ePriority-based recommendations\u003c/strong\u003e: Focus on high-impact gaps first\u003cbr\u003e- \u003cstrong\u003eComponent detection\u003c/strong\u003e: Automatically detects component type (networking, storage, kube-api, etcd, etc.) for informational purposes\u003c/p\u003e\u003cp\u003e\u003cstrong\u003eSupported Components:\u003c/strong\u003e\u003cbr\u003e- Networking (ingress, egress, SDN, OVN, network policies)\u003cbr\u003e- Storage (volumes, storage classes, CSI, PV/PVC)\u003cbr\u003e- Kube API, ETCD\u003cbr\u003e- Auth/RBAC, OAuth\u003cbr\u003e- Operators, controllers\u003cbr\u003e- Observability, monitoring\u003cbr\u003e- Image registry, builds\u003cbr\u003e- Any other OpenShift/K8s component\u003c/p\u003e\u003cp\u003e\u003cstrong\u003eLanguage Support:\u003c/strong\u003e This command currently supports Go projects only.\u003c/p\u003e\u003cp\u003eThis command helps OpenShift/Kubernetes QE or Dev teams focus testing efforts on the most critical untested scenarios.\u003c/p\u003e"
-        }
-      ],
-      "skills": [
-        {
-          "name": "analyze-test-coverage",
-          "description": "Analyze test code structure directly to provide coverage analysis",
-          "description_html": "Analyze test code structure directly to provide coverage analysis",
-          "meta": ""
-        },
-        {
-          "name": "test-coverage-gaps",
-          "description": "Intelligently identify missing test coverage based on component type",
-          "description_html": "Intelligently identify missing test coverage based on component type",
-          "meta": ""
-        }
-      ],
-      "agents": [],
-      "hooks": [],
-      "mcp_servers": [],
-      "rules": [],
-      "category": "development",
-      "keywords": [
-        "coverage",
-        "testing",
-        "gaps",
-        "analysis"
-      ],
-      "author": {
-        "name": "github.com/openshift-eng"
-      }
-    },
-    {
-      "name": "testing",
-      "description": "Comprehensive testing utilities for operators and applications",
-      "version": "0.1.1",
-      "has_readme": true,
-      "commands": [
-        {
-          "name": "mutation-test",
-          "full_name": "testing:mutation-test",
-          "description": "Test operator controller quality through mutation testing - validates test suite catches code mutations",
-          "description_html": "Test operator controller quality through mutation testing - validates test suite catches code mutations",
-          "synopsis": "/testing:mutation-test [operator-path] [--controllers \u003ccontroller1,controller2\u003e] [--mutation-types \u003ctypes\u003e] [--report-format \u003cformat\u003e]",
-          "body_html": "\u003cp\u003eThe \u003ccode\u003etesting:mutation-test\u003c/code\u003e command performs mutation testing on Kubernetes operator controllers to validate the quality and effectiveness of the test suite. Unlike traditional code coverage which only measures if code is executed, mutation testing validates whether tests actually verify the correctness of the code.\u003c/p\u003e\u003cp\u003e\u003cstrong\u003eMutation testing works by:\u003c/strong\u003e\u003cbr\u003e1. Creating small, deliberate bugs (mutations) in the controller code\u003cbr\u003e2. Running the test suite against each mutation\u003cbr\u003e3. Checking if tests fail (killing the mutant) or pass (surviving mutant)\u003cbr\u003e4. Surviving mutants indicate weak or missing tests\u003c/p\u003e\u003cp\u003eThis command is specifically designed for operator controllers written in Go using controller-runtime, focusing on reconciliation logic, error handling, and state management patterns common in Kubernetes operators.\u003c/p\u003e\u003cp\u003e\u003cstrong\u003eUse cases:\u003c/strong\u003e\u003cbr\u003e- Validate test suite quality beyond coverage percentages\u003cbr\u003e- Identify missing test cases for edge conditions\u003cbr\u003e- Find untested error handling paths\u003cbr\u003e- Ensure reconciliation logic is verified by failing tests when mutated\u003cbr\u003e- Improve operator reliability and test confidence\u003c/p\u003e\u003cp\u003e\u003cstrong\u003eWhat makes this operator-focused:\u003c/strong\u003e\u003cbr\u003e- Understands controller-runtime patterns (reconciliation, requeueing, finalizers)\u003cbr\u003e- Focuses on mutations relevant to operators (condition checks, API calls, status updates)\u003cbr\u003e- Identifies untested error scenarios in Kubernetes API interactions\u003cbr\u003e- Validates watch/list/get patterns are tested for expected inputs and outputs\u003c/p\u003e"
-        }
-      ],
-      "skills": [
-        {
-          "name": "mutation-generator",
-          "description": "Generate code mutations for Kubernetes operator controllers to enable mutation testing. Applies operator-specific mutations to reconciliation logic, error handling, and API interactions.",
-          "description_html": "Generate code mutations for Kubernetes operator controllers to enable mutation testing. Applies operator-specific mutations to reconciliation logic, error handling, and API interactions.",
-          "meta": ""
-        },
-        {
-          "name": "mutation-tester",
-          "description": "Execute tests against generated mutants and analyze results to validate test suite quality for Kubernetes operators",
-          "description_html": "Execute tests against generated mutants and analyze results to validate test suite quality for Kubernetes operators",
-          "meta": ""
-        }
-      ],
-      "agents": [],
-      "hooks": [],
-      "mcp_servers": [],
-      "rules": [],
-      "category": "development",
-      "keywords": [
-        "testing",
-        "operators",
-        "e2e",
-        "test-framework"
-      ],
-      "author": {
-        "name": "github.com/openshift-eng"
-      }
-    },
-    {
       "name": "utils",
       "description": "A generic utilities plugin serving as a catch-all for various helper commands and agents",
-      "version": "0.0.10",
+      "version": "0.0.12",
       "has_readme": true,
       "commands": [
-        {
-          "name": "address-reviews",
-          "full_name": "utils:address-reviews",
-          "description": "Fetch and address all PR review comments",
-          "description_html": "Fetch and address all PR review comments",
-          "synopsis": "/utils:address-reviews [PR number (optional - uses current branch if omitted)] [--preview]",
-          "body_html": "This command automates the process of addressing PR review comments by fetching all comments from a pull request, categorizing them by priority (blocking, change requests, questions, suggestions), and systematically addressing each one. It intelligently filters out outdated comments, bot-generated content, and oversized responses to optimize context usage. The command handles code changes, posts replies to reviewers, and maintains a clean git history by amending relevant commits rather than creating unnecessary new ones."
-        },
         {
           "name": "auto-approve-konflux-prs",
           "full_name": "utils:auto-approve-konflux-prs",
@@ -3053,14 +2863,6 @@ footer a { color: var(--primary); }
           "description_html": "List PRs and issues requiring your attention",
           "synopsis": "/utils:gh-attention [--repo \u003corg/repo\u003e]",
           "body_html": "\u003cp\u003eThe \u003ccode\u003eutils:gh-attention\u003c/code\u003e command identifies pull requests and issues that are waiting for your action. It scans PRs you&#x27;ve authored, PRs where you&#x27;re requested as a reviewer, and PRs where you&#x27;ve participated in discussions. For each, it detects specific states where you are the blocker: unresolved review comments, unanswered PR conversation comments, change requests you haven&#x27;t addressed, merge conflicts, and unanswered questions on assigned issues.\u003c/p\u003e\u003cp\u003eThis command helps cut through notification noise by focusing only on actionable items where others are waiting for your input.\u003c/p\u003e"
-        },
-        {
-          "name": "placeholder",
-          "full_name": "utils:placeholder",
-          "description": "Placeholder command for the utils plugin",
-          "description_html": "Placeholder command for the utils plugin",
-          "synopsis": "/utils:placeholder",
-          "body_html": "\u003cp\u003eThis is a placeholder command for the utils plugin. The utils plugin serves as a catch-all location for introducing new generic commands. Once enough related commands are accumulated, they can be segregated into more targeted, specialized plugins.\u003c/p\u003e\u003cp\u003eThis placeholder exists to maintain the plugin structure and will be replaced with actual utility commands as they are developed.\u003c/p\u003e"
         },
         {
           "name": "process-renovate-pr",
@@ -3139,38 +2941,6 @@ footer a { color: var(--primary); }
       ],
       "author": {
         "name": "github.com/openshift-eng"
-      }
-    },
-    {
-      "name": "yaml",
-      "description": "Generate comprehensive YAML documentation from Go struct definitions with sensible default values",
-      "version": "0.0.2",
-      "has_readme": true,
-      "commands": [
-        {
-          "name": "docs",
-          "full_name": "yaml:docs",
-          "description": "Generate comprehensive YAML documentation from Go struct definitions with sensible default values",
-          "description_html": "Generate comprehensive YAML documentation from Go struct definitions with sensible default values",
-          "synopsis": "/yaml:docs [file:StructName] [output.md]",
-          "body_html": "\u003cp\u003eThe \u003ccode\u003eyaml:docs\u003c/code\u003e command generates comprehensive YAML documentation from Go struct definitions. It analyzes Go structs and produces complete, well-documented YAML configuration examples with intelligent default values for all fields.\u003c/p\u003e\u003cp\u003eThis command is designed to help developers quickly create YAML configuration documentation by:\u003cbr\u003e- Automatically generating sensible default values for all struct fields\u003cbr\u003e- Adding inline comments explaining each field&#x27;s purpose and constraints\u003cbr\u003e- Maintaining proper YAML formatting and structure\u003cbr\u003e- Supporting nested structs, slices, maps, and complex types\u003cbr\u003e- Respecting struct tags (yaml, json, validate, default)\u003c/p\u003e\u003cp\u003eThe spec sections is inspired by https://man7.org/linux/man-pages/man7/man-pages.7.html#top_of_page\u003c/p\u003e"
-        }
-      ],
-      "skills": [],
-      "agents": [],
-      "hooks": [],
-      "mcp_servers": [],
-      "rules": [],
-      "category": "development",
-      "keywords": [
-        "yaml",
-        "go-structs",
-        "documentation",
-        "codegen"
-      ],
-      "license": "Apache-2.0",
-      "author": {
-        "name": "saswatamcode"
       }
     }
   ],

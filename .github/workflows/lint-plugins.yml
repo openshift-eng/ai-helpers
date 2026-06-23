@@ -17,7 +17,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Run skillsaw
-        uses: stbenjam/skillsaw@c85a25ebbde5a9e8b4cae8f7854dbf7e36e59dfa # v0.11.4
+        uses: stbenjam/skillsaw@ac135381fc46711e7615e30b7296e857bb20b645 # v0.14.0
         with:
           strict: true
-          version: '0.11.4'
+          version: '0.14.0'

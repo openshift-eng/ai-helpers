@@ -92,24 +92,12 @@ spec:
 
 ## Node Team Components
 
-The plugin covers all OCPBUGS components owned by the Node team. Analysis targets downstream forks at version-specific release branches. If the downstream fork or branch does not exist, the CVE is classified as Uncertain and analysis is skipped for that version.
-
-| Component | Downstream Fork | Upstream Repo | Branch Pattern | Language |
-|-----------|----------------|--------------|---------------|----------|
-| Node / CRI-O | openshift/cri-o | cri-o/cri-o | `release-1.X` | Go |
-| Node / Kubelet | openshift/kubernetes | kubernetes/kubernetes | `release-1.X` | Go |
-| Node / CPU manager | openshift/kubernetes | kubernetes/kubernetes | `release-1.X` | Go |
-| Node / Device Manage | openshift/kubernetes | kubernetes/kubernetes | `release-1.X` | Go |
-| Node / Memory manager | openshift/kubernetes | kubernetes/kubernetes | `release-1.X` | Go |
-| Node / Numa aware Scheduling | openshift/kubernetes | kubernetes/kubernetes | `release-1.X` | Go |
-| Node / Pod resource API | openshift/kubernetes | kubernetes/kubernetes | `release-1.X` | Go |
-| Node / Topology manager | openshift/kubernetes | kubernetes/kubernetes | `release-1.X` | Go |
-| Driver Toolkit | openshift/driver-toolkit | - | `release-4.Y` | Go |
-| Machine Config Operator | openshift/machine-config-operator | - | `release-4.Y` | Go |
-
-Additional repos detected via `pscomponent:` labels: openshift/google-cadvisor (Go), openshift/conmon (C), openshift/conmon-rs (Rust + Go), openshift/cri-tools / kubernetes-sigs/cri-tools (Go).
-
-For OCP 4.Y, the K8s/CRI-O version is `1.(Y+13)` (e.g., OCP 4.18 -> K8s/CRI-O 1.31). This mapping will change for OCP 5.x.
+The plugin covers all CVE-tracked OCPBUGS components owned by the Node team.
+See the [node-team shared components reference](../node-team/skills/node/references/shared/components.md)
+for the full mapping including downstream forks, branch patterns, languages,
+and `pscomponent:` label mappings. See the
+[node-team shared version map](../node-team/skills/node/references/shared/version-map.md)
+for OCP-to-K8s/CRI-O version mappings.
 
 ## Reachability Classification
 

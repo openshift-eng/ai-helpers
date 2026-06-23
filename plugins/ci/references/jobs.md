@@ -41,9 +41,46 @@ Job names may contain fragments that indicate which RHCOS variant the cluster us
    - Example: `periodic-ci-openshift-release-main-nightly-5.0-e2e-aws-ovn-rhcos9`
 4. **No fragment** — default by OCP major version **at install time** (not the payload/target version):
    - OCP 4.x → RHCOS 9
-   - OCP 5.x → RHCOS 9 (current default, will change to RHCOS 10)
+   - OCP 5.x → RHCOS 10
 
 For upgrade jobs, use the **install-time** OCP version (see "Upgrade Jobs" above), not the payload/target version. This matters for major upgrades: a major upgrade job in a 5.x payload installs OCP 4.x, so its RHCOS default follows OCP 4.x rules.
+
+### Confirming RHCOS version from artifacts
+
+The job-name heuristic infers the RHCOS version but can't confirm it. To verify the actual RHCOS variant a cluster ran, inspect `.status.nodeInfo.osImage` on Node resources in the job's artifacts.
+
+**Preferred source — `nodes.json` in gather-extra:**
+
+```
+artifacts/{target}/gather-extra/artifacts/nodes.json
+```
+
+This is a JSON file containing Node resources. Use `prow-job-artifact-search` to find and fetch it:
+
+```bash
+# Find nodes.json
+prow_job_artifact_search.py <url> search "**/nodes.json" artifacts
+
+# Fetch it
+prow_job_artifact_search.py <url> fetch artifacts/{target}/gather-extra/artifacts/nodes.json
+```
+
+**Fallback — must-gather node YAMLs:**
+
+```
+cluster-scoped-resources/core/nodes/*.yaml
+```
+
+Each file is a single Node resource with the same `.status.nodeInfo.osImage` field.
+
+**Interpreting `osImage` values:**
+
+The version number after "Red Hat Enterprise Linux CoreOS" indicates the RHEL base:
+
+- RHCOS 9: version starts with `9.` — e.g., `Red Hat Enterprise Linux CoreOS 9.8.20260613-0 (Plow)`
+- RHCOS 10: version starts with `10.` — e.g., `Red Hat Enterprise Linux CoreOS 10.2.20260521-0 (Coughlan)`
+
+A cluster with mixed `osImage` values across nodes is heterogeneous (RHCOS 9 + 10).
 
 ### Analysis implications
 

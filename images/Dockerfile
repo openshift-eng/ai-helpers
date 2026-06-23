@@ -1,3 +1,11 @@
+FROM registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.25-openshift-4.22 AS claude-latest
+ENV ART_DNF_WRAPPER_POLICY=append
+COPY images/repos/claude-code-latest.repo /etc/yum.repos.d/
+COPY images/repos/RPM-GPG-KEY-claude-code /etc/pki/rpm-gpg/
+RUN rm /etc/yum.repos.d/ubi.repo && \
+    dnf install -y --disablerepo='*-ppc64le' --disablerepo='*-s390x' --disablerepo='claude-code' --enablerepo='claude-code-latest' claude-code && \
+    dnf clean all
+
 FROM registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.25-openshift-4.22
 
 # Copy external rpm repos into the image, and tell the ART wrapper to append them
@@ -23,8 +31,13 @@ RUN dnf install -y \
     && alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1 \
     && alternatives --set python3 /usr/bin/python3.11
 
+# The "latest" channel binary lets users try newer features not yet in stable,
+# or compare behavior between versions, without disrupting the default entrypoint.
+COPY --from=claude-latest /usr/bin/claude /usr/local/bin/claude-latest
+
 # Install Python tools and PCP bindings
 RUN python3 -m pip install --no-cache-dir \
+    agentic-ci==0.3.4 \
     pytest \
     requests \
     pyyaml \

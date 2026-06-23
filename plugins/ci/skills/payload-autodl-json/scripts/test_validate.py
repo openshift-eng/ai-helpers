@@ -30,6 +30,10 @@ if __name__ == "__main__":
         ("invalid no table_name", f"{TESTDATA}/invalid_no_table_name.json", 1),
         ("invalid non-string values", f"{TESTDATA}/invalid_non_string_values.json", 1),
         ("invalid empty rows", f"{TESTDATA}/invalid_empty_rows.json", 1),
+        ("invalid stream", f"{TESTDATA}/invalid_stream.json", 1),
+        ("invalid version", f"{TESTDATA}/invalid_version.json", 1),
+        ("empty stream", f"{TESTDATA}/empty_stream.json", 1),
+        ("empty version", f"{TESTDATA}/empty_version.json", 1),
         ("file not found", f"{TESTDATA}/nonexistent.json", 1),
     ]
 

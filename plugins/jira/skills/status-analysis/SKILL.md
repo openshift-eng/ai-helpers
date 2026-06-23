@@ -5,7 +5,7 @@ description: Shared engine for analyzing Jira issue activity and generating stat
 
 # Jira Status Analysis Engine
 
-This skill provides the core analysis logic shared by status-related commands (`/jira:status-rollup` and `/jira:update-weekly-status`). It handles data collection, activity analysis, and status generation in a unified way.
+This skill provides the core analysis logic shared by status-related commands (`/jira:status-rollup`, `/jira:update-weekly-status`, and `/jira:generate-feature-updates`). It handles data collection, activity analysis, and status generation in a unified way.
 
 **IMPORTANT FOR AI**: This is a **procedural skill** - when invoked by a command, you should execute the implementation steps defined in this document and its sub-modules. The calling command determines the configuration parameters.
 
@@ -15,6 +15,7 @@ This skill is invoked automatically by:
 
 - `/jira:status-rollup` - Single root issue, outputs as Jira comment
 - `/jira:update-weekly-status` - Multiple root issues (batch), outputs to Status Summary field
+- `/jira:generate-feature-updates` - Multiple root issues (batch), outputs as markdown to stdout
 
 Do NOT invoke this skill directly. Use the commands above.
 
@@ -106,21 +107,21 @@ This skill is composed of four sub-modules. Read each when executing the analysi
 
 Both commands share the same engine with different configuration:
 
-| Parameter | status-rollup | update-weekly-status |
-|-----------|---------------|----------------------|
-| `data_source` | MCP API calls | Pre-gathered JSON files |
-| `root_issues` | Single issue key | Multiple (from manifest.json) |
-| `date_range.start` | User-specified or issue creation | `today - 7 days` |
-| `date_range.end` | User-specified or today | `today` |
-| `output_format` | `markdown_comment` | `ryg_field` |
-| `output_target` | Comment on root issue | Status Summary field |
-| `external_links` | Via `gh` CLI | Pre-gathered in JSON |
-| `user_review` | Yes (before posting comment) | Yes (approve/modify/skip per issue) |
-| `caching` | Temp file for refinement | JSON files in `.work/` |
+| Parameter | status-rollup | update-weekly-status | generate-feature-updates |
+|-----------|---------------|----------------------|--------------------------|
+| `data_source` | MCP API calls | Pre-gathered JSON files | Pre-gathered JSON files |
+| `root_issues` | Single issue key | Multiple (from manifest.json) | Multiple (from manifest.json) |
+| `date_range.start` | User-specified or issue creation | `today - 7 days` | `today - 7 days` |
+| `date_range.end` | User-specified or today | `today` | `today` |
+| `output_format` | `markdown_comment` | `ryg_field` | `feature_markdown` |
+| `output_target` | Comment on root issue | Status Summary field | stdout |
+| `external_links` | Via `gh` CLI | Pre-gathered in JSON | Pre-gathered in JSON |
+| `user_review` | Yes (before posting comment) | Yes (approve/modify/skip per issue) | Yes (full-section review) |
+| `caching` | Temp file for refinement | JSON files in `.work/` | JSON files in `.work/` |
 
 ## Hierarchy Traversal
 
-Both commands use the same traversal mechanism via `parent = KEY` JQL with BFS recursion (Atlassian Cloud compatible — `childIssuesOf()` is not supported on Cloud):
+Both commands use the same traversal mechanism via `childIssuesOf()` JQL:
 
 ```
 Root Issue (FEATURE-123)
@@ -133,13 +134,11 @@ Root Issue (FEATURE-123)
     └── Epic 2 (EPIC-789)
         └── Story 2.1
 
-JQL per level: parent = FEATURE-123  →  [EPIC-456, EPIC-789]
-               parent = EPIC-456     →  [Story 1.1, Story 1.2]
-               ... (BFS until no more children)
-Returns: ALL descendants at any depth via recursive BFS
+JQL: issue in childIssuesOf(FEATURE-123)
+Returns: ALL descendants at any depth (EPIC-456, Story 1.1, Subtask 1.1.1, Story 1.2, EPIC-789, Story 2.1)
 ```
 
-**Note**: `childIssuesOf()` is not available on Atlassian Cloud. The data gatherer script uses `parent = KEY` with BFS to traverse the full hierarchy.
+**Key benefit**: `childIssuesOf()` is already recursive - a single JQL query returns the entire hierarchy regardless of depth. No manual recursion needed.
 
 The difference between commands is not in traversal but in:
 
@@ -237,7 +236,7 @@ The calling command provides an AnalysisConfig. Parse and validate:
 REQUIRED parameters:
   - root_issues: Array of issue keys to analyze
   - date_range: {start, end} in YYYY-MM-DD format
-  - output_format: "markdown_comment" or "ryg_field"
+  - output_format: "markdown_comment", "ryg_field", or "feature_markdown"
 
 OPTIONAL parameters:
   - external_links_enabled: boolean (default: true)
@@ -264,9 +263,9 @@ Data has already been collected by the Python script (`gather_status_data.py`):
    - Fetch changelog with `expand=changelog`
 
 2. **Discover all descendants**:
-   - Use `parent = {root-issue}` JQL with BFS recursion to get full hierarchy (Cloud-compatible; `childIssuesOf()` is not supported on Atlassian Cloud)
+   - Use `issue in childIssuesOf({root-issue})` to get full hierarchy
    - Optionally filter by date range: `AND updated >= {start-date}`
-   - Use `maxResults=100` per page; handle cursor pagination via `nextPageToken`
+   - Use `limit=100` (increase if needed for large hierarchies)
 
 3. **For each descendant issue**:
    - Fetch issue details and changelog
@@ -364,6 +363,15 @@ Follow `formatting.md` to generate output based on `output_format`:
      ** Thing 2 that happened since last week
  * Risks:
      ** Risk 1 (or "None at this time")
+```
+
+**For `feature_markdown` (generate-feature-updates)**:
+
+```
+- [ISSUE-KEY](https://issues.redhat.com/browse/ISSUE-KEY): Issue summary
+    - 1-3 sentences of executive prose. No metrics, no R/Y/G.
+- [ISSUE-KEY-2](https://issues.redhat.com/browse/ISSUE-KEY-2): Issue summary
+    - Prose focusing on significant progress, deliveries, blockers, or risks.
 ```
 
 ### Step 6: Return to Calling Command

@@ -57,9 +57,11 @@ class PayloadTag:
     """Parsed representation of an OpenShift payload tag.
 
     Example tags:
-        4.22.0-0.nightly-2026-02-25-152806          -> amd64
-        4.22.0-0.nightly-arm64-2026-02-25-152806    -> arm64
-        4.18.0-0.ci-2026-01-15-114134               -> amd64, ci stream
+        4.22.0-0.nightly-2026-02-25-152806              -> amd64, OCP
+        4.22.0-0.nightly-arm64-2026-02-25-152806        -> arm64, OCP
+        4.18.0-0.ci-2026-01-15-114134                   -> amd64, OCP ci stream
+        4.22.0-0.okd-scos-nightly-2026-06-10-015300     -> amd64, OKD SCOS nightly
+        4.22.0-0.okd-scos-2026-06-10-003203             -> amd64, OKD SCOS ci stream
     """
 
     raw: str
@@ -80,7 +82,7 @@ class PayloadTag:
         timestamp = m.group(2)
 
         sm = re.match(
-            r"^(\d+\.\d+)\.0-0\.(\w+?)(?:-(arm64|ppc64le|s390x|multi))?$",
+            r"^(\d+\.\d+)\.0-0\.([\w-]+?)(?:-(arm64|ppc64le|s390x|multi))?$",
             stream_name,
         )
         if not sm:
@@ -175,9 +177,12 @@ def try_fetch_json(url: str, timeout: int = 10) -> Optional[dict]:
 class ReleaseController:
     """Client for the OpenShift release controller API."""
 
-    def __init__(self, architecture: str = "amd64"):
+    def __init__(self, architecture: str = "amd64", stream: str = ""):
         self.architecture = architecture
-        self.domain = f"{architecture}.ocp.releases.ci.openshift.org"
+        if stream.startswith("okd"):
+            self.domain = f"{architecture}.origin.releases.ci.openshift.org"
+        else:
+            self.domain = f"{architecture}.ocp.releases.ci.openshift.org"
         self._base = f"https://{self.domain}/api/v1"
 
     def fetch_tags(self, stream_name: str) -> list[dict]:
@@ -298,7 +303,7 @@ class SippyClient:
             else:
                 informing_jobs[name] = entry
 
-        rc = ReleaseController(tag.architecture)
+        rc = ReleaseController(tag.architecture, stream=tag.stream)
         return {
             "phase": phase,
             "results": {
@@ -1410,7 +1415,7 @@ class Snapshotter:
         self.workers = workers
         self.collect_junit = collect_junit
         self.use_sippy = use_sippy
-        self.rc = ReleaseController(tag.architecture)
+        self.rc = ReleaseController(tag.architecture, stream=tag.stream)
         self.sippy: Optional[SippyClient] = None
         if use_sippy:
             self.sippy = SippyClient(tag.version)
@@ -1975,7 +1980,7 @@ def _determine_rhcos_version(job_name: str, version: str) -> str:
 
     major = int(install_version.split(".")[0])
     if major >= 5:
-        return "rhcos9-default"
+        return "rhcos10-default"
     return "rhcos9-default"
 
 

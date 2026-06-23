@@ -12,7 +12,7 @@
       "name": "git",
       "source": "./plugins/git",
       "description": "Git Plugin",
-      "version": "0.0.6",
+      "version": "0.0.7",
       "category": "tooling",
       "keywords": [
         "git",
@@ -36,7 +36,7 @@
       "name": "jira",
       "source": "./plugins/jira",
       "description": "A plugin to automate tasks with Jira",
-      "version": "0.7.1",
+      "version": "0.7.2",
       "category": "productivity",
       "keywords": [
         "jira",
@@ -49,7 +49,7 @@
       "name": "ci",
       "source": "./plugins/ci",
       "description": "A plugin to work with OpenShift CI and analyze Prow job results",
-      "version": "0.0.49",
+      "version": "0.0.52",
       "category": "ci",
       "keywords": [
         "prow",
@@ -57,6 +57,21 @@
         "openshift-ci",
         "test-failures",
         "job-analysis"
+      ]
+    },
+    {
+      "name": "ci-extras",
+      "source": "./plugins/ci-extras",
+      "description": "MCP server and extended tooling for OpenShift CI data access",
+      "version": "0.0.1",
+      "category": "ci",
+      "keywords": [
+        "openshift-ci",
+        "mcp",
+        "ci",
+        "sippy",
+        "prow",
+        "test-failures"
       ]
     },
     {
@@ -72,34 +87,10 @@
       ]
     },
     {
-      "name": "doc",
-      "source": "./plugins/doc",
-      "description": "A plugin for engineering documentation and notes",
-      "version": "0.0.2",
-      "category": "productivity",
-      "keywords": [
-        "documentation",
-        "notes",
-        "writing"
-      ]
-    },
-    {
-      "name": "session",
-      "source": "./plugins/session",
-      "description": "A plugin for Claude session management and persistence",
-      "version": "0.0.2",
-      "category": "productivity",
-      "keywords": [
-        "session",
-        "persistence",
-        "resume"
-      ]
-    },
-    {
       "name": "snowflake",
       "source": "./plugins/snowflake",
       "description": "Snowflake data analysis commands for engineering metrics and reports",
-      "version": "0.5.0",
+      "version": "0.5.1",
       "category": "data",
       "keywords": [
         "snowflake",
@@ -125,7 +116,7 @@
       "name": "utils",
       "source": "./plugins/utils",
       "description": "A generic utilities plugin serving as a catch-all for various helper commands",
-      "version": "0.0.10",
+      "version": "0.0.12",
       "category": "tooling",
       "keywords": [
         "utilities",
@@ -220,19 +211,6 @@
       ]
     },
     {
-      "name": "yaml",
-      "source": "./plugins/yaml",
-      "description": "YAML documentation and utilities",
-      "version": "0.0.2",
-      "category": "development",
-      "keywords": [
-        "yaml",
-        "go-structs",
-        "documentation",
-        "codegen"
-      ]
-    },
-    {
       "name": "must-gather",
       "source": "./plugins/must-gather",
       "description": "A plugin to analyze and report on must-gather data",
@@ -242,31 +220,6 @@
         "must-gather",
         "diagnostics",
         "cluster-analysis"
-      ]
-    },
-    {
-      "name": "lvms",
-      "source": "./plugins/lvms",
-      "description": "LVMS (Logical Volume Manager Storage) plugin for troubleshooting and debugging storage issues",
-      "version": "0.1.1",
-      "category": "debugging",
-      "keywords": [
-        "lvms",
-        "storage",
-        "lvm",
-        "troubleshooting"
-      ]
-    },
-    {
-      "name": "native-notifications",
-      "source": "./plugins/native-notifications",
-      "description": "Cross-platform desktop notifications for ai-helpers",
-      "version": "0.0.2",
-      "category": "productivity",
-      "keywords": [
-        "notifications",
-        "desktop",
-        "alerts"
       ]
     },
     {
@@ -295,19 +248,6 @@
       ]
     },
     {
-      "name": "test-coverage",
-      "source": "./plugins/test-coverage",
-      "description": "Analyze test coverage and identify gaps in test scenarios",
-      "version": "0.0.2",
-      "category": "development",
-      "keywords": [
-        "coverage",
-        "testing",
-        "gaps",
-        "analysis"
-      ]
-    },
-    {
       "name": "node-tuning",
       "source": "./plugins/node-tuning",
       "description": "Generate and analyze OpenShift node tuning profiles",
@@ -318,44 +258,6 @@
         "node-tuning",
         "performance",
         "profiles"
-      ]
-    },
-    {
-      "name": "testing",
-      "source": "./plugins/testing",
-      "description": "Comprehensive testing utilities for operators and applications",
-      "version": "0.1.1",
-      "category": "development",
-      "keywords": [
-        "testing",
-        "operators",
-        "e2e",
-        "test-framework"
-      ]
-    },
-    {
-      "name": "origin",
-      "source": "./plugins/origin",
-      "description": "Helpers for openshift/origin development.",
-      "version": "0.0.2",
-      "category": "development",
-      "keywords": [
-        "origin",
-        "openshift",
-        "development"
-      ]
-    },
-    {
-      "name": "container-image",
-      "source": "./plugins/container-image",
-      "description": "Container image inspection and analysis using skopeo and podman",
-      "version": "0.0.3",
-      "category": "development",
-      "keywords": [
-        "containers",
-        "skopeo",
-        "podman",
-        "images"
       ]
     },
     {
@@ -375,7 +277,7 @@
       "name": "node-cve",
       "source": "./plugins/node-cve",
       "description": "CVE triage for OpenShift Node team components",
-      "version": "0.0.2"
+      "version": "0.0.3"
     },
     {
       "name": "bigquery",
@@ -401,18 +303,6 @@
         "worktree",
         "workspace",
         "multi-repo"
-      ]
-    },
-    {
-      "name": "gwapi",
-      "source": "./plugins/gwapi",
-      "description": "Gateway API installation utilities for Kubernetes/OpenShift clusters",
-      "version": "0.0.2",
-      "category": "openshift",
-      "keywords": [
-        "gateway-api",
-        "networking",
-        "ingress"
       ]
     },
     {
@@ -506,13 +396,46 @@
       "name": "openshift-developer",
       "source": "./plugins/openshift-developer",
       "description": "Bundle of curated plugins, skills, and MCP servers useful to any OpenShift engineer",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "category": "bundle",
       "keywords": [
         "openshift",
         "bundle",
         "meta-plugin"
       ]
+    },
+    {
+      "name": "node-team",
+      "source": "./plugins/node-team",
+      "description": "OpenShift Node team assistant for development, deployment, debugging, and workflow tasks",
+      "version": "0.16.0",
+      "category": "openshift",
+      "keywords": [
+        "openshift",
+        "node",
+        "kubelet",
+        "cri-o",
+        "mco"
+      ]
+    },
+    {
+      "name": "prow-agent",
+      "source": "./plugins/prow-agent",
+      "description": "Utilities for Claude Code sessions running inside Prow CI jobs",
+      "version": "0.0.5",
+      "category": "ci",
+      "keywords": [
+        "prow",
+        "ci",
+        "metrics",
+        "bigquery"
+      ]
+    },
+    {
+      "name": "agentic-docs",
+      "source": "./plugins/agentic-docs",
+      "description": "Create and maintain AI-optimized documentation for OpenShift",
+      "version": "1.0.0"
     }
   ]
 }

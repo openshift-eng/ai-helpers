@@ -1,6 +1,7 @@
 ---
 name: payload-analysis
 description: Analyze a payload snapshot to identify root causes of blocking job failures, score candidate PRs, and produce an HTML report with revert recommendations
+argument-hint: "<payload-tag> [--snapshot-dir DIR]"
 ---
 
 # Payload Analysis
@@ -20,6 +21,23 @@ Use this skill when you need to:
 - Identify which PRs likely caused new failures
 - Get a comprehensive overview of payload health with actionable root cause analysis
 - Re-analyze a historical payload against its original snapshot data
+
+## Examples
+
+1. **Analyze an amd64 nightly payload** (auto-creates snapshot if needed):
+   ```
+   /ci:payload-analysis 4.22.0-0.nightly-2026-02-25-152806
+   ```
+
+2. **Analyze using an existing snapshot directory**:
+   ```
+   /ci:payload-analysis 4.22.0-0.nightly-2026-02-25-152806 --snapshot-dir payload/4.22/nightly
+   ```
+
+3. **Analyze an arm64 payload** (architecture inferred from tag):
+   ```
+   /ci:payload-analysis 4.22.0-0.nightly-arm64-2026-02-25-152806
+   ```
 
 ## Required Skills
 
@@ -82,7 +100,7 @@ From `summary.json` top-level fields:
 
 From `summary.json` → `blocking_jobs.failed_jobs[]`, each entry contains:
 - `name`, `state`, `prow_url`, `gcs_url`, `is_aggregated`, `retries`
-- `rhcos_version`: the RHCOS variant for this job (`rhcos9`, `rhcos10`, `rhcos9_10`, or `rhcos9-default`)
+- `rhcos_version`: the RHCOS variant for this job (`rhcos9`, `rhcos10`, `rhcos9_10`, `rhcos9-default`, or `rhcos10-default`)
 - `streak`: `streak_length`, `originating_payload`, `is_new_failure`, `failure_pattern`
 - `build_log_errors`, `test_failure_count`
 - Paths: `job_json`, `junit_results`, `build_log`
@@ -139,7 +157,7 @@ You MUST use the following prompt verbatim (substituting the placeholder values)
 
 Where `<rhcos_version>` is the `rhcos_version` field from the snapshot's failed job entry, and `<rhcos_context>` is one of:
 - For **`rhcos9`** or **`rhcos9-default`**: "RHCOS 9 is based on RHEL 9 — the standard CoreOS variant for this OCP version."
-- For **`rhcos10`**: "RHCOS 10 is based on RHEL 10 with a different kernel, systemd, SELinux policy, and package versions than RHCOS 9. If the failure involves OS-level components (kernel, bootloader, rpm-ostree, MCO, Ignition), consider whether RHEL 10 differences could be the root cause."
+- For **`rhcos10`** or **`rhcos10-default`**: "RHCOS 10 is based on RHEL 10 with a different kernel, systemd, SELinux policy, and package versions than RHCOS 9. If the failure involves OS-level components (kernel, bootloader, rpm-ostree, MCO, Ignition), consider whether RHEL 10 differences could be the root cause."
 - For **`rhcos9_10`** (heterogeneous): "This is a heterogeneous cluster with both RHCOS 9 and RHCOS 10 nodes. Failures may be specific to one node variant — check whether failing nodes are RHCOS 9 or RHCOS 10 when node-level logs are available."
 
 **Structured Return Format**: Instruct each subagent to include an `ANALYSIS_RESULT` block at the end of its response:
@@ -154,7 +172,7 @@ ANALYSIS_RESULT:
 - underlying_job_name: <for aggregated jobs only, extracted from junit artifacts>
 - retries_consistent: yes|no|no_retries|only_final_examined
 - retry_summary: <brief comparison of failure modes across attempts, e.g. "all 3 attempts failed with same KAS crashloop" or "attempt 1 infra timeout, attempts 2-3 test failure", or "no retries" when there was only a single attempt>
-- rhcos_version: rhcos9|rhcos10|rhcos9_10|rhcos9-default
+- rhcos_version: rhcos9|rhcos10|rhcos9_10|rhcos9-default|rhcos10-default
 ```
 
 **Note for aggregated jobs**: Since only the final attempt is examined (retries re-run aggregation only), set `retries_consistent: only_final_examined` and `retry_summary: "Aggregated job — only final attempt examined (retries re-run aggregation only)"`.
@@ -171,6 +189,7 @@ After collecting subagent results, look for patterns across multiple jobs:
   - It appears in one or more RHCOS 10 jobs but in zero RHCOS 9 jobs → `failure_scope: "rhcos10-only"`
   - It appears in one or more RHCOS 9 jobs but in zero RHCOS 10 jobs → `failure_scope: "rhcos9-only"`
   - Jobs with `rhcos9-default` count as RHCOS 9 for this check
+  - Jobs with `rhcos10-default` count as RHCOS 10 for this check
   - Jobs with `rhcos9_10` (heterogeneous) count toward both variants for this check
   - Variant isolation is strong diagnostic context — it narrows the root cause to OS-specific changes (kernel, systemd, SELinux, package differences between RHEL 9 and RHEL 10).
 
@@ -293,7 +312,7 @@ The report must include the following sections:
 
 A table showing ALL blocking jobs with columns:
 - Job Name
-- RHCOS (the RHCOS version badge for this job from the snapshot's `rhcos_version` field: use `badge-rhcos9` / `badge-rhcos10` / `badge-rhcos-mixed` CSS classes; `rhcos9-default` renders with `badge-rhcos9`. When a failure is variant-isolated, add a `variant-isolated` class to highlight the badge)
+- RHCOS (the RHCOS version badge for this job from the snapshot's `rhcos_version` field: use `badge-rhcos9` / `badge-rhcos10` / `badge-rhcos-mixed` CSS classes; `rhcos9-default` renders with `badge-rhcos9`, `rhcos10-default` renders with `badge-rhcos10`. When a failure is variant-isolated, add a `variant-isolated` class to highlight the badge)
 - Status (color-coded: green for passed, red for failed)
 - Streak (consecutive failing payloads; "N/A" for passed)
 - History (the `failure_pattern` from the snapshot, e.g., "F F F S F F", with color-coded markers)
