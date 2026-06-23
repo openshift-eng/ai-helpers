@@ -25,7 +25,7 @@ This command takes a JIRA URL, fetches the issue description and requirements, a
 
 ## Implementation
 
-- The command uses curl to fetch JIRA data via REST API: https://redhat.atlassian.net/rest/api/3/issue/{$1}
+- The command uses curl to fetch JIRA data via REST API: ${JIRA_BASE_URL:-https://redhat.atlassian.net}/rest/api/3/issue/{$1}
 - Parses JSON response using jq or text processing
 - Extracts key fields: summary, description, components, labels
 - Authentication uses Basic auth with JIRA_USERNAME and JIRA_API_TOKEN for Atlassian Cloud
@@ -34,7 +34,7 @@ This command takes a JIRA URL, fetches the issue description and requirements, a
 ### Process Flow
 
 1. **Issue Analysis**: Parse JIRA URL and fetch issue details:
-   - Use curl to fetch JIRA issue data: curl -s -u "$JIRA_USERNAME:$JIRA_API_TOKEN" "https://redhat.atlassian.net/rest/api/3/issue/{$1}"
+   - Use curl to fetch JIRA issue data: curl -s -u "$JIRA_USERNAME:$JIRA_API_TOKEN" "${JIRA_BASE_URL:-https://redhat.atlassian.net}/rest/api/3/issue/{$1}"
    - Parse JSON response to extract:
       - Issue summary and description
       - From within the description expect the following sections
@@ -99,18 +99,16 @@ This command takes a JIRA URL, fetches the issue description and requirements, a
    - Each commit should honor https://www.conventionalcommits.org/en/v1.0.0/ and always include a commit message body articulating the "why"
    - Use your judgment to organize commits in a way that makes them easy to review and understand
    - Common logical groupings (use as guidance, not rigid rules):
-     - API changes: Changes in `api/` directory (types, CRDs)
-       - Example: `git commit -m"feat(api): Update HostedCluster API for X" -m"Add new fields to support Y functionality"`
-     - Vendor changes: Dependency updates in `vendor/` directory
-       - Example: `git commit -m"chore(vendor): Update dependencies for X" -m"Required to pick up bug fixes in upstream library Y"`
-     - Generated code: Auto-generated clients, informers, listers, and CRDs
-       - Example: `git commit -m"chore(generated): Regenerate clients and CRDs" -m"Regenerate after API changes to ensure client code is in sync"`
-     - CLI changes: User-facing command changes in `cmd/` directory
-       - Example: `git commit -m"feat(cli): Add support for X flag" -m"This allows users to configure Y behavior at cluster creation time"`
-     - Operator changes: Controller logic in `operator/` or `controllers/`
-       - Example: `git commit -m"feat(operator): Implement X controller logic" -m"Without this the controller won't reconcile when Y condition occurs"`
-     - Support/utilities: Shared code in `support/` directory
-       - Example: `git commit -m"refactor(support): Extract common X utility" -m"Consolidate duplicated logic from multiple controllers into shared helper"`
+     - API changes: Changes to types, schemas, or CRDs
+       - Example: `git commit -m"feat(api): Add new field for X" -m"Add new fields to support Y functionality"`
+     - Dependency changes: Dependency or vendor updates
+       - Example: `git commit -m"chore(deps): Update dependencies for X" -m"Required to pick up bug fixes in upstream library Y"`
+     - Generated code: Auto-generated clients, configs, or schemas
+       - Example: `git commit -m"chore(generated): Regenerate after API changes" -m"Regenerate to ensure generated code is in sync with types"`
+     - Core logic: Controller, service, or business logic changes
+       - Example: `git commit -m"feat(controller): Implement X reconciliation" -m"Without this the controller won't reconcile when Y condition occurs"`
+     - Utilities: Shared helper code
+       - Example: `git commit -m"refactor(util): Extract common X utility" -m"Consolidate duplicated logic into shared helper"`
      - Tests: Test additions or modifications
        - Example: `git commit -m"test: Add tests for X functionality" -m"Ensure the new behavior is covered by unit tests to prevent regressions"`
      - Documentation: Changes in `docs/` directory
