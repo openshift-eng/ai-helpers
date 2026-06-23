@@ -3,11 +3,30 @@
   "owner": {
     "name": "openshift-eng"
   },
-  "allowCrossMarketplaceDependenciesOn": [
-    "claude-plugins-official",
-    "prodsec-skills"
-  ],
   "plugins": [
+    {
+      "name": "gopls-lsp",
+      "source": {
+        "source": "github",
+        "repo": "anthropics/claude-plugins-official",
+        "path": "plugins/gopls-lsp"
+      },
+      "description": "Go language server for code intelligence and refactoring",
+      "version": "1.0.0",
+      "category": "development",
+      "keywords": ["go", "gopls", "lsp"]
+    },
+    {
+      "name": "prodsec-skills",
+      "source": {
+        "source": "github",
+        "repo": "RedHatProductSecurity/prodsec-skills"
+      },
+      "description": "Security guidance skills for AI coding assistants",
+      "version": "1.0.0",
+      "category": "security",
+      "keywords": ["security", "prodsec"]
+    },
     {
       "name": "git",
       "source": "./plugins/git",
@@ -322,7 +341,7 @@
       "name": "golang",
       "source": "./plugins/golang",
       "description": "Go development tools: gopls MCP server, LSP integration, automatic gofmt formatting, golangci-lint linting, and CVE dependency patching",
-      "version": "0.3.0",
+      "version": "0.3.1",
       "category": "development",
       "keywords": [
         "go",
@@ -396,7 +415,7 @@
       "name": "openshift-developer",
       "source": "./plugins/openshift-developer",
       "description": "Bundle of curated plugins, skills, and MCP servers useful to any OpenShift engineer",
-      "version": "1.1.1",
+      "version": "1.1.2",
       "category": "bundle",
       "keywords": [
         "openshift",
