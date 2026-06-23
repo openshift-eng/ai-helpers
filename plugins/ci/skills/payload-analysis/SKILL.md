@@ -50,7 +50,7 @@ Before starting, you **MUST** load the following skills (they define output sche
 
 1. **Python 3** (3.10 or later) — for running the snapshot script if needed
 2. **gcloud CLI** — for subagent artifact download (must-gather, pod logs)
-3. **GitHub CLI (`gh`)** — for step-registry change detection (Step 3.6) and checking existing revert PRs (Step 6.3). **Note:** `gh auth status` may report failure when only `GITHUB_TOKEN` is set via environment variable — this is expected. Do not use `gh auth status` to check availability; `gh api` and `gh pr` commands work correctly with `GITHUB_TOKEN`.
+3. **GitHub CLI (`gh`)** — for step-registry change detection (Step 3.6) and checking existing revert PRs (Step 6.3)
 
 ## Implementation Steps
 
@@ -126,8 +126,6 @@ From `summary.json` → `test_failures.blocking[]`:
 For deeper context, read `build_log.json` (at the `build_log` path) for any failed job. It contains `error_warning_lines[]` with `line_number` and `text`, plus `tail_lines[]` (last 20% of the log).
 
 #### 3.6: Check for CI Infrastructure Changes
-
-**Do NOT run `gh auth status` to check authentication** — it returns a non-zero exit code when only `GITHUB_TOKEN` is set (no interactive login), even though `gh api` works correctly with `GITHUB_TOKEN`. Just run the `gh api` calls directly.
 
 For each failed job, check whether changes to the CI step-registry in the `openshift/release` repo correlate with the failure. These changes (modified step scripts, updated URLs, changed environment variables) will never appear in the snapshot's component PR list because they are not payload component changes — but they can break jobs just as effectively.
 
