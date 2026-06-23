@@ -176,13 +176,13 @@ Write a design summary capturing:
 
 Evals must be designed alongside the agent, not added after the fact. Ask the user:
 
-> How will we verify this agent works correctly? Let's define evals now so they ship with the initial PR.
+> How will we verify this agent behaves as intended? Let's define evals now so they ship with the initial PR.
 
 Every agent should have at minimum these baseline evals:
 
 1. **Smoke test** — Does the agent start, authenticate, and complete without errors on a trivial input?
 2. **Golden-path eval** — Given a known input (e.g., a specific Jira issue, a test PR, a sample payload), does the agent produce the expected output?
-3. **Guardrail eval** — Does the agent correctly refuse or skip inputs outside its scope?
+3. **Guardrail eval** — Does the agent refuse or skip inputs outside its scope without side effects?
 
 Beyond the baseline, design evals specific to the agent's purpose:
 
@@ -191,7 +191,7 @@ Beyond the baseline, design evals specific to the agent's purpose:
 | Code generation | Generated code compiles, passes lint, tests pass |
 | Triage/analysis | Output matches human-labeled ground truth on N sample inputs |
 | PR creation | PR has correct base branch, labels, description format |
-| Jira updates | Fields set correctly, no duplicate comments |
+| Jira updates | Fields match expected values, no duplicate comments |
 
 Use [promptfoo](https://www.promptfoo.dev/) for eval harness. Define eval cases in a `promptfooconfig.yaml` alongside the agent's step registry files. The eval suite should run in a presubmit job against the agent's own PR so regressions are caught before merge.
 
@@ -410,6 +410,9 @@ fi
 
 # --- Process each work item ---
 while IFS= read -r item; do
+  ITEM_ID="${item%%,*}"
+  STATUS="pending"
+
   # Phase 1: Core task
   set +e
   claude -p "{prompt or /skill:command}" \
@@ -584,8 +587,8 @@ Present the developer with a prerequisites checklist — the blanks they need to
 **If the agent pushes branches or creates PRs:**
 - [ ] **GitHub App** — Request via [PCO DevServices](https://devservices.dpp.openshift.com/support/) with minimum permissions: Contents (R&W), Pull requests (R&W). No admin permissions.
   - Configure the app and install on the fork org (for pushing) and upstream org (for PR creation)
-  - Store the app's `private-key` and `installation-id` (one per org) in your vault secret, along with a generated token for authentication
-  - The commands script generates JWT tokens at runtime using RS256 signing and maintains separate tokens for fork push and upstream PR operations
+  - Store the app's `private-key` and `installation-id` (one per org) in your vault secret — do not persist generated installation tokens, as they expire after 1 hour
+  - The commands script generates JWT and installation tokens at runtime using RS256 signing and maintains separate tokens for fork push and upstream PR operations
 
 **If the agent reads or writes Jira:**
 - [ ] **Jira API token** — Create at https://id.atlassian.com/manage-profile/security/api-tokens
