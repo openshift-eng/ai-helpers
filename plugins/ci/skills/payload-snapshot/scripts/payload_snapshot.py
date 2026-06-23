@@ -1215,7 +1215,8 @@ class SummaryGenerator:
             "  `first_failed_in`, `payloads_failing`, `failure_message`,",
             "  `failure_text`",
             "- `payloads[]` — per-payload entries with `tag`, `phase`,",
-            "  relative paths, and `prs[]` with component/diff/comments paths",
+            "  relative paths, `prs[]` with component/diff/comments paths,",
+            "  and `rhcos_changes[]` with RPM diffs per RHCOS variant",
             "",
         ])
 
@@ -1340,6 +1341,9 @@ class SummaryGenerator:
                         }
                         for p in prs
                     ]
+                rhcos_changes = _extract_rhcos_changes(changelog)
+                if rhcos_changes:
+                    entry["rhcos_changes"] = rhcos_changes
             regressions_path = os.path.join(
                 self.base_dir, tag_name, "regressions.json"
             )
@@ -1857,6 +1861,26 @@ def _extract_prs(changelog: dict) -> list[dict]:
                     "url": pull_url,
                 })
     return prs
+
+
+def _extract_rhcos_changes(changelog: dict) -> list[dict]:
+    """Extract RHCOS RPM diff data from the changelog's nodeImageStreams."""
+    if not changelog:
+        return []
+
+    results = []
+    for stream in changelog.get("nodeImageStreams") or []:
+        rpm_diff = stream.get("rpmDiff") or {}
+        if not any(rpm_diff.get(k) for k in ("changed", "added", "removed")):
+            continue
+        results.append({
+            "name": stream.get("name", ""),
+            "tag": stream.get("tag", ""),
+            "changed": rpm_diff.get("changed", {}),
+            "added": rpm_diff.get("added", {}),
+            "removed": rpm_diff.get("removed", {}),
+        })
+    return results
 
 
 def _parse_pr_url(url: str) -> Optional[tuple[str, str, int]]:

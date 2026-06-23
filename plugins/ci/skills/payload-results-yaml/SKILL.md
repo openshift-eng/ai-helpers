@@ -78,6 +78,16 @@ candidates:
           - command: "/payload-job periodic-ci-...-e2e-aws-ovn"
             test_url: "https://pr-payload-tests.ci.openshift.org/runs/ci/..."
             test_prow_url: "https://prow.ci.openshift.org/view/gs/..."
+
+rhcos_suspects:
+  - rhcos_tag: "rhel-coreos-10"
+    rhcos_name: "Red Hat Enterprise Linux CoreOS 10.2"
+    package: "systemd"
+    old_version: "257-23.el10"
+    new_version: "257-23.el10_2.2"
+    failing_jobs:
+      - "periodic-ci-...-e2e-metal-ipi-ovn-ipv4"
+    rationale: "systemd update correlates with variant-isolated boot timeout in RHCOS 10 jobs"
 ```
 
 ### `metadata`
@@ -166,11 +176,27 @@ Payload validation jobs triggered against the revert PR.
 | `test_url` | string | pr-payload-tests URL for the run |
 | `test_prow_url` | string | Prow URL for the resulting test run |
 
+### `rhcos_suspects[]` (optional)
+
+RHCOS RPM package updates suspected of contributing to failures. Written once by `payload-analysis` when RHCOS RPM changes correlate with job failures (see Step 6.1b of the payload-analysis skill). This array is separate from `candidates[]` because RHCOS changes cannot be reverted through the PR revert mechanism — they are informational for manual investigation.
+
+An empty array or absent key means no RHCOS RPM changes were suspected.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `rhcos_tag` | string | RHCOS image stream tag (`rhel-coreos` or `rhel-coreos-10`) |
+| `rhcos_name` | string | Human-readable RHCOS version name |
+| `package` | string | RPM package name |
+| `old_version` | string | Previous RPM version |
+| `new_version` | string | New RPM version |
+| `failing_jobs` | array of strings | Job names from `failing_jobs[]` where this package change may be relevant |
+| `rationale` | string | Why this package is suspected |
+
 ## Operations
 
 ### Create (used by `payload-analysis`)
 
-Write a new `payload-results-{tag}.yaml` with `metadata`, `failing_jobs`, and `candidates` populated. All failed blocking jobs are recorded in `failing_jobs`. Candidates with no pre-existing revert start with `actions: []`. If a pre-existing revert PR is discovered during analysis, append an action with `type: "revert"` and `status: "open"` or `"merged"`.
+Write a new `payload-results-{tag}.yaml` with `metadata`, `failing_jobs`, `candidates`, and optionally `rhcos_suspects` populated. All failed blocking jobs are recorded in `failing_jobs`. Candidates with no pre-existing revert start with `actions: []`. If a pre-existing revert PR is discovered during analysis, append an action with `type: "revert"` and `status: "open"` or `"merged"`. If RHCOS RPM suspects were identified, include them in `rhcos_suspects[]`.
 
 ### Read Candidates (used by `payload-revert`, `payload-experiment`)
 

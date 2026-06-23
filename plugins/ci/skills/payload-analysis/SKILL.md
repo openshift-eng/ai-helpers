@@ -169,6 +169,21 @@ If this finds nothing, also check steps that run earlier in the workflow and set
 
 This step catches failures caused by CI tooling changes (mirror URL migrations, proxy configuration updates, script refactors) that are invisible to the snapshot's PR tracking.
 
+#### 3.7: RHCOS RPM Changes
+
+For each failed job's `streak.originating_payload`, find the matching entry in `summary.json` → `payloads[]` and check for `rhcos_changes[]`. This array (when present) contains per-RHCOS-variant RPM diffs showing which packages changed in the underlying RHCOS image for that payload:
+
+- `name`: Human-readable version (e.g., "Red Hat Enterprise Linux CoreOS 10.2")
+- `tag`: Image stream tag — maps to job RHCOS variants:
+  - `rhel-coreos` → applies to jobs with `rhcos_version` of `rhcos9` or `rhcos9-default`
+  - `rhel-coreos-10` → applies to jobs with `rhcos_version` of `rhcos10` or `rhcos10-default`
+  - Both apply to `rhcos9_10` (heterogeneous) jobs
+- `changed`: `{package_name: {"old": old_version, "new": new_version}}`
+- `added`: newly added packages (when present)
+- `removed`: removed packages (when present)
+
+For each failed job, identify the matching RHCOS variant's RPM changes (if any) based on the job's `rhcos_version` field and the RHCOS tag mapping above. These changes are used as additional context in Step 4 and as potential suspects in Step 6.
+
 ### Step 4: Investigate Each Failed Job in Parallel
 
 For each failed blocking job in the **target payload**, launch a **parallel subagent** to investigate the failure. Pass the subagent the Prow URL and all previous attempt URLs from Step 3.2.
@@ -185,6 +200,8 @@ You MUST use the following prompt verbatim (substituting the placeholder values)
 >
 > **RHCOS version**: This job's cluster runs on **<rhcos_version>**. <rhcos_context>
 >
+> **RHCOS RPM changes**: Read `<summary_json_path>` and find the entry in `payloads[]` whose `tag` equals `<originating_payload_tag>`. If that entry has an `rhcos_changes[]` array, look up the RHCOS variant matching this job's `rhcos_version` using the tag mapping: `rhel-coreos` → `rhcos9`/`rhcos9-default`, `rhel-coreos-10` → `rhcos10`/`rhcos10-default`, both apply to `rhcos9_10`. Check whether any changed, added, or removed RPM packages overlap with the failure's root cause. If the failure involves OS-level components (kernel, bootloader, systemd, SELinux, rpm-ostree, cri-o, crun, runc, networking) and matching packages changed, note the potential correlation in your ANALYSIS_RESULT.
+>
 > First, check the JUnit results or build log to determine whether this is an install failure (look for `install should succeed: overall` or similar install-related test failures) or a test failure (install passed, specific tests failed).
 >
 > Based on the failure type, use the appropriate skill:
@@ -199,10 +216,12 @@ You MUST use the following prompt verbatim (substituting the placeholder values)
 >
 > If the job is an aggregated job (has `aggregated-` prefix in the name or an `aggregator` container/step), also return the **underlying job name** (e.g., `periodic-ci-openshift-release-main-ci-4.22-e2e-aws-upgrade-ovn-single-node`). This is found in the junit-aggregated.xml artifacts — each `<testcase>` has `<system-out>` YAML data with a `humanurl` field linking to individual runs whose URL path contains the underlying job name. The underlying job name cannot be derived from the aggregated job name — it must be extracted from the artifacts.
 
-Where `<rhcos_version>` is the `rhcos_version` field from the snapshot's failed job entry, and `<rhcos_context>` is one of:
+Where `<rhcos_version>` is the `rhcos_version` field from the snapshot's failed job entry, `<rhcos_context>` is one of:
 - For **`rhcos9`** or **`rhcos9-default`**: "RHCOS 9 is based on RHEL 9 — the standard CoreOS variant for this OCP version."
 - For **`rhcos10`** or **`rhcos10-default`**: "RHCOS 10 is based on RHEL 10 with a different kernel, systemd, SELinux policy, and package versions than RHCOS 9. If the failure involves OS-level components (kernel, bootloader, rpm-ostree, MCO, Ignition), consider whether RHEL 10 differences could be the root cause."
 - For **`rhcos9_10`** (heterogeneous): "This is a heterogeneous cluster with both RHCOS 9 and RHCOS 10 nodes. Failures may be specific to one node variant — check whether failing nodes are RHCOS 9 or RHCOS 10 when node-level logs are available."
+
+`<summary_json_path>` is the absolute path to the snapshot's `summary.json` file, and `<originating_payload_tag>` is the `streak.originating_payload` value from the failed job entry.
 
 **Structured Return Format**: Instruct each subagent to include an `ANALYSIS_RESULT` block at the end of its response:
 
@@ -217,7 +236,14 @@ ANALYSIS_RESULT:
 - retries_consistent: yes|no|no_retries|only_final_examined
 - retry_summary: <brief comparison of failure modes across attempts, e.g. "all 3 attempts failed with same KAS crashloop" or "attempt 1 infra timeout, attempts 2-3 test failure", or "no retries" when there was only a single attempt>
 - rhcos_version: rhcos9|rhcos10|rhcos9_10|rhcos9-default|rhcos10-default
+- rhcos_rpm_correlation: none|possible|likely
+- rhcos_rpm_suspect_packages: <comma-separated package names if correlation is possible or likely, or "none">
 ```
+
+The `rhcos_rpm_correlation` field indicates whether the failure may be related to RHCOS RPM changes found in `summary.json`:
+- `none` — no correlation found, or no RHCOS RPM changes exist for this job's variant
+- `possible` — the failure involves OS-level components that overlap with changed packages, but the link is not definitive
+- `likely` — error messages or failure behavior directly point to functionality provided by a changed RPM package
 
 **Note for aggregated jobs**: Since only the final attempt is examined (retries re-run aggregation only), set `retries_consistent: only_final_examined` and `retry_summary: "Aggregated job — only final attempt examined (retries re-run aggregation only)"`.
 
@@ -287,6 +313,27 @@ Maximum possible score is 130, capped at 100. Record the numeric score alongside
 
 **Apply the rubric mechanically.** Calculate the score by summing the weights for each signal that fires based on concrete evidence. Do NOT adjust the score downward based on speculative counter-arguments like "if this were the sole cause, other jobs would also fail" or "this could be a coincidence." If the error messages reference the PR's changes, that's +40 — the fact that some other jobs didn't fail doesn't negate the match. If the failure is new (streak=1) and the PR is the only one touching the component, those signals fire regardless of theoretical alternatives. Trust the rubric — it exists to prevent both over- and under-attribution.
 
+#### 6.1b: RHCOS RPM Change Correlation
+
+After scoring PR candidates, check for RHCOS RPM change correlation. A failure correlates with RHCOS RPM changes when ANY of the following hold:
+
+1. The subagent's `rhcos_rpm_correlation` is `possible` or `likely`
+2. The failure is variant-isolated (e.g., appears only in RHCOS 10 jobs) AND the matching RHCOS variant has RPM changes in the originating payload
+3. The root cause involves OS-level components (kernel, systemd, SELinux, cri-o, crun, runc, networking, bootloader, rpm-ostree, MCO, Ignition) AND matching RHCOS RPM changes exist in the originating payload
+4. No high-confidence PR candidates exist (all scores < 50) AND RHCOS RPM changes exist in the originating payload — in this case, the RPM changes are the most plausible explanation
+
+**RHCOS RPM changes are NOT revert candidates.** They cannot be easily reverted from the payload. Do NOT propose reverts for RHCOS changes. Instead, surface them as **"RHCOS RPM suspects"** — informational entries for manual investigation by the RHCOS or platform team.
+
+When both PR candidates AND RHCOS RPM changes are plausible causes, include both. The PR candidate scoring is unchanged; RHCOS suspects are additive context, not alternatives. It is possible for a failure to be caused by an interaction between a PR change and an RHCOS change.
+
+For each RHCOS RPM suspect, record:
+- `rhcos_tag`: the RHCOS image stream tag (e.g., `rhel-coreos-10`)
+- `rhcos_name`: human-readable name (e.g., "Red Hat Enterprise Linux CoreOS 10.2")
+- `package`: the RPM package name
+- `old_version`, `new_version`: the version change
+- `failing_jobs`: list of job names where this package change may be relevant
+- `rationale`: why this package is suspected (e.g., "systemd update correlates with variant-isolated boot timeout in RHCOS 10 jobs")
+
 #### 6.2: Propose Revert Candidates
 
 For each candidate PR with a rubric score of **>= 85**, mark it as a **revert candidate**. A PR qualifies when:
@@ -326,7 +373,7 @@ Recommend force-accepting when **all** of the following are true:
 
 Use the `payload-results-yaml` skill to create: `payload-results-{tag}.yaml`
 
-This file contains ALL scored candidates across all confidence tiers (HIGH, MEDIUM, LOW), enabling downstream commands to filter by their own criteria.
+This file contains ALL scored candidates across all confidence tiers (HIGH, MEDIUM, LOW), enabling downstream commands to filter by their own criteria. If RHCOS RPM suspects were identified in Step 6.1b, include them in the `rhcos_suspects[]` array (see the `payload-results-yaml` skill for the schema).
 
 ### Step 7: Generate HTML Report
 
@@ -399,6 +446,47 @@ For each failed job, a collapsible section containing:
     </table>
   </div>
 </details>
+```
+
+#### 7.3b: RHCOS Changes
+
+Include this section after the failed job details when any payload in the chain has RHCOS RPM changes. If RHCOS RPM suspects were identified (Step 6.1b), show them prominently first, then include the full RPM diff in a collapsible section.
+
+```html
+<div class="card">
+  <h2>RHCOS Changes</h2>
+
+  <!-- Only when RHCOS RPM suspects exist -->
+  <div class="rhcos-suspect">
+    <h3>Suspected RHCOS RPM Changes</h3>
+    <p>The following RHCOS package updates may be contributing to failures. These cannot be reverted
+       through the normal PR revert process — escalate to the RHCOS or platform team if confirmed.</p>
+    <table>
+      <tr><th>Package</th><th>Old Version</th><th>New Version</th><th>Variant</th><th>Affected Jobs</th><th>Rationale</th></tr>
+      <tr>
+        <td>{package}</td><td>{old_version}</td><td>{new_version}</td>
+        <td><span class="badge badge-{rhcos9|rhcos10}">{variant}</span></td>
+        <td>{comma-separated job names}</td><td>{rationale}</td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- Always include full RPM diffs when RHCOS changes exist in any originating payload -->
+  <details>
+    <summary>Full RHCOS RPM Diffs ({originating_payload_tag})</summary>
+    <h4>{rhcos_name} ({rhcos_tag})</h4>
+    <table>
+      <tr><th>Package</th><th>Old Version</th><th>New Version</th></tr>
+      <!-- List all changed packages -->
+    </table>
+    <!-- Repeat for each RHCOS variant with changes -->
+  </details>
+</div>
+```
+
+Add this CSS for RHCOS suspect styling:
+```css
+.rhcos-suspect { background: rgba(188,140,255,0.1); border-left: 4px solid var(--purple); padding: 0.75rem 1rem; border-radius: 0 0.3rem 0.3rem 0; margin: 0.75rem 0; }
 ```
 
 #### 7.4: Recommended Reverts
@@ -497,10 +585,11 @@ After generating the initial report and output files, launch a **dedicated subag
 
 The reviewer should receive **only** the following (NOT the full conversation history):
 
-1. The `summary.json` snapshot data (payload metadata, failed jobs, streaks, test regressions)
+1. The `summary.json` snapshot data (payload metadata, failed jobs, streaks, test regressions, RHCOS changes)
 2. The scored candidate list with per-component rubric breakdowns from Step 6
 3. The `ANALYSIS_RESULT` blocks from all subagents in Step 4
 4. The revert recommendations (if any)
+5. The RHCOS RPM suspects (if any)
 
 Use this prompt for the reviewer:
 
@@ -523,6 +612,8 @@ Use this prompt for the reviewer:
 > 3. **Incomplete coverage**: Are there failed jobs with no subagent analysis or with only a one-line summary? Every failed blocking job deserves a thorough investigation.
 >
 > 4. **Wrong skill for failure type**: Was an install failure analyzed with the test failure skill or vice versa?
+>
+> 5. **Missing RHCOS RPM correlation**: If RHCOS RPM changes exist in the originating payload and failures are variant-isolated or involve OS-level components, was the correlation checked? Were relevant packages surfaced as suspects?
 >
 > **Rules**:
 > - Do NOT suggest lowering confidence scores. If the rubric signals fired (error message match, new failure, component exclusivity), the score is correct. Period.
