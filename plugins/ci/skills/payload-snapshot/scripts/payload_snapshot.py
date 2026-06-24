@@ -155,6 +155,8 @@ def fetch_json(url: str, timeout: int = 30, max_retries: int = 6) -> dict:
             with urllib.request.urlopen(req, timeout=timeout) as resp:
                 return json.loads(resp.read().decode("utf-8"))
         except urllib.error.HTTPError as e:
+            if e.code == 404:
+                raise SystemExit(f"Payload not found (HTTP 404): {url}") from e
             retryable = e.code >= 500 or e.code == 429
             if not retryable or attempt >= max_retries:
                 raise
