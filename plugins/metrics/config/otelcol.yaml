@@ -8,8 +8,7 @@
 #   CLAUDE_METRICS_LOG_DIR=~/.local/share/claude-metrics \
 #   otelcol-contrib --config otelcol.yaml
 #
-# All Claude Code OTLP env vars are set automatically by the plugin's
-# .claude/settings.json. No shell profile changes required.
+# OTLP env vars are configured by scripts/install.sh (run once after plugin install).
 
 receivers:
   otlp:
