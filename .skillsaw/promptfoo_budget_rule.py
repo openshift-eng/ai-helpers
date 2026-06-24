@@ -237,7 +237,9 @@ class PromptfooBudgetRule(Rule):
         if parent_plugin is not None:
             return parent_plugin.path.name
 
-        return None
+        # Root-level configs (e.g. evals/promptfooconfig.yaml) use the
+        # "contributing" budget entity.
+        return "contributing"
 
     # ------------------------------------------------------------------
     # token-usage validation

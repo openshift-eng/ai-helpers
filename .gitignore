@@ -39,13 +39,13 @@ venv/
 # Claude's settings for this repository
 .claude/*
 !.claude/settings.json
+!.claude/rules/
 
 # Working directories for skills
 .work/
 
 # Node.js
 node_modules/
-package-lock.json
 
 # Promptfoo eval output
 .promptfoo/

@@ -34,6 +34,10 @@ test: ## Run all tests
 lint: ## Run plugin linter (verbose, strict mode)
 	$(CONTAINER_RUNTIME) run --rm --platform linux/amd64 $(SELINUX_OPT) -v $(PWD):/workspace:Z $(SKILLSAW_IMAGE) .
 
+.PHONY: lint-fix
+lint-fix: ## Auto-fix lint violations
+	$(CONTAINER_RUNTIME) run --rm --platform linux/amd64 $(SELINUX_OPT) -v $(PWD):/workspace:Z $(SKILLSAW_IMAGE) fix -y .
+
 .PHONY: lint-pull
 lint-pull: ## Pull the latest skillsaw image
 	$(CONTAINER_RUNTIME) pull $(SKILLSAW_IMAGE)
@@ -63,12 +67,27 @@ $(EVAL_TARGETS):
 	$(eval EVAL_NAME := $(basename $(notdir $(CONFIG))))
 	@echo "=== Running eval: $(CONFIG) ==="
 	@CLAUDE_CODE_USE_VERTEX=true \
+	$(if $(PROMPTFOO_CONFIG_DIR),PROMPTFOO_CONFIG_DIR=$(PROMPTFOO_CONFIG_DIR)) \
 	PROMPTFOO_PASS_RATE_THRESHOLD=$(EVAL_PASS_RATE_THRESHOLD) \
 		npx promptfoo eval \
 		-c "$(CONFIG)" \
 		$(if $(EVAL_FILTER),--filter-pattern "$(EVAL_FILTER)") \
 		$(if $(EVAL_TIER),--filter-metadata "tier=$(EVAL_TIER)") \
-		$(if $(EVAL_OUTPUT_DIR),--output "$(EVAL_OUTPUT_DIR)/$(EVAL_NAME).xml") \
+		$(if $(EVAL_OUTPUT_DIR),--output "$(EVAL_OUTPUT_DIR)/$(EVAL_NAME).xml" --output "$(EVAL_OUTPUT_DIR)/$(EVAL_NAME).html") \
+		--repeat $(EVAL_REPEAT) \
+		--no-cache \
+		--table-cell-max-length 500
+
+.PHONY: eval-contributing
+eval-contributing: ## Run contributing workflow evals (root evals/promptfooconfig.yaml)
+	@npm install
+	@CLAUDE_CODE_USE_VERTEX=true \
+	$(if $(PROMPTFOO_CONFIG_DIR),PROMPTFOO_CONFIG_DIR=$(PROMPTFOO_CONFIG_DIR)) \
+	PROMPTFOO_PASS_RATE_THRESHOLD=$(EVAL_PASS_RATE_THRESHOLD) \
+		npx promptfoo eval \
+		-c evals/promptfooconfig.yaml \
+		$(if $(EVAL_FILTER),--filter-pattern "$(EVAL_FILTER)") \
+		$(if $(EVAL_OUTPUT_DIR),--output "$(EVAL_OUTPUT_DIR)/contributing.xml" --output "$(EVAL_OUTPUT_DIR)/contributing.html") \
 		--repeat $(EVAL_REPEAT) \
 		--no-cache \
 		--table-cell-max-length 500

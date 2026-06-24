@@ -23,6 +23,8 @@ Canonical example: `plugins/hello-world/`
 | Command | When |
 |---------|------|
 | `make lint` | Before every commit — validates structure, format, and marketplace registration |
+| `make lint-fix` | After lint failures — auto-fixes what it can |
+| `make eval-plugins EVAL_PLUGIN=<name>` | After modifying a plugin's commands or skills — runs behavioral evals |
 | Bump `version` in `plugin.json` | When modifying plugin commands or skills (not README-only changes) |
 | `make update` | After version bumps — syncs marketplace.json and regenerates docs |
 
@@ -37,3 +39,4 @@ Canonical example: `plugins/hello-world/`
 - **Register all plugins** in [.claude-plugin/marketplace.json](.claude-plugin/marketplace.json).
 - **Set author** to `"github.com/openshift-eng"` in `plugin.json`.
 - **Add new commands** to an existing plugin when they fit its scope, or to `plugins/utils/` if no clear parent. Create a new plugin only for a distinct group of related commands.
+- **Add evals** for new or modified plugins. See [evals/AGENTS.md](evals/AGENTS.md) for how to write evals, tag metadata, and stay within budget.
