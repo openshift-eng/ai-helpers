@@ -1,0 +1,12 @@
+expected_files_changed:
+  - control-plane-operator/controllers/hostedcontrolplane/hostedcontrolplane_controller.go
+  - control-plane-operator/controllers/hostedcontrolplane/manifests/pki.go
+  - control-plane-operator/controllers/hostedcontrolplane/pki/aws_ebs_csi_driver_controller.go
+  - control-plane-operator/controllers/hostedcontrolplane/pki/aws_ebs_csi_driver_controller_test.go
+expected_tests_pass: true
+min_coverage_pct: 40
+difficulty: simple
+category: bug
+notes: >
+  Manage AWS EBS CSI driver metrics certs via CPO, following the
+  Azure CSI pattern. Adds PKI reconcile function and unit test.
