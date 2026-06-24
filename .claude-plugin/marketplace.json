@@ -14,7 +14,11 @@
       "description": "Go language server for code intelligence and refactoring",
       "version": "1.0.0",
       "category": "development",
-      "keywords": ["go", "gopls", "lsp"]
+      "keywords": [
+        "go",
+        "gopls",
+        "lsp"
+      ]
     },
     {
       "name": "prodsec-skills",
@@ -25,7 +29,10 @@
       "description": "Security guidance skills for AI coding assistants",
       "version": "1.0.0",
       "category": "security",
-      "keywords": ["security", "prodsec"]
+      "keywords": [
+        "security",
+        "prodsec"
+      ]
     },
     {
       "name": "git",
@@ -81,7 +88,7 @@
       "name": "ci",
       "source": "./plugins/ci",
       "description": "A plugin to work with OpenShift CI and analyze Prow job results",
-      "version": "0.0.52",
+      "version": "0.0.53",
       "category": "ci",
       "keywords": [
         "prow",
