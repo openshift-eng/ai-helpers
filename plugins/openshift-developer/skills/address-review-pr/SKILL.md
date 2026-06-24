@@ -39,7 +39,9 @@ Automates addressing PR review comments by fetching all comments from a pull req
    })'
 
    # Get reviews (need REST API for numeric IDs)
-   gh api repos/{owner}/{repo}/pulls/<PR_NUMBER>/reviews --jq 'map({
+   # IMPORTANT: Use --paginate to fetch ALL pages (default page size is 30;
+   # PRs with many bot/CI reviews easily exceed this, silently dropping recent human reviews)
+   gh api repos/{owner}/{repo}/pulls/<PR_NUMBER>/reviews --paginate --jq 'map({
      id,
      author: .user.login,
      length: (.body | length),
@@ -49,7 +51,8 @@ Automates addressing PR review comments by fetching all comments from a pull req
    })'
 
    # Get review comments (inline code comments)
-   gh api repos/{owner}/{repo}/pulls/<PR_NUMBER>/comments --jq 'map({
+   # IMPORTANT: Use --paginate — same pagination issue as reviews above
+   gh api repos/{owner}/{repo}/pulls/<PR_NUMBER>/comments --paginate --jq 'map({
      id,
      author: .user.login,
      length: (.body | length),
