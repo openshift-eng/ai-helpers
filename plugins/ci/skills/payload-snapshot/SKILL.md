@@ -161,7 +161,7 @@ Comprehensive stream-level triage data — start here. Contains:
 - `blocking_jobs.failed_jobs[]` — detailed objects with `name`, `state`, `prow_url`, `gcs_url`, and relative path `job_json`. May include: `rhcos_version`, `streak` (with `streak_length`, `originating_payload`, `is_new_failure`, `failure_pattern`), `build_log_errors`, `test_failure_count`, and relative paths `junit_results`, `build_log`
 - `informing_jobs.failed_jobs[]` — job name strings
 - `test_failures.blocking[]` — `test_name`, `jobs`, `first_failed_in`, `payloads_failing`, `failure_message`, `failure_text` (full, not truncated)
-- `payloads[]` — per-payload entries with `tag`, `phase`, relative file paths, and `prs[]` with component/diff/comments paths
+- `payloads[]` — per-payload entries with `tag`, `phase`, relative file paths, `prs[]` with component/diff/comments paths, and `rhcos_changes[]` with RPM diffs per RHCOS variant (name, tag, changed/added/removed package versions)
 
 ### `AGENTS.md` / `CLAUDE.md`
 
@@ -173,7 +173,18 @@ Full release controller response including `blockingJobs`, `informingJobs`, and 
 
 ### `changelog.json`
 
-Release controller diff response with `changeLogJson.updatedImages` listing every PR that changed between this payload and its predecessor.
+Release controller diff response with `changeLogJson.updatedImages` listing every PR that changed between this payload and its predecessor. Also contains `nodeImageStreams` at the top level — RPM diffs for each RHCOS variant showing which packages changed between payloads.
+
+### `rhcos_changes[]` (in payloads[] within summary.json)
+
+Per-payload RHCOS RPM diff data extracted from the changelog's `nodeImageStreams`. Each entry contains:
+- `name`: Human-readable RHCOS version name (e.g., "Red Hat Enterprise Linux CoreOS 10.2")
+- `tag`: RHCOS image stream tag (`rhel-coreos` for RHCOS 9, `rhel-coreos-10` for RHCOS 10)
+- `changed`: Dict of `{package_name: {"old": old_version, "new": new_version}}`
+- `added`: Dict of newly added packages `{package_name: new_version}` (when present)
+- `removed`: Dict of removed packages `{package_name: old_version}` (when present)
+
+Only variants with non-empty `rpmDiff` are included. When the snapshot is created from Sippy-based changelogs (which lack `nodeImageStreams`), this field is absent.
 
 ### `regressions.json`
 
