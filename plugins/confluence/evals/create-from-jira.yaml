@@ -1,0 +1,153 @@
+description: "Behavioral evals for confluence:create-from-jira command"
+
+providers:
+  - id: anthropic:claude-agent-sdk
+    label: confluence-create-from-jira
+    config:
+      model: claude-opus-4-6
+      plugins:
+        - type: local
+          path: ../
+      append_allowed_tools: ['Bash', 'Skill', 'Read']
+      permission_mode: 'auto'
+
+prompts:
+  - "{{prompt}}"
+
+defaultTest:
+  options:
+    provider:
+      id: vertex:claude-opus-4-6
+      config:
+        projectId: "{{ env.ANTHROPIC_VERTEX_PROJECT_ID }}"
+        region: global
+        temperature: 0
+  assert:
+    - type: latency
+      threshold: 120000
+    - type: cost
+      threshold: 0.60
+
+tests:
+  # --- Golden: single-behavior tests ---
+
+  - description: "create-from-jira/golden/runbook-detection"
+    metadata: &meta-heavy
+      token-usage: large
+      judge-size: opus
+      tier: heavy
+    vars:
+      issue: file://fixtures/procedural-task.md
+      prompt: |
+        Analyze this Jira issue and determine which Confluence page type
+        best fits it. Do NOT create the page — just explain your reasoning
+        and which template you would use.
+
+        {{issue}}
+    assert:
+      - type: icontains
+        value: "runbook"
+      - type: llm-rubric
+        value: "The response identifies this as a runbook, since the issue contains step-by-step CLI procedures, validation commands, prerequisites, and a rollback section. It does not classify it as a design-doc or feature-spec."
+      - type: llm-rubric
+        value: "The response's final recommendation is runbook, not design-doc or feature-spec. It may mention other templates for comparison, but the conclusion is clearly runbook."
+
+  - description: "create-from-jira/golden/design-doc-detection"
+    metadata: *meta-heavy
+    vars:
+      issue: file://fixtures/epic-with-children.md
+      prompt: |
+        Analyze this Jira issue and determine which Confluence page type
+        best fits it. Do NOT create the page — just explain your reasoning
+        and which template you would use.
+
+        {{issue}}
+    assert:
+      - type: icontains
+        value: "design"
+      - type: llm-rubric
+        value: "The response identifies this as a design doc, since the issue is an Epic with multiple child stories covering architecture, implementation, testing, and documentation. It references the child issues in its reasoning."
+
+  - description: "create-from-jira/golden/gap-detection"
+    metadata: *meta-heavy
+    vars:
+      issue: file://fixtures/sparse-story.md
+      prompt: |
+        Analyze this Jira issue for creating a Confluence page with
+        /confluence:create-from-jira. What gaps or open questions would
+        you flag in the generated page?
+
+        {{issue}}
+    assert:
+      - type: icontains
+        value: "acceptance criteria"
+      - type: llm-rubric
+        value: "The response flags that the issue lacks acceptance criteria, has a vague description with no technical detail, and has no comments providing context. It identifies specific gaps that would appear as open questions in the generated page."
+
+  - description: "create-from-jira/golden/false-positive — does not invent gaps for a well-defined epic"
+    metadata: *meta-heavy
+    vars:
+      issue: file://fixtures/epic-with-children.md
+      prompt: |
+        Analyze this Jira issue for creating a Confluence page with
+        /confluence:create-from-jira. Is this issue well-defined enough
+        to generate a useful page, or does it have critical gaps?
+
+        {{issue}}
+    assert:
+      - type: llm-rubric
+        value: "The response concludes the issue is well-defined enough to generate a useful Confluence page. It acknowledges the epic has success criteria, child stories, and architecture decisions. It may mention minor open items or areas to flesh out, but its overall verdict is positive — it does NOT say the issue is underspecified or has critical gaps."
+      - type: not-icontains
+        value: "underspecified"
+      - type: not-icontains
+        value: "critically"
+
+  - description: "create-from-jira/golden/false-negative — does not miss gaps in a sparse issue"
+    metadata: *meta-heavy
+    vars:
+      issue: file://fixtures/sparse-story.md
+      prompt: |
+        Analyze this Jira issue for creating a Confluence page with
+        /confluence:create-from-jira. Is this issue well-defined enough
+        to generate a useful page, or does it have critical gaps?
+
+        {{issue}}
+    assert:
+      - type: llm-rubric
+        value: "The response identifies critical gaps. It does NOT say the issue is ready or well-defined. It flags at least: missing acceptance criteria, vague one-line description, no comments or context, unassigned. It recommends fleshing out the issue before generating a page."
+      - type: not-icontains
+        value: "well-defined"
+      - type: not-icontains
+        value: "ready to generate"
+
+  # --- Integration: multi-behavior tests ---
+
+  - description: "create-from-jira/integration/epic-content-synthesis"
+    metadata: *meta-heavy
+    vars:
+      issue: file://fixtures/epic-with-children.md
+      prompt: |
+        Using /confluence:create-from-jira, generate the Confluence page
+        content (in markdown) for this epic. Use the design-doc template.
+        Do NOT publish — just show me the page content you would create.
+
+        {{issue}}
+    assert:
+      - type: icontains
+        value: "ShutdownPlan"
+      - type: llm-rubric
+        value: "The generated page synthesizes information from the epic and its child issues into a coherent design document. It covers the problem statement, the architecture decisions from comments (CRD vs annotations), and includes sections for each child story's scope. It flags open questions and includes the success criteria from the epic."
+
+  - description: "create-from-jira/golden/invalid-issue-key"
+    metadata: *meta-heavy
+    vars:
+      prompt: |
+        Run /confluence:create-from-jira INVALID-KEY --space DEV --type design-doc
+    assert:
+      - type: llm-rubric
+        value: "The response either: (1) reports an error fetching the Jira issue or asks the user to verify the issue key, OR (2) explains that the MCP server is not configured and provides setup instructions. In either case, it does NOT fabricate issue content or generate a page."
+      - type: not-icontains
+        value: "## Overview"
+
+evaluateOptions:
+  maxConcurrency: 20

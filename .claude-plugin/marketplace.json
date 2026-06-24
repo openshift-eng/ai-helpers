@@ -475,6 +475,19 @@
       "source": "./plugins/agentic-docs",
       "description": "Create and maintain AI-optimized documentation for OpenShift",
       "version": "1.0.0"
+    },
+    {
+      "name": "confluence",
+      "source": "./plugins/confluence",
+      "description": "Confluence page management, documentation generation from Jira, and meeting notes publishing",
+      "version": "0.2.0",
+      "category": "productivity",
+      "keywords": [
+        "confluence",
+        "documentation",
+        "jira",
+        "meeting-notes"
+      ]
     }
   ]
 }

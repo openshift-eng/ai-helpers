@@ -1066,6 +1066,65 @@ footer a { color: var(--primary); }
       }
     },
     {
+      "name": "confluence",
+      "description": "Confluence page management and documentation generation from Jira",
+      "version": "0.2.0",
+      "has_readme": true,
+      "commands": [
+        {
+          "name": "create-from-jira",
+          "full_name": "confluence:create-from-jira",
+          "description": "Generate a structured Confluence page from a Jira epic or story",
+          "description_html": "Generate a structured Confluence page from a Jira epic or story",
+          "synopsis": "/confluence:create-from-jira \u003cissue-key\u003e [--space \u003ckey\u003e] [--parent-id \u003cid\u003e] [--type design-doc|feature-spec|runbook]",
+          "body_html": "\u003cp\u003eThe \u003ccode\u003econfluence:create-from-jira\u003c/code\u003e command reads a Jira epic, story, or feature request and generates a well-structured Confluence page from it. It analyzes the issue&#x27;s summary, description, acceptance criteria, linked issues, comments, and child issues to produce a comprehensive document — not a shallow copy of the Jira fields.\u003c/p\u003e\u003cp\u003eThis command requires AI reasoning to:\u003cbr\u003e- Decide which page template best fits the issue (design doc, feature spec, runbook, or decision record)\u003cbr\u003e- Synthesize information scattered across linked issues and comments into a coherent narrative\u003cbr\u003e- Identify gaps in the Jira issue and flag them as open questions in the generated page\u003cbr\u003e- Structure the page hierarchy appropriately within the target Confluence space\u003c/p\u003e"
+        },
+        {
+          "name": "search",
+          "full_name": "confluence:search",
+          "description": "Search Confluence for related documentation using natural language or CQL",
+          "description_html": "Search Confluence for related documentation using natural language or CQL",
+          "synopsis": "/confluence:search \u003cquery\u003e [--space \u003ckey\u003e] [--limit \u003cn\u003e]",
+          "body_html": "\u003cp\u003eThe \u003ccode\u003econfluence:search\u003c/code\u003e command searches Confluence for documentation related to a topic, Jira issue, or natural language question. It goes beyond simple keyword search — it interprets the user&#x27;s intent, constructs appropriate CQL queries, and returns a ranked, summarized list of relevant pages.\u003c/p\u003e\u003cp\u003eThis command requires AI reasoning to:\u003cbr\u003e- Translate natural language queries into effective CQL search expressions\u003cbr\u003e- Summarize each result&#x27;s relevance to the original query\u003cbr\u003e- Identify the most useful pages and explain why they matter\u003cbr\u003e- Suggest follow-up searches when initial results are insufficient\u003c/p\u003e"
+        }
+      ],
+      "skills": [
+        {
+          "name": "Confluence Conventions",
+          "description": "Best practices for Confluence space organization, page hierarchy, labeling, and content formatting",
+          "description_html": "Best practices for Confluence space organization, page hierarchy, labeling, and content formatting",
+          "meta": ""
+        },
+        {
+          "name": "Page Templates",
+          "description": "Structured templates for common Confluence page types including design docs, feature specs, meeting notes, runbooks, and decision records",
+          "description_html": "Structured templates for common Confluence page types including design docs, feature specs, meeting notes, runbooks, and decision records",
+          "meta": ""
+        }
+      ],
+      "agents": [],
+      "hooks": [],
+      "mcp_servers": [
+        {
+          "name": "atlassian",
+          "type": "http",
+          "endpoint": "https://mcp.atlassian.com/v1/mcp",
+          "source": ".mcp.json"
+        }
+      ],
+      "rules": [],
+      "category": "productivity",
+      "keywords": [
+        "confluence",
+        "documentation",
+        "jira",
+        "meeting-notes"
+      ],
+      "author": {
+        "name": "github.com/openshift-eng"
+      }
+    },
+    {
       "name": "console",
       "description": "OpenShift Console dynamic plugin development utilities",
       "version": "0.0.1",
@@ -2866,6 +2925,18 @@ footer a { color: var(--primary); }
       "author": {
         "name": "github.com/openshift-eng"
       }
+    },
+    {
+      "name": "telco-blueprint",
+      "description": "",
+      "version": "",
+      "has_readme": false,
+      "commands": [],
+      "skills": [],
+      "agents": [],
+      "hooks": [],
+      "mcp_servers": [],
+      "rules": []
     },
     {
       "name": "utils",
