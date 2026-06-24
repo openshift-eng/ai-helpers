@@ -127,18 +127,27 @@ class JobInfo:
 # ---------------------------------------------------------------------------
 
 def _retry_delay(attempt: int, http_error=None) -> float:
-    """Compute retry delay: use Retry-After for 429s, otherwise exponential backoff."""
+    """Compute retry delay with exponential backoff.
+
+    Base delay doubles each attempt: 60, 120, 240, 480, 960, 1920 seconds
+    (1, 2, 4, 8, 16, 32 minutes).  A small random jitter is added.
+
+    For 429 responses with a Retry-After header, the delay is the greater
+    of the Retry-After value and the exponential backoff (the backoff acts
+    as a minimum floor to avoid hammering the server).
+    """
+    base_delay = 60 * (2 ** attempt) + random.uniform(0, 1)
     if http_error and http_error.code == 429:
         retry_after = http_error.headers.get("Retry-After")
         if retry_after:
             try:
-                return float(retry_after)
+                return max(float(retry_after), base_delay)
             except ValueError:
                 pass
-    return 2 ** (attempt + 1) + random.uniform(0, 1)
+    return base_delay
 
 
-def fetch_json(url: str, timeout: int = 30, max_retries: int = 4) -> dict:
+def fetch_json(url: str, timeout: int = 30, max_retries: int = 6) -> dict:
     """Fetch JSON from a URL with retries for transient errors."""
     req = urllib.request.Request(url, headers={"Accept": "application/json"})
     for attempt in range(max_retries + 1):
@@ -149,7 +158,7 @@ def fetch_json(url: str, timeout: int = 30, max_retries: int = 4) -> dict:
             retryable = e.code >= 500 or e.code == 429
             if not retryable or attempt >= max_retries:
                 raise
-            delay = _retry_delay(attempt, e if e.code == 429 else None)
+            delay = _retry_delay(attempt, e)
             reason = f"HTTP {e.code}"
         except urllib.error.URLError:
             if attempt >= max_retries:
