@@ -74,7 +74,7 @@ PYEOF
 fi
 
 CLAUDE_METRICS_LOG_DIR="${METRICS_DIR}" \
-  otelcol-contrib --config "${CONFIG}" \
+  otelcol --config "${CONFIG}" \
   >>"${LOG_FILE}" 2>&1 &
 
 echo $! >"${PID_FILE}"
