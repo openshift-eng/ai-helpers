@@ -13,7 +13,7 @@ LOG_FILE="${METRICS_DIR}/otelcol.log"
 CONFIG="${CLAUDE_PLUGIN_ROOT}/config/otelcol.yaml"
 CLAUDE_SETTINGS="${HOME}/.claude/settings.local.json"
 
-if ! command -v otelcol >/dev/null 2>&1; then
+if ! command -v otelcol-contrib >/dev/null 2>&1; then
   echo "metrics plugin: otelcol-contrib not found, skipping collector start" >&2
   exit 0
 fi
@@ -74,7 +74,7 @@ PYEOF
 fi
 
 CLAUDE_METRICS_LOG_DIR="${METRICS_DIR}" \
-  otelcol --config "${CONFIG}" \
+  otelcol-contrib --config "${CONFIG}" \
   >>"${LOG_FILE}" 2>&1 &
 
 echo $! >"${PID_FILE}"
