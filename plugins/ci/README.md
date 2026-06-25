@@ -162,6 +162,27 @@ Analyze Kubernetes resource lifecycle in Prow job artifacts. Generates interacti
 /ci:analyze-prow-job-resource <prowjob-url> [namespace:][kind/][resource-name]
 ```
 
+### detect-permafail
+
+Detect permafail patterns in consecutive job failures to distinguish systematic failures from flaky failures.
+
+**Usage:**
+```bash
+/ci:detect-permafail --job-urls="[url1,url2,...]" --job-name="job-name" --pr="owner/repo#123"
+```
+
+**Arguments:**
+- `--job-urls`: JSON array of 2-10 consecutive Prow job URLs (newest first)
+- `--job-name`: Name of the job being analyzed
+- `--pr`: PR identifier (format: "owner/repo#number")
+
+**What it does:**
+- Analyzes 2-10 consecutive failures to determine if they represent a permafail
+- Uses artifact-based classification (test vs infrastructure failures)
+- Applies thresholds based on comparable run count (same failure type)
+- Example: 7 runs where 4 are test failures and all 4 have same test → detects permafail (4/4 = 100% ≥ 80% threshold)
+- Returns JSON with permafail verdict, confidence score, and failure signatures
+
 ### extract-kubeconfig
 
 Extract kubeconfig from a running rehearsal/CI job in a GitHub PR. Checks step status to verify the cluster is ready, then connects to the build cluster to extract the kubeconfig from the running pod. Supports both standard and HyperShift (nested kubeconfig) clusters, and both public (`prow.ci.openshift.org`) and private (`qe-private-deck`) jobs.
