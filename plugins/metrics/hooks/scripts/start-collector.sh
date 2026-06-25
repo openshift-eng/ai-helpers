@@ -8,10 +8,10 @@ PID_FILE="${METRICS_DIR}/otelcol.pid"
 LOG_FILE="${METRICS_DIR}/otelcol.log"
 CONFIG="${CLAUDE_PLUGIN_ROOT}/config/otelcol.yaml"
 
-if ! command -v otelcol-contrib >/dev/null 2>&1; then
-  echo "metrics plugin: otelcol-contrib not found. Run setup once:" >&2
+if ! command -v otelcol-contrib >/dev/null 2>&1 || [[ -z "${CLAUDE_CODE_ENABLE_TELEMETRY:-}" ]]; then
+  echo "metrics plugin: setup required. Run once, then restart Claude Code:" >&2
   echo "  bash ${CLAUDE_PLUGIN_ROOT}/scripts/install.sh" >&2
-  exit 0
+  exit 1
 fi
 
 # Fix #2: validate CLAUDE_PLUGIN_ROOT and config path before use.
