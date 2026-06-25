@@ -78,6 +78,7 @@ defaults = {
     "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf",
     "OTEL_EXPORTER_OTLP_ENDPOINT": "http://127.0.0.1:4318",
     "OTEL_SERVICE_NAME": "claude-code-agent",
+    "OTEL_LOG_RAW_API_BODIES": "1",
 }
 try:
     with open(path) as f:
