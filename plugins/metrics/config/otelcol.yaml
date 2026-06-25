@@ -110,14 +110,12 @@ exporters:
   debug:
     verbosity: basic
 
-  # MLflow integration (disabled by default).
-  # Uncomment and set your MLflow tracking server URI to enable.
-  # MLflow 2.x+ accepts OTLP traces on /api/2.0/mlflow/otlp.
-  #
-  # otlp/mlflow:
-  #   endpoint: http://localhost:5000/api/2.0/mlflow/otlp
-  #   tls:
-  #     insecure: true
+otlp_http/mlflow:
+  endpoint: http://localhost:5000
+  headers:
+    x-mlflow-experiment-id: "0"
+  tls:
+    insecure: true
 
 service:
   pipelines:
@@ -126,7 +124,7 @@ service:
       receivers:  [otlp]
       processors: [resource, transform/openinference, filter/privacy, batch]
       exporters:  [file, debug]
-      # exporters: [file, debug, otlp/mlflow]  # enable for MLflow
+      # exporters: [file, debug, otlp_http/mlflow]  # enable for MLflow
 
     # Metrics: native claude_code.* counter names are kept as-is.
     # OpenInference conventions apply to spans, not metrics.
