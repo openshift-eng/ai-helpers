@@ -84,17 +84,6 @@ rules:
     enabled: false
     severity: warning
 
-  # Validate promptfoo eval YAML config structure and file references
-  promptfoo-valid:
-    enabled: true
-    severity: error
-
-  # Note: we have more complex validations in the custom rules for budgets
-  promptfoo-assertions:
-    enabled: false
-  promptfoo-metadata:
-    enabled: false
-
   # .coderabbit.yaml must be valid YAML
   coderabbit-yaml-valid:
     enabled: true
@@ -114,7 +103,6 @@ rules:
 custom-rules:
   - ".skillsaw/plugindocs_rule.py"
   - ".skillsaw/owners_rule.py"
-  - ".skillsaw/promptfoo_budget_rule.py"
   - ".skillsaw/opencode_color_rule.py"
 
 # Exclude patterns (glob format)
