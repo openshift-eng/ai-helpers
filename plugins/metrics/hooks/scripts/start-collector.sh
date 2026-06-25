@@ -8,16 +8,31 @@ PID_FILE="${METRICS_DIR}/otelcol.pid"
 LOG_FILE="${METRICS_DIR}/otelcol.log"
 CONFIG="${CLAUDE_PLUGIN_ROOT}/config/otelcol.yaml"
 
-if ! command -v otelcol-contrib >/dev/null 2>&1 || [[ -z "${CLAUDE_CODE_ENABLE_TELEMETRY:-}" ]]; then
-  # Resolve install.sh: prefer CLAUDE_PLUGIN_ROOT, fall back to a glob of the plugin cache.
-  INSTALL_SCRIPT="${CLAUDE_PLUGIN_ROOT}/scripts/install.sh"
-  if [[ ! -f "${INSTALL_SCRIPT}" ]]; then
-    INSTALL_SCRIPT=$(ls "${HOME}/.claude/plugins/cache/"*/metrics/*/scripts/install.sh 2>/dev/null | head -1)
+# Resolve install.sh: prefer CLAUDE_PLUGIN_ROOT, fall back to a glob of the plugin cache.
+_resolve_install_script() {
+  local script="${CLAUDE_PLUGIN_ROOT}/scripts/install.sh"
+  if [[ ! -f "${script}" ]]; then
+    script=$(ls "${HOME}/.claude/plugins/cache/"*/metrics/*/scripts/install.sh 2>/dev/null | head -1)
   fi
+  echo "${script}"
+}
+
+if ! command -v otelcol-contrib >/dev/null 2>&1; then
+  INSTALL_SCRIPT=$(_resolve_install_script)
   if [[ -n "${INSTALL_SCRIPT}" ]]; then
     echo "metrics plugin: run 'bash ${INSTALL_SCRIPT}' once, then restart Claude Code" >&2
   else
     echo "metrics plugin: run 'bash \$(ls ~/.claude/plugins/cache/*/metrics/*/scripts/install.sh)' once, then restart Claude Code" >&2
+  fi
+  exit 1
+fi
+
+if [[ -z "${CLAUDE_CODE_ENABLE_TELEMETRY:-}" ]]; then
+  INSTALL_SCRIPT=$(_resolve_install_script)
+  if [[ -n "${INSTALL_SCRIPT}" ]]; then
+    echo "metrics plugin: restart Claude Code to activate telemetry env vars (install script: ${INSTALL_SCRIPT})" >&2
+  else
+    echo "metrics plugin: restart Claude Code to activate telemetry env vars" >&2
   fi
   exit 1
 fi
