@@ -97,20 +97,22 @@ Rule: tier is the highest cost contributor across both dimensions. A `none` judg
 | hello-world/echo             | small       | none       | fast   | 3     |
 | classify golden tests        | medium      | none       | fast   | 13    |
 | classify ambiguous/routing   | medium      | opus       | medium | 2     |
+| jira/jira-conventions        | medium      | none       | fast   | 4     |
+| jira/create                  | medium      | none       | fast   | 5     |
 | jira/ready-to-solve          | large       | opus       | heavy  | 3     |
 | jira/solve                   | large       | opus       | heavy  | 4     |
-| **Total**                    |             |            |        | **25**|
+| **Total**                    |             |            |        | **34**|
 
 #### Running by tier
 
 ```bash
-# Fast only — 16 tests, deterministic
+# Fast only — 25 tests, deterministic
 make eval-plugins EVAL_TIER=fast
 
 # Medium only — 2 tests, opus judge but cheap agent
 make eval-plugins EVAL_TIER=medium
 
-# Heavy only — 8 tests, expensive agent + opus judge
+# Heavy only — 7 tests, expensive agent + opus judge
 make eval-plugins EVAL_TIER=heavy
 
 # All tiers (default)
@@ -122,23 +124,25 @@ make eval-plugins EVAL_PLUGIN=code-review EVAL_TIER=fast
 
 #### Budget planning
 
-Measured cost per full run (25 tests, opus agent, Vertex AI): **~$6**
+Measured cost per full run (34 tests, opus agent, Vertex AI): **~$8**
 
-| Plugin              | Tests | Tier        | Actual cost | Per-test avg |
-|---------------------|-------|-------------|-------------|--------------|
-| hello-world         | 3     | fast        | $0.56       | $0.19        |
-| code-review         | 15    | fast/medium | $2.70       | $0.18        |
-| jira/ready-to-solve | 3     | heavy       | $1.62       | $0.54        |
-| jira/solve          | 5     | heavy       | $0.73       | $0.15        |
-| **Total**           | **26**|             | **$5.61**   | **$0.22**    |
+| Plugin                   | Tests | Tier        | Actual cost | Per-test avg |
+|--------------------------|-------|-------------|-------------|--------------|
+| hello-world              | 3     | fast        | $0.56       | $0.19        |
+| code-review              | 15    | fast/medium | $2.70       | $0.18        |
+| jira/jira-conventions    | 4     | fast        | ~$0.80      | ~$0.20       |
+| jira/create              | 5     | fast        | ~$1.00      | ~$0.20       |
+| jira/ready-to-solve      | 3     | heavy       | $1.62       | $0.54        |
+| jira/solve               | 4     | heavy       | $0.73       | $0.18        |
+| **Total**                | **34**|             | **~$7.41**  | **~$0.22**   |
 
 By tier:
 
 | Tier   | Tests | Actual cost |
 |--------|-------|-------------|
-| fast   | 16    | ~$3.26      |
+| fast   | 25    | ~$5.06      |
 | medium | 2     | ~$0.33      |
-| heavy  | 8     | ~$2.02      |
+| heavy  | 7     | ~$2.02      |
 
 Agent execution is the dominant cost (~99%). Judge calls are negligible even with opus.
 
@@ -150,12 +154,14 @@ When setting `cost` thresholds per test, use ~2x the observed per-test max:
 ### Cost and latency thresholds
 Per-test thresholds in `defaultTest.assert` catch regressions without flaking:
 
-| Plugin              | Latency | Cost  | token-usage |
-|---------------------|---------|-------|-------------|
-| hello-world         | 30s     | $0.50 | small       |
-| code-review         | 60s     | $0.50 | medium      |
-| jira/ready-to-solve | 3min    | $1.20 | large       |
-| jira/solve          | 2min    | $0.60 | large       |
+| Plugin                   | Latency | Cost  | token-usage |
+|--------------------------|---------|-------|-------------|
+| hello-world              | 30s     | $0.50 | small       |
+| code-review              | 60s     | $0.50 | medium      |
+| jira/jira-conventions    | 60s     | $0.50 | medium      |
+| jira/create              | 60s     | $0.50 | medium      |
+| jira/ready-to-solve      | 3min    | $1.20 | large       |
+| jira/solve               | 2min    | $0.60 | large       |
 
 ### Per-plugin budgets
 Budgets are defined centrally in `evals/budget.yaml` with `allowed` (admin-set cap) and `current` (sum of cost thresholds across all tests) per plugin:
@@ -164,8 +170,8 @@ Budgets are defined centrally in `evals/budget.yaml` with `allowed` (admin-set c
 |---------------------|---------|----------------------------|
 | hello-world         | $1.50   | $1.50                      |
 | code-review         | $8.00   | $7.50                      |
-| jira                | $7.00   | $6.00                      |
-| **Total**           | **$16.50** | **$15.00**              |
+| jira                | $10.50  | $10.50                     |
+| **Total**           | **$20.00** | **$19.50**              |
 
 `evals/budget.yaml` is the single source of truth for the eval cost model. It contains:
 - **`orderings`**: defines `small < medium < large`, `none < sonnet < opus`, `fast < medium < heavy`
@@ -183,6 +189,8 @@ plugins/
   code-review/evals/
     classify-review-comment.yaml                  # 15 skill classification tests
   jira/evals/
+    jira-conventions.yaml                         # 4 routing tests for conventions skill
+    create.yaml                                   # 5 routing tests for create skill
     ready-to-solve.yaml                           # 3 readiness validation tests
     solve.yaml                                    # 4 phase-level analysis tests
     fixtures/                                     # test issue descriptions (.md)

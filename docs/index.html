@@ -512,7 +512,7 @@ footer a { color: var(--primary); }
     {
       "name": "ci",
       "description": "Tools for working with OpenShift CI and analyzing Prow job results",
-      "version": "0.0.53",
+      "version": "0.0.54",
       "has_readme": true,
       "commands": [
         {
@@ -1455,7 +1455,7 @@ footer a { color: var(--primary); }
     {
       "name": "jira",
       "description": "A plugin to automate tasks with Jira",
-      "version": "0.7.2",
+      "version": "0.8.0",
       "has_readme": true,
       "commands": [
         {
@@ -1497,14 +1497,6 @@ footer a { color: var(--primary); }
           "description_html": "Clone GitHub issues to Jira with proper formatting and linking",
           "synopsis": "/jira:clone-from-github \u003cissue-number\u003e [issue-number...] [options]",
           "body_html": "\u003cp\u003eThe \u003ccode\u003ejira:clone-from-github\u003c/code\u003e command clones one or more GitHub issues to Jira, preserving the original issue content and establishing a link between the GitHub and Jira issues. This command is useful for:\u003c/p\u003e\u003cp\u003e- Migrating GitHub issues to Jira for project tracking\u003cbr\u003e- Creating Jira tickets that track upstream GitHub issues\u003cbr\u003e- Maintaining synchronization between GitHub and Jira workflows\u003cbr\u003e- Bulk importing GitHub issues into Jira projects\u003c/p\u003e\u003cp\u003eThe command uses the \u003ca href=\"https://github.com/oceanc80/gh2jira\"\u003egh2jira utility\u003c/a\u003e to perform the cloning operation. Use \u003ccode\u003e/jira:setup-gh2jira\u003c/code\u003e to install and configure gh2jira if you haven&#x27;t already.\u003c/p\u003e"
-        },
-        {
-          "name": "create",
-          "full_name": "jira:create",
-          "description": "Create Jira issues (story, epic, feature, task, bug, feature-request) with proper formatting",
-          "description_html": "Create Jira issues (story, epic, feature, task, bug, feature-request) with proper formatting",
-          "synopsis": "/jira:create \u003ctype\u003e [project-key] \u003csummary\u003e [options]",
-          "body_html": "\u003cp\u003eThe \u003ccode\u003ejira:create\u003c/code\u003e command creates Jira issues following best practices and team-specific conventions. It supports creating stories, epics, features, tasks, bugs, and feature requests with intelligent defaults, interactive prompts, and validation.\u003c/p\u003e\u003cp\u003eThis command is particularly useful for:\u003cbr\u003e- Creating well-formed user stories with acceptance criteria\u003cbr\u003e- Organizing epics and features with proper hierarchy\u003cbr\u003e- Submitting bugs with complete reproduction steps\u003cbr\u003e- Capturing customer-driven feature requests with business justification\u003cbr\u003e- Maintaining consistency across team Jira practices\u003c/p\u003e"
         },
         {
           "name": "create-release-note",
@@ -1633,33 +1625,9 @@ footer a { color: var(--primary); }
           "meta": ""
         },
         {
-          "name": "cntrlplane",
-          "description": "Jira conventions for the CNTRLPLANE project used by OpenShift teams",
-          "description_html": "Jira conventions for the CNTRLPLANE project used by OpenShift teams",
-          "meta": ""
-        },
-        {
-          "name": "create-bug",
-          "description": "Implementation guide for creating well-formed Jira bug reports",
-          "description_html": "Implementation guide for creating well-formed Jira bug reports",
-          "meta": ""
-        },
-        {
-          "name": "create-epic",
-          "description": "Implementation guide for creating Jira epics with proper scope and parent linking",
-          "description_html": "Implementation guide for creating Jira epics with proper scope and parent linking",
-          "meta": ""
-        },
-        {
-          "name": "create-feature",
-          "description": "Implementation guide for creating Jira features representing strategic objectives and market problems",
-          "description_html": "Implementation guide for creating Jira features representing strategic objectives and market problems",
-          "meta": ""
-        },
-        {
-          "name": "create-feature-request",
-          "description": "Implementation guide for creating Feature Requests in the RFE project",
-          "description_html": "Implementation guide for creating Feature Requests in the RFE project",
+          "name": "create",
+          "description": "Create Jira issues — story, bug, epic, feature, task, or feature-request — with CNTRLPLANE, OCPBUGS, GCP, HyperShift, ARO, ROSA conventions and type-specific templates",
+          "description_html": "Create Jira issues — story, bug, epic, feature, task, or feature-request — with CNTRLPLANE, OCPBUGS, GCP, HyperShift, ARO, ROSA conventions and type-specific templates",
           "meta": ""
         },
         {
@@ -1669,27 +1637,9 @@ footer a { color: var(--primary); }
           "meta": ""
         },
         {
-          "name": "create-story",
-          "description": "Implementation guide for creating well-formed Jira user stories with acceptance criteria",
-          "description_html": "Implementation guide for creating well-formed Jira user stories with acceptance criteria",
-          "meta": ""
-        },
-        {
-          "name": "create-task",
-          "description": "Implementation guide for creating Jira tasks for technical and operational work",
-          "description_html": "Implementation guide for creating Jira tasks for technical and operational work",
-          "meta": ""
-        },
-        {
           "name": "extract-prs",
           "description": "Recursively extract GitHub Pull Request links from Jira issues",
           "description_html": "Recursively extract GitHub Pull Request links from Jira issues",
-          "meta": ""
-        },
-        {
-          "name": "gcp-hcp",
-          "description": "GCP HCP team-specific Jira requirements for creating issues in the GCP project (Hypershift on GKE)",
-          "description_html": "GCP HCP team-specific Jira requirements for creating issues in the GCP project (Hypershift on GKE)",
           "meta": ""
         },
         {
@@ -1699,9 +1649,9 @@ footer a { color: var(--primary); }
           "meta": ""
         },
         {
-          "name": "hypershift",
-          "description": "HyperShift team-specific Jira requirements for component selection and conventions",
-          "description_html": "HyperShift team-specific Jira requirements for component selection and conventions",
+          "name": "jira-conventions",
+          "description": "Project and team-specific Jira conventions for CNTRLPLANE, OCPBUGS, GCP, HyperShift, and hosted control plane issues",
+          "description_html": "Project and team-specific Jira conventions for CNTRLPLANE, OCPBUGS, GCP, HyperShift, and hosted control plane issues",
           "meta": ""
         },
         {
@@ -1720,12 +1670,6 @@ footer a { color: var(--primary); }
           "name": "jira-validate-blockers",
           "description": "Detailed implementation guide for validating proposed release blockers",
           "description_html": "Detailed implementation guide for validating proposed release blockers",
-          "meta": ""
-        },
-        {
-          "name": "ocpbugs",
-          "description": "Jira conventions and bug templates for the OCPBUGS project",
-          "description_html": "Jira conventions and bug templates for the OCPBUGS project",
           "meta": ""
         },
         {

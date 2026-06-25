@@ -73,9 +73,9 @@ After determining the project key, check if project-specific conventions exist t
 | Project Key | Source | Key Overrides |
 |-------------|--------|---------------|
 | ARO | Read [../reference/aro-hcp.md](../reference/aro-hcp.md) | Only Features/Initiatives; milestone tiers (HPSTRAT-63/130); prepend format with date stamp |
-| CNTRLPLANE | `Skill(jira:cntrlplane)` | CNTRLPLANE-specific conventions |
-| GCP | `Skill(jira:gcp-hcp)` | GCP HCP team requirements |
-| OCPBUGS | `Skill(jira:ocpbugs)` | OCPBUGS bug conventions |
+| CNTRLPLANE | Read [../reference/cntrlplane.md](../reference/cntrlplane.md) | CNTRLPLANE-specific conventions |
+| GCP | Read [../reference/gcp-hcp.md](../reference/gcp-hcp.md) | GCP HCP team requirements |
+| OCPBUGS | Read [../reference/ocpbugs.md](../reference/ocpbugs.md) | OCPBUGS bug conventions |
 
 **Implementation:**
 
