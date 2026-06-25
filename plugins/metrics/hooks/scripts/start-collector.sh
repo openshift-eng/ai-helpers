@@ -8,8 +8,8 @@ PID_FILE="${METRICS_DIR}/otelcol.pid"
 LOG_FILE="${METRICS_DIR}/otelcol.log"
 CONFIG="${CLAUDE_PLUGIN_ROOT}/config/otelcol.yaml"
 
-if ! command -v otelcol-contrib >/dev/null 2>&1; then
-  # Binary not installed — guide user to run install.sh.
+if ! command -v otelcol-contrib >/dev/null 2>&1 || [[ -z "${CLAUDE_CODE_ENABLE_TELEMETRY:-}" ]]; then
+  # Resolve install.sh: prefer CLAUDE_PLUGIN_ROOT, fall back to a glob of the plugin cache.
   INSTALL_SCRIPT="${CLAUDE_PLUGIN_ROOT}/scripts/install.sh"
   if [[ ! -f "${INSTALL_SCRIPT}" ]]; then
     INSTALL_SCRIPT=$(ls "${HOME}/.claude/plugins/cache/"*/metrics/*/scripts/install.sh 2>/dev/null | head -1)
