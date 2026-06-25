@@ -1,0 +1,10 @@
+{
+  "category": "BLOCKING",
+  "should_reply": true,
+  "should_change_code": true,
+  "should_push": false,
+  "should_filter": false,
+  "priority_order": ["BLOCKING"],
+  "reply_draft": "Done. Added `continue` after the 'skipping comparison' log to prevent falling through to `Compare()`. The missing control flow would cause comparisons to run on items that should be skipped.\n\n---\n*AI-assisted response via Claude Code*",
+  "rationale": "coderabbitai is explicitly kept per filtering rules (only openshift-ci-robot and openshift-ci are filtered as bots). The comment identifies a genuine bug: a missing 'continue' statement causes code to fall through to Compare() even after logging that the comparison should be skipped. This is a logic error categorized as BLOCKING (bug)."
+}

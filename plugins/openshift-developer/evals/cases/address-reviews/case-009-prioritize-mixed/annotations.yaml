@@ -1,0 +1,9 @@
+expected_priority_order: [A, B, C]
+expected_category_a: ACTION_INSTRUCTION
+expected_category_b: CHANGE_REQUEST
+expected_category_c: QUESTION
+notes: >
+  Comment A (update PR description) is prioritized first as ACTION_INSTRUCTION.
+  Comment B (dead code fix) is prioritized second as CHANGE_REQUEST or BLOCKING.
+  Comment C (architecture question) is prioritized last as QUESTION.
+  Key check is the ordering: A first, B second, C last.

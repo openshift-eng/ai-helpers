@@ -1,0 +1,6 @@
+prompt: |
+  Using the address-reviews skill response rules, would you make a code change or only reply for this real comment? State clearly:
+
+  Author: jparrill
+  Comment: "Either call compareCRDs(oldCRD, newCRD, crdifyRunner) here instead, or remove compareCRDs() and adjust the tests to call crdifyRunner.Run() directly."
+  File: hack/tools/crd-schema-check/main.go

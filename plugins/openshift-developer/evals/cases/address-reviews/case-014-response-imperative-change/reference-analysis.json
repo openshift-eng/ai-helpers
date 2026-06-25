@@ -1,0 +1,10 @@
+{
+  "category": "CHANGE_REQUEST",
+  "should_reply": true,
+  "should_change_code": true,
+  "should_push": true,
+  "should_filter": false,
+  "priority_order": ["CHANGE_REQUEST"],
+  "reply_draft": "Done. Called `compareCRDs(oldCRD, newCRD, crdifyRunner)` directly at the call site instead of inlining the logic. Keeps the helper reusable for tests.\n\n---\n*AI-assisted response via Claude Code*",
+  "rationale": "The reviewer uses imperative language ('call...instead', 'remove', 'adjust') presenting two concrete alternatives for restructuring the code. Per response rules, imperative directives like 'call', 'remove', and 'adjust' qualify as explicit change requests requiring code modification, not just a reply. The reply draft assumes the first option (calling compareCRDs directly) as it avoids removing the function and rewriting tests, but the actual choice should be validated against the code context."
+}

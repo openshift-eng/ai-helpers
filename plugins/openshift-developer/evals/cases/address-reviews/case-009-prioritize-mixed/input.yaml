@@ -1,0 +1,11 @@
+prompt: |
+  Using the address-reviews skill priority order (ACTION_INSTRUCTION → BLOCKING → CHANGE_REQUEST → QUESTION → SUGGESTION), prioritize these real comments from PR #8535. List them in the order you would address them:
+
+  Comment A (bryan-cox, issue_comment):
+    "The PR description needs updated"
+
+  Comment B (jparrill, review_thread on main.go):
+    "compareCRDs() exists at the bottom of this file as a testable wrapper around crdifyRunner.Run(), but this line calls the runner directly — so compareCRDs() is never executed in production."
+
+  Comment C (bryan-cox, issue_comment):
+    "Why do we need our own main.go. Why are we not just calling the cli from https://github.com/kubernetes-sigs/crdify?"

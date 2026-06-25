@@ -1,0 +1,7 @@
+expected_category: QUESTION
+expected_should_reply: true
+expected_should_change_code: false
+acceptable_categories: [QUESTION]
+notes: >
+  Design question about architectural choice. "Why do we need" is interrogative,
+  not imperative. Should reply with explanation, not make code changes.

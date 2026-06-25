@@ -1,0 +1,6 @@
+prompt: |
+  Using the address-reviews skill categories (ACTION_INSTRUCTION, BLOCKING, CHANGE_REQUEST, QUESTION, SUGGESTION), categorize this real comment from PR #8535. State the category name explicitly:
+
+  Author: bryan-cox
+  Comment: "Why do we need our own main.go. Why are we not just calling the cli from https://github.com/kubernetes-sigs/crdify?"
+  Type: issue_comment (general PR comment)

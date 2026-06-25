@@ -1,0 +1,349 @@
+name: address-reviews-eval
+description: Evaluate the address-reviews skill's ability to categorize PR review comments, prevent duplicate replies, prioritize by type, and format responses correctly
+skill: openshift-developer:address-review-pr
+
+execution:
+  mode: case
+  arguments: "{prompt}"
+  timeout: 120
+  max_budget_usd: 1.00
+
+runner:
+  type: claude-code
+  plugin_dirs:
+    - plugins/openshift-developer
+  system_prompt: |
+    Analyze the PR review comment(s) provided and write your analysis to a file
+    called analysis.json in the current working directory. The file must contain
+    valid JSON with exactly these fields:
+    - category: string — one of ACTION_INSTRUCTION, BLOCKING, CHANGE_REQUEST, QUESTION, SUGGESTION, or null if not applicable
+    - should_reply: boolean — whether a new reply should be posted
+    - should_change_code: boolean — whether code changes are needed
+    - should_push: boolean — whether changes should be pushed (false if CI override)
+    - should_filter: boolean — whether the comment should be filtered out
+    - priority_order: array of strings or null — ordered list if prioritizing multiple comments
+    - reply_draft: string or null — the draft reply if should_reply is true
+    - rationale: string — brief explanation of the decision
+    Do not wrap the JSON in markdown code fences in the file.
+
+models:
+  judge: claude-opus-4-6
+
+permissions:
+  allow:
+    - "Read"
+    - "Write"
+    - "Skill"
+    - "Bash"
+  deny:
+    - "Agent"
+    - "mcp__*"
+
+mlflow:
+  experiment: address-reviews-eval
+
+dataset:
+  path: cases/address-reviews
+  schema: |
+    Each case directory contains:
+    - input.yaml: YAML file with fields:
+      - 'prompt' — the full prompt text for the skill
+    - annotations.yaml: Expected results and metadata:
+      - 'expected_category': one of ACTION_INSTRUCTION, BLOCKING, CHANGE_REQUEST, QUESTION, SUGGESTION (optional)
+      - 'expected_should_reply': boolean (optional)
+      - 'expected_should_change_code': boolean (optional)
+      - 'expected_should_push': boolean (optional)
+      - 'expected_should_filter': boolean (optional)
+      - 'expected_priority_order': list of comment labels in expected order (optional)
+      - 'expected_starts_with': expected reply prefix (optional)
+      - 'expected_contains_footer': boolean (optional)
+      - 'expected_footer_text': expected footer string (optional)
+      - 'acceptable_categories': list of acceptable category values (optional)
+      - 'notes': free text explaining the expected behavior
+    - reference-analysis.json: Gold reference output from the initial run.
+      Used as baseline for regression detection via --baseline flag.
+      Contains the same fields as analysis.json.
+
+outputs:
+  - path: "analysis.json"
+    schema: |
+      JSON object with fields:
+      - category: string or null
+      - should_reply: boolean
+      - should_change_code: boolean
+      - should_push: boolean
+      - should_filter: boolean
+      - priority_order: array or null
+      - reply_draft: string or null
+      - rationale: string
+
+traces:
+  stdout: true
+  stderr: true
+  events: false
+  metrics: true
+
+judges:
+  - name: valid_output_json
+    description: Verify output is valid JSON with all required fields
+    check: |
+      import json
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      json_files = {k: v for k, v in all_f.items() if k.endswith("analysis.json")}
+      if not json_files:
+          return (False, "No analysis.json found")
+      content = list(json_files.values())[0]
+      try:
+          data = json.loads(content)
+      except Exception as e:
+          return (False, f"Invalid JSON: {e}")
+      required = ["category", "should_reply", "should_change_code", "should_push", "should_filter", "rationale"]
+      missing = [f for f in required if f not in data]
+      if missing:
+          return (False, f"Missing fields: {', '.join(missing)}")
+      return (True, "Valid JSON with all required fields")
+
+  - name: category_correct
+    description: Verify predicted category matches expected value or an acceptable alternative
+    check: |
+      import json
+      ann = outputs.get("annotations", {})
+      if "expected_category" not in ann:
+          return (True, "No expected_category in annotations — skipped")
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      json_files = {k: v for k, v in all_f.items() if k.endswith("analysis.json")}
+      if not json_files:
+          return (False, "No analysis.json found")
+      content = list(json_files.values())[0]
+      try:
+          data = json.loads(content)
+      except Exception as e:
+          return (False, f"Cannot parse JSON: {e}")
+      predicted = data.get("category", "")
+      expected = ann.get("expected_category", "")
+      acceptable = ann.get("acceptable_categories", [expected])
+      if predicted in acceptable:
+          match = "exact" if predicted == expected else "acceptable"
+          return (True, f"{match}: predicted={predicted}, expected={expected}")
+      return (False, f"predicted={predicted}, expected={expected}, acceptable={acceptable}")
+
+  - name: should_reply_correct
+    description: Verify should_reply decision matches expected value
+    check: |
+      import json
+      ann = outputs.get("annotations", {})
+      if "expected_should_reply" not in ann:
+          return (True, "No expected_should_reply in annotations — skipped")
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      json_files = {k: v for k, v in all_f.items() if k.endswith("analysis.json")}
+      if not json_files:
+          return (False, "No analysis.json found")
+      content = list(json_files.values())[0]
+      try:
+          data = json.loads(content)
+      except Exception as e:
+          return (False, f"Cannot parse JSON: {e}")
+      predicted = data.get("should_reply")
+      expected = ann.get("expected_should_reply")
+      if predicted == expected:
+          return (True, f"should_reply={predicted} matches expected")
+      return (False, f"should_reply={predicted}, expected={expected}")
+
+  - name: should_change_code_correct
+    description: Verify should_change_code decision matches expected value
+    check: |
+      import json
+      ann = outputs.get("annotations", {})
+      if "expected_should_change_code" not in ann:
+          return (True, "No expected_should_change_code in annotations — skipped")
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      json_files = {k: v for k, v in all_f.items() if k.endswith("analysis.json")}
+      if not json_files:
+          return (False, "No analysis.json found")
+      content = list(json_files.values())[0]
+      try:
+          data = json.loads(content)
+      except Exception as e:
+          return (False, f"Cannot parse JSON: {e}")
+      predicted = data.get("should_change_code")
+      expected = ann.get("expected_should_change_code")
+      if predicted == expected:
+          return (True, f"should_change_code={predicted} matches expected")
+      return (False, f"should_change_code={predicted}, expected={expected}")
+
+  - name: should_push_correct
+    description: Verify should_push respects CI override instructions
+    check: |
+      import json
+      ann = outputs.get("annotations", {})
+      if "expected_should_push" not in ann:
+          return (True, "No expected_should_push in annotations — skipped")
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      json_files = {k: v for k, v in all_f.items() if k.endswith("analysis.json")}
+      if not json_files:
+          return (False, "No analysis.json found")
+      content = list(json_files.values())[0]
+      try:
+          data = json.loads(content)
+      except Exception as e:
+          return (False, f"Cannot parse JSON: {e}")
+      predicted = data.get("should_push")
+      expected = ann.get("expected_should_push")
+      if predicted == expected:
+          return (True, f"should_push={predicted} matches expected")
+      return (False, f"should_push={predicted}, expected={expected}")
+
+  - name: should_filter_correct
+    description: Verify should_filter decision matches expected value
+    check: |
+      import json
+      ann = outputs.get("annotations", {})
+      if "expected_should_filter" not in ann:
+          return (True, "No expected_should_filter in annotations — skipped")
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      json_files = {k: v for k, v in all_f.items() if k.endswith("analysis.json")}
+      if not json_files:
+          return (False, "No analysis.json found")
+      content = list(json_files.values())[0]
+      try:
+          data = json.loads(content)
+      except Exception as e:
+          return (False, f"Cannot parse JSON: {e}")
+      predicted = data.get("should_filter")
+      expected = ann.get("expected_should_filter")
+      if predicted == expected:
+          return (True, f"should_filter={predicted} matches expected")
+      return (False, f"should_filter={predicted}, expected={expected}")
+
+  - name: priority_order_correct
+    description: Verify priority_order matches expected ordering
+    check: |
+      import json
+      ann = outputs.get("annotations", {})
+      if "expected_priority_order" not in ann:
+          return (True, "No expected_priority_order in annotations — skipped")
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      json_files = {k: v for k, v in all_f.items() if k.endswith("analysis.json")}
+      if not json_files:
+          return (False, "No analysis.json found")
+      content = list(json_files.values())[0]
+      try:
+          data = json.loads(content)
+      except Exception as e:
+          return (False, f"Cannot parse JSON: {e}")
+      predicted = data.get("priority_order")
+      expected = ann.get("expected_priority_order")
+      if predicted == expected:
+          return (True, f"priority_order={predicted} matches expected")
+      return (False, f"priority_order={predicted}, expected={expected}")
+
+  - name: reply_format_correct
+    description: Verify reply draft matches expected format constraints
+    check: |
+      import json
+      ann = outputs.get("annotations", {})
+      has_checks = ("expected_reply_contains" in ann
+          or "expected_reply_max_sentences" in ann
+          or "expected_starts_with" in ann
+          or "expected_contains_footer" in ann)
+      if not has_checks:
+          return (True, "No reply format expectations in annotations — skipped")
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      json_files = {k: v for k, v in all_f.items() if k.endswith("analysis.json")}
+      if not json_files:
+          return (False, "No analysis.json found")
+      content = list(json_files.values())[0]
+      try:
+          data = json.loads(content)
+      except Exception as e:
+          return (False, f"Cannot parse JSON: {e}")
+      reply = data.get("reply_draft", "")
+      if not reply:
+          return (False, "No reply_draft in output")
+      errors = []
+      contains = ann.get("expected_reply_contains", [])
+      for token in contains:
+          if token not in reply:
+              errors.append(f"Reply missing required text '{token}'")
+      starts = ann.get("expected_starts_with")
+      if starts and not reply.startswith(starts):
+          errors.append(f"Reply does not start with '{starts}'")
+      footer = ann.get("expected_footer_text")
+      if ann.get("expected_contains_footer") and footer and footer not in reply:
+          errors.append(f"Reply missing footer '{footer}'")
+      max_sent = ann.get("expected_reply_max_sentences")
+      if isinstance(max_sent, int):
+          main = reply.split("---", 1)[0]
+          sentence_count = sum(main.count(ch) for ch in ".!?")
+          if sentence_count > max_sent:
+              errors.append(f"Reply has {sentence_count} sentences; max is {max_sent}")
+      if errors:
+          return (False, "; ".join(errors))
+      return (True, "Reply format matches expectations")
+
+  - name: analysis_quality
+    description: LLM judge assessing overall analysis accuracy and rationale quality
+    prompt: |
+      You are evaluating whether a PR review comment was correctly analyzed
+      by the address-reviews skill.
+
+      The skill's analysis output:
+
+      {% for path, content in outputs.files.items() if path.endswith('analysis.json') %}
+      {{ content }}
+      {% endfor %}
+
+      Expected behavior from annotations:
+
+      {{ annotations }}
+
+      Evaluate on a 1-5 scale:
+
+      Score 1: Core decision (should_reply, should_change_code, category) is wrong.
+               Rationale is absent or nonsensical.
+      Score 2: One core decision is correct but another is wrong. Rationale is
+               generic and doesn't reference the actual comment content.
+      Score 3: All core decisions are correct. Rationale mentions relevant aspects
+               of the comment but may be vague.
+      Score 4: All core decisions match expected values. Rationale specifically
+               references signal words or patterns from the comment that justify
+               the analysis.
+      Score 5: Perfect match on all fields. Rationale is precise, citing specific
+               phrases from the comment. All optional fields (priority_order,
+               reply_draft) are well-formed when present.
+
+thresholds:
+  valid_output_json:
+    min_pass_rate: 1.0
+  category_correct:
+    min_pass_rate: 0.85
+  should_reply_correct:
+    min_pass_rate: 0.90
+  should_change_code_correct:
+    min_pass_rate: 0.90
+  should_push_correct:
+    min_pass_rate: 1.0
+  should_filter_correct:
+    min_pass_rate: 0.90
+  priority_order_correct:
+    min_pass_rate: 0.85
+  reply_format_correct:
+    min_pass_rate: 0.80
+  analysis_quality:
+    min_mean: 3.5

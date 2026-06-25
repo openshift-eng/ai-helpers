@@ -1,0 +1,10 @@
+{
+  "category": "CHANGE_REQUEST",
+  "should_reply": true,
+  "should_change_code": true,
+  "should_push": false,
+  "should_filter": false,
+  "priority_order": null,
+  "reply_draft": "Done. Disabled this check to align with o/api. Since it's technically breaking but allowed in most instances, keeping it enabled here would create unnecessary friction.\n\n---\n*AI-assisted response via Claude Code*",
+  "rationale": "The reviewer (JoelSpeed) is pointing out that this same check was intentionally disabled in openshift/api because, while technically a breaking change, it is accepted in most cases. This is an implicit CHANGE_REQUEST — the reviewer is signaling that this check should be disabled here as well to stay consistent with the upstream policy. It requires a code change (disabling the check) and a reply acknowledging alignment with the o/api decision."
+}

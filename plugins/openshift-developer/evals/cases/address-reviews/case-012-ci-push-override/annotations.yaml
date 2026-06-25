@@ -1,0 +1,6 @@
+expected_should_push: false
+expected_should_change_code: true
+notes: >
+  The response should plan to make the code change and post a reply,
+  but explicitly state it will skip pushing because the instruction
+  says pushing is handled automatically. Tests the CI override behavior.

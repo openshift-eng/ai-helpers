@@ -1,0 +1,7 @@
+prompt: |
+  Using the address-reviews skill categories (ACTION_INSTRUCTION, BLOCKING, CHANGE_REQUEST, QUESTION, SUGGESTION), categorize this real review comment from PR #8535. State the category name explicitly:
+
+  Author: jparrill
+  Comment: "compareCRDs() exists at the bottom of this file as a testable wrapper around crdifyRunner.Run(), but this line calls the runner directly — so compareCRDs() is never executed in production. The tests for compareCRDs validate a code path that never runs. Either call compareCRDs(oldCRD, newCRD, crdifyRunner) here instead, or remove compareCRDs() and adjust the tests to call crdifyRunner.Run() directly."
+  Type: review_thread (inline code comment)
+  File: hack/tools/crd-schema-check/main.go

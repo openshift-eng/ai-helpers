@@ -1,0 +1,10 @@
+{
+  "category": "QUESTION",
+  "should_reply": true,
+  "should_change_code": false,
+  "should_push": false,
+  "should_filter": false,
+  "priority_order": null,
+  "reply_draft": "Good question — the Go files are typically needed because openshift/crd-schema-checker is consumed as a Go module dependency, and the Go files provide the integration point (e.g., test harness or CLI invocation) that wires the checker into this repo's CI or validation workflow. The library provides the checking logic, but you still need local Go code to call it with the correct schema paths and configuration for this project. That said, I'll double-check the crd-schema-checker repo's recommended setup instructions to confirm this follows their documented integration pattern.\n\n---\n*AI-assisted response via Claude Code*",
+  "rationale": "The reviewer is asking two clarifying questions: (1) why Go files are needed alongside an existing library, and (2) whether this follows the upstream repo's recommended setup. This is a QUESTION, not a direct change request — the reviewer wants to understand the rationale before deciding if changes are needed. A reply explaining the integration pattern is appropriate. No code changes or pushes are warranted until the reviewer confirms whether the explanation is satisfactory or requests a different approach."
+}

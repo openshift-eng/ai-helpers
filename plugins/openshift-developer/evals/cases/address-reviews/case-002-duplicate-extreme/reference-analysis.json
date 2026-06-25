@@ -1,0 +1,10 @@
+{
+  "category": "SUGGESTION",
+  "should_reply": false,
+  "should_change_code": false,
+  "should_push": false,
+  "should_filter": true,
+  "priority_order": null,
+  "reply_draft": null,
+  "rationale": "Thread is resolved and outdated. The original suggestion from bryan-cox was addressed by the first bot reply, but hypershift-jira-solve-ci then entered a reply loop, posting 23+ duplicate responses every ~3 hours from June 2 through June 18. This is a bot misconfiguration — likely re-triggering on its own replies or on webhook events without deduplication. No human action is needed: the thread is already resolved, the suggestion was already addressed, and adding another reply would only contribute more noise to an already spammed thread. This thread should be filtered out entirely."
+}

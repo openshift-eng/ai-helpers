@@ -1,0 +1,10 @@
+{
+  "category": "BLOCKING",
+  "should_reply": true,
+  "should_change_code": true,
+  "should_push": false,
+  "should_filter": false,
+  "priority_order": ["A", "B", "C"],
+  "reply_draft": "Addressing all three comments:\n\n**Comment A (ACTION_INSTRUCTION):** Done. Updated the PR description to accurately reflect the current implementation.\n\n**Comment B (BLOCKING):** Done. Changed the call site to use `compareCRDs()` instead of calling `crdifyRunner.Run()` directly. This ensures the testable wrapper is exercised in production and tests actually cover the real code path.\n\n**Comment C (QUESTION):** We maintain our own `main.go` rather than calling the crdify CLI directly because we need a testable wrapper (`compareCRDs()`) around the runner and control over how arguments and configuration are passed. Importing the CLI binary would couple us to its argument parsing and wouldn't allow us to intercept or customize the execution flow.\n\n---\n*AI-assisted response via Claude Code*",
+  "rationale": "Comment A is ACTION_INSTRUCTION (author directing a PR description update — highest priority). Comment B is BLOCKING (jparrill identified dead code: compareCRDs() is defined as a testable wrapper but never called in production because the call site invokes crdifyRunner.Run() directly — this means tests don't cover the actual production path, a significant correctness issue). Comment C is QUESTION (bryan-cox asking about the architectural choice of maintaining a custom main.go vs using crdify's CLI). Priority order follows ACTION_INSTRUCTION → BLOCKING → QUESTION."
+}

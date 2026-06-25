@@ -1,0 +1,6 @@
+prompt: |
+  Using the address-reviews skill categories (ACTION_INSTRUCTION, BLOCKING, CHANGE_REQUEST, QUESTION, SUGGESTION), categorize this real comment from PR #8535. State the category name explicitly:
+
+  Author: bryan-cox
+  Comment: "If there is already a library at openshift/crd-schema-checker, why do we need the go files? Is this how that repo says to set it up?"
+  Type: issue_comment (general PR comment)
