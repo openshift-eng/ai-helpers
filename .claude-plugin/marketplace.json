@@ -88,7 +88,7 @@
       "name": "ci",
       "source": "./plugins/ci",
       "description": "A plugin to work with OpenShift CI and analyze Prow job results",
-      "version": "0.0.54",
+      "version": "0.0.55",
       "category": "ci",
       "keywords": [
         "prow",
@@ -435,7 +435,7 @@
       "name": "openshift-developer",
       "source": "./plugins/openshift-developer",
       "description": "Bundle of curated plugins, skills, and MCP servers useful to any OpenShift engineer",
-      "version": "1.1.4",
+      "version": "1.1.5",
       "category": "bundle",
       "keywords": [
         "openshift",
