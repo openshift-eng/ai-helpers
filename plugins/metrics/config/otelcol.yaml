@@ -75,23 +75,6 @@ processors:
           - set(span.attributes["graph.node.id"], span.attributes["agent_id"])               where span.attributes["agent_id"] != nil
           - set(span.attributes["graph.node.parent_id"], span.attributes["parent_agent_id"]) where span.attributes["parent_agent_id"] != nil
 
-  # Privacy guard: drop spans and log records that contain raw content.
-  # Claude Code does not emit these by default. This processor is a
-  # defense-in-depth safeguard against accidental opt-in of:
-  #   OTEL_LOG_USER_PROMPTS=1
-  #   OTEL_LOG_TOOL_DETAILS=1
-  #   OTEL_LOG_TOOL_CONTENT=1
-  filter/privacy:
-    error_mode: ignore
-    traces:
-      span:
-        - 'attributes["prompt"] != nil'
-        - 'attributes["tool_input"] != nil'
-        - 'attributes["tool_output"] != nil'
-    logs:
-      log_record:
-        - 'attributes["prompt"] != nil'
-
   batch:
     timeout: 5s
     send_batch_size: 512
@@ -110,21 +93,24 @@ exporters:
   debug:
     verbosity: basic
 
-otlp_http/mlflow:
-  endpoint: http://localhost:5000
-  headers:
-    x-mlflow-experiment-id: "0"
-  tls:
-    insecure: true
+  # MLflow integration.
+  # MLflow 3.x+ accepts OTLP/HTTP only (gRPC not supported) at /v1/traces.
+  # x-mlflow-experiment-id header is required; "0" is the default experiment.
+  # Set MLFLOW_TRACKING_URI to override the endpoint.
+  otlp_http/mlflow:
+    endpoint: http://localhost:5000
+    headers:
+      x-mlflow-experiment-id: "0"
+    tls:
+      insecure: true
 
 service:
   pipelines:
     # Traces: apply OpenInference mapping + privacy filter.
     traces:
       receivers:  [otlp]
-      processors: [resource, transform/openinference, filter/privacy, batch]
-      exporters:  [file, debug]
-      # exporters: [file, debug, otlp_http/mlflow]  # enable for MLflow
+      processors: [resource, transform/openinference, batch]
+      exporters:  [file, debug, otlp_http/mlflow]
 
     # Metrics: native claude_code.* counter names are kept as-is.
     # OpenInference conventions apply to spans, not metrics.
@@ -133,8 +119,8 @@ service:
       processors: [resource, batch]
       exporters:  [file, debug]
 
-    # Log events: apply privacy filter; keep claude_code.* event names.
+    # Log events: keep claude_code.* event names.
     logs:
       receivers:  [otlp]
-      processors: [resource, filter/privacy, batch]
+      processors: [resource, batch]
       exporters:  [file, debug]

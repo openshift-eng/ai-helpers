@@ -18,7 +18,6 @@ Claude Code CLI  (native OTLP emission)
     processors:
       resource          adds service.name, environment, team/repo metadata
       transform         maps Claude Code spans to OpenInference kinds/attributes
-      filter/privacy    drops accidental raw content
       batch
     exporters:
       file              ~/.local/share/claude-metrics/claude-metrics.jsonl
@@ -50,16 +49,18 @@ export OTEL_RESOURCE_ATTRIBUTES="team.name=my-team,repo.name=my-repo,agentic_doc
 
 ## MLflow Integration
 
-Uncomment the `otlp/mlflow` exporter and the MLflow exporter in the service pipelines inside `config/otelcol.yaml`, then set the endpoint to your MLflow tracking server:
+Uncomment the `otlp_http/mlflow` exporter block and the service pipeline line in `config/otelcol.yaml`, then set the endpoint to your MLflow tracking server:
 
 ```yaml
-otlp/mlflow:
-  endpoint: http://localhost:5000/api/2.0/mlflow/otlp
+otlp_http/mlflow:
+  endpoint: http://localhost:5000
+  headers:
+    x-mlflow-experiment-id: "0"   # "0" = default experiment; use your experiment ID
   tls:
     insecure: true
 ```
 
-MLflow 2.x supports OTLP trace ingestion natively at `/api/2.0/mlflow/otlp`.
+MLflow 3.x accepts OTLP/HTTP traces at `/v1/traces` (gRPC is not supported). The `x-mlflow-experiment-id` header is required — MLflow rejects requests without it. MLflow natively understands OpenInference span kinds and token-count attributes mapped by this pipeline's `transform/openinference` processor.
 
 ## What Gets Collected
 
@@ -108,10 +109,6 @@ After the `transform/openinference` processor, spans also carry:
 | `llm.token_count.prompt_details.cache_write` | Cache-creation tokens |
 | `tool.name` | Tool name (copied from `tool_name`) |
 | `agent.name` | `claude-code` |
-
-### Privacy
-
-No prompt text, tool input, tool output, or source code content is collected by default. The `filter/privacy` processor drops any span or log record that accidentally contains a `prompt`, `tool_input`, or `tool_output` attribute (these are off by default in Claude Code and require explicit opt-in env vars to enable).
 
 ## Core Metrics by Category
 
