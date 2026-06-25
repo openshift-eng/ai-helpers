@@ -14,11 +14,10 @@ if ! command -v otelcol-contrib >/dev/null 2>&1 || [[ -z "${CLAUDE_CODE_ENABLE_T
   if [[ ! -f "${INSTALL_SCRIPT}" ]]; then
     INSTALL_SCRIPT=$(ls "${HOME}/.claude/plugins/cache/"*/metrics/*/scripts/install.sh 2>/dev/null | head -1)
   fi
-  echo "metrics plugin: setup required. Run once, then restart Claude Code:" >&2
   if [[ -n "${INSTALL_SCRIPT}" ]]; then
-    echo "  bash ${INSTALL_SCRIPT}" >&2
+    echo "metrics plugin: run 'bash ${INSTALL_SCRIPT}' once, then restart Claude Code" >&2
   else
-    echo "  bash \$(ls ~/.claude/plugins/cache/*/metrics/*/scripts/install.sh)" >&2
+    echo "metrics plugin: run 'bash \$(ls ~/.claude/plugins/cache/*/metrics/*/scripts/install.sh)' once, then restart Claude Code" >&2
   fi
   exit 1
 fi
