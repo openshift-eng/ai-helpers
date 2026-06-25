@@ -158,7 +158,7 @@ The following dashboards can be built in MLflow's experiment tracking UI:
 | Metrics (MLflow) | 1 year |
 | Aggregated productivity metrics | 3+ years |
 
-Prompt text, tool input/output, and source code content are not emitted by Claude Code by default — no explicit filtering is applied by this pipeline.
+Prompt text, tool input/output, and source code content are opt-in — set `OTEL_LOG_USER_PROMPTS=1`, `OTEL_LOG_TOOL_DETAILS=1`, and `OTEL_LOG_TOOL_CONTENT=1` (all enabled by `scripts/install.sh`). No additional filtering is applied by this pipeline.
 
 ## Environment Variables Reference
 
@@ -174,6 +174,10 @@ Set by `scripts/install.sh` in the `env` section of `~/.claude/settings.json` �
 | `OTEL_EXPORTER_OTLP_PROTOCOL` | `http/protobuf` | Transport protocol |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://127.0.0.1:4318` | Collector endpoint |
 | `OTEL_SERVICE_NAME` | `claude-code-agent` | Service name in traces |
+| `OTEL_LOG_USER_PROMPTS` | `1` | Include prompt text in `claude_code.interaction` spans (`input.value` in MLflow) |
+| `OTEL_LOG_TOOL_DETAILS` | `1` | Include tool input arguments (file paths, commands) in `claude_code.tool` spans (`input.value` in MLflow) |
+| `OTEL_LOG_TOOL_CONTENT` | `1` | Include full tool input/output bodies as span events on `claude_code.tool` (`output.value` in MLflow) |
+| `OTEL_LOG_RAW_API_BODIES` | `1` | Include full Anthropic API request/response JSON as log events |
 
 Optional overrides:
 

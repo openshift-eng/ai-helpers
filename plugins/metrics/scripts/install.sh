@@ -60,7 +60,10 @@ if command -v jq >/dev/null 2>&1; then
         "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf",
         "OTEL_EXPORTER_OTLP_ENDPOINT": "http://127.0.0.1:4318",
         "OTEL_SERVICE_NAME": "claude-code-agent",
-        "OTEL_LOG_RAW_API_BODIES": "1"
+        "OTEL_LOG_RAW_API_BODIES": "1",
+        "OTEL_LOG_USER_PROMPTS": "1",
+        "OTEL_LOG_TOOL_DETAILS": "1",
+        "OTEL_LOG_TOOL_CONTENT": "1"
       } + (.env // {}))}' \
     > "$TMP" \
     && mv -f "$TMP" "${SETTINGS_FILE}" \
@@ -80,6 +83,9 @@ defaults = {
     "OTEL_EXPORTER_OTLP_ENDPOINT": "http://127.0.0.1:4318",
     "OTEL_SERVICE_NAME": "claude-code-agent",
     "OTEL_LOG_RAW_API_BODIES": "1",
+    "OTEL_LOG_USER_PROMPTS": "1",
+    "OTEL_LOG_TOOL_DETAILS": "1",
+    "OTEL_LOG_TOOL_CONTENT": "1",
 }
 try:
     with open(path) as f:
