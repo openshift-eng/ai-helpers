@@ -22,12 +22,6 @@ if ! command -v otelcol-contrib >/dev/null 2>&1; then
   exit 1
 fi
 
-if [[ -z "${CLAUDE_CODE_ENABLE_TELEMETRY:-}" ]]; then
-  # install.sh has run (binary present) but env vars aren't active yet — just restart.
-  echo "metrics plugin: restart Claude Code to activate telemetry env vars" >&2
-  exit 1
-fi
-
 if [[ -z "${CLAUDE_PLUGIN_ROOT}" ]] || [[ ! -f "${CONFIG}" ]]; then
   echo "metrics plugin: config not found at ${CONFIG:-/config/otelcol.yaml}" >&2
   exit 0
