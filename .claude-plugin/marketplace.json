@@ -480,7 +480,7 @@
       "name": "metrics",
       "source": "./plugins/metrics",
       "description": "OpenTelemetry and OpenInference telemetry pipeline for Claude Code sessions: documentation effectiveness, agent performance, tool usage, and cost metrics",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "category": "tooling",
       "keywords": [
         "opentelemetry",

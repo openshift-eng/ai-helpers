@@ -108,11 +108,13 @@ exporters:
     verbosity: basic
 
   # MLflow integration.
-  # MLflow 3.x+ accepts OTLP/HTTP only (gRPC not supported) at /v1/traces.
+  # MLflow 3.x+ accepts OTLP/HTTP only (gRPC not supported).
+  # The otlphttp exporter appends /v1/traces automatically — specify only the
+  # base URL (host:port), never a path. A path in the endpoint causes an
+  # "invalid port" parse error in otelcol-contrib v0.154.0+.
   # x-mlflow-experiment-id header is required; "0" is the default experiment.
-  # Set MLFLOW_TRACKING_URI to override the endpoint.
   otlp_http/mlflow:
-    endpoint: http://localhost:5000
+    endpoint: http://localhost:5002
     headers:
       x-mlflow-experiment-id: "0"
     tls:
