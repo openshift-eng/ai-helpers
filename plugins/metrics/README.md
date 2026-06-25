@@ -16,7 +16,7 @@ Claude Code CLI
     receivers:   otlp/http:4318, otlp/grpc:4317
     processors:  resource → transform/openinference → batch
     exporters:   file  → ~/.local/share/claude-metrics/claude-metrics.jsonl
-                 mlflow → http://localhost:5002
+                 mlflow → http://localhost:5001
 ```
 
 ## Setup
@@ -40,14 +40,14 @@ export OTEL_RESOURCE_ATTRIBUTES="team.name=my-team,repo.name=my-repo,agentic_doc
 MLflow export is enabled by default. Start MLflow before a Claude Code session:
 
 ```bash
-mlflow server --host 127.0.0.1 --port 5002
+mlflow server --host 127.0.0.1 --port 5001
 ```
 
 To change the server or experiment, edit `config/otelcol.yaml`:
 
 ```yaml
 otlp_http/mlflow:
-  endpoint: http://localhost:5002   # base URL only — otelcol appends /v1/traces
+  endpoint: http://localhost:5001   # base URL only — otelcol appends /v1/traces
   headers:
     x-mlflow-experiment-id: "0"    # "0" = default experiment
 ```

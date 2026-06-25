@@ -64,9 +64,9 @@ processors:
           - set(span.attributes["llm.token_count.completion"], span.attributes["output_tokens"])       where span.attributes["output_tokens"] != nil
           - set(span.attributes["llm.token_count.total"], span.attributes["input_tokens"] + span.attributes["output_tokens"]) where span.attributes["input_tokens"] != nil and span.attributes["output_tokens"] != nil
 
-          # Prompt cache token details
-          - set(span.attributes["llm.token_count.prompt_details.cache_read"], span.attributes["cache_read_input_tokens"])      where span.attributes["cache_read_input_tokens"] != nil
-          - set(span.attributes["llm.token_count.prompt_details.cache_write"], span.attributes["cache_creation_input_tokens"]) where span.attributes["cache_creation_input_tokens"] != nil
+          # Prompt cache token details (Claude Code emits cache_read_tokens / cache_creation_tokens)
+          - set(span.attributes["llm.token_count.prompt_details.cache_read"], span.attributes["cache_read_tokens"])      where span.attributes["cache_read_tokens"] != nil
+          - set(span.attributes["llm.token_count.prompt_details.cache_write"], span.attributes["cache_creation_tokens"]) where span.attributes["cache_creation_tokens"] != nil
 
           # Tool name
           - set(span.attributes["tool.name"], span.attributes["tool_name"]) where span.attributes["tool_name"] != nil
@@ -79,6 +79,8 @@ processors:
           # and from the tool command on tool spans.
           - set(span.attributes["input.value"], span.attributes["user_prompt"]) where span.attributes["user_prompt"] != nil
           - set(span.attributes["input.value"], span.attributes["full_command"]) where span.attributes["full_command"] != nil
+          # input.mime_type is required by OpenInference so MLflow renders the Inputs panel.
+          - set(span.attributes["input.mime_type"], "text/plain") where span.attributes["input.value"] != nil
 
       # MLflow output.value: Claude Code emits tool results as span events named
       # "tool.output", not as span attributes, so they must be extracted here.
@@ -88,6 +90,8 @@ processors:
         statements:
           - set(span.attributes["output.value"], attributes["output"])  where name == "tool.output" and attributes["output"] != nil
           - set(span.attributes["output.value"], attributes["content"]) where name == "tool.output" and attributes["content"] != nil
+          # output.mime_type is required by OpenInference so MLflow renders the Outputs panel.
+          - set(span.attributes["output.mime_type"], "text/plain") where name == "tool.output" and (attributes["output"] != nil or attributes["content"] != nil)
 
   batch:
     timeout: 5s
@@ -114,7 +118,7 @@ exporters:
   # "invalid port" parse error in otelcol-contrib v0.154.0+.
   # x-mlflow-experiment-id header is required; "0" is the default experiment.
   otlp_http/mlflow:
-    endpoint: http://localhost:5002
+    endpoint: http://localhost:5001
     headers:
       x-mlflow-experiment-id: "0"
     tls:
