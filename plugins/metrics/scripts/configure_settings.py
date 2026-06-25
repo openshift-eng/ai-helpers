@@ -45,9 +45,11 @@ def load_settings(path):
     except FileNotFoundError:
         return {}
     except json.JSONDecodeError:
-        # Treat corrupt settings as empty rather than aborting — old behaviour.
-        print(f"warning: {path} contains invalid JSON; treating as empty", file=sys.stderr)
-        return {}
+        # Refuse to overwrite a corrupt file — silently treating it as {} would
+        # erase all other user settings (model, permissions, MCP servers, etc.).
+        sys.exit(
+            f"error: {path} contains invalid JSON; fix or remove it and re-run"
+        )
     except PermissionError:
         sys.exit(f"error: cannot read {path}: permission denied")
     if not isinstance(data, dict):
@@ -73,7 +75,12 @@ def write_atomic(path, settings):
     os.makedirs(directory, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=directory)
     try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
+        try:
+            f = os.fdopen(fd, "w", encoding="utf-8")
+        except Exception:
+            os.close(fd)
+            raise
+        with f:
             json.dump(settings, f, indent=2)
             f.write("\n")
         os.replace(tmp, path)
@@ -91,7 +98,7 @@ def main():
     settings = merge(settings, defaults)
     try:
         write_atomic(SETTINGS_FILE, settings)
-    except OSError as e:
+    except Exception as e:
         sys.exit(f"error: could not write {SETTINGS_FILE}: {e}")
     print(f"OTel env vars written to {SETTINGS_FILE}")
 
