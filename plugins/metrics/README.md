@@ -2,7 +2,7 @@
 
 Automatic OpenTelemetry and OpenInference telemetry for Claude Code CLI sessions.
 
-This plugin configures an `otelcol-contrib` pipeline that receives Claude Code's native OTLP telemetry, maps it to OpenInference semantic conventions, filters sensitive content, and writes enriched spans to a local JSONL file. It optionally exports to MLflow.
+This plugin configures an `otelcol-contrib` pipeline that receives Claude Code's native OTLP telemetry, maps it to OpenInference semantic conventions, and writes enriched spans to a local JSONL file and MLflow.
 
 No commands. The `otelcol-contrib` binary starts automatically when a Claude Code session begins and terminates when the session ends via `SessionStart`/`SessionEnd` hooks.
 
@@ -21,7 +21,7 @@ Claude Code CLI  (native OTLP emission)
       batch
     exporters:
       file              ~/.local/share/claude-metrics/claude-metrics.jsonl
-      otlp/mlflow       optional, uncomment in config/otelcol.yaml
+      otlp_http/mlflow  http://localhost:5000 (see MLflow Integration)
         |
         v
   ~/.local/share/claude-metrics/claude-metrics.jsonl
@@ -33,8 +33,7 @@ Claude Code CLI  (native OTLP emission)
 After installing the plugin, start a Claude Code session. If setup has not been run you will see a hook error with the exact command to run:
 
 ```
-metrics plugin: setup required. Run once, then restart Claude Code:
-  bash /path/to/plugin/scripts/install.sh
+metrics plugin: run 'bash /path/to/plugin/scripts/install.sh' once, then restart Claude Code
 ```
 
 Run that command. It installs `otelcol-contrib` (if needed) and writes the required OTLP env vars into the `env` section of `~/.claude/settings.json`. Then restart Claude Code — the env vars take effect on the next startup.
@@ -49,7 +48,13 @@ export OTEL_RESOURCE_ATTRIBUTES="team.name=my-team,repo.name=my-repo,agentic_doc
 
 ## MLflow Integration
 
-Uncomment the `otlp_http/mlflow` exporter block and the service pipeline line in `config/otelcol.yaml`, then set the endpoint to your MLflow tracking server:
+MLflow export is enabled by default. Start an MLflow server before starting a Claude Code session:
+
+```bash
+mlflow server --host 127.0.0.1 --port 5000
+```
+
+The collector posts traces to `http://localhost:5000/v1/traces` with `x-mlflow-experiment-id: "0"` (the default experiment). To change the server or experiment, update `config/otelcol.yaml`:
 
 ```yaml
 otlp_http/mlflow:
@@ -137,7 +142,7 @@ Key signals: `claude_code.code_edit.tool_decision` (accept/reject rates by langu
 
 ## MLflow Dashboards
 
-When the `otlp/mlflow` exporter is enabled, the following dashboards can be built in MLflow's experiment tracking UI:
+The following dashboards can be built in MLflow's experiment tracking UI:
 
 1. Executive Agent Adoption — sessions, tasks completed, cost, productivity impact
 2. Agentic Documentation Intelligence — documentation usage rate, unused sections, failing documentation versions
@@ -153,7 +158,7 @@ When the `otlp/mlflow` exporter is enabled, the following dashboards can be buil
 | Metrics (MLflow) | 1 year |
 | Aggregated productivity metrics | 3+ years |
 
-Raw prompts, source code, tool I/O, and credentials are never stored.
+Prompt text, tool input/output, and source code content are not emitted by Claude Code by default — no explicit filtering is applied by this pipeline.
 
 ## Environment Variables Reference
 
