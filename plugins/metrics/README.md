@@ -31,13 +31,14 @@ Claude Code CLI  (native OTLP emission)
 
 ## Setup
 
-Run the install script once after installing the plugin:
+After installing the plugin, start a Claude Code session. If `otelcol-contrib` is not yet installed you will see:
 
-```bash
-bash ~/.claude/plugins/cache/ai-helpers/metrics/*/scripts/install.sh
+```
+metrics plugin: otelcol-contrib not found. Run setup once:
+  bash /path/to/plugin/scripts/install.sh
 ```
 
-This installs `otelcol-contrib` and adds the required OTLP env vars to your shell profile. Then source your profile (the script prints the exact command) before starting Claude Code.
+Copy and run that exact command. It installs `otelcol-contrib` and writes the required OTLP env vars into the `env` section of `~/.claude/settings.json`. Takes effect on next Claude Code startup.
 
 From that point on, telemetry flows automatically — `otelcol-contrib` starts at session open and stops at session close. Traces are written to `~/.local/share/claude-metrics/claude-metrics.jsonl` and collector logs to `~/.local/share/claude-metrics/otelcol.log`.
 
@@ -159,7 +160,7 @@ Raw prompts, source code, tool I/O, and credentials are never stored.
 
 ## Environment Variables Reference
 
-Set by `scripts/install.sh` — no manual configuration needed.
+Set by `scripts/install.sh` in the `env` section of `~/.claude/settings.json` — no manual configuration needed.
 
 | Variable | Value | Purpose |
 |---|---|---|

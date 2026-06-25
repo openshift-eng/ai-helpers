@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # One-time setup for the metrics plugin.
-# Installs otelcol-contrib and configures OTLP env vars in your shell profile.
-# Run once after installing the plugin, then restart your terminal.
+# Installs otelcol-contrib and writes OTLP env vars to ~/.claude/settings.json.
+# Run once after installing the plugin.
 
 set -euo pipefail
 
 OTELCOL_VERSION="0.155.0"
 INSTALL_DIR="/usr/local/bin"
-MARKER="# Claude Code metrics plugin — OTLP telemetry"
+SETTINGS_FILE="${HOME}/.claude/settings.json"
 
 # ── otelcol-contrib ────────────────────────────────────────────────────────────
 
@@ -37,32 +37,67 @@ else
   echo "Installed: ${INSTALL_DIR}/otelcol-contrib"
 fi
 
-# ── OTLP env vars ──────────────────────────────────────────────────────────────
+# ── OTel env vars in ~/.claude/settings.json ──────────────────────────────────
 
-case "${SHELL:-}" in
-  */zsh)  PROFILE="${HOME}/.zshrc" ;;
-  */bash) PROFILE="${HOME}/.bashrc" ;;
-  *)      PROFILE="${HOME}/.profile" ;;
-esac
+mkdir -p "${HOME}/.claude"
 
-if grep -qF "${MARKER}" "${PROFILE}" 2>/dev/null; then
-  echo "OTLP env vars already present in ${PROFILE}"
+if command -v jq >/dev/null 2>&1; then
+  # If the existing file has invalid JSON, treat it as {} rather than aborting
+  # and zeroing it (the > redirect truncates before jq can read stdin).
+  EXISTING="{}"
+  if [[ -f "${SETTINGS_FILE}" ]]; then
+    jq empty "${SETTINGS_FILE}" 2>/dev/null && EXISTING=$(< "${SETTINGS_FILE}") || true
+  fi
+  # Write atomically: produce output to a temp file, then rename over the target.
+  TMP=$(mktemp "${HOME}/.claude/.settings.json.XXXXXX")
+  printf '%s' "${EXISTING}" \
+    | jq '. * {"env": ({
+        "CLAUDE_CODE_ENABLE_TELEMETRY": "1",
+        "CLAUDE_CODE_ENHANCED_TELEMETRY_BETA": "1",
+        "OTEL_TRACES_EXPORTER": "otlp",
+        "OTEL_METRICS_EXPORTER": "otlp",
+        "OTEL_LOGS_EXPORTER": "otlp",
+        "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf",
+        "OTEL_EXPORTER_OTLP_ENDPOINT": "http://127.0.0.1:4318",
+        "OTEL_SERVICE_NAME": "claude-code-agent"
+      } + (.env // {}))}' \
+    > "$TMP" \
+    && mv -f "$TMP" "${SETTINGS_FILE}" \
+    || { rm -f "$TMP"; echo "metrics plugin: failed to write ${SETTINGS_FILE}" >&2; exit 1; }
 else
-  cat >> "${PROFILE}" <<'EOF'
+  python3 - "${SETTINGS_FILE}" <<'PYEOF'
+import json, sys, os, tempfile
 
-# Claude Code metrics plugin — OTLP telemetry
-export CLAUDE_CODE_ENABLE_TELEMETRY=1
-export CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1
-export OTEL_TRACES_EXPORTER=otlp
-export OTEL_METRICS_EXPORTER=otlp
-export OTEL_LOGS_EXPORTER=otlp
-export OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
-export OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318
-export OTEL_SERVICE_NAME=claude-code-agent
-EOF
-  echo "OTLP env vars added to ${PROFILE}"
+path = sys.argv[1]
+defaults = {
+    "CLAUDE_CODE_ENABLE_TELEMETRY": "1",
+    "CLAUDE_CODE_ENHANCED_TELEMETRY_BETA": "1",
+    "OTEL_TRACES_EXPORTER": "otlp",
+    "OTEL_METRICS_EXPORTER": "otlp",
+    "OTEL_LOGS_EXPORTER": "otlp",
+    "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf",
+    "OTEL_EXPORTER_OTLP_ENDPOINT": "http://127.0.0.1:4318",
+    "OTEL_SERVICE_NAME": "claude-code-agent",
+}
+try:
+    with open(path) as f:
+        settings = json.load(f)
+except (FileNotFoundError, json.JSONDecodeError):
+    settings = {}
+# Existing env keys take precedence so user overrides are preserved.
+settings["env"] = {**defaults, **settings.get("env", {})}
+# Write atomically: temp file in same directory, then os.replace (rename).
+fd, tmp = tempfile.mkstemp(dir=os.path.dirname(os.path.abspath(path)))
+try:
+    with os.fdopen(fd, "w") as f:
+        json.dump(settings, f, indent=2)
+        f.write("\n")
+    os.replace(tmp, path)
+except Exception:
+    os.unlink(tmp)
+    raise
+PYEOF
 fi
 
-echo ""
-echo "Setup complete. Apply the new env vars without restarting:"
-echo "  source ${PROFILE}"
+echo "OTel env vars written to ${SETTINGS_FILE}"
+echo "Takes effect on next Claude Code startup (no shell restart needed)."
