@@ -1016,7 +1016,7 @@ This works because `oc` reads from `~/.kube/config` which is bind-mounted from t
    - Triage type: <recommended type>
    ```
 
-   If the user confirms, create the bug using the `/jira:create-bug` skill with the bug template from step 12. Apply the label `component-regression` to the bug (this label identifies bugs found through Component Readiness). The bug description must include:
+   If the user confirms, create the bug using `/jira:create bug` with the bug template from step 12. Apply the label `component-regression` to the bug (this label identifies bugs found through Component Readiness). The bug description must include:
    - Test name(s) — the **full name including all tags** (e.g., `[Suite:openshift/conformance/parallel]`, `[Serial]`). Each test name must be on its own line wrapped in Jira `{code}` blocks so that tooling can search for bugs mentioning a specific test:
      ```
      {code}

@@ -1,0 +1,79 @@
+description: "Routing evals for jira:jira-conventions skill"
+
+providers:
+  - id: anthropic:claude-agent-sdk
+    label: jira-conventions
+    config:
+      model: claude-opus-4-6
+      plugins:
+        - type: local
+          path: ../
+      append_allowed_tools: ['Skill', 'Read']
+      permission_mode: 'auto'
+
+prompts:
+  - "{{prompt}}"
+
+defaultTest:
+  assert:
+    - type: skill-used
+      value: jira:jira-conventions
+    - type: latency
+      threshold: 60000
+    - type: cost
+      threshold: 0.50
+
+tests:
+  - description: "jira-conventions/cntrlplane — routes on project key"
+    metadata: &meta-fast
+      token-usage: medium
+      judge-size: none
+      tier: fast
+    vars:
+      prompt: |
+        I'm about to create a story in CNTRLPLANE. What project-specific conventions
+        should I follow? Just list the key requirements — don't create the issue.
+    assert:
+      - type: icontains
+        value: "customfield_10855"
+      - type: icontains
+        value: "openshift-"
+
+  - description: "jira-conventions/hypershift-keywords — routes on team keywords"
+    metadata: *meta-fast
+    vars:
+      prompt: |
+        I need to create a bug about ROSA HCP control plane pods crashing.
+        What team-specific conventions apply? Just list requirements — don't create anything.
+    assert:
+      - type: icontains
+        value: "HyperShift"
+      - type: icontains
+        value: "component"
+
+  - description: "jira-conventions/ocpbugs — routes on project key"
+    metadata: *meta-fast
+    vars:
+      prompt: |
+        I'm filing a bug in OCPBUGS about an API server crash. What OCPBUGS-specific
+        conventions should I follow for version fields? Just list the key points.
+    assert:
+      - type: icontains
+        value: "version"
+      - type: icontains
+        value: "OCPBUGS"
+
+  - description: "jira-conventions/gcp-project — routes on GCP project key"
+    metadata: *meta-fast
+    vars:
+      prompt: |
+        I'm creating a story in the GCP project for Hypershift on GKE work.
+        What GCP-specific conventions apply? Just list the key points.
+    assert:
+      - type: icontains
+        value: "GCP"
+      - type: icontains
+        value: "customfield_10028"
+
+evaluateOptions:
+  maxConcurrency: 20
