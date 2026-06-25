@@ -1,0 +1,8 @@
+prompt: |
+  IMPORTANT: Do NOT push changes - pushing will be handled automatically after you finish.
+
+  Using the address-reviews skill, process this real comment from PR #8535. Describe what steps you would take, specifically addressing what happens at the push step:
+
+  Author: jparrill
+  Comment: "compareCRDs() exists at the bottom of this file as a testable wrapper around crdifyRunner.Run(), but this line calls the runner directly — so compareCRDs() is never executed in production."
+  File: hack/tools/crd-schema-check/main.go

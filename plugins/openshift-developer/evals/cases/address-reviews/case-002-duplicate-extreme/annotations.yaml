@@ -1,0 +1,6 @@
+expected_should_reply: false
+expected_should_change_code: false
+notes: >
+  Severe duplication problem — the thread was already addressed by the first
+  reply but kept getting re-processed. 28 bot replies on a single suggestion.
+  Thread is resolved. No further reply needed.

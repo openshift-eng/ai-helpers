@@ -1,0 +1,7 @@
+expected_category: QUESTION
+expected_should_reply: true
+expected_should_change_code: false
+acceptable_categories: [QUESTION]
+notes: >
+  Interrogative phrasing — "why do we need" and "is this how" are questions,
+  not imperative requests. Should reply with explanation, not code changes.

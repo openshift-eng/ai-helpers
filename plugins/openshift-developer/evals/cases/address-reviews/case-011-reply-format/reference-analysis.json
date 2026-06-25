@@ -1,0 +1,10 @@
+{
+  "category": "CHANGE_REQUEST",
+  "should_reply": true,
+  "should_change_code": true,
+  "should_push": false,
+  "should_filter": false,
+  "priority_order": null,
+  "reply_draft": "Done. Replaced direct `crdifyRunner.Run()` call with `compareCRDs(oldCRD, newCRD, crdifyRunner)`. This ensures the testable wrapper is actually exercised in production, not just in tests.\n\n---\n*AI-assisted response via Claude Code*",
+  "rationale": "The reviewer identifies dead code: compareCRDs() exists as a testable wrapper but is bypassed in production. This is a clear change request with a specific fix (call the wrapper instead of the runner directly). The change is straightforward and the reviewer's reasoning is sound — if the wrapper is only called in tests, any bug in how it invokes the runner would go undetected in production."
+}

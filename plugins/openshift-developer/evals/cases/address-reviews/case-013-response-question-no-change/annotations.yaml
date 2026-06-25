@@ -1,0 +1,7 @@
+expected_category: QUESTION
+expected_should_reply: true
+expected_should_change_code: false
+notes: >
+  This is a directional question about project strategy. The response
+  should plan to reply with an explanation or ask for user guidance,
+  and would NOT immediately make code changes.

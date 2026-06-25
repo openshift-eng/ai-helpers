@@ -1,0 +1,8 @@
+expected_category: SUGGESTION
+expected_should_reply: true
+expected_should_change_code: true
+acceptable_categories: [CHANGE_REQUEST, SUGGESTION]
+notes: >
+  Concrete code improvement request with a proposed fix. Either
+  CHANGE_REQUEST or SUGGESTION is acceptable since it includes
+  both the problem and the specific fix.

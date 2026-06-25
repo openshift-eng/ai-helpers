@@ -1,0 +1,7 @@
+expected_category: CHANGE_REQUEST
+expected_should_reply: true
+expected_should_change_code: true
+acceptable_categories: [CHANGE_REQUEST, BLOCKING]
+notes: >
+  Dead code where tests validate a path that never runs is a correctness
+  issue requiring a code change. Either CHANGE_REQUEST or BLOCKING is acceptable.

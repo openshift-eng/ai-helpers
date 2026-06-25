@@ -1,0 +1,6 @@
+expected_reply_contains: ["Done", "AI-assisted response via Claude Code"]
+expected_reply_max_sentences: 3
+notes: >
+  Reply must start with "Done.", be concise (3 sentences max before
+  signature), mention calling compareCRDs instead of the runner directly,
+  and include the "AI-assisted response via Claude Code" footer.

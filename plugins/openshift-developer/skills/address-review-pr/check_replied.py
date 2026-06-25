@@ -24,6 +24,8 @@ from typing import Any
 BOT_SIGNATURES = [
     "hypershift-jira-solve-ci[bot]",
     "hypershift-jira-solve-ci",
+    "github-actions",
+    "github-actions[bot]",
 ]
 
 # Text signature that appears in bot replies

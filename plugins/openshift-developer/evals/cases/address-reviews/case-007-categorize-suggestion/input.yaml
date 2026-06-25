@@ -1,0 +1,7 @@
+prompt: |
+  Using the address-reviews skill categories (ACTION_INSTRUCTION, BLOCKING, CHANGE_REQUEST, QUESTION, SUGGESTION), categorize this real review comment from PR #8535. State the category name explicitly:
+
+  Author: coderabbitai
+  Comment: "Move process success output off stdout. Line 104 prints to stdout from main.go; this should not emit non-JSON process output. Proposed fix: fmt.Fprintf(os.Stderr, ...) instead of fmt.Printf(...)"
+  Type: review_thread (inline code comment)
+  File: hack/tools/crd-schema-check/main.go

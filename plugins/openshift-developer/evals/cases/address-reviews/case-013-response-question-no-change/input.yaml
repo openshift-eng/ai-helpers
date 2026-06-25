@@ -1,0 +1,6 @@
+prompt: |
+  Using the address-reviews skill response rules (questions get explanations, only imperative requests get code changes), what action would you take for this real comment from PR #8535? State clearly whether you would make code changes or only reply:
+
+  Author: JoelSpeed
+  Comment: "We are moving away from crd-schema-checker towards the upstream crdify project, and in fact, in o/api we have disabled the majority of checks in crd-schema-checker because they are implemented in crdify already. Could you weigh in on whether to switch this PR to crdify?"
+  Type: issue_comment (general PR comment)

@@ -1,0 +1,8 @@
+expected_category: CHANGE_REQUEST
+expected_should_reply: true
+expected_should_change_code: true
+acceptable_categories: [CHANGE_REQUEST, BLOCKING, SUGGESTION]
+notes: >
+  Reviewer indicates a policy that may require updating code behavior.
+  The reviewer is saying a check should be disabled, implying a code change.
+  CHANGE_REQUEST, BLOCKING, or SUGGESTION are all acceptable.

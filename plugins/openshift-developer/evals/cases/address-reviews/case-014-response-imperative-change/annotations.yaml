@@ -1,0 +1,6 @@
+expected_category: CHANGE_REQUEST
+expected_should_reply: true
+expected_should_change_code: true
+notes: >
+  The reviewer gave a direct imperative instruction with specific
+  alternatives to implement. This requires a code change, not just a reply.

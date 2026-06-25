@@ -1,0 +1,14 @@
+prompt: |
+  Using the address-reviews skill, analyze this review thread timeline from PR #8535. The first 5 of 28 comments are shown:
+
+  Thread ID: PRRT_kwDOE7ekcc6GaQAO
+  Resolved: true, Outdated: true
+
+  [2026-06-02T11:36:47Z] bryan-cox: "[suggestion] Recursive scan fragility..."
+  [2026-06-02T11:50:11Z] github-actions: "Done. Added a doc comment on checkCRDsInDir..."
+  [2026-06-02T14:14:15Z] hypershift-jira-solve-ci: "Done. Added a doc comment on checkCRDsInDir..."
+  [2026-06-02T17:07:22Z] hypershift-jira-solve-ci: "Done. Added a doc comment on checkCRDsInDir..."
+  [2026-06-02T20:07:16Z] hypershift-jira-solve-ci: "Done. Documented the assumption in the checkCRDsInDir function comment..."
+  ... (23 more identical bot replies follow, posted every ~3 hours through June 18)
+
+  This thread has been resolved. Should you reply? What went wrong here?

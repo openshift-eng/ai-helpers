@@ -1,0 +1,10 @@
+{
+  "category": "ACTION_INSTRUCTION",
+  "should_reply": true,
+  "should_change_code": false,
+  "should_push": false,
+  "should_filter": false,
+  "priority_order": null,
+  "reply_draft": "Done. Updated the PR description. This was a direct request from the reviewer to improve the PR metadata.\n\n---\n*AI-assisted response via Claude Code*",
+  "rationale": "The comment is a direct instruction to update the PR description text, not a code change request. Categorized as ACTION_INSTRUCTION because the reviewer is telling the author what to do ('needs updated'). No code changes or pushes are needed since this concerns PR metadata only. A reply is appropriate to acknowledge the instruction."
+}

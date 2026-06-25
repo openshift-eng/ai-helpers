@@ -1,0 +1,10 @@
+{
+  "category": "CHANGE_REQUEST",
+  "should_reply": true,
+  "should_change_code": true,
+  "should_push": false,
+  "should_filter": false,
+  "priority_order": null,
+  "reply_draft": "Done. Switched `fmt.Printf` to `fmt.Fprintf(os.Stderr, ...)` at line 104 in `hack/tools/crd-schema-check/main.go`. Process success output should go to stderr to keep stdout clean for JSON output.\n\n---\n*AI-assisted response via Claude Code*",
+  "rationale": "This is a CHANGE_REQUEST: coderabbitai identifies a concrete problem (non-JSON output on stdout) and proposes a specific code fix (use fmt.Fprintf(os.Stderr, ...) instead of fmt.Printf). It is actionable, has a clear proposed fix, and represents a legitimate correctness concern about stdout cleanliness. Not filtered because the review raises a valid issue worth addressing."
+}

@@ -1,0 +1,6 @@
+prompt: |
+  Using the address-reviews skill filtering rules, should this comment be addressed or filtered out?
+
+  Author: coderabbitai
+  Comment: "Missing continue after 'skipping comparison' log. The code logs 'skipping comparison' but falls through to Compare() on line 175 anyway."
+  Type: review_thread (inline code comment)

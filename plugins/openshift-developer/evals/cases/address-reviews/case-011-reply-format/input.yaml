@@ -1,0 +1,6 @@
+prompt: |
+  Following the address-reviews skill reply template ("Done. [1-line what changed]. [Optional 1-line why]" with "---\n*AI-assisted response via Claude Code*" footer), draft the exact reply you would post for this real review comment from PR #8535:
+
+  Author: jparrill
+  Comment: "compareCRDs() exists at the bottom of this file as a testable wrapper around crdifyRunner.Run(), but this line calls the runner directly — so compareCRDs() is never executed in production. Either call compareCRDs(oldCRD, newCRD, crdifyRunner) here instead."
+  File: hack/tools/crd-schema-check/main.go

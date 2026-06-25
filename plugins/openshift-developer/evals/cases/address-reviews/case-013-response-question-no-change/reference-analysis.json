@@ -1,0 +1,10 @@
+{
+  "category": "QUESTION",
+  "should_reply": true,
+  "should_change_code": false,
+  "should_push": false,
+  "should_filter": false,
+  "priority_order": null,
+  "reply_draft": "Thanks for the heads-up on the migration to crdify. Since o/api has already disabled most crd-schema-checker checks in favor of crdify, it makes sense to align this PR with that direction. I'm happy to switch this PR over to use crdify instead — could you point me to any examples or documentation for integrating crdify in a similar context so I can make the transition smoothly?\n\n---\n*AI-assisted response via Claude Code*",
+  "rationale": "JoelSpeed is asking for the author's opinion ('Could you weigh in on whether to switch this PR to crdify?') — this is a question seeking input, not an imperative instruction to change code. Per address-reviews rules, questions receive explanations and discussion, not code changes. The reply acknowledges the migration direction, expresses willingness to switch, and asks for guidance to move forward. No code changes should be made until the direction is confirmed and specifics are provided."
+}

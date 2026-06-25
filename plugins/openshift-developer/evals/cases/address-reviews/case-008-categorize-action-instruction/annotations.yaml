@@ -1,0 +1,7 @@
+expected_category: ACTION_INSTRUCTION
+expected_should_reply: true
+expected_should_change_code: false
+acceptable_categories: [ACTION_INSTRUCTION]
+notes: >
+  "The PR description needs updated" is a repo-level operation on the
+  PR itself, not a code change. ACTION_INSTRUCTION is the only correct category.

@@ -1,0 +1,10 @@
+{
+  "category": "QUESTION",
+  "should_reply": true,
+  "should_change_code": false,
+  "should_push": false,
+  "should_filter": false,
+  "priority_order": null,
+  "reply_draft": null,
+  "rationale": "The comment is phrased as two questions asking for justification of a design decision: why a custom main.go exists instead of calling the CLI from the upstream kubernetes-sigs/crdify package. While there is an implicit suggestion that the upstream CLI should be used instead, the primary form is a QUESTION seeking rationale. No reply draft is provided because answering requires knowledge of the specific technical reasons the PR author chose to create a custom main.go (e.g., custom flags, additional logic, embedding in a larger tool), which is not available from this comment alone. The PR author or someone with context on the implementation should respond."
+}

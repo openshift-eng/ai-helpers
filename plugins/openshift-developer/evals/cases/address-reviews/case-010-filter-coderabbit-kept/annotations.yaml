@@ -1,0 +1,6 @@
+expected_should_filter: false
+expected_should_reply: true
+notes: >
+  coderabbitai comments should be kept and addressed since coderabbit
+  provides code review insights. The comment identifies a real bug
+  (missing continue statement causing fallthrough).

@@ -1,0 +1,6 @@
+expected_should_reply: false
+expected_should_change_code: false
+notes: >
+  Both github-actions and hypershift-jira-solve-ci are bot accounts that already
+  replied. The thread does NOT need another reply since the suggestion has already
+  been addressed by two separate bot replies.
