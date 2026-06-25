@@ -43,13 +43,6 @@ venv/
 # Working directories for skills
 .work/
 
-# Node.js
-node_modules/
-package-lock.json
-
-# Promptfoo eval output
-.promptfoo/
-
 # Various logs and metrics tracking info
 *.log
 .anonymous_id
