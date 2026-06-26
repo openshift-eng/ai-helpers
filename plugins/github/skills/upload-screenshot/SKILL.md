@@ -7,6 +7,8 @@ description: Upload screenshots or images to GitHub and get back embeddable URLs
 
 Upload images to GitHub via release assets and get back stable, embeddable URLs. This is the recommended way to share screenshots of frontend changes, UI diffs, or any visual artifacts in PR comments and issue descriptions.
 
+**Important:** Always upload to the **fork** repo, not upstream, to avoid polluting upstream releases.
+
 ## When to Use This Skill
 
 Use this skill when you:
@@ -28,7 +30,7 @@ Use this skill when you:
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/skills/upload-screenshot/upload_screenshot.sh" \
   --file /path/to/screenshot.png \
-  --repo owner/repo
+  --repo owner/fork-repo
 ```
 
 ### Upload with a custom title
@@ -36,7 +38,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/upload-screenshot/upload_screenshot.sh" \
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/skills/upload-screenshot/upload_screenshot.sh" \
   --file /path/to/screenshot.png \
-  --repo owner/repo \
+  --repo owner/fork-repo \
   --title "Login page after dark mode changes"
 ```
 
@@ -44,9 +46,12 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/upload-screenshot/upload_screenshot.sh" \
 
 | Parameter | Required | Description |
 |-----------|----------|-------------|
-| `--file`  | Yes      | Path to the image file (png, jpg, gif, svg, webp) |
-| `--repo`  | Yes      | Target GitHub repository in `owner/repo` format |
-| `--title` | No       | Alt text for the image (defaults to filename) |
+| `--file`       | Yes      | Path to the image file (png, jpg, gif, svg, webp) |
+| `--repo`       | Yes      | Target GitHub repository in `owner/repo` format |
+| `--title`      | No       | Alt text for the image (defaults to filename) |
+| `--token-file` | No       | Path to a file containing a GitHub token to use for auth |
+
+When `--token-file` is provided, the token is loaded into `GITHUB_TOKEN` for the duration of the script. This is useful in CI where the default `GITHUB_TOKEN` may not have write access to the target repo.
 
 ### Output
 
@@ -54,10 +59,10 @@ JSON on stdout:
 
 ```json
 {
-  "url": "https://github.com/owner/repo/releases/download/screenshot-1719100000-a1b2c3d4/screenshot.png",
-  "markdown": "![Login page](https://github.com/owner/repo/releases/download/screenshot-1719100000-a1b2c3d4/screenshot.png)",
+  "url": "https://github.com/owner/fork-repo/releases/download/screenshot-1719100000-a1b2c3d4/screenshot.png",
+  "markdown": "![Login page](https://github.com/owner/fork-repo/releases/download/screenshot-1719100000-a1b2c3d4/screenshot.png)",
   "tag": "screenshot-1719100000-a1b2c3d4",
-  "repo": "owner/repo"
+  "repo": "owner/fork-repo"
 }
 ```
 
@@ -67,10 +72,10 @@ After uploading, use the `markdown` field directly in a `gh pr comment`:
 
 ```bash
 result=$(bash "${CLAUDE_PLUGIN_ROOT}/skills/upload-screenshot/upload_screenshot.sh" \
-  --file /tmp/screenshot.png --repo owner/repo --title "UI change")
+  --file /tmp/screenshot.png --repo owner/fork-repo --title "UI change")
 
 markdown=$(echo "$result" | jq -r '.markdown')
-gh pr comment 123 --repo owner/repo --body "## Screenshot
+gh pr comment 123 --repo owner/upstream-repo --body "## Screenshot
 
 $markdown"
 ```
@@ -90,13 +95,13 @@ Screenshot releases accumulate over time. To clean up old uploads:
 
 ```bash
 # Delete a specific screenshot release
-gh release delete screenshot-1719100000-a1b2c3d4 --yes --cleanup-tag --repo owner/repo
+gh release delete screenshot-1719100000-a1b2c3d4 --yes --cleanup-tag --repo owner/fork-repo
 
 # Delete all screenshot releases older than 30 days
-gh api "repos/owner/repo/releases" --paginate --jq \
+gh api "repos/owner/fork-repo/releases" --paginate --jq \
   '.[] | select(.tag_name | startswith("screenshot-")) | select(.prerelease) | .tag_name' | \
   while read -r tag; do
-    gh release delete "$tag" --yes --cleanup-tag --repo owner/repo
+    gh release delete "$tag" --yes --cleanup-tag --repo owner/fork-repo
   done
 ```
 

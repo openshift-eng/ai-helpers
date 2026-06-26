@@ -50,7 +50,7 @@
       "name": "github",
       "source": "./plugins/github",
       "description": "GitHub utilities for image uploads, asset management, and PR automation",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "category": "tooling",
       "keywords": [
         "github",
