@@ -1,0 +1,146 @@
+# OpenTelemetry Collector pipeline for Claude Code telemetry.
+#
+# Receives native Claude Code OTLP spans, metrics, and log events, enriches
+# them with OpenInference semantic conventions, and writes to a local JSONL
+# file. Also exports traces to MLflow via OTLP/HTTP.
+#
+# Start with:
+#   CLAUDE_METRICS_LOG_DIR=~/.local/share/claude-metrics \
+#   otelcol-contrib --config otelcol.yaml
+#
+# OTLP env vars are configured by scripts/install.sh (run once after plugin install).
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 127.0.0.1:4317
+      http:
+        endpoint: 127.0.0.1:4318
+
+processors:
+  # Enrich every signal with org and service metadata.
+  # Override team.name, repo.name, repo.owner, and agentic_doc.version
+  # at runtime via OTEL_RESOURCE_ATTRIBUTES:
+  #   export OTEL_RESOURCE_ATTRIBUTES="team.name=my-team,repo.name=my-repo,agentic_doc.version=$(git rev-parse HEAD)"
+  resource:
+    attributes:
+      - { key: service.name,  value: claude-code-agent, action: upsert }
+      - { key: environment,   value: production,         action: upsert }
+
+  # Map Claude Code native span names and attributes to OpenInference
+  # semantic conventions (https://arize-ai.github.io/openinference/).
+  #
+  # Claude Code span names (with CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1):
+  #   claude_code.interaction    — one agent turn (prompt → response)
+  #   claude_code.llm_request    — one Anthropic API call
+  #   claude_code.tool           — tool invocation wrapper (also used for sub-agents via Task)
+  #   claude_code.tool.execution — actual tool execution
+  #
+  # Sub-agent attributes on claude_code.llm_request:
+  #   agent_id          — UUID of the spawned sub-agent
+  #   parent_agent_id   — UUID of the spawning agent
+  #   llm_request.context — "interaction" (main) or "standalone" (sub-agent)
+  transform/openinference:
+    trace_statements:
+      - context: span
+        statements:
+          # Assign openinference.span.kind by span name (order matters: AGENT overrides TOOL below)
+          - set(span.attributes["openinference.span.kind"], "CHAIN") where span.name == "claude_code.interaction"
+          - set(span.attributes["openinference.span.kind"], "LLM")   where span.name == "claude_code.llm_request"
+          - set(span.attributes["openinference.span.kind"], "TOOL")  where span.name == "claude_code.tool"
+          - set(span.attributes["openinference.span.kind"], "TOOL")  where span.name == "claude_code.tool.execution"
+          # Task tool spawns an autonomous sub-agent → AGENT kind (overrides TOOL set above)
+          - set(span.attributes["openinference.span.kind"], "AGENT") where span.name == "claude_code.tool" and span.attributes["tool_name"] == "Task"
+
+          # Agent identification (all interaction spans; sub-agents inherit via span nesting)
+          - set(span.attributes["agent.name"], "claude-code") where span.name == "claude_code.interaction"
+
+          # LLM model name
+          - set(span.attributes["llm.model_name"], span.attributes["model"]) where span.attributes["model"] != nil
+
+          # Token count mapping (OpenInference llm.token_count.* conventions)
+          - set(span.attributes["llm.token_count.prompt"], span.attributes["input_tokens"])           where span.attributes["input_tokens"] != nil
+          - set(span.attributes["llm.token_count.completion"], span.attributes["output_tokens"])       where span.attributes["output_tokens"] != nil
+          - set(span.attributes["llm.token_count.total"], span.attributes["input_tokens"] + span.attributes["output_tokens"]) where span.attributes["input_tokens"] != nil and span.attributes["output_tokens"] != nil
+
+          # Prompt cache token details (Claude Code emits cache_read_tokens / cache_creation_tokens)
+          - set(span.attributes["llm.token_count.prompt_details.cache_read"], span.attributes["cache_read_tokens"])      where span.attributes["cache_read_tokens"] != nil
+          - set(span.attributes["llm.token_count.prompt_details.cache_write"], span.attributes["cache_creation_tokens"]) where span.attributes["cache_creation_tokens"] != nil
+
+          # Tool name
+          - set(span.attributes["tool.name"], span.attributes["tool_name"]) where span.attributes["tool_name"] != nil
+
+          # Sub-agent graph attributes (OpenInference agent graph conventions)
+          - set(span.attributes["graph.node.id"], span.attributes["agent_id"])               where span.attributes["agent_id"] != nil
+          - set(span.attributes["graph.node.parent_id"], span.attributes["parent_agent_id"]) where span.attributes["parent_agent_id"] != nil
+
+          # MLflow input.value: populated from the user prompt on interaction spans
+          # and from the tool command on tool spans.
+          - set(span.attributes["input.value"], span.attributes["user_prompt"]) where span.attributes["user_prompt"] != nil
+          - set(span.attributes["input.value"], span.attributes["full_command"]) where span.attributes["full_command"] != nil
+          # input.mime_type is required by OpenInference so MLflow renders the Inputs panel.
+          - set(span.attributes["input.mime_type"], "text/plain") where span.attributes["input.value"] != nil
+
+      # MLflow output.value: Claude Code emits tool results as span events named
+      # "tool.output", not as span attributes, so they must be extracted here.
+      # (Note: LLM response text is never emitted by Claude Code — output.value
+      # will remain unset on interaction and llm_request spans.)
+      - context: spanevent
+        statements:
+          - set(span.attributes["output.value"], attributes["output"])  where name == "tool.output" and attributes["output"] != nil
+          - set(span.attributes["output.value"], attributes["content"]) where name == "tool.output" and attributes["content"] != nil
+          # output.mime_type is required by OpenInference so MLflow renders the Outputs panel.
+          - set(span.attributes["output.mime_type"], "text/plain") where name == "tool.output" and (attributes["output"] != nil or attributes["content"] != nil)
+
+  batch:
+    timeout: 5s
+    send_batch_size: 512
+
+exporters:
+  # Write all signals to a rotating JSONL file.
+  # Set CLAUDE_METRICS_LOG_DIR before starting the collector.
+  file:
+    path: ${env:CLAUDE_METRICS_LOG_DIR}/claude-metrics.jsonl
+    rotation:
+      max_megabytes: 100
+      max_days: 30
+      max_backups: 7
+
+  # Log a summary line per batch for local debugging.
+  debug:
+    verbosity: basic
+
+  # MLflow integration.
+  # MLflow 3.x+ accepts OTLP/HTTP only (gRPC not supported).
+  # The otlphttp exporter appends /v1/traces automatically — specify only the
+  # base URL (host:port), never a path. A path in the endpoint causes an
+  # "invalid port" parse error in otelcol-contrib v0.154.0+.
+  # x-mlflow-experiment-id header is required; "0" is the default experiment.
+  otlp_http/mlflow:
+    endpoint: http://localhost:5001
+    headers:
+      x-mlflow-experiment-id: "0"
+    tls:
+      insecure: true
+
+service:
+  pipelines:
+    # Traces: apply OpenInference mapping.
+    traces:
+      receivers:  [otlp]
+      processors: [resource, transform/openinference, batch]
+      exporters:  [file, debug, otlp_http/mlflow]
+
+    # Metrics: native claude_code.* counter names are kept as-is.
+    # OpenInference conventions apply to spans, not metrics.
+    metrics:
+      receivers:  [otlp]
+      processors: [resource, batch]
+      exporters:  [file, debug]
+
+    # Log events: keep claude_code.* event names.
+    logs:
+      receivers:  [otlp]
+      processors: [resource, batch]
+      exporters:  [file, debug]

@@ -1746,6 +1746,43 @@ footer a { color: var(--primary); }
       }
     },
     {
+      "name": "metrics",
+      "description": "OpenTelemetry and OpenInference telemetry pipeline for Claude Code: maps native Claude Code spans to OpenInference semantic conventions and routes to MLflow or any OTLP-compatible backend",
+      "version": "0.3.0",
+      "has_readme": true,
+      "commands": [],
+      "skills": [],
+      "agents": [],
+      "hooks": [
+        {
+          "event_type": "SessionEnd",
+          "matcher": ".*",
+          "hooks_json": "[\n  {\n    \"command\": \"bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/stop-collector.sh\",\n    \"timeout\": 15,\n    \"type\": \"command\"\n  }\n]"
+        },
+        {
+          "event_type": "SessionStart",
+          "matcher": ".*",
+          "hooks_json": "[\n  {\n    \"command\": \"bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/start-collector.sh\",\n    \"timeout\": 10,\n    \"type\": \"command\"\n  }\n]"
+        }
+      ],
+      "mcp_servers": [],
+      "rules": [],
+      "category": "tooling",
+      "keywords": [
+        "opentelemetry",
+        "otel",
+        "openinference",
+        "metrics",
+        "tracing",
+        "documentation-effectiveness",
+        "mlflow",
+        "observability"
+      ],
+      "author": {
+        "name": "github.com/openshift-eng"
+      }
+    },
+    {
       "name": "must-gather",
       "description": "A plugin to analyze and report on must-gather data",
       "version": "0.0.2",

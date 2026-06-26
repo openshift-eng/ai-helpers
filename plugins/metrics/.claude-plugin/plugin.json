@@ -1,0 +1,8 @@
+{
+  "name": "metrics",
+  "description": "OpenTelemetry and OpenInference telemetry pipeline for Claude Code: maps native Claude Code spans to OpenInference semantic conventions and routes to MLflow or any OTLP-compatible backend",
+  "version": "0.3.0",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}
