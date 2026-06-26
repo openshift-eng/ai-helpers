@@ -15,11 +15,14 @@ jobs:
     if: github.event.workflow_run.event == 'pull_request'
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       pull-requests: write
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
 
       - name: Post review comments
-        uses: stbenjam/skillsaw/review@ac135381fc46711e7615e30b7296e857bb20b645 # v0.14.0
+        uses: stbenjam/skillsaw/review@3e1188f446413e6d6818c98644d2d6a84e4038e7 # v0.14.1

@@ -22,13 +22,21 @@ jobs:
       contents: write
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
+          persist-credentials: true
           fetch-tags: true
 
       - name: Tag plugins
         run: |
           set -euo pipefail
+
+          # Discover the remote name (don't assume 'origin')
+          if [ "$(git remote | wc -l)" -ne 1 ]; then
+            echo "ERROR: expected exactly 1 git remote"
+            exit 1
+          fi
+          remote=$(git remote)
 
           created=0
           skipped=0
@@ -70,7 +78,7 @@ jobs:
           done
 
           if [ $created -gt 0 ]; then
-            git push origin --tags
+            git push "$remote" --tags
           fi
 
           echo ""

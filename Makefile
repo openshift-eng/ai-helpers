@@ -4,7 +4,7 @@
 CONTAINER_RUNTIME ?= $(shell command -v podman 2>/dev/null || echo docker)
 
 # skillsaw image
-SKILLSAW_IMAGE = ghcr.io/stbenjam/skillsaw:0.14.0
+SKILLSAW_IMAGE = ghcr.io/stbenjam/skillsaw:0.14.1
 
 # Detect if SELinux is enforcing and add security option
 SELINUX_OPT := $(shell if command -v getenforce >/dev/null 2>&1 && [ "$$(getenforce 2>/dev/null)" = "Enforcing" ]; then echo "--security-opt label=disable"; fi)
