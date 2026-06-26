@@ -1,0 +1,12 @@
+expected_permafail: false
+expected_failure_type: test_failure
+expected_confidence_min: 0.70
+expected_pattern: null
+expected_ratio: "0/3"
+notes: >
+  Three test failures with different blocking tests across runs (sig-storage,
+  Monitor, sig-network). The actual scenario that triggered this test case
+  also had 10 informing NetworkSegmentation tests that failed in all 3 runs,
+  but those should be filtered out by the lifecycle="informing" attribute in
+  the junit XML and not appear in the signatures. Since the blocking tests
+  are all different, this should be NOT permafail (0/3 match).

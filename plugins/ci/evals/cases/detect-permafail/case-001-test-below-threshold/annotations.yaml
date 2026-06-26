@@ -1,0 +1,9 @@
+expected_permafail: false
+expected_failure_type: test_failure
+expected_confidence_min: 0.65
+expected_pattern: TestNetworkPolicy
+expected_ratio: "2/10"
+notes: >
+  Ten comparable test failures where only two include TestNetworkPolicy.
+  The 6-10 run threshold requires at least seven matching runs, so this is
+  below threshold and should not be classified as a permafail.

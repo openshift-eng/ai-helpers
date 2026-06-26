@@ -1,0 +1,9 @@
+expected_permafail: true
+expected_failure_type: test_failure
+expected_confidence_min: 0.90
+expected_pattern: TestNetworkPolicy
+expected_ratio: "4/4"
+notes: >
+  Mixed failure set where all four runs that reached tests failed on the same
+  test. The three diverse infra failures should not dilute the test-failure
+  denominator.
