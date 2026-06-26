@@ -1,0 +1,9 @@
+expected_permafail: false
+expected_failure_type: mixed
+expected_confidence_min: 0.65
+expected_pattern: fewer than 2
+expected_ratio: "1/6"
+notes: >
+  Only one test failure is present, which is insufficient to establish a test
+  pattern. The six infra failures are all different, so no infra pattern meets
+  the 70% threshold.
