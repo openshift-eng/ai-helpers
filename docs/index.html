@@ -1869,7 +1869,7 @@ footer a { color: var(--primary); }
     {
       "name": "node-cve",
       "description": "CVE triage for OpenShift Node team components",
-      "version": "0.0.3",
+      "version": "0.0.4",
       "has_readme": true,
       "commands": [
         {
@@ -1904,14 +1904,33 @@ footer a { color: var(--primary); }
       "agents": [],
       "hooks": [],
       "mcp_servers": [],
-      "rules": []
+      "rules": [],
+      "category": "openshift",
+      "keywords": [
+        "openshift",
+        "cve",
+        "vulnerability",
+        "triage",
+        "node"
+      ],
+      "author": {
+        "name": "github.com/openshift-eng"
+      }
     },
     {
       "name": "node-team",
       "description": "OpenShift Node team assistant for development, deployment, debugging, and workflow tasks across kubelet, MCO, CRI-O, crun, conmonrs, Kueue operator, Jira, Red Hat KB/support cases, Prometheus, and platform docs.",
-      "version": "0.16.0",
+      "version": "0.17.0",
       "has_readme": true,
       "commands": [
+        {
+          "name": "cleanup",
+          "full_name": "node-team:cleanup",
+          "description": "Purge cached artifacts and local data produced by Node team plugins",
+          "description_html": "Purge cached artifacts and local data produced by Node team plugins",
+          "synopsis": "/node-team:cleanup [--older-than N] [--dry-run]",
+          "body_html": "Removes local artifacts created by Node team plugins: triage reports, cloned\u003cbr\u003erepos, and cached roster data. Use this to reclaim disk space or to satisfy\u003cbr\u003edata purge requirements (DATA-05)."
+        },
         {
           "name": "overview",
           "full_name": "node-team:overview",

@@ -316,7 +316,15 @@
       "name": "node-cve",
       "source": "./plugins/node-cve",
       "description": "CVE triage for OpenShift Node team components",
-      "version": "0.0.3"
+      "version": "0.0.4",
+      "category": "openshift",
+      "keywords": [
+        "openshift",
+        "cve",
+        "vulnerability",
+        "triage",
+        "node"
+      ]
     },
     {
       "name": "bigquery",
@@ -447,7 +455,7 @@
       "name": "node-team",
       "source": "./plugins/node-team",
       "description": "OpenShift Node team assistant for development, deployment, debugging, and workflow tasks",
-      "version": "0.16.0",
+      "version": "0.17.0",
       "category": "openshift",
       "keywords": [
         "openshift",
