@@ -36,7 +36,7 @@ Pay special attention to comments from:
 
 - **CodeRabbit** (`coderabbitai` user): CodeRabbit performs automated code review and may recommend additional testing. Look for suggestions about e2e tests, upgrade testing, or platform-specific concerns. Incorporate these into your testing recommendation.
 - **Human reviewers**: Reviewers may flag risk areas, request specific tests, or express concerns about the change. Factor these into your assessment.
-- **CI bot comments**: Look for `/payload-job` or `/payload-with-prs` commands that reviewers have already triggered — this tells you what testing is already underway.
+- **CI bot comments**: Look for `/payload-job` commands that reviewers have already triggered — this tells you what testing is already underway.
 
 ## Step 2: Calculate Risk Score
 
@@ -152,72 +152,141 @@ Include the revert rate and its risk level in the report output so the user can 
 
 ## Step 4: Recommend Testing
 
-### Understanding the CI Job Landscape
+Your job is to decide the complete set of `/test` commands to run for this PR. Imagine a future where no e2e jobs run by default — you must recommend every test that should run, and explicitly call out every test you would skip with a reason.
 
-OpenShift PRs have several categories of CI jobs:
+### Step 4a: Fetch the Repo's CI Job Configuration
 
-- **Cheap/fast jobs** (unit tests, image builds, lint, verify): These always run automatically on every PR. They are not expensive and should never be skipped. Do not include these in your recommendations — they are a given.
-- **e2e jobs** (any job with `e2e` in the name): These are the expensive, long-running e2e tests that provision real clusters. Currently presubmit e2e jobs are fixed per repo, but the future direction is for this agent to recommend which e2e jobs to run. Your recommendations should focus exclusively on e2e jobs. Always recommend the full set of jobs you feel is required, do not alter it based on what presubmits are already configured for the repo. (as in the future, we would like the agent to decide fully what to run)
-- **Optional presubmit jobs**: Some repos have optional e2e jobs that can be triggered by PR comments (e.g., `/test <job-name>`).
-- **Payload jobs**: Full release payload testing triggered via `/payload-job` or `/payload-with-prs` comments on the PR.
+The repo's presubmit jobs are defined in the `openshift/release` repo. Fetch the CI config for the PR's target branch:
 
-### Platform Cost Awareness
+```bash
+# Determine the branch (e.g., "main", "release-4.19")
+branch="<baseRefName from PR metadata>"
 
-**vsphere e2e jobs are extremely expensive.** The infrastructure for vsphere testing is severely capacity-constrained. Do NOT recommend vsphere e2e jobs unless the PR directly modifies vsphere-specific code (e.g., vsphere cloud provider, vsphere CSI driver, vsphere-specific installer code, machine API vsphere provider), or contains new tests that might not work on vsphere. Generic operator or API changes do not warrant vsphere testing even at high risk tiers.
+# Fetch the CI config YAML
+gh api repos/openshift/release/contents/ci-operator/config/<org>/<repo>/<org>-<repo>-${branch}.yaml --jq '.content' | base64 -d > /tmp/ci-config.yaml
 
-When recommending platform-specific e2e jobs, prefer lower-cost platforms first:
+# Parse all presubmit test jobs with their optional/always_run status
+python3 -c "
+import sys, yaml
+data = yaml.safe_load(open('/tmp/ci-config.yaml'))
+tests = data.get('tests', [])
+for t in tests:
+    name = t.get('as', 'unknown')
+    optional = t.get('optional', False)
+    always = t.get('always_run', True)
+    kind = 'optional' if optional else 'required'
+    print(f'{name}  ({kind}, always_run={always})')
+"
+```
 
-1. **AWS** — lowest cost, highest capacity, default recommendation
-2. **GCP** — moderate cost, good capacity
-3. **Azure** — moderate cost, good capacity
-4. **Metal/bare-metal** — moderate cost, use when the change affects bare-metal-specific paths
-5. **vSphere** — high cost, constrained capacity, only when directly relevant
+This gives you the complete list of jobs the team has configured, split into:
 
-### Recommendation by Risk Tier
+- **Required jobs** (`optional: false`): These run on every PR by default. The team considers these essential, but only because they did not have AI to make more intelligent decisions. Assume these are important, but you will need to decide if they should run or not.
+- **Optional jobs** (`optional: true`): These do NOT run automatically but can be triggered with `/test <job-name>`. The team defined these for situational use — your job is to decide when they should be triggered.
+
+If the CI config YAML cannot be fetched (e.g., the repo doesn't exist in `openshift/release`, or uses a non-standard path), note it and fall back to the jobs visible in the PR's `statusCheckRollup`.
+
+### Step 4b: Classify Each Job
+
+For every job in the CI config, decide: **run** or **skip**, with a reason.
+
+**Cheap/fast jobs** (unit tests, image builds, lint, verify, bindata-check, etc.) should always be marked **run**. These are inexpensive and should never be skipped. Do not include them in your e2e recommendations table — they are a given.
+
+**E2e and integration jobs** are the expensive jobs that provision real clusters. These are the focus of your recommendation. For each one, decide based on:
+
+1. **What the job tests** — infer from the job name (e.g., `e2e-aws-ovn`, `e2e-upgrade`, `e2e-gcp-console-olm`)
+2. **Whether the PR's changes are relevant** — does the code change touch areas that this job exercises?
+3. **The risk tier** — higher risk warrants broader test coverage
+
+### Step 4c: Hotspot Awareness
+
+Beyond the repo's configured jobs, watch for these common revert patterns. If the repo's CI config does not already include a matching job, recommend the specific `/payload-job` command listed below. These job names use a release version placeholder — substitute the current development release (e.g., `4.22` → `5.0`).
+
+**HyperShift / External topology**: HyperShift clusters run the control plane as pods in a separate management cluster — there are no control plane nodes in the hosted cluster. This is a frequent source of reverts when a change assumes a self-hosted control plane. Flag and recommend testing when the PR touches control plane components, operators, networking, ingress, node lifecycle, machine API, or any code that assumes control plane nodes exist or are accessible.
+```
+/payload-job periodic-ci-openshift-release-main-nightly-4.22-e2e-aws-ovn-hypershift
+```
+
+**Single Node OpenShift (SNO)**: SNO has all OpenShift APIs but only one node. Flag and recommend testing when the PR assumes multi-node/HA clusters — anti-affinity requiring multiple nodes, node drain/failover, cross-node scheduling, replica counts > 1 without topology awareness, or PDBs designed only for 3+ nodes.
+```
+/payload-job periodic-ci-openshift-release-master-ci-4.22-e2e-aws-upgrade-ovn-single-node
+/payload-job periodic-ci-openshift-release-master-nightly-4.22-e2e-aws-ovn-single-node-serial
+```
+
+**MicroShift**: MicroShift is a minimal single-node OpenShift distribution with a very limited API surface — only Route and SecurityContextConstraints kube APIs are available. Flag and recommend testing when the PR adds new tests that use APIs or features unavailable on MicroShift (Project, Build, DeploymentConfig, ClusterOperator, ClusterVersion, OLM resources, Machine APIs, Console, Monitoring, ImageRegistry, Samples operator, etc.).
+```
+/payload-job periodic-ci-openshift-microshift-release-4.22-periodics-e2e-aws-ovn-ocp-conformance
+/payload-job periodic-ci-openshift-microshift-release-4.22-periodics-e2e-aws-ovn-ocp-conformance-serial
+```
+
+**Upgrade paths**: Recommend upgrade jobs when the PR touches operator reconciliation, version-gated logic, migration functions, API types/CRD schemas, feature gates, or dependency bumps that change core algorithms (e.g., hashing, serialization). Look for jobs with `upgrade` in the repo's CI config first. If none exist, recommend:
+```
+/payload-job periodic-ci-openshift-release-master-ci-4.22-e2e-aws-upgrade-ovn-single-node
+```
+
+**IPv6 / Dual-stack / Disconnected**: Flag and recommend testing when the PR hardcodes IPv4 addresses, uses IPv4-only parsing, misses IPv6 bracket handling in URLs, or assumes external network connectivity (public registries, external APIs, DNS of public hostnames).
+```
+/payload-job periodic-ci-openshift-release-master-nightly-4.22-e2e-metal-ipi-ovn-ipv6
+/payload-job periodic-ci-openshift-release-master-nightly-4.22-e2e-metal-ipi-serial-ovn-ipv6
+```
+
+**Platform cost awareness**: When recommending platform-specific jobs, prefer lower-cost platforms:
+
+1. **AWS** — lowest cost, highest capacity, default
+2. **GCP** — moderate cost
+3. **Azure** — moderate cost
+4. **Metal** — moderate cost, use for bare-metal-specific paths
+5. **vSphere** — high cost, constrained capacity. Do NOT recommend unless the PR directly modifies vsphere-specific code
+
+### Step 4d: Recommendation by Risk Tier
 
 **LOW (0-20)**:
 
-- No e2e testing needed beyond what is already configured
-- Explicitly state that expensive e2e testing can be skipped
-- If test-only or docs-only, say so clearly
-- If CodeRabbit or reviewers flagged specific concerns, note them but still recommend skipping e2e if the code analysis supports it
+- Recommend only the cheap/fast required jobs
+- Skip all e2e jobs — explicitly state they can be skipped and why
+- If docs-only or trivially safe, say so clearly
 
 **MEDIUM (21-45)**:
 
-- Recommend 1-2 targeted e2e jobs relevant to the changed component
-- Use the repo name and changed packages to suggest specific job names (e.g., if networking code changed, suggest an `e2e-aws-ovn` job)
-- Prefer AWS-based e2e jobs unless the change is platform-specific
-- If an upgrade path is affected, recommend one upgrade e2e job
-- Note any testing suggestions from CodeRabbit or reviewers and incorporate if relevant
+- Run all required e2e jobs
+- Selectively trigger optional jobs that match the affected component or platform
+- If upgrade paths could be affected, trigger upgrade jobs if available
 
 **HIGH (46-70)**:
 
-- Recommend a broader set of e2e jobs:
-  - Standard: `e2e-aws-ovn`
-  - Upgrade: `e2e-aws-ovn-upgrade` (if upgrade paths could be affected)
-  - Platform-specific: only if the change directly affects that platform's code
-  - Multi-arch: only if the change affects arch-specific code paths
-- Suggest payload testing via `/payload-with-prs` to catch integration issues
+- Run all required e2e jobs
+- Trigger all optional jobs relevant to the change
+- If no HyperShift/SNO/upgrade job exists in the repo's config but the change warrants it, note the gap and recommend `/payload-job` testing to cover it
 - Note specific areas of the code that warrant careful review
 
 **CRITICAL (71-100)**:
 
-- Everything from HIGH
-- Recommend payload testing as essential, not optional
-- Recommend blocking merge until e2e and payload results are reviewed
+- Run all required e2e jobs
+- Trigger all optional jobs
+- Recommend `/payload-job` testing as essential for broader coverage beyond presubmit jobs
+- Recommend blocking merge until test results are reviewed
 - Flag for TRT (Technical Release Team) attention
-- Identify specific risks that make this critical
 - Recommend manual review of the diff by a domain expert
 
-### E2E Jobs That Could Be Skipped
+### Step 4e: Format the Recommendation
 
-After determining which e2e jobs you would recommend, check which e2e presubmit jobs are actually configured to run on this PR (from the `statusCheckRollup` data or `gh pr checks`). Identify any e2e jobs that ran (or are running) but that you would NOT have recommended based on your risk analysis. List these in a **"E2E Jobs We Would Not Have Run"** section of the report with a brief reason for each (e.g., "vsphere e2e — no vsphere-specific code changes", "metal-ipi e2e — change is limited to AWS cloud provider").
+This skill does NOT trigger any tests. It recommends what should be run as `/test` commands the user can copy and paste.
 
-This data is critical for calibrating future CI configuration. It helps us understand the cost savings available if e2e job selection were driven by this agent's recommendations rather than a fixed per-repo list.
+For each e2e/integration job, output a decision:
 
-### Important: Recommendations Only
+**Jobs to run** — with a `/test` command and justification:
 
-This skill does NOT trigger any tests. It only recommends what should be run. Output recommendations as a list of specific job names or `/payload-job` commands that a human can copy and invoke. Include a brief justification for each recommended job explaining why this PR's changes warrant it.
+```
+/test <job-name>  — <why this PR's changes warrant this job>
+```
+
+**Jobs to skip** — with a reason:
+
+```
+SKIP: <job-name>  — <why this job is not relevant to this PR>
+```
+
+If the hotspot analysis identified risks not covered by any configured job, add a **"Coverage Gaps"** section noting what additional testing would be ideal (e.g., "No HyperShift presubmit job is configured for this repo, but this change modifies control plane assumptions — consider `/payload-job` testing with a HyperShift job").
 
 ## Step 5: Write State File
 
@@ -239,8 +308,9 @@ Write the assessment to `.work/pr-risk/<org>-<repo>-<pr_number>.json`:
       "code_risk_factors": <0-30>,
       "historical_risk": <0-20>
     },
-    "testing_recommendation": "<presubmits_only|targeted_e2e|full_e2e|full_e2e_plus_review>",
-    "recommended_jobs": ["<job names>"],
+    "jobs_to_run": ["<job names with /test prefix>"],
+    "jobs_to_skip": [{"name": "<job-name>", "reason": "<why>"}],
+    "coverage_gaps": ["<areas not covered by configured jobs>"],
     "key_risks": ["<specific risks identified>"],
     "notes": "<free text>"
   }
@@ -272,18 +342,23 @@ Output a structured markdown report:
 
 ### Testing Recommendation
 
-**Recommended e2e jobs:**
-| Job | Justification |
-|-----|---------------|
-| `<specific-job-name>` | <why this PR's changes warrant this job> |
+**Jobs to run:**
+```
+
+/test <job-name> — <justification>
+/test <job-name> — <justification>
+...
+
+```
+
+**Jobs to skip:**
+| Job | Reason for Skipping |
+|-----|---------------------|
+| `<job-name>` | <why this job is not relevant to this PR> |
 | ... | ... |
 
-**Payload testing:** <Required / Recommended / Not needed> — <reason>
-
-<any additional testing notes, e.g. manual review areas>
-
-### E2E Jobs We Would Not Have Run
-<list of e2e jobs currently configured to run on this PR that are unnecessary based on the risk analysis, with reason for each>
+**Coverage gaps:**
+<areas of risk not covered by any configured job, with suggestions for /payload-job testing if applicable>
 
 ### Historical Context
 <repo revert rate and risk level, active regressions if any>
@@ -294,7 +369,7 @@ State saved to `.work/pr-risk/<org>-<repo>-<number>.json`
 
 ## Constraints
 
-- **You do not know what happened after this PR was merged.** Analyze presubmit results, payload job results, reviewer comments, and everything that occurred while the PR was open — that is all fair game. But you have no knowledge of whether the PR was later reverted or caused any post-merge issues. Do not search for reverts of this specific PR, do not mention revert PRs or Jira tickets related to this PR's post-merge outcome, and do not frame your analysis as a "retrospective" or "case study." Your report must read as a forward-looking risk assessment written at merge time. If you discover post-merge revert information incidentally, ignore it completely — do not reference it in your report. The repo-level revert rate in Section D is fine (that measures the repo's general stability), but never mention whether *this specific PR* was reverted.
+- **You do not know what happened after this PR was merged.** Analyze presubmit results, payload job results, reviewer comments, and everything that occurred while the PR was open — that is all fair game. But you have no knowledge of whether the PR was later reverted or caused any post-merge issues. Do not search for reverts of this specific PR, do not mention revert PRs or Jira tickets related to this PR's post-merge outcome, and do not frame your analysis as a "retrospective" or "case study." Your report must read as a forward-looking risk assessment written at merge time. If you discover post-merge revert information incidentally, ignore it completely — do not reference it in your report. The repo-level revert rate in Section D is fine (that measures the repo's general stability), but never mention whether _this specific PR_ was reverted.
 - **When in doubt, score higher.** A false-high is cheaper than a missed regression.
 - **The scoring weights are v1.** They will be calibrated over time with real-world usage. If a score feels wrong based on your analysis, note the discrepancy and explain why.
 - **Don't block on missing data.** If a skill call fails or data is unavailable, note it and proceed with what you have. Adjust confidence accordingly.
@@ -305,6 +380,6 @@ State saved to `.work/pr-risk/<org>-<repo>-<number>.json`
 
 Use these skills when needed (invoke via their skill names):
 
-| Skill                                 | When to Use                                            |
-| ------------------------------------- | ------------------------------------------------------ |
-| `ci:fetch-regression-details`         | Check for active regressions in a component            |
+| Skill                         | When to Use                                 |
+| ----------------------------- | ------------------------------------------- |
+| `ci:fetch-regression-details` | Check for active regressions in a component |
