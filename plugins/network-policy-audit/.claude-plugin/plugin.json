@@ -1,0 +1,63 @@
+{
+  "name": "network-policy-audit",
+  "version": "1.0.0",
+  "description": "Automated NetworkPolicy review, optimization, and compliance for OpenShift/Kubernetes clusters",
+  "author": "Shreyas Be <shbehera@redhat.com>",
+  "repository": "https://github.com/openshift-eng/ai-helpers",
+  "tags": [
+    "networking",
+    "security",
+    "kubernetes",
+    "openshift",
+    "audit",
+    "compliance",
+    "ovn-kubernetes",
+    "network-policy"
+  ],
+  "requires": {
+    "python": ">=3.9",
+    "kubernetes": ">=28.1.0",
+    "pyyaml": ">=6.0"
+  },
+  "commands": [
+    {
+      "name": "analyze",
+      "description": "Comprehensive NetworkPolicy security, performance, and compliance analysis",
+      "arguments": "[namespace|--cluster-wide] [--mode=security|performance|compliance]"
+    },
+    {
+      "name": "test-connectivity",
+      "description": "Predict if traffic is allowed between pods/services based on NetworkPolicy evaluation",
+      "arguments": "<source-pod> <dest-pod> --port=<port> [--protocol=tcp|udp]"
+    },
+    {
+      "name": "visualize",
+      "description": "Generate network topology diagram showing allowed traffic flows",
+      "arguments": "<namespace> [--format=mermaid|dot|ascii]"
+    },
+    {
+      "name": "optimize",
+      "description": "Suggest policy consolidation and ACL reduction optimizations",
+      "arguments": "<namespace> [--dry-run|--apply]"
+    },
+    {
+      "name": "detect-drift",
+      "description": "Compare NetworkPolicies against approved baseline template",
+      "arguments": "<namespace> --baseline=<path-to-template>"
+    }
+  ],
+  "permissions": {
+    "kubernetes": {
+      "resources": [
+        "networkpolicies",
+        "pods",
+        "services",
+        "namespaces"
+      ],
+      "verbs": [
+        "get",
+        "list"
+      ]
+    }
+  }
+}

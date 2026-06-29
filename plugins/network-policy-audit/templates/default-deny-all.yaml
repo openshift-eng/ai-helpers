@@ -1,0 +1,26 @@
+# Default-Deny All Traffic Template
+# Apply this to enforce zero-trust networking in a namespace
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  annotations:
+    policy.kubernetes.io/description: "Default deny all ingress traffic"
+    policy.kubernetes.io/created-by: "network-policy-audit plugin"
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-egress
+  annotations:
+    policy.kubernetes.io/description: "Default deny all egress traffic"
+    policy.kubernetes.io/created-by: "network-policy-audit plugin"
+spec:
+  podSelector: {}
+  policyTypes:
+  - Egress

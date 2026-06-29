@@ -1,0 +1,15 @@
+# NetworkPolicy Audit Plugin Dependencies
+# Python 3.9+
+
+# Kubernetes Python client
+kubernetes>=28.1.0
+
+# YAML parsing
+pyyaml>=6.0
+
+# Optional: Better terminal output formatting
+colorama>=0.4.6
+
+# Optional: For testing
+pytest>=7.4.0
+pytest-cov>=4.1.0
