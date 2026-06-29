@@ -8,7 +8,7 @@ This guide covers **[COMPONENT]-specific** development practices.
 
 ### Prerequisites
 
-- Go 1.22+ (check go.mod for exact version)
+- Go [X.XX]+ (from go.mod)
 - Access to OpenShift cluster
 - `KUBECONFIG` environment variable set
 - Container build tool (Podman or Docker)
@@ -24,32 +24,9 @@ make binaries
 
 # Or use go directly
 go build -o _output/[binary-name] ./cmd/[component]
-```text
+```
 
 **Binaries output**: `./_output/linux/amd64/` or `./bin/`
-
-## Repository Structure
-
-```text
-cmd/                           # Binary entrypoints
-├── [component-1]/             # Component 1
-└── [component-2]/             # Component 2
-
-pkg/
-├── controller/                # Controllers
-│   ├── [controller-1]/        # Controller 1
-│   └── [controller-2]/        # Controller 2
-├── [domain-logic]/            # Domain-specific logic
-└── [utilities]/               # Utilities
-
-manifests/                     # Deployment manifests
-├── [component-1]/             # Component 1 deployment
-└── [component-2]/             # Component 2 deployment
-
-test/
-├── e2e/                       # End-to-end tests
-└── integration/               # Integration tests
-```text
 
 ## Development Workflow
 
@@ -137,21 +114,10 @@ Document component-specific business logic here.
 
 ## Common Tasks
 
-### Add New CRD
-
-1. Define types in `pkg/apis/[group]/[version]/types.go`
-2. Run `make manifests` to generate CRD YAML
-3. Update RBAC in `manifests/*/rbac.yaml`
-4. Create controller in `pkg/controller/[name]/`
-5. Register controller in `cmd/[component]/main.go`
-
-### Add New Controller
-
-1. Create `pkg/controller/[name]/controller.go`
-2. Implement `Reconcile()` function
-3. Register in main.go
-4. Add unit tests
-5. Add E2E tests
+[Discover and document the 3-5 most common development tasks for this repo.
+Replace these placeholders with repo-specific steps including exact file paths,
+shared utilities to use, registration/wiring points, and naming conventions.
+If tasks vary in complexity, document tiers with specific file modification lists.]
 
 ### Update Dependencies
 
@@ -159,13 +125,10 @@ Document component-specific business logic here.
 # Update specific dependency
 go get [module]@[version]
 
-# Update all dependencies
-go get -u ./...
-
 # Tidy and vendor
 go mod tidy
 go mod vendor
-```text
+```
 
 ## Build & Release
 
@@ -183,6 +146,13 @@ Component images are built by OpenShift CI on PR merge. See `.ci-operator.yaml`.
 
 Component is released as part of OpenShift release image. See [Platform Release Process](Platform documentation).
 
+## Common Mistakes
+
+[Discover from code patterns, comments, and code reviews. Study 2-3 existing
+implementations to identify anti-patterns. List as numbered "DO NOT" items.]
+
+1. DO NOT [pattern] — [brief explanation of why]
+
 ## Component-Specific Notes
 
 [Add component-specific development notes here]
@@ -190,7 +160,6 @@ Component is released as part of OpenShift release image. See [Platform Release 
 - Special build flags
 - Environment variables
 - Local development quirks
-- Common gotchas
 
 ## See Also
 

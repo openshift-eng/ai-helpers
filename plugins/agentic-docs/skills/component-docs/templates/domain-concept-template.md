@@ -4,6 +4,8 @@
 **Kind**: `ResourceName`  
 **Scope**: Cluster | Namespaced
 
+**API Definition**: [types.go](<link-to-types.go>) <!-- Replace with actual URL to the type definition -->
+
 ## Purpose
 
 [Brief description of what this resource does - component-specific behavior only]
@@ -14,9 +16,9 @@
 
 ```go
 type ResourceNameSpec struct {
-    Field1 Type  // Description
-    Field2 Type  // Description
-    Field3 Type  // Description
+    Field1 Type  // Description (verified in types.go)
+    Field2 Type  // Description (verified in types.go)
+    Field3 Type  // Description (verified in types.go)
 }
 ```text
 
@@ -57,6 +59,10 @@ spec:
 **For generic patterns**, see:
 - Controller patterns: [Platform](Platform documentation)
 - Status conditions: [Platform](Platform documentation)
+
+## Common Mistakes
+
+[List mistakes specific to this type that would produce incorrect usage or broken code]
 
 ## Related Concepts
 

@@ -17,11 +17,17 @@
 
 **Quick Start**: `oc describe clusteroperator/[name]` | `oc describe [primary-resource]`
 
+## Critical Patterns
+
+[2-3 most important architectural rules discovered from codebase exploration.
+These should be the patterns that, if violated, produce subtly broken code.
+Use comparison tables for contrasting approaches and bold "Never" warnings.]
+
 ## Documentation Structure
 
 ```text
 ai-docs/
-├── domain/                    # Component-specific CRDs
+├── domain/                    # Component-specific APIs/types
 ├── architecture/              # Component internals
 ├── decisions/                 # Component-specific ADRs
 ├── exec-plans/                # Feature planning
@@ -34,22 +40,6 @@ ai-docs/
 **Exec-Plans**: Use `active/` for new features. See [Platform Exec-Plans Guide](Platform documentation).
 
 **Platform Patterns (Platform)**: [Operator](Platform documentation) | [Testing](Platform documentation) | [Security](Platform documentation)
-
-## Knowledge Graph
-
-```text
-                         [AGENTS.md] ← Start here
-                              │
-              ┌───────────────┼───────────────┐
-              │               │               │
-         [domain/]      [architecture/]  [decisions/]
-        CRD concepts    Component design  ADR history
-              │               │               │
-              └───────────────┼───────────────┘
-                              │
-                      [references/ecosystem]
-                      Links to Platform
-```text
 
 **AI Agent Path**: domain/ → architecture/ → decisions/ → [COMPONENT]_DEVELOPMENT.md
 
