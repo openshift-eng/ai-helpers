@@ -60,32 +60,51 @@ This command executes the NetworkPolicy analysis by:
 ## Execution Steps
 
 ```bash
-# Step 1: Determine execution context
-if [ "$1" = "--cluster-wide" ]; then
-    NAMESPACE=""
-    CLUSTER_WIDE="true"
-else
-    NAMESPACE="${1:-$(oc project -q)}"
-    CLUSTER_WIDE="false"
-fi
-
-# Extract mode from arguments
+# Step 1: Parse arguments
+NAMESPACE=""
+CLUSTER_WIDE=""
 MODE="security"
+
+# Scan all arguments
 for arg in "$@"; do
-    if [[ $arg == --mode=* ]]; then
-        MODE="${arg#*=}"
-    fi
+    case "$arg" in
+        --cluster-wide)
+            CLUSTER_WIDE="--cluster-wide"
+            ;;
+        --mode=*)
+            MODE="${arg#*=}"
+            ;;
+        -*)
+            # Skip other flags
+            ;;
+        *)
+            # First non-flag argument is namespace
+            if [ -z "$NAMESPACE" ] && [ -z "$CLUSTER_WIDE" ]; then
+                NAMESPACE="$arg"
+            fi
+            ;;
+    esac
 done
+
+# Set defaults
+if [ -z "$CLUSTER_WIDE" ] && [ -z "$NAMESPACE" ]; then
+    NAMESPACE="$(oc project -q)"
+fi
 
 # Step 2: Set up Python environment
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/scripts"
 export PYTHONPATH="${SCRIPT_DIR}:${PYTHONPATH}"
 
 # Step 3: Execute analysis
-python3 "${SCRIPT_DIR}/netpol_analyzer_cli.py" \
-    --namespace="${NAMESPACE}" \
-    --cluster-wide="${CLUSTER_WIDE}" \
-    --mode="${MODE}"
+if [ -n "$CLUSTER_WIDE" ]; then
+    python3 "${SCRIPT_DIR}/netpol_analyzer_cli.py" \
+        --cluster-wide \
+        --mode="${MODE}"
+else
+    python3 "${SCRIPT_DIR}/netpol_analyzer_cli.py" \
+        --namespace="${NAMESPACE}" \
+        --mode="${MODE}"
+fi
 ```
 
 ## Example Outputs
