@@ -1,0 +1,230 @@
+name: detect-permafail-eval
+description: Evaluate ci:detect-permafail threshold reasoning using pre-normalized failure signatures
+skill: ci:detect-permafail
+
+execution:
+  mode: case
+  arguments: "{input_json}"
+  timeout: 180
+  max_budget_usd: 0.75
+
+runner:
+  type: claude-code
+  plugin_dirs:
+    - plugins/ci
+  system_prompt: |
+    Use the ci:detect-permafail skill to analyze the JSON input.
+
+    The eval cases provide pre-normalized failure signatures. Do NOT fetch live
+    Prow artifacts or make network calls when signatures are present. Apply the
+    skill's threshold logic and write ONLY the final JSON result to
+    detect-permafail-result.json in the current working directory. The file must
+    contain valid JSON with fields: permafail, confidence, reason, failure_type,
+    signatures, and any matching pattern fields such as common_tests.
+
+    Output requirements for eval scoring:
+    - confidence must be a JSON number, never a string.
+    - failure_type must be one of: test_failure, infra_failure, mixed.
+    - If permafail is true in a mixed input, failure_type must be the type that
+      triggered the permafail: test_failure or infra_failure, not mixed.
+    - If permafail is false and both test and infra signatures are present,
+      failure_type must be mixed.
+    - reason and/or match_ratio must include slash-format ratios such as 7/10,
+      4/4, 5/6, or 2/10. Do not write only "7 of 10".
+    - match_ratio, matching_runs, comparable_runs, and threshold_required must
+      be top-level fields, not nested under an analysis object.
+    - mixed non-permafail cases with fewer than 2 comparable test failures must
+      use failure_type "mixed" and explain the insufficient comparable runs.
+
+    Required top-level JSON shape:
+    {
+      "permafail": true,
+      "confidence": 0.95,
+      "reason": "7/10 test_failure runs failed TestNetworkPolicy...",
+      "failure_type": "test_failure",
+      "match_ratio": "7/10",
+      "matching_runs": 7,
+      "comparable_runs": 10,
+      "threshold_required": 7,
+      "signatures": []
+    }
+
+models:
+  judge: claude-opus-4-6
+
+permissions:
+  allow:
+    - "Skill"
+    - "Bash"
+    - "Agent"
+    - "Write"
+    - "Read"
+  deny: []
+
+mlflow:
+  experiment: detect-permafail-eval
+
+dataset:
+  path: cases/detect-permafail
+  schema: |
+    Each case directory contains:
+    - input.yaml: YAML file with field:
+      - 'input_json' — JSON string passed to ci:detect-permafail. For mocked
+        evals this includes pre-normalized 'signatures' so artifact fetching is
+        skipped.
+    - annotations.yaml: Expected outcomes and metadata:
+      - 'expected_permafail': boolean verdict
+      - 'expected_failure_type': test_failure|infra_failure|mixed
+      - 'expected_confidence_min': minimum acceptable confidence score
+      - 'expected_pattern': string expected in the result reason or matching fields
+      - 'expected_ratio': match ratio text expected in the result, such as 7/10
+      - 'notes': free text explaining the case
+
+outputs:
+  - path: "detect-permafail-result.json"
+    schema: |
+      JSON object with fields:
+      - permafail: boolean
+      - confidence: number between 0.0 and 1.0
+      - reason: string explaining the verdict
+      - failure_type: test_failure|infra_failure|mixed
+      - signatures: array of normalized failure signatures
+      - match_ratio: string containing the dominant ratio in slash format
+      - matching_runs: integer numerator for the dominant pattern
+      - comparable_runs: integer denominator for the dominant pattern
+      - threshold_required: integer count required for permafail
+      - common_tests: optional array for test permafails
+
+traces:
+  stdout: true
+  stderr: true
+  events: false
+  metrics: true
+
+judges:
+  - name: valid_output_json
+    description: Verify output is valid JSON with required detect-permafail fields
+    check: |
+      import json
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      result_files = {k: v for k, v in all_f.items() if k.endswith("detect-permafail-result.json")}
+      if not result_files:
+          return (False, "No detect-permafail-result.json found")
+      content = list(result_files.values())[0]
+      try:
+          data = json.loads(content)
+      except Exception as e:
+          return (False, f"Invalid JSON: {e}")
+      required = [
+          "permafail",
+          "confidence",
+          "reason",
+          "failure_type",
+          "signatures",
+          "match_ratio",
+          "matching_runs",
+          "comparable_runs",
+          "threshold_required",
+      ]
+      missing = [f for f in required if f not in data]
+      if missing:
+          return (False, f"Missing fields: {', '.join(missing)}")
+      if not isinstance(data["permafail"], bool):
+          return (False, "permafail must be boolean")
+      if not isinstance(data["confidence"], (int, float)):
+          return (False, "confidence must be a number")
+      if not (0.0 <= float(data["confidence"]) <= 1.0):
+          return (False, "confidence must be between 0.0 and 1.0")
+      if data["failure_type"] not in ["test_failure", "infra_failure", "mixed"]:
+          return (False, f"invalid failure_type: {data['failure_type']}")
+      if not isinstance(data["match_ratio"], str) or "/" not in data["match_ratio"]:
+          return (False, "match_ratio must be a slash-format string")
+      for field in ["matching_runs", "comparable_runs", "threshold_required"]:
+          if not isinstance(data[field], int):
+              return (False, f"{field} must be an integer")
+      if not isinstance(data["signatures"], list):
+          return (False, "signatures must be an array")
+      return (True, "Valid JSON with required fields")
+
+  - name: verdict_correct
+    description: Verify permafail verdict matches annotations
+    check: |
+      import json
+      ann = outputs.get("annotations", {})
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      result_files = {k: v for k, v in all_f.items() if k.endswith("detect-permafail-result.json")}
+      if not result_files:
+          return (False, "No detect-permafail-result.json found")
+      data = json.loads(list(result_files.values())[0])
+      predicted = data.get("permafail")
+      expected = ann.get("expected_permafail")
+      if predicted == expected:
+          return (True, f"permafail={predicted}")
+      return (False, f"predicted permafail={predicted}, expected={expected}")
+
+  - name: failure_type_correct
+    description: Verify failure_type matches annotations
+    check: |
+      import json
+      ann = outputs.get("annotations", {})
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      result_files = {k: v for k, v in all_f.items() if k.endswith("detect-permafail-result.json")}
+      if not result_files:
+          return (False, "No detect-permafail-result.json found")
+      data = json.loads(list(result_files.values())[0])
+      predicted = data.get("failure_type")
+      expected = ann.get("expected_failure_type")
+      if predicted == expected:
+          return (True, f"failure_type={predicted}")
+      return (False, f"predicted failure_type={predicted}, expected={expected}")
+
+  - name: confidence_calibration
+    description: Verify confidence meets the minimum threshold for this case
+    check: |
+      import json
+      ann = outputs.get("annotations", {})
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      result_files = {k: v for k, v in all_f.items() if k.endswith("detect-permafail-result.json")}
+      if not result_files:
+          return (False, "No detect-permafail-result.json found")
+      data = json.loads(list(result_files.values())[0])
+      confidence = data.get("confidence")
+      min_conf = ann.get("expected_confidence_min", 0.0)
+      if not isinstance(confidence, (int, float)):
+          return (False, f"confidence is {type(confidence).__name__}, expected number")
+      if confidence >= min_conf:
+          return (True, f"confidence={confidence:.2f} >= min={min_conf:.2f}")
+      return (False, f"confidence={confidence:.2f} < min={min_conf:.2f}")
+
+  - name: expected_pattern_present
+    description: Verify expected pattern and ratio are present in result text
+    check: |
+      import json
+      ann = outputs.get("annotations", {})
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      result_files = {k: v for k, v in all_f.items() if k.endswith("detect-permafail-result.json")}
+      if not result_files:
+          return (False, "No detect-permafail-result.json found")
+      content = list(result_files.values())[0]
+      data = json.loads(content)
+      haystack = json.dumps(data, sort_keys=True).lower()
+      missing = []
+      pattern = str(ann.get("expected_pattern", "")).lower()
+      ratio = str(ann.get("expected_ratio", "")).lower()
+      if pattern and pattern not in haystack:
+          missing.append(f"pattern '{pattern}'")
+      if ratio and ratio not in haystack:
+          missing.append(f"ratio '{ratio}'")
+      if missing:
+          return (False, f"Missing {', '.join(missing)}")
+      return (True, "Expected pattern and ratio present")
