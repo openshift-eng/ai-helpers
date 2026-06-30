@@ -22,7 +22,7 @@ Control ID: GLC-08
 | `/rest/api/3/issue/{key}/comment` | GET | List comments (cache check) | node-cve |
 | `/rest/api/3/issue/{key}/comment` | POST | Add analysis comment | node-cve |
 | `/rest/api/3/issue/{key}/comment/{id}` | PUT | Edit existing comment | node-cve |
-| `/rest/agile/1.0/board/7845/sprint` | GET | List active sprints | node-team |
+| `/rest/agile/1.0/board/11478/sprint` | GET | List active sprints | node-team |
 | `/rest/api/3/issue/OCPNODE-4230` | GET | Fetch team roster attachments | node-team |
 
 Authentication: HTTP Basic Auth with `JIRA_API_TOKEN`.

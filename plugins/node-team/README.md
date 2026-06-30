@@ -61,7 +61,7 @@ plugins depend on node-team's shared data and extend its capabilities:
 | `node-team` | Development, deployment, debugging (see [Commands](#commands)) | Active |
 | [`node-cve`](../node-cve/) | CVE triage with reachability analysis | Active |
 | `node-bug-triage` | General bug triage and assignment | Planned |
-| `node-onboarding` | Team onboarding workflows | Planned |
+| [`node-onboarding`](../node-onboarding/) | Team onboarding workflows | Active |
 | `node-rpm` | RPM management (cri-tools pattern) | Planned |
 
 ### Shared Data Contract
