@@ -1918,9 +1918,48 @@ footer a { color: var(--primary); }
       }
     },
     {
+      "name": "node-onboarding",
+      "description": "Interactive onboarding workflows for new OpenShift Node team members",
+      "version": "0.0.1",
+      "has_readme": true,
+      "commands": [
+        {
+          "name": "checklist",
+          "full_name": "node-onboarding:checklist",
+          "description": "Interactive onboarding that guides new Node team members through access, tools, and environment setup",
+          "description_html": "Interactive onboarding that guides new Node team members through access, tools, and environment setup",
+          "synopsis": "/node-onboarding:checklist [--track dev|qe] [--resume] [--check-only]",
+          "body_html": "\u003cp\u003eWalks a new Node team member through the full onboarding process: access\u003cbr\u003erequests, tool installation, environment setup, and first cluster creation.\u003cbr\u003eThe command runs automated checks to verify each step that can be tested\u003cbr\u003eprogrammatically. For manual steps, it provides instructions and links,\u003cbr\u003ethen asks the user to confirm completion.\u003c/p\u003e\u003cp\u003eProgress is saved between sessions so the checklist can be resumed later.\u003c/p\u003e"
+        },
+        {
+          "name": "resources",
+          "full_name": "node-onboarding:resources",
+          "description": "Print categorized bookmarks and links for Node team day-to-day work",
+          "description_html": "Print categorized bookmarks and links for Node team day-to-day work",
+          "synopsis": "/node-onboarding:resources",
+          "body_html": "Prints a categorized list of useful links and bookmarks for Node team\u003cbr\u003emembers: Jira boards and filters, Slack channels, documentation, upstream\u003cbr\u003emeetings, and support portals. Useful during onboarding and as an ongoing\u003cbr\u003equick-reference."
+        }
+      ],
+      "skills": [],
+      "agents": [],
+      "hooks": [],
+      "mcp_servers": [],
+      "rules": [],
+      "category": "openshift",
+      "keywords": [
+        "openshift",
+        "node",
+        "onboarding",
+        "setup"
+      ],
+      "author": {
+        "name": "github.com/openshift-eng"
+      }
+    },
+    {
       "name": "node-team",
       "description": "OpenShift Node team assistant for development, deployment, debugging, and workflow tasks across kubelet, MCO, CRI-O, crun, conmonrs, Kueue operator, Jira, Red Hat KB/support cases, Prometheus, and platform docs.",
-      "version": "0.17.0",
+      "version": "0.17.1",
       "has_readme": true,
       "commands": [
         {

@@ -37,7 +37,7 @@ Base: `https://redhat.atlassian.net`
 | POST | `/rest/api/3/issue/{key}/transitions` | Transition. Body: `{"transition":{"id":"31"}}` |
 | POST | `/rest/api/3/issue/{key}/remotelink` | Add link. Body: `{"object":{"url":"...","title":"..."}}` |
 | GET | `/rest/api/3/user/search?query={name}` | Find user by name |
-| GET | `/rest/agile/1.0/board/7845/sprint?state=active` | List sprints (board 7845 = Node) |
+| GET | `/rest/agile/1.0/board/11478/sprint?state=active` | List sprints (board 11478 = Node) |
 | GET | `/rest/agile/1.0/sprint/{id}/issue?maxResults=100&fields=...` | Sprint issues |
 | POST | `/rest/agile/1.0/sprint/{id}/issue` | Move to sprint. Body: `{"issues":["KEY-1","KEY-2"]}` |
 
@@ -81,7 +81,7 @@ for CVE triage; those are not in filter 91645.
 
 | ID | Board |
 |----|-------|
-| 7845 | Node board (scrum) |
+| 11478 | Node board (scrum) |
 | 4383 | Node-Epics (kanban) |
 | 9874 | Node QE (scrum) |
 
