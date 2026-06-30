@@ -113,7 +113,7 @@ The command executes the following workflow:
 
 ### 2. Determine Backend
 
-- If `--backend api` is specified, use the API backend (skip to Step 3a)
+- If `--backend api` is specified, use the API backend (proceeds through Step 3, then Step 4b)
 - If `--backend mcp` is specified or no `--backend` flag, use the MCP backend:
   - Attempt a connectivity check by calling `searchJiraIssuesUsingJql` with `maxResults: 1`
   - If MCP tools are not available or return a connection error, inform the user:

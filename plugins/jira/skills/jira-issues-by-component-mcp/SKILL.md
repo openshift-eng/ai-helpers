@@ -82,8 +82,9 @@ For each page of results:
    - Priority distribution (count per priority name)
    - Issue type distribution (count per issue type name)
 3. **Keep top 3 issues per component** (by priority descending, then updated descending):
-   - Store: `key`, `summary`, `priority.name`, `status.name`
-   - Only replace if a new issue has higher priority or is more recently updated
+   - Store: `key`, `summary`, `priority.name`, `status.name`, `updated`
+   - Compare candidates against the lowest-ranked entry: replace if the candidate has higher priority, or same priority and a more recent `updated` timestamp
+   - Drop `updated` from the final output only after all pages have been processed and the top 3 are settled
 4. **Discard raw issue data** after aggregation — do not accumulate full issue objects across pages
 
 This keeps memory usage constant regardless of total issue count.
@@ -99,9 +100,9 @@ This keeps memory usage constant regardless of total issue count.
       "priorities": {"Critical": 5, "Major": 10, "Normal": 20, "Minor": 10},
       "types": {"Bug": 25, "Story": 15, "Task": 5},
       "topIssues": [
-        {"key": "OCPBUGS-1234", "summary": "CVE update fails", "priority": "Critical", "status": "Open"},
-        {"key": "OCPBUGS-1235", "summary": "Upgrade timeout", "priority": "Major", "status": "In Progress"},
-        {"key": "OCPBUGS-1236", "summary": "Version skew", "priority": "Normal", "status": "Open"}
+        {"key": "OCPBUGS-1234", "summary": "CVE update fails", "priority": "Critical", "status": "Open", "updated": "2024-12-10"},
+        {"key": "OCPBUGS-1235", "summary": "Upgrade timeout", "priority": "Major", "status": "In Progress", "updated": "2024-12-09"},
+        {"key": "OCPBUGS-1236", "summary": "Version skew", "priority": "Normal", "status": "Open", "updated": "2024-12-08"}
       ]
     }
   },
@@ -170,13 +171,14 @@ while page < 5:
     - extract issues from response
     - aggregate into data structure (overview or detail mode)
     - update totalFetched count
+    - capture totalAvailable from response's total field (full result count reported by Jira)
 
   if no nextPageToken in response OR totalFetched >= 500:
     break
 
   page += 1
 
-if total > 500:
+if totalAvailable > 500:
   set capped = true
   warn user about 500-issue cap
 ```
