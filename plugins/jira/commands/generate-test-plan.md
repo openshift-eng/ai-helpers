@@ -1,186 +1,74 @@
 ---
 description: Generate test steps for a JIRA issue
-argument-hint: "[JIRA issue key] [GitHub PR URLs]"
+argument-hint: "[JIRA issue key] [GitHub PR URLs] [--reproducer]"
 ---
 
 ## Name
 jira:generate-test-plan
 
 ## Synopsis
-/jira:generate-test-plan [JIRA issue key] [GitHub PR URLs]
+```
+/jira:generate-test-plan [JIRA issue key] [GitHub PR URLs] [--reproducer]
+```
 
 ## Description
-The 'jira:generate-test-plan' command takes a JIRA issue key and optionally a list of PR URLs. It fetches the JIRA issue details, retrieves all related PRs (or uses the provided PR list), analyzes the changes, and generates a comprehensive manual testing guide.
+
+The `jira:generate-test-plan` command takes a JIRA issue key and optionally a list of PR URLs. It fetches the JIRA issue details, retrieves all related PRs (or uses the provided PR list), analyzes the changes, and generates a comprehensive manual testing guide.
+
+Pass `--reproducer` to generate a bug reproducer report instead of a full test plan. For reproducer-focused workflows, `/jira:generate-bug-reproducer` is an equivalent alias.
 
 **JIRA Issue Test Guide Generator**
 
 ## Implementation
 
-- The command uses curl to fetch JIRA data via REST API: https://redhat.atlassian.net/rest/api/3/issue/{$1}
-- Uses WebFetch to extract PR links from JIRA issue if no PRs provided
-- Uses `gh pr view` to fetch PR details for each PR
-- Analyzes changes across all PRs to understand implementation
-- Generates comprehensive manual test scenarios
+Invoke the **Generate Test Plan** skill (`plugins/jira/skills/generate-test-plan/SKILL.md`) with:
 
-## Process Flow:
+- **Mode**: `test-plan` (default) or `reproducer` when `--reproducer` is present
+- **JIRA issue key**: `$1`
+- **PR URLs**: remaining arguments except `--reproducer`
 
-1. **JIRA Analysis**: Fetch and parse JIRA issue details:
-   - Use curl to fetch JIRA issue data: `curl -s "https://redhat.atlassian.net/rest/api/3/issue/{$1}"`
-   - Parse JSON response to extract:
-     - Issue summary and description
-     - Context and acceptance criteria
-     - Steps to reproduce (for bugs)
-     - Expected vs actual behavior
-   - Extract issue type (Story, Bug, Task, etc.)
+The skill handles JIRA fetching, PR discovery, change analysis, report generation, and output presentation. See the skill for full implementation details including report templates, PR filtering, and error handling.
 
-2. **PR Discovery**: Get list of PRs to analyze:
-   - **If no PRs provided in arguments** ($2, $3, etc. are empty):
-     - Use WebFetch on https://redhat.atlassian.net/browse/{$1}
-     - Extract all GitHub PR links from:
-       - "Issue Links" section
-       - "Development" section
-       - PR links in comments
-   - **If PRs provided in arguments**:
-     - Use only the PRs provided in $2, $3, $4, etc.
-     - Ignore any other PRs linked to the JIRA
+## Return Value
 
-3. **PR Analysis**: For each PR, fetch and analyze:
-   - Use `gh pr view {PR_NUMBER} --repo <your repo> --json title,body,commits,files,labels`
-   - Extract:
-     - PR title and description
-     - Changed files and their diffs
-     - Commit messages
-     - PR status (merged, open, closed)
-   - Read changed files to understand implementation details
-   - Use Grep and Glob tools to:
-     - Find related test files
-     - Locate configuration or documentation
-     - Identify dependencies
+- **Test plan mode**: Markdown report at `.work/jira/generate-test-plan/{JIRA_KEY}/test-plan.md`
+- **Reproducer mode**: Markdown report at `.work/jira/generate-test-plan/{JIRA_KEY}/reproducer-report.md`
 
-4. **Change Analysis**: Understand what was changed across all PRs:
-   - Identify the overall objective (bug fix, feature, refactor)
-   - Determine affected components (API, CLI, operator, control-plane, etc.)
-   - Find platform-specific changes (AWS, Azure, KubeVirt, etc.)
-   - Map which PR addresses which aspect of the JIRA
-   - Identify any dependencies between PRs
-
-5. **Test Scenario Generation**: Create comprehensive test plan:
-   - Map JIRA acceptance criteria to test scenarios
-   - For bugs: Use reproduction steps as test cases
-   - Generate test scenarios covering:
-     - Happy path scenarios (based on acceptance criteria)
-     - Edge cases and error handling
-     - Platform-specific variations if applicable
-     - Regression scenarios
-   - For multiple PRs:
-     - Create integrated test scenarios
-     - Verify PRs integrate without conflicts and produce expected results together
-     - Test each PR's contribution to the overall solution
-
-6. **Test Guide Creation**: Generate detailed manual testing document:
-   - **Filename**: Always use JIRA key format: `test-{JIRA_KEY}.md`
-     - Convert JIRA key to lowercase
-     - Examples: `test-cntrlplane-205.md`, `test-ocpbugs-12345.md`
-   - **Structure**:
-     - **JIRA Summary**: Include JIRA key, title, description, acceptance criteria
-     - **PR Summary**: List all PRs with titles and how they relate to the JIRA
-     - **Prerequisites**:
-       - Required infrastructure and tools
-       - Environment setup requirements
-       - Access requirements
-     - **Test Scenarios**:
-       - Map each test to JIRA acceptance criteria
-       - Numbered test cases with clear steps
-       - Expected results with verification commands
-       - Platform-specific test variations
-     - **Regression Testing**:
-       - Related features to verify
-       - Areas that might be affected
-     - **Success Criteria**:
-       - Checklist mapping to JIRA acceptance criteria
-     - **Troubleshooting**:
-       - Common issues and debug steps
-     - **Notes**:
-       - Known limitations
-       - Links to JIRA and all PRs
-       - Critical test cases highlighted
-
-7. **Exclusions**: Apply smart filtering:
-   - **Skip PRs that don't require testing**:
-     - PRs that only add documentation (.md files only)
-     - PRs that only add CI/tooling (.github/, .claude/ directories)
-     - PRs marked with labels like "skip-testing" or "docs-only"
-   - **Note skipped PRs** in the test guide with reasoning
-   - Focus test scenarios on PRs with actual code changes
-
-8. **Output**: Display the testing guide:
-   - Show the file path where the guide was saved
-   - Provide a summary of:
-     - JIRA issue being tested
-     - Number of PRs included
-     - Number of test scenarios generated
-     - Critical test cases to focus on
-   - Highlight any PRs that were skipped and why
-   - Ask if the user would like any modifications to the test guide
-
-## Examples:
+## Examples
 
 1. **Generate test steps for JIRA with auto-discovered PRs**:
-   `/jira:generate-test-plan CNTRLPLANE-205`
+   ```
+   /jira:generate-test-plan CNTRLPLANE-205
+   ```
 
 2. **Generate test steps for JIRA with specific PRs only**:
-   `/jira:generate-test-plan CNTRLPLANE-205 https://github.com/openshift/hypershift/pull/6888`
+   ```
+   /jira:generate-test-plan CNTRLPLANE-205 https://github.com/openshift/hypershift/pull/6888
+   ```
 
-3. **Generate test steps for multiple specific PRs**:
-   `/jira:generate-test-plan CNTRLPLANE-205 https://github.com/openshift/hypershift/pull/6888 https://github.com/openshift/hypershift/pull/6889`
+3. **Generate reproducer report via flag**:
+   ```
+   /jira:generate-test-plan OCPBUGS-12345 --reproducer
+   ```
 
-## Arguments:
+4. **Generate reproducer via alias command**:
+   ```
+   /jira:generate-bug-reproducer OCPBUGS-12345 https://github.com/openshift/hypershift/pull/6888
+   ```
 
-- **$1**: JIRA issue key (required) - e.g., CNTRLPLANE-205, OCPBUGS-12345
-- **$2, $3, ..., $N**: Optional GitHub PR URLs
-  - If provided: Only these PRs will be analyzed
-  - If omitted: All PRs linked to the JIRA will be discovered and analyzed
+## Arguments
 
-## Smart Features:
+- **$1**: JIRA issue key (required) — e.g., `CNTRLPLANE-205`, `OCPBUGS-12345`
+- **$2, $3, ..., $N**: Optional GitHub PR URLs or `--reproducer` flag
+  - PR URLs: if provided, only these PRs are analyzed; if omitted, PRs linked to the JIRA are discovered automatically
+  - `--reproducer`: switch to reproducer mode (same as `/jira:generate-bug-reproducer`)
 
-1. **Automatic PR Discovery**:
-   - Scans JIRA issue for all related PRs
-   - Identifies PRs in "Issue Links", "Development" section, and comments
+## Smart Features
 
-2. **Selective PR Testing**:
-   - Allows manual override to test specific PRs only
-   - Useful when JIRA has many PRs but only some need testing
-
-3. **Context-Aware Test Generation**:
-   - Bug fixes: Focus on reproduction steps and verification
-   - Features: Focus on acceptance criteria and user workflows
-   - Refactors: Focus on regression and functional equivalence
-
-4. **Multi-PR Integration**:
-   - Understands how multiple PRs work together
-   - Creates integration test scenarios
-   - Identifies dependencies and testing order
-
-5. **Build/Deploy Section Exclusion**:
-   - Does NOT include build or deployment steps
-   - Assumes environment is already set up
-   - Focuses purely on testing procedures
-
-6. **Cleanup Section Exclusion**:
-   - Does NOT include cleanup steps
-   - Focuses on test execution and verification
-
-## Example Workflow:
-
-```bash
-# Auto-discover all PRs from JIRA
-/jira:generate-test-plan CNTRLPLANE-205
-
-# Test only specific PRs
-/jira:generate-test-plan CNTRLPLANE-205 https://github.com/openshift/hypershift/pull/6888
-
-# Test multiple specific PRs
-/jira:generate-test-plan OCPBUGS-12345 https://github.com/openshift/hypershift/pull/1234 https://github.com/openshift/hypershift/pull/1235
-```
-
-The command will provide a comprehensive manual testing guide that QE or developers can use to thoroughly test the JIRA issue implementation.
+1. **Automatic PR Discovery** — scans JIRA issue links, development panel, and comments
+2. **Selective PR Testing** — manual override to analyze specific PRs only
+3. **Context-Aware Generation** — bugs, features, and refactors each get appropriate coverage
+4. **Reproducer Inference** — in reproducer mode, derives missing steps from fix PR diffs
+5. **Multi-PR Integration** — integrated scenarios when multiple PRs fix one issue
+6. **Build/Deploy Exclusion** — assumes environment is already set up
+7. **Cleanup Exclusion** — focuses on test execution and verification
