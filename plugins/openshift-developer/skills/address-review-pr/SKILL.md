@@ -227,8 +227,7 @@ Show: total comments found, filtered out, addressed with code changes, replied t
 Before posting ANY reply, verify you haven't already responded:
 
 ```bash
-SKILL_DIR="$(dirname "$(find ~/.claude/plugins -type f -path "*/openshift-developer/skills/address-review-pr/check_replied.py" 2>/dev/null | sort | head -1)")"
-python3 "$SKILL_DIR/check_replied.py" <owner> <repo> <pr_number> <comment_id> --type <type>
+python3 ${CLAUDE_SKILL_DIR}/scripts/check_replied.py <owner> <repo> <pr_number> <comment_id> --type <type>
 ```
 
 Where `<type>` is one of: `issue_comment`, `review_thread`, or `review_comment`
