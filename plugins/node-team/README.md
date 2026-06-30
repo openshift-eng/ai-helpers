@@ -51,15 +51,29 @@ Activates on any OpenShift node-layer task. Routes through reference documents t
 - **Platform Documentation**: version-aware Kubernetes and OpenShift docs lookup
 - **Prometheus**: node-layer metrics queries
 
-## Plugin Routing
+## Plugin Family
 
-| Domain | Plugin | Command |
-|--------|--------|---------|
-| CVE triage | `node-cve` | `/node-cve:triage` |
-| General development | `node-team` | `node-team:node` skill |
-| Team overview | `node-team` | `/node-team:overview` |
-| Repo setup | `node-team` | `/node-team:setup` |
-| Auth verification | `node-team` | `/node-team:preflight` |
+node-team is the umbrella plugin for the OpenShift Node team. Specialized
+plugins depend on node-team's shared data and extend its capabilities:
+
+| Plugin | Domain | Status |
+|--------|--------|--------|
+| `node-team` | Development, deployment, debugging (see [Commands](#commands)) | Active |
+| [`node-cve`](../node-cve/) | CVE triage with reachability analysis | Active |
+| `node-bug-triage` | General bug triage and assignment | Planned |
+| `node-onboarding` | Team onboarding workflows | Planned |
+| `node-rpm` | RPM management (cri-tools pattern) | Planned |
+
+### Shared Data Contract
+
+Satellite plugins reference shared data at `skills/node/references/shared/`.
+Do not move or rename these files without updating all consumer plugins.
+
+### Compliance
+
+Compliance documentation for the Node team plugin family is at
+[`docs/compliance/`](docs/compliance/). This covers the medium-risk AI agent
+controls required by Red Hat's Enterprise AI Risk Management Standard.
 
 ## Configuration
 
