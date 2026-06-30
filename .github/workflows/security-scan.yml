@@ -1,0 +1,83 @@
+name: Security Scan
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Prepare scan target
+        id: scan-target
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            mkdir -p /tmp/scan-target
+            git diff --name-only --diff-filter=ACMR \
+              ${{ github.event.pull_request.base.sha }} \
+              ${{ github.sha }} | while IFS= read -r f; do
+              mkdir -p "/tmp/scan-target/$(dirname "$f")"
+              cp "$f" "/tmp/scan-target/$f"
+            done
+            touch /tmp/scan-target/.scanroot.md
+            echo "dir=/tmp/scan-target" >> "$GITHUB_OUTPUT"
+          else
+            echo "dir=." >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.11"
+
+      - name: Install scanner
+        run: pip install "cisco-ai-skill-scanner[vertex]>=2,<3"
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          credentials_json: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
+
+      - name: Run security scan
+        env:
+          SKILL_SCANNER_LLM_MODEL: vertex_ai/claude-sonnet-4-6
+          VERTEXAI_LOCATION: global
+        run: |
+          skill-scanner scan-all \
+            --recursive \
+            --lenient \
+            --use-llm \
+            --fail-on-severity high \
+            --format sarif \
+            --output-sarif skill-scanner.sarif \
+            --format html \
+            --output-html skill-scanner-summary.html \
+            ${{ steps.scan-target.outputs.dir }}
+
+      - name: Upload SARIF to GitHub Code Scanning
+        if: success() || failure()
+        uses: github/codeql-action/upload-sarif@e46ed2cbd01164d986452f91f178727624ae40d7 # v4.35.3
+        with:
+          sarif_file: skill-scanner.sarif
+
+      - name: Upload results
+        if: success() || failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: security-scan-results
+          path: |
+            skill-scanner.sarif
+            skill-scanner-summary.html
