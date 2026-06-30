@@ -15,7 +15,7 @@ usage() {
 }
 
 FILE=""
-REPO=""
+REPO="${FORK_REPO:-}"
 TITLE=""
 TOKEN_FILE=""
 
@@ -52,6 +52,8 @@ if [[ -n "$TOKEN_FILE" ]]; then
   fi
   export GITHUB_TOKEN
   GITHUB_TOKEN=$(cat "$TOKEN_FILE")
+elif [[ -n "${GH_FORK_TOKEN:-}" ]]; then
+  export GITHUB_TOKEN="$GH_FORK_TOKEN"
 fi
 
 TAG="screenshot-$(date +%s)-$(head -c 4 /dev/urandom | xxd -p)"
