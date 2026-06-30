@@ -5,24 +5,22 @@
 # Validates component-level documentation structure and links.
 #
 # Usage:
-#   ./validate.sh [REPO_PATH] [VALIDATE_LINKS]
+#   ./validate.sh [REPO_PATH]
 #
 # Arguments:
 #   REPO_PATH        Path to repository (default: current directory)
-#   VALIDATE_LINKS   true/false to enable/disable link validation (default: true)
 #
 # Environment:
 #   VERBOSE=true     Show all successful links (default: false, only shows broken links)
 #
 # Examples:
 #   ./validate.sh                          # Validate current directory with link checking
-#   ./validate.sh /path/to/repo false      # Validate without link checking
+#   ./validate.sh /path/to/repo            # Validate specific repo
 #   VERBOSE=true ./validate.sh             # Show all links, including successful ones
 #
 set -euo pipefail
 
 REPO_PATH="${1:-.}"
-VALIDATE_LINKS="${2:-true}"  # Default: validate links
 VERBOSE="${VERBOSE:-false}"   # Set VERBOSE=true to see all successful links
 
 echo "✅ Validating component documentation in: $REPO_PATH"
@@ -300,52 +298,46 @@ fi
 
 echo ""
 
-# Validate links (if enabled)
-if [ "$VALIDATE_LINKS" = "true" ]; then
-    echo "Validating links..."
+# Validate links
+echo "Validating links..."
+echo ""
+
+LINK_VALIDATION_FAILED=false
+
+# Check links in AGENTS.md
+if [ -f "$REPO_PATH/AGENTS.md" ]; then
+    echo "📄 Checking AGENTS.md:"
+    echo "  🔗 External links:"
+    if ! validate_links "$REPO_PATH/AGENTS.md"; then
+        LINK_VALIDATION_FAILED=true
+    fi
+    echo "  🔗 Internal links:"
+    if ! validate_internal_links "$REPO_PATH/AGENTS.md"; then
+        LINK_VALIDATION_FAILED=true
+    fi
     echo ""
+fi
 
-    LINK_VALIDATION_FAILED=false
-
-    # Check links in AGENTS.md
-    if [ -f "$REPO_PATH/AGENTS.md" ]; then
-        echo "📄 Checking AGENTS.md:"
+# Check links in all ai-docs markdown files
+if [ -d "$REPO_PATH/ai-docs" ]; then
+    while IFS= read -r -d '' file; do
+        echo "📄 Checking $(basename "$file"):"
         echo "  🔗 External links:"
-        if ! validate_links "$REPO_PATH/AGENTS.md"; then
+        if ! validate_links "$file"; then
             LINK_VALIDATION_FAILED=true
         fi
         echo "  🔗 Internal links:"
-        if ! validate_internal_links "$REPO_PATH/AGENTS.md"; then
+        if ! validate_internal_links "$file"; then
             LINK_VALIDATION_FAILED=true
         fi
         echo ""
-    fi
+    done < <(find "$REPO_PATH/ai-docs" -name "*.md" -type f -print0)
+fi
 
-    # Check links in all ai-docs markdown files
-    if [ -d "$REPO_PATH/ai-docs" ]; then
-        while IFS= read -r -d '' file; do
-            echo "📄 Checking $(basename "$file"):"
-            echo "  🔗 External links:"
-            if ! validate_links "$file"; then
-                LINK_VALIDATION_FAILED=true
-            fi
-            echo "  🔗 Internal links:"
-            if ! validate_internal_links "$file"; then
-                LINK_VALIDATION_FAILED=true
-            fi
-            echo ""
-        done < <(find "$REPO_PATH/ai-docs" -name "*.md" -type f -print0)
-    fi
-
-    if [ "$LINK_VALIDATION_FAILED" = true ]; then
-        echo "⚠️  Some links are broken or inaccessible"
-        echo ""
-        echo "To skip link validation, run: $0 $REPO_PATH false"
-    else
-        echo "✅ All links validated successfully"
-    fi
+if [ "$LINK_VALIDATION_FAILED" = true ]; then
+    echo "⚠️  Some links are broken or inaccessible"
 else
-    echo "ℹ️  Link validation skipped (run with 'true' as 2nd arg to enable)"
+    echo "✅ All links validated successfully"
 fi
 
 echo ""
