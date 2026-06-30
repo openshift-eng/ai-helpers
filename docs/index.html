@@ -1957,6 +1957,38 @@ footer a { color: var(--primary); }
       }
     },
     {
+      "name": "node-rpm",
+      "description": "RPM package management for OpenShift Node team components",
+      "version": "0.0.1",
+      "has_readme": true,
+      "commands": [
+        {
+          "name": "bump",
+          "full_name": "node-rpm:bump",
+          "description": "Bump a downstream RPM package to a new upstream version",
+          "description_html": "Bump a downstream RPM package to a new upstream version",
+          "synopsis": "/node-rpm:bump \u003cpackage\u003e \u003cnew-version\u003e [--ocp-version \u003cversion\u003e] [--scratch] [--vagrant]",
+          "body_html": "\u003cp\u003eGuides the user through bumping a downstream RPM package to a new upstream version in Red Hat&#x27;s dist-git. Handles spec file updates, source downloads, changelog bumps, and Brew builds.\u003c/p\u003e\u003cp\u003eThe workflow follows the established pattern for Node team RPM packages (cri-tools as the primary template). Each phase presents its changes to the user for review before proceeding.\u003c/p\u003e\u003cp\u003eWhen \u003ccode\u003e--vagrant\u003c/code\u003e is passed, the entire workflow runs inside a Fedora Vagrant VM that is automatically provisioned with all required tools. This is the recommended approach when rhpkg and related tools are not installed locally.\u003c/p\u003e"
+        }
+      ],
+      "skills": [],
+      "agents": [],
+      "hooks": [],
+      "mcp_servers": [],
+      "rules": [],
+      "category": "openshift",
+      "keywords": [
+        "openshift",
+        "node",
+        "rpm",
+        "bump",
+        "cri-tools"
+      ],
+      "author": {
+        "name": "github.com/openshift-eng"
+      }
+    },
+    {
       "name": "node-team",
       "description": "OpenShift Node team assistant for development, deployment, debugging, and workflow tasks across kubelet, MCO, CRI-O, crun, conmonrs, Kueue operator, Jira, Red Hat KB/support cases, Prometheus, and platform docs.",
       "version": "0.17.1",
