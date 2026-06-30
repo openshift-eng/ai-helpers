@@ -43,6 +43,9 @@ venv/
 # Working directories for skills
 .work/
 
+# Eval run outputs
+eval/runs/
+
 # Various logs and metrics tracking info
 *.log
 .anonymous_id

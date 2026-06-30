@@ -128,16 +128,10 @@ These thresholds are calibrated from percentile analysis of revert rates across 
 | Revert Rate | Risk Level | Points | Percentile Range |
 | ----------- | ---------- | ------ | ---------------- |
 | ≤1%         | Low        | 0      | Below p25        |
-| 1–3%        | Moderate   | 3      | p25 to p75       |
-| 3–5%        | Elevated   | 6      | p75 to p90       |
-| 5–10%       | High       | 9      | p90 to p95       |
-| >10%        | Critical   | 12     | Above p95        |
-
-**Step D4: Score active regressions**
-
-| Signal                          | Points                    | How to Check                                                        |
-| ------------------------------- | ------------------------- | ------------------------------------------------------------------- |
-| Active regressions in component | +4 per regression (max 8) | Use `ci:fetch-regression-details` for the component, or check Sippy |
+| 1–3%        | Moderate   | 5      | p25 to p75       |
+| 3–5%        | Elevated   | 10     | p75 to p90       |
+| 5–10%       | High       | 15     | p90 to p95       |
+| >10%        | Critical   | 20     | Above p95        |
 
 Include the revert rate and its risk level in the report output so the user can see the repo's historical stability at a glance.
 
@@ -188,15 +182,17 @@ If the CI config YAML cannot be fetched (e.g., the repo doesn't exist in `opensh
 
 ### Step 4b: Classify Each Job
 
-For every job in the CI config, decide: **run** or **skip**, with a reason.
+Split the jobs from the CI config into two groups based on their name:
 
-**Cheap/fast jobs** (unit tests, image builds, lint, verify, bindata-check, etc.) should always be marked **run**. These are inexpensive and should never be skipped. Do not include them in your e2e recommendations table — they are a given.
+**Non-e2e jobs** (unit tests, image builds, lint, verify, bindata-check, etc. — any job without `e2e` in its name): These are assumed to always run as required presubmits. Do not include them in your recommendations — they are a given. Do not output `/test` commands for these jobs.
 
-**E2e and integration jobs** are the expensive jobs that provision real clusters. These are the focus of your recommendation. For each one, decide based on:
+**E2e jobs** (any job with `e2e` in its name): These are the expensive jobs that provision real clusters. These are the sole focus of your recommendation. For each e2e job, decide **run** or **skip** with a reason, based on:
 
 1. **What the job tests** — infer from the job name (e.g., `e2e-aws-ovn`, `e2e-upgrade`, `e2e-gcp-console-olm`)
 2. **Whether the PR's changes are relevant** — does the code change touch areas that this job exercises?
 3. **The risk tier** — higher risk warrants broader test coverage
+
+Only output `/test` commands for e2e jobs. Never output `/test` for non-e2e jobs.
 
 ### Step 4c: Hotspot Awareness
 
@@ -272,7 +268,7 @@ Beyond the repo's configured jobs, watch for these common revert patterns. If th
 
 This skill does NOT trigger any tests. It recommends what should be run as `/test` commands the user can copy and paste.
 
-For each e2e/integration job, output a decision:
+For each e2e job (jobs with `e2e` in the name), output a decision:
 
 **Jobs to run** — with a `/test` command and justification:
 
@@ -361,7 +357,7 @@ Output a structured markdown report:
 <areas of risk not covered by any configured job, with suggestions for /payload-job testing if applicable>
 
 ### Historical Context
-<repo revert rate and risk level, active regressions if any>
+<repo revert rate and risk level>
 
 ---
 State saved to `.work/pr-risk/<org>-<repo>-<number>.json`
@@ -378,8 +374,4 @@ State saved to `.work/pr-risk/<org>-<repo>-<number>.json`
 
 ## Skills Available
 
-Use these skills when needed (invoke via their skill names):
-
-| Skill                         | When to Use                                 |
-| ----------------------------- | ------------------------------------------- |
-| `ci:fetch-regression-details` | Check for active regressions in a component |
+This skill does not invoke any sub-skills.
