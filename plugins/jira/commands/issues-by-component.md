@@ -1,6 +1,6 @@
 ---
 description: List and analyze JIRA issues organized by component with flexible filtering
-argument-hint: <project-key> [time-period] [--component name] [--assignee username] [--reporter username] [--status status] [--search term] [--search-description]
+argument-hint: <project-key> [time-period] [--component name] [--assignee username] [--reporter username] [--status status] [--search term] [--search-description] [--backend mcp|api]
 ---
 
 ## Name
@@ -8,7 +8,7 @@ jira:issues-by-component
 
 ## Synopsis
 ```
-/jira:issues-by-component <project-key> [time-period] [--component component-name] [--assignee username] [--reporter username] [--status status] [--search search-term] [--search-description]
+/jira:issues-by-component <project-key> [time-period] [--component component-name] [--assignee username] [--reporter username] [--status status] [--search search-term] [--search-description] [--backend mcp|api]
 ```
 
 ## Description
@@ -33,27 +33,24 @@ This command is particularly useful for:
 - **Status filtering** - Focus on specific workflow states
 - **Text search** - Find issues by keywords in summary or description
 - **Dual-mode output** - Overview or detailed views based on your needs
+- **Dual backend** - MCP (zero-config OAuth) or direct API (unlimited issues)
 
 ## Prerequisites
 
-This command requires JIRA credentials to be configured as environment variables. It uses direct API calls with a secure wrapper script to prevent token exposure.
+### MCP Backend (default)
 
-### 1. Install the Jira Plugin
+No setup required. The Atlassian MCP server is bundled with this plugin via `.mcp.json`. On first use, you will be prompted to authenticate via your browser (OAuth).
 
-If you haven't already installed the Jira plugin, see the [Jira Plugin README](../README.md#installation) for installation instructions.
+**Limitations:** Capped at 500 issues per query. For larger datasets, use `--backend api`.
 
-### 2. Configure JIRA Credentials
+### API Backend (`--backend api`)
 
-**Why not use MCP commands?** MCP commands have performance issues when fetching large datasets:
-- Each MCP response must be processed by Claude, consuming LLM tokens
-- Large result sets (even with pagination) cause 413 errors from Claude due to tool result size limits
-- Processing hundreds of tickets through MCP commands creates excessive context usage
-- Direct API calls allow us to stream data to disk without intermediate processing
+This backend uses direct REST API calls with a secure wrapper script to prevent token exposure. It supports unlimited issues via disk streaming.
 
-**Solution:** This command uses a secure curl wrapper script that:
-- Reads credentials from environment variables
-- Prevents token exposure in process listings or command history
-- Streams data directly to disk for efficient processing
+**Why use the API backend?** The API backend is preferred when:
+- You need to fetch more than 500 issues
+- You want to stream data directly to disk without LLM token consumption
+- You need to process large result sets that would cause 413 errors via MCP
 
 **Required Environment Variables:**
 
@@ -95,32 +92,7 @@ source ~/.jira-credentials
 
 The command executes the following workflow:
 
-### 1. Verify Environment Variables
-
-- Check that required environment variables are set:
-  ```bash
-  if [ -z "${JIRA_URL:-}" ]; then
-    echo "Error: JIRA_URL environment variable is required"
-    echo "Please run: export JIRA_URL='https://redhat.atlassian.net'"
-    exit 1
-  fi
-
-  if [ -z "${JIRA_API_TOKEN:-}" ]; then
-    echo "Error: JIRA authentication token is required"
-    echo "Please set: export JIRA_API_TOKEN='your-token-here'"
-    exit 1
-  fi
-
-  if [ -z "${JIRA_USERNAME:-}" ]; then
-    echo "Error: JIRA_USERNAME environment variable is required"
-    echo "Please set: export JIRA_USERNAME='user@redhat.com'"
-    exit 1
-  fi
-  ```
-- If credentials are missing, display error message with setup instructions from Prerequisites section
-- The wrapper script (`jira_curl.sh`) will handle these checks automatically
-
-### 2. Parse Arguments and Set Defaults
+### 1. Parse Arguments and Set Defaults
 
 - Parse project key from $1 (required): "OCPBUGS", "JIRA", "HYPE", etc.
 - Parse optional time-period from $2:
@@ -135,8 +107,22 @@ The command executes the following workflow:
   - `--status <status>`: Filter by status (comma-separated for multiple)
   - `--search <term>`: Search term for summary (space or comma-separated for multiple keywords)
   - `--search-description`: Include description in search (only works with `--search`)
+  - `--backend <mcp|api>`: Backend to use (default: `mcp`)
 - Validate project key format (uppercase, may contain hyphens)
 - Create working directory: `mkdir -p .work/jira-issues-by-component/{project-key}/`
+
+### 2. Determine Backend
+
+- If `--backend api` is specified, use the API backend (skip to Step 3a)
+- If `--backend mcp` is specified or no `--backend` flag, use the MCP backend:
+  - Attempt a connectivity check by calling `searchJiraIssuesUsingJql` with `maxResults: 1`
+  - If MCP tools are not available or return a connection error, inform the user:
+    ```
+    MCP backend is not available. Falling back to API backend.
+    To use MCP, ensure the Atlassian Rovo MCP server is configured.
+    To use the API backend directly, run with --backend api and set JIRA_URL, JIRA_API_TOKEN, JIRA_USERNAME.
+    ```
+  - If MCP check succeeds, proceed with MCP backend
 
 ### 3. Construct JQL Query
 
@@ -172,6 +158,23 @@ AND reporter = {username}
 AND status IN ({status1}, {status2}, ...)
 ```
 
+**Add search filter (if --search provided):**
+
+Without `--search-description`:
+```jql
+AND summary ~ "{term}"
+```
+
+With `--search-description`:
+```jql
+AND (summary ~ "{term}" OR description ~ "{term}")
+```
+
+For multiple search terms (space or comma-separated), combine with OR:
+```jql
+AND (summary ~ "{term1}" OR summary ~ "{term2}")
+```
+
 **Example JQL:**
 ```jql
 project = OCPBUGS
@@ -184,7 +187,43 @@ ORDER BY component ASC, priority DESC, updated DESC
 
 - URL-encode the JQL query for use in API requests
 
-### 4. Fetch All Issues Using Secure Curl Wrapper with Pagination
+### 4. Fetch Issues
+
+#### 4a. MCP Backend
+
+Invoke the `jira-issues-by-component-mcp` skill (see `plugins/jira/skills/jira-issues-by-component-mcp/SKILL.md`).
+
+The skill handles:
+- Fetching 100 issues per page using `searchJiraIssuesUsingJql` with `nextPageToken` pagination
+- **Overview Mode**: Progressive aggregation — accumulate per-component stats (counts, status/priority/type distributions), keep top 3 issues per component, discard raw data per page. Exclude `description` from fields.
+- **Detail Mode** (with `--component`): Include `description` in fields. Keep all issue details. Typically <100 issues for a single component.
+- Cap at 500 issues (5 pages). Warn and suggest `--backend api` if exceeded.
+- `--search` support: Same JQL `summary ~ "term"` / `description ~ "term"` clauses — works identically since MCP uses the same JQL.
+
+The skill returns aggregated stats and issue data for report generation.
+
+#### 4b. API Backend
+
+Verify environment variables:
+```bash
+if [ -z "${JIRA_URL:-}" ]; then
+  echo "Error: JIRA_URL environment variable is required"
+  echo "Please run: export JIRA_URL='https://redhat.atlassian.net'"
+  exit 1
+fi
+
+if [ -z "${JIRA_API_TOKEN:-}" ]; then
+  echo "Error: JIRA authentication token is required"
+  echo "Please set: export JIRA_API_TOKEN='your-token-here'"
+  exit 1
+fi
+
+if [ -z "${JIRA_USERNAME:-}" ]; then
+  echo "Error: JIRA_USERNAME environment variable is required"
+  echo "Please set: export JIRA_USERNAME='user@redhat.com'"
+  exit 1
+fi
+```
 
 **Fetch Strategy:**
 - Fetch 1000 tickets per request (JIRA's maximum `maxResults` value)
@@ -251,7 +290,7 @@ while true; do
 
   TOTAL_FETCHED=$((TOTAL_FETCHED + BATCH_SIZE))
 
-  echo "✓ Fetched ${BATCH_SIZE} issues (${TOTAL_FETCHED}/${TOTAL} total)"
+  echo "Fetched ${BATCH_SIZE} issues (${TOTAL_FETCHED}/${TOTAL} total)"
 
   # Check if done
   if [ ${TOTAL_FETCHED} -ge ${TOTAL} ] || [ ${BATCH_SIZE} -eq 0 ]; then
@@ -264,7 +303,7 @@ while true; do
 done
 
 echo ""
-echo "✓ Fetching complete: ${TOTAL_FETCHED} issues downloaded in $((BATCH_NUM + 1)) batch(es)"
+echo "Fetching complete: ${TOTAL_FETCHED} issues downloaded in $((BATCH_NUM + 1)) batch(es)"
 ```
 
 **Why secure wrapper instead of direct curl:**
@@ -277,7 +316,7 @@ echo "✓ Fetching complete: ${TOTAL_FETCHED} issues downloaded in $((BATCH_NUM 
 
 ### 5. Generate Output Report
 
-Load the grouped data and generate the appropriate report based on mode:
+Load the data and generate the appropriate report based on mode. The output format is identical regardless of backend used.
 
 #### Overview Mode (no --component flag)
 
@@ -396,6 +435,42 @@ Load the grouped data and generate the appropriate report based on mode:
 
 ## Error Handling
 
+### MCP Backend Errors
+
+**MCP not available**: If MCP tools are not found or connection fails:
+```
+MCP backend is not available.
+
+Options:
+1. Ensure the Atlassian Rovo MCP server is configured (bundled via .mcp.json)
+2. Use the API backend: /jira:issues-by-component PROJECT --backend api
+   (requires JIRA_URL, JIRA_API_TOKEN, JIRA_USERNAME env vars)
+```
+
+**OAuth re-authentication needed**: If MCP returns an authentication error:
+```
+MCP authentication expired. You will be prompted to re-authenticate via your browser.
+```
+
+**413 / result too large**: If MCP tool result exceeds Claude's size limit:
+```
+Result set too large for MCP backend (413 error).
+
+Try one of:
+- Add filters to reduce results: --component, --status, --search
+- Use the API backend for large datasets: --backend api
+```
+
+**500-issue cap exceeded**: If more than 500 issues match the query:
+```
+Query returned more than 500 issues (showing first 500).
+
+For the complete dataset, use:
+  /jira:issues-by-component PROJECT [filters] --backend api
+```
+
+### API Backend Errors
+
 **Missing environment variables**: If JIRA_URL is not set:
 ```
 Error: JIRA_URL environment variable is required
@@ -438,6 +513,8 @@ Please verify your JIRA credentials:
 3. Try generating a new token from the JIRA web interface
 ```
 
+### Common Errors (Both Backends)
+
 **Invalid project key**: Display error with example format
 
 **No issues found**:
@@ -458,42 +535,40 @@ Available components:
 
 **Invalid time period**: Display supported formats with examples
 
-**curl errors**: Check exit code and display helpful error message
+**curl errors** (API backend): Check exit code and display helpful error message
 
-**jq not found**: Inform user to install jq
+**jq not found** (API backend): Inform user to install jq
 
 **Rate limiting**: If API returns 429, implement exponential backoff (wait 60s, retry)
+
+## Limitations
+
+### MCP Backend
+- **500-issue cap**: The MCP backend fetches a maximum of 500 issues (5 pages of 100). For larger datasets, use `--backend api`.
+- **OAuth session**: Requires an active OAuth session. If expired, you will be prompted to re-authenticate via browser.
+
+### API Backend
+- **Manual setup**: Requires exporting 3 environment variables (`JIRA_URL`, `JIRA_API_TOKEN`, `JIRA_USERNAME`).
+- **Token management**: API tokens must be manually created and refreshed.
+- **Dependencies**: Requires `curl` and `jq` to be installed.
 
 ## Return Value
 
 - **Console Output**: Formatted report showing issues organized by component
-- **Intermediate Files** (created during processing):
+- **Intermediate Files** (API backend only, created during processing):
   - `.work/jira-issues-by-component/{project-key}/batch-*.json` - Raw JIRA API responses
   - `.work/jira-issues-by-component/{project-key}/grouped.json` - Issues grouped by component with statistics
 - **Optional Final Report**: `.work/jira-issues-by-component/{project-key}-{component-name}-{timestamp}.md`
 
 ## Examples
 
-**Note:** All examples require JIRA credentials to be set as environment variables (see Prerequisites section).
-
-**Before running any examples, set your credentials:**
-```bash
-# Option 1: Export directly
-export JIRA_URL="https://redhat.atlassian.net"
-export JIRA_API_TOKEN="your-token-here"
-export JIRA_USERNAME="user@redhat.com"
-
-# Option 2: Source from credentials file
-source ~/.jira-credentials
-```
-
 ### Overview Mode Examples
 
-1. **Basic overview - all components from last week**:
+1. **Basic overview - all components from last week (MCP, default)**:
    ```
    /jira:issues-by-component OCPBUGS last-week
    ```
-   Output: High-level summary of all components with issue counts and top issues
+   Output: High-level summary of all components with issue counts and top issues. Uses MCP backend (no env vars needed).
 
 2. **Overview with status filter**:
    ```
@@ -539,21 +614,29 @@ source ~/.jira-credentials
    ```
    Output: Detailed Networking issues containing "DNS" or "timeout" in summary or description
 
+### Backend Override Examples
+
+9. **Force API backend for large datasets**:
+   ```
+   /jira:issues-by-component OCPBUGS last-month --backend api
+   ```
+   Output: Uses direct REST API via `jira_curl.sh`. Requires `JIRA_URL`, `JIRA_API_TOKEN`, `JIRA_USERNAME` env vars. No issue count limit.
+
 ### Advanced Examples
 
-9. **Custom date range with multiple filters**:
-   ```
-   /jira:issues-by-component OCPBUGS 2024-11-01:2024-11-30 --component "Cluster Version Operator" --status "Open,In Progress" --search CVE
-   ```
-   Output: CVE-related issues in CVO component from November that are still active
+10. **Custom date range with multiple filters**:
+    ```
+    /jira:issues-by-component OCPBUGS 2024-11-01:2024-11-30 --component "Cluster Version Operator" --status "Open,In Progress" --search CVE
+    ```
+    Output: CVE-related issues in CVO component from November that are still active
 
-10. **Reporter-based filtering**:
+11. **Reporter-based filtering**:
     ```
     /jira:issues-by-component OCPBUGS last-month --reporter asmith --status Closed
     ```
     Output: Overview of all components showing closed issues reported by asmith
 
-11. **Multiple search terms**:
+12. **Multiple search terms**:
     ```
     /jira:issues-by-component OCPBUGS --search "authentication authorization security"
     ```
@@ -602,6 +685,10 @@ source ~/.jira-credentials
   - Searches both summary and description text
   - May return more results but slower
   - Example: `--search "DNS" --search-description`
+
+- **--backend** (optional): Backend to use for fetching issues
+  - `mcp` (default): Uses Atlassian MCP server. No env vars needed. OAuth via browser on first use. Capped at 500 issues.
+  - `api`: Uses direct REST API via `jira_curl.sh`. Requires `JIRA_URL`, `JIRA_API_TOKEN`, `JIRA_USERNAME` env vars. Unlimited issues (disk streaming).
 
 ## See Also
 
