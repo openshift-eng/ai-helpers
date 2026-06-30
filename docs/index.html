@@ -1867,6 +1867,38 @@ footer a { color: var(--primary); }
       }
     },
     {
+      "name": "node-bug",
+      "description": "Node-specific bug triage, sub-team routing, and assignment suggestions for OpenShift Node team components",
+      "version": "0.0.1",
+      "has_readme": true,
+      "commands": [
+        {
+          "name": "triage",
+          "full_name": "node-bug:triage",
+          "description": "Query open Node bugs, classify by severity and sub-team, suggest assignments, and generate a triage summary",
+          "description_html": "Query open Node bugs, classify by severity and sub-team, suggest assignments, and generate a triage summary",
+          "synopsis": "/node-bug:triage [--sub-team core|devices|kueue] [--sprint \"OCP Node Core Sprint 42\"] [--unassigned-only]",
+          "body_html": "\u003cp\u003eQueries all open bugs in OCPBUGS for Node team components using the &quot;Node Bugs&quot; saved filter, classifies them into triage buckets (Release Blockers, Customer Escalations, Potential Blockers, Component Regressions, Untriaged), routes each bug to the correct sub-team, and suggests assignments based on current workload.\u003c/p\u003e\u003cp\u003eDesigned for both interactive triage sessions and headless execution via \u003ccode\u003eclaude --print\u003c/code\u003e.\u003c/p\u003e"
+        }
+      ],
+      "skills": [],
+      "agents": [],
+      "hooks": [],
+      "mcp_servers": [],
+      "rules": [],
+      "category": "openshift",
+      "keywords": [
+        "openshift",
+        "node",
+        "bugs",
+        "triage",
+        "jira"
+      ],
+      "author": {
+        "name": "github.com/openshift-eng"
+      }
+    },
+    {
       "name": "node-cve",
       "description": "CVE triage for OpenShift Node team components",
       "version": "0.0.4",
@@ -1991,7 +2023,7 @@ footer a { color: var(--primary); }
     {
       "name": "node-team",
       "description": "OpenShift Node team assistant for development, deployment, debugging, and workflow tasks across kubelet, MCO, CRI-O, crun, conmonrs, Kueue operator, Jira, Red Hat KB/support cases, Prometheus, and platform docs.",
-      "version": "0.17.1",
+      "version": "0.18.0",
       "has_readme": true,
       "commands": [
         {
@@ -2030,8 +2062,8 @@ footer a { color: var(--primary); }
       "skills": [
         {
           "name": "node",
-          "description": "OpenShift Node team assistant. Covers kubelet, MCO, CRI-O, crun, conmonrs, Kueue operator, Jira (OCPNODE/OCPBUGS), Red Hat KB/support cases, Prometheus, and K8s/OCP docs. Triggers on OpenShift node-layer development, deployment, debugging, or team workflow tasks. For CVE/vulnerability triage, analysis, or reporting, defer to the node-cve plugin.",
-          "description_html": "OpenShift Node team assistant. Covers kubelet, MCO, CRI-O, crun, conmonrs, Kueue operator, Jira (OCPNODE/OCPBUGS), Red Hat KB/support cases, Prometheus, and K8s/OCP docs. Triggers on OpenShift node-layer development, deployment, debugging, or team workflow tasks. For CVE/vulnerability triage, analysis, or reporting, defer to the node-cve plugin.",
+          "description": "OpenShift Node team assistant. Covers kubelet, MCO, CRI-O, crun, conmonrs, Kueue operator, Jira (OCPNODE/OCPBUGS), Red Hat KB/support cases, Prometheus, and K8s/OCP docs. Triggers on OpenShift node-layer development, deployment, debugging, or team workflow tasks. For CVE/vulnerability triage, analysis, or reporting, defer to node-cve. For bug triage and assignment, defer to node-bug.",
+          "description_html": "OpenShift Node team assistant. Covers kubelet, MCO, CRI-O, crun, conmonrs, Kueue operator, Jira (OCPNODE/OCPBUGS), Red Hat KB/support cases, Prometheus, and K8s/OCP docs. Triggers on OpenShift node-layer development, deployment, debugging, or team workflow tasks. For CVE/vulnerability triage, analysis, or reporting, defer to node-cve. For bug triage and assignment, defer to node-bug.",
           "meta": "Tools: Bash(curl:*)"
         }
       ],

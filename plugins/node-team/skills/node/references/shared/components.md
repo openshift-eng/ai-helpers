@@ -12,7 +12,7 @@ list.
 
 Full list (filter 91645): Node, Node / CRI-O, Node / Kubelet, Node / CPU
 manager, Node / Memory manager, Node / Topology manager, Node / Numa aware
-Scheduling, Node / Device Manage, Node / Pod resource API, Node / Node Problem
+Scheduling, Node / Device Manager, Node / Pod resource API, Node / Node Problem
 Detector, Node / Kueue, Node / Instaslice-operator
 
 Additional components owned for CVE triage (not in filter 91645):
@@ -29,7 +29,7 @@ shipped releases.
 | Node / CRI-O | https://github.com/openshift/cri-o | https://github.com/cri-o/cri-o | `release-1.X` | Go |
 | Node / Kubelet | https://github.com/openshift/kubernetes | https://github.com/kubernetes/kubernetes | `release-1.X` | Go |
 | Node / CPU manager | https://github.com/openshift/kubernetes | https://github.com/kubernetes/kubernetes | `release-1.X` | Go |
-| Node / Device Manage | https://github.com/openshift/kubernetes | https://github.com/kubernetes/kubernetes | `release-1.X` | Go |
+| Node / Device Manager | https://github.com/openshift/kubernetes | https://github.com/kubernetes/kubernetes | `release-1.X` | Go |
 | Node / Memory manager | https://github.com/openshift/kubernetes | https://github.com/kubernetes/kubernetes | `release-1.X` | Go |
 | Node / Numa aware Scheduling | https://github.com/openshift/kubernetes | https://github.com/kubernetes/kubernetes | `release-1.X` | Go |
 | Node / Pod resource API | https://github.com/openshift/kubernetes | https://github.com/kubernetes/kubernetes | `release-1.X` | Go |
@@ -75,5 +75,6 @@ upstream for community contributions):
 
 | Team | Sprint filter | Roster file | Bug components |
 |------|--------------|-------------|----------------|
-| Core | `Node Core` | `team-roster-core.json` | All Node components |
-| DRA/Devices | `Node Devices` | `team-roster-dra.json` | Node / Device Manage, Node / Instaslice-operator |
+| Core | `Node Core` | `team-roster-core.json` | All Node components not listed under another sub-team |
+| DRA/Devices | `Node Devices` | `team-roster-dra.json` | Node / Device Manager, Node / Instaslice-operator |
+| Kueue | `OCP Kueue` | `team-roster-kueue.json` | Node / Kueue |
