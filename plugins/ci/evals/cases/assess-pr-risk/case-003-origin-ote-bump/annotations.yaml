@@ -1,0 +1,27 @@
+description: |
+  Vendor bump of openshift-tests-extension to fix klog stdout contamination
+  breaking OTE binary JSON parsing. Affects metal nightly jobs specifically.
+  475 additions but mostly vendored code. Core change is in
+  pkg/test/extensions/binary.go (JSON extraction logic) with a new test file.
+  Medium risk — touches test infrastructure plumbing, not product code.
+
+expected_tier: medium
+expected_score_range:
+  min: 21
+  max: 45
+
+must_recommend_jobs:
+  - e2e
+
+must_not_recommend_jobs:
+  - upgrade
+  - vsphere
+  - microshift
+  - hypershift
+  - csi
+  - kubevirt
+  - single-node
+
+must_skip_jobs: []
+
+expected_hotspots: []
