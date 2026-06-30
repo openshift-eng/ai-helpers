@@ -139,9 +139,7 @@ def main():
     )
     parser.add_argument(
         '--cluster-wide',
-        type=str,
-        choices=['true', 'false'],
-        default='false',
+        action='store_true',
         help='Analyze all namespaces in cluster'
     )
     parser.add_argument(
@@ -168,8 +166,8 @@ def main():
     if args.verbose:
         logging.getLogger().setLevel(logging.INFO)
 
-    # Determine cluster-wide flag
-    cluster_wide = args.cluster_wide == 'true'
+    # cluster_wide is already a boolean from action='store_true'
+    cluster_wide = args.cluster_wide
 
     # Validate arguments
     if not cluster_wide and not args.namespace:

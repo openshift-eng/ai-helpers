@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Automated NetworkPolicy review, optimization, and compliance for OpenShift/Kubernetes clusters",
   "author": {
-    "name": "Shreyas Be",
+    "name": "github.com/openshift-eng",
     "email": "shbehera@redhat.com"
   },
   "repository": "https://github.com/openshift-eng/ai-helpers",
