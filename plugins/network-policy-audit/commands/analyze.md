@@ -1,6 +1,6 @@
 ---
-description: Comprehensive NetworkPolicy health check for security, performance, and compliance
-argument-hint: [namespace|--cluster-wide] [--mode=security|performance|compliance]
+description: "Comprehensive NetworkPolicy health check for security, performance, and compliance"
+argument-hint: "[namespace|--cluster-wide] [--mode=security|performance|compliance]"
 ---
 
 # NetworkPolicy Analyze Command

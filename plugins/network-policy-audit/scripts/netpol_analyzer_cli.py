@@ -195,7 +195,7 @@ def main():
                 print(f"    Namespace: {args.namespace}", file=sys.stderr)
                 print("\nThis is a CRITICAL security finding:", file=sys.stderr)
                 print("Without NetworkPolicies, all traffic is allowed by default.", file=sys.stderr)
-            sys.exit(0)
+            sys.exit(1)
 
         # Parse policies
         logger.info(f"Parsing {len(policies_raw)} NetworkPolicies...")
