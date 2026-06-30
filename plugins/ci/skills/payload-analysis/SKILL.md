@@ -348,18 +348,22 @@ For each revert candidate, record: PR URL, description, component, confidence sc
 
 **Do NOT propose reverts for**: Infrastructure failures, flaky tests that also fail on accepted payloads, jobs where analysis is inconclusive.
 
-#### 6.3: Check if Revert Candidates Were Already Reverted
+#### 6.3: Check if Candidate PRs Were Already Reverted
 
-For each revert candidate:
+For **every scored candidate PR** (not just revert candidates with score >= 85), check whether a revert PR already exists:
 
 ```bash
 gh pr list --repo <org>/<repo> --search "revert <pr_number>" --json number,title,url,state,mergedAt --limit 5
 ```
 
 If a revert PR is found:
-- **Merged**: Note when it merged relative to the payload. If after the payload was cut, the fix is expected in the next payload. Do not recommend reverting again.
-- **Open**: Mention the existing revert PR and link to it.
+- **Open**: Record the existing revert PR URL and link to it. For revert candidates (score >= 85), do not open a duplicate revert.
 - **Closed (not merged)**: Ignore.
+- **Merged**: Determine whether the merged revert has been **included in the current payload**. Check the target payload's PR list in `summary.json` → `payloads[0].prs[]` for a matching PR number and repository. Also check subsequent payloads in the chain (`payloads[1]`, `payloads[2]`, etc.) in case the revert landed in a later payload that was also rejected.
+  - **Revert in payload** (`revert_in_payload: true`): The revert is already included in this payload. The failure must have a different root cause, or the revert was insufficient. Note this and continue scoring — the revert did not fix the problem.
+  - **Revert NOT in payload** (`revert_in_payload: false`): The revert was merged after the payload was cut (or has not yet been picked up by the build system). Record this as `status: "merged_not_in_payload"`. Do **not** recommend opening a new revert for this candidate. Instead, surface this prominently in the report: the fix exists and is expected in the next payload build.
+
+This check is critical for avoiding redundant work: when a revert has already been merged but simply hasn't been included in the current payload yet, the analysis should clearly communicate that the fix is pending rather than recommending a duplicate revert.
 
 #### 6.4: Determine Force-Accept Recommendation
 
@@ -396,8 +400,12 @@ The report must include the following sections:
   <p>{total_blocking} blocking jobs: {succeeded} passed, {failed} failed</p>
   <p>{new_failures} new failure(s), {persistent_failures} persistent failure(s)</p>
   <p>Chain: {chain_length} payloads, {hours_since_baseline}h since baseline</p>
+  <!-- Include when merged reverts are pending inclusion in the next payload -->
+  <p class="revert-pending">{N} merged revert(s) pending inclusion in the next payload</p>
 </div>
 ```
+
+The `revert-pending` line should only appear when one or more candidates have `status: "merged_not_in_payload"` from Step 6.3. This is the most important signal for operators monitoring payload health — it tells them the fix exists and a new payload build should resolve the issue.
 
 #### 7.2: Blocking Jobs Summary Table
 
@@ -517,6 +525,34 @@ If no revert candidates:
   <strong>No Recommended Reverts</strong>
   <p>No PRs were identified with sufficient confidence for revert recommendation.</p>
 </div>
+```
+
+#### 7.4b: Merged Reverts Pending Inclusion
+
+Include this section immediately after the Recommended Reverts section when any candidate has `status: "merged_not_in_payload"` from Step 6.3. This section appears regardless of whether there are also new revert recommendations — a payload can have both new revert candidates and already-merged reverts awaiting inclusion.
+
+```html
+<div class="verdict verdict-pending-revert">
+  <h2>Merged Reverts Pending Inclusion</h2>
+  <p>The following revert PRs have been merged but are <strong>not yet included</strong> in this payload.
+     The next payload build is expected to include these fixes.</p>
+  <table>
+    <tr><th>Revert PR</th><th>Reverts</th><th>Component</th><th>Merged At</th><th>Affected Jobs</th></tr>
+    <tr>
+      <td><a href="{revert_pr_url}" target="_blank">#{revert_pr_number}</a></td>
+      <td><a href="{original_pr_url}" target="_blank">#{original_pr_number}</a></td>
+      <td>{component}</td>
+      <td>{merged_at}</td>
+      <td>{comma-separated failing job names}</td>
+    </tr>
+  </table>
+</div>
+```
+
+Add this CSS for the pending revert styling:
+```css
+.verdict-pending-revert { background: rgba(88,166,255,0.1); border-left: 4px solid var(--blue); padding: 0.75rem 1rem; border-radius: 0 0.3rem 0.3rem 0; margin: 0.75rem 0; }
+.revert-pending { color: var(--blue); font-weight: 600; }
 ```
 
 #### 7.5: Force-Accept Recommendation

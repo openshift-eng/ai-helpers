@@ -71,6 +71,7 @@ candidates:
         status: "staged"
         revert_pr_url: "https://github.com/openshift/cno/pull/2038"
         revert_pr_state: "open"
+        revert_in_payload: false
         result_summary: "Revert PR opened and payload jobs triggered"
         jira_key: "TRT-1234"
         jira_url: "https://redhat.atlassian.net/browse/TRT-1234"
@@ -78,6 +79,21 @@ candidates:
           - command: "/payload-job periodic-ci-...-e2e-aws-ovn"
             test_url: "https://pr-payload-tests.ci.openshift.org/runs/ci/..."
             test_prow_url: "https://prow.ci.openshift.org/view/gs/..."
+  - pr_url: "https://github.com/openshift/mco/pull/4100"
+    pr_number: 4100
+    component: "machine-config-operator"
+    title: "Update MCO rollout strategy"
+    confidence_score: 90
+    rationale: "new failure mode + sole modifier of affected component"
+    failing_jobs:
+      - "periodic-ci-...-e2e-aws-ovn-upgrade"
+    actions:
+      - type: "revert"
+        status: "merged_not_in_payload"
+        revert_pr_url: "https://github.com/openshift/mco/pull/4105"
+        revert_pr_state: "merged"
+        revert_in_payload: false
+        result_summary: "Revert PR #4105 merged 2h after payload was cut — fix pending in next payload"
 
 rhcos_suspects:
   - rhcos_tag: "rhel-coreos-10"
@@ -147,6 +163,7 @@ Actions taken on a candidate. New entries are **appended** by downstream skills.
 | `status` | string | See status values below |
 | `revert_pr_url` | string | URL of the revert PR (draft or real) |
 | `revert_pr_state` | string | `"draft"`, `"open"`, `"merged"`, `"closed"` |
+| `revert_in_payload` | bool | `true` if the revert PR is included in the current payload's PR list, `false` if merged but not yet picked up. Only set when `revert_pr_state` is `"merged"`. |
 | `result_summary` | string | Brief description of the outcome |
 | `jira_key` | string | TRT JIRA key (e.g., `"TRT-1234"`), or `""` |
 | `jira_url` | string | TRT JIRA URL, or `""` |
@@ -157,7 +174,8 @@ Actions taken on a candidate. New entries are **appended** by downstream skills.
 | Status | Meaning |
 |--------|---------|
 | `"open"` | Pre-existing revert PR found open during analysis |
-| `"merged"` | Pre-existing revert PR already merged |
+| `"merged"` | Pre-existing revert PR already merged and included in the current payload |
+| `"merged_not_in_payload"` | Pre-existing revert PR merged but not yet included in the current payload — fix is pending inclusion in the next payload build |
 | `"staged"` | Revert PR and JIRA created, payload jobs triggered (used by `type: "revert"`) |
 | `"pending"` | Experiment dispatched, payload jobs running, results not yet collected |
 | `"passed"` | Payload jobs passed with the revert — candidate confirmed as cause |
@@ -196,11 +214,11 @@ An empty array or absent key means no RHCOS RPM changes were suspected.
 
 ### Create (used by `payload-analysis`)
 
-Write a new `payload-results-{tag}.yaml` with `metadata`, `failing_jobs`, `candidates`, and optionally `rhcos_suspects` populated. All failed blocking jobs are recorded in `failing_jobs`. Candidates with no pre-existing revert start with `actions: []`. If a pre-existing revert PR is discovered during analysis, append an action with `type: "revert"` and `status: "open"` or `"merged"`. If RHCOS RPM suspects were identified, include them in `rhcos_suspects[]`.
+Write a new `payload-results-{tag}.yaml` with `metadata`, `failing_jobs`, `candidates`, and optionally `rhcos_suspects` populated. All failed blocking jobs are recorded in `failing_jobs`. Candidates with no pre-existing revert start with `actions: []`. If a pre-existing revert PR is discovered during analysis, append an action with `type: "revert"` and the appropriate status: `"open"` (revert PR is open), `"merged"` (revert PR merged and included in the current payload), or `"merged_not_in_payload"` (revert PR merged but not yet included in the current payload). When the status is `"merged"` or `"merged_not_in_payload"`, set `revert_in_payload` to `true` or `false` respectively. If RHCOS RPM suspects were identified, include them in `rhcos_suspects[]`.
 
 ### Read Candidates (used by `payload-revert`, `payload-experiment`)
 
-Read the file. Filter candidates by `confidence_score` range. Exclude candidates that already have an action with `status` of `"open"` or `"merged"` (pre-existing revert). Return matching candidates. Use the top-level `failing_jobs[]` to look up full job details for each candidate's `failing_jobs` references.
+Read the file. Filter candidates by `confidence_score` range. Exclude candidates that already have an action with `status` of `"open"`, `"merged"`, or `"merged_not_in_payload"` (pre-existing revert). Return matching candidates. Use the top-level `failing_jobs[]` to look up full job details for each candidate's `failing_jobs` references.
 
 ### Append Action (used by `stage-payload-reverts`, `payload-experimental-reverts`)
 
