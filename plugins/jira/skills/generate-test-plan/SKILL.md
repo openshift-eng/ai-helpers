@@ -1,6 +1,6 @@
 ---
 name: Generate Test Plan
-description: Shared implementation for JIRA test plans and bug reproducer reports from issue details and fix PRs
+description: Shared implementation for JIRA test plans and bug reproducer reports from issue details and fix PRs, with optional live cluster execution
 ---
 
 # Generate Test Plan
@@ -10,6 +10,7 @@ This skill analyzes a JIRA issue and related fix PRs to produce either a **manua
 - `/jira:generate-test-plan` — test plan mode (default)
 - `/jira:generate-test-plan --reproducer` — reproducer mode
 - `/jira:generate-bug-reproducer` — reproducer mode (alias)
+- `--apply` flag on any of the above — executes generated steps against a live OpenShift cluster
 
 ## When to Use This Skill
 
@@ -30,6 +31,7 @@ Use **reproducer mode** when the JIRA bug lacks complete reproduction steps and 
 | JIRA issue key | Yes | e.g. `OCPBUGS-12345`, `CNTRLPLANE-205` |
 | PR URLs | No | One or more GitHub PR URLs; auto-discovered from JIRA if omitted |
 | Mode | No | `test-plan` (default) or `reproducer` |
+| Apply | No | `true` when `--apply` is present; executes steps on a live cluster after report generation |
 
 ## Implementation Steps
 
@@ -41,7 +43,12 @@ Use **reproducer mode** when the JIRA bug lacks complete reproduction steps and 
 4. Set mode:
    - `reproducer` if `--reproducer` is present or the mode is explicitly set to `reproducer` by the invoking command
    - `test-plan` otherwise
-5. For reproducer mode on non-bug issue types, warn the user and continue with best effort
+5. Detect `--apply` flag in any argument position
+6. Set apply mode:
+   - `true` if `--apply` is present
+   - `false` otherwise
+7. If apply mode is `true` and a report already exists at the expected path (see Step 8.1), ask the user whether to reuse or regenerate. If the user chooses to reuse, skip Steps 2-7 and proceed directly to Step 8
+8. For reproducer mode on non-bug issue types, warn the user and continue with best effort
 
 ### Step 2: Fetch JIRA Issue
 
@@ -183,6 +190,211 @@ Display to the user:
 - Confidence level (reproducer mode)
 - Skipped PRs and why
 - Ask if the user wants modifications
+- If `--apply` was requested, inform the user that the apply phase will begin next and proceed to Step 8
+
+### Step 8: Apply to Cluster (when `--apply` is set)
+
+This step executes the generated reproducer or test plan steps against a live OpenShift cluster. It is only run when the `--apply` flag is present.
+
+#### 8.1: Check for Existing Report
+
+Check whether a report already exists at the expected path:
+
+- **Reproducer mode**: `.work/jira/generate-test-plan/{ISSUE_KEY}/reproducer-report.md`
+- **Test plan mode**: `.work/jira/generate-test-plan/{ISSUE_KEY}/test-plan.md`
+
+If the report exists and the user has not already chosen to regenerate (see Step 1.7), ask:
+
+```
+A reproducer report for {ISSUE_KEY} already exists at:
+  .work/jira/generate-test-plan/{ISSUE_KEY}/reproducer-report.md
+
+Options:
+1. Apply the existing report as-is
+2. Regenerate the report first, then apply
+
+Which would you prefer? (1/2)
+```
+
+If the user chooses option 1, skip Steps 2-7 and proceed to 8.2.
+If the user chooses option 2, run Steps 2-7 normally, then proceed to 8.2.
+
+#### 8.2: Prerequisite Checks
+
+Verify the environment is ready for cluster interaction:
+
+1. **Check `oc` CLI is installed:**
+   ```bash
+   which oc
+   ```
+   If not found, display installation instructions and abort the apply phase:
+   ```
+   Error: 'oc' CLI is not installed.
+   Install from: https://docs.openshift.com/container-platform/latest/cli_reference/openshift_cli/getting-started-cli.html
+   ```
+
+2. **Verify cluster connectivity:**
+   ```bash
+   oc whoami
+   ```
+   If this fails, display login instructions and abort the apply phase:
+   ```
+   Error: Not logged in to an OpenShift cluster.
+   Please log in first:
+     1. Visit the cluster console in your browser
+     2. Click on your username → 'Copy login command'
+     3. Paste and execute the 'oc login' command in your terminal
+   ```
+
+3. **Display cluster context and ask for confirmation:**
+   ```bash
+   oc whoami --show-server
+   oc version
+   ```
+   ```
+   You are logged in to:
+     Server: {server-url}
+     User:   {username}
+     Version: {oc-version}
+
+   Proceed with applying the reproducer steps on this cluster? (yes/no)
+   ```
+   If the user says no, abort the apply phase.
+
+#### 8.3: Parse Steps from Report
+
+Read the generated report and extract executable steps:
+
+- **Reproducer mode**: parse the "Steps to Reproduce (Pre-Fix)" section
+- **Test plan mode**: parse the "Test Scenarios" section
+
+For each step, extract:
+- Step number and description (human-readable text)
+- Executable commands (content within ``` code blocks)
+- Expected output or behavior (from the step's expected results or the "Observed vs Expected Behavior" section)
+
+Steps that describe actions in prose without executable commands in code blocks should be flagged as "manual — no executable command found" and presented to the user for manual action.
+
+Handle multi-line commands (heredocs, inline YAML with `oc apply -f -`) as single logical commands.
+
+#### 8.4: Classify Commands
+
+Classify each extracted command as **read-only** or **write**:
+
+**Read-only commands** (safe, bulk-confirmable):
+- `oc get`, `oc describe`, `oc logs`, `oc whoami`, `oc version`, `oc status`
+- `oc explain`, `oc api-resources`, `oc api-versions`
+- `oc config view`, `oc config get-contexts`
+- `oc adm top`
+- `oc auth can-i`
+- `kubectl get`, `kubectl describe`, `kubectl logs`
+- Non-cluster shell commands: `cat`, `echo`, `grep`, `jq`, `yq`, `curl` (GET only)
+
+**Write commands** (individual confirmation required):
+- `oc apply`, `oc create`, `oc delete`, `oc patch`, `oc replace`
+- `oc label`, `oc annotate`, `oc scale`, `oc rollout`
+- `oc set`, `oc expose`, `oc run`
+- `oc exec`, `oc cp`, `oc edit`, `oc debug`
+- `oc adm` (subcommands other than `top`)
+- `kubectl apply`, `kubectl create`, `kubectl delete`, `kubectl patch`
+- Any command piped to a write command (e.g., `... | oc apply -f -`)
+- Any unrecognized `oc` subcommand (default to write for safety)
+
+#### 8.5: Present Execution Plan
+
+Display the classified execution plan:
+
+```
+=== Execution Plan for {ISSUE_KEY} ===
+Mode: {reproducer|test-plan}
+
+Read-only commands (will ask for one-time approval):
+  Step 1: oc get namespace test-namespace
+  Step 3: oc get pods -n test-namespace
+
+Write commands (will ask for individual approval before each):
+  Step 2: oc create namespace test-namespace
+  Step 4: oc apply -f - <<EOF ... EOF
+
+Manual steps (no executable command):
+  Step 5: Navigate to the web console and verify...
+
+Total: {N} steps ({R} read-only, {W} write, {M} manual)
+
+Proceed? (yes/no)
+```
+
+If the user says no, abort the apply phase.
+
+#### 8.6: Execute Steps
+
+**One-time read-only approval:**
+
+```
+The following {R} read-only commands will be executed without individual prompts:
+  - oc get namespace test-namespace
+  - oc get pods -n test-namespace
+
+Approve all read-only commands? (yes/no)
+```
+
+If the user says no, fall back to individual confirmation for every command.
+
+**Execute steps in order:**
+
+For each step:
+
+1. Display the step number and description
+2. For read-only commands (if bulk-approved): execute immediately
+3. For write commands: ask for individual confirmation:
+   ```
+   About to execute (WRITE):
+     oc apply -f - <<EOF
+     apiVersion: v1
+     kind: Namespace
+     ...
+     EOF
+
+   Execute this command? (yes/skip/abort)
+   ```
+   - **yes**: execute the command
+   - **skip**: skip this step, continue to the next
+   - **abort**: stop all execution immediately
+4. For manual steps: display the instruction and wait for the user to confirm they have completed it before continuing
+5. After executing each command, capture and display the output
+6. If the step has expected output, compare:
+   ```
+   Expected: {expected behavior from report}
+   Observed: {actual command output}
+   Match: yes/no/partial
+   ```
+
+#### 8.7: Report Results
+
+After all steps execute (or the user aborts), display a summary:
+
+```
+=== Apply Results for {ISSUE_KEY} ===
+
+Step 1: oc get namespace test-namespace ........... EXECUTED (output matched expected)
+Step 2: oc create namespace test-namespace ........ EXECUTED (success)
+Step 3: oc get pods -n test-namespace ............. EXECUTED (output diverged)
+Step 4: oc apply -f deployment.yaml ............... SKIPPED (user skipped)
+Step 5: Manual verification ....................... COMPLETED
+Step 6: oc delete namespace test-namespace ........ NOT REACHED (execution aborted)
+
+Bug Reproduction Assessment:
+- [Reproducer mode]: Based on the outputs, the bug [was reproduced / was NOT reproduced / could not be determined].
+- [Test plan mode]: {N} of {M} test scenarios executed. {P} passed, {F} diverged from expected results.
+
+Resources Created:
+- namespace/test-namespace (Step 2) — not cleaned up
+
+Recommendation:
+- {Contextual next steps based on results}
+```
+
+Save the execution log to `.work/jira/generate-test-plan/{ISSUE_KEY}/apply-log-{timestamp}.md` and display the path.
 
 ## Error Handling
 
@@ -193,6 +405,13 @@ Display to the user:
 | `gh` not authenticated | Provide `gh auth login` instructions |
 | Non-bug issue in reproducer mode | Warn; proceed with best-effort reproduction steps |
 | PR diff too large | Focus on files most relevant to the JIRA component/summary |
+| `oc` CLI not installed | Display installation instructions; abort apply phase |
+| Cluster not reachable | Display login instructions; abort apply phase |
+| User declines cluster confirmation | Abort apply phase; the report is still available |
+| Write command fails | Display error output; ask user whether to continue or abort |
+| Read-only command fails | Display error; continue to next step (non-fatal) |
+| Step output diverges from expected | Flag as divergence in results summary; do not abort |
+| Report not parseable for apply | Warn that no executable commands were found; abort apply phase |
 
 ## Examples
 
@@ -218,4 +437,23 @@ Display to the user:
 
 ```
 /jira:generate-bug-reproducer OCPBUGS-12345 https://github.com/openshift/hypershift/pull/6888
+```
+
+**Reproducer with live cluster execution:**
+
+```
+/jira:generate-bug-reproducer OCPBUGS-12345 --apply
+```
+
+**Test plan with live cluster execution:**
+
+```
+/jira:generate-test-plan CNTRLPLANE-205 --apply
+```
+
+**Reproducer with apply, reusing existing report:**
+
+```
+/jira:generate-bug-reproducer OCPBUGS-12345 --apply
+# → Agent detects existing report and offers to apply it directly
 ```
