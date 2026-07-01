@@ -1,6 +1,6 @@
 ---
 description: Generate test steps for a JIRA issue
-argument-hint: "[JIRA issue key] [GitHub PR URLs] [--reproducer]"
+argument-hint: "[JIRA issue key] [GitHub PR URLs] [--reproducer] [--apply]"
 ---
 
 ## Name
@@ -8,7 +8,7 @@ jira:generate-test-plan
 
 ## Synopsis
 ```
-/jira:generate-test-plan [JIRA issue key] [GitHub PR URLs] [--reproducer]
+/jira:generate-test-plan [JIRA issue key] [GitHub PR URLs] [--reproducer] [--apply]
 ```
 
 ## Description
@@ -16,6 +16,8 @@ jira:generate-test-plan
 The `jira:generate-test-plan` command takes a JIRA issue key and optionally a list of PR URLs. It fetches the JIRA issue details, retrieves all related PRs (or uses the provided PR list), analyzes the changes, and generates a comprehensive manual testing guide.
 
 Pass `--reproducer` to generate a bug reproducer report instead of a full test plan. For reproducer-focused workflows, `/jira:generate-bug-reproducer` is an equivalent alias.
+
+Pass `--apply` to execute the generated steps against a live OpenShift cluster. In reproducer mode, the "Steps to Reproduce (Pre-Fix)" are executed to recreate the bug. In test-plan mode, the test scenarios are executed. The agent verifies cluster connectivity, classifies each command as read-only or write, and uses a hybrid confirmation model before execution.
 
 **JIRA Issue Test Guide Generator**
 
@@ -25,7 +27,8 @@ Invoke the **Generate Test Plan** skill (`plugins/jira/skills/generate-test-plan
 
 - **Mode**: `test-plan` (default) or `reproducer` when `--reproducer` is present
 - **JIRA issue key**: `$1`
-- **PR URLs**: remaining arguments except `--reproducer`
+- **PR URLs**: remaining arguments except `--reproducer` and `--apply`
+- **Apply mode**: `true` when `--apply` is present, `false` otherwise
 
 The skill handles JIRA fetching, PR discovery, change analysis, report generation, and output presentation. See the skill for full implementation details including report templates, PR filtering, and error handling.
 
@@ -56,12 +59,23 @@ The skill handles JIRA fetching, PR discovery, change analysis, report generatio
    /jira:generate-bug-reproducer OCPBUGS-12345 https://github.com/openshift/hypershift/pull/6888
    ```
 
+5. **Generate reproducer and apply to cluster**:
+   ```
+   /jira:generate-test-plan OCPBUGS-12345 --reproducer --apply
+   ```
+
+6. **Generate test plan and apply scenarios to cluster**:
+   ```
+   /jira:generate-test-plan CNTRLPLANE-205 --apply
+   ```
+
 ## Arguments
 
 - **$1**: JIRA issue key (required) — e.g., `CNTRLPLANE-205`, `OCPBUGS-12345`
 - **$2, $3, ..., $N**: Optional GitHub PR URLs or `--reproducer` flag
   - PR URLs: if provided, only these PRs are analyzed; if omitted, PRs linked to the JIRA are discovered automatically
   - `--reproducer`: switch to reproducer mode (same as `/jira:generate-bug-reproducer`)
+  - `--apply`: execute the generated steps against a live OpenShift cluster (requires `oc` CLI and active cluster connectivity; uses hybrid confirmation model)
 
 ## Smart Features
 
@@ -72,3 +86,4 @@ The skill handles JIRA fetching, PR discovery, change analysis, report generatio
 5. **Multi-PR Integration** — integrated scenarios when multiple PRs fix one issue
 6. **Build/Deploy Exclusion** — assumes environment is already set up
 7. **Cleanup Exclusion** — focuses on test execution and verification
+8. **Live Cluster Execution** — `--apply` runs the generated steps against a real cluster with safety guardrails
