@@ -340,6 +340,20 @@
       ]
     },
     {
+      "name": "node-rpm",
+      "source": "./plugins/node-rpm",
+      "description": "RPM package management for OpenShift Node team components",
+      "version": "0.0.1",
+      "category": "openshift",
+      "keywords": [
+        "openshift",
+        "node",
+        "rpm",
+        "bump",
+        "cri-tools"
+      ]
+    },
+    {
       "name": "bigquery",
       "source": "./plugins/bigquery",
       "description": "BigQuery analysis utilities",
