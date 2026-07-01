@@ -3,15 +3,17 @@ description: "Comprehensive NetworkPolicy health check for security, performance
 argument-hint: "[namespace|--cluster-wide] [--mode=security|performance|compliance]"
 ---
 
-# NetworkPolicy Analyze Command
+## Name
+network-policy-audit:analyze
+
+## Synopsis
+```
+/network-policy-audit:analyze [namespace|--cluster-wide] [--mode=security|performance|compliance]
+```
+
+## Description
 
 Performs comprehensive analysis of NetworkPolicy objects to detect security vulnerabilities, performance issues, and compliance violations.
-
-## Usage
-
-```bash
-/network-policy-audit:analyze [namespace|--cluster-wide] [--mode=MODE]
-```
 
 ## Arguments
 
