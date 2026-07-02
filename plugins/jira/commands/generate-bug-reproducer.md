@@ -1,6 +1,6 @@
 ---
 description: Generate bug reproduction steps from a JIRA issue and fix PR analysis
-argument-hint: [JIRA issue key] [GitHub PR URLs] [--apply]
+argument-hint: "[JIRA issue key] [GitHub PR URLs] [--apply]"
 ---
 
 ## Name
