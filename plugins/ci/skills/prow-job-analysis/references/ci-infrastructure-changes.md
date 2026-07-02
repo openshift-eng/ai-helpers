@@ -322,13 +322,12 @@ steps. Template-based jobs are being migrated to the step registry.
 
 ### Leases and Resource Management
 
-**Boskos** (legacy) allocated cloud accounts and quota leases to CI jobs, tracking available
-resources to prevent over-allocation.
+Two systems lease scarce infrastructure to CI jobs; both emit `failed to acquire lease...`
+in the top-level `build-log.txt`, and both are CI infrastructure problems — never product bugs:
 
-**OFCIR** (OpenShift Fleet Cloud Infrastructure Resource, newer) manages cloud account
-allocation, per-provider quota tracking, and resource lifecycle (acquire → use → release).
-
-Lease-related failures appear in the top-level `build-log.txt`:
+- **Boskos** brokers cloud-account / quota "slices" for cloud jobs (aws/gcp/azure).
+- **OFCIR** (OpenShift Fleeting CI Resources) leases pre-provisioned hosts for bare-metal and
+  Equinix (`metal`/`packet`) jobs.
 
 ```text
 failed to acquire lease: context deadline exceeded
@@ -339,11 +338,12 @@ failed to acquire lease for cloud quota slice "aws-quota-slice": all resources a
 ```
 
 **Common lease failure patterns**:
-- `context deadline exceeded` — No lease became available within the timeout
-- `all resources are in use` — All available cloud accounts are occupied
-- `failed to release lease` — Cleanup failure (does not affect test results)
+- `context deadline exceeded` — no lease became available within the timeout
+- `all resources are in use` — every account/slice for that platform is occupied
+- `failed to release lease` — cleanup failure (does not affect test results)
 
-Lease failures are always CI infrastructure issues, never product bugs.
+For the per-system CRDs and checks (Boskos slices, OFCIR `cip`/`cir`, Hive `ClusterClaim`), see
+[Cloud Provider Errors](cloud-provider-errors.md#1-ci-resource-acquisition-job-never-provisions).
 
 ---
 

@@ -189,16 +189,19 @@ gcloud storage ls -r "gs://test-platform-results/{bucket-path}/artifacts/" 2>&1 
 
 ### Log Bundle
 
-`log-bundle-*.tar` contains node-level diagnostics collected during or after the install attempt:
+`log-bundle-*.tar.gz` contains node-level diagnostics collected during or after the install
+attempt. For cloud IPI jobs the installer collects it (via the `gather-bootstrap` step); search
+recursively:
 
 ```bash
 # Find log bundles (prefer non-deprovision)
 gcloud storage ls -r "gs://test-platform-results/{bucket-path}/artifacts/" 2>&1 \
-  | grep -E "log-bundle.*\.tar$"
+  | grep -E "log-bundle.*\.tar(\.gz)?$"
 ```
 
-Log bundles are `.tar` (NOT `.tar.gz`). Prefer non-deprovision bundles — they capture the
-failure state during installation.
+Log bundles are gzipped tarballs (`log-bundle-*.tar.gz`); some jobs emit an uncompressed `.tar`.
+`tar -xf` handles either. Prefer non-deprovision bundles — they capture the failure state during
+installation.
 
 ### Log Bundle Structure
 
@@ -652,30 +655,20 @@ for `configuration` or early `infrastructure` failures.
 
 ```bash
 # Download (prefer non-deprovision bundles)
-gcloud storage cp {gcs-path-to-log-bundle.tar} \
+gcloud storage cp {gcs-path-to-log-bundle} \
   .work/prow-job-analysis/{build_id}/logs/ --no-user-output-enabled
 
-# Extract
-tar -xf .work/prow-job-analysis/{build_id}/logs/log-bundle-{timestamp}.tar \
+# Extract (tar -xf auto-detects .tar and .tar.gz)
+tar -xf .work/prow-job-analysis/{build_id}/logs/log-bundle-*.tar* \
   -C .work/prow-job-analysis/{build_id}/logs/
 ```
 
 ### Analysis by Failure Mode
 
-Full per-mode procedures are in [§ Stage-Specific Analysis](#stage-specific-analysis). Log-bundle
-highlights:
-
-- **`cluster bootstrap`** (most complex): read `bootkube.log` thoroughly and build a timeline;
-  cross-reference `etcd.log`, `kube-apiserver.log`, `kubelet.log`; check serial console logs for
-  kernel panics / ignition failures; check `failed-units.txt`.
-- **`infrastructure`**: focus on installer log (failure precedes bootstrap); log bundle may be
-  absent/incomplete. Search for cloud API errors, quota, rate limiting.
-- **`cluster creation`**: check for `must-gather*.tar`; if present, analyze operator logs, pod
-  status, events; otherwise rely on installer log and log bundle. Find degraded operators.
-- **`configuration`**: installer log only — look for install-config.yaml validation errors; no log bundle.
-- **`cluster operator stability`**: like cluster creation; focus on unstable conditions
-  (`available=False`, `progressing=True`, `degraded=True`) and operators flipping states.
-- **`other`**: comprehensive pass over all available logs for errors, timeouts, novel modes.
+Per-mode procedures live in [§ Stage-Specific Analysis](#stage-specific-analysis). The one
+log-bundle-specific step: for **`cluster bootstrap`**, read `bootkube.log` and build a timeline,
+cross-reference `etcd.log` / `kube-apiserver.log` / `kubelet.log`, check serial consoles for
+kernel panics / Ignition failures, and check `failed-units.txt`.
 
 ---
 

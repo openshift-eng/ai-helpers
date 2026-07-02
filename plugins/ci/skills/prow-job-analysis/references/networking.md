@@ -7,7 +7,7 @@ balancer/ingress, and network policy. For adjacent layers see:
 - Metal hypervisor mirror registry, squid, dnsmasq, SLAAC/DHCPv6 → [install/metal.md](install/metal.md)
 - Network failures *during install* → [install/general.md](install/general.md)
 - Disruption (OVS-stall fan-out, backend classification) → [disruption.md](disruption.md)
-- Cloud LB/API errors → [cloud-provider-errors.md](cloud-provider-errors.md)
+- Cloud API / quota / LB-provisioning quota → [cloud-provider-errors.md](cloud-provider-errors.md)
 - Full artifact tree → [artifacts.md](artifacts.md)
 
 ## Fast Triage
@@ -165,10 +165,6 @@ operator lives in `openshift-dns-operator`.
   lookup SERVFAILs, which cascades into operator degradation, image pulls (`no such host`), and
   broad test failures that look unrelated. Confirm by checking CoreDNS logs for upstream errors and
   whether in-cluster (`.svc.cluster.local`) names still resolve while external ones fail.
-- **Hairpinning** — a pod resolving/reaching **its own** Service ClusterIP. Symptom: a pod can reach
-  other services but not its own (self-connection times out) while others reach it fine. OVN handles
-  hairpin via masquerade; failures point to CNI/masquerade config, not CoreDNS. Test-only if the
-  workload self-connects.
 - **Disconnected/IPv6** — verify the private/mirror resolver is configured and (IPv6) that AAAA
   records exist. See [install/metal.md](install/metal.md) for dnsmasq specifics.
 
@@ -214,7 +210,8 @@ OVS is the dataplane; a stall freezes **all** traffic on that node.
 - Timeline source `OVSVswitchdLog`: `Unreasonably long NNNNms poll interval`
 - `>500ms` = degraded; `>1000ms` = effectively frozen (no packets forwarded)
 - **Root cause is usually CPU starvation** — OVS shares CPU with other processes. Correlate with
-  `CPUMonitor` (>95%) and disk I/O. See [resource-exhaustion.md](resource-exhaustion.md).
+  `CPUMonitor` (>95%) and disk I/O ([resource-exhaustion.md](resource-exhaustion.md)); the
+  stall's disruption fan-out is classified in [disruption.md](disruption.md).
 
 ```json
 { "source": "OVSVswitchdLog", "message": { "humanMessage": "Unreasonably long 9000ms poll interval" } }
@@ -238,6 +235,9 @@ Pod-to-pod and pod-to-Service reachability.
   not the app. Check `ovnkube-node` logs for load-balancer/service programming errors.
 - **Cross-node pod-to-pod fails, same-node works** — overlay/geneve tunnel or OVS problem on one
   node (see OVS stall) or an MTU mismatch on the overlay.
+- **Hairpinning (pod reaching its own Service)** — a pod can reach other services but not its own
+  ClusterIP (self-connection times out) while others reach it fine. OVN handles hairpin via
+  masquerade; failures point to CNI/masquerade config. Test-only if the workload self-connects.
 
 ---
 

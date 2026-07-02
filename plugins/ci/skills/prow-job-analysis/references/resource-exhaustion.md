@@ -72,7 +72,7 @@ Paths are relative to `artifacts/{target}/` (cluster under test). Full form:
 | Artifact | Path | Use for |
 |----------|------|---------|
 | Node conditions/capacity | `gather-extra/artifacts/oc_cmds/nodes` | `MemoryPressure`/`DiskPressure`/`PIDPressure`, allocatable |
-| Cluster events | `gather-extra/artifacts/oc_cmds/events` | `Evicted`, `OOMKilling`, `FailedScheduling`, `ProvisioningFailed` |
+| Cluster events | `gather-extra/artifacts/oc_cmds/events` | `Evicted`, `SystemOOM`, `FailedScheduling`, `ProvisioningFailed` |
 | Pod snapshot | `gather-extra/artifacts/oc_cmds/pods` | `RESTARTS`, `Pending`, `Evicted`, `OOMKilled` status |
 | PV/PVC | `gather-extra/artifacts/oc_cmds/pv` | Bound vs available volumes |
 | Node journals | `gather-extra/artifacts/journal_logs/` | Kernel OOM (`Out of memory`), kubelet eviction |
@@ -122,8 +122,8 @@ restartCount: 5          # repeated OOM → CrashLoopBackOff
 ```
 
 `state.running` with a high `restartCount` and `lastState.terminated.reason: OOMKilled`
-means it is OOM-looping now. `gather-extra/oc_cmds/pods` shows `RESTARTS` counts to spot
-the pod first; the YAML confirms the reason.
+means it is OOM-looping now. `gather-extra/artifacts/oc_cmds/pods` shows `RESTARTS` counts to
+spot the pod first; the YAML confirms the reason.
 
 ### Container-limit OOM vs node-level OOM
 

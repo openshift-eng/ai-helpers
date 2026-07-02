@@ -96,7 +96,8 @@ level=error                        # ci-operator errors
 "Run multi-stage test pre phase"   # Phase execution
 ```
 
-**Size**: Typically 10KB–500KB. Use `--max-bytes` when fetching via the artifact search script.
+**Size**: Typically 10KB–500KB — near the artifact-search script's 512KB default, so pass
+`--max-bytes` if the log comes back truncated.
 
 ### `prowjob.json` — Job Metadata
 
@@ -653,9 +654,9 @@ Produced by the OpenShift installer during cluster creation.
 ### Installer Logs
 
 ```bash
-# Find installer logs (exclude deprovision — those are from teardown)
+# Find installer logs and state file (exclude deprovision — those are from teardown)
 gcloud storage ls -r "gs://test-platform-results/{bucket-path}/artifacts/" 2>&1 \
-  | grep -E "\.openshift_install.*\.log$" | grep -v "deprovision"
+  | grep -E "\.openshift_install(_state\.json|.*\.log)$" | grep -v "deprovision"
 ```
 
 **Location**: Varies by job configuration. Commonly found at:
@@ -685,15 +686,16 @@ usually resolve. Always analyze backwards from the final timeout, not forwards f
 
 ### `install-status.txt`
 
-The installer's exit code (a single number). `junit_install.xml` translates this into a
+Alongside the installer log at `artifacts/{target}/{install-step}/artifacts/install-status.txt` —
+the installer's exit code (a single number). `junit_install.xml` translates this into a
 human-readable failure mode — prefer it.
 
-### Installer Log Bundle (`log-bundle-*.tar`)
+### Installer Log Bundle (`log-bundle-*.tar.gz`)
 
 ```bash
-# Find log bundles
+# Find log bundles (metal bundles are gzipped; some cloud bundles are uncompressed .tar)
 gcloud storage ls -r "gs://test-platform-results/{bucket-path}/artifacts/" 2>&1 \
-  | grep -E "log-bundle.*\.tar$"
+  | grep -E "log-bundle.*\.tar(\.gz)?$"
 ```
 
 A tar archive (NOT `.tar.gz`) of detailed node-level diagnostics. Prefer non-deprovision

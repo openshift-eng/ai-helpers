@@ -47,6 +47,12 @@ Parse the job name for upgrade type and environment:
 **Major upgrades** (e.g., 3.x → 4.x):
 - Not tested in current CI. If encountered, treat as a special case and investigate manually.
 
+**EUS-to-EUS upgrades** (e.g., 4.14 → 4.16 via 4.15): the worker MachineConfigPool is
+deliberately **paused** (`oc patch mcp/worker --type merge -p '{"spec":{"paused":true}}'`) while
+the control plane makes two minor hops, then unpaused once so workers drain/reboot a single time.
+A worker MCP stuck `Paused=True` mid-EUS is **expected** — confirm the job is EUS before
+diagnosing it as a drain stall.
+
 ### Single-Node (SNO) Upgrade Jobs
 
 Jobs with `single-node` or `sno` in the name:
@@ -242,7 +248,7 @@ To update a node's configuration, the MCO follows this sequence:
 
 ```text
 1. Cordon node (SchedulingDisabled)
-2. Start drain with timeout (default: 90 minutes in CI)
+2. Start draining the node (MCD retries eviction until it succeeds or the node update fails)
    - For each pod on the node:
      a. Check if pod is managed by a controller (DaemonSet pods are skipped)
      b. Check PodDisruptionBudget — if eviction would violate PDB, wait and retry
@@ -310,7 +316,7 @@ MCO drain timeout on node X
     → CVO sees MCP not progressing
       → ClusterVersion stays Progressing=True, eventually Failing=True
         → machine-config operator reports Degraded=True
-          → Other operators that depend on MCO health become concerned
+          → Operators gated on node/MCP health report Degraded
             → kube-apiserver may restart due to revision changes
               → API disruption during restart
                 → Tests see API errors → mass test failures
@@ -625,23 +631,29 @@ If the upgrade stalls, you can end up with persistent skew where:
 
 **Detecting skew from must-gather**:
 
-1. Check ClusterOperator versions:
+Files under `must-gather/cluster-scoped-resources/` are YAML — parse them with `yq` (or
+`yq -o=json … | jq`), never `jq` directly. The plain-text `gather-extra/artifacts/oc_cmds/`
+dumps are often faster for a version scan.
+
+1. ClusterOperator versions (spot a CO lagging the rest):
    ```bash
-   # Each CO lists its version — look for mismatches
-   jq '.items[] | {name: .metadata.name, versions: .status.versions}' \
+   cat gather-extra/artifacts/oc_cmds/co       # VERSION column, plain text
+   # From must-gather YAML instead:
+   yq '.items[] | {name: .metadata.name, versions: .status.versions}' \
      must-gather/cluster-scoped-resources/config.openshift.io/clusteroperators.yaml
    ```
 
-2. Check node kubelet versions:
+2. Node kubelet versions (mixed versions = workers mid-rollout):
    ```bash
-   # Nodes list shows kubelet version per node
-   cat must-gather/cluster-scoped-resources/core/nodes.yaml | \
-     grep -A1 "kubeletVersion"
+   cat gather-extra/artifacts/oc_cmds/nodes    # `oc get nodes -o wide`; VERSION = kubelet
+   # From must-gather YAML instead:
+   yq '.items[] | [.metadata.name, .status.nodeInfo.kubeletVersion] | @tsv' \
+     must-gather/cluster-scoped-resources/core/nodes.yaml
    ```
 
-3. Check MachineConfigPool rendered config:
+3. MachineConfigPool rendered config (compare `.spec.configuration.name` vs
+   `.status.configuration.name` — a mismatch means the pool has not finished updating):
    ```bash
-   # Each node has a current and desired config — mismatch = not updated
    cat must-gather/cluster-scoped-resources/machineconfiguration.openshift.io/machineconfigpools/worker.yaml
    ```
 
@@ -689,8 +701,9 @@ I ... msg="initiating drain of node ..."
 # PDB blocking
 W ... msg="eviction request failed" error="Cannot evict pod ... it would violate the pod's disruption budget"
 
-# Drain timeout
-E ... msg="drain exceeded timeout" node="..." timeout="5400s"
+# Drain not completing: MCD retries eviction (~1h) then fails the node update; the
+# MCDDrainError alert fires (see disruption.md)
+E ... msg="error when evicting pods ... (will retry after 5s)"
 
 # Config apply
 I ... msg="applying machine config ..."
@@ -843,7 +856,7 @@ The most common upgrade failure. See the dedicated
 
 **Quick identification**:
 - MachineConfigPool shows `UPDATING=True DEGRADED=True`
-- MCD logs contain `drain exceeded timeout` or `eviction request failed`
+- MCD logs show repeated `error when evicting pods ... (will retry after 5s)` and the `MCDDrainError` alert fires
 - Build log shows `timeout waiting for MachineConfigPool`
 
 ### 3. Operator Incompatibility with New Version
@@ -1175,9 +1188,9 @@ Include:
 "Cannot evict pod ... it would violate the pod's disruption budget"
 "eviction request failed ... pod disruption budget"
 
-# Drain timeout
-"drain exceeded timeout ... for node ..."
-"failed to drain node ...: timed out"
+# Drain not completing (MCD retries eviction until the node update fails)
+"error when evicting pods"
+"will retry after"
 
 # Config apply
 "applying machine config ... to node ..."

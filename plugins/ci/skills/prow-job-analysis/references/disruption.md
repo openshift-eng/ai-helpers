@@ -163,13 +163,12 @@ record represents an observed event over a time interval:
     "type": "Disruption",
     "keys": {
       "backend-disruption-name": "kube-api-new-connections",
-      "connection": "new",
-      "disruption": "host-to-host-from-node-ci-op-xxx-worker-westus-db64f-to-node-ci-op-xxx-master-0-endpoint-10.0.0.5"
+      "connection": "new"
     }
   },
   "message": {
     "reason": "DisruptionBegan",
-    "humanMessage": "kube-apiserver-new-connection-10.0.0.5 stopped responding to GET requests over new connections",
+    "humanMessage": "kube-api-new-connections stopped responding to GET requests over new connections",
     "annotations": {
       "reason": "DisruptionBegan"
     }
@@ -178,6 +177,10 @@ record represents an observed event over a time interval:
   "to": "2026-03-21T21:50:26Z"
 }
 ```
+
+Host-to-host backends additionally carry a `disruption` locator key encoding the source node,
+target node, and endpoint (see the Field Reference below). Plain API backends like the example
+above do not — don't mix the two when writing jq filters.
 
 ### Field Reference
 

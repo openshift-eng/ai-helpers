@@ -69,7 +69,7 @@ for the lease lifecycle and how to correlate with `openshift/release` changes.
 
 ### OFCIR — bare-metal / Equinix host pools
 
-OFCIR (`ofcir.openshift`) provisions physical hosts for `metal`/`packet`
+OFCIR (OpenShift Fleeting CI Resources) provisions physical hosts for `metal`/`packet`
 (Equinix) jobs. Two CRDs, inspected on the OFCIR management cluster:
 
 | CRD (short) | Key fields | Check |
@@ -88,6 +88,10 @@ provisioning, or all `inuse`), or the `cip` `.status.size` is below `.spec.size`
 `maintenance`, `error`. A pool full of `error`/`maintenance` CIRs = provider-side
 hardware/capacity problem, not a product bug. `.status.size < .spec.size` points
 at the underlying `provider` (e.g. Equinix) failing to allocate.
+
+`oc get cip/cir` needs access to the OFCIR management cluster. From job artifacts alone, read
+`artifacts/{target}/ofcir-acquire/build-log.txt` and `junit_metal_setup.xml` — see
+[install/metal.md](install/metal.md#ofcir-openshift-fleeting-ci-resources).
 
 ### Hive — ClusterPool / ClusterClaim
 

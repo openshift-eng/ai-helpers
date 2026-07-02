@@ -63,6 +63,8 @@ Parse the job name to determine the environment and expected failure modes:
 ### Step 4: Download Key Artifacts
 
 ```bash
+mkdir -p .work/prow-job-analysis/{build_id}/logs
+
 # Build log (always)
 gcloud storage cp gs://test-platform-results/{bucket-path}/build-log.txt \
   .work/prow-job-analysis/{build_id}/logs/ --no-user-output-enabled

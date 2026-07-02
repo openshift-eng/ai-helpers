@@ -67,17 +67,17 @@ Every extension binary must support these subcommands:
 Returns a JSON object describing the extension:
 ```json
 {
-  "component": {
-    "product": "openshift",
-    "kind": "payload",
-    "name": "cluster-etcd-operator"
-  },
-  "apiVersion": "v1",
+  "apiVersion": "v1.1",
   "source": {
     "commit": "abc123...",
-    "gitTreeState": "clean",
-    "buildDate": "2026-01-15T10:30:00Z",
-    "sourceURL": "https://github.com/openshift/cluster-etcd-operator"
+    "build_date": "2026-01-15T10:30:00Z",
+    "git_tree_state": "clean",
+    "source_url": "https://github.com/openshift/cluster-etcd-operator"
+  },
+  "component": {
+    "product": "openshift",
+    "type": "payload",
+    "name": "cluster-etcd-operator"
   }
 }
 ```
@@ -109,9 +109,12 @@ Returns one JSON object per line (JSONL format), each describing a test:
 
 Returns JSONL results at the **end** of stdout:
 ```jsonl
-{"name":"[sig-etcd] etcd should start successfully","status":"pass","duration":"12.5s","output":"..."}
-{"name":"[sig-etcd] etcd leader election","status":"fail","duration":"45.2s","output":"Error: ..."}
+{"name":"[sig-etcd] etcd should start successfully","lifecycle":"blocking","result":"passed","duration":12500000000,"output":"..."}
+{"name":"[sig-etcd] etcd leader election","lifecycle":"blocking","result":"failed","duration":45200000000,"error":"Error: ...","output":"..."}
 ```
+
+`result` is one of `passed`/`failed`/`skipped`; `duration` is an int64 in **nanoseconds**
+(12.5s = `12500000000`), not a string.
 
 - Results are parsed **backwards** from end of output to avoid stray JSON from logs
 - Exit code is ignored (non-zero is expected when tests fail)
@@ -446,7 +449,7 @@ test failure**:
 level=info msg="Fetching info for cluster-etcd-operator-tests-ext.gz"
 level=info msg="Fetched info for cluster-etcd-operator-tests-ext.gz in 2.1s"
 level=info msg="Listing tests" binary=cluster-etcd-operator-tests-ext.gz
-level=info msg="OTE API version is: v1" binary=cluster-etcd-operator-tests-ext.gz
+level=info msg="OTE API version is: v1.1" binary=cluster-etcd-operator-tests-ext.gz
 level=info msg="Listed 42 tests in 3.5s" binary=cluster-etcd-operator-tests-ext.gz
 ```
 
@@ -576,47 +579,32 @@ Determine whether the failure is:
 
 ---
 
-## Known Extension Binary Implementations
+## Extension Binary Naming — Pattern and Exceptions
 
-Extension binaries registered in `openshift/origin` as of OCP 4.19+ (some tags appear twice
-because one image can contain multiple binaries):
+Most binaries follow **`<image-tag>` → `/usr/bin/<component>-tests-ext.gz`**. Don't rely on a
+memorized list — the registry (`extensionBinaries` in `pkg/test/extensions/binary.go`, see
+[The Extension Binary Registry](#the-extension-binary-registry) above) grows as components are
+added. Read the current list straight from origin:
 
-| Image Tag | Binary Path | Component |
+```bash
+curl -s https://raw.githubusercontent.com/openshift/origin/master/pkg/test/extensions/binary.go \
+  | grep -oE '(imageTag|binaryPath): "[^"]*"'
+```
+
+**Watch for these naming exceptions** — they break the `-tests-ext.gz` convention, so a
+pattern-based guess of the binary path will be wrong:
+
+| Image Tag | Binary Path | Deviation |
 |-----------|-------------|-----------|
-| `tests` | (self — `openshift-tests`) | Origin / TRT |
-| `aws-machine-controllers` | `/machine-api-provider-aws-tests-ext.gz` | Machine API (AWS) |
-| `cli` | `/usr/bin/oc-tests-ext.gz` | OpenShift CLI |
-| `cloud-credential-operator` | `/usr/bin/cloud-credential-tests-ext.gz` | Cloud Credential Operator |
-| `cluster-authentication-operator` | `/usr/bin/cluster-authentication-operator-tests-ext.gz` | Authentication |
-| `cluster-capi-operator` | `/usr/bin/cluster-capi-operator-tests-ext.gz` | Cluster API |
-| `cluster-cloud-controller-manager-operator` | `/usr/bin/cloud-controller-manager-aws-tests-ext.gz` | Cloud Controller Manager (AWS) |
-| `cluster-cloud-controller-manager-operator` | `/usr/bin/cloud-controller-manager-operator-tests-ext.gz` | Cloud Controller Manager |
-| `cluster-config-operator` | `/usr/bin/cluster-config-operator-tests-ext.gz` | Cluster Config |
-| `cluster-control-plane-machine-set-operator` | `/cluster-control-plane-machine-set-operator-ext.gz` | Control Plane Machine Set |
-| `cluster-etcd-operator` | `/usr/bin/cluster-etcd-operator-tests-ext.gz` | etcd |
-| `cluster-image-registry-operator` | `/usr/bin/cluster-image-registry-operator-tests-ext.gz` | Image Registry |
-| `cluster-ingress-operator` | `/usr/bin/cluster-ingress-operator-tests-ext.gz` | Ingress |
-| `cluster-kube-apiserver-operator` | `/usr/bin/cluster-kube-apiserver-operator-tests-ext.gz` | Kube API Server |
-| `cluster-kube-controller-manager-operator` | `/usr/bin/cluster-kube-controller-manager-operator-tests-ext.gz` | Kube Controller Manager |
-| `cluster-kube-scheduler-operator` | `/usr/bin/cluster-kube-scheduler-operator-tests-ext.gz` | Kube Scheduler |
-| `cluster-kube-storage-version-migrator-operator` | `/usr/bin/cluster-kube-storage-version-migrator-operator-tests-ext.gz` | Storage Version Migrator |
-| `cluster-monitoring-operator` | `/usr/bin/cluster-monitoring-operator-tests-ext.gz` | Monitoring |
-| `cluster-node-tuning-operator` | `/usr/bin/cluster-node-tuning-operator-test-ext.gz` | Node Tuning |
-| `cluster-openshift-apiserver-operator` | `/usr/bin/cluster-openshift-apiserver-operator-tests-ext.gz` | OpenShift API Server Operator |
-| `cluster-openshift-controller-manager-operator` | `/usr/bin/cluster-openshift-controller-manager-operator-tests-ext.gz` | OpenShift Controller Manager Operator |
-| `cluster-storage-operator` | `/usr/bin/cluster-storage-operator-tests-ext.gz` | Storage Operator |
-| `cluster-version-operator` | `/usr/bin/cluster-version-operator-tests.gz` | CVO |
-| `hyperkube` | `/usr/bin/k8s-tests-ext.gz` | Kubernetes (upstream) |
-| `machine-api-operator` | `/machine-api-tests-ext.gz` | Machine API |
-| `machine-config-operator` | `/usr/bin/machine-config-tests-ext.gz` | Machine Config |
-| `oauth-apiserver` | `/usr/bin/oauth-apiserver-tests-ext.gz` | OAuth API Server |
-| `olm-operator-controller` | `/usr/bin/olmv1-tests-ext.gz` | OLM v1 |
-| `openshift-apiserver` | `/usr/bin/openshift-apiserver-tests-ext.gz` | OpenShift API Server |
-| `openshift-controller-manager` | `/usr/bin/openshift-controller-manager-tests-ext.gz` | OpenShift Controller Manager |
-| `operator-lifecycle-manager` | `/usr/bin/olmv0-tests-ext.gz` | OLM v0 |
-| `ovn-kubernetes` | `/usr/bin/ovn-kubernetes-tests-ext.gz` | OVN-Kubernetes Networking |
-| `service-ca-operator` | `/usr/bin/service-ca-operator-tests-ext.gz` | Service CA |
-| `vsphere-csi-driver-operator` | `/usr/bin/vmware-vsphere-csi-driver-operator-tests-ext.gz` | vSphere CSI Driver |
+| `cluster-node-tuning-operator` | `/usr/bin/cluster-node-tuning-operator-test-ext.gz` | `-test-ext` (singular) |
+| `cluster-control-plane-machine-set-operator` | `/cluster-control-plane-machine-set-operator-ext.gz` | `-ext.gz`, no `/usr/bin` |
+| `cluster-version-operator` | `/usr/bin/cluster-version-operator-tests.gz` | `-tests.gz`, no `-ext` |
+| `machine-api-operator` | `/machine-api-tests-ext.gz` | no `/usr/bin` prefix |
+| `aws-machine-controllers` | `/machine-api-provider-aws-tests-ext.gz` | binary name ≠ image tag |
+| `hyperkube` | `/usr/bin/k8s-tests-ext.gz` | upstream Kubernetes |
+
+An image can ship **two** binaries (e.g. `cluster-cloud-controller-manager-operator` has both
+a generic and an AWS binary) — expect a tag to appear more than once in the registry.
 
 ---
 

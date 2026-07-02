@@ -52,9 +52,6 @@ The three patterns, and which cluster each half maps to:
 | **Dual** | `gather-must-gather/…/must-gather.tar` **and** `**/artifacts/hypershift-dump.tar` (or `**/hostedcluster.tar`) | standard must-gather | the `hostedcluster-*` dir inside the dump (may be absent) |
 | **Standard only** | `gather-must-gather/…/must-gather.tar` alone | standard must-gather | none — management only |
 
-Presence of a `hostedcluster-*` directory inside the archive is what confirms hosted data
-exists; without it you have management-only data even in "unified"/"dual" jobs.
-
 ### Finding the hosted cluster namespace from artifacts
 
 The hosted namespace name (`clusters-<name>`) is rarely printed directly — derive it:
@@ -145,7 +142,8 @@ never provisioned — check the CAPI provider pods (`capi-provider`, `cluster-ap
   surfaces here as hosted API latency. Cross-ref [resource-exhaustion.md](resource-exhaustion.md).
 - **Ingress / connectivity** — `konnectivity-server` (mgmt) ↔ `konnectivity-agent` (hosted) tunnel
   the control plane to guest workers; `router` pods serve `*.apps.<hosted>`. `failed to dial`,
-  tunnel drops, or router not ready → hosted routes/webhooks unreachable. See [networking.md](networking.md).
+  tunnel drops, or router not ready → hosted routes/webhooks unreachable. (Konnectivity is
+  HCP-specific — debug it here; router/ingress mechanics: [networking.md](networking.md#load-balancer-and-ingress).)
 - **Kubelet connectivity** — hosted kubelets reach the hosted apiserver via its exposed endpoint
   (LB/route/NodePort). `context deadline exceeded` / `the server is currently unable to handle the
   request` from kubelets → apiserver pod down or endpoint mis-provisioned (check `InfrastructureReady`,
@@ -170,7 +168,8 @@ never provisioned — check the CAPI provider pods (`capi-provider`, `cluster-ap
 - [Test Extension Binaries](test-extension-binaries.md) — component `*-tests-ext` (OTE) binary failures
 - [Upgrade](upgrade.md) — HyperShift management-plane vs hosted-cluster upgrades, dual ClusterVersion
 - [Aggregated Jobs](aggregated.md) — HyperShift conformance/aggregated child-run analysis
-- [Resource Exhaustion](resource-exhaustion.md) — management node pressure cascading to HCPs
-- [Networking](networking.md) — OVN/DNS/ingress/konnectivity within either cluster
+- [Resource Exhaustion](resource-exhaustion.md) — node CPU/memory/disk pressure and eviction
+  mechanics (the mgmt→HCP cascade is described above)
+- [Networking](networking.md) — OVN/DNS/ingress/registry within either cluster
 - [Cloud Provider Errors](cloud-provider-errors.md) — NodePool/infrastructure provisioning failures
 - [must-gather-analyzer](../../../../must-gather/skills/must-gather-analyzer/SKILL.md) — per-cluster diagnostic scripts

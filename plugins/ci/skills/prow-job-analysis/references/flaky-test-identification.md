@@ -60,10 +60,10 @@ reason routes you **out** of this reference — the environment failed, not the 
 
 | Reason | Phase | Meaning | Deep dive |
 |--------|-------|---------|-----------|
-| `importing_release` | release setup | Base release payload could not be imported (tag missing, registry slow) | [ci-infrastructure-changes.md](ci-infrastructure-changes.md), [networking.md](networking.md) |
+| `importing_release` | release setup | Base release payload could not be imported (tag missing, registry slow) | [ci-infrastructure-changes.md](ci-infrastructure-changes.md) |
 | `creating_release_images` | release setup | Release payload assembly failed | [ci-infrastructure-changes.md](ci-infrastructure-changes.md) |
 | `pod_pending` | scheduling | Step pod never scheduled (build-cluster capacity) | [ci-infrastructure-changes.md](ci-infrastructure-changes.md), [resource-exhaustion.md](resource-exhaustion.md) |
-| `acquiring_cluster_claim` | cluster claim | Hive `ClusterClaim` never became ready | [cloud-provider-errors.md](cloud-provider-errors.md) |
+| `acquiring_cluster_claim` / `utilizing_cluster_claim` | cluster claim | Hive `ClusterClaim` never became ready | [cloud-provider-errors.md](cloud-provider-errors.md) |
 
 Also `acquiring_lease`, `building_image`, `resolving_step` — see
 [ci-infrastructure-changes.md](ci-infrastructure-changes.md). Action: re-run the job; if it
@@ -307,4 +307,6 @@ investigation.
 - [disruption.md](disruption.md) — interval timing for timing-sensitive flakes
 - [resource-exhaustion.md](resource-exhaustion.md) — CPU/memory/disk pressure behind timeouts
   and OVS stalls
+- [hypershift.md](hypershift.md) — failing tests in HCP/hypershift jobs; correlate management
+  vs hosted cluster
 - [artifacts.md](artifacts.md) — full artifact tree and paths

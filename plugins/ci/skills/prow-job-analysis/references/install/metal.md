@@ -74,6 +74,10 @@ Metal IPI (Installer-Provisioned Infrastructure) jobs have distinct layers; fail
 | `metal-assisted` | Metal using Assisted Installer |
 | `metal-ipi-serial` | Metal IPI with serial console capture |
 
+**SNO Bootstrap-in-Place** (`sno`/`sno_bip`): the single node installs with **no Ironic and
+no bootstrap VM** — it boots directly from the RHCOS image. Skip the Ironic-provisioning and
+bootstrap-node branches below when analyzing these jobs.
+
 ### Examples
 
 ```text
@@ -171,7 +175,7 @@ job must acquire a host from an OFCIR pool.
 
 ```text
 {target}/ofcir-acquire/
-├── build-log.txt                          # JSON with pool, provider, host details
+├── build-log.txt                          # Acquire step stdout: pool, provider, host
 └── artifacts/
     └── junit_metal_setup.xml              # JUnit test result for host acquisition
 ```
@@ -200,19 +204,19 @@ gcloud storage cp \
 If this test **failed**, OFCIR could not acquire a host and **installation never
 started**. Stop here — the failure is purely infrastructure acquisition.
 
-**Parse `build-log.txt`** for JSON fields:
-```json
-{
-  "pool": "cipool-ironic-cluster-el9",
-  "provider": "ironic",
-  "name": "host-ci-1234"
-}
+**Read `build-log.txt`** — this is the acquire step's stdout, not a JSON document. Grep it
+for the pool the job requested, the backing provider, and the host it received:
+
+```bash
+grep -iE "pool|provider|acquired|cir" ./ofcir-build-log.txt
 ```
 
-Key fields:
-- `pool`: OFCIR pool name (e.g., `cipool-ironic-cluster-el9`, `cipool-ibmcloud`)
-- `provider`: Infrastructure provider (`ironic`, `equinix`, `aws`, `ibmcloud`)
-- `name`: Specific host allocated
+Key facts to extract:
+- **Pool** — the OFCIR pool the job requested (e.g., `cipool-ironic-cluster-el9`,
+  `cipool-ibmcloud`), set by the job's ci-operator config
+- **Provider** — infrastructure provider backing the pool (`ironic`, `equinix`, `aws`,
+  `ibmcloud`)
+- **Host** — the specific host allocated (referenced later in dev-scripts and Ironic logs)
 
 ### Common OFCIR Failure Patterns
 
@@ -239,8 +243,8 @@ the hypervisor:
 |------|--------|---------|
 | 01 | `01_install_requirements.sh` | Install packages, dependencies |
 | 02 | `02_configure_host.sh` | Configure hypervisor networking, storage, libvirt |
-| 03 | `03_setup_ironic.sh` | Start Ironic/Metal3 services, configure BMC |
-| 04 | `04_build_installer.sh` | Build or download the OpenShift installer binary |
+| 03 | `03_build_installer.sh` | Build or download the OpenShift installer binary |
+| 04 | `04_setup_ironic.sh` | Start Ironic/Metal3 services, configure BMC |
 | 05 | `05_create_install_config.sh` | Generate install-config.yaml |
 | 06 | `06_create_cluster.sh` | Run the installer to create the cluster |
 
@@ -272,8 +276,8 @@ gcloud storage cp -r \
 |------|----------------|------------------|
 | 01 (requirements) | Package install failures, dependency conflicts | `yum`/`dnf` errors, missing repos |
 | 02 (host config) | Network bridge setup, libvirt configuration | Bridge errors, IP conflicts, libvirt XML errors |
-| 03 (Ironic setup) | BMC connectivity, Ironic container startup | Container pull failures, port conflicts, cert errors |
-| 04 (build installer) | Go build errors, download failures | Compiler errors, HTTP 404/403 on downloads |
+| 03 (build installer) | Go build errors, download failures | Compiler errors, HTTP 404/403 on downloads |
+| 04 (Ironic setup) | BMC connectivity, Ironic container startup | Container pull failures, port conflicts, cert errors |
 | 05 (install-config) | Validation errors, missing credentials | Config validation messages |
 | 06 (create cluster) | Full installation failure | See installer log analysis ([general.md](general.md)) |
 
@@ -400,9 +404,9 @@ log-bundle-*/control-plane/{node-ip}/containers/metal3-baremetal-operator-*.log
 ```bash
 # Download and extract log bundle
 gcloud storage ls -r "gs://test-platform-results/{bucket-path}/artifacts/" 2>&1 \
-  | grep "log-bundle.*\.tar$"
-gcloud storage cp {log-bundle-path} ./log-bundle.tar --no-user-output-enabled
-tar -xf ./log-bundle.tar
+  | grep "log-bundle.*\.tar\.gz$"
+gcloud storage cp {log-bundle-path} ./log-bundle.tar.gz --no-user-output-enabled
+tar -xf ./log-bundle.tar.gz
 
 # Find bootstrap Ironic logs (master provisioning)
 find . -path "*/bootstrap/journals/ironic.log"
@@ -521,15 +525,15 @@ is fully operational.
 ### Location and Extraction
 
 ```text
-{target}/baremetalds-devscripts-gather/artifacts/libvirt-logs.tar
+{target}/baremetalds-devscripts-gather/artifacts/libvirt-logs.tar.gz
 ```
 
 ```bash
 # Download and extract
 gcloud storage cp \
-  "gs://test-platform-results/{bucket-path}/artifacts/{target}/baremetalds-devscripts-gather/artifacts/libvirt-logs.tar" \
-  ./libvirt-logs.tar --no-user-output-enabled
-tar -xf ./libvirt-logs.tar
+  "gs://test-platform-results/{bucket-path}/artifacts/{target}/baremetalds-devscripts-gather/artifacts/libvirt-logs.tar.gz" \
+  ./libvirt-logs.tar.gz --no-user-output-enabled
+tar -xf ./libvirt-logs.tar.gz
 
 # Find console logs
 find . -name "*console*.log"
@@ -634,8 +638,8 @@ it to each node's disk. Failures here block provisioning.
 # Check for image download errors in Ironic logs
 grep -i "image\|download\|rhcos" ironic.log | grep -i "error\|fail\|timeout"
 
-# Check Ironic httpd for image serving errors
-grep -i "GET.*rhcos\|404\|500" ironic-httpd.log
+# Check Ironic httpd output for image serving errors (folded into ironic.log)
+grep -i "GET.*rhcos\|404\|500" ironic.log
 ```
 
 **Common causes**:
@@ -775,6 +779,10 @@ grep -i "dhcpv6\|ra-param\|enable-ra" devscripts-logs/*
 
 ## Metal-Specific Artifact Reference
 
+The canonical metal artifact layout lives in
+[artifacts.md](../artifacts.md#metal-bare-metal-job-artifacts); the map below adds the
+metal-specific download and extract recipes.
+
 ### Complete Artifact Map
 
 ```text
@@ -788,21 +796,22 @@ artifacts/{target}/
 │   └── artifacts/root/dev-scripts/logs/            # Dev-scripts setup logs
 │       ├── 01_install_requirements.log
 │       ├── 02_configure_host.log
-│       ├── 03_setup_ironic.log
-│       ├── 04_build_installer.log
+│       ├── 03_build_installer.log
+│       ├── 04_setup_ironic.log
 │       ├── 05_create_install_config.log
 │       ├── 06_create_cluster.log
+│       ├── installer-status.txt                    # Installer exit status (0 = success)
 │       ├── .openshift_install.log                  # Installer log (dev-scripts invokes installer)
 │       └── .openshift_install_state.json
 │
 ├── baremetalds-devscripts-gather/
 │   └── artifacts/
-│       ├── libvirt-logs.tar                        # VM console logs
+│       ├── libvirt-logs.tar.gz                     # VM console logs
 │       │   └── {cluster}-bootstrap_console.log
 │       │   └── {cluster}-master-0_console.log
 │       │   └── {cluster}-master-1_console.log
 │       │   └── {cluster}-master-2_console.log
-│       ├── log-bundle-*.tar                        # Log bundle with Ironic logs
+│       ├── log-bundle-*.tar.gz                     # Log bundle with Ironic logs
 │       │   └── bootstrap/journals/
 │       │   │   ├── ironic.log                      # Master provisioning
 │       │   │   ├── metal3-baremetal-operator.log
@@ -812,7 +821,7 @@ artifacts/{target}/
 │       │       ├── metal3-ironic-*.log              # Worker provisioning
 │       │       └── metal3-baremetal-operator-*.log
 │       ├── sosreport-*.tar.xz                      # Hypervisor diagnostics
-│       └── squid-logs-*.tar                        # CI access proxy logs
+│       └── squid-logs-*.tar.gz                     # CI access proxy logs
 ```
 
 ### Downloading All Metal Artifacts
@@ -830,15 +839,15 @@ gcloud storage cp -r \
 
 # Console logs
 gcloud storage ls -r \
-  "gs://test-platform-results/{bucket-path}/artifacts/" 2>&1 | grep "libvirt-logs\.tar$"
-# Then: gcloud storage cp {path} ./libvirt-logs.tar --no-user-output-enabled
-# Then: tar -xf ./libvirt-logs.tar
+  "gs://test-platform-results/{bucket-path}/artifacts/" 2>&1 | grep "libvirt-logs\.tar\.gz$"
+# Then: gcloud storage cp {path} ./libvirt-logs.tar.gz --no-user-output-enabled
+# Then: tar -xf ./libvirt-logs.tar.gz
 
 # Log bundle (with Ironic logs)
 gcloud storage ls -r \
-  "gs://test-platform-results/{bucket-path}/artifacts/" 2>&1 | grep "log-bundle.*\.tar$"
-# Then: gcloud storage cp {path} ./log-bundle.tar --no-user-output-enabled
-# Then: tar -xf ./log-bundle.tar
+  "gs://test-platform-results/{bucket-path}/artifacts/" 2>&1 | grep "log-bundle.*\.tar\.gz$"
+# Then: gcloud storage cp {path} ./log-bundle.tar.gz --no-user-output-enabled
+# Then: tar -xf ./log-bundle.tar.gz
 
 # sosreport (optional)
 gcloud storage ls -r \
@@ -848,9 +857,9 @@ gcloud storage ls -r \
 
 # Squid proxy logs (optional, for IPv6/disconnected)
 gcloud storage ls -r \
-  "gs://test-platform-results/{bucket-path}/artifacts/" 2>&1 | grep "squid-logs.*\.tar$"
-# Then: gcloud storage cp {path} ./squid-logs.tar --no-user-output-enabled
-# Then: tar -xf ./squid-logs.tar
+  "gs://test-platform-results/{bucket-path}/artifacts/" 2>&1 | grep "squid-logs.*\.tar\.gz$"
+# Then: gcloud storage cp {path} ./squid-logs.tar.gz --no-user-output-enabled
+# Then: tar -xf ./squid-logs.tar.gz
 ```
 
 ---
@@ -922,7 +931,7 @@ infrastructure to the cluster under test, especially in IPv6/disconnected enviro
 ### Location
 
 ```text
-{target}/baremetalds-devscripts-gather/artifacts/squid-logs-*.tar
+{target}/baremetalds-devscripts-gather/artifacts/squid-logs-*.tar.gz
 ```
 
 ### Key Squid Log Patterns
@@ -1001,8 +1010,8 @@ If the root cause is still unidentified:
 | **OFCIR pool exhaustion** | No host acquired | `junit_metal_setup.xml` | Wait for pool capacity; check pool health |
 | **Dev-scripts package failure** | Step 01 fails | Dev-scripts log 01 | Check package repos, dependencies |
 | **Network bridge failure** | Step 02 fails, no connectivity | Dev-scripts log 02 | Check libvirt network config |
-| **Ironic container failure** | Step 03 fails | Dev-scripts log 03 | Check container image availability |
-| **Installer build failure** | Step 04 fails | Dev-scripts log 04 | Check Go toolchain, source availability |
+| **Installer build failure** | Step 03 fails | Dev-scripts log 03 | Check Go toolchain, source availability |
+| **Ironic container failure** | Step 04 fails | Dev-scripts log 04 | Check container image availability |
 | **Install-config error** | Step 05 fails | Dev-scripts log 05 | Check config template, credentials |
 | **BMC connection refused** | Nodes stuck registering | Ironic log | Check vBMC, IPMI port availability |
 | **Inspection timeout** | Nodes stuck inspecting | Ironic log | Check provisioning network DHCP |
