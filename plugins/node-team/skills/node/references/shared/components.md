@@ -75,5 +75,6 @@ upstream for community contributions):
 
 | Team | Sprint filter | Roster file | Bug components |
 |------|--------------|-------------|----------------|
-| Core | `Node Core` | `team-roster-core.json` | All Node components |
+| Core | `Node Core` | `team-roster-core.json` | All Node components not listed under another sub-team |
 | DRA/Devices | `Node Devices` | `team-roster-dra.json` | Node / Device Manage, Node / Instaslice-operator |
+| Kueue | `OCP Kueue` | `team-roster-core.json` | Node / Kueue |
