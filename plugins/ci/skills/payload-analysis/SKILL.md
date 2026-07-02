@@ -96,6 +96,8 @@ From `summary.json` top-level fields:
 - `payload_tag`, `phase`, `release_url`, `architecture`, `stream`, `version`
 - `chain_length`, `baseline_tag`, `hours_since_baseline`
 
+**Record `phase` verbatim** from the `summary.json` metadata (`Accepted`, `Rejected`, or `Ready`). Never infer the phase from the job results or from whether failures exist — a payload can be `Accepted` *with* blocking failures (force-accepted) or `Ready` while jobs are still running. The stored phase drives the force-accept decision (Step 6.4) and the executive summary (Step 7.1), so an inferred phase silently corrupts both.
+
 #### 3.2: Failed Blocking Jobs
 
 From `summary.json` → `blocking_jobs.failed_jobs[]`, each entry contains:
@@ -166,6 +168,8 @@ gh api "repos/openshift/release/commits?path=ci-operator/step-registry/<step_sub
 If this finds nothing, also check steps that run earlier in the workflow and set up infrastructure the failing step depends on (e.g., if `openshift-e2e-test` fails due to connectivity, check `baremetalds/devscripts/proxy` or `ipi/conf` steps that configure networking).
 
 **Scoring CI infrastructure candidates.** If a commit/PR modified a step that the failing job executes (or a shared dependency of that step), flag it as a **CI infrastructure candidate** — include it in Step 6.1 scoring alongside component PR candidates. When the failure's error messages reference URLs, domains, binaries, or configurations that were changed by the PR, the error message match signal (+40) should fire strongly. The key test: does the PR's diff introduce, modify, or remove something that appears in the error output?
+
+**A causal CI-infrastructure change MUST appear as a scored entry in the `candidates[]` output**, exactly like a component PR — even when the overall `failure_type` is `infra`. Classifying a failure as infrastructure does not exempt its cause from structured output. Unlike a self-resolving lease/quota blip, a CI-config change is a persistent issue (Step 6.4) that needs a human fix or a revert, so it must be visible to the downstream revert/experiment commands, not buried in prose.
 
 This step catches failures caused by CI tooling changes (mirror URL migrations, proxy configuration updates, script refactors) that are invisible to the snapshot's PR tracking.
 
@@ -279,6 +283,18 @@ Compare the subagent's root cause analysis for the target payload against previo
 
 If a job fails in two consecutive payloads but for **different reasons**, treat each as a separate streak=1 failure with its own originating payload and candidate PRs. Re-split the streak and re-assign originating payloads before proceeding to scoring.
 
+### Step 5b: Adjudicate Conflicting Root Causes
+
+When two or more investigations reach **contradictory root causes for the same failure signature** (same test, same operation, or same error class — across jobs, across retries, or between a subagent and a previous analysis), the analysis is **UNRESOLVED**. It is *not* a tie to be broken by whichever explanation feels more plausible. Resolve it only with discriminating evidence, applying these rules:
+
+- **Discriminating evidence must come from the exact failing operation or phase** — the specific subcommand, step, or reconcile loop that actually errored, not from adjacent activity.
+- **"Cleared" requires positive evidence from the failing code path.** A candidate is exonerated only by positive evidence that its code path executed and completed without error *during the failing operation itself*. A candidate succeeding in a *different* subcommand, phase, or job does **not** clear it.
+- **Absence of a log line is not evidence when the log is truncated.** If the relevant log was truncated, rotated, or never captured, treat the missing line as *unknown*, never as proof that a code path did not execute.
+- **A causal chain must be shown to execute, not merely shown to be possible.** Demonstrate that the proposed mechanism actually ran during the failing operation (via timestamps, ordering, or an emitted log/metric). "This change *could* cause this" is a hypothesis, not a root cause.
+- **When you override a subagent's conclusion, update the stored per-job root cause** so the streak data, YAML, JSON, and HTML all reflect the adjudicated cause. Divergent per-job root causes across outputs are a defect (checked in Step 10).
+
+**Tenacity booster:** Finding a plausible mechanism is the *midpoint* of the investigation, not the end. When rival explanations exist, your job is to *discriminate between them* with evidence from the failing operation — not to stop at the first mechanism that could work. If the evidence cannot discriminate, record the failure mode as UNRESOLVED with its competing hypotheses rather than committing to a guess (a wrong-PR attribution is far more damaging than an honest "unresolved").
+
 ### Step 6: Collect Investigation Results and Identify Revert Candidates
 
 Wait for all subagents to complete and collect their analysis results. For each failed job, you now have:
@@ -294,20 +310,42 @@ For each failed job, cross-reference the failure analysis from the subagent with
 
 If a subagent traced the root cause to a PR outside the payload (e.g., an `openshift/release` PR that modified a CI step registry script), include that PR as a candidate.
 
-Score each (failed job, candidate PR) pair using the following weighted rubric:
+**Score every distinct failure mode, not just the dominant one.** A single job can fail for more than one reason (e.g., an install timeout *and* an unrelated test regression). Enumerate each distinct failure mode the subagent identified and run every candidate PR through the rubric **once per failure mode** — a PR that explains failure mode A does not automatically explain failure mode B. Do not collapse a job down to its loudest symptom and score only that.
+
+Score each (failed job, failure mode, candidate PR) tuple using the following weighted rubric:
 
 | Signal | Weight | Criteria |
 |--------|--------|----------|
-| New failure mode | +30 | The specific failure mode was not present in previous payloads |
-| Component exclusivity | +10 to +30 | The failure involves a component modified by this PR. Sole modifier = +30, 2-3 PRs = +20, 4+ PRs = +10 |
-| Error message match | +40 | Error messages or stack traces directly reference code, packages, or functionality changed by this PR |
-| Multi-job correlation | +10 | The same PR is a candidate for failures in multiple independent jobs |
+| New failure mode | +30 | This failure mode was not present in previous payloads **and** is plausibly attributable to code that changed (some PR touches the implicated code path). A brand-new symptom with no changed code behind it does not earn this signal (see infrastructure exclusion below). |
+| Component exclusivity | +10 to +30 | The failure involves a component modified by this PR. **Sole modifier of the affected component = +30** — this tier already covers the "only one candidate PR touches the component" case, so do not also count it separately. 2-3 PRs modify the component = +20; 4+ PRs modify it = +10. |
+| Error message match | +10 to +40 | Tiered by how directly the failure output links to the PR's diff. **Direct match = +40**: an error string, symbol, function name, or identifier from the failure appears verbatim in the PR's diff. **Same code path = +20-30**: the PR modifies the function or execution flow that produced the error, but the exact message is not in the diff. **Same subsystem only = +10**: the PR touches the same subsystem/component but not the specific failing code path. |
+| Multi-job correlation | +10 | The same PR is a candidate for this failure mode in multiple independent jobs |
 | Presubmit coverage gap | +10 | The failing job tests a scenario not covered by the PR's presubmit tests |
-| Single candidate | +10 | Only one PR landed in the originating payload that touches the affected component |
 
-Maximum possible score is 130, capped at 100. Record the numeric score alongside qualitative rationale.
+Maximum possible score is 120, capped at 100. Record the numeric score alongside qualitative rationale.
 
-**Apply the rubric mechanically.** Calculate the score by summing the weights for each signal that fires based on concrete evidence. Do NOT adjust the score downward based on speculative counter-arguments like "if this were the sole cause, other jobs would also fail" or "this could be a coincidence." If the error messages reference the PR's changes, that's +40 — the fact that some other jobs didn't fail doesn't negate the match. If the failure is new (streak=1) and the PR is the only one touching the component, those signals fire regardless of theoretical alternatives. Trust the rubric — it exists to prevent both over- and under-attribution.
+**Every candidate's rationale MUST itemize the score** — one line per signal that fired — so the number is auditable rather than asserted:
+
+```
+signal_name: +points — one line of concrete evidence
+```
+
+For example:
+
+```
+error_message_match: +40 — panic "nil pointer in reconcileNode" from build-log appears verbatim in the PR diff (controller.go:214)
+component_exclusivity: +30 — sole PR modifying machine-config-operator in the originating payload
+new_failure_mode: +30 — job passed the 6 prior payloads; first failed in the originating payload
+total: 100
+```
+
+Record this breakdown in the candidate's `rationale` field in the YAML/JSON output. A bare score with no itemized breakdown is not acceptable.
+
+**Apply the rubric mechanically, then verify the top-tier claims.** Sum the weights for each signal that fires on concrete evidence. Do NOT adjust the score downward based on speculative counter-arguments like "if this were the sole cause, other jobs would also fail" or "this could be a coincidence" — if the error messages reference the PR's changes, that's a match, and the fact that some other jobs didn't fail doesn't negate it. **But when the raw sum exceeds the cap** (you claimed a maximum tier on more than one signal at once), re-verify each maximum-tier claim before recording: is the error-message match a true verbatim string/symbol match (+40), or really only same-subsystem (+10)? Is this genuinely the *sole* modifier of the component (+30)? Downgrade any tier that does not survive this check. This self-skepticism pass removes tier inflation without weakening genuinely strong matches. Trust the rubric — it exists to prevent both over- and under-attribution.
+
+**Infrastructure exclusion — do not let unrelated PRs accumulate points.** The rubric measures *product-code causation*. When the root cause is affirmatively infrastructure (Step 6.4 definition) or an affirmatively-identified CI-config change (Step 3.6), payload component PRs with **no error-message and no code-path correlation** to the failure must score **at or near zero**. Do not award "new failure mode" or bare "component exclusivity" points to a PR that merely happens to be present in the payload — "new failure mode" fires only when the failure is plausibly attributable to code that changed. A new symptom whose actual cause is a lease timeout, a quota block, or a step-registry edit is not evidence against an unrelated component PR.
+
+**"Intermittent" and "flake" are conclusions requiring evidence, not default labels.** Before dismissing a failure as a flake, confirm affirmative evidence for it (e.g., the same job passed on retry with no code change, or it is a known-flaky test that also fails on *accepted* payloads). First check whether any candidate PR touches the failing code path: a reproducible failure in code that changed is a regression, not a flake, even if it does not reproduce on every run.
 
 #### 6.1b: RHCOS RPM Change Correlation
 
@@ -359,17 +397,26 @@ If a revert PR is found:
 
 #### 6.4: Determine Force-Accept Recommendation
 
-Recommend force-accepting when **all** of the following are true:
+Force-accepting is only meaningful for a payload that has **not** already been accepted. **If the snapshot's `phase` (Step 3.1) is already `Accepted`, `force_accept_recommended` MUST be `false`** — the question is moot, so do not recommend it regardless of the failures present.
 
-1. All failures are temporary infrastructure issues (`failure_type: "infra"`)
+Otherwise, recommend force-accepting when **all** of the following are true:
+
+1. All failures are **temporary** infrastructure issues (`failure_type: "infra"`) — see the definition below
 2. No more than 2 blocking jobs failed
 3. `hours_since_baseline` from `summary.json` is >= 18 (or null)
+
+**What counts as a "temporary infrastructure issue".** The decisive test: *will the failure self-resolve on the next run WITHOUT human action?*
+
+- **Yes → temporary (force-accept eligible):** Boskos/lease acquisition failures, cloud quota exhaustion, transient cloud-provider API errors or throttling, a one-off network timeout to a cloud endpoint, a CI control-plane blip. These clear themselves on retry.
+- **No → persistent (NOT force-accept eligible):** stale or expired credentials, a broken or misconfigured CI step/workflow, a bad mirror/registry URL, a persistent misconfiguration, or any product regression. These fail again on the next run until a human intervenes — force-accepting only defers the problem. Do not classify these as a temporary infra pass; a causal CI-config change is scored as a candidate (Steps 3.6 and 6.1) instead.
 
 #### 6.5: Write Payload Results YAML
 
 Use the `payload-results-yaml` skill to create: `payload-results-{tag}.yaml`
 
 This file contains ALL scored candidates across all confidence tiers (HIGH, MEDIUM, LOW), enabling downstream commands to filter by their own criteria. If RHCOS RPM suspects were identified in Step 6.1b, include them in the `rhcos_suspects[]` array (see the `payload-results-yaml` skill for the schema).
+
+**Every affirmatively-identified root cause must be represented as a scored `candidates[]` entry** — including causal CI-infrastructure / step-registry changes (Step 3.6), even when the failure's `failure_type` is `infra`. A failure whose cause is known must not leave `candidates[]` empty; each entry carries its itemized rubric breakdown (Step 6.1) in its `rationale`.
 
 ### Step 7: Generate HTML Report
 
@@ -389,11 +436,17 @@ The report must include the following sections:
 
 <div class="executive-summary">
   <h2>Executive Summary</h2>
+  <p>Phase: {phase}</p>
   <p>{total_blocking} blocking jobs: {succeeded} passed, {failed} failed</p>
   <p>{new_failures} new failure(s), {persistent_failures} persistent failure(s)</p>
   <p>Chain: {chain_length} payloads, {hours_since_baseline}h since baseline</p>
+  <p>Consecutive rejections in this stream: {consecutive_rejection_count}</p>
+  <p>Last accepted: <a href="{baseline_url}">{baseline_tag}</a> ({hours_since_baseline}h ago)</p>
+  <p>Per-job persistence: {for each failed job — "job_name: failing N consecutive payloads"}</p>
 </div>
 ```
+
+**Payload-chain context** surfaces the streak at a glance — include all of the fields above. Derive them from the snapshot: `consecutive_rejection_count` is the number of consecutive non-`Accepted` payloads in the chain up to and including this one (the chain runs from the last accepted baseline forward — see `chain_length` and the `payloads[]` phases); the last accepted payload is `baseline_tag`, cut `hours_since_baseline` hours ago; per-job persistence is each failed job's `streak.streak_length` (how many consecutive payloads that specific job has been failing). Render `phase` verbatim from Step 3.1.
 
 #### 7.2: Blocking Jobs Summary Table
 
@@ -630,14 +683,21 @@ After receiving the reviewer's response:
 - **Never lower rubric-based confidence scores** based on the reviewer's response. The rubric is mechanical — if the signals fired, the score stands.
 - Populate the "Adversarial Review" section (Step 7.6) in the HTML report with the reviewer's findings and any actions taken.
 
-### Step 10: Save and Present
+### Step 10: Final Self-Check, Save, and Present
 
-1. Save all output files to the current working directory:
+Before presenting, run a **mechanical self-check** and fix any gap it finds — do not present a partial report:
+
+1. **All three output files exist** in the current working directory and are non-empty:
    - HTML report: `payload-analysis-<sanitized_tag>-summary.html`
    - JSON data file: `payload-analysis-<sanitized_tag>-autodl.json`
    - Payload results YAML: `payload-results-<sanitized_tag>.yaml`
+2. **The HTML contains every required section** from Step 7: header + executive summary (including the payload-chain context from Step 7.1), recommended reverts (or the "No Recommended Reverts" verdict), the force-accept verdict when applicable, the blocking-jobs summary table, a collapsible details block for **every** failed job, the RHCOS Changes section when any payload has RHCOS changes, and the Adversarial Review section.
+3. **Cross-output consistency**: phase, failure counts, per-job root causes (including any adjudicated in Step 5b), and scored candidates agree across the HTML, YAML, and JSON.
+4. **Every affirmative root cause appears as a scored `candidates[]` entry** — including causal CI-infrastructure changes, even when `failure_type: infra`.
 
-2. Tell the user:
+If any check fails, fix it before presenting.
+
+Then tell the user:
    - Path to each saved file
    - Brief text summary (number of failures, new vs persistent, key candidate PRs)
    - Whether the adversarial review changed any conclusions
