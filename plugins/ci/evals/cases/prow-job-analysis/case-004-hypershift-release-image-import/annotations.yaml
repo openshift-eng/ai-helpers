@@ -4,13 +4,64 @@ expected_references:
   - ci-infrastructure-changes.md
 expected_root_cause_category: release-image-import-failure
 
+# The single conclusion a correct analysis MUST reach.
+expected_root_cause: >-
+  ci-operator failed at the [release:initial] step because it could not reimport
+  the stable-initial:baremetal-installer image tag — the backing digest
+  quay.io/openshift/ci@sha256:c4bc76... was "not found" in the registry and its
+  quay-proxy mirror, so the import retried (6) times and timed out. This is a CI
+  release-image / registry (payload import) infrastructure failure that occurred
+  before any HyperShift product code executed, not a hosted-control-plane bug.
+
+# VERBATIM strings, grep-confirmed present in build-log.txt (the ci-operator log).
+expected_evidence:
+  - string: "Importing release image initial."
+    artifact: "build-log.txt"
+  - string: "failed to reimport the tag ci-op-ripsb7rx/stable-initial:baremetal-installer"
+    artifact: "build-log.txt"
+  - string: 'quay.io/openshift/ci@sha256:c4bc76eeaec462f86a2134bcccdf6558f1865f15b87754dbab018a2ea842d0ee" not found'
+    artifact: "build-log.txt"
+  - string: "timed out waiting for the condition"
+    artifact: "build-log.txt"
+  - string: "Reporting job state 'failed' with reason 'executing_graph:step_failed:importing_release'"
+    artifact: "build-log.txt"
+
+# The one signal that separates the true cause from the look-alikes.
+discriminating_signal: >-
+  The failure is ci-operator's [release:initial] import step reporting the
+  baremetal-installer tag's backing image digest as "not found" (in
+  quay.io/openshift/ci and the quay-proxy mirror), after which the import timed
+  out; the ci-operator failure reason is
+  executing_graph:step_failed:importing_release. No e2e test step ran (the job's
+  artifacts contain only build-resources/ and release/, no e2e-aws-ovn step
+  output), so no HyperShift product code was exercised.
+
+# Misleading signals a shallow analysis would wrongly latch onto.
+distractors:
+  - "The job is a HyperShift e2e-aws-ovn periodic, tempting a hosted-control-plane / HyperShift product root cause even though the product never ran."
+  - "release:latest imported successfully ('Imported release 4.19.0-0.ci-2026-07-02-193911 ... to tag release:latest'), so the payload looks partly healthy; only release:initial's baremetal-installer tag failed."
+  - "Many upstream release resolutions succeed earlier in the log (multi-latest, n1minor, etc.), which can look like a healthy run."
+
+# Wrong conclusions the judge must penalize.
+must_not_conclude:
+  - "HyperShift / hosted-control-plane product regression"
+  - "an e2e test failure or test flake (no tests ran)"
+  - "a networking or product operator bug"
+  - "generic infrastructure flake without identifying the missing baremetal-installer image / release-import timeout"
+
 notes: >
-  HyperShift AWS OVN periodic that failed before the product was exercised: the
-  baremetal-installer tag was missing from the CI release payload, so ci-operator
-  failed while importing the release image during [release:initial].
+  HyperShift AWS OVN periodic that failed before the product was exercised.
+  ci-operator failed at [release:initial] with "failed to reimport the tag
+  ci-op-ripsb7rx/stable-initial:baremetal-installer": the backing image
+  quay.io/openshift/ci@sha256:c4bc76... was reported "not found" on the image
+  stream even after (6) imports and "timed out waiting for the condition"; the
+  job state was reported failed with reason
+  executing_graph:step_failed:importing_release.
 
   The agent MUST recognize this as a payload/registry (release image import)
   problem — a CI-infrastructure/payload issue, not a HyperShift product bug. It
-  should consult hypershift.md to understand the job shape but attribute the
-  root cause via ci-infrastructure-changes.md to the missing image tag, and NOT
-  misclassify it as a hosted-control-plane regression.
+  should consult hypershift.md to understand the job shape but attribute the root
+  cause via ci-infrastructure-changes.md to the missing baremetal-installer image
+  / release-import timeout, and NOT misclassify it as a hosted-control-plane
+  regression. The absence of any e2e step artifacts confirms the product never
+  ran.
