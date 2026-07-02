@@ -85,6 +85,12 @@ outputs:
           "jobs_to_skip": [{"name": "<name>", "reason": "<why>"}],
           "coverage_gaps": ["<uncovered areas>"],
           "key_risks": ["<specific risks>"],
+          "cost_estimate": {
+            "recommended_cost_usd": <number>,
+            "savings_from_skipped_required_usd": <number>,
+            "added_cost_from_optional_usd": <number>,
+            "net_savings_usd": <number>
+          },
           "notes": "<free text>"
         }
       }
@@ -251,6 +257,63 @@ judges:
           return (False, f"Jobs that should NOT be recommended were found in commands: {found}")
       return (True, f"None of {len(must_not)} excluded jobs were recommended")
 
+  - name: cost_estimate_present
+    description: |
+      Verify the state file contains a cost_estimate object with all required
+      fields, and that the conversation output includes a Cost Estimate section.
+    check: |
+      import json
+      files = outputs.get("files", {})
+      state_files = {k: v for k, v in files.items() if k.endswith(".json") and "pr-risk" in k}
+      if not state_files:
+          return (False, "No state file found")
+      data = json.loads(list(state_files.values())[0])
+      ce = data.get("assessment", {}).get("cost_estimate")
+      if not ce:
+          return (False, "No cost_estimate in state file")
+      required = ["recommended_cost_usd", "savings_from_skipped_required_usd",
+                   "added_cost_from_optional_usd", "net_savings_usd"]
+      missing = [f for f in required if f not in ce]
+      if missing:
+          return (False, f"cost_estimate missing fields: {missing}")
+      for f in required:
+          v = ce[f]
+          if not isinstance(v, (int, float)):
+              return (False, f"cost_estimate.{f} is not a number: {v}")
+      text = outputs.get("conversation", "")
+      if "cost estimate" not in text.lower() and "cost breakdown" not in text.lower():
+          return (False, "No Cost Estimate section in conversation output")
+      return (True, f"Cost estimate present: recommended=${ce['recommended_cost_usd']:.2f}, "
+              f"savings=${ce['savings_from_skipped_required_usd']:.2f}, "
+              f"net=${ce['net_savings_usd']:.2f}")
+
+  - name: cost_rates_correct
+    description: |
+      Verify the skill used the correct platform hourly rates in its cost
+      calculations. Parse the conversation for cost line items and check
+      that the $/hr matches: AWS=$1, GCP=$2, Azure=$2, Metal=$3, vSphere=$4.
+    check: |
+      import re
+      text = outputs.get("conversation", "")
+      correct_rates = {"aws": 1, "gcp": 2, "azure": 2, "metal": 3, "vsphere": 4}
+      rate_pattern = re.compile(r'\$(\d+(?:\.\d+)?)/hr', re.IGNORECASE)
+      errors = []
+      for line in text.split("\n"):
+          lower = line.lower()
+          for platform, expected_rate in correct_rates.items():
+              if platform in lower:
+                  matches = rate_pattern.findall(line)
+                  for match in matches:
+                      actual = float(match)
+                      if actual != expected_rate:
+                          errors.append(f"{platform}: used ${actual}/hr, expected ${expected_rate}/hr")
+      if errors:
+          return (False, f"Wrong platform rates: {'; '.join(errors[:5])}")
+      found_any = bool(rate_pattern.search(text))
+      if not found_any:
+          return (True, "No explicit $/hr rates found in output (may use implicit rates)")
+      return (True, "All platform rates correct")
+
   - name: risk_assessment_quality
     description: |
       Assess overall quality of the risk assessment: whether the score
@@ -326,6 +389,10 @@ thresholds:
   score_breakdown_valid:
     min_pass_rate: 1.0
   no_revert_leakage:
+    min_pass_rate: 1.0
+  cost_estimate_present:
+    min_pass_rate: 1.0
+  cost_rates_correct:
     min_pass_rate: 1.0
   jobs_recommended:
     min_pass_rate: 0.8

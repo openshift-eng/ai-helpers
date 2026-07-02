@@ -126,7 +126,7 @@ The filter parameter is a JSON object using Sippy's standard filter syntax:
 }
 ```
 
-**Filterable fields:** `name`, `brief_name`, `org`, `repo`, `variants`, `current_pass_percentage`, `current_runs`, `previous_pass_percentage`, `previous_runs`, `net_improvement`, `open_bugs`
+**Filterable fields:** `name`, `brief_name`, `org`, `repo`, `variants`, `current_pass_percentage`, `current_runs`, `previous_pass_percentage`, `previous_runs`, `net_improvement`, `current_average_duration_minutes`, `previous_average_duration_minutes`, `open_bugs`
 
 **Filter operators:** `contains`, `equals`, `starts with`, `ends with`, `has entry` (arrays), `has entry containing` (arrays), `is empty`, `is not empty`, `=`, `!=`, `>`, `>=`, `<`, `<=`
 
@@ -158,6 +158,8 @@ The API returns a JSON array of job objects:
     "previous_infra_fails": 0,
     "net_improvement": 2.5,
     "average_retests_to_merge": 1.3,
+    "current_average_duration_minutes": 154,
+    "previous_average_duration_minutes": 141,
     "test_grid_url": "https://testgrid.k8s.io/...",
     "open_bugs": 3
   }
@@ -175,6 +177,7 @@ The API returns a JSON array of job objects:
 - `current_infra_fails` / `previous_infra_fails`: Infrastructure-related failures (not code failures)
 - `net_improvement`: Percentage point change in pass rate from previous to current period (positive = improving)
 - `average_retests_to_merge`: Average retries needed before presubmit passes (presubmit jobs only)
+- `current_average_duration_minutes` / `previous_average_duration_minutes`: Average job duration in minutes for each period
 - `open_bugs`: Count of open related Jira bugs
 - `last_pass`: Timestamp of most recent successful run (null if never passed)
 

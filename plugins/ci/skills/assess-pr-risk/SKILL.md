@@ -180,7 +180,20 @@ This gives you the complete list of jobs the team has configured, split into:
 
 If the CI config YAML cannot be fetched (e.g., the repo doesn't exist in `openshift/release`, or uses a non-standard path), note it and fall back to the jobs visible in the PR's `statusCheckRollup`.
 
-### Step 4b: Classify Each Job
+### Step 4b: Fetch Job Durations from Sippy
+
+Presubmit job names in Sippy follow the pattern `pull-ci-<org>-<repo>-<branch>-<test-name>`. For example, the `/test e2e-gcp-ovn` job for `openshift/origin` on the `main` branch is `pull-ci-openshift-origin-main-e2e-gcp-ovn` in Sippy.
+
+Query Sippy for the repo's presubmit e2e jobs to get actual `current_average_duration_minutes`:
+
+```bash
+python3 plugins/ci/skills/fetch-jobs/fetch_jobs.py \
+  --release Presubmits --repo <repo> --name e2e --format json
+```
+
+Match each CI config job to its Sippy entry by constructing the Sippy name: `pull-ci-<org>-<repo>-<branch>-<job-name>`. Use `current_average_duration_minutes` for cost estimation in Step 4f. If a job has no Sippy data, estimate: standard e2e ~60 min, upgrade ~120 min, serial ~90 min.
+
+### Step 4c: Classify Each E2e Job
 
 Split the jobs from the CI config into two groups based on their name:
 
@@ -194,7 +207,7 @@ Split the jobs from the CI config into two groups based on their name:
 
 Only output `/test` commands for e2e jobs. Never output `/test` for non-e2e jobs.
 
-### Step 4c: Hotspot Awareness
+### Step 4d: Hotspot Awareness
 
 Beyond the repo's configured jobs, watch for these common revert patterns. If the repo's CI config does not already include a matching job, recommend the specific `/payload-job` command listed below. These job names use a release version placeholder — substitute the current development release (e.g., `4.22` → `5.0`).
 
@@ -234,7 +247,7 @@ Beyond the repo's configured jobs, watch for these common revert patterns. If th
 4. **Metal** — moderate cost, use for bare-metal-specific paths
 5. **vSphere** — high cost, constrained capacity. Do NOT recommend unless the PR directly modifies vsphere-specific code
 
-### Step 4d: Recommendation by Risk Tier
+### Step 4e: Recommendation by Risk Tier
 
 **LOW (0-20)**:
 
@@ -264,7 +277,7 @@ Beyond the repo's configured jobs, watch for these common revert patterns. If th
 - Flag for TRT (Technical Release Team) attention
 - Recommend manual review of the diff by a domain expert
 
-### Step 4e: Format the Recommendation
+### Step 4f: Format the Recommendation
 
 This skill does NOT trigger any tests. It recommends what should be run as `/test` commands the user can copy and paste.
 
@@ -283,6 +296,31 @@ SKIP: <job-name>  — <why this job is not relevant to this PR>
 ```
 
 If the hotspot analysis identified risks not covered by any configured job, add a **"Coverage Gaps"** section noting what additional testing would be ideal (e.g., "No HyperShift presubmit job is configured for this repo, but this change modifies control plane assumptions — consider `/payload-job` testing with a HyperShift job").
+
+### Step 4g: Estimate Testing Cost and Savings
+
+Write a JSON array of your e2e job decisions to `/tmp/pr-risk-jobs.json`, then run the cost estimator script. Each job needs `name`, `duration_minutes` (from Step 4b Sippy data), `decision` ("run" or "skip"), and `ci_status` ("required" or "optional" from the CI config).
+
+```bash
+cat > /tmp/pr-risk-jobs.json << 'JOBS_EOF'
+[
+  {"name": "<job-name>", "duration_minutes": <N>, "decision": "run|skip", "ci_status": "required|optional"},
+  ...
+]
+JOBS_EOF
+
+python3 plugins/ci/skills/prow-job-cost-estimator/estimate_cost.py \
+  --input /tmp/pr-risk-jobs.json --format summary
+```
+
+For the state file, also get JSON output:
+
+```bash
+python3 plugins/ci/skills/prow-job-cost-estimator/estimate_cost.py \
+  --input /tmp/pr-risk-jobs.json --format json > /tmp/pr-risk-costs.json
+```
+
+Use the output from this script directly in your report and state file. Do not recalculate costs yourself — use the exact numbers the script printed.
 
 ## Step 5: Write State File
 
@@ -308,6 +346,12 @@ Write the assessment to `.work/pr-risk/<org>-<repo>-<pr_number>.json`:
     "jobs_to_skip": [{"name": "<job-name>", "reason": "<why>"}],
     "coverage_gaps": ["<areas not covered by configured jobs>"],
     "key_risks": ["<specific risks identified>"],
+    "cost_estimate": {
+      "recommended_cost_usd": <total cost of jobs to run>,
+      "savings_from_skipped_required_usd": <cost of required e2e jobs skipped>,
+      "added_cost_from_optional_usd": <cost of optional e2e jobs added>,
+      "net_savings_usd": <savings minus added cost>
+    },
     "notes": "<free text>"
   }
 }
@@ -356,6 +400,15 @@ Output a structured markdown report:
 **Coverage gaps:**
 <areas of risk not covered by any configured job, with suggestions for /payload-job testing if applicable>
 
+### Cost Estimate
+
+| | Amount |
+|---|--------|
+| Recommended testing cost | $X.XX |
+| Savings (skipped required e2e jobs) | -$X.XX |
+| Added cost (optional e2e jobs triggered) | +$X.XX |
+| **Net savings** | **$X.XX** |
+
 ### Historical Context
 <repo revert rate and risk level>
 
@@ -374,4 +427,6 @@ State saved to `.work/pr-risk/<org>-<repo>-<number>.json`
 
 ## Skills Available
 
-This skill does not invoke any sub-skills.
+| Skill | When to Use |
+| ----- | ----------- |
+| `ci:prow-job-cost-estimator` | Calculate cost estimates for e2e job decisions (Step 4g) |

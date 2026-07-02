@@ -152,6 +152,14 @@ def format_summary(jobs: list) -> str:
         if prev_infra > 0:
             lines.append(f"    Infra Fails: {prev_infra}")
 
+        cur_dur = j.get("current_average_duration_minutes")
+        prev_dur = j.get("previous_average_duration_minutes")
+        if cur_dur is not None:
+            dur_line = f"  Avg Duration: {cur_dur} min"
+            if prev_dur is not None:
+                dur_line += f" (prev: {prev_dur} min)"
+            lines.append(dur_line)
+
         lines.append("")
         net = j.get("net_improvement", 0)
         direction = "improved" if net > 0 else "regressed" if net < 0 else "unchanged"
