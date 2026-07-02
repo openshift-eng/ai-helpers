@@ -77,3 +77,4 @@ upstream for community contributions):
 |------|--------------|-------------|----------------|
 | Core | `Node Core` | `team-roster-core.json` | All Node components |
 | DRA/Devices | `Node Devices` | `team-roster-dra.json` | Node / Device Manage, Node / Instaslice-operator |
+| Kueue | `OCP Kueue` | `team-roster-core.json` | Node / Kueue |
