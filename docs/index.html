@@ -1836,6 +1836,38 @@ footer a { color: var(--primary); }
       }
     },
     {
+      "name": "nid-team",
+      "description": "NI&D team PR triage and review workflow tools",
+      "version": "0.1.0",
+      "has_readme": true,
+      "commands": [
+        {
+          "name": "sync-pr-dashboard",
+          "full_name": "nid-team:sync-pr-dashboard",
+          "description": "Sync the NI&D GitHub Project board — populate PR authors, sync reviewers to assignees, add shared repo PRs, classify areas",
+          "description_html": "Sync the NI&amp;D GitHub Project board — populate PR authors, sync reviewers to assignees, add shared repo PRs, classify areas",
+          "synopsis": "/nid-team:sync-pr-dashboard",
+          "body_html": "Syncs the NI&amp;D PR Review GitHub Project board (https://github.com/orgs/openshift/projects/28). Runs a script for deterministic operations, then uses AI to classify ambiguous PR areas."
+        }
+      ],
+      "skills": [],
+      "agents": [],
+      "hooks": [],
+      "mcp_servers": [],
+      "rules": [],
+      "category": "development",
+      "keywords": [
+        "nid",
+        "ingress",
+        "dns",
+        "pr-triage",
+        "team-tools"
+      ],
+      "author": {
+        "name": "github.com/openshift-eng"
+      }
+    },
+    {
       "name": "node",
       "description": "Kubernetes and OpenShift node health monitoring and diagnostics",
       "version": "0.0.3",

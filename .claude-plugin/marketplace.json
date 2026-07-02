@@ -513,6 +513,20 @@
         "mlflow",
         "observability"
       ]
+    },
+    {
+      "name": "nid-team",
+      "source": "./plugins/nid-team",
+      "description": "Development and workflow tools for the Network Ingress & DNS team",
+      "version": "0.1.0",
+      "category": "development",
+      "keywords": [
+        "nid",
+        "ingress",
+        "dns",
+        "pr-triage",
+        "team-tools"
+      ]
     }
   ]
 }
