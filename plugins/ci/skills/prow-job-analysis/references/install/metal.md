@@ -1,6 +1,6 @@
 # Install Failure Analysis — Metal (Bare Metal)
 
-Metal-specific supplement to [general.md](general.md), covering bare metal install failures that use dev-scripts, Metal3, and Ironic. Use **both** files for metal jobs: [general.md](general.md) owns the standard installer workflow (reading installer logs, log-bundle analysis, failure-stage identification); this file owns the metal layers on top.
+**Use when** the job name contains `metal`, `baremetal`, `baremetalds`, or `sno` (single-node on metal), the job uses dev-scripts with Metal3/Ironic for provisioning, or you need console-log or sosreport analysis. Metal-specific supplement to [general.md](general.md), covering bare metal install failures that use dev-scripts, Metal3, and Ironic. Use **both** files for metal jobs: [general.md](general.md) owns the standard installer workflow (reading installer logs, log-bundle analysis, failure-stage identification); this file owns the metal layers on top.
 
 ## When to Use This Reference
 

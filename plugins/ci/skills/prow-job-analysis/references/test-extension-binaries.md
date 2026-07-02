@@ -557,7 +557,7 @@ Look at the step-level build log for the test step (e.g., `openshift-e2e-test`):
 ```bash
 # Download the step build log
 gcloud storage cp \
-  "gs://test-platform-results/{bucket-path}/artifacts/{JOB_NAME}/openshift-e2e-test/build-log.txt" \
+  "gs://test-platform-results/{bucket-path}/artifacts/{target}/openshift-e2e-test/build-log.txt" \
   ./step-build-log.txt --no-user-output-enabled
 
 # Search for extension test output

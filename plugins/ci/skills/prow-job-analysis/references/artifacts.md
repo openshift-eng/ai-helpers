@@ -376,7 +376,7 @@ Testcases for the installation process. Failed test names follow the pattern
 Located at:
 ```text
 artifacts/release-analysis-aggregator/openshift-release-analysis-aggregator/artifacts/
-  release-analysis-aggregator/{job-name}/{payload-tag}/junit-aggregated.xml
+  release-analysis-aggregator/{underlying-job-name}/{payload-tag}/junit-aggregated.xml
 ```
 
 Each `<testcase>` contains `<system-out>` with YAML-formatted data including `passes:`,

@@ -1,11 +1,11 @@
 # Install Failure Analysis — General
 
-Definitive workflow for OpenShift install failures on **all** platforms: classify the failure,
-locate artifacts, identify the failed stage, diagnose root cause. Use when a CI job fails an
-`install should succeed` test, or when an upgrade job fails during its initial install phase
-(before the upgrade begins).
+**Use when** a CI job fails an `install should succeed` test, or when an upgrade job fails during
+its initial install phase (before the upgrade begins). Definitive workflow for OpenShift install
+failures on **all** platforms: classify the failure, locate artifacts, identify the failed stage,
+diagnose root cause.
 
-For bare metal jobs (name contains "metal" or "baremetal"), also see [metal.md](metal.md)
+For bare metal jobs (name contains "metal" or "baremetal"), you must read [metal.md](metal.md)
 (dev-scripts, Ironic, libvirt console logs).
 
 ---
@@ -18,7 +18,7 @@ Follow this sequence for every install failure:
 2. **Download and parse `junit_install.xml`** → Determine the failure stage (§ Failure Stage Classification)
 3. **Check symptom labels** → Collect machine-detected environmental context (§ Symptom Labels)
 4. **Download installer logs** → `.openshift_install*.log`, excluding deprovision (§ Installer Logs)
-5. **Download and extract log bundle** → `log-bundle-*.tar` (§ Log Bundle Analysis)
+5. **Download the log bundle** → find the `log-bundle-*` directory (recent jobs store it exploded) or the `log-bundle-*.tar`, then pull its full contents (§ Log Bundle Analysis)
 6. **Analyze based on failure stage** → Route to the correct diagnostic section (§ Stage-Specific Analysis)
 7. **Check must-gather availability** → For cluster creation / operator stability failures (§ Must-Gather)
 8. **Synthesize root cause** → Combine evidence from all sources (§ Root Cause Determination)
@@ -78,6 +78,7 @@ Jobs with "upgrade" in the name perform a **fresh install first**, then upgrade.
 fails, the upgrade never begins — analyze it as a pure **installation failure**. The installed
 version is:
 
+- **Major upgrade** (e.g. 4→5): the newest release of the previous major (a 5.0 job installs the latest 4.x first)
 - **Minor upgrade** (`upgrade-from-stable-4.X`): the *previous* minor release (a 4.21 job installs 4.20 first)
 - **Micro upgrade** (no `upgrade-from-stable`): an earlier build of the same minor release
 
@@ -95,6 +96,11 @@ config — always search for it:
 gcloud storage ls -r "gs://test-platform-results/{bucket-path}/artifacts/" 2>&1 \
   | grep "junit_install.xml"
 ```
+
+**`{bucket-path}` is the *specific job run's* path** (e.g. `logs/{job-name}/{build-id}` for
+periodics, `pr-logs/pull/{org}_{repo}/{pr}/{job-name}/{build-id}` for presubmits). Always scope
+every `gcloud storage` command to this single run — go up a level and you enumerate tens of
+thousands of unrelated jobs.
 
 `install-status.txt` holds only the installer's exit code (a single number); `junit_install.xml`
 translates it into a human-readable failure mode. **Always prefer `junit_install.xml`.**
@@ -189,19 +195,20 @@ gcloud storage ls -r "gs://test-platform-results/{bucket-path}/artifacts/" 2>&1 
 
 ### Log Bundle
 
-`log-bundle-*.tar.gz` contains node-level diagnostics collected during or after the install
-attempt. For cloud IPI jobs the installer collects it (via the `gather-bootstrap` step); search
-recursively:
+The log bundle contains node-level diagnostics collected during or after the install attempt. For
+cloud IPI jobs the installer collects it (via the `gather-bootstrap` step); search recursively:
 
 ```bash
-# Find log bundles (prefer non-deprovision)
+# Find log bundles (prefer non-deprovision) — matches the exploded dir and the legacy tarball
 gcloud storage ls -r "gs://test-platform-results/{bucket-path}/artifacts/" 2>&1 \
-  | grep -E "log-bundle.*\.tar(\.gz)?$"
+  | grep "log-bundle"
 ```
 
-Log bundles are gzipped tarballs (`log-bundle-*.tar.gz`); some jobs emit an uncompressed `.tar`.
-`tar -xf` handles either. Prefer non-deprovision bundles — they capture the failure state during
-installation.
+GCS stores artifacts **decompressed** — CI gunzips everything to sweep for secrets, so bundles are
+`log-bundle-*.tar` (never `.tar.gz`). Recent jobs go further and upload the bundle **exploded** as a
+`log-bundle-*/` directory instead of a tarball; locate that directory and download its full
+contents with `gcloud storage cp -r`. Prefer non-deprovision bundles — they capture the failure
+state during installation.
 
 ### Log Bundle Structure
 
@@ -597,37 +604,14 @@ Include symptom labels in the "Known Symptoms Seen" section of your report.
 
 ## Must-Gather Analysis for Install Failures
 
-Must-gather provides cluster-state diagnostics captured after the install attempt. Only useful
-for `cluster creation` and `cluster operator stability` failures where the cluster was partially
-operational.
+Must-gather provides cluster-state diagnostics captured after the install attempt. It is only
+relevant to `cluster creation` and `cluster operator stability` failures, where the cluster came
+up far enough to be partially operational; for `configuration`, `infrastructure`, and `cluster
+bootstrap` failures it is normally absent. If no `must-gather*.tar` exists, collection failed
+because the cluster was too unstable — say so rather than suggesting a download.
 
-### Checking Must-Gather Availability
-
-```bash
-# Check if must-gather was collected
-gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-must-gather/artifacts/" 2>&1 \
-  | grep "must-gather.*\.tar"
-```
-
-**CRITICAL**:
-- If **NO** `.tar` file exists, must-gather collection failed (cluster was too unstable)
-- **Do NOT suggest downloading must-gather if the .tar file doesn't exist**
-- If must-gather doesn't exist, state that the cluster was too unstable to collect diagnostics
-
-### What to Look for in Must-Gather
-
-1. **Cluster operator status** — which operators are degraded/unavailable and why
-2. **Pod status across namespaces** — CrashLoopBackOff, ImagePullBackOff, or pending
-3. **Node conditions** — NotReady, MemoryPressure, DiskPressure, PIDPressure
-4. **Warning events** — recent Kubernetes events that may indicate the cause
-5. **Operator-specific logs** — container logs for the failing operators
-
-### Must-Gather Directory Structure
-
-After running `tar -xf must-gather.tar`, the content appears under a long registry-hash directory
-(the `-ci-`/`sha256-…`-prefixed name is preserved, not renamed to `content/`), containing
-`cluster-scoped-resources/`, `namespaces/`, `host_service_logs/`, etc. See the
-[artifacts reference](../artifacts.md) for download and extraction steps.
+For locating, downloading, and extracting must-gather, and what to look for inside it, use the
+must-gather reference: [artifacts.md § Must-Gather Archives](../artifacts.md#must-gather-archives).
 
 ---
 
@@ -647,15 +631,17 @@ for `configuration` or early `infrastructure` failures.
 | `cluster operator stability` | Yes |
 | `other` | Varies |
 
-### Extracting the Log Bundle
+### Downloading and Extracting the Log Bundle
 
 ```bash
-# Download (prefer non-deprovision bundles)
-gcloud storage cp {gcs-path-to-log-bundle} \
+# Exploded form (recent jobs): copy the whole log-bundle-*/ directory — no extraction needed
+gcloud storage cp -r "{gcs-path-to-log-bundle-dir}" \
   .work/prow-job-analysis/{build_id}/logs/ --no-user-output-enabled
 
-# Extract (tar -xf auto-detects .tar and .tar.gz)
-tar -xf .work/prow-job-analysis/{build_id}/logs/log-bundle-*.tar* \
+# Legacy tarball form: download, then extract (GCS stores it decompressed as .tar)
+gcloud storage cp {gcs-path-to-log-bundle} \
+  .work/prow-job-analysis/{build_id}/logs/ --no-user-output-enabled
+tar -xf .work/prow-job-analysis/{build_id}/logs/log-bundle-*.tar \
   -C .work/prow-job-analysis/{build_id}/logs/
 ```
 

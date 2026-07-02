@@ -1,9 +1,11 @@
 # Operating System Changes Reference
 
-**Use when** a failure originates in the node operating system — RHCOS (Red Hat CoreOS), the
-immutable OS every OpenShift node boots — rather than in an OpenShift component. A single RHCOS
-bump inside a payload swaps the kernel, cri-o, systemd, NetworkManager, and SELinux policy across
-the whole cluster at once, so it breaks many unrelated jobs with no product-code PR to blame.
+**Use when** no other failure mode explains the root cause and you suspect an operating system
+level problem — kernel, cri-o, NetworkManager, systemd, SELinux, rpm-ostree, or bootloader
+changes. The node OS is RHCOS (Red Hat CoreOS), the immutable OS every OpenShift node boots. A
+single RHCOS bump inside a payload swaps the kernel, cri-o, systemd, NetworkManager, and SELinux
+policy across the whole cluster at once, so it breaks many unrelated jobs with no product-code PR
+to blame.
 Route here when:
 
 - Containers fail to start or die at runtime (`cri-o`, `crun`, `runc`, OCI/cgroup errors)
