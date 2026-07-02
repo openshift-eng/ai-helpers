@@ -1,0 +1,15 @@
+expected_failure_type: infra
+expected_references:
+  - cloud-provider-errors.md
+expected_root_cause_category: cloud-quota-exhaustion
+
+notes: >
+  GCP shared-VPC (XPN) install failure caused by a GCP quota error: the NETWORKS
+  quota was exceeded (limit: 50) in the project/region, so the installer could
+  not create the required network resources.
+
+  The agent MUST route to cloud-provider-errors.md, find the specific GCP quota
+  error string, and classify the failure as cloud-provider infrastructure
+  (quota exhaustion) — NOT a product bug in the installer or networking
+  operators. Absence of a code explanation is not what makes this infra; the
+  affirmative quota error is.

@@ -1,0 +1,16 @@
+expected_failure_type: infra
+expected_references:
+  - hypershift.md
+  - ci-infrastructure-changes.md
+expected_root_cause_category: release-image-import-failure
+
+notes: >
+  HyperShift AWS OVN periodic that failed before the product was exercised: the
+  baremetal-installer tag was missing from the CI release payload, so ci-operator
+  failed while importing the release image during [release:initial].
+
+  The agent MUST recognize this as a payload/registry (release image import)
+  problem — a CI-infrastructure/payload issue, not a HyperShift product bug. It
+  should consult hypershift.md to understand the job shape but attribute the
+  root cause via ci-infrastructure-changes.md to the missing image tag, and NOT
+  misclassify it as a hosted-control-plane regression.

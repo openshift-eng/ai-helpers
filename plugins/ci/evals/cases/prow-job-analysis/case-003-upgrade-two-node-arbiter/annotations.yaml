@@ -1,0 +1,16 @@
+expected_failure_type: upgrade
+expected_references:
+  - upgrade.md
+  - disruption.md
+expected_root_cause_category: upgrade-operator-degradation
+
+notes: >
+  Two-node-plus-arbiter metal upgrade (day-2 workers). After the upgrade the
+  network ClusterOperator went Degraded and etcd suffered connection storms,
+  so the upgrade did not settle cleanly.
+
+  The agent MUST route to upgrade.md and trace through the ClusterOperator
+  conditions (which operator degraded and why) and the etcd connection errors,
+  correlating the disruption (disruption.md) to the upgrade phase. The root
+  cause is post-upgrade operator degradation driven by etcd instability, not a
+  simple test flake.

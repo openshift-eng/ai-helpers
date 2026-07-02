@@ -1,0 +1,15 @@
+expected_failure_type: upgrade
+expected_references:
+  - upgrade.md
+  - disruption.md
+expected_root_cause_category: upgrade-api-disruption
+
+notes: >
+  Multi-arch 4.17 -> 4.18 AWS OVN upgrade with massive API/etcd disruption:
+  hundreds of "dial tcp" connection errors (147+ per etcd member) hammered the
+  API server and etcd during the upgrade, blowing past disruption tolerances.
+
+  The agent MUST route to upgrade.md and disruption.md, quantify the disruption
+  severity (count the connection errors / affected etcd members), and trace the
+  disruption to the upgrade phase. The root cause is upgrade-driven API/etcd
+  disruption, not a single failing conformance test.

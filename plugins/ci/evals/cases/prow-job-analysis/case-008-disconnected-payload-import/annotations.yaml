@@ -1,0 +1,16 @@
+expected_failure_type: infra
+expected_references:
+  - networking.md
+  - hypershift.md
+expected_root_cause_category: disconnected-payload-import
+
+notes: >
+  Disconnected agent-based MCE/HyperShift metal conformance job (IPv6). The
+  baremetal-installer payload image was unreachable, and the disconnected
+  environment (mirror registry / no direct internet) amplifies any image
+  availability gap into a hard failure.
+
+  The agent MUST understand the disconnected context: route to networking.md
+  (image pull / registry / mirror reachability) and hypershift.md (agent-based
+  hosted cluster shape), and attribute the root cause to the unreachable
+  payload image in the disconnected mirror path — not to a product regression.

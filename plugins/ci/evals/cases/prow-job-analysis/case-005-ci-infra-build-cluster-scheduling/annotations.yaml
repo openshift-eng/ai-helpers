@@ -1,0 +1,16 @@
+expected_failure_type: infra
+expected_references:
+  - ci-infrastructure-changes.md
+  - resource-exhaustion.md
+expected_root_cause_category: ci-build-cluster-exhaustion
+
+notes: >
+  The test pod could not be scheduled on the build cluster (build01): the
+  scheduler reported "0/127 nodes are available" with Insufficient cpu,
+  Insufficient memory, and untolerated taint(s), and preemption did not help.
+  This is a pure CI-infrastructure capacity failure on the build cluster.
+
+  The agent MUST recognize this from the scheduler messages and classify it as
+  a CI-infrastructure / build-cluster resource-exhaustion problem (route to
+  ci-infrastructure-changes.md and resource-exhaustion.md). It must NOT
+  misattribute the failure to product code or to the test under execution.

@@ -1,0 +1,15 @@
+expected_failure_type: infra
+expected_references:
+  - resource-exhaustion.md
+  - cloud-provider-errors.md
+expected_root_cause_category: node-not-ready-timeout
+
+notes: >
+  GCP OVN serial job where a worker node never became Ready: the nodes-readiness
+  pre-test step timed out (expected 6 nodes, found 5), so the suite never ran.
+
+  The agent MUST investigate the node conditions and resource/cloud state
+  (route to resource-exhaustion.md and cloud-provider-errors.md) to explain WHY
+  the node never joined/rebooted into Ready — e.g. kubelet/node NotReady or a
+  cloud instance that failed to come up — rather than stopping at the symptom
+  "expected 6, found 5" or blaming the test harness.

@@ -1,21 +1,18 @@
 expected_failure_type: test
 expected_references:
   - aggregated.md
-  - flaky-test-identification.md
+  - upgrade.md
   - disruption.md
-expected_root_cause_category: aggregated-statistical-regression
+expected_root_cause_category: aggregated-disruption-threshold
 
 notes: >
-  Aggregated blocking job that fails its pass-rate threshold. Retries only
-  re-run the aggregation analysis — they do NOT re-run the child jobs — so only
-  the final attempt carries signal. The child runs fail for MIXED reasons: some
-  are within-threshold disruption noise, but at least one child shows a genuine
-  conformance regression.
+  Aggregated blocking job (release-analysis-aggregator) over an AWS OVN upgrade
+  variant. The aggregator fans out to a set of child runs (5 pass, 4 fail) and
+  fails because API/backend disruption thresholds were exceeded across the
+  failing children rather than because of a single deterministic test bug.
 
   The agent MUST route to aggregated.md and perform statistical analysis rather
-  than debugging individual tests as if this were a single run. It must extract
-  the underlying child job name from the junit-aggregated.xml <system-out>
-  humanurl fields (the underlying name cannot be derived from the aggregated
-  name), then triage the failing child via flaky-test-identification.md and
-  attribute disruption via disruption.md. The discriminating skill is separating
-  the real regression from aggregated flake/noise.
+  than debug a single run. It must inspect the child job results, attribute the
+  failures to disruption metrics (via disruption.md) in the upgrade phase (via
+  upgrade.md), and identify the exceeded disruption thresholds as the
+  aggregation failure trigger — separating real signal from aggregated noise.
