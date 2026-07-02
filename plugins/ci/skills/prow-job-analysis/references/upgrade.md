@@ -1059,96 +1059,31 @@ the upgrade or post-upgrade tests failed, use this document, and cross-reference
 
 ## Upgrade Analysis Workflow — Putting It All Together
 
-### Step 1: Classify the Upgrade Type
-
-```bash
-# From the job name, determine:
-# 1. Minor upgrade (from-stable) vs micro upgrade
-# 2. Platform (aws, gcp, azure, metal)
-# 3. Network plugin (ovn, sdn)
-# 4. Special config (fips, sno, techpreview)
-```
-
-### Step 2: Determine Which Phase Failed
-
-```bash
-# Download key artifacts
-gcloud storage cp "gs://test-platform-results/{bucket-path}/build-log.txt" \
-  .work/prow-job-analysis/{build_id}/logs/ --no-user-output-enabled
-
-# Check for install vs upgrade failure
-grep -c "install should succeed" .work/prow-job-analysis/{build_id}/logs/build-log.txt
-grep -c "Starting upgrade\|Upgrading cluster" .work/prow-job-analysis/{build_id}/logs/build-log.txt
-grep -c "Cluster upgrade should succeed\|upgrade did not complete" .work/prow-job-analysis/{build_id}/logs/build-log.txt
-```
-
-### Step 3: Gather ClusterVersion and Operator Status
-
-```bash
-# ClusterVersion
-gcloud storage cp "gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-extra/artifacts/oc_cmds/clusterversion" \
-  .work/prow-job-analysis/{build_id}/logs/ --no-user-output-enabled
-
-# ClusterOperators
-gcloud storage cp "gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-extra/artifacts/oc_cmds/co" \
-  .work/prow-job-analysis/{build_id}/logs/ --no-user-output-enabled
-
-# MachineConfigPools (for MCO issues)
-gcloud storage cp "gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-extra/artifacts/oc_cmds/machineconfigpool" \
-  .work/prow-job-analysis/{build_id}/logs/ --no-user-output-enabled
-
-# Nodes (for version skew, readiness)
-gcloud storage cp "gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-extra/artifacts/oc_cmds/nodes" \
-  .work/prow-job-analysis/{build_id}/logs/ --no-user-output-enabled
-```
-
-### Step 4: Analyze Timeline/Interval Data
-
-```bash
-# Find and download timeline files
-gcloud storage ls "gs://test-platform-results/logs/{job_name}/{build_id}/artifacts/**/e2e-timelines_spyglass_*.json"
-
-# Run disruption parser to get phased analysis
-python3 plugins/ci/skills/analyze-disruption/parse_disruption.py \
-  .work/prow-job-analysis/{build_id}/logs/e2e-timelines_spyglass_*.json \
-  --window 60 --format text
-```
-
-### Step 5: Check Specific Component Logs
-
-Based on Steps 3-4, drill into the relevant component:
-
-```bash
-# For MCO issues
-gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-extra/artifacts/pods/openshift-machine-config-operator/"
-
-# For CVO issues
-gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-extra/artifacts/pods/openshift-cluster-version/"
-
-# For etcd issues
-gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-extra/artifacts/pods/openshift-etcd/"
-
-# For apiserver issues
-gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-extra/artifacts/pods/openshift-kube-apiserver/"
-```
-
-### Step 6: Identify Root Cause
-
-1. **What phase failed?** (install, control plane rollout, MCO update, reconvergence, conformance)
-2. **What component is at the root?** (Trace degradation cascades back to the first failure)
-3. **Transient or persistent?** (Use time-window analysis)
-4. **Infrastructure or product?** (Cloud issues vs operator bugs)
-5. **Can you identify a specific PR?** (Use `fetch-new-prs-in-payload`)
-
-### Step 7: Generate Report
-
-Include:
-- Upgrade type (minor/micro, platform, special config)
-- Phase that failed
-- Root cause with evidence
-- Timeline of events
-- Affected components
-- Recommendations (revert PR, file bug, infrastructure issue)
+1. **Classify the upgrade type** from the job name: minor (from-stable) vs micro, platform
+   (aws/gcp/azure/metal), network plugin (ovn/sdn), special config (fips/sno/techpreview).
+2. **Determine which phase failed.** Download the top-level `build-log.txt` and grep for the
+   phase markers: `install should succeed` (install phase); `Starting upgrade` /
+   `Upgrading cluster` (upgrade initiated); `Cluster upgrade should succeed` /
+   `upgrade did not complete` (upgrade result). See also "Distinguishing Install Failures from
+   Upgrade Failures" above.
+3. **Gather ClusterVersion, ClusterOperator, MachineConfigPool, and node status.** Download the
+   artifacts from [Key Files to Examine](#key-files-to-examine) — those paths cover every file
+   needed for this step and step 5.
+4. **Analyze timeline/interval data.** Locate `e2e-timelines_spyglass_*.json` and run the
+   disruption parser for a phased view:
+   ```bash
+   python3 plugins/ci/skills/analyze-disruption/parse_disruption.py \
+     .work/prow-job-analysis/{build_id}/logs/e2e-timelines_spyglass_*.json \
+     --window 60 --format text
+   ```
+5. **Drill into the implicated component** (MCO, CVO, etcd, kube-apiserver) using the pod-log
+   paths in the same table.
+6. **Identify the root cause**: which phase failed, which component is at the root (trace
+   degradation cascades back to the first failure), transient vs persistent (time-window
+   analysis), infrastructure vs product, and whether a specific PR is implicated
+   (`fetch-new-prs-in-payload`).
+7. **Report**: upgrade type, failed phase, root cause with evidence, event timeline, affected
+   components, and recommendation (revert PR, file bug, or infrastructure issue).
 
 ## Quick Reference: Log Patterns
 
@@ -1230,35 +1165,13 @@ Include:
 
 ### ClusterOperator Condition Patterns in Timeline
 
-```json
-// Operator starting update (expected)
-{
-  "source": "ClusterOperator",
-  "locator": { "keys": { "name": "kube-apiserver" } },
-  "message": { "humanMessage": "condition/Progressing changed: False -> True (reason: ...)" }
-}
+Timeline `ClusterOperator` events carry these `humanMessage` patterns (full event structure is
+shown under [Reading ClusterOperator Conditions Timeline](#reading-clusteroperator-conditions-timeline)):
 
-// Operator degraded (may be transient)
-{
-  "source": "ClusterOperator",
-  "locator": { "keys": { "name": "authentication" } },
-  "message": { "humanMessage": "condition/Degraded changed: False -> True (reason: ...)" }
-}
-
-// Operator recovered (transient degradation resolved)
-{
-  "source": "ClusterOperator",
-  "locator": { "keys": { "name": "authentication" } },
-  "message": { "humanMessage": "condition/Degraded changed: True -> False" }
-}
-
-// Operator update complete (expected)
-{
-  "source": "ClusterOperator",
-  "locator": { "keys": { "name": "kube-apiserver" } },
-  "message": { "humanMessage": "condition/Progressing changed: True -> False" }
-}
-```
+- `condition/Progressing changed: False -> True` — operator starting update (expected)
+- `condition/Degraded changed: False -> True` — operator degraded (may be transient)
+- `condition/Degraded changed: True -> False` — transient degradation resolved
+- `condition/Progressing changed: True -> False` — operator update complete (expected)
 
 ## Advanced: Identifying Suspect PRs After Upgrade Failure
 

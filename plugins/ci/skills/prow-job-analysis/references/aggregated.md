@@ -4,10 +4,6 @@ Analyze **aggregated Prow CI jobs** — parent jobs that launch multiple child r
 parallel and run statistical analysis to detect test regressions. Route here whenever a job
 name starts with `aggregated-` or its artifacts contain `release-analysis-aggregator`.
 
-> **⚠️ The single most common mistake:** misreading the parent job's artifacts (especially
-> `build-log.txt`) as the failure. The parent only aggregates; the real diagnostics live in
-> the child runs.
-
 ---
 
 ## What Are Aggregated Jobs?
@@ -22,23 +18,6 @@ An aggregated job is a **parent orchestrator** that:
 
 The parent does **not** install a cluster, run tests, or produce test logs — all testing
 happens in the child jobs.
-
-### Why Aggregated Jobs Exist
-
-Single CI runs are noisy: tests flake, infrastructure hiccups, and one failure does not
-prove a regression. Running the same suite N times and applying statistical methods detects
-whether a test's failure rate has meaningfully increased. This is the primary mechanism for
-detecting regressions in OpenShift release payloads.
-
-### Terminology
-
-| Term | Meaning |
-|------|---------|
-| **Aggregated job** / **parent job** | The orchestrator job that launches child runs and performs statistical analysis |
-| **Underlying job** / **child job** / **job run** | An individual test run launched by the aggregated parent |
-| **Release analysis aggregator** | The container/step inside the parent job that performs the statistical analysis |
-| **junit-aggregated.xml** | The parent's aggregated JUnit XML containing statistical results and links to every child run |
-| **Payload tag** | The OCP release payload being tested (e.g., `4.19.0-0.nightly-2025-03-15-010101`) |
 
 ---
 
@@ -399,76 +378,25 @@ tests but are missing from specific tests, it's Mode 3.
 
 ## Multi-Step CI Jobs vs True Aggregated Jobs
 
-Two fundamentally different concepts that are often confused.
+Don't confuse the two:
 
-### Multi-Step CI Jobs (ci-operator Workflows)
+- **Multi-step CI job** — a single job run whose steps (install → test → gather → deprovision)
+  execute in sequence via the ci-operator step registry, sharing **one cluster** and **one
+  build-id**. All artifacts live under `{build-id}/artifacts/{target}/`. This is the normal CI
+  execution model.
+- **True aggregated job** — a parent that launches N **independent** child runs, each a
+  complete multi-step job with its own cluster, build-id, and artifact tree. The parent only
+  aggregates JUnit results and has no cluster of its own.
 
-A **multi-step CI job** is a single job run that executes steps in sequence via the
-ci-operator step registry. Each step runs in its own container but shares one cluster.
+**Why it matters**: for a multi-step failure, everything is under one build-id. For an
+aggregated failure, the parent holds only statistical summaries — navigate to child runs for
+actual test logs, stack traces, and diagnostics (see
+[The Critical Mistake](#the-critical-mistake-analyzing-the-parents-build-logtxt)).
 
-```text
-Single Job Run (build-id: 12345)
-├── pre phase:   ipi-install-install (install cluster)
-├── test phase:  openshift-e2e-test (run E2E tests)
-├── post phase:  gather-must-gather (collect diagnostics)
-└── post phase:  ipi-deprovision (destroy cluster)
-```
-
-- Uses ci-operator step registry **chains** and **workflows**
-- Steps share a single cluster and single build-id
-- All artifacts are under one `{build-id}/artifacts/{target}/` directory
-- Failures in one step can cascade to later steps
-- This is the normal CI job execution model
-
-### True Aggregated Jobs
-
-An **aggregated job** is a parent job that launches N independent child jobs, each of which
-is itself a complete multi-step CI job.
-
-```text
-Aggregated Parent (build-id: 99999)
-├── Child Run 1 (build-id: 12345) → full install + test + gather
-├── Child Run 2 (build-id: 12346) → full install + test + gather
-├── Child Run 3 (build-id: 12347) → full install + test + gather
-├── ...
-└── Child Run 10 (build-id: 12354) → full install + test + gather
-```
-
-- Parent launches N **independent** job runs
-- Each child run installs its **own cluster**, runs tests, and cleans up
-- Child runs have their own build-ids, artifact trees, and Prow URLs
-- Parent only aggregates JUnit results — it has no cluster of its own
-- Statistical analysis requires N independent samples
-
-### Why the Difference Matters
-
-For a multi-step CI job failure, everything is under one build-id — examine that job's
-build-log.txt, JUnit XML, step logs, and cluster state.
-
-For an aggregated job failure, the parent's artifacts contain only statistical summaries.
-You **must** navigate to child runs for actual test logs, stack traces, and cluster
-diagnostics.
-
----
-
-## Step Registry Chains and Workflows
-
-### Step Registry Structure
-
-The OpenShift CI step registry (in `openshift/release`) defines reusable building blocks:
-
-- **References (refs):** Single steps (e.g., `ipi-install-install`, `openshift-e2e-test`)
-- **Chains:** Ordered sequences of refs and other chains (e.g., `ipi-install` chain includes
-  `ipi-install-install` + `ipi-install-heterogeneous`)
-- **Workflows:** Complete job definitions with `pre`, `test`, and `post` phases, each
-  containing chains and/or refs
-
-### How Workflows Relate to Aggregated Jobs
-
-The **child job** typically runs a standard workflow. The parent's ci-operator config
-references the child by its periodic job name and is minimal — it just configures the
-aggregator. The child's ci-operator config holds the full workflow (pre/test/post phases).
-When investigating test failures, you need the child job's workflow, not the parent's.
+The child job runs a standard step-registry workflow (pre/test/post); the parent's ci-operator
+config is minimal and just configures the aggregator, so investigate the child job's workflow,
+not the parent's. For step registry refs, chains, and workflows, see
+[ci-infrastructure-changes.md](ci-infrastructure-changes.md#step-registry-deep-dive).
 
 ---
 
@@ -703,22 +631,6 @@ When re-triggering (e.g., on a revert PR):
   suffices to validate a fix; otherwise use `/payload-aggregate` for statistical validation
 - The `underlying-job-name` **must** be extracted from the artifacts — it cannot be reliably
   derived from the aggregated job name
-
----
-
-## Quick Reference Checklist
-
-- [ ] **Confirm aggregated:** Job name starts with `aggregated-` or artifacts contain
-  `release-analysis-aggregator`
-- [ ] **Do NOT analyze parent build-log.txt** as test output
-- [ ] **Download junit-aggregated.xml** from parent artifacts
-- [ ] **Count completed child runs** — how many produced results?
-- [ ] **Classify failure mode** — Mode 1, 2, or 3
-- [ ] **Extract underlying job name** from artifact paths or `humanurl`
-- [ ] **Navigate to child runs** for actual investigation
-- [ ] **Analyze child runs** as normal (non-aggregated) jobs
-- [ ] **Compare failure patterns** across multiple child runs
-- [ ] **Report the underlying job name** for re-triggering purposes
 
 ---
 

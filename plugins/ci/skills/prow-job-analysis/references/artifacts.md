@@ -408,60 +408,15 @@ artifacts/{target}/openshift-e2e-test/artifacts/junit/e2e-timelines_spyglass_{ti
 The first file (sorted by filename) is the upgrade phase; the second is the conformance/e2e
 test phase.
 
-### JSON Structure
+### Format, Event Sources, and Correlation
 
-Each item in the timeline JSON array:
-
-```json
-{
-  "level": "Error",
-  "source": "Disruption",
-  "locator": {
-    "type": "Disruption",
-    "keys": {
-      "backend-disruption-name": "kube-api-new-connections",
-      "connection": "new",
-      "disruption": "host-to-host-from-node-...-worker-X-to-node-...-master-0-endpoint-10.0.0.5"
-    }
-  },
-  "message": {
-    "reason": "DisruptionBegan",
-    "humanMessage": "... stopped responding to GET requests over new connections",
-    "annotations": { "reason": "DisruptionBegan" }
-  },
-  "from": "2026-03-21T21:50:24Z",
-  "to": "2026-03-21T21:50:26Z"
-}
-```
-
-### Event Sources
-
-| Source | What it Contains |
-|--------|-----------------|
-| `Disruption` | API backend disruption events (Error/Warning level) |
-| `E2ETest` | Test execution intervals (start/end, pass/fail) |
-| `OVSVswitchdLog` | OVS packet processing stalls (poll intervals >500ms) |
-| `CPUMonitor` | Nodes with CPU >95% utilization |
-| `CloudMetrics` | Azure disk IOPS, queue depth, bandwidth, latency |
-| `EtcdLog` | etcd apply-too-long, slow fdatasync, ReadIndex delays |
-| `EtcdDiskCommitDuration` | etcd disk commit above 25ms threshold |
-| `EtcdDiskWalFsyncDuration` | etcd WAL fsync above 10ms threshold |
-| `AuditLog` | API request failure counts during disruption |
-| `Alert` | Prometheus alerts firing (e.g., ExtremelyHighIndividualControlPlaneCPU) |
-| `NodeMonitor` | Node NotReady events, condition changes |
-| `MachineMonitor` | Machine phase changes |
-| `ClusterVersion` | CVO upgrade progress |
-| `ClusterOperator` | Operator status transitions (available, progressing, degraded) |
-| `OperatorState` | Operator state change events |
-| `KubeletLog` | Kubelet log events |
-
-### Using Timeline Data for Failure Correlation
-
-1. Find when the failed test ran — look for `source = "E2ETest"` with
-   `message.annotations.status = "Failed"`
-2. Note the `from` and `to` timestamps
-3. Search for overlapping events with `level = "Error"` or `level = "Warning"`
-4. Focus on `OperatorState`, `NodeMonitor`, and `Disruption` sources
+The JSON structure, per-source field reference, the full set of event sources (`Disruption`,
+`E2ETest`, `OVSVswitchdLog`, `CPUMonitor`, `CloudMetrics`, `EtcdLog`, `EtcdDiskCommitDuration`,
+`EtcdDiskWalFsyncDuration`, `AuditLog`, `Alert`, `NodeMonitor`, `MachineMonitor`,
+`ClusterVersion`, `ClusterOperator`, `OperatorState`, `KubeletLog`), and the
+failure-correlation methodology are documented in
+[disruption.md](disruption.md#interval-file-format-and-structure), which owns the interval
+format.
 
 ---
 

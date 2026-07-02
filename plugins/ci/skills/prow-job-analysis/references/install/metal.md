@@ -558,31 +558,16 @@ The complete boot sequence, as the node would display it on a physical serial po
 
 ### Key Patterns to Search in Console Logs
 
-```bash
-# Kernel panics and oops
-grep -i "panic\|kernel.*oops\|BUG:" *console*.log
+Search `*console*.log` (`grep -i`) for:
 
-# Ignition failures (critical for provisioning)
-grep -i "ignition\|config fetch failed\|Ignition failed" *console*.log
-
-# Network issues during boot
-grep -i "dhcp\|network unreachable\|DNS\|timeout\|no carrier" *console*.log
-
-# Disk and filesystem errors
-grep -i "mount\|disk\|filesystem\|I/O error\|readonly" *console*.log
-
-# systemd service failures
-grep -i "Failed to start\|service.*failed\|Unit.*failed" *console*.log
-
-# Memory issues
-grep -i "Out of memory\|oom\|Cannot allocate" *console*.log
-
-# Hardware errors
-grep -i "hardware error\|MCE\|machine check" *console*.log
-
-# SSH key and authentication
-grep -i "authorized_keys\|sshd\|authentication" *console*.log
-```
+- **Kernel panic/oops**: `panic`, `kernel.*oops`, `BUG:`
+- **Ignition** (critical for provisioning): `ignition`, `config fetch failed`, `Ignition failed`
+- **Network during boot**: `dhcp`, `network unreachable`, `DNS`, `timeout`, `no carrier`
+- **Disk/filesystem**: `mount`, `disk`, `filesystem`, `I/O error`, `readonly`
+- **systemd service failures**: `Failed to start`, `service.*failed`, `Unit.*failed`
+- **Memory**: `Out of memory`, `oom`, `Cannot allocate`
+- **Hardware**: `hardware error`, `MCE`, `machine check`
+- **SSH/auth**: `authorized_keys`, `sshd`, `authentication`
 
 ### Console Log vs. Other Logs
 
@@ -632,15 +617,9 @@ Look for validation errors in the Assisted Service logs or the agent logs on eac
 ### RHCOS Image Download Failures
 
 During provisioning, Ironic downloads the RHCOS (Red Hat CoreOS) disk image and writes
-it to each node's disk. Failures here block provisioning.
-
-```bash
-# Check for image download errors in Ironic logs
-grep -i "image\|download\|rhcos" ironic.log | grep -i "error\|fail\|timeout"
-
-# Check Ironic httpd output for image serving errors (folded into ironic.log)
-grep -i "GET.*rhcos\|404\|500" ironic.log
-```
+it to each node's disk. Failures here block provisioning. Search `ironic.log` for download
+and serving errors: `image`, `download`, `rhcos`, `GET.*rhcos`, `404`, `500` (combined with
+`error`/`fail`/`timeout`; httpd output is folded into `ironic.log`).
 
 **Common causes**:
 - Image URL changed or was removed upstream
@@ -651,21 +630,13 @@ grep -i "GET.*rhcos\|404\|500" ironic.log
 ### Image Caching
 
 Dev-scripts caches RHCOS images on the hypervisor to avoid repeated downloads. If the
-cache is corrupted or stale:
-
-```bash
-# Check image cache in dev-scripts logs
-grep -i "cache\|image.*download\|pulling" devscripts-logs/*
-```
+cache is corrupted or stale, search `devscripts-logs/*` for: `cache`, `image.*download`,
+`pulling`.
 
 ### Disk Image Writing Failures
 
-After download, Ironic writes the image to the node's virtual disk:
-
-```bash
-# Check for write failures in Ironic logs
-grep -i "write\|deploy.*fail\|disk" ironic.log | grep -i "error\|fail"
-```
+After download, Ironic writes the image to the node's virtual disk. Search `ironic.log` for
+write failures: `write`, `deploy.*fail`, `disk` (combined with `error`/`fail`).
 
 **Common causes**:
 - Insufficient disk space on target node
@@ -683,13 +654,8 @@ virtualization layer.
 ### Virtual BMC (vBMC) Failures
 
 Virtual BMC provides IPMI/Redfish endpoints for each VM, letting Ironic manage them as
-physical machines.
-
-```bash
-# Check for vBMC errors
-grep -i "vbmc\|virtualbmc\|virtual.*bmc" devscripts-logs/*
-grep -i "ipmi\|redfish" ironic.log | grep -i "connect\|refuse\|timeout"
-```
+physical machines. Search `devscripts-logs/*` for `vbmc`, `virtualbmc`, `virtual.*bmc`; and
+`ironic.log` for `ipmi`/`redfish` with `connect`/`refuse`/`timeout`.
 
 **Common vBMC issues**:
 - vBMC service didn't start for one or more VMs
@@ -698,14 +664,9 @@ grep -i "ipmi\|redfish" ironic.log | grep -i "connect\|refuse\|timeout"
 
 ### libvirt/QEMU Issues
 
-```bash
-# Check libvirt errors in sosreport
-grep -i "libvirt\|qemu\|kvm" sosreport-*/var/log/messages
-grep -i "error\|fail\|refuse" sosreport-*/var/log/libvirt/*.log
-
-# Check VM definitions
-ls sosreport-*/etc/libvirt/qemu/
-```
+Search the hypervisor sosreport: `libvirt`, `qemu`, `kvm` in `sosreport-*/var/log/messages`;
+`error`/`fail`/`refuse` in `sosreport-*/var/log/libvirt/*.log`. VM definitions live under
+`sosreport-*/etc/libvirt/qemu/`.
 
 **Common libvirt issues**:
 - VM failed to create (insufficient resources)
@@ -715,13 +676,8 @@ ls sosreport-*/etc/libvirt/qemu/
 
 ### Virtual Disk/Network Device Problems
 
-```bash
-# Disk issues
-grep -i "virtio.*disk\|vda\|sda\|I/O error" *console*.log
-
-# Network device issues
-grep -i "virtio.*net\|eth0\|ens\|no carrier\|link.*down" *console*.log
-```
+Search `*console*.log` for device errors: disks — `virtio.*disk`, `vda`, `sda`, `I/O error`;
+network — `virtio.*net`, `eth0`, `ens`, `no carrier`, `link.*down`.
 
 ---
 
@@ -824,42 +780,30 @@ artifacts/{target}/
 │       └── squid-logs-*.tar.gz                     # CI access proxy logs
 ```
 
-### Downloading All Metal Artifacts
+### Downloading Metal Artifacts
+
+The OFCIR log and dev-scripts logs download directly by path:
 
 ```bash
-# OFCIR logs
+# OFCIR host acquisition log
 gcloud storage cp \
   "gs://test-platform-results/{bucket-path}/artifacts/{target}/ofcir-acquire/build-log.txt" \
   ./ofcir-build-log.txt --no-user-output-enabled 2>&1 || echo "Not found"
 
-# Dev-scripts logs
+# Dev-scripts logs (directory)
 gcloud storage cp -r \
   "gs://test-platform-results/{bucket-path}/artifacts/{target}/baremetalds-devscripts-setup/artifacts/root/dev-scripts/logs/" \
   ./devscripts-logs/ --no-user-output-enabled
+```
 
-# Console logs
-gcloud storage ls -r \
-  "gs://test-platform-results/{bucket-path}/artifacts/" 2>&1 | grep "libvirt-logs\.tar\.gz$"
-# Then: gcloud storage cp {path} ./libvirt-logs.tar.gz --no-user-output-enabled
-# Then: tar -xf ./libvirt-logs.tar.gz
+The tarball artifacts share one locate → copy → extract recipe. Substitute the filename
+pattern for the artifact you need: console logs `libvirt-logs\.tar\.gz$`, log bundle
+`log-bundle.*\.tar\.gz$`, sosreport `sosreport.*\.tar\.xz$`, squid `squid-logs.*\.tar\.gz$`:
 
-# Log bundle (with Ironic logs)
-gcloud storage ls -r \
-  "gs://test-platform-results/{bucket-path}/artifacts/" 2>&1 | grep "log-bundle.*\.tar\.gz$"
-# Then: gcloud storage cp {path} ./log-bundle.tar.gz --no-user-output-enabled
-# Then: tar -xf ./log-bundle.tar.gz
-
-# sosreport (optional)
-gcloud storage ls -r \
-  "gs://test-platform-results/{bucket-path}/artifacts/" 2>&1 | grep "sosreport.*\.tar\.xz$"
-# Then: gcloud storage cp {path} ./sosreport.tar.xz --no-user-output-enabled
-# Then: tar -xf ./sosreport.tar.xz
-
-# Squid proxy logs (optional, for IPv6/disconnected)
-gcloud storage ls -r \
-  "gs://test-platform-results/{bucket-path}/artifacts/" 2>&1 | grep "squid-logs.*\.tar\.gz$"
-# Then: gcloud storage cp {path} ./squid-logs.tar.gz --no-user-output-enabled
-# Then: tar -xf ./squid-logs.tar.gz
+```bash
+gcloud storage ls -r "gs://test-platform-results/{bucket-path}/artifacts/" 2>&1 | grep "PATTERN"
+gcloud storage cp {path-from-ls} ./artifact.tgz --no-user-output-enabled
+tar -xf ./artifact.tgz    # use tar -xJf for .tar.xz (sosreport)
 ```
 
 ---
@@ -1023,36 +967,3 @@ If the root cause is still unidentified:
 | **CI access failure** | Tests can't reach cluster | Squid logs | Check proxy config, network routing |
 | **Hypervisor OOM** | Random VM crashes | sosreport | Check hypervisor memory allocation |
 | **Disk space exhaustion** | Image downloads fail | sosreport, dev-scripts log | Check hypervisor disk usage |
-
----
-
-## Tips and Best Practices
-
-- **Check dev-scripts logs FIRST** — they show setup AND installation (dev-scripts
-  invokes the installer). Most information-dense starting point.
-
-- **Installer logs live in devscripts directories** — `.openshift_install*.log` files
-  are inside the dev-scripts log directory, not just the standard location.
-
-- **Console logs are irreplaceable** — for any boot-level or pre-OS failure, they are
-  the only source of truth for kernel panics, Ignition errors, and network boot issues.
-
-- **Check the RIGHT Ironic logs** — bootstrap Ironic covers master provisioning;
-  control-plane Ironic covers worker provisioning.
-
-- **Separate the layers** — identify which layer (OFCIR, dev-scripts, Ironic, OpenShift)
-  failed first. Chasing an OpenShift issue when dev-scripts setup failed wastes time.
-
-- **Squid is for inbound access** — CI → cluster, NOT cluster → registry.
-
-- **"Disconnected" means the nodes** — the hypervisor always has internet. Don't
-  attribute hypervisor download failures to disconnected networking.
-
-- **Boot vs. provisioning** — boot failures appear in console logs; provisioning
-  failures appear in Ironic logs.
-
-- **Map UUIDs to names** — Ironic logs use node UUIDs; map them to BareMetalHost names
-  for clear reporting.
-
-- **IPv6 adds complexity** — IPv6-only environments have extra failure modes around
-  SLAAC, DHCPv6, and NDP. Check these explicitly in IPv6 jobs.

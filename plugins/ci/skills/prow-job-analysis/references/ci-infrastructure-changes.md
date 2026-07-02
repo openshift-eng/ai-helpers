@@ -4,6 +4,25 @@ How CI infrastructure changes cause job failures, and how to distinguish "the pr
 from "someone changed the CI configuration." Covers the layers between a developer's code
 change and the test result.
 
+---
+
+## Table of Contents
+
+1. [When to Use This Reference](#when-to-use-this-reference)
+2. [The `openshift/release` Repo](#the-openshiftrelease-repo)
+3. [ci-operator — The Test Orchestrator](#ci-operator--the-test-orchestrator)
+4. [Step Registry Deep Dive](#step-registry-deep-dive)
+5. [Distinguishing CI Infrastructure vs Product Failures](#distinguishing-ci-infrastructure-vs-product-failures)
+6. [How to Check for Recent CI Infrastructure Changes](#how-to-check-for-recent-ci-infrastructure-changes)
+7. [Image Promotion and Registry Interactions](#image-promotion-and-registry-interactions)
+8. [CI Job Lifecycle Phases](#ci-job-lifecycle-phases)
+9. [Detecting CI Infrastructure Failures — Practical Steps](#detecting-ci-infrastructure-failures--practical-steps)
+10. [Environment Variables and Overrides](#environment-variables-and-overrides)
+11. [Artifact Directory Structure Reference](#artifact-directory-structure-reference)
+12. [See Also](#see-also)
+
+---
+
 ## When to Use This Reference
 
 - Job fails before any product code runs (lease acquisition, image build, etc.)
@@ -740,9 +759,11 @@ Is the failure in the top-level build-log.txt (ci-operator output)?
 
 4. **Step script errors**
    - If the error is a scripting issue in a CI step (unbound variable, syntax error,
-     missing command, bad exit code from a shell script), check for recent commits to
-     that step's script in `openshift/release`. This is a CI infrastructure issue caused
-     by a step registry change, not a product bug.
+     missing command, bad exit code from a shell script), read the step build-log to
+     identify the shell error, then check recent commits to that step's `*-commands.sh`
+     in `openshift/release`. This is a CI infrastructure issue caused by a step registry
+     change, not a product bug — the fix is a PR to `openshift/release`. Include the
+     responsible PR in your evidence.
 
 ### Ambiguous Cases
 
@@ -949,83 +970,12 @@ the image promotion may be stale.
 
 ---
 
-## CI Job Lifecycle — Detailed Phase Breakdown
+## CI Job Lifecycle Phases
 
-The full lifecycle helps pinpoint which phase failed:
-
-### Phase 1: Prow Scheduling
-
-Prow receives the job trigger (PR event, cron schedule, or API call) and creates a
-ProwJob CR in the build cluster. The job enters `Pending` state.
-
-**Failure indicators**: `prowjob.json` shows the job stayed in `pending` state or
-has a very long gap between `pendingTime` and `startTime`.
-
-**Common causes**: Build cluster at capacity, pod scheduling constraints, node issues.
-
-### Phase 2: ci-operator Startup
-
-The ci-operator pod starts in the build cluster. It reads the job configuration,
-resolves step registry references, and prepares the execution plan.
-
-**Failure indicators**: Top-level `build-log.txt` shows ci-operator startup errors
-or step resolution failures.
-
-**Common causes**: Config syntax errors, broken step references, missing secrets.
-
-### Phase 3: Source Cloning
-
-ci-operator clones the source repo (and any `extra_refs`) into the build pod.
-
-**Failure indicators**: `build-log.txt` shows git clone errors.
-
-**Common causes**: GitHub rate limiting, repo access issues, network problems.
-
-### Phase 4: Image Building
-
-ci-operator builds container images defined in the config's `images` section.
-
-**Failure indicators**: `build-log.txt` shows build failures with Dockerfile or
-compilation errors.
-
-**Common causes**: Base image unavailable (CI), compilation errors (product),
-Dockerfile syntax issues (product).
-
-### Phase 5: Lease Acquisition
-
-For jobs requiring cloud resources, ci-operator acquires a lease from Boskos/OFCIR.
-
-**Failure indicators**: `build-log.txt` shows `failed to acquire lease`.
-
-**Common causes**: All cloud accounts in use, quota exhaustion, lease system outage.
-
-### Phase 6: Multi-Stage Test Execution
-
-The pre/test/post phases execute. This is where most investigation happens.
-
-**Failure indicators**: Step-level build logs and JUnit XML show individual step
-pass/fail status.
-
-**Common causes**: Varies by step — cloud API errors (infra/product), test assertions
-(product), environment setup (CI config).
-
-### Phase 7: Artifact Gathering
-
-Post-phase gather steps collect logs and diagnostics to GCS.
-
-**Failure indicators**: Missing artifacts in GCS, gather step failures in JUnit XML.
-
-**Common causes**: Cluster not accessible (pre phase failed), GCS upload issues,
-gather script bugs.
-
-### Phase 8: Teardown
-
-Cloud resources are deprovisioned. The cluster and any associated infrastructure
-are destroyed.
-
-**Failure indicators**: Deprovision step failures in JUnit XML, leaked cloud resources.
-
-**Common causes**: Cloud API errors, resources already deleted, permission issues.
+A CI job runs through eight phases: (1) Prow scheduling, (2) ci-operator startup, (3) source
+cloning, (4) image building, (5) lease acquisition, (6) multi-stage test execution
+(pre/test/post), (7) artifact gathering, (8) teardown. Per-phase failure indicators and causes
+are covered in the failure-modes and practical-steps sections above and below.
 
 **Key rule**: Failures at phases 1–5 are almost always CI infrastructure issues.
 Failures at phase 6 require careful analysis to distinguish CI from product issues.
@@ -1116,90 +1066,6 @@ specific error message across all recent CI jobs.
 
 ---
 
-## Common CI Infrastructure Failure Patterns
-
-### Pattern: Registry Outage
-
-**Symptoms**:
-- Multiple unrelated jobs fail with image pull errors
-- `ImagePullBackOff` or `ErrImagePull` in build-log.txt
-- `manifest unknown` for previously available images
-- Jobs on all platforms affected simultaneously
-
-**Investigation**:
-- Check `registry.ci.openshift.org` status
-- Check `quay.io` status if external images are involved
-- Look for announcements in CI infrastructure channels
-
-### Pattern: Build Cluster Node Pressure
-
-**Symptoms**:
-- Jobs stuck in Pending state for extended periods
-- Jobs killed with `OOMKilled` or `Evicted`
-- `pod_pending` timeout errors
-- Intermittent, resolves when cluster recovers
-
-**Investigation**:
-- Check `prowjob.json` for unusual timing
-- Check if many jobs are queued (cluster at capacity)
-- Look for eviction events in build-log.txt
-
-### Pattern: Cloud Quota Exhaustion
-
-**Symptoms**:
-- Lease acquisition timeout
-- Multiple jobs on the same cloud provider failing
-- Error messages mentioning quota, rate limiting, or capacity
-- Jobs on other cloud providers passing normally
-
-**Investigation**:
-- Check the lease error in build-log.txt
-- Verify which cloud profile is affected
-- Check if new jobs were recently added competing for the same quota
-
-### Pattern: Step Registry Breakage
-
-**Symptoms**:
-- `could not resolve` error for a specific step or chain
-- All jobs using a specific workflow suddenly fail
-- Error appears immediately in ci-operator startup (before test execution)
-- Correlates with a recent `openshift/release` merge
-
-**Investigation**:
-- Identify the broken reference from the error message
-- Search `openshift/release` for recent changes to the step registry path
-- Check if a step was renamed or removed without updating all references
-- Look for `pj-rehearse` results on the causative PR
-
-### Pattern: Step Script Bug
-
-**Symptoms**:
-- A CI step fails with a shell scripting error (unbound variable, syntax error)
-- The error is in the step's `commands.sh`, not in product code
-- May affect all jobs using that step
-- Correlates with a recent change to the step's commands script
-
-**Investigation**:
-- Read the step build-log to identify the shell error
-- Check recent PRs modifying the step's `*-commands.sh` file
-- The fix is typically a PR to `openshift/release` to correct the script
-- Include the responsible `openshift/release` PR in your evidence
-
-### Pattern: `manifest unknown` After Image Stream Change
-
-**Symptoms**:
-- `creating_release_images` failure with `manifest unknown`
-- Occurs after a change to `releases` or `base_images` in ci-operator config
-- May be transient (postsubmit not yet promoted) or persistent (wrong tag reference)
-
-**Investigation**:
-- Check the specific image tag that's failing
-- Verify the image stream tag exists: check the CI registry
-- Check if a postsubmit promotion is still running
-- Check if the `releases` config was recently modified
-
----
-
 ## Environment Variables and Overrides
 
 CI jobs are parameterized through environment variables; these help diagnose
@@ -1249,29 +1115,6 @@ Or via the gangway API using the `MULTISTAGE_PARAM_OVERRIDE_` prefix:
   }
 }
 ```
-
----
-
-## Quick Reference: Failure Classification Checklist
-
-Use this checklist when investigating a job failure:
-
-- [ ] **Read top-level `build-log.txt`** — Does it show ci-operator errors before test
-      execution? If yes → CI infrastructure.
-- [ ] **Check `prowjob.json` timing** — Did the job spend excessive time pending or
-      complete very quickly? If yes → likely CI infrastructure.
-- [ ] **Check JUnit XML** — Which phase failed (pre/test/post)?
-  - Pre phase → may be CI (cloud, config) or product (installer)
-  - Test phase → usually product; check for CI step script errors
-  - Post phase → informational, check if it hides the real failure
-- [ ] **Check for widespread failures** — Are other unrelated jobs failing the same way?
-      If yes → CI infrastructure.
-- [ ] **Check `openshift/release` history** — Did a recent PR modify the relevant
-      workflow, step, or config? If yes → CI infrastructure change.
-- [ ] **Check error message origin** — Is the error from ci-operator itself, from a
-      step script, or from product code?
-- [ ] **Check symptom labels** — Do `job_labels/` artifacts provide environmental context?
-- [ ] **Timeline correlation** — When did the failure start? What changed at that time?
 
 ---
 

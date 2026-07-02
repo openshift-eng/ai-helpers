@@ -719,6 +719,8 @@ During upgrade, these are **expected** and not bugs:
 
 These become **concerning** when:
 - Disruption exceeds the allowance threshold (typically 10–30s depending on backend)
+- Disruption is sustained (e.g., 120s) rather than brief — a sign the upgrade itself is broken
+  (stuck drain, failed etcd restart), not normal restart churn
 - Multiple control plane components are disrupted simultaneously for extended periods
 - A node fails to come back after drain/reboot
 - An operator stays degraded after the upgrade window closes
@@ -752,16 +754,9 @@ attach a label describing the observation.
 
 ### Accessing Symptom Labels
 
-```bash
-# List available symptom labels
-gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/job_labels/" 2>/dev/null
-
-# Download JSON symptom files (exclude the HTML summary)
-gcloud storage cp "gs://test-platform-results/{bucket-path}/artifacts/job_labels/*.json" \
-  local/job_labels/ --no-user-output-enabled 2>/dev/null || true
-```
-
-Each JSON file contains a summary and explanation of the detected symptom.
+Download the `job_labels/*.json` files with the commands in the
+[`job_labels/` section of artifacts.md](artifacts.md#job_labels--symptom-labels). Each JSON
+file contains a summary and explanation of the detected symptom.
 
 ### Common Symptom Labels and Their Meaning
 
@@ -883,44 +878,19 @@ Disruption detected → What was the source pattern? → What concurrent events 
 → What does the causal chain look like? → What is the root cause?
 ```
 
-### How to Determine if Disruption Caused Test Failures
+### Did Disruption Cause the Test Failure?
 
 Not all disruption causes test failures, and not all test failures come from disruption.
-To determine the relationship:
+Establish the link rather than assuming it:
 
-1. **Check temporal overlap**: Did the test fail during an active disruption window?
-   - Yes → disruption may have caused the failure (but could also be coincidental)
-   - No → disruption is not the direct cause
-
-2. **Check test type**: Does the failing test depend on API availability?
-   - Tests that make API calls, create resources, or check operator status → likely
-     affected by API disruption
-   - Tests that check static configuration or audit policies → unlikely affected
-
-3. **Check test error**: Does the test error reference connectivity?
-   - `"connection refused"`, `"timeout"`, `"EOF"` → likely affected by disruption
-   - `"assertion failed"`, `"expected X got Y"` → probably a functional bug, not disruption
-
-4. **Check multiple runs**: Does the test consistently fail with disruption and consistently
-   pass without disruption?
-   - Consistent correlation → disruption is likely causal
-   - Inconsistent → may be coincidental
-
-### The Difference Between "Disruption Happened" and "Disruption Is the Bug"
-
-**Scenario A**: "During upgrade, kube-api showed 3 seconds of disruption while the
-kube-apiserver pod was restarting."
-- **Expected behavior.** The upgrade restarts the API server, causing brief disruption. Not
-  a bug.
-
-**Scenario B**: "During conformance testing, kube-api showed 45 seconds of disruption
-concurrent with 98% CPU on worker-db64f and OVS stalls."
-- **A real problem.** CPU starvation froze networking. The disruption is the symptom; the CPU
-  starvation is the proximate cause; the workload causing it is the root cause.
-
-**Scenario C**: "During upgrade, kube-api showed 120 seconds of sustained disruption."
-- **A real problem even during upgrade.** Brief disruption is expected; 120 seconds is not.
-  The upgrade process itself may be broken (stuck drain, failed etcd restart).
+1. **Temporal overlap** — did the test fail inside an active disruption window? No → disruption
+   is not the direct cause.
+2. **Test dependency** — tests that make API calls, create resources, or check operator status
+   are affected by API disruption; tests checking static config or audit policies are not.
+3. **Error text** — `"connection refused"`, `"timeout"`, `"EOF"` point to disruption;
+   `"assertion failed"`, `"expected X got Y"` point to a functional bug, not disruption.
+4. **Cross-run consistency** — consistent fail-with-disruption / pass-without is causal;
+   inconsistent is likely coincidental.
 
 ---
 
@@ -1041,16 +1011,6 @@ unreliable.
 
 ## Cross-Run Comparison
 
-### Why Cross-Run Analysis Matters
-
-Single-run analysis can mislead — one occurrence might be an infrastructure fluke, a transient
-cloud issue, or a rare race condition. Comparing across multiple runs of the same job reveals
-whether disruption is:
-
-- **Systematic** (same pattern every run) → likely a product bug or configuration issue
-- **Intermittent** (some runs affected) → may be infrastructure-sensitive or a race condition
-- **Isolated** (only one run affected) → likely infrastructure or environmental
-
 ### How to Compare Disruption Across Runs
 
 1. **Identify common backends**: Which backends show disruption across runs?
@@ -1142,75 +1102,18 @@ regression, heavier test workloads, infrastructure degradation).
 
 ## Tooling: The Disruption Parser
 
-### Overview
-
-`parse_disruption.py` is the primary tool for structured disruption analysis. It automates
-extraction, classification, and correlation of disruption data from timeline files.
-
-### Usage
+`parse_disruption.py` is the primary tool for structured disruption analysis — it extracts,
+classifies, and correlates disruption data from timeline files. The
+[analyze-disruption skill](../../analyze-disruption/SKILL.md) owns this tool and documents its
+full usage, flags (`--backends`, `--window`, `--format`, `--job-name`, `--build-id`,
+`--target`), JSON output schema, and feature list (backend classification, phase detection,
+source-node fan-out, concurrent-event extraction, OVS/CPU/cloud/etcd summarization, network
+liveness). Quick invocation:
 
 ```bash
 python3 plugins/ci/skills/analyze-disruption/parse_disruption.py \
-  <timeline.json> [timeline2.json ...] \
-  [--backends backend1,backend2] \
-  [--window 60] \
-  [--format text|json] \
-  [--job-name <name>] \
-  [--build-id <id>] \
-  [--target <target>]
+  <timeline.json> [timeline2.json ...] --window 60 --format text
 ```
-
-### Parameters
-
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `files` | (required) | One or more timeline JSON file paths |
-| `--backends` | all | Comma-separated backend name filters (substring match) |
-| `--window` | 60 | Seconds to expand around disruption window for concurrent events |
-| `--format` | text | Output format: `text` for human reading, `json` for structured analysis |
-| `--job-name` | none | Prow job name (enables deep link generation) |
-| `--build-id` | none | Prow build ID (enables deep link generation) |
-| `--target` | none | CI operator target (enables artifact deep links) |
-
-### What the Parser Produces
-
-The parser output (JSON format) contains:
-
-```json
-{
-  "disruptions": [...],           // Individual disruption events with classification
-  "concurrent_events": {...},     // Events concurrent with disruption windows
-  "source_node_analysis": {...},  // Single-source fan-out detection
-  "network_liveness": {...},      // Network liveness backend summary
-  "summary": {
-    "disruption_count": 11,
-    "backends": {"kube-api-new-connections": 5, ...},
-    "time_range": {"from": "...", "to": "..."},
-    "phase_breakdown": {"upgrade": 3, "conformance": 8},
-    "network_liveness_status": "clean",
-    "source_node_pattern": "single-source-fan-out",
-    "key_signals": ["OVS stalls: 4 events, max 9235ms", ...]
-  },
-  "links": {
-    "prow": "https://prow.ci.openshift.org/...",
-    "sippy_intervals": "https://sippy.dptools.openshift.org/...",
-    "gcsweb_timelines": ["https://gcsweb-ci.../e2e-timelines_..."]
-  }
-}
-```
-
-### Key Parser Features
-
-- **Automatic backend classification** (cache/non-cache/canary/cloud)
-- **Phase detection** for upgrade jobs (upgrade vs conformance)
-- **Source-node fan-out detection** (single-source vs multi-source vs unknown)
-- **Concurrent event extraction** with configurable time window
-- **OVS stall summarization** with per-node max poll intervals
-- **CPU pressure summarization** with affected node list
-- **Cloud metrics summarization** (Azure disk IOPS, queue depth)
-- **etcd pressure detection** from EtcdLog/EtcdDisk* events
-- **Network liveness assessment** (clean/minor/degraded/unreliable)
-- **Deep link generation** for Prow, Sippy, and GCS artifacts
 
 ### Network Liveness Assessment Scale
 

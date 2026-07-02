@@ -579,14 +579,8 @@ in `job_labels/` that provide environmental context.
 
 ### Locating Symptom Labels
 
-```bash
-# List the job_labels directory
-gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/job_labels/" 2>/dev/null
-
-# Download JSON symptom files (exclude label-summary.html)
-gcloud storage cp "gs://test-platform-results/{bucket-path}/artifacts/job_labels/*.json" \
-  .work/prow-job-analysis/{build_id}/logs/job_labels/ --no-user-output-enabled 2>/dev/null || true
-```
+Download the `job_labels/*.json` files with the commands in the
+[`job_labels/` section of artifacts.md](../artifacts.md#job_labels--symptom-labels).
 
 ### Using Symptom Labels
 
