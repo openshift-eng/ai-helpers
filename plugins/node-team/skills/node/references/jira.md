@@ -119,7 +119,8 @@ Bot account treated as unassigned: `Node Team Bot Account`.
 | Team | Sprint filter | Roster file | Bug components |
 |------|--------------|-------------|----------------|
 | Core | `Node Core` | `team-roster-core.json` | All Node components |
-| DRA/Devices | `Node Devices` | `team-roster-dra.json` | Node / Device Manager, Node / Instaslice-operator |
+| DRA/Devices | `Node Devices` | `team-roster-dra.json` | Node / Device Manage, Node / Instaslice-operator |
+| Kueue | `OCP Kueue` | `team-roster-core.json` | Node / Kueue |
 
 ## Custom Field IDs
 

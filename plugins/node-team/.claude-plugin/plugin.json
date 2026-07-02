@@ -1,7 +1,7 @@
 {
   "name": "node-team",
   "description": "OpenShift Node team assistant for development, deployment, debugging, and workflow tasks across kubelet, MCO, CRI-O, crun, conmonrs, Kueue operator, Jira, Red Hat KB/support cases, Prometheus, and platform docs.",
-  "version": "0.17.1",
+  "version": "0.17.2",
   "author": {
     "name": "github.com/openshift-eng"
   }
