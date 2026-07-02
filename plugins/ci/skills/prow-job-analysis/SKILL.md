@@ -58,6 +58,7 @@ Parse the job name to determine the environment and expected failure modes:
 | `aggregated-` prefix | Aggregated | Statistical analysis of multiple runs — see [aggregated reference](references/aggregated.md) |
 | `aws`, `gcp`, `azure` | Cloud platform | Platform-specific errors — see [cloud provider reference](references/cloud-provider-errors.md) |
 | `techpreview` | Tech preview | Feature gates enabled, features may be unstable |
+| `rhcos9`, `rhcos10`, `rhcos9_10`, `rt` | RHCOS variant / RT kernel | OS variant pinned or heterogeneous; OS-level differences (kernel/systemd/SELinux) — see [operating system changes reference](references/operating-system-changes.md) |
 
 ### Step 4: Download Key Artifacts
 
@@ -93,6 +94,7 @@ appropriate reference file for detailed analysis procedures.
 | Cloud API errors, quota, throttling | [Cloud Provider Errors](references/cloud-provider-errors.md) | AWS/GCP/Azure API/quota/provisioning failures before/during cluster creation |
 | Node NotReady, OOM, disk pressure | [Resource Exhaustion](references/resource-exhaustion.md) | CPU/memory/disk/PID/etcd exhaustion, eviction, unschedulable pods |
 | DNS, OVN, registry/pull, ingress errors | [Networking](references/networking.md) | OVN-Kubernetes/SDN, DNS, image pull/registry, load balancer/ingress, network policy |
+| Container-start (cri-o), kernel panic, NetworkManager, RHCOS variant-isolated failure | [Operating System Changes](references/operating-system-changes.md) | Node OS (RHCOS) layer — cri-o/crun, kernel, systemd, NetworkManager, SELinux, or an RHCOS bump in the payload |
 | Lease/quota, ci-operator, Prow infra | [CI Infrastructure](references/ci-infrastructure-changes.md) | Distinguish "product broke" from "CI config changed"; ci-operator, step registry, leases |
 | Need a specific artifact file | [Artifacts](references/artifacts.md) | Artifact directory structure, paths, and gcloud fetch commands |
 
