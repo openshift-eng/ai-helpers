@@ -1,15 +1,79 @@
 expected_failure_type: upgrade
 expected_references:
   - upgrade.md
-  - disruption.md
-expected_root_cause_category: upgrade-api-disruption
+expected_root_cause_category: upgrade-admin-ack-gate-test-failure
+
+# The single conclusion a correct analysis MUST reach.
+expected_root_cause: >-
+  The 4.17.54 -> 4.18 upgrade itself completed; the job failed on a single
+  upgrade-suite test, "[bz-Cluster Version Operator] Verify presence of admin ack
+  gate blocks upgrade until acknowledged". After the upgrade that test waited for
+  the ClusterVersion Upgradeable condition to report AdminAckRequired (the
+  Kubernetes 1.32 / OpenShift 4.19 API-removals gate) and timed out ("timed out
+  waiting for the condition"); because the Ginkgo Fail() ran inside a goroutine it
+  surfaced as a Go panic ("Your Test Panicked") at adminack.go:76. That one
+  failing test failed the wrapping "[sig-arch][Feature:ClusterUpgrade] Cluster
+  should remain functional during upgrade" test. It is an admin-ack-gate
+  verification failure, NOT API/etcd disruption exceeding tolerances.
+
+# VERBATIM strings that MUST appear in the cited artifact. Every string below was
+# fetched from the public test-platform-results bucket and grep-confirmed present.
+expected_evidence:
+  - string: "[bz-Cluster Version Operator] Verify presence of admin ack gate blocks upgrade until acknowledged"
+    artifact: "artifacts/ocp-e2e-aws-ovn-upgrade-multi-x-ax/openshift-e2e-test/artifacts/junit/junit_upgrade__20260622-234605.xml"
+  - string: 'failures="1"'
+    artifact: "artifacts/ocp-e2e-aws-ovn-upgrade-multi-x-ax/openshift-e2e-test/artifacts/junit/junit_upgrade__20260622-234605.xml"
+  - string: "Waiting for Upgradeable to be AdminAckRequired"
+    artifact: "artifacts/ocp-e2e-aws-ovn-upgrade-multi-x-ax/openshift-e2e-test/build-log.txt"
+  - string: "Error while waiting for Upgradeable to complain about AdminAckRequired"
+    artifact: "artifacts/ocp-e2e-aws-ovn-upgrade-multi-x-ax/openshift-e2e-test/build-log.txt"
+  - string: "fail [github.com/openshift/origin/test/extended/util/openshift/clusterversionoperator/adminack.go:76]"
+    artifact: "artifacts/ocp-e2e-aws-ovn-upgrade-multi-x-ax/openshift-e2e-test/build-log.txt"
+
+# The one signal that separates the true cause from the look-alikes.
+discriminating_signal: >-
+  The upgrade suite reports failures="1": exactly one test failed, the admin-ack
+  gate test, and its failure is "timed out waiting for the condition" on the
+  ClusterVersion Upgradeable=AdminAckRequired state. Every disruption backend test
+  in the same suite (DNS availability, job / deployment / replicaset / daemonset,
+  Prometheus, secret / configmap) PASSED, so upgrade disruption stayed within
+  thresholds. The discriminator is the single admin-ack timeout, not any
+  disruption metric.
+
+# Misleading signals a shallow analysis would wrongly latch onto.
+distractors:
+  - "The upgrade window logs hundreds of 'dial tcp' / 'event interval matches ConnectionErrorDuringSingleNodeAPIServerTargetDown' / 'KubeAPIReadinessProbeError' entries (many naming openshift-etcd), which look like severe API/etcd disruption but are level=info interval annotations from normal rolling restarts and stay within threshold."
+  - "The failure surfaces as 'Your Test Panicked' with a Go goroutine stack, tempting a 'test-binary crash / product panic' verdict; the panic is only Ginkgo converting a Fail() called in a goroutine, and the real cause is the preceding timeout."
+  - "The top-level 'Failing tests' line names the broad wrapper '[sig-arch][Feature:ClusterUpgrade] Cluster should remain functional during upgrade [Disruptive] [Serial]', inviting a conclusion that the whole upgrade or cluster broke, when only the admin-ack child test failed."
+
+# Wrong conclusions the judge must penalize.
+must_not_conclude:
+  - "upgrade API/etcd disruption exceeding tolerances or a disruption-threshold breach (all disruption tests passed; the dial-tcp lines are within-threshold info-level noise)"
+  - "a product or test-binary panic/crash as the root cause (the panic is a goroutine Fail() artifact; the cause is the timeout waiting for the Upgradeable condition)"
+  - "MCO drain, etcd quorum loss, or operator degradation broke the upgrade (the upgrade completed; only the admin-ack verification test failed)"
+  - "a generic flake with no identified failing test, or conflating the failure with the [sig-arch][Feature:ClusterUpgrade] wrapper instead of the admin-ack child test"
 
 notes: >
-  Multi-arch 4.17 -> 4.18 AWS OVN upgrade with massive API/etcd disruption:
-  hundreds of "dial tcp" connection errors (147+ per etcd member) hammered the
-  API server and etcd during the upgrade, blowing past disruption tolerances.
+  Multi-arch 4.17.54 -> 4.18 (4.18.0-0.nightly-multi-2026-06-22-154529) AWS OVN
+  minor upgrade. The upgrade completed; the ONLY failure (failures="1" in
+  junit_upgrade) is the disruption-suite test "[bz-Cluster Version Operator]
+  Verify presence of admin ack gate blocks upgrade until acknowledged". Post
+  upgrade it waited (adminack.go:246, "Waiting for Upgradeable to be
+  AdminAckRequired") for the ClusterVersion Upgradeable condition to report
+  AdminAckRequired for the Kubernetes 1.32 / OpenShift 4.19 API-removals gate and
+  timed out: "Error while waiting for Upgradeable to complain about
+  AdminAckRequired ... : timed out waiting for the condition" at adminack.go:76.
+  Because the assertion ran in a goroutine, Ginkgo reported it as "Your Test
+  Panicked". That single failing test failed the wrapping
+  "[sig-arch][Feature:ClusterUpgrade] Cluster should remain functional during
+  upgrade" test.
 
-  The agent MUST route to upgrade.md and disruption.md, quantify the disruption
-  severity (count the connection errors / affected etcd members), and trace the
-  disruption to the upgrade phase. The root cause is upgrade-driven API/etcd
-  disruption, not a single failing conformance test.
+  The prior note (massive API/etcd disruption, "147+ dial tcp per etcd member",
+  disruption blowing past tolerances) was NOT supported by the artifacts and has
+  been corrected, and disruption.md dropped from expected_references: the numerous
+  "dial tcp" / interval-match lines are level=info annotations from normal rolling
+  restarts, and every disruption backend test PASSED. The agent MUST route to
+  upgrade.md, recognize the upgrade completed, isolate the single failing
+  admin-ack gate test and its timeout on the Upgradeable=AdminAckRequired
+  condition, and treat the disruption interval noise and the goroutine "panic" as
+  distractors - NOT conclude a disruption-threshold breach.
