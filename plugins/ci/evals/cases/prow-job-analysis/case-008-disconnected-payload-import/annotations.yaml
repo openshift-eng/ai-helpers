@@ -1,16 +1,78 @@
 expected_failure_type: infra
 expected_references:
-  - networking.md
   - hypershift.md
-expected_root_cause_category: disconnected-payload-import
+  - ci-infrastructure-changes.md
+expected_root_cause_category: release-image-import-failure
+
+# The single conclusion a correct analysis MUST reach.
+expected_root_cause: >-
+  The job failed in ci-operator's [release:latest] step while materializing the
+  4.19.0-0.ci-2026-06-25-212724 payload (192 images) into the ephemeral stable
+  imagestream: the member image stable:baremetal-installer could not be imported
+  because its manifest digest sha256:c4bc76ee... was reported "not found" in the
+  CI registry (quay.io/openshift/ci and its quay-proxy.ci.openshift.org mirror),
+  so after 6 retries the import timed out (reason importing_release). This is a
+  CI-infrastructure release-image-import failure that occurred before any test
+  ran — not a disconnected-mirror problem or a HyperShift/agent product
+  regression.
+
+# VERBATIM strings that MUST appear in the cited artifact. Every string below was
+# fetched from the public test-platform-results bucket and grep-confirmed present.
+expected_evidence:
+  - string: "failed to import release 4.19.0-0.ci-2026-06-25-212724 to tag release:latest: failed to reimport the tag ci-op-nsnzyx7g/stable:baremetal-installer"
+    artifact: "build-log.txt"
+  - string: "unable to import tag ci-op-nsnzyx7g/stable:baremetal-installer with message Internal error occurred"
+    artifact: "build-log.txt"
+  - string: 'quay.io/openshift/ci@sha256:c4bc76eeaec462f86a2134bcccdf6558f1865f15b87754dbab018a2ea842d0ee" not found'
+    artifact: "build-log.txt"
+  - string: "on the image stream even after (6) imports: timed out waiting for the condition"
+    artifact: "build-log.txt"
+  - string: "Reporting job state 'failed' with reason 'executing_graph:step_failed:importing_release'"
+    artifact: "build-log.txt"
+  - string: "Waiting to import tag[26] on imagestream ci-op-nsnzyx7g/stable:baremetal-installer ..."
+    artifact: "artifacts/ci-operator.log"
+
+# The one signal that separates the true cause from the look-alikes.
+discriminating_signal: >-
+  The failure reason is executing_graph:step_failed:importing_release and the
+  only payload member tag that fails to import is stable:baremetal-installer,
+  whose digest sha256:c4bc76ee... returns an affirmative "not found" from the
+  connected CI registry (quay.io/openshift/ci). The job ran only 8m5s and
+  produced NO artifacts/e2e-agent-disconnected-ovn-ipv6-metal-conformance/ step
+  directory, proving ci-operator aborted during release import before any
+  disconnected/agent/metal/HyperShift step executed.
+
+# Misleading signals a shallow analysis would wrongly latch onto.
+distractors:
+  - "The job name (mce-e2e-agent-disconnected-ovn-ipv6-metal-conformance) advertises a disconnected, IPv6, bare-metal, agent-based install, tempting a mirror-registry / air-gapped image-pull root cause — but the failing pull is from the connected CI registry during ci-operator's imagestream import, and the disconnected mirror is only set up inside test steps that never ran."
+  - "The repo under test is openshift/hypershift (MCE variant), tempting a HyperShift / hosted-control-plane or MCE product regression — but no hosted cluster (or any cluster) was ever provisioned."
+  - "'even after (6) imports: timed out waiting for the condition' resembles a transient registry-slowness/timeout flake, but the underlying cause is an affirmative 'not found' for the baremetal-installer digest — a missing/pruned image in the payload, not a timeout against a reachable image."
+  - "The target uses an Equinix bare-metal cluster profile (equinix-ocp-hcp), tempting a Metal3/Ironic bare-metal provisioning root cause even though provisioning never started."
+
+# Wrong conclusions the judge must penalize.
+must_not_conclude:
+  - "disconnected/air-gapped mirror-registry image-pull failure inside the cluster (the failing import is from the connected CI registry, before any disconnected step ran)"
+  - "HyperShift / MCE hosted-control-plane or agent-based-install product regression"
+  - "bare-metal / Metal3 / Ironic provisioning failure (no cluster was provisioned)"
+  - "OVN/SDN or IPv6 networking bug"
+  - "generic transient registry timeout/flake without identifying the missing stable:baremetal-installer image (digest sha256:c4bc76ee...) in the 4.19.0-0.ci payload"
 
 notes: >
-  Disconnected agent-based MCE/HyperShift metal conformance job (IPv6). The
-  baremetal-installer payload image was unreachable, and the disconnected
-  environment (mirror registry / no direct internet) amplifies any image
-  availability gap into a hard failure.
+  HyperShift MCE agent-disconnected metal-conformance periodic (openshift/hypershift,
+  release-4.19) that failed BEFORE the product was exercised. ci-operator resolved
+  and began importing the 4.19.0-0.ci-2026-06-25-212724 release payload (192
+  images) into the ephemeral stable imagestream, but the member tag
+  stable:baremetal-installer (tag[26]) could not be imported: its digest
+  sha256:c4bc76ee... was reported "not found" in the CI registry
+  (quay.io/openshift/ci and quay-proxy.ci.openshift.org). After 6 retries the
+  [release:latest] step timed out and the job failed with reason
+  executing_graph:step_failed:importing_release after only 8m5s.
 
-  The agent MUST understand the disconnected context: route to networking.md
-  (image pull / registry / mirror reachability) and hypershift.md (agent-based
-  hosted cluster shape), and attribute the root cause to the unreachable
-  payload image in the disconnected mirror path — not to a product regression.
+  This is a CI-infrastructure release-image-import/payload problem (a missing or
+  pruned image in the CI release payload) — NOT the disconnected mirror path, and
+  NOT a HyperShift/agent/MCE product regression. The job never created a cluster
+  and produced no e2e-agent-disconnected-ovn-ipv6-metal-conformance step
+  artifacts. The agent should use hypershift.md to recognize the job shape but
+  root-cause via ci-infrastructure-changes.md to the missing baremetal-installer
+  image tag; the "disconnected", "ipv6", "metal", and "hypershift" tokens in the
+  job name are distractors here.
