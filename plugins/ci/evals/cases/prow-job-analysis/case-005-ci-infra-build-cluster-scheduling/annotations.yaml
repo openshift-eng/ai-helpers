@@ -4,13 +4,65 @@ expected_references:
   - resource-exhaustion.md
 expected_root_cause_category: ci-build-cluster-exhaustion
 
-notes: >
-  The test pod could not be scheduled on the build cluster (build01): the
-  scheduler reported "0/127 nodes are available" with Insufficient cpu,
-  Insufficient memory, and untolerated taint(s), and preemption did not help.
-  This is a pure CI-infrastructure capacity failure on the build cluster.
+# The single conclusion a correct analysis MUST reach.
+expected_root_cause: >-
+  The test never ran. After the pre phase (install etc.) succeeded, the
+  openshift-e2e-test pod could not be scheduled on the CI build farm (cluster
+  build09) and stayed Pending: the scheduler rejected every node ("0/127 nodes
+  are available" with Insufficient cpu, Insufficient memory, and untolerated
+  taint(s)) and preemption did not help, so ci-operator aborted the job with
+  reason pod_pending. This is pure CI build-cluster capacity exhaustion, not a
+  product regression or a failure of the code/test under execution.
 
-  The agent MUST recognize this from the scheduler messages and classify it as
-  a CI-infrastructure / build-cluster resource-exhaustion problem (route to
-  ci-infrastructure-changes.md and resource-exhaustion.md). It must NOT
-  misattribute the failure to product code or to the test under execution.
+# VERBATIM strings that MUST appear in the cited artifact. Every string below was
+# fetched from the public test-platform-results bucket and grep-confirmed present.
+expected_evidence:
+  - string: "pod pending for more than 1h0m0s: pod has not been scheduled in 1h0m0.000638085s:"
+    artifact: "build-log.txt"
+  - string: "Found 240 events for Pod e2e-aws-ovn-upgrade-paused-openshift-e2e-test:"
+    artifact: "build-log.txt"
+  - string: "0/127 nodes are available: 1 node(s) didn't satisfy existing pods anti-affinity rules, 11 node(s) didn't match Pod's node affinity/selector, 21 Insufficient memory, 4 node(s) were unschedulable, 53 node(s) had untolerated taint(s), 58 Insufficient cpu. no new claims to deallocate, preemption: 0/127 nodes are available: 1 node(s) didn't satisfy existing pods anti-affinity rules, 58 No preemption victims found for incoming pod, 68 Preemption is not helpful for scheduling."
+    artifact: "build-log.txt"
+  - string: "Reporting job state 'failed' with reason 'executing_graph:step_failed:utilizing_lease:executing_test:utilizing_ip_pool:executing_test:executing_multi_stage_test:pod_pending'"
+    artifact: "build-log.txt"
+  - string: "Using namespace https://console-openshift-console.apps.build09.ci.devcluster.openshift.com/k8s/cluster/projects/ci-op-rgkplghc"
+    artifact: "build-log.txt"
+
+# The one signal that separates the true cause from the look-alikes.
+discriminating_signal: >-
+  The failure is in the TOP-LEVEL build-log.txt (ci-operator output) and
+  ci-operator's final reason ends in ...:pod_pending — the openshift-e2e-test
+  pod never left Pending, so no test logic ever executed. The FailedScheduling
+  message ("0/127 nodes are available ... Insufficient cpu ... untolerated
+  taint(s)", "Preemption is not helpful for scheduling") describes the build-farm
+  nodes (build09) that RUN the job, i.e. the CI build cluster, not the ephemeral
+  cluster under test.
+
+# Misleading signals a shallow analysis would wrongly latch onto.
+distractors:
+  - "The job name contains upgrade / ovn / paused, tempting an upgrade-mechanics or OVN/SDN root cause even though no test (and no upgrade) ever ran."
+  - "The pre phase (ipi-install-install-stableinitial etc.) succeeded and took ~48m, so a shallow read might hunt for a product failure later; in fact the very next step, openshift-e2e-test, never scheduled."
+  - "'node(s) didn't match Pod's node affinity/selector' and 'untolerated taint(s)' look like a pod misconfiguration, but combined with Insufficient cpu/memory on the remaining nodes and failed preemption it is ordinary build-farm capacity exhaustion."
+
+# Wrong conclusions the judge must penalize.
+must_not_conclude:
+  - "product regression or a bug in the code under test / an operator"
+  - "a failure of the openshift-e2e-test suite or any individual test (no test executed)"
+  - "an install or upgrade failure (install succeeded; the pod that never scheduled is the e2e test pod)"
+  - "cluster-under-test resource exhaustion (the exhausted cluster is the CI build farm, build09, not the provisioned AWS cluster)"
+
+notes: >
+  CI build-cluster scheduling failure. The pre phase succeeded, but in the test
+  phase the openshift-e2e-test pod (e2e-aws-ovn-upgrade-paused-openshift-e2e-test)
+  could not be scheduled on the build farm and stayed Pending ("pod pending for
+  more than 1h0m0s"). The scheduler reported "0/127 nodes are available" with
+  Insufficient cpu, Insufficient memory and untolerated taint(s), and preemption
+  was "not helpful", so ci-operator failed the job with reason ...:pod_pending.
+  The build cluster is build09 (per the ci-operator namespace URL), not build01.
+
+  The agent MUST recognize this from the top-level build-log.txt scheduler
+  messages and classify it as a CI-infrastructure / build-cluster
+  resource-exhaustion problem (route to ci-infrastructure-changes.md#pod_pending
+  and resource-exhaustion.md). It must NOT misattribute the failure to product
+  code, to the test under execution, to an install/upgrade failure, or to the
+  provisioned cluster under test.
