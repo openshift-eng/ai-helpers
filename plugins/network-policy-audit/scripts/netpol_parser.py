@@ -138,7 +138,7 @@ class NetworkPolicyParser:
         for rule in rules:
             parsed_rule = {
                 'ports': self._parse_ports(rule.ports or []),
-                'from': self._parse_peers(getattr(rule, 'from_', []) or [])
+                'from': self._parse_peers(getattr(rule, '_from', []) or [])
             }
             parsed_rules.append(parsed_rule)
 
