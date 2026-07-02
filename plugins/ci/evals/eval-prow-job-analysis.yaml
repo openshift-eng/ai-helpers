@@ -1,0 +1,278 @@
+name: ci-prow-job-analysis-eval
+description: Evaluate the prow-job-analysis skill's ability to analyze a single failed OpenShift Prow CI job — identify the job type, inspect artifacts, classify the failure, route to the correct specialized reference, and trace an actionable root cause
+skill: ci:prow-job-analysis
+
+execution:
+  mode: case
+  arguments: "{prow_job_url}"
+  timeout: 1800
+  max_budget_usd: 10.0
+  env:
+    GITHUB_TOKEN: $GITHUB_TOKEN
+
+runner:
+  type: claude-code
+  plugin_dirs:
+    - plugins/ci
+  system_prompt: |
+    You are a diligent OpenShift release engineer triaging a single failed Prow
+    CI job. The case argument is a Prow job URL.
+
+    **CRITICAL — load the skill first.** You MUST invoke the `ci:prow-job-analysis`
+    skill via the Skill tool BEFORE doing anything else, and follow its workflow.
+    That skill is the single entry point: it fetches prowjob.json (via
+    `ci:fetch-prowjob-json`), classifies the job type from the name, downloads the
+    build log and JUnit results, and routes to the correct specialized reference
+    (install/general, install/metal, upgrade, hypershift, aggregated,
+    cloud-provider-errors, resource-exhaustion, networking,
+    operating-system-changes, ci-infrastructure-changes, flaky-test-identification,
+    test-failure, test-extension-binaries, disruption). Do NOT pre-classify the
+    failure yourself or improvise — read the reference the routing table points to
+    and apply it. This applies to any subagent too: instruct every subagent to load
+    the appropriate skill before it begins.
+
+    **Trace to a specific root cause.** Never stop at a high-level symptom ("0 nodes
+    ready", "operator degraded", "tests failed"). Read the actual build log, pod
+    logs, and log bundles; cite specific error strings. Do NOT label a failure
+    "infrastructure" or "flake" without affirmative evidence (cloud API errors,
+    quota exhaustion, lease failures, a CI-config change). Absence of an obvious
+    code explanation is not evidence of infrastructure.
+
+    When you suspect a CI-configuration change (a step-registry or ci-operator
+    change rather than a product bug), search `openshift/release` for commits merged
+    BEFORE the job's start time — the Prow URL and prowjob.json encode the date.
+
+    **Required output.** When your analysis is complete, use the Write tool to save
+    a single self-contained report to `prow-job-analysis-report.md` in the current
+    working directory. It MUST contain these sections:
+    - `# Prow Job Analysis` with the job name and Prow URL.
+    - `## Failure Classification` stating: the `failure_type`
+      (install | upgrade | test | infra), the reference file(s) you consulted from
+      the routing table, and a short `root_cause_category`.
+    - `## Root Cause` — the specific, actionable root cause with cited log excerpts
+      (not a restated symptom).
+    - `## Evidence` — key error strings / artifact paths you relied on.
+    Write the file even if artifacts are incomplete; record what was missing.
+
+models:
+  judge: claude-opus-4-6
+
+permissions:
+  allow:
+    - "Skill"
+    - "Bash"
+    - "Agent"
+    - "WebFetch"
+    - "Write"
+    - "Read"
+  deny: []
+
+mlflow:
+  experiment: ci-prow-job-analysis-eval
+
+dataset:
+  path: plugins/ci/evals/cases/prow-job-analysis
+  schema: |
+    Each case directory contains:
+    - input.yaml: YAML file with fields:
+      - 'prow_job_url' — a Prow job URL in either supported form:
+        https://prow.ci.openshift.org/view/gs/test-platform-results/logs/<job>/<build_id>
+        or the gcsweb equivalent. The GCS bucket is always test-platform-results
+        (public, no auth).
+    - annotations.yaml: Expected outcomes and metadata for scoring:
+      - 'expected_failure_type': install | upgrade | test | infra
+      - 'expected_references': list of reference files (relative to the skill's
+        references/ dir) the skill SHOULD load for this failure, e.g.
+        ['upgrade.md', 'disruption.md'] or ['install/general.md', 'install/metal.md']
+      - 'expected_root_cause_category': short slug for the true root cause
+        (e.g. 'baremetal-provisioning', 'mco-drain-stall', 'cloud-quota-exhaustion')
+      - 'notes': free-text context describing the scenario and the discriminating
+        signal the agent must find
+
+    Analysis reads live artifacts from the public test-platform-results GCS bucket;
+    no snapshot extraction is required. Run the setup script once to verify tooling:
+      plugins/ci/evals/scripts/setup-prow-job-analysis.sh
+
+outputs:
+  - path: "output"
+    schema: |
+      The skill writes one file to the workspace root:
+      1. prow-job-analysis-report.md — a self-contained Markdown report with a
+         "Failure Classification" section (failure_type, references consulted,
+         root_cause_category), a "Root Cause" section citing specific log
+         evidence, and an "Evidence" section listing key error strings / artifact
+         paths.
+
+      Judges should check outputs["files"] and outputs["modified_files"] for a
+      file whose basename starts with "prow-job-analysis" and ends with ".md".
+
+traces:
+  stdout: true
+  stderr: true
+  events: true
+  metrics: true
+
+judges:
+  - name: output_file_exists
+    description: |
+      Verify the skill produced its Markdown analysis report
+      (prow-job-analysis-report.md) in the workspace.
+    check: |
+      import os
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      reports = [k for k in all_f
+                 if os.path.basename(k).startswith("prow-job-analysis")
+                 and k.endswith(".md")]
+      if not reports:
+          # fallback: any markdown report that is clearly the analysis output
+          reports = [k for k in all_f
+                     if k.endswith(".md") and "analysis" in os.path.basename(k).lower()]
+      if not reports:
+          return (False, "No analysis report found; expected prow-job-analysis-report.md")
+      return (True, f"Analysis report found: {reports[0]}")
+
+  - name: required_skill_invocations
+    description: |
+      Verify the ci:prow-job-analysis skill was invoked via the Skill tool during
+      execution. fetch-prowjob-json is part of its canonical workflow and reported
+      when present.
+    check: |
+      import json
+      stdout = outputs.get("stdout", "")
+      invoked = set()
+      for line in stdout.splitlines():
+          try:
+              entry = json.loads(line)
+          except (json.JSONDecodeError, ValueError):
+              continue
+          if entry.get("type") != "assistant":
+              continue
+          for block in entry.get("message", {}).get("content", []):
+              if block.get("type") == "tool_use" and block.get("name") == "Skill":
+                  invoked.add(block.get("input", {}).get("skill", ""))
+      def has(name):
+          return any(s == name or s.endswith(":" + name) for s in invoked)
+      if not has("prow-job-analysis"):
+          return (False, f"ci:prow-job-analysis was not invoked. Invoked: {', '.join(sorted(invoked)) or 'none'}")
+      extra = "fetch-prowjob-json invoked" if has("fetch-prowjob-json") else "fetch-prowjob-json not separately invoked"
+      return (True, f"ci:prow-job-analysis invoked ({extra})")
+
+  - name: analysis_quality
+    description: |
+      LLM judge assessing root-cause depth: does the report trace the failure to a
+      specific, actionable cause with cited log evidence, or merely restate
+      symptoms? Reads only the Markdown report and annotations.
+    prompt: |
+      You are evaluating the output of an OpenShift Prow CI job failure analysis.
+      The skill takes a single Prow job URL, identifies the job type, inspects
+      artifacts (build log, JUnit, pod logs, log bundles, must-gather), classifies
+      the failure, routes to a specialized reference, and traces the root cause.
+
+      Review the skill's analysis report:
+
+      {% for path, content in outputs.files.items() if path.endswith('.md') %}
+      ### {{ path }}
+
+      {{ content }}
+      {% endfor %}
+
+      Expected outcomes for this test case:
+
+      {{ annotations }}
+
+      Evaluate the report's root-cause depth on a 1-5 scale:
+
+      Score 1: Analysis is missing, empty, or completely wrong — no coherent root
+               cause, no evidence.
+      Score 2: Superficial — the "root cause" restates a symptom ("nodes not
+               ready", "operator degraded", "tests failed") without tracing WHY;
+               no specific log evidence cited.
+      Score 3: Adequate — goes one level deeper than the symptom and cites at least
+               some artifact or log signal, but leaves gaps or stops short of the
+               true originating error.
+      Score 4: Good — root cause cites specific error strings from real artifacts
+               (build log / pod logs / log bundle) and identifies the failing
+               component or step with clear reasoning.
+      Score 5: Excellent — root cause is traced to the specific failing operation
+               with quoted log excerpts and a causal chain (not temporal
+               coincidence); the report is immediately actionable and matches the
+               scenario's true root cause described in the notes.
+
+      Key criteria:
+      - Is the root cause specific (error strings, code paths, failing step) rather
+        than a restated symptom?
+      - Does it cite real artifact evidence?
+      - Does it avoid an unsupported "infrastructure"/"flake" label unless the
+        notes indicate the failure genuinely is infrastructure?
+
+  - name: failure_classification_accuracy
+    description: |
+      LLM judge assessing whether the failure was correctly classified and routed:
+      does the reported failure_type, the reference(s) consulted, and the root
+      cause category match the expected values in annotations? Reads only the
+      Markdown report and annotations.
+    prompt: |
+      You are evaluating whether an OpenShift Prow CI job analysis classified the
+      failure correctly and routed to the right specialized reference.
+
+      The prow-job-analysis skill routes failures to reference files:
+      - install/general.md, install/metal.md — install ("install should succeed")
+        failures; metal adds dev-scripts / Metal3 / Ironic.
+      - upgrade.md — CVO stuck, operators degraded, MCO drain, version skew.
+      - hypershift.md — hosted control planes (management + hosted clusters).
+      - aggregated.md — statistical analysis across aggregated child runs.
+      - cloud-provider-errors.md — AWS/GCP/Azure API, quota, throttling.
+      - resource-exhaustion.md — OOM, node NotReady, disk/PID/etcd pressure.
+      - networking.md — OVN/SDN, DNS, image pull/registry, ingress, proxy.
+      - operating-system-changes.md — RHCOS OS layer (cri-o, kernel, systemd).
+      - ci-infrastructure-changes.md — lease/quota, ci-operator, step-registry
+        (CI config changed vs product broke).
+      - flaky-test-identification.md / test-failure.md — test triage and product
+        regression root-cause.
+      - test-extension-binaries.md — *-tests-ext extension binary failures.
+      - disruption.md — API-backend disruption intervals.
+
+      Review the skill's analysis report:
+
+      {% for path, content in outputs.files.items() if path.endswith('.md') %}
+      ### {{ path }}
+
+      {{ content }}
+      {% endfor %}
+
+      Expected outcomes for this test case (authoritative):
+
+      {{ annotations }}
+
+      Compare the report against annotations.expected_failure_type,
+      annotations.expected_references, and annotations.expected_root_cause_category.
+
+      Evaluate on a 1-5 scale:
+
+      Score 1: Wrong failure_type AND wrong references — the analysis is misrouted
+               (e.g. treated an install failure as a test regression).
+      Score 2: failure_type roughly right but the analysis consulted the wrong
+               primary reference, or vice versa; root cause category is wrong.
+      Score 3: Correct failure_type and at least one of the expected references was
+               consulted, but a key expected reference is missing or the root cause
+               category is only partially right.
+      Score 4: Correct failure_type, the expected primary reference(s) consulted,
+               and a root cause category that matches the expected one.
+      Score 5: Correct failure_type, all expected references consulted (including
+               secondary ones such as metal.md alongside general.md, or disruption.md
+               alongside upgrade.md), and a root cause category that precisely
+               matches expected — with no misclassification (e.g. correctly
+               separating a CI-config change from a product regression, or an
+               infra flake from a real bug).
+
+thresholds:
+  output_file_exists:
+    min_pass_rate: 1.0
+  required_skill_invocations:
+    min_pass_rate: 1.0
+  analysis_quality:
+    min_mean: 3.5
+  failure_classification_accuracy:
+    min_mean: 3.5

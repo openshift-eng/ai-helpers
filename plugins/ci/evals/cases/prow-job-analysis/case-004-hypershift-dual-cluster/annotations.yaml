@@ -1,0 +1,18 @@
+expected_failure_type: install
+expected_references:
+  - hypershift.md
+  - resource-exhaustion.md
+expected_root_cause_category: hostedcontrolplane-not-available
+
+notes: >
+  HyperShift job. The hosted cluster never becomes available because the
+  HostedControlPlane pods running on the MANAGEMENT cluster fail to stabilize —
+  e.g. the hosted kube-apiserver pod crash-loops or is OOMKilled in the control
+  plane namespace, so the hosted ClusterVersion never reaches Available.
+
+  HyperShift has two distinct ClusterVersion objects (management and hosted) and
+  the control plane runs as pods (not static pods / nodes). The agent MUST route
+  to hypershift.md and correlate BOTH clusters, locating the failure in the
+  management-cluster-hosted control plane rather than the guest data plane;
+  resource-exhaustion.md applies to the crash-looping/OOM pod. Treating this as a
+  plain install or test failure without the two-cluster correlation is the trap.

@@ -88,7 +88,7 @@
       "name": "ci",
       "source": "./plugins/ci",
       "description": "A plugin to work with OpenShift CI and analyze Prow job results",
-      "version": "0.0.64",
+      "version": "0.0.65",
       "category": "ci",
       "keywords": [
         "prow",

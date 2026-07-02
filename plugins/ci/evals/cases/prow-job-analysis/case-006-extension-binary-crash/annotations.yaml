@@ -1,0 +1,19 @@
+expected_failure_type: test
+expected_references:
+  - flaky-test-identification.md
+  - test-extension-binaries.md
+expected_root_cause_category: extension-binary-version-skew
+
+notes: >
+  Extension-binary (OTE) failure. A `*-tests-ext` extension test binary fails
+  during extraction/discovery or panics on startup because of version skew
+  between the extension binary and the cluster / core openshift-tests. This is a
+  test-harness plumbing failure, NOT a core openshift-tests conformance
+  regression.
+
+  After the flaky-test-identification.md triage entry point, the agent must route
+  to test-extension-binaries.md and identify the extraction/discovery/version-skew
+  error (e.g. the ext binary failing to list tests or a panic on init), rather
+  than treating it as a genuine product conformance regression. The
+  discriminating skill is recognizing a `-tests-ext` plumbing failure versus a
+  real failing test.
