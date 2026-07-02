@@ -1,0 +1,135 @@
+---
+name: prow-job-analysis
+description: Comprehensive Prow CI job failure analysis — identifies job type, inspects artifacts, classifies failures, and routes to specialized investigation references
+---
+
+# Prow Job Analysis
+
+Analyze failures in OpenShift Prow CI jobs. Identify the job type, inspect artifacts, classify
+the failure, and route to the specialized reference for deep analysis.
+
+## Input Format
+
+The user will provide:
+
+1. **Prow job URL** (required) — Prow UI or gcsweb URL
+   - `https://prow.ci.openshift.org/view/gs/test-platform-results/logs/<job>/<build_id>`
+   - `https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results/...`
+
+2. **Test name** (optional) — specific failed test to focus on
+
+3. **Flags** (optional):
+   - `--fast` — skip must-gather extraction
+   - `--backends <list>` — focus disruption analysis on specific backends
+
+## Prerequisites
+
+- **gcloud CLI**: `which gcloud` (public bucket — no auth required)
+- **Python 3.6+**: `which python3`
+- **jq**: `which jq`
+
+## Investigation Workflow
+
+### Step 1: Parse URL and Extract Metadata
+
+1. Find `test-platform-results/` in the URL and extract the bucket path
+2. Extract `build_id` — pattern `(\d{10,})` in the path
+3. Construct GCS base: `gs://test-platform-results/{bucket-path}/`
+
+### Step 2: Fetch prowjob.json
+
+Use the `fetch-prowjob-json` skill to get job metadata. Extract:
+- **Job name** from `.spec.job`
+- **Target** from `--target=` in ci-operator args
+- **Job state** from `.status.state`
+- **Refs** (org, repo, PR number) from `.spec.refs`
+
+### Step 3: Classify Job Type from Name
+
+Parse the job name to determine the environment and expected failure modes:
+
+| Pattern in Name | Job Type | Key Implications |
+|-----------------|----------|------------------|
+| `upgrade` | Upgrade job | Installs first, then upgrades — see [upgrade reference](references/upgrade.md) |
+| `metal`, `baremetal` | Bare metal | Uses dev-scripts + Metal3/Ironic — see [metal install reference](references/install/metal.md) |
+| `hypershift` | HyperShift | Hosted control planes — see [hypershift reference](references/hypershift.md) |
+| `fips` | FIPS-enabled | Watch for crypto/TLS errors |
+| `ipv6`, `dualstack` | IPv6/dualstack | Often disconnected, uses mirror registry |
+| `single-node`, `sno` | Single-node | Resource exhaustion more likely |
+| `aggregated-` prefix | Aggregated | Statistical analysis of multiple runs — see [aggregated reference](references/aggregated.md) |
+| `aws`, `gcp`, `azure` | Cloud platform | Platform-specific errors — see [cloud provider reference](references/cloud-provider-errors.md) |
+| `techpreview` | Tech preview | Feature gates enabled, features may be unstable |
+
+### Step 4: Download Key Artifacts
+
+```bash
+# Build log (always)
+gcloud storage cp gs://test-platform-results/{bucket-path}/build-log.txt \
+  .work/prow-job-analysis/{build_id}/logs/ --no-user-output-enabled
+
+# JUnit XML (always — identifies failed tests/steps)
+gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/**/junit*.xml" 2>/dev/null
+```
+
+### Step 5: Classify Failure and Route to Reference
+
+Examine the build log and JUnit results to classify the failure, then consult the
+appropriate reference file for detailed analysis procedures.
+
+## Failure Routing Table
+
+| Failure Signal | Reference | When to Use |
+|----------------|-----------|-------------|
+| `install should succeed` fails in JUnit | [Install — General](references/install/general.md) | Install failed at config/infra/bootstrap/cluster-creation/operator-stability stage |
+| Metal/baremetal job + install failure | [Install — Metal](references/install/metal.md) | Bare-metal install (dev-scripts, Metal3/Ironic, libvirt) — use alongside Install — General |
+| A test failed (start here) | [Flaky Test Identification](references/flaky-test-identification.md) | Triage entry for any failing test: classify infra vs product regression vs flake, then route onward |
+| `*-tests-ext` extension binary error | [Test Extension Binaries](references/test-extension-binaries.md) | OTE extension-binary extraction/discovery/version-skew failures — not core `openshift-tests` |
+| Disruption events in intervals | [Disruption](references/disruption.md) | API backends stopped responding; interpret interval/timeline data (cause vs symptom vs noise) |
+| Upgrade-phase failure or regression | [Upgrade](references/upgrade.md) | CVO stuck, operators degraded, MCO drain/reboot stalls, or version skew during upgrade |
+| HyperShift / HCP job failure | [HyperShift](references/hypershift.md) | Hosted control planes — correlate management and hosted clusters |
+| `aggregated-` job failure | [Aggregated Jobs](references/aggregated.md) | Statistical regression analysis across parallel child runs |
+| Cloud API errors, quota, throttling | [Cloud Provider Errors](references/cloud-provider-errors.md) | AWS/GCP/Azure API/quota/provisioning failures before/during cluster creation |
+| Node NotReady, OOM, disk pressure | [Resource Exhaustion](references/resource-exhaustion.md) | CPU/memory/disk/PID/etcd exhaustion, eviction, unschedulable pods |
+| DNS, OVN, registry/pull, ingress errors | [Networking](references/networking.md) | OVN-Kubernetes/SDN, DNS, image pull/registry, load balancer/ingress, network policy |
+| Lease/quota, ci-operator, Prow infra | [CI Infrastructure](references/ci-infrastructure-changes.md) | Distinguish "product broke" from "CI config changed"; ci-operator, step registry, leases |
+| Need a specific artifact file | [Artifacts](references/artifacts.md) | Artifact directory structure, paths, and gcloud fetch commands |
+
+## Common Artifact Paths
+
+These are the most frequently needed artifacts. See [artifacts reference](references/artifacts.md) for the complete directory structure.
+
+| Path | Description |
+|------|-------------|
+| `build-log.txt` | Top-level ci-operator log |
+| `artifacts/{target}/openshift-e2e-test/build-log.txt` | E2E test console log |
+| `artifacts/{target}/openshift-e2e-test/artifacts/junit/` | JUnit XML results |
+| `artifacts/{target}/openshift-e2e-test/artifacts/junit/e2e-timelines_spyglass_*.json` | Disruption timeline data |
+| `artifacts/{target}/gather-extra/artifacts/oc_cmds/` | Cluster state snapshots |
+| `artifacts/{target}/gather-extra/artifacts/pods/` | Pod logs by namespace |
+| `artifacts/{target}/gather-extra/artifacts/audit_logs/` | API server audit logs |
+| `artifacts/{target}/gather-must-gather/artifacts/must-gather.tar` | Must-gather archive |
+| `prowjob.json` | Job metadata and timing |
+
+## URL Formats
+
+Both formats are accepted and interchangeable:
+
+```text
+# Prow UI
+https://prow.ci.openshift.org/view/gs/test-platform-results/logs/{job}/{build_id}
+
+# gcsweb (direct GCS browser)
+https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results/logs/{job}/{build_id}
+```
+
+The GCS bucket is always `test-platform-results`, publicly accessible, no auth required.
+
+## Tips
+
+- **Start with build-log.txt** — it shows the ci-operator orchestration and which steps failed
+- **JUnit XML is the source of truth** for test pass/fail status
+- **Job name encodes environment** — always parse it before diving into logs
+- **Check `prowjob.json`** for timing, payload tag, and whether the job timed out
+- **Upgrade jobs install first** — an "upgrade" job failing at install is an install failure, not an upgrade failure
+- **Aggregated jobs** need statistical analysis, not individual test debugging
+- **Use `.work/prow-job-analysis/{build_id}/`** as the working directory for downloads
