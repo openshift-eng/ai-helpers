@@ -1,5 +1,5 @@
 ---
-name: Generate Test Plan
+name: generate-test-plan
 description: Shared implementation for JIRA test plans and bug reproducer reports from issue details and fix PRs, with optional live cluster execution
 ---
 
@@ -104,7 +104,7 @@ Analyze:
 - Affected components (API, CLI, operator, controller, etc.)
 - Platform or configuration preconditions
 - Related test files in the diff
-- Dependencies between multiple PRs — for multi-PR issues, identify how PRs interact and create integrated test scenarios that verify they work correctly together
+- Dependencies between multiple PRs — for multi-PR issues, identify how PRs interact and create integrated test scenarios that verify combined behavior produces expected results
 
 **Skip PRs that don't need analysis** (note them in the report):
 
@@ -150,7 +150,7 @@ mkdir -p .work/jira/generate-test-plan/{ISSUE_KEY}
    - Happy path scenarios (based on acceptance criteria)
    - Negative test cases (invalid inputs, boundary conditions)
    - Edge cases specific to the implementation
-   - Integration scenarios (how changes interact with existing system; for multi-PR issues, verify PRs work correctly together)
+   - Integration scenarios (how changes interact with existing system; for multi-PR issues, verify PRs produce expected results when combined)
    - Error handling verification
    - Performance considerations if applicable
    - Platform-specific test variations (AWS, Azure, KubeVirt, etc.) if the PR contains platform-specific changes
@@ -196,28 +196,14 @@ Display to the user:
 
 This step executes the generated reproducer or test plan steps against a live OpenShift cluster. It is only run when the `--apply` flag is present.
 
-#### 8.1: Check for Existing Report
+#### 8.1: Verify Report Exists
 
-Check whether a report already exists at the expected path:
+At this point a report must already exist — either generated in Steps 2-7 or reused via the decision in Step 1.7. Verify the expected file is present:
 
 - **Reproducer mode**: `.work/jira/generate-test-plan/{ISSUE_KEY}/reproducer-report.md`
 - **Test plan mode**: `.work/jira/generate-test-plan/{ISSUE_KEY}/test-plan.md`
 
-If the report exists and the user has not already chosen to regenerate (see Step 1.7), ask:
-
-```
-A reproducer report for {ISSUE_KEY} already exists at:
-  .work/jira/generate-test-plan/{ISSUE_KEY}/reproducer-report.md
-
-Options:
-1. Apply the existing report as-is
-2. Regenerate the report first, then apply
-
-Which would you prefer? (1/2)
-```
-
-If the user chooses option 1, skip Steps 2-7 and proceed to 8.2.
-If the user chooses option 2, run Steps 2-7 normally, then proceed to 8.2.
+If the file is missing (e.g., generation was skipped by mistake), abort the apply phase with a clear error.
 
 #### 8.2: Prerequisite Checks
 
@@ -228,7 +214,7 @@ Verify the environment is ready for cluster interaction:
    which oc
    ```
    If not found, display installation instructions and abort the apply phase:
-   ```
+   ```text
    Error: 'oc' CLI is not installed.
    Install from: https://docs.openshift.com/container-platform/latest/cli_reference/openshift_cli/getting-started-cli.html
    ```
@@ -238,7 +224,7 @@ Verify the environment is ready for cluster interaction:
    oc whoami
    ```
    If this fails, display login instructions and abort the apply phase:
-   ```
+   ```text
    Error: Not logged in to an OpenShift cluster.
    Please log in first:
      1. Visit the cluster console in your browser
@@ -251,7 +237,7 @@ Verify the environment is ready for cluster interaction:
    oc whoami --show-server
    oc version
    ```
-   ```
+   ```text
    You are logged in to:
      Server: {server-url}
      User:   {username}
@@ -304,7 +290,7 @@ Classify each extracted command as **read-only** or **write**:
 
 Display the classified execution plan:
 
-```
+```text
 === Execution Plan for {ISSUE_KEY} ===
 Mode: {reproducer|test-plan}
 
@@ -330,7 +316,7 @@ If the user says no, abort the apply phase.
 
 **One-time read-only approval:**
 
-```
+```text
 The following {R} read-only commands will be executed without individual prompts:
   - oc get namespace test-namespace
   - oc get pods -n test-namespace
@@ -347,7 +333,7 @@ For each step:
 1. Display the step number and description
 2. For read-only commands (if bulk-approved): execute immediately
 3. For write commands: ask for individual confirmation:
-   ```
+   ```text
    About to execute (WRITE):
      oc apply -f - <<EOF
      apiVersion: v1
@@ -363,7 +349,7 @@ For each step:
 4. For manual steps: display the instruction and wait for the user to confirm they have completed it before continuing
 5. After executing each command, capture and display the output
 6. If the step has expected output, compare:
-   ```
+   ```text
    Expected: {expected behavior from report}
    Observed: {actual command output}
    Match: yes/no/partial
@@ -373,7 +359,7 @@ For each step:
 
 After all steps execute (or the user aborts), display a summary:
 
-```
+```text
 === Apply Results for {ISSUE_KEY} ===
 
 Step 1: oc get namespace test-namespace ........... EXECUTED (output matched expected)
@@ -417,43 +403,43 @@ Save the execution log to `.work/jira/generate-test-plan/{ISSUE_KEY}/apply-log-{
 
 **Test plan with auto-discovered PRs:**
 
-```
+```bash
 /jira:generate-test-plan CNTRLPLANE-205
 ```
 
 **Test plan with specific PRs:**
 
-```
+```bash
 /jira:generate-test-plan OCPBUGS-12345 https://github.com/openshift/hypershift/pull/6888
 ```
 
 **Test plan command with reproducer mode:**
 
-```
+```bash
 /jira:generate-test-plan OCPBUGS-12345 --reproducer
 ```
 
 **Reproducer alias:**
 
-```
+```bash
 /jira:generate-bug-reproducer OCPBUGS-12345 https://github.com/openshift/hypershift/pull/6888
 ```
 
 **Reproducer with live cluster execution:**
 
-```
+```bash
 /jira:generate-bug-reproducer OCPBUGS-12345 --apply
 ```
 
 **Test plan with live cluster execution:**
 
-```
+```bash
 /jira:generate-test-plan CNTRLPLANE-205 --apply
 ```
 
 **Reproducer with apply, reusing existing report:**
 
-```
+```bash
 /jira:generate-bug-reproducer OCPBUGS-12345 --apply
 # → Agent detects existing report and offers to apply it directly
 ```
