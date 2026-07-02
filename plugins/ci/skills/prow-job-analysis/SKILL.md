@@ -84,6 +84,7 @@ appropriate reference file for detailed analysis procedures.
 | `install should succeed` fails in JUnit | [Install — General](references/install/general.md) | Install failed at config/infra/bootstrap/cluster-creation/operator-stability stage |
 | Metal/baremetal job + install failure | [Install — Metal](references/install/metal.md) | Bare-metal install (dev-scripts, Metal3/Ironic, libvirt) — use alongside Install — General |
 | A test failed (start here) | [Flaky Test Identification](references/flaky-test-identification.md) | Triage entry for any failing test: classify infra vs product regression vs flake, then route onward |
+| Confirmed regression in a plain e2e test | [Test Failure Root-Cause](references/test-failure.md) | Root-cause a real product regression in a plain (non-extension/install/upgrade) e2e test — e.g. `[sig-network] ... should serve endpoints`: test source, cluster state, originating error |
 | `*-tests-ext` extension binary error | [Test Extension Binaries](references/test-extension-binaries.md) | OTE extension-binary extraction/discovery/version-skew failures — not core `openshift-tests` |
 | Disruption events in intervals | [Disruption](references/disruption.md) | API backends stopped responding; interpret interval/timeline data (cause vs symptom vs noise) |
 | Upgrade-phase failure or regression | [Upgrade](references/upgrade.md) | CVO stuck, operators degraded, MCO drain/reboot stalls, or version skew during upgrade |

@@ -14,9 +14,10 @@ This reference is the decision methodology — the deep-dive references own each
 - Confirming a suspected regression is real before filing a bug or reverting
 - The same test fails in one job but passes elsewhere
 
-**Use a different reference for:** a failure you have already confirmed is a real test/product
-issue → [test-extension-binaries.md](test-extension-binaries.md); the mechanics of
-statistical verdicts across parallel runs → [aggregated.md](aggregated.md).
+**Use a different reference for:** a failure you have already confirmed is a real product
+regression in a plain e2e test → [test-failure.md](test-failure.md); an extension-binary
+(`*-tests-ext`) failure → [test-extension-binaries.md](test-extension-binaries.md); the
+mechanics of statistical verdicts across parallel runs → [aggregated.md](aggregated.md).
 
 ---
 
@@ -28,7 +29,7 @@ which repo to open.
 | Class | What broke | Fix lives in | Primary reference |
 |-------|-----------|--------------|-------------------|
 | **Infrastructure** | CI / cloud / shared env, before or around the test | `openshift/release`, cloud account, Test Platform | [ci-infrastructure-changes.md](ci-infrastructure-changes.md), [cloud-provider-errors.md](cloud-provider-errors.md) |
-| **Product regression** | The code under test | Product repo / the PR | [test-extension-binaries.md](test-extension-binaries.md), [install/general.md](install/general.md), [upgrade.md](upgrade.md) |
+| **Product regression** | The code under test | Product repo / the PR | [test-failure.md](test-failure.md) (plain e2e), [test-extension-binaries.md](test-extension-binaries.md), [install/general.md](install/general.md), [upgrade.md](upgrade.md) |
 | **Test-code flake** | The test's own determinism (races, timing, ordering) | The test source | this reference |
 
 Infrastructure failures and flakes **both** pass on retry, so a retry-pass alone does not
@@ -271,7 +272,7 @@ scaffolding, and their failure is an infra signal:
 An `<error>` (rather than `<failure>`), or a failure whose message is a
 harness/extraction/timeout-before-start error, is test-infrastructure — the product was never
 exercised. A `<failure>` inside a genuine product-behavior testcase is the one worth product
-investigation.
+investigation — root-cause it with [test-failure.md](test-failure.md).
 
 ---
 
@@ -293,8 +294,14 @@ investigation.
 8. **Symptoms?** `job_labels/*.json` support (do not prove) a flake hypothesis in the failure
    window.
 
+Once the checklist confirms a **real product regression** in a plain e2e test, hand off to
+[test-failure.md](test-failure.md) for root-cause analysis (test source → cluster state →
+originating error).
+
 ## See Also
 
+- [test-failure.md](test-failure.md) — root-cause analysis for a confirmed product regression
+  in a plain e2e test: test source, cluster-state correlation, container tracing
 - [ci-infrastructure-changes.md](ci-infrastructure-changes.md) — ci-operator reasons,
   lease/registry/step-registry, the infra-vs-product framework, symptom labels
 - [aggregated.md](aggregated.md) — statistical thresholds, failure Modes 1/2/3, minimum
