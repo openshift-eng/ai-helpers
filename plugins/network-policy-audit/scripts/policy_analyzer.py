@@ -131,7 +131,39 @@ class SecurityAnalyzer:
         for policy in self.policies:
             # Check ingress rules
             for idx, rule in enumerate(policy.get('ingress_rules', [])):
-                if not rule.get('from'):  # Empty 'from' = allow all
+                from_peers = rule.get('from')
+
+                # Case 1: 'from' key is missing or None
+                if from_peers is None:
+                    # This shouldn't happen in valid K8s policies, skip
+                    continue
+
+                # Case 2: Empty from[] list - CRITICAL (allows all sources)
+                if isinstance(from_peers, list) and len(from_peers) == 0:
+                    self.findings.append({
+                        'severity': Severity.CRITICAL,
+                        'title': 'Overly permissive ingress rule',
+                        'policy': policy['name'],
+                        'namespace': policy['namespace'],
+                        'rule_index': idx,
+                        'description': f'Policy "{policy["name"]}" has an ingress rule with empty from[] list. '
+                                       'This allows traffic from ALL sources in the cluster.',
+                        'recommendation': 'Specify explicit source selectors (podSelector, namespaceSelector, or ipBlock).'
+                    })
+                    continue
+
+                # Case 3: from[] has entries - verify at least one entry has valid selectors
+                has_valid_selector = False
+                for peer in from_peers:
+                    # Valid selectors are: pod_selector, namespace_selector, or ip_block
+                    if ('pod_selector' in peer or
+                        'namespace_selector' in peer or
+                        'ip_block' in peer):
+                        has_valid_selector = True
+                        break
+
+                # If no valid selectors found in any peer, flag as overly permissive
+                if not has_valid_selector:
                     self.findings.append({
                         'severity': Severity.CRITICAL,
                         'title': 'Overly permissive ingress rule',
@@ -143,16 +175,46 @@ class SecurityAnalyzer:
                         'recommendation': 'Specify explicit source selectors (podSelector, namespaceSelector, or ipBlock).'
                     })
 
-            # Check egress rules
+            # Check egress rules (same logic for 'to' instead of 'from')
             for idx, rule in enumerate(policy.get('egress_rules', [])):
-                if not rule.get('to'):  # Empty 'to' = allow all
+                to_peers = rule.get('to')
+
+                # Case 1: 'to' key is missing or None
+                if to_peers is None:
+                    continue
+
+                # Case 2: Empty to[] list - WARNING (allows all destinations)
+                if isinstance(to_peers, list) and len(to_peers) == 0:
                     self.findings.append({
                         'severity': Severity.WARNING,
                         'title': 'Overly permissive egress rule',
                         'policy': policy['name'],
                         'namespace': policy['namespace'],
                         'rule_index': idx,
-                        'description': f'Policy "{policy["name"]}" has an egress rule with no destination restrictions.',
+                        'description': f'Policy "{policy["name"]}" has an egress rule with empty to[] list. '
+                                       'This allows traffic to ALL destinations.',
+                        'recommendation': 'Specify explicit destination selectors to limit egress traffic.'
+                    })
+                    continue
+
+                # Case 3: to[] has entries - verify at least one entry has valid selectors
+                has_valid_selector = False
+                for peer in to_peers:
+                    if ('pod_selector' in peer or
+                        'namespace_selector' in peer or
+                        'ip_block' in peer):
+                        has_valid_selector = True
+                        break
+
+                if not has_valid_selector:
+                    self.findings.append({
+                        'severity': Severity.WARNING,
+                        'title': 'Overly permissive egress rule',
+                        'policy': policy['name'],
+                        'namespace': policy['namespace'],
+                        'rule_index': idx,
+                        'description': f'Policy "{policy["name"]}" has an egress rule with no destination restrictions. '
+                                       'This allows traffic to ALL destinations.',
                         'recommendation': 'Specify explicit destination selectors to limit egress traffic.'
                     })
 
@@ -207,24 +269,40 @@ class SecurityAnalyzer:
                 selector.get('match_expressions', []) == []
             )
 
+            if not is_empty:
+                continue
+
             # Check if this is a default-deny policy
-            is_default_deny = (
-                is_empty and
-                (len(policy.get('ingress_rules', [])) == 0 or
-                 len(policy.get('egress_rules', [])) == 0)
+            # Default-deny = empty podSelector + (no ingress rules OR no egress rules)
+            policy_types = policy.get('policy_types', [])
+            ingress_rules = policy.get('ingress_rules', [])
+            egress_rules = policy.get('egress_rules', [])
+
+            # Default-deny ingress: Ingress in policyTypes + no ingress rules
+            is_default_deny_ingress = (
+                'Ingress' in policy_types and len(ingress_rules) == 0
             )
 
-            if is_empty and not is_default_deny:
-                self.findings.append({
-                    'severity': Severity.WARNING,
-                    'title': 'Empty podSelector (applies to all pods)',
-                    'policy': policy['name'],
-                    'namespace': policy['namespace'],
-                    'description': f'Policy "{policy["name"]}" has an empty podSelector, '
-                                   'which applies to all pods in the namespace. '
-                                   'This may be intentional but could be overly broad.',
-                    'recommendation': 'Verify this is intentional. Consider using specific label selectors.'
-                })
+            # Default-deny egress: Egress in policyTypes + no egress rules
+            is_default_deny_egress = (
+                'Egress' in policy_types and len(egress_rules) == 0
+            )
+
+            # If it's a default-deny policy (either ingress or egress), don't flag
+            if is_default_deny_ingress or is_default_deny_egress:
+                continue
+
+            # If we reach here: empty podSelector + has rules = potentially broad
+            self.findings.append({
+                'severity': Severity.WARNING,
+                'title': 'Empty podSelector (applies to all pods)',
+                'policy': policy['name'],
+                'namespace': policy['namespace'],
+                'description': f'Policy "{policy["name"]}" has an empty podSelector, '
+                               'which applies to all pods in the namespace. '
+                               'This may be intentional (e.g., for monitoring) but could be overly broad.',
+                'recommendation': 'Verify this is intentional. Consider using specific label selectors if possible.'
+            })
 
     def _check_missing_policy_types(self):
         """Check for policies missing policyTypes specification"""
