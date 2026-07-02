@@ -7,6 +7,11 @@
 # verifies the required tooling is present and prepares the working directory
 # so eval cases can run deterministically.
 #
+# Artifact access works with the gcloud CLI when it is installed, and otherwise
+# falls back to the public GCS HTTP API via the bundled
+# prow_job_artifact_search.py (Python standard library only). gcloud is
+# therefore OPTIONAL; python3 and jq are the only required tools.
+#
 # Usage: ./plugins/ci/evals/scripts/setup-prow-job-analysis.sh [prow_job_url]
 #   With no argument: verify tooling and prepare .work/prow-job-analysis/.
 #   With a Prow URL:  additionally best-effort pre-warm the artifact cache by
@@ -16,11 +21,14 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/../../../.." && pwd)"
 WORK_DIR="$REPO_ROOT/.work/prow-job-analysis"
+SEARCH_SCRIPT="$REPO_ROOT/plugins/ci/skills/prow-job-analysis/prow_job_artifact_search.py"
 
 log() { echo "$@" >&2; }
 
+# Required tools. gcloud is intentionally NOT in this list — the skill works
+# without it via the public GCS HTTP API fallback.
 missing=0
-for tool in gcloud python3 jq; do
+for tool in python3 jq; do
     if command -v "$tool" >/dev/null 2>&1; then
         log "OK: $tool -> $(command -v "$tool")"
     else
@@ -34,26 +42,43 @@ if [[ "$missing" -ne 0 ]]; then
     exit 2
 fi
 
+# Optional tool: gcloud. When absent, artifact access uses the public GCS HTTP
+# API (no credentials needed), so its absence is informational, not an error.
+if command -v gcloud >/dev/null 2>&1; then
+    log "OK: gcloud -> $(command -v gcloud) (native GCS access)"
+else
+    log "INFO: gcloud not found; using the public GCS HTTP API fallback (no auth required)"
+fi
+
 mkdir -p "$WORK_DIR"
 log "Prepared working directory: $WORK_DIR"
 
-# The bucket is public; confirm read access without requiring credentials.
-if gcloud storage ls "gs://test-platform-results/" >/dev/null 2>&1; then
+# The bucket is public; confirm read access without requiring credentials or
+# gcloud. Uses python3 (already verified above) to hit the GCS JSON API.
+if python3 - <<'PY' >/dev/null 2>&1; then
+import sys
+import urllib.request
+
+url = ("https://storage.googleapis.com/storage/v1/b/test-platform-results/o"
+       "?prefix=logs/&delimiter=/&maxResults=1")
+try:
+    with urllib.request.urlopen(url, timeout=15) as resp:
+        resp.read(1)
+except Exception:
+    sys.exit(1)
+PY
     log "OK: public GCS bucket test-platform-results is reachable"
 else
-    log "WARN: could not list gs://test-platform-results/ (network restricted?); cases may not fetch artifacts"
+    log "WARN: could not reach the public GCS API (network restricted?); cases may not fetch artifacts"
 fi
 
+# Best-effort pre-warm using the bundled search script, which works with or
+# without gcloud. Never fatal.
 url="${1:-}"
 if [[ -n "$url" ]]; then
-    # Best-effort pre-warm: derive the bucket path and list it. Never fatal.
-    bucket_path="${url#*test-platform-results/}"
-    bucket_path="${bucket_path%%\?*}"
-    if [[ -n "$bucket_path" && "$bucket_path" != "$url" ]]; then
-        log "Pre-warming: gs://test-platform-results/${bucket_path}/"
-        gcloud storage ls "gs://test-platform-results/${bucket_path}/" >/dev/null 2>&1 \
-            || log "WARN: could not list artifacts for this job (URL may be synthetic); analysis will report what is missing"
-    fi
+    log "Pre-warming: listing top-level artifacts for the job"
+    python3 "$SEARCH_SCRIPT" "$url" list >/dev/null 2>&1 \
+        || log "WARN: could not list artifacts for this job (URL may be synthetic); analysis will report what is missing"
 fi
 
 # Emit the working directory on stdout for callers that want to capture it.
