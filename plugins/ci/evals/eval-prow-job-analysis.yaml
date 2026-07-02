@@ -79,13 +79,34 @@ dataset:
         https://prow.ci.openshift.org/view/gs/test-platform-results/logs/<job>/<build_id>
         or the gcsweb equivalent. The GCS bucket is always test-platform-results
         (public, no auth).
-    - annotations.yaml: Expected outcomes and metadata for scoring:
+    - annotations.yaml: Expected outcomes and ground truth for scoring. The
+      WHOLE annotations file is rendered into the LLM judges via {{ annotations }},
+      so every field below is authoritative and visible to the judges.
+      Base classification:
       - 'expected_failure_type': install | upgrade | test | infra
       - 'expected_references': list of reference files (relative to the skill's
-        references/ dir) the skill SHOULD load for this failure, e.g.
+        references/ dir) a correct analysis SHOULD load, e.g.
         ['upgrade.md', 'disruption.md'] or ['install/general.md', 'install/metal.md']
       - 'expected_root_cause_category': short slug for the true root cause
-        (e.g. 'baremetal-provisioning', 'mco-drain-stall', 'cloud-quota-exhaustion')
+        (e.g. 'metal-provisioning-environment', 'aggregated-deterministic-test-failure')
+      Rich ground truth (mirrors the payload-analysis eval's structured fixtures):
+      - 'expected_root_cause': one or two precise sentences stating the true
+        originating cause the report MUST reach.
+      - 'expected_evidence': list of {string, artifact} pairs. 'string' is a
+        VERBATIM error/log line copied from a real artifact; 'artifact' is the
+        exact path (relative to the job-run root) where that string appears. Every
+        string is fetched from the public test-platform-results bucket and
+        grep-confirmed before commit — an unverified string is NEVER included.
+        Minimum two per case.
+      - 'discriminating_signal': the single signal that separates the true root
+        cause from plausible look-alikes.
+      - 'distractors': list of misleading signals present in the job that a shallow
+        analysis would wrongly latch onto.
+      - 'must_not_conclude': list of wrong conclusions the judge must penalize
+        (e.g. 'product regression', 'generic flake', 'disruption threshold breach').
+      - 'expected_child_breakdown' (aggregated jobs only): {runs_aggregated, total,
+        passed, failed, aggregation_verdict (verbatim string), and
+        aggregation_verdict_artifact (path where that verdict appears)}.
       - 'notes': free-text context describing the scenario and the discriminating
         signal the agent must find
 
@@ -178,34 +199,96 @@ judges:
       {{ content }}
       {% endfor %}
 
-      Expected outcomes for this test case:
+      Expected outcomes for this test case (authoritative ground truth):
 
       {{ annotations }}
 
+      Pay special attention to these annotation fields:
+      - 'expected_root_cause': the conclusion the report MUST reach.
+      - 'expected_evidence': verbatim log strings (with artifact paths) that a
+        grounded analysis should cite or faithfully quote from the right artifact.
+      - 'discriminating_signal': the signal the report must identify to get the
+        cause right.
+      - 'distractors': misleading signals the report must NOT be fooled by.
+      - 'must_not_conclude': conclusions that are WRONG for this case.
+
       Evaluate the report's root-cause depth on a 1-5 scale:
 
-      Score 1: Analysis is missing, empty, or completely wrong — no coherent root
-               cause, no evidence.
+      Score 1: Analysis is missing, empty, or wrong — no coherent root cause and no
+               evidence, OR the report's primary conclusion is one of the
+               must_not_conclude verdicts.
       Score 2: Superficial — the "root cause" restates a symptom ("nodes not
-               ready", "operator degraded", "tests failed") without tracing WHY;
-               no specific log evidence cited.
+               ready", "operator degraded", "tests failed") without tracing WHY, no
+               specific log evidence cited, OR the report is taken in by a listed
+               distractor.
       Score 3: Adequate — goes one level deeper than the symptom and cites at least
-               some artifact or log signal, but leaves gaps or stops short of the
-               true originating error.
-      Score 4: Good — root cause cites specific error strings from real artifacts
-               (build log / pod logs / log bundle) and identifies the failing
-               component or step with clear reasoning.
-      Score 5: Excellent — root cause is traced to the specific failing operation
-               with quoted log excerpts and a causal chain (not temporal
-               coincidence); the report is immediately actionable and matches the
-               scenario's true root cause described in the notes.
+               some artifact or log signal, but stops short of expected_root_cause
+               or omits the discriminating_signal.
+      Score 4: Good — reaches essentially the expected_root_cause, cites specific
+               error strings from real artifacts (matching expected_evidence), and
+               identifies the failing component/step; is not fooled by the
+               distractors and states none of the must_not_conclude verdicts.
+      Score 5: Excellent — reaches expected_root_cause with a causal chain (not
+               temporal coincidence), quotes the expected_evidence strings from the
+               correct artifacts, explicitly names the discriminating_signal and
+               rules out the distractors; immediately actionable.
 
-      Key criteria:
-      - Is the root cause specific (error strings, code paths, failing step) rather
-        than a restated symptom?
-      - Does it cite real artifact evidence?
-      - Does it avoid an unsupported "infrastructure"/"flake" label unless the
-        notes indicate the failure genuinely is infrastructure?
+      Hard rules:
+      - If the report's primary conclusion matches any entry in 'must_not_conclude',
+        it cannot score above 2.
+      - Reward reports that explicitly recognize the discriminating_signal and
+        reject the distractors.
+      - Do NOT reward an unsupported "infrastructure"/"flake" label unless the
+        annotations indicate the failure genuinely is infrastructure.
+
+  - name: evidence_grounding
+    description: |
+      LLM judge scoring whether the report's claims are grounded in the specific
+      verbatim artifact evidence (expected_evidence) rather than generic or uncited
+      assertions. Guards against hallucinated or hand-wavy evidence. Reads only the
+      Markdown report and annotations.
+    prompt: |
+      You are checking whether an OpenShift Prow CI job analysis report is GROUNDED
+      in real artifact evidence rather than generic or invented claims.
+
+      Review the skill's analysis report:
+
+      {% for path, content in outputs.files.items() if path.endswith('.md') %}
+      ### {{ path }}
+
+      {{ content }}
+      {% endfor %}
+
+      Authoritative ground-truth evidence for this case:
+
+      {{ annotations }}
+
+      The 'expected_evidence' list contains VERBATIM strings that appear in the
+      named artifacts of this job (each item has a 'string' and the 'artifact' path
+      where it appears). A grounded report cites these specific strings — or an
+      unmistakable, faithful quotation of them — and attributes them to the correct
+      artifact/step, instead of merely restating the failure in generic terms.
+
+      Score the report's evidence grounding on a 1-5 scale:
+
+      Score 1: No artifact evidence cited, or the "evidence" is fabricated or
+               contradicts the artifacts (quotes strings that are neither in
+               expected_evidence nor plausibly from the job).
+      Score 2: Only generic, uncited claims ("logs show errors", "the node was not
+               ready") with no specific strings matching expected_evidence.
+      Score 3: Cites at least one expected_evidence string (or a faithful
+               paraphrase) but misattributes its artifact, or leaves most evidence
+               generic.
+      Score 4: Cites most expected_evidence strings accurately and attributes them
+               to the correct artifacts/steps, with no fabricated evidence.
+      Score 5: Cites the expected_evidence strings verbatim (or faithfully) from the
+               correct artifact paths, with enough surrounding context to show the
+               report actually read the artifacts; zero fabricated or contradicted
+               evidence.
+
+      Hard rule: penalize any quoted "log line" that does not appear in
+      expected_evidence and is not otherwise plausibly present in the job's
+      artifacts — that is a hallucination signal and must cap the score at 2.
 
   - name: failure_classification_accuracy
     description: |
@@ -273,6 +356,8 @@ thresholds:
   required_skill_invocations:
     min_pass_rate: 1.0
   analysis_quality:
+    min_mean: 3.5
+  evidence_grounding:
     min_mean: 3.5
   failure_classification_accuracy:
     min_mean: 3.5
