@@ -262,6 +262,23 @@
       ]
     },
     {
+      "name": "network-policy-audit",
+      "source": "./plugins/network-policy-audit",
+      "description": "Automated NetworkPolicy review, optimization, and compliance for OpenShift/Kubernetes clusters",
+      "version": "1.0.0",
+      "category": "networking",
+      "keywords": [
+        "networking",
+        "security",
+        "kubernetes",
+        "openshift",
+        "networkpolicy",
+        "audit",
+        "compliance",
+        "ovn-kubernetes"
+      ]
+    },
+    {
       "name": "hcp",
       "source": "./plugins/hcp",
       "description": "Generate HyperShift cluster creation commands via hcp CLI from natural language descriptions",
