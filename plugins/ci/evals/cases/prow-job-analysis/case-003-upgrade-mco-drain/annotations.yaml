@@ -1,0 +1,19 @@
+expected_failure_type: upgrade
+expected_references:
+  - upgrade.md
+  - resource-exhaustion.md
+expected_root_cause_category: mco-drain-stall
+
+notes: >
+  Minor upgrade (4.19 -> 4.20). Install and control-plane rollout succeed, but
+  the upgrade stalls in Phase 5 (MCO node updates): a MachineConfigPool is stuck
+  Updating=True because the machine-config-daemon cannot drain a node — eviction
+  is blocked by a PodDisruptionBudget (e.g. prometheus-k8s minAvailable) and MCD
+  logs repeat "error when evicting pods ... will retry" until the MCDDrainError
+  alert fires. ClusterVersion stays Progressing=True until the framework timeout.
+
+  This is the #1 upgrade failure mode. The agent must confirm the upgrade phase
+  (not an install failure), route to upgrade.md (MCO Drain Failures section),
+  and identify the SPECIFIC PDB / pod blocking the drain, using resource /
+  PDB context. Stopping at "upgrade timed out" or "MCP degraded" without naming
+  the drain-blocking pod is the trap.

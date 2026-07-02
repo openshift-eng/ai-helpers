@@ -1,0 +1,18 @@
+expected_failure_type: infra
+expected_references:
+  - cloud-provider-errors.md
+  - install/general.md
+expected_root_cause_category: cloud-quota-exhaustion
+
+notes: >
+  Cloud infrastructure failure. An AWS install fails during cluster creation
+  because the cloud provider returns a quota/capacity error while creating
+  machines — e.g. VcpuLimitExceeded, InsufficientInstanceCapacity, AddressLimit
+  Exceeded, or API RequestLimitExceeded throttling. This is a temporary
+  infrastructure issue that self-resolves on retry, NOT a product regression.
+
+  The agent must route to cloud-provider-errors.md (and install/general.md for the
+  install stage that failed), cite the specific AWS API error string, and classify
+  the failure as infra with affirmative evidence. The trap is deep-diving into
+  operator/pod logs when the real failure is upstream at machine provisioning, or
+  labeling it "infra" without quoting the actual cloud API error.

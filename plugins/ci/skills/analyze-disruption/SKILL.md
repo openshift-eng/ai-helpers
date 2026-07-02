@@ -37,7 +37,7 @@ The user will provide:
    - Validate at least one URL is provided
 
 2. **Parse each URL** to extract bucket path, job name, and build ID
-   - Use the same URL parsing logic as the "prow-job-artifact-search" skill
+   - Use the same URL parsing logic as the "prow-job-analysis" skill
    - Accept both `prow.ci.openshift.org` and `gcsweb-ci` URL formats
    - Extract `build_id` and `job_name` from each URL
 
@@ -128,7 +128,7 @@ gcloud storage cp "gs://test-platform-results/logs/{job_name}/{build_id}/artifac
 If `gcloud storage ls` doesn't find files, try the artifact search script:
 
 ```bash
-python3 plugins/ci/skills/prow-job-artifact-search/prow_job_artifact_search.py \
+python3 plugins/ci/skills/prow-job-analysis/prow_job_artifact_search.py \
   <prow-url> search "**/e2e-timelines_spyglass_*.json"
 ```
 

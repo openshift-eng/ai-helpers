@@ -1,0 +1,20 @@
+expected_failure_type: upgrade
+expected_references:
+  - upgrade.md
+  - disruption.md
+expected_root_cause_category: upgrade-api-disruption-threshold
+
+notes: >
+  Upgrade disruption failure. The 4.19 -> 4.20 upgrade COMPLETES (ClusterVersion
+  reaches the target and history shows the target at Completed), but a disruption
+  test fails because API-backend disruption — kube-apiserver new-connection or
+  reused-connection availability — exceeds its allowed threshold during the
+  control-plane rollout.
+
+  The agent must recognize that install and the upgrade itself succeeded, route to
+  upgrade.md AND disruption.md, and use the two-timeline phase attribution
+  (upgrade phase vs conformance phase) to decide whether the excess disruption is
+  upgrade-window noise (often within bounds) or spilled into conformance (a real
+  regression). The trap is reporting "upgrade failed" when the true signal is a
+  threshold-exceeding disruption measurement, or failing to separate the two
+  phases.

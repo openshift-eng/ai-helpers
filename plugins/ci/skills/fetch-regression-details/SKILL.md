@@ -469,5 +469,5 @@ API URL: https://sippy.dptools.openshift.org/api/...
 ## See Also
 
 - Component Readiness API Documentation: https://sippy.dptools.openshift.org/api/docs
-- Related Skill: `ci:analyze-prow-job-test-failure` (for analyzing individual test failures)
+- Related Skill: `ci:prow-job-analysis` (comprehensive Prow CI job failure analysis)
 - Related Command: `/ci:analyze-regression` (uses this skill)

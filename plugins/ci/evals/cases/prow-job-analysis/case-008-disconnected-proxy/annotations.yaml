@@ -1,0 +1,18 @@
+expected_failure_type: install
+expected_references:
+  - networking.md
+  - install/general.md
+expected_root_cause_category: disconnected-registry-pull-failure
+
+notes: >
+  Disconnected / mirrored install failure. Nodes cannot pull release or operator
+  images through the configured proxy or mirror registry (ImagePullBackOff,
+  x509 certificate errors, or connection refused to the mirror host), so
+  bootstrap or cluster operators never come up and "install should succeed" fails.
+
+  The agent must route to networking.md (image pull / registry / proxy) together
+  with install/general.md (the failed install stage), cite the specific pull error
+  and the target registry/mirror host, and determine whether the root cause is a
+  proxy/mirror misconfiguration in the CI setup or missing mirror content. Trap:
+  reporting generic "operators degraded" without identifying the image-pull /
+  proxy failure that caused it.
