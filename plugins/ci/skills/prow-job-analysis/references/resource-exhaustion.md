@@ -84,9 +84,10 @@ Paths are relative to `artifacts/{target}/` (cluster under test). Full form:
 
 If must-gather is present, the must-gather-analyzer scripts summarize node/pod/event health
 (`analyze_nodes.py --problems-only`, `analyze_pods.py --problems-only`,
-`analyze_events.py --type Warning`, `analyze_etcd.py`) — invoked by the
-`prow-job-analysis` skill. See
-`plugins/must-gather/skills/must-gather-analyzer/SKILL.md`.
+`analyze_events.py --type Warning`, `analyze_etcd.py`). They are **not** run automatically —
+download and extract must-gather first (see the [artifacts reference](artifacts.md)), then run the
+scripts manually from the
+[must-gather plugin](../../../../must-gather/skills/must-gather-analyzer/SKILL.md).
 
 ---
 

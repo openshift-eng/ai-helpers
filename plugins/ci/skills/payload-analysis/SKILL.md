@@ -205,8 +205,8 @@ You MUST use the following prompt verbatim (substituting the placeholder values)
 > First, check the JUnit results or build log to determine whether this is an install failure (look for `install should succeed: overall` or similar install-related test failures) or a test failure (install passed, specific tests failed).
 >
 > Based on the failure type, use the appropriate skill:
-> - **Install failure**: Use the `ci:prow-job-analyze-install-failure` skill. For metal/bare-metal jobs (job name contains "metal"), also perform analysis using the `ci:prow-job-analyze-metal-install-failure` skill for dev-scripts, Metal3/Ironic, and BareMetalHost-specific diagnostics.
-> - **Test failure**: Use the `ci:prow-job-analyze-test-failure` skill. Do NOT use `--fast` — always perform the full analysis including must-gather extraction and analysis.
+> - **Install failure**: Use the `ci:prow-job-analysis` skill; it routes to the install reference and, for metal/bare-metal jobs (job name contains "metal"), to the metal install reference for dev-scripts, Metal3/Ironic, and BareMetalHost-specific diagnostics.
+> - **Test failure**: Use the `ci:prow-job-analysis` skill. Perform the full analysis, including downloading and analyzing must-gather when it is available.
 >
 > **IMPORTANT** — Trace every failure to its specific root cause by examining actual logs. Never stop at high-level symptoms like "0 nodes ready", "operator degraded", or "containers are crash-looping". Download and read the actual log bundles, pod logs, and container previous logs. Cite specific error messages. The root cause must be actionable, not a restatement of the symptom.
 >
@@ -605,13 +605,13 @@ Use this prompt for the reviewer:
 >
 > Check for these specific problems:
 >
-> 1. **Missing skill invocations**: Were `prow-job-analyze-install-failure` and `prow-job-analyze-test-failure` skills actually loaded and used? A subagent that improvises without loading the appropriate skill produces shallow analysis.
+> 1. **Missing skill invocations**: Was the `prow-job-analysis` skill actually loaded and used? A subagent that improvises without loading the appropriate skill produces shallow analysis.
 >
 > 2. **Shallow root causes**: Do root cause summaries cite specific error messages, code paths, or log excerpts? Or do they just restate test names and job status? "Test X failed" is not a root cause. "Test X failed because pod Y OOMKilled at 512Mi limit after PR Z increased memory usage in function F" is a root cause.
 >
 > 3. **Incomplete coverage**: Are there failed jobs with no subagent analysis or with only a one-line summary? Every failed blocking job deserves a thorough investigation.
 >
-> 4. **Wrong skill for failure type**: Was an install failure analyzed with the test failure skill or vice versa?
+> 4. **Wrong reference for failure type**: Did the analysis route to the correct reference — install (and metal for metal jobs) for install failures, and the test/flaky-test reference for test failures? Using the wrong reference produces misdirected analysis.
 >
 > 5. **Missing RHCOS RPM correlation**: If RHCOS RPM changes exist in the originating payload and failures are variant-isolated or involve OS-level components, was the correlation checked? Were relevant packages surfaced as suspects?
 >
@@ -683,7 +683,6 @@ Note: PR diff data not available in snapshot. Scoring based on component match a
 - Related Skill: `payload-snapshot` — creates the snapshot data this skill consumes
 - Related Skill: `payload-results-yaml` — schema for the results YAML
 - Related Skill: `payload-autodl-json` — schema for the autodl JSON data file
-- Related Skill: `prow-job-analyze-test-failure` — deep test failure investigation (used by subagents)
-- Related Skill: `prow-job-analyze-install-failure` — deep install failure investigation (used by subagents)
+- Related Skill: `prow-job-analysis` — deep test/install failure investigation (used by subagents)
 - Related Command: `/ci:payload-revert` — stages reverts for high-confidence candidates
 - Related Command: `/ci:payload-experiment` — tests medium-confidence candidates experimentally

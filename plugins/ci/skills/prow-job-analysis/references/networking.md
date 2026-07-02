@@ -43,8 +43,9 @@ balancer/ingress, and network policy. For adjacent layers see:
 | ICSP/IDMS | must-gather `cluster-scoped-resources/{operator,config}.openshift.io/imagecontentsourcepolicies\|imagedigestmirrorsets` | Mirror routing |
 
 If must-gather is present, the must-gather-analyzer `analyze_network.py` script summarizes CNI
-health, network operator status, and pod networking (invoked automatically by the
-`prow-job-analysis` skill for jobs matching `network|ovn|sdn|connectivity|route|ingress|egress`).
+health, network operator status, and pod networking. It is **not** run automatically — download and
+extract must-gather first (see the [artifacts reference](artifacts.md)), then run the script
+manually from the [must-gather plugin](../../../../must-gather/skills/must-gather-analyzer/SKILL.md).
 
 ---
 

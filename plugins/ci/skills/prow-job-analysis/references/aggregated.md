@@ -497,7 +497,7 @@ When investigating test failures, you need the child job's workflow, not the par
 
    **Mode 1 (real regression):**
    - Pick 2-3 failed child runs from the `failures:` list
-   - Analyze each as a normal job using `ci:analyze-prow-job-test-failure`
+   - Analyze each as a normal job using the `ci:prow-job-analysis` skill
    - Compare error patterns across runs to confirm consistency
 
    **Mode 2 (insufficient runs):**

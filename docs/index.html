@@ -512,7 +512,7 @@ footer a { color: var(--primary); }
     {
       "name": "ci",
       "description": "Tools for working with OpenShift CI and analyzing Prow job results",
-      "version": "0.0.56",
+      "version": "0.0.57",
       "has_readme": true,
       "commands": [
         {
@@ -540,28 +540,12 @@ footer a { color: var(--primary); }
           "body_html": "\u003cp\u003eThe \u003ccode\u003eci:analyze-pr-reverts\u003c/code\u003e command fetches recently reverted pull requests from the Sippy API and analyzes them to identify common failure patterns, the most affected repositories, and recommends concrete preventive measures such as new presubmit jobs, org-wide CodeRabbit review rules, or process changes.\u003c/p\u003e\u003cp\u003eThis command is intended to be run periodically (e.g., monthly) to track revert trends over time.\u003c/p\u003e"
         },
         {
-          "name": "analyze-prow-job-install-failure",
-          "full_name": "ci:analyze-prow-job-install-failure",
-          "description": "Analyze OpenShift installation failures in Prow CI jobs",
-          "description_html": "Analyze OpenShift installation failures in Prow CI jobs",
-          "synopsis": "/ci:analyze-prow-job-install-failure \u003cprowjob-url\u003e",
-          "body_html": "\u003cp\u003eThe \u003ccode\u003eci:analyze-prow-job-install-failure\u003c/code\u003e command analyzes OpenShift installation failures in Prow CI jobs by downloading and examining installer logs, log bundles, and sosreports (for metal jobs). This command is specifically designed to debug failures in the \u003cstrong\u003e&quot;install should succeed: overall&quot;\u003c/strong\u003e test, which indicates that the installation process failed at some stage.\u003c/p\u003e\u003cp\u003e\u003cstrong\u003eImportant\u003c/strong\u003e: All &quot;install should succeed&quot; tests have a specific suffix indicating the failure stage (configuration, infrastructure, cluster bootstrap, cluster creation, cluster operator stability, or other). The JUnit XML contains both the specific failure reason test (which fails) and the overall test (which also fails when any stage fails). This command analyzes the specific failure stage to provide targeted diagnostics.\u003c/p\u003e\u003cp\u003eThe command accepts:\u003cbr\u003e- Prow job URL (required): URL to the failed CI job from prow.ci.openshift.org\u003c/p\u003e\u003cp\u003eIt downloads relevant artifacts from Google Cloud Storage, analyzes them, and generates a comprehensive report with findings and recommended next steps.\u003c/p\u003e\u003cp\u003e### Recognized Failure Modes\u003c/p\u003e\u003cp\u003eThe command identifies the failure mode from \u003ccode\u003ejunit_install.xml\u003c/code\u003e and tailors its analysis:\u003c/p\u003e\u003cp\u003e- \u003cstrong\u003e&quot;install should succeed: configuration&quot;\u003c/strong\u003e - Extremely rare failure where install-config.yaml validation failed. Focus on installer log only.\u003cbr\u003e- \u003cstrong\u003e&quot;install should succeed: infrastructure&quot;\u003c/strong\u003e - Failed to create cloud resources. Usually due to cloud quota, rate limiting, or outages. Log bundle may not exist.\u003cbr\u003e- \u003cstrong\u003e&quot;install should succeed: cluster bootstrap&quot;\u003c/strong\u003e - Bootstrap node failed to start temporary control plane. Check bootkube logs in the bundle.\u003cbr\u003e- \u003cstrong\u003e&quot;install should succeed: cluster creation&quot;\u003c/strong\u003e - One or more operators unable to deploy. Check operator logs in gather-must-gather.\u003cbr\u003e- \u003cstrong\u003e&quot;install should succeed: cluster operator stability&quot;\u003c/strong\u003e - Operators never stabilized (stuck progressing/degraded). Check operator status and logs.\u003cbr\u003e- \u003cstrong\u003e&quot;install should succeed: other&quot;\u003c/strong\u003e - Unknown failure requiring comprehensive analysis of all available logs.\u003c/p\u003e"
-        },
-        {
           "name": "analyze-prow-job-resource",
           "full_name": "ci:analyze-prow-job-resource",
           "description": "Analyze Kubernetes resource lifecycle in Prow job artifacts",
           "description_html": "Analyze Kubernetes resource lifecycle in Prow job artifacts",
           "synopsis": "Generate a report showing the lifecycle of a single resource:\n```\n/ci:analyze-prow-job-resource \u003cprowjob-url\u003e [namespace:][kind/][resource-name]\n```\nGenerate a report showing multiple resource lifecycles:\n```\n/ci:analyze-prow-job-resource \u003cprowjob-url\u003e [namespace:][kind/][resource-name],[namespace:][kind/][resource-name],...\n```",
           "body_html": "Analyze the lifecycle of Kubernetes resource(s) in a Prow CI job by invoking the &quot;prow-job-analyze-resource&quot; skill."
-        },
-        {
-          "name": "analyze-prow-job-test-failure",
-          "full_name": "ci:analyze-prow-job-test-failure",
-          "description": "Analyzes test errors from console logs and Prow CI job artifacts",
-          "description_html": "Analyzes test errors from console logs and Prow CI job artifacts",
-          "synopsis": "Generate a test failure analysis for the given test:\n```text\n/ci:analyze-prow-job-test-failure \u003cprowjob-url\u003e [test-name] [--fast]\n```",
-          "body_html": "\u003cp\u003eAnalyze a failed test by inspecting the test code in the current project and artifacts in Prow CI job. This is done by invoking the &quot;prow-job-analyze-test-failure&quot; skill.\u003c/p\u003e\u003cp\u003eThe command provides comprehensive analysis by:\u003cbr\u003e- Examining test failure stack traces and source code\u003cbr\u003e- Analyzing test execution timeline and cluster events during the test\u003cbr\u003e- \u003cstrong\u003eOptionally\u003c/strong\u003e extracting and analyzing must-gather data for cluster-level diagnostics\u003cbr\u003e- \u003cstrong\u003eHyperShift support\u003c/strong\u003e: Detects and analyzes both management cluster and hosted cluster must-gather data\u003cbr\u003e- Correlating cluster issues (degraded operators, failing pods, node problems) with test failures\u003cbr\u003e- \u003cstrong\u003eEnhanced output\u003c/strong\u003e: Structured Markdown format with clear sections and artifact organization\u003c/p\u003e\u003cp\u003e### User Experience\u003c/p\u003e\u003cp\u003e\u003cstrong\u003eDefault (comprehensive analysis)\u003c/strong\u003e:\u003cbr\u003e``\u003ccode\u003etext\u003cbr\u003e/ci:analyze-prow-job-test-failure &lt;url&gt;\u003cbr\u003e\u003c/code\u003e`\u003ccode\u003e\u003cbr\u003e- No test name needed — analyzes all failed CI steps from JUnit XML, build logs, and step artifacts\u003cbr\u003e- Detects must-gather availability\u003cbr\u003e- Provides correlated step + cluster analysis\u003cbr\u003e- This is the common case for multi-step CI workflows (e.g. HyperShift, bare-metal OADP jobs)\u003c/p\u003e\u003cp\u003e\u003cstrong\u003eWith specific test name\u003c/strong\u003e:\u003cbr\u003e\u003c/code\u003e`\u003ccode\u003etext\u003cbr\u003e/ci:analyze-prow-job-test-failure &lt;url&gt; &lt;test-name&gt;\u003cbr\u003e\u003c/code\u003e`\u003ccode\u003e\u003cbr\u003e- Focuses analysis on the named test&#x27;s stack trace and logs\u003c/p\u003e\u003cp\u003e\u003cstrong\u003eFast mode (skip must-gather)\u003c/strong\u003e:\u003cbr\u003e\u003c/code\u003e`\u003ccode\u003etext\u003cbr\u003e/ci:analyze-prow-job-test-failure &lt;url&gt; [test-name] --fast\u003cbr\u003e\u003c/code\u003e`\u003ccode\u003e\u003cbr\u003e- Skips must-gather detection and extraction only\u003cbr\u003e- Scope is preserved: test-level when \u003c/code\u003etest-name` is provided, step-level across all failed CI steps when omitted\u003cbr\u003e- Faster results, but may miss cluster-level root causes\u003c/p\u003e\u003cp\u003e### HyperShift Support\u003c/p\u003e\u003cp\u003eFor HyperShift jobs with hosted clusters, the command automatically:\u003cbr\u003e- Detects HyperShift dump archives in various locations (dump-management-cluster, hypershift-mce-dump, run-e2e-local, etc.)\u003cbr\u003e- Extracts archives containing management and/or hosted cluster data\u003cbr\u003e- Splits data into separate directories for independent analysis\u003cbr\u003e- Detects hosted cluster data within archives (hostedcluster-* directory)\u003cbr\u003e- Provides separate diagnostic sections for each cluster\u003cbr\u003e- Correlates issues across both clusters in root cause analysis\u003c/p\u003e\u003cp\u003e\u003cstrong\u003eNote\u003c/strong\u003e: HyperShift jobs may use different artifact structures depending on the workflow and test type.\u003c/p\u003e"
         },
         {
           "name": "analyze-regression",
@@ -602,14 +586,6 @@ footer a { color: var(--primary); }
           "description_html": "Extract kubeconfig from a running CI job in a PR",
           "synopsis": "/ci:extract-kubeconfig \u003cpr-url\u003e",
           "body_html": "\u003cp\u003eThe \u003ccode\u003eci:extract-kubeconfig\u003c/code\u003e command extracts the kubeconfig from a running rehearsal/CI job in a GitHub PR. It checks the job&#x27;s step status to determine if the cluster is ready, then connects to the build cluster to extract the kubeconfig from the running pod.\u003c/p\u003e\u003cp\u003eThe command accepts:\u003cbr\u003e- \u003cstrong\u003ePR URL\u003c/strong\u003e (required): GitHub PR URL in the \u003ccode\u003eopenshift/release\u003c/code\u003e repository\u003c/p\u003e\u003cp\u003e\u003cstrong\u003eWhat it does:\u003c/strong\u003e\u003cbr\u003e1. Validates the PR URL and checks ownership\u003cbr\u003e2. Finds running (PENDING) jobs on the PR\u003cbr\u003e3. Determines the build cluster (via GCS for public jobs, or via job config in the repo for qe-private-deck jobs)\u003cbr\u003e4. Logs into the build cluster and finds the CI namespace\u003cbr\u003e5. Checks step status via pod statuses to verify the cluster is ready\u003cbr\u003e6. Extracts the kubeconfig (and nested kubeconfig for HyperShift) from the running pod\u003cbr\u003e7. Verifies cluster health and reports results\u003c/p\u003e\u003cp\u003e\u003cstrong\u003eKey features:\u003c/strong\u003e\u003cbr\u003e- Supports both standard and HyperShift (nested kubeconfig) clusters\u003cbr\u003e- Supports both public (\u003ccode\u003eprow.ci.openshift.org\u003c/code\u003e) and private (\u003ccode\u003eqe-private-deck\u003c/code\u003e) jobs\u003cbr\u003e- Uses ci-op namespace prefix on kubeconfig filenames to support multiple concurrent extractions\u003cbr\u003e- Warns if you&#x27;re not the PR author (may lack namespace access)\u003cbr\u003e- Recognizes \u003ccode\u003ewait\u003c/code\u003e steps as valid running states for extraction\u003c/p\u003e"
-        },
-        {
-          "name": "extract-prow-job-must-gather",
-          "full_name": "ci:extract-prow-job-must-gather",
-          "description": "Extract and decompress must-gather archives from Prow job artifacts",
-          "description_html": "Extract and decompress must-gather archives from Prow job artifacts",
-          "synopsis": "/ci:extract-prow-job-must-gather \u003cprowjob-url\u003e",
-          "body_html": "Extract the must-gather archive from a Prow CI job by invoking the &quot;prow-job-extract-must-gather&quot; skill."
         },
         {
           "name": "fetch-payloads",
@@ -2208,7 +2184,7 @@ footer a { color: var(--primary); }
     {
       "name": "openshift",
       "description": "OpenShift development utilities and helpers",
-      "version": "0.0.6",
+      "version": "0.0.7",
       "has_readme": true,
       "commands": [
         {

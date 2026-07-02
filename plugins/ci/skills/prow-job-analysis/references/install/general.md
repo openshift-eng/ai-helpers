@@ -630,8 +630,10 @@ gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/{target}/g
 
 ### Must-Gather Directory Structure
 
-After extraction, content typically appears at `content/` (renamed from the long `-ci-` prefixed
-directory), containing `cluster-scoped-resources/`, `namespaces/`, `host_service_logs/`, etc.
+After running `tar -xf must-gather.tar`, the content appears under a long registry-hash directory
+(the `-ci-`/`sha256-…`-prefixed name is preserved, not renamed to `content/`), containing
+`cluster-scoped-resources/`, `namespaces/`, `host_service_logs/`, etc. See the
+[artifacts reference](../artifacts.md) for download and extraction steps.
 
 ---
 

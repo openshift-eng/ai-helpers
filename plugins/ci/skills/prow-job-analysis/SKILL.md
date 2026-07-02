@@ -19,7 +19,6 @@ The user will provide:
 2. **Test name** (optional) — specific failed test to focus on
 
 3. **Flags** (optional):
-   - `--fast` — skip must-gather extraction
    - `--backends <list>` — focus disruption analysis on specific backends
 
 ## Prerequisites

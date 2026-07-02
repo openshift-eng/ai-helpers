@@ -586,13 +586,39 @@ gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/**/hypersh
 gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/**/hostedcluster.tar" 2>/dev/null
 ```
 
+### Must-Gather Download & Extraction
+
+Must-gather is **not** downloaded or extracted automatically — fetch and unpack it manually when a
+failure needs cluster-state diagnostics.
+
+```bash
+# 1. Download the archive (path from the Common Artifact Paths / routing table)
+mkdir -p .work/prow-job-analysis/{build_id}/must-gather
+gcloud storage cp \
+  "gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-must-gather/artifacts/must-gather.tar" \
+  .work/prow-job-analysis/{build_id}/must-gather/ --no-user-output-enabled
+
+# 2. Extract the outer archive (use `tar -xzf` if it is gzipped / named *.tar.gz)
+tar -xf .work/prow-job-analysis/{build_id}/must-gather/must-gather.tar \
+  -C .work/prow-job-analysis/{build_id}/must-gather/
+
+# 3. Decompress any nested archives (collectors sometimes gzip logs or bundle sub-dumps)
+find .work/prow-job-analysis/{build_id}/must-gather/ -name '*.gz' -exec gunzip -f {} +
+find .work/prow-job-analysis/{build_id}/must-gather/ -name '*.tar' \
+  -exec tar -xf {} -C .work/prow-job-analysis/{build_id}/must-gather/ \;
+```
+
+The extracted content lands under a long registry-hash directory (the name is preserved, **not**
+renamed to `content/`). Point the must-gather-analyzer scripts at that directory — see the
+[must-gather plugin](../../../../must-gather/skills/must-gather-analyzer/SKILL.md).
+
 ### Must-Gather Contents (After Extraction)
 
 After extracting the tar archive, the must-gather directory typically contains:
 
 ```text
 must-gather/
-├── {hash-directory}/              # Long registry hash name (renamed to "content/" by extraction script)
+├── {hash-directory}/              # Long registry hash name (preserved as-is after extraction)
 │   ├── cluster-scoped-resources/
 │   │   ├── config.openshift.io/
 │   │   ├── machine.openshift.io/

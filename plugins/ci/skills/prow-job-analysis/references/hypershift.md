@@ -78,8 +78,19 @@ grep -Eo 'clusters-[a-z0-9-]+' build-log.txt | sort -u
 
 ## Correlating Across Both Clusters
 
-1. **Extract both halves separately** — management → `must-gather-mgmt/`, hosted →
-   `must-gather-hosted/`. Run the [must-gather-analyzer](../../../../must-gather/skills/must-gather-analyzer/SKILL.md)
+1. **Download and extract both halves separately.** HyperShift jobs produce a management-side and a
+   hosted-side archive (e.g. `hypershift-dump.tar` / `hostedcluster.tar`, or a unified
+   `dump-management-cluster/artifacts/artifacts.tar` — see the [artifacts reference](artifacts.md)
+   for exact paths and general extraction steps):
+
+   ```bash
+   mkdir -p must-gather-mgmt && tar -xf hypershift-dump.tar -C must-gather-mgmt/
+   mkdir -p must-gather-hosted && tar -xf hostedcluster.tar -C must-gather-hosted/
+   # Decompress any nested archives in either root
+   find must-gather-mgmt must-gather-hosted -name '*.gz' -exec gunzip -f {} +
+   ```
+
+   Then run the [must-gather-analyzer](../../../../must-gather/skills/must-gather-analyzer/SKILL.md)
    scripts (`analyze_clusteroperators.py`, `analyze_pods.py --problems-only`,
    `analyze_nodes.py --problems-only`, `analyze_events.py --type Warning`, `analyze_etcd.py`)
    against **each root independently** and label every finding `[Management]` or `[Hosted]`.
