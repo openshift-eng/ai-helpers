@@ -1,17 +1,11 @@
 # Upgrade Failure Analysis Reference
 
-Analyzing OpenShift upgrade failures in Prow CI jobs — the most complex failure category,
-involving multi-phase orchestration, rolling node updates, operator reconvergence, and
-version skew between components.
-
-## When to Use
-
-- Job name contains `upgrade` and failure occurs during or after the upgrade phase
-- CVO (Cluster Version Operator) reports errors or gets stuck
-- Operators become degraded or unavailable during upgrade
-- Tests fail specifically during the upgrade window or post-upgrade conformance
-- MCO (Machine Config Operator) fails to drain or reboot nodes
-- ClusterVersion stuck in `Progressing=True` state
+Use when the job name contains `upgrade` and the failure occurs during or after the upgrade
+phase — the CVO (Cluster Version Operator) reports errors or gets stuck, operators go degraded
+or unavailable, the MCO (Machine Config Operator) fails to drain or reboot nodes, ClusterVersion
+is stuck `Progressing=True`, or tests fail in the upgrade window or post-upgrade conformance.
+This is the most complex failure category: multi-phase orchestration, rolling node updates,
+operator reconvergence, and version skew between components.
 
 ## Upgrade Job Classification
 

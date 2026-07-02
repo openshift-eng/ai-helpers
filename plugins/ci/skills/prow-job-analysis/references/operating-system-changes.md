@@ -1,6 +1,6 @@
 # Operating System Changes Reference
 
-**Use when** no other failure mode explains the root cause and you suspect an operating system
+Use when no other failure mode explains the cause and you suspect an operating system
 level problem — kernel, cri-o, NetworkManager, systemd, SELinux, rpm-ostree, or bootloader
 changes. The node OS is RHCOS (Red Hat CoreOS), the immutable OS every OpenShift node boots. A
 single RHCOS bump inside a payload swaps the kernel, cri-o, systemd, NetworkManager, and SELinux

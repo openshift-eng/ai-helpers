@@ -56,6 +56,14 @@ Before starting, you **MUST** load the following skills (they define output sche
 
 ### Step 1: Parse Arguments
 
+**Anchor the output directory before anything else.** Capture the current working directory up front so all output files land in one stable, predictable location even if a later step changes directories:
+
+```bash
+OUTPUT_DIR="$(pwd)"
+```
+
+All three output files — the payload results YAML (Step 6.5), the HTML report (Step 7), and the autodl JSON (Step 8) — MUST be written under `$OUTPUT_DIR`, never into a snapshot subdirectory or a path a later `cd` may have changed. The Step 10 self-check verifies them at `$OUTPUT_DIR`.
+
 The first argument is a **full payload tag** (e.g., `4.22.0-0.nightly-2026-02-25-152806`). Parse from it:
 - `tag`: The specific payload tag to analyze
 - `version`: Extract from the tag (e.g., `4.22` from `4.22.0-0.nightly-...`)
@@ -310,7 +318,7 @@ For each failed job, cross-reference the failure analysis from the subagent with
 
 If a subagent traced the root cause to a PR outside the payload (e.g., an `openshift/release` PR that modified a CI step registry script), include that PR as a candidate.
 
-**Score every distinct failure mode, not just the dominant one.** A single job can fail for more than one reason (e.g., an install timeout *and* an unrelated test regression). Enumerate each distinct failure mode the subagent identified and run every candidate PR through the rubric **once per failure mode** — a PR that explains failure mode A does not automatically explain failure mode B. Do not collapse a job down to its loudest symptom and score only that.
+**Before scoring, mechanically enumerate every distinct failure mode for each job — do not score only the dominant one.** A single job can fail for more than one reason (e.g., an install timeout *and* an unrelated test regression). For each failed job, first write out each distinct failure mode the subagent identified as an explicit list, then run every candidate PR through the rubric **once per failure mode** — a PR that explains failure mode A does not automatically explain failure mode B. Do not collapse a job down to its loudest symptom and score only that. Any failure mode you dismiss as a flake (or as pre-existing) MUST cite the specific evidence for that dismissal — a passing retry with no code change, the same test failing on the *accepted* baseline, or a known-flaky test ID — never an unsupported "intermittent" label.
 
 Score each (failed job, failure mode, candidate PR) tuple using the following weighted rubric:
 
@@ -341,11 +349,15 @@ total: 100
 
 Record this breakdown in the candidate's `rationale` field in the YAML/JSON output. A bare score with no itemized breakdown is not acceptable.
 
+The recorded confidence score MUST equal `min(100, sum of itemized signals)`, each signal at exactly its defined weight, one line of evidence per claimed signal. No unclaimed points, no unlisted signals.
+
 **Apply the rubric mechanically, then verify the top-tier claims.** Sum the weights for each signal that fires on concrete evidence. Do NOT adjust the score downward based on speculative counter-arguments like "if this were the sole cause, other jobs would also fail" or "this could be a coincidence" — if the error messages reference the PR's changes, that's a match, and the fact that some other jobs didn't fail doesn't negate it. **But when the raw sum exceeds the cap** (you claimed a maximum tier on more than one signal at once), re-verify each maximum-tier claim before recording: is the error-message match a true verbatim string/symbol match (+40), or really only same-subsystem (+10)? Is this genuinely the *sole* modifier of the component (+30)? Downgrade any tier that does not survive this check. This self-skepticism pass removes tier inflation without weakening genuinely strong matches. Trust the rubric — it exists to prevent both over- and under-attribution.
 
 **Infrastructure exclusion — do not let unrelated PRs accumulate points.** The rubric measures *product-code causation*. When the root cause is affirmatively infrastructure (Step 6.4 definition) or an affirmatively-identified CI-config change (Step 3.6), payload component PRs with **no error-message and no code-path correlation** to the failure must score **at or near zero**. Do not award "new failure mode" or bare "component exclusivity" points to a PR that merely happens to be present in the payload — "new failure mode" fires only when the failure is plausibly attributable to code that changed. A new symptom whose actual cause is a lease timeout, a quota block, or a step-registry edit is not evidence against an unrelated component PR.
 
 **"Intermittent" and "flake" are conclusions requiring evidence, not default labels.** Before dismissing a failure as a flake, confirm affirmative evidence for it (e.g., the same job passed on retry with no code change, or it is a known-flaky test that also fails on *accepted* payloads). First check whether any candidate PR touches the failing code path: a reproducible failure in code that changed is a regression, not a flake, even if it does not reproduce on every run.
+
+**When a failed job ends up with zero causally-linked candidates, state why — explicitly, per job.** An empty candidate list is itself a claim: that no payload PR and no CI-infrastructure change (Step 3.6) is causally linked to the failure. Justify it rather than leaving it blank. For each such job, record a one-line rationale explaining why no payload PR explains the failure (e.g., "root cause is a Boskos lease timeout — no component PR touches the failing path"; "failure also reproduces on the accepted baseline payload, so it predates every candidate PR in this originating payload"). State the cross-job correlation explicitly: note whether the same failure mode appears in other failing jobs (pointing to shared infrastructure or a common dependency) or is isolated to this one. A silent empty candidate list is indistinguishable from an un-investigated job and is not acceptable.
 
 #### 6.1b: RHCOS RPM Change Correlation
 
@@ -412,7 +424,7 @@ Otherwise, recommend force-accepting when **all** of the following are true:
 
 #### 6.5: Write Payload Results YAML
 
-Use the `payload-results-yaml` skill to create: `payload-results-{tag}.yaml`
+Use the `payload-results-yaml` skill to create `$OUTPUT_DIR/payload-results-{tag}.yaml` (the `$OUTPUT_DIR` captured in Step 1)
 
 This file contains ALL scored candidates across all confidence tiers (HIGH, MEDIUM, LOW), enabling downstream commands to filter by their own criteria. If RHCOS RPM suspects were identified in Step 6.1b, include them in the `rhcos_suspects[]` array (see the `payload-results-yaml` skill for the schema).
 
@@ -420,7 +432,7 @@ This file contains ALL scored candidates across all confidence tiers (HIGH, MEDI
 
 ### Step 7: Generate HTML Report
 
-Create a self-contained HTML file named `payload-analysis-<tag>-summary.html` in the current working directory. The tag should be sanitized for use as a filename.
+Create a self-contained HTML file named `payload-analysis-<tag>-summary.html` in `$OUTPUT_DIR` (the directory captured in Step 1). The tag should be sanitized for use as a filename.
 
 The report must include the following sections:
 
@@ -624,7 +636,7 @@ Include these RHCOS-specific styles:
 
 ### Step 8: Generate JSON Data File
 
-Use the `payload-autodl-json` skill to produce `payload-analysis-<sanitized_tag>-autodl.json`.
+Use the `payload-autodl-json` skill to produce `$OUTPUT_DIR/payload-analysis-<sanitized_tag>-autodl.json` (the `$OUTPUT_DIR` captured in Step 1).
 
 See the `payload-autodl-json` skill for the complete schema, row cardinality rules, and field rules.
 
@@ -685,12 +697,12 @@ After receiving the reviewer's response:
 
 ### Step 10: Final Self-Check, Save, and Present
 
-Before presenting, run a **mechanical self-check** and fix any gap it finds — do not present a partial report:
+Before presenting, confirm that **all Step 4 investigation subagents and the Step 9 reviewer have completed and returned their results** — never assemble the report while an investigation is still outstanding. Then run a **mechanical self-check** and fix any gap it finds — do not present a partial report:
 
-1. **All three output files exist** in the current working directory and are non-empty:
-   - HTML report: `payload-analysis-<sanitized_tag>-summary.html`
-   - JSON data file: `payload-analysis-<sanitized_tag>-autodl.json`
-   - Payload results YAML: `payload-results-<sanitized_tag>.yaml`
+1. **All three output files exist at `$OUTPUT_DIR`** (the directory captured in Step 1) and are non-empty. Verify these three exact spec'd filenames — do NOT glob, so that a stray file from a previous run cannot satisfy the check:
+   - HTML report: `$OUTPUT_DIR/payload-analysis-<sanitized_tag>-summary.html`
+   - JSON data file: `$OUTPUT_DIR/payload-analysis-<sanitized_tag>-autodl.json`
+   - Payload results YAML: `$OUTPUT_DIR/payload-results-<sanitized_tag>.yaml`
 2. **The HTML contains every required section** from Step 7: header + executive summary (including the payload-chain context from Step 7.1), recommended reverts (or the "No Recommended Reverts" verdict), the force-accept verdict when applicable, the blocking-jobs summary table, a collapsible details block for **every** failed job, the RHCOS Changes section when any payload has RHCOS changes, and the Adversarial Review section.
 3. **Cross-output consistency**: phase, failure counts, per-job root causes (including any adjudicated in Step 5b), and scored candidates agree across the HTML, YAML, and JSON.
 4. **Every affirmative root cause appears as a scored `candidates[]` entry** — including causal CI-infrastructure changes, even when `failure_type: infra`.

@@ -1,19 +1,16 @@
 # Test Failure Root-Cause Analysis
 
-**Use when** [flaky-test-identification.md](flaky-test-identification.md) has classified a
-failure as a **real product regression** in a **plain** e2e test — non-extension, non-install,
-non-upgrade — and you need the root cause. The canonical case is a conformance regression like
-`[sig-network] services should serve endpoints` failing in `e2e-aws-ovn`: a genuine
-`<failure>` on a real product `<testcase>`, stable on Sippy until a recent step-drop. This
-reference owns the flow from the failing assertion, through cluster state at the failure
-window, to the specific originating error.
+Use when [flaky-test-identification.md](flaky-test-identification.md) has classified a failure
+as a real product regression in a plain e2e test (non-extension, non-install, non-upgrade) and
+you need the root cause — for example, a conformance test like
+`[sig-network] services should serve endpoints` that was stable on Sippy until it began failing
+in `e2e-aws-ovn`.
 
-Everything here assumes the three-way triage is done: the failure is not a ci-operator
-`reason`, not a fail+pass flake twin, not a `<skipped>`, and not confined to shared infra
-across 3+ jobs. If that is not yet settled, start at
-[flaky-test-identification.md](flaky-test-identification.md).
+This assumes the three-way triage is already done: the failure is not a ci-operator `reason`,
+not a fail+pass flake twin, not a `<skipped>`, and not shared infra across 3+ jobs. If that is
+not yet settled, start at [flaky-test-identification.md](flaky-test-identification.md).
 
-**Use a different reference when the failing test is:** an extension binary (`*-tests-ext`) →
+Use a different reference when the failing test is: an extension binary (`*-tests-ext`) →
 [test-extension-binaries.md](test-extension-binaries.md); `install should succeed` →
 [install/general.md](install/general.md); an upgrade-phase regression →
 [upgrade.md](upgrade.md); an `aggregated-` job verdict → [aggregated.md](aggregated.md).
