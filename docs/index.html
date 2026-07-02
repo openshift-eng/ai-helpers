@@ -1455,7 +1455,7 @@ footer a { color: var(--primary); }
     {
       "name": "jira",
       "description": "A plugin to automate tasks with Jira",
-      "version": "0.8.1",
+      "version": "0.9.0",
       "has_readme": true,
       "commands": [
         {
@@ -1507,6 +1507,14 @@ footer a { color: var(--primary); }
           "body_html": "\u003cp\u003eThe \u003ccode\u003ejira:create-release-note\u003c/code\u003e command automatically generates bug fix release notes by analyzing Jira bug tickets and their linked GitHub pull requests, then updates the Jira ticket with the generated release note content.\u003c/p\u003e\u003cp\u003eThis command is particularly useful for:\u003cbr\u003e- Creating consistent, well-formatted release notes across all bugs\u003cbr\u003e- Automatically extracting information from multiple sources (Jira + GitHub)\u003cbr\u003e- Saving time by analyzing PR code changes, commits, and descriptions\u003cbr\u003e- Ensuring complete release notes with Cause, Consequence, Fix, Result, and Workaround\u003c/p\u003e\u003cp\u003eThe command follows the standard release note template format and populates both the Release Note Type and Release Note Text fields in Jira.\u003c/p\u003e"
         },
         {
+          "name": "generate-bug-reproducer",
+          "full_name": "jira:generate-bug-reproducer",
+          "description": "Generate bug reproduction steps from a JIRA issue and fix PR analysis",
+          "description_html": "Generate bug reproduction steps from a JIRA issue and fix PR analysis",
+          "synopsis": "/jira:generate-bug-reproducer [JIRA issue key] [GitHub PR URLs] [--apply]",
+          "body_html": "\u003cp\u003eThe \u003ccode\u003ejira:generate-bug-reproducer\u003c/code\u003e command analyzes a bug&#x27;s JIRA description and fix PR code changes to produce a structured reproducer report. The report includes pre-fix reproduction steps (inferred from the PR diff when JIRA lacks them), post-fix verification steps, and a confidence assessment.\u003c/p\u003e\u003cp\u003eThis command is an alias for \u003ccode\u003e/jira:generate-test-plan --reproducer\u003c/code\u003e. Both invoke the same \u003cstrong\u003eGenerate Test Plan\u003c/strong\u003e skill in reproducer mode.\u003c/p\u003e\u003cp\u003eUse this command when QE or a developer needs to validate a bug fix without back-and-forth with the PR author or bug reporter.\u003c/p\u003e\u003cp\u003ePass \u003ccode\u003e--apply\u003c/code\u003e to execute the reproducer steps against a live OpenShift cluster after generating (or reusing) the report. The agent verifies cluster connectivity, classifies each step as read-only or write, and uses a hybrid confirmation model: one upfront confirmation for all read-only commands, individual confirmation before each write command.\u003c/p\u003e"
+        },
+        {
           "name": "generate-enhancement",
           "full_name": "jira:generate-enhancement",
           "description": "Generate OpenShift enhancement proposal markdown from a Jira epic or feature",
@@ -1535,8 +1543,8 @@ footer a { color: var(--primary); }
           "full_name": "jira:generate-test-plan",
           "description": "Generate test steps for a JIRA issue",
           "description_html": "Generate test steps for a JIRA issue",
-          "synopsis": "/jira:generate-test-plan [JIRA issue key] [GitHub PR URLs]",
-          "body_html": "\u003cp\u003eThe &#x27;jira:generate-test-plan&#x27; command takes a JIRA issue key and optionally a list of PR URLs. It fetches the JIRA issue details, retrieves all related PRs (or uses the provided PR list), analyzes the changes, and generates a comprehensive manual testing guide.\u003c/p\u003e\u003cp\u003e\u003cstrong\u003eJIRA Issue Test Guide Generator\u003c/strong\u003e\u003c/p\u003e"
+          "synopsis": "/jira:generate-test-plan [JIRA issue key] [GitHub PR URLs] [--reproducer] [--apply]",
+          "body_html": "\u003cp\u003eThe \u003ccode\u003ejira:generate-test-plan\u003c/code\u003e command takes a JIRA issue key and optionally a list of PR URLs. It fetches the JIRA issue details, retrieves all related PRs (or uses the provided PR list), analyzes the changes, and generates a comprehensive manual testing guide.\u003c/p\u003e\u003cp\u003ePass \u003ccode\u003e--reproducer\u003c/code\u003e to generate a bug reproducer report instead of a full test plan. For reproducer-focused workflows, \u003ccode\u003e/jira:generate-bug-reproducer\u003c/code\u003e is an equivalent alias.\u003c/p\u003e\u003cp\u003ePass \u003ccode\u003e--apply\u003c/code\u003e to execute the generated steps against a live OpenShift cluster. In reproducer mode, the &quot;Steps to Reproduce (Pre-Fix)&quot; are executed to recreate the bug. In test-plan mode, the test scenarios are executed. The agent verifies cluster connectivity, classifies each command as read-only or write, and uses a hybrid confirmation model before execution.\u003c/p\u003e\u003cp\u003e\u003cstrong\u003eJIRA Issue Test Guide Generator\u003c/strong\u003e\u003c/p\u003e"
         },
         {
           "name": "grooming",
@@ -1646,6 +1654,12 @@ footer a { color: var(--primary); }
           "name": "generate-enhancement",
           "description": "Generate OpenShift enhancement proposal markdown from Jira epic or feature content",
           "description_html": "Generate OpenShift enhancement proposal markdown from Jira epic or feature content",
+          "meta": ""
+        },
+        {
+          "name": "generate-test-plan",
+          "description": "Shared implementation for JIRA test plans and bug reproducer reports from issue details and fix PRs, with optional live cluster execution",
+          "description_html": "Shared implementation for JIRA test plans and bug reproducer reports from issue details and fix PRs, with optional live cluster execution",
           "meta": ""
         },
         {
