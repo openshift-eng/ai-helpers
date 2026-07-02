@@ -188,7 +188,7 @@ For each failed job, identify the matching RHCOS variant's RPM changes (if any) 
 
 For each failed blocking job in the **target payload**, launch a **parallel subagent** to investigate the failure. Pass the subagent the Prow URL and all previous attempt URLs from Step 3.2.
 
-Each subagent should determine whether the failure is an install failure or a test failure by checking the JUnit results (e.g., look for `install should succeed*` test failures), then use the appropriate analysis skill. Almost all blocking jobs install a cluster and then run tests, so the job name alone does not tell you the failure type.
+Almost all blocking jobs install a cluster and then run tests, so the job name alone does not tell you the failure type. Each subagent therefore runs the `ci:prow-job-analysis` skill, which classifies the failure and routes to the correct specialized reference internally.
 
 You MUST use the following prompt verbatim (substituting the placeholder values) when launching each subagent. Do NOT paraphrase, shorten, or write your own prompt — the specific instructions below are critical for analysis quality:
 
@@ -202,11 +202,7 @@ You MUST use the following prompt verbatim (substituting the placeholder values)
 >
 > **RHCOS RPM changes**: Read `<summary_json_path>` and find the entry in `payloads[]` whose `tag` equals `<originating_payload_tag>`. If that entry has an `rhcos_changes[]` array, look up the RHCOS variant matching this job's `rhcos_version` using the tag mapping: `rhel-coreos` → `rhcos9`/`rhcos9-default`, `rhel-coreos-10` → `rhcos10`/`rhcos10-default`, both apply to `rhcos9_10`. Check whether any changed, added, or removed RPM packages overlap with the failure's root cause. If the failure involves OS-level components (kernel, bootloader, systemd, SELinux, rpm-ostree, cri-o, crun, runc, networking) and matching packages changed, note the potential correlation in your ANALYSIS_RESULT.
 >
-> First, check the JUnit results or build log to determine whether this is an install failure (look for `install should succeed: overall` or similar install-related test failures) or a test failure (install passed, specific tests failed).
->
-> Based on the failure type, use the appropriate skill:
-> - **Install failure**: Use the `ci:prow-job-analysis` skill; it routes to the install reference and, for metal/bare-metal jobs (job name contains "metal"), to the metal install reference for dev-scripts, Metal3/Ironic, and BareMetalHost-specific diagnostics.
-> - **Test failure**: Use the `ci:prow-job-analysis` skill. Perform the full analysis, including downloading and analyzing must-gather when it is available.
+> Use the `ci:prow-job-analysis` skill for this investigation. It is the single entry point for every failed job: it identifies the job type, classifies the failure, and routes to the correct specialized reference — install, metal/bare-metal, test, upgrade, and more — internally. Do NOT pre-classify the failure yourself. Perform the full analysis, including downloading and analyzing must-gather when it is available.
 >
 > **IMPORTANT** — Trace every failure to its specific root cause by examining actual logs. Never stop at high-level symptoms like "0 nodes ready", "operator degraded", or "containers are crash-looping". Download and read the actual log bundles, pod logs, and container previous logs. Cite specific error messages. The root cause must be actionable, not a restatement of the symptom.
 >
