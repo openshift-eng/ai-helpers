@@ -60,7 +60,7 @@ plugins depend on node-team's shared data and extend its capabilities:
 |--------|--------|--------|
 | `node-team` | Development, deployment, debugging (see [Commands](#commands)) | Active |
 | [`node-cve`](../node-cve/) | CVE triage with reachability analysis | Active |
-| `node-bug-triage` | General bug triage and assignment | Planned |
+| [`node-bug`](../node-bug/) | General bug triage and assignment | Active |
 | [`node-onboarding`](../node-onboarding/) | Team onboarding workflows | Active |
 | [`node-rpm`](../node-rpm/) | RPM management (cri-tools pattern) | Active |
 
