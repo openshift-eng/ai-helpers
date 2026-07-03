@@ -1,0 +1,14 @@
+# Valid NetworkPolicy: Default-deny ingress
+# Based on: TC-VNP-001
+# Purpose: Baseline security - deny all ingress traffic by default
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: example-namespace
+  annotations:
+    policy.kubernetes.io/description: "Default-deny ingress policy for baseline security"
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress

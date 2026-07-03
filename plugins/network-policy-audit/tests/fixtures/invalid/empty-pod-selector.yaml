@@ -1,0 +1,18 @@
+# Invalid NetworkPolicy: Empty podSelector without documentation
+# Based on: BUG-003 verification
+# Purpose: Empty podSelector{} should warn if missing annotation
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: undocumented-policy
+  namespace: vulnerable-namespace
+  # Missing annotation explaining the empty podSelector{}
+spec:
+  podSelector: {}  # Applies to ALL pods - should have annotation
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: frontend
