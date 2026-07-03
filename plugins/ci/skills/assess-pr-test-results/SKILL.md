@@ -36,15 +36,18 @@ mkdir -p .work/assess-pr-test-results
 script_path="plugins/ci/skills/assess-pr-test-results/fetch_pr_test_results.py"
 
 python3 "$script_path" "<pr_url_or_number>" \
+  --latest-sha \
   --output .work/assess-pr-test-results/raw-results.json \
   --format json
 ```
 
+Always pass `--latest-sha` so only results from the most recent PR revision are returned. Older SHA failures are stale and not worth analyzing.
+
 If the user provides a PR URL, pass it directly. If they provide org/repo and PR number separately, use `--org` and `--repo` flags.
 
-Read the JSON output and check `success` is `true`. Record `total_results` and the list of unique SHAs.
+Read the JSON output and check `success` is `true`.
 
-### Step 2: Identify Unique Failing Tests and Classify Infrastructure
+### Step 2: Identify Unique Failing Tests and Filter Infrastructure
 
 From the results, extract distinct `test_name` values from failures. Group by `test_name` and count how many job runs each test failed in.
 
@@ -103,7 +106,7 @@ Output a structured markdown report:
 **Total test failures:** <N>
 **Unique failing tests:** <N> (analyzed top <M>)
 **Job runs with failures:** <N>
-**SHAs tested:** <list>
+**SHA:** <latest SHA analyzed>
 
 ### Summary
 

@@ -17,7 +17,7 @@ SIPPY_API_BASE = "http://localhost:8080/api"
 
 
 def fetch_pr_test_results(org, repo, pr_number, sha=None,
-                          include_successes=None):
+                          include_successes=None, latest_sha_only=False):
     """Fetch test results for a PR from the Sippy API."""
     now = datetime.now(timezone.utc)
     start_date = (now - timedelta(days=14)).strftime("%Y-%m-%d")
@@ -33,6 +33,8 @@ def fetch_pr_test_results(org, repo, pr_number, sha=None,
 
     if sha:
         params["sha"] = sha
+    if latest_sha_only:
+        params["latest_sha_only"] = "true"
 
     query_parts = list(urllib.parse.urlencode(params).split("&"))
     if include_successes:
@@ -190,6 +192,12 @@ def main():
         help="Filter to a specific commit SHA",
     )
     parser.add_argument(
+        "--latest-sha",
+        action="store_true",
+        default=False,
+        help="Only return results for the most recent PR SHA",
+    )
+    parser.add_argument(
         "--include-successes",
         action="append",
         default=None,
@@ -245,6 +253,7 @@ def main():
         pr_number=pr_number,
         sha=args.sha,
         include_successes=args.include_successes,
+        latest_sha_only=args.latest_sha,
     )
 
     if args.format == "json":
