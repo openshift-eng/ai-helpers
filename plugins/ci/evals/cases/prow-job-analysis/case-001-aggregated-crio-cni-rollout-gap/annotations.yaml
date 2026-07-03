@@ -1,7 +1,6 @@
 expected_failure_type: upgrade
 expected_references:
   - aggregated.md
-  - upgrade.md
   - operating-system-changes.md
 expected_root_cause_category: crio-behavior-change-cni-rollout-gap
 

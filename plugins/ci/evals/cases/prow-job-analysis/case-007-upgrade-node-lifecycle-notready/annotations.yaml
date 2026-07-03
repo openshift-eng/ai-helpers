@@ -2,7 +2,6 @@ expected_failure_type: upgrade
 expected_references:
   - operating-system-changes.md
   - upgrade.md
-  - networking.md
 expected_root_cause_category: crio-rpm-regression-networkpluginnotready
 
 # The single conclusion a correct analysis MUST reach.

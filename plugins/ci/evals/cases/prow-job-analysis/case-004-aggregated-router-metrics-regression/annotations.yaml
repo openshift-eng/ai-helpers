@@ -1,7 +1,6 @@
 expected_failure_type: test
 expected_references:
   - aggregated.md
-  - upgrade.md
   - networking.md
 expected_root_cause_category: aggregated-router-metrics-regression
 

@@ -1,7 +1,6 @@
 expected_failure_type: infra
 expected_references:
   - install/metal.md
-  - cloud-provider-errors.md
   - ci-infrastructure-changes.md
 expected_root_cause_category: shared-ci-dns-outage
 

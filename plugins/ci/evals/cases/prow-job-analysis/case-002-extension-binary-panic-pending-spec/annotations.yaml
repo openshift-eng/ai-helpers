@@ -1,6 +1,5 @@
 expected_failure_type: test
 expected_references:
-  - flaky-test-identification.md
   - test-extension-binaries.md
 expected_root_cause_category: extension-binary-panic-on-pending-spec
 

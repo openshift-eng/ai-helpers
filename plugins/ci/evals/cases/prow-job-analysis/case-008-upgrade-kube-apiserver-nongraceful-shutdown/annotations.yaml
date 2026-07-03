@@ -2,7 +2,6 @@ expected_failure_type: upgrade
 expected_references:
   - upgrade.md
   - operating-system-changes.md
-  - disruption.md
 expected_root_cause_category: kube-apiserver-nongraceful-shutdown-during-upgrade
 
 # The single conclusion a correct analysis MUST reach.

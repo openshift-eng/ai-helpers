@@ -1,7 +1,6 @@
 expected_failure_type: install
 expected_references:
   - install/general.md
-  - ci-infrastructure-changes.md
   - operating-system-changes.md
 expected_root_cause_category: mco-bootstrap-in-cluster-render-mismatch
 

@@ -1,7 +1,6 @@
 expected_failure_type: test
 expected_references:
   - networking.md
-  - flaky-test-identification.md
   - test-failure.md
 expected_root_cause_category: egressip-snat-not-applied
 

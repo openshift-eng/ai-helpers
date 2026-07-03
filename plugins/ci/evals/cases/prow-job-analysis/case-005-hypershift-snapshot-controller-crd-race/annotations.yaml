@@ -1,7 +1,6 @@
 expected_failure_type: test
 expected_references:
   - hypershift.md
-  - flaky-test-identification.md
 expected_root_cause_category: snapshot-controller-crashloop-volumegroupsnapshot-crd-race
 
 # The single conclusion a correct analysis MUST reach.
