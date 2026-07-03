@@ -14,12 +14,19 @@ import argparse
 import json
 import sys
 
-RATES = {"aws": 1, "gcp": 2, "azure": 2, "metal": 3, "vsphere": 4}
+RATES = [
+    ("microshift", 0.15),
+    ("aws", 1),
+    ("gcp", 2),
+    ("azure", 2),
+    ("metal", 3),
+    ("vsphere", 4),
+]
 
 
 def get_rate(name):
     lower = name.lower()
-    for platform, rate in RATES.items():
+    for platform, rate in RATES:
         if platform in lower:
             return platform, rate
     return "aws", 1

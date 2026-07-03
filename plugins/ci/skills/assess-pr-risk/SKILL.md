@@ -222,7 +222,7 @@ Beyond the repo's configured jobs, watch for these common revert patterns. If th
 /payload-job periodic-ci-openshift-release-master-nightly-4.22-e2e-aws-ovn-single-node-serial
 ```
 
-**MicroShift**: MicroShift is a minimal single-node OpenShift distribution with a very limited API surface — only Route and SecurityContextConstraints kube APIs are available. Flag and recommend testing when the PR adds new tests that use APIs or features unavailable on MicroShift (Project, Build, DeploymentConfig, ClusterOperator, ClusterVersion, OLM resources, Machine APIs, Console, Monitoring, ImageRegistry, Samples operator, etc.).
+**MicroShift**: MicroShift is a single-node, minimal OpenShift distribution. The only OpenShift kube APIs available are Route and SecurityContextConstraints — all other OpenShift-specific APIs (OLM, Machine API, Console, Monitoring, ImageRegistry, Samples operator, ClusterOperator, ClusterVersion, Build, DeploymentConfig, Project, etc.) are unavailable. This makes MicroShift unsuitable for testing most PRs. However, for changes that only touch Route or SCC code paths, MicroShift is by far the most cost-effective testing option at ~$0.15/hr. Flag and recommend MicroShift testing only when the PR's changes are limited to APIs that MicroShift supports. Flag as a concern when the PR adds tests that assume APIs unavailable on MicroShift.
 ```
 /payload-job periodic-ci-openshift-microshift-release-4.22-periodics-e2e-aws-ovn-ocp-conformance
 /payload-job periodic-ci-openshift-microshift-release-4.22-periodics-e2e-aws-ovn-ocp-conformance-serial
@@ -301,6 +301,8 @@ If the hotspot analysis identified risks not covered by any configured job, add 
 
 Write a JSON array of your e2e job decisions to `/tmp/pr-risk-jobs.json`, then run the cost estimator script. Each job needs `name`, `duration_minutes` (from Step 4b Sippy data), `decision` ("run" or "skip"), and `ci_status` ("required" or "optional" from the CI config).
 
+**Important:** Write this file to `/tmp/pr-risk-jobs.json` — never to `.work/pr-risk/`. The `.work/pr-risk/` directory must contain only the final state file from Step 5. Extra files there break downstream scoring.
+
 ```bash
 cat > /tmp/pr-risk-jobs.json << 'JOBS_EOF'
 [
@@ -323,6 +325,8 @@ python3 plugins/ci/skills/prow-job-cost-estimator/estimate_cost.py \
 Use the output from this script directly in your report and state file. Do not recalculate costs yourself — use the exact numbers the script printed.
 
 ## Step 5: Write State File
+
+The `.work/pr-risk/` directory must contain exactly one file: the state file below. Do not write intermediate files (jobs JSON, cost JSON) to this directory — use `/tmp/` for those.
 
 Write the assessment to `.work/pr-risk/<org>-<repo>-<pr_number>.json`:
 

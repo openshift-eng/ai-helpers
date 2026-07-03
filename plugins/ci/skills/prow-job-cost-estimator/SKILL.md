@@ -101,15 +101,20 @@ Net savings: $14.03
 
 The estimator uses fixed per-job hourly rates. These are simplified cost units representing relative cloud expense, not actual VM pricing:
 
-| Platform | Rate | Inferred when job name contains |
-|----------|------|---------------------------------|
-| AWS      | $1/hr | `aws` |
-| GCP      | $2/hr | `gcp` |
-| Azure    | $2/hr | `azure` |
-| Metal    | $3/hr | `metal` |
-| vSphere  | $4/hr | `vsphere` |
+| Platform   | Rate      | Inferred when job name contains |
+|------------|-----------|----------------------------------|
+| MicroShift | $0.15/hr  | `microshift`                     |
+| AWS        | $1/hr     | `aws`                            |
+| GCP        | $2/hr     | `gcp`                            |
+| Azure      | $2/hr     | `azure`                          |
+| Metal      | $3/hr     | `metal`                          |
+| vSphere    | $4/hr     | `vsphere`                        |
+
+MicroShift is matched first — a job named `e2e-aws-ovn-microshift` matches `microshift`, not `aws`.
 
 If no platform keyword is found in the job name, AWS ($1/hr) is assumed.
+
+**About MicroShift:** MicroShift is a single-node, minimal OpenShift distribution. The only OpenShift kube APIs available are Route and SecurityContextConstraints — all other OpenShift-specific APIs (OLM, Machine API, Console, Monitoring, ImageRegistry, Samples operator, etc.) are unavailable. This makes MicroShift unsuitable for testing most PRs, but for changes that only touch Route or SCC code paths, it is by far the most cost-effective testing option.
 
 ## Cost Definitions
 

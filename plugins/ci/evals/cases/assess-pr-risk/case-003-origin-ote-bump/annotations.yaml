@@ -16,7 +16,6 @@ must_recommend_jobs:
 must_not_recommend_jobs:
   - upgrade
   - vsphere
-  - microshift
   - hypershift
   - csi
   - kubevirt

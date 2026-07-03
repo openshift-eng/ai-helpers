@@ -1,4 +1,4 @@
-name: assess-pr-risk-eval
+name: assess-pr-risk
 description: Evaluate the assess-pr-risk skill's ability to score PR risk and recommend CI jobs
 skill: assess-pr-risk
 
@@ -41,7 +41,7 @@ permissions:
   deny: []
 
 mlflow:
-  experiment: assess-pr-risk-eval
+  experiment: assess-pr-risk
 
 dataset:
   path: cases/assess-pr-risk/
@@ -114,7 +114,7 @@ judges:
     check: |
       import json
       files = outputs.get("files", {})
-      state_files = {k: v for k, v in files.items() if k.endswith(".json") and "pr-risk" in k}
+      state_files = {k: v for k, v in files.items() if k.endswith(".json") and "pr-risk" in k and '"assessment"' in v}
       if not state_files:
           return (False, "No state file found in .work/pr-risk/")
       content = list(state_files.values())[0]
@@ -136,7 +136,7 @@ judges:
     check: |
       import json
       files = outputs.get("files", {})
-      state_files = {k: v for k, v in files.items() if k.endswith(".json") and "pr-risk" in k}
+      state_files = {k: v for k, v in files.items() if k.endswith(".json") and "pr-risk" in k and '"assessment"' in v}
       if not state_files:
           return (False, "No state file found")
       data = json.loads(list(state_files.values())[0])
@@ -154,7 +154,7 @@ judges:
     check: |
       import json
       files = outputs.get("files", {})
-      state_files = {k: v for k, v in files.items() if k.endswith(".json") and "pr-risk" in k}
+      state_files = {k: v for k, v in files.items() if k.endswith(".json") and "pr-risk" in k and '"assessment"' in v}
       if not state_files:
           return (False, "No state file found")
       data = json.loads(list(state_files.values())[0])
@@ -204,7 +204,7 @@ judges:
     check: |
       import json
       files = outputs.get("files", {})
-      state_files = {k: v for k, v in files.items() if k.endswith(".json") and "pr-risk" in k}
+      state_files = {k: v for k, v in files.items() if k.endswith(".json") and "pr-risk" in k and '"assessment"' in v}
       if not state_files:
           return (False, "No state file found")
       data = json.loads(list(state_files.values())[0])
@@ -264,7 +264,7 @@ judges:
     check: |
       import json
       files = outputs.get("files", {})
-      state_files = {k: v for k, v in files.items() if k.endswith(".json") and "pr-risk" in k}
+      state_files = {k: v for k, v in files.items() if k.endswith(".json") and "pr-risk" in k and '"assessment"' in v}
       if not state_files:
           return (False, "No state file found")
       data = json.loads(list(state_files.values())[0])
