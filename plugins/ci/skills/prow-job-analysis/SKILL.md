@@ -78,6 +78,31 @@ gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/**/junit*.
 Examine the build log and JUnit results to classify the failure, then consult the
 appropriate reference file for detailed analysis procedures.
 
+#### OS-layer evidence check (run for every job, before routing)
+
+Run this check for **every** job — regardless of job type or which domain the failure
+appears to belong to — *before* selecting a row from the routing table. Operating-system
+(RHCOS) layer breakage frequently masquerades as an unrelated product failure: a single
+RHCOS bump swaps the kernel, cri-o, systemd, NetworkManager, and SELinux policy across the
+whole cluster at once, so the real cause often surfaces as a symptom in some other domain.
+Scan the build log, `oc_cmds` (node / clusteroperator status), MachineConfig data, and node
+journals for any of these signals:
+
+- `NetworkPluginNotReady`, or a missing CNI config (`/etc/cni/net.d` empty / no CNI plugin)
+- A `ContainerRuntimeVersion` change on nodes (cri-o version bump between runs)
+- A MachineConfigDaemon (MCD) rendered-config diff touching `passwd`, `files`, or `units`
+- Multiple nodes going `NotReady` after a reboot
+- `CreateContainerError`, `RunContainerError`, or OCI runtime errors (`crun` / `runc`)
+- Kernel `panic`, `BUG`, `Oops`, or `soft lockup` in node journals or the serial console
+- `avc: denied` / SELinux denials
+- The same failure spanning multiple unrelated jobs at a payload boundary
+
+If **any** of these signals is present, the RHCOS layer is implicated. Still route via the
+table below using whichever reference matches the surface symptom, but **also** read
+[operating-system-changes.md](references/operating-system-changes.md) alongside that
+reference — treat the OS layer as the likely common cause even when the failure looks
+domain-specific.
+
 ## Failure Routing Table
 
 | Failure Signal | Reference | When to Use |
