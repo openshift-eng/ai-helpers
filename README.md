@@ -1,6 +1,10 @@
 # AI Helpers
 
+[![skillsaw grade](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fopenshift-eng%2Fai-helpers%2Fmain%2F.skillsaw-badge.json)](https://skillsaw.org/)
+
 A collection of Claude Code plugins to automate and assist with various development tasks.
+
+[Discover available plugins](https://openshift-eng.github.io/ai-helpers/)
 
 ## Installation
 
@@ -21,20 +25,66 @@ A collection of Claude Code plugins to automate and assist with various developm
    /jira:solve OCPBUGS-12345 origin
    ```
 
-### Using Cursor
+## Updating Plugins
 
-Cursor is able to find the various commands defined in this repo by
-making it available inside your `~/.cursor/commands` directory.
+To get the latest plugin versions:
 
+1. **Update the marketplace** (fetches latest plugin catalog):
+   ```bash
+   /plugin marketplace update ai-helpers
+   ```
+
+2. **Reinstall the plugin** (downloads new version):
+   ```bash
+   /plugin install <plugin>@ai-helpers
+   ```
+
+### Automatic Catalog Sync
+
+Add a SessionStart hook to automatically sync the marketplace catalog on each session. In your project's `.claude/settings.json`:
+
+```json
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "command": "claude plugin marketplace update ai-helpers",
+        "timeout": 30000
+      }
+    ]
+  }
+}
 ```
-$ mkdir -p ~/.cursor/commands
-$ git clone git@github.com:openshift-eng/ai-helpers.git
-$ ln -s ai-helpers ~/.cursor/commands/ai-helpers
+
+**Note:** This only refreshes the catalog (what's available). To actually update an installed plugin to a newer version, you still need to reinstall it with `/plugin install <plugin>@ai-helpers`.
+
+### Other Tools
+
+Coding agents like OpenCode, Gemini, Cursor and more can consume Claude Code
+plugins using the [Agent Package Manager (APM)](https://github.com/microsoft/apm).
+
+Example `apm.yml`:
+
+```yaml
+name: my-project
+version: 1.0.0
+description: My project is great. 
+target: [claude, cursor, gemini, opencode]
+
+dependencies:
+  - openshift-eng/ai-helpers/plugins/bigquery
 ```
 
-## Using the Docker Container
+Then run `apm install`.  It can install to your project only, or with a `--global` scope.
 
-A container is available with Claude Code and all plugins pre-installed.
+## Using the Container
+
+A container is available with Claude Code and all plugins pre-installed. This is primarily for use in OpenShift CI.
+
+The image includes two Claude Code binaries:
+
+- **`claude`** (default entrypoint) — installed from the **stable** RPM channel
+- **`claude-latest`** — installed from the **latest** RPM channel, for trying newer features or comparing behavior between versions
 
 ### Building the Container
 
@@ -89,30 +139,42 @@ This will:
 
 ## Available Plugins
 
-### JIRA Plugin
-
-Comprehensive Jira automation including:
-- **Issue Analysis & Solutions** (`/jira:solve`) - Analyze JIRA issues and create pull requests to solve them
-- **Weekly Status Rollups** (`/jira:status-rollup`) - Generate status summaries by analyzing all child issues
-- **Backlog Grooming** (`/jira:grooming`) - Analyze new bugs and cards for grooming meetings
-- **Test Generation** (`/jira:generate-test-plan`) - Generate comprehensive test steps for JIRA issues by analyzing related PRs
-- **Bug Reproducers** (`/jira:generate-bug-reproducer`) - Infer reproduction steps from JIRA and fix PRs to validate bug fixes
-
-See [plugins/jira/README.md](plugins/jira/README.md) for full documentation.
-
-### Utils Plugin
-
-General-purpose utilities for development workflows:
-- **PR Test Generation** (`/utils:generate-test-plan`) - Generate test steps for one or more related PRs
-
-See [plugins/utils/commands/generate-test-plan.md](plugins/utils/commands/generate-test-plan.md) for full documentation.
+For a complete list of all available plugins and commands, see the **[AI Helpers Marketplace](https://openshift-eng.github.io/ai-helpers/)**.
 
 ## Plugin Development
 
 Want to contribute or create your own plugins? Check out the `plugins/` directory for examples.
 Make sure your commands and agents follow the conventions for the Sections structure presented in the hello-world reference implementation plugin (see [`hello-world:echo`](plugins/hello-world/commands/echo.md) for an example).
 
+### Ethical Guidelines
+
+Plugins, commands, skills, and hooks must NEVER reference real people by name, even as stylistic examples (e.g., "in the style of <specific human>").
+
+**Ethical rationale:**
+1. **Consent**: Individuals have not consented to have their identity or persona used in AI-generated content
+2. **Misrepresentation**: AI cannot accurately replicate a person's unique voice, style, or intent
+3. **Intellectual Property**: A person's distinctive style may be protected
+4. **Dignity**: Using someone's identity without permission diminishes their autonomy
+
+**Instead, describe specific qualities explicitly**
+
+Good examples:
+
+* "Write commit messages that are direct, technically precise, and focused on the rationale behind changes"
+* "Explain using clear analogies, a sense of wonder, and accessible language for non-experts"
+* "Code review comments that are encouraging, constructive, and focus on collaborative improvement"
+
+When you identify a desirable characteristic (clarity, brevity, formality, humor, etc.), describe it explicitly rather than using a person as proxy.
+
 ### Adding New Commands
+
+**Check for overlaps first** - Before coding, validate your idea:
+
+```bash
+/utils:review-ai-helpers-overlap --idea "brief description of your command"
+```
+
+Collaborating on existing work instead of duplicating parallel efforts is always encouraged when overlap is found. This helps maintain a clean, non-redundant plugin collection in such an actively developed project (see [`/utils:review-ai-helpers-overlap`](plugins/utils/commands/review-ai-helpers-overlap.md) for detailed usage).
 
 When contributing new commands:
 
@@ -138,7 +200,7 @@ If you're contributing several related commands that warrant their own plugin:
 
 ### Validating Plugins
 
-This repository uses [claudelint](https://github.com/stbenjam/claudelint) to validate plugin structure:
+This repository uses [skillsaw](https://github.com/stbenjam/skillsaw) to validate plugin structure:
 
 ```bash
 make lint
@@ -146,6 +208,8 @@ make lint
 
 ## Additional Documentation
 
+- **[AI Helpers Marketplace](https://openshift-eng.github.io/ai-helpers/)** - Complete list of all available plugins and commands
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** - Guidelines for contributing plugins, including versioning policy
 - **[AGENTS.md](AGENTS.md)** - Complete guide for AI agents working with this repository
 - **[CLAUDE.md](CLAUDE.md)** - Claude-specific configuration and notes
 
