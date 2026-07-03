@@ -1,6 +1,6 @@
 ---
 name: prow-job-analysis
-description: Comprehensive Prow CI job failure analysis — identifies job type, inspects artifacts, classifies failures, and routes to specialized investigation references
+description: Use this skill when debugging a failed Prow CI job.
 ---
 
 # Prow Job Analysis
@@ -100,8 +100,8 @@ journals for any of these signals:
 If **any** of these signals is present, the RHCOS layer is implicated. Still route via the
 table below using whichever reference matches the surface symptom, but **also** read
 [operating-system-changes.md](references/operating-system-changes.md) alongside that
-reference — treat the OS layer as the likely common cause even when the failure looks
-domain-specific.
+reference — OS-layer breakage is uncommon but frequently masquerades as an unrelated
+product failure — check for these signals to avoid misattribution.
 
 ## Failure Routing Table
 
