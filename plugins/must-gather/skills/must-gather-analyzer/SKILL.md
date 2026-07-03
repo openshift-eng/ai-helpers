@@ -189,6 +189,22 @@ Shows monitoring information:
 - Alerts (state, namespace, name, active since, labels)
 - Total of pending/firing alerts
 
+#### OVN Database Analysis
+```bash
+./scripts/analyze_ovn_dbs.py <must-gather-path>
+```
+
+Analyzes OVN Northbound and Southbound databases collected per-node under
+`network_logs/` (requires `ovsdb-tool`).
+
+#### Windows Node Logs Analysis
+```bash
+./scripts/analyze_windows_logs.py <must-gather-path>
+```
+
+Parses Windows node logs from `host_service_logs/windows/log_files/` and
+identifies issues.
+
 ### 3. Interpret and Report
 
 After running the scripts:

@@ -102,6 +102,9 @@ This skill is composed of four sub-modules. Read each when executing the analysi
 | External Links | `external-links.md` | GitHub PR and GitLab MR integration |
 | Formatting | `formatting.md` | Output templates for different modes |
 | Data Gatherer | `scripts/gather_status_data.py` | Async batch data collection (update-weekly-status) |
+| Issue Summarizer | `scripts/summarize_issue.py` | Structured per-issue summaries for LLM analysis (update-weekly-status, generate-feature-updates) |
+| Issue Triage | `scripts/triage_issues.py` | Classifies issues as significant or skippable by activity and R/Y/G status (generate-feature-updates) |
+| Update Validator | `scripts/validate_feature_updates.py` | Validates generated feature-update markdown and HTML (generate-feature-updates) |
 
 ## Configuration Parameters
 

@@ -579,6 +579,7 @@ Output:
      - Supports regex patterns for resource matching
    - `generate_html_report.py` - Generates interactive HTML report from JSON
    - Scripts output status messages to stderr for progress display. JSON output to stdout is clean.
+   - See [SCRIPTS.md](SCRIPTS.md) for detailed documentation of every script.
 
 5. **Pod Log Glog Format Support:**
    - The parser automatically detects and parses glog format logs

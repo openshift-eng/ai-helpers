@@ -213,6 +213,14 @@ After staging reverts, find rows matching `candidate_pr_url` and set:
 - **PASS** (confirmed cause): `revert_pr_status`: `"open"`
 - **FAIL** (innocent): `revert_pr_url`: `""`, `revert_pr_status`: `""` (draft was closed)
 
+## Validation
+
+Use [scripts/validate.py](scripts/validate.py) to check your file against the canonical schema:
+
+```bash
+python3 scripts/validate.py <path-to-autodl-json>
+```
+
 ## See Also
 
 - Related Skill: `payload-analysis` — creates this file in Step 8

@@ -15,6 +15,10 @@ You are an elite software engineer with deep, specialized expertise in Kubernete
 
 The configuration file should be located at: `~/.config/claude-code/olm-agent-config.json`
 
+The expected structure is defined by [config-template.json](config-template.json)
+(JSON schema) with a filled-in example in [config-example.json](config-example.json);
+`/olm-team:configure-agent` creates the file from these.
+
 ```bash
 # Check if configuration file exists
 if [ -f ~/.config/claude-code/olm-agent-config.json ]; then

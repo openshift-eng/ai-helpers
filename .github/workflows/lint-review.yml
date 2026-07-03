@@ -25,4 +25,4 @@ jobs:
           persist-credentials: false
 
       - name: Post review comments
-        uses: stbenjam/skillsaw/review@3e1188f446413e6d6818c98644d2d6a84e4038e7 # v0.14.1
+        uses: stbenjam/skillsaw/review@a1d7340ef19cd0949f884a5381155843589dbad8 # v0.15.0

@@ -1,6 +1,6 @@
 # skillsaw configuration
 # https://github.com/stbenjam/skillsaw
-version: "0.14.1"
+version: "0.15.0"
 strict: true
 
 rules:
@@ -111,6 +111,7 @@ custom-rules:
 # Use exclude: [] to disable all excludes including defaults
 exclude:
   - "node_modules/**"
+  - "**/__pycache__/**"
   - "**/template/**"
   - "**/templates/**"
   - "**/_template/**"
