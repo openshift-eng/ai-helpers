@@ -172,7 +172,7 @@ After the table, add:
    optional, quick wins before complex fixes)
 2. **Common root causes** — If multiple jobs fail for the same reason (e.g.
    missing i18n keys causing frontend + Cypress + Playwright failures), group
-   them and note that one fix resolves multiple jobs
+   them and state which single fix resolves multiple jobs
 3. **Unrelated failures** — Briefly note what the unrelated failures are so the
    user knows they can `/retest` those
 
