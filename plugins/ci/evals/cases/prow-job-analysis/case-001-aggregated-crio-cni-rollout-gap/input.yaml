@@ -1,0 +1,9 @@
+prow_job_url: "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/aggregated-gcp-ovn-upgrade-4.22-micro-release-openshift-release-analysis-aggregator/2049102142274277376"
+job_name: "aggregated-gcp-ovn-upgrade-4.22-micro-release-openshift-release-analysis-aggregator"
+description: >-
+  Aggregated release-analysis-aggregator run over the 4.22 GCP OVN micro-upgrade
+  variant (payload 4.22.0-0.ci-2026-04-28-064654). Two Monitor invariants
+  regressed deterministically across all 10 aggregated child runs. The agent must
+  recognize this as an OS-layer (CRI-O) behavior change newly surfacing a brief
+  CNI / node-not-ready gap during ovnkube-node rollout on upgrade — NOT a product
+  regression, a conformance-test bug, or a disruption-threshold breach (TRT-2723).

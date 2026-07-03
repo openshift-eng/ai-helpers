@@ -1,0 +1,8 @@
+prow_job_url: "https://prow.ci.openshift.org/view/gs/test-platform-results/pr-logs/pull/openshift_kubernetes/2653/pull-ci-openshift-kubernetes-master-e2e-metal-ipi-ovn-ipv6/2055365950403776512"
+job_name: "pull-ci-openshift-kubernetes-master-e2e-metal-ipi-ovn-ipv6"
+description: >-
+  Metal IPI presubmit that aborts in the ofcir-acquire PRE step: a DNS outage of the
+  shared devcluster.openshift.com domain prevents curl from resolving the OFCIR API
+  host, so no bare-metal host is ever leased and the run ends before any provisioning
+  or test work. The agent must classify this as a shared-infrastructure DNS outage
+  (TRT-2665), not an OFCIR-code or product bug.

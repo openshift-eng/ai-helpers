@@ -1,0 +1,78 @@
+expected_failure_type: upgrade
+expected_references:
+  - upgrade.md
+  - operating-system-changes.md
+  - disruption.md
+expected_root_cause_category: kube-apiserver-nongraceful-shutdown-during-upgrade
+
+# The single conclusion a correct analysis MUST reach.
+expected_root_cause: >-
+  During the control-plane upgrade from 4.22.0-0.nightly-2026-01-19-085729 to
+  4.22.0-0.nightly-2026-01-19-162224, the kube-apiserver static pods on all three
+  masters were rolled and restarted, but each previous kube-apiserver instance did
+  NOT complete its graceful shutdown before being killed. The post-upgrade Late
+  invariant test "[sig-api-machinery][Feature:APIServer][Late] kubelet terminates
+  kube-apiserver gracefully extended" reads the persisted kube-apiserver
+  termination.log files and matches the regex `Previous pod .* did not terminate
+  gracefully`; it found this marker for kube-apiserver on all three master nodes
+  (ip-10-0-16-124, ip-10-0-18-177, ip-10-0-68-188), so the test fails as a blocking
+  failure and the suite reports "2 blocking fail". The deeper cause consistent with
+  OCPBUGS-75200 is that the applied MachineConfig contained only OS-image changes and
+  no systemd unit change setting DefaultTimeoutStopSec, so the kube-apiserver
+  graceful-shutdown period exceeded the systemd stop timeout and the process was
+  SIGKILLed before finishing termination.
+
+# VERBATIM strings, each grep-confirmed present in the cited artifact.
+expected_evidence:
+  - string: "fail [github.com/openshift/origin/test/extended/apiserver/graceful_termination.go:89]: The following API Servers weren't gracefully terminated: "
+    artifact: "build-log.txt"
+  - string: "kube-apiserver on node ip-10-0-16-124.ec2.internal wasn't gracefully terminated, reason: Previous pod kube-apiserver-ip-10-0-16-124.ec2.internal started at 2026-01-19 17:35:47.292046346 +0000 UTC did not terminate gracefully"
+    artifact: "build-log.txt"
+  - string: 'failed: (1.3s) 2026-01-19T19:47:37 "[sig-api-machinery][Feature:APIServer][Late] kubelet terminates kube-apiserver gracefully extended [Suite:openshift/conformance/parallel]"'
+    artifact: "build-log.txt"
+  - string: "error: error running a test suite: 2 blocking fail, 0 informing fail, 1852 pass, 0 flaky, 2032 skip"
+    artifact: "build-log.txt"
+
+# The one signal that separates the true cause from the look-alikes.
+discriminating_signal: >-
+  The blocking failure is the post-upgrade Late test reading kube-apiserver
+  termination.log and matching "Previous pod ... did not terminate gracefully" on all
+  three masters, whose previous pods started at 17:35-17:43 UTC — squarely inside the
+  17:31->18:11 UTC control-plane upgrade window. The upgrade phase itself succeeded
+  (junit_upgrade testsuite "Cluster upgrade" failures="0") and the live
+  graceful-shutdown-analyzer monitor passed; the failure is the persisted-evidence
+  invariant, which points to systemd stop-timeout / graceful-shutdown behavior during
+  the rollout, not to a network flake or a broken upgrade.
+
+# Misleading signals a shallow analysis would wrongly latch onto.
+distractors:
+  - "A separate [sig-node][Late] test 'should not have pod creation failures due to systemd timeouts' PASSED in this run; it mentions systemd timeouts but is unrelated to the kube-apiserver graceful-shutdown failure."
+  - "Many 'event interval matches KubeAPIServerProgressingDuringSingleNodeUpgrade' readiness-probe 'Client.Timeout exceeded while awaiting headers' entries are expected API rollover noise during a rolling control-plane upgrade, not the root cause."
+  - "The 'graceful-shutdown-analyzer' monitor test for kube-apiserver PASSED all lifecycle stages, so treating this as a live disruption-monitor invariant failure would be wrong — the failing signal is the persisted termination.log Late test."
+  - "This analysis pod is named '...-aggregate-1cswtv2-analysis-6', which could be mistaken for an aggregated-job failure, but the failure here is a concrete per-run blocking test failure, not an aggregation pass-rate verdict."
+
+# Wrong conclusions the judge must penalize.
+must_not_conclude:
+  - "Do not conclude the upgrade failed to complete — the cluster reached 4.22.0-0.nightly-2026-01-19-162224 (clusterversion history state=Completed) and the 'Cluster upgrade' junit testsuite has failures=0."
+  - "Do not conclude this is a network/CNI (OVN) or a generic flaky-test problem — the failure is a deterministic invariant that failed both attempts (retry decided to stop after 2 attempts) on all three masters."
+  - "Do not conclude it is an install failure — install-status/junit_install show no install failure; the failing test is in the post-upgrade [Late] conformance bucket."
+  - "Do not conclude the disruption/graceful-shutdown live monitor flagged the failure — that monitor passed; the evidence comes from the kube-apiserver termination.log persisted marker."
+
+notes: >
+  Scenario: 4.22 AWS OVN FIPS upgrade job. Install 4.22.0-0.nightly-2026-01-19-085729,
+  upgrade to 4.22.0-0.nightly-2026-01-19-162224 (control plane rolled 17:31-18:11 UTC).
+  Post-upgrade conformance ran a second time (suite timestamp 20260119-181702); the
+  [Late] "kubelet terminates kube-apiserver gracefully extended" invariant
+  (graceful_termination.go:89) failed because each master's previous kube-apiserver
+  pod left "Previous pod ... did not terminate gracefully" in its termination.log.
+  Routing: upgrade-phase-adjacent failure -> upgrade.md; the mechanism (systemd stop
+  timeout / DefaultTimeoutStopSec not set via MachineConfig, causing SIGKILL before
+  graceful shutdown completes) -> operating-system-changes.md; the KAS message itself
+  warns this leads to connection-refused / I/O-timeout disruption in other components
+  -> disruption.md (secondary). The deep MachineConfig correlation from OCPBUGS-75200
+  (MachineConfigs with only OS-image changes, no systemd unit change) is NOT positively
+  grep-confirmable from this run's artifacts (machineconfigs.json contains no
+  "DefaultTimeoutStopSec"/"TimeoutStopSec" string — consistent with, but not positive
+  proof of, the hypothesis); it is therefore stated as the expected deeper cause while
+  the grounded, grep-confirmed evidence is the observable symptom: the non-graceful
+  kube-apiserver termination Late-test failure during the upgrade window.

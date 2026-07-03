@@ -1,0 +1,8 @@
+prow_job_url: "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-release-master-nightly-4.22-e2e-aws-ovn-serial-1of2/2009500207091290112"
+job_name: "periodic-ci-openshift-release-master-nightly-4.22-e2e-aws-ovn-serial-1of2"
+description: >-
+  4.22 aws-ovn serial run where all four [Feature:EgressIP] conformance tests fail
+  deterministically: pod egress traffic keeps the node's source IP instead of the
+  assigned EgressIP, even though the cloud added the EgressIP to the node's ENI. The
+  agent must root-cause this to an OVN-Kubernetes EgressIP SNAT dataplane regression
+  and reject the release-controller-infra / Go-IP-CVE red herrings (TRT-2497).

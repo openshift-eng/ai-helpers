@@ -1,0 +1,73 @@
+expected_failure_type: test
+expected_references:
+  - networking.md
+  - flaky-test-identification.md
+  - test-failure.md
+expected_root_cause_category: egressip-snat-not-applied
+
+# The single conclusion a correct analysis MUST reach.
+expected_root_cause: >-
+  All four [sig-network][Feature:EgressIP] serial conformance tests failed
+  because OVN-Kubernetes did not source-NAT the egress pod's traffic to the
+  assigned EgressIP. The test assigned EgressIP 10.0.128.5 to node
+  ip-10-0-158-24 (InternalIP 10.0.158.24) and the packet-sniffer at the target
+  repeatedly saw the traffic arriving with source 10.0.158.24 (the node's own
+  IP) instead of 10.0.128.5, so the "requests seen from the EgressIP" check
+  never became true and each test timed out after 120s at egressip.go:599.
+  The cloud side worked correctly -- cloud-network-config-controller
+  successfully added 10.0.128.5 to the node's AWS ENI -- so this is an
+  OVN-Kubernetes EgressIP dataplane (SNAT) product defect surfaced by the
+  networking tests, NOT an installation, cloud-provider, or CI-infrastructure
+  problem. It is deterministic (0 flaky, all 4 fail identically), not a flake.
+
+# VERBATIM strings, each grep-confirmed present in the cited artifact. Strings that
+# contain double-quotes are written as single-quoted YAML scalars (literal).
+expected_evidence:
+  - string: "fail [github.com/openshift/origin/test/extended/networking/egressip.go:599]: Timed out after 120.001s."
+    artifact: "artifacts/e2e-aws-ovn-serial/openshift-e2e-test/build-log.txt"
+  - string: "Making sure that 10 requests with search string 03cfdef9-c53f-448c-be02-668ff16256ca and EgressIPs map[10.0.128.5:ip-10-0-158-24.us-west-1.compute.internal] were seen (try 1 of 10)"
+    artifact: "artifacts/e2e-aws-ovn-serial/openshift-e2e-test/build-log.txt"
+  - string: "Found map is: map[10.0.158.24:10]"
+    artifact: "artifacts/e2e-aws-ovn-serial/openshift-e2e-test/build-log.txt"
+  - string: 'Added IP address to node: "ip-10-0-158-24.us-west-1.compute.internal" for CloudPrivateIPConfig: "10.0.128.5"'
+    artifact: "artifacts/e2e-aws-ovn-serial/gather-extra/artifacts/pods/openshift-cloud-network-config-controller_cloud-network-config-controller-bfbf6d6d7-82xdz_controller.log"
+  - string: "Suite run returned error: 4 blocking fail, 0 informing fail, 144 pass, 0 flaky, 222 skip"
+    artifact: "artifacts/e2e-aws-ovn-serial/openshift-e2e-test/build-log.txt"
+
+# The one signal that separates the true cause from the look-alikes.
+discriminating_signal: >-
+  The prober's observed source-IP map is map[10.0.158.24:10] (the NODE IP)
+  while the test expected the EgressIP 10.0.128.5 -- egress traffic is not
+  being SNATed to the assigned EgressIP. Crucially, cloud-network-config-
+  controller logs show 10.0.128.5 WAS added to the node's ENI, so the break is
+  in the OVN dataplane, not in cloud IP allocation.
+
+# Misleading signals a shallow analysis would wrongly latch onto.
+distractors:
+  - "Early cloud-network-config-controller errors 'cannot list ec2 instance ... RequestError: send request failed' at 05:57 -- these are transient AWS-API errors during cluster bring-up, ~80 minutes before the tests ran, and do not correspond to the test-time failures."
+  - "cloud-network-config-controller error at 07:48 'error syncing node1 ... the URI is not expected:' -- this is for a synthetic node named node1 from an unrelated test and occurred AFTER all four EgressIP tests had already failed (last egress fail 07:27:25)."
+  - "The hypothesised openshift/release-controller PR #720 infrastructure change -- there is no mention of release-controller anywhere in the artifacts."
+  - "A Go IP-handling / RFC 3986 CVE -- no CVE, 'RFC 3986', netip, or ParseAddr string appears anywhere in the logs; it is a red herring."
+  - "The 'FailedScheduling' interval events in build-log.txt -- these are normal serial-suite scheduler noise for other e2e namespaces, not the egress failure."
+
+# Wrong conclusions the judge must penalize.
+must_not_conclude:
+  - "This was caused by a release-controller infrastructure change (openshift/release-controller PR #720)."
+  - "This was caused by a Go IP-handling CVE / RFC 3986 IP-parsing regression."
+  - "This was a cloud-provider failure to assign the egress IP to the AWS instance (the ENI assignment succeeded)."
+  - "This was an installation or cluster-bring-up failure (all ClusterOperators, including network, are Available=True Degraded=False; install succeeded)."
+  - "This was a random/flaky test failure (all 4 tests fail deterministically with 0 flaky and an identical wrong-source-IP signature)."
+
+notes: >
+  Scenario: 4.22 nightly AWS-OVN serial periodic. Cluster installed cleanly
+  (payload 4.22.0-0.nightly-2026-01-09-023214, all COs healthy). The only
+  failures are the 4 [sig-network][Feature:EgressIP] serial conformance tests,
+  all failing identically at egressip.go:599 with a 120s timeout because pod
+  egress traffic kept the node source IP (10.0.158.24) instead of the assigned
+  EgressIP (10.0.128.5), even though the EgressIP was added to the node's AWS
+  ENI. This is an OVN-Kubernetes EgressIP SNAT dataplane product regression
+  surfaced by the tests. Routing: failing product TEST in the networking
+  feature -> flaky-test-identification.md + test-failure.md + networking.md.
+  It is NOT a CI-config / step-registry / release-controller change and NOT a
+  Go IP CVE, so ci-infrastructure-changes.md does NOT apply -- the stated
+  hypothesis (infra / release-controller) is contradicted by the artifacts.

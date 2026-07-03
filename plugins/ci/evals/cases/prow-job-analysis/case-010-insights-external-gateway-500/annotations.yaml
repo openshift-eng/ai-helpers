@@ -1,0 +1,70 @@
+expected_failure_type: infra
+expected_references:
+  - cloud-provider-errors.md
+  - flaky-test-identification.md
+expected_root_cause_category: external-dependency-insights-gateway-500
+
+# The single conclusion a correct analysis MUST reach.
+expected_root_cause: >-
+  The external Insights ingress gateway (console.redhat.com,
+  endpoint https://console.redhat.com/api/ingress/v1/upload) returned HTTP 500
+  "Invalid Configuration - Incorrect Insights API Gateway secret specified" when the
+  Insights Operator tried to upload its archive. This drove clusteroperator/insights to
+  Available=False / Degraded=True, which in turn made the CVO report
+  Failing=True: ClusterOperatorNotAvailable and fired the critical ClusterOperatorDown
+  alert for insights. The two unexpected clusteroperator state transitions failed the
+  legacy-cvo-invariants monitor tests, failing the job. This is a third-party service
+  (console.redhat.com) outage/misconfiguration, NOT a regression in the
+  cluster-capi-operator PR under test or any OpenShift product component.
+
+# VERBATIM strings, each grep-confirmed present in the cited artifact. Strings that
+# contain double-quotes are written as single-quoted YAML scalars (literal).
+expected_evidence:
+  - string: "May 14 11:18:12.817 E clusteroperator/insights condition/Available reason/Failed status/False Failed to upload data err: gateway server reported unexpected error code: 500"
+    artifact: "build-log.txt"
+  - string: "Failing=True: ClusterOperatorNotAvailable: Cluster operator insights is not available"
+    artifact: "build-log.txt"
+  - string: 'The operator has some internal errors: Failed to upload data err: gateway server reported unexpected error code: 500 (request=): {"errors":[{"meta":{"response_by":"gateway"},"status":500,"detail":"Invalid Configuration - Incorrect Insights API Gateway secret specified"}]}'
+    artifact: "artifacts/e2e-aws-ovn-serial/gather-extra/artifacts/pods/openshift-insights_insights-operator-544fc6bf67-5n5gd_insights-operator.log"
+  - string: "endpoint=https://console.redhat.com/api/ingress/v1/upload"
+    artifact: "artifacts/e2e-aws-ovn-serial/gather-extra/artifacts/pods/openshift-insights_insights-operator-544fc6bf67-5n5gd_insights-operator.log"
+  - string: "[Monitor:legacy-cvo-invariants][bz-Insights Operator] clusteroperator/insights should not change condition/Available"
+    artifact: "artifacts/e2e-aws-ovn-serial/openshift-e2e-test/artifacts/junit/e2e-monitor-tests__20260514-094809.xml"
+  - string: "alertname=&#34;ClusterOperatorDown&#34;, alertstate=&#34;firing&#34;, name=&#34;insights&#34;"
+    artifact: "artifacts/e2e-aws-ovn-serial/openshift-e2e-test/artifacts/junit/e2e-monitor-tests__20260514-094809.xml"
+
+# The one signal that separates the true cause from the look-alikes.
+discriminating_signal: >-
+  The error body is returned BY the remote gateway ("response_by":"gateway", HTTP 500,
+  detail "Invalid Configuration - Incorrect Insights API Gateway secret specified") against
+  the console.redhat.com upload endpoint — a server-side 5xx from a third-party API, not a
+  client crash, image-pull, node, or product code fault. The insights operator itself is
+  running and simply cannot upload; only its Available/Degraded conditions flip because of
+  the upstream 500.
+
+# Misleading signals a shallow analysis would wrongly latch onto.
+distractors:
+  - "The job is a cluster-capi-operator PR (#543) presubmit, tempting a conclusion that the PR broke something — but the failure is in the unrelated Insights Operator upload path."
+  - "Many KubeletUnhealthyReadinessProbeFailed / HTTP 503 readiness events and DNS 'Have 5 up-to-date DNS pods, want 6' Progressing conditions appear in the log, but these are transient and clear; they are not the cause of the job failure."
+  - "ClusterNotUpgradeable and 'VersionNotFound ... not found in the test-channel channel' messages look alarming but are expected CI update-channel noise, unrelated to the insights outage."
+  - "Other openshift-insights monitor tests fail on terminationMessagePolicy / required-scc annotations, which are pre-existing lint-style checks, not the availability failure that failed the run."
+
+# Wrong conclusions the judge must penalize.
+must_not_conclude:
+  - "The cluster-capi-operator PR under test introduced a regression."
+  - "The Insights Operator (product) code is buggy or the operator crashed/panicked."
+  - "This is an install failure or a node/kubelet/network infrastructure failure inside the cluster."
+  - "This is a legitimate product operator-availability regression that should block the payload."
+
+notes: >
+  Scenario: external dependency (console.redhat.com Insights ingress gateway) returned HTTP 500
+  "Invalid Configuration - Incorrect Insights API Gateway secret specified" on archive upload,
+  degrading clusteroperator/insights (Available=False, Degraded=True), which made the CVO report
+  Failing/ClusterOperatorNotAvailable and fired the critical ClusterOperatorDown alert. This
+  surfaced as failures of the [Monitor:legacy-cvo-invariants][bz-Insights Operator] "should not
+  change condition/Available" and "condition/Degraded" invariant tests, failing the e2e run.
+  Routing: a third-party API 5xx outage -> cloud-provider-errors.md (external dependency);
+  because it manifests as a failing operator-availability monitor test, also
+  flaky-test-identification.md. failure_type = infra. Do NOT classify as a product regression
+  or an install/node failure. The build_root run maps to namespace ci-op-7il5nvby /
+  cluster version 5.0.0-0.ci-2026-05-14-085607.

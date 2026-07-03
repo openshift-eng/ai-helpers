@@ -1,0 +1,66 @@
+expected_failure_type: infra
+expected_references:
+  - install/metal.md
+  - cloud-provider-errors.md
+  - ci-infrastructure-changes.md
+expected_root_cause_category: shared-ci-dns-outage
+
+# The single conclusion a correct analysis MUST reach.
+expected_root_cause: >-
+  A DNS outage of the shared CI domain devcluster.openshift.com prevented the
+  ofcir-acquire pre step from resolving the OFCIR API host
+  ofcir.apps-int.master.ci.devcluster.openshift.com. curl failed with error 6
+  ("Could not resolve host") on every retry, so no bare-metal CI resource could
+  be acquired and the job aborted before any cluster provisioning, installer, or
+  test work began. This is a shared-infrastructure DNS failure, not an OFCIR
+  code defect nor a product/installer bug.
+
+# VERBATIM strings, each grep-confirmed present in the cited artifact.
+expected_evidence:
+  - string: "curl: (6) Could not resolve host: ofcir.apps-int.master.ci.devcluster.openshift.com"
+    artifact: "artifacts/e2e-metal-ipi-ovn-ipv6/ofcir-acquire/build-log.txt"
+  - string: "Warning: Problem : timeout. Will retry in 60 seconds. 15 retries left."
+    artifact: "artifacts/e2e-metal-ipi-ovn-ipv6/ofcir-acquire/build-log.txt"
+  - string: "Attempting to acquire a Host type host_el9 from OFCIR"
+    artifact: "artifacts/e2e-metal-ipi-ovn-ipv6/ofcir-acquire/build-log.txt"
+  - string: "Could not acquire CI resource: "
+    artifact: "artifacts/e2e-metal-ipi-ovn-ipv6/ofcir-acquire/build-log.txt"
+  - string: "Step e2e-metal-ipi-ovn-ipv6-ofcir-acquire failed after 1m57s."
+    artifact: "build-log.txt"
+
+# The one signal that separates the true cause from the look-alikes.
+discriminating_signal: >-
+  The failure is a curl error-6 name-resolution failure ("Could not resolve
+  host") against a *.devcluster.openshift.com hostname, occurring in the
+  ofcir-acquire PRE step before any host is leased. The DNS failure hits the
+  shared CI domain itself, so the OFCIR API endpoint is simply unreachable —
+  distinguishing an external/shared-infra DNS outage from an OFCIR service bug
+  or a product installation failure.
+
+# Misleading signals a shallow analysis would wrongly latch onto.
+distractors:
+  - "cat: /tmp/secret/cir: No such file or directory — a downstream symptom (the cir secret was never written because acquire failed), not the cause."
+  - "Step e2e-metal-ipi-ovn-ipv6-ofcir-release failed — the teardown/release step fails for the same reason (no cir file), a cascading effect, not a second independent bug."
+  - "ContainerFailed one or more containers exited / Container test exited with code 1 — generic step-runner failure wrapping the real DNS error."
+  - "Reporting job state 'failed' with reason 'executing_graph:step_failed:utilizing_lease...' — a ci-operator state string, not a root cause."
+  - "Equinix lease equinix-ocp-metal-quota-slice was acquired successfully — the lease was fine; the failure was DNS, not quota/lease exhaustion."
+
+# Wrong conclusions the judge must penalize.
+must_not_conclude:
+  - "The OFCIR service or ofcir-acquire step code is broken."
+  - "The OpenShift installer or a product component failed to install the metal cluster."
+  - "A test regression or flaky e2e test caused the failure."
+  - "The PR under test (openshift/kubernetes #2653) introduced the failure."
+  - "Bare-metal host provisioning (Metal3/Ironic/dev-scripts) failed."
+
+notes: >
+  Shared-infra DNS outage scenario (TRT-2665): the devcluster.openshift.com
+  domain's DNS was down, so the ofcir-acquire pre step could not resolve the
+  OFCIR API host and no metal host was ever leased. The run never reached
+  dev-scripts, the installer, or any e2e test. Classify as infra. Route to
+  install/metal.md (metal-ipi job), cloud-provider-errors.md and
+  ci-infrastructure-changes.md (external/shared-infra DNS outage). networking.md
+  is a plausible secondary since the proximate symptom is DNS resolution.
+  Note the literal wording is curl error 6 "Could not resolve host" — the
+  strings "no such host", "SERVFAIL", and "name resolution" do NOT appear in
+  the artifacts and must not be used as evidence.

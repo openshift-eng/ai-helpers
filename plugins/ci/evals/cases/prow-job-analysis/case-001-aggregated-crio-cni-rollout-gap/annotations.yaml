@@ -1,0 +1,97 @@
+expected_failure_type: upgrade
+expected_references:
+  - aggregated.md
+  - upgrade.md
+  - operating-system-changes.md
+expected_root_cause_category: crio-behavior-change-cni-rollout-gap
+
+# The single conclusion a correct analysis MUST reach.
+expected_root_cause: >-
+  The release-analysis-aggregator collected 10 related 4.22 gcp-ovn micro-upgrade
+  runs and failed because two Monitor invariants regressed deterministically
+  across them: [Monitor:node-lifecycle][sig-node] "detects unexpected not ready
+  node" passed 0 of 9 times, and the [sig-arch] pathological-events invariant for
+  ns/openshift-network-diagnostics passed only 6 of 9 (below the required 7). The
+  originating trigger is a CRI-O 1.35 -> 1.36 behavior change that newly reports a
+  brief CNI-not-ready / node-not-ready window while ovnkube-node rolls out during
+  the upgrade; the transient always existed but was previously invisible to the
+  monitors. This is NOT a product/code regression, NOT a conformance-test bug, and
+  NOT a disruption-threshold breach — every aggregated disruption backend stayed
+  below its failureThreshold.
+
+# VERBATIM strings that MUST appear in the cited artifact. Every string below was
+# fetched from the public test-platform-results bucket and grep-confirmed present
+# in this job's build-log.txt.
+expected_evidence:
+  - string: "aggregating 10 related jobRuns"
+    artifact: "build-log.txt"
+  - string: "[Monitor:node-lifecycle][sig-node] node-lifecycle detects unexpected not ready node"
+    artifact: "build-log.txt"
+  - string: "Passed 0 times, failed 9 times, skipped 0 times: we require at least one pass to consider it a success"
+    artifact: "build-log.txt"
+  - string: "events should not repeat pathologically for ns/openshift-network-diagnostics"
+    artifact: "build-log.txt"
+  - string: "running aggregated disruption tests"
+    artifact: "build-log.txt"
+  - string: "Some tests failed aggregation.  See above for details."
+    artifact: "build-log.txt"
+
+# Aggregated child-run tally. runs_aggregated is the number of related jobRuns the
+# aggregator collected; total/passed/failed is the per-test result for the
+# deterministic node-lifecycle not-ready invariant (0 pass, 9 fail).
+expected_child_breakdown:
+  runs_aggregated: 10
+  total: 9
+  passed: 0
+  failed: 9
+  aggregation_verdict: "Some tests failed aggregation.  See above for details."
+  aggregation_verdict_artifact: "build-log.txt"
+
+# The one signal that separates the true cause from the look-alikes.
+discriminating_signal: >-
+  Both failing tests are Monitor invariants (node-lifecycle "not ready node" and
+  the pathological-events invariant for the openshift-network-diagnostics
+  namespace), NOT conformance/product tests, and the node-lifecycle one fails in
+  9 of 9 runs with zero passes. In the same aggregator run all 28 disruption
+  backends were computed ("running aggregated disruption tests") and every one
+  stayed BELOW its failureThreshold. A deterministic node-readiness/CNI blip
+  during ovnkube-node rollout — newly reported by a CRI-O behavior change — is what
+  failed aggregation, not disruption and not a code regression. Confirming the
+  CRI-O attribution requires reading the child runs' node journals / must-gather
+  (the OS layer), not just the aggregator log.
+
+# Misleading signals a shallow analysis would wrongly latch onto.
+distractors:
+  - "The pathological-events invariant names the openshift-network-diagnostics namespace, tempting an OVN/SDN or network-operator product-bug root cause."
+  - "The aggregator computes 28 disruption backends ('running aggregated disruption tests'), tempting a 'disruption threshold exceeded' verdict even though every backend stays under its failureThreshold."
+  - "It is an upgrade job (4.22 gcp-ovn micro upgrade), tempting a CVO-stuck / operator-degraded upgrade-mechanics root cause."
+  - "'detects unexpected not ready node' reads like resource exhaustion (node OOM / memory / disk pressure) rather than a transient CNI-not-ready during pod rollout."
+  - "The deterministic 0-of-9 result looks like a genuine product regression rather than a monitor newly reporting a pre-existing, benign transient."
+
+# Wrong conclusions the judge must penalize.
+must_not_conclude:
+  - "product or code regression in a networking operator, OVN/SDN, or node components"
+  - "conformance test failure or a test-code bug"
+  - "aggregated disruption threshold breach or disruption-driven failure"
+  - "resource exhaustion (node OOM / memory / disk / PID pressure)"
+  - "infrastructure problem or single-run flake (the monitor failures are deterministic across all 10 runs)"
+
+notes: >
+  Aggregated blocking job (release-analysis-aggregator) over the 4.22 GCP OVN
+  micro-upgrade variant for payload 4.22.0-0.ci-2026-04-28-064654 (TRT-2723). The
+  aggregator collected 10 related jobRuns and failed with "Some tests failed
+  aggregation." because two Monitor invariants regressed across the runs:
+  [Monitor:node-lifecycle][sig-node] "detects unexpected not ready node" (0 passes
+  / 9 failures) and the [sig-arch] pathological-events invariant for
+  ns/openshift-network-diagnostics (6 of 9, needed 7).
+
+  The agent MUST route to aggregated.md and analyze the pattern across child runs
+  rather than debugging a single run, then use upgrade.md and
+  operating-system-changes.md to trace the true cause: a CRI-O 1.35 -> 1.36
+  behavior change that newly reports a brief CNI / node-not-ready window while
+  ovnkube-node rolls out during the upgrade. The key discriminators are that (a)
+  the failures are Monitor invariants, not conformance/product tests; (b) they are
+  deterministic across all runs, not a flake; and (c) the aggregated disruption
+  tests were all computed but stayed WITHIN their thresholds, so disruption is a
+  distractor. This is the hardest recognition in the set: it is NOT a product
+  regression — the monitors are newly surfacing a pre-existing, benign transient.

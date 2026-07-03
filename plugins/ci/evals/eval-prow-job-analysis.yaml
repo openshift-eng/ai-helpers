@@ -78,7 +78,12 @@ dataset:
       - 'prow_job_url' — a Prow job URL in either supported form:
         https://prow.ci.openshift.org/view/gs/test-platform-results/logs/<job>/<build_id>
         or the gcsweb equivalent. The GCS bucket is always test-platform-results
-        (public, no auth).
+        (public, no auth). This is the only field consumed at execution time
+        (execution.arguments renders '{prow_job_url}').
+      - 'job_name' — the Prow job name (the <job> segment of the URL), recorded
+        for readability and traceability of the case.
+      - 'description' — a short human-readable summary of the scenario the case
+        exercises: what failed and what a correct analysis must recognize.
     - annotations.yaml: Expected outcomes and ground truth for scoring. The
       WHOLE annotations file is rendered into the LLM judges via {{ annotations }},
       so every field below is authoritative and visible to the judges.
