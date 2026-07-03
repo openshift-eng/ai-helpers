@@ -115,32 +115,34 @@ This command takes a JIRA URL, fetches the issue description and requirements, a
        - Example: `git commit -m"test: Add tests for X functionality" -m"Ensure the new behavior is covered by unit tests to prevent regressions"`
      - Documentation: Changes in `docs/` directory
        - Example: `git commit -m"docs: Document X feature" -m"Help users understand how to configure and use the new capability"`
+   - Push the branch with all commits against the remote specified in argument $2
 
 5. **PR Creation**: 
-   - Push the branch with all commits against the remote specified in argument $2
-   - Create pull request with:
-     - Clear title referencing JIRA issue as a prefix. For example: "OCPBUGS-12345: ..."
-     - The PR description should satisfy the template within .github/PULL_REQUEST_TEMPLATE.md if the file exists
-     - The "🤖 Generated with Claude Code" sentence should include a reference to the slash command that triggered the execution, for example "via `/jira-solve OCPBUGS-12345 enxebre`"
-     - Always create as draft PR
-     - Always create the PR against the remote origin
-     - Use gh cli if you need to
+   - If `--ci` flag ($3) IS set: Skip PR creation — it will be handled by a subsequent pipeline step (e.g., `/openshift-developer:create-pr`). Output: "Skipping PR creation in CI mode — branch pushed, PR will be created by the pipeline."
+   - If `--ci` flag ($3) is NOT set:
+     - Create pull request with:
+       - Clear title referencing JIRA issue as a prefix. For example: "OCPBUGS-12345: ..."
+       - The PR description should satisfy the template within .github/PULL_REQUEST_TEMPLATE.md if the file exists
+       - The "🤖 Generated with Claude Code" sentence should include a reference to the slash command that triggered the execution, for example "via `/jira:solve OCPBUGS-12345 enxebre`"
+       - Always create as draft PR
+       - Always create the PR against the remote origin
+       - Use gh cli if you need to
 
 6. **PR Description Review**:
-   - After creating the PR, display the PR URL and description to the user
+   - If `--ci` flag ($3) IS set: Skip — no PR was created in CI mode
    - If `--ci` flag ($3) is NOT set:
+     - After creating the PR, display the PR URL and description to the user
      - Ask the user: "Please review the PR description. Would you like me to update it? (yes/no)"
      - If the user says yes or requests changes:
        - Ask what changes they'd like to make
        - Update the PR description using `gh pr edit {PR_NUMBER} --body "{new_description}"`
        - Repeat this review step until the user is satisfied
      - If the user says no or is satisfied, acknowledge and provide next steps
-   - If `--ci` flag ($3) IS set: Skip the review step and proceed to completion
 
 
 ## Arguments:
 - $1: The JIRA issue to solve (required)
-- $2: The remote repository to push the branch. Defaults to "origin".
+- $2: The remote repository to push the branch (required).
 - $3: Optional `--ci` flag for non-interactive CI automation mode. When set, skips all user prompts and proceeds automatically.
 
 The command will provide progress updates and create a comprehensive solution addressing all requirements from the JIRA issue.
