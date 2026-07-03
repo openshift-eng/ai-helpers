@@ -159,31 +159,63 @@ judges:
           return (False, "No analysis report found; expected prow-job-analysis-report.md")
       return (True, f"Analysis report found: {reports[0]}")
 
-  - name: required_skill_invocations
+  - name: expected_references_used
     description: |
-      Verify the ci:prow-job-analysis skill was invoked via the Skill tool during
-      execution. fetch-prowjob-json is part of its canonical workflow and reported
-      when present.
+      Verify the analysis actually loaded the specialized reference file(s) the
+      routing table should have led it to. Parses the Claude Code stdout stream
+      for Read tool calls that opened files under the skill's references/
+      directory, maps each to its path relative to references/ (e.g.
+      'upgrade.md', 'install/metal.md'), and compares that set against
+      annotations.expected_references. Reports which expected references were
+      loaded and which were missed.
     check: |
       import json
+      ann = outputs.get("annotations", {})
+      expected = ann.get("expected_references", []) or []
+      if not expected:
+          return (True, "No expected_references in annotations — skipped")
       stdout = outputs.get("stdout", "")
-      invoked = set()
+      loaded = set()
       for line in stdout.splitlines():
+          line = line.strip()
+          if not line:
+              continue
           try:
               entry = json.loads(line)
           except (json.JSONDecodeError, ValueError):
               continue
-          if entry.get("type") != "assistant":
+          if not isinstance(entry, dict):
               continue
-          for block in entry.get("message", {}).get("content", []):
-              if block.get("type") == "tool_use" and block.get("name") == "Skill":
-                  invoked.add(block.get("input", {}).get("skill", ""))
-      def has(name):
-          return any(s == name or s.endswith(":" + name) for s in invoked)
-      if not has("prow-job-analysis"):
-          return (False, f"ci:prow-job-analysis was not invoked. Invoked: {', '.join(sorted(invoked)) or 'none'}")
-      extra = "fetch-prowjob-json invoked" if has("fetch-prowjob-json") else "fetch-prowjob-json not separately invoked"
-      return (True, f"ci:prow-job-analysis invoked ({extra})")
+          # Claude Code stream-json carries tool_use blocks on assistant events;
+          # fall back to a top-level content list for other stream shapes.
+          content = entry.get("message", {}).get("content")
+          if content is None:
+              content = entry.get("content")
+          if not isinstance(content, list):
+              continue
+          for block in content:
+              if not isinstance(block, dict):
+                  continue
+              if block.get("type") != "tool_use" or block.get("name") != "Read":
+                  continue
+              path = block.get("input", {}).get("file_path", "") or ""
+              # Only reads from the skill's references/ library count; record the
+              # path relative to references/ (keeps the install/ subdir prefix).
+              if "references/" in path:
+                  rel = path.split("references/")[-1].lstrip("/")
+                  if rel:
+                      loaded.add(rel)
+      def _norm(p):
+          p = p.strip()
+          if p.startswith("./"):
+              p = p[2:]
+          return p.lstrip("/")
+      loaded_norm = {_norm(p) for p in loaded}
+      found = [r for r in expected if _norm(r) in loaded_norm]
+      missed = [r for r in expected if _norm(r) not in loaded_norm]
+      if missed:
+          return (False, f"Missed expected references: {', '.join(missed)}. Found: {', '.join(found) or 'none'}. Loaded from references/: {', '.join(sorted(loaded_norm)) or 'none'}")
+      return (True, f"All expected references loaded: {', '.join(found)}")
 
   - name: analysis_quality
     description: |
@@ -358,7 +390,7 @@ judges:
 thresholds:
   output_file_exists:
     min_pass_rate: 1.0
-  required_skill_invocations:
+  expected_references_used:
     min_pass_rate: 1.0
   analysis_quality:
     min_mean: 3.5
