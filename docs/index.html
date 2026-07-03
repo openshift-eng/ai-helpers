@@ -1068,10 +1068,25 @@ footer a { color: var(--primary); }
     {
       "name": "console",
       "description": "OpenShift Console dynamic plugin development utilities",
-      "version": "0.0.1",
+      "version": "0.1.0",
       "has_readme": true,
-      "commands": [],
+      "commands": [
+        {
+          "name": "ci-triage",
+          "full_name": "console:ci-triage",
+          "description": "Triage failing CI on an OpenShift Console PR — classify each failure as PR-related or unrelated",
+          "description_html": "Triage failing CI on an OpenShift Console PR — classify each failure as PR-related or unrelated",
+          "synopsis": "/console:ci-triage [PR-number]",
+          "body_html": "\u003cp\u003eTriage CI failures on an OpenShift Console PR. Fetches Prow job logs, extracts specific error messages, cross-references them against the PR&#x27;s changed files, and classifies each failure as PR-related or unrelated.\u003c/p\u003e\u003cp\u003eThis command is designed for \u003cstrong\u003eOpenShift Console\u003c/strong\u003e contributors who need to understand why CI is red on their PR and what they need to fix versus what they can \u003ccode\u003e/retest\u003c/code\u003e.\u003c/p\u003e\u003cp\u003eThe output is an actionable triage table — not raw logs. After the report, the user decides what to fix; this command does not attempt fixes itself.\u003c/p\u003e"
+        }
+      ],
       "skills": [
+        {
+          "name": "ci-triage",
+          "description": "Triage CI failures on an OpenShift Console PR by fetching Prow job logs, extracting error details, and classifying each failure as PR-related or unrelated. Produces an actionable summary table. Use this skill whenever the user wants to understand why CI is failing on a PR, asks to \"check CI\", \"triage CI\", \"why is CI red\", \"prow failures\", \"ci failures\", \"check prow\", or wants to analyze CI job results for a pull request. Also trigger when the user mentions a failing Prow job name (e.g. \"frontend job failed\", \"analyze job is red\", \"e2e-gcp-console failing\").\n",
+          "description_html": "Triage CI failures on an OpenShift Console PR by fetching Prow job logs, extracting error details, and classifying each failure as PR-related or unrelated. Produces an actionable summary table. Use this skill whenever the user wants to understand why CI is failing on a PR, asks to &quot;check CI&quot;, &quot;triage CI&quot;, &quot;why is CI red&quot;, &quot;prow failures&quot;, &quot;ci failures&quot;, &quot;check prow&quot;, or wants to analyze CI job results for a pull request. Also trigger when the user mentions a failing Prow job name (e.g. &quot;frontend job failed&quot;, &quot;analyze job is red&quot;, &quot;e2e-gcp-console failing&quot;).",
+          "meta": "Compatibility: Designed for OpenShift Console PRs. Requires gh CLI (authenticated) and internet access. &middot; Tools: Bash(gh *), Bash(git *), Bash(grep *), WebFetch, Read, AskUserQuestion"
+        },
         {
           "name": "upgrade-console-sdk",
           "description": "Assists in the upgrade of an OpenShift Console dynamic plugin to the latest Console SDK version.",
@@ -1087,7 +1102,9 @@ footer a { color: var(--primary); }
       "keywords": [
         "console",
         "dynamic-plugins",
-        "frontend"
+        "frontend",
+        "ci-triage",
+        "prow"
       ],
       "author": {
         "name": "github.com/openshift-eng"
