@@ -1,0 +1,87 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure("2") do |config|
+  config.vm.box = "fedora/42-cloud-base"
+  config.vm.box_url = "https://download.fedoraproject.org/pub/fedora/linux/releases/42/Cloud/x86_64/images/Fedora-Cloud-Base-Vagrant-libvirt-42-1.1.x86_64.vagrant.libvirt.box"
+  memory = 6144
+  cpus = 4
+
+  config.vm.provider :libvirt do |v|
+    v.memory = memory
+    v.cpus = cpus
+  end
+
+  config.vm.provision "setup", type: "shell", run: "once" do |sh|
+    sh.inline = <<~SHELL
+      set -euxo pipefail
+
+      curl -fsSL -o /tmp/2022-IT-Root-CA.pem https://certs.corp.redhat.com/certs/2022-IT-Root-CA.pem
+      cp /tmp/2022-IT-Root-CA.pem /etc/pki/ca-trust/source/anchors/
+      update-ca-trust
+
+      curl -fsSL -o /etc/yum.repos.d/rcm-tools-fedora.repo http://download.devel.redhat.com/rel-eng/internal/rcm-tools-fedora.repo
+
+      dnf install -y \
+        chkconfig \
+        git \
+        java-headless \
+        krb5-workstation \
+        rhpkg \
+        rpmdevtools \
+        vim
+
+      mkdir -p /etc/pki/brew
+      cp /tmp/2022-IT-Root-CA.pem /etc/pki/brew/RH-IT-Root-CA.crt
+
+      cat > /home/vagrant/.rpmmacros <<'EOF'
+%_topdir %(echo $(pwd))
+%_sourcedir     %{_topdir}
+%_specdir       %{_sourcedir}
+%_rpmdir        %{_topdir}/RPMS
+%_srcrpmdir     %{_topdir}/SRPMS
+%_builddir      %{_topdir}/BUILD
+%_tmppath       %(echo ${TMPDIR:-/var/tmp})
+%_buildroot     %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
+EOF
+      chown vagrant:vagrant /home/vagrant/.rpmmacros
+
+      cat > /home/vagrant/.ssh/config <<'EOF'
+StrictHostKeyChecking      accept-new
+Compression                yes
+ServerAliveInterval        30
+ServerAliveCountMax        120
+
+Host iad2
+    Hostname                   bastion-iad2.corp.redhat.com
+    ProxyJump                  none
+
+Host *.iad2.dc.redhat.com
+    ProxyJump                  iad2
+
+Host rdu2
+    Hostname                   bastion-rdu2.corp.redhat.com
+    ProxyJump                  none
+
+Host *.rdu2.redhat.com *.rdu2.dc.redhat.com
+    ProxyJump                  rdu2
+
+Host pkgs.devel.redhat.com
+    ProxyJump                  iad2
+
+Host pkgs-stage.devel.redhat.com
+    ProxyJump                  iad2
+
+Host *.redhat.com
+    GSSAPIAuthentication       yes
+    GSSAPIDelegateCredentials  yes
+    ForwardAgent               no
+    ForwardX11                 no
+    ForwardX11Trusted          no
+    HashKnownHosts             no
+EOF
+      chown vagrant:vagrant /home/vagrant/.ssh/config
+      chmod 600 /home/vagrant/.ssh/config
+    SHELL
+  end
+end
