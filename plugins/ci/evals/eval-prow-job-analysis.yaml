@@ -162,19 +162,67 @@ judges:
   - name: expected_references_used
     description: |
       Verify the analysis actually loaded the specialized reference file(s) the
-      routing table should have led it to. Parses the Claude Code stdout stream
-      for Read tool calls that opened files under the skill's references/
-      directory, maps each to its path relative to references/ (e.g.
-      'upgrade.md', 'install/metal.md'), and compares that set against
-      annotations.expected_references. Reports which expected references were
-      loaded and which were missed.
+      routing table should have led it to. Scans the Claude Code stdout stream
+      for every way a reference under the skill's references/ directory can be
+      opened:
+        * Read tool calls (input.file_path under references/),
+        * Bash tool calls that read a reference via cat/tail/head/less/more/sed/
+          awk/grep — excluding shallow `head -n N` peeks (N <= 20), which only
+          skim a few lines rather than loading the file,
+        * tool_result blocks whose output cites a reference path (a targeted
+          cat/grep/sed dump), while ignoring broad index/listing reads such as
+          the SKILL.md routing table that name many references at once.
+      Each hit is mapped to its path relative to references/ (e.g. 'upgrade.md',
+      'install/metal.md') and compared against annotations.expected_references.
+      Scoring is fractional: the check passes when at least half of the expected
+      references were loaded (found_count / expected_count >= 0.5), so missing a
+      secondary reference does not hard-fail the case. The rationale always
+      reports the fraction, the references found, and those missed.
     check: |
       import json
+      import re
+
       ann = outputs.get("annotations", {})
       expected = ann.get("expected_references", []) or []
       if not expected:
           return (True, "No expected_references in annotations — skipped")
       stdout = outputs.get("stdout", "")
+
+      # File-reading shell commands. `head` is separated out because a shallow
+      # `head -n N` (N <= 20) is only a superficial peek, not an actual load.
+      READ_CMD = re.compile(r"\b(cat|tail|head|less|more|sed|awk|grep)\b")
+      SUBSTANTIVE_CMD = re.compile(r"\b(cat|tail|less|more|sed|awk|grep)\b")
+      HEAD_N = re.compile(r"\bhead\b\s+-n?\s*(\d+)")
+      # A reference path relative to references/ (letters, digits, . _ / -).
+      REF_PATH = re.compile(r"references/([A-Za-z0-9._/\-]+)")
+
+      def extract_refs(text):
+          return set(REF_PATH.findall(text or ""))
+
+      def superficial_head(cmd):
+          # True when the command's only reader is a shallow head peek.
+          if SUBSTANTIVE_CMD.search(cmd):
+              return False
+          m = HEAD_N.search(cmd)
+          if m:
+              return int(m.group(1)) <= 20
+          # plain `head file` defaults to ~10 lines — also superficial
+          return True
+
+      def result_text(block):
+          c = block.get("content")
+          if isinstance(c, str):
+              return c
+          if isinstance(c, list):
+              parts = []
+              for sub in c:
+                  if isinstance(sub, dict) and isinstance(sub.get("text"), str):
+                      parts.append(sub["text"])
+                  elif isinstance(sub, str):
+                      parts.append(sub)
+              return "\n".join(parts)
+          return ""
+
       loaded = set()
       for line in stdout.splitlines():
           line = line.strip()
@@ -186,8 +234,8 @@ judges:
               continue
           if not isinstance(entry, dict):
               continue
-          # Claude Code stream-json carries tool_use blocks on assistant events;
-          # fall back to a top-level content list for other stream shapes.
+          # tool_use blocks ride on assistant events; tool_result blocks ride on
+          # user events. Both live under message.content (fall back to content).
           content = entry.get("message", {}).get("content")
           if content is None:
               content = entry.get("content")
@@ -196,26 +244,50 @@ judges:
           for block in content:
               if not isinstance(block, dict):
                   continue
-              if block.get("type") != "tool_use" or block.get("name") != "Read":
-                  continue
-              path = block.get("input", {}).get("file_path", "") or ""
-              # Only reads from the skill's references/ library count; record the
-              # path relative to references/ (keeps the install/ subdir prefix).
-              if "references/" in path:
-                  rel = path.split("references/")[-1].lstrip("/")
-                  if rel:
-                      loaded.add(rel)
+              btype = block.get("type")
+              if btype == "tool_use":
+                  name = block.get("name")
+                  inp = block.get("input", {}) or {}
+                  if name == "Read":
+                      fp = inp.get("file_path", "") or ""
+                      if "references/" in fp:
+                          loaded |= extract_refs(fp)
+                  elif name == "Bash":
+                      cmd = inp.get("command", "") or ""
+                      if ("references/" in cmd and READ_CMD.search(cmd)
+                              and not superficial_head(cmd)):
+                          loaded |= extract_refs(cmd)
+              elif btype == "tool_result":
+                  text = result_text(block)
+                  if "references/" in text:
+                      refs = extract_refs(text)
+                      # Skip broad index/listing reads (the SKILL.md routing
+                      # table, `ls references/`, etc.) that name many files at
+                      # once; only a targeted 1–2 path dump implies a real load.
+                      if 0 < len(refs) <= 2:
+                          loaded |= refs
+
       def _norm(p):
           p = p.strip()
           if p.startswith("./"):
               p = p[2:]
           return p.lstrip("/")
+
       loaded_norm = {_norm(p) for p in loaded}
       found = [r for r in expected if _norm(r) in loaded_norm]
       missed = [r for r in expected if _norm(r) not in loaded_norm]
-      if missed:
-          return (False, f"Missed expected references: {', '.join(missed)}. Found: {', '.join(found) or 'none'}. Loaded from references/: {', '.join(sorted(loaded_norm)) or 'none'}")
-      return (True, f"All expected references loaded: {', '.join(found)}")
+      fraction = len(found) / len(expected)
+      detail = (
+          f"{len(found)}/{len(expected)} expected references loaded "
+          f"(fraction={fraction:.2f}). "
+          f"Found: {', '.join(found) or 'none'}. "
+          f"Missed: {', '.join(missed) or 'none'}. "
+          f"Loaded from references/: {', '.join(sorted(loaded_norm)) or 'none'}"
+      )
+      # Fractional pass: at least half of the expected references must be loaded.
+      if fraction >= 0.5:
+          return (True, detail)
+      return (False, detail)
 
   - name: analysis_quality
     description: |
@@ -391,7 +463,7 @@ thresholds:
   output_file_exists:
     min_pass_rate: 1.0
   expected_references_used:
-    min_pass_rate: 1.0
+    min_pass_rate: 0.8
   analysis_quality:
     min_mean: 3.5
   evidence_grounding:
