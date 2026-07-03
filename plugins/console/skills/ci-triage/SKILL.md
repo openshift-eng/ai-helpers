@@ -179,6 +179,17 @@ After the table, add:
 Keep the report concise. The user wants to know what to fix, not to read
 a log analysis essay.
 
+### When no failures are PR-related
+
+If all failures are classified as unrelated, ask the user whether they want
+to retest directly from the CLI. If they agree, run:
+
+```bash
+gh pr comment <PR> --repo openshift/console --body "/retest-required"
+```
+
+Do not run this automatically — always ask first using `AskUserQuestion`.
+
 ## Common failure patterns in OpenShift Console CI
 
 These are the most frequent PR-caused CI failures. Knowing them helps
