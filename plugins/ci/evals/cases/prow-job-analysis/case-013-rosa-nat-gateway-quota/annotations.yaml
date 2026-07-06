@@ -1,0 +1,248 @@
+expected_failure_type: infra
+# The failed step IS the cluster-creation phase of a ROSA job, and
+# gather-must-gather synthesizes a junit_install.xml with "install should
+# succeed" failures — so 'install' is a defensible surface label when the
+# report correctly attributes the failure to AWS quota exhaustion in the
+# shared CI account rather than an installer/product bug.
+acceptable_failure_types:
+  - infra
+  - install
+expected_references:
+  - cloud-provider-errors.md
+acceptable_references:
+  - ci-infrastructure-changes.md
+  - install/general.md
+expected_root_cause_category: aws-nat-gateway-quota-exhaustion-cluster-creation-rejected
+
+# The single conclusion a correct analysis MUST reach.
+expected_root_cause: >-
+  The rosa-cluster-provision step failed after 23 seconds because the OCM
+  clusters-mgmt API (staging, api.stage.openshift.com) rejected the
+  `rosa create cluster` request for 'ci-rosa-s-cvvy' with HTTP 400, code
+  CLUSTERS-MGMT-400: "The minimum required number of NAT Gateways available
+  quota is '1' per AZ, missing the required quota in 'us-east-2a'" — the
+  shared CI AWS account behind the rosa-e2e-02 cluster profile had no
+  available NAT-Gateway quota in that availability zone, so OCM's pre-flight
+  AWS quota validation refused the creation request and no cluster or AWS
+  infrastructure was ever provisioned. This is cloud-account service-quota
+  exhaustion — a CI infrastructure failure, not a product, installer, payload,
+  or step-script bug: the step's retry wrapper correctly treated the
+  deterministic HTTP 400 as non-retryable on attempt 1 of 3, and the two
+  post-phase step failures (osd-gather-extra, rosa-cluster-deprovision) are
+  mere consequences of no cluster existing.
+
+# Facts a grounded report must establish. 'artifacts' lists where each fact is
+# provable (all listed paths equally valid — the same fatal error text appears
+# in the top-level build log, the step log, the step's cluster.txt artifact,
+# ci-operator.log, and XML-escaped inside junit_operator.xml); 'example' is an
+# illustrative verbatim line — reports need not quote it verbatim.
+key_evidence:
+  - fact: >-
+      The fatal error is an OCM rejection of the cluster-creation request:
+      `rosa create cluster` for 'ci-rosa-s-cvvy' (region us-east-2, single-AZ,
+      STS classic, 2 replicas) failed with HTTP status 400, code
+      CLUSTERS-MGMT-400, stating the AWS account is missing the required
+      NAT Gateways quota ('1' per AZ) in us-east-2a.
+    artifacts:
+      - "build-log.txt"
+      - "artifacts/e2e-rosa-sts-ovn/rosa-cluster-provision/build-log.txt"
+      - "artifacts/e2e-rosa-sts-ovn/rosa-cluster-provision/artifacts/cluster.txt"
+      - "artifacts/ci-operator.log"
+      - "artifacts/junit_operator.xml"
+    example: "ERR: Failed to create cluster: status is 400, identifier is '400', code is 'CLUSTERS-MGMT-400', at '2026-07-06T03:44:46Z' and operation identifier is '8e4d73e1-fb41-4df6-b21f-6892e19f8ae8': The minimum required number of NAT Gateways available quota is '1' per AZ, missing the required quota in 'us-east-2a'"
+  - fact: >-
+      The step's retry wrapper ran "Attempt 1 of 3..." and classified the
+      HTTP 400 as non-retryable — no second attempt was made — and the step
+      failed after only 23 seconds in the pre phase (pre failed after 1m17s),
+      before any infrastructure existed.
+    artifacts:
+      - "build-log.txt"
+      - "artifacts/e2e-rosa-sts-ovn/rosa-cluster-provision/build-log.txt"
+      - "artifacts/junit_operator.xml"
+      - "artifacts/ci-operator.log"
+    example: "Command failed with non-retryable error, exit code: 1"
+  - fact: >-
+      Every prerequisite succeeded before the quota rejection:
+      rosa-sts-account-roles-create created all four ci-rosa-s-cvvy STS IAM
+      account roles (Installer/ControlPlane/Worker/Support) in the same AWS
+      account and succeeded after 43s, the OCM staging SSO login worked, and
+      the provision step selected OpenShift version
+      4.20.0-0.nightly-2026-07-06-000901 from the nightly channel group — so
+      credentials, IAM permissions, and version availability are all healthy;
+      the only exhausted resource is the AWS NAT-Gateway service quota.
+    artifacts:
+      - "build-log.txt"
+      - "artifacts/ci-operator.log"
+      - "artifacts/e2e-rosa-sts-ovn/rosa-sts-account-roles-create/build-log.txt"
+    example: "Step e2e-rosa-sts-ovn-rosa-sts-account-roles-create succeeded after 43s."
+  - fact: >-
+      No cluster was ever created: rosa-cluster-deprovision found nothing to
+      delete, osd-gather-extra found no cluster-id file ("cat:
+      /tmp/secret/cluster-id: No such file or directory"), the gather steps
+      no-op'd for lack of a kubeconfig, and gather-must-gather synthesized a
+      generic junit_install.xml recording "install should succeed" failures
+      with "other errors".
+    artifacts:
+      - "build-log.txt"
+      - "artifacts/e2e-rosa-sts-ovn/rosa-cluster-deprovision/build-log.txt"
+      - "artifacts/e2e-rosa-sts-ovn/osd-gather-extra/build-log.txt"
+      - "artifacts/e2e-rosa-sts-ovn/gather-extra/build-log.txt"
+      - "artifacts/e2e-rosa-sts-ovn/gather-must-gather/artifacts/junit_install.xml"
+    example: "ERR: Failed to get cluster 'ci-rosa-s-cvvy': There is no cluster with identifier or name 'ci-rosa-s-cvvy'"
+  - fact: >-
+      Only two post-phase steps failed (osd-gather-extra after 20s,
+      rosa-cluster-deprovision after 7s), both because no cluster/cluster-id
+      existed — consequences of the provision rejection, not independent
+      problems; the remaining post steps (gather-must-gather, gather-extra,
+      gather-audit-logs, rosa-cluster-index, rosa-sts-account-roles-delete,
+      send-results-to-reportportal) all succeeded, including normal deletion
+      of the account roles.
+    artifacts:
+      - "build-log.txt"
+      - "artifacts/ci-operator.log"
+      - "artifacts/junit_operator.xml"
+    example: "Step e2e-rosa-sts-ovn-osd-gather-extra failed after 20s."
+
+# Deeper-mechanism facts — bonus credit only, never required.
+depth_evidence:
+  - fact: >-
+      The step's own artifacts capture the exact request and raw response:
+      rosa-cluster-provision/artifacts/cluster-config records the request JSON
+      (name ci-rosa-s-cvvy, region us-east-2, multi_az false, replicas 2,
+      channel_group nightly, raw_id 4.20.0-0.nightly-2026-07-06-000901, the
+      four STS role ARNs) and cluster.txt captures the raw rosa output ending
+      in the CLUSTERS-MGMT-400 error — a single-AZ two-replica request that
+      needed just one NAT gateway in us-east-2a and still could not get quota.
+    artifacts:
+      - "artifacts/e2e-rosa-sts-ovn/rosa-cluster-provision/artifacts/cluster-config"
+      - "artifacts/e2e-rosa-sts-ovn/rosa-cluster-provision/artifacts/cluster.txt"
+    example: "\"raw_id\": \"4.20.0-0.nightly-2026-07-06-000901\","
+  - fact: >-
+      The CI resource-acquisition layer was healthy: ci-operator acquired the
+      Boskos lease us-east-2--rosa-e2e-02-quota-slice-4 for cluster profile
+      rosa-e2e-02 immediately at 03:43:28 and released it normally at the end
+      — the exhausted resource is the AWS NAT-Gateway service quota inside the
+      leased account, one layer below the CI quota-slice system.
+    artifacts:
+      - "build-log.txt"
+      - "artifacts/ci-operator.log"
+    example: "Acquired 1 lease(s) for rosa-e2e-02-quota-slice: [us-east-2--rosa-e2e-02-quota-slice-4]"
+  - fact: >-
+      The rejection happened during OCM pre-flight validation, about 12
+      seconds after `rosa create cluster` started (command logged 03:44:34,
+      error timestamped 2026-07-06T03:44:46Z, OCM operation identifier
+      8e4d73e1-fb41-4df6-b21f-6892e19f8ae8) — before any AWS resource was
+      created, which is why deprovision later found nothing at all.
+    artifacts:
+      - "build-log.txt"
+      - "artifacts/e2e-rosa-sts-ovn/rosa-cluster-provision/build-log.txt"
+      - "artifacts/e2e-rosa-sts-ovn/rosa-cluster-provision/artifacts/cluster.txt"
+      - "artifacts/ci-operator.log"
+    example: "operation identifier is '8e4d73e1-fb41-4df6-b21f-6892e19f8ae8'"
+
+# The one signal that separates the true cause from the look-alikes.
+discriminating_signal: >-
+  The fatal error is an OCM clusters-mgmt quota-validation rejection, not an
+  AWS API error, auth failure, or CI-lease failure: HTTP 400 / CLUSTERS-MGMT-400
+  "The minimum required number of NAT Gateways available quota is '1' per AZ,
+  missing the required quota in 'us-east-2a'", returned seconds into
+  `rosa create cluster` and classified non-retryable by the step wrapper on
+  attempt 1 of 3. Because the same shared account had just successfully
+  created four IAM roles, the OCM login worked, and the CI quota-slice lease
+  was already held, the only exhausted resource is the AWS NAT-Gateway
+  service quota in us-east-2a — cloud-account quota exhaustion before any
+  infrastructure was provisioned, not a product/installer failure, not Boskos
+  lease exhaustion, and not a credentials problem.
+
+# Misleading signals a shallow analysis would wrongly latch onto.
+distractors:
+  - >-
+    "jq: error (at <stdin>:1): Cannot iterate over null (null)" appears in the
+    provision step log immediately after version selection, suggesting a
+    broken provision script — but it is non-fatal script noise: the step
+    continued, resolved the account-role ARNs, printed the full
+    cluster-request parameter list, and executed rosa create; the failure is
+    the OCM 400 that follows, not jq.
+  - >-
+    The ROSA CLI "WARNING: You are using OCM API fields that have been
+    deprecated - version.channel_group ..." prints directly above the fatal
+    ERR line, inviting the conclusion that the deprecated field caused the
+    400 — it is a warning only; the 400 body names NAT-Gateway quota, not the
+    field.
+  - >-
+    Two post-phase steps (osd-gather-extra, rosa-cluster-deprovision) also
+    fail, which can read as additional independent problems or broken cleanup
+    tooling; both merely found no cluster/cluster-id to act on.
+  - >-
+    gather-must-gather synthesizes junit_install.xml with "install should
+    succeed: other — openshift cluster install failed with other errors",
+    which invites stopping at a generic "install failed" verdict instead of
+    tracing to the quota rejection (there is no openshift-install log in this
+    run at all — ROSA provisions via OCM).
+  - >-
+    The provision log dumps roughly 850 lines of "Available cluster versions"
+    (5.0 through 4.11 nightlies), which can suggest a version-selection
+    problem; selection actually succeeded — "Choosing openshift version
+    4.20.0-0.nightly-2026-07-06-000901".
+  - >-
+    Prow entrypoint wrapper noise in every failed step ("wrapped process
+    failed: exit status 1", "error: failed to execute wrapped command") is
+    plumbing that echoes the exit code, not a cause.
+
+# Wrong conclusions the judge must penalize.
+must_not_conclude:
+  - "The 4.20 nightly payload or the OpenShift installer has a regression, or any product code failed — including that the selected version 4.20.0-0.nightly-2026-07-06-000901 was unavailable or invalid (version selection succeeded; OCM rejected the request during pre-flight AWS quota validation and no product code ever ran)."
+  - "The jq 'Cannot iterate over null' script error caused the provision failure (the script continued past it, assembled the full request, and ran rosa create; the step failed on the OCM 400)."
+  - "The deprecated version.channel_group OCM API field caused the rejection (it is a deprecation warning; the 400 error body names NAT-Gateway quota in us-east-2a)."
+  - "AWS credentials, STS account roles, or IAM permissions were broken, or the CI lease/Boskos quota-slice system was exhausted (the us-east-2--rosa-e2e-02-quota-slice-4 lease was acquired, the OCM login succeeded, and all four account roles were created moments earlier; the error is a quota-validation message, not an auth or lease error)."
+  - "osd-gather-extra and rosa-cluster-deprovision are independent failures or broken tooling (both failed only because no cluster existed)."
+  - "This was a random transient flake with no identifiable, actionable cause (the 400 is a deterministic OCM quota-validation rejection tied to the account's NAT-Gateway quota state in us-east-2a — the step wrapper itself classified it non-retryable, and reruns will keep failing until quota in that AZ is freed or raised)."
+
+notes: >
+  Real FAILURE run of
+  periodic-ci-openshift-release-main-nightly-4.20-e2e-rosa-sts-ovn (build
+  2073975546965921792, started 2026-07-06T03:41:17Z on build09, namespace
+  ci-op-by5mgxx8, total runtime "Ran for 4m40s"). ROSA jobs provision through
+  OCM and the rosa CLI, not openshift-install: there is no
+  .openshift_install*.log anywhere in this run — the installer-log equivalents
+  are the rosa-cluster-provision step log and its artifacts (cluster-config,
+  cluster.txt). Timeline: rosa-cluster-prefix (10s), observers-resource-watch
+  (11s), and rosa-sts-account-roles-create (43s) succeeded; rosa-cluster-provision
+  failed after 23s at 03:44:46; pre phase failed after 1m17s; post phase ran
+  everything with osd-gather-extra and rosa-cluster-deprovision failing as
+  cascades. Routing: the job name carries no aws/gcp/azure token, but ROSA is
+  OpenShift on AWS and the failure signal matches the routing-table row
+  "Cloud API errors, quota, throttling" -> cloud-provider-errors.md, whose §2
+  (cloud quota during provisioning), hard-vs-soft quota discussion, §5
+  (cascading resource leaks), and §6 (outage vs config vs quota vs leak)
+  carry the classification and disposition; the NAT-Gateways-per-AZ quota is
+  an AWS service quota surfacing here through OCM's CLUSTERS-MGMT-400
+  pre-flight validation rather than an AWS SDK error string.
+  ci-infrastructure-changes.md is acceptable extra reading (cluster-profile /
+  shared-account / lease-and-quota-changes context) but not required: lease
+  acquisition succeeded and cloud-provider-errors.md alone reaches the
+  verdict. install/general.md is acceptable only because gather-must-gather
+  synthesizes junit_install.xml with "install should succeed" failures
+  (routing row 1); there is no real installer log for it to analyze.
+  failure_type = infra ('install' acceptable when the report attributes the
+  failure to AWS account quota exhaustion, exonerating installer/product).
+  Findability: the identical fatal ERR line appears verbatim in
+  build-log.txt (twice: live step echo and final step summary), in
+  artifacts/e2e-rosa-sts-ovn/rosa-cluster-provision/build-log.txt, in that
+  step's artifacts/cluster.txt, and in artifacts/ci-operator.log; it also
+  appears XML-escaped (&#39; for quotes) in artifacts/junit_operator.xml
+  under the "Run multi-stage test pre phase" and "...rosa-cluster-provision
+  container test" testcases. The account-roles-create success detail lives
+  only in its own step log — successful steps' container logs are not echoed
+  into the top-level build log.
+
+external_context: >-
+  What consumed the NAT-Gateway quota in us-east-2a (concurrent ROSA CI
+  clusters in the shared rosa-e2e-02 account vs leaked NAT gateways/EIPs from
+  earlier failed deprovisions) is not determinable from this job's artifacts —
+  it requires AWS account inspection, which belongs to the CI account owners.
+  AWS's default "NAT gateways per Availability Zone" service quota is 5.
+  Expected disposition per the references: identify/clean leaked NAT gateways
+  or raise the quota, then retry; a later rerun can pass once quota frees, but
+  an immediate rerun against unchanged account state hits the same
+  deterministic 400.
