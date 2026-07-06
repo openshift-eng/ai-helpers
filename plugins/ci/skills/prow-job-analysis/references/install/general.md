@@ -66,7 +66,7 @@ Job names encode the test environment. Parse these patterns to know what to expe
 | `fips` | FIPS mode | Watch for crypto library errors, TLS/SSL handshake failures, certificate validation issues, hash algorithm incompatibilities |
 | `ipv6` | IPv6 networking | Usually **disconnected** (no internet), uses local mirror registry |
 | `dualstack` | Dual-stack IPv4/IPv6 | May be disconnected |
-| `techpreview` | TechPreview feature gates | Enables additional feature gates not active in Default clusters. Bootstrap failures may be in TechPreview-gated code paths (e.g., on-cluster layering, OS image management) that won't reproduce in Default clusters |
+| `techpreview` | TechPreview feature gates | Enables additional feature gates not active in Default clusters. Bootstrap failures may be in TechPreview-gated code paths that won't reproduce in Default clusters |
 | `proxy` | HTTP proxy environment | Cluster traffic routed through proxy |
 | `rt` | Real-time kernel | Uses real-time RHCOS kernel |
 | `ovn` | OVN-Kubernetes networking | Standard CNI plugin |
@@ -474,12 +474,13 @@ Server rendered a different config than the in-cluster controller, so the pool c
 reconcile. Open the machine-config-daemon log and find the
 `Bootstrap generated MC ... vs In-cluster generated MC ... diffs:` block: the granular
 summary line (`&{osUpdate:... kargs:... fips:... passwd:... files:... units:... ...}`)
-says which categories diverge, and the raw diff that follows shows the content. A
-one-sided diff (only `+` lines) of templated files/units points at a rendering-input skew
-— feature gates (TechPreview), API promotions, or installer/MCO version skew — rather
-than corrupted content. This is an OS-layer signal per the SKILL's evidence check: read
-[operating-system-changes.md](../operating-system-changes.md) alongside (an
-`osUpdate:false` granular diff rules the OS image itself out).
+says which categories diverge, and the raw diff that follows shows the content. Read the
+diff to determine WHAT diverged, then trace which rendering input differed between the
+bootstrap and in-cluster renders — the two should be identical given identical inputs, so
+the divergent content points at the input or component that skewed. This is an OS-layer
+signal per the SKILL's evidence check: read
+[operating-system-changes.md](../operating-system-changes.md) alongside (the granular
+summary's `osUpdate` field records whether the OS image itself diverged).
 
 ### Other / Unknown Failures
 

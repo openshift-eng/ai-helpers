@@ -96,10 +96,8 @@ Step 4; gzip-compressed **without** a `.gz` extension — plain `grep` silently 
 nothing, use `zcat`/`zgrep`):
 
 ```bash
-# More than one version on the same node = a mid-run runtime change (e.g. the node
-# boots a regressed cri-o, breaks, and reboots onto the prior build). This is ONLY
-# visible in journals: end-of-run snapshots (oc_cmds/nodes, nodes.json) show the
-# final version and hide the flip.
+# Runtime versions per boot. End-of-run snapshots (oc_cmds/nodes, nodes.json)
+# show only the final version; changes within the run are visible only here.
 zgrep -hE "Starting CRI-O, version|Container runtime initialized" \
   .work/prow-job-analysis/{build_id}/nodes/*/journal | sort | uniq -c
 ```

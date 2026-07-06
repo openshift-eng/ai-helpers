@@ -486,7 +486,7 @@ root-cause analysis.
 | `failed to acquire lease` | Resource management | No cloud quota available |
 | `could not resolve ...` | Step resolution | Step registry reference broken |
 | `unresolvable tag` | Image resolution | Referenced image tag missing |
-| `error: Process interrupted` | Pod kill | Build cluster node issues |
+| `error: Process interrupted` | Pod kill | Pod killed (node issue, eviction, or preemption) |
 | `pod pending timeout` | Scheduling | Pod couldn't be scheduled on build cluster |
 
 **Test errors** — indicate product or test code problems:
@@ -526,8 +526,8 @@ The `ci-operator-step-graph.json` artifact shows all steps, their dependencies, 
 ]
 ```
 
-If steps never started or all failed simultaneously at a very early timestamp, it's almost
-certainly an infrastructure issue, not a product issue.
+If steps never started or all failed simultaneously at a very early timestamp, suspect an
+infrastructure issue over a product issue — confirm in the top-level `build-log.txt`.
 
 ### Common ci-operator Failure Modes
 
@@ -713,8 +713,8 @@ Is the failure in the top-level build-log.txt (ci-operator output)?
    - Check [search.ci.openshift.org](https://search.ci.openshift.org/) for the error pattern
 
 2. **Failure before test code runs**
-   - Errors in the top-level `build-log.txt` during image building, lease acquisition,
-     or step resolution are always CI infrastructure
+   - Errors in the top-level `build-log.txt` during lease acquisition or step resolution
+     are CI infrastructure; image-build errors can be product (compile error) or infra
    - No artifacts under `artifacts/{target}/` means ci-operator failed before test execution
 
 3. **ci-operator error reasons**
@@ -977,7 +977,8 @@ cloning, (4) image building, (5) lease acquisition, (6) multi-stage test executi
 (pre/test/post), (7) artifact gathering, (8) teardown. Per-phase failure indicators and causes
 are covered in the failure-modes and practical-steps sections above and below.
 
-**Key rule**: Failures at phases 1–5 are almost always CI infrastructure issues.
+**Key rule**: Failures at phases 1–5 occur before test execution and point to CI
+infrastructure (image building can also fail on a product compile error).
 Failures at phase 6 require careful analysis to distinguish CI from product issues.
 Failures at phases 7–8 are informational and don't change the test result.
 

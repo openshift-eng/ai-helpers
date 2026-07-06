@@ -165,15 +165,14 @@ Control plane nodes update first (master MachineConfigPool), then workers.
 `condition/Updating changed: True`. Build log shows MCO drain operations.
 Node events show `Draining`, `Rebooting`, `NodeNotReady` transitions.
 
-**Common causes**: See the dedicated [MCO Drain Failures](#mco-drain-failures--the-1-upgrade-problem)
-section below — this is the #1 source of upgrade failures.
+**Common causes**: See the dedicated [MCO Drain Failures](#mco-drain-failures)
+section below.
 
 **The upgrade also swaps the OS** (kernel, cri-o, systemd, NetworkManager, SELinux).
-If a node misbehaves *after its upgrade reboot* (NotReady, CNI-not-ready, OCI errors),
-check for RPM package changes between the from→to releases before blaming an operator:
-`zgrep -hE "Starting CRI-O, version|Container runtime initialized" nodes/*/journal | sort | uniq -c`
-(two versions on one node = the smoking gun; the journal's rpm-ostree rebase lists exact
-NEVRAs). If the implicated subsystem's package changed, read
+If a node misbehaves after its upgrade reboot, weigh RPM package changes between the
+two releases alongside operator explanations: node journals record each boot's
+package versions, and the release changelog lists the RHCOS diff. If the implicated
+subsystem's packages changed across the boundary, read
 [operating-system-changes.md](operating-system-changes.md).
 
 ### Phase 6: Operator Reconvergence
@@ -240,9 +239,9 @@ Follow this decision tree:
    YES → Phase 7 (post-upgrade conformance)
 ```
 
-## MCO Drain Failures — The #1 Upgrade Problem
+## MCO Drain Failures
 
-MCO drain failures are the single most common cause of upgrade job failures in CI.
+A failed or stuck drain halts the node-update sequence and, with it, the upgrade.
 
 ### How MCO Drain Works
 
@@ -853,8 +852,7 @@ gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/{target}/g
 
 ### 2. MCO Drain/Reboot Failures
 
-The most common upgrade failure. See the dedicated
-[MCO Drain Failures](#mco-drain-failures--the-1-upgrade-problem) section above.
+See the dedicated [MCO Drain Failures](#mco-drain-failures) section above.
 
 **Quick identification**:
 - MachineConfigPool shows `UPDATING=True DEGRADED=True`

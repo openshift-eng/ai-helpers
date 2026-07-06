@@ -304,7 +304,7 @@ The test itself fails frequently enough across runs to be flagged as a regressio
   3. Analyze it as a normal (non-aggregated) job — build-log.txt, JUnit XML, stack traces,
      must-gather, interval files
   4. Confirm the root cause via consistent error patterns across multiple failed child runs
-- **Root cause:** Usually a product bug or intentional API/behavior change
+- **Root cause:** A product bug or an intentional API/behavior change
 
 ### Mode 2: Insufficient Completed Runs
 

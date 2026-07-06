@@ -38,7 +38,7 @@ Every Prow CI run involves two clusters; exhaustion means opposite things in eac
 | Exhaustion looks like | `pod_pending`, `test`/`sidecar` container `OOMKilled`, evicted ci-op pod, truncated `build-log.txt` | Product pods `OOMKilled`, nodes `NotReady`/pressure, etcd `NOSPACE`, PVCs `Pending` |
 | Evidence lives in | top-level `build-log.txt`, `prowjob.json`, `podinfo.json` | `gather-extra/`, must-gather, `e2e-timelines_spyglass_*.json` |
 | Owner / fix | Test Platform; retry, adjust step resource requests | Product team or job config; real bug vs undersized cluster |
-| Verdict | Almost always **CI infrastructure** | Product bug **or** infra, must disambiguate |
+| Verdict | **CI infrastructure** (build-farm capacity or step resource config) | Product bug **or** infra, must disambiguate |
 
 **Decision rule:** if the failure is in the **top-level** `build-log.txt` before/around
 test start, or in `podinfo.json` container statuses, it is the **build-farm** pod — CI
@@ -186,8 +186,8 @@ Evicted pods carry a message naming the resource:
 - Timeline `NodeMonitor` intervals → node Ready/NotReady transitions with timing.
 - kubelet journal → `attempting to reclaim`, `eviction manager: must evict pod(s)`.
 
-A node flapping between pressure and recovery evicts and reschedules repeatedly — a common
-root cause of "random" unrelated test failures ([Cascades](#how-exhaustion-cascades)).
+A node flapping between pressure and recovery evicts and reschedules repeatedly — a root-cause
+pattern behind "random" unrelated test failures ([Cascades](#how-exhaustion-cascades)).
 
 ---
 

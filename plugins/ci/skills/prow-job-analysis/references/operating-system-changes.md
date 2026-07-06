@@ -18,7 +18,7 @@ Route here when:
 **Use a different reference for:**
 
 - MCO **drain/reboot stalls** and MachineConfigPool mechanics →
-  [upgrade.md](upgrade.md#mco-drain-failures--the-1-upgrade-problem) (owns the drain cascade)
+  [upgrade.md](upgrade.md#mco-drain-failures) (owns the drain cascade)
 - In-cluster **networking** (OVN-Kubernetes/SDN, DNS, ingress, IP exhaustion) →
   [networking.md](networking.md)
 - **OOM / node pressure / disk / PID** exhaustion → [resource-exhaustion.md](resource-exhaustion.md)
@@ -56,8 +56,8 @@ payload bumps rhel-coreos image  →  machine-config-operator renders a new Mach
 
 An OS change and a config change travel the **same MCO path**, which splits the debugging:
 
-- The **drain/reboot** half (PDBs, stuck nodes, MCP `Degraded`) is the #1 upgrade failure and is
-  owned by [upgrade.md](upgrade.md#mco-drain-failures--the-1-upgrade-problem).
+- The **drain/reboot** half (PDBs, stuck nodes, MCP `Degraded`) is owned by
+  [upgrade.md](upgrade.md#mco-drain-failures).
 - The **OS-content** half — what changed inside the booted tree (kernel, cri-o, NetworkManager,
   systemd) — is this reference.
 
@@ -166,10 +166,8 @@ for j in gather-extra/artifacts/nodes/*/journal; do
   zgrep -Ei "kernel panic|BUG:|Oops|Call Trace|out of memory|avc: +denied" "$j"
 done
 
-# Runtime versions across boots WITHIN the run — a mid-run version flip
-# (e.g. cri-o comes up on a regressed build, node breaks, then reboots onto the
-# prior build) is only visible here. End-of-run snapshots (oc_cmds/nodes,
-# nodes.json) show ONLY the final version and will hide the flip.
+# Runtime versions per boot. End-of-run snapshots (oc_cmds/nodes, nodes.json)
+# show only the final version; changes within the run are visible only here.
 zgrep -E "Starting CRI-O, version|Container runtime initialized" \
   gather-extra/artifacts/nodes/*/journal
 ```
@@ -191,7 +189,7 @@ snapshots alone — compare versions across boots in the journals.
 5. **Correlate.** Overlap between the RPM diff and the failing subsystem = RHCOS suspect (not a
    revert). Record variant, package NEVRA delta, and rationale for the platform team.
 6. **Drain vs content.** A node that will not drain/reboot is an MCO **rollout** problem
-   ([upgrade.md](upgrade.md#mco-drain-failures--the-1-upgrade-problem)); a node that boots the new
+   ([upgrade.md](upgrade.md#mco-drain-failures)); a node that boots the new
    OS and then misbehaves is an OS-**content** problem (this reference).
 
 ## See Also

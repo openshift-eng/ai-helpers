@@ -94,8 +94,8 @@ grep -Eo 'clusters-[a-z0-9-]+' build-log.txt | sort -u
    scripts (`analyze_clusteroperators.py`, `analyze_pods.py --problems-only`,
    `analyze_nodes.py --problems-only`, `analyze_events.py --type Warning`, `analyze_etcd.py`)
    against **each root independently** and label every finding `[Management]` or `[Hosted]`.
-2. **Direction of causation is almost always mgmt → hosted.** The hosted control plane *is*
-   management-cluster pods, so a hosted-API symptom is frequently a management-side cause.
+2. **Check for mgmt → hosted causation.** The hosted control plane *is*
+   management-cluster pods, so a hosted-API symptom can have a management-side cause.
 3. **Cross-cluster dependency chains** to trace (don't stop at the first symptom):
 
    ```text
@@ -142,7 +142,7 @@ never provisioned — check the CAPI provider pods (`capi-provider`, `cluster-ap
 ### Hosted-side (in the hosted must-gather)
 
 - **Worker nodes / NodePool** — nodes `NotReady` or absent → NodePool not `Ready`; hosted pods `Pending`.
-- **Hosted ClusterOperators Degraded** — often *downstream* of a management-side control-plane
+- **Hosted ClusterOperators Degraded** — can be *downstream* of a management-side control-plane
   outage; confirm the HCP pods were healthy during the window before blaming the hosted operator.
 - **Application workloads** — the test's own pods in the hosted cluster (namespace correlation).
 

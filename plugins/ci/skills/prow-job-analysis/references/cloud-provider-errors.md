@@ -3,7 +3,8 @@
 Cloud infrastructure failures in CI: resource-lease exhaustion, cloud API quota
 and rate limits, provisioning failures, leaked resources, credential/auth errors,
 and region/zone availability. These fail a job **before or during** cluster
-creation — almost never a product bug.
+creation — typically environment issues rather than product bugs;
+[§6](#6-outage-vs-config-vs-quota-vs-leak) helps classify.
 
 ## When to Use
 
@@ -217,7 +218,7 @@ newly-introduced resource (check recent installer/product changes).
 
 ## 5. Cascading Resource Leaks
 
-The most common cause of *sustained* quota/lease exhaustion:
+A classic cause of *sustained* quota/lease exhaustion:
 
 ```text
 failed deprovision → orphaned cloud resources → quota fills → new installs fail

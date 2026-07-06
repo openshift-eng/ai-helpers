@@ -51,7 +51,7 @@ manually from the [must-gather plugin](../../../../must-gather/skills/must-gathe
 
 ## Image Pull Failures
 
-The most common CI networking failure class, especially in disconnected/proxy/IPv6 jobs.
+A recurring CI networking failure class, especially in disconnected/proxy/IPv6 jobs.
 
 ### Diagnosis Workflow
 
@@ -210,7 +210,7 @@ OVS is the dataplane; a stall freezes **all** traffic on that node.
 
 - Timeline source `OVSVswitchdLog`: `Unreasonably long NNNNms poll interval`
 - `>500ms` = degraded; `>1000ms` = effectively frozen (no packets forwarded)
-- **Root cause is usually CPU starvation** — OVS shares CPU with other processes. Correlate with
+- **A classic root cause is CPU starvation** — OVS shares CPU with other processes. Correlate with
   `CPUMonitor` (>95%) and disk I/O ([resource-exhaustion.md](resource-exhaustion.md)); the
   stall's disruption fan-out is classified in [disruption.md](disruption.md).
 
@@ -248,8 +248,8 @@ Pod-to-pod and pod-to-Service reachability.
   `openshift-ingress-operator`. Not-ready routers → `ingress` clusteroperator degraded and
   `*.apps.<cluster>` routes unreachable.
 - **Cloud LB provisioning** — `router-default` Service (type `LoadBalancer`) stuck with no
-  `EXTERNAL-IP`; events `EnsuringLoadBalancer` / `SyncLoadBalancerFailed`. Usually a cloud API/quota
-  issue — see [cloud-provider-errors.md](cloud-provider-errors.md).
+  `EXTERNAL-IP`; events `EnsuringLoadBalancer` / `SyncLoadBalancerFailed`. Points at the cloud
+  API/quota layer — the event message carries the cloud error; see [cloud-provider-errors.md](cloud-provider-errors.md).
 - **LB health checks failing** — LB provisioned but marks backends unhealthy → intermittent
   ingress/API disruption. Check health-check port/path and router readiness; correlate with
   disruption on ingress-routed backends (image-registry, oauth, console) in [disruption.md](disruption.md).

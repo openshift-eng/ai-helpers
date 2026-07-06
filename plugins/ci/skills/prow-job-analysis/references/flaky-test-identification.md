@@ -73,8 +73,8 @@ recurs fleet-wide, escalate to Test Platform. Do not debug the test.
 ### Same failure across 3+ distinct jobs = shared infrastructure
 
 One test (or error string) failing across **three or more distinct job names**
-(different platforms, repos, or configs) at the same time is almost never a per-test bug —
-a shared dependency broke: CI registry, lease pool, cloud region, a step-registry change, or
+(different platforms, repos, or configs) at the same time implicates a shared dependency
+rather than a per-test bug: CI registry, lease pool, cloud region, a step-registry change, or
 the payload. Confirm breadth before blaming the test:
 
 ```text

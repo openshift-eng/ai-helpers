@@ -106,8 +106,8 @@ Every API backend is monitored with two connection strategies:
 | ❌ Clean | ✅ Disrupted | Request processing problem — slow handler, connection draining |
 | ❌ Clean | ❌ Clean | No disruption on this backend |
 
-Most genuine disruption affects both connection types simultaneously, pointing to a
-backend-level or infrastructure-level issue rather than a connection-layer problem.
+Disruption affecting both connection types simultaneously points to a backend-level or
+infrastructure-level issue rather than a connection-layer problem.
 
 ### Host-to-Host Monitoring
 
@@ -292,7 +292,7 @@ is the most latency-sensitive disk operation in etcd — slow fsync directly del
 proposal commits.
 
 **Interpretation for both**: Elevated disk latency → etcd cannot commit transactions
-quickly → API server requests backed up → API disruption. This is the most common cascade
+quickly → API server requests backed up → API disruption. This is a classic cascade
 path on cloud platforms, especially Azure where managed disk IOPS are explicitly capped.
 
 ### `OVSVswitchdLog` — OVN/OVS Packet Processing Stalls
@@ -355,7 +355,7 @@ Azure disk I/O:
 
 **Interpretation**: Azure managed disks have hard IOPS caps based on disk tier. At 100% IOPS,
 all additional I/O queues up, directly impacting etcd (which needs low-latency disk writes)
-and cascading to API disruption. Disk I/O saturation is the single most common root cause of
+and cascading to API disruption. Disk I/O saturation is a recurring root cause of
 disruption on Azure.
 
 ### `AuditLog` — API Server Audit Events
@@ -526,13 +526,13 @@ cache-openshift-api-new-connections     (cache, new)
 cache-openshift-api-reused-connections  (cache, reused)
 ```
 
-The root cause is almost always **control plane node resource exhaustion**:
+This pattern points at **control plane node resource exhaustion**:
 
 ```text
 Disk I/O saturation → etcd stalls → API server cannot process any requests → all variants fail
 ```
 
-This is NOT a networking issue — it is a resource issue. Confirming evidence:
+If so, this is a resource issue, NOT a networking issue. Confirming evidence:
 - `EtcdLog` events showing `slow fdatasync` or `apply took too long`
 - `CPUMonitor` events on control plane nodes
 - `Alert` events for `ExtremelyHighIndividualControlPlaneCPU`
@@ -898,7 +898,7 @@ Establish the link rather than assuming it:
 
 ### Pattern 1: CPU Starvation → OVS Stall → Network Disruption
 
-**The most common disruption pattern.** A node runs out of CPU, OVS cannot process packets,
+**A classic disruption pattern.** A node runs out of CPU, OVS cannot process packets,
 and all network traffic from/to that node fails.
 
 **Identifying signals:**
@@ -1194,7 +1194,7 @@ When starting a disruption investigation:
    └─ Unknown → Cannot localize; check all signal sources
 
 3. Which backend types are disrupted?
-   ├─ All four variants of a backend → Control plane resource exhaustion
+   ├─ All four variants of a backend → Suspect control plane resource exhaustion
    │   └─ Check etcd, disk I/O, CPU on control plane nodes
    ├─ Non-cache only → Component-specific or networking issue
    ├─ Cache only (rare) → Watch-cache or memory issue

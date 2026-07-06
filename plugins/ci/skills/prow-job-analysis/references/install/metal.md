@@ -91,7 +91,7 @@ periodic-ci-openshift-release-master-ci-4.19-e2e-metal-ipi-serial-ovn-ipv6
 ## Network Architecture
 
 **CRITICAL**: "disconnected" in metal CI jobs refers to the **cluster nodes**, NOT the
-hypervisor. This is the single most common misunderstanding in metal failure analysis.
+hypervisor. This is a common misunderstanding in metal failure analysis.
 
 ### Hypervisor (dev-scripts host)
 
@@ -153,7 +153,7 @@ hypervisor. This is the single most common misunderstanding in metal failure ana
 | Failure Location | What's Happening | Root Cause Direction |
 |------------------|-----------------|---------------------|
 | Dev-scripts (steps 01-05), download failures | Hypervisor can't download from internet | Remote service/URL is down or resource removed upstream |
-| Dev-scripts, HTTP 403/404 | External resource not found | Resource removed from upstream source (not network restriction) |
+| Dev-scripts, HTTP 403/404 | External resource not found | Check the resource upstream — moved, removed, or access denied (not a network restriction) |
 | Installation (step 06+), image pull failures | Cluster nodes can't pull images | Check local mirror registry on hypervisor |
 | Cluster nodes, DNS failures | Nodes can't resolve names | Check dnsmasq on hypervisor, not internet DNS |
 

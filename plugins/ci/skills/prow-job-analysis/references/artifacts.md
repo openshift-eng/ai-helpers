@@ -512,16 +512,16 @@ a `.gz` extension** — plain `grep` matches nothing; use `zcat`/`zgrep`:
 
 ```bash
 gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-extra/artifacts/nodes/"
-zgrep -E "Starting CRI-O, version|Node became not ready" local/nodes/*/journal
+zgrep -E "Out of memory|Kernel panic" local/nodes/*/journal
 ```
 
 **Key entries to look for**:
 - OVS vswitchd stalls: "Unreasonably long poll interval"
 - Kernel OOM kills: "Out of memory: Kill process"
-- Container runtime version per boot: "Starting CRI-O, version" / "Container runtime
-  initialized" — compare across boots within the run; end-of-run node snapshots
-  (`oc_cmds/nodes`, `nodes.json`) show only the final version and hide mid-run flips
-- systemd stop timeouts: "Stopping timed out. Killing." (non-graceful terminations)
+- Per-boot kernel and container runtime versions — each boot records the versions in
+  effect; end-of-run node snapshots (`oc_cmds/nodes`, `nodes.json`) capture only the
+  final state
+- systemd unit lifecycle events (services failing to start, stop, or restart)
 - Disk I/O errors
 - Network interface events
 - kubelet log entries
