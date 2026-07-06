@@ -78,15 +78,32 @@ gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/**/junit*.
 Examine the build log and JUnit results to classify the failure, then consult the
 appropriate reference file for detailed analysis procedures.
 
-#### OS-layer evidence check (run for every job, before routing)
+#### OS-layer evidence check (mandatory for every job, before routing)
 
-Run this check for **every** job — regardless of job type or which domain the failure
-appears to belong to — *before* selecting a row from the routing table. Operating-system
-(RHCOS) layer breakage frequently masquerades as an unrelated product failure: a single
-RHCOS bump swaps the kernel, cri-o, systemd, NetworkManager, and SELinux policy across the
-whole cluster at once, so the real cause often surfaces as a symptom in some other domain.
-Scan the build log, `oc_cmds` (node / clusteroperator status), MachineConfig data, and node
-journals for any of these signals:
+Operating-system (RHCOS) layer breakage frequently masquerades as an unrelated product
+failure: a single RHCOS bump swaps the kernel, cri-o, systemd, NetworkManager, and SELinux
+policy across the whole cluster at once, so the real cause surfaces as a symptom in some
+other domain. Before selecting a row from the routing table, complete BOTH steps:
+
+**1. Download the node journals and compare runtime versions across boots.** Journals
+live at `gather-extra/artifacts/nodes/<node>/journal` and are gzip-compressed **without**
+a `.gz` extension — plain `grep` silently matches nothing; use `zcat`/`zgrep`:
+
+```bash
+gcloud storage cp -r \
+  "gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-extra/artifacts/nodes" \
+  .work/prow-job-analysis/{build_id}/ --no-user-output-enabled 2>/dev/null
+
+# More than one version on the same node = a mid-run runtime change (e.g. the node
+# boots a regressed cri-o, breaks, and reboots onto the prior build). This is ONLY
+# visible in journals: end-of-run snapshots (oc_cmds/nodes, nodes.json) show the
+# final version and hide the flip.
+zgrep -hE "Starting CRI-O, version|Container runtime initialized" \
+  .work/prow-job-analysis/{build_id}/nodes/*/journal | sort | uniq -c
+```
+
+**2. Scan the build log, JUnit, `oc_cmds` (node / clusteroperator status),
+MachineConfig data, and the journals for these signals:**
 
 - `NetworkPluginNotReady`, or a missing CNI config (`/etc/cni/net.d` empty / no CNI plugin)
 - A `ContainerRuntimeVersion` change on nodes (cri-o version bump between runs)
@@ -97,23 +114,11 @@ journals for any of these signals:
 - `avc: denied` / SELinux denials
 - The same failure spanning multiple unrelated jobs at a payload boundary
 
-Node journals are the primary OS-layer evidence and live at
-`gather-extra/artifacts/nodes/<node>/journal` — **gzip-compressed without a `.gz`
-extension**, so read them with `zcat`/`zgrep`, never plain `grep`:
-
-```bash
-# Runtime version per boot — compare across boots WITHIN the run. End-of-run
-# snapshots (oc_cmds/nodes, nodes.json) show only the FINAL version and hide a
-# mid-run flip (e.g. node boots a regressed cri-o, breaks, reboots onto the prior build).
-zgrep -E "Starting CRI-O, version|Container runtime initialized" \
-  gather-extra/artifacts/nodes/*/journal
-```
-
-If **any** of these signals is present, the RHCOS layer is implicated. Still route via the
-table below using whichever reference matches the surface symptom, but **also** read
-[operating-system-changes.md](references/operating-system-changes.md) alongside that
-reference — OS-layer breakage is uncommon but frequently masquerades as an unrelated
-product failure — check for these signals to avoid misattribution.
+If step 1 shows more than one runtime version on any node, or any step-2 signal is
+present, the RHCOS layer is implicated: still route via the table below using whichever
+reference matches the surface symptom, but **also** read
+[operating-system-changes.md](references/operating-system-changes.md) alongside it.
+Never clear the OS layer from end-of-run snapshots alone.
 
 ## Failure Routing Table
 

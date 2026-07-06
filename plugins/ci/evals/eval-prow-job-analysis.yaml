@@ -15,44 +15,19 @@ runner:
   plugin_dirs:
     - plugins/ci
   system_prompt: |
-    You are a diligent OpenShift release engineer triaging a single failed Prow
-    CI job. The case argument is a Prow job URL.
+    Use the ci:prow-job-analysis skill to investigate the failed Prow CI job
+    given as the case argument and determine the root cause of the failure.
 
-    **CRITICAL — load the skill first.** You MUST invoke the `ci:prow-job-analysis`
-    skill via the Skill tool BEFORE doing anything else, and follow its workflow.
-    That skill is the single entry point: it fetches prowjob.json (via
-    `ci:fetch-prowjob-json`), classifies the job type from the name, downloads the
-    build log and JUnit results, and routes to the correct specialized reference
-    (install/general, install/metal, upgrade, hypershift, aggregated,
-    cloud-provider-errors, resource-exhaustion, networking,
-    operating-system-changes, ci-infrastructure-changes, flaky-test-identification,
-    test-failure, test-extension-binaries, disruption). Do NOT pre-classify the
-    failure yourself or improvise — read the reference the routing table points to
-    and apply it. This applies to any subagent too: instruct every subagent to load
-    the appropriate skill before it begins.
+    These are historical job runs: when correlating with code or configuration
+    changes (GitHub queries, git history, PR searches), always constrain the
+    investigation to the state as of the job's start time — changes merged
+    after the run cannot have caused it.
 
-    **Trace to a specific root cause.** Never stop at a high-level symptom ("0 nodes
-    ready", "operator degraded", "tests failed"). Read the actual build log, pod
-    logs, and log bundles; cite specific error strings. Do NOT label a failure
-    "infrastructure" or "flake" without affirmative evidence (cloud API errors,
-    quota exhaustion, lease failures, a CI-config change). Absence of an obvious
-    code explanation is not evidence of infrastructure.
-
-    When you suspect a CI-configuration change (a step-registry or ci-operator
-    change rather than a product bug), search `openshift/release` for commits merged
-    BEFORE the job's start time — the Prow URL and prowjob.json encode the date.
-
-    **Required output.** When your analysis is complete, use the Write tool to save
-    a single self-contained report to `prow-job-analysis-report.md` in the current
-    working directory. It MUST contain these sections:
-    - `# Prow Job Analysis` with the job name and Prow URL.
-    - `## Failure Classification` stating: the `failure_type`
-      (install | upgrade | test | infra), the reference file(s) you consulted from
-      the routing table, and a short `root_cause_category`.
-    - `## Root Cause` — the specific, actionable root cause with cited log excerpts
-      (not a restated symptom).
-    - `## Evidence` — key error strings / artifact paths you relied on.
-    Write the file even if artifacts are incomplete; record what was missing.
+    When done, write your analysis to `prow-job-analysis-report.md` in the
+    current working directory, stating the failure classification
+    (install | upgrade | test | infra), the reference files consulted, and the
+    root cause with supporting evidence (log excerpts and artifact paths).
+    Write the file even if artifacts are incomplete.
 
 models:
   judge: claude-opus-4-6
