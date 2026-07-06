@@ -103,7 +103,7 @@ dataset:
         reasonable extra reading. Judges must never penalize consulting them NOR
         penalize their absence.
       - 'expected_root_cause_category': short slug for the true root cause
-        (e.g. 'metal-provisioning-environment', 'ofcir-dns-resolution-failure').
+        (e.g. 'extension-binary-panic-on-pending-spec', 'egressip-snat-not-applied').
         Judges match this semantically, not as an exact-string label.
       Rich ground truth:
       - 'expected_root_cause': one or two precise sentences stating the true

@@ -1,9 +1,0 @@
-prow_job_url: "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/aggregated-gcp-ovn-upgrade-4.22-micro-release-openshift-release-analysis-aggregator/2049102142274277376"
-job_name: "aggregated-gcp-ovn-upgrade-4.22-micro-release-openshift-release-analysis-aggregator"
-description: >-
-  Aggregated release-analysis-aggregator run over the 4.22 GCP OVN micro-upgrade
-  variant (payload 4.22.0-0.ci-2026-04-28-064654). Two Monitor invariants
-  regressed deterministically across the 10 aggregated child runs while every
-  disruption backend stayed under its threshold. A correct analysis must reason
-  across the child runs and trace the invariant failures to their originating
-  mechanism in the child-run node journals.

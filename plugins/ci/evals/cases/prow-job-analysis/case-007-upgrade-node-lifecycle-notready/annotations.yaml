@@ -105,8 +105,7 @@ notes: >
   operating-system-changes.md is PRIMARY (node OS / CRI-O layer); upgrade.md
   because the failure is in the upgrade phase; networking.md is acceptable
   secondary reading because the surface symptom is CNI-not-ready. failure_type
-  = upgrade. This run is a DIFFERENT job/platform (aws out-of-change) from the
-  aggregated case-001 and is not one of its child runs.
+  = upgrade.
 
   Findability notes: node journals live at
   gather-extra/artifacts/nodes/<node>/journal (NOT journal_logs/) and are
