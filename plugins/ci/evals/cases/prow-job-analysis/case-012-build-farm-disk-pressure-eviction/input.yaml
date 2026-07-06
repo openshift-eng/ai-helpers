@@ -1,0 +1,9 @@
+prow_job_url: "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-release-main-ci-5.0-e2e-aws-ovn-techpreview-serial-3of3/2064593739652796416"
+job_name: "periodic-ci-openshift-release-main-ci-5.0-e2e-aws-ovn-techpreview-serial-3of3"
+description: >-
+  5.0 aws-ovn techpreview serial periodic (shard 3of3, payload
+  5.0.0-0.nightly-2026-06-10-061513) that fails in the multi-stage pre phase:
+  the ipi-install-hosted-loki step pod goes Failed/Evicted after 0 seconds
+  citing a DiskPressure node condition, three post-phase gather pods fail the
+  same way seconds later, and the run ends about 13 minutes in with no cluster
+  installed and no e2e test executed.
