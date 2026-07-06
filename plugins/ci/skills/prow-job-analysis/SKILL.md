@@ -23,9 +23,13 @@ The user will provide:
 
 ## Prerequisites
 
-- **gcloud CLI**: `which gcloud` (public bucket — no auth required)
 - **Python 3.6+**: `which python3`
 - **jq**: `which jq`
+- **gcloud CLI** (recommended, not required): `which gcloud` — fastest access to the
+  public bucket (no auth required). Without it, every artifact operation works over
+  plain HTTPS: [prow_job_artifact_search.py](prow_job_artifact_search.py)
+  (stdlib-only `list`/`search`/`fetch`) or `curl` against
+  `https://storage.googleapis.com/test-platform-results/...`.
 
 ## Investigation Workflow
 
