@@ -104,6 +104,10 @@ class OwnersLookupError(Exception):
     pass
 
 
+class OrgMembershipLookupError(Exception):
+    pass
+
+
 def get_authorized_users(owner: str, repo: str) -> set[str]:
     authorized: set[str] = set(APPROVED_BOTS)
     aliases: dict[str, list[str]] = {}
@@ -185,13 +189,19 @@ def is_org_member(owner: str, login: str) -> bool:
             text=True,
             timeout=GH_TIMEOUT,
         )
-        return result.returncode == 0
+        if result.returncode == 0:
+            return True
+        if "404" in (result.stderr or "") or "Not Found" in (result.stdout or ""):
+            return False
+        raise OrgMembershipLookupError(
+            f"gh api failed (rc={result.returncode}): {result.stderr.strip()}"
+        )
+    except OrgMembershipLookupError:
+        raise
     except subprocess.TimeoutExpired:
-        print(f"Warning: Org membership check timed out for {login}", file=sys.stderr)
-        return False
+        raise OrgMembershipLookupError(f"Org membership check timed out for {login}")
     except Exception as e:
-        print(f"Warning: Failed to check org membership for {login}: {e}", file=sys.stderr)
-        return False
+        raise OrgMembershipLookupError(f"Failed to check org membership for {login}: {e}")
 
 
 def main():
@@ -222,9 +232,13 @@ def main():
         print(json.dumps({"authorized": True, "login": login, "reason": reason}))
         sys.exit(0)
 
-    if is_org_member(owner, login):
-        print(json.dumps({"authorized": True, "login": login, "reason": "org_member"}))
-        sys.exit(0)
+    try:
+        if is_org_member(owner, login):
+            print(json.dumps({"authorized": True, "login": login, "reason": "org_member"}))
+            sys.exit(0)
+    except OrgMembershipLookupError as e:
+        print(json.dumps({"authorized": False, "login": login, "reason": f"org_membership_error: {e}"}))
+        sys.exit(2)
 
     print(json.dumps({"authorized": False, "login": login, "reason": "not_authorized"}))
     sys.exit(1)
