@@ -71,6 +71,12 @@ gcloud storage cp gs://test-platform-results/{bucket-path}/build-log.txt \
 
 # JUnit XML (always — identifies failed tests/steps)
 gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/**/junit*.xml" 2>/dev/null
+
+# Node journals (always, when the job created a cluster) — required input for the
+# Step 5 OS-layer check. Gzip-compressed WITHOUT a .gz extension: zcat/zgrep only.
+gcloud storage cp -r \
+  "gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-extra/artifacts/nodes" \
+  .work/prow-job-analysis/{build_id}/ --no-user-output-enabled 2>/dev/null || true
 ```
 
 ### Step 5: Classify Failure and Route to Reference
@@ -85,15 +91,11 @@ failure: a single RHCOS bump swaps the kernel, cri-o, systemd, NetworkManager, a
 policy across the whole cluster at once, so the real cause surfaces as a symptom in some
 other domain. Before selecting a row from the routing table, complete BOTH steps:
 
-**1. Download the node journals and compare runtime versions across boots.** Journals
-live at `gather-extra/artifacts/nodes/<node>/journal` and are gzip-compressed **without**
-a `.gz` extension — plain `grep` silently matches nothing; use `zcat`/`zgrep`:
+**1. Compare runtime versions across boots in the node journals** (downloaded in
+Step 4; gzip-compressed **without** a `.gz` extension — plain `grep` silently matches
+nothing, use `zcat`/`zgrep`):
 
 ```bash
-gcloud storage cp -r \
-  "gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-extra/artifacts/nodes" \
-  .work/prow-job-analysis/{build_id}/ --no-user-output-enabled 2>/dev/null
-
 # More than one version on the same node = a mid-run runtime change (e.g. the node
 # boots a regressed cri-o, breaks, and reboots onto the prior build). This is ONLY
 # visible in journals: end-of-run snapshots (oc_cmds/nodes, nodes.json) show the
