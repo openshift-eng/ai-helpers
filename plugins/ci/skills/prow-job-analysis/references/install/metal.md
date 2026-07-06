@@ -402,11 +402,13 @@ log-bundle-*/control-plane/{node-ip}/containers/metal3-baremetal-operator-*.log
 ### How to Find and Read Ironic Logs
 
 ```bash
-# Download and extract log bundle
+# Download and extract log bundle — matches the exploded dir and the legacy tarball
+# (CI gunzips everything, so tarballs are .tar, never .tar.gz; recent jobs upload the
+# bundle exploded as a log-bundle-*/ directory — download it with gcloud storage cp -r)
 gcloud storage ls -r "gs://test-platform-results/{bucket-path}/artifacts/" 2>&1 \
-  | grep "log-bundle.*\.tar\.gz$"
-gcloud storage cp {log-bundle-path} ./log-bundle.tar.gz --no-user-output-enabled
-tar -xf ./log-bundle.tar.gz
+  | grep "log-bundle"
+gcloud storage cp {log-bundle-path} ./log-bundle.tar --no-user-output-enabled
+tar -xf ./log-bundle.tar
 
 # Find bootstrap Ironic logs (master provisioning)
 find . -path "*/bootstrap/journals/ironic.log"
@@ -525,15 +527,15 @@ is fully operational.
 ### Location and Extraction
 
 ```text
-{target}/baremetalds-devscripts-gather/artifacts/libvirt-logs.tar.gz
+{target}/baremetalds-devscripts-gather/artifacts/libvirt-logs.tar
 ```
 
 ```bash
 # Download and extract
 gcloud storage cp \
-  "gs://test-platform-results/{bucket-path}/artifacts/{target}/baremetalds-devscripts-gather/artifacts/libvirt-logs.tar.gz" \
-  ./libvirt-logs.tar.gz --no-user-output-enabled
-tar -xf ./libvirt-logs.tar.gz
+  "gs://test-platform-results/{bucket-path}/artifacts/{target}/baremetalds-devscripts-gather/artifacts/libvirt-logs.tar" \
+  ./libvirt-logs.tar --no-user-output-enabled
+tar -xf ./libvirt-logs.tar
 
 # Find console logs
 find . -name "*console*.log"
@@ -762,12 +764,12 @@ artifacts/{target}/
 │
 ├── baremetalds-devscripts-gather/
 │   └── artifacts/
-│       ├── libvirt-logs.tar.gz                     # VM console logs
+│       ├── libvirt-logs.tar                     # VM console logs
 │       │   └── {cluster}-bootstrap_console.log
 │       │   └── {cluster}-master-0_console.log
 │       │   └── {cluster}-master-1_console.log
 │       │   └── {cluster}-master-2_console.log
-│       ├── log-bundle-*.tar.gz                     # Log bundle with Ironic logs
+│       ├── log-bundle-*.tar                     # Log bundle with Ironic logs
 │       │   └── bootstrap/journals/
 │       │   │   ├── ironic.log                      # Master provisioning
 │       │   │   ├── metal3-baremetal-operator.log
@@ -777,7 +779,7 @@ artifacts/{target}/
 │       │       ├── metal3-ironic-*.log              # Worker provisioning
 │       │       └── metal3-baremetal-operator-*.log
 │       ├── sosreport-*.tar.xz                      # Hypervisor diagnostics
-│       └── squid-logs-*.tar.gz                     # CI access proxy logs
+│       └── squid-logs-*.tar                     # CI access proxy logs
 ```
 
 ### Downloading Metal Artifacts
@@ -797,13 +799,13 @@ gcloud storage cp -r \
 ```
 
 The tarball artifacts share one locate → copy → extract recipe. Substitute the filename
-pattern for the artifact you need: console logs `libvirt-logs\.tar\.gz$`, log bundle
-`log-bundle.*\.tar\.gz$`, sosreport `sosreport.*\.tar\.xz$`, squid `squid-logs.*\.tar\.gz$`:
+pattern for the artifact you need: console logs `libvirt-logs\.tar$`, log bundle
+`log-bundle.*\.tar$`, sosreport `sosreport.*\.tar\.xz$`, squid `squid-logs.*\.tar$`:
 
 ```bash
 gcloud storage ls -r "gs://test-platform-results/{bucket-path}/artifacts/" 2>&1 | grep "PATTERN"
-gcloud storage cp {path-from-ls} ./artifact.tgz --no-user-output-enabled
-tar -xf ./artifact.tgz    # use tar -xJf for .tar.xz (sosreport)
+gcloud storage cp {path-from-ls} ./artifact.tar --no-user-output-enabled
+tar -xf ./artifact.tar    # use tar -xJf for .tar.xz (sosreport)
 ```
 
 ---
@@ -875,7 +877,7 @@ infrastructure to the cluster under test, especially in IPv6/disconnected enviro
 ### Location
 
 ```text
-{target}/baremetalds-devscripts-gather/artifacts/squid-logs-*.tar.gz
+{target}/baremetalds-devscripts-gather/artifacts/squid-logs-*.tar
 ```
 
 ### Key Squid Log Patterns

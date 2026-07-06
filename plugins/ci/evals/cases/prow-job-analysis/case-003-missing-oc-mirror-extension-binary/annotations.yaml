@@ -84,8 +84,8 @@ notes: >
   the `*-tests-ext` extension-binary extraction error routes directly to
   test-extension-binaries.md (the routing table's dedicated row); passing through
   flaky-test-identification.md as the generic triage entry first is acceptable
-  but not required — NOT test-failure.md (no product test regression).
-  failure_type = test. The canonical evidence lives in the failing step's log
+  but not required. There is no product test regression in this run to
+  root-cause. failure_type = test. The canonical evidence lives in the failing step's log
   (artifacts/e2e-aws-ovn/openshift-e2e-test/build-log.txt); the same fatal error
   is surfaced verbatim in the top-level build-log.txt, and citing either
   location is equally valid.
