@@ -168,6 +168,14 @@ Node events show `Draining`, `Rebooting`, `NodeNotReady` transitions.
 **Common causes**: See the dedicated [MCO Drain Failures](#mco-drain-failures--the-1-upgrade-problem)
 section below — this is the #1 source of upgrade failures.
 
+**The upgrade also swaps the OS** (kernel, cri-o, systemd, NetworkManager, SELinux).
+If a node misbehaves *after its upgrade reboot* (NotReady, CNI-not-ready, OCI errors),
+check for RPM package changes between the from→to releases before blaming an operator:
+`zgrep -hE "Starting CRI-O, version|Container runtime initialized" nodes/*/journal | sort | uniq -c`
+(two versions on one node = the smoking gun; the journal's rpm-ostree rebase lists exact
+NEVRAs). If the implicated subsystem's package changed, read
+[operating-system-changes.md](operating-system-changes.md).
+
 ### Phase 6: Operator Reconvergence
 
 After all nodes are updated, operators stabilize on the new version:
