@@ -58,6 +58,7 @@ Repeat steps 4-5 until the PR is approved.
 - `gitlint` — commit message linter (`pip install gitlint`)
 - `gopls` — Go language server (`go install golang.org/x/tools/gopls@latest`)
 - `gh` — GitHub CLI, authenticated (`brew install gh`)
+- `PyYAML` — YAML parser for OWNERS files (`pip install pyyaml`)
 
 ## Installation
 
