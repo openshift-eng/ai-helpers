@@ -44,9 +44,8 @@ to the right tool for a given task.
    - Team Mission and Responsibilities (from `team-info.md`)
    - Component Ownership table (from `components.md`)
    - Sub-teams table (from `components.md`). If roster files exist at
-     `~/.node-assistant/team-roster-{core,dra}.json`, include member count
-     per sub-team. There is no separate roster file for the Kueue sub-team;
-     its members are tracked under Core.
+     `~/.node-assistant/team-roster-{core,dra,kueue}.json`, include member
+     count per sub-team.
    - Ceremonies and sprint cadence (from `team-info.md`)
    - Upstream Communities (from `team-info.md`)
    - Slack Channels and Mailing Lists (from `team-info.md`)

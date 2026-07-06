@@ -2,6 +2,16 @@
 
 CVE triage for OpenShift Node team components. Queries open vulnerability issues from OCPBUGS, runs reachability analysis against affected repositories, and reports findings to Jira and Slack.
 
+Part of the [node-team plugin family](../node-team/).
+
+## Installation
+
+```bash
+/plugin install node-cve@ai-helpers
+```
+
+Requires the `node-team` plugin (installed automatically as a dependency).
+
 ## Command
 
 ### `/node-cve:triage [--component <name>] [--notify-jira] [--notify-slack] [--days N]`

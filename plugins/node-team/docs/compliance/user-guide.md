@@ -10,14 +10,20 @@ component management. The suite consists of:
 
 - **node-team**: umbrella plugin for development setup, team overview, debugging,
   and shared reference data
+- **node-onboarding**: guided onboarding for new team members
 - **node-cve**: automated CVE triage with source code reachability analysis
+- **node-bug**: bug triage, sub-team routing, and assignment suggestions
+- **node-rpm**: RPM build and dist-git management
 
 ### Quick Start
 
 ```bash
-# Install both plugins
+# Install the plugin family
 /plugin install node-team@ai-helpers
+/plugin install node-onboarding@ai-helpers
 /plugin install node-cve@ai-helpers
+/plugin install node-bug@ai-helpers
+/plugin install node-rpm@ai-helpers
 
 # Verify credentials are working
 /node-team:preflight

@@ -1,6 +1,8 @@
 # Node RPM Plugin
 
-RPM package management for OpenShift Node team components. Part of the [node-team](../node-team/) plugin family.
+RPM package management for OpenShift Node team components.
+
+Part of the [node-team plugin family](../node-team/).
 
 ## Installation
 

@@ -1,5 +1,5 @@
 ---
-description: Query open Node bugs, classify by severity and sub-team, suggest assignments, and generate a triage summary
+description: Query open Node bugs, classify by priority and sub-team, suggest assignments, and generate a triage summary
 argument-hint: "[--sub-team core|devices|kueue] [--sprint <name>] [--unassigned-only]"
 ---
 
@@ -109,8 +109,8 @@ Designed for both interactive triage sessions and headless execution via `claude
 
 2. **Classify each bug into triage buckets** using the [Bug Triage Definitions](../../node-team/skills/node/references/jira.md):
 
-   - **Release Blockers**: `"Release Blocker"` field value is "Approved"
-   - **Potential Blockers**: priority is "Blocker" AND `"Release Blocker"` is empty (Blocker priority set but no release blocker decision yet)
+   - **Release Blockers**: `"Release Blocker"` field value is "Approved", OR priority is "Blocker"
+   - **Potential Blockers**: `"Release Blocker"` field value is "Proposed", OR (priority is "Blocker" AND `"Release Blocker"` is empty)
    - **Customer Escalations**: `customfield_10978` (SFDC Cases Counter) is not null/empty, OR `customfield_10689` (Customer Impact) value is "Customer Escalated"
    - **Component Regressions**: labels contain `component-regression`
    - **Untriaged**: priority is "Undefined", OR `"Release Blocker"` is "Proposed", OR assignee is `aos-node@redhat.com`
@@ -150,14 +150,14 @@ Designed for both interactive triage sessions and headless execution via `claude
    Other: X
 
    --- Release Blockers ---
-   * OCPBUGS-XXXXX: <summary> (Component, Severity, Assignee)
-   * OCPBUGS-XXXXX: <summary> (Component, Severity, Unassigned -> suggested: <name>)
+   * OCPBUGS-XXXXX: <summary> (Component, Priority, Assignee)
+   * OCPBUGS-XXXXX: <summary> (Component, Priority, Unassigned -> suggested: <name>)
 
    --- Customer Escalations ---
    * OCPBUGS-XXXXX: <summary> (Component, N support cases, Assignee)
 
    --- Potential Blockers ---
-   * OCPBUGS-XXXXX: <summary> (Component, Severity, Assignee)
+   * OCPBUGS-XXXXX: <summary> (Component, Priority, Assignee)
 
    --- Component Regressions ---
    * OCPBUGS-XXXXX: <summary> (Component, Assignee)

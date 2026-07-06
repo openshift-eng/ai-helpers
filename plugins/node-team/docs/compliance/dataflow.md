@@ -66,6 +66,8 @@ In headless/CronJob mode, secrets are injected via OpenShift `secretRef`
 |----------|----------|-----------|
 | `.work/node-cve/repos/` | Shallow repo clones | Ephemeral; gitignored; can be large |
 | `.work/node-cve/triage-YYYY-MM-DD/` | Reports, JSON, per-CVE analysis | Ephemeral; gitignored; one dir per run |
+| `.work/node-bug/triage-YYYY-MM-DD/` | Bug triage reports | Ephemeral; gitignored; one dir per run |
+| `.work/node-rpm/` | Dist-git clones, Vagrant VM | Ephemeral; gitignored; can be large |
 | `~/.node-assistant/team-roster-*.json` | Cached team roster | Synced from Jira on demand |
 
 Use `/node-team:cleanup` to purge old artifacts.
