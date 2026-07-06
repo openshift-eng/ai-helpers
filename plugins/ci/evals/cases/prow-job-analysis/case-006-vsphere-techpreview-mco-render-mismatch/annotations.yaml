@@ -12,35 +12,48 @@ expected_root_cause: >-
   and the in-cluster controller-rendered MachineConfig
   (rendered-master-326b102ea0f9b31dd306f1ae2bd94c2d) do not match. The
   machine-config-daemon granular diff shows passwd:true files:true units:true
-  differ (1797 additions, 0 removals) — the in-cluster render contains the full
-  templated set of files/units (NetworkManager, keepalived/haproxy, the
-  vsphere-infra static pods, vsphere-hostname.service, etc.) that the bootstrap
-  render lacks. The master pool never reconciled, so
-  'wait-for cluster initialization' timed out and openshift-install exited with
-  code 6. This is a bootstrap-vs-runtime MCO rendering skew on a
-  TechPreviewNoUpgrade cluster (featureSet: TechPreviewNoUpgrade), consistent
-  with a feature-gate / API promotion (the newly-promoted VSphereMultiVCenterDay2
-  gate is enabled in this payload) shifting what the MCO renders between the
-  installer bootstrap phase and the in-cluster controller.
+  differ — a wholesale one-sided divergence (3593 '+' lines, 0 '-' lines): the
+  in-cluster render contains the full templated set of files/units
+  (NetworkManager, keepalived/haproxy, the vsphere-infra static pods,
+  vsphere-hostname.service, etc.) that the bootstrap render lacks. The master
+  pool never reconciled, so cluster initialization timed out and
+  openshift-install exited with code 6. This is a bootstrap-vs-runtime MCO
+  rendering skew on a TechPreviewNoUpgrade cluster (featureSet:
+  TechPreviewNoUpgrade), consistent with a TechPreview feature-gate / API
+  promotion shifting what the MCO renders between the installer bootstrap phase
+  and the in-cluster controller; the specific gate is not identifiable from this
+  run's artifacts alone.
 
-# VERBATIM strings, each grep-confirmed present in the cited artifact.
-expected_evidence:
-  - string: "failed to initialize the cluster: Cluster operator machine-config is degraded: timed out waiting for the condition"
-    artifact: "artifacts/e2e-vsphere-ovn-techpreview-serial/ipi-install-install/build-log.txt"
-  - string: "Installer exit with code 6"
-    artifact: "artifacts/e2e-vsphere-ovn-techpreview-serial/ipi-install-install/build-log.txt"
-  - string: "Cluster operator machine-config Degraded is True with RequiredPoolsFailed"
-    artifact: "artifacts/e2e-vsphere-ovn-techpreview-serial/ipi-install-install/build-log.txt"
-  - string: "bootstrap generated MC rendered-master-d47074577f3172b22882330fccd99481 and in-cluster generated MC rendered-master-326b102ea0f9b31dd306f1ae2bd94c2d for this node do not match"
-    artifact: "artifacts/e2e-vsphere-ovn-techpreview-serial/ipi-install-install/build-log.txt"
-  - string: "Bootstrap generated MC rendered-master-d47074577f3172b22882330fccd99481 vs In-cluster generated MC rendered-master-326b102ea0f9b31dd306f1ae2bd94c2d diffs:"
-    artifact: "artifacts/e2e-vsphere-ovn-techpreview-serial/gather-extra/artifacts/inspect/namespaces/openshift-machine-config-operator/pods/machine-config-daemon-9rlh6/machine-config-daemon/machine-config-daemon/logs/current.log"
-  - string: "&{osUpdate:false kargs:false fips:false passwd:true files:true units:true kernelType:false extensions:false oclEnabled:false revertFromOCL:false}"
-    artifact: "artifacts/e2e-vsphere-ovn-techpreview-serial/gather-extra/artifacts/inspect/namespaces/openshift-machine-config-operator/pods/machine-config-daemon-9rlh6/machine-config-daemon/machine-config-daemon/logs/current.log"
-  - string: "VSphereMultiVCenterDay2"
-    artifact: "artifacts/e2e-vsphere-ovn-techpreview-serial/gather-extra/artifacts/featuregate.json"
-  - string: "VSphereMultiVCenterDay2"
-    artifact: "artifacts/e2e-vsphere-ovn-techpreview-serial/gather-extra/artifacts/inspect/namespaces/openshift-machine-config-operator/pods/machine-config-controller-67986c4d4b-sg479/machine-config-controller/machine-config-controller/logs/current.log"
+# Facts a grounded report must establish. 'artifacts' lists where each fact is
+# provable (all listed paths equally valid); 'example' is an illustrative
+# verbatim line — reports need not quote it verbatim.
+key_evidence:
+  - fact: >-
+      The installer failed cluster initialization because the machine-config
+      operator was degraded, and exited with code 6.
+    artifacts:
+      - "artifacts/e2e-vsphere-ovn-techpreview-serial/ipi-install-install/build-log.txt"
+    example: "failed to initialize the cluster: Cluster operator machine-config is degraded: timed out waiting for the condition"
+  - fact: >-
+      The MCO degraded with reason RequiredPoolsFailed — the master pool could
+      not reconcile.
+    artifacts:
+      - "artifacts/e2e-vsphere-ovn-techpreview-serial/ipi-install-install/build-log.txt"
+    example: "Cluster operator machine-config Degraded is True with RequiredPoolsFailed"
+  - fact: >-
+      On every master the bootstrap-rendered and in-cluster-rendered
+      MachineConfigs do not match, identified by the two rendered-master hashes.
+    artifacts:
+      - "artifacts/e2e-vsphere-ovn-techpreview-serial/ipi-install-install/build-log.txt"
+    example: "bootstrap generated MC rendered-master-d47074577f3172b22882330fccd99481 and in-cluster generated MC rendered-master-326b102ea0f9b31dd306f1ae2bd94c2d for this node do not match"
+  - fact: >-
+      The machine-config-daemon logs contain the render diff, whose granular
+      summary shows the divergence is confined to passwd/files/units (no
+      osUpdate, kargs, fips, kernelType, or extensions change).
+    artifacts:
+      - "artifacts/e2e-vsphere-ovn-techpreview-serial/gather-extra/artifacts/inspect/namespaces/openshift-machine-config-operator/pods/machine-config-daemon-9rlh6/machine-config-daemon/machine-config-daemon/logs/current.log"
+      - "artifacts/e2e-vsphere-ovn-techpreview-serial/gather-extra/artifacts/pods/openshift-machine-config-operator_machine-config-daemon-9rlh6_machine-config-daemon.log"
+    example: "&{osUpdate:false kargs:false fips:false passwd:true files:true units:true kernelType:false extensions:false oclEnabled:false revertFromOCL:false}"
 
 # The one signal that separates the true cause from the look-alikes.
 discriminating_signal: >-
@@ -48,12 +61,12 @@ discriminating_signal: >-
   (osUpdate:false kargs:false fips:false passwd:true files:true units:true ...)
   together with the two named rendered-master hashes proves the failure is a
   bootstrap-vs-in-cluster MachineConfig render mismatch, not a runtime node
-  regression or an e2e test failure. The install aborts in
-  'wait-for cluster initialization' with machine-config the only degraded
-  operator, and openshift-install exits 6 — so this is install-time. The
-  VSphereMultiVCenterDay2 gate being in the ENABLED feature-gate set (featuregate.json
-  and the MCC/MCD FeatureGatesInitialized event) is the plausible upstream trigger
-  for the render skew on this TechPreview payload.
+  regression or an e2e test failure. The install aborts at cluster
+  initialization with machine-config the only degraded operator, and
+  openshift-install exits 6 — so this is install-time. The raw diff is a
+  wholesale one-sided addition (3593 '+' lines, 0 '-' lines) of the standard
+  templated vsphere files/units, pointing at a rendering-input skew (TechPreview
+  feature gates) rather than corrupted content.
 
 # Misleading signals a shallow analysis would wrongly latch onto.
 distractors:
@@ -62,13 +75,14 @@ distractors:
   - "Numerous 'EvaluationConditionsDetected is Unknown with NoData' operator conditions — benign, not degraded."
   - "kube-apiserver PodSecurityInconclusive EvaluationConditionsDetected — benign advisory, not the failure."
   - "The bootstrap phase itself SUCCEEDED (etcd bootstrap member removed, 'It is now safe to remove the bootstrap resources', Time elapsed 17m56s) — the failure is later, at cluster-init on machine-config."
+  - "featuregate.json lists ~99 enabled TechPreview gates (including vsphere-named ones like VSphereMultiVCenterDay2); nothing in the artifacts marks any specific gate as newly promoted or causally implicated — naming one as the proven trigger is speculation."
 
 # Wrong conclusions the judge must penalize.
 must_not_conclude:
   - "Do NOT conclude this is a test failure (openshift-e2e-test never ran; the run aborted in the pre/install phase). failure_type is install, not test."
   - "Do NOT conclude the root cause is the OVN/multus CNI 'alarm clock' sandbox errors or 'no route to host' — those are deprovision/teardown symptoms after the install failed."
   - "Do NOT conclude a generic infra/timeout without naming the MCO bootstrap-vs-in-cluster rendered-MachineConfig mismatch as the mechanism."
-  - "Do NOT assert, as proven, that the VSphereMultiVCenterDay2 payload is the exact differing field in the MC diff — the grep-able diff is a wholesale passwd/files/units divergence (1797 '+' lines, 0 '-' lines) including all standard vsphere-infra files; the gate is confirmed enabled but field-level causation is inferred, not directly shown."
+  - "Do NOT assert, as proven, that any specific feature gate (e.g. VSphereMultiVCenterDay2) is the exact differing field in the MC diff — the grep-able diff is a wholesale passwd/files/units divergence (3593 '+' lines, 0 '-' lines) including all standard vsphere-infra files; field-level causation is inferred, not directly shown."
 
 notes: >
   vSphere IPI TechPreviewNoUpgrade serial job. Install step ipi-install-install
@@ -77,10 +91,19 @@ notes: >
   bootstrap MCS rendered a MachineConfig that diverges from the in-cluster MCC
   render on all three masters (bootstrapconfigdiff), so the master pool degrades
   (RequiredPoolsFailed) and never converges. Route to install/general.md
-  ('install should succeed' fails at cluster init) plus ci-infrastructure-changes.md
-  and operating-system-changes.md because a feature-gate/API promotion
-  (VSphereMultiVCenterDay2, confirmed enabled in the payload) shifting MCO
-  rendering between bootstrap and runtime is the plausible trigger. Bootstrap
-  log-bundle tar was redacted ('potentially sensitive information and has been
-  removed'), so evidence is drawn from the install build-log and the gather-extra
-  inspect MCO daemon/controller logs and featuregate.json.
+  ('install should succeed' fails at cluster init) plus
+  operating-system-changes.md — the SKILL's OS-layer evidence check fires on
+  the MCD rendered-config diff touching passwd/files/units, and that reference
+  rules OUT an OS change (osUpdate:false — the divergence is config templating,
+  not the OS image). The MCD diff evidence is available both at the inspect/
+  path and the flat gather-extra/artifacts/pods/ path; citing either is valid.
+  Bootstrap log-bundle tar was redacted ('potentially sensitive information and
+  has been removed'), so evidence is drawn from the install build-log and the
+  gather-extra MCO daemon/controller logs.
+
+external_context: >-
+  Tracked as TRT-2701; the suspected trigger is the newly-promoted
+  VSphereMultiVCenterDay2 gate (openshift/api #2879) shifting MCO rendering
+  inputs. In this run's artifacts the gate appears only in inventory dumps of
+  ~99 enabled TechPreview gates, with nothing marking it as new or causally
+  implicated.

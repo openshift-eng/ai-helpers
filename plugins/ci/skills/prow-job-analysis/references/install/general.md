@@ -464,6 +464,22 @@ Like cluster creation, but operators reached a partially running state and could
 | `image-registry` | Storage backend issues | Image registry operator, PVC |
 | `kube-apiserver` | API server rollout issues | Kube-apiserver operator logs |
 | `etcd` | Member health, quorum | etcd operator, etcd pod logs |
+| `machine-config` | `RequiredPoolsFailed`; bootstrap-vs-in-cluster rendered MC mismatch | MCD pod logs (`gather-extra/artifacts/pods/openshift-machine-config-operator_machine-config-daemon-*.log`) |
+
+**machine-config degraded — rendered-MachineConfig mismatch**: when the installer says
+`Cluster operator machine-config Degraded is True with RequiredPoolsFailed` and node
+annotations show `bootstrap generated MC rendered-<pool>-<hash1> and in-cluster generated
+MC rendered-<pool>-<hash2> for this node do not match`, the bootstrap Machine Config
+Server rendered a different config than the in-cluster controller, so the pool can never
+reconcile. Open the machine-config-daemon log and find the
+`Bootstrap generated MC ... vs In-cluster generated MC ... diffs:` block: the granular
+summary line (`&{osUpdate:... kargs:... fips:... passwd:... files:... units:... ...}`)
+says which categories diverge, and the raw diff that follows shows the content. A
+one-sided diff (only `+` lines) of templated files/units points at a rendering-input skew
+— feature gates (TechPreview), API promotions, or installer/MCO version skew — rather
+than corrupted content. This is an OS-layer signal per the SKILL's evidence check: read
+[operating-system-changes.md](../operating-system-changes.md) alongside (an
+`osUpdate:false` granular diff rules the OS image itself out).
 
 ### Other / Unknown Failures
 

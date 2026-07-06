@@ -2,6 +2,9 @@ expected_failure_type: upgrade
 expected_references:
   - operating-system-changes.md
   - upgrade.md
+acceptable_references:
+  - networking.md
+  - flaky-test-identification.md
 expected_root_cause_category: crio-rpm-regression-networkpluginnotready
 
 # The single conclusion a correct analysis MUST reach.
@@ -10,29 +13,58 @@ expected_root_cause: >-
   CRI-O RPM cri-o-1.35.2-11.rhaos4.22.git10e8cf6.el9. That build broke CNI/CRI
   network readiness: kubelet reported NetworkReady=false reason:NetworkPluginNotReady
   with "no CNI configuration file in /etc/kubernetes/cni/net.d/", so multiple
-  workers (ip-10-0-80-8, ip-10-0-124-97, ip-10-0-29-93, ip-10-0-33-117,
-  ip-10-0-24-102) went NotReady in an unpredicted way. This failed the
-  [Monitor:node-lifecycle][sig-node] "detects unexpected not ready node" test and
-  produced pathological NetworkNotReady events in ns/openshift-multus and
-  ns/openshift-network-diagnostics. The node journal shows CRI-O later restarting
-  on the prior-good 1.35.2-9.rhaos4.22.gitab2479f.el9, i.e. an OS-layer CRI-O RPM
-  regression (1.35.2-9 -> 1.35.2-11), not a product code bug or a cloud/infra outage.
+  nodes — control-plane and worker (ip-10-0-80-8, ip-10-0-124-97, ip-10-0-29-93,
+  ip-10-0-33-117, ip-10-0-24-102) — went NotReady in an unpredicted way. This
+  failed the [Monitor:node-lifecycle][sig-node] "detects unexpected not ready
+  node" test and produced pathological NetworkNotReady events in
+  ns/openshift-multus and ns/openshift-network-diagnostics. The node journal
+  shows CRI-O later restarting on the prior-good 1.35.2-9.rhaos4.22.gitab2479f.el9,
+  i.e. an OS-layer CRI-O RPM regression (1.35.2-9 -> 1.35.2-11), not a product
+  code bug or a cloud/infra outage.
 
-# VERBATIM strings, each grep-confirmed present in the cited artifact. Node journals
-# under gather-extra are gzip-compressed (no .gz extension) and must be read via zcat.
-expected_evidence:
-  - string: "Starting CRI-O, version: 1.35.2-11.rhaos4.22.git10e8cf6.el9, git: unknown(clean)"
-    artifact: "artifacts/e2e-aws-ovn-upgrade-out-of-change/gather-extra/artifacts/nodes/ip-10-0-24-102.us-west-1.compute.internal/journal"
-  - string: "  cri-o-1.35.2-11.rhaos4.22.git10e8cf6.el9.x86_64"
-    artifact: "artifacts/e2e-aws-ovn-upgrade-out-of-change/gather-extra/artifacts/nodes/ip-10-0-24-102.us-west-1.compute.internal/journal"
-  - string: '"Node became not ready" node="ip-10-0-24-102.us-west-1.compute.internal"'
-    artifact: "artifacts/e2e-aws-ovn-upgrade-out-of-change/gather-extra/artifacts/nodes/ip-10-0-24-102.us-west-1.compute.internal/journal"
-  - string: "node-lifecycle reports 5 unexpected notReady events. The node went NotReady in an unpredicted way."
-    artifact: "artifacts/e2e-aws-ovn-upgrade-out-of-change/openshift-e2e-test/artifacts/junit/e2e-monitor-tests__20260428-052359.xml"
-  - string: "NetworkReady=false reason:NetworkPluginNotReady message:Network plugin returns error: no CNI configuration file in /etc/kubernetes/cni/net.d/. Has your network provider started?"
-    artifact: "artifacts/e2e-aws-ovn-upgrade-out-of-change/openshift-e2e-test/artifacts/junit/e2e-monitor-tests__20260428-052359.xml"
-  - string: "event happened 40 times, something is wrong: namespace/openshift-multus"
-    artifact: "artifacts/e2e-aws-ovn-upgrade-out-of-change/openshift-e2e-test/artifacts/junit/e2e-monitor-tests__20260428-052359.xml"
+# Facts a grounded report must establish. 'artifacts' lists where each fact is
+# provable; 'example' is an illustrative verbatim line — reports need not quote
+# it verbatim. Node journals under gather-extra are gzip-compressed (no .gz
+# extension) and must be read via zcat/zgrep.
+key_evidence:
+  - fact: >-
+      The node booted with the regressed CRI-O build 1.35.2-11 (git10e8cf6)
+      during the upgrade window (~04:49).
+    artifacts:
+      - "artifacts/e2e-aws-ovn-upgrade-out-of-change/gather-extra/artifacts/nodes/ip-10-0-24-102.us-west-1.compute.internal/journal"
+    example: "Starting CRI-O, version: 1.35.2-11.rhaos4.22.git10e8cf6.el9, git: unknown(clean)"
+  - fact: >-
+      While on 1.35.2-11 the node went NotReady with kubelet reporting the CNI
+      config missing (NetworkPluginNotReady).
+    artifacts:
+      - "artifacts/e2e-aws-ovn-upgrade-out-of-change/gather-extra/artifacts/nodes/ip-10-0-24-102.us-west-1.compute.internal/journal"
+    example: '"Node became not ready" node="ip-10-0-24-102.us-west-1.compute.internal"'
+  - fact: >-
+      The same node's journal later shows CRI-O restarting on the prior-good
+      build 1.35.2-9 (gitab2479f) at ~05:56 — the version flip on one node
+      within one run is the discriminating OS-layer signal.
+    artifacts:
+      - "artifacts/e2e-aws-ovn-upgrade-out-of-change/gather-extra/artifacts/nodes/ip-10-0-24-102.us-west-1.compute.internal/journal"
+    example: "Starting CRI-O, version: 1.35.2-9.rhaos4.22.gitab2479f.el9, git: unknown(clean)"
+  - fact: >-
+      The node-lifecycle monitor recorded 5 unexpected notReady events across
+      the nodes.
+    artifacts:
+      - "artifacts/e2e-aws-ovn-upgrade-out-of-change/openshift-e2e-test/artifacts/junit/e2e-monitor-tests__20260428-052359.xml"
+    example: "node-lifecycle reports 5 unexpected notReady events. The node went NotReady in an unpredicted way."
+  - fact: >-
+      The NotReady mechanism is CNI/CRI network readiness — kubelet reports no
+      CNI configuration file in /etc/kubernetes/cni/net.d/.
+    artifacts:
+      - "artifacts/e2e-aws-ovn-upgrade-out-of-change/openshift-e2e-test/artifacts/junit/e2e-monitor-tests__20260428-052359.xml"
+    example: "NetworkReady=false reason:NetworkPluginNotReady message:Network plugin returns error: no CNI configuration file in /etc/kubernetes/cni/net.d/. Has your network provider started?"
+  - fact: >-
+      Pathological NetworkNotReady events repeated in openshift-multus (and
+      openshift-network-diagnostics) — downstream symptoms of the same OS-layer
+      readiness breakage.
+    artifacts:
+      - "artifacts/e2e-aws-ovn-upgrade-out-of-change/openshift-e2e-test/artifacts/junit/e2e-monitor-tests__20260428-052359.xml"
+    example: "event happened 40 times, something is wrong: namespace/openshift-multus"
 
 # The one signal that separates the true cause from the look-alikes.
 discriminating_signal: >-
@@ -41,7 +73,9 @@ discriminating_signal: >-
   NetworkPluginNotReady, and CRI-O then restarts on the prior-good 1.35.2-9
   (gitab2479f) at 05:56. That RPM version delta correlated with node readiness is
   what pins the cause to the CRI-O/RHCOS layer rather than to OVN, the CNI operator,
-  a test bug, or a cloud outage.
+  a test bug, or a cloud outage. The flip is ONLY visible in the node journals:
+  the end-of-run snapshots (gather-extra oc_cmds/nodes, nodes.json) show every
+  node Ready on the uniform final version 1.35.2-9, hiding the mid-run regression.
 
 # Misleading signals a shallow analysis would wrongly latch onto.
 distractors:
@@ -50,6 +84,7 @@ distractors:
   - "Multiple nodes going NotReady during the rollout can look like a generic upgrade-orchestration or MachineConfig rollout failure."
   - "Running on AWS with a NodeNotReady worker can look like an EC2/cloud-provider instance or kubelet-heartbeat infra outage."
   - "The e2e suite itself reports 1976 pass / 0 fail, so it can look like a flaky monitor test rather than a real regression."
+  - "End-of-run node snapshots (oc_cmds/nodes, nodes.json) show all nodes Ready on cri-o 1.35.2-9 uniformly — a snapshot-only analysis wrongly clears the OS layer; the version flip exists only in the node journals."
 
 # Wrong conclusions the judge must penalize.
 must_not_conclude:
@@ -68,8 +103,15 @@ notes: >
   ns/openshift-network-diagnostics. Root cause is the CRI-O RPM regression
   1.35.2-9 -> 1.35.2-11 causing NetworkPluginNotReady / node NotReady. Routing:
   operating-system-changes.md is PRIMARY (node OS / CRI-O layer); upgrade.md
-  because the failure is in the upgrade phase; networking.md is secondary because
-  the surface symptom is CNI-not-ready. failure_type = upgrade. This run is a
-  DIFFERENT job/platform (aws out-of-change) from the aggregated case-001 and is
-  not one of its child runs. Node journals under gather-extra are gzip-compressed
-  (no .gz extension) and must be read with zcat.
+  because the failure is in the upgrade phase; networking.md is acceptable
+  secondary reading because the surface symptom is CNI-not-ready. failure_type
+  = upgrade. This run is a DIFFERENT job/platform (aws out-of-change) from the
+  aggregated case-001 and is not one of its child runs.
+
+  Findability notes: node journals live at
+  gather-extra/artifacts/nodes/<node>/journal (NOT journal_logs/) and are
+  gzip-compressed without a .gz extension — read with zcat/zgrep. The same flip
+  is corroborated by the kubelet "Container runtime initialized"
+  containerRuntime lines and the rpm-ostree rebase transactions bracketing it.
+  The pattern replicates on worker ip-10-0-80-8 (same artifact path pattern).
+  All five unexpected-NotReady events fall inside the 1.35.2-11 window.

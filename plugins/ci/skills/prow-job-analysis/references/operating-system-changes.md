@@ -147,7 +147,7 @@ Ignition failures usually keep a node from ever becoming Ready — check the ser
 
 | Artifact | Path | OS signal |
 |----------|------|-----------|
-| Node journals | `gather-extra/artifacts/journal_logs/` | kernel, NetworkManager, crio, kubelet, systemd per node |
+| Node journals | `gather-extra/artifacts/nodes/<node>/journal` (some jobs: `gather-extra/artifacts/journal_logs/`) | kernel, NetworkManager, crio, kubelet, systemd per node |
 | crio/kubelet host logs | must-gather `host_service_logs/masters/{crio,kubelet}_service.log` | runtime & kubelet decisions at the host level |
 | Failed units | log bundle / must-gather `failed-units.txt` | which systemd units failed (fast first look) |
 | Serial console | `log-bundle-*/serial/*-serial.log`; metal `libvirt-logs.tar` | kernel panic, boot hang, Ignition — the only place a pre-Ready node speaks |
@@ -155,14 +155,28 @@ Ignition failures usually keep a node from ever becoming Ready — check the ser
 | MCO / MCD logs | `gather-extra/artifacts/pods/openshift-machine-config-operator/` | which OS/config version a node is on; rollout errors |
 | MachineConfig(Pool) | `oc_cmds/machineconfigpool`, `oc_cmds/machineconfig` | rendered config, per-pool update/degraded state |
 
+**The per-node `journal` files are gzip-compressed without a `.gz` extension** — a plain
+`grep` on them matches nothing. List `gather-extra/artifacts/nodes/` for the node names,
+then read each journal with `zcat`/`zgrep`:
+
 ```bash
 # kernel panics / OOM / NetworkManager / SELinux across every node journal
-grep -rEi "kernel panic|BUG:|Oops|Call Trace|out of memory|NetworkManager|avc: +denied" \
-  gather-extra/artifacts/journal_logs/
+for j in gather-extra/artifacts/nodes/*/journal; do
+  echo "== $j"
+  zgrep -Ei "kernel panic|BUG:|Oops|Call Trace|out of memory|avc: +denied" "$j"
+done
+
+# Runtime versions across boots WITHIN the run — a mid-run version flip
+# (e.g. cri-o comes up on a regressed build, node breaks, then reboots onto the
+# prior build) is only visible here. End-of-run snapshots (oc_cmds/nodes,
+# nodes.json) show ONLY the final version and will hide the flip.
+zgrep -E "Starting CRI-O, version|Container runtime initialized" \
+  gather-extra/artifacts/nodes/*/journal
 ```
 
 Journals and serial consoles are the OS layer's primary evidence; operator pod logs sit above it
-and show only the downstream symptom.
+and show only the downstream symptom. Never clear the OS layer from end-of-run node
+snapshots alone — compare versions across boots in the journals.
 
 ## Quick Triage Checklist
 

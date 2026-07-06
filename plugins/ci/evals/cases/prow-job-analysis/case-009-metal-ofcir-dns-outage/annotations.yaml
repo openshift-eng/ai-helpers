@@ -2,39 +2,61 @@ expected_failure_type: infra
 expected_references:
   - install/metal.md
   - ci-infrastructure-changes.md
-expected_root_cause_category: shared-ci-dns-outage
+acceptable_references:
+  - cloud-provider-errors.md
+  - networking.md
+expected_root_cause_category: ofcir-dns-resolution-failure
 
 # The single conclusion a correct analysis MUST reach.
 expected_root_cause: >-
-  A DNS outage of the shared CI domain devcluster.openshift.com prevented the
-  ofcir-acquire pre step from resolving the OFCIR API host
-  ofcir.apps-int.master.ci.devcluster.openshift.com. curl failed with error 6
-  ("Could not resolve host") on every retry, so no bare-metal CI resource could
-  be acquired and the job aborted before any cluster provisioning, installer, or
-  test work began. This is a shared-infrastructure DNS failure, not an OFCIR
-  code defect nor a product/installer bug.
+  DNS resolution of the OFCIR API host
+  ofcir.apps-int.master.ci.devcluster.openshift.com failed with curl error 6
+  ("Could not resolve host") on every retry in the ofcir-acquire pre step, so no
+  bare-metal CI resource could be acquired and the job aborted before any
+  cluster provisioning, installer, or test work began. This is a
+  CI-infrastructure DNS failure, not an OFCIR code defect nor a
+  product/installer bug, and it is unrelated to the PR under test.
 
-# VERBATIM strings, each grep-confirmed present in the cited artifact.
-expected_evidence:
-  - string: "curl: (6) Could not resolve host: ofcir.apps-int.master.ci.devcluster.openshift.com"
-    artifact: "artifacts/e2e-metal-ipi-ovn-ipv6/ofcir-acquire/build-log.txt"
-  - string: "Warning: Problem : timeout. Will retry in 60 seconds. 15 retries left."
-    artifact: "artifacts/e2e-metal-ipi-ovn-ipv6/ofcir-acquire/build-log.txt"
-  - string: "Attempting to acquire a Host type host_el9 from OFCIR"
-    artifact: "artifacts/e2e-metal-ipi-ovn-ipv6/ofcir-acquire/build-log.txt"
-  - string: "Could not acquire CI resource: "
-    artifact: "artifacts/e2e-metal-ipi-ovn-ipv6/ofcir-acquire/build-log.txt"
-  - string: "Step e2e-metal-ipi-ovn-ipv6-ofcir-acquire failed after 1m57s."
-    artifact: "build-log.txt"
+# Facts a grounded report must establish. 'artifacts' lists where each fact is
+# provable (all listed paths equally valid — ci-operator echoes the failed
+# container's log into the top-level build-log.txt); 'example' is an
+# illustrative verbatim line — reports need not quote it verbatim.
+key_evidence:
+  - fact: >-
+      Every OFCIR acquire attempt failed at name resolution with curl error 6
+      for the OFCIR API host — no HTTP exchange ever happened.
+    artifacts:
+      - "artifacts/e2e-metal-ipi-ovn-ipv6/ofcir-acquire/build-log.txt"
+      - "build-log.txt"
+    example: "curl: (6) Could not resolve host: ofcir.apps-int.master.ci.devcluster.openshift.com"
+  - fact: >-
+      The step retried on a timer and exhausted its retries against the same
+      resolution failure.
+    artifacts:
+      - "artifacts/e2e-metal-ipi-ovn-ipv6/ofcir-acquire/build-log.txt"
+      - "build-log.txt"
+    example: "Warning: Problem : timeout. Will retry in 60 seconds. 15 retries left."
+  - fact: >-
+      No CI resource was ever acquired, which is why every downstream consumer
+      of the cir secret failed.
+    artifacts:
+      - "artifacts/e2e-metal-ipi-ovn-ipv6/ofcir-acquire/build-log.txt"
+      - "build-log.txt"
+    example: "Could not acquire CI resource: "
+  - fact: >-
+      The ofcir-acquire PRE step failed after under two minutes, before
+      dev-scripts, the installer, or any e2e step ran.
+    artifacts:
+      - "build-log.txt"
+    example: "Step e2e-metal-ipi-ovn-ipv6-ofcir-acquire failed after 1m57s."
 
 # The one signal that separates the true cause from the look-alikes.
 discriminating_signal: >-
-  The failure is a curl error-6 name-resolution failure ("Could not resolve
-  host") against a *.devcluster.openshift.com hostname, occurring in the
-  ofcir-acquire PRE step before any host is leased. The DNS failure hits the
-  shared CI domain itself, so the OFCIR API endpoint is simply unreachable —
-  distinguishing an external/shared-infra DNS outage from an OFCIR service bug
-  or a product installation failure.
+  curl error 6 (name resolution) before any HTTP exchange, in the ofcir-acquire
+  PRE step before any host is leased, distinguishes a CI-infrastructure DNS
+  failure from an OFCIR service bug (which would produce an HTTP error response,
+  not error 6), from lease/quota exhaustion (the Equinix lease was acquired
+  fine), and from any product or install failure (nothing was ever provisioned).
 
 # Misleading signals a shallow analysis would wrongly latch onto.
 distractors:
@@ -46,20 +68,24 @@ distractors:
 
 # Wrong conclusions the judge must penalize.
 must_not_conclude:
-  - "The OFCIR service or ofcir-acquire step code is broken."
+  - "The OFCIR service or ofcir-acquire step code is broken (curl never got an HTTP response; the failure is name resolution)."
   - "The OpenShift installer or a product component failed to install the metal cluster."
   - "A test regression or flaky e2e test caused the failure."
   - "The PR under test (openshift/kubernetes #2653) introduced the failure."
   - "Bare-metal host provisioning (Metal3/Ironic/dev-scripts) failed."
 
 notes: >
-  Shared-infra DNS outage scenario (TRT-2665): the devcluster.openshift.com
-  domain's DNS was down, so the ofcir-acquire pre step could not resolve the
-  OFCIR API host and no metal host was ever leased. The run never reached
-  dev-scripts, the installer, or any e2e test. Classify as infra. Route to
-  install/metal.md (metal-ipi job), cloud-provider-errors.md and
-  ci-infrastructure-changes.md (external/shared-infra DNS outage). networking.md
-  is a plausible secondary since the proximate symptom is DNS resolution.
+  CI-infra DNS failure scenario: the ofcir-acquire pre step could not resolve
+  the OFCIR API host, so no metal host was ever leased and the run never
+  reached dev-scripts, the installer, or any e2e test. Classify as infra.
+  Route to install/metal.md (metal-ipi job type) and
+  ci-infrastructure-changes.md (CI-infrastructure failure, not product).
   Note the literal wording is curl error 6 "Could not resolve host" — the
   strings "no such host", "SERVFAIL", and "name resolution" do NOT appear in
   the artifacts and must not be used as evidence.
+
+external_context: >-
+  Tracked as TRT-2665, a DNS outage of the shared devcluster.openshift.com CI
+  domain. From this job's artifacts alone, only the failed resolution of the
+  single OFCIR hostname is observable — whether the whole shared domain was
+  out cannot be established from this run.

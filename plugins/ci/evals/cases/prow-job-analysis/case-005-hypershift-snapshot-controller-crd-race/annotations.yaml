@@ -1,6 +1,8 @@
 expected_failure_type: test
 expected_references:
   - hypershift.md
+acceptable_references:
+  - flaky-test-identification.md
 expected_root_cause_category: snapshot-controller-crashloop-volumegroupsnapshot-crd-race
 
 # The single conclusion a correct analysis MUST reach.
@@ -16,16 +18,39 @@ expected_root_cause: >-
   restartCount 7, which fails the e2e assertion
   TestCreateCluster/ValidateHostedCluster/EnsureNoCrashingPods.
 
-# VERBATIM strings, each grep-confirmed present in the cited artifact.
-expected_evidence:
-  - string: "E0611 01:58:31.443786       1 main.go:259] Exiting due to failure to ensure CRDs exist during startup: context deadline exceeded"
-    artifact: "artifacts/e2e-aws-ovn/hypershift-aws-run-e2e-nested/artifacts/TestCreateCluster/namespaces/e2e-clusters-8zglk-create-cluster-5shw6/core/pods/csi-snapshot-controller-fbbc6b999-6v4kk.yaml"
-  - string: "E0611 01:58:02.298437       1 main.go:121] Failed to list v1 volumegroupsnapshots with error=the server could not find the requested resource (get volumegroupsnapshots.groupsnapshot.storage.k8s.io)"
-    artifact: "artifacts/e2e-aws-ovn/hypershift-aws-run-e2e-nested/artifacts/TestCreateCluster/namespaces/e2e-clusters-8zglk-create-cluster-5shw6/core/pods/csi-snapshot-controller-fbbc6b999-6v4kk.yaml"
-  - string: "    - --feature-gates=CSIVolumeGroupSnapshot=true"
-    artifact: "artifacts/e2e-aws-ovn/hypershift-aws-run-e2e-nested/artifacts/TestCreateCluster/namespaces/e2e-clusters-8zglk-create-cluster-5shw6/core/pods/csi-snapshot-controller-fbbc6b999-6v4kk.yaml"
-  - string: "Container snapshot-controller in pod csi-snapshot-controller-fbbc6b999-6v4kk has a restartCount > 0 (7)"
-    artifact: "build-log.txt"
+# Facts a grounded report must establish. 'artifacts' lists where each fact is
+# provable (all listed paths equally valid); 'example' is an illustrative
+# verbatim line — reports need not quote it verbatim.
+key_evidence:
+  - fact: >-
+      The snapshot-controller exits at startup because it cannot ensure its CRDs
+      exist within the startup deadline.
+    artifacts:
+      - "artifacts/e2e-aws-ovn/hypershift-aws-run-e2e-nested/artifacts/TestCreateCluster/namespaces/e2e-clusters-8zglk-create-cluster-5shw6/core/pods/csi-snapshot-controller-fbbc6b999-6v4kk.yaml"
+      - "artifacts/e2e-aws-ovn/hypershift-aws-run-e2e-nested/artifacts/TestCreateCluster/namespaces/e2e-clusters-8zglk-create-cluster-5shw6/core/pods/logs/csi-snapshot-controller-fbbc6b999-6v4kk-snapshot-controller.log"
+    example: "E0611 01:58:31.443786       1 main.go:259] Exiting due to failure to ensure CRDs exist during startup: context deadline exceeded"
+  - fact: >-
+      The missing dependency is specifically the
+      volumegroupsnapshots.groupsnapshot.storage.k8s.io CRD — the API server
+      reports the resource does not exist when the controller tries to list it.
+    artifacts:
+      - "artifacts/e2e-aws-ovn/hypershift-aws-run-e2e-nested/artifacts/TestCreateCluster/namespaces/e2e-clusters-8zglk-create-cluster-5shw6/core/pods/csi-snapshot-controller-fbbc6b999-6v4kk.yaml"
+      - "artifacts/e2e-aws-ovn/hypershift-aws-run-e2e-nested/artifacts/TestCreateCluster/namespaces/e2e-clusters-8zglk-create-cluster-5shw6/core/pods/logs/csi-snapshot-controller-fbbc6b999-6v4kk-snapshot-controller.log"
+    example: "E0611 01:58:02.298437       1 main.go:121] Failed to list v1 volumegroupsnapshots with error=the server could not find the requested resource (get volumegroupsnapshots.groupsnapshot.storage.k8s.io)"
+  - fact: >-
+      The snapshot-controller container itself is launched with the
+      CSIVolumeGroupSnapshot feature gate enabled, which is what makes the CRD a
+      hard startup dependency (distinct from the guest kubelet's unrelated
+      'VolumeGroupSnapshot: false' gate).
+    artifacts:
+      - "artifacts/e2e-aws-ovn/hypershift-aws-run-e2e-nested/artifacts/TestCreateCluster/namespaces/e2e-clusters-8zglk-create-cluster-5shw6/core/pods/csi-snapshot-controller-fbbc6b999-6v4kk.yaml"
+    example: "--feature-gates=CSIVolumeGroupSnapshot=true"
+  - fact: >-
+      The crash-loop reached restartCount 7 and is what failed the
+      EnsureNoCrashingPods e2e assertion.
+    artifacts:
+      - "build-log.txt"
+    example: "Container snapshot-controller in pod csi-snapshot-controller-fbbc6b999-6v4kk has a restartCount > 0 (7)"
 
 # The one signal that separates the true cause from the look-alikes.
 discriminating_signal: >-
@@ -33,14 +58,14 @@ discriminating_signal: >-
   cause: it fails to list volumegroupsnapshots.groupsnapshot.storage.k8s.io
   because the CRD is absent, then exits at main.go:259 "failure to ensure CRDs
   exist during startup". That startup-time hard CRD dependency (gated by
-  --feature-gates=CSIVolumeGroupSnapshot=true) is what separates this from a
-  generic pod restart or a transient API blip.
+  --feature-gates=CSIVolumeGroupSnapshot=true on the container itself) is what
+  separates this from a generic pod restart or a transient API blip.
 
 # Misleading signals a shallow analysis would wrongly latch onto.
 distractors:
-  - "VolumeGroupSnapshot: false appears in the guest kubelet/KubeletConfig feature-gate dump — this is an unrelated kubelet feature gate, not the snapshot-controller flag, and does not explain the crash."
+  - "VolumeGroupSnapshot: false appears in the guest kubelet/KubeletConfig feature-gate dump in build-log.txt — this is an unrelated kubelet feature gate, not the snapshot-controller flag (the controller's own arg is --feature-gates=CSIVolumeGroupSnapshot=true), and does not explain the crash."
   - "eventually.go:105 Failed to get *v1.SelfSubjectReview ... dial tcp ... no such host / i/o timeout are transient guest-API DNS/connect blips; the test then succeeds ('Successfully waited for a successful connection to the guest API server') and the cluster rolls out, so these are not the failure."
-  - "Downstream failures TestCreateClusterHABreakGlassCredentials (CRR context deadline exceeded) and the final teardown 'valid conditions in 2s: context deadline exceeded' are separate/cascading and unrelated to the snapshot-controller crash-loop."
+  - "Downstream failure TestCreateClusterHABreakGlassCredentials (Main/break-glass-credentials/independent_signers, a CertificateRevocationRequest wait timeout on a DIFFERENT hosted cluster, e2e-clusters-spnxj/ha-break-glass-creds-82k8t) is independent — that cluster's own EnsureNoCrashingPods PASSED, proving it is unrelated to the snapshot-controller crash-loop."
   - "The overall parent TestCreateCluster/ValidateHostedCluster FAIL could be mistaken for a cluster-install failure, but the only failing child is EnsureNoCrashingPods."
 
 # Wrong conclusions the judge must penalize.
@@ -52,10 +77,16 @@ must_not_conclude:
 
 notes: >
   HyperShift hosted-control-plane e2e. Route to hypershift.md as primary (hosted
-  control plane component crash-loop) plus flaky-test-identification.md because the
-  manifested failure is the Go e2e assertion EnsureNoCrashingPods. Failure_type is
-  test: the cluster installed and the guest API was reachable; the job failed on a
-  test that asserts no pod restarts, driven by the snapshot-controller crash-loop.
+  control plane component crash-loop); flaky-test-identification.md is acceptable
+  additional triage reading but is NOT required. Failure_type is test: the
+  cluster installed and the guest API was reachable; the job failed on a test
+  that asserts no pod restarts, driven by the snapshot-controller crash-loop.
+  The same error lines appear both in the pod YAML's terminated-state message
+  and in the container log
+  (core/pods/logs/csi-snapshot-controller-fbbc6b999-6v4kk-snapshot-controller.log,
+  whose first line also shows featureGates={"CSIVolumeGroupSnapshot":true});
+  citing either artifact is equally valid. The -previous.log is empty
+  (unretrievable), so those two files are the only carriers of the error.
   Matches the hypothesis: csi-external-snapshotter v8.6.0 rebase added a hard
   VolumeGroupSnapshot CRD dependency at startup that races HyperShift's async CRD
   install. Payload 5.0.0-0.ci-2026-06-11-001513 (image tag 5.0-2026-06-11-001513).

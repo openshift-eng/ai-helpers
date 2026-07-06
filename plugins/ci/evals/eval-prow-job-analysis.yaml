@@ -86,34 +86,62 @@ dataset:
         exercises: what failed and what a correct analysis must recognize.
     - annotations.yaml: Expected outcomes and ground truth for scoring. The
       WHOLE annotations file is rendered into the LLM judges via {{ annotations }},
-      so every field below is authoritative and visible to the judges.
+      so every field below is authoritative and visible to the judges. Notes must
+      never imply requirements beyond the structured fields.
       Base classification:
-      - 'expected_failure_type': install | upgrade | test | infra
+      - 'expected_failure_type': install | upgrade | test | infra — the primary label.
+      - 'acceptable_failure_types' (optional): additional labels that earn full
+        credit when the report's substance is correct. Some failures sit on a
+        genuine boundary (e.g. a monitor-test failure caused by an external outage
+        is defensibly 'test' or 'infra'); list every defensible label here.
       - 'expected_references': list of reference files (relative to the skill's
-        references/ dir) a correct analysis SHOULD load, e.g.
-        ['upgrade.md', 'disruption.md'] or ['install/general.md', 'install/metal.md']
+        references/ dir) a correct analysis MUST load, e.g.
+        ['upgrade.md', 'disruption.md'] or ['install/general.md', 'install/metal.md'].
+        Keep this to the minimal required set — the programmatic check passes at
+        >= 0.5 of these.
+      - 'acceptable_references' (optional): additional references that are
+        reasonable extra reading. Judges must never penalize consulting them NOR
+        penalize their absence.
       - 'expected_root_cause_category': short slug for the true root cause
-        (e.g. 'metal-provisioning-environment', 'aggregated-deterministic-test-failure')
-      Rich ground truth (mirrors the payload-analysis eval's structured fixtures):
+        (e.g. 'metal-provisioning-environment', 'ofcir-dns-resolution-failure').
+        Judges match this semantically, not as an exact-string label.
+      Rich ground truth:
       - 'expected_root_cause': one or two precise sentences stating the true
-        originating cause the report MUST reach.
-      - 'expected_evidence': list of {string, artifact} pairs. 'string' is a
-        VERBATIM error/log line copied from a real artifact; 'artifact' is the
-        exact path (relative to the job-run root) where that string appears. Every
-        string is fetched from the public test-platform-results bucket and
-        grep-confirmed before commit — an unverified string is NEVER included.
-        Minimum two per case.
+        originating cause the report MUST reach. Every claim in it MUST be
+        provable from this job's artifacts alone — external context (Jira/TRT
+        tickets, upstream PRs) belongs in 'notes' as background, never as a
+        required conclusion.
+      - 'key_evidence': list of {fact, artifacts, example} items. 'fact' is a
+        specific, checkable statement a grounded report must establish; 'artifacts'
+        lists the job-relative paths where that fact is provable (all listed paths
+        are equally valid sources); 'example' (optional) is an illustrative
+        verbatim line from one of those artifacts, grep-confirmed before commit.
+        Reports are NOT required to quote examples verbatim — any specific,
+        accurate citation that establishes the fact counts (an equivalent log
+        line, a decoded/escaped variant, or a faithful paraphrase with the key
+        identifiers intact).
+      - 'depth_evidence' (optional): deeper-mechanism facts in the same
+        {fact, artifacts, example} shape as key_evidence. Bonus depth credit
+        only — judges reward a report that reaches them and must NEVER penalize
+        one that doesn't.
       - 'discriminating_signal': the single signal that separates the true root
         cause from plausible look-alikes.
       - 'distractors': list of misleading signals present in the job that a shallow
         analysis would wrongly latch onto.
-      - 'must_not_conclude': list of wrong conclusions the judge must penalize
-        (e.g. 'product regression', 'generic flake', 'disruption threshold breach').
+      - 'must_not_conclude': list of wrong conclusions the judge must penalize.
+        Every entry must be decidable from artifacts — never forbid a conclusion
+        the artifacts cannot distinguish from the expected one.
       - 'expected_child_breakdown' (aggregated jobs only): {runs_aggregated, total,
         passed, failed, aggregation_verdict (verbatim string), and
         aggregation_verdict_artifact (path where that verdict appears)}.
-      - 'notes': free-text context describing the scenario and the discriminating
-        signal the agent must find
+      - 'notes': free-text scenario description. Notes are context only — they
+        must not name references or conclusions as expected unless the
+        structured fields above require them.
+      - 'external_context' (optional): background from OUTSIDE this job's
+        artifacts (tracker tickets, upstream PRs, fleet-wide knowledge), kept
+        for provenance. It is NEVER a scoring requirement: reports must not be
+        penalized for omitting it, and must not be rewarded for asserting it
+        without artifact evidence.
 
     Analysis reads live artifacts from the public test-platform-results GCS bucket;
     no snapshot extraction is required. Run the setup script once to verify tooling:
@@ -314,12 +342,17 @@ judges:
 
       Pay special attention to these annotation fields:
       - 'expected_root_cause': the conclusion the report MUST reach.
-      - 'expected_evidence': verbatim log strings (with artifact paths) that a
-        grounded analysis should cite or faithfully quote from the right artifact.
+      - 'key_evidence': the specific facts a grounded analysis must establish
+        (each with the artifacts where it is provable and sometimes an
+        illustrative example quote).
       - 'discriminating_signal': the signal the report must identify to get the
         cause right.
       - 'distractors': misleading signals the report must NOT be fooled by.
       - 'must_not_conclude': conclusions that are WRONG for this case.
+      - 'depth_evidence' (if present): deeper-mechanism facts — BONUS credit for
+        a report that reaches them; never required for any score.
+      - 'external_context' (if present): background from outside the job's
+        artifacts — never required of the report.
 
       Evaluate the report's root-cause depth on a 1-5 scale:
 
@@ -333,12 +366,12 @@ judges:
       Score 3: Adequate — goes one level deeper than the symptom and cites at least
                some artifact or log signal, but stops short of expected_root_cause
                or omits the discriminating_signal.
-      Score 4: Good — reaches essentially the expected_root_cause, cites specific
-               error strings from real artifacts (matching expected_evidence), and
+      Score 4: Good — reaches essentially the expected_root_cause, establishes the
+               important key_evidence facts with specific citations, and
                identifies the failing component/step; is not fooled by the
                distractors and states none of the must_not_conclude verdicts.
       Score 5: Excellent — reaches expected_root_cause with a causal chain (not
-               temporal coincidence), quotes the expected_evidence strings from the
+               temporal coincidence), establishes the key_evidence facts from the
                correct artifacts, explicitly names the discriminating_signal and
                rules out the distractors; immediately actionable.
 
@@ -349,13 +382,17 @@ judges:
         reject the distractors.
       - Do NOT reward an unsupported "infrastructure"/"flake" label unless the
         annotations indicate the failure genuinely is infrastructure.
+      - Judge substance, not phrasing: a report that establishes a key_evidence
+        fact with different-but-equivalent wording or an alternate real citation
+        gets full credit for that fact.
 
   - name: evidence_grounding
     description: |
-      LLM judge scoring whether the report's claims are grounded in the specific
-      verbatim artifact evidence (expected_evidence) rather than generic or uncited
-      assertions. Guards against hallucinated or hand-wavy evidence. Reads only the
-      Markdown report and annotations.
+      LLM judge scoring whether the report's claims are grounded in specific,
+      real artifact evidence rather than generic or invented assertions. Scores
+      fact-establishment against annotations.key_evidence — NOT verbatim string
+      reproduction. Guards against hallucinated or hand-wavy evidence. Reads only
+      the Markdown report and annotations.
     prompt: |
       You are checking whether an OpenShift Prow CI job analysis report is GROUNDED
       in real artifact evidence rather than generic or invented claims.
@@ -368,36 +405,58 @@ judges:
       {{ content }}
       {% endfor %}
 
-      Authoritative ground-truth evidence for this case:
+      Authoritative ground truth for this case:
 
       {{ annotations }}
 
-      The 'expected_evidence' list contains VERBATIM strings that appear in the
-      named artifacts of this job (each item has a 'string' and the 'artifact' path
-      where it appears). A grounded report cites these specific strings — or an
-      unmistakable, faithful quotation of them — and attributes them to the correct
-      artifact/step, instead of merely restating the failure in generic terms.
+      The 'key_evidence' list contains the FACTS a grounded report must establish.
+      Each item has a 'fact' (a specific, checkable statement), 'artifacts' (the
+      job-relative paths where that fact is provable — all listed paths are
+      equally valid sources), and sometimes an 'example' (an illustrative verbatim
+      line from one of those artifacts).
+
+      A fact counts as ESTABLISHED when the report supports it with any specific,
+      accurate citation: the example quote, a different-but-equivalent log line
+      from the same artifact, the same content quoted from another artifact that
+      carries it (build logs frequently duplicate step logs and JUnit bodies), a
+      decoded/escaped variant of the same text, or a faithful paraphrase that
+      preserves the key identifiers (component names, versions, counts, error
+      strings). Do NOT play "spot the exact string" — judge whether the report
+      demonstrably read real artifacts and extracted the right facts.
 
       Score the report's evidence grounding on a 1-5 scale:
 
-      Score 1: No artifact evidence cited, or the "evidence" is fabricated or
-               contradicts the artifacts (quotes strings that are neither in
-               expected_evidence nor plausibly from the job).
-      Score 2: Only generic, uncited claims ("logs show errors", "the node was not
-               ready") with no specific strings matching expected_evidence.
-      Score 3: Cites at least one expected_evidence string (or a faithful
-               paraphrase) but misattributes its artifact, or leaves most evidence
-               generic.
-      Score 4: Cites most expected_evidence strings accurately and attributes them
-               to the correct artifacts/steps, with no fabricated evidence.
-      Score 5: Cites the expected_evidence strings verbatim (or faithfully) from the
-               correct artifact paths, with enough surrounding context to show the
-               report actually read the artifacts; zero fabricated or contradicted
-               evidence.
+      Score 1: No specific artifact evidence at all, or the report's "evidence"
+               contradicts the ground truth above (asserts something the
+               annotations establish is false).
+      Score 2: Mostly generic, uncited claims ("logs show errors", "the node was
+               not ready"); the few specifics establish none of the key_evidence
+               facts.
+      Score 3: Establishes some key_evidence facts with specific citations, but
+               leaves major claims generic or attributes evidence to artifacts
+               that could not carry it.
+      Score 4: Establishes most key_evidence facts with specific, sensibly
+               attributed citations; nothing fabricated or contradicted.
+      Score 5: Establishes all key_evidence facts with specific citations and
+               enough surrounding context (paths, timestamps, neighboring events)
+               to show the artifacts were genuinely read; zero fabricated or
+               contradicted evidence.
 
-      Hard rule: penalize any quoted "log line" that does not appear in
-      expected_evidence and is not otherwise plausibly present in the job's
-      artifacts — that is a hallucination signal and must cap the score at 2.
+      Hard rules:
+      - NEVER penalize the absence of a verbatim quote when the same fact is
+        established with equivalent specifics from a real artifact.
+      - Fabrication caps the score at 2 — but fabrication means a citation that
+        CONTRADICTS the ground truth (e.g. names a version, mechanism, or result
+        the annotations rule out) or is clearly impossible for this job. Specific
+        details beyond the annotations (extra timestamps, pod names, line numbers
+        plausibly from the job) are normal deep-analysis output, not fabrication.
+      - If the annotations list something as a 'distractor', a report that quotes
+        it as real text but draws the distractor's wrong inference loses grounding
+        credit for that inference (real text, false signal).
+      - 'depth_evidence' (if present) is bonus-only: reward a report that
+        establishes those deeper facts, never penalize one that doesn't.
+        'external_context' (if present) is background from outside the
+        artifacts and is never required.
 
   - name: failure_classification_accuracy
     description: |
@@ -438,26 +497,37 @@ judges:
 
       {{ annotations }}
 
-      Compare the report against annotations.expected_failure_type,
-      annotations.expected_references, and annotations.expected_root_cause_category.
+      Compare the report against the annotations as follows:
+      - failure_type: expected_failure_type is the primary label. If
+        acceptable_failure_types is present, ANY label in it earns full
+        classification credit when the substance of the analysis is right — some
+        failures sit on a genuine taxonomy boundary and a defensible label choice
+        must not be penalized.
+      - references: expected_references are the REQUIRED set. If
+        acceptable_references is present, those are reasonable extra reading —
+        never penalize consulting them and never penalize their absence. Never
+        penalize any extra reference a report consulted beyond the lists.
+      - root cause category: match expected_root_cause_category SEMANTICALLY — a
+        differently-worded category describing the same underlying cause is a
+        match; do not require the exact slug.
 
       Evaluate on a 1-5 scale:
 
-      Score 1: Wrong failure_type AND wrong references — the analysis is misrouted
-               (e.g. treated an install failure as a test regression).
-      Score 2: failure_type roughly right but the analysis consulted the wrong
+      Score 1: Wrong failure_type (not in the accepted set) AND wrong references —
+               the analysis is misrouted (e.g. treated an install failure as a
+               test regression).
+      Score 2: failure_type accepted but the analysis consulted the wrong
                primary reference, or vice versa; root cause category is wrong.
-      Score 3: Correct failure_type and at least one of the expected references was
-               consulted, but a key expected reference is missing or the root cause
-               category is only partially right.
-      Score 4: Correct failure_type, the expected primary reference(s) consulted,
-               and a root cause category that matches the expected one.
-      Score 5: Correct failure_type, all expected references consulted (including
-               secondary ones such as metal.md alongside general.md, or disruption.md
-               alongside upgrade.md), and a root cause category that precisely
-               matches expected — with no misclassification (e.g. correctly
-               separating a CI-config change from a product regression, or an
-               infra flake from a real bug).
+      Score 3: Accepted failure_type and at least one of the expected references
+               was consulted, but a required reference is missing or the root
+               cause category is only partially right.
+      Score 4: Accepted failure_type, the expected reference(s) consulted, and a
+               root cause category that semantically matches the expected one.
+      Score 5: Accepted failure_type, all expected references consulted, a
+               semantically matching root cause category — and the report
+               correctly separates the true cause from the look-alike
+               classifications (e.g. CI-config change vs product regression,
+               infra flake vs real bug, OS-layer vs product-layer).
 
 thresholds:
   output_file_exists:

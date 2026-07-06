@@ -1,39 +1,79 @@
 expected_failure_type: upgrade
+# The failing entities are Monitor invariant "tests" surfaced during the upgrade
+# phase of an aggregated upgrade job — 'test' is a defensible label when the
+# substance is right.
+acceptable_failure_types:
+  - upgrade
+  - test
 expected_references:
   - aggregated.md
   - operating-system-changes.md
-expected_root_cause_category: crio-behavior-change-cni-rollout-gap
+acceptable_references:
+  - upgrade.md
+  - networking.md
+expected_root_cause_category: cni-rollout-node-ready-transient
 
-# The single conclusion a correct analysis MUST reach.
+# The single conclusion a correct analysis MUST reach. Every claim below is
+# provable from this job's artifacts (aggregator build-log.txt + child-run
+# journals/JUnit).
 expected_root_cause: >-
   The release-analysis-aggregator collected 10 related 4.22 gcp-ovn micro-upgrade
   runs and failed because two Monitor invariants regressed deterministically
   across them: [Monitor:node-lifecycle][sig-node] "detects unexpected not ready
   node" passed 0 of 9 times, and the [sig-arch] pathological-events invariant for
   ns/openshift-network-diagnostics passed only 6 of 9 (below the required 7). The
-  originating trigger is a CRI-O 1.35 -> 1.36 behavior change that newly reports a
-  brief CNI-not-ready / node-not-ready window while ovnkube-node rolls out during
-  the upgrade; the transient always existed but was previously invisible to the
-  monitors. This is NOT a product/code regression, NOT a conformance-test bug, and
-  NOT a disruption-threshold breach — every aggregated disruption backend stayed
-  below its failureThreshold.
+  originating mechanism, verifiable in the child runs' node journals, is that
+  during the upgrade the CNI config (/etc/kubernetes/cni/net.d/00-multus.conf) is
+  removed and recreated while the multus/ovnkube-node DaemonSets roll out: CRI-O
+  reports NetworkReady=false (NetworkPluginNotReady: no CNI configuration file),
+  kubelet momentarily marks each node NotReady, and the node recovers within
+  seconds. Every NotReady event is instantaneous, the upgrade completed, and all
+  28 aggregated disruption backends stayed below their failureThreshold — a
+  benign node-readiness transient at a payload boundary newly tripping the
+  monitors, NOT a cluster-degrading regression, NOT a conformance-test bug, and
+  NOT a disruption-threshold breach.
 
-# VERBATIM strings that MUST appear in the cited artifact. Every string below was
-# fetched from the public test-platform-results bucket and grep-confirmed present
-# in this job's build-log.txt.
-expected_evidence:
-  - string: "aggregating 10 related jobRuns"
-    artifact: "build-log.txt"
-  - string: "[Monitor:node-lifecycle][sig-node] node-lifecycle detects unexpected not ready node"
-    artifact: "build-log.txt"
-  - string: "Passed 0 times, failed 9 times, skipped 0 times: we require at least one pass to consider it a success"
-    artifact: "build-log.txt"
-  - string: "events should not repeat pathologically for ns/openshift-network-diagnostics"
-    artifact: "build-log.txt"
-  - string: "running aggregated disruption tests"
-    artifact: "build-log.txt"
-  - string: "Some tests failed aggregation.  See above for details."
-    artifact: "build-log.txt"
+# Facts a grounded report must establish. 'artifacts' lists where each fact is
+# provable (all listed paths equally valid); 'example' is an illustrative
+# verbatim line — reports need not quote it verbatim.
+key_evidence:
+  - fact: >-
+      The aggregator collected 10 related jobRuns and the node-lifecycle
+      "detects unexpected not ready node" invariant failed aggregation with 0
+      passes out of 9 runs.
+    artifacts:
+      - "build-log.txt"
+    example: "Passed 0 times, failed 9 times, skipped 0 times: we require at least one pass to consider it a success"
+  - fact: >-
+      The second failing invariant is the [sig-arch] pathological-events
+      invariant for the openshift-network-diagnostics namespace (6 of 9 passes,
+      7 required).
+    artifacts:
+      - "build-log.txt"
+    example: "events should not repeat pathologically for ns/openshift-network-diagnostics"
+  - fact: >-
+      The aggregated disruption tests were computed for all 28 backends and
+      every backend stayed below its failureThreshold — disruption did not fail
+      aggregation.
+    artifacts:
+      - "build-log.txt"
+    example: "running aggregated disruption tests"
+  - fact: >-
+      In the child runs, the unexpected NotReady events are instantaneous
+      (from == to) transients spread across the nodes during the upgrade's
+      ovnkube/multus rollout window, not sustained outages.
+    artifacts:
+      - "child run artifacts/e2e-gcp-ovn-upgrade/openshift-e2e-test/artifacts/junit/e2e-monitor-tests__*.xml (child run links are printed in the aggregator build-log.txt)"
+    example: "reason/UnexpectedNotReady"
+  - fact: >-
+      Child-run node journals show the causal chain — the CNI config
+      00-multus.conf is removed during the multus/ovnkube-node DaemonSet
+      rollout, kubelet reports the node NotReady with NetworkPluginNotReady /
+      "no CNI configuration file", and the config is recreated seconds later
+      with the node returning Ready.
+    artifacts:
+      - "child run artifacts/e2e-gcp-ovn-upgrade/gather-extra/artifacts/nodes/<node>/journal (gzip-compressed; read with zcat)"
+    example: 'CNI monitoring event REMOVE "/etc/kubernetes/cni/net.d/00-multus.conf"'
 
 # Aggregated child-run tally. runs_aggregated is the number of related jobRuns the
 # aggregator collected; total/passed/failed is the per-test result for the
@@ -50,14 +90,16 @@ expected_child_breakdown:
 discriminating_signal: >-
   Both failing tests are Monitor invariants (node-lifecycle "not ready node" and
   the pathological-events invariant for the openshift-network-diagnostics
-  namespace), NOT conformance/product tests, and the node-lifecycle one fails in
-  9 of 9 runs with zero passes. In the same aggregator run all 28 disruption
-  backends were computed ("running aggregated disruption tests") and every one
-  stayed BELOW its failureThreshold. A deterministic node-readiness/CNI blip
-  during ovnkube-node rollout — newly reported by a CRI-O behavior change — is what
-  failed aggregation, not disruption and not a code regression. Confirming the
-  CRI-O attribution requires reading the child runs' node journals / must-gather
-  (the OS layer), not just the aggregator log.
+  namespace), NOT conformance/product tests; the node-lifecycle one fails in 9
+  of 9 runs with zero passes while all 28 disruption backends stay BELOW their
+  failureThreshold. The child-run node journals then close the causal chain:
+  CNI monitoring event REMOVE "00-multus.conf" -> "Node became not ready ...
+  NetworkPluginNotReady ... no CNI configuration file" -> CNI monitoring event
+  CREATE seconds later, bracketing the ovnkube-node pod recreation, with
+  timestamps matching the monitor's UnexpectedNotReady intervals to the second.
+  A momentary, self-healing readiness blip that is deterministic across runs is
+  what failed aggregation — not disruption, not a stuck rollout, and not a code
+  regression.
 
 # Misleading signals a shallow analysis would wrongly latch onto.
 distractors:
@@ -65,32 +107,38 @@ distractors:
   - "The aggregator computes 28 disruption backends ('running aggregated disruption tests'), tempting a 'disruption threshold exceeded' verdict even though every backend stays under its failureThreshold."
   - "It is an upgrade job (4.22 gcp-ovn micro upgrade), tempting a CVO-stuck / operator-degraded upgrade-mechanics root cause."
   - "'detects unexpected not ready node' reads like resource exhaustion (node OOM / memory / disk pressure) rather than a transient CNI-not-ready during pod rollout."
-  - "The deterministic 0-of-9 result looks like a genuine product regression rather than a monitor newly reporting a pre-existing, benign transient."
+  - "The deterministic 0-of-9 result looks like a genuine product regression rather than a monitor newly tripping on a brief, self-healing transient."
+  - "The OS-layer routing check tempts attribution to a CRI-O/RHCOS version bump, but no OS version change is present in the artifacts — child runs show cri-o 1.35.2 and the same RHCOS build at install time and at end of run."
 
-# Wrong conclusions the judge must penalize.
+# Wrong conclusions the judge must penalize. Each is decidable from artifacts.
 must_not_conclude:
-  - "product or code regression in a networking operator, OVN/SDN, or node components"
+  - "a broken or stuck OVN/multus/network-operator rollout leaving the cluster degraded (every node recovered within seconds and the upgrade completed)"
   - "conformance test failure or a test-code bug"
   - "aggregated disruption threshold breach or disruption-driven failure"
   - "resource exhaustion (node OOM / memory / disk / PID pressure)"
   - "infrastructure problem or single-run flake (the monitor failures are deterministic across all 10 runs)"
+  - "a specific CRI-O or RHCOS version regression (e.g. CRI-O 1.35 -> 1.36) — no OS version change is present in this job's artifacts"
 
 notes: >
   Aggregated blocking job (release-analysis-aggregator) over the 4.22 GCP OVN
   micro-upgrade variant for payload 4.22.0-0.ci-2026-04-28-064654 (TRT-2723). The
   aggregator collected 10 related jobRuns and failed with "Some tests failed
   aggregation." because two Monitor invariants regressed across the runs:
-  [Monitor:node-lifecycle][sig-node] "detects unexpected not ready node" (0 passes
-  / 9 failures) and the [sig-arch] pathological-events invariant for
+  [Monitor:node-lifecycle][sig-node] "detects unexpected not ready node" (0
+  passes / 9 failures) and the [sig-arch] pathological-events invariant for
   ns/openshift-network-diagnostics (6 of 9, needed 7).
 
-  The agent MUST route to aggregated.md and analyze the pattern across child runs
-  rather than debugging a single run, then use upgrade.md and
-  operating-system-changes.md to trace the true cause: a CRI-O 1.35 -> 1.36
-  behavior change that newly reports a brief CNI / node-not-ready window while
-  ovnkube-node rolls out during the upgrade. The key discriminators are that (a)
-  the failures are Monitor invariants, not conformance/product tests; (b) they are
-  deterministic across all runs, not a flake; and (c) the aggregated disruption
-  tests were all computed but stayed WITHIN their thresholds, so disruption is a
-  distractor. This is the hardest recognition in the set: it is NOT a product
-  regression — the monitors are newly surfacing a pre-existing, benign transient.
+  The agent MUST route to aggregated.md and analyze the pattern across child
+  runs rather than debugging a single run, then drill into child-run artifacts
+  (JUnit intervals and node journals) to find the CNI-config churn mechanism.
+  The key discriminators are that (a) the failures are Monitor invariants, not
+  conformance/product tests; (b) they are deterministic across all runs, not a
+  flake; (c) the aggregated disruption tests all stayed WITHIN thresholds; and
+  (d) the journal chain (00-multus.conf REMOVE -> NotReady -> CREATE, recovery
+  in seconds) shows a benign transient, not a degraded cluster.
+
+external_context: >-
+  TRT-2723 attributed the newness of these monitor failures to a CRI-O
+  reporting-behavior change. No CRI-O or RHCOS version change is visible in the
+  job's artifacts — child runs show cri-o 1.35.2-11 and the same RHCOS build at
+  install time and at end of run.

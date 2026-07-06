@@ -97,6 +97,18 @@ journals for any of these signals:
 - `avc: denied` / SELinux denials
 - The same failure spanning multiple unrelated jobs at a payload boundary
 
+Node journals are the primary OS-layer evidence and live at
+`gather-extra/artifacts/nodes/<node>/journal` — **gzip-compressed without a `.gz`
+extension**, so read them with `zcat`/`zgrep`, never plain `grep`:
+
+```bash
+# Runtime version per boot — compare across boots WITHIN the run. End-of-run
+# snapshots (oc_cmds/nodes, nodes.json) show only the FINAL version and hide a
+# mid-run flip (e.g. node boots a regressed cri-o, breaks, reboots onto the prior build).
+zgrep -E "Starting CRI-O, version|Container runtime initialized" \
+  gather-extra/artifacts/nodes/*/journal
+```
+
 If **any** of these signals is present, the RHCOS layer is implicated. Still route via the
 table below using whichever reference matches the surface symptom, but **also** read
 [operating-system-changes.md](references/operating-system-changes.md) alongside that

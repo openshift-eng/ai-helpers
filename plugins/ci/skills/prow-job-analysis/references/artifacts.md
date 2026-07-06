@@ -431,7 +431,8 @@ artifacts/{target}/gather-extra/
     ├── oc_cmds/               # Cluster state snapshots (oc get output)
     ├── pods/                  # Pod logs organized by namespace
     ├── audit_logs/            # API server audit logs
-    ├── journal_logs/          # Node journal logs (systemd)
+    ├── nodes/<node>/journal   # Per-node systemd journal (gzip, no .gz extension)
+    ├── journal_logs/          # Node journal logs (older/alternate layout)
     └── must-gather/           # Inline must-gather data (sometimes)
 ```
 
@@ -502,14 +503,25 @@ gcloud storage cp -r "gs://test-platform-results/{bucket-path}/artifacts/{target
   local/audit_logs/ --no-user-output-enabled 2>/dev/null || true
 ```
 
-### `journal_logs/` — Node Journal Logs
+### Node journals — `nodes/<node>/journal` (or `journal_logs/`)
 
 Systemd journal logs from cluster nodes: kernel messages, service logs, and system-level
-events.
+events. Most jobs place them at `gather-extra/artifacts/nodes/<node>/journal`; some use a
+flat `journal_logs/` directory. **The per-node `journal` files are gzip-compressed without
+a `.gz` extension** — plain `grep` matches nothing; use `zcat`/`zgrep`:
+
+```bash
+gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-extra/artifacts/nodes/"
+zgrep -E "Starting CRI-O, version|Node became not ready" local/nodes/*/journal
+```
 
 **Key entries to look for**:
 - OVS vswitchd stalls: "Unreasonably long poll interval"
 - Kernel OOM kills: "Out of memory: Kill process"
+- Container runtime version per boot: "Starting CRI-O, version" / "Container runtime
+  initialized" — compare across boots within the run; end-of-run node snapshots
+  (`oc_cmds/nodes`, `nodes.json`) show only the final version and hide mid-run flips
+- systemd stop timeouts: "Stopping timed out. Killing." (non-graceful terminations)
 - Disk I/O errors
 - Network interface events
 - kubelet log entries
@@ -1059,7 +1071,7 @@ python3 .../prow_job_artifact_search.py <url> search "**/nodes" artifacts
 | Cluster operator status | `gather-extra/artifacts/oc_cmds/co` |
 | Pod status and logs | `gather-extra/artifacts/pods/{namespace}/` |
 | API audit logs | `gather-extra/artifacts/audit_logs/` |
-| Node journal logs | `gather-extra/artifacts/journal_logs/` |
+| Node journal logs | `gather-extra/artifacts/nodes/<node>/journal` (gzip, no extension — use zcat) or `journal_logs/` |
 | Cluster events | `gather-extra/artifacts/oc_cmds/events` |
 | Must-gather (full cluster state) | `gather-must-gather/artifacts/must-gather.tar` |
 | Installer log | `{install-step}/artifacts/.openshift_install.log` |

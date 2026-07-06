@@ -1,7 +1,18 @@
 expected_failure_type: upgrade
+# The failure was DETECTED by a post-upgrade [Late] conformance test, but the
+# misbehavior occurred during the upgrade rollout. A report labeling this 'test'
+# while correctly attributing causation to upgrade-window termination behavior
+# is defensible.
+acceptable_failure_types:
+  - upgrade
+  - test
 expected_references:
   - upgrade.md
   - operating-system-changes.md
+acceptable_references:
+  - flaky-test-identification.md
+  - test-failure.md
+  - disruption.md
 expected_root_cause_category: kube-apiserver-nongraceful-shutdown-during-upgrade
 
 # The single conclusion a correct analysis MUST reach.
@@ -14,23 +25,70 @@ expected_root_cause: >-
   kube-apiserver gracefully extended" reads the persisted kube-apiserver
   termination.log files and matches the regex `Previous pod .* did not terminate
   gracefully`; it found this marker for kube-apiserver on all three master nodes
-  (ip-10-0-16-124, ip-10-0-18-177, ip-10-0-68-188), so the test fails as a blocking
-  failure and the suite reports "2 blocking fail". The deeper cause consistent with
-  OCPBUGS-75200 is that the applied MachineConfig contained only OS-image changes and
-  no systemd unit change setting DefaultTimeoutStopSec, so the kube-apiserver
-  graceful-shutdown period exceeded the systemd stop timeout and the process was
-  SIGKILLed before finishing termination.
+  (ip-10-0-16-124, ip-10-0-18-177, ip-10-0-68-188), whose previous pods started
+  17:35-17:43 UTC — inside the 17:31->18:11 control-plane upgrade window — so the
+  test fails as a blocking failure and the suite reports "2 blocking fail". The
+  upgrade itself completed successfully; the defect is non-graceful kube-apiserver
+  termination behavior during each master's mid-upgrade reboot.
 
-# VERBATIM strings, each grep-confirmed present in the cited artifact.
-expected_evidence:
-  - string: "fail [github.com/openshift/origin/test/extended/apiserver/graceful_termination.go:89]: The following API Servers weren't gracefully terminated: "
-    artifact: "build-log.txt"
-  - string: "kube-apiserver on node ip-10-0-16-124.ec2.internal wasn't gracefully terminated, reason: Previous pod kube-apiserver-ip-10-0-16-124.ec2.internal started at 2026-01-19 17:35:47.292046346 +0000 UTC did not terminate gracefully"
-    artifact: "build-log.txt"
-  - string: 'failed: (1.3s) 2026-01-19T19:47:37 "[sig-api-machinery][Feature:APIServer][Late] kubelet terminates kube-apiserver gracefully extended [Suite:openshift/conformance/parallel]"'
-    artifact: "build-log.txt"
-  - string: "error: error running a test suite: 2 blocking fail, 0 informing fail, 1852 pass, 0 flaky, 2032 skip"
-    artifact: "build-log.txt"
+# Facts a grounded report must establish. 'artifacts' lists where each fact is
+# provable; 'example' is an illustrative verbatim line — reports need not quote
+# it verbatim.
+key_evidence:
+  - fact: >-
+      The blocking failure is the [Late] graceful-termination invariant at
+      origin test/extended/apiserver/graceful_termination.go:89, reporting that
+      API servers weren't gracefully terminated.
+    artifacts:
+      - "build-log.txt"
+    example: "fail [github.com/openshift/origin/test/extended/apiserver/graceful_termination.go:89]: The following API Servers weren't gracefully terminated: "
+  - fact: >-
+      The non-graceful termination marker was found for kube-apiserver on all
+      three masters, and the previous pods' start times (17:35-17:43 UTC) place
+      the terminations inside the control-plane upgrade window.
+    artifacts:
+      - "build-log.txt"
+    example: "kube-apiserver on node ip-10-0-16-124.ec2.internal wasn't gracefully terminated, reason: Previous pod kube-apiserver-ip-10-0-16-124.ec2.internal started at 2026-01-19 17:35:47.292046346 +0000 UTC did not terminate gracefully"
+  - fact: >-
+      The failing test is the "kubelet terminates kube-apiserver gracefully
+      extended" [Late] variant, and it failed deterministically (both retry
+      attempts).
+    artifacts:
+      - "build-log.txt"
+    example: 'failed: (1.3s) 2026-01-19T19:47:37 "[sig-api-machinery][Feature:APIServer][Late] kubelet terminates kube-apiserver gracefully extended [Suite:openshift/conformance/parallel]"'
+  - fact: >-
+      The suite reports exactly 2 blocking failures against 1852 passes, and the
+      upgrade itself completed (clusterversion history Completed; junit_upgrade
+      "Cluster upgrade" testsuite has failures=0).
+    artifacts:
+      - "build-log.txt"
+      - "artifacts/e2e-aws-ovn-upgrade-fips/openshift-e2e-test/artifacts/junit/junit_upgrade__20260119-181223.xml"
+    example: "error: error running a test suite: 2 blocking fail, 0 informing fail, 1852 pass, 0 flaky, 2032 skip"
+
+# OPTIONAL deeper-mechanism facts — depth/bonus credit only. Judges must NEVER
+# penalize a report for not reaching these; they reward one that does.
+depth_evidence:
+  - fact: >-
+      Each master's node journal shows systemd hitting its stop timeout on the
+      previous kube-apiserver container's conmon scope during the mid-upgrade
+      reboot — "Stopping timed out. Killing." followed by SIGKILL and "Failed
+      with result 'timeout'" exactly 90s after the stop began (e.g. container
+      93b7b4e8... on ip-10-0-16-124: stop 17:54:31, SIGKILL 17:56:01, reboot
+      17:56:24) — so graceful shutdown was cut off by the systemd stop timeout.
+      Journals are gzip-compressed without a .gz extension; read with zcat.
+    artifacts:
+      - "artifacts/e2e-aws-ovn-upgrade-fips/gather-extra/artifacts/nodes/ip-10-0-16-124.ec2.internal/journal"
+      - "artifacts/e2e-aws-ovn-upgrade-fips/gather-extra/artifacts/nodes/ip-10-0-18-177.ec2.internal/journal"
+      - "artifacts/e2e-aws-ovn-upgrade-fips/gather-extra/artifacts/nodes/ip-10-0-68-188.ec2.internal/journal"
+    example: "Stopping timed out. Killing."
+  - fact: >-
+      The rendered-master MachineConfigs differ only in osImageURL /
+      baseOSExtensionsContainerImage (an OS-image-only change), and no systemd
+      unit in either sets TimeoutStopSec — the stop-timeout behavior was not
+      adjusted by MachineConfig.
+    artifacts:
+      - "artifacts/e2e-aws-ovn-upgrade-fips/gather-extra/artifacts/machineconfigs.json"
+    example: "osImageURL"
 
 # The one signal that separates the true cause from the look-alikes.
 discriminating_signal: >-
@@ -40,7 +98,7 @@ discriminating_signal: >-
   17:31->18:11 UTC control-plane upgrade window. The upgrade phase itself succeeded
   (junit_upgrade testsuite "Cluster upgrade" failures="0") and the live
   graceful-shutdown-analyzer monitor passed; the failure is the persisted-evidence
-  invariant, which points to systemd stop-timeout / graceful-shutdown behavior during
+  invariant, which points to stop-timeout / graceful-shutdown behavior during
   the rollout, not to a network flake or a broken upgrade.
 
 # Misleading signals a shallow analysis would wrongly latch onto.
@@ -64,14 +122,16 @@ notes: >
   [Late] "kubelet terminates kube-apiserver gracefully extended" invariant
   (graceful_termination.go:89) failed because each master's previous kube-apiserver
   pod left "Previous pod ... did not terminate gracefully" in its termination.log.
-  Routing: upgrade-phase-adjacent failure -> upgrade.md; the mechanism (systemd stop
-  timeout / DefaultTimeoutStopSec not set via MachineConfig, causing SIGKILL before
-  graceful shutdown completes) -> operating-system-changes.md; the KAS message itself
-  warns this leads to connection-refused / I/O-timeout disruption in other components
-  -> disruption.md (secondary). The deep MachineConfig correlation from OCPBUGS-75200
-  (MachineConfigs with only OS-image changes, no systemd unit change) is NOT positively
-  grep-confirmable from this run's artifacts (machineconfigs.json contains no
-  "DefaultTimeoutStopSec"/"TimeoutStopSec" string — consistent with, but not positive
-  proof of, the hypothesis); it is therefore stated as the expected deeper cause while
-  the grounded, grep-confirmed evidence is the observable symptom: the non-graceful
-  kube-apiserver termination Late-test failure during the upgrade window.
+  Routing: upgrade-phase-adjacent failure -> upgrade.md; the stop-timeout /
+  graceful-shutdown mechanism at the node OS (systemd) layer ->
+  operating-system-changes.md. The 90s stop-timeout SIGKILL chain is
+  grep-confirmable in the three master journals (see depth_evidence), and the
+  OS-image-only MachineConfig change is confirmable by diffing the two
+  rendered-master specs in machineconfigs.json.
+
+external_context: >-
+  Tracked as OCPBUGS-75200: systemd's DefaultTimeoutStopSec is not extended via
+  MachineConfig, so kube-apiserver's graceful shutdown exceeds the stop timeout
+  and is SIGKILLed. The literal strings "DefaultTimeoutStopSec" and
+  "OCPBUGS-75200" appear in no artifact of this run; the observable in-run
+  evidence is the 90s stop->SIGKILL chain in the master journals.

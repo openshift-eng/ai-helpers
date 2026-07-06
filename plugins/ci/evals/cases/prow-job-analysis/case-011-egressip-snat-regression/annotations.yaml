@@ -2,6 +2,8 @@ expected_failure_type: test
 expected_references:
   - networking.md
   - test-failure.md
+acceptable_references:
+  - flaky-test-identification.md
 expected_root_cause_category: egressip-snat-not-applied
 
 # The single conclusion a correct analysis MUST reach.
@@ -19,19 +21,42 @@ expected_root_cause: >-
   networking tests, NOT an installation, cloud-provider, or CI-infrastructure
   problem. It is deterministic (0 flaky, all 4 fail identically), not a flake.
 
-# VERBATIM strings, each grep-confirmed present in the cited artifact. Strings that
-# contain double-quotes are written as single-quoted YAML scalars (literal).
-expected_evidence:
-  - string: "fail [github.com/openshift/origin/test/extended/networking/egressip.go:599]: Timed out after 120.001s."
-    artifact: "artifacts/e2e-aws-ovn-serial/openshift-e2e-test/build-log.txt"
-  - string: "Making sure that 10 requests with search string 03cfdef9-c53f-448c-be02-668ff16256ca and EgressIPs map[10.0.128.5:ip-10-0-158-24.us-west-1.compute.internal] were seen (try 1 of 10)"
-    artifact: "artifacts/e2e-aws-ovn-serial/openshift-e2e-test/build-log.txt"
-  - string: "Found map is: map[10.0.158.24:10]"
-    artifact: "artifacts/e2e-aws-ovn-serial/openshift-e2e-test/build-log.txt"
-  - string: 'Added IP address to node: "ip-10-0-158-24.us-west-1.compute.internal" for CloudPrivateIPConfig: "10.0.128.5"'
-    artifact: "artifacts/e2e-aws-ovn-serial/gather-extra/artifacts/pods/openshift-cloud-network-config-controller_cloud-network-config-controller-bfbf6d6d7-82xdz_controller.log"
-  - string: "Suite run returned error: 4 blocking fail, 0 informing fail, 144 pass, 0 flaky, 222 skip"
-    artifact: "artifacts/e2e-aws-ovn-serial/openshift-e2e-test/build-log.txt"
+# Facts a grounded report must establish. 'artifacts' lists where each fact is
+# provable; 'example' is an illustrative verbatim line — reports need not quote
+# it verbatim.
+key_evidence:
+  - fact: >-
+      Each EgressIP test timed out after 120s at
+      test/extended/networking/egressip.go:599 waiting for traffic from the
+      EgressIP.
+    artifacts:
+      - "artifacts/e2e-aws-ovn-serial/openshift-e2e-test/build-log.txt"
+    example: "fail [github.com/openshift/origin/test/extended/networking/egressip.go:599]: Timed out after 120.001s."
+  - fact: >-
+      The test expected requests to arrive from EgressIP 10.0.128.5 assigned to
+      node ip-10-0-158-24.
+    artifacts:
+      - "artifacts/e2e-aws-ovn-serial/openshift-e2e-test/build-log.txt"
+    example: "Making sure that 10 requests with search string 03cfdef9-c53f-448c-be02-668ff16256ca and EgressIPs map[10.0.128.5:ip-10-0-158-24.us-west-1.compute.internal] were seen (try 1 of 10)"
+  - fact: >-
+      The observed source-IP map shows all traffic arriving from the NODE IP
+      (10.0.158.24), not the EgressIP — SNAT was not applied.
+    artifacts:
+      - "artifacts/e2e-aws-ovn-serial/openshift-e2e-test/build-log.txt"
+    example: "Found map is: map[10.0.158.24:10]"
+  - fact: >-
+      The cloud side worked: cloud-network-config-controller added 10.0.128.5
+      to the node's AWS ENI, so the break is in the OVN dataplane, not cloud IP
+      allocation.
+    artifacts:
+      - "artifacts/e2e-aws-ovn-serial/gather-extra/artifacts/pods/openshift-cloud-network-config-controller_cloud-network-config-controller-bfbf6d6d7-82xdz_controller.log"
+    example: 'Added IP address to node: "ip-10-0-158-24.us-west-1.compute.internal" for CloudPrivateIPConfig: "10.0.128.5"'
+  - fact: >-
+      Exactly the 4 EgressIP tests failed (blocking) against 144 passes with 0
+      flaky — deterministic, not a flake.
+    artifacts:
+      - "artifacts/e2e-aws-ovn-serial/openshift-e2e-test/build-log.txt"
+    example: "Suite run returned error: 4 blocking fail, 0 informing fail, 144 pass, 0 flaky, 222 skip"
 
 # The one signal that separates the true cause from the look-alikes.
 discriminating_signal: >-
@@ -48,6 +73,7 @@ distractors:
   - "The hypothesised openshift/release-controller PR #720 infrastructure change -- there is no mention of release-controller anywhere in the artifacts."
   - "A Go IP-handling / RFC 3986 CVE -- no CVE, 'RFC 3986', netip, or ParseAddr string appears anywhere in the logs; it is a red herring."
   - "The 'FailedScheduling' interval events in build-log.txt -- these are normal serial-suite scheduler noise for other e2e namespaces, not the egress failure."
+  - "The ovnkube-node config dump at config.go:2460 shows 'EnableEgressIP:false' despite '--enable-egress-ip=true' in the container args -- this identical dump appears in PASSING runs of the same job (e.g. build 2011034840299737088) and also shows false for other CLI-enabled features (EnableInterconnect, EnableMultiNetwork); it is a startup logging artifact that does not reflect effective post-CLI-override feature state, NOT evidence the EgressIP feature was disabled."
 
 # Wrong conclusions the judge must penalize.
 must_not_conclude:
@@ -56,6 +82,7 @@ must_not_conclude:
   - "This was a cloud-provider failure to assign the egress IP to the AWS instance (the ENI assignment succeeded)."
   - "This was an installation or cluster-bring-up failure (all ClusterOperators, including network, are Available=True Degraded=False; install succeeded)."
   - "This was a random/flaky test failure (all 4 tests fail deterministically with 0 flaky and an identical wrong-source-IP signature)."
+  - "The EgressIP feature was disabled via a config-parsing bug ('EnableEgressIP:false' at config.go:2460) -- that startup dump is identical in passing runs and does not reflect effective feature state."
 
 notes: >
   Scenario: 4.22 nightly AWS-OVN serial periodic. Cluster installed cleanly
@@ -65,8 +92,9 @@ notes: >
   egress traffic kept the node source IP (10.0.158.24) instead of the assigned
   EgressIP (10.0.128.5), even though the EgressIP was added to the node's AWS
   ENI. This is an OVN-Kubernetes EgressIP SNAT dataplane product regression
-  surfaced by the tests. Routing: failing product TEST in the networking
-  feature -> flaky-test-identification.md + test-failure.md + networking.md.
-  It is NOT a CI-config / step-registry / release-controller change and NOT a
-  Go IP CVE, so ci-infrastructure-changes.md does NOT apply -- the stated
-  hypothesis (infra / release-controller) is contradicted by the artifacts.
+  surfaced by the tests. Routing: confirmed regression in a plain networking
+  e2e test -> test-failure.md + networking.md (flaky-test-identification.md is
+  an acceptable triage entry point). It is NOT a CI-config / step-registry /
+  release-controller change and NOT a Go IP CVE, so ci-infrastructure-changes.md
+  does NOT apply -- the stated hypothesis (infra / release-controller) is
+  contradicted by the artifacts.
