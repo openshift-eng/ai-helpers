@@ -510,8 +510,8 @@ thresholds:
   expected_references_used:
     min_pass_rate: 0.8
   analysis_quality:
-    min_mean: 3.5
+    min_mean: 4.0
   evidence_grounding:
-    min_mean: 3.5
+    min_mean: 4.0
   failure_classification_accuracy:
-    min_mean: 3.5
+    min_mean: 4.0
