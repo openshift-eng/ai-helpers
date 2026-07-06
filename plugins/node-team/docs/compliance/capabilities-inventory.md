@@ -6,9 +6,9 @@ Control ID: GLC-08
 
 | Tool | Purpose | Plugin |
 |------|---------|--------|
-| `jira` CLI | Query and comment on Jira issues | node-cve, node-team |
+| `jira` CLI | Query and comment on Jira issues | node-cve |
 | `git` | Clone downstream repository forks | node-cve, node-team |
-| `curl` | Jira REST API calls, Slack API calls | node-cve |
+| `curl` | Jira REST API calls, Slack API calls | node-bug, node-cve, node-team |
 | `gh` | GitHub CLI for repo operations | node-team |
 
 ## APIs
@@ -49,11 +49,11 @@ Authentication: `gh` CLI auth or unauthenticated for public repos.
 
 | Source | Type | Data Accessed | Plugin |
 |--------|------|---------------|--------|
-| OCPBUGS (Jira) | Read | Issue summaries, components, assignees, labels, status, custom fields | node-cve |
+| OCPBUGS (Jira) | Read | Issue summaries, components, assignees, labels, status, custom fields | node-cve, node-bug |
 | OCPNODE (Jira) | Read | Team config issue (OCPNODE-4230), roster attachments, sprint info | node-team |
 | Downstream forks (GitHub) | Read | Source code at release branches (shallow clone) | node-cve |
 | NVD / public advisories | Read | CVE descriptions, affected packages, fixed versions | node-cve |
-| `~/.node-assistant/` | Read/Write | Cached team roster JSON files | node-team |
+| `~/.node-assistant/` | Read/Write | Cached team roster JSON files | node-bug, node-team |
 
 ## Write Actions and Guardrails
 

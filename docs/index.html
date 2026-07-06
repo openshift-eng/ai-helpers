@@ -1869,14 +1869,14 @@ footer a { color: var(--primary); }
     {
       "name": "node-bug",
       "description": "Node-specific bug triage, sub-team routing, and assignment suggestions for OpenShift Node team components",
-      "version": "0.0.1",
+      "version": "0.0.2",
       "has_readme": true,
       "commands": [
         {
           "name": "triage",
           "full_name": "node-bug:triage",
-          "description": "Query open Node bugs, classify by severity and sub-team, suggest assignments, and generate a triage summary",
-          "description_html": "Query open Node bugs, classify by severity and sub-team, suggest assignments, and generate a triage summary",
+          "description": "Query open Node bugs, classify by priority and sub-team, suggest assignments, and generate a triage summary",
+          "description_html": "Query open Node bugs, classify by priority and sub-team, suggest assignments, and generate a triage summary",
           "synopsis": "/node-bug:triage [--sub-team core|devices|kueue] [--sprint \"OCP Node Core Sprint 42\"] [--unassigned-only]",
           "body_html": "\u003cp\u003eQueries all open bugs in OCPBUGS for Node team components using the &quot;Node Bugs&quot; saved filter, classifies them into triage buckets (Release Blockers, Customer Escalations, Potential Blockers, Component Regressions, Untriaged), routes each bug to the correct sub-team, and suggests assignments based on current workload.\u003c/p\u003e\u003cp\u003eDesigned for both interactive triage sessions and headless execution via \u003ccode\u003eclaude --print\u003c/code\u003e.\u003c/p\u003e"
         }
@@ -1901,7 +1901,7 @@ footer a { color: var(--primary); }
     {
       "name": "node-cve",
       "description": "CVE triage for OpenShift Node team components",
-      "version": "0.0.4",
+      "version": "0.0.5",
       "has_readme": true,
       "commands": [
         {
@@ -1952,7 +1952,7 @@ footer a { color: var(--primary); }
     {
       "name": "node-onboarding",
       "description": "Interactive onboarding workflows for new OpenShift Node team members",
-      "version": "0.0.1",
+      "version": "0.0.2",
       "has_readme": true,
       "commands": [
         {
@@ -1991,7 +1991,7 @@ footer a { color: var(--primary); }
     {
       "name": "node-rpm",
       "description": "RPM package management for OpenShift Node team components",
-      "version": "0.0.1",
+      "version": "0.0.2",
       "has_readme": true,
       "commands": [
         {
@@ -2023,7 +2023,7 @@ footer a { color: var(--primary); }
     {
       "name": "node-team",
       "description": "OpenShift Node team assistant for development, deployment, debugging, and workflow tasks across kubelet, MCO, CRI-O, crun, conmonrs, Kueue operator, Jira, Red Hat KB/support cases, Prometheus, and platform docs.",
-      "version": "0.18.1",
+      "version": "1.0.0",
       "has_readme": true,
       "commands": [
         {
@@ -2032,7 +2032,7 @@ footer a { color: var(--primary); }
           "description": "Purge cached artifacts and local data produced by Node team plugins",
           "description_html": "Purge cached artifacts and local data produced by Node team plugins",
           "synopsis": "/node-team:cleanup [--older-than N] [--dry-run]",
-          "body_html": "Removes local artifacts created by Node team plugins: triage reports, cloned\u003cbr\u003erepos, and cached roster data. Use this to reclaim disk space or to satisfy\u003cbr\u003edata purge requirements (DATA-05)."
+          "body_html": "Removes local artifacts created by Node team plugins: triage reports, cloned\u003cbr\u003erepos, dist-git clones, Vagrant VMs, and cached roster data. Use this to\u003cbr\u003ereclaim disk space or to satisfy data purge requirements (DATA-05)."
         },
         {
           "name": "overview",
@@ -2048,7 +2048,7 @@ footer a { color: var(--primary); }
           "description": "Verify that GitHub and Jira tokens are valid and the environment is ready for Node team workflows",
           "description_html": "Verify that GitHub and Jira tokens are valid and the environment is ready for Node team workflows",
           "synopsis": "/node-team:preflight [--fix]",
-          "body_html": "\u003cp\u003eTests all authentication tokens and CLI tools required by Node team workflows\u003cbr\u003ein a single pass. Reports pass/fail for each check so you can fix all auth\u003cbr\u003eissues at once instead of discovering them one at a time.\u003c/p\u003e\u003cp\u003eRun this before \u003ccode\u003e/node-team:setup\u003c/code\u003e or \u003ccode\u003e/node-cve:triage\u003c/code\u003e to catch expired or\u003cbr\u003emissing credentials early.\u003c/p\u003e"
+          "body_html": "\u003cp\u003eTests all authentication tokens and CLI tools required by Node team workflows\u003cbr\u003ein a single pass. Reports pass/fail for each check so you can fix all auth\u003cbr\u003eissues at once instead of discovering them one at a time.\u003c/p\u003e\u003cp\u003eRun this before \u003ccode\u003e/node-team:setup\u003c/code\u003e, \u003ccode\u003e/node-cve:triage\u003c/code\u003e, or \u003ccode\u003e/node-bug:triage\u003c/code\u003e\u003cbr\u003eto catch expired or missing credentials early.\u003c/p\u003e"
         },
         {
           "name": "setup",

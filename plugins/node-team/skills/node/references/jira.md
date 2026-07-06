@@ -4,8 +4,8 @@ Red Hat Jira: `redhat.atlassian.net`. REST API v3. Use `curl` directly —
 this skill's workflows need endpoints the `jira` CLI doesn't cover (Agile
 boards/sprints, attachment downloads, ADF bodies, custom-field writes), and
 curl needs no extra install/config and keeps `allowed-tools` narrow
-(`Bash(curl:*)`). The node-cve plugin uses the `jira` CLI for its simpler
-list/comment flows; both hit the same REST API.
+(`Bash(curl:*)`). The `node-cve` plugin uses the `jira` CLI for its
+list/view flows; it hits the same REST API.
 
 ## Authentication
 
@@ -93,7 +93,7 @@ Team mailing list: `aos-node@redhat.com`
 
 ## Team Roster
 
-Team member lists live in `~/.node-assistant/team-roster-{core,dra}.json`. Format:
+Team member lists live in `~/.node-assistant/team-roster-{core,dra,kueue}.json`. Format:
 
 ```json
 {

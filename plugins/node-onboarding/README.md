@@ -12,7 +12,7 @@ Part of the [node-team plugin family](../node-team/).
 /plugin install node-onboarding@ai-helpers
 ```
 
-Requires `node-team` (installed automatically as a dependency).
+Requires the `node-team` plugin (installed automatically as a dependency).
 
 ## Commands
 
