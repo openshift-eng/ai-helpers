@@ -397,7 +397,7 @@
       "name": "code-review",
       "source": "./plugins/code-review",
       "description": "Automated code quality review with language-aware analysis for pre-commit verification",
-      "version": "0.0.11",
+      "version": "0.0.12",
       "category": "development",
       "keywords": [
         "code-review",
@@ -484,7 +484,7 @@
       "name": "openshift-developer",
       "source": "./plugins/openshift-developer",
       "description": "Bundle of curated plugins, skills, and MCP servers useful to any OpenShift engineer",
-      "version": "1.1.7",
+      "version": "1.1.9",
       "category": "bundle",
       "keywords": [
         "openshift",

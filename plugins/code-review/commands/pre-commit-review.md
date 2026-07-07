@@ -38,8 +38,8 @@ The two layers compose: `--language go --profile hypershift` applies both Go idi
   - `.ts`, `.tsx` -> `typescript`
   - `.java` -> `java`
   - If mixed or unrecognized, proceed without a language skill
-- Check for the language skill file at `skills/lang-<lang>/SKILL.md` relative to the plugin root directory. If the skill exists, read it and store its content for use by sub-agents. If it does not exist, inform the user and proceed with a generic review.
-- If `--profile` is specified, check for the profile skill file at `skills/profile-<name>/SKILL.md` relative to the plugin root directory. If the skill exists, read it and store its content for use by sub-agents. If it does not exist, warn the user and proceed without profile-specific checks.
+- Check for the language skill file at `skills/<lang>-code-review/SKILL.md` relative to the plugin root directory. If the skill exists, read it and store its content for use by sub-agents. If it does not exist, inform the user and proceed with a generic review.
+- If `--profile` is specified, check for the profile skill file at `skills/<name>-code-review/SKILL.md` relative to the plugin root directory. If the skill exists, read it and store its content for use by sub-agents. If it does not exist, warn the user and proceed without profile-specific checks.
 
 ### Step 1 — Identify Changed Files
 
@@ -189,6 +189,6 @@ After all sub-agents and build verification complete, aggregate findings into a 
 
 ## Arguments:
 - `--language <lang>`: Language skill to load. Currently shipped: `go`. Planned: `python`, `rust`, `typescript`, `java`. If omitted, auto-detected from changed file extensions.
-- `--profile <name>`: Project profile skill to load. Loads `skills/profile-<name>/SKILL.md` for project-specific conventions. If omitted, no profile-specific checks are applied.
+- `--profile <name>`: Project profile skill to load. Loads `skills/<name>-code-review/SKILL.md` for project-specific conventions. If omitted, no profile-specific checks are applied.
 - `--skip-build`: Skip the build verification step (Step 3). Useful for documentation-only changes or when build infrastructure is not available locally.
 - `--skip-tests`: Skip the unit test coverage review step (Unit Test Coverage sub-agent). Useful when changes do not affect testable code.
