@@ -8,11 +8,13 @@ openshift-developer:address-review-pr
 
 ## Synopsis
 ```
-/openshift-developer:address-review-pr [PR number] [--preview]
+/openshift-developer:address-review-pr [PR number] [--preview] [--ci]
 ```
 
 ## Description
 Automates addressing PR review comments by fetching all comments from a pull request, categorizing them by priority (blocking, change requests, questions, suggestions), and systematically addressing each one. Intelligently filters out outdated comments, bot-generated content, and oversized responses to optimize context usage. Handles code changes, posts replies to reviewers, and maintains a clean git history by amending relevant commits rather than creating unnecessary new ones.
+
+When `--ci` is passed: NEVER ask interactive questions or wait for user input. Make autonomous decisions. When in doubt, proceed with the safest action.
 
 ## Implementation
 
@@ -238,6 +240,7 @@ Show: total comments found, filtered out, addressed with code changes, replied t
 ## Arguments
 - `$1`: PR number (optional — uses current branch if omitted)
 - `--preview`: Preview each comment's proposed action and reply before proceeding
+- `--ci`: Non-interactive CI automation mode
 
 ## Duplicate Prevention
 
