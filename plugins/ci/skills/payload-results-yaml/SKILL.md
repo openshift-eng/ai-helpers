@@ -214,6 +214,14 @@ For a given candidate's action entry (matched by `pr_url` and `type`), update it
 
 Scan all candidates. If any candidate has an action with `type: "experiment"` and `status: "pending"`, the file has in-progress experiments awaiting Phase 2 collection. Phase 2 processes only pending experiments — candidates with other statuses are left unchanged.
 
+## Validation
+
+Use [scripts/validate.py](scripts/validate.py) to check your file against the canonical schema:
+
+```bash
+python3 scripts/validate.py <path-to-results-yaml>
+```
+
 ## See Also
 
 - Related Skill: `payload-analysis` — creates the results file
