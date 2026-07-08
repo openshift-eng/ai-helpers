@@ -23,6 +23,7 @@ RUN dnf install -y \
     python3.11-pip \
     python3.11-devel \
     gh \
+    google-cloud-cli \
     claude-code \
     pcp \
     pcp-devel \

@@ -24,7 +24,7 @@ The command accepts:
    - Check: `which gcloud`
    - The `test-platform-results` bucket is publicly accessible (no auth needed)
 
-2. **Python 3** (3.6+)
+2. **Python 3** (3.7+)
    - Check: `which python3`
 
 3. **tar** — for extracting archives
@@ -33,7 +33,7 @@ The command accepts:
 
 ### Step 1: Search for session archives
 
-Load the `ci:prow-job-artifact-search` skill and use its search operation to find files matching `**/claude-session*.tar*` in the job's artifacts.
+Load the `ci:prow-job-analysis` skill and use its artifact search script (`prow_job_artifact_search.py`) to find files matching `**/claude-session*.tar*` in the job's artifacts.
 
 Parse the JSON output. If no matches are found (`count: 0`), tell the user "No Claude session archives found in this job's artifacts." and stop.
 
@@ -47,7 +47,7 @@ gcloud storage cp --no-user-output-enabled <gcs_uri> ./
 
 ### Step 3: Download payload artifacts
 
-Search for payload artifacts using the `ci:prow-job-artifact-search` skill with the pattern `**/payload*.yaml`, `**/payload*.json`, and `**/payload*.html`.
+Search for payload artifacts using the `ci:prow-job-analysis` skill's artifact search script with the pattern `**/payload*.yaml`, `**/payload*.json`, and `**/payload*.html`.
 
 For each matched file, download it to the current directory:
 

@@ -55,7 +55,7 @@ The job-name heuristic infers the RHCOS version but can't confirm it. To verify 
 artifacts/{target}/gather-extra/artifacts/nodes.json
 ```
 
-This is a JSON file containing Node resources. Use `prow-job-artifact-search` to find and fetch it:
+This is a JSON file containing Node resources. Use the `ci:prow-job-analysis` skill's `prow_job_artifact_search.py` to find and fetch it:
 
 ```bash
 # Find nodes.json

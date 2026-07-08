@@ -1,0 +1,129 @@
+expected_failure_type: test
+expected_references:
+  - aggregated.md
+  - test-failure.md
+acceptable_references:
+  - networking.md
+  - flaky-test-identification.md
+  - upgrade.md
+expected_root_cause_category: aggregated-router-metrics-regression
+
+# The single conclusion a correct analysis MUST reach. Every claim below is
+# provable from this job's artifacts (aggregator build-log.txt + child runs).
+expected_root_cause: >-
+  The release-analysis-aggregator collected 10 related 5.0 aws-ovn upgrade runs
+  (payload 5.0.0-0.ci-2026-06-25-182114) and failed because the conformance test
+  "[sig-network][Feature:Router] The HAProxy router should expose prometheus
+  metrics for a route" failed deterministically in every run that executed it
+  ("Passed 0 times, failed 8 times ... we require at least one pass"), so it could
+  not meet the aggregation pass requirement and the aggregator reported "Some
+  tests failed aggregation."  This is the ONLY blocking failure: the several
+  [Feature:NetworkSegmentation] UserDefinedNetwork tests that also failed 8/8 are
+  each marked "*** NON-BLOCKING FAILURE" (informing lifecycle) and did not fail
+  the suite.  The router metrics endpoint itself is reachable and serving
+  (generic and haproxy_ backend/server metrics present); the test fails at
+  test/extended/router/metrics.go:227 because the haproxy_process_* metric family
+  (e.g. haproxy_process_resident_memory_bytes) is absent, so the expected gauge
+  query returns nil instead of a value > 0.  This is a real, reproducible product
+  regression in the router's exposed metrics (consistent with HAProxy being
+  restructured as a sidecar so the exporter can no longer observe the haproxy
+  process's own metrics), NOT a disruption-threshold breach, NOT an infra flake,
+  and NOT the NetworkSegmentation UDN failures.
+
+# Facts a grounded report must establish. 'artifacts' lists where each fact is
+# provable; 'example' is an illustrative verbatim line — reports need not quote
+# it verbatim.
+key_evidence:
+  - fact: >-
+      The sole BLOCKING aggregation failure is the HAProxy router
+      prometheus-metrics conformance test, which passed 0 of 8 executing runs.
+    artifacts:
+      - "build-log.txt"
+    example: "Test Failed! suite=[root    openshift-tests], testCase=[sig-network][Feature:Router] The HAProxy router should expose prometheus metrics for a route [apigroup:route.openshift.io] [Suite:openshift/conformance/parallel]"
+  - fact: >-
+      The aggregator requires at least one pass and the router metrics test had
+      zero, which is what failed aggregation.
+    artifacts:
+      - "build-log.txt"
+    example: "Passed 0 times, failed 8 times, skipped 0 times: we require at least one pass to consider it a success"
+  - fact: >-
+      The [Feature:NetworkSegmentation] UserDefinedNetwork failures that share
+      the 0/8 pattern are all explicitly non-blocking (informing lifecycle) and
+      did not fail the suite.
+    artifacts:
+      - "build-log.txt"
+    example: "*** NON-BLOCKING FAILURE: This test failure is not considered terminal because its lifecycle is"
+  - fact: >-
+      In a constituent run, the test fails at
+      test/extended/router/metrics.go:227 with an empty result for the expected
+      haproxy_process_* gauge — the metrics endpoint serves other haproxy_
+      series, so this is a missing metric family, not an unreachable endpoint.
+    artifacts:
+      - "constituent run periodic-ci-openshift-release-main-ci-5.0-upgrade-from-stable-4.22-e2e-aws-ovn-upgrade/2070211726384566272 artifacts/e2e-aws-ovn-upgrade/openshift-e2e-test/build-log.txt (child run links are printed in the aggregator build-log.txt)"
+    example: "fail [github.com/openshift/origin/test/extended/router/metrics.go:227]: Expected"
+
+# Aggregated child-run tally for the sole BLOCKING failing test (router metrics).
+expected_child_breakdown:
+  runs_aggregated: 10
+  total: 8
+  passed: 0
+  failed: 8
+  aggregation_verdict: "Some tests failed aggregation.  See above for details."
+  aggregation_verdict_artifact: "build-log.txt"
+
+# The one signal that separates the true cause from the look-alikes.
+discriminating_signal: >-
+  Among the tests that failed 0-of-8, only the HAProxy router prometheus-metrics
+  test lacks the "*** NON-BLOCKING FAILURE" marker, so it is the single blocking
+  failure that failed aggregation; every [Feature:NetworkSegmentation]
+  UserDefinedNetwork failure carries that non-blocking/informing marker.  In the
+  same aggregator run the per-backend disruption checks were all computed
+  ("running aggregated disruption tests") and stayed within thresholds.  Proving
+  the root cause requires opening a constituent run (e.g. jobRunId
+  2070211726384566272): its build-log.txt / junit_e2e XML shows the failure is
+  "fail [github.com/openshift/origin/test/extended/router/metrics.go:227]" during
+  the "retrying metrics until all backend servers appear" step, with the scraped
+  /metrics serving generic metrics but no haproxy_process_* series —
+  i.e. a missing metric, not an unreachable endpoint.
+
+# Misleading signals a shallow analysis would wrongly latch onto.
+distractors:
+  - "Multiple [Feature:NetworkSegmentation] UserDefinedNetwork [sig-network] tests also failed 8/8 in this run, tempting the same NetworkSegmentation root cause as the sibling aggregated case — but here they are all marked '*** NON-BLOCKING FAILURE' and did not fail the suite."
+  - "The aggregator computes many per-backend disruption metrics ('running aggregated disruption tests'), tempting a 'disruption threshold exceeded' verdict even though every backend stays under its failureThreshold."
+  - "The underlying variant is an upgrade job (ci-5.0-upgrade-from-stable-4.22-e2e-aws-ovn-upgrade), tempting an upgrade-mechanics / etcd or API disruption root cause."
+  - "A transient 'dial tcp 10.128.2.31:1936: connect: connection refused' on the router readiness probe appears during the upgrade window, tempting a 'metrics endpoint unreachable / :1936 connection refused' conclusion — but the metrics test itself scrapes :1936 successfully and fails only on a missing metric series."
+  - "The failure name says 'expose prometheus metrics', tempting a monitoring/Prometheus-stack (CMO) root cause rather than a router-side missing-metric regression."
+
+# Wrong conclusions the judge must penalize.
+must_not_conclude:
+  - "the NetworkSegmentation / UserDefinedNetwork test failures are the cause (they are non-blocking/informing in this run)"
+  - "the router metrics endpoint (:1936) is unreachable or refusing connections (it serves metrics; only the haproxy_process_* series is missing)"
+  - "aggregated disruption threshold breach or disruption-driven failure"
+  - "infrastructure problem or single-run flake (the metrics test fails deterministically across all 8 runs that executed it, with 0 passes)"
+  - "a Prometheus/CMO monitoring-stack defect rather than a router-exposed-metrics regression"
+
+notes: >
+  Aggregated blocking job (release-analysis-aggregator) over the 5.0 aws-ovn major
+  upgrade variant for payload 5.0.0-0.ci-2026-06-25-182114.  The aggregator
+  collected 10 related jobRuns and failed with "Some tests failed aggregation."
+  This is an aggregated job, so analysis reasons across child runs
+  (aggregated.md) rather than a single run, then root-causes the confirmed
+  deterministic child-run regression via test-failure.md.  The critical
+  recognition is
+  distinguishing the one BLOCKING failure (the HAProxy router prometheus-metrics
+  conformance test, 0 passes / 8 failures, no NON-BLOCKING marker) from the
+  several NON-BLOCKING informing NetworkSegmentation UDN failures that share the
+  same 0/8 pattern — the latter are the primary distractor because a sibling
+  case on a different date was genuinely caused by NetworkSegmentation.  The
+  true cause is a router metrics regression: the /metrics endpoint serves but
+  the haproxy_process_* family is absent, failing the >0 assertion at
+  test/extended/router/metrics.go:227 (grep-confirmable in constituent jobRunId
+  2070211726384566272 build-log.txt).  Disruption is a distractor: all
+  aggregated disruption backends stayed within thresholds.
+
+external_context: >-
+  Tracked as TRT-2757; the suspected product change is cluster-ingress-operator
+  #1439 restructuring HAProxy as a sidecar/init container so the exporter no
+  longer sees the haproxy process's own metrics. Neither identifier appears in
+  the job's artifacts — "consistent with a router image/exporter restructuring"
+  is the deepest artifact-supported conclusion.

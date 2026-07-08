@@ -1,0 +1,91 @@
+expected_failure_type: test
+expected_references:
+  - test-extension-binaries.md
+acceptable_references:
+  - flaky-test-identification.md
+expected_root_cause_category: missing-test-extension-binary
+
+# The single conclusion a correct analysis MUST reach.
+expected_root_cause: >-
+  openshift-tests aborted at startup while assembling its test suites: it tried to
+  extract the external test-extension binary oc-mirror-tests-ext.gz from the
+  oc-mirror payload image
+  (ocp-v5.0-art-dev@sha256:09d373faffb0ee2aa15966763038eb61fda05e18d27742585e6758a6e3bb1482)
+  for payload 5.0.0-0.nightly-2026-05-30-125522, but that binary does not exist in
+  the image. Because a registered extension binary could not be extracted, the
+  framework fatally errored ("couldn't retrieve test suites") and the test
+  container exited 1 before running any e2e tests. This is a test-extension-binary
+  registration/payload mismatch, not a product regression, install failure, or
+  infra flake.
+
+# Facts a grounded report must establish. 'artifacts' lists where each fact is
+# provable (all listed paths equally valid); 'example' is an illustrative
+# verbatim line — reports need not quote it verbatim.
+key_evidence:
+  - fact: >-
+      The extraction of oc-mirror-tests-ext.gz failed because the file does not
+      exist in the oc-mirror payload image at digest
+      sha256:09d373faffb0ee2aa15966763038eb61fda05e18d27742585e6758a6e3bb1482.
+    artifacts:
+      - "artifacts/e2e-aws-ovn/openshift-e2e-test/build-log.txt"
+      - "build-log.txt"
+    example: 'oc-mirror-tests-ext.gz" does not exist in image "quay.io/openshift-release-dev/ocp-v5.0-art-dev@sha256:09d373faffb0ee2aa15966763038eb61fda05e18d27742585e6758a6e3bb1482"'
+  - fact: >-
+      openshift-tests fatally errored while assembling test suites because a
+      registered extension binary could not be extracted, so the test container
+      exited before any e2e test ran.
+    artifacts:
+      - "artifacts/e2e-aws-ovn/openshift-e2e-test/build-log.txt"
+      - "build-log.txt"
+    example: "error: couldn't retrieve test suites: failed to extract test binaries: encountered errors while extracting binaries"
+  - fact: >-
+      The failed extraction targeted /usr/bin/oc-mirror-tests-ext.gz in the
+      oc-mirror image, while the ~30 other *-tests-ext.gz extension binaries all
+      extracted successfully.
+    artifacts:
+      - "artifacts/e2e-aws-ovn/openshift-e2e-test/build-log.txt"
+    example: 'Run image extract for release image \"quay.io/openshift-release-dev/ocp-v5.0-art-dev@sha256:09d373faffb0ee2aa15966763038eb61fda05e18d27742585e6758a6e3bb1482\" and src \"/usr/bin/oc-mirror-tests-ext.gz\"'
+  - fact: >-
+      The cluster installed successfully — the failure is confined to the
+      openshift-e2e-test step.
+    artifacts:
+      - "build-log.txt"
+    example: "Step e2e-aws-ovn-ipi-install-install succeeded after 54m1s"
+
+# The one signal that separates the true cause from the look-alikes.
+discriminating_signal: >-
+  The fatal error is emitted by openshift-tests during test-suite discovery
+  ("couldn't retrieve test suites: failed to extract test binaries") because a
+  specific registered extension binary (oc-mirror-tests-ext.gz) is absent from its
+  payload image. The cluster installed successfully and all OTHER *-tests-ext.gz
+  binaries (ovn-kubernetes, machine-api, service-ca-operator, etc.) extracted
+  cleanly - only oc-mirror's extension binary is missing. The failure is at test
+  binary extraction time, before any actual test executes.
+
+# Misleading signals a shallow analysis would wrongly latch onto.
+distractors:
+  - "The long, successful list of 'Extracted /usr/bin/<component>-tests-ext.gz ...' lines that makes it look like extension extraction was working fine overall."
+  - "'Step e2e-aws-ovn-openshift-e2e-test failed after 3m4s' / pod 'failed containers: test' - a shallow read blames a generic test-container crash or an e2e test regression rather than the missing binary."
+  - "The many downstream gather steps and 'ContainerFailed one or more containers exited' noise in the post phase, which can be mistaken for an infra/teardown problem."
+  - "'utilizing_lease' / 'utilizing_ip_pool' tokens in the final reason string, which could be misread as a lease or CI-infrastructure/config failure."
+
+# Wrong conclusions the judge must penalize.
+must_not_conclude:
+  - "A product regression in a specific e2e test (no e2e test ran; the framework failed before test execution)."
+  - "An installation or bootstrap failure (the cluster installed and the failure is in the openshift-e2e-test step, not install)."
+  - "A generic infra/CI flake, lease starvation, or network/registry outage (the image was pulled and extracted; only one expected file was absent from it)."
+  - "An aggregated-job child failure (this is a single e2e-aws-ovn run, not an aggregated- job)."
+
+notes: >
+  Payload-level regression: origin PR #31006 registered oc-mirror-tests-ext.gz as a
+  test-extension binary, but the oc-mirror payload image for
+  5.0.0-0.nightly-2026-05-30-125522 does not ship that binary, so openshift-tests
+  fatally errors at startup. This broke many jobs across that payload. Routing:
+  the `*-tests-ext` extension-binary extraction error routes directly to
+  test-extension-binaries.md (the routing table's dedicated row); passing through
+  flaky-test-identification.md as the generic triage entry first is acceptable
+  but not required. There is no product test regression in this run to
+  root-cause. failure_type = test. The canonical evidence lives in the failing step's log
+  (artifacts/e2e-aws-ovn/openshift-e2e-test/build-log.txt); the same fatal error
+  is surfaced verbatim in the top-level build-log.txt, and citing either
+  location is equally valid.

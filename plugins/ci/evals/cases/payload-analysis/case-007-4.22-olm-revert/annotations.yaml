@@ -1,0 +1,37 @@
+expected_phase: Rejected
+expected_failed_job_count: 3
+has_revert_candidates: true
+force_accept_expected: false
+
+expected_candidates:
+  - pr_url: "https://github.com/openshift/operator-framework-olm/pull/1256"
+    component: "operator-lifecycle-manager"
+    min_confidence: 85
+    expected_confidence: 95
+    description: "OLM PR #1256 added e2e.Logf calls in the olmv0-tests-ext client-setup path (getAdminContextNameCached in tests-extension/test/qe/util/client.go); the klog INFO lines (starting with 'I') hit stdout during OTE test listing and corrupt the JSON stream"
+    expected_failing_jobs:
+      - "e2e-metal-ipi-ovn-ipv4"
+      - "e2e-metal-ipi-ovn-ipv6"
+
+notes: >
+  Payload 4.22.0-0.nightly-2026-03-18-161724 was rejected with 3 failed
+  blocking jobs: aggregated-hypershift-ovn-conformance (infra failure: AWS
+  lease exhaustion — must NOT be attributed to any PR), metal-ipi-ovn-ipv4,
+  and metal-ipi-ovn-ipv6 (both: "error: encountered errors while listing
+  tests: invalid character 'I' looking for beginning of value").
+
+  Discriminating evidence in both metal build logs: 26 extension binaries
+  start listing and 25 complete — olmv0-tests-ext is the only binary that
+  starts but never logs a "Listed N test images" completion, so the
+  malformed stdout is its output. operator-framework-olm#1256 (merged
+  2026-03-17, in this payload) added e2e.Logf calls in the olmv0-tests-ext
+  client-construction path, which emit klog INFO ('I...') lines to stdout
+  during listing.
+
+  This case was previously annotated as cluster-version-operator#1309 —
+  that attribution is WRONG: cluster-version-operator-tests completes its
+  listing cleanly in both jobs ("Listed 0 test images"), which exonerates
+  it; the CVO line merely interleaves next to olmv0's in the log, and
+  CVO#1309 is a same-day test-automation PR that makes a tempting but
+  false suspect. An analysis naming CVO#1309 as the revert candidate is
+  incorrect and must not receive credit.

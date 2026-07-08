@@ -1,0 +1,173 @@
+expected_failure_type: infra
+expected_references:
+  - resource-exhaustion.md
+  - ci-infrastructure-changes.md
+acceptable_references:
+  - install/general.md
+expected_root_cause_category: ci-build-farm-node-disk-pressure-pod-rejection
+
+# The single conclusion a correct analysis MUST reach.
+expected_root_cause: >-
+  A CI build-farm node hit DiskPressure and kubelet rejected the next step pod
+  at admission: the pre-phase pod
+  e2e-aws-ovn-techpreview-serial-ipi-install-hosted-loki (namespace
+  ci-op-62ghqlfq on the build09 build cluster) went Failed/Evicted after 0s —
+  "Pod was rejected: The node had condition: [DiskPressure]." — before any
+  container started, aborting the pre phase before the OpenShift cluster under
+  test was ever installed. The three post-phase gather pods scheduled onto the
+  same farm node (ip-10-28-68-87.us-east-2.compute.internal) were rejected
+  identically over the next three seconds while pods placed on other farm
+  nodes succeeded, so this is transient disk exhaustion on a single build09
+  build-farm node — a CI-infrastructure failure to retry, not a product,
+  installer, payload, or step-content bug.
+
+# Facts a grounded report must establish. 'artifacts' lists where each fact is
+# provable (all listed paths equally valid); 'example' is an illustrative
+# verbatim line — reports need not quote it verbatim.
+key_evidence:
+  - fact: >-
+      The job fails in the multi-stage pre phase: step pod
+      e2e-aws-ovn-techpreview-serial-ipi-install-hosted-loki goes Failed with
+      reason Evicted and kubelet's admission message naming DiskPressure, and
+      ci-operator aborts the test. The identical message appears in the
+      build log, the "Run multi-stage test pre phase" JUnit testcase, and
+      ci-operator.log.
+    artifacts:
+      - "build-log.txt"
+      - "artifacts/junit_operator.xml"
+      - "artifacts/ci-operator.log"
+    example: "could not watch pod: the pod ci-op-62ghqlfq/e2e-aws-ovn-techpreview-serial-ipi-install-hosted-loki failed after 0s (failed containers: ): Evicted Pod was rejected: The node had condition: [DiskPressure]."
+  - fact: >-
+      The rejected pod is a CI build-farm workload, not part of any product
+      cluster: ci-operator runs all step pods in namespace ci-op-62ghqlfq on
+      the build09 build cluster (prowjob.json spec.cluster is "build09"), so
+      the DiskPressure condition belongs to a build-farm node.
+    artifacts:
+      - "build-log.txt"
+      - "prowjob.json"
+    example: "Using namespace https://console-openshift-console.apps.build09.ci.devcluster.openshift.com/k8s/cluster/projects/ci-op-62ghqlfq"
+  - fact: >-
+      The pod never started a container — it failed after 0 seconds with an
+      empty failed-containers list, i.e. a kubelet admission rejection — so
+      the hosted-loki step's own script never executed (and the run has no
+      artifacts/e2e-aws-ovn-techpreview-serial/ipi-install-hosted-loki/
+      directory).
+    artifacts:
+      - "build-log.txt"
+      - "artifacts/junit_operator.xml"
+      - "artifacts/ci-operator.log"
+    example: "Step e2e-aws-ovn-techpreview-serial-ipi-install-hosted-loki failed after 0s."
+  - fact: >-
+      No cluster under test was ever created: the pre phase died before the
+      installer step ran, gather-extra and gather-audit-logs found no
+      kubeconfig, and deprovision found no installer metadata — the run
+      contains no cluster-side artifacts (no nodes/journals, no oc_cmds, no
+      e2e JUnit) at all.
+    artifacts:
+      - "artifacts/e2e-aws-ovn-techpreview-serial/gather-extra/build-log.txt"
+      - "artifacts/e2e-aws-ovn-techpreview-serial/gather-audit-logs/build-log.txt"
+      - "artifacts/e2e-aws-ovn-techpreview-serial/ipi-deprovision-deprovision/build-log.txt"
+    example: "No kubeconfig, so no point in gathering extra artifacts."
+  - fact: >-
+      Three post-phase gather pods (gather-network, gather-core-dump,
+      gather-must-gather) failed the same way within the next three seconds
+      (06:33:57-06:33:59Z) and were ignored as best-effort; their pod statuses
+      carry the identical "Pod was rejected: The node had condition:
+      [DiskPressure]." rejection.
+    artifacts:
+      - "build-log.txt"
+      - "artifacts/ci-operator-step-graph.json"
+    example: "Pod e2e-aws-ovn-techpreview-serial-gather-network is running in best-effort mode, ignoring the failure..."
+
+# Deeper-mechanism facts — bonus credit only, never required.
+depth_evidence:
+  - fact: >-
+      The pod manifests captured in the step graph pin all four rejections to
+      the same farm node: spec.nodeName
+      ip-10-28-68-87.us-east-2.compute.internal for ipi-install-hosted-loki
+      and the three gather pods (status startTime 06:33:56Z-06:33:59Z).
+      Earlier pods on that same node succeeded (ipi-conf-aws-byo-ipv4-pool-public
+      started 06:31:18Z; openshift-cluster-bot-rbac started 06:33:48Z and
+      finished 06:33:55Z), and the very next pods landed on other nodes and
+      succeeded (gather-extra on ip-10-28-68-120, gather-audit-logs on
+      ip-10-28-68-37, ipi-deprovision-deprovision on ip-10-28-68-122) — the
+      DiskPressure was transient and confined to one node during a roughly
+      four-second scheduling window.
+    artifacts:
+      - "artifacts/ci-operator-step-graph.json"
+    example: "\"nodeName\":\"ip-10-28-68-87.us-east-2.compute.internal\""
+  - fact: >-
+      The Prow job pod itself (on farm node ip-10-28-68-84) was not the
+      victim: its sidecar terminated Completed/exit 0 and the test container
+      exited 1 only because ci-operator reported the step failure — this is
+      the evicted-step-pod variant of build-farm exhaustion, not the
+      sidecar/test-container OOM variant.
+    artifacts:
+      - "podinfo.json"
+    example: "\"nodeName\": \"ip-10-28-68-84.us-east-2.compute.internal\""
+
+# The one signal that separates the true cause from the look-alikes.
+discriminating_signal: >-
+  "Evicted" here is a kubelet admission rejection on the CI build farm, not an
+  eviction inside any product cluster: the pod fails in 0 seconds with an
+  empty failed-containers list and the message "Pod was rejected: The node had
+  condition: [DiskPressure].", in namespace ci-op-62ghqlfq on build09 — and
+  the step-graph pod manifests show four consecutive pods rejected with the
+  identical message on the same farm node (ip-10-28-68-87) while pods landing
+  on other farm nodes seconds later succeed. Because the run dies in the pre
+  phase, no cluster under test ever exists — the disk pressure can only be the
+  build farm's.
+
+# Misleading signals a shallow analysis would wrongly latch onto.
+distractors:
+  - >-
+    Four ci-operator warnings — Failed to update lease
+    "aws-4--us-east-1--quota-slice-444" error=status 502 Bad Gateway — (plus
+    404 lease-metrics debug lines in ci-operator.log) look like a lease/quota
+    infrastructure failure, but they are non-fatal: the lease was acquired at
+    06:25:29 and the job proceeded through deprovision and lease release
+    normally.
+  - 'The failing step name "ipi-install-hosted-loki" reads like a cluster-install failure or a Loki/logging setup bug, but the pod was rejected before any container ran — the step content never executed.'
+  - "gather-network, gather-core-dump and gather-must-gather all fail too, which can look like three additional independent problems (or broken must-gather tooling); they are the same single-node condition, explicitly ignored as best-effort."
+  - '"Resolved SHA missing for main in https://github.com/openshift/release (will prevent caching)" in the build log is routine noise, not a repo/config failure.'
+  - "The techpreview job name and 5.0 nightly payload suggest an unstable-feature or payload regression, but the payload import succeeded (191 images) and no product code ever ran."
+
+# Wrong conclusions the judge must penalize.
+must_not_conclude:
+  - "A node of the ephemeral cluster under test had disk pressure or filled its disk (no cluster was ever installed — gather steps found no kubeconfig and deprovision found no metadata.json)."
+  - "The OpenShift installer failed or payload 5.0.0-0.nightly-2026-06-10-061513 has an install/product regression (the installer never ran and no product code executed)."
+  - "The ipi-install-hosted-loki step script or Loki configuration is broken (its container never started; the failed-containers list is empty)."
+  - "The job failed because of the lease-server 502 Bad Gateway errors (non-fatal warnings; the lease was held and released normally)."
+  - "The gather/must-gather tooling is broken (the gather pods were rejected by the same node condition and ignored as best-effort)."
+
+notes: >
+  Real FAILURE run of
+  periodic-ci-openshift-release-main-ci-5.0-e2e-aws-ovn-techpreview-serial-3of3
+  (payload 5.0.0-0.nightly-2026-06-10-061513, 2026-06-10, total runtime ~13
+  minutes). Every pre step through openshift-cluster-bot-rbac succeeded;
+  ipi-install-hosted-loki was the first pod placed on farm node
+  ip-10-28-68-87 after it developed DiskPressure, and the scheduler kept
+  placing the next three (gather) pods there for ~4 seconds until the
+  condition propagated, after which gather-extra, gather-audit-logs and
+  ipi-deprovision-deprovision landed on other nodes and succeeded. Routing:
+  the routing-table row "Node NotReady, OOM, disk pressure" leads to
+  resource-exhaustion.md, whose Two Failure Domains decision rule places a
+  failure surfacing in the top-level build-log.txt in the CI build-farm
+  domain (verdict: CI infrastructure); ci-infrastructure-changes.md documents
+  "node pressure causing pod evictions" as a build-farm indicator and carries
+  the CI-vs-product framework. failure_type = infra. install/general.md is
+  acceptable extra reading only because the failed step carries an
+  ipi-install-* name. Findability: the per-pod nodeName/status evidence lives
+  only in artifacts/ci-operator-step-graph.json (compact JSON — grep for
+  "nodeName" or "Evicted"); build-log.txt, artifacts/junit_operator.xml (the
+  "Run multi-stage test pre phase" testcase) and artifacts/ci-operator.log
+  all carry the identical eviction message verbatim. There is no
+  artifacts/e2e-aws-ovn-techpreview-serial/ipi-install-hosted-loki/ directory,
+  no openshift-e2e-test step, and no e2e JUnit anywhere in the run.
+
+external_context: >-
+  What filled the build09 node's disk is not determinable from this job's
+  artifacts: Prow jobs do not collect build-farm node journals or node disk
+  metrics, so imagefs-vs-nodefs and the offending co-tenant workload are out
+  of scope (build-farm observability belongs to Test Platform). Expected
+  disposition per the references: retry the job; ownership Test Platform.
