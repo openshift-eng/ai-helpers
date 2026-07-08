@@ -1,0 +1,8 @@
+{
+  "name": "bug-triage",
+  "description": "AI-powered bug triage for OpenShift teams — analyzes untriaged OCPBUGS issues and posts structured triage comments before bug scrub meetings",
+  "version": "0.1.0",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}
