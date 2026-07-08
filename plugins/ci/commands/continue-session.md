@@ -24,7 +24,7 @@ The command accepts:
    - Check: `which gcloud`
    - The `test-platform-results` bucket is publicly accessible (no auth needed)
 
-2. **Python 3** (3.6+)
+2. **Python 3** (3.7+)
    - Check: `which python3`
 
 3. **tar** — for extracting archives

@@ -55,7 +55,7 @@ log "Prepared working directory: $WORK_DIR"
 
 # The bucket is public; confirm read access without requiring credentials or
 # gcloud. Uses python3 (already verified above) to hit the GCS JSON API.
-if python3 - <<'PY' >/dev/null 2>&1; then
+if probe_err=$(python3 - <<'PY' 2>&1 >/dev/null); then
 import sys
 import urllib.request
 
@@ -64,12 +64,13 @@ url = ("https://storage.googleapis.com/storage/v1/b/test-platform-results/o"
 try:
     with urllib.request.urlopen(url, timeout=15) as resp:
         resp.read(1)
-except Exception:
+except Exception as e:
+    print(f"GCS probe failed: {e}", file=sys.stderr)
     sys.exit(1)
 PY
     log "OK: public GCS bucket test-platform-results is reachable"
 else
-    log "WARN: could not reach the public GCS API (network restricted?); cases may not fetch artifacts"
+    log "WARN: could not reach the public GCS API (network restricted?)${probe_err:+: ${probe_err}}; cases may not fetch artifacts"
 fi
 
 # Best-effort pre-warm using the bundled search script, which works with or

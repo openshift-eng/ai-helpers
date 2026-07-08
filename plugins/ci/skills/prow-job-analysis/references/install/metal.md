@@ -1,11 +1,11 @@
 # Install Failure Analysis — Metal (Bare Metal)
 
-**Use when** the job name contains `metal`, `baremetal`, `baremetalds`, or `sno` (single-node on metal), the job uses dev-scripts with Metal3/Ironic for provisioning, or you need console-log or sosreport analysis. Metal-specific supplement to [general.md](general.md), covering bare metal install failures that use dev-scripts, Metal3, and Ironic. Use **both** files for metal jobs: [general.md](general.md) owns the standard installer workflow (reading installer logs, log-bundle analysis, failure-stage identification); this file owns the metal layers on top.
+**Use when** the job name contains `metal`, `baremetal`, or `baremetalds` (a bare-metal `sno`/`single-node` job also belongs here, but only when a metal keyword is *also* present — a cloud SNO job like `e2e-aws-ovn-single-node` is not metal; the SKILL.md routing table is authoritative when the signals conflict), the job uses dev-scripts with Metal3/Ironic for provisioning, or you need console-log or sosreport analysis. Metal-specific supplement to [general.md](general.md), covering bare metal install failures that use dev-scripts, Metal3, and Ironic. Use **both** files for metal jobs: [general.md](general.md) owns the standard installer workflow (reading installer logs, log-bundle analysis, failure-stage identification); this file owns the metal layers on top.
 
 ## When to Use This Reference
 
 Use when ANY of these are true:
-- Job name contains `metal`, `baremetal`, `baremetalds`, or `sno` (single-node on metal)
+- Job name contains `metal`, `baremetal`, or `baremetalds` (a `sno`/`single-node` job qualifies only when a metal keyword is also present; a cloud SNO job routes to Single-node per the SKILL.md table, not here)
 - Job uses dev-scripts with Metal3/Ironic for provisioning
 - Debugging OFCIR host acquisition, Ironic provisioning, or dev-scripts setup
 - Console logs or sosreport analysis is needed

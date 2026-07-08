@@ -23,7 +23,7 @@ The user will provide:
 
 ## Prerequisites
 
-- **Python 3.6+**: `which python3`
+- **Python 3.7+**: `which python3`
 - **jq**: `which jq`
 - **gcloud CLI** (recommended, not required): `which gcloud` — fastest access to the
   public bucket (no auth required). Without it, every artifact operation works over
