@@ -82,11 +82,11 @@ notes: >
   PENDING. The openshift-tests-extension binary at util.go:141 panics on the
   unknown/PENDING outcome, so the isolated per-test subprocess dies without a
   result and the test is scored as a blocking failure, failing the whole run
-  (payload 5.0.0-0.ci-2026-06-11-181513). The agent MUST recognize this as a
-  test-extension-binary harness defect (the routing table's dedicated
-  `*-tests-ext` row); passing through flaky-test-identification.md first is
-  acceptable but not required. The agent MUST NOT blame the product, the
-  upgrade, networking, or the cloud provider. Evidence is self-contained in the
-  root build-log.txt of this constituent run. The parent aggregator run
+  (payload 5.0.0-0.ci-2026-06-11-181513). This is a test-extension-binary
+  harness defect (the routing table's dedicated `*-tests-ext` row); passing
+  through flaky-test-identification.md first is acceptable but not required.
+  The product, the upgrade, networking, and the cloud provider are not
+  implicated — the spec was disabled/PENDING and never ran. Evidence is
+  self-contained in the root build-log.txt of this constituent run. The parent aggregator run
   (aggregated-aws-ovn-upgrade-5.0-major-release-openshift-release-analysis-aggregator/2065139102759522304)
   fails downstream of these constituent panics.

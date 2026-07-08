@@ -106,9 +106,10 @@ notes: >
   Aggregated blocking job (release-analysis-aggregator) over the 5.0 aws-ovn major
   upgrade variant for payload 5.0.0-0.ci-2026-06-25-182114.  The aggregator
   collected 10 related jobRuns and failed with "Some tests failed aggregation."
-  The agent MUST route to aggregated.md and reason across child runs rather than
-  a single run, then use test-failure.md to root-cause the confirmed
-  deterministic child-run regression.  The critical recognition is
+  This is an aggregated job, so analysis reasons across child runs
+  (aggregated.md) rather than a single run, then root-causes the confirmed
+  deterministic child-run regression via test-failure.md.  The critical
+  recognition is
   distinguishing the one BLOCKING failure (the HAProxy router prometheus-metrics
   conformance test, 0 passes / 8 failures, no NON-BLOCKING marker) from the
   several NON-BLOCKING informing NetworkSegmentation UDN failures that share the
