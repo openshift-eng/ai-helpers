@@ -15,8 +15,6 @@ Team-specific conventions for GCP HCP (Hypershift on GKE) issues in the GCP proj
 | Field | Custom Field ID | Usage | Example |
 |-------|-----------------|-------|---------|
 | **Epic Name** | `customfield_10011` | Required for Epics | `"Multi-cluster metrics aggregation"` |
-| **Epic Link** | `customfield_10014` | Link Story/Task → Epic | `"GCP-456"` |
-| **Parent Link** | `customfield_10018` | Link Epic → Feature | `"GCP-100"` |
 | **Story Points** | `customfield_10028` | Fibonacci scale: 0, 1, 2, 3, 5, 8, 13 | `3.0` |
 | **Blocked** | `customfield_10517` | Mark issue as blocked | `{"value": "True"}` |
 
@@ -35,18 +33,13 @@ Components are **optional** — only specify if work clearly fits. Do not reques
 
 | Issue Type | Key Fields |
 |---|---|
-| Story / Task | `customfield_10014` (Epic Link): parent epic key; `customfield_10028` (Story Points): float, auto-estimated per Sizing Guide; `priority`: `{"name": "Normal"}` (omit unless user specifies) |
-| Epic | `customfield_10011` (Epic Name): must match summary. Do NOT include parent link at creation — add via separate `editJiraIssue` call |
+| Story / Task | `customfield_10028` (Story Points): float, auto-estimated per Sizing Guide; `priority`: `{"name": "Normal"}` (omit unless user specifies) |
+| Epic | `customfield_10011` (Epic Name): must match summary |
 | Feature | No type-specific custom fields required |
 
 **Story Points:** Auto-estimate using the Sizing Guide below. Set `customfield_10028` as float. For estimates of 8+, recommend splitting.
 
 **Priority:** Ask user before setting. Reference the Priority Scheme below. If unset, default is Normal.
-
-## Epic Linking
-
-1. Create the Epic first via `createJiraIssue` WITHOUT the parent link field
-2. Link to Feature in a separate call: `editJiraIssue` to set `customfield_10018` to the Feature key
 
 ## Team Standards
 
