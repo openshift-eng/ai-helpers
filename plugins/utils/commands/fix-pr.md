@@ -1,6 +1,6 @@
 ---
-description: Iteratively fix PR checks and address review comments until PR is mergeable
-argument-hint: "[PR number] [-n N] [--skip-reviews] [--skip-rebase]"
+description: Iteratively fix PR/MR checks and address review comments until PR/MR is mergeable
+argument-hint: "[PR/MR number] [-n N] [--skip-reviews] [--skip-rebase]"
 ---
 
 ## Name
@@ -8,45 +8,79 @@ utils:fix-pr
 
 ## Synopsis
 ```
-/utils:fix-pr [PR number] [-n N] [--skip-reviews] [--skip-rebase]
+/utils:fix-pr [PR/MR number] [-n N] [--skip-reviews] [--skip-rebase]
 ```
 
 ## Description
-The `utils:fix-pr` command automates the complete PR remediation workflow by iteratively resolving merge conflicts, addressing review comments, and fixing failing CI checks until the PR achieves mergeable status. Each iteration performs up to three steps in order: (1) rebase to resolve conflicts, (2) address review comments, (3) fix CI check failures. Flags allow skipping specific phases or configuring iteration count.
+The `utils:fix-pr` command automates the complete PR/MR remediation workflow by iteratively resolving merge conflicts, addressing review comments, and fixing failing CI checks until the PR/MR achieves mergeable status. Each iteration performs up to three steps in order: (1) rebase to resolve conflicts, (2) address review comments, (3) fix CI check failures. Flags allow skipping specific phases or configuring iteration count.
+
+Works with both **GitHub Pull Requests** and **GitLab Merge Requests**. The `review` tool auto-detects the forge from the git remote.
 
 This command is ideal for:
-- Getting a PR ready to merge automatically with minimal manual intervention
+- Getting a PR/MR ready to merge automatically with minimal manual intervention
 - Handling complex scenarios where review fixes might break CI or create conflicts
-- Ensuring the PR stays up-to-date with the base branch throughout the process
+- Ensuring the PR/MR stays up-to-date with the base branch throughout the process
 - Recovering from multiple rounds of feedback and test failures
 
 ## Implementation
 
-### Step 0: Parse Arguments
+### Step 0: Prerequisites and Setup
 
-1. **Determine PR number**:
+1. **Check `review` tool is installed**:
+   ```bash
+   which review
+   ```
+   If not found, install from `cardil/review`:
+   ```bash
+   git clone https://github.com/cardil/review.git ~/.local/share/review
+   chmod +x ~/.local/share/review/review
+   # Pick a bin dir already in PATH, or fall back to ~/.local/bin
+   REVIEW_BIN_DIR=$(echo "$PATH" | tr ':' '\n' | grep -E "^$HOME/(bin|\.local/bin)$" | head -1)
+   REVIEW_BIN_DIR="${REVIEW_BIN_DIR:-$HOME/.local/bin}"
+   mkdir -p "$REVIEW_BIN_DIR"
+   ln -sf ~/.local/share/review/review "$REVIEW_BIN_DIR/review"
+   ```
+   After symlinking, resolve the full path for use in this session:
+   ```bash
+   REVIEW=$(which review 2>/dev/null || echo "$HOME/.local/share/review/review")
+   ```
+   Use `$REVIEW` instead of bare `review` for all subsequent calls if needed. Optionally inform the user to add `$REVIEW_BIN_DIR` to their PATH if it was not already present.
+
+2. **Determine PR/MR number**:
    - Use first non-flag argument if provided
-   - Otherwise detect from current branch: `gh pr list --head <current-branch>`
+   - Otherwise detect from current branch: `review get` (auto-detects current branch's PR/MR)
 
-2. **Parse flags**:
+3. **Parse flags**:
    - `--skip-reviews`: Skip the review comment addressing phase (Phase 2)
    - `--skip-rebase`: Skip the conflict resolution phase (Phase 1)
    - `-n N`: Set maximum iterations (default: 5 if not specified)
    - Store flag state for later decision
 
-3. **Checkout PR branch**:
+4. **Checkout PR/MR branch**:
    ```bash
-   gh pr checkout <PR_NUMBER>
+   gh pr checkout <PR_NUMBER>   # GitHub
+   # or for GitLab: glab mr checkout <MR_NUMBER>
    git pull
    ```
 
-4. **Verify clean working tree**:
+5. **Verify clean working tree**:
    - Run `git status`
    - If uncommitted changes exist, ask user how to proceed
 
 ### Step 1: Main Remediation Loop
 
-This loop runs until the PR is mergeable or max iterations reached (default: 5, configurable via `-n`).
+This loop runs until the PR/MR is mergeable or max iterations reached (default: 5, configurable via `-n`).
+
+**At the start of each iteration, fetch full PR/MR state in one call**:
+```bash
+review get <PR_NUMBER>
+```
+
+This single command provides everything needed for all phases:
+- Unresolved review threads with thread IDs and comment content
+- Review decisions (APPROVED, CHANGES_REQUESTED, etc.)
+- Mergeability status and merge state (CLEAN, BLOCKED, CONFLICTING, etc.)
+- CI/CD checks breakdown (failed with links, pending, passed)
 
 **Each iteration performs up to three phases in order:**
 
@@ -58,23 +92,19 @@ This loop runs until the PR is mergeable or max iterations reached (default: 5, 
 
 **If `--skip-rebase` flag is NOT set:**
 
-1. **Check for conflicts**:
-   ```bash
-   gh pr view <PR_NUMBER> --json mergeable,mergeStateStatus
-   ```
-
-   Parse response:
-   - `mergeable: "MERGEABLE"` → No conflicts, skip to Phase 2
-   - `mergeable: "CONFLICTING"` → Has conflicts, proceed with rebase
-   - `mergeable: "UNKNOWN"` → Checks running, wait and retry
+1. **Check for conflicts** from the `review get` output:
+   - `Mergeable: YES` → No conflicts, skip to Phase 2
+   - `Mergeable: NO` or `State: CONFLICTING` → Has conflicts, proceed with rebase
+   - State `BEHIND` or `UNKNOWN` → Checks running, wait and retry
 
 2. **If conflicts detected**:
 
    a. **Fetch latest base branch**:
    ```bash
    git fetch origin
-   # Determine base branch from PR metadata
+   # Determine base branch from PR/MR metadata
    BASE_BRANCH=$(gh pr view <PR_NUMBER> --json baseRefName -q .baseRefName)
+   # or for GitLab: glab mr view <MR_NUMBER> --output json | jq -r .target_branch
    ```
 
    b. **Attempt rebase**:
@@ -95,7 +125,7 @@ This loop runs until the PR is mergeable or max iterations reached (default: 5, 
      - For each conflicted file:
        - Read conflict markers using `git diff <file>`
        - Analyze both sides of conflict (HEAD vs incoming)
-       - Intelligently resolve keeping PR changes + incorporating base changes
+       - Intelligently resolve keeping PR/MR changes + incorporating base changes
        - Stage resolved file: `git add <file>`
      - Continue rebase: `git rebase --continue`
      - Push: `git push --force-with-lease`
@@ -115,18 +145,18 @@ This loop runs until the PR is mergeable or max iterations reached (default: 5, 
      - If user chooses abort: Exit command
      - If user chooses skip: Continue to Phase 2 (may fail CI due to conflicts)
 
-3. **Wait for rebase to reflect in PR**:
-   - Poll `gh pr view` for 30 seconds to ensure GitHub recognizes rebase
-   - Verify `mergeable` status updated
+3. **Wait for rebase to reflect in PR/MR**:
+   - Poll `review get <PR_NUMBER>` for 30 seconds to ensure the forge recognizes rebase
+   - Verify mergeability status updated
 
 #### Phase 2: Address Review Comments (Conditional)
 
 **If `--skip-reviews` flag is NOT set:**
 
-1. **Fetch review comments** (using same logic as `/utils:address-reviews`):
-   - Fetch all comments, reviews, and review comments
-   - Filter out outdated, bot-generated, and oversized comments
-   - See [/utils:address-reviews](./address-reviews.md) Step 1 for detailed filtering logic
+1. **Use data from `review get` output** fetched at the start of the iteration:
+   - The output already contains all unresolved review threads with thread IDs
+   - Each thread includes: thread ID, file location, comment body, author, link
+   - Threads are already filtered to unresolved only
 
 2. **Categorize and prioritize**:
    - BLOCKING → CHANGE_REQUEST → QUESTION → SUGGESTION
@@ -137,13 +167,18 @@ This loop runs until the PR is mergeable or max iterations reached (default: 5, 
      - Implement fix
      - Commit using same strategy (amend relevant commit)
      - Push: `git push --force-with-lease`
-     - Reply: `gh api repos/{owner}/{repo}/pulls/<PR_NUMBER>/comments/<comment_id>/replies -f body="..."`
+     - Reply using thread ID from `review get` output:
+       ```bash
+       echo "<reply body>" | review reply <thread_id> -
+       # or from a file:
+       review reply <thread_id> response.md
+       ```
 
    - For questions/clarifications:
-     - Post detailed reply without code changes
+     - Post detailed reply without code changes using `review reply`
 
    - For declined changes:
-     - Post technical justification
+     - Post technical justification using `review reply`
 
    - **All replies include footer**: `---\n*AI-assisted response via Claude Code*`
 
@@ -157,19 +192,15 @@ This loop runs until the PR is mergeable or max iterations reached (default: 5, 
 
 #### Phase 3: Fix CI Check Failures
 
-1. **Fetch PR check status**:
-   ```bash
-   gh pr checks <PR_NUMBER>
-   ```
-
-   Parse output:
+1. **Parse CI check status** from the `review get` output fetched at start of iteration:
+   - The output contains the checks breakdown: failed (with links), pending, passed
    - ✅ Passing checks
    - ❌ Failed checks (with check name and URL)
    - ⏳ Pending/running checks
 
 2. **Wait for pending checks** (if any):
    - Show status: `⏳ Waiting for N checks to complete...`
-   - Poll every 30 seconds
+   - Re-run `review get <PR_NUMBER>` every 30 seconds to poll
    - Timeout after 10 minutes (ask user to continue waiting or proceed)
 
 3. **If all checks pass**:
@@ -178,7 +209,7 @@ This loop runs until the PR is mergeable or max iterations reached (default: 5, 
 
 4. **If checks failed**:
 
-   a. **Fetch failure details**:
+   a. **Fetch failure details** using the URL from `review get` output:
    ```bash
    gh run view <RUN_ID> --log-failed
    ```
@@ -199,9 +230,9 @@ This loop runs until the PR is mergeable or max iterations reached (default: 5, 
    d. **Fix issues**:
    - Read relevant files
    - Implement fixes for each failure
-   - **Code coverage failures**: CRITICAL - If coverage check fails, this is a hard requirement, not aspirational:
+   - **Code coverage failures**: CRITICAL -- If coverage check fails, this is a hard requirement, not aspirational:
      - Add targeted unit tests to cover new/modified code
-     - DO NOT flag as "nice to have" - treat as blocking issue
+     - DO NOT flag as "nice to have" -- treat as blocking issue
      - Ensure tests exercise all new branches/functions
      - Verify coverage locally before pushing
    - Run local validation:
@@ -219,23 +250,20 @@ This loop runs until the PR is mergeable or max iterations reached (default: 5, 
    ```
 
    f. **Wait for new checks to start**:
-   - Poll `gh pr checks` for 2 minutes
+   - Poll `review get <PR_NUMBER>` for 2 minutes
    - Verify new checks are queued/running
 
 #### Loop Termination Conditions
 
-After completing all three phases, check:
+After completing all three phases, check using `review get <PR_NUMBER>`:
 
-1. **Success - PR is mergeable**:
-   ```bash
-   gh pr view <PR_NUMBER> --json mergeable,mergeStateStatus
-   ```
-   - `mergeable: "MERGEABLE"` AND all checks passing
+1. **Success - PR/MR is mergeable**:
+   - `Mergeable: YES` AND `State: CLEAN` AND all checks passing
    - Exit loop, proceed to Step 2 (Final Verification)
 
 2. **Max iterations reached** (default 5, or value from `-n` flag):
    ```
-   ⚠️  Reached maximum iterations (N). PR status:
+   ⚠️  Reached maximum iterations (N). PR/MR status:
    - Conflicts: ✅ Resolved / ❌ Present
    - Reviews: ✅ Addressed (N comments) / ⏭️  Skipped
    - CI Checks: ✅ M passing, ❌ N failing
@@ -247,27 +275,27 @@ After completing all three phases, check:
 
 3. **No changes made in iteration**:
    - If Phase 1, 2, and 3 all skipped (no work to do)
-   - But PR still not mergeable
-   - Likely issue: External blocker (required reviewer approval, etc.)
+   - But PR/MR still not mergeable
+   - Likely issue: External blocker (required reviewer approval, blocking discussions, etc.)
    - Exit loop with warning
 
-4. **Continue next iteration**: Loop back to Phase 1
+4. **Continue next iteration**: Loop back to start (re-run `review get`)
 
 ### Step 2: Final Verification
 
-1. **Fetch final PR status**:
+1. **Fetch final PR/MR status**:
    ```bash
-   gh pr view <PR_NUMBER> --json mergeable,mergeStateStatus
+   review get <PR_NUMBER>
    ```
 
-2. **Check mergeable status**:
-   - `mergeable: "MERGEABLE"` ✅
-   - `mergeable: "CONFLICTING"` ❌ (merge conflicts)
-   - `mergeable: "UNKNOWN"` ⚠️ (checks still running)
+2. **Check status from output**:
+   - `Mergeable: YES` + `State: CLEAN` ✅
+   - `Mergeable: NO` ❌ (merge conflicts)
+   - `State: BLOCKED` ⚠️ (checks still running or required approvals missing)
 
 3. **Report final state**:
    ```
-   ✅ PR #123 is ready to merge!
+   ✅ PR/MR #123 is ready to merge!
 
    Status:
    - All CI checks passing
@@ -275,18 +303,19 @@ After completing all three phases, check:
    - No merge conflicts
 
    You can merge with: gh pr merge <PR_NUMBER>
+   # or for GitLab: glab mr merge <MR_NUMBER>
    ```
 
    OR
 
    ```
-   ⚠️  PR #123 status:
+   ⚠️  PR/MR #123 status:
 
    CI Checks: ✅ All passing
    Reviews: ✅ Addressed
    Mergeable: ❌ Has merge conflicts
 
-   Resolve conflicts with: git merge origin/main
+   Resolve conflicts with: git rebase origin/main
    ```
 
 ### Step 3: Summary
@@ -308,13 +337,13 @@ Show comprehensive summary:
 
 ## Return Value
 
-- **Exit status**: Success (PR is mergeable) or Partial (still has issues)
-- **Summary report**: Statistics on fixes applied and current PR state
+- **Exit status**: Success (PR/MR is mergeable) or Partial (still has issues)
+- **Summary report**: Statistics on fixes applied and current PR/MR state
 - **Actionable next steps**: If not fully mergeable, what remains to be done
 
 ## Examples
 
-1. **Fix PR on current branch (default behavior - all three phases)**:
+1. **Fix PR/MR on current branch (default behavior -- all three phases)**:
    ```
    /utils:fix-pr
    ```
@@ -324,12 +353,13 @@ Show comprehensive summary:
    🔄 Fixing PR #456 on branch feature/new-api
 
    === Iteration 1/5 ===
+   Fetching PR state... (review get 456)
 
    [Phase 1: Conflicts]
    ✅ No merge conflicts detected
 
    [Phase 2: Review Comments]
-   📝 Found 8 review comments (2 blocking, 4 change requests, 2 questions)
+   📝 Found 8 review threads (2 blocking, 4 change requests, 2 questions)
    - Addressing blocking: Fix null pointer in handler.go:123
    - Addressing change request: Refactor error handling in api.go
    ...
@@ -343,6 +373,7 @@ Show comprehensive summary:
    ✅ Pushed fixes, waiting for checks...
 
    === Iteration 2/5 ===
+   Fetching PR state... (review get 456)
 
    [Phase 1: Conflicts]
    ⚠️  Merge conflict detected (base branch updated)
@@ -350,7 +381,7 @@ Show comprehensive summary:
    ✅ Resolved 2 conflicts in handler.go, api.go
 
    [Phase 2: Review Comments]
-   📝 Found 2 new review comments
+   📝 Found 2 new review threads
    ✅ Addressed 2 comments (1 code change, 1 reply)
 
    [Phase 3: CI Checks]
@@ -367,7 +398,7 @@ Show comprehensive summary:
    - Commits amended: 4
    ```
 
-2. **Fix specific PR number**:
+2. **Fix specific PR/MR number**:
    ```
    /utils:fix-pr 789
    ```
@@ -402,7 +433,7 @@ Show comprehensive summary:
    - CI checks: 2 fixed
    ```
 
-4. **Fix specific PR, skip reviews**:
+4. **Fix specific PR/MR, skip reviews**:
    ```
    /utils:fix-pr 789 --skip-reviews
    ```
@@ -423,13 +454,15 @@ Show comprehensive summary:
    ```
 
 ## Arguments
-- $1: PR number (optional - uses current branch if omitted)
-- `-n N`: Maximum number of iterations (optional - default: 5)
+- $1: PR/MR number (optional -- uses current branch if omitted)
+- `-n N`: Maximum number of iterations (optional -- default: 5)
 - `--skip-reviews`: Skip the review comment addressing phase (Phase 2)
 - `--skip-rebase`: Skip the conflict resolution phase (Phase 1)
 
 ## Guidelines
 
+- **`review` tool**: Single `review get` call per iteration provides all data -- review threads, mergeability, and CI status. Do not make separate API calls to fetch this information.
+- **Replies**: Always use `review reply <thread_id> -` (stdin) or `review reply <thread_id> <file>` -- never raw `gh api` or `glab api` calls for replies.
 - **Max iterations**: Default 5, configurable via `-n`, ask user if more needed when limit reached
 - **Timeout handling**: Always provide escape hatches for long-running checks
 - **User confirmation**: Ask before expensive operations or when auto-resolution fails
@@ -439,15 +472,14 @@ Show comprehensive summary:
 - **Commit hygiene**: Prefer amending over new commits (keep history clean)
 - **Transparency**: Show what's being fixed and why at each phase
 - **Conflict resolution**: Attempt intelligent auto-resolution, fall back to user for complex cases
-- **Review integration**: Reuse logic from `/utils:address-reviews` command
 - **Idempotency**: Safe to run multiple times, detects when no work needed
-- **Code coverage**: CRITICAL - Coverage failures are BLOCKING, not optional. Must add tests to meet coverage requirements.
+- **Code coverage**: CRITICAL -- Coverage failures are BLOCKING, not optional. Must add tests to meet coverage requirements.
 
 ## Notes
 
 - This command integrates three distinct workflows in each iteration:
   1. **Conflict resolution** (via rebase)
-  2. **Review addressing** (reuses `/utils:address-reviews` logic)
+  2. **Review addressing** (uses `review get` + `review reply`)
   3. **CI fixing** (analyzes failures and implements fixes)
 
 - The key innovation is running all three in a loop, ensuring:
@@ -455,6 +487,8 @@ Show comprehensive summary:
   - Review + conflict fixes don't break CI (checked last)
   - New reviews/conflicts from CI pushes are handled in next iteration
 
+- `review get` is the single source of truth per iteration for: unresolved threads, mergeability, and CI status.
+- Works with both GitHub PRs (via `gh`) and GitLab MRs (via `glab`) -- forge is auto-detected.
 - Designed to be idempotent and safe to run multiple times
 - Complex scenarios (unresolvable conflicts, flaky tests) handled gracefully with user input
-- Command should detect when external blockers prevent mergeability (e.g., required approvals)
+- Command should detect when external blockers prevent mergeability (e.g., required approvals, unresolved blocking discussions on GitLab)
