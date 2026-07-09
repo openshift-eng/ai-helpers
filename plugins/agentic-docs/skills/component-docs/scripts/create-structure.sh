@@ -10,7 +10,6 @@ mkdir -p "$REPO_PATH/ai-docs/domain"
 mkdir -p "$REPO_PATH/ai-docs/architecture"
 mkdir -p "$REPO_PATH/ai-docs/decisions"
 mkdir -p "$REPO_PATH/ai-docs/exec-plans/active"
-mkdir -p "$REPO_PATH/ai-docs/exec-plans/completed"
 mkdir -p "$REPO_PATH/ai-docs/references"
 
 echo "✅ Directory structure created:"

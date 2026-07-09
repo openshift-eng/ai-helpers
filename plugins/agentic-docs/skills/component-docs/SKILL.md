@@ -2,7 +2,6 @@
 name: component-docs
 description: Create lean component documentation for OpenShift repositories
 trigger: explicit
-model: sonnet
 ---
 
 # Component Documentation Creator
@@ -17,7 +16,7 @@ Creates lean component agentic documentation for OpenShift component repositorie
 **Contains**: Operator patterns, testing practices, security guidelines, Kubernetes/OpenShift fundamentals, cross-repo ADRs
 
 ### Component: Component Repos (LEAN)
-**Contains**: Component-specific CRDs, component architecture, component ADRs, exec-plans
+**Contains**: Component-specific APIs/types, component architecture, component ADRs, exec-plans
 
 **Decision Rule**: "Would another repo need to duplicate this?"
 - YES → Platform (platform)
@@ -29,7 +28,7 @@ Creates lean component agentic documentation for OpenShift component repositorie
 component-repo/
 ├── AGENTS.md                      # Master entry point (80-100 lines)
 └── ai-docs/
-    ├── domain/                    # Component CRDs ONLY
+    ├── domain/                    # Component APIs/types
     ├── architecture/              # Component internals
     │   └── components.md
     ├── decisions/                 # Component ADRs ONLY
@@ -43,15 +42,15 @@ component-repo/
     │   └── enhancements.md        # Enhancement proposals & design docs
     ├── [COMPONENT]_DEVELOPMENT.md
     └── [COMPONENT]_TESTING.md
-```text
+```
 
 ## What NOT to Include (lives in Platform)
 
-❌ Generic operator patterns (controller-runtime, status conditions)  
-❌ Testing practices (test pyramid, E2E framework)  
-❌ Security practices (STRIDE, RBAC guidelines)  
-❌ Reliability practices (SLO framework)  
-❌ Kubernetes fundamentals (Pod, Node, Service)  
+❌ Generic framework patterns (controller-runtime, status conditions, common libraries)
+❌ Testing practices (test pyramid, E2E framework)
+❌ Security practices (STRIDE, RBAC guidelines)
+❌ Reliability practices (SLO framework)
+❌ Kubernetes fundamentals (Pod, Node, Service)
 ❌ Cross-repo ADRs (etcd, CVO orchestration, immutable nodes)
 
 ## Execution Workflow
@@ -63,17 +62,31 @@ component-repo/
 - [ ] Run `bash "$SKILL_DIR/scripts/create-structure.sh" "$REPO_PATH"`
 
 ### Phase 2: Create AGENTS.md (80-100 lines)
-- [ ] Create master entry point at repo root
+- [ ] Create initial AGENTS.md at repo root using `templates/AGENTS-template.md`
 - [ ] Include compressed index of component docs
-- [ ] Add retrieval-first instruction
 - [ ] Add Platform ecosystem hub links
-- [ ] Add component quick navigation
+- [ ] **Revisit after Phase 5**: Fill in the Critical Patterns section with 2-3 "never do X" rules discovered during architecture exploration
 - [ ] Validate line count: `wc -l AGENTS.md` (target: 80-100)
 
 ### Phase 3: Component Domain Concepts
-- [ ] Identify component-specific CRDs (via `oc api-resources`)
-- [ ] Create domain/*.md for each CRD
-- [ ] Document CRD purpose, key fields, lifecycle
+
+- [ ] Identify component-specific APIs, types, or CRDs:
+  - For operators: check CRD definitions, `oc api-resources`, or `config/crd/`
+  - For libraries: identify primary exported types and interfaces
+  - For CLIs: identify core commands and configuration types
+- [ ] **VERIFY BEFORE DOCUMENTING**: For each type you plan to document, find its definition and verify fields/values from source:
+  ```bash
+  # Replace <TypeName> with the actual type (e.g., MachineSet, Build, Route)
+
+  # If types live in openshift/api
+  [ ! -d "/tmp/openshift-api" ] && git clone --depth 1 https://github.com/openshift/api.git /tmp/openshift-api
+  find /tmp/openshift-api -name "types*.go" | xargs grep -A30 "type <TypeName>"
+
+  # OR in component repo
+  find . -name "types*.go" -o -name "types.go" | xargs grep -A30 "type <TypeName>"
+  ```
+  Read actual source, document ONLY existing fields with correct types
+- [ ] Create domain/*.md for each key type with links to source definitions (100-200 lines per concept)
 - [ ] Use `templates/domain-concept-template.md` for structure
 - [ ] Focus on component-specific behavior, link to Platform for generic patterns
 
@@ -81,69 +94,137 @@ component-repo/
 - [ ] Create references/enhancements.md to catalog all design documentation
 - [ ] Search openshift/enhancements repo for component-specific proposals:
   - Check `https://github.com/openshift/enhancements/tree/master/enhancements/{component-area}/`
-  - Example: MCO → `enhancements/machine-config/*.md`
-  - List all enhancement proposals with links to GitHub
 - [ ] Search component repo for local design docs:
   - Check docs/, design/, enhancements/ directories
   - Check for files with "design", "proposal", "enhancement" in name
-  - Include links to local design docs
-- [ ] Categorize by status: implemented/provisional/rejected (from enhancement metadata)
-- [ ] Use `templates/enhancements-template.md` for structure
-- [ ] Keep concise: Just title, status, link (no summaries - enhancement is the source of truth)
+- [ ] Categorize by status: implemented/provisional/rejected
+- [ ] Keep concise: title, status, link only (enhancement is the source of truth)
+- [ ] **Note**: Enhancement proposals are feature designs (often cross-component). ADRs are component architectural decisions. Don't conflate them.
 
 ### Phase 5: Component Architecture
-- [ ] Create architecture/components.md
-- [ ] Document component structure (pkg/, cmd/, controllers/)
+
+- [ ] **Read one complete implementation first**: Pick one controller/component package (preferably the most recently added). Read ALL files in it — not just controller.go, but constants, utils, every reconciler file, install sequence, and tests. This is your reference implementation. Document every pattern you observe: how it applies resources, what shared utilities it calls, what predicates it uses, what constants it defines, what env vars it reads. If the repo has 2+ similar components, compare them — divergences in approach are the most valuable thing to document ("use X pattern from component A, not Y pattern from component B").
+- [ ] **Detect repo type**: Check for operator signals (`controller-runtime`, `library-go`, `operator-sdk`, OLM bundle in `bundle/`, CRDs in `config/crd/`). If operator detected, follow the **Operator-Specific Discovery** checklist below in addition to the generic checklist.
+- [ ] **Explore remaining codebase**: Read entrypoints, key packages, dependencies. Follow the **Implementation Pattern Discovery** checklist below. The architecture doc should contain enough detail that an agent reading it produces correct code on the first try.
+- [ ] Create architecture/components.md with **repo layout as single source of truth** (add actionable annotations like "DO NOT use X for Y")
+- [ ] Document discovered patterns using the discovery checklist results
 - [ ] Explain component relationships and data flow
-- [ ] Keep lean (100-200 lines)
+- [ ] Keep lean but dense (100-200 lines, high information per line)
 
 ### Phase 6: Component ADRs
 - [ ] Create decisions/adr-template.md (copy from templates)
 - [ ] Create 2-3 component-specific ADRs
-- [ ] Example: rpm-ostree choice, Ignition format, config drift detection
 - [ ] NO cross-repo ADRs (those go in Platform)
 
 ### Phase 7: Exec-Plans
-- [ ] Create exec-plans/active/ directory (for component-specific exec-plans)
+- [ ] Create exec-plans/active/ directory
 - [ ] Create exec-plans/README.md with pointer to Platform guidance
-- [ ] Link to Platform exec-plans guidance
-- [ ] NO templates or detailed guidance (lives in Platform)
 
 ### Phase 8: Ecosystem References
-- [ ] Create references/ecosystem.md
-- [ ] Link to Platform operator patterns
-- [ ] Link to Platform testing practices
-- [ ] Link to Platform security practices
-- [ ] Link to Platform Kubernetes/OpenShift fundamentals
-- [ ] Link to Platform cross-repo ADRs
+- [ ] Create references/ecosystem.md using `templates/ecosystem-template.md`
+- [ ] Link to Platform: operator patterns, testing, security, Kubernetes/OpenShift fundamentals, cross-repo ADRs
 
 ### Phase 9: Development & Testing Docs
-- [ ] Create [COMPONENT]_DEVELOPMENT.md using `templates/DEVELOPMENT-template.md`
-- [ ] Create [COMPONENT]_TESTING.md using `templates/TESTING-template.md`
-- [ ] Link to Platform for generic practices
-- [ ] Document ONLY component-specific details:
-  - Build instructions (make targets, go commands)
-  - Repository structure (cmd/, pkg/ organization)
-  - Development workflow (local dev, on-cluster testing)
-  - Test suites (unit, integration, E2E locations and commands)
-  - Component-specific test patterns
-  - Common development tasks (add CRD, add controller, update deps)
 
-### Phase 10: Validation
+- [ ] **VERIFY FIRST**:
+  ```bash
+  # Go version
+  grep "^go " "$REPO_PATH/go.mod"
+
+  # Branch name (no clone needed) — uses first remote found
+  _remote=$(git remote | head -1)
+  git ls-remote --symref "$(git remote get-url "$_remote")" HEAD | grep 'ref:' | awk '{print $2}' | cut -d/ -f3
+
+  # Makefile targets
+  grep "^[a-zA-Z-]*:" Makefile | cut -d: -f1
+
+  # Directory structure
+  ls -d cmd pkg test manifests 2>/dev/null
+  ```
+- [ ] Create [COMPONENT]_DEVELOPMENT.md from template:
+  - **Remove** "Repository Structure" section (already in components.md)
+  - **Replace** generic template placeholders with actual repo patterns discovered in Phase 5
+  - Fill "Common Tasks" with repo-specific tasks, not generic placeholders
+  - Fill "Common Mistakes" from anti-patterns discovered in Phase 5
+  - If common tasks vary in complexity, document tiers with specific file modification lists
+- [ ] Create [COMPONENT]_TESTING.md from template:
+  - **Replace** generic code examples with actual test patterns from this repo
+  - Fill "Component-Specific" sections with real test scenarios
+- [ ] Link to Platform for generic practices
+- [ ] Document ONLY verified component-specific details (target: 100-200 lines each)
+
+### Phase 10: Validation & Verification
+
 - [ ] Run `bash "$SKILL_DIR/scripts/validate.sh" "$REPO_PATH"` (includes link validation)
-- [ ] Verify AGENTS.md ≤100 lines
-- [ ] Verify no generic duplication
-- [ ] Verify ecosystem.md exists with Platform links
-- [ ] Verify all external links (HTTP/HTTPS) are valid
-- [ ] Verify all internal links (relative paths) are valid
-- [ ] Fix any broken links found
+- [ ] Verify AGENTS.md ≤100 lines, no generic duplication, ecosystem.md exists
+- [ ] **Verify specificity**: Repo structure only in components.md (not duplicated in DEVELOPMENT.md), pattern claims backed by code evidence
+- [ ] **Anti-hallucination checks**: Spot-check type fields if applicable, verify branch names in examples match repo, confirm pattern claims reference actual code
+- [ ] **Operator-specific checks** (if operator repo): Verify apply method claims per-controller (`grep -r "client.Apply\|r.Update\|resourceapply" pkg/controller/<name>/`). Verify feature gate claims trace to actual runtime code. Verify image env var names match Makefile/CSV.
+- [ ] Verify all domain/*.md files link to actual type definitions
+- [ ] Cross-check with openshift-docs if time permits
+- [ ] **Flag discovery gaps**: At the end of components.md and DEVELOPMENT.md, add a brief "SME Review Recommended" note listing areas where automated discovery may be incomplete — typically: implementation recipes for adding new components, anti-patterns from institutional knowledge, and rationale behind pattern choices. This sets expectations that the docs are a verified foundation, not a complete implementation guide
 
 **Link Validation**:
+- Link validation always runs — broken links (wrong relative paths, 404 URLs) are a common source of documentation errors
 - Automatically checks all HTTP/HTTPS links (with timeout and user agent)
 - Validates internal/relative links (file existence)
 - Flags known Platform planned links as "KNOWN BROKEN"
-- Use `VERBOSE=true bash "$SKILL_DIR/scripts/validate.sh" "$REPO_PATH"` to see all links
-- Use `bash "$SKILL_DIR/scripts/validate.sh" "$REPO_PATH" false` to skip link validation
+- Use `VERBOSE=true bash "$SKILL_DIR/scripts/validate.sh" "$REPO_PATH"` to see all links including successful ones
+
+### Phase 11: Verification (Recommended)
+
+- [ ] **Ask user**: "Run `/review-docs` to verify claims?"
+  - If **YES**: Run `/review-docs --path "$REPO_PATH"`
+  - If **NO**: Warn user:
+    ```
+    Skipping verification. Documentation may contain:
+    - Incorrect API field claims
+    - Wrong branch/version references
+    - Unverified pattern claims (SSA vs strategic merge, etc.)
+
+    Recommend running `/review-docs` before creating PRs to catch hallucinations.
+    ```
+
+**Note**: `/review-docs` verifies claims locally against the repo's source code (including vendored dependencies) first, then uses chai-bot MCP for cross-repo verification (enhancements, platform terminology, convention compliance). Local verification works without any setup. Chai-bot is needed for cross-functional checks and requires VPN + MCP configuration — see [review-docs skill](../review-docs/SKILL.md).
+
+## Implementation Pattern Discovery
+
+Use this checklist during Phase 5 when exploring the codebase. These patterns produce the most valuable documentation — the kind that prevents an agent from writing subtly incorrect code.
+
+### What to Look For
+
+| Pattern | How to Discover | What to Document |
+|---------|----------------|------------------|
+| **Multiple paradigms** | Do different packages use different frameworks or approaches for similar tasks? | Comparison table with "use X for Y, never Z for Y" guidance |
+| **Shared utilities** | Is there a `common/`, `shared/`, `utils/`, or `internal/` package used across components? | Exact exported symbols with one-line usage contract |
+| **Wiring/registration** | How do new components get registered and started? How does work get dispatched to them? | Startup sequence, event/trigger flow, where to hook in new components |
+| **Resource management** | How does code create/update external resources? (SSA, strategic merge, REST calls, etc.) | Actual method with code reference — verify in code, don't assume |
+| **Naming conventions** | Grep for patterns in env vars, labels, file names, package names | Exact format with examples |
+| **Feature toggles** | Are there feature gates, flags, or config-driven enablement? | Definition → runtime check → wiring chain |
+| **Anti-patterns** | Search for "DO NOT", "NEVER", "MUST", "HACK" in code comments. Study 2-3 existing implementations to identify shared patterns and things they avoid | Numbered "DO NOT" list with brief explanation |
+
+### Operator-Specific Discovery
+
+When the repo is a Kubernetes/OpenShift operator (detected via controller-runtime, library-go, OLM bundle, CRDs), also investigate these patterns. Skipping them produces docs that look correct but cause agents to write subtly wrong code.
+
+| Pattern | How to Discover | What to Document |
+|---------|----------------|------------------|
+| **Controller framework split** | Check imports in EACH controller package for `library-go` vs `controller-runtime`. Don't assume uniformity. | Per-controller table: framework, apply method (`client.Apply` vs `resourceapply` vs Create+Update), code ref. |
+| **Reconciliation apply method** | For EACH controller: `grep -r "client.Apply\|r.Update\|r.Create\|resourceapply" pkg/controller/<name>/` | Actual method per controller. This is the #1 source of hallucinations — the cert-manager-operator review found docs claiming "all controllers use SSA" when only one of three did. |
+| **Feature gate runtime behavior** | Read `features.go` end-to-end. Trace from definition → runtime check → startup wiring. | Full chain. For TechPreview: cluster-side gating (FeatureSet discovery, fail-closed). Don't just list gate names. |
+| **Image resolution & OLM bundle** | `grep -r RELATED_IMAGE Makefile bundle/`. Check Makefile for `*_VERSION` vars. Check `bundle/manifests/` for CSV. | Env var naming convention, version variables, how OLM injects images. CSV update checklist (env vars, RBAC, relatedImages). |
+| **Error classification** | Check common/ for error wrapper types (`IrrecoverableError`, `RetryRequiredError`). | Which types exist, effect on requeue behavior. |
+| **Generated code & bindata pipeline** | `find . -name "zz_generated*" -o -name "bindata.go" -o -path "*/clientset/*"`. Check Makefile for generation targets. | Generated files/dirs with "NEVER hand-edit" + make target. For bindata: version var → hack script → output dir → Go loading. |
+| **Status conditions & OpenShift integrations** | Check for library-go `OperatorStatus` vs custom conditions. Grep for proxy, trusted-CA, TLS profile, CCO references. | Which condition system, which integrations exist — only document what's present. |
+
+### Information Density
+
+- Exact symbol names over generic descriptions
+- Comparison tables for contrasting patterns
+- "Never" / "DO NOT" warnings for common confusion points
+- One table with symbols beats three paragraphs of prose
+- Every line should tell the reader something they can't infer from file names alone
+- Every pattern claim must include a file:line reference (e.g., `pkg/controller/foo/deployments.go:40`). If you can't point to source, you're inferring — flag it as unverified instead of stating it as fact
 
 ## AGENTS.md Requirements
 
@@ -152,406 +233,95 @@ component-repo/
 **Required Sections**:
 1. Component metadata (name, repository)
 2. Platform reference (link to ecosystem hub)
-3. Component purpose (what is it?)
+3. Component purpose (1-2 sentences)
 4. Core components (brief)
-5. Documentation structure (compressed)
-6. Knowledge graph (visual)
-7. Platform ecosystem links (operator patterns, testing, security, etc.)
-
-**Format**: Compressed, table-based, links not prose
-
-**Example**:
-```markdown
-# Component Name - Agentic Documentation
-
-**Component**: Machine Config Operator  
-**Repository**: openshift/machine-config-operator  
-
-> **Generic Platform Patterns**: See Platform documentation (openshift/enhancements/ai-docs/)
-
-## What is MCO?
-
-Manages OS configuration for OpenShift nodes. Controls everything between kernel and kubelet.
-
-## Core Components
-
-- **MCD**: DaemonSet applying configs | **MCC**: Coordinates upgrades | **MCS**: Serves Ignition
-
-## Documentation Structure
-
-```text
-ai-docs/
-├── domain/          # CRDs: MachineConfig, MachineConfigPool
-├── architecture/    # Component internals
-├── decisions/       # Component ADRs
-└── exec-plans/      # Feature planning
-```text
-
-## Platform Links
-
-**Patterns**: Operator | Testing | Security (see Platform docs)
-
-## Component-Specific Domain Concepts
-
-**Template**: `templates/domain-concept-template.md`
-
-**Structure**:
-- API Group / Kind / Scope
-- Purpose (component-specific behavior)
-- Key fields (most important only)
-- Lifecycle
-- Examples (component-specific usage)
-
-**Length**: 100-200 lines per concept
-
-**Example**: MachineConfig (MCO-specific)
-- Ignition config structure
-- Rendered config merging
-- OS update mechanism
-- Ownership model (system vs user)
-
-## Component Architecture
-
-**File**: `architecture/components.md`
-
-**Contents**:
-- Component structure (pkg/, cmd/, controllers/)
-- Component relationships
-- Data flow
-- Key responsibilities
-
-**Length**: 100-200 lines
-
-## Component ADRs
-
-**Format**: `decisions/adr-NNNN-title.md`
-
-**Example Component ADRs**:
-- Why rpm-ostree for OS updates (MCO)
-- Why Ignition format for config (MCO)
-- Why etcd for platform state (Platform, NOT component)
-
-**Template**: `decisions/adr-template.md`
-
-## Exec-Plans
-
-**Purpose**: Track active feature implementation (bridges enhancements and PRs)
-
-**Location**: Component repo (`ai-docs/exec-plans/active/`)
-
-**Guidance**: See Platform documentation for exec-plans templates and workflows
-
-**Component repo structure**:
-```text
-ai-docs/exec-plans/
-├── active/           # Component-specific exec-plans go here
-└── README.md         # Pointer to Platform guidance
-```text
-
-**What component-docs creates**:
-- `active/` directory (empty, ready for exec-plans)
-- `README.md` with pointer to Platform exec-plans guidance
-
-**Note**: Exec-plans are deleted after completion; knowledge is extracted into ADRs or architecture docs
-
-## Enhancement Proposals & Design Docs
-
-**File**: `references/enhancements.md`
-
-**Purpose**: Index all design documentation for this component
-
-**Sources to search**:
-1. openshift/enhancements repo: `https://github.com/openshift/enhancements/tree/master/enhancements/{component-area}/`
-2. Component repo: docs/, design/, enhancements/ directories
-
-**Format**: Simple catalog with title, status, and link (no summaries - the enhancement is the source of truth)
-
-**Example**:
-```markdown
-# Enhancement Proposals & Design Docs
-
-## openshift/enhancements
-- [On-Cluster Layering](https://github.com/openshift/enhancements/blob/master/enhancements/machine-config/on-cluster-layering.md) - Implemented
-- [Admin Node Disruption Policy](https://github.com/openshift/enhancements/blob/master/enhancements/machine-config/admin-defined-node-disruption-policy.md) - Implemented
-
-## Local Design Docs
-- [Config Drift Detection](../docs/design/config-drift.md)
-```
-
-**Distinction from ADRs**: Enhancement proposals are feature designs (often cross-component), ADRs are component architectural decisions
-
-## Ecosystem References
-
-**File**: `references/ecosystem.md`
-
-**Links to Platform**:
-- Operator patterns (controller-runtime, status conditions, webhooks, finalizers, RBAC)
-- Testing practices (pyramid, E2E framework)
-- Security practices (STRIDE, RBAC, secrets)
-- Reliability practices (SLO, observability, degraded states)
-- Kubernetes fundamentals (Pod, Node, DaemonSet)
-- OpenShift fundamentals (ClusterOperator, release image)
-- Cross-repo ADRs (etcd, CVO orchestration, immutable nodes)
-
-**Purpose**: Single source of truth for Platform links
-
-## Development & Testing Docs
-
-**Files**: `[COMPONENT]_DEVELOPMENT.md`, `[COMPONENT]_TESTING.md`
-
-**Templates**: Use `templates/DEVELOPMENT-template.md` and `templates/TESTING-template.md`
-
-### DEVELOPMENT.md Contents
-
-**Required sections** (component-specific ONLY):
-
-1. **Quick Start**
-   - Prerequisites (Go version, cluster access, tools)
-   - Build commands (`make [target]`, `go build`)
-   - Output locations
-
-2. **Repository Structure**
-   - cmd/ organization
-   - pkg/ organization
-   - manifests/ structure
-   - test/ organization
-
-3. **Development Workflow**
-   - Local development (build binaries, run tests)
-   - On-cluster testing (replace pod, run locally against cluster)
-   - Debugging (logs, exec, delve)
-
-4. **Code Organization**
-   - Where controllers live
-   - Where domain logic lives
-   - Package structure
-
-5. **Common Tasks**
-   - Add new CRD
-   - Add new controller
-   - Update dependencies
-   - Build & release process
-
-6. **Component-Specific Notes**
-   - Special build flags
-   - Environment variables
-   - Local development quirks
-
-**Link to Platform for**: Generic Go standards, controller-runtime patterns, CI/CD workflows
-
-### TESTING.md Contents
-
-**Required sections** (component-specific ONLY):
-
-1. **Test Organization**
-   - Test pyramid visualization
-   - Where tests live (unit, integration, E2E)
-
-2. **Unit Tests**
-   - Location (pkg/*/\*_test.go)
-   - Running commands (`make test-unit`, `go test`)
-   - Component-specific test patterns
-   - Coverage commands
-
-3. **Integration Tests**
-   - Location (test/integration/ or with build tags)
-   - Running commands
-   - Component-specific integration scenarios
-
-4. **E2E Tests**
-   - Location (test/e2e/)
-   - Running commands
-   - Component-specific E2E scenarios
-   - Test organization
-
-5. **Test Coverage**
-   - Current coverage
-   - Coverage targets
-   - Known gaps
-
-6. **Debugging Tests**
-   - Unit test failures
-   - E2E test failures
-   - Must-gather commands
-
-7. **Component-Specific Test Notes**
-   - Special test setup
-   - Known flaky tests
-   - Test environment requirements
-
-**Link to Platform for**: Test pyramid philosophy (60/30/10), E2E framework patterns, mock vs real strategies
-
-### Example from MCO
-
-**DEVELOPMENT.md** includes:
-- Build commands: `make machine-config-daemon`, `make machine-config-controller`
-- Repository structure: cmd/, pkg/, templates/, manifests/
-- Development workflow: Local build, on-cluster testing
-- Common tasks: Add CRD, update deps
-
-**TESTING.md** includes:
-- Unit test patterns: Controller tests, Ignition tests
-- Integration tests: Node update scenarios
-- E2E tests: OS update tests, config drift tests
-- Test commands: `make test-unit`, `make test-e2e`
-
-**Both files** are ~100-200 lines, lean, component-specific only
+5. Critical patterns (2-3 "never do X" rules — the most important architectural warnings)
+6. Documentation structure (compressed)
+7. Platform ecosystem links
+
+**Format**: Compressed, table-based, links not prose. Use `templates/AGENTS-template.md`.
 
 ## Validation Criteria
 
-✅ **AGENTS.md**:
-- At repo root (not in ai-docs/)
-- 80-100 lines
-- Compressed index format
-- Retrieval-first instruction
-- Platform ecosystem links section
+✅ **AGENTS.md**: At repo root, 80-100 lines, compressed index, retrieval-first instruction, Platform links, critical pattern warnings
 
-✅ **No duplication**:
-- No testing pyramid explanations
-- No controller-runtime patterns
-- No status condition semantics
-- No STRIDE threat model
-- No SLO framework
+✅ **No duplication**: No generic framework explanations, no testing pyramid, no security frameworks
 
-✅ **References**:
-- references/ecosystem.md exists with Platform links
-- references/enhancements.md exists with design docs catalog
-- Enhancement proposals from openshift/enhancements discovered
-- Local design docs discovered and linked
+✅ **References**: ecosystem.md with Platform links, enhancements.md with design docs catalog
 
-✅ **Component-specific only**:
-- Domain concepts are component CRDs
-- ADRs are component-specific
-- Architecture is component internals
+✅ **Component-specific only**: Domain concepts are component-specific, ADRs are component-specific, architecture is component internals
 
-✅ **Link validation**:
-- All external links (HTTP/HTTPS) return 200 OK
-- All internal links (relative paths) resolve to existing files/directories
-- No broken links except known Platform planned links
-- Links to upstream documentation are valid and current
+✅ **Link validation**: All external links return 200 OK, all internal links resolve
+
+✅ **Implementation patterns**: Architecture doc has discovery checklist results, shared utilities listed with exact symbols, anti-patterns documented
+
+✅ **Operator accuracy** (if operator repo): Apply method documented per-controller (not assumed uniform), feature gate runtime behavior traced, generated code inventory listed, image resolution mechanism documented
 
 ## Anti-Patterns
 
 ### ❌ DON'T duplicate Platform content
 
-**Wrong**:
-```markdown
-# TESTING.md (187 lines, 60% generic)
+**Wrong**: 187-line TESTING.md where 60% is generic test pyramid explanation
+**Right**: 90-line COMPONENT_TESTING.md that's 100% component-specific, links to Platform
 
-## Testing Pyramid
-[100 lines explaining pyramid]
+### ❌ DON'T explain generic framework patterns
 
-## Component Tests
-[37 lines component-specific]
-```text
-
-**Right**:
-```markdown
-# COMPONENT_TESTING.md (90 lines, 100% component-specific)
-
-> Testing practices: See Platform docs
-
-## Component Test Suites
-[90 lines component-specific]
-```text
-
-### ❌ DON'T explain generic patterns
-
-**Wrong**: Explaining controller-runtime in component docs  
-**Right**: Link to Platform, document component-specific usage
+**Wrong**: Explaining framework internals in component docs
+**Right**: Link to Platform, document component-specific usage only
 
 ### ❌ DON'T create cross-repo ADRs
 
-**Wrong**: ADR about etcd in component repo  
-**Right**: ADR about etcd in Platform
+**Wrong**: ADR about shared infrastructure in component repo
+**Right**: That ADR belongs in Platform
 
-## Metrics
+### ❌ DON'T document without verification
 
-**Expected structure**:
-- AGENTS.md: 80-100 lines (vs 150+ for single-tier)
-- Total docs: ~2,500 lines (vs ~6,000 single-tier)
-- Generic duplication: 0 lines (vs ~2,400 single-tier)
+**Wrong**: Type fields from memory, outdated conventions, pattern claims without code evidence
+**Right**: Verify in source code, check actual branch names, confirm patterns exist, link to sources
 
-**Benefits**:
-- 58% smaller than single-tier
-- Zero duplication across ecosystem
-- Pattern updates: 1 Platform PR (not 60+ component PRs)
+### ❌ DON'T write generic placeholders
+
+**Wrong**: "Add new controller: 1. Create controller.go 2. Implement Reconcile() 3. Register"
+**Right**: Repo-specific steps with exact file paths, shared utilities to use, registration wiring, and naming conventions
 
 ## Prerequisites
 
-**Before running**:
-1. ✅ Platform exists at openshift/enhancements/ai-docs/
-2. ✅ Repository is OpenShift component
-3. ✅ You understand two-tier architecture
-4. ✅ Platform documentation exists at openshift/enhancements/ai-docs/
+1. ✅ Platform documentation exists at openshift/enhancements/ai-docs/
+2. ✅ Repository is an OpenShift component
 
 ## Arguments
 
 ```bash
 /component-docs [--path <repository-path>]
-```text
+```
 
-**Arguments**:
 - `--path <repository-path>`: Path to component repository (default: current directory)
-- No args: Create documentation in current directory
 
 ## Success Output
 
 ```text
 ✅ Component Documentation Created
 
-Component: machine-config-operator
-Repository: /path/to/repo
+Component: [component-name]
+Repository: [path]
 
 Structure:
-  ✅ AGENTS.md (root): 87 lines (target: 80-100)
-  ✅ Domain concepts: 4 files (component CRDs only)
-  ✅ Architecture: 1 file (components.md)
-  ✅ Component ADRs: 3 files
-  ✅ Exec-plans: README.md, active/
+  ✅ AGENTS.md (root): XX lines (target: 80-100)
+  ✅ Domain concepts: N files
+  ✅ Architecture: components.md
+  ✅ Component ADRs: N files
   ✅ References: ecosystem.md, enhancements.md
   ✅ Development: COMPONENT_DEVELOPMENT.md
   ✅ Testing: COMPONENT_TESTING.md
 
-Validation:
-  ✅ AGENTS.md at root (80-100 lines)
-  ✅ No generic duplication
-  ✅ Platform links present
-  ✅ Component-specific content only
-
-References:
-  - Ecosystem hub: openshift/enhancements/ai-docs
-  - Enhancement proposals: Catalogued from openshift/enhancements + local docs
-  - Platform links: Operator patterns, testing, security, Kubernetes/OpenShift fundamentals
-
 Next Steps:
-  1. Populate domain/*.md with component CRDs
-  2. Document architecture in components.md
-  3. Create component-specific ADRs
-  4. Use exec-plans/ for active features
-```text
-
-## Example: Machine Config Operator
-
-**Created files**:
-- AGENTS.md (87 lines)
-- ai-docs/domain/machineconfig.md
-- ai-docs/domain/machineconfigpool.md
-- ai-docs/domain/kubeletconfig.md
-- ai-docs/domain/containerruntimeconfig.md
-- ai-docs/architecture/components.md
-- ai-docs/decisions/adr-0001-rpm-ostree-updates.md
-- ai-docs/decisions/adr-0002-ignition-format.md
-- ai-docs/decisions/adr-0003-config-drift-detection.md
-- ai-docs/references/ecosystem.md
-- ai-docs/exec-plans/README.md
-- ai-docs/MCO_DEVELOPMENT.md
-- ai-docs/MCO_TESTING.md
-
-**Total**: ~2,500 lines (component-specific only)
+  1. Run `/review-docs` to verify claims locally + cross-repo via chai-bot (recommended)
+  2. Review generated documentation for accuracy
+  3. Create PR with documentation changes
+```
 
 ## See Also
 
+- `/review-docs` - Verify documentation claims locally and cross-repo via chai-bot (recommended after creation)
 - `/update-platform-docs` - Update Platform documentation
 - Platform Documentation (openshift/enhancements/ai-docs/)
-- [MCO Example](https://github.com/openshift/machine-config-operator/tree/master/ai-docs)

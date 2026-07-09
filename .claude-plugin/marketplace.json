@@ -523,7 +523,7 @@
       "name": "agentic-docs",
       "source": "./plugins/agentic-docs",
       "description": "Create and maintain AI-optimized documentation for OpenShift",
-      "version": "1.0.0"
+      "version": "1.2.2"
     },
     {
       "name": "metrics",

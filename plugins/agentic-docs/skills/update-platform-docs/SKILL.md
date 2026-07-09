@@ -2,7 +2,6 @@
 name: update-platform-docs
 description: Update existing platform documentation with automatic gap detection in openshift/enhancements
 trigger: explicit
-model: sonnet
 ---
 
 # Platform Documentation Updater
@@ -82,11 +81,12 @@ Based on user request, perform ONE OR MORE of:
 - [ ] Preserve existing structure
 - [ ] Maintain file length targets
 
-### Phase 3: Validation
+### Phase 3: Validation & Verification
+
 - [ ] Run validation: `bash "$SKILL_DIR/scripts/validate.sh" "$REPO_PATH"`
-- [ ] Verify new files follow conventions
-- [ ] Verify AGENTS.md 100-200 lines
-- [ ] Verify internal links work
+- [ ] Verify new files follow conventions, AGENTS.md 100-200 lines, internal links work
+- [ ] **Anti-hallucination**: Pattern claims verified in sample repos, API fields link to github.com/openshift/api or k8s/apimachinery, cross-check terminology with openshift-docs
+- [ ] All technical claims have references (type definitions, implementations, or enhancements)
 
 ### Phase 4: Report
 - [ ] List files created
@@ -156,6 +156,8 @@ Based on user request, perform ONE OR MORE of:
 - Follow existing file structure and style
 - Maintain reference/terse style (tables, checklists)
 - Keep files within length targets (100-400 lines)
+
+**Verification Requirements**: API/CRD claims link to github.com/openshift/api or kubernetes/apimachinery; pattern claims link to implementations; version/convention claims verified in actual repos (3+ samples); architectural claims link to enhancements/ADRs
 
 ### Updating AGENTS.md
 - Always read current content first
@@ -342,6 +344,11 @@ Next Steps:
 ### ❌ Mistake 4: Duplicating Content
 **Wrong:** Copying content from dev-guide/guidelines
 **Right:** Link to authoritative source or reformat for AI agents
+
+### ❌ Mistake 5: Documenting Without Verification
+
+**Wrong**: Patterns from memory, API fields without checking github.com/openshift/api, unverified conventions
+**Right**: Verify in actual code, link to type definitions (k8s/apimachinery, openshift/api), check multiple repos for patterns
 
 ## See Also
 
