@@ -169,7 +169,7 @@ This single command provides everything needed for all phases:
 
 3. **Address each comment**:
 
-   **Before posting any reply**, determine if the reviewer is human or a bot (e.g. `coderabbitai`, `openshift-ci-robot`), then apply the `--auto-approve` policy (default: `ai`):
+   **Before posting any reply**, determine if the reviewer is human or a bot (e.g. `coderabbitai`, `openshift-ci-robot`, `cubic-dev-ai`), then apply the `--auto-approve` policy (default: `ai`):
 
    | `--auto-approve` | Human reviewer | Bot/AI reviewer |
    |---|---|---|
