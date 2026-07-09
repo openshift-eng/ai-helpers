@@ -2925,7 +2925,7 @@ footer a { color: var(--primary); }
     {
       "name": "utils",
       "description": "A generic utilities plugin serving as a catch-all for various helper commands and agents",
-      "version": "0.0.12",
+      "version": "0.0.13",
       "has_readme": true,
       "commands": [
         {
@@ -2943,6 +2943,14 @@ footer a { color: var(--primary); }
           "description_html": "Find and verify Konflux-built container images from a GitHub PR",
           "synopsis": "/utils:find-konflux-images \u003cPR-URL\u003e",
           "body_html": "\u003cp\u003eGiven a PR in any Konflux-enabled repository, find all Konflux/Tekton pipeline-built container images, check their availability on quay.io, and report the results. Works with any repository that has \u003ccode\u003e.tekton/\u003c/code\u003e pipeline configurations.\u003c/p\u003e\u003cp\u003e### Usage Example\u003c/p\u003e\u003cp\u003e\u003ccode\u003e/utils:find-konflux-images https://github.com/org/repo/pull/123\u003c/code\u003e\u003c/p\u003e\u003cp\u003e### Arguments\u003c/p\u003e\u003cp\u003e- \u003cstrong\u003e$ARGUMENTS\u003c/strong\u003e \u003cem\u003e(required)\u003c/em\u003e: A full GitHub PR URL (e.g., \u003ccode\u003ehttps://github.com/owner/repo/pull/123\u003c/code\u003e). Extract org, repo, and PR number from the URL.\u003c/p\u003e"
+        },
+        {
+          "name": "fix-pr",
+          "full_name": "utils:fix-pr",
+          "description": "Iteratively fix PR/MR checks and address review comments until PR/MR is mergeable",
+          "description_html": "Iteratively fix PR/MR checks and address review comments until PR/MR is mergeable",
+          "synopsis": "/utils:fix-pr [PR/MR number] [-n N] [--skip-reviews] [--skip-rebase] [--auto-approve=no|ai|human|all]",
+          "body_html": "\u003cp\u003eThe \u003ccode\u003eutils:fix-pr\u003c/code\u003e command automates the complete PR/MR remediation workflow by iteratively resolving merge conflicts, addressing review comments, and fixing failing CI checks until the PR/MR achieves mergeable status. Each iteration performs up to three steps in order: (1) rebase to resolve conflicts, (2) address review comments, (3) fix CI check failures. Flags allow skipping specific phases or configuring iteration count.\u003c/p\u003e\u003cp\u003eWorks with both \u003cstrong\u003eGitHub Pull Requests\u003c/strong\u003e and \u003cstrong\u003eGitLab Merge Requests\u003c/strong\u003e. The \u003ccode\u003ereview\u003c/code\u003e tool auto-detects the forge from the git remote.\u003c/p\u003e\u003cp\u003eThis command is ideal for:\u003cbr\u003e- Getting a PR/MR ready to merge automatically with minimal manual intervention\u003cbr\u003e- Handling complex scenarios where review fixes might break CI or create conflicts\u003cbr\u003e- Ensuring the PR/MR stays up-to-date with the base branch throughout the process\u003cbr\u003e- Recovering from multiple rounds of feedback and test failures\u003c/p\u003e"
         },
         {
           "name": "generate-test-plan",

@@ -7,7 +7,7 @@ argument-hint: "[PR/MR number] [-n N] [--skip-reviews] [--skip-rebase] [--auto-a
 utils:fix-pr
 
 ## Synopsis
-```
+```text
 /utils:fix-pr [PR/MR number] [-n N] [--skip-reviews] [--skip-rebase] [--auto-approve=no|ai|human|all]
 ```
 
@@ -76,16 +76,18 @@ This command is ideal for:
 
 This loop runs until the PR/MR is mergeable or max iterations reached (default: 5, configurable via `-n`).
 
-**At the start of each iteration, fetch full PR/MR state in one call**:
+**At the start of each iteration, fetch full PR/MR state**:
 ```bash
 review get <PR_NUMBER>
 ```
 
-This single command provides everything needed for all phases:
+This call provides the initial snapshot for all phases:
 - Unresolved review threads with thread IDs and comment content
 - Review decisions (APPROVED, CHANGES_REQUESTED, etc.)
 - Mergeability status and merge state (CLEAN, BLOCKED, CONFLICTING, etc.)
 - CI/CD checks breakdown (failed with links, pending, passed)
+
+`review get` is also re-run mid-iteration when polling is needed: after a rebase (to confirm mergeability updated), and while waiting for CI checks to finish. Each re-run reflects the current live state.
 
 **Each iteration performs up to three phases in order:**
 
@@ -137,15 +139,15 @@ This single command provides everything needed for all phases:
      - Log: `✅ Resolved N conflicts in M files`
 
    - **Cannot auto-resolve** (complex conflicts):
-     - Run `git rebase --abort`
-     - Report to user:
-       ```
-       ⚠️  Cannot automatically resolve conflicts in:
-       - path/to/file1.go (complex logic conflict)
-       - path/to/file2.py (structural changes)
+      - Run `git rebase --abort`
+      - Report to user:
+        ```text
+        ⚠️  Cannot automatically resolve conflicts in:
+        - path/to/file1.go (complex logic conflict)
+        - path/to/file2.py (structural changes)
 
-       Manual resolution required.
-       ```
+        Manual resolution required.
+        ```
      - Ask user: Abort / Skip conflict resolution / Manual intervention
      - If user chooses abort: Exit command
      - If user chooses skip: Continue to Phase 2 (may fail CI due to conflicts)
@@ -180,14 +182,14 @@ This single command provides everything needed for all phases:
 
    - **When confirmation is required**:
      - Draft the reply text and print it in a normal message:
-       ```
+       ```text
        📝 Drafted reply to @reviewer (thread 3423986075 in handler.go:45):
        ───────────────────────────────
        Done. Moved the context manager to wrap the file open call.
        ───────────────────────────────
        ```
      - Then use the question-type tool to ask for approval (examples: `ask_followup_question` in Roo/Zoo, `question` in Opencode, equivalent in other AI assistants):
-       ```
+       ```text
        Post this reply? [Yes / No / Edit]
        ```
      - Wait for user approval before calling `review reply`
@@ -239,9 +241,16 @@ This single command provides everything needed for all phases:
 4. **If checks failed**:
 
    a. **Fetch failure details** using the URL from `review get` output:
-   ```bash
-   gh run view <RUN_ID> --log-failed
-   ```
+
+   - **GitHub**:
+     ```bash
+     gh run view <RUN_ID> --log-failed
+     ```
+   - **GitLab** (no direct equivalent -- use interactive view or trace specific failed job):
+     ```bash
+     glab ci view              # interactive: navigate to failed job and view logs
+     glab ci trace <JOB_ID>   # stream logs for a specific failed job ID
+     ```
 
    b. **Analyze failures**:
    - Parse error messages, stack traces, test failures
@@ -249,7 +258,7 @@ This single command provides everything needed for all phases:
    - Group related failures
 
    c. **Show summary**:
-   ```
+   ```text
    ❌ Failed checks (3):
    1. unit-tests: 2 test failures in pkg/api/handler_test.go
    2. lint: 5 golangci-lint issues
@@ -273,8 +282,7 @@ This single command provides everything needed for all phases:
    e. **Commit and push**:
    ```bash
    git add .
-   # Amend most relevant commit
-   git commit --amend --no-edit  # or update message if scope changed
+   git commit --amend --no-edit
    git push --force-with-lease
    ```
 
@@ -291,7 +299,7 @@ After completing all three phases, check using `review get <PR_NUMBER>`:
    - Exit loop, proceed to Step 2 (Final Verification)
 
 2. **Max iterations reached** (default 5, or value from `-n` flag):
-   ```
+   ```text
    ⚠️  Reached maximum iterations (N). PR/MR status:
    - Conflicts: ✅ Resolved / ❌ Present
    - Reviews: ✅ Addressed (N comments) / ⏭️  Skipped
@@ -323,7 +331,7 @@ After completing all three phases, check using `review get <PR_NUMBER>`:
    - `State: BLOCKED` ⚠️ (checks still running or required approvals missing)
 
 3. **Report final state**:
-   ```
+   ```text
    ✅ PR/MR #123 is ready to merge!
 
    Status:
@@ -337,7 +345,7 @@ After completing all three phases, check using `review get <PR_NUMBER>`:
 
    OR
 
-   ```
+   ```text
    ⚠️  PR/MR #123 status:
 
    CI Checks: ✅ All passing
@@ -373,12 +381,12 @@ Show comprehensive summary:
 ## Examples
 
 1. **Fix PR/MR on current branch (default behavior -- all three phases)**:
-   ```
+   ```text
    /utils:fix-pr
    ```
 
    Output:
-   ```
+   ```text
    🔄 Fixing PR #456 on branch feature/new-api
 
    === Iteration 1/5 ===
@@ -428,17 +436,17 @@ Show comprehensive summary:
    ```
 
 2. **Fix specific PR/MR number**:
-   ```
+   ```text
    /utils:fix-pr 789
    ```
 
 3. **Skip review comments (only handle conflicts + CI)**:
-   ```
+   ```text
    /utils:fix-pr --skip-reviews
    ```
 
    Output:
-   ```
+   ```text
    🔄 Fixing PR #456 (skipping review comments)
 
    === Iteration 1/5 ===
@@ -463,22 +471,22 @@ Show comprehensive summary:
    ```
 
 4. **Fix specific PR/MR, skip reviews**:
-   ```
+   ```text
    /utils:fix-pr 789 --skip-reviews
    ```
 
 5. **Skip rebase, only fix reviews and CI**:
-   ```
+   ```text
    /utils:fix-pr --skip-rebase
    ```
 
 6. **Custom iteration count**:
-   ```
+   ```text
    /utils:fix-pr -n 10
    ```
 
 7. **Combine flags**:
-   ```
+   ```text
    /utils:fix-pr 123 -n 3 --skip-rebase
    ```
 
@@ -525,5 +533,5 @@ Show comprehensive summary:
 - `review get` is the single source of truth per iteration for: unresolved threads, mergeability, and CI status.
 - Works with both GitHub PRs (via `gh`) and GitLab MRs (via `glab`) -- forge is auto-detected.
 - Designed to be idempotent and safe to run multiple times
-- Complex scenarios (unresolvable conflicts, flaky tests) handled gracefully with user input
+- Complex scenarios (unresolvable conflicts, flaky tests) are handled by aborting the failing operation, reporting the specific error to the user, and asking whether to skip, retry, or abort the command
 - Command should detect when external blockers prevent mergeability (e.g., required approvals, unresolved blocking discussions on GitLab)
