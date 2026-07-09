@@ -1,6 +1,6 @@
 ---
 description: Iteratively fix PR/MR checks and address review comments until PR/MR is mergeable
-argument-hint: "[PR/MR number] [-n N] [--skip-reviews] [--skip-rebase]"
+argument-hint: "[PR/MR number] [-n N] [--skip-reviews] [--skip-rebase] [--auto-approve=no|ai|human|all]"
 ---
 
 ## Name
@@ -8,7 +8,7 @@ utils:fix-pr
 
 ## Synopsis
 ```
-/utils:fix-pr [PR/MR number] [-n N] [--skip-reviews] [--skip-rebase]
+/utils:fix-pr [PR/MR number] [-n N] [--skip-reviews] [--skip-rebase] [--auto-approve=no|ai|human|all]
 ```
 
 ## Description
@@ -54,6 +54,11 @@ This command is ideal for:
    - `--skip-reviews`: Skip the review comment addressing phase (Phase 2)
    - `--skip-rebase`: Skip the conflict resolution phase (Phase 1)
    - `-n N`: Set maximum iterations (default: 5 if not specified)
+   - `--auto-approve=VALUE`: Controls which reply types are posted without user confirmation (default: `ai`):
+     - `no` -- always ask for confirmation before posting any reply
+     - `ai` -- auto-post replies to AI/bot reviewers (default); always confirm before replying to humans
+     - `human` -- auto-post replies to human reviewers; always confirm before replying to bots
+     - `all` -- never ask for confirmation, post all replies immediately
    - Store flag state for later decision
 
 4. **Checkout PR/MR branch**:
@@ -163,24 +168,48 @@ This single command provides everything needed for all phases:
    - Group by file and proximity
 
 3. **Address each comment**:
+
+   **Before posting any reply**, determine if the reviewer is human or a bot (e.g. `coderabbitai`, `openshift-ci-robot`), then apply the `--auto-approve` policy (default: `ai`):
+
+   | `--auto-approve` | Human reviewer | Bot/AI reviewer |
+   |---|---|---|
+   | `no` | confirm | confirm |
+   | `ai` (default) | confirm | auto-post |
+   | `human` | auto-post | confirm |
+   | `all` | auto-post | auto-post |
+
+   - **When confirmation is required**:
+     - Draft the reply text and print it in a normal message:
+       ```
+       📝 Drafted reply to @reviewer (thread 3423986075 in handler.go:45):
+       ───────────────────────────────
+       Done. Moved the context manager to wrap the file open call.
+       ───────────────────────────────
+       ```
+     - Then use the question-type tool to ask for approval (examples: `ask_followup_question` in Roo/Zoo, `question` in Opencode, equivalent in other AI assistants):
+       ```
+       Post this reply? [Yes / No / Edit]
+       ```
+     - Wait for user approval before calling `review reply`
+     - If user chooses to edit, ask for the revised text, then post the edited version
+
+   - **When auto-posting** (no confirmation needed):
+     - Post reply immediately:
+       ```bash
+       echo "<reply body>" | review reply <thread_id> -
+       ```
+
    - For code changes:
      - Implement fix
      - Commit using same strategy (amend relevant commit)
      - Push: `git push --force-with-lease`
-     - Reply using thread ID from `review get` output:
-       ```bash
-       echo "<reply body>" | review reply <thread_id> -
-       # or from a file:
-       review reply <thread_id> response.md
-       ```
+     - Then draft and post reply as described above
 
    - For questions/clarifications:
-     - Post detailed reply without code changes using `review reply`
+     - Draft a detailed reply, confirm with user if human reviewer, then post using `review reply`
 
    - For declined changes:
-     - Post technical justification using `review reply`
-
-   - **All replies include footer**: `---\n*AI-assisted response via Claude Code*`
+     - Draft a technical justification, confirm with user if human reviewer, then post using `review reply`
 
 4. **After addressing reviews**:
    - Log: `✅ Addressed N review comments (M code changes, P replies)`
@@ -458,11 +487,17 @@ Show comprehensive summary:
 - `-n N`: Maximum number of iterations (optional -- default: 5)
 - `--skip-reviews`: Skip the review comment addressing phase (Phase 2)
 - `--skip-rebase`: Skip the conflict resolution phase (Phase 1)
+- `--auto-approve=VALUE`: Controls reply confirmation behavior (default: `ai`):
+  - `no` -- confirm all replies before posting
+  - `ai` -- auto-post to bots, confirm for humans (default)
+  - `human` -- auto-post to humans, confirm for bots
+  - `all` -- post all replies without confirmation
 
 ## Guidelines
 
 - **`review` tool**: Single `review get` call per iteration provides all data -- review threads, mergeability, and CI status. Do not make separate API calls to fetch this information.
 - **Replies**: Always use `review reply <thread_id> -` (stdin) or `review reply <thread_id> <file>` -- never raw `gh api` or `glab api` calls for replies.
+- **Reply confirmation**: Determined by `--auto-approve` (default: `ai`). Human reviewers require confirmation by default. Use the question-type tool (e.g. `ask_followup_question`) when available for a better UX. Always draft the reply first so the user can review or edit it when confirmation is required.
 - **Max iterations**: Default 5, configurable via `-n`, ask user if more needed when limit reached
 - **Timeout handling**: Always provide escape hatches for long-running checks
 - **User confirmation**: Ask before expensive operations or when auto-resolution fails
