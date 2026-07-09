@@ -8,7 +8,7 @@ Team-specific conventions for GCP HCP (Hypershift on GKE) issues in the GCP proj
 |-------|-------|
 | **Project Key** | GCP |
 | **Project Name** | GCP Hosted Control Planes (Hypershift on GKE) |
-| **Issue Types** | Story, Epic, Task, Bug, Feature Request |
+| **Issue Types** | Story, Epic, Task, Bug, Feature, Initiative, Feature Request |
 
 ## Custom Fields
 
@@ -36,6 +36,7 @@ Components are **optional** — only specify if work clearly fits. Do not reques
 | Story / Task | `customfield_10028` (Story Points): float, auto-estimated per Sizing Guide; `priority`: `{"name": "Normal"}` (omit unless user specifies) |
 | Epic | `customfield_10011` (Epic Name): must match summary |
 | Feature | No type-specific custom fields required |
+| Initiative | No type-specific custom fields required |
 
 **Story Points:** Auto-estimate using the Sizing Guide below. Set `customfield_10028` as float. For estimates of 8+, recommend splitting.
 
@@ -147,6 +148,18 @@ Features represent high-level capabilities spanning multiple sprints, decomposin
 
 Sections: Context, Scope (included + not included), Technical Approach (optional), Dependencies, Acceptance Criteria, Metadata (Epics, Priority, Demo Critical, Size Estimate, DRI)
 
+### Initiative Template
+
+Source: [jira-initiative-template.md](https://github.com/openshift-online/gcp-hcp/blob/main/docs/jira-initiative-template.md)
+
+Initiatives represent internal/architectural work at Level 4 — same hierarchy as Feature but non-customer-facing. Use for architectural improvements, process improvements, and engineering enablement.
+
+**Hierarchy**: **Initiative** → Epic → Story
+
+**Title format**: [Action Verb] + [Capability]
+
+Sections: Context, Scope (included + not included), Technical Approach (optional), Internal Impact, Dependencies, Acceptance Criteria, Metadata (Epics, Priority, Assignee)
+
 ### Definition of Done
 
 Source: [definition-of-done.md](https://github.com/openshift-online/gcp-hcp/blob/main/docs/definition-of-done.md)
@@ -200,6 +213,7 @@ Sections of this reference file are sourced from upstream files in openshift-onl
 | Task Template | docs/jira-task-template.md |
 | Epic Template | docs/jira-epic-template.md |
 | Feature Template | docs/jira-feature-template.md |
+| Initiative Template | docs/jira-initiative-template.md |
 | Definition of Done | docs/definition-of-done.md |
 | Priority Scheme (OJA-PRIS-001) | Red Hat internal (team-agnostic) |
 
