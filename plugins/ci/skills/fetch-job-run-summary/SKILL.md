@@ -142,4 +142,4 @@ python3 plugins/ci/skills/fetch-job-run-summary/fetch_job_run_summary.py 2030845
 
 - Related Skill: `fetch-test-runs` - Fetch raw outputs for a specific test across multiple job runs
 - Related Skill: `fetch-regression-details` - Fetch Component Readiness regression details
-- Related Command: `/ci:analyze-prow-job-test-failure` - Deep analysis of test failures in a Prow job
+- Related Skill: `ci:prow-job-analysis` - Comprehensive analysis of test and install failures in a Prow job

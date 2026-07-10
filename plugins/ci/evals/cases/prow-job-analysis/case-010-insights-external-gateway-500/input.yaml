@@ -1,0 +1,9 @@
+prow_job_url: "https://prow.ci.openshift.org/view/gs/test-platform-results/pr-logs/pull/openshift_cluster-capi-operator/543/pull-ci-openshift-cluster-capi-operator-main-e2e-aws-ovn-serial-1of2/2054846754997669888"
+job_name: "pull-ci-openshift-cluster-capi-operator-main-e2e-aws-ovn-serial-1of2"
+description: >-
+  aws-ovn serial presubmit where the Insights Operator degrades because the external
+  console.redhat.com ingress gateway returns HTTP 500 "Invalid Configuration" on
+  archive upload, flipping clusteroperator/insights Available=False and firing the
+  ClusterOperatorDown alert, which fails the legacy-cvo-invariants monitor tests. The
+  agent must classify this as an external-dependency outage (TRT-2662), not a
+  product regression or the PR under test.

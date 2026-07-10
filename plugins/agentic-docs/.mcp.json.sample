@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "chai-bot": {
+      "comment": "OpenShift AI helpdesk persona (ocp_ai_helpdesk) - VPN required",
+      "type": "http",
+      "url": "https://ship-help-mcp-continuous-release-tooling--ship-help-bot.apps.gpc.ocp-hub.prod.psi.redhat.com/personas/ocp_ai_helpdesk/mcp",
+      "headers": {
+        "Authorization": "Bearer YOUR_TOKEN_HERE"
+      }
+    }
+  }
+}

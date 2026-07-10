@@ -1,0 +1,8 @@
+prow_job_url: "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-release-main-nightly-5.0-e2e-vsphere-ovn-techpreview-serial/2064682410699657216"
+job_name: "periodic-ci-openshift-release-main-nightly-5.0-e2e-vsphere-ovn-techpreview-serial"
+description: >-
+  vSphere IPI TechPreviewNoUpgrade serial install run (5.0) that fails at cluster
+  initialization: machine-config goes Degraded (RequiredPoolsFailed) because the
+  bootstrap-rendered MachineConfig and the in-cluster-rendered MachineConfig do not
+  match on the masters, and openshift-install exits 6. The plausible trigger is the
+  newly-promoted VSphereMultiVCenterDay2 feature gate (openshift/api #2879, TRT-2701).

@@ -1,0 +1,8 @@
+prow_job_url: "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-hypershift-release-5.0-periodics-e2e-aws-ovn/2064864944683225088"
+job_name: "periodic-ci-openshift-hypershift-release-5.0-periodics-e2e-aws-ovn"
+description: >-
+  HyperShift hosted-control-plane e2e run (payload 5.0.0-0.ci-2026-06-11-001513)
+  where the hosted csi snapshot-controller crash-loops (restartCount 7) because it
+  hard-requires the VolumeGroupSnapshot CRD at startup while HyperShift installs
+  CRDs asynchronously (csi-external-snapshotter #219 / v8.6.0 rebase). The crash-loop
+  fails the EnsureNoCrashingPods e2e assertion (TRT-2702).

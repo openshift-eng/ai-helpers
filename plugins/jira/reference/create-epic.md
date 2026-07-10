@@ -8,7 +8,7 @@ Type-specific guidance for creating Jira epics.
 
 ## Parent Link
 
-Epic → Feature uses `customfield_10018` (Parent Link) as a STRING value (Feature issue key). Do NOT use Epic Link or the standard `parent` field.
+Epic → Feature uses `{"parent": {"key": "FEATURE-KEY"}}` in `additional_fields`.
 
 ## Epic Description Best Practices
 

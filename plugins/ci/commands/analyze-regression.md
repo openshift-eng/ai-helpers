@@ -445,7 +445,7 @@ This works because `oc` reads from `~/.kube/config` which is bind-mounted from t
 
    **Only perform this step if the test name contains "install should succeed".**
 
-   Install regressions require deeper per-run analysis because different runs may fail at entirely different installation stages (bootstrap, infrastructure, cluster creation, etc.) for different reasons. This step invokes the `prow-job-analyze-install-failure` skill on a representative sample of failed runs to determine whether all failures share a single root cause or have multiple independent causes.
+   Install regressions require deeper per-run analysis because different runs may fail at entirely different installation stages (bootstrap, infrastructure, cluster creation, etc.) for different reasons. This step invokes the `ci:prow-job-analysis` skill on a representative sample of failed runs to determine whether all failures share a single root cause or have multiple independent causes.
 
    **Select runs to analyze**:
 
@@ -466,7 +466,7 @@ This works because `oc` reads from `~/.kube/config` which is bind-mounted from t
 
    **Invoke the install failure skill for each selected run**:
 
-   For each selected `job_url`, use the Skill tool to invoke `ci:prow-job-analyze-install-failure` with the job URL. The skill downloads and analyzes GCS artifacts (installer logs, log bundles, junit XML) and returns a structured report including:
+   For each selected `job_url`, use the Skill tool to invoke `ci:prow-job-analysis` with the job URL. The skill downloads and analyzes GCS artifacts (installer logs, log bundles, junit XML) and returns a structured report including:
    - Failure stage (bootstrap, infrastructure, cluster creation, cluster operator stability, configuration, other)
    - Root cause summary
    - Key error messages
@@ -1171,7 +1171,7 @@ Generated using the `fetch-job-run-summary` skill (see `plugins/ci/skills/fetch-
 
 #### Install Failure Analysis (install should succeed regressions only)
 
-Generated using the `prow-job-analyze-install-failure` skill for each representative failed run. Only included when the test name contains "install should succeed".
+Generated using the `ci:prow-job-analysis` skill for each representative failed run. Only included when the test name contains "install should succeed".
 
 - **Runs Analyzed**: Number of failed job runs analyzed (up to 5), with links to each
 - **Failure Stage Breakdown**: How runs are distributed across installation stages (e.g., "2/3: cluster bootstrap, 1/3: infrastructure")
@@ -1329,7 +1329,7 @@ Uses the `triage-regression` skill with authentication via the `oc-auth` skill (
   - `add-jira-triage-link`: Adds the triage record link to the JIRA issue description after triaging
   - `set-release-blocker`: Sets the Release Blocker field to "Approved" on filed JIRA bugs
   - `oc-auth`: Provides authentication tokens for sippy-auth API
-  - `prow-job-analyze-install-failure`: Analyzes GCS artifacts for individual failed install runs (used only when test name contains "install should succeed")
+  - `prow-job-analysis`: Analyzes GCS artifacts for individual failed install runs (used only when test name contains "install should succeed")
 - The regression details skill groups failed jobs by job name and provides pass sequences for pattern analysis
 - The regression data includes a `job_runs` array with all job runs where the failure was observed across the regression's entire life — use this for start date analysis, mass failure detection, and linking related regressions
 - The test failure outputs skill compares error messages to determine if failures have a single root cause
@@ -1356,7 +1356,7 @@ Uses the `triage-regression` skill with authentication via the `oc-auth` skill (
 - Related Skill: `add-jira-triage-link` - Adds triage record link to JIRA issue description (`plugins/ci/skills/add-jira-triage-link/SKILL.md`)
 - Related Skill: `set-release-blocker` - Sets Release Blocker field on JIRA bugs (`plugins/ci/skills/set-release-blocker/SKILL.md`)
 - Related Skill: `oc-auth` - Authentication tokens for sippy-auth (`plugins/ci/skills/oc-auth/SKILL.md`)
-- Related Skill: `prow-job-analyze-install-failure` - Deep per-run install failure analysis via GCS artifacts (`plugins/ci/skills/prow-job-analyze-install-failure/SKILL.md`)
+- Related Skill: `prow-job-analysis` - Deep per-run install failure analysis via GCS artifacts (`plugins/ci/skills/prow-job-analysis/SKILL.md`)
 - Related Command: `/component-health:list-regressions` (for bulk regression data)
 - Related Command: `/component-health:analyze-regressions` (for overall component health)
 - Component Readiness: https://sippy-auth.dptools.openshift.org/sippy-ng/component_readiness/main

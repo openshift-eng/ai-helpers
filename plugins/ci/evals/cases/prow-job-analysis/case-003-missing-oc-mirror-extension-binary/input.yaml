@@ -1,0 +1,8 @@
+prow_job_url: "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-release-main-ci-5.0-e2e-aws-ovn/2060707975718244352"
+job_name: "periodic-ci-openshift-release-main-ci-5.0-e2e-aws-ovn"
+description: >-
+  5.0 aws-ovn e2e run (payload 5.0.0-0.nightly-2026-05-30-125522) where
+  openshift-tests aborts at startup because the registered oc-mirror-tests-ext.gz
+  extension binary is missing from the oc-mirror payload image (origin #31006).
+  The agent must trace the fatal suite-discovery error to a test-extension-binary
+  registration/payload mismatch (TRT-2674) — not a product, install, or infra failure.

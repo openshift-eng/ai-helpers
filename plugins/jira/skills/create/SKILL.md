@@ -109,28 +109,24 @@ Applied defaults:
 
 | Field | ID | Type | Usage |
 |---|---|---|---|
-| Epic Link | `customfield_10014` | String | Links Story/Task/Bug → parent Epic |
-| Parent Link | `customfield_10018` | String | Links Epic → parent Feature |
 | Epic Name | `customfield_10011` | String | Required for Epics; must match summary |
 | Target Version | `customfield_10855` | Array | Format: `[{"id": "VERSION_ID"}]` — fetch via `getJiraIssueTypeMetaWithFields`. Some projects use string format; project conventions take precedence |
 
 ## Issue Hierarchy and Parent Linking
 
+Jira issue types have a `hierarchyLevel` that determines valid parent-child relationships. The parent field only accepts an issue whose `hierarchyLevel` is exactly one level above the child. Not all projects have all levels — use `getJiraProjectIssueTypesMetadata` to discover available types and their levels for a given project.
+
 ```plaintext
-Feature → Epic → Story/Task
+Level 3: Outcome
+Level 2: Feature
+Level 1: Epic
+Level 0: Story / Task / Bug
+Level -1: Sub-task
 ```
 
-### Field Reference
+### Parent Field
 
-| Relationship | Field | Value Format |
-|---|---|---|
-| Story → Epic | `customfield_10014` (Epic Link) | `"PROJ-123"` (string) |
-| Task → Epic | `customfield_10014` (Epic Link) | `"PROJ-123"` (string) |
-| Task → Story | `customfield_10014` (Epic Link) | `"PROJ-123"` (string) |
-| Bug → Epic | `customfield_10014` (Epic Link) | `"PROJ-123"` (string) |
-| Epic → Feature | `customfield_10018` (Parent Link) | `"PROJ-123"` (string) |
-
-The standard `parent` field does NOT work for these relationships.
+Use `{"parent": {"key": "PARENT-KEY"}}` in `additional_fields` for all parent-child relationships (Story→Epic, Task→Epic, Bug→Epic, Epic→Feature, Feature→Outcome).
 
 ### Pre-Validation (when `--parent` is provided)
 
@@ -139,32 +135,24 @@ Fetch the parent via `getJiraIssue` to verify it exists and its type matches the
 | Creating | Parent Should Be | If Wrong Type |
 |----------|------------------|---------------|
 | Story | Epic | Warn user, ask to confirm or correct |
-| Task | Epic or Story | Warn user, ask to confirm or correct |
+| Task | Epic | Warn user, ask to confirm or correct |
+| Bug | Epic | Warn user, ask to confirm or correct |
 | Epic | Feature | Warn user, ask to confirm or correct |
+| Feature | Outcome | Warn user, ask to confirm or correct |
 
 If parent not found, offer options: proceed without parent, specify different parent, or cancel.
 
 ### Parent Linking Fallback
 
-Some projects require creating without the parent link and updating separately — project conventions take precedence over this generic fallback.
+If creation fails with a parent-related error, create without the parent and link via `editJiraIssue` with `{"parent": {"key": "PARENT-KEY"}}`.
 
-If creation fails with a 4xx error referencing `customfield_10014` or `customfield_10018`:
+### Changing Issue Type Across Hierarchy Levels
 
-1. **Duplicate guard:** Search for an issue with the same summary in the target project — the original call may have partially succeeded
-2. **Retry** WITHOUT the parent/epic link field
-3. **Link via update:** Call `editJiraIssue` (with `contentFormat: "markdown"`) to set the link field
-4. **Report outcome:** If the update also fails, inform the user and suggest manual linking
-5. **Last stand fallback:** If all strategies fail, retry with absolute minimal fields (project, summary, type, description only). Inform user which fields need manual configuration.
+When changing an existing issue's type to a different hierarchy level, the current parent may become invalid. Jira validates the one-level-higher constraint on every edit, so you must change the parent and type in separate steps:
 
-### Common Parent Linking Errors
-
-| Error Message | Cause | Solution |
-|---|---|---|
-| `Field 'parent' does not exist` | Using standard `parent` field | Use `customfield_10018` or `customfield_10014` |
-| `customfield_10014 is not valid` | Epic Link field issue | Use fallback: create then update |
-| `customfield_10018 is not valid` | Parent Link field issue | Use fallback: create then update |
-| `Parent issue not found` | Invalid parent key | Verify parent exists first |
-| `Cannot link to issue of type X` | Wrong parent type | Verify hierarchy |
+1. Unset the parent: `editJiraIssue` with `{"parent": null}`
+2. Change the issue type: `editJiraIssue` with `{"issuetype": {"name": "NewType"}}`
+3. Set the new parent if needed: `editJiraIssue` with `{"parent": {"key": "NEW-PARENT"}}`
 
 ## Error Handling
 
@@ -189,8 +177,7 @@ Usage: /jira:create story PROJECT-KEY "summary"
 | Field | Wrong | Correct |
 |---|---|---|
 | Target Version | `"customfield_10855": "openshift-4.21"` | `"customfield_10855": [{"id": "12448830"}]` |
-| Epic Link | `"parent": {"key": "EPIC-123"}` | `"customfield_10014": "EPIC-123"` (string) |
-| Component | `"components": "Name"` | `"components": ["Name"]` (array) |
+| Component | `"components": "Name"` | `"components": [{"name": "Name"}]` |
 
 ### MCP Tool Errors
 

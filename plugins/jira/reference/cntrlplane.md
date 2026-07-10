@@ -44,24 +44,16 @@ Project-specific conventions for creating Jira issues in the CNTRLPLANE project.
 
 ## CNTRLPLANE-Specific Fields
 
-For shared custom fields (Epic Link, Parent Link, Epic Name, Target Version), see the `create` skill. The table below shows CNTRLPLANE-specific usage:
-
-| Creating | Parent Type | Field | Value Format |
-|----------|-------------|-------|--------------|
-| Story | Epic | `customfield_10014` (Epic Link) | `"CNTRLPLANE-123"` (string) |
-| Task | Epic | `customfield_10014` (Epic Link) | `"CNTRLPLANE-123"` (string) |
-| Epic | Feature | `customfield_10018` (Parent Link) | `"CNTRLPLANE-123"` (string) |
-
-Both fields take STRING values (issue key), NOT objects.
+For shared custom fields (Epic Name, Target Version) and parent linking, see the `create` skill.
 
 **Per issue type:**
 
 | Issue Type | Key Fields |
 |---|---|
-| Story | `customfield_10014` (Epic Link): parent epic key (optional) |
-| Epic | `customfield_10011` (Epic Name): must match summary; `customfield_10018` (Parent Link): parent feature key (optional) |
+| Story | No type-specific custom fields required |
+| Epic | `customfield_10011` (Epic Name): must match summary |
 | Feature | No type-specific custom fields required |
-| Task | `customfield_10014` (Epic Link): parent epic key (optional) |
+| Task | No type-specific custom fields required |
 
 ## Component Requirements
 
