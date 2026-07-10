@@ -518,7 +518,7 @@ footer a { color: var(--primary); }
     {
       "name": "ci",
       "description": "Tools for working with OpenShift CI and analyzing Prow job results",
-      "version": "0.0.68",
+      "version": "0.0.69",
       "has_readme": true,
       "commands": [
         {
@@ -578,6 +578,14 @@ footer a { color: var(--primary); }
           "body_html": "\u003cp\u003eThe \u003ccode\u003eci:check-if-jira-regression-is-ongoing\u003c/code\u003e command reads a Jira bug and determines whether the regression(s) it describes are still actively failing or have resolved. It extracts test names, test IDs, and regression IDs from the bug description, status, and comments, then cross-references with live data from Sippy and Component Readiness.\u003c/p\u003e\u003cp\u003eThis command is useful for:\u003c/p\u003e\u003cp\u003e- Checking if a bug&#x27;s regression has resolved and the bug can be closed\u003cbr\u003e- Finding out if new regressions have appeared for the same test since the bug was filed\u003cbr\u003e- Discovering if other triaged bugs exist for the same test that don&#x27;t match this bug\u003cbr\u003e- Getting a quick status on whether a fix has landed and is effective\u003c/p\u003e"
         },
         {
+          "name": "check-kubelet-versions",
+          "full_name": "ci:check-kubelet-versions",
+          "description": "Check kubelet versions across a list of /payload runs and analyze consistency and version/status correlation",
+          "description_html": "Check kubelet versions across a list of /payload runs and analyze consistency and version/status correlation",
+          "synopsis": "/ci:check-kubelet-versions \u003cpayload-runs.txt\u003e",
+          "body_html": "\u003cp\u003eThe \u003ccode\u003eci:check-kubelet-versions\u003c/code\u003e command reports the kubelet (node) version and job result for every \u003ccode\u003e/payload\u003c/code\u003e run in a list of gcsweb artifact URLs, then analyzes the results. It uses the \u003ccode\u003ekubelet-version-check\u003c/code\u003e skill to gather the data and adds reasoning about version consistency and any correlation between kubelet version and pass/fail outcome.\u003c/p\u003e\u003cp\u003eUse this command to answer questions like:\u003c/p\u003e\u003cp\u003e- &quot;Did every run use the kubelet version I expected?&quot;\u003cbr\u003e- &quot;Which runs are on an unexpected version, or are missing node data?&quot;\u003cbr\u003e- &quot;Do the failures cluster on a particular kubelet version?&quot;\u003c/p\u003e\u003cp\u003eThe input file is typically produced by the \u003ccode\u003epayload-blocking-runs\u003c/code\u003e skill or the \u003ccode\u003e/ci:list-payload-blocking-runs\u003c/code\u003e command.\u003c/p\u003e"
+        },
+        {
           "name": "continue-session",
           "full_name": "ci:continue-session",
           "description": "Download and continue a Claude session from a Prow CI job's artifacts",
@@ -608,6 +616,14 @@ footer a { color: var(--primary); }
           "description_html": "Fetch a test report from Sippy showing pass rates, test ID, and Jira component",
           "synopsis": "/ci:fetch-test-report \u003ctest-name\u003e [release]",
           "body_html": "The \u003ccode\u003eci:fetch-test-report\u003c/code\u003e command fetches a report for an OpenShift CI test by name from the Sippy API. It returns the test&#x27;s BigQuery/Component Readiness test ID, Jira component, pass rates for the current and previous 7-day periods, and open bug counts. The \u003ccode\u003eopen_bugs\u003c/code\u003e field counts Jira bugs that mention this test by name — this can help surface bugs that have been filed but not yet triaged in Component Readiness."
+        },
+        {
+          "name": "list-payload-blocking-runs",
+          "full_name": "ci:list-payload-blocking-runs",
+          "description": "List a PR's blocking /payload runs and analyze coverage against the release blocking jobs",
+          "description_html": "List a PR&#x27;s blocking /payload runs and analyze coverage against the release blocking jobs",
+          "synopsis": "/ci:list-payload-blocking-runs \u003corg/repo#pr\u003e [--since YYYY-MM-DD] [--streams stream1 stream2 ...]",
+          "body_html": "\u003cp\u003eThe \u003ccode\u003eci:list-payload-blocking-runs\u003c/code\u003e command finds the \u003ccode\u003e/payload\u003c/code\u003e test runs that were triggered on a pull request and analyzes them against the release&#x27;s \u003cstrong\u003eblocking jobs\u003c/strong\u003e. It uses the \u003ccode\u003epayload-blocking-runs\u003c/code\u003e skill to query the CI analytics BigQuery table and cross-reference the release controller&#x27;s current blocking-job set, then reasons about which blocking jobs have been exercised and where coverage is missing.\u003c/p\u003e\u003cp\u003eUse this command to answer questions like:\u003c/p\u003e\u003cp\u003e- &quot;Has this PR been tested against all the blocking jobs before we merge it?&quot;\u003cbr\u003e- &quot;Which blocking jobs still need a passing /payload run?&quot;\u003cbr\u003e- &quot;Give me the artifact URLs for this PR&#x27;s blocking payload runs.&quot;\u003c/p\u003e"
         },
         {
           "name": "list-step",
@@ -764,6 +780,12 @@ footer a { color: var(--primary); }
           "meta": ""
         },
         {
+          "name": "kubelet-version-check",
+          "description": "Determine the kubelet version and job status for a list of /payload job runs from their gcsweb artifact URLs",
+          "description_html": "Determine the kubelet version and job status for a list of /payload job runs from their gcsweb artifact URLs",
+          "meta": ""
+        },
+        {
           "name": "oc-auth",
           "description": "Helper skill to retrieve OAuth tokens from the correct OpenShift cluster context when multiple clusters are configured",
           "description_html": "Helper skill to retrieve OAuth tokens from the correct OpenShift cluster context when multiple clusters are configured",
@@ -779,6 +801,12 @@ footer a { color: var(--primary); }
           "name": "payload-autodl-json",
           "description": "Schema for the autodl JSON data file produced by payload-analysis for database ingestion — you must use this skill whenever generating the autodl JSON file",
           "description_html": "Schema for the autodl JSON data file produced by payload-analysis for database ingestion — you must use this skill whenever generating the autodl JSON file",
+          "meta": ""
+        },
+        {
+          "name": "payload-blocking-runs",
+          "description": "List gcsweb artifact URLs for /payload test runs on a pull request, filtered to the current release blocking jobs",
+          "description_html": "List gcsweb artifact URLs for /payload test runs on a pull request, filtered to the current release blocking jobs",
           "meta": ""
         },
         {
