@@ -864,6 +864,158 @@ class BuildLogCollector(Collector):
 
 
 # ---------------------------------------------------------------------------
+# RpmdbCollector — extracts full RPM database from RHCOS images
+# ---------------------------------------------------------------------------
+
+class RpmdbCollector:
+    """Extracts rpmdb.sqlite from RHCOS images in a release payload."""
+
+    RPMDB_PATH = "/usr/lib/sysimage/rpm/rpmdb.sqlite"
+
+    def __init__(self, rpmdb_dir: str, release_pullspec: str):
+        self.rpmdb_dir = rpmdb_dir
+        self.release_pullspec = release_pullspec
+        self._marker = os.path.join(rpmdb_dir, ".complete")
+
+    def collect(self) -> list[dict]:
+        """Extract rpmdb.sqlite from RHCOS images. Returns summary entries."""
+        if os.path.exists(self._marker):
+            _log("    skip (exists): rpmdb/")
+            return self._read_existing()
+
+        image_refs = self._fetch_image_references()
+        if image_refs is None:
+            return []
+
+        rhcos_images = self._filter_rhcos(image_refs)
+        if not rhcos_images:
+            _log("    No RHCOS images found in image-references")
+            return []
+
+        os.makedirs(self.rpmdb_dir, exist_ok=True)
+        summaries = []
+
+        for tag_name, pullspec, display_name in rhcos_images:
+            variant_dir = os.path.join(self.rpmdb_dir, tag_name)
+            os.makedirs(variant_dir, exist_ok=True)
+            output_path = os.path.join(variant_dir, "rpmdb.sqlite")
+            ok = self._extract_rpmdb(pullspec, output_path)
+            if not ok:
+                _log(f"    Warning: failed to extract rpmdb from {tag_name}")
+                continue
+            _log(f"    {tag_name}: rpmdb.sqlite extracted")
+
+            summaries.append({
+                "tag": tag_name,
+                "name": display_name,
+                "pullspec": pullspec,
+            })
+
+        if summaries:
+            metadata_path = os.path.join(self.rpmdb_dir, "metadata.json")
+            _write_text(metadata_path, json.dumps(summaries, indent=2))
+            _write_text(self._marker, "")
+        return summaries
+
+    def _fetch_image_references(self) -> Optional[dict]:
+        """Read /release-manifests/image-references from the release image."""
+        output = _run_podman([
+            "podman", "run", "--rm", "--entrypoint", "cat",
+            self.release_pullspec,
+            "/release-manifests/image-references",
+        ], timeout=300)
+        if output is None:
+            _log("    Warning: failed to read image-references from release image")
+            return None
+        try:
+            return json.loads(output)
+        except json.JSONDecodeError:
+            _log("    Warning: invalid JSON in image-references")
+            return None
+
+    def _filter_rhcos(
+        self, image_refs: dict
+    ) -> list[tuple[str, str, str]]:
+        """Filter RHCOS image tags (excluding extensions).
+
+        Returns (tag_name, pullspec, display_name) tuples.
+        """
+        results = []
+        for tag in image_refs.get("spec", {}).get("tags", []):
+            name = tag.get("name", "")
+            if not name.startswith("rhel-coreos"):
+                continue
+            if name.endswith("-extensions"):
+                continue
+            pullspec = tag.get("from", {}).get("name", "")
+            if not pullspec:
+                continue
+            annotations = tag.get("annotations", {})
+            display_name = self._parse_display_name(annotations, name)
+            results.append((name, pullspec, display_name))
+        return results
+
+    @staticmethod
+    def _parse_display_name(annotations: dict, fallback: str) -> str:
+        """Extract display name from image annotations."""
+        raw = annotations.get("io.openshift.build.version-display-names", "")
+        for part in raw.split(","):
+            part = part.strip()
+            if part.startswith("machine-os="):
+                return part[len("machine-os="):]
+        return fallback
+
+    def _extract_rpmdb(self, pullspec: str, output_path: str) -> bool:
+        """Extract rpmdb.sqlite from the RHCOS image via podman cp."""
+        try:
+            cid_result = subprocess.run(
+                ["podman", "create", "--rm", pullspec, "/bin/true"],
+                capture_output=True, text=True, timeout=300,
+            )
+            if cid_result.returncode != 0:
+                return False
+            cid = cid_result.stdout.strip()
+
+            try:
+                cp_result = subprocess.run(
+                    ["podman", "cp", f"{cid}:{self.RPMDB_PATH}", output_path],
+                    capture_output=True, text=True, timeout=120,
+                )
+                return cp_result.returncode == 0
+            finally:
+                subprocess.run(
+                    ["podman", "rm", "-f", cid],
+                    capture_output=True, timeout=30,
+                )
+        except (subprocess.TimeoutExpired, OSError):
+            return False
+
+    def _read_existing(self) -> list[dict]:
+        """Read summaries from already-extracted rpmdb files."""
+        metadata_path = os.path.join(self.rpmdb_dir, "metadata.json")
+        if os.path.isfile(metadata_path):
+            try:
+                with open(metadata_path) as f:
+                    return json.load(f)
+            except (json.JSONDecodeError, OSError):
+                pass
+        summaries = []
+        if not os.path.isdir(self.rpmdb_dir):
+            return summaries
+        for entry in sorted(os.listdir(self.rpmdb_dir)):
+            variant_dir = os.path.join(self.rpmdb_dir, entry)
+            if not os.path.isdir(variant_dir):
+                continue
+            if os.path.isfile(os.path.join(variant_dir, "rpmdb.sqlite")):
+                summaries.append({
+                    "tag": entry,
+                    "name": entry,
+                    "pullspec": "",
+                })
+        return summaries
+
+
+# ---------------------------------------------------------------------------
 # RegressionTracker — traces test failures across the payload chain
 # ---------------------------------------------------------------------------
 
@@ -1033,12 +1185,14 @@ class SummaryGenerator:
     """Generates summary.json and summary.md for the stream."""
 
     def __init__(self, base_dir: str, chain: list[str], target_tag: str,
-                 tag: "PayloadTag", streaks: Optional[dict] = None):
+                 tag: "PayloadTag", streaks: Optional[dict] = None,
+                 rpmdb_data: Optional[dict[str, list[dict]]] = None):
         self.base_dir = base_dir
         self.chain = chain
         self.target_tag = target_tag
         self.tag = tag
         self.streaks = streaks or {}
+        self.rpmdb_data = rpmdb_data or {}
 
     def generate(self) -> None:
         target_dir = os.path.join(self.base_dir, self.target_tag)
@@ -1102,6 +1256,13 @@ class SummaryGenerator:
             },
             "payloads": payloads,
         }
+
+        target_rpms = self.rpmdb_data.get(self.target_tag)
+        if target_rpms:
+            summary["rhcos_rpms"] = [
+                {**entry, "rpmdb": f"{self.target_tag}/rpmdb/{entry['tag']}/rpmdb.sqlite"}
+                for entry in target_rpms
+            ]
 
         _write_json(os.path.join(self.base_dir, "summary.json"), summary)
         self._write_agents_md(summary)
@@ -1191,6 +1352,11 @@ class SummaryGenerator:
             "          code.diff         # Full git diff",
             "          comments.json     # PR comments and reviews",
             "          jobs.json         # CI check runs",
+            "    rpmdb/                    # RPMDB from RHCOS images",
+            "      rhel-coreos/           # queryable with rpm --dbpath",
+            "        rpmdb.sqlite",
+            "      rhel-coreos-10/",
+            "        rpmdb.sqlite",
             "  <older-payload-tag>/      # Each prior payload in the chain",
             "    ...                     # Same structure",
             "```",
@@ -1227,7 +1393,11 @@ class SummaryGenerator:
             "  `failure_text`",
             "- `payloads[]` — per-payload entries with `tag`, `phase`,",
             "  relative paths, `prs[]` with component/diff/comments paths,",
-            "  and `rhcos_changes[]` with RPM diffs per RHCOS variant",
+            "  `rhcos_changes[]` with RPM diffs per RHCOS variant, and",
+            "  `rhcos_rpms[]` with rpmdb.sqlite per variant",
+            "- `rhcos_rpms[]` — RPMDB per RHCOS variant for the target",
+            "  payload: `tag`, `name`, `pullspec`, `rpmdb` (relative path",
+            "  to rpmdb.sqlite — queryable with rpm --dbpath <dir> or sqlite3)",
             "",
         ])
 
@@ -1365,6 +1535,13 @@ class SummaryGenerator:
             if job_paths:
                 entry["jobs"] = job_paths
 
+            rpmdb_entries = self.rpmdb_data.get(tag_name)
+            if rpmdb_entries:
+                entry["rhcos_rpms"] = [
+                    {**e, "rpmdb": f"{tag_rel}/rpmdb/{e['tag']}/rpmdb.sqlite"}
+                    for e in rpmdb_entries
+                ]
+
             payloads.append(entry)
         return payloads
 
@@ -1423,13 +1600,15 @@ class Snapshotter:
 
     def __init__(self, tag: PayloadTag, output_dir: str = "payload",
                  max_chain: int = 20, workers: int = 8,
-                 collect_junit: bool = True, use_sippy: bool = False):
+                 collect_junit: bool = True, use_sippy: bool = False,
+                 collect_rpmdb: bool = True):
         self.tag = tag
         self.output_dir = output_dir
         self.max_chain = max_chain
         self.workers = workers
         self.collect_junit = collect_junit
         self.use_sippy = use_sippy
+        self.collect_rpmdb = collect_rpmdb
         self.rc = ReleaseController(tag.architecture, stream=tag.stream)
         self.sippy: Optional[SippyClient] = None
         if use_sippy:
@@ -1462,7 +1641,10 @@ class Snapshotter:
 
         streaks = self._track_job_streaks(base_dir, chain)
 
-        self._generate_summary(base_dir, chain, streaks)
+        rpmdb_data = self._collect_rpmdb(base_dir, chain)
+
+        self._generate_summary(base_dir, chain, streaks,
+                               rpmdb_data=rpmdb_data)
 
         _log(f"\nSnapshot complete: {base_dir}/")
 
@@ -1763,9 +1945,74 @@ class Snapshotter:
              f"{len(streaks) - new_count} persistent")
         return streaks
 
+    def _get_pullspec_map(self, chain: list[str]) -> dict[str, str]:
+        """Map tag names to release image pullSpecs via the tags API."""
+        chain_set = set(chain)
+        tags = self.rc.fetch_tags(self.tag.stream_name)
+        return {
+            t["name"]: t["pullSpec"]
+            for t in tags
+            if t.get("name") in chain_set and t.get("pullSpec")
+        }
+
+    def _collect_rpmdb(
+        self, base_dir: str, chain: list[str]
+    ) -> dict[str, list[dict]]:
+        """Extract RPMDB from RHCOS images for each payload in the chain."""
+        if not self.collect_rpmdb:
+            return {}
+        if self.use_sippy:
+            _log("\nSkipping RPMDB: not available in Sippy mode")
+            return {}
+
+        try:
+            pullspec_map = self._get_pullspec_map(chain)
+        except (urllib.error.HTTPError, urllib.error.URLError) as e:
+            _log(f"\nSkipping RPMDB: could not fetch pullSpecs: {e}")
+            return {}
+        if not pullspec_map:
+            _log("\nSkipping RPMDB: no pullSpecs found")
+            return {}
+
+        items = []
+        for tag_name in chain:
+            pullspec = pullspec_map.get(tag_name)
+            if not pullspec:
+                continue
+            rpmdb_dir = os.path.join(base_dir, tag_name, "rpmdb")
+            items.append((tag_name, RpmdbCollector(rpmdb_dir, pullspec)))
+
+        if not items:
+            return {}
+
+        workers = min(self.workers, 4)
+        _log(f"\nExtracting RPMDB from RHCOS images "
+             f"({len(items)} payloads, {workers} workers)...")
+        rpmdb_data: dict[str, list[dict]] = {}
+
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            futures = {
+                pool.submit(c.collect): (tag_name, c)
+                for tag_name, c in items
+            }
+            done = 0
+            for future in as_completed(futures):
+                done += 1
+                tag_name, _ = futures[future]
+                try:
+                    summaries = future.result()
+                    if summaries:
+                        rpmdb_data[tag_name] = summaries
+                    _log(f"  [{done}/{len(items)}] {tag_name}")
+                except Exception as e:
+                    _log(f"  [{done}/{len(items)}] {tag_name}: error: {e}")
+
+        return rpmdb_data
+
     def _generate_summary(
         self, base_dir: str, chain: list[str],
         streaks: Optional[dict] = None,
+        rpmdb_data: Optional[dict[str, list[dict]]] = None,
     ) -> None:
         """Generate the stream-level summary."""
         _log("\nGenerating summary...")
@@ -1774,7 +2021,8 @@ class Snapshotter:
             os.remove(summary_path)
 
         generator = SummaryGenerator(
-            base_dir, chain, chain[0], self.tag, streaks=streaks
+            base_dir, chain, chain[0], self.tag, streaks=streaks,
+            rpmdb_data=rpmdb_data,
         )
         generator.generate()
 
@@ -1950,6 +2198,37 @@ def _check_gcloud() -> bool:
         return result.returncode == 0
     except (FileNotFoundError, subprocess.TimeoutExpired):
         return False
+
+
+def _check_podman() -> bool:
+    """Verify that podman is available and functional.
+
+    Goes beyond --version: runs 'podman info' which exercises the runtime,
+    storage, and namespace setup.  This catches cases where podman is
+    installed but cannot operate (e.g. nested containers without
+    appropriate privileges).
+    """
+    try:
+        result = subprocess.run(
+            ["podman", "info"],
+            capture_output=True, text=True, timeout=30,
+        )
+        return result.returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
+def _run_podman(args: list[str], timeout: int = 300) -> Optional[str]:
+    """Run a podman CLI command, returning stdout or None on error."""
+    try:
+        result = subprocess.run(
+            args, capture_output=True, text=True, timeout=timeout
+        )
+        if result.returncode != 0:
+            return None
+        return result.stdout
+    except (subprocess.TimeoutExpired, OSError):
+        return None
 
 
 def _prow_url_to_gcs_bucket_path(prow_url: str) -> Optional[str]:
@@ -2212,6 +2491,10 @@ def main() -> None:
         help="Skip JUnit download, regression tracking",
     )
     parser.add_argument(
+        "--no-rpmdb", action="store_true",
+        help="Skip RHCOS RPMDB extraction",
+    )
+    parser.add_argument(
         "--sippy", action="store_true",
         help="Use Sippy APIs instead of release controller (for historical payloads)",
     )
@@ -2240,6 +2523,12 @@ def main() -> None:
         _log("Install gcloud SDK to enable JUnit download and regression tracking.\n")
         collect_junit = False
 
+    collect_rpmdb = not args.no_rpmdb
+    if collect_rpmdb and not _check_podman():
+        _log("Warning: podman is not available ('podman info' failed).")
+        _log("RHCOS RPMDB data will not be extracted.\n")
+        collect_rpmdb = False
+
     if args.sippy:
         _log("Using Sippy APIs for release controller data.\n")
 
@@ -2251,6 +2540,7 @@ def main() -> None:
             workers=args.workers,
             collect_junit=collect_junit,
             use_sippy=args.sippy,
+            collect_rpmdb=collect_rpmdb,
         )
         snapshotter.run()
     except urllib.error.HTTPError as e:

@@ -34,7 +34,11 @@ Clones a Node team repo and sets up a git worktree for development, optionally t
 
 ### `node-team:preflight`
 
-Tests all authentication tokens (GitHub, Jira) and CLI tools required by Node team workflows in a single pass. Run before `setup` or `node-cve:triage` to catch expired or missing credentials early.
+Tests all authentication tokens (GitHub, Jira) and CLI tools required by Node team workflows in a single pass. Run before `setup`, `node-cve:triage`, or `node-bug:triage` to catch expired or missing credentials early.
+
+### `node-team:cleanup`
+
+Purges cached artifacts produced by Node team plugins: triage reports, cloned repos, dist-git clones, Vagrant VMs, and roster cache.
 
 ## Skill
 
@@ -51,15 +55,29 @@ Activates on any OpenShift node-layer task. Routes through reference documents t
 - **Platform Documentation**: version-aware Kubernetes and OpenShift docs lookup
 - **Prometheus**: node-layer metrics queries
 
-## Plugin Routing
+## Plugin Family
 
-| Domain | Plugin | Command |
-|--------|--------|---------|
-| CVE triage | `node-cve` | `/node-cve:triage` |
-| General development | `node-team` | `node-team:node` skill |
-| Team overview | `node-team` | `/node-team:overview` |
-| Repo setup | `node-team` | `/node-team:setup` |
-| Auth verification | `node-team` | `/node-team:preflight` |
+node-team is the umbrella plugin for the OpenShift Node team. Specialized
+plugins depend on node-team's shared data and extend its capabilities:
+
+| Plugin | Domain | Status |
+|--------|--------|--------|
+| `node-team` | Development, deployment, debugging (see [Commands](#commands)) | Active |
+| [`node-cve`](../node-cve/) | CVE triage with reachability analysis | Active |
+| [`node-bug`](../node-bug/) | General bug triage and assignment | Active |
+| [`node-onboarding`](../node-onboarding/) | Team onboarding workflows | Active |
+| [`node-rpm`](../node-rpm/) | RPM management (cri-tools pattern) | Active |
+
+### Shared Data Contract
+
+Satellite plugins reference shared data at `skills/node/references/shared/`.
+Do not move or rename these files without updating all consumer plugins.
+
+### Compliance
+
+Compliance documentation for the Node team plugin family is at
+[`docs/compliance/`](docs/compliance/). This covers the medium-risk AI agent
+controls required by Red Hat's Enterprise AI Risk Management Standard.
 
 ## Configuration
 

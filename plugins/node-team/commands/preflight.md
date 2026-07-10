@@ -17,8 +17,8 @@ Tests all authentication tokens and CLI tools required by Node team workflows
 in a single pass. Reports pass/fail for each check so you can fix all auth
 issues at once instead of discovering them one at a time.
 
-Run this before `/node-team:setup` or `/node-cve:triage` to catch expired or
-missing credentials early.
+Run this before `/node-team:setup`, `/node-cve:triage`, or `/node-bug:triage`
+to catch expired or missing credentials early.
 
 ## Implementation
 
@@ -72,8 +72,8 @@ jira me
 ```
 
 - Pass: returns current user info
-- Fail: not installed or not configured (this is optional since the
-  `node-team` plugin uses `curl` directly, but `node-cve` requires it)
+- Fail: not installed or not configured (required by `node-cve`;
+  `node-team` and `node-bug` use `curl` directly)
 
 ### Summary
 
@@ -86,7 +86,7 @@ GitHub CLI            PASS
 GitHub API            PASS
 Jira API token        PASS
 Jira API connectivity PASS
-Jira CLI              PASS (optional)
+Jira CLI              PASS (node-cve only)
 ```
 
 If any required check fails and `--fix` is specified, print the remediation

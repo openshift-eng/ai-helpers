@@ -31,7 +31,12 @@ Use this skill when you need to:
    - Authenticate: `gcloud auth login`
    - Without `gcloud`, JUnit data is skipped; job directories still created
 
-4. **Network access** to:
+4. **Container runtime (`podman`)** — for RHCOS RPMDB extraction
+   - Install: available in most Linux distributions; `brew install podman` on macOS
+   - Requires access to the release image registry (e.g., `registry.ci.openshift.org`)
+   - Without `podman`, RPMDB data is skipped; all other data is still collected
+
+5. **Network access** to:
    - `*.ocp.releases.ci.openshift.org` (release controller)
    - `api.github.com` (via `gh` CLI)
    - `storage.googleapis.com` (via `gcloud` CLI)
@@ -54,6 +59,9 @@ python3 "$script_path" 4.22.0-0.nightly-2026-02-25-152806 --max-chain 5
 
 # Skip JUnit download (faster, still generates job structure and summary)
 python3 "$script_path" 4.22.0-0.nightly-2026-02-25-152806 --no-junit
+
+# Skip RPMDB extraction
+python3 "$script_path" 4.22.0-0.nightly-2026-02-25-152806 --no-rpmdb
 ```
 
 The script will:
@@ -67,7 +75,8 @@ The script will:
 8. Track test failure regressions — when did each failure first appear?
 9. Track per-job failure streaks — consecutive failures, originating payload, failure pattern
 10. For each unique PR across all changelogs, fetch the git diff, comments, and CI jobs via `gh`
-11. Generate summary.json with comprehensive triage data, plus AGENTS.md/CLAUDE.md for agent orientation
+11. For each payload in the chain, extract the full RPM database from RHCOS images via `podman`
+12. Generate summary.json with comprehensive triage data, plus AGENTS.md/CLAUDE.md for agent orientation
 
 ### Step 2: Navigate the Snapshot
 
@@ -103,6 +112,11 @@ payload/
               code.diff                    # Git diff of the PR
               comments.json                # PR comments and reviews
               jobs.json                    # CI check runs
+        rpmdb/                             # RPMDB from RHCOS images
+          rhel-coreos/                     # queryable with rpm --dbpath
+            rpmdb.sqlite
+          rhel-coreos-10/
+            rpmdb.sqlite
 ```
 
 ### Step 3: Use the Data
@@ -132,6 +146,11 @@ cat payload/<version>/<stream>/<tag>/<component>/prs/<number>/code.diff
 jq '.[].name' payload/<version>/<stream>/<tag>/jobs/blocking/<job-name>/junit/results.json
 ```
 
+**Query RHCOS RPM packages (using the extracted rpmdb.sqlite):**
+```bash
+rpm -qa --dbpath $(pwd)/payload/<version>/<stream>/<tag>/rpmdb/rhel-coreos
+```
+
 ## CLI Reference
 
 ```text
@@ -145,6 +164,7 @@ Options:
   --max-chain N        Maximum backward chain depth (default: 20)
   --workers N          Parallel workers for API calls (default: 8)
   --no-junit           Skip JUnit download and regression tracking
+  --no-rpmdb           Skip RHCOS RPMDB extraction
 ```
 
 ## Output Files
@@ -161,7 +181,8 @@ Comprehensive stream-level triage data — start here. Contains:
 - `blocking_jobs.failed_jobs[]` — detailed objects with `name`, `state`, `prow_url`, `gcs_url`, and relative path `job_json`. May include: `rhcos_version`, `streak` (with `streak_length`, `originating_payload`, `is_new_failure`, `failure_pattern`), `build_log_errors`, `test_failure_count`, and relative paths `junit_results`, `build_log`
 - `informing_jobs.failed_jobs[]` — job name strings
 - `test_failures.blocking[]` — `test_name`, `jobs`, `first_failed_in`, `payloads_failing`, `failure_message`, `failure_text` (full, not truncated)
-- `payloads[]` — per-payload entries with `tag`, `phase`, relative file paths, `prs[]` with component/diff/comments paths, and `rhcos_changes[]` with RPM diffs per RHCOS variant (name, tag, changed/added/removed package versions)
+- `payloads[]` — per-payload entries with `tag`, `phase`, relative file paths, `prs[]` with component/diff/comments paths, and `rhcos_changes[]` with RPM diffs per RHCOS variant
+- `rhcos_rpms[]` — RPMDB metadata for the target payload's RHCOS variants: `tag`, `name`, `pullspec`, `rpmdb` (relative path to rpmdb.sqlite)
 
 ### `AGENTS.md` / `CLAUDE.md`
 
@@ -185,6 +206,12 @@ Per-payload RHCOS RPM diff data extracted from the changelog's `nodeImageStreams
 - `removed`: Dict of removed packages `{package_name: old_version}` (when present)
 
 Only variants with non-empty `rpmDiff` are included. When the snapshot is created from Sippy-based changelogs (which lack `nodeImageStreams`), this field is absent.
+
+### `rpmdb/<variant>/rpmdb.sqlite`
+
+The `rpmdb.sqlite` file extracted from RHCOS images via `podman`. One directory per RHCOS variant (e.g., `rpmdb/rhel-coreos/`, `rpmdb/rhel-coreos-10/`), each containing `rpmdb.sqlite`. Queryable with `rpm -qa --dbpath <absolute-path-to-variant-dir>` or directly with `sqlite3`.
+
+Extracted for every payload in the chain. Skipped when `podman` is unavailable or `--no-rpmdb` is passed.
 
 ### `regressions.json`
 
