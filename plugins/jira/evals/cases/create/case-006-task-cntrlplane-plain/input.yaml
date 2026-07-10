@@ -1,0 +1,11 @@
+type: task
+project_key: CNTRLPLANE
+summary: "Update API documentation for cluster provisioning endpoints"
+flags: ""
+interactive_responses: |
+  What: Update the API documentation to reflect recent changes to the cluster provisioning endpoints
+  Why: Current documentation is outdated after the v2 API migration
+  Acceptance criteria:
+    1. All provisioning endpoints documented with request/response examples
+    2. Deprecation notices added for v1 endpoints
+    3. OpenAPI spec updated and validated

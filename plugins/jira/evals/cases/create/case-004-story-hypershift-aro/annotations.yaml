@@ -1,0 +1,19 @@
+expected_issue_type: Story
+expected_project_key: CNTRLPLANE
+expected_conventions: [cntrlplane, hypershift]
+expected_labels: ["ai-generated-jira", "aro-hcp"]
+expected_security: "Red Hat Employee"
+expected_content_format: markdown
+expected_component: "HyperShift / ARO"
+expected_version_field: customfield_10855
+expected_version_format: array
+expected_affects_version: null
+expected_custom_fields: {}
+expected_validation_warnings: []
+expected_creation_blocked: false
+description_template: story
+notes: >
+  CNTRLPLANE story with HyperShift ARO conventions layered. Tests that
+  "ARO HCP" in the summary triggers auto-detection of component
+  "HyperShift / ARO" and label "aro-hcp". Both cntrlplane and hypershift
+  conventions should be loaded. Version uses CNTRLPLANE array format.

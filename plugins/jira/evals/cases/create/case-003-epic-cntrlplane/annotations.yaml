@@ -1,0 +1,21 @@
+expected_issue_type: Epic
+expected_project_key: CNTRLPLANE
+expected_conventions: [cntrlplane]
+expected_labels: ["ai-generated-jira"]
+expected_security: "Red Hat Employee"
+expected_content_format: markdown
+expected_component: null
+expected_version_field: null
+expected_version_format: null
+expected_affects_version: null
+expected_custom_fields:
+  customfield_10011: "Multi-cluster metrics aggregation"
+expected_validation_warnings: []
+expected_creation_blocked: false
+description_template: epic
+notes: >
+  CNTRLPLANE epic with parent linking. Tests Epic Name custom field
+  (customfield_10011) which must match the summary exactly. Also tests
+  parent linking via additional_fields.parent.key = "CNTRLPLANE-500".
+  Description should follow epic template with objective, scope, and
+  acceptance criteria.

@@ -1,0 +1,16 @@
+type: story
+project_key: GCP
+summary: "Add Prometheus metric for hosted control plane CPU utilization"
+flags: "--component hypershift-operator-gcp"
+interactive_responses: |
+  Who: GCP HCP platform operations team
+  What: expose a Prometheus metric tracking CPU utilization per hosted control plane
+  Why: enable proactive scaling decisions and capacity planning for the management cluster
+  Context: Currently CPU utilization is only visible through GCP Cloud Monitoring, requiring context switching
+  Requirements: Metric must be available within 30 seconds of collection, labeled by cluster ID
+  Technical approach: Add a custom collector to the hypershift-operator-gcp that scrapes cgroup metrics
+  Dependencies: Requires prometheus-operator CRD access on the management cluster
+  Acceptance criteria:
+    - Metric hcp_cpu_utilization_ratio exposed on /metrics endpoint
+    - Grafana dashboard updated with CPU utilization panel
+    - Alert rule fires when utilization exceeds 80% for 5 minutes

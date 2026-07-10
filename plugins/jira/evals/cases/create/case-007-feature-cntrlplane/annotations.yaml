@@ -1,0 +1,19 @@
+expected_issue_type: Feature
+expected_project_key: CNTRLPLANE
+expected_conventions: [cntrlplane]
+expected_labels: ["ai-generated-jira"]
+expected_security: "Red Hat Employee"
+expected_content_format: markdown
+expected_component: null
+expected_version_field: null
+expected_version_format: null
+expected_affects_version: null
+expected_custom_fields: {}
+expected_validation_warnings: []
+expected_creation_blocked: false
+description_template: feature
+notes: >
+  CNTRLPLANE feature with strategic-level content. No version or component.
+  Description should follow feature template with market problem, strategic
+  value, and success criteria. Tests that the skill applies the feature
+  reference guide correctly.

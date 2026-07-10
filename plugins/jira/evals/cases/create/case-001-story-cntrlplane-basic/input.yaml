@@ -1,0 +1,8 @@
+type: story
+project_key: CNTRLPLANE
+summary: "Add user dashboard for cluster metrics"
+flags: "--version 4.22"
+interactive_responses: |
+  Who: cluster administrators
+  What: view real-time cluster metrics in a unified dashboard
+  Why: reduce time spent switching between monitoring tools

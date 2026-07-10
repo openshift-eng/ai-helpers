@@ -1,0 +1,22 @@
+expected_issue_type: Story
+expected_project_key: GCP
+expected_conventions: [gcp-hcp]
+expected_labels: ["ai-generated-jira"]
+expected_security: "Red Hat Employee"
+expected_content_format: markdown
+expected_component: "hypershift-operator-gcp"
+expected_version_field: null
+expected_version_format: null
+expected_affects_version: null
+expected_custom_fields:
+  customfield_10028: 2.0
+expected_validation_warnings: []
+expected_creation_blocked: false
+description_template: gcp-story
+notes: >
+  GCP project story with GCP-HCP team conventions. Tests GCP-specific
+  template (user story + context + requirements + technical approach +
+  dependencies + acceptance criteria checklist). Should auto-estimate
+  Story Points (customfield_10028) using the GCP sizing guide — adding
+  a Prometheus metric is a 2-point task per the GCP examples. Component
+  provided via flag.

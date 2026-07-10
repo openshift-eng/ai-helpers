@@ -1,0 +1,19 @@
+expected_issue_type: Bug
+expected_project_key: OCPBUGS
+expected_conventions: [ocpbugs]
+expected_labels: ["ai-generated-jira"]
+expected_security: "Red Hat Employee"
+expected_content_format: markdown
+expected_component: null
+expected_version_field: customfield_10855
+expected_version_format: string
+expected_affects_version: [{"name": "4.21"}]
+expected_custom_fields: {}
+expected_validation_warnings: []
+expected_creation_blocked: false
+description_template: bug
+notes: >
+  OCPBUGS bug with --version flag. Tests that the version flag is applied
+  correctly with OCPBUGS conventions: customfield_10855 as plain string
+  "openshift-4.21" and versions as [{"name": "4.21"}]. No component
+  specified. Description should follow bug template.

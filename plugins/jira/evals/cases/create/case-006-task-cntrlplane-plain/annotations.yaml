@@ -1,0 +1,19 @@
+expected_issue_type: Task
+expected_project_key: CNTRLPLANE
+expected_conventions: [cntrlplane]
+expected_labels: ["ai-generated-jira"]
+expected_security: "Red Hat Employee"
+expected_content_format: markdown
+expected_component: null
+expected_version_field: null
+expected_version_format: null
+expected_affects_version: null
+expected_custom_fields: {}
+expected_validation_warnings: []
+expected_creation_blocked: false
+description_template: task
+notes: >
+  Plain CNTRLPLANE task with no team conventions beyond project level.
+  No version or component specified. Description should follow task
+  template with what/why and acceptance criteria. Tests that the skill
+  correctly identifies this as non-user-facing technical work.
