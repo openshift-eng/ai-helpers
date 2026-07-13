@@ -1,0 +1,30 @@
+issue_key: "TEST-003"
+issue_description: |
+  ## Description
+
+  Initially, the shared ingress router config does not include the ignition route.
+  This creates a race condition where NodePools fail to get ignited because requests
+  are routed to the KAS service instead of the ignition server, since the router pods
+  don't yet have the latest config.
+
+  This is exacerbated on Azure by swift NIC contention -- the combination of slow NIC
+  allocation and missing ignition routes leads to a fair share of install failures.
+
+  ## Acceptance Criteria
+
+  - It should work reliably
+  - The fix should not break anything else
+  - Performance should be acceptable
+
+  ## Technical Details
+
+  The shared ingress router is managed by the control-plane-operator. The router
+  config is generated in the CPO reconciliation loop and mounted as a ConfigMap.
+  The ignition route is added by the ignition server controller, but there is a
+  timing dependency between the two controllers.
+
+  ## Impact
+
+  * NodePool creation failures during cluster install
+  * More frequent on Azure due to swift NIC contention
+  * Intermittent -- depends on timing between router rollout and NodePool ignition requests

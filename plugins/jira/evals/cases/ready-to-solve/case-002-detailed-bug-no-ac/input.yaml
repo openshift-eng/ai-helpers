@@ -1,0 +1,51 @@
+issue_key: "TEST-002"
+issue_description: |
+  ## Summary
+
+  The `nodeDrainTimeout` and `nodeVolumeDetachTimeout` fields on `NodePoolSpec`
+  (`api/hypershift/v1beta1/nodepool_types.go:186-194`) are typed as `*metav1.Duration`
+  but have no CRD-level validation pattern. Any string value -- including bare integers
+  like `"1"` -- is accepted by the API server and stored in etcd. When the operator's
+  informer later tries to deserialize this value, `time.ParseDuration("1")` fails with
+  `missing unit in duration "1"`, which crashes the cluster-wide NodePool informer.
+
+  A sibling duration field is validated correctly -- `maxNodeProvisionTime` on
+  `HostedClusterSpec` carries a kubebuilder validation pattern.
+
+  ## Expected behavior
+
+  A `kubectl apply` that sets `nodeDrainTimeout: "1"` (no unit suffix) should be
+  rejected by CRD validation at admission time, before the value reaches etcd.
+
+  ## Actual behavior
+
+  The value `"1"` is accepted and stored. It later causes a fatal deserialization
+  error in the operator's informer.
+
+  ## Steps to reproduce
+
+  ```bash
+  kubectl patch nodepool <name> -n <ns> --type=merge -p '{"spec":{"nodeDrainTimeout":"1"}}'
+  # Succeeds -- value stored in etcd
+  # Operator logs: "failed to list *v1beta1.NodePool: time: missing unit in duration"
+  ```
+
+  ## Fix
+
+  Add `+kubebuilder:validation:Pattern` to both fields in `nodepool_types.go` and
+  regenerate CRDs:
+
+  ```go
+  // +kubebuilder:validation:Pattern=`^([0-9]+(\.[0-9]+)?(ns|us|ms|s|m|h))+$`
+  NodeDrainTimeout *metav1.Duration `json:"nodeDrainTimeout,omitempty"`
+  ```
+
+  ## Impact
+
+  Without this validation, any raw/unstructured write can store an invalid duration
+  that poisons the entire operator.
+
+  ## References
+
+  * Affected fields: nodepool_types.go#L183-L194
+  * Existing validation example: hostedcluster_types.go#L1923

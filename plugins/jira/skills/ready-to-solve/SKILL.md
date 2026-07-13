@@ -1,21 +1,35 @@
 ---
 name: ready-to-solve
-description: Detailed implementation guide for checking Jira issue readiness for /jira:solve
-command: /jira:ready-to-solve
+description: Check whether a Jira issue is well-groomed and ready for /jira:solve
+argument-hint: <jira-issue-key> [--dry-run] [--verbose] [--fix]
 ---
 
-# Jira Issue Readiness Validator
+## Name
+jira:ready-to-solve
 
-## When to Use This Skill
+## Synopsis
+```bash
+/jira:ready-to-solve <jira-issue-key> [--dry-run] [--verbose] [--fix]
+```
 
-Invoked by `/jira:ready-to-solve`. Validates whether a Jira issue is well-groomed enough for `/jira:solve` to produce a quality solution.
+## Description
+The `jira:ready-to-solve` command checks whether a Jira issue has sufficient grooming for `/jira:solve` to produce a quality solution.
+
+It runs a two-phase validation:
+
+1. **Deterministic checks** via a Python script that verifies structural requirements: required sections exist, are non-empty, and have adequate content.
+2. **AI qualitative assessment** that evaluates whether the acceptance criteria are specific and testable, whether there is enough implementation context, and whether clear success/failure conditions exist.
+
+On pass, the label `ready-to-solve` is added to the issue. On fail, `not-ready-to-solve` is added. The stale opposite label is removed if present.
+
+With `--fix`, when validation fails the command generates a revised description that adds or improves the failing sections, shows the proposed changes to the user for approval, and updates the Jira issue description upon confirmation.
 
 ## Prerequisites
 
 - Jira MCP server configured (Atlassian Rovo MCP)
 - Python 3.8+ (`which python3`)
 
-## Implementation Steps
+## Implementation
 
 ### Phase 1: Fetch Issue Data
 
@@ -35,18 +49,18 @@ If `description` is null or empty, skip to Phase 4 with an automatic FAIL verdic
 Pipe the description to the Python script:
 
 ```bash
-echo '{"description": "<description_content>"}' | python3 plugins/jira/skills/ready-to-solve/check_sections.py
+echo '{"description": "<description_content>"}' | python3 plugins/jira/skills/ready-to-solve/scripts/check_sections.py
 ```
 
 For verbose output (includes matched content):
 ```bash
-echo '{"description": "<description_content>"}' | python3 plugins/jira/skills/ready-to-solve/check_sections.py --verbose
+echo '{"description": "<description_content>"}' | python3 plugins/jira/skills/ready-to-solve/scripts/check_sections.py --verbose
 ```
 
 **Important**: Construct the JSON input carefully. The description may contain quotes, newlines, and special characters. Use Python or `jq` to safely serialize:
 
 ```bash
-echo "$DESCRIPTION" | jq -Rs '{"description": .}' | python3 plugins/jira/skills/ready-to-solve/check_sections.py
+echo "$DESCRIPTION" | jq -Rs '{"description": .}' | python3 plugins/jira/skills/ready-to-solve/scripts/check_sections.py
 ```
 
 The script outputs JSON with per-check results. Parse the output to get:
@@ -71,19 +85,19 @@ The script outputs JSON with per-check results. Parse the output to get:
 
 ### Phase 3: AI Qualitative Assessment
 
-Read the full description and evaluate three dimensions. For each, produce a verdict (PASS, FAIL, WARNING) and a 1-2 sentence justification.
+Read the full description and evaluate three dimensions. For each, produce a verdict (PASS or FAIL) and a 1-2 sentence justification.
 
 1. **AC Specificity and Testability**: Are acceptance criteria specific enough to write tests against? Do they describe observable behavior rather than vague goals?
-   - FAIL examples: "it should work", "system performs well", "user can do things"
-   - PASS examples: "when X happens, Y returns Z", "API returns 404 for missing resources", "latency stays under 200ms"
+   - FAIL: no acceptance criteria, or criteria are vague ("it should work", "system performs well")
+   - PASS: criteria describe observable behavior ("when X happens, Y returns Z", "API returns 404 for missing resources")
 
 2. **Implementation Context Sufficiency**: Is there enough description of the problem, affected code area, or desired behavior that `/jira:solve` could identify relevant files and implement a solution?
-   - FAIL if a codebase search would be ambiguous (no component, file, or feature area mentioned)
-   - PASS if the description points to a specific area of the codebase or behavior
+   - FAIL: a codebase search would be ambiguous (no component, file, or feature area mentioned)
+   - PASS: the description points to a specific area of the codebase, component, or behavior
 
 3. **Clear Success/Failure Conditions**: Can a reviewer determine whether a proposed solution addresses the issue?
-   - WARNING if AC exists but lacks edge cases
-   - PASS if conditions are explicit and unambiguous
+   - FAIL: no way to tell if a solution is correct (no expected behavior, no test criteria)
+   - PASS: conditions are explicit enough to verify a solution
 
 ### Phase 4: Aggregate Verdict
 
@@ -129,8 +143,6 @@ Post or update a Jira comment reflecting the validation result so the ticket aut
 #### Step 1: Check for existing automated comment
 
 Fetch the issue with comments included via `getJiraIssue` and search for one whose body starts with `**Automated Readiness Check`. Save its `comment_id` if found.
-
-Iterate through the comments in the returned issue payload. If any comment body starts with `**Automated Readiness Check`, store its `comment_id` for editing in Step 3.
 
 #### Step 2: Build comment body
 
@@ -187,13 +199,13 @@ Output format:
 
 ### AI Qualitative Assessment
 
-**AC Specificity and Testability**: PASS/FAIL/WARNING
+**AC Specificity and Testability**: PASS/FAIL
 {reasoning}
 
-**Implementation Context Sufficiency**: PASS/FAIL/WARNING
+**Implementation Context Sufficiency**: PASS/FAIL
 {reasoning}
 
-**Clear Success/Failure Conditions**: PASS/FAIL/WARNING
+**Clear Success/Failure Conditions**: PASS/FAIL
 {reasoning}
 
 ### Overall Verdict: PASS/FAIL
@@ -202,6 +214,11 @@ Output format:
 
 **Label Applied**: `ready-to-solve` / `not-ready-to-solve` / _(dry run -- no label applied)_
 ```
+
+## Return Value
+- **Format**: Structured markdown report with deterministic check results table, AI qualitative assessment (3 dimensions with verdicts and reasoning), overall PASS/FAIL verdict, and label applied.
+- **PASS**: All required checks pass, no AI FAIL verdicts.
+- **FAIL**: At least one required check failed or AI flagged a critical issue.
 
 ## Error Handling
 
@@ -239,6 +256,12 @@ Output format:
    ```bash
    /jira:ready-to-solve OCPBUGS-12345 --fix
    ```
+
+## Arguments:
+- $1: Jira issue key (required). Examples: `OCPBUGS-12345`, `HOSTEDCP-999`, `GCP-456`.
+- `--dry-run`: Optional. Skip label application and comment posting, only report results.
+- `--verbose`: Optional. Show full per-check details including matched section content.
+- `--fix`: Optional. When validation fails, generate a revised description fixing the failing checks.
 
 ## See Also
 

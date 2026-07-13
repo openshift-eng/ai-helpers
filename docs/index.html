@@ -1455,7 +1455,7 @@ footer a { color: var(--primary); }
     {
       "name": "jira",
       "description": "A plugin to automate tasks with Jira",
-      "version": "0.8.2",
+      "version": "0.8.3",
       "has_readme": true,
       "commands": [
         {
@@ -1553,14 +1553,6 @@ footer a { color: var(--primary); }
           "description_html": "List and analyze JIRA issues organized by component with flexible filtering",
           "synopsis": "/jira:issues-by-component \u003cproject-key\u003e [time-period] [--component component-name] [--assignee username] [--reporter username] [--status status] [--search search-term] [--search-description]",
           "body_html": "\u003cp\u003eThe \u003ccode\u003ejira:issues-by-component\u003c/code\u003e command provides a comprehensive view of JIRA issues organized by component. It supports two modes of operation:\u003c/p\u003e\u003cp\u003e1. \u003cstrong\u003eOverview Mode\u003c/strong\u003e (no \u003ccode\u003e--component\u003c/code\u003e flag): Lists all components with high-level statistics\u003cbr\u003e2. \u003cstrong\u003eDetail Mode\u003c/strong\u003e (\u003ccode\u003e--component\u003c/code\u003e specified): Shows detailed issue information for a specific component\u003c/p\u003e\u003cp\u003eThis command is particularly useful for:\u003cbr\u003e- Understanding component-level workload distribution\u003cbr\u003e- Finding issues by component and user assignment\u003cbr\u003e- Identifying component-specific patterns or problems\u003cbr\u003e- Sprint/release planning by component\u003cbr\u003e- Searching for specific issues within component contexts\u003cbr\u003e- Team capacity planning and workload analysis\u003c/p\u003e\u003cp\u003e\u003cstrong\u003eKey Features:\u003c/strong\u003e\u003cbr\u003e- \u003cstrong\u003eComponent organization\u003c/strong\u003e - Issues grouped by JIRA component\u003cbr\u003e- \u003cstrong\u003eFlexible time filtering\u003c/strong\u003e - Filter by creation date or update date\u003cbr\u003e- \u003cstrong\u003eUser filtering\u003c/strong\u003e - Filter by assignee or reporter\u003cbr\u003e- \u003cstrong\u003eStatus filtering\u003c/strong\u003e - Focus on specific workflow states\u003cbr\u003e- \u003cstrong\u003eText search\u003c/strong\u003e - Find issues by keywords in summary or description\u003cbr\u003e- \u003cstrong\u003eDual-mode output\u003c/strong\u003e - Overview or detailed views based on your needs\u003c/p\u003e"
-        },
-        {
-          "name": "ready-to-solve",
-          "full_name": "jira:ready-to-solve",
-          "description": "Check whether a Jira issue is well-groomed and ready for /jira:solve",
-          "description_html": "Check whether a Jira issue is well-groomed and ready for /jira:solve",
-          "synopsis": "/jira:ready-to-solve \u003cjira-issue-key\u003e [--dry-run] [--verbose] [--fix]",
-          "body_html": "\u003cp\u003eThe \u003ccode\u003ejira:ready-to-solve\u003c/code\u003e command checks whether a Jira issue has sufficient grooming for \u003ccode\u003e/jira:solve\u003c/code\u003e to produce a quality solution.\u003c/p\u003e\u003cp\u003eIt runs a two-phase validation:\u003c/p\u003e\u003cp\u003e1. \u003cstrong\u003eDeterministic checks\u003c/strong\u003e via a Python script that verifies structural requirements: required sections exist, are non-empty, have adequate content, and contain no placeholder text.\u003cbr\u003e2. \u003cstrong\u003eAI qualitative assessment\u003c/strong\u003e that evaluates whether the acceptance criteria are specific and testable, whether there is enough implementation context, and whether clear success/failure conditions exist.\u003c/p\u003e\u003cp\u003eOn pass, the label \u003ccode\u003eready-to-solve\u003c/code\u003e is added to the issue. On fail, \u003ccode\u003enot-ready-to-solve\u003c/code\u003e is added. The stale opposite label is removed if present.\u003c/p\u003e\u003cp\u003eWith \u003ccode\u003e--fix\u003c/code\u003e, when validation fails the command generates a revised description that adds or improves the failing sections, shows the proposed changes to the user for approval, and updates the Jira issue description upon confirmation. After fixing, validation is re-run to confirm the issue now passes.\u003c/p\u003e"
         },
         {
           "name": "reconcile-github",
@@ -1674,8 +1666,8 @@ footer a { color: var(--primary); }
         },
         {
           "name": "ready-to-solve",
-          "description": "Detailed implementation guide for checking Jira issue readiness for /jira:solve",
-          "description_html": "Detailed implementation guide for checking Jira issue readiness for /jira:solve",
+          "description": "Check whether a Jira issue is well-groomed and ready for /jira:solve",
+          "description_html": "Check whether a Jira issue is well-groomed and ready for /jira:solve",
           "meta": ""
         },
         {

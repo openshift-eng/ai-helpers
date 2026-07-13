@@ -1,0 +1,17 @@
+expected_verdict: FAIL
+expected_deterministic:
+  has_context: false
+  has_ac: false
+  context_not_empty: false
+  ac_not_empty: false
+  has_tech: false
+  tech_not_empty: false
+  ac_has_items: false
+  min_description_length: true
+expected_ai:
+  ac_specificity: FAIL
+  context_sufficiency: PASS
+  success_conditions: PASS
+notes: >
+  Detailed bug with Expected/Actual/Steps/Fix/References headings.
+  All 6 REQUIRED checks fail despite excellent content.
