@@ -41,7 +41,7 @@ The plugin config follows a mechanical pattern:
 
 **Target version** (what the bug on the PR's branch must target):
 - `release-4.X` → `4.X.z` (prefix match — `4.X.0` also accepted)
-- `main` / `master` → `5.0.0` (prefix match — `5.0` also accepted)
+- `main` / `master` → `5.0.0` (prefix match — `5.0` also accepted). Update when `main` targets a new major version — check `openshift/release/core-services/jira-lifecycle-plugin/config.yaml` for the current value.
 
 **Dependent target version** (what the "Blocks" linked bug must target):
 - `release-4.X` → `4.(X+1).0` or `4.(X+1).z`
@@ -49,7 +49,7 @@ The plugin config follows a mechanical pattern:
 **Valid states for the bug itself** (all branches):
 - `NEW`, `ASSIGNED`, `POST`
 
-**Valid states for dependent bugs** (varies by branch):
+**Valid states for dependent bugs** (varies by branch — check `openshift/release/core-services/jira-lifecycle-plugin/config.yaml` for current boundaries):
 - `release-4.22` and newer: `MODIFIED`, `ON_QA`, `VERIFIED`
 - `release-4.6` through `release-4.21`: `VERIFIED`, `RELEASE PENDING`, `CLOSED (ERRATA)`, `CLOSED (CURRENT RELEASE)`, `CLOSED (DONE)`, `CLOSED (DONE-ERRATA)`
 
@@ -116,7 +116,7 @@ Use `mcp__atlassian__getJiraIssue`:
 
 Filter `issuelinks` for links where:
 - Link type name is `"Blocks"` AND direction is `outwardIssue` (this bug blocks the dependent)
-- The linked issue's key shares the same project prefix as the original bug (e.g., both are `OCPBUGS-*`)
+- The linked issue's project key matches the original bug's project (e.g., both are `OCPBUGS-*`)
 
 For each dependent found:
 - Record the dependent's key, status, and priority from the link data
@@ -220,7 +220,7 @@ All 7 checks passed. If the PR still shows `jira/invalid-bug`, comment `/jira re
 After reporting, offer to fix each failing check. List the fixes and ask for confirmation before proceeding.
 
 **Fix: Target version** (checks 2, 6)
-1. Resolve the version ID from Jira field metadata: use `mcp__atlassian__getJiraIssueTypeMetaWithFields` with `projectIdOrKey: {PROJECT}`, `issueTypeId` from the bug's `issuetype.id`, and `requiredFieldsOnly: false`
+1. Resolve the version ID: use `mcp__atlassian__getJiraIssueTypeMetaWithFields` with `projectIdOrKey: {PROJECT}`, `issueTypeId` from the bug's `issuetype.id`, and `requiredFieldsOnly: false`
 2. Find `customfield_10855` in the response fields — its `allowedValues` array contains all available versions. Match the entry whose `.name` equals the expected version string (e.g., `4.20.z`) and extract its `.id`
 3. Update: `mcp__atlassian__editJiraIssue` with `fields: {"customfield_10855": [{"id": "{version_id}"}]}`
 
@@ -231,7 +231,7 @@ After reporting, offer to fix each failing check. List the fixes and ask for con
 
 **Fix: Release notes** (check 4)
 1. Ask the user for release note text. Suggest format:
-   ```
+   ```text
    Cause: {what causes the bug}
    Consequence: {what happens}
    Fix: {what was done}
@@ -242,12 +242,12 @@ After reporting, offer to fix each failing check. List the fixes and ask for con
    `fields: {"customfield_10785": {"value": "Release Note Not Required"}}`
 
 **Fix: Missing dependents** (check 7)
-1. Check if a "Blocks" linked dependent already exists in `issuelinks`
+1. Check if a "Blocks" linked dependent already exists in the issue's `issuelinks` (same project, outward direction)
 2. If no dependent exists, offer to create one:
    - Create a new bug in the same project with:
      - Same summary (prefixed with branch info if needed)
      - Target Version set to the expected dependent version
-   - Link with a "Blocks" relationship: `mcp__atlassian__createIssueLink` with `type: "Blocks"`, `inwardIssue: {new_bug}`, `outwardIssue: {original_bug}`
+   - Link with a "Blocks" relationship: `mcp__atlassian__createIssueLink` with `type: "Blocks"`, `inwardIssue: {original_bug}`, `outwardIssue: {new_bug}` (original bug blocks the new dependent)
    - Use `mcp__atlassian__createJiraIssue` then `mcp__atlassian__createIssueLink`
 3. If a dependent exists but targets wrong version or is in wrong state, offer to fix it
 

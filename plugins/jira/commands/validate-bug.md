@@ -1,6 +1,6 @@
 ---
 description: Diagnose and fix jira/invalid-bug on PRs — runs the same 7 checks as the jira-lifecycle-plugin
-argument-hint: "<PR-URL | PR-number | JIRA-key> [--branch release-4.X]"
+argument-hint: "<PR-URL | PR-number | JIRA-key> [--branch release-4.X|main|master]"
 ---
 
 ## Name
@@ -8,7 +8,7 @@ jira:validate-bug
 
 ## Synopsis
 ```bash
-/jira:validate-bug <PR-URL | PR-number | JIRA-key> [--branch release-4.X]
+/jira:validate-bug <PR-URL | PR-number | JIRA-key> [--branch release-4.X|main|master]
 ```
 
 ## Description
