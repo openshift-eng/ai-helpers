@@ -1,0 +1,38 @@
+issue_key: "TEST-004"
+args: "--fix --dry-run"
+issue_description: |
+  ## Summary
+
+  The component rollout signal (`IsDeploymentReady`) does not account for terminating pods
+  in the deployment. This means component versions are reported as "fully rolled out" while
+  old pods are still running and serving traffic. Since all component versions are aggregated
+  to report the control plane version, this causes the control plane version to advance
+  prematurely. Consumers rely on the control plane version to acknowledge CVE exposure and
+  compatibility ranges.
+
+  ## Problem
+
+  The current `IsDeploymentReady` check only considers non-terminating pods (as per the
+  Kubernetes deployment status contract, which explicitly excludes terminating pods from its
+  counts). When a new deployment rollout begins, old pods enter a terminating state but
+  continue running. The rollout signal reports completion while these old pods are still active.
+
+  This was observed concretely during KMS key rotation, where terminating KAS pods continued
+  encrypting with the old key while new pods encrypted with the new key, causing data corruption.
+
+  PR #8970 added a workaround by listing pods and checking `DeletionTimestamp`, but this is
+  not the ideal long-term solution.
+
+  ## Proposed Fix
+
+  Kubernetes 1.35 introduced a terminating replicas count in the deployment status. The rollout
+  check should be updated to include this field so that convergence is only reported after all
+  terminating replicas have fully shut down.
+
+  This check should be added now so that it automatically takes effect on management cluster
+  versions that support Kubernetes 1.35+.
+
+  ## Related
+
+  - KMS key rotation failure due to premature convergence (workaround applied)
+  - PR #8970 -- Workaround: prevent premature convergence during KMS key rotation

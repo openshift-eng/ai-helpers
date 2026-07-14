@@ -1,0 +1,278 @@
+name: ready-to-solve-eval
+description: >
+  Evaluate the ready-to-solve skill's ability to validate Jira issue readiness
+  for /jira:solve. Tests deterministic section checks (Context, AC, Technical
+  Details) and AI qualitative assessment (AC specificity, implementation context,
+  success conditions). Uses static fixtures — no live Jira dependency.
+skill: jira:ready-to-solve
+
+execution:
+  mode: case
+  arguments: "{issue_key} --dry-run"
+  timeout: 120
+  max_budget_usd: 1.00
+
+runner:
+  type: claude-code
+  plugin_dirs:
+    - plugins/jira
+  system_prompt: |
+    You are an eval runner. Run the ready-to-solve validation on the provided
+    issue. Since this is an eval with no live Jira access, use the issue
+    description from the input.yaml file in the current directory instead of
+    fetching from Jira.
+
+    Read input.yaml to get the issue_key and issue_description fields.
+    Pipe the issue_description through the check_sections.py script, then
+    perform the AI qualitative assessment as described in the skill.
+
+    Write your results to result.json with these fields:
+    - overall_verdict: "PASS" or "FAIL"
+    - deterministic_checks: object with check IDs as keys, each having
+      "passed" (boolean) and "details" (string)
+    - ai_assessment: object with keys "ac_specificity", "context_sufficiency",
+      "success_conditions", each having "verdict" (PASS or FAIL only, no
+      WARNING) and "rationale" (string)
+    - failures: list of failed check IDs (REQUIRED severity only)
+    - fix_output: (only for --fix cases) the revised description text
+
+    Do not wrap JSON in markdown code fences in the file.
+    Do NOT attempt to connect to Jira or use any MCP tools.
+
+models:
+  skill: claude-opus-4-6
+  judge: claude-opus-4-6
+
+permissions:
+  allow:
+    - "Read"
+    - "Write"
+    - "Bash"
+    - "Glob"
+    - "Grep"
+  deny:
+    - "Agent"
+    - "mcp__*"
+
+mlflow:
+  experiment: ready-to-solve-eval
+
+dataset:
+  path: plugins/jira/evals/cases/ready-to-solve
+  schema: |
+    Each case directory contains:
+    - input.yaml: YAML file with fields:
+      - 'issue_key' — fake issue key (e.g., TEST-001)
+      - 'issue_description' — full Jira description text (static fixture)
+      - 'args' — optional extra arguments (e.g., "--fix --dry-run")
+    - annotations.yaml: Expected results and metadata:
+      - 'expected_verdict': PASS or FAIL
+      - 'expected_deterministic': object mapping check IDs to expected boolean
+      - 'expected_ai': object mapping dimension names to expected verdict
+      - 'expected_fix_attempted': boolean (for --fix cases)
+      - 'expected_fix_adds_context': boolean (for --fix cases)
+      - 'expected_fix_adds_ac': boolean (for --fix cases)
+      - 'expected_fix_adds_tech': boolean (for --fix cases)
+      - 'expected_fix_preserves_original': boolean (for --fix cases)
+      - 'notes': free text explaining expected behavior
+
+outputs:
+  - path: "result.json"
+    schema: |
+      JSON object with fields:
+      - overall_verdict: "PASS" or "FAIL"
+      - deterministic_checks: object mapping check IDs to {passed, details}
+      - ai_assessment: object with ac_specificity, context_sufficiency,
+        success_conditions — each with {verdict, rationale}
+      - failures: list of failed check IDs
+      - fix_output: string (only present in --fix cases)
+
+traces:
+  stdout: true
+  stderr: true
+  events: false
+  metrics: true
+
+judges:
+  - name: valid_output_json
+    description: Verify result.json is valid JSON with all required fields
+    check: |
+      import json
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      json_files = {k: v for k, v in all_f.items() if k.endswith("result.json")}
+      if not json_files:
+          return (False, "No result.json found")
+      content = list(json_files.values())[0]
+      try:
+          data = json.loads(content)
+      except Exception as e:
+          return (False, f"Invalid JSON: {e}")
+      required = ["overall_verdict", "deterministic_checks", "ai_assessment", "failures"]
+      missing = [f for f in required if f not in data]
+      if missing:
+          return (False, f"Missing fields: {', '.join(missing)}")
+      if data["overall_verdict"] not in ("PASS", "FAIL"):
+          return (False, f"Invalid verdict: {data['overall_verdict']}")
+      return (True, "Valid JSON with all required fields")
+
+  - name: overall_verdict_correct
+    description: Verify overall verdict matches expected value
+    check: |
+      import json
+      ann = outputs.get("annotations", {})
+      if "expected_verdict" not in ann:
+          return (True, "No expected_verdict in annotations -- skipped")
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      json_files = {k: v for k, v in all_f.items() if k.endswith("result.json")}
+      if not json_files:
+          return (False, "No result.json found")
+      try:
+          data = json.loads(list(json_files.values())[0])
+      except Exception as e:
+          return (False, f"Cannot parse JSON: {e}")
+      predicted = data.get("overall_verdict", "")
+      expected = ann["expected_verdict"]
+      if predicted == expected:
+          return (True, f"verdict={predicted} matches expected")
+      return (False, f"verdict={predicted}, expected={expected}")
+
+  - name: deterministic_checks_correct
+    description: Verify each deterministic check result matches expected values
+    check: |
+      import json
+      ann = outputs.get("annotations", {})
+      expected = ann.get("expected_deterministic", {})
+      if not expected:
+          return (True, "No expected_deterministic in annotations -- skipped")
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      json_files = {k: v for k, v in all_f.items() if k.endswith("result.json")}
+      if not json_files:
+          return (False, "No result.json found")
+      try:
+          data = json.loads(list(json_files.values())[0])
+      except Exception as e:
+          return (False, f"Cannot parse JSON: {e}")
+      checks = data.get("deterministic_checks", {})
+      mismatches = []
+      for check_id, expected_pass in expected.items():
+          actual = checks.get(check_id, {})
+          actual_pass = actual.get("passed") if isinstance(actual, dict) else actual
+          if actual_pass != expected_pass:
+              mismatches.append(f"{check_id}: got={actual_pass}, expected={expected_pass}")
+      if mismatches:
+          return (False, f"{len(mismatches)} mismatches: {'; '.join(mismatches[:3])}")
+      return (True, f"All {len(expected)} deterministic checks match expected values")
+
+  - name: ai_assessment_correct
+    description: Verify AI qualitative assessment verdicts match expected values
+    check: |
+      import json
+      ann = outputs.get("annotations", {})
+      expected = ann.get("expected_ai", {})
+      if not expected:
+          return (True, "No expected_ai in annotations -- skipped")
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      json_files = {k: v for k, v in all_f.items() if k.endswith("result.json")}
+      if not json_files:
+          return (False, "No result.json found")
+      try:
+          data = json.loads(list(json_files.values())[0])
+      except Exception as e:
+          return (False, f"Cannot parse JSON: {e}")
+      ai = data.get("ai_assessment", {})
+      mismatches = []
+      for dim, expected_verdict in expected.items():
+          actual = ai.get(dim, {})
+          actual_verdict = actual.get("verdict") if isinstance(actual, dict) else actual
+          if actual_verdict != expected_verdict:
+              mismatches.append(f"{dim}: got={actual_verdict}, expected={expected_verdict}")
+      if mismatches:
+          return (False, f"{len(mismatches)} mismatches: {'; '.join(mismatches)}")
+      return (True, f"All {len(expected)} AI assessment dimensions match expected")
+
+  - name: fix_output_valid
+    description: Verify --fix cases produce a revised description with required sections
+    check: |
+      import json, re
+      ann = outputs.get("annotations", {})
+      if not ann.get("expected_fix_attempted"):
+          return (True, "Not a --fix case -- skipped")
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      json_files = {k: v for k, v in all_f.items() if k.endswith("result.json")}
+      if not json_files:
+          return (False, "No result.json found")
+      try:
+          data = json.loads(list(json_files.values())[0])
+      except Exception as e:
+          return (False, f"Cannot parse JSON: {e}")
+      fix = data.get("fix_output", "")
+      if not fix:
+          return (False, "No fix_output in result.json")
+      errors = []
+      context_re = re.compile(r"(Context|Background|Why)\s*", re.IGNORECASE)
+      ac_re = re.compile(r"(Acceptance Criteria|AC|Definition of Done)\s*", re.IGNORECASE)
+      tech_re = re.compile(r"(Technical Details|Technical Context|Implementation Details)\s*", re.IGNORECASE)
+      if ann.get("expected_fix_adds_context") and not context_re.search(fix):
+          errors.append("Fix missing Context section")
+      if ann.get("expected_fix_adds_ac") and not ac_re.search(fix):
+          errors.append("Fix missing Acceptance Criteria section")
+      if ann.get("expected_fix_adds_tech") and not tech_re.search(fix):
+          errors.append("Fix missing Technical Details section")
+      if ann.get("expected_fix_preserves_original"):
+          if "IsDeploymentReady" not in fix and "rollout signal" not in fix:
+              errors.append("Fix does not preserve original content")
+      if errors:
+          return (False, "; ".join(errors))
+      return (True, "Fix output contains required sections and preserves original content")
+
+  - name: assessment_quality
+    description: LLM judge assessing overall analysis accuracy and rationale quality
+    prompt: |
+      You are evaluating a ready-to-solve validation run. The skill checked
+      whether a Jira issue is well-groomed enough for /jira:solve.
+
+      The skill's output:
+
+      {{ outputs }}
+
+      Expected behavior from annotations:
+
+      {{ annotations }}
+
+      Evaluate on a 1-5 scale:
+
+      Score 1: Overall verdict is wrong, or deterministic checks are clearly
+               incorrect. AI rationale is absent or nonsensical.
+      Score 2: Verdict is correct but individual checks are wrong. AI rationale
+               is generic and doesn't reference the actual description content.
+      Score 3: Verdict and most checks are correct. AI rationale mentions relevant
+               aspects of the description but may be vague.
+      Score 4: All checks match expected values. AI rationale specifically
+               references content from the description to justify verdicts.
+      Score 5: Perfect match on all fields. AI rationale is precise, citing
+               specific phrases from the description. Fix output (if applicable)
+               is well-structured and addresses all failures.
+
+thresholds:
+  valid_output_json:
+    min_pass_rate: 1.0
+  overall_verdict_correct:
+    min_pass_rate: 1.0
+  deterministic_checks_correct:
+    min_pass_rate: 0.90
+  ai_assessment_correct:
+    min_pass_rate: 0.75
+  fix_output_valid:
+    min_pass_rate: 1.0
+  assessment_quality:
+    min_mean: 3.5
