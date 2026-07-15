@@ -19,21 +19,27 @@ Use this skill when Phase 1 of the `node-cve:triage` command needs to fetch all 
 
 Read the CVE-tracked component list from the [node-team shared components reference](../../../node-team/skills/node/references/shared/components.md). Use the full "Jira Components (OCPBUGS)" list plus the additional CVE triage components (Driver Toolkit, Machine Config Operator).
 
-If `--component` was specified, use only that component instead of the full list.
+**Default behavior (no `--component` flag): include ALL Node team components, and ONLY Node team components.** "No flag" does not mean "no filter" — it means "the full Node component list." Never construct a query that omits the component filter entirely, even when no `--component` value was given.
+
+If `--component` was specified, use only that single component instead of the full list. The value must match an entry in the shared reference exactly; if it does not, print an error listing the valid component names and exit rather than silently falling back to an unfiltered query.
 
 The Jira saved filter "Node Components" (ID 91645) does not include Driver Toolkit and Machine Config Operator, so the explicit list from the shared reference is used for CVE queries to ensure completeness.
 
+**CRITICAL SAFEGUARD:** This component filter is what scopes every downstream step (analysis, reporting, and — critically — Jira comment posting in Phase 3) to Node team trackers only. Many CVEs (especially Go stdlib or vendored-dependency vulnerabilities) have 50-200+ tracker issues across dozens of OpenShift teams. Omitting or bypassing this filter — for example by later re-querying Jira with only a CVE ID and no component constraint — is what caused the 2026-07-15 incident where Node-specific analysis was posted to ~200 non-Node trackers (HyperShift, Storage, Networking, Installer, etc.). See the [report-findings](../report-findings/SKILL.md) "Node Team Component Safeguard" section for the posting-time re-validation this feeds into.
+
 ### Step 2: Query Jira
 
-Build and execute the JQL query:
+Build and execute the JQL query. The `component in (...)` clause is mandatory in every invocation of this query, whether or not `--component` was passed:
 
 ```bash
-jira issue list -q "project = OCPBUGS AND type = Vulnerability AND component in (<components from shared reference>) AND status not in (Closed, Done, Verified)" --plain --no-headers --columns KEY,SUMMARY,COMPONENT,STATUS,ASSIGNEE,LABELS
+jira issue list -q "project = OCPBUGS AND type = Vulnerability AND component in (<components from shared reference, or the single --component value>) AND status not in (Closed, Done, Verified)" --plain --no-headers --columns KEY,SUMMARY,COMPONENT,STATUS,ASSIGNEE,LABELS
 ```
 
 If `--days N` was specified, add `AND updated >= -${N}d` to the JQL.
 
 Handle pagination: the `jira` CLI returns up to 100 results by default (format: `--paginate <from>:<limit>`). If the result count equals 100, paginate by re-running with `--paginate 100:100`, `--paginate 200:100`, etc. until fewer than 100 results are returned.
+
+**Sanity check:** After fetching results, verify that every returned `COMPONENT` value is actually in the Node team component list (or, when `--component` was given, equals that value). If any row has an unexpected component, this indicates a JQL construction bug — log a warning with the offending tracker key and component, and exclude that row rather than propagating it downstream.
 
 ### Step 3: Parse results
 

@@ -29,7 +29,7 @@ Designed for both interactive use and headless execution via `claude --print`.
 ### Phase 0: Setup and Argument Parsing
 
 1. **Parse Arguments**
-   - `--component <name>`: Filter to a specific OCPBUGS component (e.g., "Node / CRI-O"). Optional.
+   - `--component <name>`: Filter to a single specific OCPBUGS component (e.g., "Node / CRI-O"). Optional. **If omitted, the command includes ALL Node team components — and only Node team components. It never queries or posts to components outside the Node team.** See the [node-team shared components reference](../../node-team/skills/node/references/shared/components.md) for the canonical list.
    - `--notify-jira`: Post analysis results as comments on Jira tracker issues. Default: off.
    - `--notify-slack`: Send summary to Slack. Requires either `$SLACK_API_TOKEN` + `$SLACK_CHANNEL` (enables threading) or `$SLACK_WEBHOOK` (simpler, no threading). Default: off.
    - `--days N`: Only include CVEs created or updated in the last N days. Default: all open.
@@ -55,6 +55,8 @@ Designed for both interactive use and headless execution via `claude --print`.
 - **Input**: Optional `--component` filter, optional `--days` filter
 - **Output**: Deduplicated list of CVEs with metadata
 
+**CRITICAL SAFEGUARD:** The `component in (...)` filter below is mandatory and must never be omitted, regardless of whether `--component` was passed. This is the first of two layers of defense against cross-team contamination — the second is the posting-time re-validation in [report-findings](../skills/report-findings/SKILL.md) Phase 3, Step 2. Both layers exist because a prior incident (2026-07-15) showed that CVE analysis can otherwise be posted to 200+ trackers belonging to other OpenShift teams.
+
 **Steps:**
 
 1. Build the JQL query using the CVE-tracked component list from the [node-team shared components reference](../../node-team/skills/node/references/shared/components.md) (the full Jira component list plus Driver Toolkit and Machine Config Operator):
@@ -63,7 +65,7 @@ Designed for both interactive use and headless execution via `claude --print`.
    jira issue list -q "project = OCPBUGS AND type = Vulnerability AND component in (<components from shared reference>) AND status not in (Closed, Done, Verified)" --plain --no-headers --columns KEY,SUMMARY,COMPONENT,STATUS,ASSIGNEE,LABELS
    ```
 
-   If `--component` is specified, replace the component list with the single component.
+   If `--component` is specified, replace the component list with the single component (still using `component in (...)`, never an unfiltered query).
    If `--days N` is specified, add `AND updated >= -${N}d` to the query.
 
 2. Parse results and extract CVE IDs from summaries (regex: `CVE-[0-9]{4}-[0-9]+`).
@@ -218,7 +220,9 @@ The per-branch results are preserved in the report so reviewers can see which ve
    **Recommended action:** <update dependency / apply patch / monitor / investigate>
    ```
 
-2. **If `--notify-jira`**: For each CVE, post a comment on ALL its tracker issues. Each tracker receives the analysis result specific to its OCP version/branch.
+2. **If `--notify-jira`**: For each CVE, post a comment on ALL its **Node-team-validated** tracker issues. Each tracker receives the analysis result specific to its OCP version/branch.
+
+   **Before posting anything, re-validate every tracker's component against the Node team component list — do not rely solely on Phase 1's filtering.** See [report-findings](../skills/report-findings/SKILL.md) "Node Team Component Safeguard" and Step 2 for the mandatory validation logic and audit logging. Skip (never post to) any tracker whose component is not a Node team component, and record it in the posting audit log.
 
    Use Atlassian wiki markup (not Markdown), matching the format in [report-findings](../skills/report-findings/SKILL.md) Step 2. The comment includes per-branch results across all analyzed versions so reviewers can see the full picture.
 
@@ -265,13 +269,15 @@ See report-findings skill.)
 Report: .work/node-cve/triage-YYYY-MM-DD/report.md
 ```
 
+If any trackers were skipped during posting because their component was not a Node team component (see [report-findings](../skills/report-findings/SKILL.md) Step 2), print a warning line before the report path, e.g. "⚠️ Skipped N non-Node-component trackers during posting — see posting-audit.log". Omit this line entirely when the skip count is 0.
+
 Omit empty sections (e.g., if there are no Uncertain CVEs, skip that heading). Each section heading must be bold or visually distinct from the CVE entries beneath it. The "Present" section groups both "Present but not exploitable" and "Present but not reachable" analysis results together, since both mean no urgent action is needed. The detailed classification is preserved in the per-CVE report and Jira comments. Only show the "(M unassigned)" count when M > 0.
 
 The headline format depends on whether cached results were used. On first run (all CVEs are new): "Node CVE Triage (N CVEs analyzed)". On subsequent runs with cached results: "Node CVE Triage (N CVEs, M new)" where M is the number of CVEs without a prior `node-cve:triage` Jira comment. If classifications changed since the last run, also show "K updated": "Node CVE Triage (N CVEs, M new, K updated)".
 
 ## Arguments
 
-- `--component <name>`: Filter to a specific OCPBUGS component. Must match a Node team component name exactly (e.g., "Node / CRI-O"). Optional.
+- `--component <name>`: Filter to a single specific OCPBUGS component. Must match a Node team component name exactly (e.g., "Node / CRI-O"). Optional. **If omitted, ALL Node team components are included, and only Node team components — never all OCPBUGS components.**
 - `--notify-jira`: Post analysis as a comment on each Jira tracker issue. Requires `JIRA_API_TOKEN`. Also enables cross-run caching via Jira comments.
 - `--notify-slack`: Send a summary to Slack. Requires either `$SLACK_API_TOKEN` + `$SLACK_CHANNEL` (enables threading) or `$SLACK_WEBHOOK` (no threading).
 - `--days N`: Only include CVEs created or updated in the last N days. Default: all open CVEs.
@@ -301,6 +307,7 @@ The headline format depends on whether cached results were used. On first run (a
 ## Notes
 
 - The Jira query uses OCPBUGS component names from the [node-team shared components reference](../../node-team/skills/node/references/shared/components.md).
+- **Cross-team safeguard:** The command filters to Node team components at query time (Phase 1) AND re-validates each tracker's component immediately before posting any Jira comment (Phase 3). Never write or run an ad-hoc Jira search scoped only by CVE ID to find trackers to comment on — a CVE can span 200+ trackers across dozens of unrelated OpenShift teams, and a CVE-ID-only search will return all of them. Always reuse the already-filtered `tracker_keys` from Phase 1. Any tracker that fails the component re-validation is skipped and logged in `posting-audit.log`, never posted to.
 - Each CVE typically has multiple tracker issues (one per OCP version). The command deduplicates by CVE ID and analyzes ALL affected release branches. Features can be added, removed, or refactored across releases, so a CVE may be reachable on one version but not affected on another.
 - Analysis targets downstream forks only (e.g., openshift/cri-o). If the downstream fork or branch does not exist, the CVE is classified as Uncertain. Dependency versions and Go toolchain versions differ across releases, so version-specific branches are used.
 - Each version tracker receives the analysis result specific to its release branch. The overall classification for a CVE is the most severe result across all analyzed branches.
