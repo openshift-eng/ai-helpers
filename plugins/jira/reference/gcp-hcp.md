@@ -152,7 +152,7 @@ Sections: Context, Scope (included + not included), Technical Approach (optional
 
 Source: [jira-initiative-template.md](https://github.com/openshift-online/gcp-hcp/blob/main/docs/jira-initiative-template.md)
 
-Initiatives represent internal/architectural work at Level 4 — same hierarchy as Feature but non-customer-facing. Use for architectural improvements, process improvements, and engineering enablement.
+Initiatives represent internal/architectural work at the same hierarchy as Features — non-customer-facing. Use for architectural improvements, process improvements, and engineering enablement.
 
 **Hierarchy**: **Initiative** → Epic → Story
 

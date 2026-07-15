@@ -9,7 +9,7 @@ description: Create Jira issues — story, bug, epic, feature, initiative, task,
 /jira:create <type> [project-key] <summary> [--component <name>] [--version <version>] [--parent <key>]
 ```
 
-Creates Jira issues following best practices and team-specific conventions. Supports stories, epics, features, tasks, bugs, and feature requests with intelligent defaults, interactive prompts, and validation.
+Creates Jira issues following best practices and team-specific conventions. Supports stories, epics, features, initiatives, tasks, bugs, and feature requests with intelligent defaults, interactive prompts, and validation.
 
 ## Type-Specific Guidance
 
@@ -127,7 +127,7 @@ Level -1: Sub-task
 
 ### Parent Field
 
-Use `{"parent": {"key": "PARENT-KEY"}}` in `additional_fields` for all parent-child relationships (Story→Epic, Task→Epic, Bug→Epic, Epic→Feature, Epic→Initiative, Feature→Outcome).
+Use `{"parent": {"key": "PARENT-KEY"}}` in `additional_fields` for all parent-child relationships (Story→Epic, Task→Epic, Bug→Epic, Epic→Feature, Epic→Initiative, Feature→Outcome, Initiative→Outcome).
 
 ### Pre-Validation (when `--parent` is provided)
 
@@ -140,6 +140,7 @@ Fetch the parent via `getJiraIssue` to verify it exists and its type matches the
 | Bug | Epic | Warn user, ask to confirm or correct |
 | Epic | Feature or Initiative | Warn user, ask to confirm or correct |
 | Feature | Outcome | Warn user, ask to confirm or correct |
+| Initiative | Outcome | Warn user, ask to confirm or correct |
 
 If parent not found, offer options: proceed without parent, specify different parent, or cancel.
 

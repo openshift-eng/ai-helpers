@@ -2,7 +2,7 @@
 
 Type-specific guidance for creating Jira initiatives representing internal capability and architectural work.
 
-Initiatives are at the same hierarchy level as Features (Level 4) but are **not customer-facing**. They address architectural gaps, process improvements, and engineering enablement that deliver internal value. Use a Feature instead if customers will directly interact with the capability.
+Initiatives are at the same hierarchy level as Features but are **not customer-facing**. They address architectural gaps, process improvements, and engineering enablement that deliver internal value. Use a Feature instead if customers will directly interact with the capability.
 
 ## Problem Statement
 
