@@ -51,7 +51,7 @@ For each item in the output, classify into one of these areas based on the title
 | **GWAPI** | `196a759b` | Files in `pkg/operator/controller/gateway*`, `pkg/operator/controller/gatewayclass*`, title mentions gateway/istio/sail/GWAPI/noOLM, api changes to gateway fields |
 | **Router** | `667048b1` | Files in `pkg/operator/controller/ingress*`, router template changes, HAProxy config, route-controller-manager, IngressController API changes |
 | **DNS** | `c2935ddd` | DNS-related api changes, coredns plugins |
-| **External DNS** | `b02c7810` | External DNS related changes |
+| **ExDNS** | `b02c7810` | External DNS related changes |
 | **ALBO** | `a6184328` | ALB related changes |
 | **Misc** | `1ec39a5b` | OWNERS file updates, CI/Prow config, AGENTS.md, coderabbit config, repo meta, go bumps that span areas, docs that don't fit another area |
 | **AI** | `9f9c29ab` | ai-helpers plugin PRs, MCP server tooling, Claude Code skills and agents |
@@ -67,21 +67,38 @@ If the PR is clearly meta/repo-maintenance (OWNERS, CI config, go bumps spanning
 
 ### Step 3: Report summary
 
-Report:
-- How many PR Author fields were populated
-- How many reviewers were synced to GitHub assignees
-- How many shared repo PRs were added
-- How many areas were classified by script vs AI
-- Any items that couldn't be classified
-- Link to the dashboard: https://github.com/orgs/openshift/projects/28
+After the script and AI classification complete, output a summary table of all changes made during this sync. Use clickable markdown links for each PR. Group by operation type:
 
-## Return Value
+**Example output format:**
 
-A summary of all sync actions taken, followed by:
+### Sync Summary
 
-```text
+| Operation | PR | Detail |
+|---|---|---|
+| PR Author | [CIO#1503](https://github.com/openshift/cluster-ingress-operator/pull/1503) | → Ishmam A. |
+| Shared PR Added | [release#81764](https://github.com/openshift/release/pull/81764) | by rhamini3 |
+| Reviewer Assigned | [images#242](https://github.com/openshift/images/pull/242) | → @candita |
+| Area (script) | [CDO#482](https://github.com/openshift/cluster-dns-operator/pull/482) | → DNS |
+| Area (AI) | [CIO#1503](https://github.com/openshift/cluster-ingress-operator/pull/1503) | → GWAPI |
+| Author Type | [CIO#1503](https://github.com/openshift/cluster-ingress-operator/pull/1503) | → Team |
+| Jira Priority | [CDO#482](https://github.com/openshift/cluster-dns-operator/pull/482) | → High |
+
+If nothing changed for an operation, omit it from the table.
+
+If there were any reviewer assignments (including "Other") during this sync, also output a **PR Scrub Assignments** section in markdown bullet list format with clickable links and PR titles. Use this format:
+
+### PR Scrub Assignments
+
+- [CIO#1456 — OCPBUGS-98310: Bump sail-operator install library to OSSM 3.4.0](https://github.com/openshift/cluster-ingress-operator/pull/1456) → @rikatz, @rhamini3
+- [CIO#1469 — OCPBUGS-88353: Ensure canary cert matches the default ingress controller's cert](https://github.com/openshift/cluster-ingress-operator/pull/1469) → @bentito
+
+Get the full PR title from the script output or via `gh pr view`. For "Other" assignments, show "→ Other" instead of a username.
+
+End with instructions: "Use `/copy` to copy the assignments above and paste into the PR Scrub doc."
+
+End with:
+
 Dashboard: https://github.com/orgs/openshift/projects/28
-```
 
 ## Examples
 

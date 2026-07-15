@@ -110,13 +110,40 @@ for item in data['items']:
     assignees = ','.join(item.get('assignees', []))
     item_id = item['id']
     status = item.get('status', '')
+    jira_pri = item.get('jira Priority', '')
+    pr_pri = item.get('pR Priority', '')
     primary = item.get('primary Reviewer', '')
     secondary = item.get('secondary Reviewer', '')
-    if primary and primary != 'Other':
-        print(f'{primary}|{url}|{repo}|{number}|{assignees}|{item_id}|{status}')
-    if secondary and secondary != 'Other':
-        print(f'{secondary}|{url}|{repo}|{number}|{assignees}|{item_id}|{status}')
-" | while IFS='|' read -r reviewer url repo number assignees item_id status; do
+    if primary:
+        print(f'{primary}|{url}|{repo}|{number}|{assignees}|{item_id}|{status}|{jira_pri}|{pr_pri}')
+    if secondary and secondary != primary and secondary != 'Other':
+        print(f'{secondary}|{url}|{repo}|{number}|{assignees}|{item_id}|{status}|{jira_pri}|{pr_pri}')
+" | while IFS='|' read -r reviewer url repo number assignees item_id status jira_pri pr_pri; do
+    # "Other" means a non-team reviewer — set status to Assigned but skip /assign
+    if [ "$reviewer" = "Other" ]; then
+        if [ "$status" = "New" ]; then
+            gh project item-edit --project-id "$PROJECT_ID" --id "$item_id" \
+                --field-id "$FIELD_STATUS" --single-select-option-id "$STATUS_ASSIGNED" 2>/dev/null
+            echo "  STATUS: $repo#$number → Assigned (Other reviewer)"
+            # Copy Jira Priority → PR Priority if not set
+            if [ -z "$pr_pri" ] && [ -n "$jira_pri" ]; then
+                pri_option_id=""
+                case "$jira_pri" in
+                    Urgent) pri_option_id="$PR_PRIORITY_URGENT" ;;
+                    High)   pri_option_id="$PR_PRIORITY_HIGH" ;;
+                    Medium) pri_option_id="$PR_PRIORITY_MEDIUM" ;;
+                    Low)    pri_option_id="$PR_PRIORITY_LOW" ;;
+                esac
+                if [ -n "$pri_option_id" ]; then
+                    gh project item-edit --project-id "$PROJECT_ID" --id "$item_id" \
+                        --field-id "$FIELD_PR_PRIORITY" --single-select-option-id "$pri_option_id" 2>/dev/null
+                    echo "  PR PRIORITY: $repo#$number → $jira_pri (from Jira)"
+                fi
+            fi
+        fi
+        continue
+    fi
+
     login="${FULLNAME_TO_USERNAME[$reviewer]:-}"
     if [ -z "$login" ]; then
         echo "  SKIP: Unknown reviewer name '$reviewer' on $repo#$number"
@@ -140,6 +167,21 @@ for item in data['items']:
         gh project item-edit --project-id "$PROJECT_ID" --id "$item_id" \
             --field-id "$FIELD_STATUS" --single-select-option-id "$STATUS_ASSIGNED" 2>/dev/null
         echo "  STATUS: $repo#$number → Assigned"
+    fi
+    # Copy Jira Priority → PR Priority if PR Priority is not set
+    if [ -z "$pr_pri" ] && [ -n "$jira_pri" ]; then
+        pri_option_id=""
+        case "$jira_pri" in
+            Urgent) pri_option_id="$PR_PRIORITY_URGENT" ;;
+            High)   pri_option_id="$PR_PRIORITY_HIGH" ;;
+            Medium) pri_option_id="$PR_PRIORITY_MEDIUM" ;;
+            Low)    pri_option_id="$PR_PRIORITY_LOW" ;;
+        esac
+        if [ -n "$pri_option_id" ]; then
+            gh project item-edit --project-id "$PROJECT_ID" --id "$item_id" \
+                --field-id "$FIELD_PR_PRIORITY" --single-select-option-id "$pri_option_id" 2>/dev/null
+            echo "  PR PRIORITY: $repo#$number → $jira_pri (from Jira)"
+        fi
     fi
 done
 
@@ -240,8 +282,8 @@ fi
 
 # --- Operation D: Set Area for deterministic repos ---
 # Area represents which sub-area of the team owns a PR: GWAPI, Router, DNS,
-# External DNS, ALBO, or Misc. Some repos map 1:1 to an area (e.g.,
-# external-dns-operator is always "External DNS"). Those are set here.
+# ExDNS, ALBO, or Misc. Some repos map 1:1 to an area (e.g.,
+# external-dns-operator is always "ExDNS"). Those are set here.
 # Ambiguous repos like cluster-ingress-operator (could be Router or GWAPI)
 # are left for AI classification in the skill's Step 2.
 echo "--- Operation D: Set Area (repo-based) ---"
@@ -262,7 +304,7 @@ for item in data['items']:
         continue
     fi
     area_name=$(case "$area_id" in
-        "$AREA_EXTERNAL_DNS") echo "External DNS" ;;
+        "$AREA_EXTERNAL_DNS") echo "ExDNS" ;;
         "$AREA_ALBO") echo "ALBO" ;;
         "$AREA_DNS") echo "DNS" ;;
         "$AREA_AI") echo "AI" ;;
