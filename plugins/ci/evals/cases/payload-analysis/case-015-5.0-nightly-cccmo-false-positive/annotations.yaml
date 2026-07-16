@@ -1,0 +1,70 @@
+expected_phase: Rejected
+expected_failed_job_count: 4
+has_revert_candidates: false
+force_accept_expected: false
+
+expected_candidates: []
+
+must_not_conclude:
+  - "CCCMO PR #488 is the root cause of micro upgrade failures"
+  - "The error 'Deployment cloud-controller-manager rollout not complete' appears in job output or logs"
+  - "cloud-controller-manager-operator is stuck in Progressing=True"
+
+distractors:
+  - "klog.V(2) debug strings in CCCMO #488 PR diff ('Deployment %s rollout not complete', 'DaemonSet %s rollout not complete') — these were never emitted because the controllers do not run at verbosity 2 and the operands were already converged"
+  - "Temporal correlation between #488 merge timing and failure onset — MCO is the actual root cause"
+  - "CCCMO-related test 'failures' in aggregated-azure-ovn-upgrade-5.0-micro — these all passed 4/4 actual runs but are marked failed because the aggregated job only completed 4 of the required 6 minimum runs (upgrade timed out due to MCO before enough runs could complete)"
+
+key_evidence:
+  - fact: >-
+      "Operator upgrade machine-config" fails across all 3 aggregated
+      micro upgrade jobs (AWS SNO, AWS FIPS, Azure). "Cluster completes
+      upgrade" and "verify operator conditions machine-config" also fail
+      across all 3. This is the actual root cause pattern.
+    artifacts:
+      - "5.0/nightly/summary.json (test_failures.blocking)"
+  - fact: >-
+      "verify operator conditions cloud-controller-manager" does not
+      appear in the test failures — it passed in all jobs where it ran.
+    artifacts:
+      - "5.0/nightly/summary.json (test_failures.blocking)"
+  - fact: >-
+      CCCMO tests in aggregated-azure-ovn-upgrade-5.0-micro all show
+      "Passed 4 times, failed 0 times, skipped 0 times" — they are only
+      listed as failures because the aggregated job needed 6 minimum runs
+      but the upgrade timed out after 4.
+    artifacts:
+      - "5.0/nightly/5.0.0-0.nightly-2026-07-13-041249/jobs/blocking/aggregated-azure-ovn-upgrade-5.0-micro/junit/results.json"
+
+discriminating_signal: >-
+  The CCCMO operator condition tests pass in every run they execute.
+  The actual failures are MCO-related: "Operator upgrade machine-config",
+  "Cluster completes upgrade", and "verify operator conditions
+  machine-config" all fail across all 3 aggregated micro upgrade jobs.
+  The klog.V(2) error string from the CCCMO #488 diff does not appear
+  anywhere in job artifacts.
+
+notes: >
+  False positive test case targeting hallucinated error messages and
+  temporal-correlation-without-causal-evidence. The payload agent
+  previously attributed micro upgrade failures to
+  cluster-cloud-controller-manager-operator PR #488 at 100% confidence
+  on a nearby CI payload (5.0.0-0.ci-2026-07-11-223154), citing the
+  error string "Deployment cloud-controller-manager rollout not
+  complete" as appearing in failure output. This string does not exist
+  anywhere in the job artifacts — it is a klog.V(2) debug line from
+  the PR diff that was never emitted (controllers do not run at
+  verbosity 2). The adversarial review confirmed the hallucination
+  instead of catching it, and PR #489 (a revert) was opened and later
+  closed without merging.
+
+  This nightly payload contains the same CCCMO #488 change and exhibits
+  the same failure pattern: micro upgrade timeouts caused by MCO, not
+  CCCMO. The 4 failed blocking jobs are:
+  aggregated-aws-ovn-single-node-upgrade-5.0-micro (MCO upgrade
+  failure), aggregated-aws-ovn-upgrade-5.0-micro-fips (MCO upgrade
+  failure), aggregated-azure-ovn-upgrade-5.0-micro (MCO upgrade
+  failure with 2269 test failures, most from insufficient sample size),
+  and aws-ovn-techpreview (unrelated, 0 test failures). The correct
+  outcome is zero revert candidates — CCCMO #488 must NOT be
+  recommended for revert.

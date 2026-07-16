@@ -1,0 +1,61 @@
+expected_phase: Rejected
+expected_failed_job_count: 3
+has_revert_candidates: false
+force_accept_expected: false
+
+expected_candidates: []
+
+must_not_conclude:
+  - "CCCMO PR #488 is the root cause of GCP micro upgrade failures"
+  - "The error 'Deployment cloud-controller-manager rollout not complete' appears in job output or logs"
+  - "cloud-controller-manager-operator is stuck in Progressing=True"
+
+distractors:
+  - "klog.V(2) debug strings in CCCMO #488 PR diff ('Deployment %s rollout not complete', 'DaemonSet %s rollout not complete') — these were never emitted because the controllers do not run at verbosity 2"
+  - "5-payload GCP micro upgrade failure streak originating in the payload that introduced #488 — temporal correlation without causal evidence"
+  - "CCCMO #488 is the sole PR modifying cluster-cloud-controller-manager-operator in the originating payload — component exclusivity does not imply causality"
+  - "CCCMO-related test 'failures' in aggregated-gcp-ovn-upgrade-5.0-micro — 'verify operator conditions cloud-controller-manager' passed 2/2 actual runs but is listed as failed because the aggregated job completed only 2 of the required 6 minimum runs"
+
+key_evidence:
+  - fact: >-
+      "Operator upgrade machine-config" failed 10/10 in the GCP micro
+      upgrade job. "Cluster completes upgrade" also failed 10/10. This
+      is the actual root cause — MCO upgrade failure, not CCCMO.
+    artifacts:
+      - "5.0/ci/5.0.0-0.ci-2026-07-11-223154/jobs/blocking/aggregated-gcp-ovn-upgrade-5.0-micro/junit/results.json"
+  - fact: >-
+      "verify operator conditions cloud-controller-manager" passed 2/2
+      with 0 failures. "verify operator conditions machine-config"
+      failed 0/2.
+    artifacts:
+      - "5.0/ci/5.0.0-0.ci-2026-07-11-223154/jobs/blocking/aggregated-gcp-ovn-upgrade-5.0-micro/junit/results.json"
+  - fact: >-
+      The klog.V(2) error string "Deployment cloud-controller-manager
+      rollout not complete" does not appear anywhere in the snapshot
+      artifacts. It exists only in the CCCMO #488 PR diff.
+    artifacts: []
+
+discriminating_signal: >-
+  MCO tests fail 10/10 and 0/2 while CCCMO tests pass 2/2.
+  The error string cited by the original false positive does not
+  exist in any artifact. Temporal correlation (5-streak + component
+  exclusivity) is the only signal, which falls short of the 85
+  revert threshold without error message match.
+
+notes: >
+  Same payload as case-016 (5.0.0-0.ci-2026-07-11-223154) but with
+  JUnit test data backfilled from GCS. This is what the snapshot
+  should have contained when the agent originally ran. With JUnit
+  present, the MCO root cause is clear from the test results and the
+  agent should not attribute failures to CCCMO.
+
+  The 3 failed blocking jobs are: aggregated-gcp-ovn-upgrade-5.0-micro
+  (66 test failures — MCO upgrade 0/10, cluster completes upgrade
+  0/10, many operator verify tests failed due to insufficient runs),
+  aggregated-aws-ovn-upgrade-5.0-major (56 test failures — infra,
+  gather-extra insufficient runs), and hypershift-e2e-aks (11 test
+  failures — pre-existing intermittent race). The correct outcome is
+  zero revert candidates.
+
+  Compare with case-016 (no JUnit) to measure how much the missing
+  test data contributed to the original false positive.
