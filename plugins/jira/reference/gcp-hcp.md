@@ -154,11 +154,11 @@ Source: [jira-initiative-template.md](https://github.com/openshift-online/gcp-hc
 
 Initiatives represent internal/architectural work at the same hierarchy as Features — non-customer-facing. Use for architectural improvements, process improvements, and engineering enablement.
 
-**Hierarchy**: **Initiative** → Epic → Story
+**Hierarchy**: Outcome → **Initiative** → Epic → Story
 
 **Title format**: [Action Verb] + [Capability]
 
-Sections: Context, Scope (included + not included), Technical Approach (optional), Internal Impact, Dependencies, Acceptance Criteria, Metadata (Epics, Priority, Assignee)
+Sections: Problem Statement, Proposed Approach, Internal Impact, Success Criteria, Scope and Epics, Timeline and Milestones, plus project-specific metadata
 
 ### Definition of Done
 
