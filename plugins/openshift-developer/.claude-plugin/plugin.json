@@ -6,7 +6,7 @@
     "name": "github.com/openshift-eng"
   },
   "dependencies": [
-    { "name": "jira", "version": "^0.8.4" },
+    { "name": "jira", "version": "^0.8.5" },
     { "name": "ci", "version": "^0.0.52" },
     { "name": "golang", "version": "^0.3.0" },
     { "name": "prodsec-skills" },
