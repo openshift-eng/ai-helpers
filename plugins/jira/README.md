@@ -279,6 +279,38 @@ See [commands/create-release-note.md](commands/create-release-note.md) for full 
 
 ---
 
+### `/jira:issues-by-component` - List Issues by Component
+
+List and analyze JIRA issues organized by component with flexible filtering. Supports Overview Mode (all components with statistics) and Detail Mode (specific component with full issue details).
+
+**Usage:**
+```bash
+# Overview - all components from last week (uses MCP, no setup needed)
+/jira:issues-by-component OCPBUGS last-week
+
+# Detail mode for a specific component
+/jira:issues-by-component OCPBUGS --component "Networking / ovn-kubernetes"
+
+# Search with description
+/jira:issues-by-component OCPBUGS --component "Networking" --search "pod" --search-description
+
+# Force API backend for large datasets (requires env vars)
+/jira:issues-by-component OCPBUGS last-month --backend api
+```
+
+**Backend Comparison (`--backend mcp|api`):**
+
+| | MCP (default) | API (`--backend api`) |
+|---|---|---|
+| Auth | OAuth via browser | API token env vars |
+| Setup | None | Export 3 env vars |
+| Max issues | 500 | Unlimited |
+| Dependencies | None | `curl`, `jq` |
+
+See [commands/issues-by-component.md](commands/issues-by-component.md) for full documentation.
+
+---
+
 ### `/jira:update-weekly-status` - Update Weekly Status Summaries
 
 Automate the process of updating weekly status summaries for Jira issues with intelligent activity analysis and color-coded health indicators. The command analyzes recent activity across tickets, GitHub PRs, and GitLab MRs to draft status updates (Red/Yellow/Green), then allows you to review and modify them before updating Jira.
