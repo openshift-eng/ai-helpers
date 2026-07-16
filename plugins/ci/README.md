@@ -150,7 +150,7 @@ Query the status of a gangway job execution by ID.
 - Execution ID (returned when a job is triggered)
 
 **Returns:**
-- Job name, type, and status (SUCCESS, FAILURE, PENDING, RUNNING, ABORTED)
+- Job name, type, and status (TRIGGERED, PENDING, SUCCESS, FAILURE, ABORTED)
 - GCS path to artifacts (if available)
 
 ### analyze-prow-job-resource
