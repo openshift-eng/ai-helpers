@@ -87,6 +87,7 @@ Note skipped PRs in the output with reasoning.
   - Platform-specific variations where applicable
 - **Regression Testing**: Related features to verify, areas that might be affected
 - **Success Criteria**: Checklist mapping to Jira acceptance criteria (when available)
+- **Troubleshooting**: Common issues and debug steps
 - **Notes**: Known limitations, links to Jira and PRs, dependencies between PRs
 
 **Exclusions**: Do NOT include build/deploy steps or cleanup steps. Assume the environment is already set up. Focus purely on testing procedures.
