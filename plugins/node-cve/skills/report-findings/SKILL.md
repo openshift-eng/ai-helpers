@@ -18,7 +18,7 @@ Use this skill when Phase 3 of the `node-cve:triage` command needs to generate t
 
 **This skill may ONLY post comments to trackers whose component is a Node team component.** Many CVEs (especially Go stdlib and vendored-dependency vulnerabilities) span 50-200+ tracker issues across dozens of OpenShift teams (HyperShift, Storage, Networking, Installer, Monitoring, Cloud providers, etc.). Node-specific reachability analysis is meaningless — and confusing — on another team's tracker.
 
-The canonical Node team component list lives in the [node-team shared components reference](../../../node-team/skills/node/references/shared/components.md) ("Jira Components (OCPBUGS)" section, plus Driver Toolkit and Machine Config Operator, plus the `pscomponent:` label mappings). **Do not hardcode or duplicate that list here or anywhere else** — always read it from the shared reference so it stays in sync as Node team components change.
+The canonical Node team component list lives in the [node-team shared components reference](../../../node-team/skills/node/references/shared/components.md) ("Jira Components (OCPBUGS)" section, plus Driver Toolkit and Machine Config Operator). **Do not hardcode or duplicate that list here or anywhere else** — always read it from the shared reference so it stays in sync as Node team components change. Note: the shared reference also documents `pscomponent:` label mappings, but those are for Phase 1 CVE discovery and Phase 2 repo mapping only — the posting-time validation in Step 2 below checks the tracker's COMPONENT field exclusively (see Step 2 for why).
 
 **Never do this (this is exactly what caused the 2026-07-15 incident where analysis was posted to ~200 non-Node trackers):**
 - Do NOT run an ad-hoc/one-off Jira search scoped only by CVE ID (e.g. `summary ~ "CVE-XXXX-XXXXX"`) to find trackers to comment on. A CVE ID alone is not enough to scope a search — it will return trackers for every team affected by that CVE.
@@ -92,23 +92,24 @@ List CVEs that are Reachable or Uncertain with unassigned owners. These need imm
 **VALIDATION (MANDATORY, before posting anything):** For each unique CVE, take its `tracker_keys` list from Phase 1 (`query-open-cves`) and re-validate every tracker's component immediately before posting — do not trust cached or upstream filtering alone:
 
 ```bash
-# component_ok() checks a tracker's component/labels against the canonical
-# Node team component list from the shared components reference (link above),
-# NOT a hardcoded list.
+# component_is_node_team() checks the tracker's COMPONENT field against the
+# canonical Node team component list from the shared components reference
+# (link above), NOT a hardcoded list.
 for tracker_key in $TRACKER_KEYS; do
   component=$(jira issue view "$tracker_key" --plain --no-headers --columns COMPONENT | tail -1)
-  labels=$(jira issue view "$tracker_key" --plain --no-headers --columns LABELS | tail -1)
 
-  if ! component_is_node_team "$component" "$labels"; then
+  if ! component_is_node_team "$component"; then
     echo "⚠️  SKIPPING $tracker_key: component '$component' is not a Node team component" | tee -a "$SKIPPED_LOG"
+    sleep 1
     continue
   fi
 
   # Component validated — proceed with posting for $tracker_key
+  sleep 1
 done
 ```
 
-A component is considered a Node team component only if it matches an entry in the "Jira Components (OCPBUGS)" list (plus Driver Toolkit, Machine Config Operator) or one of the `pscomponent:` labels in the shared components reference. If a tracker's component cannot be confidently classified as Node team, **skip it and log the reason** — never post "just in case." This check must run even when `--component` was passed, and even if Phase 1 already filtered by component, since this is the last line of defense before an irreversible write to another team's tracker.
+A component is considered a Node team component only if it matches an entry in the "Jira Components (OCPBUGS)" list (plus Driver Toolkit, Machine Config Operator) in the shared components reference. **Check the COMPONENT field only — do not treat a `pscomponent:` label as an alternative pass condition.** `pscomponent:` labels are used in Phase 1/Phase 2 for CVE discovery and repo mapping, not for determining tracker ownership; a non-Node tracker (e.g. component "Security") could incidentally carry a `pscomponent:cri-o` label, and accepting that as a pass would silently reintroduce the exact cross-team contamination this safeguard exists to prevent. If a tracker's component cannot be confidently classified as Node team, **skip it and log the reason** — never post "just in case." This check must run even when `--component` was passed, and even if Phase 1 already filtered by component, since this is the last line of defense before an irreversible write to another team's tracker. Rate limit: sleep 1 second between validation calls, same as the posting calls below, since a CVE with N trackers makes N validation calls before posting even starts.
 
 For each unique CVE, post a comment on every **validated** tracker issue. Each tracker issue receives the analysis result for its specific OCP version/branch (not a blanket result). Use Atlassian wiki markup (not Markdown):
 
@@ -354,6 +355,7 @@ Write `cves.json` to `.work/node-cve/triage-YYYY-MM-DD/cves.json` containing the
 Ensure all generated files exist under `.work/node-cve/triage-YYYY-MM-DD/`:
 - `report.md` - full report
 - `cves.json` - structured CVE data (for programmatic consumption)
+- `posting-audit.log` - only when `--notify-jira` was used (see Step 2); do not expect this file otherwise
 - `<CVE-ID>-<branch>-analysis.md` - per-CVE per-branch source code analysis (from Phase 2)
 
 ## Return Value
@@ -369,11 +371,12 @@ Ensure all generated files exist under `.work/node-cve/triage-YYYY-MM-DD/`:
   "slack_notified": true,
   "artifacts": [
     ".work/node-cve/triage-2026-05-20/report.md",
-    ".work/node-cve/triage-2026-05-20/cves.json",
-    ".work/node-cve/triage-2026-05-20/posting-audit.log"
+    ".work/node-cve/triage-2026-05-20/cves.json"
   ]
 }
 ```
+
+`posting-audit.log` is only produced when `--notify-jira` is used (see Step 2). When present, add it to the `artifacts` list; omit it entirely on runs without `--notify-jira` rather than reporting a file that was never written.
 
 ## Error Handling
 
