@@ -23,6 +23,7 @@ Use **reproducer mode** when the JIRA bug lacks complete reproduction steps and 
 - JIRA credentials (`JIRA_USERNAME`, `JIRA_API_TOKEN`) or Jira MCP server configured
 - `gh` CLI authenticated for GitHub PR access
 - `jq` available for JSON parsing
+- `oc` CLI with an active login to the target OpenShift cluster (optional; only required when `--apply` is used — see Step 8)
 
 ## Input Format
 
