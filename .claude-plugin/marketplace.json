@@ -316,7 +316,7 @@
       "name": "node-cve",
       "source": "./plugins/node-cve",
       "description": "CVE triage for OpenShift Node team components",
-      "version": "0.0.5",
+      "version": "0.0.6",
       "category": "openshift",
       "keywords": [
         "openshift",
