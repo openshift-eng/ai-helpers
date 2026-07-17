@@ -11,6 +11,12 @@ jira:generate-bug-reproducer
 /jira:generate-bug-reproducer [JIRA issue key] [GitHub PR URLs] [--apply]
 ```
 
+## Prerequisites
+
+- JIRA credentials (`JIRA_USERNAME`, `JIRA_API_TOKEN`) or Jira MCP server configured
+- `gh` CLI authenticated for GitHub PR access
+- `oc` CLI with an active login to the target OpenShift cluster _(optional; only required when `--apply` is used)_
+
 ## Description
 
 The `jira:generate-bug-reproducer` command analyzes a bug's JIRA description and fix PR code changes to produce a structured reproducer report. The report includes pre-fix reproduction steps (inferred from the PR diff when JIRA lacks them), post-fix verification steps, and a confidence assessment. In most cases the verification steps mirror the reproduction steps exactly, just with a different expected result; they diverge only when the bug itself prevents completing the full sequence of steps before the fix.
