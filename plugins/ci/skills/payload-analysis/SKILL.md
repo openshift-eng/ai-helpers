@@ -394,6 +394,14 @@ For each revert candidate, record: PR URL, description, component, confidence sc
 
 **Do NOT propose reverts for**: Infrastructure failures, flaky tests that also fail on accepted payloads, jobs where analysis is inconclusive.
 
+**Special case — Kubernetes rebase version skew.** When the candidate PR is a **Kubernetes rebase** (a PR in the `openshift/kubernetes` repo, typically a rebase/version-bump onto a new upstream Kubernetes release) **AND** the failures show **kubelet version skew** — the kubelet reporting an older Kubernetes version than the kube-apiserver (e.g., kube-apiserver at `1.36.2` while nodes still run kubelet `1.35.3`) — do **NOT** mark the rebase as a revert candidate, even when its rubric score is >= 85.
+
+The kubelet binary is built **from** the `openshift/kubernetes` source. After a rebase merges, there is an expected lag of hours while the kubelet is rebuilt against the new source and delivered via an updated RHCOS image. During this window the skew is **transient build lag**, not a regression:
+
+- Reverting the rebase would only prevent the kubelet from ever picking up the new version — it does not fix anything.
+- In the structured output, `failure_type` MUST stay one of the fixed enum values (`install`/`test`/`upgrade`/`infra`) — set it to **`test`**, since kubelet version skew produces real test failures. Do **not** put "transient build lag" in `failure_type`. Record the **"transient build lag"** classification in the free-text `root_cause_summary` (e.g., `"kubelet version skew — transient build lag pending kubelet rebuild"`), and treat it as build lag rather than a revert candidate.
+- In the report, record the failure as pending kubelet rebuild: the kubelet must be rebuilt from the rebased source and delivered via an updated RHCOS image. Recommend **monitoring for the rebuilt kubelet (updated RHCOS) to land** so the skew resolves on its own.
+
 #### 6.3: Check if Revert Candidates Were Already Reverted
 
 For each revert candidate:
@@ -421,6 +429,13 @@ Otherwise, recommend force-accepting when **all** of the following are true:
 
 - **Yes → temporary (force-accept eligible):** Boskos/lease acquisition failures, cloud quota exhaustion, transient cloud-provider API errors or throttling, a one-off network timeout to a cloud endpoint, a CI control-plane blip. These clear themselves on retry.
 - **No → persistent (NOT force-accept eligible):** stale or expired credentials, a broken or misconfigured CI step/workflow, a bad mirror/registry URL, a persistent misconfiguration, or any product regression. These fail again on the next run until a human intervenes — force-accepting only defers the problem. Do not classify these as a temporary infra pass; a causal CI-config change is scored as a candidate (Steps 3.6 and 6.1) instead.
+
+**Guard — kubelet version skew from a Kubernetes rebase.** When the blocking failures are caused by kubelet version skew following a Kubernetes rebase (the "transient build lag" case in Step 6.2), recommend **neither force-accept nor force-reject**:
+
+- **Force-accepting is NOT appropriate.** Kubelet version skew produces real test failures, not temporary infrastructure flakes, so it does not satisfy the `failure_type: "infra"` criterion above. Set `force_accept_recommended` to `false`.
+- **Force-rejecting is also NOT appropriate.** Rejecting the payload only makes the next payload assemble sooner, which will hit the **same** skew unless the RHCOS carrying the rebuilt kubelet is ready by then — so it accomplishes nothing except churn.
+
+Instead, recommend the correct action: **wait for the RHCOS with the rebuilt kubelet to land** (i.e., for the transient build lag from Step 6.2 to resolve). Once the updated kubelet is delivered, the skew clears and the payload passes on its own.
 
 #### 6.5: Write Payload Results YAML
 
