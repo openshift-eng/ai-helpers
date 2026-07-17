@@ -1469,6 +1469,9 @@ class SummaryGenerator:
                 )
                 results_data = _read_json(results_path) or []
                 entry["test_failure_count"] = len(results_data)
+            elif job_data.get("state") == "Failed":
+                entry["data_gaps"] = entry.get("data_gaps", [])
+                entry["data_gaps"].append("junit")
 
             build_log_path = os.path.join(
                 lifecycle_dir, job_name, "build_log.json"
@@ -1482,6 +1485,9 @@ class SummaryGenerator:
                     entry["build_log_errors"] = bl_data.get(
                         "error_warning_count", 0
                     )
+            elif job_data.get("state") == "Failed":
+                entry["data_gaps"] = entry.get("data_gaps", [])
+                entry["data_gaps"].append("build_log")
 
             details.append(entry)
         return details
