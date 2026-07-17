@@ -399,7 +399,7 @@ For each revert candidate, record: PR URL, description, component, confidence sc
 The kubelet binary is built **from** the `openshift/kubernetes` source. After a rebase merges, there is an expected lag of hours while the kubelet is rebuilt against the new source and delivered via an updated RHCOS image. During this window the skew is **transient build lag**, not a regression:
 
 - Reverting the rebase would only prevent the kubelet from ever picking up the new version — it does not fix anything.
-- Classify this failure mode as **"transient build lag"** rather than a revert candidate.
+- In the structured output, `failure_type` MUST stay one of the fixed enum values (`install`/`test`/`upgrade`/`infra`) — set it to **`test`**, since kubelet version skew produces real test failures. Do **not** put "transient build lag" in `failure_type`. Record the **"transient build lag"** classification in the free-text `root_cause_summary` (e.g., `"kubelet version skew — transient build lag pending kubelet rebuild"`), and treat it as build lag rather than a revert candidate.
 - In the report, record the failure as pending kubelet rebuild: the kubelet must be rebuilt from the rebased source and delivered via an updated RHCOS image. Recommend **monitoring for the rebuilt kubelet (updated RHCOS) to land** so the skew resolves on its own.
 
 #### 6.3: Check if Revert Candidates Were Already Reverted
