@@ -39,17 +39,22 @@ Use **reproducer mode** when the JIRA bug lacks complete reproduction steps and 
 ### Step 1: Parse Arguments
 
 1. Extract the JIRA issue key from `$1`
-2. Collect optional PR URLs from remaining arguments
-3. Detect `--reproducer` flag in any argument position
-4. Set mode:
-   - `reproducer` if `--reproducer` is present or the mode is explicitly set to `reproducer` by the invoking command
+2. Parse each remaining argument exactly once, in order:
+   - `--reproducer`: mark reproducer mode requested
+   - `--apply`: mark apply mode requested
+   - a valid GitHub PR URL (`https://github.com/*/pull/*`): append to the PR list
+   - anything else: reject with a usage error — never forward an unrecognized flag to `gh pr view`/`gh pr diff` as if it were a PR URL
+3. Set mode:
+   - `reproducer` if `--reproducer` was seen or the mode is explicitly set to `reproducer` by the invoking command
    - `test-plan` otherwise
-5. Detect `--apply` flag in any argument position
-6. Set apply mode:
-   - `true` if `--apply` is present
+4. Set apply mode:
+   - `true` if `--apply` was seen
    - `false` otherwise
-7. If apply mode is `true` and a report already exists at the expected path (see Step 8.1), ask the user whether to reuse or regenerate. If the user chooses to reuse, skip Steps 2-7 and proceed directly to Step 8
-8. For reproducer mode on non-bug issue types, warn the user and continue with best effort
+5. If apply mode is `true` and a report already exists at the expected path (see Step 8.1), read its embedded metadata (issue key, mode, PR URLs, generated timestamp — see Step 6) and compare it against this invocation:
+   - If the issue key, mode, and PR list all match, ask the user whether to reuse or regenerate
+   - If anything differs (different PR URLs, different mode, or metadata is missing/unparseable), explicitly state the mismatch and default to regenerating unless the user confirms they still want to reuse the stale report
+   - If the user chooses to reuse, skip Steps 2-7 and proceed directly to Step 8
+6. For reproducer mode on non-bug issue types, warn the user and continue with best effort
 
 ### Step 2: Fetch JIRA Issue
 
@@ -138,6 +143,17 @@ Create the output directory:
 mkdir -p .work/jira/generate-test-plan/{ISSUE_KEY}
 ```
 
+Embed provenance metadata as an HTML comment at the top of every generated report, before the first heading, so a later `--apply` invocation can verify the report still matches its inputs (see Step 1.5 and Step 8.1):
+
+```html
+<!-- generate-test-plan-metadata
+issue: {ISSUE_KEY}
+mode: {reproducer|test-plan}
+pr_urls: {comma-separated PR URLs actually analyzed, or "none"}
+generated_at: {ISO 8601 timestamp}
+-->
+```
+
 #### Test Plan Mode
 
 **Filename:** `.work/jira/generate-test-plan/{ISSUE_KEY}/test-plan.md`
@@ -199,12 +215,12 @@ This step executes the generated reproducer or test plan steps against a live Op
 
 #### 8.1: Verify Report Exists
 
-At this point a report must already exist — either generated in Steps 2-7 or reused via the decision in Step 1.7. Verify the expected file is present:
+At this point a report must already exist — either generated in Steps 2-7 or reused via the decision in Step 1.5. Verify the expected file is present:
 
 - **Reproducer mode**: `.work/jira/generate-test-plan/{ISSUE_KEY}/reproducer-report.md`
 - **Test plan mode**: `.work/jira/generate-test-plan/{ISSUE_KEY}/test-plan.md`
 
-If the file is missing (e.g., generation was skipped by mistake), abort the apply phase with a clear error.
+If the file is missing (e.g., generation was skipped by mistake), abort the apply phase with a clear error. If the report's embedded metadata (see Step 6) is missing, unparseable, or does not match the current issue key/mode/PR list, treat it as unverified: warn the user and require them to explicitly confirm applying an unverified report, or regenerate instead.
 
 #### 8.2: Prerequisite Checks
 
@@ -275,7 +291,8 @@ Classify each extracted command as **read-only** or **write**:
 - `oc adm top`
 - `oc auth can-i`
 - `kubectl get`, `kubectl describe`, `kubectl logs`
-- Non-cluster shell commands: `cat`, `echo`, `grep`, `jq`, `yq`, `curl` (GET only)
+- Non-cluster shell commands: `cat`, `echo`, `grep`, `jq`, `yq`
+- `curl` **only** when it is a single, plain GET: no `-X`/`--request` other than `GET`, no `-d`/`--data*`/`-F`/`-T`/`--upload-file`, no `-o`/`--output` writing to a sensitive path, and the target is an endpoint already referenced in the report (not an arbitrary or internal/metadata URL)
 
 **Write commands** (individual confirmation required):
 - `oc apply`, `oc create`, `oc delete`, `oc patch`, `oc replace`
@@ -284,8 +301,9 @@ Classify each extracted command as **read-only** or **write**:
 - `oc exec`, `oc cp`, `oc edit`, `oc debug`
 - `oc adm` (subcommands other than `top`)
 - `kubectl apply`, `kubectl create`, `kubectl delete`, `kubectl patch`
-- Any command piped to a write command (e.g., `... | oc apply -f -`)
-- Any unrecognized `oc` subcommand (default to write for safety)
+- Any compound or chained shell command (`&&`, `||`, `;`, `|`, command substitution `$(...)`/backticks, or output redirection `>`/`>>`) — classify as write and require individual confirmation, even if every visible component looks read-only, since chaining can hide destructive or exfiltrating behavior
+- `curl` with any method/flag not explicitly allowed above, or targeting an internal/unreferenced endpoint
+- Any unrecognized `oc` subcommand or any command that does not cleanly match a single pattern above (default to write for safety — never bulk-approve an ambiguous or unrecognized command)
 
 #### 8.5: Present Execution Plan
 
@@ -327,6 +345,11 @@ Approve all read-only commands? (yes/no)
 
 If the user says no, fall back to individual confirmation for every command.
 
+**Redact sensitive output:** before displaying or persisting any command output:
+- Redact values from `oc get secret` / `oc get -o yaml` on Secret or ConfigMap resources, `oc config view` (unless credential fields are already elided), and any `Authorization`, `token`, `password`, or `Bearer` field found in JSON/YAML/HTTP output
+- Replace redacted values with `[REDACTED]` in both what is displayed to the user and what is written to the apply log — never write raw secret material under `.work/`
+- If a command is known to return sensitive data (e.g., `oc get secret -o yaml`), ask for explicit confirmation before displaying or persisting its output, even if it was classified read-only
+
 **Execute steps in order:**
 
 For each step:
@@ -348,8 +371,10 @@ For each step:
    - **skip**: skip this step, continue to the next
    - **abort**: stop all execution immediately
 4. For manual steps: display the instruction and wait for the user to confirm they have completed it before continuing
-5. After executing each command, capture and display the output
-6. If the step has expected output, compare:
+5. Before running any command, ensure it will terminate on its own: reject or bound streaming/interactive commands (`oc logs -f`, `oc exec` without a fixed command, `oc rsh`, interactive `oc debug`) by converting them to a bounded form (e.g., `--tail=200`, add `--since=`) or asking the user to confirm an explicit timeout
+6. Execute with a per-command timeout (default 30s for read-only, 60s for write; longer only with explicit user confirmation). If the timeout is exceeded, terminate the entire process group, mark the step `TIMED OUT`, and continue to the next step — never let one hung command block the rest of the plan
+7. After executing each command, capture and display the output, applying redaction (above) and capping it to a bounded size (e.g., first/last 200 lines or 20KB, noting truncation)
+8. If the step has expected output, compare:
    ```text
    Expected: {expected behavior from report}
    Observed: {actual command output}
@@ -381,7 +406,7 @@ Recommendation:
 - {Contextual next steps based on results}
 ```
 
-Save the execution log to `.work/jira/generate-test-plan/{ISSUE_KEY}/apply-log-{timestamp}.md` and display the path.
+Save the execution log to `.work/jira/generate-test-plan/{ISSUE_KEY}/apply-log-{timestamp}.md`, with sensitive values redacted as described above, and display the path.
 
 ## Error Handling
 
@@ -397,6 +422,8 @@ Save the execution log to `.work/jira/generate-test-plan/{ISSUE_KEY}/apply-log-{
 | User declines cluster confirmation | Abort apply phase; the report is still available |
 | Write command fails | Display error output; ask user whether to continue or abort |
 | Read-only command fails | Display error; continue to next step (non-fatal) |
+| Command exceeds its timeout | Terminate the process group; mark step `TIMED OUT`; continue to next step (non-fatal) |
+| Reused report metadata missing or mismatched | Warn and require explicit confirmation to apply, or regenerate |
 | Step output diverges from expected | Flag as divergence in results summary; do not abort |
 | Report not parseable for apply | Warn that no executable commands were found; abort apply phase |
 
