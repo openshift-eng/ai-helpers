@@ -19,7 +19,9 @@ The hypershift repository maintains its own Claude agents at `.claude/agents/` t
 2. **If not in a hypershift checkout**: Fetch the agent definitions using `gh api repos/openshift/hypershift/contents/.claude/agents?ref=main` (or the GitHub contents API) and use them.
 3. **Use all HyperShift SME agents** including (control-plane-sme, data-plane-sme, api-sme, cloud-provider-sme and hcp-architect-sme) to review branch changes or a given PR, questioning the approach and whether it solves the underlying problem.
 
-The repo also has skills at `.claude/skills/` (code formatting, debugging, effective Go, git commit format, CLI conventions). Apply any that are relevant to the changed files.
+The repo also has skills at `.claude/skills/` (debugging, effective Go, git commit format, CLI conventions). Apply any that are relevant to the changed files.
+
+For test naming and structure conventions, read `TESTING.md` and the Code Conventions section of `DEVELOPMENT.md` in the repo root — these are the authoritative sources for test requirements.
 
 ## Build Commands
 

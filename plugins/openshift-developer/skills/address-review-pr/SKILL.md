@@ -171,6 +171,7 @@ When multiple comments relate to the same concern/fix:
 - Implement changes and commit locally (do NOT push yet — batched in Step 4)
 - Default to amending the relevant commit. New commit only for substantial new features beyond PR scope.
 - Follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) format
+- When writing or modifying tests, check the repo's `TESTING.md`, `DEVELOPMENT.md`, and `CONTRIBUTING.md` for test naming and structure conventions before proceeding
 
 **c. If declining**: Prepare technical explanation (3-5 sentences) with file:line references
 
