@@ -1,23 +1,11 @@
 ---
 name: fetch-jobs
-description: Fetch OpenShift CI job reports from Sippy with pass rates, run counts, and trend data for release or presubmit jobs
+description: Fetch OpenShift CI job reports from Sippy with pass rates, run counts, and trend data. Use when listing jobs for a release, checking presubmit job health for a repo, finding frequently run or regressing jobs, or getting duration data for cost estimation.
 ---
 
 # Fetch Jobs
 
 This skill fetches job reports from the Sippy jobs API. It returns job metadata including pass rates, run counts, and trend data comparing the current 7-day window to the previous 7-day window. It supports both release jobs (e.g., `4.19`, `5.0`) and presubmit (pull request) jobs.
-
-## When to Use This Skill
-
-Use this skill when you need to:
-
-- List jobs for a specific OpenShift release with their pass rates and run counts
-- List presubmit (pull request) jobs across all repos or filtered to a specific repo
-- Find the most frequently run jobs (sort by `current_runs`)
-- Find jobs with declining pass rates (sort by `net_improvement`)
-- Identify the least stable jobs (sort by `current_pass_percentage` ascending)
-- Check how a repo's presubmit jobs are performing
-- Get trend data comparing current vs previous reporting periods
 
 ## Prerequisites
 
