@@ -70,7 +70,18 @@ This command takes a JIRA URL, fetches the issue description and requirements, a
     - Ensure godoc comments are generated for any newly created public functions
       - Use your best judgement if godoc comments are needed for private functions
       - For example, a comment should not be generated for a simple function like func add(int a, b) int { return a + b}
-    - Create unit tests for any newly created functions
+    - Create unit tests for any newly created functions (see Step 3.5 for details)
+
+3.5. **Unit Test Creation**:
+   - For every new or modified function, create unit tests that cover the key behaviors.
+   - **Before writing tests**, check the repository for test convention documentation:
+     - `TESTING.md` — dedicated test conventions (naming, placement, structure)
+     - `DEVELOPMENT.md` — may contain a Code Conventions section with test rules
+     - `CONTRIBUTING.md` — may include test requirements
+   - Follow whatever naming, placement, and structure conventions the repository defines. If no conventions are documented, follow standard language-idiomatic test patterns.
+   - At minimum, test: happy path, invalid/missing input, and the primary error path.
+   - Place tests next to the code they test unless the repository conventions say otherwise.
+
 4. **Commit Creation**: 
    - Create feature branch using the jira-key $1 as the branch name. For example: "git checkout -b fix-{jira-key}"
    - Break commits into logical components based on the nature of the changes
