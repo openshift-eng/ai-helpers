@@ -1,7 +1,7 @@
 {
   "name": "openshift-developer",
   "description": "Bundle of curated plugins, skills, and MCP servers useful to any OpenShift engineer",
-  "version": "1.1.11",
+  "version": "1.1.12",
   "author": {
     "name": "github.com/openshift-eng"
   },
