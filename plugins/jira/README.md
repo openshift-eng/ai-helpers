@@ -10,7 +10,7 @@ Comprehensive Jira integration for Claude Code, providing AI-powered tools to an
 - 📋 **Backlog Grooming** - Analyze new bugs and cards for grooming meetings
 - 🏷️ **Activity Type Classification** - AI-powered classification of JIRA tickets into Sankey activity types, with single-issue and batch modes
 - 🧪 **Test Generation** - Generate comprehensive test steps for JIRA issues by analyzing related PRs
-- ✨ **Issue Creation** - Create well-formed stories, epics, features, tasks, bugs, and feature requests with guided workflows
+- ✨ **Issue Creation** - Create well-formed stories, epics, features, tasks, bugs, and feature requests with guided workflows, or batch-create from markdown files
 - 📝 **Release Note Generation** - Automatically generate bug fix release notes from Jira and linked GitHub PRs
 - 🤖 **Automated Workflows** - From issue analysis to PR creation, fully automated
 - 💬 **Smart Comment Analysis** - Extracts blockers, risks, and key insights from comments
@@ -221,6 +221,31 @@ Different projects may have different conventions (security levels, labels, vers
 Teams may have additional conventions layered on top of project conventions (component selection, custom fields, workflows, etc.). The command automatically detects team context and applies team-specific skills.
 
 See [commands/create.md](commands/create.md) for full documentation.
+
+---
+
+### `/jira:create-jira-from-file` - Create Issues from Markdown
+
+Create one or more Jira issues from a markdown file. Project-agnostic: metadata (`**Project:**`, `**Type:**`, component, version, parent, etc.) comes from the file. Supports single-issue and batch modes with security scanning and parent hierarchy validation.
+
+**Usage:**
+```bash
+# Single issue
+/jira:create-jira-from-file feature-spec.md
+
+# Batch (multiple issues in one file)
+/jira:create-jira-from-file sprint-planning.md
+```
+
+**Key Features:**
+- **File-driven metadata** — no project hard-coding; prompts when required fields are missing
+- **Batch mode** — multiple type-prefixed or non-content H2 sections in one file
+- **Security scanning** — blocks credential exposure before any create
+- **Parent linking** — validates hierarchy for pre-existing and in-batch parents
+
+**Examples:** [examples/create-jira-from-file-single-story.md](examples/create-jira-from-file-single-story.md), [examples/create-jira-from-file-batch.md](examples/create-jira-from-file-batch.md)
+
+See [commands/create-jira-from-file.md](commands/create-jira-from-file.md) for full documentation.
 
 ---
 
