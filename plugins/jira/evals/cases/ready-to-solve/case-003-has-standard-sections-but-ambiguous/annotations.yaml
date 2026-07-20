@@ -1,0 +1,18 @@
+expected_verdict: FAIL
+expected_deterministic:
+  has_context: true
+  has_ac: true
+  context_not_empty: true
+  ac_not_empty: true
+  has_tech: true
+  tech_not_empty: true
+  ac_has_items: true
+  min_description_length: true
+expected_ai:
+  ac_specificity: FAIL
+  context_sufficiency: PASS
+  success_conditions: FAIL
+notes: >
+  All standard sections present and pass deterministic checks, but AC
+  is vague ("should work", "not break anything", "acceptable performance").
+  AI should FAIL ac_specificity and success_conditions.

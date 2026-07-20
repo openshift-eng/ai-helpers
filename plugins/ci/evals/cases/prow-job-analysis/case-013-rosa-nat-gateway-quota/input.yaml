@@ -1,0 +1,8 @@
+prow_job_url: "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-release-main-nightly-4.20-e2e-rosa-sts-ovn/2073975546965921792"
+job_name: "periodic-ci-openshift-release-main-nightly-4.20-e2e-rosa-sts-ovn"
+description: >-
+  4.20 ROSA STS classic periodic whose rosa-cluster-provision step fails after
+  23 seconds in the pre phase: the OCM staging clusters-mgmt API rejects the
+  `rosa create cluster` request with HTTP 400 CLUSTERS-MGMT-400. No cluster or
+  AWS infrastructure is ever created, and two post-phase steps
+  (osd-gather-extra, rosa-cluster-deprovision) fail as consequences.

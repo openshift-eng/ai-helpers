@@ -1,0 +1,8 @@
+prow_job_url: "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-release-main-ci-4.22-e2e-aws-ovn-upgrade-out-of-change/2048983480997515264"
+job_name: "periodic-ci-openshift-release-main-ci-4.22-e2e-aws-ovn-upgrade-out-of-change"
+description: >-
+  4.22 aws-ovn out-of-change upgrade run (payload 4.22.0-0.nightly-2026-04-28-042702)
+  where nodes boot the regressed CRI-O RPM 1.35.2-11, hit NetworkPluginNotReady /
+  "no CNI configuration file", and go NotReady — later rolling back to cri-o
+  1.35.2-9. The agent must trace this to an OS-layer CRI-O RPM regression (TRT-2646),
+  not an OVN/multus product bug or a cloud outage.

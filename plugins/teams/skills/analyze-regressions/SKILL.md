@@ -726,7 +726,7 @@ This skill can be used by:
 
 - `get-release-dates` - Fetches release development window dates
 - `list-regressions` - Fetches raw regression data
-- `ci:analyze-prow-job-test-failure` - Analyzes individual test failures
+- `ci:prow-job-analysis` - Comprehensive Prow CI job failure analysis
 
 ## Notes
 

@@ -4,8 +4,8 @@ Red Hat Jira: `redhat.atlassian.net`. REST API v3. Use `curl` directly —
 this skill's workflows need endpoints the `jira` CLI doesn't cover (Agile
 boards/sprints, attachment downloads, ADF bodies, custom-field writes), and
 curl needs no extra install/config and keeps `allowed-tools` narrow
-(`Bash(curl:*)`). The node-cve plugin uses the `jira` CLI for its simpler
-list/comment flows; both hit the same REST API.
+(`Bash(curl:*)`). The `node-cve` plugin uses the `jira` CLI for its
+list/view flows; it hits the same REST API.
 
 ## Authentication
 
@@ -14,8 +14,8 @@ API token from env, macOS Keychain, or Linux secret-tool:
 ```bash
 JIRA_API_TOKEN="${JIRA_API_TOKEN:-$(security find-generic-password -s "JIRA_API_TOKEN" -w 2>/dev/null || secret-tool lookup service redhat key JIRA_API_TOKEN 2>/dev/null)}"
 JIRA_USER="${JIRA_EMAIL:-$(security find-generic-password -s "JIRA_API_TOKEN" -g 2>&1 | grep acct | sed 's/.*="//;s/"//')}"
-[[ "$JIRA_USER" != *@* ]] && JIRA_USER="${JIRA_USER}@redhat.com"
 : "${JIRA_USER:=$(git config user.email)}"
+[[ "$JIRA_USER" != *@* ]] && JIRA_USER="${JIRA_USER}@redhat.com"
 ```
 
 All requests: `curl -s -u "$JIRA_USER:$JIRA_API_TOKEN" -H "Content-Type: application/json"`.
@@ -37,7 +37,7 @@ Base: `https://redhat.atlassian.net`
 | POST | `/rest/api/3/issue/{key}/transitions` | Transition. Body: `{"transition":{"id":"31"}}` |
 | POST | `/rest/api/3/issue/{key}/remotelink` | Add link. Body: `{"object":{"url":"...","title":"..."}}` |
 | GET | `/rest/api/3/user/search?query={name}` | Find user by name |
-| GET | `/rest/agile/1.0/board/7845/sprint?state=active` | List sprints (board 7845 = Node) |
+| GET | `/rest/agile/1.0/board/11478/sprint?state=active` | List sprints (board 11478 = Node) |
 | GET | `/rest/agile/1.0/sprint/{id}/issue?maxResults=100&fields=...` | Sprint issues |
 | POST | `/rest/agile/1.0/sprint/{id}/issue` | Move to sprint. Body: `{"issues":["KEY-1","KEY-2"]}` |
 
@@ -81,7 +81,7 @@ for CVE triage; those are not in filter 91645.
 
 | ID | Board |
 |----|-------|
-| 7845 | Node board (scrum) |
+| 11478 | Node board (scrum) |
 | 4383 | Node-Epics (kanban) |
 | 9874 | Node QE (scrum) |
 
@@ -93,7 +93,7 @@ Team mailing list: `aos-node@redhat.com`
 
 ## Team Roster
 
-Team member lists live in `~/.node-assistant/team-roster-{core,dra}.json`. Format:
+Team member lists live in `~/.node-assistant/team-roster-{core,dra,kueue}.json`. Format:
 
 ```json
 {
@@ -118,8 +118,9 @@ Bot account treated as unassigned: `Node Team Bot Account`.
 
 | Team | Sprint filter | Roster file | Bug components |
 |------|--------------|-------------|----------------|
-| Core | `Node Core` | `team-roster-core.json` | All Node components |
+| Core | `Node Core` | `team-roster-core.json` | All Node components not listed under another sub-team |
 | DRA/Devices | `Node Devices` | `team-roster-dra.json` | Node / Device Manager, Node / Instaslice-operator |
+| Kueue | `OCP Kueue` | `team-roster-kueue.json` | Node / Kueue |
 
 ## Custom Field IDs
 
@@ -137,6 +138,7 @@ Use field names in JQL, IDs in REST API calls:
 | `customfield_10847` | Release Blocker | Object: `{"value": "Approved"}` or `{"value": "Proposed"}` |
 | `customfield_10517` | Blocked | Object: `{"value": "True"}` or `{"value": "False"}` |
 | `customfield_10483` | Blocked Reason | ADF document |
+| `customfield_10689` | Customer Impact | Object: `{"value": "Customer Escalated"}` |
 | `customfield_10978` | SFDC Cases Counter | Number |
 | `customfield_10979` | SFDC Cases Links | |
 

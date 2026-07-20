@@ -1,0 +1,517 @@
+name: ci-prow-job-analysis-eval
+description: Evaluate the prow-job-analysis skill's ability to analyze a single failed OpenShift Prow CI job — identify the job type, inspect artifacts, classify the failure, route to the correct specialized reference, and trace an actionable root cause
+skill: ci:prow-job-analysis
+
+execution:
+  mode: case
+  arguments: "{prow_job_url}"
+  timeout: 1800
+  max_budget_usd: 10.0
+  env:
+    GITHUB_TOKEN: $GITHUB_TOKEN
+
+runner:
+  type: claude-code
+  plugin_dirs:
+    - plugins/ci
+  system_prompt: |
+    Use the ci:prow-job-analysis skill to investigate the failed Prow CI job
+    given as the case argument and determine the root cause of the failure.
+
+    These are historical job runs: when correlating with code or configuration
+    changes (GitHub queries, git history, PR searches), always constrain the
+    investigation to the state as of the job's start time — changes merged
+    after the run cannot have caused it.
+
+    When done, write your analysis to `prow-job-analysis-report.md` in the
+    current working directory, stating the failure classification
+    (install | upgrade | test | infra), the reference files consulted, and the
+    root cause with supporting evidence (log excerpts and artifact paths).
+    Write the file even if artifacts are incomplete.
+
+models:
+  judge: claude-opus-4-6
+
+permissions:
+  allow:
+    - "Skill"
+    - "Bash"
+    - "Agent"
+    - "WebFetch"
+    - "Write"
+    - "Read"
+  deny: []
+
+mlflow:
+  experiment: ci-prow-job-analysis-eval
+
+dataset:
+  path: plugins/ci/evals/cases/prow-job-analysis
+  schema: |
+    Each case directory contains:
+    - input.yaml: YAML file with fields:
+      - 'prow_job_url' — a Prow job URL in either supported form:
+        https://prow.ci.openshift.org/view/gs/test-platform-results/logs/<job>/<build_id>
+        or the gcsweb equivalent. The GCS bucket is always test-platform-results
+        (public, no auth). This is the only field consumed at execution time
+        (execution.arguments renders '{prow_job_url}').
+      - 'job_name' — the Prow job name (the <job> segment of the URL), recorded
+        for readability and traceability of the case.
+      - 'description' — a short human-readable summary of the scenario the case
+        exercises: what failed and what a correct analysis must recognize.
+    - annotations.yaml: Expected outcomes and ground truth for scoring. The
+      WHOLE annotations file is rendered into the LLM judges via {{ annotations }},
+      so every field below is authoritative and visible to the judges. Notes must
+      never imply requirements beyond the structured fields.
+      Base classification:
+      - 'expected_failure_type': install | upgrade | test | infra — the primary label.
+      - 'acceptable_failure_types' (optional): additional labels that earn full
+        credit when the report's substance is correct. Some failures sit on a
+        genuine boundary (e.g. a monitor-test failure caused by an external outage
+        is defensibly 'test' or 'infra'); list every defensible label here.
+      - 'expected_references': list of reference files (relative to the skill's
+        references/ dir) a correct analysis MUST load, e.g.
+        ['upgrade.md', 'disruption.md'] or ['install/general.md', 'install/metal.md'].
+        Keep this to the minimal required set — the programmatic check passes at
+        >= 0.5 of these.
+      - 'acceptable_references' (optional): additional references that are
+        reasonable extra reading. Judges must never penalize consulting them NOR
+        penalize their absence.
+      - 'expected_root_cause_category': short slug for the true root cause
+        (e.g. 'extension-binary-panic-on-pending-spec', 'egressip-snat-not-applied').
+        Judges match this semantically, not as an exact-string label.
+      Rich ground truth:
+      - 'expected_root_cause': one or two precise sentences stating the true
+        originating cause the report MUST reach. Every claim in it MUST be
+        provable from this job's artifacts alone — external context (Jira/TRT
+        tickets, upstream PRs) belongs in 'notes' as background, never as a
+        required conclusion.
+      - 'key_evidence': list of {fact, artifacts, example} items. 'fact' is a
+        specific, checkable statement a grounded report must establish; 'artifacts'
+        lists the job-relative paths where that fact is provable (all listed paths
+        are equally valid sources); 'example' (optional) is an illustrative
+        verbatim line from one of those artifacts, grep-confirmed before commit.
+        Reports are NOT required to quote examples verbatim — any specific,
+        accurate citation that establishes the fact counts (an equivalent log
+        line, a decoded/escaped variant, or a faithful paraphrase with the key
+        identifiers intact).
+      - 'depth_evidence' (optional): deeper-mechanism facts in the same
+        {fact, artifacts, example} shape as key_evidence. Bonus depth credit
+        only — judges reward a report that reaches them and must NEVER penalize
+        one that doesn't.
+      - 'discriminating_signal': the single signal that separates the true root
+        cause from plausible look-alikes.
+      - 'distractors': list of misleading signals present in the job that a shallow
+        analysis would wrongly latch onto.
+      - 'must_not_conclude': list of wrong conclusions the judge must penalize.
+        Every entry must be decidable from artifacts — never forbid a conclusion
+        the artifacts cannot distinguish from the expected one.
+      - 'expected_child_breakdown' (aggregated jobs only): {runs_aggregated, total,
+        passed, failed, aggregation_verdict (verbatim string), and
+        aggregation_verdict_artifact (path where that verdict appears)}.
+      - 'notes': free-text scenario description. Notes are context only — they
+        must not name references or conclusions as expected unless the
+        structured fields above require them.
+      - 'external_context' (optional): background from OUTSIDE this job's
+        artifacts (tracker tickets, upstream PRs, fleet-wide knowledge), kept
+        for provenance. It is NEVER a scoring requirement: reports must not be
+        penalized for omitting it, and must not be rewarded for asserting it
+        without artifact evidence.
+
+    Analysis reads live artifacts from the public test-platform-results GCS bucket;
+    no snapshot extraction is required. Run the setup script once to verify tooling:
+      plugins/ci/evals/scripts/setup-prow-job-analysis.sh
+
+outputs:
+  - path: "output"
+    schema: |
+      The skill writes one file to the workspace root:
+      1. prow-job-analysis-report.md — a self-contained Markdown report with a
+         "Failure Classification" section (failure_type, references consulted,
+         root_cause_category), a "Root Cause" section citing specific log
+         evidence, and an "Evidence" section listing key error strings / artifact
+         paths.
+
+      Judges should check outputs["files"] and outputs["modified_files"] for a
+      file whose basename starts with "prow-job-analysis" and ends with ".md".
+
+traces:
+  stdout: true
+  stderr: true
+  events: true
+  metrics: true
+
+judges:
+  - name: output_file_exists
+    description: |
+      Verify the skill produced its Markdown analysis report
+      (prow-job-analysis-report.md) in the workspace.
+    check: |
+      import os
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      reports = [k for k in all_f
+                 if os.path.basename(k).startswith("prow-job-analysis")
+                 and k.endswith(".md")]
+      if not reports:
+          # fallback: any markdown report that is clearly the analysis output
+          reports = [k for k in all_f
+                     if k.endswith(".md") and "analysis" in os.path.basename(k).lower()]
+      if not reports:
+          return (False, "No analysis report found; expected prow-job-analysis-report.md")
+      return (True, f"Analysis report found: {reports[0]}")
+
+  - name: expected_references_used
+    description: |
+      Verify the analysis actually loaded the specialized reference file(s) the
+      routing table should have led it to. Scans the Claude Code stdout stream
+      for every way a reference under the skill's references/ directory can be
+      opened:
+        * Read tool calls (input.file_path under references/),
+        * Bash tool calls that read a reference via cat/tail/head/less/more/sed/
+          awk/grep — excluding shallow `head -n N` peeks (N <= 20), which only
+          skim a few lines rather than loading the file,
+        * tool_result blocks whose output cites a reference path (a targeted
+          cat/grep/sed dump), while ignoring broad index/listing reads such as
+          the SKILL.md routing table that name many references at once.
+      Each hit is mapped to its path relative to references/ (e.g. 'upgrade.md',
+      'install/metal.md') and compared against annotations.expected_references.
+      Scoring is fractional: the check passes when at least half of the expected
+      references were loaded (found_count / expected_count >= 0.5), so missing a
+      secondary reference does not hard-fail the case. The rationale always
+      reports the fraction, the references found, and those missed.
+    check: |
+      import json
+      import re
+
+      ann = outputs.get("annotations", {})
+      expected = ann.get("expected_references", []) or []
+      if not expected:
+          return (True, "No expected_references in annotations — skipped")
+      stdout = outputs.get("stdout", "")
+
+      # File-reading shell commands. `head` is separated out because a shallow
+      # `head -n N` (N <= 20) is only a superficial peek, not an actual load.
+      READ_CMD = re.compile(r"\b(cat|tail|head|less|more|sed|awk|grep)\b")
+      SUBSTANTIVE_CMD = re.compile(r"\b(cat|tail|less|more|sed|awk|grep)\b")
+      HEAD_N = re.compile(r"\bhead\b\s+-n?\s*(\d+)")
+      # A reference path relative to references/ (letters, digits, . _ / -).
+      REF_PATH = re.compile(r"references/([A-Za-z0-9._/\-]+)")
+
+      def extract_refs(text):
+          return set(REF_PATH.findall(text or ""))
+
+      def superficial_head(cmd):
+          # True when the command's only reader is a shallow head peek.
+          if SUBSTANTIVE_CMD.search(cmd):
+              return False
+          m = HEAD_N.search(cmd)
+          if m:
+              return int(m.group(1)) <= 20
+          # plain `head file` defaults to ~10 lines — also superficial
+          return True
+
+      def result_text(block):
+          c = block.get("content")
+          if isinstance(c, str):
+              return c
+          if isinstance(c, list):
+              parts = []
+              for sub in c:
+                  if isinstance(sub, dict) and isinstance(sub.get("text"), str):
+                      parts.append(sub["text"])
+                  elif isinstance(sub, str):
+                      parts.append(sub)
+              return "\n".join(parts)
+          return ""
+
+      loaded = set()
+      for line in stdout.splitlines():
+          line = line.strip()
+          if not line:
+              continue
+          try:
+              entry = json.loads(line)
+          except (json.JSONDecodeError, ValueError):
+              continue
+          if not isinstance(entry, dict):
+              continue
+          # tool_use blocks ride on assistant events; tool_result blocks ride on
+          # user events. Both live under message.content (fall back to content).
+          content = entry.get("message", {}).get("content")
+          if content is None:
+              content = entry.get("content")
+          if not isinstance(content, list):
+              continue
+          for block in content:
+              if not isinstance(block, dict):
+                  continue
+              btype = block.get("type")
+              if btype == "tool_use":
+                  name = block.get("name")
+                  inp = block.get("input", {}) or {}
+                  if name == "Read":
+                      fp = inp.get("file_path", "") or ""
+                      if "references/" in fp:
+                          loaded |= extract_refs(fp)
+                  elif name == "Bash":
+                      cmd = inp.get("command", "") or ""
+                      if ("references/" in cmd and READ_CMD.search(cmd)
+                              and not superficial_head(cmd)):
+                          loaded |= extract_refs(cmd)
+              elif btype == "tool_result":
+                  text = result_text(block)
+                  if "references/" in text:
+                      refs = extract_refs(text)
+                      # Skip broad index/listing reads (the SKILL.md routing
+                      # table, `ls references/`, etc.) that name many files at
+                      # once; only a targeted 1–2 path dump implies a real load.
+                      if 0 < len(refs) <= 2:
+                          loaded |= refs
+
+      def _norm(p):
+          p = p.strip()
+          if p.startswith("./"):
+              p = p[2:]
+          return p.lstrip("/")
+
+      loaded_norm = {_norm(p) for p in loaded}
+      found = [r for r in expected if _norm(r) in loaded_norm]
+      missed = [r for r in expected if _norm(r) not in loaded_norm]
+      fraction = len(found) / len(expected)
+      detail = (
+          f"{len(found)}/{len(expected)} expected references loaded "
+          f"(fraction={fraction:.2f}). "
+          f"Found: {', '.join(found) or 'none'}. "
+          f"Missed: {', '.join(missed) or 'none'}. "
+          f"Loaded from references/: {', '.join(sorted(loaded_norm)) or 'none'}"
+      )
+      # Fractional pass: at least half of the expected references must be loaded.
+      if fraction >= 0.5:
+          return (True, detail)
+      return (False, detail)
+
+  - name: analysis_quality
+    description: |
+      LLM judge assessing root-cause depth: does the report trace the failure to a
+      specific, actionable cause with cited log evidence, or merely restate
+      symptoms? Reads only the Markdown report and annotations.
+    prompt: |
+      You are evaluating the output of an OpenShift Prow CI job failure analysis.
+      The skill takes a single Prow job URL, identifies the job type, inspects
+      artifacts (build log, JUnit, pod logs, log bundles, must-gather), classifies
+      the failure, routes to a specialized reference, and traces the root cause.
+
+      Review the skill's analysis report:
+
+      {% for path, content in outputs.files.items() if path.endswith('.md') %}
+      ### {{ path }}
+
+      {{ content }}
+      {% endfor %}
+
+      Expected outcomes for this test case (authoritative ground truth):
+
+      {{ annotations }}
+
+      Pay special attention to these annotation fields:
+      - 'expected_root_cause': the conclusion the report MUST reach.
+      - 'key_evidence': the specific facts a grounded analysis must establish
+        (each with the artifacts where it is provable and sometimes an
+        illustrative example quote).
+      - 'discriminating_signal': the signal the report must identify to get the
+        cause right.
+      - 'distractors': misleading signals the report must NOT be fooled by.
+      - 'must_not_conclude': conclusions that are WRONG for this case.
+      - 'depth_evidence' (if present): deeper-mechanism facts — BONUS credit for
+        a report that reaches them; never required for any score.
+      - 'external_context' (if present): background from outside the job's
+        artifacts — never required of the report.
+
+      Evaluate the report's root-cause depth on a 1-5 scale:
+
+      Score 1: Analysis is missing, empty, or wrong — no coherent root cause and no
+               evidence, OR the report's primary conclusion is one of the
+               must_not_conclude verdicts.
+      Score 2: Superficial — the "root cause" restates a symptom ("nodes not
+               ready", "operator degraded", "tests failed") without tracing WHY, no
+               specific log evidence cited, OR the report is taken in by a listed
+               distractor.
+      Score 3: Adequate — goes one level deeper than the symptom and cites at least
+               some artifact or log signal, but stops short of expected_root_cause
+               or omits the discriminating_signal.
+      Score 4: Good — reaches essentially the expected_root_cause, establishes the
+               important key_evidence facts with specific citations, and
+               identifies the failing component/step; is not fooled by the
+               distractors and states none of the must_not_conclude verdicts.
+      Score 5: Excellent — reaches expected_root_cause with a causal chain (not
+               temporal coincidence), establishes the key_evidence facts from the
+               correct artifacts, explicitly names the discriminating_signal and
+               rules out the distractors; immediately actionable.
+
+      Hard rules:
+      - If the report's primary conclusion matches any entry in 'must_not_conclude',
+        it cannot score above 2.
+      - Reward reports that explicitly recognize the discriminating_signal and
+        reject the distractors.
+      - Do NOT reward an unsupported "infrastructure"/"flake" label unless the
+        annotations indicate the failure genuinely is infrastructure.
+      - Judge substance, not phrasing: a report that establishes a key_evidence
+        fact with different-but-equivalent wording or an alternate real citation
+        gets full credit for that fact.
+
+  - name: evidence_grounding
+    description: |
+      LLM judge scoring whether the report's claims are grounded in specific,
+      real artifact evidence rather than generic or invented assertions. Scores
+      fact-establishment against annotations.key_evidence — NOT verbatim string
+      reproduction. Guards against hallucinated or hand-wavy evidence. Reads only
+      the Markdown report and annotations.
+    prompt: |
+      You are checking whether an OpenShift Prow CI job analysis report is GROUNDED
+      in real artifact evidence rather than generic or invented claims.
+
+      Review the skill's analysis report:
+
+      {% for path, content in outputs.files.items() if path.endswith('.md') %}
+      ### {{ path }}
+
+      {{ content }}
+      {% endfor %}
+
+      Authoritative ground truth for this case:
+
+      {{ annotations }}
+
+      The 'key_evidence' list contains the FACTS a grounded report must establish.
+      Each item has a 'fact' (a specific, checkable statement), 'artifacts' (the
+      job-relative paths where that fact is provable — all listed paths are
+      equally valid sources), and sometimes an 'example' (an illustrative verbatim
+      line from one of those artifacts).
+
+      A fact counts as ESTABLISHED when the report supports it with any specific,
+      accurate citation: the example quote, a different-but-equivalent log line
+      from the same artifact, the same content quoted from another artifact that
+      carries it (build logs frequently duplicate step logs and JUnit bodies), a
+      decoded/escaped variant of the same text, or a faithful paraphrase that
+      preserves the key identifiers (component names, versions, counts, error
+      strings). Do NOT play "spot the exact string" — judge whether the report
+      demonstrably read real artifacts and extracted the right facts.
+
+      Score the report's evidence grounding on a 1-5 scale:
+
+      Score 1: No specific artifact evidence at all, or the report's "evidence"
+               contradicts the ground truth above (asserts something the
+               annotations establish is false).
+      Score 2: Mostly generic, uncited claims ("logs show errors", "the node was
+               not ready"); the few specifics establish none of the key_evidence
+               facts.
+      Score 3: Establishes some key_evidence facts with specific citations, but
+               leaves major claims generic or attributes evidence to artifacts
+               that could not carry it.
+      Score 4: Establishes most key_evidence facts with specific, sensibly
+               attributed citations; nothing fabricated or contradicted.
+      Score 5: Establishes all key_evidence facts with specific citations and
+               enough surrounding context (paths, timestamps, neighboring events)
+               to show the artifacts were genuinely read; zero fabricated or
+               contradicted evidence.
+
+      Hard rules:
+      - NEVER penalize the absence of a verbatim quote when the same fact is
+        established with equivalent specifics from a real artifact.
+      - Fabrication caps the score at 2 — but fabrication means a citation that
+        CONTRADICTS the ground truth (e.g. names a version, mechanism, or result
+        the annotations rule out) or is clearly impossible for this job. Specific
+        details beyond the annotations (extra timestamps, pod names, line numbers
+        plausibly from the job) are normal deep-analysis output, not fabrication.
+      - If the annotations list something as a 'distractor', a report that quotes
+        it as real text but draws the distractor's wrong inference loses grounding
+        credit for that inference (real text, false signal).
+      - 'depth_evidence' (if present) is bonus-only: reward a report that
+        establishes those deeper facts, never penalize one that doesn't.
+        'external_context' (if present) is background from outside the
+        artifacts and is never required.
+
+  - name: failure_classification_accuracy
+    description: |
+      LLM judge assessing whether the failure was correctly classified and routed:
+      does the reported failure_type, the reference(s) consulted, and the root
+      cause category match the expected values in annotations? Reads only the
+      Markdown report and annotations.
+    prompt: |
+      You are evaluating whether an OpenShift Prow CI job analysis classified the
+      failure correctly and routed to the right specialized reference.
+
+      The prow-job-analysis skill routes failures to reference files:
+      - install/general.md, install/metal.md — install ("install should succeed")
+        failures; metal adds dev-scripts / Metal3 / Ironic.
+      - upgrade.md — CVO stuck, operators degraded, MCO drain, version skew.
+      - hypershift.md — hosted control planes (management + hosted clusters).
+      - aggregated.md — statistical analysis across aggregated child runs.
+      - cloud-provider-errors.md — AWS/GCP/Azure API, quota, throttling.
+      - resource-exhaustion.md — OOM, node NotReady, disk/PID/etcd pressure.
+      - networking.md — OVN/SDN, DNS, image pull/registry, ingress, proxy.
+      - operating-system-changes.md — RHCOS OS layer (cri-o, kernel, systemd).
+      - ci-infrastructure-changes.md — lease/quota, ci-operator, step-registry
+        (CI config changed vs product broke).
+      - flaky-test-identification.md / test-failure.md — test triage and product
+        regression root-cause.
+      - test-extension-binaries.md — *-tests-ext extension binary failures.
+      - disruption.md — API-backend disruption intervals.
+
+      Review the skill's analysis report:
+
+      {% for path, content in outputs.files.items() if path.endswith('.md') %}
+      ### {{ path }}
+
+      {{ content }}
+      {% endfor %}
+
+      Expected outcomes for this test case (authoritative):
+
+      {{ annotations }}
+
+      Compare the report against the annotations as follows:
+      - failure_type: expected_failure_type is the primary label. If
+        acceptable_failure_types is present, ANY label in it earns full
+        classification credit when the substance of the analysis is right — some
+        failures sit on a genuine taxonomy boundary and a defensible label choice
+        must not be penalized.
+      - references: expected_references are the REQUIRED set. If
+        acceptable_references is present, those are reasonable extra reading —
+        never penalize consulting them and never penalize their absence. Never
+        penalize any extra reference a report consulted beyond the lists.
+      - root cause category: match expected_root_cause_category SEMANTICALLY — a
+        differently-worded category describing the same underlying cause is a
+        match; do not require the exact slug.
+
+      Evaluate on a 1-5 scale:
+
+      Score 1: Wrong failure_type (not in the accepted set) AND wrong references —
+               the analysis is misrouted (e.g. treated an install failure as a
+               test regression).
+      Score 2: failure_type accepted but the analysis consulted the wrong
+               primary reference, or vice versa; root cause category is wrong.
+      Score 3: Accepted failure_type and at least one of the expected references
+               was consulted, but a required reference is missing or the root
+               cause category is only partially right.
+      Score 4: Accepted failure_type, the expected reference(s) consulted, and a
+               root cause category that semantically matches the expected one.
+      Score 5: Accepted failure_type, all expected references consulted, a
+               semantically matching root cause category — and the report
+               correctly separates the true cause from the look-alike
+               classifications (e.g. CI-config change vs product regression,
+               infra flake vs real bug, OS-layer vs product-layer).
+
+thresholds:
+  output_file_exists:
+    min_pass_rate: 1.0
+  expected_references_used:
+    min_pass_rate: 0.8
+  analysis_quality:
+    min_mean: 4.0
+  evidence_grounding:
+    min_mean: 4.0
+  failure_classification_accuracy:
+    min_mean: 4.0

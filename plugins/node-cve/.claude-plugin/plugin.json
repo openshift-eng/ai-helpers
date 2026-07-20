@@ -1,8 +1,14 @@
 {
   "name": "node-cve",
   "description": "CVE triage for OpenShift Node team components",
-  "version": "0.0.3",
+  "version": "0.0.6",
   "author": {
     "name": "github.com/openshift-eng"
-  }
+  },
+  "dependencies": [
+    {
+      "name": "node-team",
+      "version": "^1.0.0"
+    }
+  ]
 }

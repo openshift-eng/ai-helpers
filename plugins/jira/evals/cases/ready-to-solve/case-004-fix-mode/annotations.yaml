@@ -1,0 +1,9 @@
+expected_verdict: FAIL
+expected_fix_attempted: true
+expected_fix_adds_context: true
+expected_fix_adds_ac: true
+expected_fix_adds_tech: true
+expected_fix_preserves_original: true
+notes: >
+  Fix mode test. Should add Context/AC/Tech sections while
+  preserving original content. Dry-run so no Jira update.

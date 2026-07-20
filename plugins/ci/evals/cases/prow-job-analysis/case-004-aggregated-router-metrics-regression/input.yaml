@@ -1,0 +1,9 @@
+prow_job_url: "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/aggregated-aws-ovn-upgrade-5.0-major-release-openshift-release-analysis-aggregator/2070211754951970816"
+job_name: "aggregated-aws-ovn-upgrade-5.0-major-release-openshift-release-analysis-aggregator"
+description: >-
+  Aggregated release-analysis-aggregator over the 5.0 aws-ovn major upgrade variant
+  (payload 5.0.0-0.ci-2026-06-25-182114). The sole BLOCKING failure is the HAProxy
+  router prometheus-metrics conformance test (0/8), which must be distinguished from
+  the NON-BLOCKING NetworkSegmentation UDN failures. Root cause: HAProxy restructured
+  as a sidecar init container broke the router's exposed metrics
+  (cluster-ingress-operator #1439, TRT-2757).

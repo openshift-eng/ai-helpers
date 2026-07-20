@@ -47,11 +47,13 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/upload-screenshot/upload_screenshot.sh" \
 | Parameter | Required | Description |
 |-----------|----------|-------------|
 | `--file`       | Yes      | Path to the image file (png, jpg, gif, svg, webp) |
-| `--repo`       | Yes      | Target GitHub repository in `owner/repo` format |
+| `--repo`       | No       | Target GitHub repository in `owner/repo` format (defaults to `$FORK_REPO` env var) |
 | `--title`      | No       | Alt text for the image (defaults to filename) |
 | `--token-file` | No       | Path to a file containing a GitHub token to use for auth |
 
 When `--token-file` is provided, the token is loaded into `GITHUB_TOKEN` for the duration of the script. This is useful in CI where the default `GITHUB_TOKEN` may not have write access to the target repo.
+
+**Environment variable defaults:** If `--repo` is not provided, the script uses `$FORK_REPO`. If no explicit token is provided via `--token-file`, the script uses `$GH_FORK_TOKEN` when available. This means in CI environments where these env vars are set, you can call the script with just `--file` and it will upload to the correct fork with the right credentials.
 
 ### Output
 

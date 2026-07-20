@@ -1,15 +1,16 @@
 {
   "name": "openshift-developer",
   "description": "Bundle of curated plugins, skills, and MCP servers useful to any OpenShift engineer",
-  "version": "1.1.5",
+  "version": "1.1.11",
   "author": {
     "name": "github.com/openshift-eng"
   },
   "dependencies": [
-    { "name": "jira", "version": "^0.7.0" },
+    { "name": "jira", "version": "^0.8.5" },
     { "name": "ci", "version": "^0.0.52" },
     { "name": "golang", "version": "^0.3.0" },
     { "name": "prodsec-skills" },
-    { "name": "git", "version": "^0.0.7" }
+    { "name": "git", "version": "^0.0.7" },
+    { "name": "code-review", "version": "^0.0.12" }
   ]
 }

@@ -39,3 +39,7 @@ Other plugins reference these files instead of maintaining their own copies.
 ## Prometheus
 
 |prometheus.md
+
+## Compliance
+
+|../../../docs/compliance/{user-guide.md,capabilities-inventory.md,dataflow.md,monitoring-plan.md}

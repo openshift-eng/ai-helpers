@@ -1,0 +1,92 @@
+expected_failure_type: test
+expected_references:
+  - test-extension-binaries.md
+acceptable_references:
+  - flaky-test-identification.md
+expected_root_cause_category: extension-binary-panic-on-pending-spec
+
+# The single conclusion a correct analysis MUST reach.
+expected_root_cause: >-
+  The single blocking failure is the test "[sig-ci] [Early] prow job name should
+  match os version" (origin test/extended/ci/job_names.go:176), which was marked
+  PENDING via g.XIt. The openshift-tests-extension runner
+  (v0.0.0-20260127124016) does not handle the PENDING/unknown Ginkgo spec state:
+  BuildExtensionTestSpecsFromOpenShiftGinkgoSuite at pkg/ginkgo/util.go:141
+  panics with "test produced unknown outcome", crashing the external binary so it
+  produces no result and the test is recorded as failed. This is a
+  test-harness / extension-binary defect, not a product or upgrade regression;
+  2038 tests passed and the upgrade itself succeeded.
+
+# Facts a grounded report must establish. 'artifacts' lists where each fact is
+# provable; 'example' is an illustrative verbatim line — reports need not quote
+# it verbatim.
+key_evidence:
+  - fact: >-
+      The blocking failed test is "[sig-ci] [Early] prow job name should match
+      os version", defined at origin test/extended/ci/job_names.go:176.
+    artifacts:
+      - "build-log.txt"
+    example: "github.com/openshift/origin/test/extended/ci/job_names.go:176"
+  - fact: >-
+      That spec was marked PENDING (disabled) — Ginkgo reports it as pending and
+      zero specs actually ran in the isolated subprocess.
+    artifacts:
+      - "build-log.txt"
+    example: "P [PENDING]"
+  - fact: >-
+      The openshift-tests-extension framework panicked on the PENDING/unknown
+      spec outcome at pkg/ginkgo/util.go:141 (framework version
+      v0.0.0-20260127124016-0fed2b824818).
+    artifacts:
+      - "build-log.txt"
+    example: "panic: test produced unknown outcome:"
+  - fact: >-
+      Because the external binary crashed, it produced no result for the test,
+      which is why the disabled test is scored as a blocking failure.
+    artifacts:
+      - "build-log.txt"
+    example: "external binary did not produce a result for this test"
+  - fact: >-
+      The suite summary shows exactly 1 blocking failure against 2038 passes,
+      and the upgrade itself completed successfully.
+    artifacts:
+      - "build-log.txt"
+    example: "error: error running a test suite: 1 blocking fail, 1 informing fail, 2038 pass, 0 flaky, 2056 skip"
+
+# The one signal that separates the true cause from the look-alikes.
+discriminating_signal: >-
+  The panic originates in the openshift-tests-extension framework
+  (BuildExtensionTestSpecsFromOpenShiftGinkgoSuite at util.go:141) reacting to a
+  Ginkgo spec in PENDING state ("Will run 1 of 1 specs" / "1 Pending"), not in
+  any product code path. The crash produces zero test output ("external binary
+  did not produce a result for this test") for exactly one test that was
+  deliberately disabled (XIt), while every other test and the upgrade passed.
+
+# Misleading signals a shallow analysis would wrongly latch onto.
+distractors:
+  - "The job is an aws-ovn UPGRADE job, tempting an upgrade/CVO/version-skew root cause routed to upgrade.md."
+  - "An informing failure [Feature:NetworkSegmentation][ovn-kubernetes-ote][sig-network] UDN service reachability is listed, tempting an OVN/networking product-bug conclusion."
+  - "The word panic and a goroutine stack trace suggest a component/operator crash rather than a test-harness bug."
+  - "The failing test name mentions prow job name / os version, tempting a CI-configuration (ci-infrastructure-changes.md) or operating-system root cause."
+
+# Wrong conclusions the judge must penalize.
+must_not_conclude:
+  - "product or code regression in a networking / OVN operator"
+  - "upgrade, CVO, MCO, or version-skew failure (the upgrade completed and only a disabled test failed)"
+  - "cluster infrastructure / cloud-provider (AWS) outage or quota problem"
+  - "a real functional failure of the prow-job-name test (it was disabled/PENDING and never actually ran)"
+
+notes: >
+  Scenario: origin PR #31287 changed g.It -> g.XIt on
+  "[sig-ci] [Early] prow job name should match os version", marking the spec
+  PENDING. The openshift-tests-extension binary at util.go:141 panics on the
+  unknown/PENDING outcome, so the isolated per-test subprocess dies without a
+  result and the test is scored as a blocking failure, failing the whole run
+  (payload 5.0.0-0.ci-2026-06-11-181513). This is a test-extension-binary
+  harness defect (the routing table's dedicated `*-tests-ext` row); passing
+  through flaky-test-identification.md first is acceptable but not required.
+  The product, the upgrade, networking, and the cloud provider are not
+  implicated — the spec was disabled/PENDING and never ran. Evidence is
+  self-contained in the root build-log.txt of this constituent run. The parent aggregator run
+  (aggregated-aws-ovn-upgrade-5.0-major-release-openshift-release-analysis-aggregator/2065139102759522304)
+  fails downstream of these constituent panics.

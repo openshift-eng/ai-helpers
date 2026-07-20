@@ -115,7 +115,17 @@ The command performs the following steps:
 
 8. **Display Results**: Show the API response including the execution ID
 
-9. **Offer Follow-up**: Optionally offer to query the job status using `/query-job-status`
+9. **Poll for Prow URL**: After a successful trigger, automatically resolve the Prow dashboard URL:
+   - Wait 15 seconds for the job to be scheduled
+   - Query the job status: `curl_with_token.sh https://api.ci.l2s4.p1.openshiftapps.com:6443 -X GET https://gangway-ci.apps.ci.l2s4.p1.openshiftapps.com/v1/executions/<EXECUTION_ID>`
+   - If `gcs_path` is present, derive the Prow URL (see below) and display it
+   - If `gcs_path` is missing and status is `TRIGGERED`, wait 15 seconds and retry (up to 20 retries, ~5 minutes total)
+   - Stop polling once `gcs_path` is populated or status reaches a terminal state
+   - If retries are exhausted without a `gcs_path`, provide `https://prow.ci.openshift.org/?job=<job_name>` so the user can find the job on the Prow dashboard
+
+   **GCS Path → Prow URL conversion**: Strip the `gs://<bucket-name>/` prefix and prepend `https://prow.ci.openshift.org/view/gs/test-platform-results/`. The Prow URL always uses `test-platform-results` regardless of the bucket name in `gcs_path`.
+
+   Example: `gs://origin-ci-test/logs/branch-ci-openshift-origin-master-images/1234567890` → `https://prow.ci.openshift.org/view/gs/test-platform-results/logs/branch-ci-openshift-origin-master-images/1234567890`
 
 ## Return Value
 - **Success**: JSON response with execution ID and job details
@@ -127,7 +137,8 @@ The command performs the following steps:
 3. Validate all required arguments are provided
 4. Parse the JSON response and extract the execution ID
 5. Display the execution ID to the user
-6. Offer to check job status with `/query-job-status`
+6. **Automatically poll for the Prow URL** — do NOT just offer to check status. Poll until the Prow URL is resolved or retries are exhausted.
+7. Display the Prow dashboard URL once available
 
 ## Examples
 
@@ -154,6 +165,7 @@ The command performs the following steps:
 - **Refs Structure**: The refs object is required for postsubmit jobs to identify the repository and commit
 - **Repo Link**: Automatically constructed as `https://github.com/<org>/<repo>`
 - **Execution ID**: Save the execution ID from the response to query job status later
+- **Prow URL Delay**: The Prow URL may not be available immediately after triggering — the job needs to be scheduled and transition from TRIGGERED to PENDING before `gcs_path` is populated. The command automatically polls until the URL is resolved.
 
 ## Arguments
 - **$1** (job-name): The name of the postsubmit job to trigger (required)

@@ -88,7 +88,17 @@ The command performs the following steps:
 
 6. **Display Results**: Show the API response including the execution ID
 
-7. **Offer Follow-up**: Optionally offer to query the job status using `/query-job-status`
+7. **Poll for Prow URL**: After a successful trigger, automatically resolve the Prow dashboard URL:
+   - Wait 15 seconds for the job to be scheduled
+   - Query the job status: `curl_with_token.sh https://api.ci.l2s4.p1.openshiftapps.com:6443 -X GET https://gangway-ci.apps.ci.l2s4.p1.openshiftapps.com/v1/executions/<EXECUTION_ID>`
+   - If `gcs_path` is present, derive the Prow URL (see below) and display it
+   - If `gcs_path` is missing and status is `TRIGGERED`, wait 15 seconds and retry (up to 20 retries, ~5 minutes total)
+   - Stop polling once `gcs_path` is populated or status reaches a terminal state
+   - If retries are exhausted without a `gcs_path`, provide `https://prow.ci.openshift.org/?job=<job_name>` so the user can find the job on the Prow dashboard
+
+   **GCS Path → Prow URL conversion**: Strip the `gs://<bucket-name>/` prefix and prepend `https://prow.ci.openshift.org/view/gs/test-platform-results/`. The Prow URL always uses `test-platform-results` regardless of the bucket name in `gcs_path`.
+
+   Example: `gs://origin-ci-test/logs/periodic-ci-openshift-release-master-ci-4.14-e2e-aws-ovn/1234567890` → `https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-release-master-ci-4.14-e2e-aws-ovn/1234567890`
 
 ## Return Value
 - **Success**: JSON response with execution ID and job details
@@ -99,7 +109,8 @@ The command performs the following steps:
 2. You must locate and verify curl_with_token.sh before running it, you (Claude Code) have a bug that tries to use the script from the wrong directory!
 3. Parse the JSON response and extract the execution ID
 4. Display the execution ID to the user
-5. Offer to check job status with `/query-job-status`
+5. **Automatically poll for the Prow URL** — do NOT just offer to check status. Poll until the Prow URL is resolved or retries are exhausted.
+6. Display the Prow dashboard URL once available
 
 ## Examples
 
@@ -130,6 +141,7 @@ The command performs the following steps:
 - **Authentication**: Tokens expire and may need to be refreshed via browser login
 - **Multistage Overrides**: Prefix variables with `MULTISTAGE_PARAM_OVERRIDE_` to override multistage job parameters
 - **Execution ID**: Save the execution ID from the response to query job status later
+- **Prow URL Delay**: The Prow URL may not be available immediately after triggering — the job needs to be scheduled and transition from TRIGGERED to PENDING before `gcs_path` is populated. The command automatically polls until the URL is resolved.
 
 ## Arguments
 - **$1** (job-name): The name of the periodic job to trigger (required)

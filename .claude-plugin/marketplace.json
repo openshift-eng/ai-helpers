@@ -50,7 +50,7 @@
       "name": "github",
       "source": "./plugins/github",
       "description": "GitHub utilities for image uploads, asset management, and PR automation",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "category": "tooling",
       "keywords": [
         "github",
@@ -75,7 +75,7 @@
       "name": "jira",
       "source": "./plugins/jira",
       "description": "A plugin to automate tasks with Jira",
-      "version": "0.8.1",
+      "version": "0.8.5",
       "category": "productivity",
       "keywords": [
         "jira",
@@ -88,7 +88,7 @@
       "name": "ci",
       "source": "./plugins/ci",
       "description": "A plugin to work with OpenShift CI and analyze Prow job results",
-      "version": "0.0.54",
+      "version": "0.0.70",
       "category": "ci",
       "keywords": [
         "prow",
@@ -155,7 +155,7 @@
       "name": "utils",
       "source": "./plugins/utils",
       "description": "A generic utilities plugin serving as a catch-all for various helper commands",
-      "version": "0.0.12",
+      "version": "0.0.13",
       "category": "tooling",
       "keywords": [
         "utilities",
@@ -217,7 +217,7 @@
       "name": "openshift",
       "source": "./plugins/openshift",
       "description": "OpenShift development utilities and helpers",
-      "version": "0.0.6",
+      "version": "0.0.7",
       "category": "openshift",
       "keywords": [
         "openshift",
@@ -316,7 +316,56 @@
       "name": "node-cve",
       "source": "./plugins/node-cve",
       "description": "CVE triage for OpenShift Node team components",
-      "version": "0.0.3"
+      "version": "0.0.6",
+      "category": "openshift",
+      "keywords": [
+        "openshift",
+        "cve",
+        "vulnerability",
+        "triage",
+        "node"
+      ]
+    },
+    {
+      "name": "node-onboarding",
+      "source": "./plugins/node-onboarding",
+      "description": "Interactive onboarding workflows for new OpenShift Node team members",
+      "version": "0.0.2",
+      "category": "openshift",
+      "keywords": [
+        "openshift",
+        "node",
+        "onboarding",
+        "setup"
+      ]
+    },
+    {
+      "name": "node-rpm",
+      "source": "./plugins/node-rpm",
+      "description": "RPM package management for OpenShift Node team components",
+      "version": "0.0.2",
+      "category": "openshift",
+      "keywords": [
+        "openshift",
+        "node",
+        "rpm",
+        "bump",
+        "cri-tools"
+      ]
+    },
+    {
+      "name": "node-bug",
+      "source": "./plugins/node-bug",
+      "description": "Node-specific bug triage, sub-team routing, and assignment suggestions for OpenShift Node team components",
+      "version": "0.0.2",
+      "category": "openshift",
+      "keywords": [
+        "openshift",
+        "node",
+        "bugs",
+        "triage",
+        "jira"
+      ]
     },
     {
       "name": "bigquery",
@@ -348,7 +397,7 @@
       "name": "code-review",
       "source": "./plugins/code-review",
       "description": "Automated code quality review with language-aware analysis for pre-commit verification",
-      "version": "0.0.11",
+      "version": "0.0.12",
       "category": "development",
       "keywords": [
         "code-review",
@@ -435,7 +484,7 @@
       "name": "openshift-developer",
       "source": "./plugins/openshift-developer",
       "description": "Bundle of curated plugins, skills, and MCP servers useful to any OpenShift engineer",
-      "version": "1.1.5",
+      "version": "1.1.11",
       "category": "bundle",
       "keywords": [
         "openshift",
@@ -447,7 +496,7 @@
       "name": "node-team",
       "source": "./plugins/node-team",
       "description": "OpenShift Node team assistant for development, deployment, debugging, and workflow tasks",
-      "version": "0.16.0",
+      "version": "1.0.0",
       "category": "openshift",
       "keywords": [
         "openshift",
@@ -474,7 +523,7 @@
       "name": "agentic-docs",
       "source": "./plugins/agentic-docs",
       "description": "Create and maintain AI-optimized documentation for OpenShift",
-      "version": "1.0.0"
+      "version": "1.2.2"
     },
     {
       "name": "metrics",

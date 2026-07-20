@@ -1,0 +1,9 @@
+prow_job_url: "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-release-master-nightly-4.22-e2e-aws-ovn-upgrade-fips/2013287064870588416"
+job_name: "periodic-ci-openshift-release-master-nightly-4.22-e2e-aws-ovn-upgrade-fips"
+description: >-
+  4.22 aws-ovn FIPS upgrade run where the post-upgrade [Late] invariant "kubelet
+  terminates kube-apiserver gracefully extended" fails: each master's previous
+  kube-apiserver pod left "did not terminate gracefully" in its termination.log
+  during the control-plane rollout. Deeper cause (OCPBUGS-75200): a MachineConfig
+  with only OS-image changes did not set DefaultTimeoutStopSec, so KAS shutdown
+  exceeded the systemd stop timeout.

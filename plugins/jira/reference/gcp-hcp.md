@@ -8,15 +8,13 @@ Team-specific conventions for GCP HCP (Hypershift on GKE) issues in the GCP proj
 |-------|-------|
 | **Project Key** | GCP |
 | **Project Name** | GCP Hosted Control Planes (Hypershift on GKE) |
-| **Issue Types** | Story, Epic, Task, Bug, Feature Request |
+| **Issue Types** | Story, Epic, Task, Bug, Feature, Initiative, Feature Request |
 
 ## Custom Fields
 
 | Field | Custom Field ID | Usage | Example |
 |-------|-----------------|-------|---------|
 | **Epic Name** | `customfield_10011` | Required for Epics | `"Multi-cluster metrics aggregation"` |
-| **Epic Link** | `customfield_10014` | Link Story/Task → Epic | `"GCP-456"` |
-| **Parent Link** | `customfield_10018` | Link Epic → Feature | `"GCP-100"` |
 | **Story Points** | `customfield_10028` | Fibonacci scale: 0, 1, 2, 3, 5, 8, 13 | `3.0` |
 | **Blocked** | `customfield_10517` | Mark issue as blocked | `{"value": "True"}` |
 
@@ -35,18 +33,14 @@ Components are **optional** — only specify if work clearly fits. Do not reques
 
 | Issue Type | Key Fields |
 |---|---|
-| Story / Task | `customfield_10014` (Epic Link): parent epic key; `customfield_10028` (Story Points): float, auto-estimated per Sizing Guide; `priority`: `{"name": "Normal"}` (omit unless user specifies) |
-| Epic | `customfield_10011` (Epic Name): must match summary. Do NOT include parent link at creation — add via separate `editJiraIssue` call |
+| Story / Task | `customfield_10028` (Story Points): float, auto-estimated per Sizing Guide; `priority`: `{"name": "Normal"}` (omit unless user specifies) |
+| Epic | `customfield_10011` (Epic Name): must match summary |
 | Feature | No type-specific custom fields required |
+| Initiative | No type-specific custom fields required |
 
 **Story Points:** Auto-estimate using the Sizing Guide below. Set `customfield_10028` as float. For estimates of 8+, recommend splitting.
 
 **Priority:** Ask user before setting. Reference the Priority Scheme below. If unset, default is Normal.
-
-## Epic Linking
-
-1. Create the Epic first via `createJiraIssue` WITHOUT the parent link field
-2. Link to Feature in a separate call: `editJiraIssue` to set `customfield_10018` to the Feature key
 
 ## Team Standards
 
@@ -154,6 +148,18 @@ Features represent high-level capabilities spanning multiple sprints, decomposin
 
 Sections: Context, Scope (included + not included), Technical Approach (optional), Dependencies, Acceptance Criteria, Metadata (Epics, Priority, Demo Critical, Size Estimate, DRI)
 
+### Initiative Template
+
+Source: [jira-initiative-template.md](https://github.com/openshift-online/gcp-hcp/blob/main/docs/jira-initiative-template.md)
+
+Initiatives represent internal/architectural work at the same hierarchy as Features — non-customer-facing. Use for architectural improvements, process improvements, and engineering enablement.
+
+**Hierarchy**: Outcome → **Initiative** → Epic → Story
+
+**Title format**: [Action Verb] + [Capability]
+
+Sections: Problem Statement, Proposed Approach, Internal Impact, Success Criteria, Scope and Epics, Timeline and Milestones, plus project-specific metadata
+
 ### Definition of Done
 
 Source: [definition-of-done.md](https://github.com/openshift-online/gcp-hcp/blob/main/docs/definition-of-done.md)
@@ -207,6 +213,7 @@ Sections of this reference file are sourced from upstream files in openshift-onl
 | Task Template | docs/jira-task-template.md |
 | Epic Template | docs/jira-epic-template.md |
 | Feature Template | docs/jira-feature-template.md |
+| Initiative Template | docs/jira-initiative-template.md |
 | Definition of Done | docs/definition-of-done.md |
 | Priority Scheme (OJA-PRIS-001) | Red Hat internal (team-agnostic) |
 
