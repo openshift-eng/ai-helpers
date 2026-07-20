@@ -224,17 +224,20 @@ judges:
   - name: must_recommend_jobs
     description: |
       Verify that jobs listed in annotations.must_recommend_jobs appear
-      somewhere in the conversation output (as /test or /payload-job commands).
+      as actual /test or /payload-job commands in the conversation output.
+      Mentions in skip explanations or narrative do not count.
     check: |
       ann = outputs.get("annotations", {})
       must = ann.get("must_recommend_jobs", [])
       if not must:
           return (True, "No must_recommend_jobs annotations")
       text = outputs.get("conversation", "")
-      lower = text.lower()
-      missing = [j for j in must if j.lower() not in lower]
+      import re
+      cmd_lines = re.findall(r'(?:/test|/payload-job)\s+\S+', text, re.IGNORECASE)
+      cmd_text = " ".join(cmd_lines).lower()
+      missing = [j for j in must if j.lower() not in cmd_text]
       if missing:
-          return (False, f"Expected job recommendations not found: {missing}")
+          return (False, f"Expected job recommendations not found in commands: {missing}")
       return (True, f"All {len(must)} required jobs recommended")
 
   - name: must_not_recommend_jobs
@@ -256,6 +259,28 @@ judges:
       if found:
           return (False, f"Jobs that should NOT be recommended were found in commands: {found}")
       return (True, f"None of {len(must_not)} excluded jobs were recommended")
+
+  - name: must_skip_jobs
+    description: |
+      Verify that jobs listed in annotations.must_skip_jobs appear
+      in the skip list of the state file.
+    check: |
+      import json
+      ann = outputs.get("annotations", {})
+      must = ann.get("must_skip_jobs", [])
+      if not must:
+          return (True, "No must_skip_jobs annotations")
+      files = outputs.get("files", {})
+      state_files = {k: v for k, v in files.items() if k.endswith(".json") and "pr-risk" in k and '"assessment"' in v}
+      if not state_files:
+          return (False, "No state file found")
+      data = json.loads(list(state_files.values())[0])
+      skips = data.get("assessment", {}).get("jobs_to_skip", [])
+      skip_names = " ".join(s.get("name", "") for s in skips).lower()
+      missing = [j for j in must if j.lower() not in skip_names]
+      if missing:
+          return (False, f"Expected skips not found: {missing}")
+      return (True, f"All {len(must)} required skips present")
 
   - name: cost_estimate_present
     description: |
@@ -399,6 +424,8 @@ thresholds:
   must_recommend_jobs:
     min_pass_rate: 1.0
   must_not_recommend_jobs:
+    min_pass_rate: 1.0
+  must_skip_jobs:
     min_pass_rate: 1.0
   risk_assessment_quality:
     min_mean: 3.5
