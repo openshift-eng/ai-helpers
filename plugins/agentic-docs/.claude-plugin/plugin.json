@@ -1,7 +1,7 @@
 {
   "name": "agentic-docs",
   "description": "Create and maintain AI-optimized documentation for OpenShift",
-  "version": "1.2.2",
+  "version": "1.4.0",
   "author": {
     "name": "github.com/openshift-eng"
   }
