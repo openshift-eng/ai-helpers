@@ -25,7 +25,7 @@ gh api repos/<org>/<repo>/issues/<pr_number>/comments --paginate --jq '.[] | {us
 
 # Recent reverts in the same repo (last 6 months)
 # Calculate the date 6 months ago as YYYY-MM-DD and use GitHub's merged: search qualifier
-gh pr list --repo <org>/<repo> --search "revert in:title merged:>$(date -v-6m +%Y-%m-%d)" --state merged --limit 50 --json number,title,mergedAt
+gh pr list --repo <org>/<repo> --search "revert in:title merged:>$(python3 -c "from datetime import date,timedelta;print((date.today()-timedelta(days=180)).isoformat())")" --state merged --limit 50 --json number,title,mergedAt
 ```
 
 For very large PRs (>100 files or >2000 LOC), use `gh pr diff --stat` to identify the highest-risk files, then fetch only those diffs selectively.
@@ -107,10 +107,10 @@ This category uses **revert rate** (reverts / total merged PRs) over the last 6 
 
 ```bash
 # Count reverts (last 6 months)
-gh pr list --repo <org>/<repo> --search "revert in:title merged:>$(date -v-6m +%Y-%m-%d)" --state merged --limit 100 --json number | jq length
+gh pr list --repo <org>/<repo> --search "revert in:title merged:>$(python3 -c "from datetime import date,timedelta;print((date.today()-timedelta(days=180)).isoformat())")" --state merged --limit 100 --json number | jq length
 
 # Count total merged PRs (last 6 months)
-gh pr list --repo <org>/<repo> --search "merged:>$(date -v-6m +%Y-%m-%d)" --state merged --limit 1000 --json number | jq length
+gh pr list --repo <org>/<repo> --search "merged:>$(python3 -c "from datetime import date,timedelta;print((date.today()-timedelta(days=180)).isoformat())")" --state merged --limit 1000 --json number | jq length
 ```
 
 **Step D2: Calculate revert rate**
@@ -327,6 +327,13 @@ Use the output from this script directly in your report and state file. Do not r
 ## Step 5: Write State File
 
 The `.work/pr-risk/` directory must contain exactly one file: the state file below. Do not write intermediate files (jobs JSON, cost JSON) to this directory — use `/tmp/` for those.
+
+Clear any stale files from previous runs before writing:
+
+```bash
+mkdir -p .work/pr-risk
+find .work/pr-risk -maxdepth 1 -type f -name '*.json' -delete
+```
 
 Write the assessment to `.work/pr-risk/<org>-<repo>-<pr_number>.json`:
 
