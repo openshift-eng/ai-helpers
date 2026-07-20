@@ -80,7 +80,9 @@ echo "$jobs" | jq 'sort_by(-.current_runs) | .[0:5] | .[] | {name, current_runs,
 GET https://sippy.dptools.openshift.org/api/jobs?release={release}&filter={filter_json}&sortField={field}&sort={asc|desc}&period={default|twoDay}&limit={n}
 ```
 
-### Parameters
+### Parameters (raw API defaults)
+
+These are the API's own defaults when a parameter is omitted. The `fetch_jobs.py` script always sends explicit values — its CLI defaults are `sortField=current_runs` and `sort=desc`.
 
 | Parameter | Required | Default | Description |
 |-----------|----------|---------|-------------|
