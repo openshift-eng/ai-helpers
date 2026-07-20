@@ -5,7 +5,7 @@ description: |
 
 expected_tier: critical
 expected_score_range:
-  min: 55
+  min: 71
   max: 100
 
 must_recommend_jobs:
