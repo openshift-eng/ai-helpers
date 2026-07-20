@@ -32,8 +32,18 @@ def get_rate(name):
     return "aws", 1
 
 
+VALID_DECISIONS = {"run", "skip"}
+VALID_CI_STATUSES = {"required", "optional"}
+
+
 def estimate(jobs):
     for j in jobs:
+        decision = j.get("decision", "")
+        ci_status = j.get("ci_status", "")
+        if decision not in VALID_DECISIONS:
+            raise ValueError(f"Job {j.get('name', '?')}: invalid decision {decision!r}, expected one of {VALID_DECISIONS}")
+        if ci_status not in VALID_CI_STATUSES:
+            raise ValueError(f"Job {j.get('name', '?')}: invalid ci_status {ci_status!r}, expected one of {VALID_CI_STATUSES}")
         platform, rate = get_rate(j["name"])
         j["platform"] = platform
         j["rate_per_hr"] = rate
