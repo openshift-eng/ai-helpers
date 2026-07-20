@@ -144,7 +144,7 @@ def format_summary(result):
     lines.append(f"Job Runs: {len(by_job)}")
     lines.append("")
 
-    for i, ((run_id, job_name), tests) in enumerate(
+    for i, ((_run_id, job_name), tests) in enumerate(
         sorted(by_job.items(), key=lambda x: x[1][0].get("prow_job_start", ""),
                reverse=True)
     ):
