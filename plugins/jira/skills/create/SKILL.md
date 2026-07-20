@@ -63,39 +63,29 @@ Project and team defaults (version, component, labels) come from the `jira-conve
 
 Follow the type-specific reference file's interactive workflow to collect missing information (story format, bug template sections, epic scope, etc.).
 
-### Phase 5: Summary Validation
+### Phase 5: Validation
 
-Check for anti-patterns before creation:
+**Load and follow:** [`../_shared/validation-common.md`](../_shared/validation-common.md) for:
+- Security credential scanning (CRITICAL — blocks creation if credentials detected)
+- Summary anti-pattern detection (user story in summary, excessive length)
+- Required field validation (project, type)
+- Parent hierarchy validation (if `--parent` provided)
+- Component/version validation (if provided)
 
-1. Summary starts with "As a" or contains "I want" / "so that" → belongs in description
-2. Summary exceeds 100 characters → likely too long
+Follow the two-pass validation approach from validation-common.md: non-interactive API checks first (Pass 1), then all interactive remediation in a single prompt session (Pass 2). For single-issue creation, Pass 2 reduces to inline prompting since there is only one issue to present.
 
-If detected:
-```plaintext
-The summary looks like a full user story. Summaries should be concise titles.
+### Phase 6: Execution
 
-Current: "As a cluster admin, I want to configure ImageTagMirrorSet in HostedCluster CRs so that I can enable tag-based image proxying"
+**Reference patterns from:** [`../_shared/execution-common.md`](../_shared/execution-common.md) for:
+- Universal defaults (labels, security level, contentFormat)
+- Custom field ID resolution
+- MCP error handling (ParentLinkError fallback, ComponentNotFoundError retry, etc.)
 
-Suggested: "Enable ImageTagMirrorSet configuration in HostedCluster CRs"
-
-Use the suggested summary? (yes/no/edit)
-```
-
-### Phase 6: Security Validation
-
-Scan all content (summary, description) for sensitive data:
-
-- Credentials, API tokens, cloud keys (AWS, GCP, Azure)
-- Kubeconfigs, SSH keys, certificates, PEM files
-- URLs with embedded credentials
-
-If detected: STOP creation, inform user of the type found (without echoing it), suggest placeholder values.
-
-### Phase 7: Create Issue via MCP
+**Create the issue:**
 
 Use `createJiraIssue` with collected parameters. Include universal fields and any project/team-specific fields.
 
-### Phase 8: Return Result
+### Phase 7: Return Result
 
 ```plaintext
 Created: PROJECT-1234
