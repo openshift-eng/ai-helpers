@@ -1,0 +1,9 @@
+expected_permafail: true
+expected_failure_type: infra_failure
+expected_confidence_min: 0.85
+expected_pattern: operator authentication timeout
+expected_ratio: "5/6"
+notes: >
+  Mixed failure set where the single test failure is insufficient by itself,
+  but five of six comparable infra failures share the same normalized error
+  and meet the 70% threshold.

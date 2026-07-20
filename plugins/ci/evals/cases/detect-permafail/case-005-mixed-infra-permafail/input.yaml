@@ -1,0 +1,14 @@
+input_json: |
+  {
+    "job_name": "pull-ci-openshift-origin-master-e2e-aws-ovn",
+    "pr_info": {"pr_number": 3186, "repository": "openshift/ovn-kubernetes"},
+    "signatures": [
+      {"type": "test_failure", "url": "url1", "tests": ["TestNetworkPolicy"], "test_count": 1},
+      {"type": "infra_failure", "url": "url2", "error": "operator authentication timeout", "error_hash": "abc123"},
+      {"type": "infra_failure", "url": "url3", "error": "operator authentication timeout", "error_hash": "abc123"},
+      {"type": "infra_failure", "url": "url4", "error": "operator authentication timeout", "error_hash": "abc123"},
+      {"type": "infra_failure", "url": "url5", "error": "operator authentication timeout", "error_hash": "abc123"},
+      {"type": "infra_failure", "url": "url6", "error": "operator authentication timeout", "error_hash": "abc123"},
+      {"type": "infra_failure", "url": "url7", "error": "DNS timeout", "error_hash": "def456"}
+    ]
+  }

@@ -518,7 +518,7 @@ footer a { color: var(--primary); }
     {
       "name": "ci",
       "description": "Tools for working with OpenShift CI and analyzing Prow job results",
-      "version": "0.0.70",
+      "version": "0.0.71",
       "has_readme": true,
       "commands": [
         {
@@ -584,6 +584,14 @@ footer a { color: var(--primary); }
           "description_html": "Download and continue a Claude session from a Prow CI job&#x27;s artifacts",
           "synopsis": "/ci:continue-session \u003cprowjob-url\u003e",
           "body_html": "\u003cp\u003eDownloads Claude session artifacts from a Prow CI job and allows you to continue one of those sessions locally. This is useful when Claude ran as part of a CI job and you want to pick up where it left off.\u003c/p\u003e\u003cp\u003eThe command accepts:\u003cbr\u003e- \u003cstrong\u003eprowjob-url\u003c/strong\u003e (required): URL to a Prow job run\u003c/p\u003e"
+        },
+        {
+          "name": "detect-permafail",
+          "full_name": "ci:detect-permafail",
+          "description": "Detect permafail patterns in consecutive job failures",
+          "description_html": "Detect permafail patterns in consecutive job failures",
+          "synopsis": "/ci:detect-permafail --job-urls=\"[url1,url2,...]\" --job-name=\"job-name\" --pr=\"owner/repo#123\"",
+          "body_html": "\u003cp\u003eAnalyzes 2-10 consecutive failures of the same job to determine if they represent a systematic/permanent failure (permafail) versus a flaky failure. This is critical for CI/CD pipeline analysis to distinguish between:\u003c/p\u003e\u003cp\u003e- \u003cstrong\u003ePermafail\u003c/strong\u003e: A systematic failure affecting the same test(s) or infrastructure issue, detected by analyzing comparable runs (same failure type):\u003cbr\u003e  - Separates test failures from infrastructure failures\u003cbr\u003e  - Applies thresholds based on comparable run count (not total URLs)\u003cbr\u003e  - 2-3 comparable runs: All must match (100% required)\u003cbr\u003e  - 4-5 comparable runs: At least 4 must match (80% required)\u003cbr\u003e  - 6-10 comparable runs: At least ceil(count×0.7) must match (70% required)\u003cbr\u003e  - Example: 7 URLs where 5 are test failures and 4 of those 5 have same test → 4/5 = 80% → PERMAFAIL\u003cbr\u003e- \u003cstrong\u003eFlaky\u003c/strong\u003e: Non-deterministic failures with varying root causes, or failures that don&#x27;t meet the permafail thresholds\u003c/p\u003e\u003cp\u003e### How It Works\u003c/p\u003e\u003cp\u003eThe command uses a deterministic Python classifier script for artifact-based failure classification, compares failure signatures across runs, and returns a JSON result with the permafail verdict, confidence score, failure type, and detailed signatures for each run.\u003c/p\u003e"
         },
         {
           "name": "extract-kubeconfig",
@@ -701,6 +709,12 @@ footer a { color: var(--primary); }
           "name": "analyze-disruption",
           "description": "Analyze and compare disruption across one or more Prow CI job runs by examining interval data, audit logs, pod logs, and CPU metrics",
           "description_html": "Analyze and compare disruption across one or more Prow CI job runs by examining interval data, audit logs, pod logs, and CPU metrics",
+          "meta": ""
+        },
+        {
+          "name": "detect-permafail",
+          "description": "Analyze consecutive job failures to determine if they represent a permafail pattern versus flaky failures",
+          "description_html": "Analyze consecutive job failures to determine if they represent a permafail pattern versus flaky failures",
           "meta": ""
         },
         {

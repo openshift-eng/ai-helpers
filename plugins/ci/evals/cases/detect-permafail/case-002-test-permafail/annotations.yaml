@@ -1,0 +1,8 @@
+expected_permafail: true
+expected_failure_type: test_failure
+expected_confidence_min: 0.85
+expected_pattern: TestNetworkPolicy
+expected_ratio: "7/10"
+notes: >
+  Ten comparable test failures where seven include TestNetworkPolicy. This
+  exactly meets the 70% threshold for 6-10 comparable runs.
