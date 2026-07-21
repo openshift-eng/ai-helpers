@@ -1,0 +1,14 @@
+input_json: |
+  {
+    "job_name": "pull-ci-openshift-origin-master-e2e-aws-ovn",
+    "pr_info": {"pr_number": 3186, "repository": "openshift/ovn-kubernetes"},
+    "signatures": [
+      {"type": "test_failure", "url": "url1", "tests": ["TestNetworkPolicy"], "test_count": 1},
+      {"type": "test_failure", "url": "url2", "tests": ["TestNetworkPolicy"], "test_count": 1},
+      {"type": "test_failure", "url": "url3", "tests": ["TestNetworkPolicy"], "test_count": 1},
+      {"type": "test_failure", "url": "url4", "tests": ["TestNetworkPolicy"], "test_count": 1},
+      {"type": "infra_failure", "url": "url5", "error": "cluster creation timeout", "error_hash": "abc123"},
+      {"type": "infra_failure", "url": "url6", "error": "AWS quota exceeded", "error_hash": "def456"},
+      {"type": "infra_failure", "url": "url7", "error": "network unreachable", "error_hash": "ghi789"}
+    ]
+  }
