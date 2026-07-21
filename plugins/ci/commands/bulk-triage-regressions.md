@@ -1,22 +1,22 @@
 ---
 description: Holistically analyze and triage all untriaged Component Readiness regressions for a set of components in a view (triage duty workflow)
 argument-hint: <view> [--components comp1 comp2 ...] [--auto-triage]
-example: "/ci:triage-component-regressions 5.0-main --components Installer Unknown"
+example: "/ci:bulk-triage-regressions 5.0-main --components Installer Unknown"
 ---
 
 ## Name
 
-ci:triage-component-regressions
+ci:bulk-triage-regressions
 
 ## Synopsis
 
 ```
-/ci:triage-component-regressions <view> [--components comp1 comp2 ...] [--auto-triage]
+/ci:bulk-triage-regressions <view> [--components comp1 comp2 ...] [--auto-triage]
 ```
 
 ## Description
 
-The `ci:triage-component-regressions` command implements the **Component Readiness triage duty workflow**: it fetches *all* untriaged regressions for a set of components in a view (e.g., `5.0-main`, components `Installer` and `Unknown`), analyzes them **as a batch**, clusters them into **root-cause buckets**, and then triages each bucket to a single JIRA bug (existing or new).
+The `ci:bulk-triage-regressions` command implements the **Component Readiness triage duty workflow**: it fetches *all* untriaged regressions for a set of components in a view (e.g., `5.0-main`, components `Installer` and `Unknown`), analyzes them **as a batch**, clusters them into **root-cause buckets**, and then triages each bucket to a single JIRA bug (existing or new).
 
 This differs from `/ci:analyze-regression` (which analyzes a single regression in depth). Triage duty requires a **holistic view**, because:
 
@@ -79,7 +79,7 @@ For each bucket, pick 2–5 representative failed job runs (spread across jobs/v
    - **The blocking condition**: for cluster-creation failures, read `clusteroperators.json` (or the installer log's "Cluster operator X is not available" lines) and the failing operator's pod logs from the log bundle. For bootstrap failures, read the bootstrap log bundle (etcd, bootkube, release-image pulls).
    - **The real owner**: the component whose operator/pods are actually failing. Examples from past duty: "cluster creation failed" ⇒ monitoring operator degraded ⇒ **Monitoring** bug; "bootstrap failed" ⇒ `etcdserver: request timed out` on Azure ⇒ **etcd** bug; nodes degraded during install ⇒ **MCO** bug; quota/DNS/cloud-API errors ⇒ **ci-infra**, not a product bug at all.
 
-4. **Onset and suspect PRs** (when the bucket has a crisp start date): follow steps 8–9 of `/ci:analyze-regression` (first failing run → payload tag via `fetch-prowjob-json` → `fetch-new-prs-in-payload` → up to 5 candidate PRs vetted with `gh`). A LIKELY PR both strengthens the bucket and tells you the owning component/repo.
+4. **Onset and suspect PRs** (when the bucket has a crisp start date): follow the "Determine Regression Start Date" and "Identify Suspect PRs in Payload" procedures from `/ci:analyze-regression` (first failing run → payload tag via `fetch-prowjob-json` → `fetch-new-prs-in-payload` → up to 5 candidate PRs vetted with `gh`). A LIKELY PR both strengthens the bucket and tells you the owning component/repo.
 
 5. **Cross-check globally**: `fetch-test-report` skill (with `--no-collapse`) for the bucket's main test — confirms whether the issue is variant-specific or global, and surfaces `open_bugs` that may already cover the bucket.
 
@@ -102,7 +102,7 @@ Then act (this is where `--auto-triage` applies; without it, confirm each bucket
 
 - **Extend existing triage**: `triage-regression` skill with `--triage-id` (additive merge is automatic; pass only the new IDs).
 - **New triage to existing bug**: `triage-regression` skill with `--url`, `--type`, and a one-sentence `--description` (<120 chars).
-- **New bug**: file with `/jira:create bug` against the **owning component**, label `component-regression`, description per the template in `/ci:analyze-regression` step 12 (full test names in `{code}` blocks, test IDs, regression IDs, variants, error signature, Sippy test-details **UI** links for every member regression, suspect PRs). Mark it a release blocker (`set-release-blocker` skill), then create the triage record.
+- **New bug**: file with `/jira:create bug` against the **owning component**, label `component-regression`, description per the bug-filing template in `/ci:analyze-regression` ("Prepare Bug Filing Recommendations" section: full test names in `{code}` blocks, test IDs, regression IDs, variants, error signature, Sippy test-details **UI** links for every member regression, suspect PRs). Mark it a release blocker (`set-release-blocker` skill), then create the triage record.
 - Always finish a triage by running the `add-jira-triage-link` skill to put the triage URL into the JIRA description.
 
 With `--auto-triage`, only act autonomously when confidence is high: consistent error signature across the bucket, and either a confidence ≥5 triaged match or an unambiguous existing open bug. Buckets requiring a *new* bug, or with mixed signals, are always presented for confirmation.
@@ -123,7 +123,7 @@ Present a final report:
 - **`Unknown` component regressions** (e.g., `verify the cluster readiness and stability`, `verify all machines should be in Running state`) are wrappers; the co-failing tests and operator states identify the owner.
 - **One bucket can span components**: Monitoring + Test Framework + Unknown + Installer regressions have all belonged to a single MCO bug. Don't let the component column fragment a bucket.
 - **Techpreview variants** often fail for techpreview-only reasons (new feature gates); check whether the same job without techpreview passes before assuming a general regression.
-- **API vs UI URLs**: convert `test_details_url` to the `sippy-ng` UI form before putting it in bugs or reports (see `/ci:analyze-regression` step 3).
+- **API vs UI URLs**: convert `test_details_url` to the `sippy-ng` UI form before putting it in bugs or reports, by replacing the base `https://sippy.dptools.openshift.org/api/component_readiness/test_details` with `https://sippy-auth.dptools.openshift.org/sippy-ng/component_readiness/test_details` (query parameters are identical).
 - **Re-list before writing**: new regressions open continuously; refresh the untriaged list right before creating/updating triages so siblings opened mid-analysis are included.
 - **Check closed/dropped siblings too.** A regression that looks novel is often a *new open instance* of a root cause whose earlier sibling was already triaged and has since dropped out of the active view (its regression closed). `fetch-related-triages` and a `--test-name` query without an open-only filter find these; reuse the existing triage/JIRA instead of filing a new bug.
 - **Identical `prowjob_run_id` sets are conclusive.** When two regressions were opened from literally the same job runs, they are one bucket by definition — no further evidence needed to merge them.
