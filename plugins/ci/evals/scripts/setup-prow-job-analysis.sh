@@ -55,7 +55,8 @@ log "Prepared working directory: $WORK_DIR"
 
 # The bucket is public; confirm read access without requiring credentials or
 # gcloud. Uses python3 (already verified above) to hit the GCS JSON API.
-if probe_err=$(python3 - <<'PY' 2>&1 >/dev/null); then
+probe_log=$(mktemp)
+python3 - <<'PY' >"$probe_log" 2>&1 && probe_rc=0 || probe_rc=$?
 import sys
 import urllib.request
 
@@ -68,10 +69,13 @@ except Exception as e:
     print(f"GCS probe failed: {e}", file=sys.stderr)
     sys.exit(1)
 PY
+if [[ "$probe_rc" -eq 0 ]]; then
     log "OK: public GCS bucket test-platform-results is reachable"
 else
+    probe_err=$(cat "$probe_log")
     log "WARN: could not reach the public GCS API (network restricted?)${probe_err:+: ${probe_err}}; cases may not fetch artifacts"
 fi
+rm -f "$probe_log"
 
 # Best-effort pre-warm using the bundled search script, which works with or
 # without gcloud. Never fatal.
