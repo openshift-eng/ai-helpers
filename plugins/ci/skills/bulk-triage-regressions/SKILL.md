@@ -82,6 +82,8 @@ For each bucket, pick 2–5 representative failed job runs (spread across jobs/v
 
 5. **Cross-check globally**: `fetch-test-report` skill (with `--no-collapse`) for the bucket's main test — confirms whether the issue is variant-specific or global, and surfaces `open_bugs` that may already cover the bucket.
 
+6. **Check Slack context (optional — only when Slack access is available)**: The TRT/release-oversight team discusses ongoing payload and CI issues in **#forum-ocp-release-oversight** (https://redhat.enterprise.slack.com/archives/C01CQA76KMX). Search/read the **last 14 days** of messages there for the bucket's signature (test name, error message, operator, platform, payload tag) — known payload-wide events, infra outages, and in-flight fixes are usually discussed there before triages/bugs exist, and a thread often names the owning team or an existing OCPBUGS ticket. If the agent has no Slack access (no Slack tooling/credentials), **omit this step entirely** — do not block or ask for access.
+
 After deep-dive, finalize buckets. Each bucket must have:
 - Member regression IDs (re-check the untriaged list — new siblings may have opened during analysis)
 - Root cause summary (one paragraph) and failure classification (permafail / flaky / resolved / recent)
