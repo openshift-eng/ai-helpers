@@ -1,0 +1,6 @@
+description: "Project has Makefile lint target, but go-lint-fix must use golangci-lint directly (needs --fix)"
+makefile_section: |
+  Makefile:
+  .PHONY: lint
+  lint:
+  	golangci-lint run --timeout=5m ./...

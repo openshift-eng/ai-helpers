@@ -1,0 +1,9 @@
+expected_real_fix: true
+expected_no_nolint_directive: true
+expected_handles_error: true
+notes: >
+  The skill says "Prefer real fixes over //nolint directives. Use //nolint
+  only as a last resort with a comment explaining why." The errcheck issue
+  is clearly fixable by checking the error return. Models fail by: adding
+  `//nolint:errcheck` instead of actually handling the error, or keeping
+  the `_` discard pattern.

@@ -1,0 +1,2 @@
+description: "golangci-lint is not installed on this system"
+availability_info: "golangci-lint installed: false"

@@ -1,0 +1,9 @@
+module: "google.golang.org/grpc"
+fix_version: "v1.75.1"
+cve: "CVE-2026-33186"
+ticket: "OCPBUGS-83972"
+project_go_version: "1.25.0"
+fix_go_version: "1.23.1"
+commit_context: |
+  Action taken: Updated google.golang.org/grpc from v1.71.0 to v1.75.1
+  Vulnerability: gRPC-Go HTTP/2 rapid reset denial of service

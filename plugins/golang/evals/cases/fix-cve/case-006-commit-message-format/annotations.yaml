@@ -1,0 +1,18 @@
+expected_subject_prefix: "fix(deps):"
+expected_action_word: "update"
+expected_module_in_subject: true
+expected_cve_in_subject: true
+expected_ticket_on_own_line: true
+expected_format: |
+  fix(deps): update google.golang.org/grpc to fix CVE-2026-33186
+
+  OCPBUGS-83972
+
+  Updated google.golang.org/grpc from v1.71.0 to v1.75.1.
+  gRPC-Go HTTP/2 rapid reset denial of service.
+notes: >
+  Tests commit message format. The skill prescribes: "fix(deps): <action>
+  <module-name> to fix <CVE>" as subject, ticket on its own line, then
+  description. Action word depends on strategy: A=update, B=bump go version
+  and update, C=replace. Models fail by: wrong prefix, missing ticket line,
+  wrong action word for the strategy, or putting everything on one line.

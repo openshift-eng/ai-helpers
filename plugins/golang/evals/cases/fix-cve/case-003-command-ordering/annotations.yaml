@@ -1,0 +1,20 @@
+expected_command_order:
+  - phase: "vendor_sync"
+    commands: ["go mod tidy", "go mod vendor"]
+    must_precede: "make_update"
+  - phase: "make_update"
+    commands: ["make update"]
+    must_precede: "make_verify"
+  - phase: "make_verify"
+    commands: ["make verify"]
+expected_env_vars:
+  - "GOWORK=off"
+  - "GOFLAGS="
+expected_vendor_before_make: true
+notes: >
+  Tests the CRITICAL ordering: vendor sync (go mod tidy + go mod vendor)
+  MUST come before make update. The skill explicitly says this is "the
+  most important step" because codegen tools fail with "unsupported type
+  invalid type" if vendor isn't updated first. Also tests that GOWORK=off
+  and GOFLAGS="" env vars are set on tidy/vendor commands. Models commonly
+  fail by: running make update first, or omitting the env var overrides.

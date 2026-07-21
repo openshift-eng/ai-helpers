@@ -1,0 +1,9 @@
+expected_command: "golangci-lint run ./..."
+expected_discovery_source: "fallback"
+expected_checked_claudemd_first: true
+expected_checked_makefile_second: true
+notes: >
+  No CLAUDE.md, no lint Makefile target. Cascade falls through to
+  direct invocation: `golangci-lint run ./...`. Tests that the model
+  followed the full cascade (checked CLAUDE.md, checked Makefile, then
+  fell back) rather than jumping straight to the answer.

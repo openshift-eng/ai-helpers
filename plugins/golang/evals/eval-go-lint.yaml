@@ -1,0 +1,231 @@
+name: go-lint-eval
+description: Evaluate the go-lint skill's discovery cascade, read-only constraint, and not-installed handling
+skill: ""
+
+execution:
+  mode: case
+  arguments: |
+    {description}
+    {claudemd_section?}
+    {makefile_section?}
+    {lint_output_section?}
+    {availability_info?}
+  timeout: 120
+  max_budget_usd: 1.0
+
+runner:
+  type: claude-code
+  system_prompt: |
+    You are a Go linting expert. Analyze the project setup and determine how
+    to lint it. This is a PLANNING eval — write your plan, do NOT run commands.
+
+    ## Discovery Cascade (check in this order)
+
+    1. Check CLAUDE.md / AGENTS.md for lint instructions (highest priority)
+    2. Check Makefile for lint or verify-lint targets
+    3. Fall back to direct `golangci-lint run ./...`
+
+    Use the FIRST match. If CLAUDE.md says `make verify-lint`, use that even
+    if Makefile also has a `lint:` target.
+
+    ## Constraints
+
+    - go-lint is READ-ONLY. would_modify_files must ALWAYS be false.
+    - If lint issues are found, suggest the go-lint-fix skill.
+    - If golangci-lint is not available: link to https://golangci-lint.run/welcome/install/
+      and do NOT auto-install (no go install, brew install, curl, etc.).
+
+    ## Output
+
+    Write your analysis to lint-plan.json:
+    {
+      "discovery_steps": [
+        {"step": 1, "checked": "CLAUDE.md", "found": true, "result": "make verify-lint"},
+        {"step": 2, "checked": "Makefile", "found": false, "result": null}
+      ],
+      "selected_command": "make verify-lint",
+      "discovery_source": "CLAUDE.md",
+      "would_modify_files": false,
+      "issues_reported": true,
+      "suggests_lint_fix_skill": false,
+      "not_installed_action": null
+    }
+
+    Rules:
+    - discovery_steps: show what you checked and in what order per the cascade
+    - would_modify_files: must ALWAYS be false (go-lint is read-only)
+    - If golangci-lint is not available, set not_installed_action to describe
+      what you'd tell the user (must include the install URL, must NOT auto-install)
+    - If lint issues were found, suggests_lint_fix_skill should be true
+
+models:
+  judge: claude-opus-4-6
+
+permissions:
+  allow:
+    - "Read"
+    - "Write"
+    - "Skill"
+  deny:
+    - "Bash"
+    - "Agent"
+    - "mcp__*"
+
+mlflow:
+  experiment: go-lint-eval
+
+dataset:
+  path: cases/go-lint
+  schema: |
+    Each case directory contains:
+    - input.yaml: project setup description with CLAUDE.md/Makefile content
+    - annotations.yaml: expected discovery behavior and constraints
+
+outputs:
+  - path: "lint-plan.json"
+    schema: |
+      JSON object with discovery_steps, selected_command, discovery_source,
+      would_modify_files, issues_reported, suggests_lint_fix_skill,
+      not_installed_action fields.
+
+traces:
+  stdout: true
+  stderr: true
+  events: false
+  metrics: true
+
+judges:
+  - name: valid_output_json
+    description: Verify output is valid JSON with required fields
+    check: |
+      import json
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      result_files = {k: v for k, v in all_f.items() if k.endswith("lint-plan.json")}
+      if not result_files:
+          return (False, "No lint-plan.json found")
+      content = list(result_files.values())[0]
+      try:
+          data = json.loads(content)
+      except Exception as e:
+          return (False, f"Invalid JSON: {e}")
+      required = ["selected_command", "discovery_source", "would_modify_files"]
+      missing = [f for f in required if f not in data]
+      if missing:
+          return (False, f"Missing fields: {', '.join(missing)}")
+      return (True, "Valid JSON with required fields")
+
+  - name: discovery_command_correct
+    description: Verify the selected lint command matches the expected command from the discovery cascade
+    check: |
+      import json
+      ann = outputs.get("annotations", {})
+      expected_cmd = ann.get("expected_command", "")
+      if not expected_cmd:
+          return (True, "No specific command expected")
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      result_files = {k: v for k, v in all_f.items() if k.endswith("lint-plan.json")}
+      if not result_files:
+          return (False, "No lint-plan.json found")
+      data = json.loads(list(result_files.values())[0])
+      selected = data.get("selected_command", "")
+      does_not_use = ann.get("expected_does_not_use", [])
+      errors = []
+      if expected_cmd.lower() not in selected.lower():
+          errors.append(f"Expected '{expected_cmd}', got '{selected}'")
+      for bad_cmd in does_not_use:
+          if bad_cmd.lower() in selected.lower():
+              errors.append(f"Should NOT use '{bad_cmd}'")
+      if errors:
+          return (False, "; ".join(errors))
+      return (True, f"Correct command: {selected}")
+
+  - name: read_only_constraint
+    description: Verify the skill never plans to modify files
+    check: |
+      import json
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      result_files = {k: v for k, v in all_f.items() if k.endswith("lint-plan.json")}
+      if not result_files:
+          return (False, "No lint-plan.json found")
+      data = json.loads(list(result_files.values())[0])
+      if data.get("would_modify_files", False):
+          return (False, "CONSTRAINT VIOLATION: go-lint is read-only, would_modify_files must be false")
+      return (True, "Read-only constraint respected")
+
+  - name: not_installed_handling
+    description: Verify proper handling when golangci-lint is not available — report, link, don't auto-install
+    check: |
+      import json
+      ann = outputs.get("annotations", {})
+      if not ann.get("expected_reports_not_available"):
+          return (True, "Not a not-installed case")
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      result_files = {k: v for k, v in all_f.items() if k.endswith("lint-plan.json")}
+      if not result_files:
+          return (False, "No lint-plan.json found")
+      data = json.loads(list(result_files.values())[0])
+      action = str(data.get("not_installed_action", ""))
+      errors = []
+      expected_url = ann.get("expected_install_url", "golangci-lint.run")
+      if expected_url and expected_url not in action:
+          errors.append(f"Missing install URL: {expected_url}")
+      if ann.get("expected_does_not_auto_install"):
+          auto_install_signals = ["go install", "brew install", "curl", "wget", "apt install", "pip install"]
+          for signal in auto_install_signals:
+              if signal in action.lower():
+                  errors.append(f"Must NOT auto-install, but found '{signal}'")
+      if errors:
+          return (False, "; ".join(errors))
+      return (True, "Correct: reports not available with install link, no auto-install")
+
+  - name: discovery_quality
+    description: LLM judge assessing whether the discovery cascade was followed correctly
+    prompt: |
+      You are evaluating whether the go-lint skill correctly followed its
+      discovery cascade to find the right lint command.
+
+      The skill's lint plan:
+
+      {% for path, content in outputs.files.items() if path.endswith('lint-plan.json') %}
+      {{ content }}
+      {% endfor %}
+
+      Expected behavior from annotations:
+
+      {{ annotations }}
+
+      The discovery cascade is:
+      1. Check CLAUDE.md / AGENTS.md for lint instructions (highest priority)
+      2. Check Makefile for lint or verify-lint targets
+      3. Fall back to direct `golangci-lint run ./...`
+
+      Evaluate on a 1-5 scale:
+
+      Score 1: Wrong command selected. Cascade not followed at all.
+      Score 2: Right command but no evidence of following the cascade order.
+      Score 3: Correct command selected. Some cascade steps documented.
+      Score 4: Correct command. All relevant cascade steps checked in order.
+               Read-only constraint respected.
+      Score 5: Correct command. Full cascade documented with what was checked
+               at each step. Read-only constraint explicitly acknowledged.
+               For not-installed cases: proper URL provided, no auto-install.
+
+thresholds:
+  valid_output_json:
+    min_pass_rate: 1.0
+  discovery_command_correct:
+    min_pass_rate: 0.85
+  read_only_constraint:
+    min_pass_rate: 1.0
+  not_installed_handling:
+    min_pass_rate: 1.0
+  discovery_quality:
+    min_mean: 3.5

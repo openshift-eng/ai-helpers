@@ -1,0 +1,10 @@
+description: "Project has no CLAUDE.md and no lint Makefile target"
+makefile_section: |
+  Makefile content:
+  .PHONY: build
+  build:
+  	go build ./...
+
+  .PHONY: test
+  test:
+  	go test ./...

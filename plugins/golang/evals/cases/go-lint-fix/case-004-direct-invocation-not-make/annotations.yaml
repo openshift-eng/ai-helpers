@@ -1,0 +1,13 @@
+expected_uses_direct_invocation: true
+expected_uses_fix_flag: true
+expected_does_not_use_make: true
+expected_extracts_flags_from_makefile: true
+expected_command_contains: "--fix"
+expected_command_contains_flags: "--timeout=5m"
+notes: >
+  The go-lint-fix skill says "This skill always calls golangci-lint
+  directly (required for --fix)." Discovery finds flags from the
+  Makefile (--timeout=5m) but the command must be direct invocation
+  with --fix, NOT `make lint`. Models fail by: using `make lint` (which
+  doesn't have --fix), or using direct invocation but dropping the
+  discovered flags.

@@ -1,0 +1,264 @@
+name: go-lint-fix-eval
+description: Evaluate the go-lint-fix skill's constraint handling — generated file skip, real fixes over nolint, constant reuse, and discovery with --fix
+skill: ""
+
+execution:
+  mode: case
+  arguments: |
+    {description}
+    {go_file_section?}
+    {lint_issues_section?}
+    {makefile_section?}
+  timeout: 120
+  max_budget_usd: 1.0
+
+runner:
+  type: claude-code
+  system_prompt: |
+    You are a Go lint fixing expert. Analyze how you would fix these lint issues.
+    This is a PLANNING eval — write your plan, do NOT run commands or modify files.
+
+    ## Key Constraints
+
+    1. **Generated files** (// Code generated header): NEVER modify. Add to files_to_skip.
+    2. **Real fixes over //nolint**: Always prefer fixing the issue. uses_nolint should
+       be false unless the issue is truly unfixable.
+    3. **Reuse existing constants**: Before creating a new constant, check if one already
+       exists in the package. Set reuses_existing_constant accordingly.
+    4. **Direct invocation**: lint_command must use `golangci-lint run --fix` directly,
+       NOT `make lint`. If Makefile has a lint target, extract its flags (e.g. --timeout=5m)
+       into the direct command.
+
+    ## Output
+
+    Write your analysis to lint-fix-plan.json:
+    {
+      "files_to_modify": [
+        {
+          "path": "main.go",
+          "is_generated": false,
+          "action": "fix",
+          "fix_description": "Check error return from os.Open",
+          "uses_nolint": false,
+          "reuses_existing_constant": null
+        }
+      ],
+      "files_to_skip": [
+        {
+          "path": "mocks/mock_handler.go",
+          "reason": "Generated file — Code generated header detected",
+          "alternative": "Add //nolint at call site or exclude in .golangci.yml"
+        }
+      ],
+      "lint_command": "golangci-lint run --fix ./...",
+      "discovery_source": "direct",
+      "extracted_flags_from_makefile": false,
+      "makefile_flags": ""
+    }
+
+models:
+  judge: claude-opus-4-6
+
+permissions:
+  allow:
+    - "Read"
+    - "Write"
+    - "Skill"
+  deny:
+    - "Bash"
+    - "Agent"
+    - "mcp__*"
+
+mlflow:
+  experiment: go-lint-fix-eval
+
+dataset:
+  path: cases/go-lint-fix
+  schema: |
+    Each case directory contains:
+    - input.yaml: Go file content, lint issues, and project setup
+    - annotations.yaml: Expected fix behaviors and constraints
+
+outputs:
+  - path: "lint-fix-plan.json"
+    schema: |
+      JSON object with files_to_modify, files_to_skip, lint_command,
+      discovery_source, extracted_flags_from_makefile fields.
+
+traces:
+  stdout: true
+  stderr: true
+  events: false
+  metrics: true
+
+judges:
+  - name: valid_output_json
+    description: Verify output is valid JSON with required fields
+    check: |
+      import json
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      result_files = {k: v for k, v in all_f.items() if k.endswith("lint-fix-plan.json")}
+      if not result_files:
+          return (False, "No lint-fix-plan.json found")
+      content = list(result_files.values())[0]
+      try:
+          data = json.loads(content)
+      except Exception as e:
+          return (False, f"Invalid JSON: {e}")
+      return (True, "Valid JSON")
+
+  - name: generated_file_skip
+    description: Verify files with Code generated headers are NOT in files_to_modify
+    check: |
+      import json
+      ann = outputs.get("annotations", {})
+      if not ann.get("expected_file_unchanged"):
+          return (True, "Not a generated-file case")
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      result_files = {k: v for k, v in all_f.items() if k.endswith("lint-fix-plan.json")}
+      if not result_files:
+          return (False, "No lint-fix-plan.json found")
+      data = json.loads(list(result_files.values())[0])
+      to_modify = data.get("files_to_modify", [])
+      to_skip = data.get("files_to_skip", [])
+      for f in to_modify:
+          if f.get("is_generated"):
+              return (False, f"CONSTRAINT VIOLATION: generated file '{f.get('path')}' in files_to_modify")
+      if not to_skip:
+          return (False, "Generated file should appear in files_to_skip")
+      skip_reasons = " ".join(s.get("reason", "") for s in to_skip)
+      if "generated" not in skip_reasons.lower() and "code generated" not in skip_reasons.lower():
+          return (False, "Skip reason should mention generated file")
+      return (True, "Generated file correctly skipped")
+
+  - name: real_fix_not_nolint
+    description: Verify the skill proposes real fixes rather than //nolint directives for fixable issues
+    check: |
+      import json
+      ann = outputs.get("annotations", {})
+      if not ann.get("expected_real_fix"):
+          return (True, "Not a real-fix case")
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      result_files = {k: v for k, v in all_f.items() if k.endswith("lint-fix-plan.json")}
+      if not result_files:
+          return (False, "No lint-fix-plan.json found")
+      data = json.loads(list(result_files.values())[0])
+      to_modify = data.get("files_to_modify", [])
+      if not to_modify:
+          return (False, "No files planned for modification")
+      for f in to_modify:
+          if f.get("uses_nolint", False):
+              return (False, f"CONSTRAINT VIOLATION: uses //nolint on '{f.get('path')}' instead of real fix")
+      full_text = json.dumps(data).lower()
+      if ann.get("expected_handles_error") and "error" not in full_text:
+          return (False, "Fix should handle the error return value")
+      return (True, "Real fix proposed, no //nolint directives")
+
+  - name: existing_constant_reuse
+    description: Verify the skill reuses existing constants instead of creating duplicates
+    check: |
+      import json
+      ann = outputs.get("annotations", {})
+      if not ann.get("expected_uses_existing_constant"):
+          return (True, "Not a constant-reuse case")
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      result_files = {k: v for k, v in all_f.items() if k.endswith("lint-fix-plan.json")}
+      if not result_files:
+          return (False, "No lint-fix-plan.json found")
+      data = json.loads(list(result_files.values())[0])
+      full_text = json.dumps(data).lower()
+      if "defaulttimeout" not in full_text:
+          return (False, "Should reference existing constant DefaultTimeout")
+      to_modify = data.get("files_to_modify", [])
+      for f in to_modify:
+          if f.get("reuses_existing_constant") is False:
+              return (False, "Should reuse existing constant, not create a new one")
+      return (True, "Correctly reuses existing constant")
+
+  - name: direct_invocation_with_fix
+    description: Verify go-lint-fix uses direct golangci-lint with --fix, not make lint
+    check: |
+      import json
+      ann = outputs.get("annotations", {})
+      if not ann.get("expected_uses_direct_invocation"):
+          return (True, "Not a direct-invocation case")
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      result_files = {k: v for k, v in all_f.items() if k.endswith("lint-fix-plan.json")}
+      if not result_files:
+          return (False, "No lint-fix-plan.json found")
+      data = json.loads(list(result_files.values())[0])
+      cmd = data.get("lint_command", "")
+      errors = []
+      if "make lint" in cmd.lower():
+          errors.append("Must NOT use 'make lint' — go-lint-fix requires direct invocation")
+      if "--fix" not in cmd:
+          errors.append("Missing --fix flag")
+      if "golangci-lint" not in cmd.lower():
+          errors.append("Must use golangci-lint directly")
+      expected_flags = ann.get("expected_command_contains_flags", "")
+      if expected_flags and expected_flags not in cmd:
+          errors.append(f"Should carry over Makefile flags: {expected_flags}")
+      if errors:
+          return (False, "; ".join(errors))
+      return (True, f"Correct: direct invocation with --fix: {cmd}")
+
+  - name: fix_quality
+    description: LLM judge assessing overall fix plan quality and constraint adherence
+    prompt: |
+      You are evaluating a lint fix plan from the go-lint-fix skill.
+
+      The skill's fix plan:
+
+      {% for path, content in outputs.files.items() if path.endswith('lint-fix-plan.json') %}
+      {{ content }}
+      {% endfor %}
+
+      Expected behavior from annotations:
+
+      {{ annotations }}
+
+      Key constraints the skill must follow:
+      1. NEVER modify files with "// Code generated" headers
+      2. PREFER real fixes over //nolint directives
+      3. CHECK for existing constants before creating new ones
+      4. USE direct golangci-lint invocation (not make lint) with --fix flag
+      5. EXTRACT flags from Makefile into the direct command
+
+      Evaluate on a 1-5 scale:
+
+      Score 1: Violates a critical constraint — edits generated file, or uses
+               //nolint when a real fix exists.
+      Score 2: Follows constraints but fix quality is poor — vague description,
+               wrong command, or missing flags.
+      Score 3: Constraints followed. Fix descriptions are reasonable. Command
+               is correct but may miss extracted flags.
+      Score 4: All constraints followed. Fixes are specific and correct.
+               Command includes extracted flags. Generated files properly skipped.
+      Score 5: Exemplary. All constraints followed with explicit reasoning.
+               Fixes are precise. Existing constants reused. Command assembled
+               correctly from Makefile discovery. Generated files skipped with
+               alternative suggestion.
+
+thresholds:
+  valid_output_json:
+    min_pass_rate: 1.0
+  generated_file_skip:
+    min_pass_rate: 1.0
+  real_fix_not_nolint:
+    min_pass_rate: 1.0
+  existing_constant_reuse:
+    min_pass_rate: 0.85
+  direct_invocation_with_fix:
+    min_pass_rate: 1.0
+  fix_quality:
+    min_mean: 3.5
