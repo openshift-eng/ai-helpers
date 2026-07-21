@@ -1,7 +1,7 @@
 {
   "name": "golang",
   "description": "Go development tools: gopls MCP server, LSP integration, automatic gofmt formatting, golangci-lint linting, and CVE dependency patching",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "author": {
     "name": "github.com/openshift-eng"
   },
