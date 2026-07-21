@@ -1,0 +1,149 @@
+---
+description: Holistically analyze and triage all untriaged Component Readiness regressions for a set of components in a view (triage duty workflow)
+argument-hint: <view> [--components comp1 comp2 ...] [--auto-triage]
+example: "/ci:triage-component-regressions 5.0-main --components Installer Unknown"
+---
+
+## Name
+
+ci:triage-component-regressions
+
+## Synopsis
+
+```
+/ci:triage-component-regressions <view> [--components comp1 comp2 ...] [--auto-triage]
+```
+
+## Description
+
+The `ci:triage-component-regressions` command implements the **Component Readiness triage duty workflow**: it fetches *all* untriaged regressions for a set of components in a view (e.g., `5.0-main`, components `Installer` and `Unknown`), analyzes them **as a batch**, clusters them into **root-cause buckets**, and then triages each bucket to a single JIRA bug (existing or new).
+
+This differs from `/ci:analyze-regression` (which analyzes a single regression in depth). Triage duty requires a **holistic view**, because:
+
+1. **Many regressions, few root causes.** One product bug commonly opens 5–30 regressions across variants (different platforms, arches, featuresets, upgrade modes) and across "wrapper" tests (`install should succeed: overall`, `: cluster bootstrap`, `: cluster creation`, `verify the cluster readiness and stability`, mass-failure tests, etc.). Analyzing regressions one-by-one wastes effort and risks filing duplicate bugs. Cluster first, deep-dive once per cluster.
+
+2. **Component attribution is often wrong.** Regressions in `Installer` and `Unknown` are catch-all attributions. A failed installation or bootstrap is frequently caused by a *specific* component — e.g., a monitoring operator failing to go available blocks cluster creation, an etcd slowness issue breaks bootstrap, an MCO bug degrades nodes during install. The Sippy component label tells you *which test failed*, not *whose bug it is*. The real owner must be determined from artifacts (cluster operator status, log bundle, operator logs), and the JIRA bug must be filed against the **actual owning component**, not Installer.
+
+Use this command when doing triage duty for a view, or whenever a user asks to "look at all untriaged regressions from <components>" rather than a single regression ID.
+
+## Implementation
+
+**Script invocation rules**: Run Python skill scripts directly (`python3 script.py args --format json 2>/dev/null`) and analyze the JSON output with your own reasoning. Do not pipe script output through inline Python one-liners.
+
+**Authentication**: Read steps (listing, fetching details, test runs, GCS artifacts) require no auth. Write steps (creating/updating triage records) require a Bearer token from the DPCR cluster (`api.cr.j7t7.p1.openshiftapps.com:6443`) — see the `oc-auth` skill and the token-extraction snippet in `/ci:analyze-regression`. Check token validity early (a simple authenticated GET against `https://sippy-auth.dptools.openshift.org/api/component_readiness/triages` returning 200 vs 401/403), so an expired token is surfaced to the user *before* hours of analysis, not after.
+
+### Phase 1: Collect the full batch
+
+1. **Load CI context**: Read the files in `plugins/ci/references/` (`jobs.md`, `tests.md`, `sippy-apis.md`) for conventions on tests, jobs, and Sippy APIs.
+
+2. **Parse arguments**:
+   - `view`: required, e.g. `5.0-main`
+   - `--components`: component filter list (fuzzy matched), e.g. `Installer Unknown`. If omitted, ask the user which components the duty covers.
+   - `--auto-triage`: if present, triage buckets without per-bucket confirmation when confidence is high (see Phase 4). Default is to present findings and confirm before writing.
+
+3. **List regressions** with the `list-regressions` skill:
+
+   ```bash
+   python3 plugins/teams/skills/list-regressions/list_regressions.py \
+     --view <view> --components <components...>
+   ```
+
+   Keep only **open, untriaged** regressions (empty `triages` array), but note recently-triaged ones — they are prime candidates for absorbing untriaged siblings.
+
+4. **Build a batch inventory table**: For every untriaged regression record: regression ID, test name, component/capability, variants (Platform/Arch/Network/Topology/FeatureSet/Upgrade), opened date, failure/run counts. Present this table to the user up front so the scope of the duty run is visible.
+
+### Phase 2: Cluster into candidate buckets (cheap signals first)
+
+Before any deep log analysis, group regressions using signals already in hand:
+
+- **Same test, different variants** — almost always one bucket.
+- **Same variant fingerprint, different tests** — e.g., `install should succeed: overall` + `: cluster creation` + `verify the cluster readiness and stability` all failing on `azure/amd64/techpreview` starting the same day is one bucket. Wrapper tests fail together.
+- **Same opened date** — regressions opened the same day across components often share one payload-level cause.
+- **Shared job runs** — fetch details for each regression (`fetch-regression-details` skill) and compare `job_runs` `prowjob_run_id`s. Regressions observed in the same failed runs share a root cause (or the run was a mass failure). Also run the `fetch-related-triages` skill per regression; `same_last_failure` and `similarly_named_test` matches feed the clustering, and `triaged_matches` with confidence ≥5 immediately suggest an existing triage/bug for the whole bucket.
+- **Mass-failure marker**: high `test_failures` counts in `job_runs` mean the regression is likely collateral of a bigger event, not an independent issue.
+
+Output of this phase: a **draft bucket list**, each bucket with member regression IDs, the shared fingerprint (test/variant/date/job-run overlap), and any candidate existing triage or JIRA bug.
+
+Treat buckets as hypotheses — Phase 3 must confirm or split them. Do not merge buckets merely because both are "install failures"; installs fail at different stages for unrelated reasons.
+
+### Phase 3: Deep-dive each bucket (confirm root cause and real owner)
+
+For each bucket, pick 2–5 representative failed job runs (spread across jobs/variants; include the newest) and analyze:
+
+1. **Failure outputs**: `fetch-test-runs` skill with the bucket's test IDs and job run IDs — check whether error messages are consistent within the bucket (>90% same error ⇒ single cause confirmed; inconsistent ⇒ split the bucket).
+
+2. **Job run context**: `fetch-job-run-summary` skill per representative run — is the regressed test isolated, part of a consistent co-failure set, or one of hundreds of random failures? For `Unknown`-component and mass-failure regressions this is where the *real* component reveals itself: read the names of the co-failing tests.
+
+3. **Install/bootstrap failures — mandatory artifact dig**: For any bucket whose tests include `install should succeed` (any stage) or bootstrap/cluster-readiness wrappers, invoke the `prow-job-analysis` skill per representative run. Do not stop at Sippy's generic "install failed" wrapper. From the GCS artifacts determine:
+   - **Failure stage**: infrastructure provisioning / bootstrap / cluster creation (operators rolling out) / stability window.
+   - **The blocking condition**: for cluster-creation failures, read `clusteroperators.json` (or the installer log's "Cluster operator X is not available" lines) and the failing operator's pod logs from the log bundle. For bootstrap failures, read the bootstrap log bundle (etcd, bootkube, release-image pulls).
+   - **The real owner**: the component whose operator/pods are actually failing. Examples from past duty: "cluster creation failed" ⇒ monitoring operator degraded ⇒ **Monitoring** bug; "bootstrap failed" ⇒ `etcdserver: request timed out` on Azure ⇒ **etcd** bug; nodes degraded during install ⇒ **MCO** bug; quota/DNS/cloud-API errors ⇒ **ci-infra**, not a product bug at all.
+
+4. **Onset and suspect PRs** (when the bucket has a crisp start date): follow steps 8–9 of `/ci:analyze-regression` (first failing run → payload tag via `fetch-prowjob-json` → `fetch-new-prs-in-payload` → up to 5 candidate PRs vetted with `gh`). A LIKELY PR both strengthens the bucket and tells you the owning component/repo.
+
+5. **Cross-check globally**: `fetch-test-report` skill (with `--no-collapse`) for the bucket's main test — confirms whether the issue is variant-specific or global, and surfaces `open_bugs` that may already cover the bucket.
+
+After deep-dive, finalize buckets. Each bucket must have:
+- Member regression IDs (re-check the untriaged list — new siblings may have opened during analysis)
+- Root cause summary (one paragraph) and failure classification (permafail / flaky / resolved / recent)
+- **Owning component** (may differ from the Sippy component — state both)
+- Triage type: `product` / `test` / `ci-infra` / `product-infra`
+- Disposition: existing triage to extend / existing JIRA to create a triage for / new JIRA needed / no action (resolved or pure infra noise — say so explicitly and leave untriaged only with justification)
+
+### Phase 4: Search for existing bugs, then triage each bucket
+
+For each bucket, before filing anything new:
+
+1. Check `triaged_matches` from `fetch-related-triages` (confidence ≥5 with an open JIRA is the default target).
+2. Check `open_bugs` from the test report.
+3. Search Jira for the root-cause signature (error message, operator name, `component-regression` label) in OCPBUGS against the **owning component** — the right bug may exist under Monitoring/etcd/MCO even though the regression sits under Installer.
+
+Then act (this is where `--auto-triage` applies; without it, confirm each bucket with the user):
+
+- **Extend existing triage**: `triage-regression` skill with `--triage-id` (additive merge is automatic; pass only the new IDs).
+- **New triage to existing bug**: `triage-regression` skill with `--url`, `--type`, and a one-sentence `--description` (<120 chars).
+- **New bug**: file with `/jira:create bug` against the **owning component**, label `component-regression`, description per the template in `/ci:analyze-regression` step 12 (full test names in `{code}` blocks, test IDs, regression IDs, variants, error signature, Sippy test-details **UI** links for every member regression, suspect PRs). Mark it a release blocker (`set-release-blocker` skill), then create the triage record.
+- Always finish a triage by running the `add-jira-triage-link` skill to put the triage URL into the JIRA description.
+
+With `--auto-triage`, only act autonomously when confidence is high: consistent error signature across the bucket, and either a confidence ≥5 triaged match or an unambiguous existing open bug. Buckets requiring a *new* bug, or with mixed signals, are always presented for confirmation.
+
+### Phase 5: Duty report
+
+Present a final report:
+
+1. **Inventory**: N untriaged regressions found → M buckets.
+2. **Per bucket**: member regression IDs, root cause, owning component (vs. Sippy component), classification, evidence highlights (error signature, stage, representative run links), action taken (triage ID + JIRA link) or recommendation awaiting confirmation.
+3. **Leftovers**: regressions deliberately left untriaged (resolved / one-off flake / inconclusive) with justification and what evidence would change the call.
+4. **Cross-cutting observations**: payload-wide events, infra instability windows, techpreview-only patterns — useful context for the next duty shift.
+
+## Pitfalls (learned from real duty runs)
+
+- **Left = newest** in `pass_sequence` strings. Misreading direction inverts "regressed" vs "resolved".
+- **Do not file bugs against Installer by default.** In practice a majority of `install should succeed` regressions in duty batches were owned by other components or were infra noise. The installer is the messenger.
+- **`Unknown` component regressions** (e.g., `verify the cluster readiness and stability`, `verify all machines should be in Running state`) are wrappers; the co-failing tests and operator states identify the owner.
+- **One bucket can span components**: Monitoring + Test Framework + Unknown + Installer regressions have all belonged to a single MCO bug. Don't let the component column fragment a bucket.
+- **Techpreview variants** often fail for techpreview-only reasons (new feature gates); check whether the same job without techpreview passes before assuming a general regression.
+- **API vs UI URLs**: convert `test_details_url` to the `sippy-ng` UI form before putting it in bugs or reports (see `/ci:analyze-regression` step 3).
+- **Re-list before writing**: new regressions open continuously; refresh the untriaged list right before creating/updating triages so siblings opened mid-analysis are included.
+
+## Arguments
+
+- `<view>`: Component Readiness view name (e.g., `5.0-main`). Required.
+- `--components`: Space-separated component name filters, fuzzy-matched (e.g., `Installer Unknown`). Required in practice for duty scoping.
+- `--auto-triage`: Allow high-confidence buckets to be triaged without per-bucket confirmation. New bug filing always requires confirmation.
+
+## See Also
+
+- Related Command: `/ci:analyze-regression` — single-regression deep dive; this command orchestrates its techniques across a batch
+- Related Skill: `list-regressions` (teams plugin) — batch listing (`plugins/teams/skills/list-regressions/SKILL.md`)
+- Related Skill: `fetch-regression-details` (`plugins/ci/skills/fetch-regression-details/SKILL.md`)
+- Related Skill: `fetch-related-triages` (`plugins/ci/skills/fetch-related-triages/SKILL.md`)
+- Related Skill: `fetch-test-runs` (`plugins/ci/skills/fetch-test-runs/SKILL.md`)
+- Related Skill: `fetch-job-run-summary` (`plugins/ci/skills/fetch-job-run-summary/SKILL.md`)
+- Related Skill: `prow-job-analysis` — GCS artifact analysis for install/bootstrap failures (`plugins/ci/skills/prow-job-analysis/SKILL.md`)
+- Related Skill: `fetch-test-report` (`plugins/ci/skills/fetch-test-report/SKILL.md`)
+- Related Skill: `triage-regression` (`plugins/ci/skills/triage-regression/SKILL.md`)
+- Related Skill: `add-jira-triage-link` (`plugins/ci/skills/add-jira-triage-link/SKILL.md`)
+- Related Skill: `set-release-blocker` (`plugins/ci/skills/set-release-blocker/SKILL.md`)
+- Related Skill: `oc-auth` (`plugins/ci/skills/oc-auth/SKILL.md`)
+- TRT Documentation: https://docs.ci.openshift.org/docs/release-oversight/troubleshooting-failures/
