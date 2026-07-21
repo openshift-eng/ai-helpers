@@ -72,14 +72,16 @@ judges:
 
   - name: state_file_valid
     description: |
-      Checks that the skill produced a valid JSON state file in .work/pr-risk/
-      with all required top-level and assessment fields.
+      Checks that the skill produced exactly one valid JSON state file in
+      .work/pr-risk/ with all required top-level and assessment fields.
     check: |
       import json
       files = outputs.get("files", {})
       json_files = {k: v for k, v in files.items() if k.endswith(".json")}
       if not json_files:
           return (False, "No JSON state file found in .work/pr-risk/")
+      if len(json_files) > 1:
+          return (False, f"Expected 1 JSON file, found {len(json_files)}: {list(json_files.keys())}")
       fname, content = next(iter(json_files.items()))
       try:
           data = json.loads(content)
@@ -90,7 +92,8 @@ judges:
       if missing:
           return (False, f"Missing top-level fields: {missing}")
       assess = data["assessment"]
-      a_required = ["risk_score", "risk_tier", "risk_breakdown", "jobs_to_run", "jobs_to_skip"]
+      a_required = ["risk_score", "risk_tier", "risk_breakdown", "jobs_to_run",
+                     "jobs_to_skip", "coverage_gaps", "key_risks", "cost_estimate", "notes"]
       a_missing = [f for f in a_required if f not in assess]
       if a_missing:
           return (False, f"Missing assessment fields: {a_missing}")
