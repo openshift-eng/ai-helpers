@@ -67,7 +67,7 @@ Treat buckets as hypotheses — Phase 3 must confirm or split them. Do not merge
 
 ### Phase 3: Deep-dive each bucket (confirm root cause and real owner)
 
-For each bucket, pick 2–5 representative failed job runs (spread across jobs/variants; include the newest) and analyze:
+For each bucket, pick 2–5 representative failed job runs (spread across jobs/variants; include the newest) and analyze. 2–5 runs are sufficient **only when they yield a consistent result** (same error signature / failure stage across all of them). If the sample is mixed or unclear — different errors, different stages, or an inconclusive owner — **extend the sample to 10–20 runs** before concluding; a small ambiguous sample must never be the basis for splitting/merging a bucket or attributing an owner.
 
 1. **Failure outputs**: `fetch-test-runs` skill with the bucket's test IDs and job run IDs — check whether error messages are consistent within the bucket (>90% same error ⇒ single cause confirmed; inconsistent ⇒ split the bucket).
 
