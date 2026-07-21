@@ -158,6 +158,50 @@ judges:
           return (False, "CONSTRAINT VIOLATION: go-lint is read-only, would_modify_files must be false")
       return (True, "Read-only constraint respected")
 
+  - name: discovery_source_correct
+    description: Verify the discovery source matches the expected source from annotations
+    check: |
+      import json
+      ann = outputs.get("annotations", {})
+      expected_src = ann.get("expected_discovery_source", "")
+      if not expected_src:
+          return (True, "No specific discovery source expected")
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      result_files = {k: v for k, v in all_f.items() if k.endswith("lint-plan.json")}
+      if not result_files:
+          return (False, "No lint-plan.json found")
+      data = json.loads(list(result_files.values())[0])
+      actual = data.get("discovery_source", "")
+      if expected_src.lower() not in actual.lower():
+          return (False, f"Expected source '{expected_src}', got '{actual}'")
+      return (True, f"Correct discovery source: {actual}")
+
+  - name: suggests_lint_fix_skill
+    description: Verify the skill suggests go-lint-fix when issues are found
+    check: |
+      import json
+      ann = outputs.get("annotations", {})
+      if not ann.get("expected_suggests_lint_fix"):
+          return (True, "Lint-fix suggestion not tested in this case")
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      result_files = {k: v for k, v in all_f.items() if k.endswith("lint-plan.json")}
+      if not result_files:
+          return (False, "No lint-plan.json found")
+      data = json.loads(list(result_files.values())[0])
+      if not data.get("suggests_lint_fix_skill"):
+          return (False, "Should suggest go-lint-fix skill when issues are found")
+      if ann.get("expected_does_not_fix"):
+          full_text = json.dumps(data).lower()
+          fix_signals = ["files_to_modify", "will fix", "fixing"]
+          for sig in fix_signals:
+              if sig in full_text:
+                  return (False, f"go-lint is read-only — should not plan fixes, found '{sig}'")
+      return (True, "Correctly suggests lint-fix skill")
+
   - name: not_installed_handling
     description: Verify proper handling when golangci-lint is not available — report, link, don't auto-install
     check: |
@@ -223,8 +267,12 @@ thresholds:
     min_pass_rate: 1.0
   discovery_command_correct:
     min_pass_rate: 0.85
+  discovery_source_correct:
+    min_pass_rate: 0.85
   read_only_constraint:
     min_pass_rate: 1.0
+  suggests_lint_fix_skill:
+    min_pass_rate: 0.85
   not_installed_handling:
     min_pass_rate: 1.0
   discovery_quality:

@@ -78,7 +78,7 @@ Each case targets a specific failure mode. Before adding:
 2. Write the case to test that behavior specifically
 3. Write judges that catch the failure deterministically (not LLM)
 
-```
+```text
 cases/<skill-name>/case-NNN-failure-description/
 ├── input.yaml         # scenario setup
 └── annotations.yaml   # expected behavior + notes on what models get wrong

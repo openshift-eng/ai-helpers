@@ -179,9 +179,11 @@ judges:
           return (False, "Should reference existing constant DefaultTimeout")
       to_modify = data.get("files_to_modify", [])
       for f in to_modify:
-          if f.get("reuses_existing_constant") is False:
-              return (False, "Should reuse existing constant, not create a new one")
-      return (True, "Correctly reuses existing constant")
+          desc = (f.get("fix_description", "") or "").lower()
+          is_timeout_fix = "timeout" in desc and "retri" not in desc
+          if is_timeout_fix and f.get("reuses_existing_constant") is False:
+              return (False, "Timeout fix should reuse existing DefaultTimeout constant")
+      return (True, "Correctly reuses existing constant where applicable")
 
   - name: direct_invocation_with_fix
     description: Verify go-lint-fix uses direct golangci-lint with --fix, not make lint
