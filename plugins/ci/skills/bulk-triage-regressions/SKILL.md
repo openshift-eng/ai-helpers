@@ -1,22 +1,21 @@
 ---
-description: Holistically analyze and triage all untriaged Component Readiness regressions for a set of components in a view (triage duty workflow)
-argument-hint: <view> [--components comp1 comp2 ...] [--auto-triage]
-example: "/ci:bulk-triage-regressions 5.0-main --components Installer Unknown"
+name: bulk-triage-regressions
+description: Use this skill for Component Readiness triage duty - holistically analyze and triage all untriaged regressions for a set of components in a view, clustering them into root-cause buckets
 ---
 
-## Name
+# Bulk Triage Regressions
 
-ci:bulk-triage-regressions
-
-## Synopsis
+## Input
 
 ```
-/ci:bulk-triage-regressions <view> [--components comp1 comp2 ...] [--auto-triage]
+bulk-triage-regressions <view> [--components comp1 comp2 ...] [--auto-triage]
 ```
+
+Example: `bulk-triage-regressions 5.0-main --components Installer Unknown`
 
 ## Description
 
-The `ci:bulk-triage-regressions` command implements the **Component Readiness triage duty workflow**: it fetches *all* untriaged regressions for a set of components in a view (e.g., `5.0-main`, components `Installer` and `Unknown`), analyzes them **as a batch**, clusters them into **root-cause buckets**, and then triages each bucket to a single JIRA bug (existing or new).
+This skill implements the **Component Readiness triage duty workflow**: it fetches *all* untriaged regressions for a set of components in a view (e.g., `5.0-main`, components `Installer` and `Unknown`), analyzes them **as a batch**, clusters them into **root-cause buckets**, and then triages each bucket to a single JIRA bug (existing or new).
 
 This differs from `/ci:analyze-regression` (which analyzes a single regression in depth). Triage duty requires a **holistic view**, because:
 
@@ -24,7 +23,7 @@ This differs from `/ci:analyze-regression` (which analyzes a single regression i
 
 2. **Component attribution is often wrong.** Regressions in `Installer` and `Unknown` are catch-all attributions. A failed installation or bootstrap is frequently caused by a *specific* component — e.g., a monitoring operator failing to go available blocks cluster creation, an etcd slowness issue breaks bootstrap, an MCO bug degrades nodes during install. The Sippy component label tells you *which test failed*, not *whose bug it is*. The real owner must be determined from artifacts (cluster operator status, log bundle, operator logs), and the JIRA bug must be filed against the **actual owning component**, not Installer.
 
-Use this command when doing triage duty for a view, or whenever a user asks to "look at all untriaged regressions from <components>" rather than a single regression ID.
+Use this skill when doing triage duty for a view, or whenever a user asks to "look at all untriaged regressions from <components>" rather than a single regression ID.
 
 ## Implementation
 
