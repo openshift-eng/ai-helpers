@@ -87,7 +87,7 @@ If nothing changed for an operation, omit it from the table.
 
 If there were any reviewer assignments (including "Other") during this sync, also output a **PR Scrub Assignments** section in markdown bullet list format with clickable links and PR titles. Use this format:
 
-### PR Scrub Assignments
+**PR Scrub Assignments**
 
 - [CIO#1456 — OCPBUGS-98310: Bump sail-operator install library to OSSM 3.4.0](https://github.com/openshift/cluster-ingress-operator/pull/1456) → @rikatz, @rhamini3
 - [CIO#1469 — OCPBUGS-88353: Ensure canary cert matches the default ingress controller's cert](https://github.com/openshift/cluster-ingress-operator/pull/1469) → @bentito

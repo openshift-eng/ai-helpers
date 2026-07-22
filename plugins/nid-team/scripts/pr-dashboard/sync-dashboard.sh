@@ -150,11 +150,27 @@ for item in data['items']:
         continue
     fi
     if [[ ",$assignees," == *",$login,"* ]]; then
-        echo "  OK: $repo#$number already assigned to $login"
-        # Still set status to Assigned if it's New
-        if [ "$status" = "New" ]; then
+        if [ "$status" != "Assigned" ]; then
+            echo "  ASSIGN: $repo#$number → $login ($reviewer) [already assigned on GH]"
             gh project item-edit --project-id "$PROJECT_ID" --id "$item_id" \
                 --field-id "$FIELD_STATUS" --single-select-option-id "$STATUS_ASSIGNED" 2>/dev/null
+            echo "  STATUS: $repo#$number → Assigned"
+            if [ -z "$pr_pri" ] && [ -n "$jira_pri" ]; then
+                pri_option_id=""
+                case "$jira_pri" in
+                    Urgent) pri_option_id="$PR_PRIORITY_URGENT" ;;
+                    High)   pri_option_id="$PR_PRIORITY_HIGH" ;;
+                    Medium) pri_option_id="$PR_PRIORITY_MEDIUM" ;;
+                    Low)    pri_option_id="$PR_PRIORITY_LOW" ;;
+                esac
+                if [ -n "$pri_option_id" ]; then
+                    gh project item-edit --project-id "$PROJECT_ID" --id "$item_id" \
+                        --field-id "$FIELD_PR_PRIORITY" --single-select-option-id "$pri_option_id" 2>/dev/null
+                    echo "  PR PRIORITY: $repo#$number → $jira_pri (from Jira)"
+                fi
+            fi
+        else
+            echo "  OK: $repo#$number already assigned to $login"
         fi
         continue
     fi
