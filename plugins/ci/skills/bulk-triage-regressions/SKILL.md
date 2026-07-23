@@ -31,6 +31,8 @@ Use this skill when doing triage duty for a view, or whenever a user asks to "lo
 
 **Authentication**: Read steps (listing, fetching details, test runs, GCS artifacts) require no auth. Write steps (creating/updating triage records) require a Bearer token from the DPCR cluster (`api.cr.j7t7.p1.openshiftapps.com:6443`) — see the `oc-auth` skill and the token-extraction snippet in `/ci:analyze-regression`. Check token validity early (a simple authenticated GET against `https://sippy-auth.dptools.openshift.org/api/component_readiness/triages` returning 200 vs 401/403), so an expired token is surfaced to the user *before* hours of analysis, not after.
 
+JIRA write steps (filing bugs, `set-release-blocker`, `add-jira-triage-link`) additionally require the `JIRA_USERNAME` and `JIRA_API_TOKEN` environment variables (API token from https://id.atlassian.com/manage-profile/security/api-tokens). Validate these early too: check both variables are set and verify the credentials with an authenticated GET against `https://redhat.atlassian.net/rest/api/3/myself` (Basic auth, 200 vs 401/403). If either the Sippy or JIRA check fails, stop and ask the user to fix credentials before starting the analysis.
+
 ### Phase 1: Collect the full batch
 
 1. **Load CI context**: Read the files in `plugins/ci/references/` (`jobs.md`, `tests.md`, `sippy-apis.md`) for conventions on tests, jobs, and Sippy APIs.
@@ -103,7 +105,7 @@ Then act (this is where `--auto-triage` applies; without it, confirm each bucket
 
 - **Extend existing triage**: `triage-regression` skill with `--triage-id` (additive merge is automatic; pass only the new IDs).
 - **New triage to existing bug**: `triage-regression` skill with `--url`, `--type`, and a one-sentence `--description` (<120 chars).
-- **New bug**: file with `/jira:create bug` against the **owning component**, label `component-regression`, description per the bug-filing template in `/ci:analyze-regression` ("Prepare Bug Filing Recommendations" section: full test names in `{code}` blocks, test IDs, regression IDs, variants, error signature, Sippy test-details **UI** links for every member regression, suspect PRs). Mark it a release blocker (`set-release-blocker` skill), then create the triage record.
+- **New bug**: file with `/jira:create bug` (the `create` skill from the jira plugin) against the **owning component**, label `component-regression`, description per the bug-filing template in `/ci:analyze-regression` ("Prepare Bug Filing Recommendations" section: full test names in `{code}` blocks, test IDs, regression IDs, variants, error signature, Sippy test-details **UI** links for every member regression, suspect PRs). Mark it a release blocker (`set-release-blocker` skill), then create the triage record.
 - Always finish a triage by running the `add-jira-triage-link` skill to put the triage URL into the JIRA description.
 
 With `--auto-triage`, only act autonomously when confidence is high: consistent error signature across the bucket, and either a confidence ≥5 triaged match or an unambiguous existing open bug. Buckets requiring a *new* bug, or with mixed signals, are always presented for confirmation.
@@ -142,7 +144,8 @@ Present a final report:
 
 ## See Also
 
-- Related Command: `/ci:analyze-regression` — single-regression deep dive; this command orchestrates its techniques across a batch
+- Related Command: `/ci:analyze-regression` — single-regression deep dive; this skill orchestrates its techniques across a batch
+- Related Skill: `create` (jira plugin) — file new JIRA bugs via `/jira:create bug` (`plugins/jira/skills/create/SKILL.md`)
 - Related Skill: `list-regressions` (teams plugin) — batch listing (`plugins/teams/skills/list-regressions/SKILL.md`)
 - Related Skill: `fetch-regression-details` (`plugins/ci/skills/fetch-regression-details/SKILL.md`)
 - Related Skill: `fetch-related-triages` (`plugins/ci/skills/fetch-related-triages/SKILL.md`)
