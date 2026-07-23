@@ -748,18 +748,38 @@ class JUnitCollector(Collector):
         return True
 
     def _list_junit_files(self) -> list[str]:
-        """Discover JUnit XML files in GCS for this job."""
+        """Discover JUnit XML files in GCS for this job.
+
+        Uses a recursive glob first, then falls back to a targeted probe
+        per step directory when the glob returns nothing.  Hypershift e2e
+        jobs can produce 10,000+ artifacts, causing the ``**`` glob in
+        ``gcloud storage ls`` to time out even at 120 s.  The fallback
+        avoids the full recursive enumeration by listing only the
+        top-level step directories and probing each for JUnit files at
+        the two most common locations.
+        """
         bucket_path = self.job.gcs_bucket_path
         base = f"gs://{bucket_path}"
 
         output = _run_gcloud(
             ["gcloud", "storage", "ls", f"{base}/artifacts/**/junit*.xml"],
-            timeout=30,
+            timeout=120,
         )
-        if not output:
-            return []
 
-        files = [l.strip() for l in output.strip().splitlines() if l.strip()]
+        files: list[str] = []
+        if output:
+            files = [l.strip() for l in output.strip().splitlines()
+                     if l.strip()]
+
+        if not files:
+            _log(
+                f"  warn: recursive glob returned no JUnit files for "
+                f"{self.job.name} — trying targeted fallback"
+            )
+            files = self._list_junit_files_fallback(base)
+
+        if not files:
+            return []
 
         if self.job.is_aggregated:
             # For aggregated jobs, keep junit_operator.xml and the
@@ -782,6 +802,71 @@ class JUnitCollector(Collector):
                      or "analysis" in os.path.basename(f)]
         keep = operator + (preferred if preferred else others[:1])
         return keep if keep else files
+
+    def _list_junit_files_fallback(self, base: str) -> list[str]:
+        """Targeted JUnit discovery that avoids a full recursive glob.
+
+        Lists top-level step directories under ``artifacts/`` and probes
+        each for JUnit files at the two most common locations:
+          - ``{step}/artifacts/junit*.xml``
+          - ``{step}/*/artifacts/junit*.xml``
+
+        This is much faster than ``**/junit*.xml`` for jobs with many
+        artifacts (e.g. Hypershift e2e with 10k+ cluster resource dumps).
+        """
+        dir_output = _run_gcloud(
+            ["gcloud", "storage", "ls", f"{base}/artifacts/"],
+            timeout=60,
+        )
+        if not dir_output:
+            return []
+
+        # Each line is a directory like gs://bucket/path/artifacts/step-name/
+        step_dirs = [
+            d.strip().rstrip("/").split("/")[-1]
+            for d in dir_output.strip().splitlines()
+            if d.strip()
+        ]
+
+        found: list[str] = []
+        for step in step_dirs:
+            # Probe {step}/artifacts/junit*.xml (single level, no **)
+            probe = _run_gcloud(
+                ["gcloud", "storage", "ls",
+                 f"{base}/artifacts/{step}/artifacts/junit*.xml"],
+                timeout=30,
+            )
+            if probe:
+                found.extend(
+                    l.strip() for l in probe.strip().splitlines()
+                    if l.strip()
+                )
+            # Probe {step}/*/artifacts/junit*.xml (one extra level)
+            probe2 = _run_gcloud(
+                ["gcloud", "storage", "ls",
+                 f"{base}/artifacts/{step}/*/artifacts/junit*.xml"],
+                timeout=30,
+            )
+            if probe2:
+                found.extend(
+                    l.strip() for l in probe2.strip().splitlines()
+                    if l.strip()
+                )
+            # Also check for junit*.xml directly under the step dir
+            probe3 = _run_gcloud(
+                ["gcloud", "storage", "ls",
+                 f"{base}/artifacts/{step}/junit*.xml"],
+                timeout=30,
+            )
+            if probe3:
+                found.extend(
+                    l.strip() for l in probe3.strip().splitlines()
+                    if l.strip()
+                )
+
+        if found:
+            _log(f"  fallback found {len(found)} JUnit file(s)")
+        return found
 
     def _detect_underlying_job_name(self) -> Optional[str]:
         """For aggregated jobs, extract the underlying job name from GCS paths."""
