@@ -415,9 +415,26 @@ footer a { color: var(--primary); }
     {
       "name": "agentic-docs",
       "description": "Create and maintain AI-optimized documentation for OpenShift",
-      "version": "1.2.2",
+      "version": "1.4.0",
       "has_readme": true,
-      "commands": [],
+      "commands": [
+        {
+          "name": "cancel-generate-docs",
+          "full_name": "",
+          "description": "Cancel active generate-docs loop",
+          "description_html": "Cancel active generate-docs loop",
+          "synopsis": "",
+          "body_html": ""
+        },
+        {
+          "name": "generate-docs",
+          "full_name": "",
+          "description": "Generate and iteratively review component docs until all issues are fixed",
+          "description_html": "Generate and iteratively review component docs until all issues are fixed",
+          "synopsis": "",
+          "body_html": ""
+        }
+      ],
       "skills": [
         {
           "name": "component-docs",
@@ -439,7 +456,13 @@ footer a { color: var(--primary); }
         }
       ],
       "agents": [],
-      "hooks": [],
+      "hooks": [
+        {
+          "event_type": "Stop",
+          "matcher": ".*",
+          "hooks_json": "[\n  {\n    \"command\": \"${CLAUDE_PLUGIN_ROOT}/hooks/stop-hook.sh\",\n    \"type\": \"command\"\n  }\n]"
+        }
+      ],
       "mcp_servers": [],
       "rules": []
     },

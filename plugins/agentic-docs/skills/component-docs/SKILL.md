@@ -56,6 +56,7 @@ component-repo/
 ## Execution Workflow
 
 ### Phase 1: Setup
+- [ ] **SME context**: Ask the user: "Before I start, is there anything about this repo I should know that isn't obvious from the code?" Wait for a response before proceeding. Use their input to guide what you investigate in Phases 5, 6, and 9.
 - [ ] Find skill directory: `SKILL_DIR=$(find ~/.claude/plugins/cache -path "*/component-docs" -type d | head -1)`
 - [ ] Determine repo path: `REPO_PATH="${provided_path:-$PWD}"`
 - [ ] Detect component name from repo (e.g., machine-config-operator → MCO)
@@ -111,9 +112,78 @@ component-repo/
 - [ ] Explain component relationships and data flow
 - [ ] Keep lean but dense (100-200 lines, high information per line)
 
+### Phase 5.5: Tribal Knowledge Enrichment (Optional)
+
+Requires chai-bot MCP server. If unavailable, skip — Phase 5 content stands on its own.
+
+Two prompts, run sequentially via `mcp__chai-bot__ask_persona`. Substitute `{component}` with the repo name.
+
+**Prompt 1 — Operational knowledge** (run immediately after Phase 5):
+
+```
+"I'm generating agentic documentation for {component}
+(github.com/openshift/{component}).
+
+I already have complete architecture, code structure, controller
+design, Makefile targets, and API types from reading the source
+code. DO NOT describe any of these — your answers about repo
+internals will be wrong.
+
+Instead, tell me ONLY things that cannot be learned from the
+source code:
+
+1. OPERATIONAL ISSUES: Production failures, support escalations,
+   upgrade gotchas, or common misconfigurations discussed in
+   Slack or filed in Jira. Include Jira keys if you know them.
+
+2. CROSS-COMPONENT FRICTION: Misunderstood boundaries or
+   surprising interactions between {component} and other
+   OpenShift components (OLM, service-ca, console, CCO,
+   monitoring, etc.).
+
+Format each item as:
+- Title (short)
+- Source (Slack channel, Jira key, or 'team knowledge')
+- Description (2-3 sentences max)
+
+If you don't have tribal knowledge for a category, say so —
+don't fill it with code observations."
+```
+
+**Prompt 2 — Design rationale** (requires Phase 5 findings):
+
+Review Phase 5 results. Identify 3-5 patterns that are surprising, inconsistent, or divergent across components — where the code shows *what* but not *why*. Then:
+
+```
+"I'm documenting design decisions for {component}
+(github.com/openshift/{component}). I already know WHAT the
+code does — I need to know WHY from Slack, Jira, or team
+discussions.
+
+For each question below, only answer if you have actual context
+from Slack threads, Jira issues, PR discussions, or team
+conversations. If you're guessing from code structure, say
+'no tribal knowledge found' — that's more useful than inference.
+
+1. [Specific divergence found in Phase 5]
+2. [Another divergence]
+3. [...]
+
+For each answer, include the source (Slack channel/thread date,
+Jira key, PR number) so I can trace it."
+```
+
+**Filtering**: DISCARD any claims about repo internals (namespaces, file paths, Makefile targets, function names, controller structure) — chai-bot fabricates these. KEEP only Slack/Jira/docs knowledge that cannot be learned from code.
+
+**Placement** (no separate file — findings go where developers already look):
+- Operational issues → `[COMPONENT]_DEVELOPMENT.md` "Known Operational Issues" section (Phase 9)
+- Cross-component friction → `architecture/components.md` under "OpenShift Integrations" (Phase 5)
+- Design rationale → ADR "Context" sections (Phase 6)
+
 ### Phase 6: Component ADRs
 - [ ] Create decisions/adr-template.md (copy from templates)
 - [ ] Create 2-3 component-specific ADRs
+- [ ] **Enrich with Phase 5.5**: If chai-bot provided design rationale, add to the ADR's "Context" section with source (e.g., "Per CM-486 (Jira)..."). If "no tribal knowledge found", note under "SME Review Recommended".
 - [ ] NO cross-repo ADRs (those go in Platform)
 
 ### Phase 7: Exec-Plans
@@ -215,6 +285,8 @@ When the repo is a Kubernetes/OpenShift operator (detected via controller-runtim
 | **Image resolution & OLM bundle** | `grep -r RELATED_IMAGE Makefile bundle/`. Check Makefile for `*_VERSION` vars. Check `bundle/manifests/` for CSV. | Env var naming convention, version variables, how OLM injects images. CSV update checklist (env vars, RBAC, relatedImages). |
 | **Error classification** | Check common/ for error wrapper types (`IrrecoverableError`, `RetryRequiredError`). | Which types exist, effect on requeue behavior. |
 | **Generated code & bindata pipeline** | `find . -name "zz_generated*" -o -name "bindata.go" -o -path "*/clientset/*"`. Check Makefile for generation targets. | Generated files/dirs with "NEVER hand-edit" + make target. For bindata: version var → hack script → output dir → Go loading. |
+| **FIPS compliance** | Check for OpenShift fork references in `go.mod` (`replace` directives), FIPS build tags, or crypto constraints in Dockerfiles. | Whether FIPS is build-time (fork/toolchain) or runtime. Only document if present — not all operators have FIPS requirements. |
+| **OLM lifecycle** | Check `bundle/manifests/` CSV for `spec.replaces`, `skips`, `skipRange`, `installModes`, `spec.relatedImages`, channel annotations. | Which upgrade strategy is used, relatedImages list, install mode constraints. Document if the operator has OLM-specific lifecycle quirks (e.g., cross-namespace cleanup limitations, annotation conflicts on reinstall). |
 | **Status conditions & OpenShift integrations** | Check for library-go `OperatorStatus` vs custom conditions. Grep for proxy, trusted-CA, TLS profile, CCO references. | Which condition system, which integrations exist — only document what's present. |
 
 ### Information Density

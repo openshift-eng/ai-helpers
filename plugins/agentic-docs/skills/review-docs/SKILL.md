@@ -168,12 +168,15 @@ Batch related claims into grouped queries to reduce round-trips — each call ta
 
 - [ ] Verify ALL cross-repo claims — prioritize high-risk claims first (API fields, feature gate definitions, cross-component behavior)
 - [ ] Parse responses for confirmations, contradictions, or unknowns
-- [ ] For uncertain chai-bot responses, flag as "unverified" rather than confirmed
+- [ ] Classify each chai-bot response by confidence:
+  - **Confirmed** — response cites specific files, structs, or line references that match the claim
+  - **Contradicted** — response cites evidence that conflicts with the claim
+  - **Unverified** — response is hedged ("I think", "probably", "I'm not sure"), lacks source references, or chai-bot was unavailable. These MUST NOT be treated as confirmed
 - [ ] Expect 10-20+ queries for a comprehensive review
 
 **Question construction templates** (substitute `{component}`, `{api-type}`, etc.):
 
-```
+```text
 API fields (batch all fields for one type): "In github.com/openshift/api,
 what fields are defined in the {api-type}Spec struct? Please list field
 names, types, and any documented default values from the actual Go type
@@ -210,19 +213,25 @@ Summarize findings directly to the user with:
 1. **Coverage metrics**: Total claims extracted, total verified, total failed, total skipped — broken down by local vs cross-repo. This gives the user a concrete signal of review thoroughness.
 2. **Verification source breakdown**: Local codebase vs chai-bot vs unverified.
 3. **Issues by severity**: Listed per the severity guide above.
+4. **Issues must include corrections**: Each issue must state what the doc says (incorrect claim with file and line), what the verified-correct value is, and the verification source when available (chai-bot response, local file path + line, or authoritative doc reference). If no citable source exists, state the basis for the correction (e.g., "well-known Kubernetes convention" or "standard Go pattern"). This ensures the fixer applies a single verified-correct value across all files rather than re-deriving the answer and arriving at a different interpretation.
 
 ### Phase 6: Offer Fixes
 
 - [ ] Ask user: "Auto-fix verified issues, or manual review?"
+- [ ] **Investigate full scope before editing**: For each issue, before making any edit:
+  1. Grep the entire doc set for all occurrences of the incorrect claim
+  2. Check whether the same file has summary, diagram, or overview sections that repeat the claim in simplified form
+  3. Collect ALL locations, then fix them all in one pass — never fix a single file and move on
 - [ ] If auto-fix, for each issue:
   - **Local-verified fixes**: use the codebase as source of truth to rewrite incorrect claims
-  - **Chai-bot-verified fixes**: use chai-bot's response as source of truth for factual claims (wrong field names, non-existent enhancements, incorrect terminology)
+  - **Chai-bot-verified fixes** (confirmed responses only): use chai-bot's response as source of truth for factual claims (wrong field names, non-existent enhancements, incorrect terminology). Never auto-fix based on unverified or hedged chai-bot responses — leave those for SME review
   - **Convention mismatches require manual review** — if local code intentionally diverges from platform convention, the docs should describe what the code does, not what convention says. Flag these for the user rather than auto-fixing
   - Update outdated conventions (branch names, versions, commands) to match verified facts
   - Fix broken internal links
   - **Do not** remove content that couldn't be verified — flag as unverified instead
   - **Stick to verified facts** — do not embellish or add interpretation beyond what was confirmed
 - [ ] **Re-verify changed claims**: re-run local checks on modified content; re-query chai-bot on modified cross-repo claims to confirm fixes didn't introduce new errors
+- [ ] **Post-fix consistency grep**: After all fixes, grep for each corrected term across all doc files. Confirm every file that mentions the concept uses the same corrected wording. Fix stragglers before proceeding.
 - [ ] Re-run link validation on modified files
 
 ## Success Criteria
