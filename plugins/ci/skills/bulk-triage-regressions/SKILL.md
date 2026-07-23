@@ -71,6 +71,8 @@ Treat buckets as hypotheses — Phase 3 must confirm or split them. Do not merge
 
 For each bucket, pick 2–5 representative failed job runs (spread across jobs/variants; include the newest) and analyze. 2–5 runs are sufficient **only when they yield a consistent result** (same error signature / failure stage across all of them). If the sample is mixed or unclear — different errors, different stages, or an inconclusive owner — **extend the sample to 10–20 runs** before concluding; a small ambiguous sample must never be the basis for splitting/merging a bucket or attributing an owner.
 
+**Deep-dive at least one CI sample per bucket — always, even at high confidence.** A Sippy `triaged_matches` confidence of 10 or a same-day triaged sibling is a *hypothesis*, not a verdict: Sippy matches on test names and shared job runs, which produces conf=10 for the same test name across unrelated platforms and root causes (see Pitfalls). Before accepting any disposition — including "extend existing triage" — read the actual failure evidence for at least one representative run of the bucket (failure output at minimum; installer logs / artifacts for install wrappers) and confirm it matches the target triage's root cause. You have deeper analysis capabilities than Sippy's heuristics — use your own judgement on the raw evidence, and if it contradicts the Sippy categorization, trust the evidence and re-bucket.
+
 1. **Failure outputs**: `fetch-test-runs` skill with the bucket's test IDs and job run IDs — check whether error messages are consistent within the bucket (>90% same error ⇒ single cause confirmed; inconsistent ⇒ split the bucket).
 
 2. **Job run context**: `fetch-job-run-summary` skill per representative run — is the regressed test isolated, part of a consistent co-failure set, or one of hundreds of random failures? For `Unknown`-component and mass-failure regressions this is where the *real* component reveals itself: read the names of the co-failing tests.
@@ -86,7 +88,7 @@ For each bucket, pick 2–5 representative failed job runs (spread across jobs/v
 
 6. **Check Slack context (optional — only when Slack access is available)**: The TRT/release-oversight team discusses ongoing payload and CI issues in **#forum-ocp-release-oversight** (https://redhat.enterprise.slack.com/archives/C01CQA76KMX). Search/read the **last 14 days** of messages there for the bucket's signature (test name, error message, operator, platform, payload tag) — known payload-wide events, infra outages, and in-flight fixes are usually discussed there before triages/bugs exist, and a thread often names the owning team or an existing OCPBUGS ticket. If the agent has no Slack access (no Slack tooling/credentials), **omit this step entirely** — do not block or ask for access.
 
-After deep-dive, finalize buckets. Each bucket must have:
+After deep-dive, finalize buckets. **Depth is mandatory, not optional: no bucket may be finalized at LOW or MEDIUM confidence, and the duty run must not end with open "action items" like "needs artifact deep-dive" or "spot-check installer logs first".** If confidence is not HIGH after the steps above, keep digging until it is — escalate through the evidence ladder yourself: raw failure outputs → job-run summaries → GCS artifacts (`prow-job-artifact-search`, install/test-failure analysis skills) → **audit logs** (grep for the failing object/namespace to identify the creating user and userAgent — this reliably resolves "who created this pod/namespace" questions) → junit timing correlation (what else ran in the same window) → suspect-PR vetting. Triage taking longer is acceptable; leaving an unexplained bucket is not. The only permitted low-confidence outcome is when the evidence is genuinely exhausted (artifacts expired, logs missing), and then the report must say exactly what was checked and what was missing. Each bucket must have:
 - Member regression IDs (re-check the untriaged list — new siblings may have opened during analysis)
 - Root cause summary (one paragraph) and failure classification (permafail / flaky / resolved / recent)
 - **Owning component** (may differ from the Sippy component — state both)
@@ -97,7 +99,7 @@ After deep-dive, finalize buckets. Each bucket must have:
 
 For each bucket, before filing anything new:
 
-1. Check `triaged_matches` from `fetch-related-triages` (confidence ≥5 with an open JIRA is the default target).
+1. Check `triaged_matches` from `fetch-related-triages` (confidence ≥5 with an open JIRA is the default target) — but never act on a match, even conf=10, without the Phase 3 per-bucket CI-sample verification confirming the root cause actually matches.
 2. Check `open_bugs` from the test report.
 3. Search Jira for the root-cause signature (error message, operator name, `component-regression` label) in OCPBUGS against the **owning component** — the right bug may exist under Monitoring/etcd/MCO even though the regression sits under Installer.
 
