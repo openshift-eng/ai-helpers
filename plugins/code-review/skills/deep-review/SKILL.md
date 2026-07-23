@@ -115,7 +115,7 @@ Check out locally (always quote shell arguments):
 
 **GitHub:**
 ```bash
-gh pr checkout "$PR_NUMBER"
+gh pr checkout "$PR_NUMBER" --repo "$OWNER/$REPO"
 ```
 
 **GitLab:**
@@ -126,6 +126,12 @@ glab mr checkout "$MR_IID" --repo "$PROJECT"
 If `glab` accepts the full MR URL as a single argument, that is
 also fine — but never treat the URL string as `$MR_IID` for flags
 that expect a numeric IID alone.
+
+**Hard failure on inaccessible PR/MR:** If a PR/MR identifier was
+provided and checkout or metadata fetch fails (wrong URL, private
+repo, missing permissions, 404/403), **error and exit immediately**.
+Do **not** fall back to reviewing the current local branch — that
+silently reviews the wrong code.
 
 Determine the base branch and remote:
 
@@ -221,10 +227,16 @@ Launch **all enabled specialist sub-agents in a single message** so
 they run concurrently, using the Agent tool with
 `run_in_background: true`.
 
+Resolve specialist prompts from the skill directory (repository
+root relative):
+`plugins/code-review/skills/deep-review/references/specialists/{specialist}.md`.
+Do not use a bare `references/specialists/...` path — agents may
+not share the skill's working directory.
+
 Each sub-agent gets:
 - The prompt: "You are a {specialist}. Read
-  references/specialists/{specialist}.md for your review
-  instructions."
+  `plugins/code-review/skills/deep-review/references/specialists/{specialist}.md`
+  for your review instructions."
 - The merge base ref
 - The PR number or branch name being reviewed
 - Any prior review findings (if detected in Step 1.4)
@@ -250,10 +262,11 @@ another. Do **not** launch sub-agents for specialist dispatch.
 mode — the no-sub-agent constraint applies only to specialists.)
 
 Then for each specialist in roster order, state the specialist name
-as a heading, read `references/specialists/{specialist}.md` for
-review instructions, review through that lens, and produce findings
-in the same JSON format. Context from earlier specialists' file
-reads and findings carries over automatically.
+as a heading, read
+`plugins/code-review/skills/deep-review/references/specialists/{specialist}.md`
+for review instructions, review through that lens, and produce
+findings in the same JSON format. Context from earlier specialists'
+file reads and findings carries over automatically.
 
 **Do NOT modify any files, and do NOT push to any remote.** Serial
 mode is read-only, same as parallel.
@@ -344,7 +357,9 @@ panel arbiter has ratified the disposition.
 - **External tool not installed/timeout**: Skip, warn, continue.
 - **Subagent timeout**: Report which specialist timed out, continue.
 - **No changes**: Stop — "No changes found."
-- **Review creation fails (422)**: Remove bad comments, retry.
+- **Review creation fails (422)**: Delete only comment/review IDs
+  created by the current attempt, then retry. Never delete existing
+  reviewer comments from other runs or authors.
 
 ## Guardrails
 

@@ -2,7 +2,7 @@
 
 For every finding where `reproducer_needed` is `true` AND severity
 is `BLOCKING`, launch a **reproducer subagent** (up to 5 in
-parallel, 10 minute timeout each). Each gets this prompt:
+parallel, 10-minute timeout each). Each gets this prompt:
 
 > Create and execute a minimal reproducer to verify this bug.
 >
@@ -44,8 +44,11 @@ parallel, 10 minute timeout each). Each gets this prompt:
 
 - `reproduced: "confirmed"` — keep as BLOCKING, attach reproducer
   details
-- `reproduced: "not_confirmed"` — downgrade severity to
-  `SUGGESTION`, add note: "Reproducer did not confirm this bug —
-  may be a false positive or require conditions not tested."
+- `reproduced: "not_confirmed"` — **keep the original severity**.
+  Add a note that this attempt did not reproduce the bug (may be
+  environment-, timing-, or infrastructure-dependent). Route
+  uncertain cases to the arbiter for discussion; do **not**
+  blanket-downgrade to `SUGGESTION`, since that can incorrectly
+  approve real blockers when disposition keys only on BLOCKING
 - `reproduced: "not_reproducible"` — keep severity, add note
   explaining why

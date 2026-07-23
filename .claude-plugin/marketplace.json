@@ -397,7 +397,7 @@
       "name": "code-review",
       "source": "./plugins/code-review",
       "description": "Automated code quality review with language-aware analysis for pre-commit verification",
-      "version": "0.0.14",
+      "version": "0.0.15",
       "category": "development",
       "keywords": [
         "code-review",

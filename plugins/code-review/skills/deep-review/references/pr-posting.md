@@ -44,15 +44,21 @@ with inline comments on specific lines:
 
 If the user says no, stop here.
 
-If yes, compute diff positions and create the review:
+If yes, pin the reviewed head SHA and create the review using
+line-based comments (not deprecated `position`):
 
-**GitHub position rules:**
-- The `position` is the 1-based line index in the file's unified
-  diff, where position 1 is the first line AFTER the first `@@`
-  hunk header. `@@` headers are NOT counted.
-- Count every line (context, additions, deletions) sequentially
-  across ALL hunks. Each new `@@` header is skipped in the count.
-- The count does NOT reset between hunks
+```bash
+COMMIT_ID=$(gh api "repos/$OWNER/$REPO/pulls/$PR_NUMBER" --jq '.head.sha')
+```
+
+**GitHub inline comment fields:**
+- Always set `commit_id` to `$COMMIT_ID` (the SHA you reviewed).
+  Omitting it defaults to the current PR head, which can drift if
+  a new push lands between diff calculation and the API call
+- Prefer `path`, `line`, and `side` (`RIGHT` for additions/context
+  on the new file; `LEFT` for deletions)
+- For multi-line comments, also set `start_line` / `start_side`
+- Do **not** use `position` — GitHub is deprecating it
 
 If a finding's line falls outside any diff hunk, skip the inline
 comment and include it in the review body instead.
@@ -63,10 +69,12 @@ Omitting it creates a PENDING review.
 ```bash
 gh api "repos/$OWNER/$REPO/pulls/$PR_NUMBER/reviews" \
   --method POST \
-  --input /tmp/deep-review-payload.json
+  --input /tmp/deep-review-payload.json \
+  > /tmp/deep-review-response.json
 ```
 
-Capture the created review id:
+Capture the created review id (and any comment IDs from this
+attempt only — use those IDs if a 422 requires cleanup/retry):
 
 ```bash
 REVIEW_ID=$(jq -r '.id' < /tmp/deep-review-response.json)
