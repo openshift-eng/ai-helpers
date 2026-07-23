@@ -87,30 +87,13 @@ All are enabled unless excluded with `-`:
 
 #### Step 1.1: Parse arguments
 
-Split the argument string on whitespace. Classify each token:
-
-- `--serial` — enable serial execution mode
-- `--comment` — post verdict as a PR comment after review
-- `--coderabbit` — include CodeRabbit external reviewer
-- `--codex` — include Codex external reviewer
-- A token starting with `-` followed by specialist name(s) (e.g.,
-  `-writer` or `-qa,-writer`) — exclude those specialists. If the
-  token contains commas, split on commas and treat each segment as
-  a separate exclusion. Validate each name against the known
-  specialist roster (bugs, adversarial, security, architecture,
-  consistency, qa, writer). Unknown names are warned and ignored.
-- A **PR URL** (contains `github.com` and `/pull/`, or `gitlab.com`
-  and `/merge_requests/`) or **bare integer** — PR identifier.
-  For a bare integer, determine the platform from the git remote
-  URL: if it contains `github.com`, use `gh`; if it contains
-  `gitlab.com`, use `glab`. If ambiguous, ask the user.
-- Anything else — warn and ignore
-
-If all specialists are excluded, error and exit: "At least one
-specialist must be enabled."
-
-If `--comment` is passed without a PR identifier, error and exit.
-If more than one PR identifier is found, error and exit.
+Split the argument string on whitespace. Flags (`--serial`,
+`--comment`, `--coderabbit`, `--codex`) set modes. Tokens like
+`-writer,-qa` exclude those specialists (validate against the
+roster; unknown names warned and ignored). A PR URL or bare
+integer is the PR identifier (for bare integers, detect platform
+from git remote). Error if: all specialists excluded, `--comment`
+without PR identifier, or multiple PR identifiers.
 
 #### Step 1.2: Check out the PR and determine base ref
 
@@ -162,29 +145,20 @@ to all specialists and the arbiter as context. Specialists should:
 
 ### Phase 2 — Dispatch Specialists
 
-#### Parallel Mode (default)
+Each specialist has its own prompt in
+[references/specialists/](references/specialists/):
 
-Launch **all enabled specialist sub-agents in a single message** so
-they run concurrently, using the Agent tool with
-`run_in_background: true`.
+| Specialist | Prompt |
+|------------|--------|
+| bugs | [references/specialists/bugs.md](references/specialists/bugs.md) |
+| adversarial | [references/specialists/adversarial.md](references/specialists/adversarial.md) |
+| security | [references/specialists/security.md](references/specialists/security.md) |
+| architecture | [references/specialists/architecture.md](references/specialists/architecture.md) |
+| consistency | [references/specialists/consistency.md](references/specialists/consistency.md) |
+| qa | [references/specialists/qa.md](references/specialists/qa.md) |
+| writer | [references/specialists/writer.md](references/specialists/writer.md) |
 
-Each sub-agent gets:
-- The merge base ref
-- The PR number or branch name being reviewed
-- Any prior review findings (if detected in Step 1.4)
-
-Sub-agents have full read access to the locally checked-out
-codebase. They explore the code on their own — read files, grep,
-run git commands, etc.
-
-**Sub-agents MUST NOT modify any files.** They are read-only
-reviewers. No edits, no writes, no code changes.
-
-Use `subagent_type: "general-purpose"`. Do NOT set the `model`
-parameter.
-
-Every specialist sub-agent MUST return its findings as a JSON array
-in a fenced `json` code block at the end of its response:
+Append the findings JSON schema to each specialist prompt:
 
 ```json
 [
@@ -204,6 +178,31 @@ in a fenced `json` code block at the end of its response:
 
 If no issues found, return an empty array and state what was checked.
 
+#### Parallel Mode (default)
+
+Launch **all enabled specialist sub-agents in a single message** so
+they run concurrently, using the Agent tool with
+`run_in_background: true`.
+
+Each sub-agent gets:
+- The prompt: "You are a {specialist}. Read
+  references/specialists/{specialist}.md for your review
+  instructions."
+- The merge base ref
+- The PR number or branch name being reviewed
+- Any prior review findings (if detected in Step 1.4)
+- The findings JSON schema above
+
+Sub-agents have full read access to the locally checked-out
+codebase. They explore the code on their own — read files, grep,
+run git commands, etc.
+
+**Sub-agents MUST NOT modify any files.** They are read-only
+reviewers. No edits, no writes, no code changes.
+
+Use `subagent_type: "general-purpose"`. Do NOT set the `model`
+parameter.
+
 #### Serial Mode (`--serial`)
 
 Run all enabled specialists **inline in the main agent**, one after
@@ -212,9 +211,10 @@ another. Do **not** launch sub-agents for specialist dispatch.
 mode — the no-sub-agent constraint applies only to specialists.)
 
 Then for each specialist in roster order, state the specialist name
-as a heading, review through that lens using the scope below, and
-produce findings in the same JSON format. Context from earlier
-specialists' file reads and findings carries over automatically.
+as a heading, read `references/specialists/{specialist}.md` for
+review instructions, review through that lens, and produce findings
+in the same JSON format. Context from earlier specialists' file
+reads and findings carries over automatically.
 
 **Do NOT modify any files.** Serial mode is read-only, same as
 parallel.
@@ -239,227 +239,6 @@ arbiter's synthesis input as a peer specialist. If a command fails
 (non-zero exit, tool not found, timeout), record the error and
 continue — never block the panel on an external tool failure.
 
-### Specialist Scopes
-
----
-
-**bugs** specialist:
-
-> You are a meticulous code reviewer focused exclusively on finding
-> FUNCTIONAL BUGS in a pull request.
->
-> **Your focus**: Missing function calls or initialization. Wrong
-> logic (inverted conditions, off-by-one, wrong operator). Unhandled
-> edge cases (nil/null, empty collections, zero values). Race
-> conditions. Resource leaks. Error handling gaps. Type mismatches.
-> Contract violations (caller passes wrong args, callee returns
-> unexpected values). Inherited methods that don't work in the
-> subclass context.
->
-> **Ignore**: Style, formatting, naming. "Could be improved"
-> suggestions. Test coverage gaps (unless a test is WRONG).
-> Documentation.
->
-> **Method**: Identify changed files using the merge base ref.
-> For each changed file, read the FULL file to understand context.
-> Trace code paths — follow function
-> calls, check callers and callees, check base class methods that
-> are inherited but not overridden. For each bug found, set
-> `reproducer_needed: true`.
->
-> **You MUST NOT modify any files.** Read-only review only.
-
----
-
-**adversarial** specialist:
-
-> You are an adversarial code reviewer. Your job is to BREAK the
-> code in this pull request. Assume **every line of code is wrong
-> until proven otherwise**. Think like a malicious user, a chaos
-> monkey, or a fuzzer.
->
-> **Your focus**:
-> - **Logical correctness**: For each conditional, loop, and branch,
->   construct an input or state that would cause it to fail. If you
->   cannot construct one, say so explicitly — silence is not acquittal.
-> - **Hidden assumptions**: What does this code assume that is not
->   enforced? Nil-safety, ordering guarantees, single-threaded access,
->   input format, environment availability, file existence.
-> - **Off-by-one errors**: Examine loop bounds, slice operations,
->   index arithmetic, range boundaries.
-> - **Race conditions**: If shared state is accessed, is it protected?
->   Can operations interleave unsafely?
-> - **Resource leaks**: Are file handles, connections, channels, locks
->   properly cleaned up on all paths including error paths?
-> - **Failure modes**: What happens when the network is down? The file
->   doesn't exist? The input is empty? The input is 10GB? The API
->   returns 500? The context is cancelled? The disk is full?
-> - **Implicit coupling**: Does the code depend on ordering, timing,
->   or side effects not guaranteed by the interface contract?
->
-> **Prove it wrong or admit you can't**: For each finding, describe
-> the specific scenario that breaks it. If you cannot find issues,
-> state explicitly what you tested and why the code holds up.
->
-> Read full source files for context. Set `reproducer_needed: true`
-> for every finding.
->
-> **You MUST NOT modify any files.** Read-only review only.
-
----
-
-**security** specialist:
-
-> You are a security and supply-chain reviewer. You operate with a
-> **fails-closed** bias — when uncertain whether a pattern is safe,
-> flag it. False positives are preferable to missed vulnerabilities.
->
-> **Vulnerability surfaces:**
-> - **Injection**: SQL, command, template, log, header injection
-> - **Authentication/authorization**: Token handling, permission
->   checks, credential storage
-> - **Input validation**: Untrusted input at system boundaries
-> - **Secret management**: Hardcoded secrets, secrets in logs,
->   config exposure
-> - **Cryptography**: Weak algorithms, improper random number
->   generation
->
-> **Supply chain risk:**
-> - **New dependencies**: Is the dep necessary? Actively maintained?
->   Known security record? How many transitive deps?
-> - **Dependency changes**: Version bumps, removed pins, loosened
->   constraints, yanked versions
-> - **Lockfile integrity**: Unexpected hash changes in `go.sum`,
->   `package-lock.json`, `yarn.lock`, `Cargo.lock`, etc.
-> - **Build pipeline**: CI config, Makefile, Dockerfile, build
->   scripts — untrusted sources, download URLs, remote code execution
-> - **Transitive trust**: New external API calls, download URLs,
->   certificate trust, registry sources
-> - **Vendored code**: Do vendored changes match declared dependency
->   changes?
->
-> Set `reproducer_needed: true` only for findings where a concrete
-> exploit can be demonstrated. Set severity to `BLOCKING` for
-> confirmed risks.
->
-> **You MUST NOT modify any files.** Read-only review only.
-
----
-
-**architecture** specialist:
-
-> You are an architecture reviewer evaluating structural and design
-> decisions.
->
-> **Your focus**:
-> - **Single Responsibility**: Does each new function/type/module
->   have one clear job?
-> - **Cross-file impact**: Do changes ripple correctly through
->   callers and dependents?
-> - **Abstraction level**: Are new abstractions justified or
->   premature?
-> - **Module boundaries**: Are package/module imports clean? Any
->   circular dependencies?
-> - **Error handling**: Are errors propagated correctly? No swallowed
->   errors?
-> - **Pattern consistency**: Do new patterns match existing
->   architectural conventions?
-> - **API surface**: Is the public interface minimal and hard to
->   misuse?
-> - **Coupling**: Does this create tight coupling that's costly to
->   change later?
->
-> Anti-patterns to flag: god functions, shotgun surgery, feature envy,
-> inappropriate intimacy, premature abstraction.
->
-> Set `reproducer_needed: false`. Focus on decisions costly to
-> change.
->
-> **You MUST NOT modify any files.** Read-only review only.
-
----
-
-**consistency** specialist:
-
-> You are a codebase consistency reviewer. You must **actively read
-> existing code** in the repository — grep and find to locate
-> potential duplicates and existing conventions rather than reviewing
-> the changed files in isolation.
->
-> **Your focus**:
-> - **Duplicate helpers**: Does the PR introduce a function, utility,
->   or pattern that already exists elsewhere? Search for similar
->   implementations before accepting new ones.
-> - **Convention adherence**: Does new code follow the same naming
->   conventions, file organization, import ordering, and structural
->   patterns as existing code in the same package/module?
-> - **Style match**: Does the code style (error handling idiom,
->   logging pattern, test structure) match the surrounding codebase?
-> - **Shared utilities**: Does the PR use the project's established
->   utility packages rather than inlining?
-> - **Configuration patterns**: Do new config values, environment
->   variables, or constants follow existing naming and placement?
-> - **Test patterns**: Do new tests follow the same structure,
->   assertion style, and helper usage as existing tests?
->
-> Set `reproducer_needed: false`.
->
-> **You MUST NOT modify any files.** Read-only review only.
-
----
-
-**qa** specialist:
-
-> You are a QA engineer reviewing test coverage and quality.
->
-> **Your focus**:
-> - **Coverage gaps**: For each new or modified function with
->   non-trivial logic, verify that tests exist. Flag public/exported
->   functions that lack tests entirely.
-> - **Untested error paths**: Identify error branches, edge cases,
->   and failure modes with no corresponding test.
-> - **Test quality**: Are tests asserting meaningful behavior or just
->   achieving line coverage? Look for tests that pass trivially,
->   assert nothing, or test implementation details.
-> - **Edge cases**: Identify concrete edge-case inputs the author
->   should test: empty inputs, nil/null, boundary values, concurrent
->   access, large inputs, malformed data.
-> - **Regression coverage**: If the change fixes a bug, is there a
->   test that would have caught it?
-> - **Concrete suggestions**: Do not just say "add tests." Suggest
->   specific test scenarios with example inputs and expected outputs.
->
-> Set `reproducer_needed: false`.
->
-> **You MUST NOT modify any files.** Read-only review only.
-
----
-
-**writer** specialist:
-
-> You are a technical writer reviewing documentation accuracy.
->
-> First assess whether the repository has meaningful documentation
-> (READMEs, doc directories, API docs, user guides). **If the repo
-> has little to no documentation, note this and exit with no
-> findings** — do not flag the absence of docs that never existed.
->
-> When documentation does exist:
-> - **Stale docs**: Do changes modify behavior, flags, APIs, or
->   config described in existing docs? Are docs updated to match?
-> - **New features**: Does the change add user-facing functionality
->   that should be documented but isn't?
-> - **Inconsistencies**: Does existing documentation contradict the
->   new code? Are examples still accurate?
-> - **README drift**: If the README describes setup/usage/architecture,
->   does it still reflect reality after this change?
-> - **Inline doc quality**: For languages with doc conventions
->   (godoc, javadoc, docstrings), are new public APIs documented?
->
-> Set `reproducer_needed: false`.
->
-> **You MUST NOT modify any files.** Read-only review only.
-
 ### Phase 3 — Completeness Gate
 
 After all sub-agents and external reviewers return, verify all
@@ -473,336 +252,55 @@ continue.
 
 ### Phase 4 — Reproduce
 
-Collect all findings from all specialists.
-
-For every finding where `reproducer_needed` is `true` AND severity
-is `BLOCKING`:
-
-Launch a **reproducer subagent** (up to 5 in parallel, 10 minute
-timeout each). Each gets this prompt:
-
-> Create and execute a minimal reproducer to verify this bug.
->
-> **Finding**: {title} in {file}:{line} — {body}
->
-> **Instructions**:
-> 1. Read the file and surrounding code for full context
-> 2. Design the SMALLEST test case that demonstrates the bug
-> 3. Create the reproducer files (scripts, configs, inputs)
-> 4. Execute it and capture the output
-> 5. Report pass (bug confirmed) or fail (not reproduced)
->
-> **Requirements**:
-> - Must be runnable, not a thought experiment
-> - Must produce a clear pass/fail result
-> - Create ALL reproducer files in /tmp — do not write any files
->   to the working tree
-> - If the bug requires infrastructure you can't create locally,
->   explain why and report `not_reproducible`
-> - Do not run destructive operations
-> - Clean up temp files when done
->
-> Return a JSON object in a fenced `json` block:
-> ```json
-> {
->   "reproduced": "confirmed",
->   "explanation": "What happened",
->   "steps": "Exact commands and files",
->   "expected": "Correct behavior",
->   "actual": "What actually happened (real output)",
->   "files": [{"path": "name", "content": "..."}]
-> }
-> ```
->
-> **`reproduced` values**: `"confirmed"` | `"not_confirmed"` |
-> `"not_reproducible"`
-
-#### Processing results
-
-- `reproduced: "confirmed"` — keep as BLOCKING, attach reproducer
-  details
-- `reproduced: "not_confirmed"` — downgrade severity to
-  `SUGGESTION`, add note: "Reproducer did not confirm this bug —
-  may be a false positive or require conditions not tested."
-- `reproduced: "not_reproducible"` — keep severity, add note
-  explaining why
+For every BLOCKING finding with `reproducer_needed: true`, launch
+a reproducer subagent (up to 5 in parallel). See
+[references/reproducer-prompt.md](references/reproducer-prompt.md)
+for the prompt template and result processing rules.
 
 ### Phase 5 — Panel Arbiter
 
 Perform synthesis directly in the main agent (not a sub-agent).
 
-#### Step 5.1: Deduplicate
-
-Multiple specialists may find the same issue. Merge duplicates,
-keeping the most detailed description and the strongest reproducer.
-
-#### Step 5.2: Filter noise
-
-Remove findings that are:
-- Clearly false positives (contradicted by code the reviewer missed)
-- Style nitpicks that don't match the project's conventions
-- Speculative ("this could be a problem if...") without evidence
-- Already addressed elsewhere in the branch (e.g., in a later commit)
-
-#### Step 5.3: Resolve conflicts
-
-Where specialists disagree, resolve explicitly:
-- Corroboration between specialists (or external reviewers)
-  strengthens confidence
-- Conflicts require explicit resolution with reasoning
-- Devil's Advocate (adversarial) concerns are blocking unless
-  specifically refuted by another specialist with a concrete
-  technical explanation
-
-#### Step 5.4: Assign disposition
-
-**Disposition criteria:**
-
-- **APPROVE**: No unresolved BLOCKING findings
-- **REQUEST_CHANGES**: BLOCKING findings that require code changes
-- **NEEDS_DISCUSSION**: Findings that need author input to resolve
-
-**Arbiter biases:**
-
-- Security over ergonomics
-- Codebase consistency over local elegance
-- Existing patterns over novel ones
-- Reproduced bugs are always BLOCKING
-- Clean changes with no issues are a valid outcome — do not
-  manufacture findings
-
-#### Step 5.5: Prioritize
-
-Rank remaining findings:
-1. Reproduced bugs with security implications
-2. Reproduced functional bugs
-3. Unreproduced but plausible bugs (downgraded to SUGGESTION)
-4. Architecture/design concerns
-5. Style, consistency, and documentation notes
-
-#### Step 5.6: Emit verdict
-
-Present the verdict using this structure:
-
-```
-## Deep Review Verdict
-
-**Disposition**: <APPROVE | REQUEST_CHANGES | NEEDS_DISCUSSION> <qualifier>
-
----
-
-### Specialist Findings
-
-**Bugs**: <findings>
-
-**Adversarial**: <findings, with "Prove it wrong or admit you can't" results>
-
-**Security & Supply Chain**: <findings>
-
-**Architecture**: <findings>
-
-**Codebase Consistency**: <findings>
-
-**QA Engineer**: <findings>
-
-**Technical Writer**: <findings>
-
----
-
-### External Reviewers
-
-**CodeRabbit**: <output or "not requested">
-
-**Codex**: <output or "not requested">
-
----
-
-### Panel Synthesis
-
-<Synthesize all findings. Resolve disagreements. Note corroboration
-between reviewers. Ratify disposition. If reviewers agreed and the
-change is straightforward, say so plainly in one or two sentences.>
-
----
-
-### Required Actions Before Merge
-
-1. <required action with file:line pointer, reproducer summary>
-
-(If APPROVE with no required actions, write "None.")
-
----
-
-### Optional Follow-ups
-
-- <suggestions out of scope for this change>
-
----
-
-### Stats
-
-Arbiter summary: N findings from M specialists.
-Kept: X blocking (Y reproduced), Z suggestions/notes.
-Dropped: W duplicates, V false positives.
-
-<sub>Generated by /deep-review</sub>
-```
-
-Omit the "External Reviewers" section when none were requested.
-For each BLOCKING finding with a reproducer, include a collapsible
-reproducer section showing steps, expected, and actual output.
+1. **Deduplicate** — merge duplicates, keep strongest reproducer
+2. **Filter noise** — remove false positives, style nitpicks,
+   speculative findings, and issues already addressed in the branch
+3. **Resolve conflicts** — corroboration strengthens; adversarial
+   concerns are blocking unless concretely refuted
+4. **Assign disposition** — APPROVE (no BLOCKING), REQUEST_CHANGES
+   (BLOCKING findings), or NEEDS_DISCUSSION (needs author input).
+   Biases: security over ergonomics, consistency over elegance,
+   reproduced bugs are always BLOCKING, do not manufacture findings
+5. **Prioritize** — reproduced security bugs > reproduced functional
+   bugs > unreproduced > architecture > style/docs
+6. **Emit verdict** — use collapsible `<details>` blocks for
+   specialist findings (each specialist collapsed with severity
+   counts). Sections: Disposition, Specialist Findings, Panel
+   Synthesis, Required Actions, Optional Follow-ups, Stats.
+   Footer: `<sub>Generated by [/deep-review](https://github.com/stbenjam/claude-nine/tree/main/plugins/reviews/skills/deep-review)</sub>`.
+   Include collapsible reproducer details for confirmed BLOCKING bugs.
 
 ### Phase 6 — Post to PR (Optional)
 
-This phase runs ONLY when `--comment` was passed with a PR identifier.
-
-#### Step 6.1: Post as comment
-
-Post the full verdict as a PR comment:
-
-**GitHub:**
-```bash
-gh pr comment $PR_NUMBER --body "$(cat <<'EOF'
-<verdict content>
-EOF
-)"
-```
-
-**GitLab:** Use `glab mr comment`.
-
-If the comment fails, report the error but still display the verdict
-to the user — the review itself is not lost.
-
-#### Step 6.2: Offer inline review (GitHub only)
-
-After posting the comment, offer to also create a PENDING review
-with inline comments on specific lines:
-
-**Ask the user**: "Want me to also add inline review comments?
-(yes / no)"
-
-If the user says no, stop here.
-
-If yes, compute diff positions and create the review:
-
-**GitHub position rules:**
-- The `position` is the 1-based line index in the file's unified
-  diff, where position 1 is the first line AFTER the first `@@`
-  hunk header. `@@` headers are NOT counted.
-- Count every line (context, additions, deletions) sequentially
-  across ALL hunks. Each new `@@` header is skipped in the count.
-- The count does NOT reset between hunks
-
-If a finding's line falls outside any diff hunk, skip the inline
-comment and include it in the review body instead.
-
-**CRITICAL**: Do NOT include an `"event"` field in the JSON payload.
-Omitting it creates a PENDING review.
-
-```bash
-gh api repos/$OWNER/$REPO/pulls/$PR_NUMBER/reviews \
-  --method POST \
-  --input /tmp/deep-review-payload.json
-```
-
-Cap at **30 inline comments**. Overflow goes to the review body.
-
-Format inline comments:
-
-**For BLOCKING findings with a confirmed reproducer:**
-```markdown
-**Bug: {title}**
-
-{body}
-
-Fix: {suggestion}
-
-<details>
-<summary>Reproducer</summary>
-
-**Steps:** {steps}
-
-**Expected:** {expected}
-
-**Actual:** {actual}
-</details>
-```
-
-**For findings where the reproducer failed:**
-```markdown
-**Potential: {title}**
-
-{body}
-
-Note: A reproducer was attempted but did not confirm this bug.
-Manual verification recommended.
-```
-
-**For SUGGESTION/NOTE findings:**
-```markdown
-**{Severity}: {title}**
-
-{body}
-
-Suggestion: {suggestion}
-```
-
-#### Step 6.3: User approval gate
-
-```
-PENDING review created with N inline comments on PR #NNN.
-
-Commands:
-  "submit"           — post as informational comment
-  "request changes"  — post requesting changes
-  "drop"             — delete the pending review
-```
-
-**Do NOT submit automatically. Wait for the user.**
-
-On "submit":
-```bash
-gh api repos/$OWNER/$REPO/pulls/$PR_NUMBER/reviews/$REVIEW_ID/events \
-  --method POST -f event="COMMENT"
-```
-
-On "request changes":
-```bash
-gh api repos/$OWNER/$REPO/pulls/$PR_NUMBER/reviews/$REVIEW_ID/events \
-  --method POST -f event="REQUEST_CHANGES"
-```
-
-On "drop":
-```bash
-gh api -X DELETE repos/$OWNER/$REPO/pulls/$PR_NUMBER/reviews/$REVIEW_ID
-```
+When `--comment` was passed, follow
+[references/pr-posting.md](references/pr-posting.md) to post the
+verdict to the PR and optionally create inline review comments.
 
 ## Quality Gates
 
-A change passes when:
-
-- [ ] Bugs: no unresolved functional bugs
-- [ ] Adversarial: no unrefuted failure scenarios
-- [ ] Security & Supply Chain: no unmitigated vulnerability or supply chain risk
-- [ ] Architecture: structure and patterns are sound
-- [ ] Codebase Consistency: no duplicate helpers, conventions match
-- [ ] QA Engineer: adequate test coverage, edge cases addressed
-- [ ] Technical Writer: documentation consistent with changes
-- [ ] Panel Arbiter: trade-offs ratified, disposition set
+A change passes when: no unresolved functional bugs, no unrefuted
+adversarial scenarios, no unmitigated vulnerabilities or supply
+chain risks, sound architecture, no duplicate helpers, adequate
+test coverage, documentation consistent with changes, and the
+panel arbiter has ratified the disposition.
 
 ## Error Handling
 
-- **`gh`/`glab` not authenticated**: Affects PR checkout (Phase 1)
-  for private repos and PR posting (Phase 6). The review can still
-  run on a locally checked-out branch without authentication.
-- **No PR exists**: Fine — skip Phase 6, the verdict is the
-  deliverable.
-- **External tool not installed**: Skip that reviewer, warn, continue.
-- **External tool timeout**: Record timeout error, continue.
-- **Subagent timeout**: Report which specialist timed out, continue
-  with available results.
+- **`gh`/`glab` not authenticated**: Review can still run on a
+  locally checked-out branch.
+- **No PR exists**: Skip Phase 6; the verdict is the deliverable.
+- **External tool not installed/timeout**: Skip, warn, continue.
+- **Subagent timeout**: Report which specialist timed out, continue.
 - **No changes**: Stop — "No changes found."
-- **Position computation failure**: Move finding to review body.
 - **Review creation fails (422)**: Remove bad comments, retry.
 
 ## Guardrails
@@ -810,9 +308,6 @@ A change passes when:
 - Never submit a PR review without explicit user confirmation.
 - Never use `"event"` in the initial review creation payload.
 - **Review agents MUST NOT modify any files in the working tree.**
-  All specialists are read-only reviewers.
-- Reproducers run locally in /tmp. Do not push reproducer files
-  or modify the working tree.
-- Do not run destructive operations in reproducers. Mark as
-  `not_reproducible` instead.
+- Reproducers run in /tmp. Do not push reproducer files.
+- Do not run destructive operations in reproducers.
 - Cap at 30 inline PR comments. Overflow goes to the review body.
