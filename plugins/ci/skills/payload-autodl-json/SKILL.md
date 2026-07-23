@@ -150,7 +150,7 @@ The filename **must** end with `-autodl.json`. Sanitize the tag for filename saf
 |-------|------|-------------|
 | `payload_tag` | string | Full payload tag |
 | `version` | string | OCP version (e.g., `"4.22"`) |
-| `stream` | string | `"nightly"` or `"ci"` |
+| `stream` | string | Canonical stream type: `"nightly"` or `"ci"`. For OKD payloads (e.g. `okd-scos-nightly`, `okd-scos`), map to the base type: `okd-scos-nightly` → `"nightly"`, `okd-scos` → `"ci"`. |
 | `architecture` | string | `"amd64"`, `"arm64"`, `"multi"`, etc. |
 | `phase` | string | Payload phase: `"Rejected"`, `"Accepted"`, `"Ready"` |
 | `release_controller_url` | string | URL to the payload on the release controller |
