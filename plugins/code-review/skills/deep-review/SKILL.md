@@ -141,9 +141,11 @@ Determine the base branch and remote:
    `origin`/`upstream`). Prefer the remote whose fetch URL matches
    the PR/MR host and project; otherwise use the remote tracked by
    the current branch (`git branch -vv`), then any remaining remote
-3. For each candidate remote, probe `main` then `master`
-   (`git ls-remote --heads "$REMOTE" main master`). Record the
-   first match as `$BASE_REMOTE` and `$BASE_BRANCH`
+3. If a PR/MR is known, probe its target branch first on the
+   matching remote and use it as `$BASE_REMOTE`/`$BASE_BRANCH`.
+   Only fall back to probing `main` then `master`
+   (`git ls-remote --heads "$REMOTE" main master`) when no target
+   branch was provided or the target branch was not found
 
 Fetch and compute the merge base:
 
