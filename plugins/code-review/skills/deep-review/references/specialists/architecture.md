@@ -25,4 +25,4 @@ inappropriate intimacy, premature abstraction.
 Set `reproducer_needed: false`. Focus on decisions costly to
 change.
 
-**You MUST NOT modify any files.** Read-only review only.
+**You MUST NOT modify any files, and MUST NOT run remote-write git commands** (`git push`, force-push variants, or pushes to any remote including protected branches). Read-only review only.

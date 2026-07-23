@@ -30,4 +30,4 @@ Set `reproducer_needed: true` only for findings where a concrete
 exploit can be demonstrated. Set severity to `BLOCKING` for
 confirmed risks.
 
-**You MUST NOT modify any files.** Read-only review only.
+**You MUST NOT modify any files, and MUST NOT run remote-write git commands** (`git push`, force-push variants, or pushes to any remote including protected branches). Read-only review only.

@@ -1,6 +1,7 @@
 # code-review Plugin
 
-Automated code quality review with language-aware analysis for pre-commit verification.
+Automated code quality review with language-aware analysis for pre-commit
+verification, plus an optional multi-specialist deep review skill.
 
 ## Commands
 
@@ -18,6 +19,20 @@ Performs a comprehensive code quality review of staged and unstaged changes befo
 - `--profile <name>`: Project profile to load for project-specific conventions.
 - `--skip-build`: Skip build verification.
 - `--skip-tests`: Skip unit test coverage review.
+
+## Skills
+
+### `deep-review`
+
+Use when a deeper level of code review is requested. Runs a multi-specialist
+panel (bugs, adversarial, security, architecture, consistency, qa, writer),
+verifies BLOCKING findings with runtime reproducers, and optionally posts a
+PENDING review to GitHub/GitLab.
+
+**Usage:**
+```bash
+/code-review:deep-review [--serial] [--comment] [--coderabbit] [--codex] [-reviewer,...] [pr-url-or-number]
+```
 
 ## Language Skills
 

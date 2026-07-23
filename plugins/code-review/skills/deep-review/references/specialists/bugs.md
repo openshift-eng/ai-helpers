@@ -20,4 +20,4 @@ calls, check callers and callees, check base class methods that
 are inherited but not overridden. For each bug found, set
 `reproducer_needed: true`.
 
-**You MUST NOT modify any files.** Read-only review only.
+**You MUST NOT modify any files, and MUST NOT run remote-write git commands** (`git push`, force-push variants, or pushes to any remote including protected branches). Read-only review only.

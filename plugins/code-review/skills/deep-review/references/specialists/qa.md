@@ -19,4 +19,4 @@ You are a QA engineer reviewing test coverage and quality.
 
 Set `reproducer_needed: false`.
 
-**You MUST NOT modify any files.** Read-only review only.
+**You MUST NOT modify any files, and MUST NOT run remote-write git commands** (`git push`, force-push variants, or pushes to any remote including protected branches). Read-only review only.
