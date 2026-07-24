@@ -1,0 +1,344 @@
+name: solve-eval
+description: >
+  End-to-end eval of the solve pipeline (solve -> code-review ->
+  address-review). Runs 3 phases against snapshot branches, judges
+  per-phase quality and final output (make verify, make test, coverage).
+skill: openshift-developer:solve
+
+execution:
+  mode: case
+  arguments: "{issue_key} {repo_url} {eval_branch}"
+  timeout: 3600
+  max_budget_usd: 25.0
+  env:
+    AI_HELPERS_DIR: "$PWD"
+
+runner:
+  type: cli
+  command:
+    - "bash"
+    - "-c"
+    - "exec \"$AI_HELPERS_DIR/plugins/openshift-developer/evals/scripts/run-solve.sh\" \"$@\""
+    - "--"
+    - "{issue_key}"
+    - "{repo_url}"
+    - "{eval_branch}"
+    - "{model}"
+
+models:
+  skill: claude-opus-4-6
+  judge: claude-opus-4-6
+
+mlflow:
+  experiment: solve-eval
+
+dataset:
+  path: cases/solve
+  schema: |
+    Each case directory contains:
+    - input.yaml: YAML file with fields:
+      - 'issue_key' — Jira issue key (e.g., OCPBUGS-12345)
+      - 'repo_url' — target repo clone URL
+      - 'eval_branch' — snapshot branch (e.g., eval/solve/case-001)
+      - 'issue_description' — full issue text (fallback if Jira unavailable)
+      - 'known_good_pr' — URL of the merged human-reviewed PR (optional)
+    - annotations.yaml: Expected outcomes and metadata:
+      - 'expected_files_changed': list of file paths the fix should touch
+      - 'expected_tests_pass': boolean
+      - 'min_coverage_pct': integer (e.g., 40)
+      - 'difficulty': simple|medium|complex
+      - 'category': bug|feature|refactor
+      - 'notes': context for LLM judges
+
+outputs:
+  - path: "output"
+    schema: |
+      The pipeline script produces these files in the working directory:
+
+      Per-phase:
+        phase1-diff.patch — diff after solve (before review/fix)
+        phase1-diffstat.txt — diffstat after solve
+        phase1-tokens.json — token usage for solve phase
+        review-findings.txt — code review output text
+        phase2-tokens.json — token usage for review phase
+        phase3-tokens.json — token usage for fix phase
+
+      Final state (after all 3 phases):
+        diff.patch — full diff
+        files-changed.txt — list of modified files
+        commit-log.txt — git log of all commits
+        make-test.log — test output
+        make-test-exit — test exit code (0 = pass)
+        make-verify.log — verify output
+        make-verify-exit — verify exit code (0 = pass)
+        coverage.txt — go test -cover output
+        total-cost.json — aggregated token/cost metrics
+
+      Judges should check outputs["files"] and outputs["modified_files"]
+      for files matching these naming patterns.
+
+traces:
+  stdout: true
+  stderr: true
+  events: false
+  metrics: true
+
+judges:
+  # ── Final-output deterministic judges (hard gates) ──
+
+  - name: has_code_changes
+    description: Verify the pipeline produced code changes (non-empty diff)
+    check: |
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      diff_files = {k: v for k, v in all_f.items() if k.endswith("diff.patch") and "phase1" not in k}
+      if not diff_files:
+          return (False, "No diff.patch found")
+      content = list(diff_files.values())[0]
+      if not content or not content.strip():
+          return (False, "diff.patch is empty — no code changes produced")
+      lines = len(content.strip().splitlines())
+      return (True, f"diff.patch has {lines} lines")
+
+  - name: make_verify_passes
+    description: Verify make verify passes (exit code 0)
+    check: |
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      exit_files = {k: v for k, v in all_f.items() if k.endswith("make-verify-exit")}
+      if not exit_files:
+          return (False, "No make-verify-exit file found")
+      code = list(exit_files.values())[0].strip()
+      if code == "0":
+          return (True, "make verify passed (exit 0)")
+      log_files = {k: v for k, v in all_f.items() if k.endswith("make-verify.log")}
+      log_tail = ""
+      if log_files:
+          log_tail = list(log_files.values())[0].strip()[-500:]
+      return (False, f"make verify failed (exit {code}). Tail: {log_tail}")
+
+  - name: make_test_passes
+    description: Verify make test passes (exit code 0)
+    check: |
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      exit_files = {k: v for k, v in all_f.items() if k.endswith("make-test-exit")}
+      if not exit_files:
+          return (False, "No make-test-exit file found")
+      code = list(exit_files.values())[0].strip()
+      if code == "0":
+          return (True, "make test passed (exit 0)")
+      log_files = {k: v for k, v in all_f.items() if k.endswith("make-test.log")}
+      log_tail = ""
+      if log_files:
+          log_tail = list(log_files.values())[0].strip()[-500:]
+      return (False, f"make test failed (exit {code}). Tail: {log_tail}")
+
+  - name: commit_message_format
+    description: "Verify commit messages use conventional-commit style (type(scope): or type:)"
+    check: |
+      import re
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      log_files = {k: v for k, v in all_f.items() if k.endswith("commit-log.txt")}
+      if not log_files:
+          return (False, "No commit-log.txt found")
+      content = list(log_files.values())[0].strip()
+      if not content:
+          return (False, "commit-log.txt is empty")
+      lines = content.splitlines()
+      conv_pattern = r'(feat|fix|refactor|chore|test|docs|style|perf|ci|build|revert)(\(.+?\))?:'
+      bad = []
+      for line in lines:
+          parts = line.split(" ", 1)
+          if len(parts) < 2:
+              bad.append(line)
+              continue
+          msg = parts[1]
+          if not re.match(conv_pattern, msg):
+              bad.append(line)
+      if bad:
+          return (False, f"{len(bad)}/{len(lines)} commits lack conventional-commit format: {bad[0][:80]}")
+      return (True, f"All {len(lines)} commits use conventional-commit format")
+
+  - name: coverage_meets_threshold
+    description: Verify diff coverage (changed lines) meets minimum threshold
+    check: |
+      import re
+      ann = outputs.get("annotations", {})
+      min_pct = ann.get("min_coverage_pct", 0)
+      if min_pct == 0:
+          return (True, "No coverage threshold set in annotations")
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      cov_files = {k: v for k, v in all_f.items() if k.endswith("coverage.txt")}
+      if not cov_files:
+          return (False, "No coverage.txt found")
+      content = list(cov_files.values())[0]
+      if "no go" in content.lower():
+          return (True, "No Go source files changed")
+      diff_match = re.search(r'diff-coverage:\s+([\d.]+)%', content)
+      if diff_match:
+          pct = float(diff_match.group(1))
+          if pct < min_pct:
+              return (False, f"Diff coverage {pct}% below threshold {min_pct}%")
+          return (True, f"Diff coverage {pct}% >= {min_pct}%")
+      coverages = re.findall(r'coverage:\s+([\d.]+)%', content)
+      if not coverages:
+          return (False, "Could not parse coverage from output")
+      pcts = [float(c) for c in coverages]
+      avg = sum(pcts) / len(pcts)
+      if avg < min_pct:
+          return (False, f"Avg package coverage {avg:.1f}% below threshold {min_pct}%")
+      return (True, f"Avg package coverage {avg:.1f}% >= {min_pct}%")
+
+  # ── Per-phase LLM judges ──
+
+  - name: solve_quality
+    description: |
+      Assess Phase 1 (solve) — does the initial implementation address the
+      issue with reasonable changes?
+    prompt: |
+      You are evaluating Phase 1 (solve) of a solve pipeline. The agent
+      was given a Jira issue and asked to implement a fix.
+
+      Below are the pipeline outputs. Focus on "phase1-diff.patch" for the
+      Phase 1 diff (before review/fix phases). If "known-good.patch" is present,
+      it contains the human-reviewed reference PR diff — compare the agent's
+      approach against it structurally (same files, same pattern, same fix).
+
+      {{ outputs }}
+
+      Expected outcomes from annotations:
+
+      {{ annotations }}
+
+      Evaluate on a 1-5 scale:
+
+      Score 1: No meaningful changes, or changes completely unrelated to the issue.
+      Score 2: Some relevant changes but major gaps — missing test coverage,
+               incomplete fix, or wrong approach.
+      Score 3: Reasonable first attempt — addresses the core issue, may have
+               minor gaps the review phase should catch.
+      Score 4: Good implementation — correct fix, includes tests, changes are
+               scoped to the issue. Minor style issues acceptable.
+      Score 5: Excellent — correct, complete, well-tested, idiomatic code.
+
+  - name: review_thoroughness
+    description: |
+      Assess Phase 2 (review) — did it catch real issues and provide
+      actionable feedback?
+    prompt: |
+      You are evaluating Phase 2 (code review) of a solve pipeline.
+
+      Below are the pipeline outputs. Focus on "phase1-diff.patch" for the
+      code that was reviewed, and "review-findings.txt" for the review output.
+
+      {{ outputs }}
+
+      Evaluate on a 1-5 scale:
+
+      Score 1: No findings, or findings are generic/irrelevant to the actual code.
+      Score 2: Superficial — mentions obvious issues but misses important ones.
+      Score 3: Adequate — catches some real issues with specific references.
+      Score 4: Thorough — identifies important issues with file:line references.
+      Score 5: Excellent — catches subtle issues, prioritized findings.
+
+  - name: fix_completeness
+    description: |
+      Assess Phase 3 (address review) — were review findings actually fixed?
+    prompt: |
+      You are evaluating Phase 3 (address review findings) of a solve pipeline.
+
+      Below are the pipeline outputs. Focus on "review-findings.txt" for the
+      Phase 2 findings, and "diff.patch" for the final diff after all 3 phases.
+      Compare the findings against the final diff to assess whether the review
+      issues were addressed.
+
+      {{ outputs }}
+
+      Evaluate on a 1-5 scale:
+
+      Score 1: Review findings completely ignored.
+      Score 2: Some findings addressed but most blocking issues remain.
+      Score 3: Most blocking issues addressed, some suggestions skipped.
+      Score 4: All blocking issues and most suggestions addressed.
+      Score 5: All findings fully addressed with high-quality fixes.
+
+  # ── Final-output LLM judges ──
+
+  - name: solution_correctness
+    description: |
+      Does the final output correctly solve the original Jira issue?
+    prompt: |
+      You are evaluating whether a solve pipeline correctly solved a
+      Jira issue.
+
+      Below are the pipeline outputs. Focus on "diff.patch" for the final diff
+      and "files-changed.txt" for the list of modified files. If
+      "known-good.patch" is present, it contains the human-reviewed reference
+      PR diff — compare the agent's solution against it for correctness,
+      completeness, and approach.
+
+      {{ outputs }}
+
+      Expected outcomes from annotations:
+
+      {{ annotations }}
+
+      Evaluate on a 1-5 scale:
+
+      Score 1: Does not address the issue at all, or introduces new bugs.
+      Score 2: Partially addresses the issue with significant gaps.
+      Score 3: Addresses the core issue correctly with minor gaps.
+      Score 4: Correctly and completely addresses the issue with good tests.
+      Score 5: Excellent — correct, complete, well-tested, matches or exceeds
+               the known-good PR approach.
+
+  - name: code_quality
+    description: |
+      Overall code quality — idiomatic Go, error handling, test quality.
+    prompt: |
+      You are a senior Go engineer reviewing the final output of a
+      solve pipeline.
+
+      Below are the pipeline outputs. Focus on "diff.patch" for the final
+      diff to review.
+
+      {{ outputs }}
+
+      Evaluate code quality on a 1-5 scale:
+
+      Score 1: Broken code or fundamental Go mistakes.
+      Score 2: Works but has significant issues: no error handling, no tests,
+               non-idiomatic patterns.
+      Score 3: Acceptable — compiles, passes tests, room for improvement.
+      Score 4: Good — idiomatic Go, proper error handling, meaningful tests.
+      Score 5: Excellent — clean, idiomatic, well-tested, proper godoc.
+
+thresholds:
+  has_code_changes:
+    min_pass_rate: 1.0
+  make_verify_passes:
+    min_pass_rate: 1.0
+  make_test_passes:
+    min_pass_rate: 1.0
+  commit_message_format:
+    min_pass_rate: 1.0
+  coverage_meets_threshold:
+    min_pass_rate: 0.8
+  solve_quality:
+    min_mean: 3.0
+  review_thoroughness:
+    min_mean: 3.0
+  fix_completeness:
+    min_mean: 3.0
+  solution_correctness:
+    min_mean: 3.5
+  code_quality:
+    min_mean: 3.5
