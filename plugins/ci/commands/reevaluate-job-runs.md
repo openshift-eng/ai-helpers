@@ -9,7 +9,7 @@ ci:reevaluate-job-runs
 
 ## Synopsis
 
-```
+```text
 /ci:reevaluate-job-runs <prow-urls-or-build-ids...>
 ```
 
@@ -26,7 +26,7 @@ The `ci:reevaluate-job-runs` command asks Sippy to re-scan completed Prow CI job
 3. **Dry-run first**: Always suggest a `--dry-run` before applying — it reports what would match without writing anything. Pass numeric build IDs or full Prow job URLs in any count; the script deduplicates and batches automatically (default 10 per request to avoid gateway timeouts):
    ```bash
    python3 plugins/ci/skills/reevaluate-job-runs/reevaluate_job_runs.py \
-     <run>... --token "$TOKEN" --dry-run --format summary
+     <run>... --dry-run --format summary
    ```
 
 4. **Apply**: After the user reviews the dry-run results, rerun without `--dry-run` to actually write labels.
@@ -42,12 +42,12 @@ The `ci:reevaluate-job-runs` command asks Sippy to re-scan completed Prow CI job
 ## Examples
 
 1. **Preview matches for a single run**:
-   ```
+   ```text
    /ci:reevaluate-job-runs https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-release-master-ci-4.20-e2e-aws-ovn/1856789012345678848
    ```
 
 2. **Apply to several runs by build ID**:
-   ```
+   ```text
    /ci:reevaluate-job-runs 1856789012345678848 1856789012345678849 1856789012345678850
    ```
 

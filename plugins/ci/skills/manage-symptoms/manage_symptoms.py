@@ -1,6 +1,7 @@
 """Create, update, or delete Sippy Symptoms (requires auth token)."""
 import argparse
 import json
+import os
 import sys
 import urllib.error
 import urllib.parse
@@ -10,6 +11,16 @@ WRITE_URL = "https://sippy-auth.dptools.openshift.org/api/jobs/symptoms"
 READ_SYMPTOMS_URL = "https://sippy.dptools.openshift.org/api/jobs/symptoms"
 READ_LABELS_URL = "https://sippy.dptools.openshift.org/api/jobs/labels"
 VALID_MATCHERS = ("string", "regex", "none", "cel")
+
+
+def resolve_token(arg_token, env=None):
+    """Return the Bearer token from --token or the SIPPY_TOKEN env var.
+
+    --token takes precedence over the environment variable. Prefer the env
+    var: command-line arguments are visible in process listings.
+    """
+    env = os.environ if env is None else env
+    return arg_token or env.get("SIPPY_TOKEN") or None
 
 
 def validate_symptom(payload):
@@ -68,9 +79,9 @@ def get_json(url):
 
 def check_labels_exist(label_ids):
     labels = get_json(READ_LABELS_URL)
-    if not isinstance(labels, list) or not all(isinstance(l, dict) for l in labels):
+    if not isinstance(labels, list) or not all(isinstance(label, dict) for label in labels):
         return ["could not verify label IDs (labels API unreachable or returned unexpected data)"]
-    known = {l.get("id") for l in labels}
+    known = {label.get("id") for label in labels}
     return ["label ID %r does not exist (create it first with the manage-labels skill)" % lid
             for lid in label_ids if lid not in known]
 
@@ -102,7 +113,7 @@ def request(method, url, token, payload=None):
 def main():
     p = argparse.ArgumentParser(description="Create/update/delete Sippy symptoms")
     p.add_argument("action", choices=["create", "update", "delete"])
-    p.add_argument("--token", required=True, help="Bearer token (use oc-auth skill)")
+    p.add_argument("--token", help="Bearer token (or set SIPPY_TOKEN env var, preferred; use oc-auth skill)")
     p.add_argument("--id", help="Symptom ID (required for update/delete; server-generated on create)")
     p.add_argument("--summary", help="Short unique description (required for create, max 200 chars)")
     p.add_argument("--matcher-type", choices=list(VALID_MATCHERS),
@@ -116,12 +127,19 @@ def main():
     p.add_argument("--format", choices=["json", "summary"], default="json")
     args = p.parse_args()
 
+    token = resolve_token(args.token)
+    if not token:
+        print("Error: no token provided — pass --token or set the SIPPY_TOKEN "
+              "environment variable (preferred; use the oc-auth skill to obtain "
+              "one)", file=sys.stderr)
+        return 1
+
     if args.action in ("update", "delete") and not args.id:
         print("Error: --id is required for %s" % args.action, file=sys.stderr)
         return 1
 
     if args.action == "delete":
-        out = request("DELETE", symptom_url(WRITE_URL, args.id), args.token)
+        out = request("DELETE", symptom_url(WRITE_URL, args.id), token)
     else:
         label_ids = parse_label_ids(args.label_ids)
         if args.action == "create":
@@ -149,9 +167,9 @@ def main():
                 print("Validation error: %s" % e, file=sys.stderr)
             return 1
         if args.action == "create":
-            out = request("POST", WRITE_URL, args.token, payload)
+            out = request("POST", WRITE_URL, token, payload)
         else:
-            out = request("PUT", symptom_url(WRITE_URL, args.id), args.token, payload)
+            out = request("PUT", symptom_url(WRITE_URL, args.id), token, payload)
 
     if args.format == "json":
         print(json.dumps(out, indent=2))

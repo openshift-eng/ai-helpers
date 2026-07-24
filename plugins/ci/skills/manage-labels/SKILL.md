@@ -55,18 +55,19 @@ if [ -z "$CONTEXT" ]; then
   exit 1
 fi
 
-TOKEN=$(oc whoami -t --context="$CONTEXT" 2>/dev/null)
-if [ -z "$TOKEN" ]; then
+export SIPPY_TOKEN=$(oc whoami -t --context="$CONTEXT" 2>/dev/null)
+if [ -z "$SIPPY_TOKEN" ]; then
   echo "Error: Failed to get token. Please re-authenticate to DPCR cluster."
   exit 1
 fi
 ```
 
+Prefer exporting `SIPPY_TOKEN` as above rather than passing `--token` on the command line — command-line arguments are visible in process listings. `--token` still works and takes precedence over the environment variable.
+
 ### Step 2: Create a Label
 
 ```bash
 python3 plugins/ci/skills/manage-labels/manage_labels.py create \
-  --token "$TOKEN" \
   --title "Cluster DNS Flake" \
   --explanation "DNS lookups inside the cluster intermittently time out."
 ```
@@ -79,7 +80,6 @@ Only pass the flags you want to change — the script fetches the existing label
 
 ```bash
 python3 plugins/ci/skills/manage-labels/manage_labels.py update \
-  --token "$TOKEN" \
   --id ClusterDNSFlake \
   --explanation "DNS lookups inside the cluster intermittently time out. Usually caused by node-local DNS cache restarts."
 ```
@@ -88,7 +88,6 @@ To hide a label from certain UI contexts:
 
 ```bash
 python3 plugins/ci/skills/manage-labels/manage_labels.py update \
-  --token "$TOKEN" \
   --id ClusterDNSFlake \
   --hide-display-contexts "spyglass,metrics"
 ```
@@ -99,7 +98,6 @@ python3 plugins/ci/skills/manage-labels/manage_labels.py update \
 
 ```bash
 python3 plugins/ci/skills/manage-labels/manage_labels.py delete \
-  --token "$TOKEN" \
   --id ClusterDNSFlake
 ```
 
@@ -107,7 +105,7 @@ python3 plugins/ci/skills/manage-labels/manage_labels.py delete \
 - `action`: `create`, `update`, or `delete` (positional, required)
 
 **Options**:
-- `--token <token>`: Bearer token from the oc-auth skill (required)
+- `--token <token>`: Bearer token from the oc-auth skill (optional if the `SIPPY_TOKEN` environment variable is set, which is preferred — argv is visible in process listings; `--token` takes precedence)
 - `--id <id>`: Label ID (required for update/delete; optional for create)
 - `--title <text>`: Human-readable label title (required for create)
 - `--explanation <text>`: Markdown explanation of the label
@@ -139,6 +137,7 @@ python3 plugins/ci/skills/manage-labels/manage_labels.py delete \
 - **501**: You hit the read-only Sippy instance with a write; make sure the sippy-auth base URL is used (the script already does).
 - **400**: Server-side validation failure — the server's message is shown in the `detail` field of the output.
 - **Client-side validation**: Missing title, over-long ID, or invalid `hide_display_contexts` values are caught locally and reported before any request is sent (exit 1).
+- **Concurrent edits**: The update flow is read-merge-replace with no server-side concurrency control, so near-simultaneous edits can overwrite each other — re-check the label after updating if others may be editing.
 
 **Exit Codes**:
 - `0`: Success

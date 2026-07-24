@@ -1,4 +1,4 @@
-from list_symptoms import filter_labels, filter_symptoms
+from list_symptoms import filter_labels, filter_symptoms, item_url
 
 SYMPTOMS = [
     {"id": "AWSAuthFailure", "summary": "AWS could not validate credentials",
@@ -33,13 +33,21 @@ LABELS = [
 ]
 
 def test_filter_labels_matches_title():
-    assert [l["id"] for l in filter_labels(LABELS, search="dns flake")] == ["ClusterDNSFlake"]
+    assert [label["id"] for label in filter_labels(LABELS, search="dns flake")] == ["ClusterDNSFlake"]
 
 def test_filter_labels_matches_id():
-    assert [l["id"] for l in filter_labels(LABELS, search="infrafailure")] == ["InfraFailure"]
+    assert [label["id"] for label in filter_labels(LABELS, search="infrafailure")] == ["InfraFailure"]
 
 def test_filter_labels_case_insensitive_explanation():
-    assert [l["id"] for l in filter_labels(LABELS, search="CLOUD PROVIDER")] == ["InfraFailure"]
+    assert [label["id"] for label in filter_labels(LABELS, search="CLOUD PROVIDER")] == ["InfraFailure"]
 
 def test_filter_labels_no_search_returns_all():
     assert filter_labels(LABELS) == LABELS
+
+def test_item_url_encodes_reserved_characters():
+    assert item_url("symptoms", "a/b c") == (
+        "https://sippy.dptools.openshift.org/api/jobs/symptoms/a%2Fb%20c")
+
+def test_item_url_plain_id_unchanged():
+    assert item_url("labels", "InfraFailure") == (
+        "https://sippy.dptools.openshift.org/api/jobs/labels/InfraFailure")

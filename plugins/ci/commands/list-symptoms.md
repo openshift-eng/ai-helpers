@@ -9,7 +9,7 @@ ci:list-symptoms
 
 ## Synopsis
 
-```
+```text
 /ci:list-symptoms [search-text]
 ```
 
@@ -43,17 +43,17 @@ The `ci:list-symptoms` command lists and searches Sippy Symptoms — known-failu
 ## Examples
 
 1. **List all symptoms**:
-   ```
+   ```text
    /ci:list-symptoms
    ```
 
 2. **Search for symptoms about credentials**:
-   ```
+   ```text
    /ci:list-symptoms credentials
    ```
 
 3. **Ask about labels**:
-   ```
+   ```text
    /ci:list-symptoms what does the InfraFailure label mean?
    ```
 

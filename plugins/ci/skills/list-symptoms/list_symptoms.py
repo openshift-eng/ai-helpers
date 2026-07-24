@@ -3,9 +3,15 @@ import argparse
 import json
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 
 BASE_URL = "https://sippy.dptools.openshift.org/api/jobs"
+
+
+def item_url(resource, item_id):
+    """Build the URL for a single symptom/label, URL-encoding the ID."""
+    return "%s/%s/%s" % (BASE_URL, resource, urllib.parse.quote(item_id, safe=""))
 
 
 def fetch(url):
@@ -91,7 +97,7 @@ def main():
 
     resource = "labels" if args.labels else "symptoms"
     if args.id:
-        items = [fetch("%s/%s/%s" % (BASE_URL, resource, args.id))]
+        items = [fetch(item_url(resource, args.id))]
     else:
         items = fetch("%s/%s" % (BASE_URL, resource))
         if args.labels:

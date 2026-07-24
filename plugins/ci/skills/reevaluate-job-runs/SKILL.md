@@ -54,12 +54,14 @@ if [ -z "$CONTEXT" ]; then
   exit 1
 fi
 
-TOKEN=$(oc whoami -t --context="$CONTEXT" 2>/dev/null)
-if [ -z "$TOKEN" ]; then
+export SIPPY_TOKEN=$(oc whoami -t --context="$CONTEXT" 2>/dev/null)
+if [ -z "$SIPPY_TOKEN" ]; then
   echo "Error: Failed to get token. Please re-authenticate to DPCR cluster."
   exit 1
 fi
 ```
+
+Prefer exporting `SIPPY_TOKEN` as above rather than passing `--token` on the command line — command-line arguments are visible in process listings. `--token` still works and takes precedence over the environment variable.
 
 ### Step 2: Dry-run First
 
@@ -67,8 +69,7 @@ Always suggest a `--dry-run` first — it reports what would match without writi
 
 ```bash
 python3 plugins/ci/skills/reevaluate-job-runs/reevaluate_job_runs.py \
-  https://prow.ci.openshift.org/view/gs/test-platform-results/logs/<job>/<build_id> \
-  --token "$TOKEN" --dry-run --format summary
+  https://prow.ci.openshift.org/view/gs/test-platform-results/logs/<job>/<build_id> --dry-run --format summary
 ```
 
 ### Step 3: Apply
@@ -77,8 +78,7 @@ Rerun without `--dry-run` to actually write labels:
 
 ```bash
 python3 plugins/ci/skills/reevaluate-job-runs/reevaluate_job_runs.py \
-  1856789012345678848 1856789012345678849 \
-  --token "$TOKEN" --format summary
+  1856789012345678848 1856789012345678849 --format summary
 ```
 
 ### Bulk workflow: reevaluate all runs behind a triage
@@ -96,14 +96,14 @@ done
 
 # The script deduplicates and batches (default 10 per request) automatically
 python3 plugins/ci/skills/reevaluate-job-runs/reevaluate_job_runs.py \
-  $RUN_IDS --token "$TOKEN" --format summary
+  $RUN_IDS --format summary
 ```
 
 **Arguments**:
 - `runs`: One or more Prow build IDs or Prow job URLs (positional, required; batched automatically)
 
 **Options**:
-- `--token <token>`: Bearer token from the oc-auth skill (required)
+- `--token <token>`: Bearer token from the oc-auth skill (optional if the `SIPPY_TOKEN` environment variable is set, which is preferred — argv is visible in process listings; `--token` takes precedence)
 - `--dry-run`: Report matches without writing anything
 - `--batch-size <n>`: Runs per API request (default 10; max 50, but large batches risk 504 gateway timeouts)
 - `--format json|summary`: Output format (default: json)
@@ -139,7 +139,7 @@ Reevaluation is delete-then-insert and **idempotent** — running it twice on th
 ## Batching & timeouts (field-tested 2026-07)
 
 - The server evaluates roughly **3-4 seconds per run**, and the fronting gateway times out around **60-90 seconds**, returning an HTML `504 Gateway Time-out` **page** (not JSON). This means 50-run batches reliably fail even though the API nominally accepts them.
-- The script therefore defaults to **batches of 10**, with **3 retries per batch** and a 5-second backoff. Transient gateway errors (HTTP 502/503/504, HTML error pages, and non-JSON response bodies) are all retried. Retries are safe because reevaluation is idempotent — even a batch that partially completed server-side can be resent.
+- The script therefore defaults to **batches of 10**, with **3 attempts per batch (2 retries)** and a 5-second backoff. Transient gateway errors (HTTP 502/503/504, HTML error pages, and non-JSON response bodies) are all retried. Retries are safe because reevaluation is idempotent — even a batch that partially completed server-side can be resent.
 - If 504s persist, lower `--batch-size` (e.g. `--batch-size 5`).
 - **Warning:** an HTML **login page** response means the token expired — the SSO proxy redirects to login instead of returning 401. The script detects this and tells you to refresh the token via the `oc-auth` skill.
 
@@ -147,7 +147,7 @@ Reevaluation is delete-then-insert and **idempotent** — running it twice on th
 
 - **Invalid/non-numeric IDs**: Caught client-side before any request (exit 1) — pass a numeric build ID or a Prow URL ending in one (query strings and `#fragments` are stripped automatically).
 - **Invalid `--batch-size`**: Must be between 1 and 50 (exit 1).
-- **Transient gateway errors (502/503/504, HTML error pages, non-JSON bodies)**: Retried automatically (3 attempts, 5s backoff); persistent failures are reported in `failed_batches` and the script exits 1 — rerun with just those IDs (idempotent, safe).
+- **Transient gateway errors (502/503/504, HTML error pages, non-JSON bodies)**: Retried automatically (3 attempts, i.e. 2 retries, 5s backoff); persistent failures are reported in `failed_batches` and the script exits 1 — rerun with just those IDs (idempotent, safe).
 - **Authentication failure (HTML login page or 401/403)**: Token missing/expired — the script **stops immediately** and marks all remaining batches as `not attempted` in `failed_batches` instead of hammering the API with a bad token. Refresh the token via the `oc-auth` skill and rerun.
 - **`missing_error` status**: The run's artifacts were not found — check the build ID.
 - **501**: You hit the read-only Sippy instance; make sure the sippy-auth base URL is used (the script already does).

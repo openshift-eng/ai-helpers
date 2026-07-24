@@ -1,3 +1,4 @@
+import diagnose_job_run
 import pytest
 from diagnose_job_run import parse_prow_url, normalize_label_entry, classify_response
 
@@ -82,3 +83,13 @@ def test_normalize_flat_fallback_id_key():
 def test_normalize_garbage_returns_empty_match():
     m = normalize_label_entry("not-a-dict")
     assert m["label_id"] is None and m["symptom_id"] is None
+
+
+def test_resolve_token_arg_wins_over_env():
+    assert diagnose_job_run.resolve_token("argtok", {"SIPPY_TOKEN": "envtok"}) == "argtok"
+
+def test_resolve_token_falls_back_to_env():
+    assert diagnose_job_run.resolve_token(None, {"SIPPY_TOKEN": "envtok"}) == "envtok"
+
+def test_resolve_token_none_when_unset():
+    assert diagnose_job_run.resolve_token(None, {}) is None

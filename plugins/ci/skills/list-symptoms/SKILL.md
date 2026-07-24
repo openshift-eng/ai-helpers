@@ -70,7 +70,7 @@ Flags:
 
 ### Endpoints
 
-```
+```text
 GET https://sippy.dptools.openshift.org/api/jobs/symptoms
 GET https://sippy.dptools.openshift.org/api/jobs/symptoms/{id}
 GET https://sippy.dptools.openshift.org/api/jobs/labels
@@ -150,7 +150,7 @@ python3 plugins/ci/skills/list-symptoms/list_symptoms.py --format summary
 ```
 
 **Expected Output (excerpt):**
-```
+```text
 Symptom: AWSCouldNotValidateAccessCredentials
   Summary:      AWS could not validate access credentials
   Matcher:      string

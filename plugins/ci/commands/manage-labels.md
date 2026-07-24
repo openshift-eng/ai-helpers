@@ -9,7 +9,7 @@ ci:manage-labels
 
 ## Synopsis
 
-```
+```text
 /ci:manage-labels [create|update|delete] [label]
 ```
 
@@ -27,20 +27,20 @@ The `ci:manage-labels` command manages Sippy Labels — the human-readable tags 
    - **Create** (confirm title and explanation with the user first):
      ```bash
      python3 plugins/ci/skills/manage-labels/manage_labels.py create \
-       --token "$TOKEN" --title "<Label Title>" --explanation "<what this label means>"
+       --title "<Label Title>" --explanation "<what this label means>"
      ```
      The label `id` is generated from the title unless `--id` is passed (max 80 chars).
    - **Update** (pass only the flags to change — the script merges with the existing label):
      ```bash
      python3 plugins/ci/skills/manage-labels/manage_labels.py update \
-       --token "$TOKEN" --id <LabelID> --explanation "<new explanation>"
+       --id <LabelID> --explanation "<new explanation>"
      ```
      Use `--hide-display-contexts "spyglass,metrics"` to hide the label in specific UI contexts (valid values: spyglass, metrics, jaq-options).
    - **Delete** — **first show the label to the user and get explicit confirmation**:
      ```bash
      python3 plugins/ci/skills/list-symptoms/list_symptoms.py --labels --id <LabelID> --format summary
      # ...after the user confirms:
-     python3 plugins/ci/skills/manage-labels/manage_labels.py delete --token "$TOKEN" --id <LabelID>
+     python3 plugins/ci/skills/manage-labels/manage_labels.py delete --id <LabelID>
      ```
      Never delete without the user confirming the specific label. Also check which symptoms still reference it (`list_symptoms.py --label <LabelID>`) and warn the user if any do.
 
@@ -54,17 +54,17 @@ The `ci:manage-labels` command manages Sippy Labels — the human-readable tags 
 ## Examples
 
 1. **Create a label**:
-   ```
+   ```text
    /ci:manage-labels create a "Cluster DNS Flake" label for intermittent in-cluster DNS timeouts
    ```
 
 2. **Update a label's explanation**:
-   ```
+   ```text
    /ci:manage-labels update ClusterDNSFlake explanation to mention node-local DNS cache restarts
    ```
 
 3. **Delete a label**:
-   ```
+   ```text
    /ci:manage-labels delete ClusterDNSFlake
    ```
 

@@ -7,7 +7,7 @@ description: Explain which Sippy Symptoms and failure Labels apply to a Prow CI 
 
 Sippy Symptoms are known-failure signatures for OpenShift CI. A symptom is a rule made of a file pattern (a glob over a CI job run's artifact files, e.g. `**/build-log.txt`) and a matcher (`string` = substring, `regex` = regular expression, `none` = file merely exists, `cel` = a compound CEL expression over other label names). When a symptom matches a job run's artifacts, Sippy applies one or more **Labels** — human-readable tags like `InfraFailure` — to that run. Labels appear in the Sippy UI and Spyglass and help everyone quickly recognize known failure modes without re-debugging them. You do not need any prior Sippy knowledge to use this skill.
 
-This skill takes a Prow job run URL and explains which symptoms matched the run and what each applied label means — including the exact file and line of text that matched.
+This skill takes a Prow job run URL and explains which symptoms matched the run and what each applied label means — including the matched file and text.
 
 ## When to Use This Skill
 
@@ -24,7 +24,7 @@ Use this skill when:
 2. **Deep mode** (`--deep`, server-side dry-run rescan): a Bearer token from the DPCR cluster.
    - Must be logged into the DPCR cluster via `oc login`
    - Cluster API: `https://api.cr.j7t7.p1.openshiftapps.com:6443`
-   - Use the `oc-auth` skill to obtain the token (see the token-acquisition snippet in `reevaluate-job-runs/SKILL.md`)
+   - Use the `oc-auth` skill to obtain the token (see the token-acquisition snippet in `reevaluate-job-runs/SKILL.md`); prefer `export SIPPY_TOKEN=...` over `--token` — argv is visible in process listings
 
 3. **Python 3**: Python 3.6 or later, standard library only.
 
@@ -45,10 +45,10 @@ Use when the run predates the current symptom set or shows no labels. This asks 
 
 ```bash
 python3 plugins/ci/skills/diagnose-job-run-symptoms/diagnose_job_run.py \
-  "<prow_url>" --deep --token "$TOKEN"
+  "<prow_url>" --deep
 ```
 
-Note: deep mode reports label IDs only — the matched file/line detail is only available in default mode (it comes from the GCS artifacts).
+Note: deep mode reports label IDs only — the matched file/text detail is only available in default mode (it comes from the GCS artifacts).
 
 ### Step 3: Nothing matched?
 
@@ -58,8 +58,8 @@ If default mode finds no labels, first suggest `--deep`: the run may simply neve
 - `prow_url`: Prow job run URL (`https://prow.ci.openshift.org/view/gs/...`, positional, required)
 
 **Options**:
-- `--deep`: Server-side dry-run rescan via the reevaluate API (requires `--token`)
-- `--token <token>`: Bearer token from the oc-auth skill (only needed with `--deep`)
+- `--deep`: Server-side dry-run rescan via the reevaluate API (requires a token)
+- `--token <token>`: Bearer token from the oc-auth skill (only needed with `--deep`; optional if the `SIPPY_TOKEN` environment variable is set, which is preferred — argv is visible in process listings; `--token` takes precedence)
 - `--format json|summary`: Output format (default: summary)
 
 ## API Details
@@ -78,7 +78,7 @@ If default mode finds no labels, first suggest `--deep`: the run may simply neve
                 "file_pattern": "...", "match_string": "...", "label_ids": ["..."]},
     "label": {"id": "...", "label_title": "...", "explanation": "..."},
     "file_match": "artifacts/.../nodes.json",
-    "text_match": "the exact line that matched"
+    "text_match": "the exact text that matched"
   }
 }
 ```
