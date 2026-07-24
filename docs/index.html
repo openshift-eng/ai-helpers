@@ -1456,7 +1456,7 @@ footer a { color: var(--primary); }
     {
       "name": "jira",
       "description": "A plugin to automate tasks with Jira",
-      "version": "0.8.6",
+      "version": "0.8.8",
       "has_readme": true,
       "commands": [
         {
@@ -1498,6 +1498,14 @@ footer a { color: var(--primary); }
           "description_html": "Clone GitHub issues to Jira with proper formatting and linking",
           "synopsis": "/jira:clone-from-github \u003cissue-number\u003e [issue-number...] [options]",
           "body_html": "\u003cp\u003eThe \u003ccode\u003ejira:clone-from-github\u003c/code\u003e command clones one or more GitHub issues to Jira, preserving the original issue content and establishing a link between the GitHub and Jira issues. This command is useful for:\u003c/p\u003e\u003cp\u003e- Migrating GitHub issues to Jira for project tracking\u003cbr\u003e- Creating Jira tickets that track upstream GitHub issues\u003cbr\u003e- Maintaining synchronization between GitHub and Jira workflows\u003cbr\u003e- Bulk importing GitHub issues into Jira projects\u003c/p\u003e\u003cp\u003eThe command uses the \u003ca href=\"https://github.com/oceanc80/gh2jira\"\u003egh2jira utility\u003c/a\u003e to perform the cloning operation. Use \u003ccode\u003e/jira:setup-gh2jira\u003c/code\u003e to install and configure gh2jira if you haven&#x27;t already.\u003c/p\u003e"
+        },
+        {
+          "name": "create-jira-from-file",
+          "full_name": "create-jira-from-file - Create Jira issues from a markdown file",
+          "description": "Create Jira issues from a markdown file (project-agnostic)",
+          "description_html": "Create Jira issues from a markdown file (project-agnostic)",
+          "synopsis": "/jira:create-jira-from-file \u003cpath-to-markdown-file\u003e",
+          "body_html": "\u003cp\u003eCreate one or more Jira issues from a markdown file. Required metadata (project key) and any optional fields (component, version, type, parent) must be specified in the markdown file itself. Issue type can be set explicitly or auto-detected from content.\u003c/p\u003e\u003cp\u003e### Required Metadata\u003c/p\u003e\u003cp\u003eEach issue must specify:\u003cbr\u003e- \u003ccode\u003e\u003cstrong\u003eProject:\u003c/strong\u003e &lt;project-key&gt;\u003c/code\u003e — REQUIRED\u003c/p\u003e\u003cp\u003e### Strongly Recommended Metadata\u003c/p\u003e\u003cp\u003e- \u003ccode\u003e\u003cstrong\u003eType:\u003c/strong\u003e &lt;issue-type&gt;\u003c/code\u003e — Story, Bug, Task, Epic, Feature, Initiative, or Sub-task. If omitted, the skill auto-detects from content patterns and confirms with the user when ambiguous.\u003c/p\u003e\u003cp\u003e### Optional Metadata\u003c/p\u003e\u003cp\u003e- \u003ccode\u003e\u003cstrong\u003eComponent:\u003c/strong\u003e &lt;component-name&gt;\u003c/code\u003e\u003cbr\u003e- \u003ccode\u003e\u003cstrong\u003eVersion:\u003c/strong\u003e &lt;version&gt;\u003c/code\u003e\u003cbr\u003e- \u003ccode\u003e\u003cstrong\u003eParent:\u003c/strong\u003e &lt;parent-issue-key&gt;\u003c/code\u003e\u003cbr\u003e- \u003ccode\u003e\u003cstrong\u003ePriority:\u003c/strong\u003e &lt;priority-name&gt;\u003c/code\u003e\u003cbr\u003e- \u003ccode\u003e\u003cstrong\u003eLabels:\u003c/strong\u003e &lt;label1&gt;, &lt;label2&gt;\u003c/code\u003e\u003c/p\u003e"
         },
         {
           "name": "create-release-note",
@@ -1613,6 +1621,12 @@ footer a { color: var(--primary); }
           "name": "create",
           "description": "Create Jira issues — story, bug, epic, feature, initiative, task, or feature-request — with CNTRLPLANE, OCPBUGS, GCP, HyperShift, ARO, ROSA conventions and type-specific templates",
           "description_html": "Create Jira issues — story, bug, epic, feature, initiative, task, or feature-request — with CNTRLPLANE, OCPBUGS, GCP, HyperShift, ARO, ROSA conventions and type-specific templates",
+          "meta": ""
+        },
+        {
+          "name": "create-jira-from-file",
+          "description": "Create Jira issues from a markdown file (single or batch). Use whenever the user asks to create Jira from a file, create tickets/issues from markdown, batch-create Jira issues from a planning doc, or run /jira:create-jira-from-file. Project-agnostic — extracts Project, Type, Component, Version, Parent, Priority, and Labels from the file.\n",
+          "description_html": "Create Jira issues from a markdown file (single or batch). Use whenever the user asks to create Jira from a file, create tickets/issues from markdown, batch-create Jira issues from a planning doc, or run /jira:create-jira-from-file. Project-agnostic — extracts Project, Type, Component, Version, Parent, Priority, and Labels from the file.",
           "meta": ""
         },
         {
