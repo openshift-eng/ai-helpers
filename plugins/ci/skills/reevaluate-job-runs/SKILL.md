@@ -139,18 +139,17 @@ Reevaluation is delete-then-insert and **idempotent** — running it twice on th
 ## Batching & timeouts (field-tested 2026-07)
 
 - The server evaluates roughly **3-4 seconds per run**, and the fronting gateway times out around **60-90 seconds**, returning an HTML `504 Gateway Time-out` **page** (not JSON). This means 50-run batches reliably fail even though the API nominally accepts them.
-- The script therefore defaults to **batches of 10**, with **3 retries per batch** and a 5-second backoff. Retries are safe because reevaluation is idempotent — even a batch that partially completed server-side can be resent.
+- The script therefore defaults to **batches of 10**, with **3 retries per batch** and a 5-second backoff. Transient gateway errors (HTTP 502/503/504, HTML error pages, and non-JSON response bodies) are all retried. Retries are safe because reevaluation is idempotent — even a batch that partially completed server-side can be resent.
 - If 504s persist, lower `--batch-size` (e.g. `--batch-size 5`).
 - **Warning:** an HTML **login page** response means the token expired — the SSO proxy redirects to login instead of returning 401. The script detects this and tells you to refresh the token via the `oc-auth` skill.
 
 ## Error Handling
 
-- **Invalid/non-numeric IDs**: Caught client-side before any request (exit 1) — pass a numeric build ID or a Prow URL ending in one.
+- **Invalid/non-numeric IDs**: Caught client-side before any request (exit 1) — pass a numeric build ID or a Prow URL ending in one (query strings and `#fragments` are stripped automatically).
 - **Invalid `--batch-size`**: Must be between 1 and 50 (exit 1).
-- **HTML 504 page**: Retried automatically (3 attempts, 5s backoff); persistent failures are reported in `failed_batches` and the script exits 1 — rerun with just those IDs (idempotent, safe).
-- **HTML login page**: Token expired — refresh via the `oc-auth` skill.
+- **Transient gateway errors (502/503/504, HTML error pages, non-JSON bodies)**: Retried automatically (3 attempts, 5s backoff); persistent failures are reported in `failed_batches` and the script exits 1 — rerun with just those IDs (idempotent, safe).
+- **Authentication failure (HTML login page or 401/403)**: Token missing/expired — the script **stops immediately** and marks all remaining batches as `not attempted` in `failed_batches` instead of hammering the API with a bad token. Refresh the token via the `oc-auth` skill and rerun.
 - **`missing_error` status**: The run's artifacts were not found — check the build ID.
-- **401/403**: Token missing or expired — refresh via the `oc-auth` skill.
 - **501**: You hit the read-only Sippy instance; make sure the sippy-auth base URL is used (the script already does).
 
 **Exit Codes**:

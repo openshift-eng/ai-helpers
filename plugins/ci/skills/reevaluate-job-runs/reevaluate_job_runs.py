@@ -21,7 +21,7 @@ RETRY_DELAY_SECONDS = 5
 
 
 def extract_build_id(value):
-    value = value.strip().rstrip("/")
+    value = value.strip().split("#", 1)[0].split("?", 1)[0].rstrip("/")
     candidate = value.rsplit("/", 1)[-1]
     if candidate.isdigit():
         return candidate
@@ -34,7 +34,11 @@ def chunk(items, size):
 
 
 def send_batch(ids, token, dry_run):
-    """POST one batch. Returns (results, error). Retries on 504/non-JSON (gateway timeout)."""
+    """POST one batch. Returns (results, error, auth_failed).
+
+    Retries on transient gateway errors (502/503/504, HTML error pages, non-JSON
+    bodies). auth_failed=True signals the caller to stop sending further batches.
+    """
     payload = {"prow_job_build_ids": ids, "dry_run": dry_run}
     last_err = None
     for attempt in range(1, RETRIES_PER_BATCH + 1):
@@ -49,10 +53,13 @@ def send_batch(ids, token, dry_run):
                 # HTML instead of JSON: SSO login page (bad token) or gateway error page
                 if "log in" in body.lower():
                     return None, ("got an SSO login page instead of JSON — token is "
-                                  "missing/expired; use the oc-auth skill to refresh it")
+                                  "missing/expired; use the oc-auth skill to refresh it"), True
                 last_err = "gateway returned an HTML error page (likely 504 timeout)"
             else:
-                return json.loads(body).get("results", []), None
+                try:
+                    return json.loads(body).get("results", []), None, False
+                except ValueError:
+                    last_err = "server returned a non-JSON response body"
         except urllib.error.HTTPError as e:
             detail = ""
             try:
@@ -60,12 +67,12 @@ def send_batch(ids, token, dry_run):
             except Exception:
                 pass
             if e.code == 501:
-                return None, "HTTP 501 (write endpoints disabled; use sippy-auth)"
+                return None, "HTTP 501 (write endpoints disabled; use sippy-auth)", False
             if e.code in (401, 403):
-                return None, "HTTP %d (token missing/expired; use the oc-auth skill)" % e.code
-            if e.code != 504:
-                return None, "HTTP %d: %s\n%s" % (e.code, e.reason, detail)
-            last_err = "HTTP 504 gateway timeout"
+                return None, "HTTP %d (token missing/expired; use the oc-auth skill)" % e.code, True
+            if e.code not in (502, 503, 504):
+                return None, "HTTP %d: %s\n%s" % (e.code, e.reason, detail), False
+            last_err = "HTTP %d gateway error" % e.code
         except urllib.error.URLError as e:
             last_err = "connection error: %s" % e.reason
         if attempt < RETRIES_PER_BATCH:
@@ -74,7 +81,7 @@ def send_batch(ids, token, dry_run):
                                                         last_err, RETRY_DELAY_SECONDS),
                   file=sys.stderr)
             time.sleep(RETRY_DELAY_SECONDS)
-    return None, "%s after %d attempts (try a smaller --batch-size)" % (last_err, RETRIES_PER_BATCH)
+    return None, "%s after %d attempts (try a smaller --batch-size)" % (last_err, RETRIES_PER_BATCH), False
 
 
 def main():
@@ -104,10 +111,17 @@ def main():
     for i, batch in enumerate(batches, 1):
         if len(batches) > 1:
             print("Batch %d/%d (%d runs)..." % (i, len(batches), len(batch)), file=sys.stderr)
-        results, err = send_batch(batch, args.token, args.dry_run)
+        results, err, auth_failed = send_batch(batch, args.token, args.dry_run)
         if err:
             print("Error: batch %d failed: %s" % (i, err), file=sys.stderr)
             failed_batches.append({"batch": i, "ids": batch, "error": err})
+            if auth_failed:
+                auth_err = "not attempted: %s" % err
+                for j, remaining in enumerate(batches[i:], i + 1):
+                    failed_batches.append({"batch": j, "ids": remaining, "error": auth_err})
+                print("Error: authentication failed; skipping remaining batches. "
+                      "Refresh the token via the oc-auth skill and rerun.", file=sys.stderr)
+                break
         else:
             all_results.extend(results)
 
