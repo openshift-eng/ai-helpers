@@ -57,16 +57,16 @@ def fetch_runs(release, filter_dict, limit):
     except urllib.error.HTTPError as e:
         detail = ""
         try:
-            detail = e.read().decode("utf-8")
-        except Exception:
-            pass
-        raise RuntimeError("HTTP %d from Sippy API: %s" % (e.code, detail.strip()))
+            detail = e.read().decode("utf-8", errors="replace")
+        except (OSError, ValueError):
+            detail = "<unable to read response body>"
+        raise RuntimeError("HTTP %d from Sippy API: %s" % (e.code, detail.strip())) from e
     except urllib.error.URLError as e:
-        raise RuntimeError("failed to connect to Sippy API: %s" % e.reason)
+        raise RuntimeError("failed to connect to Sippy API: %s" % e.reason) from e
     try:
         data = json.loads(body)
-    except ValueError:
-        raise RuntimeError("server returned a non-JSON response body")
+    except ValueError as e:
+        raise RuntimeError("server returned a non-JSON response body") from e
     return data.get("rows") or []
 
 
