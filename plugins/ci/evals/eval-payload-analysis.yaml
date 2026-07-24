@@ -67,6 +67,11 @@ dataset:
       - 'expected_candidates': list of expected revert candidates with pr_url,
         component, min_confidence, expected_confidence, description,
         expected_failing_jobs
+      - 'key_evidence': list of {fact, artifacts} — facts a grounded analysis
+        must establish, with snapshot-relative paths where provable
+      - 'discriminating_signal': signal separating true root cause from look-alikes
+      - 'distractors': misleading signals a shallow analysis would latch onto
+      - 'must_not_conclude': wrong conclusions the judge must penalize
       - 'notes': free text context
 
     Snapshots are stored as tar.gz archives in
@@ -290,27 +295,44 @@ judges:
       {{ content }}
       {% endfor %}
 
-      Expected outcomes for this test case:
+      Expected outcomes for this test case (authoritative ground truth):
 
       {{ annotations }}
+
+      Pay special attention to these annotation fields when present:
+      - 'key_evidence': specific facts a grounded analysis must establish.
+      - 'discriminating_signal': the signal the report must identify.
+      - 'distractors': misleading signals the report must NOT be fooled by.
+      - 'must_not_conclude': conclusions that are WRONG for this case.
 
       Evaluate the YAML results file and HTML report on a 1-5 scale:
 
       Score 1: Analysis is missing or completely wrong — no root causes identified,
-               no PR correlation, report is empty or broken.
+               no PR correlation, report is empty or broken, OR the report's
+               primary conclusion is one of the must_not_conclude verdicts.
       Score 2: Superficial analysis — root causes restate symptoms without explanation
                (e.g., "node not ready" without tracing WHY), PR correlations are
-               absent or random, report structure is incomplete.
+               absent or random, report structure is incomplete, OR the report is
+               taken in by a listed distractor.
       Score 3: Adequate analysis — root causes go one level deeper than symptoms,
                some PR correlations are plausible, report has required sections
                but may have gaps in coverage or depth.
       Score 4: Good analysis — root causes cite specific error messages from logs,
                PR correlations reference actual code/components changed, revert
-               recommendations have clear rationale, report is well-structured.
+               recommendations have clear rationale, report is well-structured;
+               is not fooled by distractors and states none of the
+               must_not_conclude verdicts.
       Score 5: Excellent analysis — root causes traced to specific code paths with
                log excerpts, PR correlations demonstrate causal reasoning (not just
                temporal coincidence), rubric scores are itemized, report is
-               comprehensive and immediately actionable.
+               comprehensive and immediately actionable; explicitly identifies
+               the discriminating_signal and rules out distractors.
+
+      Hard rules:
+      - If the report's primary conclusion matches any entry in
+        'must_not_conclude', it cannot score above 2.
+      - If the report cites error strings that do not appear in the snapshot
+        artifacts as evidence for a revert candidate, cap at 2.
 
       Key evaluation criteria:
       - Does the number of failing jobs approximately match expected_failed_job_count?
@@ -354,7 +376,7 @@ judges:
       {{ content }}
       {% endfor %}
 
-      Expected outcomes for this test case:
+      Expected outcomes for this test case (authoritative ground truth):
 
       {{ annotations }}
 
@@ -363,26 +385,42 @@ judges:
       expected_failing_jobs. If expected_candidates is empty, no false positive
       revert recommendations should appear.
 
+      Pay special attention to 'must_not_conclude' and 'distractors' when
+      present — these identify specific false-positive traps for this case.
+
       Evaluate on a 1-5 scale:
 
       Score 1: No scoring applied, or scores are arbitrary. Expected revert
-               candidates (from annotations) are completely missed.
+               candidates (from annotations) are completely missed. OR
+               expected_candidates is empty but the skill recommends reverting
+               a PR listed in must_not_conclude.
       Score 2: Some expected candidates identified but confidence scores are way
                off (>20 points from expected) or key failing job linkages are
-               missing.
+               missing. OR expected_candidates is empty but the skill produces
+               any revert candidate above threshold (>= 85).
       Score 3: All expected high-confidence candidates (min_confidence >= 85) are
                identified above threshold, but scores may be off by 10-20 points
-               or rubric components not itemized.
+               or rubric components not itemized. For no-candidate cases:
+               candidates list is empty but rubric reasoning is thin.
       Score 4: All expected candidates identified with scores within 10 points of
                expected_confidence. Rubric correctly applied with itemized
                breakdown. Most expected failing jobs correctly linked.
                Infrastructure failures correctly distinguished from product
-               failures.
+               failures. For no-candidate cases: no false positives and the
+               report explains why no PR meets threshold.
       Score 5: All expected candidates identified with scores within 5 points of
                expected_confidence. Rubric meticulously applied — each component
                score justified with specific evidence. All expected failing jobs
                correctly linked. No false positive revert recommendations for
                unrelated PRs. Cross-job correlation signal clearly documented.
+               For no-candidate cases: explicitly rules out distractors with
+               artifact evidence.
+
+      Hard rules:
+      - If expected_candidates is empty and the skill recommends reverting a PR
+        named in must_not_conclude, cap at 1.
+      - If expected_candidates is empty and the skill recommends reverting any
+        PR above threshold, cap at 2.
 
 thresholds:
   output_files_exist:

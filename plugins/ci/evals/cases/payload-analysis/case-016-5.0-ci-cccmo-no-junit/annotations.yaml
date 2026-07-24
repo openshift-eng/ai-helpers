@@ -1,0 +1,56 @@
+expected_phase: Rejected
+expected_failed_job_count: 3
+has_revert_candidates: false
+force_accept_expected: false
+
+expected_candidates: []
+
+must_not_conclude:
+  - "CCCMO PR #488 is the root cause of GCP micro upgrade failures"
+  - "The error 'Deployment cloud-controller-manager rollout not complete' appears in job output or logs"
+  - "cloud-controller-manager-operator is stuck in Progressing=True"
+
+distractors:
+  - "klog.V(2) debug strings in CCCMO #488 PR diff ('Deployment %s rollout not complete', 'DaemonSet %s rollout not complete') — these were never emitted because the controllers do not run at verbosity 2"
+  - "5-payload GCP micro upgrade failure streak originating in the payload that introduced #488 — temporal correlation without causal evidence"
+  - "CCCMO #488 is the sole PR modifying cluster-cloud-controller-manager-operator in the originating payload — component exclusivity does not imply causality"
+
+key_evidence:
+  - fact: >-
+      JUnit results are empty ([]) for all 3 failed blocking jobs. The
+      snapshot contains no test failure data. The agent must not fabricate
+      test failure evidence.
+    artifacts:
+      - "5.0/ci/5.0.0-0.ci-2026-07-11-223154/jobs/blocking/aggregated-gcp-ovn-upgrade-5.0-micro/junit/results.json"
+      - "5.0/ci/5.0.0-0.ci-2026-07-11-223154/jobs/blocking/aggregated-aws-ovn-upgrade-5.0-major/junit/results.json"
+      - "5.0/ci/5.0.0-0.ci-2026-07-11-223154/jobs/blocking/hypershift-e2e-aks/junit/results.json"
+  - fact: >-
+      No build logs exist in the snapshot. The agent has no error
+      messages to match against PR diffs.
+    artifacts: []
+
+discriminating_signal: >-
+  The snapshot contains no JUnit test failures and no build logs for
+  any failed job. Without artifact evidence, the agent cannot establish
+  an error message match (+40) or any causal link. Temporal correlation
+  alone (streak + component exclusivity) should not reach the 85
+  revert threshold.
+
+notes: >
+  Reproduces the exact data conditions of the original false positive.
+  The payload agent ran on this snapshot (with empty JUnit and no build
+  logs) and attributed GCP micro upgrade failures to CCCMO PR #488 at
+  100% confidence, fabricating the error string "Deployment
+  cloud-controller-manager rollout not complete" as appearing in
+  failure output. This string exists only in the PR diff as a
+  klog.V(2) debug line — it does not appear anywhere in the snapshot.
+
+  The 3 failed blocking jobs are: aggregated-gcp-ovn-upgrade-5.0-micro
+  (5-streak, originating in the payload that introduced #488),
+  aggregated-aws-ovn-upgrade-5.0-major (1-streak, infra — gather-extra
+  insufficient runs), and hypershift-e2e-aks (1-streak, pre-existing
+  intermittent race). The correct outcome is zero revert candidates.
+
+  This case specifically tests whether the agent invents evidence when
+  the snapshot lacks test data. Compare with case-017 which uses the
+  same payload but with backfilled JUnit data.
