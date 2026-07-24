@@ -10,6 +10,7 @@ Comprehensive Jira integration for Claude Code, providing AI-powered tools to an
 - 📋 **Backlog Grooming** - Analyze new bugs and cards for grooming meetings
 - 🏷️ **Activity Type Classification** - AI-powered classification of JIRA tickets into Sankey activity types, with single-issue and batch modes
 - 🧪 **Test Generation** - Generate comprehensive test steps for JIRA issues by analyzing related PRs
+- 🔁 **Bug Reproducers** - Infer reproduction steps from JIRA and fix PRs when repro steps are incomplete; use `--apply` to execute them against a live cluster
 - ✨ **Issue Creation** - Create well-formed stories, epics, features, tasks, bugs, and feature requests with guided workflows
 - 📝 **Release Note Generation** - Automatically generate bug fix release notes from Jira and linked GitHub PRs
 - 🤖 **Automated Workflows** - From issue analysis to PR creation, fully automated
@@ -159,9 +160,32 @@ Generate comprehensive test steps for a JIRA issue by analyzing related pull req
 
 # Test only specific PRs
 /jira:generate-test-plan CNTRLPLANE-205 https://github.com/openshift/hypershift/pull/6888
+
+# Generate test plan and apply to live cluster
+/jira:generate-test-plan CNTRLPLANE-205 --apply
 ```
 
 See [commands/generate-test-plan.md](commands/generate-test-plan.md) for full documentation.
+
+---
+
+### `/jira:generate-bug-reproducer` - Generate Bug Reproducers
+
+Analyze a bug's JIRA description and fix PR code changes to produce a structured reproducer report with pre-fix reproduction steps, post-fix verification, and a confidence assessment. This is an alias for `/jira:generate-test-plan --reproducer`; both use the same shared skill.
+
+**Usage:**
+```bash
+# Auto-discover PRs from JIRA
+/jira:generate-bug-reproducer OCPBUGS-12345
+
+# Analyze specific fix PRs
+/jira:generate-bug-reproducer OCPBUGS-12345 https://github.com/openshift/hypershift/pull/6888
+
+# Generate reproducer and apply to live cluster
+/jira:generate-bug-reproducer OCPBUGS-12345 --apply
+```
+
+See [commands/generate-bug-reproducer.md](commands/generate-bug-reproducer.md) for full documentation.
 
 ---
 
