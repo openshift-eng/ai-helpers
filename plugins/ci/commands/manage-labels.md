@@ -1,6 +1,6 @@
 ---
 description: Create, update, or delete a Sippy Label (the human-readable tags applied by Symptoms)
-argument-hint: [create|update|delete] [label]
+argument-hint: "[create|update|delete] [label]"
 ---
 
 ## Name
