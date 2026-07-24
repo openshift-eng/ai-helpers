@@ -1,4 +1,4 @@
-from list_symptoms import filter_symptoms
+from list_symptoms import filter_labels, filter_symptoms
 
 SYMPTOMS = [
     {"id": "AWSAuthFailure", "summary": "AWS could not validate credentials",
@@ -24,3 +24,22 @@ def test_filter_by_matcher_type():
 
 def test_no_filters_returns_all():
     assert filter_symptoms(SYMPTOMS) == SYMPTOMS
+
+LABELS = [
+    {"id": "InfraFailure", "label_title": "Infrastructure Failure",
+     "explanation": "Cloud provider or infra problem"},
+    {"id": "ClusterDNSFlake", "label_title": "Cluster DNS Flake",
+     "explanation": "DNS lookups intermittently time out"},
+]
+
+def test_filter_labels_matches_title():
+    assert [l["id"] for l in filter_labels(LABELS, search="dns flake")] == ["ClusterDNSFlake"]
+
+def test_filter_labels_matches_id():
+    assert [l["id"] for l in filter_labels(LABELS, search="infrafailure")] == ["InfraFailure"]
+
+def test_filter_labels_case_insensitive_explanation():
+    assert [l["id"] for l in filter_labels(LABELS, search="CLOUD PROVIDER")] == ["InfraFailure"]
+
+def test_filter_labels_no_search_returns_all():
+    assert filter_labels(LABELS) == LABELS
