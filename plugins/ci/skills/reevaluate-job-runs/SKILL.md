@@ -162,4 +162,4 @@ Reevaluation is delete-then-insert and **idempotent** — running it twice on th
 - Related Skill: `manage-symptoms` (create/update the symptoms you then apply retroactively)
 - Related Skill: `diagnose-job-run-symptoms` (explain which symptoms/labels apply to a run)
 - Related Skill: `fetch-regression-details` (source of `.job_runs[].prowjob_run_id` values for triage-wide reevaluation)
-- Related Command: `/ci:reevaluate-job-runs` (invokes this skill)
+- Related Skill: `fetch-prow-job-runs` (discover run IDs by job name, variant, result, or time window)

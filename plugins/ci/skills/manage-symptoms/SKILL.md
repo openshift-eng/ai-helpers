@@ -190,4 +190,3 @@ Optionally test the symptom against a known-affected run with the `reevaluate-jo
 - Related Skill: `manage-labels` (create labels before symptoms reference them)
 - Related Skill: `reevaluate-job-runs` (apply or preview symptoms on past runs)
 - Related Skill: `diagnose-job-run-symptoms` (explain which symptoms matched a run)
-- Related Command: `/ci:create-symptom` (invokes this skill)

@@ -148,4 +148,3 @@ python3 plugins/ci/skills/manage-labels/manage_labels.py delete \
 - Related Skill: `oc-auth` (provides authentication tokens for sippy-auth)
 - Related Skill: `list-symptoms` (list/inspect labels and symptoms, no auth needed)
 - Related Skill: `manage-symptoms` (create/update/delete symptoms that apply labels)
-- Related Command: `/ci:manage-labels` (invokes this skill)

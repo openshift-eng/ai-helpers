@@ -197,4 +197,3 @@ python3 plugins/ci/skills/list-symptoms/list_symptoms.py --labels --format summa
 - Related Skill: `manage-symptoms` (create/update/delete symptoms)
 - Related Skill: `manage-labels` (create/update/delete labels)
 - Related Skill: `diagnose-job-run-symptoms` (explain which symptoms/labels apply to a job run)
-- Related Command: `/ci:list-symptoms` (command that invokes this skill)
