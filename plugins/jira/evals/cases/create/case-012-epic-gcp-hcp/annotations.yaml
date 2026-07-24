@@ -1,0 +1,20 @@
+expected_issue_type: Epic
+expected_project_key: GCP
+expected_conventions: [gcp-hcp]
+expected_labels: ["ai-generated-jira"]
+expected_security: "Red Hat Employee"
+expected_content_format: markdown
+expected_component: null
+expected_version_field: null
+expected_version_format: null
+expected_affects_version: null
+expected_custom_fields:
+  customfield_10011: "Implement CMEK support for GCP hosted control plane storage"
+expected_validation_warnings: []
+expected_creation_blocked: false
+description_template: gcp-epic
+notes: >
+  GCP project epic with GCP-HCP team conventions. Tests Epic Name custom
+  field (customfield_10011) matching summary, and GCP epic template (use
+  case/context, current/desired state, scope, story breakdown, acceptance
+  criteria). No story points on epics.

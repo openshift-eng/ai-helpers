@@ -1,0 +1,458 @@
+name: jira-create-eval
+description: Evaluate the jira:create skill's ability to prepare Jira issue creation calls with correct type-specific templates, project conventions, smart defaults, field formatting, and input validation
+skill: jira:create
+
+execution:
+  mode: case
+  arguments: "{type} {project_key} \"{summary}\" {flags}"
+  timeout: 300
+  max_budget_usd: 2.0
+
+runner:
+  type: claude-code
+  plugin_dirs:
+    - plugins/jira
+  system_prompt: |
+    Use the jira:create skill to prepare a Jira issue.
+
+    DRY RUN MODE: Do NOT call createJiraIssue or any Jira MCP tool.
+    Instead, after completing all preparation phases (load guidance, parse
+    arguments, apply defaults, interactive prompts, summary validation,
+    security validation), write the EXACT createJiraIssue call you would
+    have made to `planned-call.json` in the current working directory.
+
+    The JSON must match the createJiraIssue MCP tool signature:
+    {
+      "cloudId": "redhat.atlassian.net",
+      "projectKey": "...",
+      "issueTypeName": "...",
+      "summary": "...",
+      "description": "...",
+      "contentFormat": "markdown",
+      "additional_fields": {
+        "labels": [...],
+        "security": {"name": "..."},
+        "components": [...],
+        "customfield_10855": ...,
+        ...any other fields
+      }
+    }
+
+    Also write `validation-results.json` with:
+    {
+      "summary_warnings": [...],
+      "security_warnings": [...],
+      "creation_blocked": false
+    }
+
+    If security validation detects credentials, set creation_blocked to
+    true and leave planned-call.json empty (write {} only).
+
+    For interactive prompts, use these pre-filled responses instead of
+    prompting the user:
+
+    {interactive_responses}
+
+    For version ID lookups that would normally require
+    getJiraIssueTypeMetaWithFields, use placeholder ID "PLACEHOLDER_VERSION_ID".
+
+models:
+  judge: claude-opus-4-6
+
+permissions:
+  allow:
+    - "Skill"
+    - "Read"
+    - "Write"
+  deny:
+    - "Bash"
+    - "Agent"
+    - "mcp__*"
+
+mlflow:
+  experiment: jira-create-eval
+
+dataset:
+  path: plugins/jira/evals/cases/create
+  schema: |
+    Each case directory contains:
+    - input.yaml: YAML file with fields:
+      - 'type' — issue type: story, bug, epic, feature, task, or feature-request
+      - 'project_key' — Jira project key (e.g., CNTRLPLANE, OCPBUGS, GCP, RFE)
+      - 'summary' — issue title/summary text
+      - 'flags' — optional CLI flags (e.g., "--component HyperShift --version 4.22")
+      - 'interactive_responses' — pre-filled answers for the skill's interactive
+        prompts, formatted as the skill would expect them
+    - annotations.yaml: Expected outcomes for scoring:
+      - 'expected_issue_type': the Jira issue type name (Story, Bug, Epic, etc.)
+      - 'expected_project_key': the project key in the API call
+      - 'expected_conventions': list of convention files that should have been loaded
+        (e.g., [cntrlplane, hypershift])
+      - 'expected_labels': list of labels that must be present (always includes
+        "ai-generated-jira", may include team-specific labels)
+      - 'expected_security': security level name (always "Red Hat Employee")
+      - 'expected_content_format': always "markdown"
+      - 'expected_component': component name if one should be set, null otherwise
+      - 'expected_version_field': which custom field ID is used for target version
+        (customfield_10855), or null if no version expected
+      - 'expected_version_format': "array" for CNTRLPLANE-style [{"id": "..."}] or
+        "string" for OCPBUGS-style "openshift-X.Y", or null
+      - 'expected_affects_version': for OCPBUGS bugs, the versions field value, or null
+      - 'expected_custom_fields': dict of additional custom fields expected
+        (e.g., customfield_10011 for Epic Name, customfield_10028 for Story Points)
+      - 'expected_validation_warnings': list of expected summary/security warnings
+      - 'expected_creation_blocked': boolean, true if security validation should block
+      - 'description_template': which template the description should follow
+        (story, bug, epic, feature, task, feature-request, gcp-story, gcp-epic, etc.)
+      - 'notes': free-text explanation of the test case
+
+outputs:
+  - path: "output"
+    schema: |
+      The skill writes two files to the workspace root:
+      1. planned-call.json — the createJiraIssue arguments as a JSON object
+         with cloudId, projectKey, issueTypeName, summary, description,
+         contentFormat, and additional_fields.
+      2. validation-results.json — summary_warnings (array), security_warnings
+         (array), and creation_blocked (boolean).
+
+traces:
+  stdout: true
+  stderr: true
+  events: false
+  metrics: true
+
+judges:
+  - name: output_file_exists
+    description: Verify the skill produced planned-call.json in the workspace.
+    check: |
+      import os
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      found = [k for k in all_f if os.path.basename(k) == "planned-call.json"]
+      if not found:
+          return (False, "No planned-call.json found")
+      return (True, f"planned-call.json found: {found[0]}")
+
+  - name: valid_json_structure
+    description: |
+      Verify planned-call.json is valid JSON with required top-level fields.
+      For blocked cases (security validation), {} is acceptable.
+    check: |
+      import json
+      import os
+      ann = outputs.get("annotations", {})
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      found = {k: v for k, v in all_f.items()
+               if os.path.basename(k) == "planned-call.json"}
+      if not found:
+          return (False, "No planned-call.json found")
+      content = list(found.values())[0]
+      try:
+          data = json.loads(content)
+      except Exception as e:
+          return (False, f"Invalid JSON: {e}")
+      if ann.get("expected_creation_blocked"):
+          return (True, "Creation blocked — empty JSON is expected")
+      required = ["projectKey", "issueTypeName", "summary", "contentFormat"]
+      missing = [f for f in required if f not in data]
+      if missing:
+          return (False, f"Missing required fields: {', '.join(missing)}")
+      return (True, "Valid JSON with all required fields")
+
+  - name: universal_defaults_applied
+    description: |
+      Verify the universal defaults are present: labels include "ai-generated-jira",
+      security is "Red Hat Employee", contentFormat is "markdown".
+    check: |
+      import json
+      import os
+      ann = outputs.get("annotations", {})
+      if ann.get("expected_creation_blocked"):
+          return (True, "Creation blocked — defaults check skipped")
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      found = {k: v for k, v in all_f.items()
+               if os.path.basename(k) == "planned-call.json"}
+      if not found:
+          return (False, "No planned-call.json found")
+      content = list(found.values())[0]
+      try:
+          data = json.loads(content)
+      except Exception as e:
+          return (False, f"Cannot parse JSON: {e}")
+      errors = []
+      cf = data.get("contentFormat", "")
+      if cf != "markdown":
+          errors.append(f"contentFormat is '{cf}', expected 'markdown'")
+      af = data.get("additional_fields", {})
+      labels = af.get("labels", data.get("labels", []))
+      if not isinstance(labels, list) or "ai-generated-jira" not in labels:
+          errors.append(f"labels missing 'ai-generated-jira': {labels}")
+      sec = af.get("security", data.get("security", {}))
+      sec_name = sec.get("name", "") if isinstance(sec, dict) else ""
+      if sec_name != "Red Hat Employee":
+          errors.append(f"security.name is '{sec_name}', expected 'Red Hat Employee'")
+      if errors:
+          return (False, "; ".join(errors))
+      return (True, "Universal defaults verified: ai-generated-jira label, "
+                     "Red Hat Employee security, markdown contentFormat")
+
+  - name: correct_issue_type
+    description: Verify issueTypeName matches the expected value from annotations.
+    check: |
+      import json
+      import os
+      ann = outputs.get("annotations", {})
+      if ann.get("expected_creation_blocked"):
+          return (True, "Creation blocked — issue type check skipped")
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      found = {k: v for k, v in all_f.items()
+               if os.path.basename(k) == "planned-call.json"}
+      if not found:
+          return (False, "No planned-call.json found")
+      content = list(found.values())[0]
+      try:
+          data = json.loads(content)
+      except Exception as e:
+          return (False, f"Cannot parse JSON: {e}")
+      actual = data.get("issueTypeName", "")
+      expected = ann.get("expected_issue_type", "")
+      if actual.lower() == expected.lower():
+          return (True, f"Issue type correct: {actual}")
+      return (False, f"Issue type '{actual}', expected '{expected}'")
+
+  - name: correct_project_key
+    description: Verify projectKey matches the expected value from annotations.
+    check: |
+      import json
+      import os
+      ann = outputs.get("annotations", {})
+      if ann.get("expected_creation_blocked"):
+          return (True, "Creation blocked — project key check skipped")
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      found = {k: v for k, v in all_f.items()
+               if os.path.basename(k) == "planned-call.json"}
+      if not found:
+          return (False, "No planned-call.json found")
+      content = list(found.values())[0]
+      try:
+          data = json.loads(content)
+      except Exception as e:
+          return (False, f"Cannot parse JSON: {e}")
+      actual = data.get("projectKey", "")
+      expected = ann.get("expected_project_key", "")
+      if actual == expected:
+          return (True, f"Project key correct: {actual}")
+      return (False, f"Project key '{actual}', expected '{expected}'")
+
+  - name: convention_fields_applied
+    description: |
+      Verify project/team-specific fields from annotations are present in the
+      planned call: component, version fields, custom fields, team-specific labels.
+    check: |
+      import json
+      import os
+      ann = outputs.get("annotations", {})
+      if ann.get("expected_creation_blocked"):
+          return (True, "Creation blocked — convention fields check skipped")
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      found = {k: v for k, v in all_f.items()
+               if os.path.basename(k) == "planned-call.json"}
+      if not found:
+          return (False, "No planned-call.json found")
+      content = list(found.values())[0]
+      try:
+          data = json.loads(content)
+      except Exception as e:
+          return (False, f"Cannot parse JSON: {e}")
+      af = data.get("additional_fields", {})
+      errors = []
+      details = []
+      # Check component
+      exp_comp = ann.get("expected_component")
+      if exp_comp:
+          comps = af.get("components", data.get("components", []))
+          comp_names = []
+          if isinstance(comps, list):
+              comp_names = [c.get("name", c) if isinstance(c, dict) else str(c)
+                            for c in comps]
+          if exp_comp not in comp_names:
+              errors.append(f"Component '{exp_comp}' not found in {comp_names}")
+          else:
+              details.append(f"component={exp_comp}")
+      # Check version format
+      exp_vf = ann.get("expected_version_format")
+      if exp_vf:
+          tv = af.get("customfield_10855", data.get("customfield_10855"))
+          if tv is None:
+              errors.append("customfield_10855 (Target Version) not set")
+          elif exp_vf == "array" and not isinstance(tv, list):
+              errors.append(f"Target Version should be array, got {type(tv).__name__}: {tv}")
+          elif exp_vf == "string" and not isinstance(tv, str):
+              errors.append(f"Target Version should be string, got {type(tv).__name__}: {tv}")
+          else:
+              details.append(f"version_format={exp_vf}")
+      # Check affects version (OCPBUGS bugs)
+      exp_av = ann.get("expected_affects_version")
+      if exp_av:
+          vers = af.get("versions", data.get("versions"))
+          if vers is None:
+              errors.append("versions (Affects Version) not set")
+          else:
+              details.append(f"affects_version set")
+      # Check custom fields
+      exp_cf = ann.get("expected_custom_fields", {})
+      for field_id, expected_val in exp_cf.items():
+          actual_val = af.get(field_id, data.get(field_id))
+          if actual_val is None:
+              errors.append(f"Custom field {field_id} not set")
+          else:
+              details.append(f"{field_id} set")
+      # Check team-specific labels
+      exp_labels = ann.get("expected_labels", [])
+      actual_labels = af.get("labels", data.get("labels", []))
+      if not isinstance(actual_labels, list):
+          actual_labels = []
+      for lbl in exp_labels:
+          if lbl not in actual_labels:
+              errors.append(f"Label '{lbl}' missing from {actual_labels}")
+      if errors:
+          return (False, "; ".join(errors))
+      if not details:
+          details = ["no convention-specific fields expected"]
+      return (True, "Convention fields verified: " + ", ".join(details))
+
+  - name: description_quality
+    description: |
+      LLM judge assessing whether the description follows the correct type-specific
+      template and includes the required sections for that issue type.
+    prompt: |
+      You are evaluating whether a Jira issue description follows the correct
+      type-specific template from the jira:create skill.
+
+      The planned createJiraIssue call:
+
+      {% for path, content in outputs.files.items() if path.endswith('planned-call.json') %}
+      {{ content }}
+      {% endfor %}
+
+      Expected outcomes for this test case:
+
+      {{ annotations }}
+
+      The 'description_template' field indicates which template the description
+      should follow. Key template requirements:
+
+      - **story**: User story format (As a / I want / so that), acceptance criteria
+      - **bug**: Problem description, version, reproducibility, steps to reproduce,
+        actual results, expected results
+      - **epic**: Objective, scope, acceptance criteria (3-6 outcomes), Epic Name field
+      - **feature**: Market problem, strategic value, success criteria
+      - **task**: What/why, acceptance criteria, technical details
+      - **feature-request**: Title, nature/description, business requirements
+      - **gcp-story**: GCP team template — user story format, context/background,
+        requirements, technical approach, dependencies, acceptance criteria checklist
+      - **gcp-epic**: GCP template — use case/context, current/desired state, scope,
+        story breakdown, acceptance criteria
+
+      Evaluate on a 1-5 scale:
+
+      Score 1: No description, or description is a single line with no structure.
+      Score 2: Some structure but wrong template — e.g., a bug using story format,
+               or missing most required sections for the correct template.
+      Score 3: Correct template identified and partially followed — has some required
+               sections but is missing important ones (e.g., story without AC, bug
+               without steps to reproduce).
+      Score 4: Correct template fully followed with all required sections present.
+               Content is specific to the summary/context provided.
+      Score 5: Excellent — correct template, all sections present with specific and
+               actionable content, well-formatted Markdown.
+
+      If creation_blocked is true in annotations, evaluate only whether the skill
+      correctly identified the security issue — score 4 for correct detection,
+      5 for detection with helpful guidance about what was found.
+
+  - name: convention_compliance
+    description: |
+      LLM judge assessing whether the correct project and team conventions were
+      applied — version field formats, component selection, custom fields, labels —
+      matching the expected conventions listed in annotations.
+    prompt: |
+      You are evaluating whether the jira:create skill correctly applied project
+      and team conventions when preparing a Jira issue.
+
+      The planned createJiraIssue call:
+
+      {% for path, content in outputs.files.items() if path.endswith('planned-call.json') %}
+      {{ content }}
+      {% endfor %}
+
+      Validation results:
+
+      {% for path, content in outputs.files.items() if path.endswith('validation-results.json') %}
+      {{ content }}
+      {% endfor %}
+
+      Expected outcomes for this test case:
+
+      {{ annotations }}
+
+      The 'expected_conventions' field lists which convention files should have been
+      loaded. Key convention requirements by file:
+
+      - **cntrlplane**: Target Version (customfield_10855) in array format
+        [{"id": "VERSION_ID"}], version normalization (4.21 → openshift-4.21),
+        no fixVersions, components are team-specific not project-enforced
+      - **ocpbugs**: Bugs only, Affects Version (versions) as [{"name": "4.21"}],
+        Target Version (customfield_10855) as plain STRING "openshift-4.21" (NOT array),
+        no fixVersions
+      - **hypershift**: Component MUST be one of "HyperShift / ARO", "HyperShift / ROSA",
+        or "HyperShift" based on platform keywords; platform-specific labels
+        (aro-hcp, rosa-hcp)
+      - **gcp-hcp**: Story Points (customfield_10028) as float, GCP-specific components,
+        team templates for stories/epics/tasks, priority scheme
+
+      Evaluate on a 1-5 scale:
+
+      Score 1: Wrong conventions applied (e.g., OCPBUGS string version format used
+               for CNTRLPLANE, or no conventions loaded at all).
+      Score 2: Some conventions applied but with errors — wrong version field format,
+               missing required component for HyperShift, wrong custom field types.
+      Score 3: Correct conventions identified but incompletely applied — e.g., right
+               component but missing team labels, or right version field but wrong format.
+      Score 4: All expected conventions correctly applied — correct version field format,
+               correct component, correct labels, correct custom fields.
+      Score 5: Perfect convention compliance — all fields correct, version normalization
+               applied, team-specific fields present, no extraneous or incorrect fields.
+
+      If creation_blocked is true in annotations, score 4 if the skill stopped before
+      creating the call, 5 if it also correctly reported what it found.
+
+thresholds:
+  output_file_exists:
+    min_pass_rate: 1.0
+  valid_json_structure:
+    min_pass_rate: 1.0
+  universal_defaults_applied:
+    min_pass_rate: 1.0
+  correct_issue_type:
+    min_pass_rate: 1.0
+  correct_project_key:
+    min_pass_rate: 1.0
+  convention_fields_applied:
+    min_pass_rate: 0.85
+  description_quality:
+    min_mean: 3.5
+  convention_compliance:
+    min_mean: 3.5

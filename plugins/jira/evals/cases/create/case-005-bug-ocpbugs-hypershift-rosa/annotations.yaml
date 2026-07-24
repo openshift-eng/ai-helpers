@@ -1,0 +1,19 @@
+expected_issue_type: Bug
+expected_project_key: OCPBUGS
+expected_conventions: [ocpbugs, hypershift]
+expected_labels: ["ai-generated-jira", "rosa-hcp"]
+expected_security: "Red Hat Employee"
+expected_content_format: markdown
+expected_component: "HyperShift / ROSA"
+expected_version_field: customfield_10855
+expected_version_format: string
+expected_affects_version: [{"name": "4.21"}]
+expected_custom_fields: {}
+expected_validation_warnings: []
+expected_creation_blocked: false
+description_template: bug
+notes: >
+  OCPBUGS bug with both ocpbugs and hypershift conventions layered. Tests
+  that "ROSA HCP" in summary triggers component "HyperShift / ROSA" and
+  label "rosa-hcp". Version fields use OCPBUGS format: versions as
+  [{"name": "4.21"}] and customfield_10855 as string "openshift-4.22".

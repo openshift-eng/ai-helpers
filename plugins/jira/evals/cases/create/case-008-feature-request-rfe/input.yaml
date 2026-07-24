@@ -1,0 +1,9 @@
+type: feature-request
+project_key: RFE
+summary: "Support custom SSL certificates for ROSA HCP ingress"
+flags: ""
+interactive_responses: |
+  Title: Support custom SSL certificates for ROSA HCP ingress
+  Nature: Customers need to use their own CA-signed certificates for ingress controllers on ROSA HCP clusters instead of the default Let's Encrypt certificates
+  Business requirements: Enterprise customers in regulated industries (finance, healthcare) require custom certificates to meet compliance requirements. Currently they must use workarounds that break during cluster upgrades.
+  Affected packages/components: Ingress, Networking

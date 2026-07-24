@@ -1,0 +1,19 @@
+expected_issue_type: Story
+expected_project_key: CNTRLPLANE
+expected_conventions: [cntrlplane]
+expected_labels: ["ai-generated-jira"]
+expected_security: "Red Hat Employee"
+expected_content_format: markdown
+expected_component: null
+expected_version_field: customfield_10855
+expected_version_format: array
+expected_affects_version: null
+expected_custom_fields: {}
+expected_validation_warnings: []
+expected_creation_blocked: false
+description_template: story
+notes: >
+  Basic CNTRLPLANE story with --version flag. Tests version normalization
+  (4.22 → openshift-4.22) and array format for customfield_10855
+  [{"id": "PLACEHOLDER_VERSION_ID"}]. Description should follow user story
+  template (As a / I want / so that) with acceptance criteria.

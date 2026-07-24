@@ -1,0 +1,15 @@
+type: bug
+project_key: OCPBUGS
+summary: "API server returns 500 when listing pods with label selector"
+flags: ""
+interactive_responses: |
+  Affects version: 4.21
+  Target version: openshift-4.21
+  Reproducibility: Always
+  Steps to reproduce:
+    1. Create a pod with label app=test
+    2. Run oc get pods -l app=test
+    3. Observe 500 error in response
+  Actual results: API server returns HTTP 500 Internal Server Error
+  Expected results: API server returns the list of matching pods
+  Additional info: Occurs on clusters with more than 100 namespaces

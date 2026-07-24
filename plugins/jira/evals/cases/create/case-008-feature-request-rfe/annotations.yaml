@@ -1,0 +1,19 @@
+expected_issue_type: Feature Request
+expected_project_key: RFE
+expected_conventions: []
+expected_labels: ["ai-generated-jira"]
+expected_security: "Red Hat Employee"
+expected_content_format: markdown
+expected_component: null
+expected_version_field: null
+expected_version_format: null
+expected_affects_version: null
+expected_custom_fields: {}
+expected_validation_warnings: []
+expected_creation_blocked: false
+description_template: feature-request
+notes: >
+  RFE project feature request. Tests default project key (RFE) and
+  issue type name ("Feature Request"). No project-specific conventions
+  apply. Description should follow the 4-question feature request
+  workflow (title, nature, business requirements, affected components).
