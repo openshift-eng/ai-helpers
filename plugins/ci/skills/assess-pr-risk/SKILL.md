@@ -295,7 +295,7 @@ For each e2e job (jobs with `e2e` in the name), output a decision:
 SKIP: <job-name>  — <why this job is not relevant to this PR>
 ```
 
-If the hotspot analysis identified risks not covered by any configured job, add a **"Coverage Gaps"** section noting what additional testing would be ideal (e.g., "No HyperShift presubmit job is configured for this repo, but this change modifies control plane assumptions — consider `/payload-job` testing with a HyperShift job").
+If the hotspot analysis identified risks not covered by any configured job, add a **"Coverage Gaps"** section noting what additional testing would be ideal. Include the specific `/payload-job` commands in both the Coverage Gaps narrative and in the `jobs_to_run` array in the state file — these are actionable job recommendations just like `/test` commands, and must appear in `jobs_to_run` so downstream automation can consume them.
 
 ### Step 4g: Estimate Testing Cost and Savings
 
@@ -353,7 +353,7 @@ Write the assessment to `.work/pr-risk/<org>-<repo>-<pr_number>.json`:
       "code_risk_factors": <0-30>,
       "historical_risk": <0-20>
     },
-    "jobs_to_run": ["<job names with /test prefix>"],
+    "jobs_to_run": ["<job commands — /test or /payload-job prefixed>"],
     "jobs_to_skip": [{"name": "<job-name>", "reason": "<why>"}],
     "coverage_gaps": ["<areas not covered by configured jobs>"],
     "key_risks": ["<specific risks identified>"],
