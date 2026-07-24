@@ -121,6 +121,7 @@ Present a final report:
 2. **Per bucket**: member regression IDs, root cause, owning component (vs. Sippy component), classification, evidence highlights (error signature, stage, representative run links), action taken (triage ID + JIRA link) or recommendation awaiting confirmation.
 3. **Leftovers**: regressions deliberately left untriaged (resolved / one-off flake / inconclusive) with justification and what evidence would change the call.
 4. **Cross-cutting observations**: payload-wide events, infra instability windows, techpreview-only patterns — useful context for the next duty shift.
+5. **Session usage** (when available): if the run is orchestrated by a harness that captures usage telemetry (e.g. the CI job appends a "Session usage" section with model, turns, token counts, and cost after the session ends), do not fabricate these numbers yourself — the model cannot observe its own final token totals mid-session. In interactive runs simply omit the section.
 
 ### Optional: label the bucket's signature in Sippy
 
