@@ -19,7 +19,7 @@ The `ci:create-symptom` command creates a Sippy Symptom — a known-failure sign
 
 ## Implementation
 
-1. **Load the skills**: Use the `manage-symptoms` skill (primary), plus `list-symptoms`, `manage-labels`, and `oc-auth` as needed.
+1. **Load the skills**: Use the `manage-symptoms` skill (primary), plus `list-symptoms` for the duplicate/label checks, `manage-labels` when a target label is missing, and `oc-auth` for the write token.
 
 2. **Check for duplicates**: Search the existing catalog with terms from the user's failure description:
    ```bash
