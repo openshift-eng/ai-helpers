@@ -948,8 +948,8 @@ footer a { color: var(--primary); }
     },
     {
       "name": "code-review",
-      "description": "Automated code quality review with language-aware analysis for pre-commit verification",
-      "version": "0.0.13",
+      "description": "Automated code quality review with language-aware analysis, pre-commit verification, and multi-specialist deep review",
+      "version": "0.0.15",
       "has_readme": true,
       "commands": [
         {
@@ -974,6 +974,12 @@ footer a { color: var(--primary); }
           "name": "classify-review-comment",
           "description": "Classify GitHub PR review comments by severity and topic. Use when the user wants to categorize, analyze, or understand patterns in code review feedback — whether for a single comment, a comment URL, or an entire pull request. Triggers on requests like 'classify this comment', 'categorize PR feedback', 'what kind of review comments does this PR have', or 'break down comments by severity'.",
           "description_html": "Classify GitHub PR review comments by severity and topic. Use when the user wants to categorize, analyze, or understand patterns in code review feedback — whether for a single comment, a comment URL, or an entire pull request. Triggers on requests like &#x27;classify this comment&#x27;, &#x27;categorize PR feedback&#x27;, &#x27;what kind of review comments does this PR have&#x27;, or &#x27;break down comments by severity&#x27;.",
+          "meta": ""
+        },
+        {
+          "name": "deep-review",
+          "description": "Use when a deeper level of code review is requested. Multi-agent panel code review with specialist reviewers and forced runtime reproducers for all BLOCKING bug findings. Optionally posts to GitHub/GitLab as a PENDING review.",
+          "description_html": "Use when a deeper level of code review is requested. Multi-agent panel code review with specialist reviewers and forced runtime reproducers for all BLOCKING bug findings. Optionally posts to GitHub/GitLab as a PENDING review.",
           "meta": ""
         },
         {
