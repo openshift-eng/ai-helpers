@@ -107,4 +107,3 @@ The script also cross-references `GET /api/jobs/labels` and `GET /api/jobs/sympt
 - Related Skill: `reevaluate-job-runs` (apply symptoms retroactively to past runs)
 - Related Skill: `oc-auth` (token for deep mode)
 - Related Skill: `prow-job-analyze-test-failure` (deeper manual failure analysis)
-- Related Command: `/ci:diagnose-job-symptoms` (invokes this skill)
