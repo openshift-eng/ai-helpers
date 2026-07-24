@@ -1,4 +1,5 @@
-from manage_symptoms import validate_symptom, build_update_payload
+from manage_symptoms import (validate_symptom, build_update_payload,
+                             parse_label_ids, check_labels_exist)
 
 def test_valid_string_symptom():
     assert validate_symptom({"summary": "AWS auth failure", "matcher_type": "string",
@@ -61,3 +62,29 @@ def test_update_label_ids_preserved_and_overridden():
     assert build_update_payload(EXISTING)["label_ids"] == ["InfraFailure"]
     out = build_update_payload(EXISTING, label_ids=["ClusterDNSFlake"])
     assert out["label_ids"] == ["ClusterDNSFlake"]
+
+
+def test_update_empty_list_clears_label_ids():
+    assert build_update_payload(EXISTING, label_ids=[])["label_ids"] == []
+
+
+def test_parse_label_ids():
+    assert parse_label_ids(None) is None
+    assert parse_label_ids("") == []
+    assert parse_label_ids("A, B,,C ") == ["A", "B", "C"]
+
+
+def test_check_labels_exist_handles_bad_api_response(monkeypatch):
+    import manage_symptoms
+    for bad in (None, {"error": "x"}, "oops", [1, 2], ["str"]):
+        monkeypatch.setattr(manage_symptoms, "get_json", lambda url, _b=bad: _b)
+        errs = check_labels_exist(["InfraFailure"])
+        assert errs and "could not verify label IDs" in errs[0]
+
+
+def test_check_labels_exist_valid_response(monkeypatch):
+    import manage_symptoms
+    monkeypatch.setattr(manage_symptoms, "get_json",
+                        lambda url: [{"id": "InfraFailure"}])
+    assert check_labels_exist(["InfraFailure"]) == []
+    assert check_labels_exist(["Nope"])

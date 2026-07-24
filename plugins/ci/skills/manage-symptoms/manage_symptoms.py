@@ -45,6 +45,14 @@ def build_update_payload(existing, summary=None, matcher_type=None,
             "label_ids": label_ids if label_ids is not None else existing.get("label_ids", [])}
 
 
+def parse_label_ids(value):
+    """Parse the --label-ids flag. None = flag not passed (preserve on update);
+    empty string = explicit clear (returns []); otherwise comma-separated list."""
+    if value is None:
+        return None
+    return [x.strip() for x in value.split(",") if x.strip()]
+
+
 def symptom_url(base, symptom_id):
     return "%s/%s" % (base, urllib.parse.quote(symptom_id, safe=""))
 
@@ -60,8 +68,8 @@ def get_json(url):
 
 def check_labels_exist(label_ids):
     labels = get_json(READ_LABELS_URL)
-    if labels is None:
-        return ["could not verify label IDs (labels API unreachable)"]
+    if not isinstance(labels, list) or not all(isinstance(l, dict) for l in labels):
+        return ["could not verify label IDs (labels API unreachable or returned unexpected data)"]
     known = {l.get("id") for l in labels}
     return ["label ID %r does not exist (create it first with the manage-labels skill)" % lid
             for lid in label_ids if lid not in known]
@@ -97,7 +105,9 @@ def main():
     p.add_argument("--token", required=True, help="Bearer token (use oc-auth skill)")
     p.add_argument("--id", help="Symptom ID (required for update/delete; server-generated on create)")
     p.add_argument("--summary", help="Short unique description (required for create, max 200 chars)")
-    p.add_argument("--matcher-type", choices=list(VALID_MATCHERS))
+    p.add_argument("--matcher-type", choices=list(VALID_MATCHERS),
+                   help="How match_string is interpreted: string=substring, regex, "
+                        "none=file exists, cel=CEL expression over label names")
     p.add_argument("--file-pattern", help="Artifact glob, e.g. '**/build-log.txt'")
     p.add_argument("--match-string", help="Substring, regex, or CEL expression")
     p.add_argument("--label-ids", help="Comma-separated label IDs to apply on match")
@@ -113,7 +123,7 @@ def main():
     if args.action == "delete":
         out = request("DELETE", symptom_url(WRITE_URL, args.id), args.token)
     else:
-        label_ids = [x.strip() for x in args.label_ids.split(",") if x.strip()] if args.label_ids else None
+        label_ids = parse_label_ids(args.label_ids)
         if args.action == "create":
             payload = {"summary": args.summary, "matcher_type": args.matcher_type,
                        "file_pattern": args.file_pattern, "match_string": args.match_string,
@@ -121,6 +131,8 @@ def main():
         else:
             existing = get_json(symptom_url(READ_SYMPTOMS_URL, args.id))
             if existing is None:
+                print("Error: cannot fetch existing symptom %s (see error above; "
+                      "check the ID with the list-symptoms skill)" % args.id, file=sys.stderr)
                 return 1
             existing["id"] = args.id
             payload = build_update_payload(existing, summary=args.summary,

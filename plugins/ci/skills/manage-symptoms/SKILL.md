@@ -108,6 +108,8 @@ python3 plugins/ci/skills/manage-symptoms/manage_symptoms.py update \
   --match-string "api error AuthFailure"
 ```
 
+To remove all labels from a symptom, pass an explicit empty value: `--label-ids ""` clears the label list on update (omitting the flag preserves the existing labels).
+
 ### Step 7: Delete a Symptom
 
 Delete is a soft delete on the server side. Requires explicit user confirmation first (see Step 4):
@@ -138,7 +140,7 @@ Optionally test the symptom against a known-affected run with the `reevaluate-jo
 - `--matcher-type string|regex|none|cel`: How the match string is interpreted
 - `--file-pattern <glob>`: Artifact glob, e.g. `**/build-log.txt` (required for non-CEL matchers)
 - `--match-string <text>`: Substring, regex, or CEL expression
-- `--label-ids <list>`: Comma-separated label IDs to apply on match
+- `--label-ids <list>`: Comma-separated label IDs to apply on match; on update, `--label-ids ""` clears all labels
 - `--skip-label-check`: Skip verifying label IDs against the labels API
 - `--format json|summary`: Output format (default: json)
 
