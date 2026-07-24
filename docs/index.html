@@ -1693,6 +1693,25 @@ footer a { color: var(--primary); }
       }
     },
     {
+      "name": "k8s-rebase",
+      "description": "Automate Kubernetes dependency rebases for Go projects that consume k8s.io/* packages. Scans go.mod, derives version bumps, runs codegen, updates version references, and guides agent-driven fixups with antagonistic review.",
+      "version": "0.1.0",
+      "has_readme": true,
+      "commands": [],
+      "skills": [
+        {
+          "name": "k8s-rebase",
+          "description": "Rebase a Go project to a new Kubernetes version by bumping all k8s.io/* dependencies, running codegen, updating version references, fixing build breakage with antagonistic review, and presenting a gh pr create command.",
+          "description_html": "Rebase a Go project to a new Kubernetes version by bumping all k8s.io/* dependencies, running codegen, updating version references, fixing build breakage with antagonistic review, and presenting a gh pr create command.",
+          "meta": "Tools: Bash, Read, Agent"
+        }
+      ],
+      "agents": [],
+      "hooks": [],
+      "mcp_servers": [],
+      "rules": []
+    },
+    {
       "name": "marketplace-ops",
       "description": "Maintenance commands for Claude Code plugin marketplaces",
       "version": "0.1.2",
