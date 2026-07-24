@@ -1,5 +1,5 @@
 import pytest
-from diagnose_job_run import parse_prow_url, normalize_label_entry
+from diagnose_job_run import parse_prow_url, normalize_label_entry, classify_response
 
 def test_parse_standard_prow_url():
     url = ("https://prow.ci.openshift.org/view/gs/test-platform-results/logs/"
@@ -21,6 +21,31 @@ def test_parse_pr_job_url():
 def test_rejects_non_prow_url():
     with pytest.raises(ValueError):
         parse_prow_url("https://example.com/foo")
+
+def test_parse_url_with_query_string_and_fragment():
+    url = ("https://prow.ci.openshift.org/view/gs/test-platform-results/logs/"
+           "some-job/1856789012345678848?tab=x#top")
+    bucket, path, build_id = parse_prow_url(url)
+    assert bucket == "test-platform-results"
+    assert build_id == "1856789012345678848"
+    assert path == "logs/some-job/1856789012345678848"
+
+def test_classify_response_login_page():
+    _, err = classify_response("<html><body>Please Log in to continue</body></html>")
+    assert err and "oc-auth" in err
+
+def test_classify_response_other_html():
+    _, err = classify_response("<html>504 Gateway Time-out</html>")
+    assert err and "HTML error page" in err
+
+def test_classify_response_non_json_plaintext():
+    _, err = classify_response("service unavailable")
+    assert err and "non-JSON" in err
+
+def test_classify_response_valid_json():
+    parsed, err = classify_response('{"results": [{"status": "success"}]}')
+    assert err is None
+    assert parsed["results"][0]["status"] == "success"
 
 WRAPPED_ENTRY = {
     "symptom_label_v1": {

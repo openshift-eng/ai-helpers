@@ -25,6 +25,7 @@ def parse_prow_url(url):
     marker = "/view/gs/"
     if marker not in url:
         raise ValueError("expected a Prow job URL containing '/view/gs/', got %r" % url)
+    url = url.strip().split("#", 1)[0].split("?", 1)[0]
     rest = url.split(marker, 1)[1].strip("/")
     parts = rest.split("/")
     if len(parts) < 2 or not parts[-1].isdigit():
@@ -63,6 +64,24 @@ def normalize_label_entry(entry):
         }
     return {"label_id": None, "label": {}, "symptom_id": None, "symptom": {},
             "file_match": None, "text_match": None, "raw": entry}
+
+
+def classify_response(body):
+    """Classify a deep-mode response body. Returns (parsed_json, error).
+
+    Mirrors reevaluate_job_runs.py: an HTML body is either an SSO login page
+    (expired token — the proxy redirects instead of returning 401) or a
+    gateway error page; anything else must be valid JSON.
+    """
+    if body.lstrip().startswith("<"):
+        if "log in" in body.lower():
+            return None, ("got an SSO login page instead of JSON — token is "
+                          "missing/expired; use the oc-auth skill to refresh it")
+        return None, "gateway returned an HTML error page (likely 504 timeout); retry later"
+    try:
+        return json.loads(body), None
+    except ValueError:
+        return None, "server returned a non-JSON response body"
 
 
 def get_json(url):
@@ -128,10 +147,17 @@ def main():
             method="POST")
         try:
             with urllib.request.urlopen(req, timeout=300) as resp:
-                result = json.loads(resp.read().decode("utf-8"))
+                body = resp.read().decode("utf-8")
         except urllib.error.HTTPError as e:
             hint = " (token expired? use oc-auth)" if e.code in (401, 403) else ""
             print("Error: HTTP %d: %s%s" % (e.code, e.reason, hint), file=sys.stderr)
+            return 1
+        except urllib.error.URLError as e:
+            print("Error: failed to connect to Sippy API: %s" % e.reason, file=sys.stderr)
+            return 1
+        result, err = classify_response(body)
+        if err:
+            print("Error: %s" % err, file=sys.stderr)
             return 1
         report["reevaluate_results"] = result.get("results", [])
         for r in result.get("results", []):
@@ -162,6 +188,10 @@ def main():
     print("=" * 60)
     if not report["matches"]:
         print("No symptom labels found for this run.")
+        if not args.deep:
+            print("The run may never have been scanned (default mode cannot distinguish")
+            print("that from 'scanned, nothing matched') — try --deep --token \"$TOKEN\"")
+            print("for a server-side rescan with the current symptom set.")
         print("If you have identified the failure cause, consider creating a new")
         print("symptom with the manage-symptoms skill so future runs are auto-labeled.")
         return 0
