@@ -52,13 +52,25 @@ def summarize_symptom(s):
     return "\n".join(lines)
 
 
-def summarize_label(l):
-    lines = ["Label: %s" % l.get("id")]
-    lines.append("  Title:       %s" % l.get("label_title"))
-    if l.get("explanation"):
-        lines.append("  Explanation: %s" % l.get("explanation"))
-    if l.get("hide_display_contexts"):
-        lines.append("  Hidden in:   %s" % ", ".join(l["hide_display_contexts"]))
+def filter_labels(labels, search=None):
+    if not search:
+        return labels
+    out = []
+    for label in labels:
+        hay = " ".join([label.get("id", ""), label.get("label_title", ""),
+                        label.get("explanation", "") or ""]).lower()
+        if search.lower() in hay:
+            out.append(label)
+    return out
+
+
+def summarize_label(label):
+    lines = ["Label: %s" % label.get("id")]
+    lines.append("  Title:       %s" % label.get("label_title"))
+    if label.get("explanation"):
+        lines.append("  Explanation: %s" % label.get("explanation"))
+    if label.get("hide_display_contexts"):
+        lines.append("  Hidden in:   %s" % ", ".join(label["hide_display_contexts"]))
     return "\n".join(lines)
 
 
@@ -72,16 +84,20 @@ def main():
     p.add_argument("--format", choices=["json", "summary"], default="json")
     args = p.parse_args()
 
+    if args.labels and (args.label or args.matcher_type):
+        print("Error: --label and --matcher-type only apply to symptoms and cannot "
+              "be combined with --labels", file=sys.stderr)
+        return 1
+
     resource = "labels" if args.labels else "symptoms"
     if args.id:
         items = [fetch("%s/%s/%s" % (BASE_URL, resource, args.id))]
     else:
         items = fetch("%s/%s" % (BASE_URL, resource))
-        if not args.labels:
+        if args.labels:
+            items = filter_labels(items, args.search)
+        else:
             items = filter_symptoms(items, args.search, args.label, args.matcher_type)
-        elif args.search:
-            items = [l for l in items if args.search.lower() in
-                     (" ".join([l.get("id", ""), l.get("label_title", ""), l.get("explanation", "") or ""])).lower()]
 
     if args.format == "json":
         print(json.dumps(items, indent=2))
