@@ -3,6 +3,7 @@ import argparse
 import json
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 
 WRITE_URL = "https://sippy-auth.dptools.openshift.org/api/jobs/labels"
@@ -46,9 +47,26 @@ def request(method, url, token, payload=None):
         return {"success": False, "error": "Failed to connect: %s" % e.reason}
 
 
+def build_update_payload(existing, title=None, explanation=None, hide_display_contexts=None):
+    """Merge changed fields into the existing label for a full-replacement PUT.
+
+    Pass None to preserve the existing value; an explicit empty string for
+    explanation clears it. hide_display_contexts is a list when overriding.
+    """
+    return {"id": existing.get("id"),
+            "label_title": title or existing.get("label_title"),
+            "explanation": explanation if explanation is not None else existing.get("explanation", ""),
+            "hide_display_contexts": hide_display_contexts if hide_display_contexts is not None
+                                     else existing.get("hide_display_contexts")}
+
+
+def label_url(label_id):
+    return "%s/%s" % (WRITE_URL, urllib.parse.quote(label_id, safe=""))
+
+
 def fetch_existing(label_id):
     try:
-        with urllib.request.urlopen("%s/%s" % (READ_URL, label_id), timeout=30) as resp:
+        with urllib.request.urlopen("%s/%s" % (READ_URL, urllib.parse.quote(label_id, safe="")), timeout=30) as resp:
             return json.loads(resp.read().decode("utf-8"))
     except (urllib.error.HTTPError, urllib.error.URLError) as e:
         print("Error: cannot fetch existing label %s: %s" % (label_id, e), file=sys.stderr)
@@ -70,23 +88,27 @@ def main():
         print("Error: --id is required for %s" % args.action, file=sys.stderr)
         return 1
 
+    hide_contexts = None
+    if args.hide_display_contexts is not None:
+        hide_contexts = [c.strip() for c in args.hide_display_contexts.split(",") if c.strip()]
+
     if args.action == "delete":
-        out = request("DELETE", "%s/%s" % (WRITE_URL, args.id), args.token)
+        out = request("DELETE", label_url(args.id), args.token)
     else:
         if args.action == "create":
             payload = {"label_title": args.title, "explanation": args.explanation or ""}
             if args.id:
                 payload["id"] = args.id
+            if hide_contexts is not None:
+                payload["hide_display_contexts"] = hide_contexts
         else:
             existing = fetch_existing(args.id)
             if existing is None:
                 return 1
-            payload = {"id": args.id,
-                       "label_title": args.title or existing.get("label_title"),
-                       "explanation": args.explanation if args.explanation is not None else existing.get("explanation", ""),
-                       "hide_display_contexts": existing.get("hide_display_contexts")}
-        if args.hide_display_contexts is not None:
-            payload["hide_display_contexts"] = [c.strip() for c in args.hide_display_contexts.split(",") if c.strip()]
+            existing["id"] = args.id
+            payload = build_update_payload(existing, title=args.title,
+                                           explanation=args.explanation,
+                                           hide_display_contexts=hide_contexts)
         payload = {k: v for k, v in payload.items() if v is not None}
         errs = validate_label(payload)
         if errs:
@@ -96,7 +118,7 @@ def main():
         if args.action == "create":
             out = request("POST", WRITE_URL, args.token, payload)
         else:
-            out = request("PUT", "%s/%s" % (WRITE_URL, args.id), args.token, payload)
+            out = request("PUT", label_url(args.id), args.token, payload)
 
     if args.format == "json":
         print(json.dumps(out, indent=2))
