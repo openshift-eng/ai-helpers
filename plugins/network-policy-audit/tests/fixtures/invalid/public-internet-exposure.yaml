@@ -1,0 +1,20 @@
+# Invalid NetworkPolicy: Public internet egress exposure
+# Based on: TC-INV-003 and BUG-002 verification
+# Purpose: Allows egress to 0.0.0.0/0 (public internet)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-public-egress
+  namespace: vulnerable-namespace
+  annotations:
+    policy.kubernetes.io/description: "INSECURE: Allows egress to entire internet"
+spec:
+  podSelector:
+    matchLabels:
+      app: web
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0  # Entire internet

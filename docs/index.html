@@ -1821,6 +1821,53 @@ footer a { color: var(--primary); }
       }
     },
     {
+      "name": "network-policy-audit",
+      "description": "Automated NetworkPolicy review, optimization, and compliance for OpenShift/Kubernetes clusters",
+      "version": "1.0.0",
+      "has_readme": true,
+      "commands": [
+        {
+          "name": "analyze",
+          "full_name": "network-policy-audit:analyze",
+          "description": "Comprehensive NetworkPolicy health check for security, performance, and compliance",
+          "description_html": "Comprehensive NetworkPolicy health check for security, performance, and compliance",
+          "synopsis": "/network-policy-audit:analyze [namespace|--cluster-wide] [--mode=security|performance|compliance]",
+          "body_html": "Performs comprehensive analysis of NetworkPolicy objects to detect security vulnerabilities, performance issues, and compliance violations."
+        }
+      ],
+      "skills": [],
+      "agents": [],
+      "hooks": [],
+      "mcp_servers": [],
+      "rules": [],
+      "category": "networking",
+      "tags": [
+        "networking",
+        "security",
+        "kubernetes",
+        "openshift",
+        "audit",
+        "compliance",
+        "ovn-kubernetes",
+        "network-policy"
+      ],
+      "keywords": [
+        "networking",
+        "security",
+        "kubernetes",
+        "openshift",
+        "networkpolicy",
+        "audit",
+        "compliance",
+        "ovn-kubernetes"
+      ],
+      "repository": "https://github.com/openshift-eng/ai-helpers",
+      "author": {
+        "name": "github.com/openshift-eng",
+        "email": "shbehera@redhat.com"
+      }
+    },
+    {
       "name": "node",
       "description": "Kubernetes and OpenShift node health monitoring and diagnostics",
       "version": "0.0.3",

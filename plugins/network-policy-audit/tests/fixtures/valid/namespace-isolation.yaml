@@ -1,0 +1,27 @@
+# Valid NetworkPolicy: Namespace isolation with specific allow
+# Based on: TC-VNP-002
+# Purpose: Demonstrates proper namespace+pod selector usage (BUG-001 verification)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-from-frontend-namespace
+  namespace: backend-namespace
+  annotations:
+    policy.kubernetes.io/description: "Allow ingress from frontend namespace pods only"
+spec:
+  podSelector:
+    matchLabels:
+      tier: backend
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          tier: frontend
+      podSelector:
+        matchLabels:
+          tier: frontend
+    ports:
+    - protocol: TCP
+      port: 8080
