@@ -51,7 +51,9 @@ JIRA writes (filing bugs, `set-release-blocker`, `add-jira-triage-link`) additio
 
    Keep only **open, untriaged** regressions (empty `triages` array), but note recently-triaged ones — they are prime candidates for absorbing untriaged siblings.
 
-4. **Build a batch inventory table**: For every untriaged regression record: regression ID, test name, component/capability, variants (Platform/Arch/Network/Topology/FeatureSet/Upgrade), opened date, failure/run counts. Present this table to the user up front so the scope of the duty run is visible.
+   **Closed regressions are out of scope — even when untriaged.** A regression whose `closed` field is set has already resolved itself; do not inventory it, cluster it, deep-dive it, or recommend retroactive triage for it. The duty batch consists solely of open untriaged regressions. Closed regressions may be *consulted* as evidence (e.g., a closed sibling that shares a root cause with an open bucket, or a closed sibling whose existing triage/JIRA an open bucket should reuse — see Pitfalls), but they must never appear as bucket members, action items, or "leftovers" in the report.
+
+4. **Build a batch inventory table**: For every **open** untriaged regression record: regression ID, test name, component/capability, variants (Platform/Arch/Network/Topology/FeatureSet/Upgrade), opened date, failure/run counts. Present this table to the user up front so the scope of the duty run is visible. Do not include closed regressions in the inventory.
 
 ### Phase 2: Cluster into candidate buckets (cheap signals first)
 
