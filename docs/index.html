@@ -518,7 +518,7 @@ footer a { color: var(--primary); }
     {
       "name": "ci",
       "description": "Tools for working with OpenShift CI and analyzing Prow job results",
-      "version": "0.0.71",
+      "version": "0.0.72",
       "has_readme": true,
       "commands": [
         {
@@ -586,12 +586,28 @@ footer a { color: var(--primary); }
           "body_html": "\u003cp\u003eDownloads Claude session artifacts from a Prow CI job and allows you to continue one of those sessions locally. This is useful when Claude ran as part of a CI job and you want to pick up where it left off.\u003c/p\u003e\u003cp\u003eThe command accepts:\u003cbr\u003e- \u003cstrong\u003eprowjob-url\u003c/strong\u003e (required): URL to a Prow job run\u003c/p\u003e"
         },
         {
+          "name": "create-symptom",
+          "full_name": "ci:create-symptom",
+          "description": "Interactively create (or update/delete) a Sippy Symptom that auto-labels a known CI failure pattern",
+          "description_html": "Interactively create (or update/delete) a Sippy Symptom that auto-labels a known CI failure pattern",
+          "synopsis": "/ci:create-symptom [description-of-failure]",
+          "body_html": "The \u003ccode\u003eci:create-symptom\u003c/code\u003e command creates a Sippy Symptom — a known-failure signature made of an artifact file pattern and a matcher that, when it matches a CI job run, automatically applies human-readable Labels (like \u003ccode\u003eInfraFailure\u003c/code\u003e) so future failures are recognized without re-debugging. The command walks through an interactive workflow: check for duplicate symptoms, verify (or create) the target labels, confirm the exact payload with the user, then create. It also handles updating or deleting an existing symptom when the user asks."
+        },
+        {
           "name": "detect-permafail",
           "full_name": "ci:detect-permafail",
           "description": "Detect permafail patterns in consecutive job failures",
           "description_html": "Detect permafail patterns in consecutive job failures",
           "synopsis": "/ci:detect-permafail --job-urls=\"[url1,url2,...]\" --job-name=\"job-name\" --pr=\"owner/repo#123\"",
           "body_html": "\u003cp\u003eAnalyzes 2-10 consecutive failures of the same job to determine if they represent a systematic/permanent failure (permafail) versus a flaky failure. This is critical for CI/CD pipeline analysis to distinguish between:\u003c/p\u003e\u003cp\u003e- \u003cstrong\u003ePermafail\u003c/strong\u003e: A systematic failure affecting the same test(s) or infrastructure issue, detected by analyzing comparable runs (same failure type):\u003cbr\u003e  - Separates test failures from infrastructure failures\u003cbr\u003e  - Applies thresholds based on comparable run count (not total URLs)\u003cbr\u003e  - 2-3 comparable runs: All must match (100% required)\u003cbr\u003e  - 4-5 comparable runs: At least 4 must match (80% required)\u003cbr\u003e  - 6-10 comparable runs: At least ceil(count×0.7) must match (70% required)\u003cbr\u003e  - Example: 7 URLs where 5 are test failures and 4 of those 5 have same test → 4/5 = 80% → PERMAFAIL\u003cbr\u003e- \u003cstrong\u003eFlaky\u003c/strong\u003e: Non-deterministic failures with varying root causes, or failures that don&#x27;t meet the permafail thresholds\u003c/p\u003e\u003cp\u003e### How It Works\u003c/p\u003e\u003cp\u003eThe command uses a deterministic Python classifier script for artifact-based failure classification, compares failure signatures across runs, and returns a JSON result with the permafail verdict, confidence score, failure type, and detailed signatures for each run.\u003c/p\u003e"
+        },
+        {
+          "name": "diagnose-job-symptoms",
+          "full_name": "ci:diagnose-job-symptoms",
+          "description": "Explain which Sippy Symptoms and failure Labels apply to a Prow CI job run",
+          "description_html": "Explain which Sippy Symptoms and failure Labels apply to a Prow CI job run",
+          "synopsis": "/ci:diagnose-job-symptoms \u003cprow-job-url\u003e",
+          "body_html": "The \u003ccode\u003eci:diagnose-job-symptoms\u003c/code\u003e command takes a Prow job run URL and explains, in plain language, which Sippy Symptoms — known-failure signatures that match patterns in a run&#x27;s artifact files — applied which Labels (like \u003ccode\u003eInfraFailure\u003c/code\u003e) to that run, including the exact file and line that matched. Use it before debugging a CI failure from scratch to check whether it is already a known failure mode. The default mode needs no authentication."
         },
         {
           "name": "extract-kubeconfig",
@@ -626,12 +642,28 @@ footer a { color: var(--primary); }
           "body_html": "\u003cp\u003eThe ci:list-step command analyzes an OpenShift CI workflow or chain and provides a complete hierarchical breakdown of all the workflow, chain, and ref\u003cbr\u003efiles with their repo paths that make up the workflow or chain.\u003c/p\u003e\u003cp\u003eThe command accepts:\u003cbr\u003e- Workflow/Chain name (required)\u003c/p\u003e\u003cp\u003eIt uses the step-registry-analyzer agent to examine the workflow/chain structure and identify all related components including workflows, chains, refs, and\u003cbr\u003etheir associated command files.\u003c/p\u003e"
         },
         {
+          "name": "list-symptoms",
+          "full_name": "ci:list-symptoms",
+          "description": "List, search, and inspect Sippy Symptoms and Labels (known CI failure signatures)",
+          "description_html": "List, search, and inspect Sippy Symptoms and Labels (known CI failure signatures)",
+          "synopsis": "/ci:list-symptoms [search-text]",
+          "body_html": "The \u003ccode\u003eci:list-symptoms\u003c/code\u003e command lists and searches Sippy Symptoms — known-failure signatures for OpenShift CI that automatically apply human-readable Labels (like \u003ccode\u003eInfraFailure\u003c/code\u003e) to job runs when their artifact files match a pattern. Use it to browse the symptom catalog, check whether a failure pattern already has a symptom before creating one, look up what a label means, or find which symptoms apply a given label. No authentication is required."
+        },
+        {
           "name": "list-unstable-tests",
           "full_name": "ci:list-unstable-tests",
           "description": "List unstable tests with pass rate below 95%",
           "description_html": "List unstable tests with pass rate below 95%",
           "synopsis": "/ci:list-unstable-tests \u003cversion\u003e \u003ckeywords\u003e [sippy-url]",
           "body_html": "\u003cp\u003eThe \u003ccode\u003eci:list-unstable-tests\u003c/code\u003e command queries OpenShift CI test results from Sippy and lists all tests matching the keywords that have a pass rate below 95%. This is useful for quickly identifying unstable tests that need attention.\u003c/p\u003e\u003cp\u003eBy default, it queries the production Sippy instance at \u003ccode\u003esippy.dptools.openshift.org\u003c/code\u003e. You can optionally specify a different Sippy instance URL to query alternative environments (e.g., QE component readiness).\u003c/p\u003e\u003cp\u003eThis command is useful for:\u003cbr\u003e- Identifying unstable tests with inconsistent pass rates\u003cbr\u003e- Finding regression candidates for investigation\u003cbr\u003e- Generating reports of unstable test cases\u003cbr\u003e- Prioritizing test stabilization efforts\u003cbr\u003e- Quality gate checks before releases\u003c/p\u003e"
+        },
+        {
+          "name": "manage-labels",
+          "full_name": "ci:manage-labels",
+          "description": "Create, update, or delete a Sippy Label (the human-readable tags applied by Symptoms)",
+          "description_html": "Create, update, or delete a Sippy Label (the human-readable tags applied by Symptoms)",
+          "synopsis": "/ci:manage-labels [create|update|delete] [label]",
+          "body_html": "The \u003ccode\u003eci:manage-labels\u003c/code\u003e command manages Sippy Labels — the human-readable tags (like \u003ccode\u003eInfraFailure\u003c/code\u003e) that Sippy Symptoms automatically apply to CI job runs when a known failure pattern matches the run&#x27;s artifacts. Use it to create a new label before a symptom references it, fix a label&#x27;s title or explanation, hide a label from certain UI contexts, or remove an obsolete label. Write operations require authentication to the sippy-auth API."
         },
         {
           "name": "payload-experiment",
@@ -664,6 +696,14 @@ footer a { color: var(--primary); }
           "description_html": "Query test results from Sippy by version and test keywords",
           "synopsis": "/ci:query-test-result \u003cversion\u003e \u003ckeywords\u003e [sippy-url]",
           "body_html": "\u003cp\u003eThe \u003ccode\u003eci:query-test-result\u003c/code\u003e command queries OpenShift CI test results from Sippy based on the OpenShift version and test name keywords. It retrieves test statistics including pass rate, number of runs, failures, and links to failed job runs.\u003c/p\u003e\u003cp\u003eBy default, it queries the production Sippy instance at \u003ccode\u003esippy.dptools.openshift.org\u003c/code\u003e. You can optionally specify a different Sippy instance URL to query alternative environments (e.g., QE component readiness).\u003c/p\u003e\u003cp\u003eThis command is useful for:\u003cbr\u003e- Checking the health of specific test cases\u003cbr\u003e- Finding test failure patterns\u003cbr\u003e- Getting links to failed Prow job runs for debugging\u003cbr\u003e- Monitoring test regression trends\u003cbr\u003e- Querying different Sippy instances (production, QE, etc.)\u003c/p\u003e"
+        },
+        {
+          "name": "reevaluate-job-runs",
+          "full_name": "ci:reevaluate-job-runs",
+          "description": "Retroactively re-run Sippy Symptom detection on completed Prow CI job runs",
+          "description_html": "Retroactively re-run Sippy Symptom detection on completed Prow CI job runs",
+          "synopsis": "/ci:reevaluate-job-runs \u003cprow-urls-or-build-ids...\u003e",
+          "body_html": "The \u003ccode\u003eci:reevaluate-job-runs\u003c/code\u003e command asks Sippy to re-scan completed Prow CI job runs against the current set of Symptoms — known-failure signatures that automatically apply human-readable Labels (like \u003ccode\u003eInfraFailure\u003c/code\u003e) when a run&#x27;s artifacts match a pattern. Detection normally runs as artifacts arrive, so reevaluation is for runs that finished \u003cstrong\u003ebefore\u003c/strong\u003e a symptom was created or changed. Reevaluation is idempotent and preserves manually-applied labels."
         },
         {
           "name": "revert-pr",
@@ -715,6 +755,12 @@ footer a { color: var(--primary); }
           "name": "detect-permafail",
           "description": "Analyze consecutive job failures to determine if they represent a permafail pattern versus flaky failures",
           "description_html": "Analyze consecutive job failures to determine if they represent a permafail pattern versus flaky failures",
+          "meta": ""
+        },
+        {
+          "name": "diagnose-job-run-symptoms",
+          "description": "Explain which Sippy Symptoms and failure Labels apply to a Prow CI job run, in plain language, given only the Prow URL",
+          "description_html": "Explain which Sippy Symptoms and failure Labels apply to a Prow CI job run, in plain language, given only the Prow URL",
           "meta": ""
         },
         {
@@ -778,6 +824,24 @@ footer a { color: var(--primary); }
           "meta": ""
         },
         {
+          "name": "list-symptoms",
+          "description": "List, search, and inspect Sippy Symptoms and Labels — known CI failure signatures — via the public Sippy API",
+          "description_html": "List, search, and inspect Sippy Symptoms and Labels — known CI failure signatures — via the public Sippy API",
+          "meta": ""
+        },
+        {
+          "name": "manage-labels",
+          "description": "Create, update, or delete Sippy job run Labels (the human-readable tags applied by Symptoms) via the authenticated Sippy API",
+          "description_html": "Create, update, or delete Sippy job run Labels (the human-readable tags applied by Symptoms) via the authenticated Sippy API",
+          "meta": ""
+        },
+        {
+          "name": "manage-symptoms",
+          "description": "Create, update, or delete Sippy Symptoms — known CI failure signatures that automatically label job runs — via the authenticated Sippy API",
+          "description_html": "Create, update, or delete Sippy Symptoms — known CI failure signatures that automatically label job runs — via the authenticated Sippy API",
+          "meta": ""
+        },
+        {
           "name": "oc-auth",
           "description": "Helper skill to retrieve OAuth tokens from the correct OpenShift cluster context when multiple clusters are configured",
           "description_html": "Helper skill to retrieve OAuth tokens from the correct OpenShift cluster context when multiple clusters are configured",
@@ -823,6 +887,12 @@ footer a { color: var(--primary); }
           "name": "prow-job-analyze-resource",
           "description": "Analyze Kubernetes resource lifecycle in Prow CI job artifacts by parsing audit logs and pod logs from GCS, generating interactive HTML reports with timelines",
           "description_html": "Analyze Kubernetes resource lifecycle in Prow CI job artifacts by parsing audit logs and pod logs from GCS, generating interactive HTML reports with timelines",
+          "meta": ""
+        },
+        {
+          "name": "reevaluate-job-runs",
+          "description": "Retroactively re-run Sippy Symptom detection on completed Prow CI job runs to apply or preview failure Labels",
+          "description_html": "Retroactively re-run Sippy Symptom detection on completed Prow CI job runs to apply or preview failure Labels",
           "meta": ""
         },
         {
