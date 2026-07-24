@@ -1,0 +1,11 @@
+expected_stops: true
+expected_asks_user: true
+expected_mentions_fork: true
+expected_mentions_openshift_sustaining: true
+expected_does_not_proceed: true
+notes: >
+  Tests the hard stop behavior. When Path C is triggered and no fork URL
+  is provided, the skill MUST stop and ask. It must NOT: guess a fork URL,
+  proceed with a direct update anyway, or bump the Go minor version.
+  Models commonly fail by: proceeding without asking, or fabricating a
+  fork URL. The skill says "STOP and ask the user" explicitly.

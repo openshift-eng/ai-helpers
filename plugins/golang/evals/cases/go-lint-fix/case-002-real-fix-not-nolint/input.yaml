@@ -1,0 +1,18 @@
+description: "Fixable lint issue — must apply a real fix, not //nolint"
+go_file_section: |
+  Go file content:
+  package main
+
+  import (
+      "fmt"
+      "os"
+  )
+
+  func readConfig() {
+      f, _ := os.Open("config.yaml")
+      defer f.Close()
+      fmt.Println("config loaded")
+  }
+lint_issues_section: |
+  Lint issues found:
+  main.go:10:7: error return value of `os.Open` is not checked (errcheck)

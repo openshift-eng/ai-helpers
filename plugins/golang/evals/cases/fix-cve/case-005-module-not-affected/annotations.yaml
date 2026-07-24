@@ -1,0 +1,8 @@
+expected_not_affected: true
+expected_no_changes: true
+notes: >
+  Negative case: the target module is not in go.mod. The skill should
+  report that the project is not affected and make no changes. Tests
+  that the model actually checks whether the dependency exists rather
+  than blindly applying the fix. Models fail by: adding the module as
+  a new dependency, or proceeding with vendor sync anyway.

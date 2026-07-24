@@ -1,0 +1,8 @@
+expected_command: "make verify-lint"
+expected_discovery_source: "CLAUDE.md"
+expected_does_not_use: ["golangci-lint run ./...", "make lint"]
+notes: >
+  CLAUDE.md explicitly says to use `make verify-lint` and warns against
+  direct golangci-lint. The discovery cascade says CLAUDE.md takes priority.
+  Models fail by: ignoring CLAUDE.md and jumping to `golangci-lint run ./...`
+  or picking `make lint` over `make verify-lint`.

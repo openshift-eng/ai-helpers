@@ -1,0 +1,22 @@
+description: "Magic number lint — constant already exists in the package"
+go_file_section: |
+  Go file content:
+  package server
+
+  const DefaultTimeout = 30
+
+  func newClient() *Client {
+      return &Client{
+          Timeout:    30,
+          MaxRetries: 30,
+      }
+  }
+
+  type Client struct {
+      Timeout    int
+      MaxRetries int
+  }
+lint_issues_section: |
+  Lint issues found:
+  server.go:7:16: Magic number: 30, in <argument> detected (mnd)
+  server.go:8:16: Magic number: 30, in <argument> detected (mnd)
