@@ -518,7 +518,7 @@ footer a { color: var(--primary); }
     {
       "name": "ci",
       "description": "Tools for working with OpenShift CI and analyzing Prow job results",
-      "version": "0.0.72",
+      "version": "0.0.73",
       "has_readme": true,
       "commands": [
         {
@@ -607,7 +607,7 @@ footer a { color: var(--primary); }
           "description": "Explain which Sippy Symptoms and failure Labels apply to a Prow CI job run",
           "description_html": "Explain which Sippy Symptoms and failure Labels apply to a Prow CI job run",
           "synopsis": "/ci:diagnose-job-symptoms \u003cprow-job-url\u003e",
-          "body_html": "The \u003ccode\u003eci:diagnose-job-symptoms\u003c/code\u003e command takes a Prow job run URL and explains, in plain language, which Sippy Symptoms — known-failure signatures that match patterns in a run&#x27;s artifact files — applied which Labels (like \u003ccode\u003eInfraFailure\u003c/code\u003e) to that run, including the exact file and line that matched. Use it before debugging a CI failure from scratch to check whether it is already a known failure mode. The default mode needs no authentication."
+          "body_html": "The \u003ccode\u003eci:diagnose-job-symptoms\u003c/code\u003e command takes a Prow job run URL and explains, in plain language, which Sippy Symptoms — known-failure signatures that match patterns in a run&#x27;s artifact files — applied which Labels (like \u003ccode\u003eInfraFailure\u003c/code\u003e) to that run, including the matched file and text. Use it before debugging a CI failure from scratch to check whether it is already a known failure mode. The default mode needs no authentication."
         },
         {
           "name": "extract-kubeconfig",

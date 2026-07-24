@@ -10,24 +10,21 @@ Labels must exist before a symptom can reference them.
 
 ## Authentication
 
-Writes go to `https://sippy-auth.dptools.openshift.org` and require a Bearer token. Log into the DPCR cluster (`https://api.cr.j7t7.p1.openshiftapps.com:6443`) with `oc login` and use the `oc-auth` skill to obtain the token.
+Writes go to `https://sippy-auth.dptools.openshift.org` and require a Bearer token. Log into the DPCR cluster (`https://api.cr.j7t7.p1.openshiftapps.com:6443`) with `oc login` and use the `oc-auth` skill to obtain the token. Prefer `export SIPPY_TOKEN=$(oc whoami -t --context="$CONTEXT")` over passing `--token` on the command line (argv is visible in process listings); `--token` still works and takes precedence.
 
 ## Usage
 
 ```bash
 # Create a label
-python3 plugins/ci/skills/manage-labels/manage_labels.py create \
-  --token "$TOKEN" --title "Cluster DNS Flake" \
+python3 plugins/ci/skills/manage-labels/manage_labels.py create --title "Cluster DNS Flake" \
   --explanation "DNS lookups inside the cluster intermittently time out."
 
 # Update a label (only pass the fields to change; the script merges with the existing label)
-python3 plugins/ci/skills/manage-labels/manage_labels.py update \
-  --token "$TOKEN" --id ClusterDNSFlake \
+python3 plugins/ci/skills/manage-labels/manage_labels.py update --id ClusterDNSFlake \
   --explanation "Updated explanation."
 
 # Delete a label (confirm with the user first!)
-python3 plugins/ci/skills/manage-labels/manage_labels.py delete \
-  --token "$TOKEN" --id ClusterDNSFlake
+python3 plugins/ci/skills/manage-labels/manage_labels.py delete --id ClusterDNSFlake
 ```
 
 ## See Also

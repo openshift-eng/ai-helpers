@@ -9,7 +9,7 @@ ci:create-symptom
 
 ## Synopsis
 
-```
+```text
 /ci:create-symptom [description-of-failure]
 ```
 
@@ -40,7 +40,6 @@ The `ci:create-symptom` command creates a Sippy Symptom — a known-failure sign
 6. **Create the symptom**:
    ```bash
    python3 plugins/ci/skills/manage-symptoms/manage_symptoms.py create \
-     --token "$TOKEN" \
      --summary "<short unique summary>" \
      --matcher-type string \
      --file-pattern "build-log.txt" \
@@ -61,12 +60,12 @@ The `ci:create-symptom` command creates a Sippy Symptom — a known-failure sign
 ## Examples
 
 1. **Create a symptom from a failure description**:
-   ```
+   ```text
    /ci:create-symptom AWS install fails with "api error AuthFailure" in build-log.txt
    ```
 
 2. **Update an existing symptom**:
-   ```
+   ```text
    /ci:create-symptom update AWSCouldNotValidateAccessCredentials to also match the new error text
    ```
 

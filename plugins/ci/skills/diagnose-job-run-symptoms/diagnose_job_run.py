@@ -11,6 +11,7 @@ artifacts/job_labels/*.json contains a single wrapped entry:
 """
 import argparse
 import json
+import os
 import sys
 import urllib.error
 import urllib.parse
@@ -19,6 +20,16 @@ import urllib.request
 READ_BASE = "https://sippy.dptools.openshift.org/api/jobs"
 REEVALUATE_URL = "https://sippy-auth.dptools.openshift.org/api/jobs/runs/reevaluate"
 GCS_API = "https://storage.googleapis.com/storage/v1/b"
+
+
+def resolve_token(arg_token, env=None):
+    """Return the Bearer token from --token or the SIPPY_TOKEN env var.
+
+    --token takes precedence over the environment variable. Prefer the env
+    var: command-line arguments are visible in process listings.
+    """
+    env = os.environ if env is None else env
+    return arg_token or env.get("SIPPY_TOKEN") or None
 
 
 def parse_prow_url(url):
@@ -116,12 +127,16 @@ def main():
     p.add_argument("prow_url", help="Prow job run URL (https://prow.ci.openshift.org/view/gs/...)")
     p.add_argument("--deep", action="store_true",
                    help="Server-side dry-run rescan via the reevaluate API (requires --token)")
-    p.add_argument("--token", help="Bearer token, required with --deep (use oc-auth skill)")
+    p.add_argument("--token", help="Bearer token, required with --deep "
+                   "(or set SIPPY_TOKEN env var, preferred; use oc-auth skill)")
     p.add_argument("--format", choices=["json", "summary"], default="summary")
     args = p.parse_args()
 
-    if args.deep and not args.token:
-        print("Error: --deep requires --token (use the oc-auth skill)", file=sys.stderr)
+    token = resolve_token(args.token)
+    if args.deep and not token:
+        print("Error: --deep requires a token — pass --token or set the SIPPY_TOKEN "
+              "environment variable (preferred; use the oc-auth skill to obtain "
+              "one)", file=sys.stderr)
         return 1
 
     try:
@@ -133,7 +148,7 @@ def main():
     try:
         labels_catalog = index_by_id(get_json("%s/labels" % READ_BASE))
         symptoms_catalog = index_by_id(get_json("%s/symptoms" % READ_BASE))
-    except (urllib.error.HTTPError, urllib.error.URLError) as e:
+    except (urllib.error.HTTPError, urllib.error.URLError, ValueError) as e:
         print("Error: cannot reach Sippy API: %s" % e, file=sys.stderr)
         return 1
 
@@ -143,7 +158,7 @@ def main():
         req = urllib.request.Request(
             REEVALUATE_URL,
             data=json.dumps({"prow_job_build_ids": [build_id], "dry_run": True}).encode("utf-8"),
-            headers={"Content-Type": "application/json", "Authorization": "Bearer %s" % args.token},
+            headers={"Content-Type": "application/json", "Authorization": "Bearer %s" % token},
             method="POST")
         try:
             with urllib.request.urlopen(req, timeout=300) as resp:
@@ -167,7 +182,7 @@ def main():
     else:
         try:
             entries = fetch_applied_labels(bucket, path)
-        except (urllib.error.HTTPError, urllib.error.URLError) as e:
+        except (urllib.error.HTTPError, urllib.error.URLError, ValueError) as e:
             print("Error: cannot read GCS artifacts for this run: %s" % e, file=sys.stderr)
             return 1
         for entry in entries:

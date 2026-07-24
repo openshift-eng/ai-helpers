@@ -72,12 +72,14 @@ if [ -z "$CONTEXT" ]; then
   exit 1
 fi
 
-TOKEN=$(oc whoami -t --context="$CONTEXT" 2>/dev/null)
-if [ -z "$TOKEN" ]; then
+export SIPPY_TOKEN=$(oc whoami -t --context="$CONTEXT" 2>/dev/null)
+if [ -z "$SIPPY_TOKEN" ]; then
   echo "Error: Failed to get token. Please re-authenticate to DPCR cluster."
   exit 1
 fi
 ```
+
+Prefer exporting `SIPPY_TOKEN` as above rather than passing `--token` on the command line — command-line arguments are visible in process listings. `--token` still works and takes precedence over the environment variable.
 
 ### Step 4: Confirm the Payload with the User
 
@@ -87,7 +89,6 @@ fi
 
 ```bash
 python3 plugins/ci/skills/manage-symptoms/manage_symptoms.py create \
-  --token "$TOKEN" \
   --summary "AWS could not validate access credentials" \
   --matcher-type string \
   --file-pattern "build-log.txt" \
@@ -103,7 +104,6 @@ Only pass the flags you want to change — the script fetches the existing sympt
 
 ```bash
 python3 plugins/ci/skills/manage-symptoms/manage_symptoms.py update \
-  --token "$TOKEN" \
   --id AWSCouldNotValidateAccessCredentials \
   --match-string "api error AuthFailure"
 ```
@@ -116,7 +116,6 @@ Delete is a soft delete on the server side. Requires explicit user confirmation 
 
 ```bash
 python3 plugins/ci/skills/manage-symptoms/manage_symptoms.py delete \
-  --token "$TOKEN" \
   --id AWSCouldNotValidateAccessCredentials
 ```
 
@@ -134,7 +133,7 @@ Optionally test the symptom against a known-affected run with the `reevaluate-jo
 - `action`: `create`, `update`, or `delete` (positional, required)
 
 **Options**:
-- `--token <token>`: Bearer token from the oc-auth skill (required)
+- `--token <token>`: Bearer token from the oc-auth skill (optional if the `SIPPY_TOKEN` environment variable is set, which is preferred — argv is visible in process listings; `--token` takes precedence)
 - `--id <id>`: Symptom ID (required for update/delete; server-generated on create)
 - `--summary <text>`: Short unique description (required for create, max 200 characters)
 - `--matcher-type string|regex|none|cel`: How the match string is interpreted
@@ -178,6 +177,7 @@ Optionally test the symptom against a known-affected run with the `reevaluate-jo
 - **401/403**: Token missing or expired — refresh it via the `oc-auth` skill.
 - **501**: You hit the read-only Sippy instance with a write; make sure the sippy-auth base URL is used (the script already does).
 - **400**: Server-side validation failure — the server's message is shown in the `detail` field of the output.
+- **Concurrent edits**: The update flow is read-merge-replace with no server-side concurrency control, so near-simultaneous edits can overwrite each other — re-check the symptom after updating if others may be editing.
 
 **Exit Codes**:
 - `0`: Success

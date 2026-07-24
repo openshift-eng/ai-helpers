@@ -100,3 +100,13 @@ def test_send_batch_plaintext_body_is_retryable(monkeypatch):
     assert auth_failed is False
     assert "non-JSON" in err
     assert len(calls) == 3  # retried up to the limit
+
+
+def test_resolve_token_arg_wins_over_env():
+    assert reevaluate_job_runs.resolve_token("argtok", {"SIPPY_TOKEN": "envtok"}) == "argtok"
+
+def test_resolve_token_falls_back_to_env():
+    assert reevaluate_job_runs.resolve_token(None, {"SIPPY_TOKEN": "envtok"}) == "envtok"
+
+def test_resolve_token_none_when_unset():
+    assert reevaluate_job_runs.resolve_token(None, {}) is None

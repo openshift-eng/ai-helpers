@@ -1,6 +1,7 @@
 """Create, update, or delete Sippy job run Labels (requires auth token)."""
 import argparse
 import json
+import os
 import sys
 import urllib.error
 import urllib.parse
@@ -9,6 +10,16 @@ import urllib.request
 WRITE_URL = "https://sippy-auth.dptools.openshift.org/api/jobs/labels"
 READ_URL = "https://sippy.dptools.openshift.org/api/jobs/labels"
 VALID_HIDE_CONTEXTS = ("spyglass", "metrics", "jaq-options")
+
+
+def resolve_token(arg_token, env=None):
+    """Return the Bearer token from --token or the SIPPY_TOKEN env var.
+
+    --token takes precedence over the environment variable. Prefer the env
+    var: command-line arguments are visible in process listings.
+    """
+    env = os.environ if env is None else env
+    return arg_token or env.get("SIPPY_TOKEN") or None
 
 
 def validate_label(payload):
@@ -76,13 +87,20 @@ def fetch_existing(label_id):
 def main():
     p = argparse.ArgumentParser(description="Create/update/delete Sippy labels")
     p.add_argument("action", choices=["create", "update", "delete"])
-    p.add_argument("--token", required=True, help="Bearer token (use oc-auth skill)")
+    p.add_argument("--token", help="Bearer token (or set SIPPY_TOKEN env var, preferred; use oc-auth skill)")
     p.add_argument("--id", help="Label ID (required for update/delete; optional for create)")
     p.add_argument("--title", help="Human-readable label title (required for create)")
     p.add_argument("--explanation", help="Markdown explanation of the label")
     p.add_argument("--hide-display-contexts", help="Comma-separated: spyglass,metrics,jaq-options")
     p.add_argument("--format", choices=["json", "summary"], default="json")
     args = p.parse_args()
+
+    token = resolve_token(args.token)
+    if not token:
+        print("Error: no token provided — pass --token or set the SIPPY_TOKEN "
+              "environment variable (preferred; use the oc-auth skill to obtain "
+              "one)", file=sys.stderr)
+        return 1
 
     if args.action in ("update", "delete") and not args.id:
         print("Error: --id is required for %s" % args.action, file=sys.stderr)
@@ -93,7 +111,7 @@ def main():
         hide_contexts = [c.strip() for c in args.hide_display_contexts.split(",") if c.strip()]
 
     if args.action == "delete":
-        out = request("DELETE", label_url(args.id), args.token)
+        out = request("DELETE", label_url(args.id), token)
     else:
         if args.action == "create":
             payload = {"label_title": args.title, "explanation": args.explanation or ""}
@@ -116,9 +134,9 @@ def main():
                 print("Validation error: %s" % e, file=sys.stderr)
             return 1
         if args.action == "create":
-            out = request("POST", WRITE_URL, args.token, payload)
+            out = request("POST", WRITE_URL, token, payload)
         else:
-            out = request("PUT", label_url(args.id), args.token, payload)
+            out = request("PUT", label_url(args.id), token, payload)
 
     if args.format == "json":
         print(json.dumps(out, indent=2))

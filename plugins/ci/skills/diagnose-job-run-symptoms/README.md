@@ -6,17 +6,17 @@ Sippy Symptoms are known-failure signatures for OpenShift CI. A symptom is a rul
 
 ## Two modes
 
-**Default mode** — no authentication. Reads the labels already applied to the run from its public GCS artifacts (`artifacts/job_labels/*.json`) and explains each one, including the matched file and line:
+**Default mode** — no authentication. Reads the labels already applied to the run from its public GCS artifacts (`artifacts/job_labels/*.json`) and explains each one, including the matched file and text:
 
 ```bash
 python3 diagnose_job_run.py \
   "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/<job>/<build_id>"
 ```
 
-**Deep mode** — server-side dry-run rescan with the current symptom set (writes nothing). Requires a Bearer token from the DPCR cluster via the `oc-auth` skill:
+**Deep mode** — server-side dry-run rescan with the current symptom set (writes nothing). Requires a Bearer token from the DPCR cluster via the `oc-auth` skill — prefer `export SIPPY_TOKEN=$(oc whoami -t --context="$CONTEXT")` over `--token` (argv is visible in process listings):
 
 ```bash
-python3 diagnose_job_run.py "<prow_url>" --deep --token "$TOKEN"
+python3 diagnose_job_run.py "<prow_url>" --deep
 ```
 
 Use deep mode when the run predates the current symptoms or shows no labels.

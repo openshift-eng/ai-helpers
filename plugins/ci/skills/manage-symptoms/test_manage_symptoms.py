@@ -1,3 +1,4 @@
+import manage_symptoms
 from manage_symptoms import (validate_symptom, build_update_payload,
                              parse_label_ids, check_labels_exist)
 
@@ -88,3 +89,13 @@ def test_check_labels_exist_valid_response(monkeypatch):
                         lambda url: [{"id": "InfraFailure"}])
     assert check_labels_exist(["InfraFailure"]) == []
     assert check_labels_exist(["Nope"])
+
+
+def test_resolve_token_arg_wins_over_env():
+    assert manage_symptoms.resolve_token("argtok", {"SIPPY_TOKEN": "envtok"}) == "argtok"
+
+def test_resolve_token_falls_back_to_env():
+    assert manage_symptoms.resolve_token(None, {"SIPPY_TOKEN": "envtok"}) == "envtok"
+
+def test_resolve_token_none_when_unset():
+    assert manage_symptoms.resolve_token(None, {}) is None

@@ -10,7 +10,7 @@ Symptom detection runs automatically on new job runs; use this skill to apply a 
 
 ## Authentication
 
-Writes go to `https://sippy-auth.dptools.openshift.org` and require a Bearer token. Log into the DPCR cluster (`https://api.cr.j7t7.p1.openshiftapps.com:6443`) with `oc login` and use the `oc-auth` skill to obtain the token.
+Writes go to `https://sippy-auth.dptools.openshift.org` and require a Bearer token. Log into the DPCR cluster (`https://api.cr.j7t7.p1.openshiftapps.com:6443`) with `oc login` and use the `oc-auth` skill to obtain the token. Prefer `export SIPPY_TOKEN=$(oc whoami -t --context="$CONTEXT")` over passing `--token` on the command line (argv is visible in process listings); `--token` still works and takes precedence.
 
 ## Usage
 
@@ -18,8 +18,7 @@ Always start with `--dry-run` to preview what would match without writing anythi
 
 ```bash
 python3 plugins/ci/skills/reevaluate-job-runs/reevaluate_job_runs.py \
-  https://prow.ci.openshift.org/view/gs/test-platform-results/logs/<job>/<build_id> \
-  --token "$TOKEN" --dry-run --format summary
+  https://prow.ci.openshift.org/view/gs/test-platform-results/logs/<job>/<build_id> --dry-run --format summary
 ```
 
 Accepts any number of build IDs or Prow URLs; runs are deduplicated and sent in batches of 10 (with automatic retries on gateway timeouts). Reevaluation is idempotent, so retrying failed batches is safe.

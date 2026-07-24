@@ -8,6 +8,7 @@ batch (even one that may have partially completed server-side) is safe.
 """
 import argparse
 import json
+import os
 import sys
 import time
 import urllib.error
@@ -18,6 +19,16 @@ API_MAX_IDS = 50
 DEFAULT_BATCH_SIZE = 10
 RETRIES_PER_BATCH = 3
 RETRY_DELAY_SECONDS = 5
+
+
+def resolve_token(arg_token, env=None):
+    """Return the Bearer token from --token or the SIPPY_TOKEN env var.
+
+    --token takes precedence over the environment variable. Prefer the env
+    var: command-line arguments are visible in process listings.
+    """
+    env = os.environ if env is None else env
+    return arg_token or env.get("SIPPY_TOKEN") or None
 
 
 def extract_build_id(value):
@@ -87,13 +98,20 @@ def send_batch(ids, token, dry_run):
 def main():
     p = argparse.ArgumentParser(description="Reevaluate symptoms on Prow job runs")
     p.add_argument("runs", nargs="+", help="Prow build IDs or Prow job URLs (any count; batched automatically)")
-    p.add_argument("--token", required=True, help="Bearer token (use oc-auth skill)")
+    p.add_argument("--token", help="Bearer token (or set SIPPY_TOKEN env var, preferred; use oc-auth skill)")
     p.add_argument("--dry-run", action="store_true", help="Report matches without writing anything")
     p.add_argument("--batch-size", type=int, default=DEFAULT_BATCH_SIZE,
                    help="Runs per API request (default %d; max %d, but large batches "
                         "risk 504 gateway timeouts)" % (DEFAULT_BATCH_SIZE, API_MAX_IDS))
     p.add_argument("--format", choices=["json", "summary"], default="json")
     args = p.parse_args()
+
+    token = resolve_token(args.token)
+    if not token:
+        print("Error: no token provided — pass --token or set the SIPPY_TOKEN "
+              "environment variable (preferred; use the oc-auth skill to obtain "
+              "one)", file=sys.stderr)
+        return 1
 
     if not 1 <= args.batch_size <= API_MAX_IDS:
         print("Error: --batch-size must be between 1 and %d" % API_MAX_IDS, file=sys.stderr)
@@ -111,7 +129,7 @@ def main():
     for i, batch in enumerate(batches, 1):
         if len(batches) > 1:
             print("Batch %d/%d (%d runs)..." % (i, len(batches), len(batch)), file=sys.stderr)
-        results, err, auth_failed = send_batch(batch, args.token, args.dry_run)
+        results, err, auth_failed = send_batch(batch, token, args.dry_run)
         if err:
             print("Error: batch %d failed: %s" % (i, err), file=sys.stderr)
             failed_batches.append({"batch": i, "ids": batch, "error": err})
