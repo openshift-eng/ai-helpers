@@ -1,4 +1,4 @@
-from manage_labels import validate_label
+from manage_labels import validate_label, build_update_payload
 
 def test_valid_label_no_errors():
     assert validate_label({"label_title": "Infra Failure", "explanation": "x"}) == []
@@ -18,3 +18,29 @@ def test_bad_hide_context():
 def test_valid_hide_contexts():
     assert validate_label({"label_title": "t",
                            "hide_display_contexts": ["spyglass", "metrics", "jaq-options"]}) == []
+
+
+EXISTING = {"id": "ClusterDNSFlake", "label_title": "Cluster DNS Flake",
+            "explanation": "old text", "hide_display_contexts": ["spyglass"]}
+
+
+def test_update_overrides_title():
+    out = build_update_payload(EXISTING, title="New Title")
+    assert out["label_title"] == "New Title"
+    assert out["id"] == "ClusterDNSFlake"
+
+
+def test_update_preserves_explanation_when_not_passed():
+    out = build_update_payload(EXISTING)
+    assert out["explanation"] == "old text"
+
+
+def test_update_empty_string_clears_explanation():
+    out = build_update_payload(EXISTING, explanation="")
+    assert out["explanation"] == ""
+
+
+def test_update_hide_contexts_preserved_and_overridden():
+    assert build_update_payload(EXISTING)["hide_display_contexts"] == ["spyglass"]
+    out = build_update_payload(EXISTING, hide_display_contexts=["metrics"])
+    assert out["hide_display_contexts"] == ["metrics"]
