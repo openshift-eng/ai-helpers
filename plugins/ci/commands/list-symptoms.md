@@ -1,6 +1,6 @@
 ---
 description: List, search, and inspect Sippy Symptoms and Labels (known CI failure signatures)
-argument-hint: [search-text]
+argument-hint: "[search-text]"
 ---
 
 ## Name

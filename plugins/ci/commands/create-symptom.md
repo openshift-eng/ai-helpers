@@ -1,6 +1,6 @@
 ---
 description: Interactively create (or update/delete) a Sippy Symptom that auto-labels a known CI failure pattern
-argument-hint: [description-of-failure]
+argument-hint: "[description-of-failure]"
 ---
 
 ## Name
