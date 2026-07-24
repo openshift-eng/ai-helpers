@@ -48,9 +48,11 @@ python3 plugins/ci/skills/diagnose-job-run-symptoms/diagnose_job_run.py \
   "<prow_url>" --deep --token "$TOKEN"
 ```
 
+Note: deep mode reports label IDs only — the matched file/line detail is only available in default mode (it comes from the GCS artifacts).
+
 ### Step 3: Nothing matched?
 
-If no labels are found and the user has identified the failure cause, guide them to the `manage-symptoms` skill to create a new symptom (and `reevaluate-job-runs` to apply it retroactively to past runs).
+If default mode finds no labels, first suggest `--deep`: the run may simply never have been scanned, and default mode cannot distinguish that from "scanned, nothing matched". If a deep rescan also finds nothing and the user has identified the failure cause, guide them to the `manage-symptoms` skill to create a new symptom (and `reevaluate-job-runs` to apply it retroactively to past runs).
 
 **Arguments**:
 - `prow_url`: Prow job run URL (`https://prow.ci.openshift.org/view/gs/...`, positional, required)
@@ -89,8 +91,9 @@ The script also cross-references `GET /api/jobs/labels` and `GET /api/jobs/sympt
 
 - **Bad / non-Prow URL**: Must contain `/view/gs/` and end in a numeric build ID (exit 1 client-side).
 - **GCS 404 or no `job_labels` artifacts**: The run may be too old (artifacts pruned) or was never scanned — suggest `--deep` to rescan server-side.
-- **No labels found**: Not an error — the script prints guidance to create a new symptom via `manage-symptoms`.
-- **401/403 in deep mode**: Token missing/expired — refresh via the `oc-auth` skill.
+- **No labels found**: Not an error — the script prints guidance (try `--deep` first, then create a new symptom via `manage-symptoms`).
+- **401/403 or HTML login page in deep mode**: Token missing/expired (the SSO proxy may return a login page instead of 401) — refresh via the `oc-auth` skill.
+- **HTML gateway error page or non-JSON body in deep mode**: Transient gateway error (likely 504) — retry later.
 - **Sippy API unreachable**: exit 1 with a clear message.
 
 **Exit Codes**:
