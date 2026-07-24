@@ -541,7 +541,7 @@ footer a { color: var(--primary); }
     {
       "name": "ci",
       "description": "Tools for working with OpenShift CI and analyzing Prow job results",
-      "version": "0.0.71",
+      "version": "0.0.75",
       "has_readme": true,
       "commands": [
         {
@@ -732,6 +732,12 @@ footer a { color: var(--primary); }
           "name": "analyze-disruption",
           "description": "Analyze and compare disruption across one or more Prow CI job runs by examining interval data, audit logs, pod logs, and CPU metrics",
           "description_html": "Analyze and compare disruption across one or more Prow CI job runs by examining interval data, audit logs, pod logs, and CPU metrics",
+          "meta": ""
+        },
+        {
+          "name": "bulk-triage-regressions",
+          "description": "Use this skill for Component Readiness triage duty - holistically analyze and triage all untriaged regressions for a set of components in a view, clustering them into root-cause buckets",
+          "description_html": "Use this skill for Component Readiness triage duty - holistically analyze and triage all untriaged regressions for a set of components in a view, clustering them into root-cause buckets",
           "meta": ""
         },
         {
