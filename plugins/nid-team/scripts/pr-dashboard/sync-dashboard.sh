@@ -150,7 +150,7 @@ for item in data['items']:
         continue
     fi
     if [[ ",$assignees," == *",$login,"* ]]; then
-        if [ "$status" != "Assigned" ]; then
+        if [ "$status" = "New" ] || [ -z "$status" ]; then
             echo "  ASSIGN: $repo#$number → $login ($reviewer) [already assigned on GH]"
             gh project item-edit --project-id "$PROJECT_ID" --id "$item_id" \
                 --field-id "$FIELD_STATUS" --single-select-option-id "$STATUS_ASSIGNED" 2>/dev/null
