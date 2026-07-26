@@ -1406,6 +1406,11 @@ class RegressionTracker:
         self.base_dir = base_dir
         self.chain = chain
         self.target_tag = target_tag
+        self._skipped = {"flake": 0, "informing": 0}
+
+    def non_gating_counts(self) -> dict[str, int]:
+        """Counts of target-payload results excluded from onset tracking."""
+        return dict(self._skipped)
 
     def track(self) -> list[dict]:
         """Analyze failures in the target payload and trace their origins."""
@@ -1460,6 +1465,17 @@ class RegressionTracker:
                 for test in results:
                     name = test.get("name", "")
                     if not name:
+                        continue
+                    # Only gating results establish a regression onset.  A
+                    # flake or an informing test cannot reject a payload, so
+                    # letting one set first_failed_in sends the analysis
+                    # hunting for a culprit that never existed.
+                    if not _is_gating(test):
+                        if tag_dir.endswith(self.target_tag):
+                            if test.get("status") == "flake":
+                                self._skipped["flake"] += 1
+                            else:
+                                self._skipped["informing"] += 1
                         continue
                     if name in failures:
                         if job_name not in failures[name]["jobs"]:
@@ -1633,9 +1649,15 @@ class SummaryGenerator:
                 "failed_jobs": failed_informing_names,
             },
             "test_failures": {
+                # Gating failures only — these are what can fail a job and
+                # therefore reject the payload.
                 "blocking": [
                     r for r in regressions if r.get("lifecycle") == "blocking"
                 ],
+                # Neither of the following can fail a job or reject a
+                # payload.  They are surfaced for visibility, not for blame.
+                "informing": self._collect_non_gating("informing"),
+                "flakes": self._collect_non_gating("flake"),
             },
             "payloads": payloads,
         }
@@ -1880,7 +1902,24 @@ class SummaryGenerator:
                     f"{tag_rel}/jobs/{lifecycle}/{job_name}/junit/results.json"
                 )
                 results_data = _read_json(results_path) or []
-                entry["test_failure_count"] = len(results_data)
+                # test_failure_count counts only results that could fail the
+                # job.  Flakes and informing tests are reported separately so
+                # neither inflates the number that drives triage.
+                entry["test_failure_count"] = sum(
+                    1 for t in results_data if _is_gating(t)
+                )
+                flakes = sum(
+                    1 for t in results_data if t.get("status") == "flake"
+                )
+                informing = sum(
+                    1 for t in results_data
+                    if t.get("status") in ("failed", "error")
+                    and t.get("test_lifecycle") == "informing"
+                )
+                if flakes:
+                    entry["test_flake_count"] = flakes
+                if informing:
+                    entry["test_informing_failure_count"] = informing
                 if _job_junit_state(
                     job_name, self.target_tag, "junit_partial"
                 ):
@@ -1909,6 +1948,45 @@ class SummaryGenerator:
 
             details.append(entry)
         return details
+
+    def _collect_non_gating(self, kind: str) -> list[dict]:
+        """Collect the target payload's non-gating test results.
+
+        ``kind`` is "flake" (failed then passed) or "informing" (opted out
+        of gating via lifecycle). Neither can fail a job, so no regression
+        onset is computed for them — an onset implies a culprit to find.
+        """
+        found: dict[str, dict] = {}
+        lifecycle_dir = os.path.join(
+            self.base_dir, self.target_tag, "jobs", "blocking"
+        )
+        if not os.path.isdir(lifecycle_dir):
+            return []
+        for job_name in sorted(os.listdir(lifecycle_dir)):
+            results = _read_json(os.path.join(
+                lifecycle_dir, job_name, "junit", "results.json"
+            ))
+            if not results:
+                continue
+            for test in results:
+                name = test.get("name", "")
+                if not name:
+                    continue
+                if kind == "flake":
+                    match = test.get("status") == "flake"
+                else:
+                    match = (
+                        test.get("status") in ("failed", "error")
+                        and test.get("test_lifecycle") == "informing"
+                    )
+                if not match:
+                    continue
+                if name in found:
+                    if job_name not in found[name]["jobs"]:
+                        found[name]["jobs"].append(job_name)
+                else:
+                    found[name] = {"test_name": name, "jobs": [job_name]}
+        return sorted(found.values(), key=lambda e: e["test_name"])
 
     def _build_payload_entries(self) -> list[dict]:
         """Build the payloads array with all path references."""
@@ -2345,8 +2423,14 @@ class Snapshotter:
 
         new_count = sum(1 for r in regressions if r["payloads_failing"] == 1)
         persistent_count = len(regressions) - new_count
-        _log(f"  Found {len(regressions)} failing tests: "
+        _log(f"  Found {len(regressions)} gating test failures: "
              f"{new_count} new, {persistent_count} persistent")
+        skipped = tracker.non_gating_counts()
+        if skipped["flake"] or skipped["informing"]:
+            _log(f"  Excluded from regression tracking: "
+                 f"{skipped['flake']} flake(s), "
+                 f"{skipped['informing']} informing failure(s) — neither can "
+                 f"fail a job")
 
     def _collect_build_logs(self, base_dir: str, chain: list[str]) -> None:
         """Download and parse build-log.txt for failed jobs.
@@ -3138,8 +3222,11 @@ class _TestResult:
     """Parsed test result from JUnit XML."""
 
     name: str
-    status: str  # passed, failed, error, skipped
+    status: str  # passed, failed, error, skipped, flake
     suite_name: str = ""
+    # The testcase's own lifecycle attribute, NOT the job's.  Absent means
+    # the test gates the job; "informing" means it cannot.
+    test_lifecycle: str = ""
     failure_message: str = ""
     failure_text: str = ""
     error_message: str = ""
@@ -3213,6 +3300,7 @@ def _parse_junit_xml(
         suite_name = suite.get("name", "")
         for tc in suite.findall("testcase"):
             name = tc.get("name", "")
+            test_lifecycle = tc.get("lifecycle", "")
             failure_el = tc.find("failure")
             error_el = tc.find("error")
             skipped_el = tc.find("skipped")
@@ -3250,6 +3338,7 @@ def _parse_junit_xml(
                 name=name,
                 status=status,
                 suite_name=suite_name,
+                test_lifecycle=test_lifecycle,
                 failure_message=failure_message,
                 failure_text=failure_text,
                 error_message=error_message,
@@ -3259,19 +3348,56 @@ def _parse_junit_xml(
                 agg_failures=agg_failures,
                 agg_skips=agg_skips,
             ))
+    return _mark_flakes(results)
+
+
+def _mark_flakes(results: list[_TestResult]) -> list[_TestResult]:
+    """Re-label failures as flakes when the same test also passed.
+
+    A test that failed and then passed on retry is a flake.  Flakes do not
+    fail jobs, so counting them as failures overstates what could have
+    rejected a payload — and lets a flake drive regression onset.
+
+    Grouped per (suite, name): the same name in two suites is two tests.
+    """
+    passed: set[tuple[str, str]] = {
+        (r.suite_name, r.name) for r in results if r.status == "passed"
+    }
+    for r in results:
+        if r.status in ("failed", "error") and (r.suite_name, r.name) in passed:
+            r.status = "flake"
     return results
 
 
+def _is_gating(entry: dict) -> bool:
+    """True when this recorded result could actually fail its job.
+
+    Excludes flakes (a later pass cleared them) and tests explicitly opted
+    out via ``lifecycle="informing"`` — informing tests are run to
+    stabilize them and are not expected to gate.
+    """
+    return (
+        entry.get("status") in ("failed", "error")
+        and entry.get("test_lifecycle") != "informing"
+    )
+
+
 def _test_results_to_json(results: list[_TestResult]) -> list[dict]:
-    """Convert _TestResult list to JSON-serializable dicts (failures only)."""
+    """Convert _TestResult list to JSON dicts (failures, errors and flakes).
+
+    Flakes are included so consumers can see them, but each entry carries
+    ``status`` and ``test_lifecycle`` so only genuinely gating results are
+    counted as failures.
+    """
     output = []
     for r in results:
-        if r.status not in ("failed", "error"):
+        if r.status not in ("failed", "error", "flake"):
             continue
         d: dict = {
             "name": r.name,
             "status": r.status,
             "suite_name": r.suite_name,
+            "test_lifecycle": r.test_lifecycle or "blocking",
         }
         if r.failure_message:
             d["failure_message"] = r.failure_message

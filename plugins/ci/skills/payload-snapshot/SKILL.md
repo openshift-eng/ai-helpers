@@ -189,7 +189,8 @@ Comprehensive stream-level triage data — start here. Contains:
 - Chain data: `chain_length`, `baseline_tag`, `hours_since_baseline`
 - `blocking_jobs.failed_jobs[]` — detailed objects with `name`, `state`, `prow_url`, `gcs_url`, and relative path `job_json`. May include: `rhcos_version`, `streak` (with `streak_length`, `originating_payload`, `is_new_failure`, `failure_pattern`), `build_log_errors`, `test_failure_count`, and relative paths `junit_results`, `build_log`
 - `informing_jobs.failed_jobs[]` — job name strings
-- `test_failures.blocking[]` — `test_name`, `jobs`, `first_failed_in`, `payloads_failing`, `failure_message`, `failure_text` (full, not truncated)
+- `test_failures.blocking[]` — **gating** failures only: `test_name`, `jobs`, `first_failed_in`, `payloads_failing`, `failure_message`, `failure_text` (full, not truncated). These are the failures that can fail a job and therefore reject the payload.
+- `test_failures.informing[]` / `test_failures.flakes[]` — `test_name`, `jobs`. Neither can fail a job. No onset is tracked for them, because an onset implies there is a culprit to find.
 - `payloads[]` — per-payload entries with `tag`, `phase`, `source`, `changelog_source`, relative file paths, `prs[]` with component/diff/comments paths, and `rhcos_changes[]` with RPM diffs per RHCOS variant
 - `rhcos_rpms[]` — RPMDB metadata for the target payload's RHCOS variants: `tag`, `name`, `pullspec`, `rpmdb` (relative path to rpmdb.sqlite)
 - `data_complete` — `true` when all requested data was ultimately collected, including via a fallback after an initial read failed. `false` means some requested data could not be read at all.
@@ -198,6 +199,42 @@ Comprehensive stream-level triage data — start here. Contains:
   - `data_complete` is `false` only when at least one error was **not** recovered.
 
 <a id="data-completeness"></a>
+#### Only gating results count as failures
+
+A test result falls into exactly one of three categories, and only the last
+can fail a job or reject a payload:
+
+| Category | Rule | Gates? |
+|---|---|---|
+| flake | the same test, in the same suite, both failed and passed | no |
+| informing | the testcase carries `lifecycle="informing"` | no |
+| failure | failed everywhere, no `informing` lifecycle | **yes** |
+
+Informing tests are run to stabilize them and are not expected to gate. A
+missing `lifecycle` attribute means the test **does** gate — the attribute
+exists only to opt a test out.
+
+`results.json` records all three so nothing is hidden, each entry carrying
+`status` (`failed`, `error`, `flake`) and `test_lifecycle` (`blocking`,
+`informing`). Per failed job, `test_failure_count` counts **only gating**
+results; `test_flake_count` and `test_informing_failure_count` are reported
+separately. Regression onset (`first_failed_in`) is derived from gating
+failures alone.
+
+#### "Informing job" vs "informing test" — two unrelated concepts
+
+The word "informing" appears in two places with **completely different
+meanings**. Confusing them produces wrong analysis:
+
+| Concept | Where it lives | What it means |
+|---|---|---|
+| **Informing job** | `informing_jobs.failed_jobs[]` in summary.json | A CI *job* that runs for visibility but does **not** gate the payload. Job-level pass/fail. |
+| **Informing test** | `test_failures.informing[]` in summary.json | An individual *test case* whose `lifecycle="informing"` attribute opts it out of gating. Can appear inside **any** job — blocking or informing. |
+
+An informing *test* can run inside a *blocking* job.
+An informing *job* can contain *blocking* tests.
+They are orthogonal. Never combine them in the same section or count.
+
 #### gcloud credentials are not required
 
 The CI artifact buckets are public. When gcloud has no active account it is
