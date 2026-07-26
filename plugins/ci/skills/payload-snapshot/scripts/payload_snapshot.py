@@ -717,8 +717,46 @@ class JUnitCollector(Collector):
         os.makedirs(self.output_dir, exist_ok=True)
         all_results: list[_TestResult] = []
 
-        errors_before = _unrecovered_error_count()
-        junit_files = self._list_junit_files()
+        with _error_scope() as own_errors:
+            junit_files = self._list_junit_files()
+            downloaded, failed_downloads = self._download_and_parse(
+                junit_files, all_results
+            )
+        gcloud_failed = any(
+            not e.get("recovered") for e in own_errors
+        )
+
+        # Nothing was discovered at all.  These collectors only run for
+        # jobs that FAILED, so "no JUnit anywhere" is not evidence of a
+        # clean run — it is an unknown.  Publishing [] here would report a
+        # verified zero for a job whose tests may never have run.
+        if not junit_files:
+            _record_collection_error(
+                "junit_missing",
+                ["gcloud", "storage", "ls", "<junit>"],
+                detail=(
+                    "no JUnit artifacts discovered for a failed job; "
+                    "test results are unknown, not zero"
+                ),
+                stage="junit",
+                job=self.job.name,
+                payload_tag=self.payload_tag,
+            )
+            _log(
+                f"  ERROR: no JUnit discovered for {self.job.name} — "
+                f"leaving results.json absent (unknown, not zero)"
+            )
+            return False
+
+        return self._publish(
+            junit_files, all_results, downloaded, failed_downloads,
+            gcloud_failed,
+        )
+
+    def _download_and_parse(
+        self, junit_files: list[str], all_results: list
+    ) -> tuple[int, int]:
+        """Fetch each JUnit file and parse it; count successes/failures."""
         downloaded = 0
         failed_downloads = 0
         for gcs_uri in junit_files:
@@ -733,14 +771,31 @@ class JUnitCollector(Collector):
                         f.write(data)
 
             if os.path.exists(local_path):
-                downloaded += 1
                 results = _parse_junit_xml(local_path, source_name=filename)
+                if results is None:
+                    # Downloaded but unparseable.  Treated as unread, not as
+                    # "no failures" — corrupt XML must never become a zero.
+                    failed_downloads += 1
+                    _record_collection_error(
+                        "junit_unparseable",
+                        ["parse", filename],
+                        detail=f"{filename} is not valid JUnit XML",
+                        stage="junit",
+                        job=self.job.name,
+                        payload_tag=self.payload_tag,
+                    )
+                    continue
+                downloaded += 1
                 all_results.extend(results)
             else:
                 failed_downloads += 1
+        return downloaded, failed_downloads
 
-        gcloud_failed = _unrecovered_error_count() > errors_before
-
+    def _publish(
+        self, junit_files: list[str], all_results: list,
+        downloaded: int, failed_downloads: int, gcloud_failed: bool,
+    ) -> bool:
+        """Write results.json unless doing so would misreport the data."""
         # Refuse to publish an empty result set that was caused by a read
         # failure.  Writing `[]` here makes the job look clean, and
         # downstream consumers report "0 test failures" for a job that
@@ -811,12 +866,12 @@ class JUnitCollector(Collector):
         bucket_path = self.job.gcs_bucket_path
         base = f"gs://{bucket_path}"
 
-        errors_before = _collection_error_count()
-        output = _run_gcloud(
-            ["gcloud", "storage", "ls", f"{base}/artifacts/**/junit*.xml"],
-            timeout=120,
-        )
-        glob_errors_end = _collection_error_count()
+        with _error_scope() as glob_errors:
+            output = _run_gcloud(
+                ["gcloud", "storage", "ls",
+                 f"{base}/artifacts/**/junit*.xml"],
+                timeout=120,
+            )
 
         files = [line.strip() for line in (output or "").strip().splitlines()
                  if line.strip()]
@@ -830,7 +885,7 @@ class JUnitCollector(Collector):
             if files:
                 # The glob's failure is recovered; any probe failures the
                 # fallback itself hit are NOT — they may be missing data.
-                _mark_errors_recovered(errors_before, glob_errors_end)
+                _mark_errors_recovered(glob_errors)
 
         if not files:
             return []
@@ -1419,6 +1474,7 @@ class SummaryGenerator:
         summary["data_complete"] = not _unrecovered_errors()
 
         _write_json(os.path.join(self.base_dir, "summary.json"), summary)
+        _write_collection_state(self.base_dir)
         self._write_agents_md(summary)
         _log("  Generated summary.json, AGENTS.md, and CLAUDE.md")
 
@@ -1805,6 +1861,11 @@ class Snapshotter:
             self.output_dir, self.tag.version, self.tag.stream
         )
         os.makedirs(base_dir, exist_ok=True)
+
+        # A previous run over this directory may have left JUnit output that
+        # it recorded as incomplete.  Drop it so it is re-collected rather
+        # than inherited as though it were trustworthy.
+        _invalidate_suspect_junit(base_dir)
 
         self._collect_streams(base_dir)
 
@@ -2353,6 +2414,14 @@ def _check_gh_auth() -> bool:
 # snapshot could not read data that may well exist, and callers must be able
 # to tell that apart from "there was nothing to find".
 _COLLECTION_ERRORS: list[dict] = []
+_COLLECTION_ERRORS_LOCK = threading.Lock()
+
+# Per-thread stack of "operation scopes".  Every recorded error is appended
+# to each active scope as well as the global ledger, so a caller can act on
+# exactly the errors *its own* calls produced.  Positional indexes into the
+# global list are not safe here: collectors run concurrently, so another
+# worker can append between one collector's start and end offsets.
+_ERROR_SCOPES = threading.local()
 
 # stderr fragments that mean "the object does not exist", not "I failed".
 _GCLOUD_NO_MATCH_PATTERNS = (
@@ -2372,6 +2441,44 @@ _GCLOUD_AUTH_PATTERNS = (
     "403",
     "401",
 )
+
+
+def _error_scope():
+    """Collect errors recorded by this thread inside the ``with`` body."""
+    return _ErrorScope()
+
+
+class _ErrorScope:
+    """Context manager yielding the list of errors recorded inside it."""
+
+    def __init__(self) -> None:
+        self.entries: list[dict] = []
+
+    def __enter__(self) -> list[dict]:
+        stack = getattr(_ERROR_SCOPES, "stack", None)
+        if stack is None:
+            stack = []
+            _ERROR_SCOPES.stack = stack
+        stack.append(self.entries)
+        return self.entries
+
+    def __exit__(self, *exc) -> None:
+        getattr(_ERROR_SCOPES, "stack", []).pop()
+        return None
+
+
+def _sanitize_detail(text: str) -> str:
+    """Make tool stderr safe to persist in a shareable summary.
+
+    Strips control characters (which can spoof terminal output when the
+    summary is read back) and collapses whitespace.  Diagnostics are
+    truncated: they exist to identify a failure class, not to carry full
+    tool output.
+    """
+    cleaned = "".join(
+        ch if ch.isprintable() else " " for ch in (text or "")
+    )
+    return re.sub(r"\s+", " ", cleaned).strip()[:300]
 
 
 def _classify_gcloud_stderr(stderr: str) -> str:
@@ -2400,14 +2507,17 @@ def _record_collection_error(
     """
     entry: dict = {"reason": reason, "command": " ".join(command[:4])}
     if detail:
-        entry["detail"] = detail.strip()[:500]
+        entry["detail"] = _sanitize_detail(detail)
     if stage:
         entry["stage"] = stage
     if job:
         entry["job"] = job
     if payload_tag:
         entry["payload_tag"] = payload_tag
-    _COLLECTION_ERRORS.append(entry)
+    with _COLLECTION_ERRORS_LOCK:
+        _COLLECTION_ERRORS.append(entry)
+    for scope in getattr(_ERROR_SCOPES, "stack", []):
+        scope.append(entry)
 
 
 def _collection_error_count() -> int:
@@ -2415,21 +2525,73 @@ def _collection_error_count() -> int:
     return len(_COLLECTION_ERRORS)
 
 
-def _mark_errors_recovered(
-    since_index: int, until_index: Optional[int] = None
-) -> None:
-    """Mark errors in ``[since_index, until_index)`` as recovered.
+COLLECTION_STATE_FILE = "collection_errors.json"
+
+# Reasons that make a job's persisted JUnit output untrustworthy.
+_JUNIT_SUSPECT_REASONS = (
+    "junit_unavailable", "junit_partial", "junit_missing",
+    "junit_unparseable",
+)
+
+
+def _invalidate_suspect_junit(base_dir: str) -> int:
+    """Discard JUnit output that a previous run recorded as incomplete.
+
+    Collection errors live in process memory but ``results.json`` persists,
+    and collectors skip any job whose output already exists.  Without this,
+    re-running over the same directory regenerates the summary from an empty
+    ledger and promotes a partial snapshot to "complete".  Dropping the
+    suspect output forces it to be re-collected and re-judged.
+    """
+    state_path = os.path.join(base_dir, COLLECTION_STATE_FILE)
+    previous = _read_json(state_path)
+    if not previous:
+        return 0
+
+    invalidated = 0
+    for entry in previous:
+        if entry.get("recovered"):
+            continue
+        if entry.get("reason") not in _JUNIT_SUSPECT_REASONS:
+            continue
+        tag, job = entry.get("payload_tag"), entry.get("job")
+        if not tag or not job:
+            continue
+        for lifecycle in ("blocking", "informing"):
+            junit_dir = os.path.join(
+                base_dir, tag, "jobs", lifecycle, job, "junit"
+            )
+            if os.path.isdir(junit_dir):
+                shutil.rmtree(junit_dir, ignore_errors=True)
+                invalidated += 1
+    if invalidated:
+        _log(f"  re-collecting {invalidated} job(s) whose previous JUnit "
+             f"collection was incomplete")
+    return invalidated
+
+
+def _write_collection_state(base_dir: str) -> None:
+    """Persist the error ledger so a later process can see it."""
+    state_path = os.path.join(base_dir, COLLECTION_STATE_FILE)
+    if _COLLECTION_ERRORS:
+        _write_json(state_path, list(_COLLECTION_ERRORS))
+    elif os.path.exists(state_path):
+        # Everything was collected this time; drop the stale ledger.
+        os.remove(state_path)
+
+
+def _mark_errors_recovered(entries: list[dict]) -> None:
+    """Mark the given error entries as recovered.
 
     A first-choice read can fail (e.g. a glob times out) and a fallback
     can then succeed.  The failure is still worth reporting — it is how
     you learn a timeout needs tuning — but it must not make the snapshot
     look incomplete when the data was in fact obtained.
 
-    The range is bounded deliberately: a fallback that finds *some* files
-    may itself have failed other probes, and those failures are real
-    missing data, not recovered ones.
+    Entries are identified by object, not by position: only the specific
+    failures handed in are recovered, never a concurrent collector's.
     """
-    for entry in _COLLECTION_ERRORS[since_index:until_index]:
+    for entry in entries:
         entry["recovered"] = True
 
 
@@ -2731,12 +2893,17 @@ def _parse_system_out_yaml(text: str) -> dict:
     return result
 
 
-def _parse_junit_xml(source, source_name: str = "<data>") -> list[_TestResult]:
+def _parse_junit_xml(
+    source, source_name: str = "<data>"
+) -> Optional[list[_TestResult]]:
     """Parse JUnit XML, returning a list of _TestResult."""
     try:
         tree = ET.parse(source)
     except (ET.ParseError, OSError):
-        return []
+        # Return None, not []: an unreadable or corrupt file is not the same
+        # as a file that legitimately contains no failures.  Callers must be
+        # able to tell those apart or corruption becomes a verified zero.
+        return None
 
     root = tree.getroot()
     if root.tag == "testsuites":
@@ -2904,6 +3071,16 @@ def main() -> None:
         _log("Warning: 'gcloud' CLI not found. JUnit data will not be fetched.")
         _log("Install gcloud SDK to enable JUnit download and regression tracking.\n")
         collect_junit = False
+        # JUnit was requested and cannot be collected, so the snapshot is
+        # incomplete by construction.  Record it: otherwise the completeness
+        # gate sees an empty ledger and reports a complete snapshot.
+        _record_collection_error(
+            "gcloud_missing",
+            ["gcloud", "storage"],
+            detail=("gcloud CLI not available; JUnit, build logs and "
+                    "regression tracking were skipped"),
+            stage="preflight",
+        )
     elif collect_junit and not _check_gcloud_credentials():
         _log("Note: 'gcloud' has no active credentials. CI artifact buckets")
         _log("are public, so they will be read anonymously. Run")
@@ -2934,8 +3111,10 @@ def main() -> None:
         recovered = len(_COLLECTION_ERRORS) - len(unrecovered)
         if recovered:
             _log("")
+            status = ("data is complete" if not unrecovered
+                      else "see the warning below for what is still missing")
             _log(f"Note: {recovered} read failure(s) were recovered by a "
-                 f"fallback; data is complete. See 'collection_errors' "
+                 f"fallback; {status}. See 'collection_errors' "
                  f"(recovered: true) in summary.json.")
         if unrecovered:
             by_reason: dict[str, int] = {}
