@@ -216,10 +216,13 @@ exists only to opt a test out.
 
 `results.json` records all three so nothing is hidden, each entry carrying
 `status` (`failed`, `error`, `flake`) and `test_lifecycle` (`blocking`,
-`informing`). Per failed job, `test_failure_count` counts **only gating**
-results; `test_flake_count` and `test_informing_failure_count` are reported
-separately. Regression onset (`first_failed_in`) is derived from gating
-failures alone.
+`informing`).
+
+`test_failure_count` on a failed job counts **only gating** results — it is
+the failure count, and flakes and informing tests are not added to it.
+Those two are listed by name under `test_failures.flakes[]` and
+`test_failures.informing[]`. Regression onset (`first_failed_in`) is derived
+from gating failures alone.
 
 #### "Informing job" vs "informing test" — two unrelated concepts
 

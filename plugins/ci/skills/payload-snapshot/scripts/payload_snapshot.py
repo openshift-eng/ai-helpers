@@ -1902,24 +1902,13 @@ class SummaryGenerator:
                     f"{tag_rel}/jobs/{lifecycle}/{job_name}/junit/results.json"
                 )
                 results_data = _read_json(results_path) or []
-                # test_failure_count counts only results that could fail the
-                # job.  Flakes and informing tests are reported separately so
-                # neither inflates the number that drives triage.
+                # Counts only results that could fail the job.  Flakes and
+                # informing tests are listed by name under `test_failures`
+                # but are deliberately not counted here — this number is the
+                # failure count that drives triage.
                 entry["test_failure_count"] = sum(
                     1 for t in results_data if _is_gating(t)
                 )
-                flakes = sum(
-                    1 for t in results_data if t.get("status") == "flake"
-                )
-                informing = sum(
-                    1 for t in results_data
-                    if t.get("status") in ("failed", "error")
-                    and t.get("test_lifecycle") == "informing"
-                )
-                if flakes:
-                    entry["test_flake_count"] = flakes
-                if informing:
-                    entry["test_informing_failure_count"] = informing
                 if _job_junit_state(
                     job_name, self.target_tag, "junit_partial"
                 ):
