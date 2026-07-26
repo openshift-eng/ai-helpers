@@ -720,6 +720,7 @@ class JUnitCollector(Collector):
         errors_before = _unrecovered_error_count()
         junit_files = self._list_junit_files()
         downloaded = 0
+        failed_downloads = 0
         for gcs_uri in junit_files:
             filename = os.path.basename(gcs_uri)
             local_path = os.path.join(self.output_dir, filename)
@@ -735,6 +736,8 @@ class JUnitCollector(Collector):
                 downloaded += 1
                 results = _parse_junit_xml(local_path, source_name=filename)
                 all_results.extend(results)
+            else:
+                failed_downloads += 1
 
         gcloud_failed = _unrecovered_error_count() > errors_before
 
@@ -753,12 +756,33 @@ class JUnitCollector(Collector):
                 ),
                 stage="junit",
                 job=self.job.name,
+                payload_tag=self.payload_tag,
             )
             _log(
                 f"  ERROR: could not read JUnit for {self.job.name} — "
                 f"leaving results.json absent (unknown, not zero)"
             )
             return False
+
+        # Some files read, others not.  The results are real but partial, so
+        # publish them and mark them partial — a count derived from half the
+        # JUnit is not authoritative and must not read as one that is.
+        if failed_downloads:
+            _record_collection_error(
+                "junit_partial",
+                ["gcloud", "storage", "cat", "<junit>"],
+                detail=(
+                    f"{failed_downloads} of {len(junit_files)} JUnit file(s) "
+                    f"could not be read; test_failure_count is a lower bound"
+                ),
+                stage="junit",
+                job=self.job.name,
+                payload_tag=self.payload_tag,
+            )
+            _log(
+                f"  WARNING: partial JUnit for {self.job.name} — "
+                f"{failed_downloads}/{len(junit_files)} file(s) unread"
+            )
 
         failures = _test_results_to_json(all_results)
         _write_json(self.output_path, failures)
@@ -792,9 +816,10 @@ class JUnitCollector(Collector):
             ["gcloud", "storage", "ls", f"{base}/artifacts/**/junit*.xml"],
             timeout=120,
         )
+        glob_errors_end = _collection_error_count()
 
-        files = [l.strip() for l in (output or "").strip().splitlines()
-                 if l.strip()]
+        files = [line.strip() for line in (output or "").strip().splitlines()
+                 if line.strip()]
 
         if not files:
             _log(
@@ -803,9 +828,9 @@ class JUnitCollector(Collector):
             )
             files = self._list_junit_files_fallback(base)
             if files:
-                # The data was obtained after all; don't report the failed
-                # first attempt as missing data.
-                _mark_errors_recovered(errors_before)
+                # The glob's failure is recovered; any probe failures the
+                # fallback itself hit are NOT — they may be missing data.
+                _mark_errors_recovered(errors_before, glob_errors_end)
 
         if not files:
             return []
@@ -868,8 +893,8 @@ class JUnitCollector(Collector):
             timeout=60,
         )
         if top:
-            found.extend(l.strip() for l in top.strip().splitlines()
-                         if l.strip())
+            found.extend(line.strip() for line in top.strip().splitlines()
+                         if line.strip())
 
         for step in step_dirs:
             patterns = [
@@ -888,8 +913,8 @@ class JUnitCollector(Collector):
                 )
                 if probe:
                     found.extend(
-                        l.strip() for l in probe.strip().splitlines()
-                        if l.strip()
+                        line.strip() for line in probe.strip().splitlines()
+                        if line.strip()
                     )
 
         found = sorted(set(found))
@@ -1617,7 +1642,15 @@ class SummaryGenerator:
                 )
                 results_data = _read_json(results_path) or []
                 entry["test_failure_count"] = len(results_data)
-            elif _job_junit_failed(job_name):
+                if _job_junit_state(
+                    job_name, self.target_tag, "junit_partial"
+                ):
+                    # Real results, but not all of them: the count is a
+                    # lower bound, not an authoritative total.
+                    entry["junit_collection_partial"] = True
+            elif _job_junit_state(
+                job_name, self.target_tag, "junit_unavailable"
+            ):
                 # Data could not be read.  Do NOT emit test_failure_count —
                 # its absence means "unknown", where 0 would mean "clean".
                 entry["junit_collection_failed"] = True
@@ -2357,6 +2390,7 @@ def _record_collection_error(
     detail: str = "",
     stage: str = "",
     job: str = "",
+    payload_tag: str = "",
 ) -> None:
     """Record a data-collection failure so it can be surfaced, not swallowed.
 
@@ -2371,6 +2405,8 @@ def _record_collection_error(
         entry["stage"] = stage
     if job:
         entry["job"] = job
+    if payload_tag:
+        entry["payload_tag"] = payload_tag
     _COLLECTION_ERRORS.append(entry)
 
 
@@ -2379,15 +2415,21 @@ def _collection_error_count() -> int:
     return len(_COLLECTION_ERRORS)
 
 
-def _mark_errors_recovered(since_index: int) -> None:
-    """Mark errors recorded since ``since_index`` as recovered.
+def _mark_errors_recovered(
+    since_index: int, until_index: Optional[int] = None
+) -> None:
+    """Mark errors in ``[since_index, until_index)`` as recovered.
 
     A first-choice read can fail (e.g. a glob times out) and a fallback
     can then succeed.  The failure is still worth reporting — it is how
     you learn a timeout needs tuning — but it must not make the snapshot
     look incomplete when the data was in fact obtained.
+
+    The range is bounded deliberately: a fallback that finds *some* files
+    may itself have failed other probes, and those failures are real
+    missing data, not recovered ones.
     """
-    for entry in _COLLECTION_ERRORS[since_index:]:
+    for entry in _COLLECTION_ERRORS[since_index:until_index]:
         entry["recovered"] = True
 
 
@@ -2401,10 +2443,17 @@ def _unrecovered_error_count() -> int:
     return len(_unrecovered_errors())
 
 
-def _job_junit_failed(job_name: str) -> bool:
-    """True when JUnit collection for this job failed to read its data."""
+def _job_junit_state(job_name: str, payload_tag: str, reason: str) -> bool:
+    """True when this payload's collection of this job hit ``reason``.
+
+    Scoped by payload tag: the same job name recurs in every payload of
+    the chain, so an unscoped match would stamp one payload's job entry
+    with another payload's failure.
+    """
     return any(
-        e.get("job") == job_name and e.get("reason") == "junit_unavailable"
+        e.get("job") == job_name
+        and e.get("payload_tag") == payload_tag
+        and e.get("reason") == reason
         and not e.get("recovered")
         for e in _COLLECTION_ERRORS
     )
