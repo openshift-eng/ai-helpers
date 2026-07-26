@@ -1197,12 +1197,12 @@ class BuildLogCollector(Collector):
             return None
 
         gcs_uri = f"gs://{self.job.gcs_bucket_path}/build-log.txt"
-        errors_before = _unrecovered_error_count()
-        raw = _run_gcloud_bytes(
-            ["gcloud", "storage", "cat", gcs_uri], timeout=120
-        )
+        with _error_scope() as own_errors:
+            raw = _run_gcloud_bytes(
+                ["gcloud", "storage", "cat", gcs_uri], timeout=120
+            )
         if not raw:
-            if _unrecovered_error_count() > errors_before:
+            if any(not e.get("recovered") for e in own_errors):
                 _record_collection_error(
                     "build_log_unavailable",
                     ["gcloud", "storage", "cat", gcs_uri],
@@ -1915,8 +1915,10 @@ class SummaryGenerator:
                     # Real results, but not all of them: the count is a
                     # lower bound, not an authoritative total.
                     entry["junit_collection_partial"] = True
-            elif _job_junit_state(
-                job_name, self.target_tag, "junit_unavailable"
+            elif any(
+                _job_junit_state(job_name, self.target_tag, r)
+                for r in ("junit_unavailable", "junit_missing",
+                          "junit_unparseable")
             ):
                 # Data could not be read.  Do NOT emit test_failure_count —
                 # its absence means "unknown", where 0 would mean "clean".
@@ -2712,10 +2714,12 @@ _COLLECTION_ERRORS_LOCK = threading.Lock()
 _ERROR_SCOPES = threading.local()
 
 # stderr fragments that mean "the object does not exist", not "I failed".
+# Keep this narrow: only the specific gcloud "URLs matched no objects"
+# outcome is benign.  Broad tokens like "not found" would swallow 404s
+# and bucket-not-found errors that should be recorded.
 _GCLOUD_NO_MATCH_PATTERNS = (
     "matched no objects",
     "matched no such objects",
-    "not found",
 )
 
 # stderr fragments that indicate a credentials/permission problem.
@@ -2780,10 +2784,10 @@ def _sanitize_detail(text: str) -> str:
 def _classify_gcloud_stderr(stderr: str) -> str:
     """Classify a failed gcloud invocation from its stderr."""
     low = (stderr or "").lower()
-    if any(p in low for p in _GCLOUD_NO_MATCH_PATTERNS):
-        return "no_match"
     if any(p in low for p in _GCLOUD_AUTH_PATTERNS):
         return "auth"
+    if any(p in low for p in _GCLOUD_NO_MATCH_PATTERNS):
+        return "no_match"
     return "command_failed"
 
 
@@ -2859,6 +2863,7 @@ def _invalidate_suspect_junit(base_dir: str) -> int:
         return 0
 
     invalidated = 0
+    invalidated_tags: set[str] = set()
     for entry in previous:
         if entry.get("recovered"):
             continue
@@ -2880,6 +2885,12 @@ def _invalidate_suspect_junit(base_dir: str) -> int:
             if os.path.isdir(junit_dir):
                 shutil.rmtree(junit_dir, ignore_errors=True)
                 invalidated += 1
+                invalidated_tags.add(tag)
+    for tag in invalidated_tags:
+        reg_path = os.path.join(base_dir, tag, "regressions.json")
+        if _is_within(base_dir, reg_path) and os.path.exists(reg_path):
+            os.remove(reg_path)
+            _log(f"  removed stale regressions.json for {tag}")
     if invalidated:
         _log(f"  re-collecting {invalidated} job(s) whose previous JUnit "
              f"collection was incomplete")
