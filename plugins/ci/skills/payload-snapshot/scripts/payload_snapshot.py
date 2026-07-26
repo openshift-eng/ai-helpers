@@ -17,6 +17,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -2409,6 +2410,37 @@ def _job_junit_failed(job_name: str) -> bool:
     )
 
 
+# Whether gcloud must be run in anonymous mode.  Resolved once, on first
+# use, under a lock — collectors run in a thread pool.
+_GCLOUD_ANONYMOUS: Optional[bool] = None
+_GCLOUD_ANONYMOUS_LOCK = threading.Lock()
+
+
+def _gcloud_env() -> dict:
+    """Environment for gcloud calls, enabling anonymous access if needed.
+
+    The CI artifact buckets are public, but ``gcloud storage`` refuses
+    client-side when no account is configured ("You do not currently have
+    an active account selected") — it never even issues the request.
+    Setting ``CLOUDSDK_AUTH_DISABLE_CREDENTIALS`` makes it read public
+    objects anonymously, so an unauthenticated environment still gets a
+    complete snapshot instead of an empty one.
+    """
+    global _GCLOUD_ANONYMOUS
+    if _GCLOUD_ANONYMOUS is None:
+        with _GCLOUD_ANONYMOUS_LOCK:
+            if _GCLOUD_ANONYMOUS is None:
+                anonymous = not _check_gcloud_credentials()
+                if anonymous:
+                    _log("  note: no gcloud credentials found — reading "
+                         "public artifact buckets anonymously")
+                _GCLOUD_ANONYMOUS = anonymous
+    env = os.environ.copy()
+    if _GCLOUD_ANONYMOUS:
+        env["CLOUDSDK_AUTH_DISABLE_CREDENTIALS"] = "true"
+    return env
+
+
 def _run_gcloud(args: list[str], timeout: int = 120) -> Optional[str]:
     """Run a gcloud CLI command, returning stdout or None on error.
 
@@ -2418,7 +2450,8 @@ def _run_gcloud(args: list[str], timeout: int = 120) -> Optional[str]:
     """
     try:
         result = subprocess.run(
-            args, capture_output=True, text=True, timeout=timeout
+            args, capture_output=True, text=True, timeout=timeout,
+            env=_gcloud_env(),
         )
         if result.returncode != 0:
             reason = _classify_gcloud_stderr(result.stderr)
@@ -2443,7 +2476,7 @@ def _run_gcloud_bytes(args: list[str], timeout: int = 120) -> Optional[bytes]:
     """
     try:
         result = subprocess.run(
-            args, capture_output=True, timeout=timeout
+            args, capture_output=True, timeout=timeout, env=_gcloud_env()
         )
         if result.returncode != 0:
             stderr = (result.stderr or b"").decode("utf-8", errors="replace")
@@ -2823,12 +2856,9 @@ def main() -> None:
         _log("Install gcloud SDK to enable JUnit download and regression tracking.\n")
         collect_junit = False
     elif collect_junit and not _check_gcloud_credentials():
-        _log("Warning: 'gcloud' has no active credentials "
-             "('gcloud auth list' is empty).")
-        _log("Reads of non-public artifacts will fail. Run "
-             "'gcloud auth login' to authenticate.")
-        _log("Collection failures will be recorded in "
-             "summary.json 'collection_errors'.\n")
+        _log("Note: 'gcloud' has no active credentials. CI artifact buckets")
+        _log("are public, so they will be read anonymously. Run")
+        _log("'gcloud auth login' if you need private buckets too.\n")
 
     collect_rpmdb = not args.no_rpmdb
     if collect_rpmdb and not _check_podman():

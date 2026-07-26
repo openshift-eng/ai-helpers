@@ -188,6 +188,13 @@ Comprehensive stream-level triage data — start here. Contains:
   - `recovered: true` means a fallback subsequently obtained the data. These entries are diagnostic only (useful for spotting a timeout that needs tuning) and do **not** make `data_complete` false.
   - `data_complete` is `false` only when at least one error was **not** recovered.
 
+#### gcloud credentials are not required
+
+The CI artifact buckets are public. When gcloud has no active account it is
+run in anonymous mode automatically, so an unauthenticated environment still
+produces a complete snapshot. Authenticate only if you also need private
+buckets.
+
 #### Missing data is absent, never empty
 
 When a collection step fails, the affected file is **not written** and the
