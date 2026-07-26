@@ -716,7 +716,9 @@ class JUnitCollector(Collector):
         os.makedirs(self.output_dir, exist_ok=True)
         all_results: list[_TestResult] = []
 
+        errors_before = _collection_error_count()
         junit_files = self._list_junit_files()
+        downloaded = 0
         for gcs_uri in junit_files:
             filename = os.path.basename(gcs_uri)
             local_path = os.path.join(self.output_dir, filename)
@@ -729,8 +731,33 @@ class JUnitCollector(Collector):
                         f.write(data)
 
             if os.path.exists(local_path):
+                downloaded += 1
                 results = _parse_junit_xml(local_path, source_name=filename)
                 all_results.extend(results)
+
+        gcloud_failed = _collection_error_count() > errors_before
+
+        # Refuse to publish an empty result set that was caused by a read
+        # failure.  Writing `[]` here makes the job look clean, and
+        # downstream consumers report "0 test failures" for a job that
+        # actually failed.  Leaving results.json absent means "unknown",
+        # which the summary and the analysis skill treat as such.
+        if gcloud_failed and downloaded == 0:
+            _record_collection_error(
+                "junit_unavailable",
+                ["gcloud", "storage", "cat", "<junit>"],
+                detail=(
+                    "no JUnit XML could be read; results.json intentionally "
+                    "not written so this is not mistaken for zero failures"
+                ),
+                stage="junit",
+                job=self.job.name,
+            )
+            _log(
+                f"  ERROR: could not read JUnit for {self.job.name} — "
+                f"leaving results.json absent (unknown, not zero)"
+            )
+            return False
 
         failures = _test_results_to_json(all_results)
         _write_json(self.output_path, failures)
@@ -826,10 +853,19 @@ class BuildLogCollector(Collector):
             return None
 
         gcs_uri = f"gs://{self.job.gcs_bucket_path}/build-log.txt"
+        errors_before = _collection_error_count()
         raw = _run_gcloud_bytes(
             ["gcloud", "storage", "cat", gcs_uri], timeout=120
         )
         if not raw:
+            if _collection_error_count() > errors_before:
+                _record_collection_error(
+                    "build_log_unavailable",
+                    ["gcloud", "storage", "cat", gcs_uri],
+                    detail="build-log.txt could not be read",
+                    stage="build_log",
+                    job=self.job.name,
+                )
             return None
 
         try:
@@ -1264,6 +1300,14 @@ class SummaryGenerator:
                 for entry in target_rpms
             ]
 
+        # Surface any data that could not be collected.  An empty snapshot
+        # section must never be silently indistinguishable from a clean one.
+        if _COLLECTION_ERRORS:
+            summary["collection_errors"] = list(_COLLECTION_ERRORS)
+            summary["data_complete"] = False
+        else:
+            summary["data_complete"] = True
+
         _write_json(os.path.join(self.base_dir, "summary.json"), summary)
         self._write_agents_md(summary)
         _log("  Generated summary.json, AGENTS.md, and CLAUDE.md")
@@ -1315,6 +1359,24 @@ class SummaryGenerator:
             chain_tags,
             "",
         ]
+
+        if not summary.get("data_complete", True):
+            errs = summary.get("collection_errors", [])
+            reasons = sorted({e.get("reason", "unknown") for e in errs})
+            lines.extend([
+                "## ⚠️  INCOMPLETE SNAPSHOT",
+                "",
+                f"{len(errs)} collection error(s) occurred: "
+                f"{', '.join(reasons)}.",
+                "See `collection_errors` in `summary.json`.",
+                "",
+                "Data that could not be read is **absent, not empty**. A job",
+                "with `junit_collection_failed: true` and no",
+                "`test_failure_count` has an *unknown* number of test",
+                "failures — do NOT report it as zero, and do not conclude a",
+                "job failed for reasons other than its tests on this basis.",
+                "",
+            ])
 
         if failed_names:
             lines.append("### Failed blocking jobs")
@@ -1469,6 +1531,10 @@ class SummaryGenerator:
                 )
                 results_data = _read_json(results_path) or []
                 entry["test_failure_count"] = len(results_data)
+            elif _job_junit_failed(job_name):
+                # Data could not be read.  Do NOT emit test_failure_count —
+                # its absence means "unknown", where 0 would mean "clean".
+                entry["junit_collection_failed"] = True
 
             build_log_path = os.path.join(
                 lifecycle_dir, job_name, "build_log.json"
@@ -2162,29 +2228,129 @@ def _check_gh_auth() -> bool:
         return False
 
 
+# Records every gcloud failure that could hide real data.  A "no match"
+# result is normal (the object simply does not exist) and is NOT recorded.
+# Anything else — a missing binary, a timeout, an auth failure — means the
+# snapshot could not read data that may well exist, and callers must be able
+# to tell that apart from "there was nothing to find".
+_COLLECTION_ERRORS: list[dict] = []
+
+# stderr fragments that mean "the object does not exist", not "I failed".
+_GCLOUD_NO_MATCH_PATTERNS = (
+    "matched no objects",
+    "matched no such objects",
+    "not found",
+)
+
+# stderr fragments that indicate a credentials/permission problem.
+_GCLOUD_AUTH_PATTERNS = (
+    "does not have storage.objects",
+    "anonymous caller",
+    "reauthentication",
+    "credentials",
+    "unauthorized",
+    "forbidden",
+    "403",
+    "401",
+)
+
+
+def _classify_gcloud_stderr(stderr: str) -> str:
+    """Classify a failed gcloud invocation from its stderr."""
+    low = (stderr or "").lower()
+    if any(p in low for p in _GCLOUD_NO_MATCH_PATTERNS):
+        return "no_match"
+    if any(p in low for p in _GCLOUD_AUTH_PATTERNS):
+        return "auth"
+    return "command_failed"
+
+
+def _record_collection_error(
+    reason: str,
+    command: list[str],
+    detail: str = "",
+    stage: str = "",
+    job: str = "",
+) -> None:
+    """Record a data-collection failure so it can be surfaced, not swallowed.
+
+    Silently returning empty data makes "I could not read this" look
+    identical to "there is nothing here", which invites downstream
+    consumers to report zero failures for a job that actually failed.
+    """
+    entry: dict = {"reason": reason, "command": " ".join(command[:4])}
+    if detail:
+        entry["detail"] = detail.strip()[:500]
+    if stage:
+        entry["stage"] = stage
+    if job:
+        entry["job"] = job
+    _COLLECTION_ERRORS.append(entry)
+
+
+def _collection_error_count() -> int:
+    """Number of collection errors recorded so far."""
+    return len(_COLLECTION_ERRORS)
+
+
+def _job_junit_failed(job_name: str) -> bool:
+    """True when JUnit collection for this job failed to read its data."""
+    return any(
+        e.get("job") == job_name and e.get("reason") == "junit_unavailable"
+        for e in _COLLECTION_ERRORS
+    )
+
+
 def _run_gcloud(args: list[str], timeout: int = 120) -> Optional[str]:
-    """Run a gcloud CLI command, returning stdout or None on error."""
+    """Run a gcloud CLI command, returning stdout or None on error.
+
+    Failures other than "no such object" are recorded in
+    ``_COLLECTION_ERRORS`` so callers can distinguish an unreadable
+    source from an empty one.
+    """
     try:
         result = subprocess.run(
             args, capture_output=True, text=True, timeout=timeout
         )
         if result.returncode != 0:
+            reason = _classify_gcloud_stderr(result.stderr)
+            if reason != "no_match":
+                _record_collection_error(reason, args, detail=result.stderr)
             return None
         return result.stdout
-    except (subprocess.TimeoutExpired, FileNotFoundError):
+    except subprocess.TimeoutExpired:
+        _record_collection_error(
+            "timeout", args, detail=f"exceeded {timeout}s"
+        )
+        return None
+    except FileNotFoundError:
+        _record_collection_error("gcloud_missing", args)
         return None
 
 
 def _run_gcloud_bytes(args: list[str], timeout: int = 120) -> Optional[bytes]:
-    """Run a gcloud CLI command, returning raw stdout bytes or None."""
+    """Run a gcloud CLI command, returning raw stdout bytes or None.
+
+    Records failures the same way as :func:`_run_gcloud`.
+    """
     try:
         result = subprocess.run(
             args, capture_output=True, timeout=timeout
         )
         if result.returncode != 0:
+            stderr = (result.stderr or b"").decode("utf-8", errors="replace")
+            reason = _classify_gcloud_stderr(stderr)
+            if reason != "no_match":
+                _record_collection_error(reason, args, detail=stderr)
             return None
         return result.stdout
-    except (subprocess.TimeoutExpired, FileNotFoundError):
+    except subprocess.TimeoutExpired:
+        _record_collection_error(
+            "timeout", args, detail=f"exceeded {timeout}s"
+        )
+        return None
+    except FileNotFoundError:
+        _record_collection_error("gcloud_missing", args)
         return None
 
 
@@ -2196,6 +2362,26 @@ def _check_gcloud() -> bool:
             capture_output=True, text=True, timeout=10,
         )
         return result.returncode == 0
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return False
+
+
+def _check_gcloud_credentials() -> bool:
+    """Report whether gcloud has an active credential.
+
+    ``gcloud --version`` only proves the binary exists.  An installed but
+    unauthenticated gcloud passes that check and then fails every read,
+    which previously produced a snapshot full of silently empty JUnit
+    data.  Public buckets can still be read anonymously, so a negative
+    result here is a warning rather than a hard failure.
+    """
+    try:
+        result = subprocess.run(
+            ["gcloud", "auth", "list",
+             "--filter=status:ACTIVE", "--format=value(account)"],
+            capture_output=True, text=True, timeout=15,
+        )
+        return result.returncode == 0 and bool(result.stdout.strip())
     except (FileNotFoundError, subprocess.TimeoutExpired):
         return False
 
@@ -2491,6 +2677,12 @@ def main() -> None:
         help="Skip JUnit download, regression tracking",
     )
     parser.add_argument(
+        "--fail-on-incomplete", action="store_true",
+        help=("Exit non-zero if any data could not be collected. Use in "
+              "automation so an incomplete snapshot is not analyzed as "
+              "though it were complete."),
+    )
+    parser.add_argument(
         "--no-rpmdb", action="store_true",
         help="Skip RHCOS RPMDB extraction",
     )
@@ -2522,6 +2714,13 @@ def main() -> None:
         _log("Warning: 'gcloud' CLI not found. JUnit data will not be fetched.")
         _log("Install gcloud SDK to enable JUnit download and regression tracking.\n")
         collect_junit = False
+    elif collect_junit and not _check_gcloud_credentials():
+        _log("Warning: 'gcloud' has no active credentials "
+             "('gcloud auth list' is empty).")
+        _log("Reads of non-public artifacts will fail. Run "
+             "'gcloud auth login' to authenticate.")
+        _log("Collection failures will be recorded in "
+             "summary.json 'collection_errors'.\n")
 
     collect_rpmdb = not args.no_rpmdb
     if collect_rpmdb and not _check_podman():
@@ -2543,6 +2742,30 @@ def main() -> None:
             collect_rpmdb=collect_rpmdb,
         )
         snapshotter.run()
+
+        if _COLLECTION_ERRORS:
+            by_reason: dict[str, int] = {}
+            for e in _COLLECTION_ERRORS:
+                r = e.get("reason", "unknown")
+                by_reason[r] = by_reason.get(r, 0) + 1
+            _log("")
+            _log("=" * 68)
+            _log(f"WARNING: SNAPSHOT IS INCOMPLETE "
+                 f"({len(_COLLECTION_ERRORS)} collection error(s))")
+            for reason, count in sorted(by_reason.items()):
+                _log(f"  {reason}: {count}")
+            affected = sorted({
+                e["job"] for e in _COLLECTION_ERRORS if e.get("job")
+            })
+            if affected:
+                _log(f"  affected jobs: {', '.join(affected)}")
+            _log("")
+            _log("Missing data is ABSENT, not empty. Do not interpret a job")
+            _log("without test_failure_count as having zero test failures.")
+            _log("Details: 'collection_errors' in summary.json")
+            _log("=" * 68)
+            if args.fail_on_incomplete:
+                sys.exit(1)
     except urllib.error.HTTPError as e:
         print(f"Error: HTTP {e.code}: {e.reason}", file=sys.stderr)
         sys.exit(1)

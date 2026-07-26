@@ -106,6 +106,24 @@ From `summary.json` top-level fields:
 
 **Record `phase` verbatim** from the `summary.json` metadata (`Accepted`, `Rejected`, or `Ready`). Never infer the phase from the job results or from whether failures exist — a payload can be `Accepted` *with* blocking failures (force-accepted) or `Ready` while jobs are still running. The stored phase drives the force-accept decision (Step 6.4) and the executive summary (Step 7.1), so an inferred phase silently corrupts both.
 
+#### 3.1b: Verify the Snapshot Is Complete
+
+Check `summary.json` → `data_complete`. When it is `false`, read
+`collection_errors[]` and treat every affected job's data as **unknown, not
+empty**.
+
+A job entry with `junit_collection_failed: true` has **no** `test_failure_count`
+because its JUnit could not be read. An absent `test_failure_count` means
+*unknown*; only an explicit `0` means *verified clean*. Never conclude "this job
+had no test failures" — and therefore "it must have failed for some other
+reason" — from missing data. That inference sends the whole analysis down a
+false path.
+
+If the target payload's test data is incomplete, say so explicitly in the report
+and treat any streak or root-cause conclusion that depends on it as
+provisional. Prefer re-running the snapshot (see `payload-snapshot`) over
+analyzing an incomplete one.
+
 #### 3.2: Failed Blocking Jobs
 
 From `summary.json` → `blocking_jobs.failed_jobs[]`, each entry contains:
@@ -290,6 +308,17 @@ After collecting all subagent results, verify that consecutive failures across p
 Compare the subagent's root cause analysis for the target payload against previous payload analyses (from Step 4b) or the failure signatures in the snapshot's streak data.
 
 If a job fails in two consecutive payloads but for **different reasons**, treat each as a separate streak=1 failure with its own originating payload and candidate PRs. Re-split the streak and re-assign originating payloads before proceeding to scoring.
+
+**The job-level streak is not the originating payload of a failure mode.** `blocking_jobs.failed_jobs[].streak.originating_payload` tracks when the *job* started failing, which silently merges unrelated modes — an infrastructure blip, a flaky test, and a real regression all read as one streak. Scoring candidate PRs from a job-level originating payload that predates the actual regression guarantees misattribution: the causal PR is not even in the candidate set, so the analysis confidently blames whatever else happened to land there.
+
+Do this mechanically, per failure mode:
+
+1. Take the **specific failing test** identified in Step 4, and read `test_failures.blocking[]` → the matching entry's **`first_failed_in`** and `payloads_failing`. That is the originating payload for *this* mode.
+2. When `first_failed_in` is **later** than the job-level `streak.originating_payload`, the job's earlier failures are a **different mode**. Score candidates from `first_failed_in`, not from the job streak.
+3. Verify the boundary. Confirm the test **passed** in the payload immediately before `first_failed_in`. If per-test data is unavailable there (e.g. the aggregation produced none), do **not** assume the test was failing — check the underlying child runs. A job that failed before the upgrade phase even ran cannot have failed this test.
+4. An aggregated job can fail with **no per-test signal at all** (too few runs completed, or infrastructure killed the runs). Such a payload is **unclassified**, not a member of the regression streak. Read the underlying child runs' step results before assigning it to any mode.
+
+Only after the per-mode originating payload is established should you enumerate candidate PRs (Step 6.1). Record the job-level streak and the per-mode onset separately in the report when they differ, and state which one drove scoring.
 
 ### Step 5b: Adjudicate Conflicting Root Causes
 

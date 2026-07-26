@@ -183,6 +183,26 @@ Comprehensive stream-level triage data — start here. Contains:
 - `test_failures.blocking[]` — `test_name`, `jobs`, `first_failed_in`, `payloads_failing`, `failure_message`, `failure_text` (full, not truncated)
 - `payloads[]` — per-payload entries with `tag`, `phase`, relative file paths, `prs[]` with component/diff/comments paths, and `rhcos_changes[]` with RPM diffs per RHCOS variant
 - `rhcos_rpms[]` — RPMDB metadata for the target payload's RHCOS variants: `tag`, `name`, `pullspec`, `rpmdb` (relative path to rpmdb.sqlite)
+- `data_complete` — `true` when every collection step succeeded. `false` means part of the snapshot could not be read.
+- `collection_errors[]` — present only when `data_complete` is `false`. Each entry has `reason` (`auth`, `timeout`, `gcloud_missing`, `command_failed`, `junit_unavailable`, `build_log_unavailable`), `command`, and optionally `detail`, `stage`, `job`.
+
+#### Missing data is absent, never empty
+
+When a collection step fails, the affected file is **not written** and the
+corresponding summary field is **omitted** — it is never emitted as an empty
+list or a zero count. Specifically:
+
+- If JUnit could not be read for a job, `results.json` is not created, the
+  job entry has **no** `test_failure_count` and `junit_results`, and instead
+  carries `junit_collection_failed: true`.
+- An absent `test_failure_count` therefore means *unknown*, whereas `0` means
+  *verified clean*.
+
+Consumers **must** distinguish these. Treating unreadable data as "no test
+failures" makes a broken job look like it failed for some other reason, which
+misdirects root-cause analysis. Check `data_complete` before drawing any
+conclusion from an absence of test failures. Use `--fail-on-incomplete` in
+automation to exit non-zero rather than emit a partial snapshot.
 
 ### `AGENTS.md` / `CLAUDE.md`
 
