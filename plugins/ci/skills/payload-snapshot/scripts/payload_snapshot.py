@@ -716,7 +716,7 @@ class JUnitCollector(Collector):
         os.makedirs(self.output_dir, exist_ok=True)
         all_results: list[_TestResult] = []
 
-        errors_before = _collection_error_count()
+        errors_before = _unrecovered_error_count()
         junit_files = self._list_junit_files()
         downloaded = 0
         for gcs_uri in junit_files:
@@ -735,7 +735,7 @@ class JUnitCollector(Collector):
                 results = _parse_junit_xml(local_path, source_name=filename)
                 all_results.extend(results)
 
-        gcloud_failed = _collection_error_count() > errors_before
+        gcloud_failed = _unrecovered_error_count() > errors_before
 
         # Refuse to publish an empty result set that was caused by a read
         # failure.  Writing `[]` here makes the job look clean, and
@@ -775,18 +775,39 @@ class JUnitCollector(Collector):
         return True
 
     def _list_junit_files(self) -> list[str]:
-        """Discover JUnit XML files in GCS for this job."""
+        """Discover JUnit XML files in GCS for this job.
+
+        Tries a recursive glob first, then falls back to bounded-depth
+        probes.  Jobs that emit very large artifact trees (Hypershift e2e
+        can produce 10,000+ cluster resource dumps) make the ``**`` glob
+        slow enough to time out, and a timeout here previously produced a
+        silently empty result set.
+        """
         bucket_path = self.job.gcs_bucket_path
         base = f"gs://{bucket_path}"
 
+        errors_before = _collection_error_count()
         output = _run_gcloud(
             ["gcloud", "storage", "ls", f"{base}/artifacts/**/junit*.xml"],
-            timeout=30,
+            timeout=120,
         )
-        if not output:
-            return []
 
-        files = [l.strip() for l in output.strip().splitlines() if l.strip()]
+        files = [l.strip() for l in (output or "").strip().splitlines()
+                 if l.strip()]
+
+        if not files:
+            _log(
+                f"  warn: recursive glob found no JUnit for {self.job.name} "
+                f"— trying bounded-depth fallback"
+            )
+            files = self._list_junit_files_fallback(base)
+            if files:
+                # The data was obtained after all; don't report the failed
+                # first attempt as missing data.
+                _mark_errors_recovered(errors_before)
+
+        if not files:
+            return []
 
         if self.job.is_aggregated:
             # For aggregated jobs, keep junit_operator.xml and the
@@ -809,6 +830,71 @@ class JUnitCollector(Collector):
                      or "analysis" in os.path.basename(f)]
         keep = operator + (preferred if preferred else others[:1])
         return keep if keep else files
+
+    def _list_junit_files_fallback(self, base: str) -> list[str]:
+        """Targeted JUnit discovery that avoids a full recursive glob.
+
+        Lists the top-level step directories under ``artifacts/`` and
+        probes each at the depths JUnit files actually appear, rather
+        than enumerating every object in the tree:
+
+          - ``{step}/junit*.xml``
+          - ``{step}/artifacts/junit*.xml``
+          - ``{step}/*/artifacts/junit*.xml``
+
+        Aggregated jobs keep ``junit-aggregated.xml`` far deeper than
+        that, so the aggregator subtree gets its own scoped recursive
+        probe — scoped to one small directory, it stays fast.
+        """
+        dir_output = _run_gcloud(
+            ["gcloud", "storage", "ls", f"{base}/artifacts/"],
+            timeout=60,
+        )
+        if not dir_output:
+            return []
+
+        # Each line is a directory like gs://bucket/path/artifacts/step-name/
+        step_dirs = [
+            d.strip().rstrip("/").split("/")[-1]
+            for d in dir_output.strip().splitlines()
+            if d.strip()
+        ]
+
+        # junit_operator.xml sits directly in artifacts/, not in a step dir.
+        found: list[str] = []
+        top = _run_gcloud(
+            ["gcloud", "storage", "ls", f"{base}/artifacts/junit*.xml"],
+            timeout=60,
+        )
+        if top:
+            found.extend(l.strip() for l in top.strip().splitlines()
+                         if l.strip())
+
+        for step in step_dirs:
+            patterns = [
+                f"{base}/artifacts/{step}/junit*.xml",
+                f"{base}/artifacts/{step}/artifacts/junit*.xml",
+                f"{base}/artifacts/{step}/*/artifacts/junit*.xml",
+            ]
+            # The aggregated report lives several levels below the
+            # aggregator step; a scoped ** over that one subtree is cheap.
+            if "aggregator" in step:
+                patterns.append(f"{base}/artifacts/{step}/**/junit*.xml")
+
+            for pattern in patterns:
+                probe = _run_gcloud(
+                    ["gcloud", "storage", "ls", pattern], timeout=60
+                )
+                if probe:
+                    found.extend(
+                        l.strip() for l in probe.strip().splitlines()
+                        if l.strip()
+                    )
+
+        found = sorted(set(found))
+        if found:
+            _log(f"  fallback found {len(found)} JUnit file(s)")
+        return found
 
     def _detect_underlying_job_name(self) -> Optional[str]:
         """For aggregated jobs, extract the underlying job name from GCS paths."""
@@ -853,12 +939,12 @@ class BuildLogCollector(Collector):
             return None
 
         gcs_uri = f"gs://{self.job.gcs_bucket_path}/build-log.txt"
-        errors_before = _collection_error_count()
+        errors_before = _unrecovered_error_count()
         raw = _run_gcloud_bytes(
             ["gcloud", "storage", "cat", gcs_uri], timeout=120
         )
         if not raw:
-            if _collection_error_count() > errors_before:
+            if _unrecovered_error_count() > errors_before:
                 _record_collection_error(
                     "build_log_unavailable",
                     ["gcloud", "storage", "cat", gcs_uri],
@@ -1304,9 +1390,7 @@ class SummaryGenerator:
         # section must never be silently indistinguishable from a clean one.
         if _COLLECTION_ERRORS:
             summary["collection_errors"] = list(_COLLECTION_ERRORS)
-            summary["data_complete"] = False
-        else:
-            summary["data_complete"] = True
+        summary["data_complete"] = not _unrecovered_errors()
 
         _write_json(os.path.join(self.base_dir, "summary.json"), summary)
         self._write_agents_md(summary)
@@ -1361,7 +1445,8 @@ class SummaryGenerator:
         ]
 
         if not summary.get("data_complete", True):
-            errs = summary.get("collection_errors", [])
+            errs = [e for e in summary.get("collection_errors", [])
+                    if not e.get("recovered")]
             reasons = sorted({e.get("reason", "unknown") for e in errs})
             lines.extend([
                 "## ⚠️  INCOMPLETE SNAPSHOT",
@@ -2293,10 +2378,33 @@ def _collection_error_count() -> int:
     return len(_COLLECTION_ERRORS)
 
 
+def _mark_errors_recovered(since_index: int) -> None:
+    """Mark errors recorded since ``since_index`` as recovered.
+
+    A first-choice read can fail (e.g. a glob times out) and a fallback
+    can then succeed.  The failure is still worth reporting — it is how
+    you learn a timeout needs tuning — but it must not make the snapshot
+    look incomplete when the data was in fact obtained.
+    """
+    for entry in _COLLECTION_ERRORS[since_index:]:
+        entry["recovered"] = True
+
+
+def _unrecovered_errors() -> list[dict]:
+    """Collection errors that were not resolved by a fallback."""
+    return [e for e in _COLLECTION_ERRORS if not e.get("recovered")]
+
+
+def _unrecovered_error_count() -> int:
+    """Number of unrecovered collection errors."""
+    return len(_unrecovered_errors())
+
+
 def _job_junit_failed(job_name: str) -> bool:
     """True when JUnit collection for this job failed to read its data."""
     return any(
         e.get("job") == job_name and e.get("reason") == "junit_unavailable"
+        and not e.get("recovered")
         for e in _COLLECTION_ERRORS
     )
 
@@ -2743,19 +2851,26 @@ def main() -> None:
         )
         snapshotter.run()
 
-        if _COLLECTION_ERRORS:
+        unrecovered = _unrecovered_errors()
+        recovered = len(_COLLECTION_ERRORS) - len(unrecovered)
+        if recovered:
+            _log("")
+            _log(f"Note: {recovered} read failure(s) were recovered by a "
+                 f"fallback; data is complete. See 'collection_errors' "
+                 f"(recovered: true) in summary.json.")
+        if unrecovered:
             by_reason: dict[str, int] = {}
-            for e in _COLLECTION_ERRORS:
+            for e in unrecovered:
                 r = e.get("reason", "unknown")
                 by_reason[r] = by_reason.get(r, 0) + 1
             _log("")
             _log("=" * 68)
             _log(f"WARNING: SNAPSHOT IS INCOMPLETE "
-                 f"({len(_COLLECTION_ERRORS)} collection error(s))")
+                 f"({len(unrecovered)} unrecovered collection error(s))")
             for reason, count in sorted(by_reason.items()):
                 _log(f"  {reason}: {count}")
             affected = sorted({
-                e["job"] for e in _COLLECTION_ERRORS if e.get("job")
+                e["job"] for e in unrecovered if e.get("job")
             })
             if affected:
                 _log(f"  affected jobs: {', '.join(affected)}")

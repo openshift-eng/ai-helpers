@@ -184,7 +184,9 @@ Comprehensive stream-level triage data — start here. Contains:
 - `payloads[]` — per-payload entries with `tag`, `phase`, relative file paths, `prs[]` with component/diff/comments paths, and `rhcos_changes[]` with RPM diffs per RHCOS variant
 - `rhcos_rpms[]` — RPMDB metadata for the target payload's RHCOS variants: `tag`, `name`, `pullspec`, `rpmdb` (relative path to rpmdb.sqlite)
 - `data_complete` — `true` when every collection step succeeded. `false` means part of the snapshot could not be read.
-- `collection_errors[]` — present only when `data_complete` is `false`. Each entry has `reason` (`auth`, `timeout`, `gcloud_missing`, `command_failed`, `junit_unavailable`, `build_log_unavailable`), `command`, and optionally `detail`, `stage`, `job`.
+- `collection_errors[]` — every read failure encountered. Each entry has `reason` (`auth`, `timeout`, `gcloud_missing`, `command_failed`, `junit_unavailable`, `build_log_unavailable`), `command`, and optionally `detail`, `stage`, `job`, `recovered`.
+  - `recovered: true` means a fallback subsequently obtained the data. These entries are diagnostic only (useful for spotting a timeout that needs tuning) and do **not** make `data_complete` false.
+  - `data_complete` is `false` only when at least one error was **not** recovered.
 
 #### Missing data is absent, never empty
 
