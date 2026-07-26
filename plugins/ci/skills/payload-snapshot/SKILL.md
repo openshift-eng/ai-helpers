@@ -186,7 +186,7 @@ Comprehensive stream-level triage data — start here. Contains:
 - `test_failures.blocking[]` — `test_name`, `jobs`, `first_failed_in`, `payloads_failing`, `failure_message`, `failure_text` (full, not truncated)
 - `payloads[]` — per-payload entries with `tag`, `phase`, relative file paths, `prs[]` with component/diff/comments paths, and `rhcos_changes[]` with RPM diffs per RHCOS variant
 - `rhcos_rpms[]` — RPMDB metadata for the target payload's RHCOS variants: `tag`, `name`, `pullspec`, `rpmdb` (relative path to rpmdb.sqlite)
-- `data_complete` — `true` when every collection step succeeded. `false` means part of the snapshot could not be read.
+- `data_complete` — `true` when all requested data was ultimately collected, including via a fallback after an initial read failed. `false` means some requested data could not be read at all.
 - `collection_errors[]` — every read failure encountered. Each entry has `reason`, `command`, and optionally `detail`, `stage`, `job`, `payload_tag`, `recovered`. Reasons: `auth`, `timeout`, `gcloud_missing`, `command_failed`, `junit_unavailable` (nothing readable), `junit_missing` (nothing discovered), `junit_unparseable` (corrupt XML), `junit_partial` (some files unread), `build_log_unavailable`.
   - `recovered: true` means a fallback subsequently obtained the data. These entries are diagnostic only (useful for spotting a timeout that needs tuning) and do **not** make `data_complete` false.
   - `data_complete` is `false` only when at least one error was **not** recovered.
@@ -215,9 +215,11 @@ list or a zero count. Specifically:
   the real results that were obtained and the job entry adds
   `junit_collection_partial: true`. `test_failure_count` is then a **lower
   bound**, not a total.
-- A failed job with **no** JUnit discovered at all, or whose XML would not
-  parse, is recorded (`junit_missing` / `junit_unparseable`) and left without
-  a count — a job whose tests may never have run is unknown, not clean.
+- A failed job with **no** readable JUnit at all — none discovered
+  (`junit_missing`), or nothing that parsed (`junit_unparseable`) — is left
+  without a count entirely. A job whose tests may never have run is unknown,
+  not clean. A parse failure alongside other readable files is the partial
+  case above, not this one.
 
 Consumers **must** distinguish these. Treating unreadable data as "no test
 failures" makes a broken job look like it failed for some other reason, which

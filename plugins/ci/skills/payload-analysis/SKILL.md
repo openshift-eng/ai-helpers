@@ -139,7 +139,7 @@ For each failed job's `streak.originating_payload`, find the matching entry in `
 - `url`, `component`, `number`, `description`
 - Paths to local artifacts: `diff`, `comments`, `jobs`
 
-These PRs are the **candidates** for failures that started in that originating payload.
+Treat this as a **preliminary** list only. The job-level streak merges unrelated failure modes, so its originating payload is frequently earlier than the regression being investigated — and candidates gathered from it can omit the causal PR entirely. Before scoring, re-derive the originating payload **per failure mode** from `test_failures.blocking[].first_failed_in` (Step 5) and collect the candidates from *that* payload.
 
 #### 3.4: Test Failure Details
 

@@ -291,6 +291,50 @@ def test_recovered_state_is_not_invalidated_on_rerun(tmp_path):
     assert junit_dir.exists()
 
 
+def test_unsafe_ledger_entries_never_delete_outside_base(tmp_path):
+    """The ledger is data from disk; it must not aim rmtree at a parent."""
+    base = tmp_path / "snap" / "5.0" / "ci"
+    base.mkdir(parents=True)
+    victim = tmp_path / "victim"
+    victim.mkdir()
+    (victim / "keep.txt").write_text("do not delete me")
+
+    (base / ps.COLLECTION_STATE_FILE).write_text(json.dumps([
+        {"reason": "junit_partial", "job": "../../../../victim",
+         "payload_tag": ".."},
+        {"reason": "junit_partial", "job": "a/b", "payload_tag": "tag"},
+    ]))
+
+    assert ps._invalidate_suspect_junit(str(base)) == 0
+    assert (victim / "keep.txt").exists()
+
+
+def test_carry_forward_keeps_unresolved_junit_errors(tmp_path):
+    """--no-junit must not launder a stale partial snapshot into complete."""
+    base = tmp_path / "5.0" / "ci"
+    base.mkdir(parents=True)
+    (base / ps.COLLECTION_STATE_FILE).write_text(json.dumps([
+        {"reason": "junit_partial", "job": "job-a", "payload_tag": "tag-1"},
+        {"reason": "auth", "job": "job-a", "payload_tag": "tag-1"},
+        {"reason": "junit_partial", "job": "job-b", "payload_tag": "tag-1",
+         "recovered": True},
+    ]))
+
+    assert ps._carry_forward_junit_errors(str(base)) == 1
+    carried = ps._unrecovered_errors()
+    assert [e["reason"] for e in carried] == ["junit_partial"]
+    assert carried[0]["carried_forward"] is True
+
+
+@pytest.mark.parametrize("raw,forbidden", [
+    ("ERROR: account someone@example.com lacks access", "someone@example.com"),
+    ("ERROR: GET https://x/o?X-Goog-Signature=abc123", "X-Goog-Signature"),
+])
+def test_detail_redacts_identifiers(raw, forbidden):
+    ps._record_collection_error("auth", ["gcloud"], detail=raw)
+    assert forbidden not in ps._COLLECTION_ERRORS[0]["detail"]
+
+
 def test_collection_state_round_trips(tmp_path):
     base = tmp_path / "snap"
     base.mkdir()

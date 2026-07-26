@@ -1862,10 +1862,15 @@ class Snapshotter:
         )
         os.makedirs(base_dir, exist_ok=True)
 
-        # A previous run over this directory may have left JUnit output that
-        # it recorded as incomplete.  Drop it so it is re-collected rather
-        # than inherited as though it were trustworthy.
-        _invalidate_suspect_junit(base_dir)
+        # A previous run over this directory may have left JUnit output it
+        # recorded as incomplete.  Drop it so it is re-collected rather than
+        # inherited as trustworthy — but only when we will actually
+        # re-collect, otherwise we would delete the only copy and then
+        # report the result as complete.
+        if self.collect_junit:
+            _invalidate_suspect_junit(base_dir)
+        else:
+            _carry_forward_junit_errors(base_dir)
 
         self._collect_streams(base_dir)
 
@@ -2478,6 +2483,14 @@ def _sanitize_detail(text: str) -> str:
     cleaned = "".join(
         ch if ch.isprintable() else " " for ch in (text or "")
     )
+    # These diagnostics are persisted into a summary this skill exists to
+    # hand to agents and share.  gcloud auth errors routinely name the
+    # active account, and URLs can carry signed-request parameters; neither
+    # should leave the local environment.
+    cleaned = re.sub(
+        r"[\w.+-]+@[\w-]+\.[\w.-]+", "<redacted-account>", cleaned
+    )
+    cleaned = re.sub(r"\?\S+", "?<redacted-query>", cleaned)
     return re.sub(r"\s+", " ", cleaned).strip()[:300]
 
 
@@ -2534,6 +2547,20 @@ _JUNIT_SUSPECT_REASONS = (
 )
 
 
+def _is_within(base: str, target: str) -> bool:
+    """True when ``target`` resolves inside ``base``."""
+    base_r = os.path.realpath(base)
+    target_r = os.path.realpath(target)
+    return target_r == base_r or target_r.startswith(base_r + os.sep)
+
+
+def _safe_component(value: str) -> bool:
+    """True when ``value`` is usable as a single path component."""
+    return bool(value) and value not in (".", "..") and not any(
+        sep in value for sep in (os.sep, "/", "\\")
+    )
+
+
 def _invalidate_suspect_junit(base_dir: str) -> int:
     """Discard JUnit output that a previous run recorded as incomplete.
 
@@ -2555,12 +2582,18 @@ def _invalidate_suspect_junit(base_dir: str) -> int:
         if entry.get("reason") not in _JUNIT_SUSPECT_REASONS:
             continue
         tag, job = entry.get("payload_tag"), entry.get("job")
-        if not tag or not job:
+        # The ledger is data read back from disk; never let it aim a
+        # recursive delete at a path outside the snapshot directory.
+        if not _safe_component(tag or "") or not _safe_component(job or ""):
+            _log(f"  warn: ignoring unsafe collection-state entry "
+                 f"(tag={tag!r}, job={job!r})")
             continue
         for lifecycle in ("blocking", "informing"):
             junit_dir = os.path.join(
                 base_dir, tag, "jobs", lifecycle, job, "junit"
             )
+            if not _is_within(base_dir, junit_dir):
+                continue
             if os.path.isdir(junit_dir):
                 shutil.rmtree(junit_dir, ignore_errors=True)
                 invalidated += 1
@@ -2568,6 +2601,35 @@ def _invalidate_suspect_junit(base_dir: str) -> int:
         _log(f"  re-collecting {invalidated} job(s) whose previous JUnit "
              f"collection was incomplete")
     return invalidated
+
+
+def _carry_forward_junit_errors(base_dir: str) -> int:
+    """Re-record persisted JUnit failures when JUnit is not re-collected.
+
+    With ``--no-junit`` nothing re-reads the artifacts, so a previous run's
+    partial or unreadable JUnit is still exactly as incomplete as it was.
+    Without carrying those errors forward, the ledger would be rewritten
+    from an empty in-memory list and the stale output would be reported as
+    a complete snapshot.
+    """
+    previous = _read_json(
+        os.path.join(base_dir, COLLECTION_STATE_FILE)
+    ) or []
+    carried = 0
+    for entry in previous:
+        if entry.get("recovered"):
+            continue
+        if entry.get("reason") not in _JUNIT_SUSPECT_REASONS:
+            continue
+        forwarded = dict(entry)
+        forwarded["carried_forward"] = True
+        with _COLLECTION_ERRORS_LOCK:
+            _COLLECTION_ERRORS.append(forwarded)
+        carried += 1
+    if carried:
+        _log(f"  carrying forward {carried} unresolved JUnit collection "
+             f"error(s) from a previous run (JUnit collection is disabled)")
+    return carried
 
 
 def _write_collection_state(base_dir: str) -> None:
