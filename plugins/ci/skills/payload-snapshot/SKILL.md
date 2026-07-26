@@ -28,8 +28,10 @@ Use this skill when you need to:
 
 3. **Google Cloud SDK (`gcloud`)** — for JUnit test result download
    - Install: `brew install google-cloud-sdk` (macOS) or see https://cloud.google.com/sdk
-   - Authenticate: `gcloud auth login`
-   - Without `gcloud`, JUnit data is skipped; job directories still created
+   - **Authentication is not required** — the CI artifact buckets are public and
+     are read anonymously when no account is configured
+   - Without `gcloud` entirely, JUnit data is skipped and the snapshot is
+     reported as incomplete (see [Data completeness](#data-completeness))
 
 4. **Container runtime (`podman`)** — for RHCOS RPMDB extraction
    - Install: available in most Linux distributions; `brew install podman` on macOS
@@ -165,6 +167,7 @@ Options:
   --workers N          Parallel workers for API calls (default: 8)
   --no-junit           Skip JUnit download and regression tracking
   --no-rpmdb           Skip RHCOS RPMDB extraction
+  --fail-on-incomplete Exit 1 if any requested data could not be collected
 ```
 
 ## Output Files
@@ -183,6 +186,50 @@ Comprehensive stream-level triage data — start here. Contains:
 - `test_failures.blocking[]` — `test_name`, `jobs`, `first_failed_in`, `payloads_failing`, `failure_message`, `failure_text` (full, not truncated)
 - `payloads[]` — per-payload entries with `tag`, `phase`, relative file paths, `prs[]` with component/diff/comments paths, and `rhcos_changes[]` with RPM diffs per RHCOS variant
 - `rhcos_rpms[]` — RPMDB metadata for the target payload's RHCOS variants: `tag`, `name`, `pullspec`, `rpmdb` (relative path to rpmdb.sqlite)
+- `data_complete` — `true` when all requested data was ultimately collected, including via a fallback after an initial read failed. `false` means some requested data could not be read at all.
+- `collection_errors[]` — every read failure encountered. Each entry has `reason`, `command`, and optionally `detail`, `stage`, `job`, `payload_tag`, `recovered`. Reasons: `auth`, `timeout`, `gcloud_missing`, `command_failed`, `junit_unavailable` (nothing readable), `junit_missing` (nothing discovered), `junit_unparseable` (corrupt XML), `junit_partial` (some files unread), `build_log_unavailable`.
+  - `recovered: true` means a fallback subsequently obtained the data. These entries are diagnostic only (useful for spotting a timeout that needs tuning) and do **not** make `data_complete` false.
+  - `data_complete` is `false` only when at least one error was **not** recovered.
+
+<a id="data-completeness"></a>
+#### gcloud credentials are not required
+
+The CI artifact buckets are public. When gcloud has no active account it is
+run in anonymous mode automatically, so an unauthenticated environment still
+produces a complete snapshot. Authenticate only if you also need private
+buckets.
+
+#### Missing data is absent, never empty
+
+When a collection step fails, the affected file is **not written** and the
+corresponding summary field is **omitted** — it is never emitted as an empty
+list or a zero count. Specifically:
+
+- If JUnit could not be read for a job, `results.json` is not created, the
+  job entry has **no** `test_failure_count` and `junit_results`, and instead
+  carries `junit_collection_failed: true`.
+- An absent `test_failure_count` therefore means *unknown*, whereas `0` means
+  *verified clean*.
+
+- If **some** JUnit files were read and others were not, `results.json` holds
+  the real results that were obtained and the job entry adds
+  `junit_collection_partial: true`. `test_failure_count` is then a **lower
+  bound**, not a total.
+- A failed job with **no** readable JUnit at all — none discovered
+  (`junit_missing`), or nothing that parsed (`junit_unparseable`) — is left
+  without a count entirely. A job whose tests may never have run is unknown,
+  not clean. A parse failure alongside other readable files is the partial
+  case above, not this one.
+
+Consumers **must** distinguish these. Treating unreadable data as "no test
+failures" makes a broken job look like it failed for some other reason, which
+misdirects root-cause analysis. Check `data_complete` before drawing any
+conclusion from an absence of test failures. Use `--fail-on-incomplete` in
+automation to exit non-zero rather than emit a partial snapshot.
+
+State is persisted to `collection_errors.json` beside `summary.json`, so a
+later process can tell that an existing `results.json` came from an incomplete
+read.
 
 ### `AGENTS.md` / `CLAUDE.md`
 
@@ -268,9 +315,14 @@ Aggregated jobs run the same underlying test multiple times with statistical ana
 - **Tag not found**: Exits with code 2 and a descriptive error
 - **Release controller unreachable**: Exits with code 1
 - **`gh` not authenticated**: Prints a warning and continues without PR data
-- **`gcloud` not available**: Prints a warning and skips JUnit download
-- **Individual job/PR fetch failure**: Logs a warning and continues
-- **Idempotent**: Re-running skips files that already exist
+- **`gcloud` not available**: Warns, skips JUnit download, and records
+  `gcloud_missing` so the snapshot is reported incomplete
+- **`gcloud` not authenticated**: Reads the public buckets anonymously
+- **Individual job/PR fetch failure**: Logs a warning, records a collection
+  error, and continues
+- **Idempotent**: Re-running skips files that already exist — except JUnit
+  output a previous run recorded as incomplete, which is discarded and
+  re-collected so a partial snapshot cannot be inherited as complete
 
 ## Notes
 
