@@ -9,7 +9,7 @@ Sets the "Release Blocker" custom field on a JIRA issue.
 
 **Release-blocker status is conditional on the bug's nature and impact, not automatic for every Component Readiness regression.** As a rule of thumb:
 
-- `product` bugs whose failures block or materially degrade blocking/informing payload jobs (e.g., a permafail of an entire job lane) → set **Approved**.
+- `product` and `product-infra` bugs whose failures block or materially degrade blocking/informing payload jobs (e.g., a permafail of an entire job lane) → set **Approved**.
 - `test` bugs (flaky tests, test races, invariant-scan interference) and `ci-infra` issues (cloud capacity, registry outages, CI-cluster problems) → do **not** mark as release blockers, even though they surfaced as regressions.
 - A previously-approved blocker whose signature has been quiet for many days (fixed or masked) should be re-evaluated rather than left Approved indefinitely.
 
