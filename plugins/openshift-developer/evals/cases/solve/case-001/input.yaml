@@ -1,0 +1,4 @@
+issue_key: "https://redhat.atlassian.net/browse/OCPBUGS-34662"
+repo_url: "https://github.com/enxebre/hypershift"
+eval_branch: "eval/jira-solve-pipeline/case-003"
+known_good_pr: "https://github.com/openshift/hypershift/pull/7538"
