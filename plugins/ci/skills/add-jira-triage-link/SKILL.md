@@ -91,6 +91,7 @@ fi
 - The script is idempotent — if the triage link is already in the description, it skips the update
 - Uses Atlassian Document Format (ADF) to append a horizontal rule and the triage link section
 - Appends to the existing description without modifying existing content
+- **The append lands at the very end of the description.** If the description ends with a block that must stay last (e.g., an AI-attribution footer required by AI-driven workflows), the appended triage link will displace it. After running this skill on such an issue, verify the trailing block is still last and reorder the description if not.
 - Requires JIRA API v3 write access to the issue
 
 ## See Also

@@ -48,6 +48,8 @@ The API assigns a confidence level (1-10) to each match:
 - **5**: Medium confidence — similarly named tests matched by edit distance, suggesting related tests in the same area
 - **2**: Low confidence — regressions share the same job runs (identified via the `job_runs` history tracked across each regression's lifetime), which may indicate a shared root cause but could be coincidental in mass failure scenarios
 
+**A confidence score — even 10 — is a clustering hypothesis, not a root-cause verdict.** The matching operates on test identity and job-run overlap, never on failure evidence, so it routinely produces conf=10 matches across unrelated platforms and root causes: real triage runs have seen conf=10 point AWS and GCP install regressions at an Azure-credentials bug, and a "cluster readiness" wrapper regression at an unrelated CrashLoop bug, purely because the wrapper test name is shared. Before acting on any match (extending a triage, reusing its JIRA), verify with actual CI evidence — read at least one representative failed run's output/artifacts and confirm the error signature matches the target triage's root cause. Match on the full signature (error text, platform, job family, timing), not the headline test name.
+
 ## Output Format
 
 ### JSON output
