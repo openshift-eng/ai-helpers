@@ -1,0 +1,18 @@
+difficulty: easy
+pr_number: 3691
+original_base_sha: ee2761fdf296c5f0799f7c45dd49e7978464505d
+original_expected_sha: d022605b7d424434817b0df63ec0022da1c0f2b0
+expected_files_changed:
+  - pkg/sippyserver/server.go
+description: >
+  Fix Sippy UI failing to render when /sippy-ng URL lacks trailing
+  slash. Widen PathPrefix match and add a 301 redirect from /sippy-ng
+  to /sippy-ng/ preserving query parameters.
+key_signals:
+  - "PathPrefix changed from /sippy-ng/ to /sippy-ng"
+  - "301 redirect added for exact /sippy-ng path"
+  - "query parameters preserved in redirect"
+notes: >
+  Single-file Go fix. Good baseline case — a model that can't solve
+  this has a fundamental problem. The JIRA description includes
+  detailed root cause analysis.

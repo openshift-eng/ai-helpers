@@ -1,0 +1,23 @@
+difficulty: medium
+pr_number: 3649
+original_base_sha: a6e8881b7b890c69e390bdebb088d213c160508b
+original_expected_sha: 802f7289c2f72e945b1c4a95f811af4f0b7e11d9
+expected_files_changed:
+  - Dockerfile.buildroot
+  - Makefile
+  - mcp/requirements.txt
+  - mcp/test_server.py
+description: >
+  Add MCP server pytest tests to make test target. Fix pre-existing
+  test failures in TestDataMode mock setup. Install Python 3.14 in
+  buildroot for fastmcp compatibility.
+key_signals:
+  - "pytest added to mcp/requirements.txt"
+  - "Makefile test target includes pytest step"
+  - "TestDataMode._patch_dotenv mock fix"
+notes: >
+  This case produced variable results across multiple agent runs. The
+  final solution required 8 commits including review feedback iterations
+  around Python version handling and the buildroot chicken-and-egg
+  problem (Dockerfile.buildroot changes don't take effect until after
+  merge).
