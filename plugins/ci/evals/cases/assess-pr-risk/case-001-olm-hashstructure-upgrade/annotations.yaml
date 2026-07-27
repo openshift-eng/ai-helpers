@@ -1,0 +1,28 @@
+description: |
+  OLM hashstructure v1→v2 library upgrade plus Kubernetes vendor bump and TLS changes.
+  The hashstructure upgrade fundamentally changed hashing behavior in operator reconciliation.
+  This is a known-bad PR that was later reverted — the skill must NOT know that.
+
+expected_tier: critical
+expected_score_range:
+  min: 71
+  max: 100
+
+must_recommend_jobs:
+  - e2e-gcp-ovn
+  - e2e-gcp-olm
+  - e2e-gcp-console-olm
+  - e2e-upgrade
+  - e2e-aws-upgrade-ovn-single-node
+  - e2e-aws-olmv0-ext
+  - e2e-aws-ovn-hypershift
+
+must_not_recommend_jobs:
+  - microshift
+  - vsphere
+
+must_skip_jobs: []
+
+expected_hotspots:
+  - hypershift
+  - upgrade

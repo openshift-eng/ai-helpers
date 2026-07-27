@@ -1,0 +1,232 @@
+name: assess-pr-risk
+description: Evaluate PR risk assessment accuracy — risk scoring, tier classification, and job recommendations
+skill: ci:assess-pr-risk
+
+execution:
+  mode: case
+  arguments: "{pr_url}"
+  timeout: 600
+
+runner:
+  type: claude-code
+  plugin_dirs:
+    - plugins/ci
+
+models:
+  skill: claude-opus-4-6
+  judge: claude-opus-4-6
+
+permissions:
+  allow:
+    - "Bash"
+    - "Read"
+    - "Write"
+    - "Edit"
+    - "Agent"
+    - "Skill"
+    - "WebFetch"
+    - "WebSearch"
+  deny: []
+
+mlflow:
+  experiment: assess-pr-risk-eval
+
+dataset:
+  path: .
+  schema: |
+    Each case directory contains:
+    - input.yaml: YAML with 'pr_url' ([EXTERNAL: GitHub] — must be a real,
+      merged PR URL, e.g. https://github.com/openshift/origin/pull/31350).
+    - annotations.yaml: Expected outcomes for scoring, with fields:
+      'description' (what the PR does and why it's a good test case),
+      'expected_tier' (low|medium|high|critical),
+      'expected_score_range' (min/max integers 0-100),
+      'must_recommend_jobs' (list of job name substrings that must appear in recommendations),
+      'must_not_recommend_jobs' (list of job name substrings that must NOT appear),
+      'must_skip_jobs' (list of jobs that must be explicitly skipped),
+      'expected_hotspots' (list of hotspot categories the skill should flag).
+
+outputs:
+  - path: .work/pr-risk
+    schema: |
+      A single JSON state file named <org>-<repo>-<pr_number>.json containing:
+      'pr_url', 'org', 'repo', 'pr_number', and 'assessment' object with
+      'risk_score' (0-100), 'risk_tier' (low|medium|high|critical),
+      'risk_breakdown' (repo_risk, pr_complexity, code_risk_factors, historical_risk),
+      'jobs_to_run' (list of /test commands), 'jobs_to_skip' (list of {name, reason}),
+      'coverage_gaps', 'key_risks', 'cost_estimate' (recommended_cost_usd,
+      savings_from_skipped_required_usd, added_cost_from_optional_usd, net_savings_usd),
+      and 'notes'.
+
+traces:
+  stdout: true
+  stderr: true
+  events: true
+  metrics: true
+
+judges:
+  - name: budget_check
+    builtin: cost_budget
+    arguments:
+      max_cost_usd: 3.0
+
+  - name: state_file_valid
+    description: |
+      Checks that the skill produced exactly one valid JSON state file in
+      .work/pr-risk/ with all required top-level and assessment fields.
+    check: |
+      import json
+      files = outputs.get("files", {})
+      json_files = {k: v for k, v in files.items() if k.endswith(".json")}
+      if not json_files:
+          return (False, "No JSON state file found in .work/pr-risk/")
+      if len(json_files) > 1:
+          return (False, f"Expected 1 JSON file, found {len(json_files)}: {list(json_files.keys())}")
+      fname, content = next(iter(json_files.items()))
+      try:
+          data = json.loads(content)
+      except json.JSONDecodeError as e:
+          return (False, f"Invalid JSON: {e}")
+      required = ["pr_url", "org", "repo", "pr_number", "assessment"]
+      missing = [f for f in required if f not in data]
+      if missing:
+          return (False, f"Missing top-level fields: {missing}")
+      assess = data["assessment"]
+      a_required = ["risk_score", "risk_tier", "risk_breakdown", "jobs_to_run",
+                     "jobs_to_skip", "coverage_gaps", "key_risks", "cost_estimate", "notes"]
+      a_missing = [f for f in a_required if f not in assess]
+      if a_missing:
+          return (False, f"Missing assessment fields: {a_missing}")
+      return (True, f"Valid state file: {fname}")
+
+  - name: risk_tier_correct
+    description: |
+      Checks that the assessed risk tier matches the expected tier from annotations.
+    check: |
+      import json
+      annotations = outputs.get("annotations", {})
+      expected = annotations.get("expected_tier", "")
+      if not expected:
+          return (True, "No expected_tier in annotations, skipping")
+      files = outputs.get("files", {})
+      json_files = {k: v for k, v in files.items() if k.endswith(".json")}
+      if not json_files:
+          return (False, "No state file to check tier")
+      content = next(iter(json_files.values()))
+      data = json.loads(content)
+      actual = data.get("assessment", {}).get("risk_tier", "").lower()
+      if actual == expected.lower():
+          return (True, f"Tier correct: {actual}")
+      return (False, f"Expected tier '{expected}', got '{actual}'")
+
+  - name: risk_score_in_range
+    description: |
+      Checks that the risk score falls within the expected range from annotations.
+    check: |
+      import json
+      annotations = outputs.get("annotations", {})
+      score_range = annotations.get("expected_score_range", {})
+      if not score_range:
+          return (True, "No expected_score_range in annotations, skipping")
+      files = outputs.get("files", {})
+      json_files = {k: v for k, v in files.items() if k.endswith(".json")}
+      if not json_files:
+          return (False, "No state file to check score")
+      content = next(iter(json_files.values()))
+      data = json.loads(content)
+      score = data.get("assessment", {}).get("risk_score", -1)
+      lo, hi = score_range.get("min", 0), score_range.get("max", 100)
+      if lo <= score <= hi:
+          return (True, f"Score {score} in range [{lo}, {hi}]")
+      return (False, f"Score {score} outside expected range [{lo}, {hi}]")
+
+  - name: job_recommendations_correct
+    description: |
+      Validates job recommendations against structured state only:
+      must_recommend_jobs checked against assessment.jobs_to_run,
+      must_not_recommend_jobs checked against assessment.jobs_to_run,
+      must_skip_jobs checked against assessment.jobs_to_skip.
+    check: |
+      import json
+      annotations = outputs.get("annotations", {})
+      must_rec = annotations.get("must_recommend_jobs", [])
+      must_not = annotations.get("must_not_recommend_jobs", [])
+      must_skip = annotations.get("must_skip_jobs", [])
+      files = outputs.get("files", {})
+      json_files = {k: v for k, v in files.items() if k.endswith(".json")}
+      if not json_files:
+          return (False, "No state file to check jobs")
+      content = next(iter(json_files.values()))
+      data = json.loads(content)
+      assess = data.get("assessment", {})
+      run_text = " ".join(assess.get("jobs_to_run", [])).lower()
+      skip_names = [s.get("name", "") if isinstance(s, dict) else str(s)
+                    for s in assess.get("jobs_to_skip", [])]
+      skip_text = " ".join(skip_names).lower()
+      issues = []
+      missing = [j for j in must_rec if j.lower() not in run_text]
+      if missing:
+          issues.append(f"Missing required jobs: {missing}")
+      present_bad = [j for j in must_not if j.lower() in run_text]
+      if present_bad:
+          issues.append(f"Forbidden jobs recommended: {present_bad}")
+      missing_skip = [j for j in must_skip if j.lower() not in skip_text]
+      if missing_skip:
+          issues.append(f"Missing required skips: {missing_skip}")
+      if issues:
+          return (False, "; ".join(issues))
+      total = len(must_rec) + len(must_not) + len(must_skip)
+      return (True, f"All {total} job constraints satisfied")
+
+  - name: report_quality
+    description: |
+      LLM judge evaluating the overall quality of the risk assessment report
+      including risk breakdown justification, testing rationale, and cost analysis.
+    prompt: |
+      You are evaluating a PR risk assessment report. The skill analyzed a GitHub PR
+      and produced a risk score, tier classification, and testing recommendations.
+
+      ## Skill Output (conversation)
+
+      {{ conversation }}
+
+      ## File Artifacts
+
+      {{ outputs }}
+
+      ## Expected Outcomes (annotations)
+
+      {{ annotations }}
+
+      ## Scoring Criteria
+
+      Score on a 1-5 scale:
+
+      1: Report is missing major sections, risk score is unjustified, or job
+         recommendations are clearly wrong (e.g., recommending expensive jobs
+         for a trivial docs change, or skipping all jobs for a critical API change).
+      2: Report has all sections but reasoning is shallow — scores assigned
+         without citing specific code patterns, or job recommendations lack
+         justification.
+      3: Adequate report with reasonable scores and justifications, but misses
+         some nuance — e.g., doesn't identify a key hotspot, or cost estimate
+         is missing/wrong.
+      4: Good report with well-justified scores, appropriate job recommendations
+         with clear rationale, cost analysis present, and hotspots identified.
+      5: Excellent report — scores precisely justified with specific code references,
+         job recommendations perfectly calibrated to the PR's risk profile,
+         cost savings quantified, and all relevant hotspots flagged.
+
+thresholds:
+  state_file_valid:
+    min_pass_rate: 1.0
+  risk_tier_correct:
+    min_pass_rate: 0.8
+  risk_score_in_range:
+    min_pass_rate: 0.8
+  job_recommendations_correct:
+    min_pass_rate: 0.8
+  report_quality:
+    min_mean: 3.5
+  budget_check:
+    min_pass_rate: 1.0

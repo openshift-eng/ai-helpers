@@ -1,0 +1,18 @@
+description: |
+  Trivial 2-line change replacing one bug ID with another in a known-flake exception
+  and a test comment. Zero functional impact. No e2e jobs should be recommended —
+  this is the baseline case for cost savings on safe PRs.
+
+expected_tier: low
+expected_score_range:
+  min: 0
+  max: 20
+
+must_recommend_jobs: []
+
+must_not_recommend_jobs:
+  - e2e
+
+must_skip_jobs: []
+
+expected_hotspots: []
