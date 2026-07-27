@@ -64,7 +64,7 @@ Trigger via Gangway with case and model overrides:
 
 ```bash
 # Run a specific case with a specific model
-gangway trigger --job periodic-ci-openshift-release-master-jira-solver-eval \
+gangway trigger --job periodic-ci-openshift-release-main-jira-solver-eval-jira-solver-eval \
   --env MULTISTAGE_PARAM_OVERRIDE_EVAL_CASE=case-002-trt-2753-trailing-slash \
   --env MULTISTAGE_PARAM_OVERRIDE_CLAUDE_MODEL=claude-sonnet-4-6
 ```
