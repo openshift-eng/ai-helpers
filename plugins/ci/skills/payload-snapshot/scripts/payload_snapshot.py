@@ -248,17 +248,47 @@ class ReleaseController:
 # ---------------------------------------------------------------------------
 
 class SippyClient:
-    """Client for Sippy APIs, used when release controller data is unavailable."""
+    """Client for Sippy's release-controller mirror APIs."""
 
     SIPPY_BASE = "https://sippy.dptools.openshift.org/api"
+    SIPPY_UI = "https://sippy.dptools.openshift.org/sippy-ng"
 
-    def __init__(self, release: str):
+    def __init__(
+        self, release: str, architecture: str = "amd64", stream: str = "nightly"
+    ):
         self.release = release
+        self.architecture = architecture
+        self.stream = stream
         self._tags_cache: Optional[list] = None
+        self._job_runs_cache: dict[str, list[dict]] = {}
+
+    @staticmethod
+    def _filter(column: str, value: str) -> dict:
+        return {
+            "columnField": column,
+            "operatorValue": "equals",
+            "value": value,
+        }
+
+    @classmethod
+    def _encoded_filter(cls, *items: tuple[str, str]) -> str:
+        filter_json = {
+            "items": [cls._filter(column, value) for column, value in items]
+        }
+        return urllib.parse.quote(json.dumps(filter_json))
 
     def _get_tags(self) -> list[dict]:
         if self._tags_cache is None:
-            url = f"{self.SIPPY_BASE}/releases/tags?release={urllib.parse.quote(self.release)}"
+            filter_items = [("architecture", self.architecture)]
+            if self.stream in STREAM_TYPES:
+                filter_items.append(("stream", self.stream))
+            filter_value = self._encoded_filter(*filter_items)
+            url = (
+                f"{self.SIPPY_BASE}/releases/tags"
+                f"?filter={filter_value}"
+                f"&release={urllib.parse.quote(self.release)}"
+                "&sortField=release_time&sort=desc"
+            )
             self._tags_cache = fetch_json(url, timeout=60)
         return self._tags_cache
 
@@ -268,29 +298,55 @@ class SippyClient:
                 return t
         return None
 
+    def fetch_tags(self) -> list[dict]:
+        """Fetch release tags newest first for this release/arch/stream."""
+        return self._get_tags()
+
     def fetch_job_runs(self, tag_name: str) -> list[dict]:
-        filter_json = json.dumps({"items": [
-            {"columnField": "release_tag", "operatorValue": "equals",
-             "value": tag_name}
-        ]})
+        if tag_name in self._job_runs_cache:
+            return self._job_runs_cache[tag_name]
+        filter_value = self._encoded_filter(("release_tag", tag_name))
         url = (f"{self.SIPPY_BASE}/releases/job_runs"
-               f"?filter={urllib.parse.quote(filter_json)}"
-               f"&sortField=kind&sort=asc&limit=200")
+               f"?filter={filter_value}"
+               f"&sortField=kind&sort=asc&limit=1000")
+        runs = fetch_json(url, timeout=60)
+        self._job_runs_cache[tag_name] = runs
+        return runs
+
+    def fetch_pull_requests(self, tag_name: str) -> list[dict]:
+        """Fetch PRs introduced by a payload from Sippy."""
+        filter_value = self._encoded_filter(("release_tag", tag_name))
+        url = (
+            f"{self.SIPPY_BASE}/releases/pull_requests"
+            f"?filter={filter_value}"
+            "&sortField=pull_request_id&sort=asc&limit=1000"
+        )
         return fetch_json(url, timeout=60)
 
-    def fetch_changelog(self, tag_name: str, from_tag: Optional[str] = None) -> list[dict]:
-        params = f"toPayload={urllib.parse.quote(tag_name)}"
-        if not from_tag:
-            tag_meta = self.find_tag(tag_name)
-            if tag_meta:
-                from_tag = tag_meta.get("previous_release_tag", "")
+    def fetch_changelog(
+        self, tag_name: str, from_tag: Optional[str] = None
+    ) -> list[dict]:
+        """Fetch the incremental PR diff, with per-payload PR fallback."""
         if from_tag:
-            params += f"&fromPayload={urllib.parse.quote(from_tag)}"
-        url = f"{self.SIPPY_BASE}/payloads/diff?{params}"
-        try:
-            return fetch_json(url, timeout=60)
-        except Exception:
-            return []
+            url = (
+                f"{self.SIPPY_BASE}/payloads/diff"
+                f"?toPayload={urllib.parse.quote(tag_name)}"
+                f"&fromPayload={urllib.parse.quote(from_tag)}"
+            )
+            try:
+                return fetch_json(url, timeout=60)
+            except (Exception, SystemExit) as exc:
+                _log(
+                    "  Sippy incremental payload diff unavailable; "
+                    f"using per-payload PR data: {exc}"
+                )
+        return self.fetch_pull_requests(tag_name)
+
+    def release_url(self, tag_name: str) -> str:
+        return (
+            f"{self.SIPPY_UI}/release/{urllib.parse.quote(self.release)}"
+            f"/tags/{urllib.parse.quote(tag_name)}"
+        )
 
     def build_synthetic_payload(self, tag_name: str, tag: "PayloadTag") -> dict:
         tag_meta = self.find_tag(tag_name)
@@ -315,18 +371,19 @@ class SippyClient:
             else:
                 informing_jobs[name] = entry
 
-        rc = ReleaseController(tag.architecture, stream=tag.stream)
         return {
             "phase": phase,
             "results": {
                 "blockingJobs": blocking_jobs,
                 "informingJobs": informing_jobs,
             },
-            "_release_url": rc.release_url(tag.stream_name, tag_name),
+            "_release_url": self.release_url(tag_name),
             "_source": "sippy",
         }
 
-    def build_synthetic_changelog(self, tag_name: str, from_tag: Optional[str] = None) -> dict:
+    def build_synthetic_changelog(
+        self, tag_name: str, from_tag: Optional[str] = None
+    ) -> dict:
         prs = self.fetch_changelog(tag_name, from_tag=from_tag)
         if not isinstance(prs, list):
             return {"changeLogJson": {"updatedImages": []}, "_source": "sippy"}
@@ -410,41 +467,140 @@ class PayloadChain:
 
 
 class SippyPayloadChain:
-    """Walks backwards through payloads using Sippy tag data."""
+    """Walks backwards through Sippy's time-ordered payload tags."""
 
     def __init__(self, sippy: SippyClient, max_depth: int = 20):
         self.sippy = sippy
         self.max_depth = max_depth
 
-    def _has_blocking_failures(self, tag_name: str) -> bool:
-        """Check whether a payload has any failed blocking jobs."""
+    def _all_blocking_passed(self, tag_name: str) -> bool:
+        """Check whether every blocking job in a payload succeeded."""
         runs = self.sippy.fetch_job_runs(tag_name)
-        return any(
-            r.get("kind") == "Blocking" and r.get("state") == "Failed"
-            for r in runs
+        blocking = [r for r in runs if r.get("kind") == "Blocking"]
+        return not blocking or all(
+            r.get("state") == "Succeeded" for r in blocking
         )
 
     def build(self, start_tag: str) -> list[str]:
-        chain = [start_tag]
+        tag_names = [
+            tag["release_tag"] for tag in self.sippy.fetch_tags()
+            if tag.get("release_tag")
+        ]
+        try:
+            start_index = tag_names.index(start_tag)
+        except ValueError:
+            raise ValueError(f"Tag {start_tag} not found in Sippy")
+
+        chain = []
+        for tag_name in tag_names[
+            start_index:start_index + self.max_depth
+        ]:
+            chain.append(tag_name)
+            if self._all_blocking_passed(tag_name):
+                break
+        return chain
+
+
+class HybridPayloadChain:
+    """Build a complete payload chain from RC data plus Sippy history.
+
+    Release-controller details remain authoritative for retained tags. Sippy's
+    time-ordered tag list identifies payloads that were garbage collected
+    between retained release-controller entries.
+    """
+
+    def __init__(
+        self,
+        rc: ReleaseController,
+        sippy: SippyClient,
+        stream_name: str,
+        max_depth: int = 20,
+    ):
+        self.rc = rc
+        self.sippy = sippy
+        self.stream_name = stream_name
+        self.max_depth = max_depth
+        self.sources: dict[str, str] = {}
+        self._rc_tags: list[str] = []
+        self._sippy_tags: list[str] = []
+        self._sippy_available = True
+        self._warned_sippy = False
+
+    def _load_sippy_tags(self) -> list[str]:
+        if not self._sippy_available:
+            return []
+        try:
+            self._sippy_tags = [
+                tag["release_tag"] for tag in self.sippy.fetch_tags()
+                if tag.get("release_tag")
+            ]
+            return self._sippy_tags
+        except (Exception, SystemExit) as exc:
+            self._sippy_available = False
+            if not self._warned_sippy:
+                _log(
+                    "Warning: Sippy release ancestry is unavailable; "
+                    f"falling back to release-controller ordering: {exc}"
+                )
+                self._warned_sippy = True
+            return []
+
+    @staticmethod
+    def _previous(tag_names: list[str], tag_name: str) -> str:
+        try:
+            index = tag_names.index(tag_name)
+        except ValueError:
+            return ""
+        if index + 1 >= len(tag_names):
+            return ""
+        return tag_names[index + 1]
+
+    def _fetch_details(self, tag_name: str, rc_tag_names: set[str]) -> dict:
+        if tag_name in rc_tag_names:
+            self.sources[tag_name] = "release-controller"
+            return self.rc.fetch_release(self.stream_name, tag_name)
+
+        tag = PayloadTag.parse(tag_name)
+        self.sources[tag_name] = "sippy"
+        return self.sippy.build_synthetic_payload(tag_name, tag)
+
+    def build(self, start_tag: str) -> list[str]:
+        rc_tags = self.rc.fetch_tags(self.stream_name)
+        self._rc_tags = [t["name"] for t in rc_tags]
+        rc_tag_names = set(self._rc_tags)
+        sippy_tag_names = set(self._load_sippy_tags())
+
+        if start_tag not in rc_tag_names and start_tag not in sippy_tag_names:
+            raise ValueError(
+                f"Tag {start_tag} not found in release controller or Sippy"
+            )
+
+        chain: list[str] = []
         current = start_tag
-        for _ in range(self.max_depth - 1):
-            tag_meta = self.sippy.find_tag(current)
-            if not tag_meta:
+        for _ in range(self.max_depth):
+            if current in chain:
+                _log(f"Warning: payload ancestry cycle detected at {current}")
                 break
-            prev = tag_meta.get("previous_release_tag", "")
-            if not prev:
+            chain.append(current)
+
+            details = self._fetch_details(current, rc_tag_names)
+            rc_chain = PayloadChain(self.rc, self.stream_name)
+            if rc_chain._all_blocking_passed(details):
                 break
-            chain.append(prev)
-            if not self._has_blocking_failures(prev):
-                # First payload with all blocking jobs green — include
-                # one more predecessor so this payload gets a changelog.
-                prev_meta = self.sippy.find_tag(prev)
-                if prev_meta:
-                    anchor = prev_meta.get("previous_release_tag", "")
-                    if anchor:
-                        chain.append(anchor)
+
+            sippy_previous = self._previous(self._sippy_tags, current)
+            rc_previous = self._previous(self._rc_tags, current)
+            previous = sippy_previous or rc_previous
+            if not previous:
                 break
-            current = prev
+
+            if sippy_previous and sippy_previous not in rc_tag_names:
+                _log(
+                    "  Sippy history restored garbage-collected payload "
+                    f"{sippy_previous} before {current}"
+                )
+            current = previous
+
         return chain
 
 
@@ -534,6 +690,7 @@ class PayloadDetailCollector(Collector):
         _log(f"  Fetching payload details: {self.tag}")
         details = self.rc.fetch_release(self.stream_name, self.tag)
         details["_release_url"] = self.rc.release_url(self.stream_name, self.tag)
+        details["_source"] = "release-controller"
         return details
 
 
@@ -550,7 +707,11 @@ class ChangelogCollector(Collector):
 
     def _fetch(self) -> dict:
         _log(f"  Fetching changelog: {self.tag} from {self.from_tag}")
-        return self.rc.fetch_changelog(self.stream_name, self.tag, self.from_tag)
+        changelog = self.rc.fetch_changelog(
+            self.stream_name, self.tag, self.from_tag
+        )
+        changelog["_source"] = "release-controller"
+        return changelog
 
 
 class PullRequestCollector(Collector):
@@ -1407,6 +1568,8 @@ class SummaryGenerator:
         phase = payload_data.get("phase", "Unknown") if payload_data else "Unknown"
         release_url = (payload_data.get("_release_url", "")
                        if payload_data else "")
+        source = (payload_data.get("_source", "release-controller")
+                  if payload_data else "unknown")
         results = payload_data.get("results", {}) if payload_data else {}
 
         blocking = results.get("blockingJobs", {}) or {}
@@ -1434,6 +1597,7 @@ class SummaryGenerator:
             "payload_tag": self.target_tag,
             "phase": phase,
             "release_url": release_url,
+            "source": source,
             "architecture": self.tag.architecture,
             "stream": self.tag.stream,
             "version": self.tag.version,
@@ -1596,6 +1760,8 @@ class SummaryGenerator:
             "  payload acceptance. Informing jobs are tracked but don't block.",
             "- **Chain**: The sequence of payloads walking backwards from the",
             "  target until one where all blocking jobs passed (the baseline).",
+            "  Sippy's time-ordered tag list restores garbage-collected tags;",
+            "  retained payload data comes from the release controller.",
             "- **Streaks**: Per-job consecutive failure count from the target",
             "  backwards. `failure_pattern` shows the full history (F=fail,",
             "  S=succeed) across the chain.",
@@ -1608,8 +1774,8 @@ class SummaryGenerator:
             "## summary.json Schema",
             "",
             "Top-level fields:",
-            "- `payload_tag`, `phase`, `release_url`, `architecture`,",
-            "  `stream`, `version`",
+            "- `payload_tag`, `phase`, `release_url`, `source`,",
+            "  `architecture`, `stream`, `version`",
             "- `chain_length`, `baseline_tag`, `hours_since_baseline`",
             "- `blocking_jobs.failed_jobs[]` — each entry has: `name`,",
             "  `state`, `prow_url`, `gcs_url`, `streak` (with",
@@ -1621,7 +1787,8 @@ class SummaryGenerator:
             "  `first_failed_in`, `payloads_failing`, `failure_message`,",
             "  `failure_text`",
             "- `payloads[]` — per-payload entries with `tag`, `phase`,",
-            "  relative paths, `prs[]` with component/diff/comments paths,",
+            "  `source`, `changelog_source`, relative paths, `prs[]` with",
+            "  component/diff/comments paths,",
             "  `rhcos_changes[]` with RPM diffs per RHCOS variant, and",
             "  `rhcos_rpms[]` with rpmdb.sqlite per variant",
             "- `rhcos_rpms[]` — RPMDB per RHCOS variant for the target",
@@ -1742,6 +1909,7 @@ class SummaryGenerator:
             )
             if pd:
                 entry["phase"] = pd.get("phase", "")
+                entry["source"] = pd.get("_source", "release-controller")
 
             changelog_path = os.path.join(
                 self.base_dir, tag_name, "changelog.json"
@@ -1749,6 +1917,10 @@ class SummaryGenerator:
             if os.path.exists(changelog_path):
                 entry["changelog"] = f"{tag_rel}/changelog.json"
                 changelog = _read_json(changelog_path)
+                if changelog:
+                    entry["changelog_source"] = changelog.get(
+                        "_source", "release-controller"
+                    )
                 prs = _extract_prs(changelog) if changelog else []
                 if prs:
                     entry["prs"] = [
@@ -1851,9 +2023,10 @@ class Snapshotter:
         self.use_sippy = use_sippy
         self.collect_rpmdb = collect_rpmdb
         self.rc = ReleaseController(tag.architecture, stream=tag.stream)
-        self.sippy: Optional[SippyClient] = None
-        if use_sippy:
-            self.sippy = SippyClient(tag.version)
+        self.sippy = SippyClient(
+            tag.version, architecture=tag.architecture, stream=tag.stream
+        )
+        self._payload_sources: dict[str, str] = {}
 
     def run(self) -> None:
         """Execute the full snapshot."""
@@ -1902,7 +2075,7 @@ class Snapshotter:
     def _collect_streams(self, base_dir: str) -> None:
         """Collect the streams list for this version."""
         path = os.path.join(base_dir, "streams.json")
-        if self.sippy:
+        if self.use_sippy:
             if os.path.exists(path):
                 return
             _log("Skipping streams collection in Sippy mode (RC-only feature)")
@@ -1912,13 +2085,22 @@ class Snapshotter:
 
     def _build_chain(self) -> list[str]:
         """Build the backward payload chain."""
-        if self.sippy:
+        if self.use_sippy:
             chain_builder = SippyPayloadChain(self.sippy, self.max_chain)
-            return chain_builder.build(self.tag.raw)
-        chain_builder = PayloadChain(
-            self.rc, self.tag.stream_name, self.max_chain
+            chain = chain_builder.build(self.tag.raw)
+            self._payload_sources = {tag: "sippy" for tag in chain}
+            return chain
+        chain_builder = HybridPayloadChain(
+            self.rc, self.sippy, self.tag.stream_name, self.max_chain
         )
-        return chain_builder.build(self.tag.raw)
+        chain = chain_builder.build(self.tag.raw)
+        self._payload_sources = chain_builder.sources
+        return chain
+
+    def _payload_source(self, tag_name: str) -> str:
+        if self.use_sippy:
+            return "sippy"
+        return self._payload_sources.get(tag_name, "release-controller")
 
     def _collect_payloads(
         self, base_dir: str, chain: list[str]
@@ -1932,7 +2114,8 @@ class Snapshotter:
             _log(f"\nProcessing payload: {tag_name}")
 
             payload_path = os.path.join(tag_dir, "payload.json")
-            if self.sippy:
+            payload_source = self._payload_source(tag_name)
+            if payload_source == "sippy":
                 if not os.path.exists(payload_path):
                     _log(f"  Fetching payload details from Sippy: {tag_name}")
                     tag_obj = PayloadTag.parse(tag_name)
@@ -1952,10 +2135,21 @@ class Snapshotter:
 
             prev_tag = chain[i + 1]
             changelog_path = os.path.join(tag_dir, "changelog.json")
-            if self.sippy:
+            # The release controller cannot diff across a tag it has already
+            # garbage collected. Use Sippy's incremental diff (with its
+            # per-payload PR fallback) whenever either side is unavailable.
+            changelog_source = (
+                "release-controller"
+                if payload_source == "release-controller"
+                and self._payload_source(prev_tag) == "release-controller"
+                else "sippy"
+            )
+            if changelog_source == "sippy":
                 if not os.path.exists(changelog_path):
                     _log(f"  Fetching changelog from Sippy: {tag_name}")
-                    data = self.sippy.build_synthetic_changelog(tag_name, from_tag=prev_tag)
+                    data = self.sippy.build_synthetic_changelog(
+                        tag_name, from_tag=prev_tag
+                    )
                     os.makedirs(os.path.dirname(changelog_path), exist_ok=True)
                     _write_json(changelog_path, data)
                 else:
@@ -3107,7 +3301,10 @@ def main() -> None:
     )
     parser.add_argument(
         "--sippy", action="store_true",
-        help="Use Sippy APIs instead of release controller (for historical payloads)",
+        help=(
+            "Force Sippy for all payload metadata (default: prefer release "
+            "controller and automatically fall back for historical tags)"
+        ),
     )
 
     args = parser.parse_args()
@@ -3155,7 +3352,7 @@ def main() -> None:
         collect_rpmdb = False
 
     if args.sippy:
-        _log("Using Sippy APIs for release controller data.\n")
+        _log("Forcing Sippy APIs for all release payload data.\n")
 
     try:
         snapshotter = Snapshotter(

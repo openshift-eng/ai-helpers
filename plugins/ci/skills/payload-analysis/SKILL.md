@@ -94,6 +94,13 @@ python3 "$SNAPSHOT_SCRIPT" <payload_tag>
 
 After locating `summary.json`, set `SNAPSHOT_DIR` to the directory containing it. All relative paths in `summary.json` (e.g., `job_json`, `junit_results`, `build_log`, PR paths) resolve from this directory.
 
+The snapshot script automatically prefers release-controller data and falls
+back to Sippy for payloads that have been garbage collected. Do not truncate
+the analysis chain merely because an originating tag is absent from the live
+release controller; use the Sippy-backed `payloads[]` entry and its PR data.
+Check each entry's `source` and `changelog_source` fields when provenance or
+field completeness matters.
+
 ### Step 3: Extract Failure Data from Snapshot
 
 Read `summary.json` to extract all data needed for analysis. The snapshot has already done the work of fetching payloads, building the chain, tracking streaks, and collecting PR data.
@@ -101,7 +108,7 @@ Read `summary.json` to extract all data needed for analysis. The snapshot has al
 #### 3.1: Payload Metadata
 
 From `summary.json` top-level fields:
-- `payload_tag`, `phase`, `release_url`, `architecture`, `stream`, `version`
+- `payload_tag`, `phase`, `release_url`, `source`, `architecture`, `stream`, `version`
 - `chain_length`, `baseline_tag`, `hours_since_baseline`
 
 **Record `phase` verbatim** from the `summary.json` metadata (`Accepted`, `Rejected`, or `Ready`). Never infer the phase from the job results or from whether failures exist — a payload can be `Accepted` *with* blocking failures (force-accepted) or `Ready` while jobs are still running. The stored phase drives the force-accept decision (Step 6.4) and the executive summary (Step 7.1), so an inferred phase silently corrupts both.
@@ -140,6 +147,12 @@ For each failed job's `streak.originating_payload`, find the matching entry in `
 - Paths to local artifacts: `diff`, `comments`, `jobs`
 
 Treat this as a **preliminary** list only. The job-level streak merges unrelated failure modes, so its originating payload is frequently earlier than the regression being investigated — and candidates gathered from it can omit the causal PR entirely. Before scoring, re-derive the originating payload **per failure mode** from `test_failures.blocking[].first_failed_in` (Step 5) and collect the candidates from *that* payload.
+
+For a Sippy-backed originating payload, the PR list remains usable for
+candidate scoring and the normal GitHub diff/comment/job artifacts are still
+collected. Sippy does not provide release-controller-only
+`nodeImageStreams`, async jobs, or `previousAttemptURLs`; treat those fields as
+unavailable rather than empty evidence.
 
 #### 3.4: Test Failure Details
 
