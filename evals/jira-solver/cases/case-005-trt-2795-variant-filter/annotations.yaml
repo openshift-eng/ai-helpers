@@ -1,0 +1,18 @@
+difficulty: easy
+pr_number: 3785
+original_base_sha: 4c9760d75ae2d6972a757627cbe68ef69c3d6b5d
+original_expected_sha: 4dff1ffb5875e3e92f8774e1e6086e018c21a5d9
+expected_files_changed:
+  - sippy-ng/src/tests/TestRegressionsTable.js
+description: >
+  Fix regressions disappearing from Test Analysis page when variant
+  filters are applied. The variant filter comparison was extracting
+  only the value part via parseVariantName but comparing against the
+  full key:value filter string.
+key_signals:
+  - "comparison logic fixed in TestRegressionsTable.js"
+  - "full variant string compared first, then fallback to parsed name"
+notes: >
+  Single-file JS fix. The JIRA description includes a reproducer URL,
+  detailed root cause hypothesis, and references to the parent feature
+  PR. Good test of whether the agent can trace the filter logic bug.

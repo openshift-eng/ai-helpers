@@ -1,0 +1,5 @@
+jira_key: TRT-2753
+repo: openshift-trt/sippy-eval
+base_branch: eval/case-002-base
+expected_branch: eval/case-002-expected
+setup_script: hack/agentic_setup.sh

@@ -1,0 +1,20 @@
+difficulty: easy-medium
+pr_number: 3633
+original_base_sha: 2b9eb06f6ec1005e00e91de312728a3a52db1b66
+original_expected_sha: f9e512c095ede13fa929b3f874b6adf3b043edac
+expected_files_changed:
+  - pkg/api/componentreadiness/component_report.go
+  - pkg/api/componentreadiness/test_details.go
+  - sippy-ng/src/component_readiness/CompSeverityIcon.js
+description: >
+  Fix crash when opening regressed tests modal. Initialize Explanations
+  to []string{} instead of nil so Go serializes as JSON [] not null.
+  Add defensive null check in CompSeverityIcon.js.
+key_signals:
+  - "Explanations initialized to []string{} in component_report.go"
+  - "Explanations initialized to []string{} in test_details.go"
+  - "null guard added in CompSeverityIcon.js"
+notes: >
+  Tests cross-language awareness — the root cause is Go nil slice
+  serialization affecting the JS frontend. The JIRA description
+  includes exact file paths and line numbers.
