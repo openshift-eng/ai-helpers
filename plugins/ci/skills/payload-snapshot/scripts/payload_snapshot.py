@@ -48,6 +48,14 @@ PROW_STATE_MAP = {
     "error": "Failed",
 }
 
+FALLBACK_FETCH_ERRORS = (
+    urllib.error.HTTPError,
+    urllib.error.URLError,
+    json.JSONDecodeError,
+    TimeoutError,
+    SystemExit,
+)
+
 
 # ---------------------------------------------------------------------------
 # PayloadTag — immutable value object for parsed payload tags
@@ -279,10 +287,10 @@ class SippyClient:
 
     def _get_tags(self) -> list[dict]:
         if self._tags_cache is None:
-            filter_items = [("architecture", self.architecture)]
-            if self.stream in STREAM_TYPES:
-                filter_items.append(("stream", self.stream))
-            filter_value = self._encoded_filter(*filter_items)
+            filter_value = self._encoded_filter(
+                ("architecture", self.architecture),
+                ("stream", self.stream),
+            )
             url = (
                 f"{self.SIPPY_BASE}/releases/tags"
                 f"?filter={filter_value}"
@@ -335,7 +343,7 @@ class SippyClient:
             )
             try:
                 return fetch_json(url, timeout=60)
-            except (Exception, SystemExit) as exc:
+            except FALLBACK_FETCH_ERRORS as exc:
                 _log(
                     "  Sippy incremental payload diff unavailable; "
                     f"using per-payload PR data: {exc}"
@@ -432,10 +440,10 @@ class PayloadChain:
 
         try:
             start_idx = tag_names.index(start_tag)
-        except ValueError:
+        except ValueError as exc:
             raise ValueError(
                 f"Tag {start_tag} not found in stream {self.stream_name}"
-            )
+            ) from exc
 
         chain = []
         for i in range(start_idx, min(start_idx + self.max_depth, len(tag_names))):
@@ -477,7 +485,15 @@ class SippyPayloadChain:
         """Check whether every blocking job in a payload succeeded."""
         runs = self.sippy.fetch_job_runs(tag_name)
         blocking = [r for r in runs if r.get("kind") == "Blocking"]
-        return not blocking or all(
+        if not blocking:
+            tag_meta = self.sippy.find_tag(tag_name)
+            return bool(
+                tag_meta
+                and tag_meta.get("phase") == "Accepted"
+                and not tag_meta.get("forced", False)
+                and tag_meta.get("failed_job_names") == []
+            )
+        return all(
             r.get("state") == "Succeeded" for r in blocking
         )
 
@@ -488,8 +504,8 @@ class SippyPayloadChain:
         ]
         try:
             start_index = tag_names.index(start_tag)
-        except ValueError:
-            raise ValueError(f"Tag {start_tag} not found in Sippy")
+        except ValueError as exc:
+            raise ValueError(f"Tag {start_tag} not found in Sippy") from exc
 
         chain = []
         for tag_name in tag_names[
@@ -535,7 +551,7 @@ class HybridPayloadChain:
                 if tag.get("release_tag")
             ]
             return self._sippy_tags
-        except (Exception, SystemExit) as exc:
+        except FALLBACK_FETCH_ERRORS as exc:
             self._sippy_available = False
             if not self._warned_sippy:
                 _log(

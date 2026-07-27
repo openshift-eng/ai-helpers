@@ -4,6 +4,7 @@
 import importlib.util
 import json
 import os
+import urllib.error
 import urllib.parse
 
 
@@ -92,13 +93,34 @@ def test_sippy_release_endpoints_are_filtered(monkeypatch):
     }
 
 
+def test_sippy_tags_always_filter_nonstandard_stream(monkeypatch):
+    urls = []
+
+    def fake_fetch_json(url, timeout=30, max_retries=6):
+        urls.append(url)
+        return []
+
+    monkeypatch.setattr(ps, "fetch_json", fake_fetch_json)
+    client = ps.SippyClient("4.22", stream="okd-scos-nightly")
+
+    client.fetch_tags()
+
+    query = urllib.parse.parse_qs(urllib.parse.urlparse(urls[0]).query)
+    tag_filter = json.loads(query["filter"][0])
+    assert tag_filter["items"][1] == {
+        "columnField": "stream",
+        "operatorValue": "equals",
+        "value": "okd-scos-nightly",
+    }
+
+
 def test_sippy_changelog_falls_back_to_per_payload_prs(monkeypatch):
     urls = []
 
     def fake_fetch_json(url, timeout=30, max_retries=6):
         urls.append(url)
         if "/payloads/diff" in url:
-            raise OSError("diff unavailable")
+            raise urllib.error.URLError("diff unavailable")
         return [{"url": "https://github.com/openshift/origin/pull/3"}]
 
     monkeypatch.setattr(ps, "fetch_json", fake_fetch_json)
@@ -109,6 +131,48 @@ def test_sippy_changelog_falls_back_to_per_payload_prs(monkeypatch):
     assert prs[0]["url"].endswith("/pull/3")
     assert "/api/payloads/diff" in urls[0]
     assert "/api/releases/pull_requests" in urls[1]
+
+
+def test_sippy_chain_does_not_treat_unindexed_jobs_as_green():
+    class FakeSippy:
+        def fetch_tags(self):
+            return [
+                {"release_tag": TARGET},
+                {"release_tag": BASELINE},
+            ]
+
+        def fetch_job_runs(self, tag_name):
+            if tag_name == TARGET:
+                return []
+            return [{"kind": "Blocking", "state": "Succeeded"}]
+
+        def find_tag(self, tag_name):
+            return {
+                "phase": "Rejected",
+                "forced": False,
+                "failed_job_names": [],
+            }
+
+    chain = ps.SippyPayloadChain(FakeSippy(), max_depth=10)
+
+    assert chain.build(TARGET) == [TARGET, BASELINE]
+
+
+def test_sippy_chain_accepts_confirmed_jobless_baseline():
+    class FakeSippy:
+        def fetch_job_runs(self, tag_name):
+            return []
+
+        def find_tag(self, tag_name):
+            return {
+                "phase": "Accepted",
+                "forced": False,
+                "failed_job_names": [],
+            }
+
+    chain = ps.SippyPayloadChain(FakeSippy())
+
+    assert chain._all_blocking_passed(BASELINE) is True
 
 
 def test_hybrid_chain_restores_culled_predecessor():

@@ -50,6 +50,7 @@ GET /api/releases/pull_requests
   ]}
   &sortField=pull_request_id
   &sort=asc
+  &limit=1000
 ```
 
 Each row includes `url`, `pull_request_id`, component `name`, `description`,
@@ -67,6 +68,7 @@ GET /api/releases/job_runs
   ]}
   &sortField=kind
   &sort=asc
+  &limit=1000
 ```
 
 Each row includes `job_name`, `kind` (`Blocking` or `Informing`), `state`,
