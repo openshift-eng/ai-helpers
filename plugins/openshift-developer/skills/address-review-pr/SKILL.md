@@ -193,6 +193,18 @@ When multiple comments relate to the same concern/fix:
 
 ### Step 4: Post Replies and Push
 
+#### Pre-step: Refresh GitHub tokens
+
+GitHub App tokens expire after 1 hour. Long sessions may outlast the initial token. Before posting replies or pushing, refresh the tokens:
+
+```bash
+if [ -x /tmp/refresh-github-tokens.sh ]; then
+  /tmp/refresh-github-tokens.sh
+fi
+```
+
+If the refresh fails, continue anyway — the token may still be valid for shorter sessions.
+
 #### 4a. Post all replies
 
 - **Template**: `Done. [1-line what changed]. [Optional 1-line why]`
