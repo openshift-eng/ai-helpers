@@ -11,7 +11,7 @@ known-good solutions.
 | Case definitions | `evals/jira-solver/cases/` (this directory) |
 | Base/expected code | `openshift-trt/sippy-eval` repo (git branches) |
 | Eval workflow | `release/step-registry/openshift/agentic/trt/eval/` |
-| Prow job config | `release/ci-operator/config/openshift/release/openshift-release-master__jira-solver-eval.yaml` |
+| Prow job config | `release/ci-operator/config/openshift/release/openshift-release-main__jira-solver-eval.yaml` |
 
 ## How it works
 
