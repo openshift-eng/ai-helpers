@@ -2806,15 +2806,36 @@ def _check_podman() -> bool:
     Goes beyond --version: runs 'podman info' which exercises the runtime,
     storage, and namespace setup.  This catches cases where podman is
     installed but cannot operate (e.g. nested containers without
-    appropriate privileges).
+    appropriate privileges).  On failure, stdout/stderr from the probe are
+    logged so the underlying runtime error (e.g. a namespace or storage
+    driver failure under nested podman) is visible instead of a bare
+    "not available" message.
     """
     try:
         result = subprocess.run(
             ["podman", "info"],
             capture_output=True, text=True, timeout=30,
         )
+        if result.returncode != 0:
+            _log(f"'podman info' exited {result.returncode}.")
+            if result.stdout.strip():
+                _log(f"stdout:\n{result.stdout.strip()}")
+            if result.stderr.strip():
+                _log(f"stderr:\n{result.stderr.strip()}")
         return result.returncode == 0
-    except (OSError, subprocess.TimeoutExpired):
+    except subprocess.TimeoutExpired as e:
+        _log("'podman info' timed out after 30s.")
+        if e.stdout:
+            stdout = e.stdout if isinstance(e.stdout, str) else e.stdout.decode(errors="replace")
+            if stdout.strip():
+                _log(f"stdout:\n{stdout.strip()}")
+        if e.stderr:
+            stderr = e.stderr if isinstance(e.stderr, str) else e.stderr.decode(errors="replace")
+            if stderr.strip():
+                _log(f"stderr:\n{stderr.strip()}")
+        return False
+    except OSError as e:
+        _log(f"'podman info' could not be run: {e}")
         return False
 
 
