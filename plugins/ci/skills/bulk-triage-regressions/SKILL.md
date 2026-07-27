@@ -39,7 +39,7 @@ JIRA writes (filing bugs, `set-release-blocker`, `add-jira-triage-link`) additio
 
 2. **Parse arguments**:
    - `view`: required, e.g. `5.0-main`
-   - `--components`: component filter list (fuzzy matched), e.g. `Installer Unknown`. If omitted, ask the user which components the duty covers.
+   - `--components`: component filter list, e.g. `Installer Unknown`. Matching is case-insensitive and hierarchy-aware: a filter matches the full component name or any ` / `-separated segment of it, so `Installer` also covers `Installer / openshift-installer`, and `Networking` covers `Networking / ovn-kubernetes`, `Networking / router`, and every other `Networking / *` component. If omitted, ask the user which components the duty covers.
    - `--auto-triage`: if present, triage buckets without per-bucket confirmation when confidence is high (see Phase 4). Default is to present findings and confirm before writing.
 
 3. **List regressions** with the `list-regressions` skill:
@@ -174,7 +174,7 @@ When a bucket has a crisp, grep-able artifact signature (an error string or log 
 ## Arguments
 
 - `<view>`: Component Readiness view name (e.g., `5.0-main`). Required.
-- `--components`: Space-separated component name filters, fuzzy-matched (e.g., `Installer Unknown`). Required in practice for duty scoping.
+- `--components`: Space-separated component name filters, case-insensitive and hierarchy-aware (e.g., `Installer` also matches `Installer / openshift-installer`; `Networking` matches `Networking / ovn-kubernetes`, `Networking / router`, ...). Required in practice for duty scoping.
 - `--auto-triage`: Allow high-confidence buckets to be triaged without per-bucket confirmation. New bug filing always requires confirmation.
 
 ## See Also
