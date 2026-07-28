@@ -131,6 +131,20 @@ For each bucket, before filing anything new:
 1. Check `triaged_matches` from `fetch-related-triages` (confidence ≥5 with an open JIRA is the default target) — but never act on a match, even conf=10, without the Phase 3 per-bucket CI-sample verification confirming the root cause actually matches.
 2. Check `open_bugs` from the test report.
 3. Search Jira for the root-cause signature (error message, operator name, `component-regression` label) in OCPBUGS against the **owning component** — the right bug may exist under Monitoring/etcd/MCO even though the regression sits under Installer.
+4. **Component-scoped JIRA listing (mandatory — keyword search is not enough).** Owning teams describe defects in *developer* vocabulary that shares no keywords with the CI-side symptom (real duplicate: the CI symptom was "baremetal CO flaps Progressing / Applying metal3 resources", the existing bug was titled "Do not require metal3-static-ip-manager to progress in vmedia"). After determining the owning component, list its recent bugs regardless of keywords and *read the summaries*:
+
+   ```
+   project = OCPBUGS AND component = "<owning component>" AND created >= -21d ORDER BY created DESC
+   ```
+
+   A bug whose creation date falls inside the bucket's failure window, on the owning component, is a duplicate candidate even with zero keyword overlap — open it and compare mechanisms.
+5. **Owning-repo merge-history check (mandatory when onset or cessation is dated).** Query the owning repo for PRs merged around the bucket's onset *and* cessation dates:
+
+   ```bash
+   gh pr list --repo <org>/<repo> --state merged --search "merged:<window>" --json number,title,mergedAt
+   ```
+
+   A merge at the **cessation** boundary is likely the fix — its `OCPBUGS-*` title prefix names the existing bug: triage to that bug instead of filing a new one. A merge at the **onset** boundary is a suspect trigger. The phrase "resolved by unidentified payload change" is banned from reports and bugs unless this check was run and came back empty — a real duplicate bug was filed because a signature that stopped on 07-21 was written off as "unidentified", while the owning repo had merged `OCPBUGS-xxxxx:`-titled fix at exactly that boundary.
 
 Then act (this is where `--auto-triage` applies; without it, confirm each bucket with the user):
 
@@ -182,6 +196,7 @@ When a bucket has a crisp, grep-able artifact signature (an error string or log 
 - **A validated Sippy symptom detects a signature, not a cause.** The router probe-loop symptom fired on 30/33 runs of the etcd bucket above — correctly, because the loop really happens — yet triaging by that label alone attributed victim runs to the router bug. When a symptom's signature can be produced downstream of a different defect, its label text must say so, and a second symptom keyed on the *upstream* discriminator (here: the etcd cipherSuites/revision-0 evidence) should exist to adjudicate.
 - **Flapping ≠ slow rollout, and a small sample ≠ cessation.** Real example: `not stable: [baremetal]` was classified "slow rollout, self-resolved" from 3 sampled runs that looked healthy at gather — the install log actually showed the operator re-transitioning `Progressing` every ~1 second (1600+ times in 30 minutes), a permafail sync-loop bug present in 19 of 20 runs including the newest. Count condition transitions and enumerate all run dates before choosing between flaky-transient and permafail.
 - **Identifying a root cause and then leaving the regression untriaged is a contradiction.** Real example: a QoS-invariant failure was correctly root-caused to debug pods created by SecurityPenetration tests, then dispositioned "leave untriaged — mass-failure collateral". Deterministic test interference is an independent mechanism: it gets a `test` triage and a bug, regardless of how noisy the surrounding runs are.
+- **No triage record ≠ no bug, and keyword search ≠ component search.** Real example: a CBO Progressing-flap bucket had no related triage and no keyword hits, so a new bug was filed — duplicating a 8-day-old bug on the owning component whose summary used only developer vocabulary ("static-ip-manager should be optional"), with the fix already merged at exactly the bucket's cessation date. The component-scoped JIRA listing and the owning-repo merge-history check (Phase 4 items 4–5) exist because both would have caught it; run them before every new-bug disposition, and treat an unexplained cessation as a strong hint that a fix already landed somewhere.
 - **Known recurring families**: some failure signatures come back shift after shift and usually already have a triage — e.g., etcd slowness / slow fdatasync on Azure masters, quay.io 502s / `ImagePullNeverCompletes` on metal jobs (ci-infra), transient cloud quota or DNS provisioning errors. Search existing triages for the signature before opening anything.
 - **Similar symptom ≠ same bucket.** Two image-pull triages can coexist for different causes (e.g., a quay ci-infra outage vs. an MCO bootimage product bug). Match on the full signature — error text, platform, job family, timing — not just the headline symptom, and pick the triage whose root cause matches, not the first one found.
 - **Triage type follows the root cause, not the component**: a flaky test with an external dependency is `test` even if it looks like a product failure; an etcd timeout that also hits customers is `product`; a registry outage is `ci-infra` even when it kills installs.
