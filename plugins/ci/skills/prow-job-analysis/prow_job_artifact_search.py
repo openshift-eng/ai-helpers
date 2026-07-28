@@ -2,9 +2,11 @@
 """
 Search and retrieve artifacts from Prow CI job runs stored in GCS.
 
-Provides list, search, and fetch operations against the test-platform-results
-GCS bucket. The bucket is PUBLIC (no authentication required), so this script
-works two ways:
+Provides list, search, and fetch operations against Prow's public GCS artifact
+buckets. Both the ``test-platform-results`` and ``prow-artifact-archive``
+buckets are supported; the correct one is detected automatically from the Prow
+URL. The buckets are PUBLIC (no authentication required), so this script works
+two ways:
 
   1. If the `gcloud` CLI is installed, it is used (fast, native globbing).
   2. Otherwise it falls back to the public GCS JSON/download API over plain
@@ -52,10 +54,13 @@ import urllib.parse
 import urllib.request
 
 
-BUCKET = "test-platform-results"
+# Prow stores CI artifacts across two public (world-readable) GCS buckets.
+# The correct bucket for a given job is detected from the Prow URL by
+# parse_prow_url(), and every operation is scoped to that detected bucket.
+SUPPORTED_BUCKETS = ("test-platform-results", "prow-artifact-archive")
 DEFAULT_MAX_BYTES = 512 * 1024  # 512KB
 
-# Public GCS endpoints (no auth — the bucket is world-readable).
+# Public GCS endpoints (no auth — the buckets are world-readable).
 GCS_API_ROOT = "https://storage.googleapis.com/storage/v1/b"
 GCS_DOWNLOAD_ROOT = "https://storage.googleapis.com"
 HTTP_TIMEOUT = 60
@@ -99,38 +104,48 @@ def gcloud_available():
 
 
 def parse_prow_url(url):
-    """Extract the GCS path prefix from a Prow job URL.
+    """Extract the GCS bucket and path prefix from a Prow job URL.
 
-    Accepts either:
-      - https://prow.ci.openshift.org/view/gs/test-platform-results/logs/<job>/<build_id>
-      - https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results/logs/<job>/<build_id>
+    Detects which supported bucket the URL refers to
+    (``test-platform-results`` or ``prow-artifact-archive``) and works with
+    either host format:
+      - https://prow.ci.openshift.org/view/gs/<bucket>/logs/<job>/<build_id>
+      - https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/<bucket>/logs/<job>/<build_id>
 
-    Returns the path after the bucket name, e.g.:
-      logs/<job>/<build_id>
+    Returns a ``(bucket, path)`` tuple where ``path`` is the portion after the
+    bucket name, e.g.:
+      ("test-platform-results", "logs/<job>/<build_id>")
     """
-    # Normalise to just the portion after the bucket name
+    # Alternation of the supported bucket names for use inside the URL patterns.
+    bucket_alt = "|".join(re.escape(b) for b in SUPPORTED_BUCKETS)
     patterns = [
-        r"prow\.ci\.openshift\.org/view/gs/test-platform-results/(.+?)/?$",
-        r"gcsweb-ci\.apps\.ci\.l2s4\.p1\.openshiftapps\.com/gcs/test-platform-results/(.+?)/?$",
+        rf"prow\.ci\.openshift\.org/view/gs/(?P<bucket>{bucket_alt})/(?P<path>.+?)/?$",
+        rf"gcsweb-ci\.apps\.ci\.l2s4\.p1\.openshiftapps\.com/gcs/(?P<bucket>{bucket_alt})/(?P<path>.+?)/?$",
     ]
     for pat in patterns:
         m = re.search(pat, url)
         if m:
-            return m.group(1).rstrip("/")
+            return m.group("bucket"), m.group("path").rstrip("/")
 
-    # Fallback: look for the bucket name anywhere in the URL
-    if "test-platform-results/" in url:
-        return url.split("test-platform-results/", 1)[1].rstrip("/")
+    # Fallback: look for a supported bucket name anywhere in the URL (e.g. a
+    # raw storage.googleapis.com or gs:// style reference).
+    for bucket in SUPPORTED_BUCKETS:
+        marker = f"{bucket}/"
+        if marker in url:
+            return bucket, url.split(marker, 1)[1].rstrip("/")
 
     raise ValueError(
         f"Cannot parse Prow URL: {url}\n"
-        "Expected format: https://prow.ci.openshift.org/view/gs/test-platform-results/logs/<job>/<build_id>"
+        "Expected a URL referencing one of the supported GCS buckets "
+        f"({' or '.join(SUPPORTED_BUCKETS)}), e.g.:\n"
+        "  https://prow.ci.openshift.org/view/gs/test-platform-results/logs/<job>/<build_id>\n"
+        "  https://prow.ci.openshift.org/view/gs/prow-artifact-archive/logs/<job>/<build_id>"
     )
 
 
-def gcs_path(prefix, subpath=None):
-    """Build a gs:// URI."""
-    base = f"gs://{BUCKET}/{prefix}"
+def gcs_path(bucket, prefix, subpath=None):
+    """Build a gs:// URI within the given bucket."""
+    base = f"gs://{bucket}/{prefix}"
     if subpath:
         subpath = subpath.strip("/")
         base = f"{base}/{subpath}"
@@ -172,8 +187,8 @@ def _http_get_json(url):
         return json.loads(resp.read().decode("utf-8"))
 
 
-def gcs_api_list(obj_prefix, delimiter=None):
-    """List objects under obj_prefix via the public GCS JSON API.
+def gcs_api_list(bucket, obj_prefix, delimiter=None):
+    """List objects under obj_prefix in ``bucket`` via the public GCS JSON API.
 
     Follows pagination. Returns (items, prefixes) where:
       - items    is a list of full object-name strings under obj_prefix
@@ -184,7 +199,7 @@ def gcs_api_list(obj_prefix, delimiter=None):
     prefixes = []
     page_token = None
     pages = 0
-    base = f"{GCS_API_ROOT}/{BUCKET}/o"
+    base = f"{GCS_API_ROOT}/{bucket}/o"
     while True:
         params = {"prefix": obj_prefix, "maxResults": "1000"}
         if delimiter:
@@ -239,25 +254,25 @@ def glob_to_regex(pattern):
     return "".join(out)
 
 
-def _http_list_lines(prefix, subpath=None):
+def _http_list_lines(bucket, prefix, subpath=None):
     """Return gcloud-ls-style ``gs://`` lines for a directory listing."""
     obj_prefix = object_path(prefix, subpath)
     if not obj_prefix.endswith("/"):
         obj_prefix += "/"
 
-    items, prefixes = gcs_api_list(obj_prefix, delimiter="/")
+    items, prefixes = gcs_api_list(bucket, obj_prefix, delimiter="/")
 
     lines = []
     for pfx in prefixes:  # sub-directories already carry a trailing slash
-        lines.append(f"gs://{BUCKET}/{pfx}")
+        lines.append(f"gs://{bucket}/{pfx}")
     for name in items:
         if name == obj_prefix:
             continue  # skip the directory placeholder object, if any
-        lines.append(f"gs://{BUCKET}/{name}")
+        lines.append(f"gs://{bucket}/{name}")
     return sorted(set(lines))
 
 
-def _http_search_lines(prefix, pattern, subpath=None):
+def _http_search_lines(bucket, prefix, pattern, subpath=None):
     """Return gcloud-ls-style ``gs://`` lines for a recursive glob search.
 
     Matches leaf objects (files) whose path relative to the search root matches
@@ -270,7 +285,7 @@ def _http_search_lines(prefix, pattern, subpath=None):
     if not search_root.endswith("/"):
         search_root += "/"
 
-    items, _ = gcs_api_list(search_root, delimiter=None)
+    items, _ = gcs_api_list(bucket, search_root, delimiter=None)
     regex = re.compile(glob_to_regex(pattern))
 
     lines = set()
@@ -281,18 +296,18 @@ def _http_search_lines(prefix, pattern, subpath=None):
         if not rel or rel.endswith("/"):
             continue  # skip the search root itself and directory placeholders
         if regex.match(rel):
-            lines.add(f"gs://{BUCKET}/{name}")
+            lines.add(f"gs://{bucket}/{name}")
     return sorted(lines)
 
 
-def _http_fetch(obj_path, max_bytes):
-    """Download an object's content via the public download API.
+def _http_fetch(bucket, obj_path, max_bytes):
+    """Download an object's content from ``bucket`` via the public download API.
 
     Returns (size_bytes, truncated, content). ``size_bytes`` is the object's
     full size (from Content-Length when available); ``content`` holds at most
     ``max_bytes`` decoded characters.
     """
-    url = f"{GCS_DOWNLOAD_ROOT}/{BUCKET}/{urllib.parse.quote(obj_path)}"
+    url = f"{GCS_DOWNLOAD_ROOT}/{bucket}/{urllib.parse.quote(obj_path)}"
     req = urllib.request.Request(url, headers=HTTP_HEADERS)
     with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT) as resp:
         content_length = resp.headers.get("Content-Length")
@@ -324,9 +339,9 @@ def _http_fetch(obj_path, max_bytes):
 # ---------------------------------------------------------------------------
 
 
-def cmd_list(prefix, subpath=None):
+def cmd_list(bucket, prefix, subpath=None):
     """List contents of a GCS directory."""
-    target = gcs_path(prefix, subpath)
+    target = gcs_path(bucket, prefix, subpath)
     if not target.endswith("/"):
         target += "/"
 
@@ -341,7 +356,7 @@ def cmd_list(prefix, subpath=None):
         lines = [ln.strip() for ln in stdout.strip().splitlines() if ln.strip()]
     else:
         try:
-            lines = _http_list_lines(prefix, subpath)
+            lines = _http_list_lines(bucket, prefix, subpath)
         except urllib.error.HTTPError as e:
             return {
                 "success": False,
@@ -356,7 +371,7 @@ def cmd_list(prefix, subpath=None):
             }
 
     entries = []
-    full_prefix = f"gs://{BUCKET}/{prefix}/"
+    full_prefix = f"gs://{bucket}/{prefix}/"
     for line in lines:
         # Strip the gs://bucket/ prefix for readability
         relative = line.replace(full_prefix, "") if line.startswith(full_prefix) else line
@@ -376,9 +391,9 @@ def cmd_list(prefix, subpath=None):
     }
 
 
-def cmd_search(prefix, pattern, subpath=None):
+def cmd_search(bucket, prefix, pattern, subpath=None):
     """Search for files matching a glob pattern under a GCS path."""
-    target = gcs_path(prefix, subpath)
+    target = gcs_path(bucket, prefix, subpath)
     if not target.endswith("/"):
         target += "/"
 
@@ -403,7 +418,7 @@ def cmd_search(prefix, pattern, subpath=None):
         lines = [ln.strip() for ln in stdout.strip().splitlines() if ln.strip()]
     else:
         try:
-            lines = _http_search_lines(prefix, pattern, subpath)
+            lines = _http_search_lines(bucket, prefix, pattern, subpath)
         except urllib.error.HTTPError as e:
             if e.code == 404:
                 return {
@@ -425,7 +440,7 @@ def cmd_search(prefix, pattern, subpath=None):
             }
 
     matches = []
-    full_prefix = f"gs://{BUCKET}/{prefix}/"
+    full_prefix = f"gs://{bucket}/{prefix}/"
     for line in lines:
         relative = line.replace(full_prefix, "") if line.startswith(full_prefix) else line
         is_dir = line.endswith("/")
@@ -444,9 +459,9 @@ def cmd_search(prefix, pattern, subpath=None):
     }
 
 
-def cmd_fetch(prefix, filepath, max_bytes=DEFAULT_MAX_BYTES):
+def cmd_fetch(bucket, prefix, filepath, max_bytes=DEFAULT_MAX_BYTES):
     """Fetch contents of a specific file from GCS."""
-    target = gcs_path(prefix, filepath)
+    target = gcs_path(bucket, prefix, filepath)
 
     if gcloud_available():
         # Download to a temp file, then read
@@ -487,7 +502,7 @@ def cmd_fetch(prefix, filepath, max_bytes=DEFAULT_MAX_BYTES):
                 os.unlink(tmp_path)
     else:
         try:
-            size_bytes, truncated, content = _http_fetch(object_path(prefix, filepath), max_bytes)
+            size_bytes, truncated, content = _http_fetch(bucket, object_path(prefix, filepath), max_bytes)
         except urllib.error.HTTPError as e:
             return {
                 "success": False,
@@ -515,8 +530,10 @@ def main():
     parser = argparse.ArgumentParser(
         description=(
             "Search and retrieve artifacts from Prow CI job runs in GCS. "
-            "Uses the gcloud CLI when available, otherwise falls back to the "
-            "public GCS HTTP API (no auth or extra tooling required)."
+            "Supports both the test-platform-results and prow-artifact-archive "
+            "buckets (detected from the URL). Uses the gcloud CLI when "
+            "available, otherwise falls back to the public GCS HTTP API (no "
+            "auth or extra tooling required)."
         ),
     )
     parser.add_argument(
@@ -564,17 +581,17 @@ def main():
     args = parser.parse_args()
 
     try:
-        prefix = parse_prow_url(args.prow_url)
+        bucket, prefix = parse_prow_url(args.prow_url)
     except ValueError as e:
         print(json.dumps({"success": False, "error": str(e)}))
         sys.exit(1)
 
     if args.command == "list":
-        result = cmd_list(prefix, args.subpath)
+        result = cmd_list(bucket, prefix, args.subpath)
     elif args.command == "search":
-        result = cmd_search(prefix, args.pattern, args.subpath)
+        result = cmd_search(bucket, prefix, args.pattern, args.subpath)
     elif args.command == "fetch":
-        result = cmd_fetch(prefix, args.filepath, args.max_bytes)
+        result = cmd_fetch(bucket, prefix, args.filepath, args.max_bytes)
     else:
         print(json.dumps({"success": False, "error": f"Unknown command: {args.command}"}))
         sys.exit(1)
