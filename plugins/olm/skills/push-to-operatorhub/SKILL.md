@@ -63,9 +63,13 @@ fi
 #### Step 1.3 — Check GitHub username
 
 ```bash
-GH_USER="${GITHUB_USER:-$USER}"
-echo "GitHub user will be: $GH_USER"
-echo "Verify this matches your GitHub username. If not, pass --github-user to the skill."
+GH_USER="${GITHUB_USER:-$(gh api user --jq .login 2>/dev/null)}"
+if [ -z "$GH_USER" ]; then
+  echo "WARN: Could not determine GitHub username — set GITHUB_USER or pass --github-user"
+else
+  echo "GitHub user will be: $GH_USER"
+  echo "Verify this matches your GitHub username. If not, pass --github-user to the skill."
+fi
 ```
 
 #### Step 1.4 — Check Quay.io access (bot account)
@@ -90,28 +94,32 @@ fi
 
 ```bash
 if command -v podman &>/dev/null; then
-  podman login -u="openshift-hive+hive_bot" -p="$QUAY_BOT_TOKEN" quay.io && \
+  echo "$QUAY_BOT_TOKEN" | podman login -u="openshift-hive+hive_bot" --password-stdin quay.io && \
     echo "OK: Logged into quay.io as bot" || \
     echo "FAIL: Bot login failed — check QUAY_BOT_TOKEN"
 elif command -v docker &>/dev/null; then
-  docker login -u="openshift-hive+hive_bot" -p="$QUAY_BOT_TOKEN" quay.io && \
+  echo "$QUAY_BOT_TOKEN" | docker login -u="openshift-hive+hive_bot" --password-stdin quay.io && \
+    echo "OK: Logged into quay.io as bot" || \
+    echo "FAIL: Bot login failed — check QUAY_BOT_TOKEN"
+elif command -v buildah &>/dev/null; then
+  echo "$QUAY_BOT_TOKEN" | buildah login -u="openshift-hive+hive_bot" --password-stdin quay.io && \
     echo "OK: Logged into quay.io as bot" || \
     echo "FAIL: Bot login failed — check QUAY_BOT_TOKEN"
 else
-  echo "FAIL: No container runtime (docker/podman) available"
+  echo "FAIL: No container runtime (docker/podman/buildah) available"
 fi
 ```
 
-**Step 1.4c — Verify push access**
+**Step 1.4c — Verify registry read access**
 
 ```bash
-# Pull test to confirm the bot credentials grant access to the repo
+# Read-access check — confirms credentials can reach the repo (push access is verified at build time)
 if command -v skopeo &>/dev/null; then
-  skopeo inspect docker://quay.io/openshift-hive/hive:latest &>/dev/null && \
-    echo "OK: Bot can access quay.io/openshift-hive/hive" || \
-    echo "WARN: Cannot access quay.io/openshift-hive/hive — verify bot permissions"
+  skopeo inspect --no-tags docker://quay.io/openshift-hive/hive:latest &>/dev/null && \
+    echo "OK: Bot can read quay.io/openshift-hive/hive (push access verified at build time)" || \
+    echo "WARN: Cannot read quay.io/openshift-hive/hive — verify bot credentials"
 else
-  echo "INFO: skopeo not installed, skipping access verification (will fail at build time if credentials are wrong)"
+  echo "INFO: skopeo not installed, skipping read-access check (credentials verified at build time)"
 fi
 ```
 
@@ -135,17 +143,18 @@ gh api repos/${GH_USER}/community-operators --jq '.full_name' 2>/dev/null && \
 
 #### Step 1.6 — Check hive repo clone
 
+Ask the user for the path to their local hive clone and store it as `HIVE_REPO`:
+
 ```bash
+read -rp "Path to local hive repo clone: " HIVE_REPO
+HIVE_REPO="${HIVE_REPO:-$HOME/go/src/github.com/openshift/hive}"
+
 if [ -d "$HIVE_REPO" ] && [ -f "$HIVE_REPO/hack/bundle-gen.sh" ]; then
   echo "OK: Hive repo found at $HIVE_REPO"
 else
-  echo "MISSING: Hive repo clone with hack/bundle-gen.sh"
+  echo "MISSING: Hive repo clone with hack/bundle-gen.sh at $HIVE_REPO"
+  echo "Clone it with: gh repo clone openshift/hive \"$HIVE_REPO\""
 fi
-```
-
-Ask the user for the path to their local hive clone. Store it as `HIVE_REPO`. If not cloned:
-```bash
-gh repo clone openshift/hive
 ```
 
 #### Step 1.7 — Check CI registry credentials
@@ -184,13 +193,15 @@ If the user provided a commit SHA via `$1`, use that. Otherwise, identify `HEAD`
 
 ```bash
 cd "$HIVE_REPO"
-git fetch origin master
-git log --oneline -1 origin/master
+REMOTE=$(git remote -v | grep 'openshift/hive.*fetch' | awk '{print $1}' | head -1)
+REMOTE="${REMOTE:-origin}"
+git fetch "$REMOTE" master
+git log --oneline -1 "$REMOTE/master"
 ```
 
 Present the commit to the user and ask for confirmation: "Publish commit `<sha>` (`<subject>`)?"
 
-> **Important**: The commit must be on the `master` branch — `bundle-gen.sh` always uses the `1.2` version prefix regardless of the local branch. A full checkout of `master` is not required; the script works correctly from any local branch. If the user has pushed to prod and unfroze before publishing but more commits have since merged to `master`, they should specify the SHA of the prod commit via `--commit`.
+> **Important**: The commit must be on the `master` branch — `bundle-gen.sh` always uses the `1.2` version prefix regardless of the local branch. A full checkout of `master` is not required; the script produces the same output from any local branch. If the user has pushed to prod and unfroze before publishing but more commits have since merged to `master`, they should specify the SHA of the prod commit via `--commit`.
 
 #### Step 2.2 — Verify scripts are current
 
@@ -198,12 +209,20 @@ Ensure `hack/bundle-gen.sh` and `hack/version2.sh` are up to date with `master`:
 
 ```bash
 cd "$HIVE_REPO"
-git diff origin/master -- hack/bundle-gen.sh hack/version2.sh
+git diff "$REMOTE/master" -- hack/bundle-gen.sh hack/version2.sh
 ```
 
-If there are differences, warn the user and recommend updating:
+If there are differences, check for uncommitted local changes first and confirm with the user before overwriting:
+
 ```bash
-git checkout origin/master -- hack/bundle-gen.sh hack/version2.sh
+if ! git diff --quiet -- hack/bundle-gen.sh hack/version2.sh; then
+  echo "WARNING: You have local changes to these scripts."
+  echo "Review them before overwriting:"
+  git diff -- hack/bundle-gen.sh hack/version2.sh
+  read -rp "Overwrite local changes with $REMOTE/master versions? [y/N] " CONFIRM
+  [ "$CONFIRM" = "y" ] || exit 1
+fi
+git checkout "$REMOTE/master" -- hack/bundle-gen.sh hack/version2.sh
 ```
 
 #### Step 2.3 — Preview the version name
@@ -232,8 +251,11 @@ cd "$HIVE_REPO"
 GITHUB_TOKEN="$GITHUB_TOKEN" ./hack/bundle-gen.sh \
   --github-user "$GH_USER" \
   --commit "$COMMIT_SHA" \
+  ${DRY_RUN:+--dry-run} \
   ${HOLD:+--hold}
 ```
+
+Initialize `DRY_RUN` and `HOLD` from the skill's `--dry-run` and `--hold` arguments respectively before running this command.
 
 This will:
 1. Clone the hive repo and both OperatorHub repos to temp directories
@@ -247,7 +269,7 @@ This will:
 
 Extract the two PR URLs from the script output. Present them to the user:
 
-```
+```text
 Created PRs:
 - OpenShift OperatorHub: https://github.com/redhat-openshift-ecosystem/community-operators-prod/pull/XXXX
 - K8s OperatorHub: https://github.com/k8s-operatorhub/community-operators/pull/XXXX
@@ -295,7 +317,7 @@ gh pr view <PR_NUMBER> --repo redhat-openshift-ecosystem/community-operators-pro
 
 If the pipeline failed, check the PR comments for the "Pipeline Summary":
 ```bash
-gh api repos/redhat-openshift-ecosystem/community-operators-prod/pulls/<PR_NUMBER>/comments --jq '.[].body' | grep -A 20 "Pipeline Summary"
+gh api repos/redhat-openshift-ecosystem/community-operators-prod/issues/<PR_NUMBER>/comments --jq '.[].body' | grep -A 20 "Pipeline Summary"
 ```
 
 To diagnose failures: scroll to the bottom of the pipeline logs and locate the failing task. See [this example of a failed pipeline run](https://github.com/redhat-openshift-ecosystem/community-operators-prod/pull/6616#issuecomment-2956287126) for reference.
@@ -328,7 +350,7 @@ The following steps require human intervention and cannot be fully automated:
 
 ## Error Handling
 
-- **`bundle-gen.sh` fails during image push**: Verify `QUAY_BOT_TOKEN` is correct. Re-authenticate: `podman login -u="openshift-hive+hive_bot" -p="$QUAY_BOT_TOKEN" quay.io`.
+- **`bundle-gen.sh` fails during image push**: Verify `QUAY_BOT_TOKEN` is correct. Re-authenticate: `echo "$QUAY_BOT_TOKEN" | podman login -u="openshift-hive+hive_bot" --password-stdin quay.io`.
 - **`bundle-gen.sh` fails during PR creation**: Verify `GITHUB_TOKEN` has correct permissions and forks exist. Check `--github-user` matches your GitHub username.
 - **Pipeline fails post-merge**: Check the "Pipeline Summary" comment on the PR. Common issues include image SHA mismatches or catalog template conflicts. See the [manual catalog update procedure](https://github.com/openshift/hive-sops/blob/master/sop/OperatorHubWorkFlow.md#manually-updating-the-catalogs) if `release-config.yaml` was not included or failed.
 - **Version conflict**: If the `replaces` field points to a version that doesn't exist in the catalog, the bundle will fail validation. Verify the previous version exists in the OperatorHub repo.
