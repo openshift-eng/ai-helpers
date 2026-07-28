@@ -46,8 +46,21 @@ fi
 
 # Create subuid/gid entries for rootless podman
 USER_NAME="$(whoami)"
-SUBID_START="${SUBID_START:-100000}"
-SUBID_COUNT="${SUBID_COUNT:-65536}"
+# In OpenShift CI, the pod runs with hostUsers: false, which maps only 65536
+# UIDs/GIDs (0-65535) into the pod's user namespace. The host rootless-podman
+# default of 100000:65536 falls outside that range, so newuidmap/newgidmap
+# fail with EPERM. Compute the range dynamically so it always fits in 0-65535.
+# Outside hostUsers: false (e.g. a normal OpenShift pod with a large
+# SCC-assigned arbitrary UID), that computation goes negative or zero, so
+# fall back to the host rootless-podman default in that case.
+SUBID_START_DEFAULT=$(( $(id -u) + 1 ))
+SUBID_COUNT_DEFAULT=$(( 65536 - SUBID_START_DEFAULT ))
+if (( SUBID_COUNT_DEFAULT <= 0 )); then
+  SUBID_START_DEFAULT=100000
+  SUBID_COUNT_DEFAULT=65536
+fi
+SUBID_START="${SUBID_START:-$SUBID_START_DEFAULT}"
+SUBID_COUNT="${SUBID_COUNT:-$SUBID_COUNT_DEFAULT}"
 echo "${USER_NAME}:${SUBID_START}:${SUBID_COUNT}" > /etc/subuid
 echo "${USER_NAME}:${SUBID_START}:${SUBID_COUNT}" > /etc/subgid
 
