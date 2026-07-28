@@ -265,4 +265,4 @@ Output format:
 
 ## See Also
 
-- `/openshift-developer:jira-solve` -- the skill this validates readiness for
+- [/jira:solve](../../commands/solve.md) -- the command this validates readiness for

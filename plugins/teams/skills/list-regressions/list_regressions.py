@@ -184,43 +184,10 @@ def fetch_regressions(release: str) -> dict:
         raise
 
 
-def component_matches(component: str, requested: str) -> bool:
-    """
-    Check whether a regression's component matches a requested component filter.
-
-    Sippy component names can be hierarchical, using " / " as a separator
-    (e.g. "Installer / openshift-installer", "Networking / ovn-kubernetes").
-    A requested filter matches (case-insensitively) when it equals:
-      - the full component name (e.g. "Installer / openshift-installer"), or
-      - any segment of the hierarchy (e.g. "Installer" matches
-        "Installer / openshift-installer"; "Networking" matches both
-        "Networking / ovn-kubernetes" and "Networking / router").
-
-    Args:
-        component: Component name from the regression record
-        requested: Component filter provided by the user
-
-    Returns:
-        True if the filter matches the component
-    """
-    component_lower = component.lower()
-    requested_lower = requested.lower()
-
-    if component_lower == requested_lower:
-        return True
-
-    segments = [segment.strip() for segment in component_lower.split('/')]
-    return requested_lower in segments
-
-
 def filter_by_components(data: list, components: list = None) -> list:
     """
     Filter regression data by component names.
-
-    Component filters are matched hierarchically: requesting "Installer"
-    also covers "Installer / openshift-installer"; requesting "Networking"
-    covers "Networking / ovn-kubernetes", "Networking / router", etc.
-
+    
     Args:
         data: List of regression dictionaries
         components: Optional list of component names to filter by
@@ -239,11 +206,13 @@ def filter_by_components(data: list, components: list = None) -> list:
     if not components:
         return filtered
     
-    # Further filter by specified components (hierarchy-aware matching)
+    # Convert components to lowercase for case-insensitive comparison
+    components_lower = [c.lower() for c in components]
+    
+    # Further filter by specified components
     filtered = [
         regression for regression in filtered
-        if any(component_matches(regression.get('component', ''), requested)
-               for requested in components)
+        if regression.get('component', '').lower() in components_lower
     ]
     
     print(f"Filtered to {len(filtered)} regressions for components: {', '.join(components)}", 
@@ -729,9 +698,7 @@ Examples:
         type=str,
         nargs='+',
         default=None,
-        help='Filter by component names (space-separated list, case-insensitive, '
-             'hierarchy-aware: "Installer" also matches "Installer / openshift-installer", '
-             '"Networking" matches "Networking / ovn-kubernetes", "Networking / router", etc.)'
+        help='Filter by component names (space-separated list, case-insensitive)'
     )
 
     parser.add_argument(

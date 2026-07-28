@@ -1,5 +1,0 @@
-jira_key: TRT-2660
-repo: openshift-trt/sippy-eval
-base_branch: eval/rr-case-001-base
-head_branch: eval/rr-case-001-head
-setup_script: hack/agentic_setup.sh
