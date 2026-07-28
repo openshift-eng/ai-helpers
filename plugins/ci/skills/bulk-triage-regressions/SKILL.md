@@ -51,7 +51,7 @@ JIRA writes (filing bugs, `set-release-blocker`, `add-jira-triage-link`) additio
 
    Keep only **open, untriaged** regressions (empty `triages` array), but note recently-triaged ones — they are prime candidates for absorbing untriaged siblings.
 
-   **Closed regressions are out of scope — even when untriaged.** A regression whose `closed` field is set has already resolved itself; do not inventory it, cluster it, deep-dive it, or recommend retroactive triage for it. The duty batch consists solely of open untriaged regressions. Closed regressions may be *consulted* as evidence (e.g., a closed sibling that shares a root cause with an open bucket, or a closed sibling whose existing triage/JIRA an open bucket should reuse — see Pitfalls), but they must never appear as bucket members, action items, or "leftovers" in the report.
+   **Closed regressions are out of scope — even when untriaged.** A regression whose `closed` field is set has already resolved itself; do not inventory it, cluster it, deep-dive it, or recommend retroactive triage for it. The duty batch consists solely of open untriaged regressions. Closed regressions may be *consulted* as evidence (e.g., a closed sibling that shares a root cause with an open bucket, or a closed sibling whose existing triage/JIRA an open bucket should reuse — see Pitfalls), but they must never appear as bucket members, action items, or "leftovers" in the report. The only exception is the explicit closed-set audit mode (`--audit-closed`, see below), which the user must request by name — it is never part of a normal duty run.
 
 4. **Build a batch inventory table**: For every **open** untriaged regression record: regression ID, test name, component/capability, variants (Platform/Arch/Network/Topology/FeatureSet/Upgrade), opened date, failure/run counts. Present this table to the user up front so the scope of the duty run is visible. Do not include closed regressions in the inventory.
 
@@ -177,6 +177,49 @@ When a bucket has a crisp, grep-able artifact signature (an error string or log 
 4. Then apply with `"dry_run": false` to the bucket's `prowjob_run_id`s. The API caps requests at 50 IDs, but reevaluation scans GCS artifacts server-side and large batches time out at the gateway (504) — use **batches of 5–10** with a retry, check each result's `status`, and stop and report on the first failed batch or any non-`success` result rather than continuing.
 5. Match the **underlying error**, not a transient side effect: a matcher keyed on a crash/panic goes silently false-negative the moment a partial fix removes the crash while the defect persists. If the primary evidence lives in pod logs that sometimes fail to gather (dying clusters), add a fallback symptom against an artifact that survives (e.g., `pods.json` state/reason strings) mapped to the same label. When the same signature can surface under different step names (e.g., devscripts-driven vs plain IPI installs), create one symptom per file pattern, all mapped to the same label.
 
+## Closed-set audit mode (`--audit-closed`) — justify why every closed regression closed
+
+```
+bulk-triage-regressions <view> --components ... --audit-closed
+```
+
+An explicitly-requested, **read-only** mode that answers a different question than triage duty: not "who owns this failure?" but **"why did this regression close, and can we prove it?"** Every closed untriaged regression must end the audit in exactly one of these justification classes:
+
+| Class | Meaning | Proof required |
+|---|---|---|
+| `fixed` | A fix merged; closure follows it | Fix PR/bug with merge/resolution date at or before the close boundary |
+| `event-ended` | An infra/payload event ended | Event window bracketing the failures (bad payload, repo outage, cloud capacity, credentials) |
+| `intermittent-cause-open` | Pass rate recovered but the defect is still open | Signature matched to an open bug; state explicitly that closure ≠ resolution |
+| `collateral` | Closed with the window of a tracked sibling event | Signature or run overlap with the tracked event |
+| `evidence-expired` | Run history and artifacts are gone | List exactly what was checked (regression details, GCS) and the statistical argument (age, sibling consistency) — flagged, never silently absorbed |
+
+No regression may be left as "unknown". `evidence-expired` is the only permitted terminal state without a mechanism, and it must be flagged in its own report section.
+
+### Scale technique (a closed set is 5–30x a duty batch — per-regression deep-dives do not scale)
+
+1. **Inventory and cluster first**: fetch details for all members (parallel, ~8 workers is safe for the details endpoint), then cluster by (test-family, platform, featureset, close-window). Expect heavy super-clusters — in a real audit, **one bad nightly payload explained 21% of the entire closed set** (installer stamped version "0.0" panicking on every platform for one day). Always look for same-day open/close waves across platforms before analyzing anything individually.
+2. **Bypass the Sippy runs API for bulk signature extraction — it rate-limits (HTTP 429) far below audit volume, and backoff does not help at this scale.** Go to GCS directly (unthrottled, parallel-safe):
+   - *Install-family tests*: classify from the installer log (`artifacts/*/ipi-install-install*/build-log.txt`, devscripts equivalent on metal) with an ordered signature catalog (most-specific first). Seed the catalog from the view's known events and extend it with whatever the duty history has verified (ign-push 403s, cipherSuites/rev-0, toolchain download, quay pulls, registry.ci 5xx, quota, capacity, provisioning, per-operator stabilization). Guard against substring traps — a real run mis-binned 31 regressions because `lease` matched inside `release`.
+   - *Everything else*: parse the junit XML under the e2e step (`artifacts/*/<e2e-step>/artifacts/junit/junit_e2e*.xml`) with a real XML parser (regex over XML mis-matched ~95% of testcases in practice) and take the `<failure>` of the exact testcase.
+   - Sample the 2 newest failed runs per regression; extend only where signatures disagree.
+3. **Match against the full triage catalog**: fetch all existing triage records once (`/api/component_readiness/triages`) and index their regressions by test name — a closed untriaged record is very often the untriaged sibling of a triaged one, which supplies the bug and the closure mechanism for free.
+4. **Date-anchor every closure claim**: `fixed` requires the fix date ≤ close boundary (JIRA `resolutiondate`, `gh pr list --search "merged:<window>"` on the owning repo); `event-ended` requires the last failing run to fall inside the event window. The Phase 4 component-scoped JIRA listing and merge-history checks apply here unchanged.
+5. **Checkpoint long-running collection to disk and run it detached** (nohup + periodic JSON dumps): bulk GCS extraction takes tens of minutes, harness timeouts will kill foreground loops, and two concurrent writers on one results file destroy each other — one writer, atomic-ish checkpoints, verify counts after every stage.
+
+### Audit report structure
+
+1. Executive summary: category table (name, member count, one-line verdict).
+2. Method: exactly which artifact paths / APIs were used and why.
+3. Per-category narrative: mechanism, proof, closure explanation, and for `intermittent-cause-open` the explicit warning that siblings will reopen.
+4. **Per-regression appendix — one row per member, no exceptions** (ID, test, platform/featureset, opened→closed, category, evidence sample).
+5. Honest-limitations section listing every `evidence-expired` member.
+
+### Audit-specific pitfalls
+
+- **Sippy retention creates a hard evidence horizon**: regressions from the view's first tracking week may have no run history at all, and GCS artifacts expire (~3 months). Do not let the horizon silently shrink the audit — count and flag such members.
+- **The view-baseline start date masquerades as a mass event**: many unrelated regressions "open" on the view's first tracking day. Check whether a suspicious same-day open wave is simply the earliest date in the dataset before hunting for a common cause.
+- **"Closed" is not a verdict**: a closed regression whose signature maps to a still-open bug (`intermittent-cause-open`) is a prediction of future regressions — surface these in the summary so the next duty shift expects them.
+
 ## Pitfalls (learned from real duty runs)
 
 - **Left = newest** in `pass_sequence` strings. Misreading direction inverts "regressed" vs "resolved".
@@ -210,6 +253,7 @@ When a bucket has a crisp, grep-able artifact signature (an error string or log 
 - `<view>`: Component Readiness view name (e.g., `5.0-main`). Required.
 - `--components`: Space-separated component name filters, case-insensitive and hierarchy-aware (e.g., `Installer` also matches `Installer / openshift-installer`; `Networking` matches `Networking / ovn-kubernetes`, `Networking / router`, ...). Required in practice for duty scoping.
 - `--auto-triage`: Allow high-confidence buckets to be triaged without per-bucket confirmation. New bug filing always requires confirmation.
+- `--audit-closed`: Read-only closed-set audit mode (see "Closed-set audit mode") — justifies why every closed untriaged regression closed. Mutually exclusive with normal duty triage and with `--auto-triage`; performs no writes.
 
 ## See Also
 
