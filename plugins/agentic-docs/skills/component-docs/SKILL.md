@@ -27,6 +27,8 @@ Creates lean component agentic documentation for OpenShift component repositorie
 ```text
 component-repo/
 ├── AGENTS.md                      # Master entry point (80-100 lines)
+├── REVIEW.md                      # Review instructions (Claude Code Review + CodeRabbit)
+├── .coderabbit.yaml               # CodeRabbit config (points at REVIEW.md)
 └── ai-docs/
     ├── domain/                    # Component APIs/types
     ├── architecture/              # Component internals
@@ -223,6 +225,85 @@ Jira key, PR number) so I can trace it."
 - [ ] Link to Platform for generic practices
 - [ ] Document ONLY verified component-specific details (target: 100-200 lines each)
 
+### Phase 9.5: Generate REVIEW.md + .coderabbit.yaml
+
+Generates review instructions for code review tools (Claude Code Review, CodeRabbit). REVIEW.md is the single source of truth; .coderabbit.yaml is a structured sidecar that translates skip/path rules into CodeRabbit's native format. Target: 60-80 lines (soft cap 100).
+
+**Step 1 — Clone enhancements repo** (if not already present from Phase 4):
+```bash
+[ ! -d "/tmp/openshift-enhancements" ] && git clone --depth 1 https://github.com/openshift/enhancements.git /tmp/openshift-enhancements
+```
+
+**Step 2 — Read applicable dev-guide files** based on repo type detected in Phase 5:
+
+| Repo Type | Files to Read |
+|-----------|---------------|
+| **Operator** | `dev-guide/api-conventions.md`, `dev-guide/breaking-changes.md`, `dev-guide/operators.md`, `CONVENTIONS.md`, `guidelines/supportability.md`, `dev-guide/cluster-version-operator/dev/clusteroperator.md` |
+| **Library** | `dev-guide/api-conventions.md`, `CONVENTIONS.md`, `dev-guide/breaking-changes.md` |
+| **CLI** | `CONVENTIONS.md`, `dev-guide/breaking-changes.md` |
+
+Extract ONLY diff-enforceable rules — rules that can be checked by looking at a code diff. Discard vague guidance ("should consider...") and retain imperative rules ("Flag X as must-fix", "Never allow Y").
+
+**Step 3 — Chai-bot verification** (optional, requires chai-bot MCP server):
+
+Verify extracted platform rules are still current. If chai-bot is unavailable, skip — include all extracted rules (err on side of inclusion).
+
+```
+mcp__chai-bot__ask_persona:
+"I'm generating REVIEW.md for {component} (github.com/openshift/{component}).
+I extracted these enforceable review rules from openshift/enhancements dev-guide.
+Are these still current? Have any been superseded, relaxed, or tightened?
+
+1. [Rule 1 from Step 2]
+2. [Rule 2 from Step 2]
+...
+(list top 5-8 most critical rules for the detected repo type)
+
+For each rule: confirm current, superseded (by what), or unknown."
+```
+
+**Filtering**: Discard rules chai-bot confirms are superseded. Keep confirmed + unverified (err on side of inclusion). DISCARD any claims about repo internals — chai-bot fabricates these.
+
+**Step 4 — Collect skip patterns** from Phase 5 discoveries:
+- [ ] Generated code inventory (zz_generated*, clientset, informers, listers, bindata, protobuf, payload-manifests)
+- [ ] Vendored dependencies (vendor/**)
+- [ ] CI-enforced checks (from Phase 5 CI enforcement discovery)
+- [ ] Lockfiles (go.sum, go.mod)
+- [ ] Generated dashboards/assets if present
+
+**Step 5 — Extract path-specific rules** from Phase 5 discoveries:
+- [ ] Framework split table (which controllers use which apply method)
+- [ ] Anti-patterns per package/directory
+- [ ] Naming conventions per area
+- [ ] Test conventions (Jira annotations, JUnit output, scoping)
+
+**Step 6 — Calibrate severity** by repo type:
+
+| Repo Type | Must-Fix Categories |
+|-----------|-------------------|
+| **Operator** | Incorrect reconciliation logic, unscoped queries crossing tenant boundaries, resource leaks, upgrade/downgrade safety violations, breaking changes to GA openshift.io APIs, security vulnerabilities, `Available=False` or `Degraded=True` during normal upgrade, premature version bump in ClusterOperator status, tolerating `node.kubernetes.io/unschedulable` |
+| **Library** | API convention violations (bool fields, annotation-based APIs, missing validation markers, pointer misuse in CRDs), breaking changes to stable APIs, functions added to openshift/api |
+| **CLI** | Breaking changes to CLI behavior, security vulnerabilities, incorrect error codes |
+
+Style and naming issues are minor at most for all repo types.
+
+**Step 7 — Generate REVIEW.md**:
+- [ ] Use `templates/REVIEW-template.md` for structure
+- [ ] Fill each section from Steps 2-6, stripping template comments from output
+- [ ] Use tool-agnostic severity language ("must fix before merge" / "worth fixing, not blocking" / "suggestion only")
+- [ ] Use glob patterns for skip rules, not prose descriptions
+- [ ] Cite the dev-guide source for each "Always check" rule (parenthetical at end of line)
+- [ ] Validate line count: target 60-80 lines, soft cap 100
+- [ ] **Do NOT** copy CLAUDE.md content — different purposes
+
+**Step 8 — Generate/merge .coderabbit.yaml**:
+- [ ] Use `templates/coderabbit-template.yaml` for structure
+- [ ] Translate "Do not report" globs to negated `path_filters` (e.g., `!zz_generated*`)
+- [ ] Translate "Path-specific rules" subsections to `path_instructions` entries
+- [ ] Set `knowledge_base.filePatterns` to `["REVIEW.md"]` — **NEVER add CLAUDE.md** (auto-detected separately)
+- [ ] If a `.coderabbit.yaml` already exists in the repo, merge: preserve existing settings (profile, auto_review, pre_merge_checks), add/update `knowledge_base`, `path_filters`, and `path_instructions`
+- [ ] Validate YAML syntax: `python3 -c "import yaml; yaml.safe_load(open('.coderabbit.yaml'))"`
+
 ### Phase 10: Validation & Verification
 
 - [ ] Run `bash "$SKILL_DIR/scripts/validate.sh" "$REPO_PATH"` (includes link validation)
@@ -230,6 +311,8 @@ Jira key, PR number) so I can trace it."
 - [ ] **Verify specificity**: Repo structure only in components.md (not duplicated in DEVELOPMENT.md), pattern claims backed by code evidence
 - [ ] **Anti-hallucination checks**: Spot-check type fields if applicable, verify branch names in examples match repo, confirm pattern claims reference actual code
 - [ ] **Operator-specific checks** (if operator repo): Verify apply method claims per-controller (`grep -r "client.Apply\|r.Update\|resourceapply" pkg/controller/<name>/`). Verify feature gate claims trace to actual runtime code. Verify image env var names match Makefile/CSV.
+- [ ] **REVIEW.md checks** (if generated): exists at repo root, ≤100 lines (`wc -l REVIEW.md`), skip paths reference real directories (`test -d`), platform citations present (grep for "dev-guide" or "CONVENTIONS"), no content overlap with CLAUDE.md
+- [ ] **.coderabbit.yaml checks** (if generated): valid YAML (`python3 -c "import yaml; yaml.safe_load(open('.coderabbit.yaml'))"`), `filePatterns` contains "REVIEW.md" but NOT "CLAUDE.md", `path_filters` match "Do not report" globs, `path_instructions` match "Path-specific rules"
 - [ ] Verify all domain/*.md files link to actual type definitions
 - [ ] Cross-check with openshift-docs if time permits
 - [ ] **Flag discovery gaps**: At the end of components.md and DEVELOPMENT.md, add a brief "SME Review Recommended" note listing areas where automated discovery may be incomplete — typically: implementation recipes for adding new components, anti-patterns from institutional knowledge, and rationale behind pattern choices. This sets expectations that the docs are a verified foundation, not a complete implementation guide
@@ -272,6 +355,9 @@ Use this checklist during Phase 5 when exploring the codebase. These patterns pr
 | **Naming conventions** | Grep for patterns in env vars, labels, file names, package names | Exact format with examples |
 | **Feature toggles** | Are there feature gates, flags, or config-driven enablement? | Definition → runtime check → wiring chain |
 | **Anti-patterns** | Search for "DO NOT", "NEVER", "MUST", "HACK" in code comments. Study 2-3 existing implementations to identify shared patterns and things they avoid | Numbered "DO NOT" list with brief explanation |
+| **CI enforcement** | `grep -E "^(lint\|fmt\|vet\|check\|verify):" Makefile` | CI-enforced checks → "Do not report" in REVIEW.md |
+| **High-risk areas** | `git log --since="1 year" --name-only --pretty=format: \| sort \| uniq -c \| sort -rn \| head -20` | High-churn files → severity tuning in REVIEW.md |
+| **Vendored API boundaries** | `ls vendor/github.com/openshift/api 2>/dev/null` | Vendored API types → "Always check" in REVIEW.md |
 
 ### Operator-Specific Discovery
 
@@ -329,6 +415,8 @@ When the repo is a Kubernetes/OpenShift operator (detected via controller-runtim
 
 ✅ **Operator accuracy** (if operator repo): Apply method documented per-controller (not assumed uniform), feature gate runtime behavior traced, generated code inventory listed, image resolution mechanism documented
 
+✅ **REVIEW.md** (if generated): At repo root, 60-80 lines (cap 100), skip paths valid, platform citations present, no CLAUDE.md overlap, .coderabbit.yaml in sync
+
 ## Anti-Patterns
 
 ### ❌ DON'T duplicate Platform content
@@ -379,6 +467,8 @@ Repository: [path]
 
 Structure:
   ✅ AGENTS.md (root): XX lines (target: 80-100)
+  ✅ REVIEW.md: XX lines (target: 60-80)
+  ✅ .coderabbit.yaml: valid, synced with REVIEW.md
   ✅ Domain concepts: N files
   ✅ Architecture: components.md
   ✅ Component ADRs: N files

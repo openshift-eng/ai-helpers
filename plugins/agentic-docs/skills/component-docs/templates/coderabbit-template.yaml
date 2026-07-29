@@ -1,0 +1,43 @@
+# CodeRabbit configuration — structured sidecar for REVIEW.md
+#
+# Phase 9.5 generates this file alongside REVIEW.md. The two must stay in sync:
+# - knowledge_base.filePatterns points at REVIEW.md (NEVER add CLAUDE.md — auto-detected)
+# - path_filters mirrors "Do not report" skip patterns from REVIEW.md (negated globs)
+# - path_instructions mirrors "Path-specific rules" from REVIEW.md
+#
+# This template shows the structure. Phase 9.5 fills in repo-specific values.
+
+knowledge_base:
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - "REVIEW.md"
+      # NEVER add CLAUDE.md here — CodeRabbit auto-detects it separately
+
+reviews:
+  path_filters:
+    # Phase 9.5: Translate "Do not report" globs to negated path_filters.
+    # Each entry is a negated glob — CodeRabbit skips matching files.
+    # Example entries (replace with actual Phase 5 discoveries):
+    #
+    # - "!zz_generated*"
+    # - "!**/clientset/**"
+    # - "!**/informers/**"
+    # - "!**/listers/**"
+    # - "!vendor/**"
+    # - "!assets/**"
+
+  path_instructions:
+    # Phase 9.5: Translate "Path-specific rules" subsections to path_instructions.
+    # Each entry maps a glob path to review instructions.
+    # Example entries (replace with actual Phase 5 discoveries):
+    #
+    # - path: "pkg/controller/**"
+    #   instructions: |
+    #     Verify apply method matches existing controllers. Do not mix
+    #     SSA and strategic merge within the same controller.
+    #
+    # - path: "test/**"
+    #   instructions: |
+    #     Jira component annotation required. Always produce JUnit
+    #     result. Narrow scope.
