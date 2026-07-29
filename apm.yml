@@ -1,0 +1,49 @@
+name: ai-helpers
+version: 1.0.0
+description: OpenShift AI Helpers — Claude Code plugins deployed as agent-skills for Codex and other agents
+author: openshift-eng
+targets:
+  - agent-skills
+dependencies:
+  apm:
+    - openshift-eng/ai-helpers/plugins/agendas
+    - openshift-eng/ai-helpers/plugins/agentic-docs
+    - openshift-eng/ai-helpers/plugins/ai-sbom
+    - openshift-eng/ai-helpers/plugins/bigquery
+    - openshift-eng/ai-helpers/plugins/ci
+    - openshift-eng/ai-helpers/plugins/ci-extras
+    - openshift-eng/ai-helpers/plugins/code-review
+    - openshift-eng/ai-helpers/plugins/compliance
+    - openshift-eng/ai-helpers/plugins/console
+    - openshift-eng/ai-helpers/plugins/etcd
+    - openshift-eng/ai-helpers/plugins/git
+    - openshift-eng/ai-helpers/plugins/github
+    - openshift-eng/ai-helpers/plugins/golang
+    - openshift-eng/ai-helpers/plugins/hcp
+    - openshift-eng/ai-helpers/plugins/jira
+    - openshift-eng/ai-helpers/plugins/marketplace-ops
+    - openshift-eng/ai-helpers/plugins/metrics
+    - openshift-eng/ai-helpers/plugins/must-gather
+    - openshift-eng/ai-helpers/plugins/node
+    - openshift-eng/ai-helpers/plugins/node-bug
+    - openshift-eng/ai-helpers/plugins/node-cve
+    - openshift-eng/ai-helpers/plugins/node-onboarding
+    - openshift-eng/ai-helpers/plugins/node-rpm
+    - openshift-eng/ai-helpers/plugins/node-team
+    - openshift-eng/ai-helpers/plugins/node-tuning
+    - openshift-eng/ai-helpers/plugins/olm
+    - openshift-eng/ai-helpers/plugins/olm-team
+    - openshift-eng/ai-helpers/plugins/openshift
+    - openshift-eng/ai-helpers/plugins/openshift-developer
+    - openshift-eng/ai-helpers/plugins/openshift-tls-profile
+    - openshift-eng/ai-helpers/plugins/ote-migration
+    - openshift-eng/ai-helpers/plugins/prow-agent
+    - openshift-eng/ai-helpers/plugins/rds-analyzer
+    - openshift-eng/ai-helpers/plugins/snowflake
+    - openshift-eng/ai-helpers/plugins/sosreport
+    - openshift-eng/ai-helpers/plugins/teams
+    - openshift-eng/ai-helpers/plugins/utils
+    - openshift-eng/ai-helpers/plugins/workspaces
+  mcp: []
+includes: auto
+scripts: {}
