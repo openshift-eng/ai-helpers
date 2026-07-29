@@ -1,0 +1,20 @@
+difficulty: medium
+pr_number: 3637
+original_base_sha: a1e5b830d3be800c75ffa8db2756f02301c2ab95
+original_expected_sha: 1905d67645ddf1aaf06a76d27f415ac7294503d5
+expected_files_changed:
+  - mcp/server.py
+  - mcp/test_server.py
+description: >
+  Fix sippy_serve MCP tool reporting server ready before HTTP API is
+  available. Add _wait_for_url() helper that polls the HTTP endpoint
+  with PID liveness checking. Narrow exception handling from bare
+  except to specific network errors. Add unit tests.
+key_signals:
+  - "_wait_for_url() helper added to server.py"
+  - "URL polling before reporting ready"
+  - "unit tests for _pid_alive and _wait_for_url added"
+  - "exception handling narrowed to URLError, OSError, TimeoutError"
+notes: >
+  Tests adding new code with tests, not just fixing existing code.
+  Requires understanding the MCP server startup lifecycle.
