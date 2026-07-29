@@ -67,7 +67,7 @@ COPY images/known_marketplaces.json /home/claude/.claude/plugins/known_marketpla
 RUN chown -R claude:root /home/claude
 
 # Deploy ai-helpers plugins as agent-skills (for Codex and other agents)
-RUN cd /opt/ai-helpers && apm install --target agent-skills
+RUN cd /opt/ai-helpers && apm install --target agent-skills --root /workspace
 
 # Create workspace directory
 RUN mkdir -p /workspace && chown -R claude:root /workspace
