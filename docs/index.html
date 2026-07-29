@@ -541,7 +541,7 @@ footer a { color: var(--primary); }
     {
       "name": "ci",
       "description": "Tools for working with OpenShift CI and analyzing Prow job results",
-      "version": "0.0.75",
+"version": "0.0.76",
       "has_readme": true,
       "commands": [
         {
@@ -732,6 +732,12 @@ footer a { color: var(--primary); }
           "name": "analyze-disruption",
           "description": "Analyze and compare disruption across one or more Prow CI job runs by examining interval data, audit logs, pod logs, and CPU metrics",
           "description_html": "Analyze and compare disruption across one or more Prow CI job runs by examining interval data, audit logs, pod logs, and CPU metrics",
+          "meta": ""
+        },
+        {
+          "name": "bulk-triage-regressions",
+          "description": "Use this skill for Component Readiness triage duty - holistically analyze and triage all untriaged regressions for a set of components in a view, clustering them into root-cause buckets",
+          "description_html": "Use this skill for Component Readiness triage duty - holistically analyze and triage all untriaged regressions for a set of components in a view, clustering them into root-cause buckets",
           "meta": ""
         },
         {
@@ -1456,7 +1462,7 @@ footer a { color: var(--primary); }
     {
       "name": "jira",
       "description": "A plugin to automate tasks with Jira",
-      "version": "0.8.6",
+      "version": "0.8.7",
       "has_readme": true,
       "commands": [
         {
@@ -1562,14 +1568,6 @@ footer a { color: var(--primary); }
           "description_html": "Install and configure the gh2jira utility with all required tools and credentials",
           "synopsis": "/jira:setup-gh2jira",
           "body_html": "\u003cp\u003eThe \u003ccode\u003ejira:setup-gh2jira\u003c/code\u003e command guides you through the complete installation and configuration of the \u003ca href=\"https://github.com/oceanc80/gh2jira\"\u003egh2jira utility\u003c/a\u003e, which enables cloning and reconciling GitHub issues with Jira. This command:\u003c/p\u003e\u003cp\u003e- Checks for and installs required dependencies (Go)\u003cbr\u003e- Clones and builds the gh2jira utility\u003cbr\u003e- Guides you through creating GitHub and Jira API Tokens\u003cbr\u003e- Creates and configures \u003ccode\u003etokenstore.yaml\u003c/code\u003e with your credentials\u003cbr\u003e- Optionally creates \u003ccode\u003eprofiles.yaml\u003c/code\u003e for project shortcuts\u003cbr\u003e- Creates default \u003ccode\u003eworkflows.yaml\u003c/code\u003e for state mapping\u003cbr\u003e- Adds gh2jira to your PATH for easy access\u003c/p\u003e"
-        },
-        {
-          "name": "solve",
-          "full_name": "jira:solve",
-          "description": "Analyze a JIRA issue and create a pull request to solve it.",
-          "description_html": "Analyze a JIRA issue and create a pull request to solve it.",
-          "synopsis": "/jira:solve \u003cjira-issue-id\u003e [remote] [--ci]",
-          "body_html": "\u003cp\u003eThe \u003ccode\u003ejira:solve\u003c/code\u003e command analyzes a JIRA issue and creates a pull request to solve it.\u003c/p\u003e\u003cp\u003eThis command takes a JIRA URL, fetches the issue description and requirements, analyzes the codebase to understand how to implement the solution, and creates a comprehensive pull request with the necessary changes.\u003c/p\u003e\u003cp\u003e\u003cstrong\u003eUsage Examples:\u003c/strong\u003e\u003c/p\u003e\u003cp\u003e1. \u003cstrong\u003eSolve a specific JIRA issue\u003c/strong\u003e:\u003cbr\u003e   ``\u003ccode\u003e\u003cbr\u003e   /jira:solve OCPBUGS-12345 origin\u003cbr\u003e   \u003c/code\u003e``\u003c/p\u003e"
         },
         {
           "name": "status-rollup",
@@ -2789,7 +2787,7 @@ footer a { color: var(--primary); }
     {
       "name": "teams",
       "description": "Team structure knowledge and health analysis commands for OpenShift teams",
-      "version": "0.0.15",
+      "version": "0.0.16",
       "has_readme": true,
       "commands": [
         {
