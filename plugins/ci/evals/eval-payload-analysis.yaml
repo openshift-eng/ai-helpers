@@ -69,6 +69,10 @@ dataset:
       - 'expected_candidates': list of expected revert candidates with pr_url,
         component, min_confidence, expected_confidence, description,
         expected_failing_jobs
+      - 'forbidden_revert_candidates': PR URLs that must not be recommended at
+        revert confidence or marked revert-eligible
+      - 'required_claims': causal findings that must appear in the analysis;
+        each entry supplies a name and a list of acceptable evidence phrases
       - 'notes': free text context
 
     Snapshots are stored as tar.gz archives in
@@ -270,16 +274,114 @@ judges:
       GitHub lookups. Immutable commit endpoints and timestamp-bounded commit
       searches remain allowed.
     check: |
-      import json, re
+      import json, re, urllib.parse, yaml
+      from datetime import datetime, timezone
+
       stdout = outputs.get("stdout", "")
       violations = []
+      shell_vars = {}
 
-      def github_url(value):
-          return re.search(
-              r"https?://(?:api\.|raw\.)?github(?:usercontent)?\.com",
-              value or "",
-              re.I,
+      case_data = outputs.get("annotations", {})
+
+      def absolute_time(value):
+          value = urllib.parse.unquote((value or "").strip().strip("\"'"))
+          variable = re.fullmatch(r"\$(?:\{([A-Za-z_]\w*)\}|([A-Za-z_]\w*))", value)
+          if variable:
+              value = shell_vars.get(variable.group(1) or variable.group(2), "")
+          if not value or value.lower() in {"now", "today", "yesterday", "tomorrow"}:
+              return None
+          try:
+              if re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
+                  return datetime.fromisoformat(value).replace(tzinfo=timezone.utc)
+              parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+              if parsed.tzinfo is None:
+                  return None
+              return parsed
+          except ValueError:
+              return None
+
+      cutoff_text = (
+          case_data.get("analysis_cutoff", "")
+          if isinstance(case_data, dict)
+          else ""
+      )
+      cutoff = absolute_time(cutoff_text)
+
+      def remember_absolute_assignments(command):
+          assignment = re.compile(
+              r"(?:^|[\s;])([A-Za-z_]\w*)\s*=\s*"
+              r"(?:\"([^\"]+)\"|'([^']+)'|([^\s;&|]+))"
           )
+          for match in assignment.finditer(command):
+              value = match.group(2) or match.group(3) or match.group(4)
+              if absolute_time(value):
+                  shell_vars[match.group(1)] = value
+
+      def check_bound(value, context):
+          parsed = absolute_time(value)
+          if parsed is None:
+              violations.append(
+                  f"{context} uses a relative or unresolved cutoff: {value}"
+              )
+          elif cutoff is not None and parsed > cutoff:
+              violations.append(
+                  f"{context} exceeds analysis cutoff {cutoff_text}: {value}"
+              )
+
+      def is_github_url(value):
+          try:
+              host = (urllib.parse.urlsplit(value).hostname or "").lower()
+          except ValueError:
+              return False
+          return host in {
+              "github.com",
+              "api.github.com",
+              "raw.githubusercontent.com",
+          }
+
+      def is_immutable_github_url(value):
+          try:
+              parsed = urllib.parse.urlsplit(value)
+          except ValueError:
+              return False
+          host = (parsed.hostname or "").lower()
+          path = parsed.path
+          sha = r"[0-9a-fA-F]{40}"
+          if host == "api.github.com":
+              if re.fullmatch(
+                  rf"/repos/[^/]+/[^/]+/(?:git/)?commits/{sha}", path
+              ):
+                  return True
+              if re.fullmatch(r"/repos/[^/]+/[^/]+/contents/.+", path):
+                  ref = urllib.parse.parse_qs(parsed.query).get("ref", [""])[0]
+                  return bool(re.fullmatch(sha, ref))
+          if host == "raw.githubusercontent.com":
+              return bool(re.fullmatch(rf"/[^/]+/[^/]+/{sha}/.+", path))
+          if host == "github.com":
+              return bool(
+                  re.fullmatch(
+                      rf"/[^/]+/[^/]+/(?:commit/{sha}(?:\.(?:diff|patch))?|"
+                      rf"(?:blob|raw)/{sha}/.+)",
+                      path,
+                  )
+              )
+          return False
+
+      def is_completed_agent_report(value):
+          return (
+              "claude-payload-agent" in value
+              and "/artifacts/" in value
+              and re.search(r"payload-analysis-.+-summary\.html(?:\?.*)?$", value)
+          )
+
+      def check_external_url(url, context):
+          url = url.rstrip("),.;")
+          if is_github_url(url) and not is_immutable_github_url(url):
+              violations.append(f"{context} used mutable GitHub URL: {url}")
+          if "claude-payload-agent" in url and not is_completed_agent_report(url):
+              violations.append(
+                  f"{context} used live/current Payload Agent URL: {url}"
+              )
 
       for line in stdout.splitlines():
           try:
@@ -305,12 +407,12 @@ judges:
 
               if name == "WebFetch":
                   url = tool_input.get("url", "")
-                  if github_url(url) or "claude-payload-agent" in url:
-                      violations.append(f"Fetched mutable or post-hoc URL: {url}")
+                  check_external_url(url, "WebFetch")
 
               if name != "Bash":
                   continue
               command = tool_input.get("command", "")
+              remember_absolute_assignments(command)
               if re.search(
                   r"(?:annotations\.yaml|evals/cases/payload-analysis/README\.md|"
                   r"/comments\.json)",
@@ -324,12 +426,13 @@ judges:
                   r"\bgh\s+search\b",
                   r"\bgh\s+api\s+graphql\b",
                   r"\bgh\s+api\b[^\n]*(?:/pulls|/issues|/comments|/reviews)",
-                  r"\b(?:curl|wget)\b[^\n]*"
-                  r"(?:api\.)?github\.com",
                   r"\bgit\s+fetch\b[^\n]*(?:refs/)?pull/",
               )
               if any(re.search(pattern, command, re.I) for pattern in mutable_gh):
                   violations.append(f"Unbounded mutable GitHub lookup: {command[:180]}")
+
+              for url in re.findall(r"https?://[^\s'\"<>]+", command, re.I):
+                  check_external_url(url, "Bash")
 
               git_log_pattern = (
                   r"\bgit(?:\s+-C\s+(?:\"[^\"]*\"|'[^']*'|\S+))?"
@@ -337,21 +440,139 @@ judges:
               )
               for match in re.finditer(git_log_pattern, command, re.I):
                   invocation = match.group(0)
-                  if not re.search(r"--(?:until|before)(?:=|\s)", invocation, re.I):
+                  bounds = list(
+                      re.finditer(
+                          r"--(?:until|before)(?:=|\s+)"
+                          r"(?P<value>\"[^\"]+\"|'[^']+'|[^\s;&|]+)",
+                          invocation,
+                          re.I,
+                      )
+                  )
+                  if not bounds:
                       violations.append(
                           f"Git history lookup lacks a cutoff: {invocation[:180]}"
                       )
+                  for bound in bounds:
+                      check_bound(bound.group("value"), "Git history lookup")
 
-              if re.search(r"\bgh\s+api\b[^\n]*/commits\?", command, re.I):
-                  if "until=" not in command:
+              for api_call in re.finditer(
+                  r"\bgh\s+api\b[^\n;|]*?/commits(?:\?|[\"'\s]|$)[^\n;|]*",
+                  command,
+                  re.I,
+              ):
+                  invocation = api_call.group(0)
+                  if re.search(
+                      r"/commits/[0-9a-f]{40}(?:[\"'\s]|$)",
+                      invocation,
+                      re.I,
+                  ):
+                      continue
+                  bounds = re.findall(
+                      r"(?:[?&]|\\u0026)until=([^&\s'\"\\]+)",
+                      invocation,
+                      re.I,
+                  )
+                  if not bounds:
                       violations.append(
-                          f"GitHub commit search lacks an until cutoff: {command[:180]}"
+                          f"GitHub commit search lacks an until cutoff: "
+                          f"{invocation[:180]}"
                       )
+                  for bound in bounds:
+                      check_bound(bound, "GitHub commit search")
 
       if violations:
           unique = list(dict.fromkeys(violations))
           return (False, "; ".join(unique[:8]))
       return (True, "No obvious annotation leakage or unbounded mutable GitHub lookups")
+
+  - name: case_constraints
+    description: |
+      Machine-check expected candidates, forbidden high-confidence revert
+      recommendations, and required causal findings from case annotations.
+    check: |
+      import os, yaml
+
+      case_data = outputs.get("annotations", {})
+      if not isinstance(case_data, dict):
+          return (False, "Case annotations are unavailable to deterministic judge")
+
+      all_files = {
+          **outputs.get("files", {}),
+          **outputs.get("modified_files", {}),
+      }
+      result_files = {
+          path: content for path, content in all_files.items()
+          if os.path.basename(path).startswith("payload-results-")
+          and path.endswith(".yaml")
+      }
+      if not result_files:
+          return (False, "No payload results YAML found")
+      try:
+          result = yaml.safe_load(next(iter(result_files.values()))) or {}
+      except yaml.YAMLError as exc:
+          return (False, f"Invalid payload results YAML: {exc}")
+
+      candidates = result.get("candidates", []) or []
+      by_url = {
+          str(candidate.get("pr_url", "")).rstrip("/").lower(): candidate
+          for candidate in candidates
+          if isinstance(candidate, dict)
+      }
+      failures = []
+
+      for expected in case_data.get("expected_candidates", []) or []:
+          url = str(expected.get("pr_url", "")).rstrip("/").lower()
+          candidate = by_url.get(url)
+          if candidate is None:
+              failures.append(f"Missing expected candidate {url}")
+              continue
+          minimum = int(expected.get("min_confidence", 0))
+          actual = int(candidate.get("confidence_score", 0))
+          if actual < minimum:
+              failures.append(
+                  f"Expected candidate {url} scored {actual}, below {minimum}"
+              )
+
+      for url in case_data.get("forbidden_revert_candidates", []) or []:
+          normalized = str(url).rstrip("/").lower()
+          candidate = by_url.get(normalized)
+          if candidate is None:
+              continue
+          confidence = int(candidate.get("confidence_score", 0))
+          eligible = candidate.get("revert_eligible") is True
+          if confidence >= 85 or eligible:
+              failures.append(
+                  f"Forbidden revert candidate {normalized} remained actionable "
+                  f"(confidence={confidence}, revert_eligible={eligible})"
+              )
+
+      generated = {
+          path: content for path, content in all_files.items()
+          if path.endswith("-summary.html")
+          or (
+              os.path.basename(path).startswith("payload-results-")
+              and path.endswith(".yaml")
+          )
+          or path.endswith("-autodl.json")
+      }
+      searchable = "\n".join(str(content) for content in generated.values()).lower()
+      for claim in case_data.get("required_claims", []) or []:
+          alternatives = [
+              str(value).lower()
+              for value in claim.get("any_of", [])
+              if value
+          ]
+          if alternatives and not any(value in searchable for value in alternatives):
+              failures.append(
+                  f"Missing required causal claim: {claim.get('name')}"
+              )
+
+      if failures:
+          return (False, "; ".join(failures))
+      return (
+          True,
+          "Expected, forbidden, and required causal constraints satisfied",
+      )
 
   - name: analysis_quality
     description: |
@@ -409,6 +630,8 @@ judges:
         rather than generic (just restating test names)?
       - If expected_candidates are listed in annotations, are they identified with
         evidence-based rationale?
+      - Are every required_claim and discriminating signal established from
+        evidence, and are must_not_conclude claims avoided?
       - Does the HTML report contain actionable information?
 
   - name: revert_scoring_accuracy
@@ -452,7 +675,8 @@ judges:
       If expected_candidates are listed in annotations, those PRs should be
       identified with confidence >= min_confidence and linked to the
       expected_failing_jobs. If expected_candidates is empty, no false positive
-      revert recommendations should appear.
+      revert recommendations should appear. Any forbidden_revert_candidates
+      must remain below revert confidence and must not be marked revert-eligible.
 
       Evaluate on a 1-5 scale:
 
@@ -506,9 +730,11 @@ judges:
 
       Judge evidence provenance, not whether hindsight happened to produce the
       right answer. Evidence is admissible only when its event or observation
-      timestamp is at or before `analysis_cutoff`. Immutable code and CI
-      artifacts from runs completed by the cutoff are admissible. The report's
-      later generation timestamp is harmless.
+      timestamp is at or before `analysis_cutoff`. SHA-pinning alone does not
+      make code contemporaneous: the cited commit must have existed by the
+      cutoff. CI artifacts and previous agent reports are admissible only when
+      their Prow jobs completed by the cutoff. Missing provenance caps the score
+      at 3. The report's later generation timestamp is harmless.
 
       Treat these as post-hoc leakage when they occur after the cutoff:
       - a later revert, its merge, or its experimental CI results;
@@ -552,6 +778,8 @@ thresholds:
   revert_scoring_accuracy:
     min_mean: 3.0
   point_in_time_trace_hygiene:
+    min_pass_rate: 1.0
+  case_constraints:
     min_pass_rate: 1.0
   point_in_time_integrity:
     min_mean: 4.0

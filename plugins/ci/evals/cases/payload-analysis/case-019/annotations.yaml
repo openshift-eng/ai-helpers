@@ -6,6 +6,24 @@ analysis_cutoff: "2026-07-25T16:05:26Z"
 
 expected_candidates: []
 
+forbidden_revert_candidates:
+  - "https://github.com/openshift/api/pull/2920"
+  - "https://github.com/openshift/api/pull/2923"
+
+required_claims:
+  - name: "disjoint interval arithmetic defect"
+    any_of:
+      - "disjoint waiting"
+      - "healthy gaps"
+      - "interval union"
+      - "sum of actual intervals"
+      - "summed waiting time"
+  - name: "test framework rather than product regression"
+    any_of:
+      - "test-framework arithmetic defect"
+      - "monitor test computes duration"
+      - "test defect"
+
 must_not_conclude:
   - "openshift/api PR #2920 caused ClusterOperator availability regressions and should be reverted"
   - "openshift/api PR #2923 caused ClusterOperator availability regressions and should be reverted"

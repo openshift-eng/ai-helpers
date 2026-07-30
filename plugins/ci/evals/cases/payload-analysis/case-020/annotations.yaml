@@ -6,6 +6,30 @@ analysis_cutoff: "2026-07-29T13:32:49Z"
 
 expected_candidates: []
 
+forbidden_revert_candidates:
+  - "https://github.com/openshift/ovn-kubernetes/pull/3298"
+  - "https://github.com/openshift/cloud-provider-azure/pull/164"
+
+required_claims:
+  - name: "GCP infrastructure trigger precedes fallout"
+    any_of:
+      - "external vip reachability precedes"
+      - "vips were externally unreachable"
+      - "pre-upgrade network reachability loss"
+  - name: "Azure DNS trigger"
+    any_of:
+      - "dns 429"
+      - "dns throttling"
+  - name: "Azure provisioning failure precedes disk attach"
+    any_of:
+      - "osprovisioningtimedout"
+      - "provisioning timeout"
+  - name: "terminal symptoms are not the initial trigger"
+    any_of:
+      - "cleanup fallout"
+      - "amplifies the failure"
+      - "terminal symptom"
+
 must_not_conclude:
   - "openshift/ovn-kubernetes PR #3298 caused the GCP external-container panic and should be reverted"
   - "openshift/cloud-provider-azure PR #164 introduced the empty VirtualMachine update and should be reverted"

@@ -14,6 +14,22 @@ expected_candidates:
       - "aws-ovn-techpreview-serial-1of3"
       - "aws-ovn-techpreview-serial-2of3"
 
+forbidden_revert_candidates:
+  - "https://github.com/openshift/hypershift/pull/8871"
+
+required_claims:
+  - name: "cross-tenant etcd evidence contamination"
+    any_of:
+      - "cross-tenant"
+      - "aggregates away namespace"
+      - "discards namespace identity"
+  - name: "target etcd pod did not roll"
+    any_of:
+      - "restartcount=0"
+      - "restart count was 0"
+      - "target etcd-0 has no restart"
+      - "no target statefulset rollout"
+
 must_not_conclude:
   - "HyperShift PR #8871 caused the etcd leader-change failures by rolling or restarting the target HostedCluster etcd StatefulSet"
   - "The first payload where the aggregated HyperShift test name failed proves that PR #8871 introduced the underlying leader-election signature"
