@@ -67,7 +67,7 @@ Prefer exporting `SIPPY_TOKEN` as above rather than passing `--token` on the com
 ### Step 2: Create a Label
 
 ```bash
-python3 plugins/ci/skills/manage-labels/manage_labels.py create \
+python3 plugins/ci-extras/skills/manage-labels/manage_labels.py create \
   --title "Cluster DNS Flake" \
   --explanation "DNS lookups inside the cluster intermittently time out."
 ```
@@ -79,7 +79,7 @@ The label `id` is generated from the title by the server if you omit `--id`. Pas
 Only pass the flags you want to change — the script fetches the existing label and merges, because the API's PUT is a full replacement:
 
 ```bash
-python3 plugins/ci/skills/manage-labels/manage_labels.py update \
+python3 plugins/ci-extras/skills/manage-labels/manage_labels.py update \
   --id ClusterDNSFlake \
   --explanation "DNS lookups inside the cluster intermittently time out. Usually caused by node-local DNS cache restarts."
 ```
@@ -87,17 +87,17 @@ python3 plugins/ci/skills/manage-labels/manage_labels.py update \
 To hide a label from certain UI contexts:
 
 ```bash
-python3 plugins/ci/skills/manage-labels/manage_labels.py update \
+python3 plugins/ci-extras/skills/manage-labels/manage_labels.py update \
   --id ClusterDNSFlake \
   --hide-display-contexts "spyglass,metrics"
 ```
 
 ### Step 4: Delete a Label
 
-**Before deleting, you MUST show the label to the user (fetch it with the `list-symptoms` skill: `python3 plugins/ci/skills/list-symptoms/list_symptoms.py --labels --id <id> --format summary`) and get their explicit confirmation. Never run delete without the user confirming the specific label.**
+**Before deleting, you MUST show the label to the user (fetch it with the `list-symptoms` skill: `python3 plugins/ci-extras/skills/list-symptoms/list_symptoms.py --labels --id <id> --format summary`) and get their explicit confirmation. Never run delete without the user confirming the specific label.**
 
 ```bash
-python3 plugins/ci/skills/manage-labels/manage_labels.py delete \
+python3 plugins/ci-extras/skills/manage-labels/manage_labels.py delete \
   --id ClusterDNSFlake
 ```
 

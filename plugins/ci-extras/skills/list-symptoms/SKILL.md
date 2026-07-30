@@ -34,7 +34,7 @@ Use this skill when you need to:
 Invoke the script with the flags that match the user's question:
 
 ```bash
-script_path="plugins/ci/skills/list-symptoms/list_symptoms.py"
+script_path="plugins/ci-extras/skills/list-symptoms/list_symptoms.py"
 
 # List all symptoms (JSON by default)
 python3 "$script_path"
@@ -146,7 +146,7 @@ Filters that match nothing print `[]` (JSON) or `No results.` (summary) and exit
 ### Example 1: List All Symptoms
 
 ```bash
-python3 plugins/ci/skills/list-symptoms/list_symptoms.py --format summary
+python3 plugins/ci-extras/skills/list-symptoms/list_symptoms.py --format summary
 ```
 
 **Expected Output (excerpt):**
@@ -165,25 +165,25 @@ Total: 42
 ### Example 2: Search for an Existing Symptom Before Creating One
 
 ```bash
-python3 plugins/ci/skills/list-symptoms/list_symptoms.py --search "credentials" --format summary
+python3 plugins/ci-extras/skills/list-symptoms/list_symptoms.py --search "credentials" --format summary
 ```
 
 ### Example 3: Symptoms That Apply a Label
 
 ```bash
-python3 plugins/ci/skills/list-symptoms/list_symptoms.py --label InfraFailure --format summary
+python3 plugins/ci-extras/skills/list-symptoms/list_symptoms.py --label InfraFailure --format summary
 ```
 
 ### Example 4: Fetch One Symptom by ID
 
 ```bash
-python3 plugins/ci/skills/list-symptoms/list_symptoms.py --id AWSCouldNotValidateAccessCredentials
+python3 plugins/ci-extras/skills/list-symptoms/list_symptoms.py --id AWSCouldNotValidateAccessCredentials
 ```
 
 ### Example 5: List All Labels
 
 ```bash
-python3 plugins/ci/skills/list-symptoms/list_symptoms.py --labels --format summary
+python3 plugins/ci-extras/skills/list-symptoms/list_symptoms.py --labels --format summary
 ```
 
 ## Notes

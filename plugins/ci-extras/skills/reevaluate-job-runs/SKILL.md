@@ -68,7 +68,7 @@ Prefer exporting `SIPPY_TOKEN` as above rather than passing `--token` on the com
 Always suggest a `--dry-run` first — it reports what would match without writing anything. Pass numeric build IDs or full Prow job URLs (any count — the script deduplicates and batches automatically):
 
 ```bash
-python3 plugins/ci/skills/reevaluate-job-runs/reevaluate_job_runs.py \
+python3 plugins/ci-extras/skills/reevaluate-job-runs/reevaluate_job_runs.py \
   https://prow.ci.openshift.org/view/gs/test-platform-results/logs/<job>/<build_id> --dry-run --format summary
 ```
 
@@ -77,7 +77,7 @@ python3 plugins/ci/skills/reevaluate-job-runs/reevaluate_job_runs.py \
 Rerun without `--dry-run` to actually write labels:
 
 ```bash
-python3 plugins/ci/skills/reevaluate-job-runs/reevaluate_job_runs.py \
+python3 plugins/ci-extras/skills/reevaluate-job-runs/reevaluate_job_runs.py \
   1856789012345678848 1856789012345678849 --format summary
 ```
 
@@ -95,7 +95,7 @@ for REG_ID in 12345 12346 12347; do
 done
 
 # The script deduplicates and batches (default 10 per request) automatically
-python3 plugins/ci/skills/reevaluate-job-runs/reevaluate_job_runs.py \
+python3 plugins/ci-extras/skills/reevaluate-job-runs/reevaluate_job_runs.py \
   $RUN_IDS --format summary
 ```
 

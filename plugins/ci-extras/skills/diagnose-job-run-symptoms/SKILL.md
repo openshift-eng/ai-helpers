@@ -33,7 +33,7 @@ Use this skill when:
 ### Step 1: Default mode — explain already-applied labels
 
 ```bash
-python3 plugins/ci/skills/diagnose-job-run-symptoms/diagnose_job_run.py \
+python3 plugins/ci-extras/skills/diagnose-job-run-symptoms/diagnose_job_run.py \
   "https://prow.ci.openshift.org/view/gs/test-platform-results/logs/<job>/<build_id>"
 ```
 
@@ -44,7 +44,7 @@ For each applied label the summary output shows: the label title and explanation
 Use when the run predates the current symptom set or shows no labels. This asks Sippy to re-scan the run with `dry_run: true` — it **writes nothing** and reports what would match now:
 
 ```bash
-python3 plugins/ci/skills/diagnose-job-run-symptoms/diagnose_job_run.py \
+python3 plugins/ci-extras/skills/diagnose-job-run-symptoms/diagnose_job_run.py \
   "<prow_url>" --deep
 ```
 

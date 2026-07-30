@@ -29,7 +29,7 @@ Use this skill when you need to:
 Invoke the script with flags matching the question:
 
 ```bash
-script_path="plugins/ci/skills/fetch-prow-job-runs/fetch_prow_job_runs.py"
+script_path="plugins/ci-extras/skills/fetch-prow-job-runs/fetch_prow_job_runs.py"
 
 # Metal-platform runs in the last 24 hours
 python3 "$script_path" --release 5.0 --variant Platform:metal --since-hours 24 --format summary
@@ -39,7 +39,7 @@ python3 "$script_path" --release 5.0 --job-contains e2e-metal --result F --forma
 
 # Pipe run IDs into symptom reevaluation
 python3 "$script_path" --release 5.0 --job-contains e2e-metal --result F --since-hours 48 --ids-only \
-  | xargs python3 plugins/ci/skills/reevaluate-job-runs/reevaluate_job_runs.py --dry-run
+  | xargs python3 plugins/ci-extras/skills/reevaluate-job-runs/reevaluate_job_runs.py --dry-run
 ```
 
 Flags:
@@ -119,7 +119,7 @@ No matching runs prints `[]` (JSON), `Total: 0` (summary), or nothing (`--ids-on
 ### Example 1: Metal Runs in the Last 24 Hours
 
 ```bash
-python3 plugins/ci/skills/fetch-prow-job-runs/fetch_prow_job_runs.py \
+python3 plugins/ci-extras/skills/fetch-prow-job-runs/fetch_prow_job_runs.py \
   --release 5.0 --variant Platform:metal --since-hours 24 --limit 5 --format summary
 ```
 
@@ -132,16 +132,16 @@ Total: 5
 ### Example 2: Failed Runs of a Job Family
 
 ```bash
-python3 plugins/ci/skills/fetch-prow-job-runs/fetch_prow_job_runs.py \
+python3 plugins/ci-extras/skills/fetch-prow-job-runs/fetch_prow_job_runs.py \
   --release 5.0 --job-contains e2e-metal --result F --format summary
 ```
 
 ### Example 3: Feed Run IDs to Reevaluation
 
 ```bash
-python3 plugins/ci/skills/fetch-prow-job-runs/fetch_prow_job_runs.py \
+python3 plugins/ci-extras/skills/fetch-prow-job-runs/fetch_prow_job_runs.py \
   --release 5.0 --job-contains e2e-metal --since-hours 48 --ids-only \
-  | xargs python3 plugins/ci/skills/reevaluate-job-runs/reevaluate_job_runs.py --dry-run
+  | xargs python3 plugins/ci-extras/skills/reevaluate-job-runs/reevaluate_job_runs.py --dry-run
 ```
 
 ## Notes
