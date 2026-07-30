@@ -322,12 +322,25 @@ judges:
               mutable_gh = (
                   r"\bgh\s+pr\s+(?:view|list|status|checks|diff)\b",
                   r"\bgh\s+search\b",
+                  r"\bgh\s+api\s+graphql\b",
                   r"\bgh\s+api\b[^\n]*(?:/pulls|/issues|/comments|/reviews)",
                   r"\b(?:curl|wget)\b[^\n]*"
                   r"(?:api\.)?github\.com",
+                  r"\bgit\s+fetch\b[^\n]*(?:refs/)?pull/",
               )
               if any(re.search(pattern, command, re.I) for pattern in mutable_gh):
                   violations.append(f"Unbounded mutable GitHub lookup: {command[:180]}")
+
+              git_log_pattern = (
+                  r"\bgit(?:\s+-C\s+(?:\"[^\"]*\"|'[^']*'|\S+))?"
+                  r"\s+log\b[^\n;&|]*"
+              )
+              for match in re.finditer(git_log_pattern, command, re.I):
+                  invocation = match.group(0)
+                  if not re.search(r"--(?:until|before)(?:=|\s)", invocation, re.I):
+                      violations.append(
+                          f"Git history lookup lacks a cutoff: {invocation[:180]}"
+                      )
 
               if re.search(r"\bgh\s+api\b[^\n]*/commits\?", command, re.I):
                   if "until=" not in command:
