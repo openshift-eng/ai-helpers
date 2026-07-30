@@ -17,6 +17,7 @@ expected_candidates:
 expected_ci_config_issues:
   - pr_url: "https://github.com/openshift/release/pull/76852"
     repo: "openshift/release"
+    min_confidence: 85
     description: "Changed vSphere VCM default lease to multi-tenant, breaking UPI workflows that require single-tenant leases"
     expected_failing_jobs:
       - "install-analysis-all"

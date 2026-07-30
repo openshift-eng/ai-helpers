@@ -3,8 +3,10 @@ expected_failed_job_count: 4
 has_revert_candidates: false
 force_accept_expected: false
 analysis_cutoff: "2026-05-14T16:40:01Z"
+expected_candidates: []
 notes: >
   Complex case: 4 failed blocking jobs (aws-ovn-serial, aws-ovn-single-node-upgrade,
-  aws-ovn-upgrade, and one more). Tests the skill's ability to launch parallel
-  subagents, correlate multiple failures, and identify patterns across job families.
-  Previous payload was accepted, so these may be new failures.
+  aws-ovn-upgrade, and gcp-ovn-rt-upgrade-4.18-minor). Tests the skill's ability
+  to launch parallel subagents, correlate multiple failures, and identify
+  patterns across job families. Previous payload was accepted, so these may be
+  new failures.

@@ -25,9 +25,13 @@ notes: >
   same payload with 63 candidate PRs. openshift/origin#31006 ("add oc-mirror
   to extensionBinaries") caused widespread test failures across multiple job
   families — serial, techpreview-serial, metal-ipi, and potentially upgrade
-  jobs. The agent must identify this PR as the root cause despite the large
-  candidate pool (63 PRs). Key signals: cross-job correlation (same PR blamed
-  for failures in many independent jobs), error messages referencing test
-  binaries/extensions, and new failure mode not present in prior payloads.
+  jobs. The eight expected_failing_jobs above are the jobs this candidate is
+  expected to explain; the other five blocking failures have separate causes,
+  so the candidate-specific list intentionally does not equal the total
+  expected_failed_job_count. The agent must identify this PR as the root cause
+  despite the large candidate pool (63 PRs). Key signals: cross-job correlation
+  (same PR blamed for failures in many independent jobs), error messages
+  referencing test binaries/extensions, and new failure mode not present in
+  prior payloads.
   force_accept_expected is false because hours_since_baseline is 11.7h (under
   the 18h threshold) and failures are product regressions, not infrastructure.
