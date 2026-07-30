@@ -356,7 +356,11 @@ Read the target payload's `payload.json` (at `SNAPSHOT_DIR/<payloads[0].payload>
 Convert the Prow URL to a gcsweb URL and use WebFetch to read it.
 
 **Important**: Previous analyses are a secondary input. Always complete your own analysis first, then compare. Use previous findings to bolster confidence, challenge assumptions, or fill gaps — never adopt conclusions without verifying against the snapshot data.
-Skip any previous analysis whose Prow job completed after `analysis_cutoff`.
+Before fetching it, obtain the analysis Prow job's completion time from the
+snapshot or its immutable `prowjob.json`, record that timestamp in the evidence
+notes, and verify it is at or before `analysis_cutoff`. Skip the report when the
+completion time is missing, ambiguous, or newer than the cutoff. The report URL
+being an immutable artifact is not enough by itself.
 
 ### Step 5: Validate Failure Streaks
 
@@ -463,7 +467,7 @@ Score each (failed job, failure mode, candidate PR) tuple using the following we
 
 | Signal | Weight | Criteria |
 |--------|--------|----------|
-| New failure mode | +30 | This failure mode was not present in previous payloads **and** is plausibly attributable to code that changed (some PR touches the implicated code path). A brand-new symptom with no changed code behind it does not earn this signal (see infrastructure exclusion below). |
+| New failure mode | +30 | The minimal causal signature has a **verified boundary in raw artifacts**: it is present in the originating payload and absent in the immediately preceding comparable payload, and is plausibly attributable to code that changed (some PR touches the implicated code path). If the boundary is unknown, or only the job/test-name onset is known, award +0. A brand-new symptom with no changed code behind it does not earn this signal (see infrastructure exclusion below). |
 | Component exclusivity | +10 to +30 | The failure involves a component modified by this PR. **Sole modifier of the affected component = +30** — this tier already covers the "only one candidate PR touches the component" case, so do not also count it separately. 2-3 PRs modify the component = +20; 4+ PRs modify it = +10. |
 | Error message match | +10 to +40 | Tiered by how directly the failure output links to the PR's diff. **Direct match = +40**: an error string, symbol, function name, or identifier from the failure appears verbatim in the PR's diff. **Same code path = +20-30**: the PR modifies the function or execution flow that produced the error, but the exact message is not in the diff. **Same subsystem only = +10**: the PR touches the same subsystem/component but not the specific failing code path. |
 | Multi-job correlation | +10 | The same PR is a candidate for this failure mode in multiple independent jobs |
@@ -544,7 +548,25 @@ For each candidate PR with a final causal confidence score of **>= 85**, conside
 4. Infrastructure, platform, test-framework, and external-dependency alternatives have affirmative evidence against them
 5. Any experimental evidence reliably isolates the change; one unpaired passing retry is insufficient
 
-Record each gate item as pass/fail with evidence. A high hypothesis-ranking score with any failed gate item is **not** a revert candidate.
+Record each gate item under these stable names, with `status:
+"pass"|"fail"|"unknown"` and concrete evidence:
+
+1. `changed_path_executed`
+2. `full_causal_chain`
+3. `exact_signature_timing`
+4. `alternatives_excluded`
+5. `experiment_isolates_change`
+
+For `experiment_isolates_change`, use `pass` with evidence that no experiment
+was relied upon when none exists; use `unknown` or `fail` when experimental
+evidence was relied upon but did not isolate the change. A high
+hypothesis-ranking score with any failed or unknown gate item is **not** a
+revert candidate.
+
+Persist the decision for every scored candidate in the results YAML as
+`revert_gates` and `revert_eligible`. Set `revert_eligible: true` if and only if
+the final confidence is at least 85 and all five gates pass. Confidence alone
+must never be interpreted as revert authorization.
 
 Per OCP policy, PRs that break payloads MUST be reverted. When confidence is high, the report must clearly state that a revert is required — not optional.
 
@@ -602,7 +624,7 @@ Instead, recommend the correct action: **wait for the RHCOS with the rebuilt kub
 
 Use the `payload-results-yaml` skill to create `$OUTPUT_DIR/payload-results-{tag}.yaml` (the `$OUTPUT_DIR` captured in Step 1)
 
-This file contains ALL scored candidates across all confidence tiers (HIGH, MEDIUM, LOW), enabling downstream commands to filter by their own criteria. If RHCOS RPM suspects were identified in Step 6.1b, include them in the `rhcos_suspects[]` array (see the `payload-results-yaml` skill for the schema).
+This file contains ALL scored candidates across all confidence tiers (HIGH, MEDIUM, LOW), enabling downstream commands to filter by their own criteria. Every candidate must include `revert_eligible` and all five `revert_gates` from Step 6.2; candidates below 85 still record the gate status and evidence. If RHCOS RPM suspects were identified in Step 6.1b, include them in the `rhcos_suspects[]` array (see the `payload-results-yaml` skill for the schema).
 
 **Every affirmatively-identified root cause must be represented as a scored `candidates[]` entry** — including causal CI-infrastructure / step-registry changes (Step 3.6), even when the failure's `failure_type` is `infra`. A failure whose cause is known must not leave `candidates[]` empty; each entry carries its itemized rubric breakdown (Step 6.1) in its `rationale`.
 
@@ -731,7 +753,7 @@ Add this CSS for RHCOS suspect styling:
 
 Include this section **before** the per-job details, immediately after the executive summary.
 
-If revert candidates were identified (score >= 85):
+If revert candidates were identified (`revert_eligible: true`):
 
 ```html
 <div class="verdict verdict-revert">
@@ -753,7 +775,7 @@ If no revert candidates:
 ```html
 <div class="verdict verdict-none">
   <strong>No Recommended Reverts</strong>
-  <p>No PRs were identified with sufficient confidence for revert recommendation.</p>
+  <p>No PR passed both the confidence threshold and every revert action gate.</p>
 </div>
 ```
 
@@ -821,13 +843,29 @@ See the `payload-autodl-json` skill for the complete schema, row cardinality rul
 
 After generating the initial report and output files, launch a **dedicated adversarial subagent** to check that the analysis is complete, causally supported, and safe to act on. The reviewer must falsify the leading conclusion where the evidence permits and independently challenge confidence and revert eligibility.
 
-The reviewer should receive **only** the following (NOT the full conversation history):
+Build a structured **adversarial evidence dossier** before launching the
+reviewer. The reviewer should receive **only** this dossier (NOT the full
+conversation history). It must contain:
 
-1. The `summary.json` snapshot data (payload metadata, failed jobs, streaks, test regressions, RHCOS changes)
-2. The scored candidate list with per-component rubric breakdowns from Step 6
-3. The `ANALYSIS_RESULT` blocks from all subagents in Step 4
-4. The revert recommendations (if any)
-5. The RHCOS RPM suspects (if any)
+1. The `summary.json` snapshot data (payload metadata, failed jobs, streaks,
+   test regressions, RHCOS changes)
+2. A skill-invocation record for every Step 4 subagent: job, invoked skill name,
+   and whether its full instructions were loaded
+3. Every atomic failure mode, not only the dominant one, with its normalized
+   minimal signature, job onset, test-name onset, signature onset, and the raw
+   evidence proving the signature boundary
+4. A timestamp-ordered causal chain for each failure mode, including roles,
+   artifact paths, short raw excerpts, and explicit unknown links
+5. The scored `(job, failure mode, candidate)` tuples with every rubric signal,
+   raw sum, causal-evidence tier and cap, final confidence, and relevant diff
+   paths/excerpts
+6. Each candidate's five named revert gates, status, and evidence, plus
+   `revert_eligible`
+7. The revert recommendations and RHCOS RPM suspects, if any
+
+Do not substitute prose summaries for missing raw evidence. Mark dossier fields
+unknown when the artifact is missing or contradictory; this lets the reviewer
+distinguish an unsupported claim from an omitted investigation.
 
 Use this prompt for the reviewer:
 
@@ -838,6 +876,10 @@ Use this prompt for the reviewer:
 > **Subagent analyses**: {ANALYSIS_RESULT blocks for each failed job}
 >
 > **Scored candidates**: {list of (job, PR, score, rubric breakdown) tuples}
+>
+> **Causal chains and signature boundaries**: {timestamp-ordered dossier entries}
+>
+> **Revert gates**: {candidate gate matrix with status and evidence}
 >
 > **Revert recommendations**: {list of PRs recommended for revert, or "none"}
 >
@@ -881,6 +923,12 @@ Use this prompt for the reviewer:
 After receiving the reviewer's response:
 
 - If coverage gaps are found (missing skill invocation, shallow analysis, wrong skill): re-run the affected subagent analyses, then re-score. Update the HTML report and YAML/JSON files.
+- If the reviewer finds a wrong or unverified signature boundary, a reversed
+  causal chain, a missing atomic failure mode, or candidate enumeration from the
+  wrong payload, discard the affected derived conclusions. Re-run the raw
+  artifact analysis for that failure mode, then repeat Steps 5, 5b, 5c, and 6
+  before regenerating every output. Do not merely lower a score on stale
+  candidates.
 - If the analysis is already thorough: note this in the report.
 - Re-score affected candidates when the reviewer finds an inflated signal, causal-evidence tier, or action-gate failure. Preserve both the raw rubric sum and final capped confidence in the outputs.
 - Populate the "Adversarial Review" section (Step 7.6) in the HTML report with the reviewer's findings and any actions taken.
@@ -896,7 +944,10 @@ Before presenting, confirm that **all Step 4 investigation subagents and the Ste
 2. **The HTML contains every required section** from Step 7: header + executive summary (including the payload-chain context from Step 7.1), recommended reverts (or the "No Recommended Reverts" verdict), the force-accept verdict when applicable, the blocking-jobs summary table, a collapsible details block for **every** failed job, the RHCOS Changes section when any payload has RHCOS changes, and the Adversarial Review section.
 3. **Cross-output consistency**: phase, failure counts, per-job root causes (including any adjudicated in Step 5b), and scored candidates agree across the HTML, YAML, and JSON.
 4. **Every affirmative root cause appears as a scored `candidates[]` entry** — including causal CI-infrastructure changes, even when `failure_type: infra`.
-5. **The evidence cutoff appears in the HTML**, and no cited external event is newer than it.
+5. **Every candidate has all five structured revert gates**, and
+   `revert_eligible` is true exactly when final confidence is at least 85 and
+   every gate passes. The HTML recommends only eligible candidates.
+6. **The evidence cutoff appears in the HTML**, and no cited external event is newer than it.
 
 If any check fails, fix it before presenting.
 

@@ -20,6 +20,23 @@ candidates:
     pr_number: 2037
     component: "cluster-network-operator"
     confidence_score: 95
+    revert_eligible: true
+    revert_gates:
+      changed_path_executed:
+        status: "pass"
+        evidence: "changed controller path emitted the observed error"
+      full_causal_chain:
+        status: "pass"
+        evidence: "the observed trigger propagated to the gating assertion"
+      exact_signature_timing:
+        status: "pass"
+        evidence: "the immediately preceding comparable payload lacked the signature"
+      alternatives_excluded:
+        status: "pass"
+        evidence: "infrastructure and test-framework alternatives were contradicted"
+      experiment_isolates_change:
+        status: "pass"
+        evidence: "no experimental evidence was used, so this condition is not applicable"
     failing_jobs:
       - "periodic-ci-openshift-release-main-ci-4.22-e2e-aws-ovn"
     actions: []

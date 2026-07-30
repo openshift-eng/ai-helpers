@@ -95,7 +95,7 @@ outputs:
            failure_type, root_cause_summary, streak_length, originating_payload_tag,
            failure_pattern
          - candidates[]: pr_url, pr_number, component, title, confidence_score,
-           rationale, failing_jobs[], actions[]
+           rationale, revert_eligible, revert_gates, failing_jobs[], actions[]
       3. payload-analysis-{sanitized_tag}-autodl.json — flat denormalized JSON object
          with table_name, schema, and rows array. One row per (failed blocking job,
          candidate PR) pair. All row values are strings. Fields include payload_tag,
@@ -173,11 +173,47 @@ judges:
           if jmissing:
               return (False, f"failing_jobs[0] missing: {', '.join(jmissing)}")
       if cands:
-          required_cand_fields = ["pr_url", "confidence_score", "failing_jobs"]
+          required_cand_fields = [
+              "pr_url",
+              "confidence_score",
+              "revert_eligible",
+              "revert_gates",
+              "failing_jobs",
+          ]
           c0 = cands[0]
           cmissing = [f for f in required_cand_fields if f not in c0]
           if cmissing:
               return (False, f"candidates[0] missing: {', '.join(cmissing)}")
+          gate_names = {
+              "changed_path_executed",
+              "full_causal_chain",
+              "exact_signature_timing",
+              "alternatives_excluded",
+              "experiment_isolates_change",
+          }
+          for index, candidate in enumerate(cands):
+              gates = candidate.get("revert_gates")
+              if not isinstance(candidate.get("revert_eligible"), bool):
+                  return (False, f"candidates[{index}].revert_eligible must be boolean")
+              if not isinstance(gates, dict) or set(gates) != gate_names:
+                  return (False, f"candidates[{index}].revert_gates has wrong gate set")
+              statuses = []
+              for name in gate_names:
+                  gate = gates[name]
+                  if not isinstance(gate, dict):
+                      return (False, f"candidates[{index}].revert_gates.{name} must be a mapping")
+                  status = gate.get("status")
+                  if status not in {"pass", "fail", "unknown"}:
+                      return (False, f"candidates[{index}].revert_gates.{name} has invalid status")
+                  if not isinstance(gate.get("evidence"), str) or not gate["evidence"].strip():
+                      return (False, f"candidates[{index}].revert_gates.{name} lacks evidence")
+                  statuses.append(status)
+              expected_eligible = (
+                  candidate.get("confidence_score", 0) >= 85
+                  and all(status == "pass" for status in statuses)
+              )
+              if candidate["revert_eligible"] != expected_eligible:
+                  return (False, f"candidates[{index}].revert_eligible is inconsistent with gates")
       return (True, f"Valid: {len(jobs)} failing jobs, {len(cands)} candidates")
 
   - name: json_data_valid

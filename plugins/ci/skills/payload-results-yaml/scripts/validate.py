@@ -6,7 +6,21 @@ import yaml
 
 REQUIRED_METADATA = ["payload_tag", "version", "stream", "architecture"]
 REQUIRED_JOB_FIELDS = ["job_name", "failure_type", "root_cause_summary"]
-REQUIRED_CANDIDATE_FIELDS = ["pr_url", "confidence_score", "failing_jobs"]
+REQUIRED_CANDIDATE_FIELDS = [
+    "pr_url",
+    "confidence_score",
+    "revert_eligible",
+    "revert_gates",
+    "failing_jobs",
+]
+REQUIRED_REVERT_GATES = [
+    "changed_path_executed",
+    "full_causal_chain",
+    "exact_signature_timing",
+    "alternatives_excluded",
+    "experiment_isolates_change",
+]
+REVERT_GATE_STATUSES = {"pass", "fail", "unknown"}
 REQUIRED_RHCOS_SUSPECT_FIELDS = ["rhcos_tag", "package", "failing_jobs"]
 
 
@@ -60,6 +74,82 @@ def validate(path):
             for field in REQUIRED_CANDIDATE_FIELDS:
                 if field not in cand:
                     errors.append(f"candidates[{i}] missing '{field}'")
+            confidence = cand.get("confidence_score")
+            if not isinstance(confidence, int) or isinstance(confidence, bool):
+                errors.append(
+                    f"candidates[{i}].confidence_score is not an integer"
+                )
+            elif not 0 <= confidence <= 100:
+                errors.append(
+                    f"candidates[{i}].confidence_score must be between 0 and 100"
+                )
+
+            revert_eligible = cand.get("revert_eligible")
+            if not isinstance(revert_eligible, bool):
+                errors.append(
+                    f"candidates[{i}].revert_eligible is not a boolean"
+                )
+
+            gates = cand.get("revert_gates")
+            all_gates_pass = False
+            if not isinstance(gates, dict):
+                errors.append(f"candidates[{i}].revert_gates is not a mapping")
+            else:
+                missing_gates = [
+                    gate for gate in REQUIRED_REVERT_GATES if gate not in gates
+                ]
+                extra_gates = [
+                    gate for gate in gates if gate not in REQUIRED_REVERT_GATES
+                ]
+                for gate in missing_gates:
+                    errors.append(
+                        f"candidates[{i}].revert_gates missing '{gate}'"
+                    )
+                for gate in extra_gates:
+                    errors.append(
+                        f"candidates[{i}].revert_gates has unknown gate '{gate}'"
+                    )
+                gate_statuses = []
+                for gate in REQUIRED_REVERT_GATES:
+                    gate_data = gates.get(gate)
+                    if not isinstance(gate_data, dict):
+                        if gate in gates:
+                            errors.append(
+                                f"candidates[{i}].revert_gates.{gate} "
+                                "is not a mapping"
+                            )
+                        continue
+                    status = gate_data.get("status")
+                    evidence = gate_data.get("evidence")
+                    if status not in REVERT_GATE_STATUSES:
+                        errors.append(
+                            f"candidates[{i}].revert_gates.{gate}.status "
+                            f"must be one of {sorted(REVERT_GATE_STATUSES)}"
+                        )
+                    else:
+                        gate_statuses.append(status)
+                    if not isinstance(evidence, str) or not evidence.strip():
+                        errors.append(
+                            f"candidates[{i}].revert_gates.{gate}.evidence "
+                            "must be a non-empty string"
+                        )
+                all_gates_pass = (
+                    len(gate_statuses) == len(REQUIRED_REVERT_GATES)
+                    and all(status == "pass" for status in gate_statuses)
+                )
+
+            expected_eligible = (
+                isinstance(confidence, int)
+                and not isinstance(confidence, bool)
+                and confidence >= 85
+                and all_gates_pass
+            )
+            if isinstance(revert_eligible, bool):
+                if revert_eligible != expected_eligible:
+                    errors.append(
+                        f"candidates[{i}].revert_eligible must equal "
+                        "(confidence_score >= 85 and all revert gates pass)"
+                    )
 
     rhcos_suspects = data.get("rhcos_suspects")
     if rhcos_suspects is not None:

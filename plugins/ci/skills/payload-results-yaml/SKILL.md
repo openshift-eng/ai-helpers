@@ -64,6 +64,23 @@ candidates:
     title: "Fix OVN gateway mode selection"
     confidence_score: 95
     rationale: "temporal match + component match + error references code changed"
+    revert_eligible: true
+    revert_gates:
+      changed_path_executed:
+        status: "pass"
+        evidence: "controller.go:214 emitted the new error before the job failed"
+      full_causal_chain:
+        status: "pass"
+        evidence: "the changed branch caused the observed gateway selection and assertion"
+      exact_signature_timing:
+        status: "pass"
+        evidence: "the same atomic signature was absent in the immediately preceding payload"
+      alternatives_excluded:
+        status: "pass"
+        evidence: "cloud, network, storage, framework, and external-service signals were healthy"
+      experiment_isolates_change:
+        status: "pass"
+        evidence: "paired runs differed only by removal of this change"
     failing_jobs:
       - "periodic-ci-...-e2e-aws-ovn"
     actions:
@@ -134,8 +151,25 @@ Candidates reference failing jobs by `job_name` via the `failing_jobs` string ar
 | `title` | string | PR title |
 | `confidence_score` | int | 0-100 confidence that this PR caused the failures |
 | `rationale` | string | Explanation of why this PR is a candidate |
+| `revert_eligible` | bool | Whether the candidate passed the independent revert action gate. This is not inferred from confidence by downstream automation. |
+| `revert_gates` | mapping | The five named action gates below. Every gate has `status` (`"pass"`, `"fail"`, or `"unknown"`) and non-empty `evidence`. |
 | `failing_jobs` | array of strings | Job names from the top-level `failing_jobs[]` that this candidate is blamed for |
 | `actions` | array | Actions taken on this candidate (see below) |
+
+#### `candidates[].revert_gates`
+
+| Gate | Meaning |
+|------|---------|
+| `changed_path_executed` | The changed code path was observed executing before the failure |
+| `full_causal_chain` | The change explains the trigger through the gating symptom, not only a detector, amplifier, cleanup failure, or terminal symptom |
+| `exact_signature_timing` | The same minimal causal signature is absent in the immediately preceding comparable payload |
+| `alternatives_excluded` | Infrastructure, platform, test-framework, and external-dependency alternatives have affirmative evidence against them |
+| `experiment_isolates_change` | Experimental evidence is either not used (`"pass"` with that fact as evidence) or reliably isolates the change; use `"unknown"` or `"fail"` when experimental evidence is relied upon but does not isolate it |
+
+`revert_eligible` is `true` if and only if `confidence_score >= 85` and all
+five gates have `status: "pass"`. A high confidence score with one failed or
+unknown gate remains a useful hypothesis, but downstream automation must not
+stage its revert.
 
 ### `candidates[].actions[]`
 
@@ -196,11 +230,18 @@ An empty array or absent key means no RHCOS RPM changes were suspected.
 
 ### Create (used by `payload-analysis`)
 
-Write a new `payload-results-{tag}.yaml` with `metadata`, `failing_jobs`, `candidates`, and optionally `rhcos_suspects` populated. All failed blocking jobs are recorded in `failing_jobs`. Candidates with no pre-existing revert start with `actions: []`. If a pre-existing revert PR is discovered during analysis, append an action with `type: "revert"` and `status: "open"` or `"merged"`. If RHCOS RPM suspects were identified, include them in `rhcos_suspects[]`.
+Write a new `payload-results-{tag}.yaml` with `metadata`, `failing_jobs`, `candidates`, and optionally `rhcos_suspects` populated. All failed blocking jobs are recorded in `failing_jobs`. Every candidate records `revert_eligible` and all five `revert_gates`, including candidates below the revert threshold; use `status: "unknown"` with concrete evidence explaining what is missing rather than omitting a gate. Candidates with no pre-existing revert start with `actions: []`. If a pre-existing revert PR is discovered during analysis, append an action with `type: "revert"` and `status: "open"` or `"merged"`. If RHCOS RPM suspects were identified, include them in `rhcos_suspects[]`.
 
 ### Read Candidates (used by `payload-revert`, `payload-experiment`)
 
-Read the file. Filter candidates by `confidence_score` range. Exclude candidates that already have an action with `status` of `"open"` or `"merged"` (pre-existing revert). Return matching candidates. Use the top-level `failing_jobs[]` to look up full job details for each candidate's `failing_jobs` references.
+Read the file. For `payload-revert`, select only candidates with
+`confidence_score >= 85` **and** `revert_eligible: true`; missing eligibility is
+not eligible. For `payload-experiment`, filter by its confidence range without
+requiring revert eligibility, because experiments investigate unresolved
+hypotheses rather than authorize production reverts. Exclude candidates that
+already have an action with `status` of `"open"` or `"merged"` (pre-existing
+revert). Return matching candidates. Use the top-level `failing_jobs[]` to look
+up full job details for each candidate's `failing_jobs` references.
 
 ### Append Action (used by `stage-payload-reverts`, `payload-experimental-reverts`)
 

@@ -1,6 +1,6 @@
 ---
 name: stage-payload-reverts
-description: Create TRT JIRA bugs, open revert PRs, and trigger payload jobs for high-confidence revert candidates
+description: Create TRT JIRA bugs, open revert PRs, and trigger payload jobs for action-gated high-confidence revert candidates
 ---
 
 # Stage Payload Reverts
@@ -19,6 +19,8 @@ Use this skill when revert candidates have already been identified with high con
 - `release_controller_url`: URL to the payload on the release controller
 - `revert_candidates`: List of PRs to revert, each with:
   - `pr_url`, `pr_number`, `component`, `confidence_score`, `rationale`
+  - `revert_eligible`: Must be `true`
+  - `revert_gates`: All five action gates, each with `status: "pass"` and evidence
   - `originating_payload_tag`: The payload where this candidate PR first caused failures
   - `failing_jobs`: List of `{job_name, prow_url, is_aggregated, underlying_job_name}`
 
@@ -36,6 +38,22 @@ Before starting, you **MUST** load the following skills (they define output sche
 3. **Repository Access**: User must have push access to their fork of each target repository
 
 ## Implementation Steps
+
+### Step 0: Revert-Eligibility Preflight
+
+Before any external write, validate every passed candidate against the results
+YAML:
+
+1. `confidence_score >= 85`
+2. `revert_eligible` is exactly `true`
+3. `revert_gates` contains all five canonical gates from the
+   `payload-results-yaml` skill
+4. Every gate has `status: "pass"` and non-empty evidence
+
+Reject an ineligible or inconsistent candidate before creating a Jira issue,
+branch, PR, comment, or payload job. Return its PR URL and the failed or missing
+gate in the status summary. This is a defense-in-depth check; caller filtering
+does not replace it.
 
 ### Step 1: Check Jira MCP Availability
 

@@ -541,7 +541,7 @@ footer a { color: var(--primary); }
     {
       "name": "ci",
       "description": "Tools for working with OpenShift CI and analyzing Prow job results",
-      "version": "0.0.79",
+      "version": "0.0.80",
       "has_readme": true,
       "commands": [
         {
@@ -667,10 +667,10 @@ footer a { color: var(--primary); }
         {
           "name": "payload-revert",
           "full_name": "ci:payload-revert",
-          "description": "Stage reverts for high-confidence payload candidates identified by payload-analysis",
-          "description_html": "Stage reverts for high-confidence payload candidates identified by payload-analysis",
+          "description": "Stage reverts for action-gated high-confidence payload candidates identified by payload-analysis",
+          "description_html": "Stage reverts for action-gated high-confidence payload candidates identified by payload-analysis",
           "synopsis": "/ci:payload-revert \u003cpayload-tag\u003e",
-          "body_html": "\u003cp\u003eThe \u003ccode\u003eci:payload-revert\u003c/code\u003e command reads the payload results YAML produced by \u003ccode\u003e/ci:payload-analysis\u003c/code\u003e and stages reverts for all high-confidence candidates (confidence score &gt;= 85) that have not already been reverted.\u003c/p\u003e\u003cp\u003eFor each qualifying candidate, it creates a TRT JIRA bug, opens a revert PR, and triggers payload validation jobs using the \u003ccode\u003estage-payload-reverts\u003c/code\u003e skill.\u003c/p\u003e\u003cp\u003eThis command is one of three composable stages in the payload triage pipeline:\u003cbr\u003e1. \u003ccode\u003e/ci:payload-analysis\u003c/code\u003e — produces the payload results YAML\u003cbr\u003e2. \u003ccode\u003e/ci:payload-revert\u003c/code\u003e — stages reverts for HIGH confidence candidates (this command)\u003cbr\u003e3. \u003ccode\u003e/ci:payload-experiment\u003c/code\u003e — opens draft revert PRs for MEDIUM confidence candidates\u003c/p\u003e\u003cp\u003e### Job Triggering Limits\u003c/p\u003e\u003cp\u003e- \u003cstrong\u003eNon-aggregated jobs\u003c/strong\u003e: Up to 5 total across all candidates\u003cbr\u003e- \u003cstrong\u003eAggregated jobs\u003c/strong\u003e: Up to 1 total\u003c/p\u003e\u003cp\u003eWhen the number of failing jobs across all candidates exceeds these limits, prioritize jobs from higher-confidence candidates first.\u003c/p\u003e"
+          "body_html": "\u003cp\u003eThe \u003ccode\u003eci:payload-revert\u003c/code\u003e command reads the payload results YAML produced by \u003ccode\u003e/ci:payload-analysis\u003c/code\u003e and stages reverts only for candidates that are both high-confidence (\u003ccode\u003econfidence_score &gt;= 85\u003c/code\u003e) and explicitly action-gated (\u003ccode\u003erevert_eligible: true\u003c/code\u003e) and have not already been reverted.\u003c/p\u003e\u003cp\u003eFor each qualifying candidate, it creates a TRT JIRA bug, opens a revert PR, and triggers payload validation jobs using the \u003ccode\u003estage-payload-reverts\u003c/code\u003e skill.\u003c/p\u003e\u003cp\u003eThis command is one of three composable stages in the payload triage pipeline:\u003cbr\u003e1. \u003ccode\u003e/ci:payload-analysis\u003c/code\u003e — produces the payload results YAML\u003cbr\u003e2. \u003ccode\u003e/ci:payload-revert\u003c/code\u003e — stages reverts for HIGH confidence candidates (this command)\u003cbr\u003e3. \u003ccode\u003e/ci:payload-experiment\u003c/code\u003e — opens draft revert PRs for MEDIUM confidence candidates\u003c/p\u003e\u003cp\u003e### Job Triggering Limits\u003c/p\u003e\u003cp\u003e- \u003cstrong\u003eNon-aggregated jobs\u003c/strong\u003e: Up to 5 total across all candidates\u003cbr\u003e- \u003cstrong\u003eAggregated jobs\u003c/strong\u003e: Up to 1 total\u003c/p\u003e\u003cp\u003eWhen the number of failing jobs across all candidates exceeds these limits, prioritize jobs from higher-confidence candidates first.\u003c/p\u003e"
         },
         {
           "name": "query-job-status",
@@ -868,8 +868,8 @@ footer a { color: var(--primary); }
         },
         {
           "name": "stage-payload-reverts",
-          "description": "Create TRT JIRA bugs, open revert PRs, and trigger payload jobs for high-confidence revert candidates",
-          "description_html": "Create TRT JIRA bugs, open revert PRs, and trigger payload jobs for high-confidence revert candidates",
+          "description": "Create TRT JIRA bugs, open revert PRs, and trigger payload jobs for action-gated high-confidence revert candidates",
+          "description_html": "Create TRT JIRA bugs, open revert PRs, and trigger payload jobs for action-gated high-confidence revert candidates",
           "meta": ""
         },
         {

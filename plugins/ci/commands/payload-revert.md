@@ -1,5 +1,5 @@
 ---
-description: Stage reverts for high-confidence payload candidates identified by payload-analysis
+description: Stage reverts for action-gated high-confidence payload candidates identified by payload-analysis
 argument-hint: "<payload-tag>"
 ---
 
@@ -15,7 +15,7 @@ ci:payload-revert
 
 ## Description
 
-The `ci:payload-revert` command reads the payload results YAML produced by `/ci:payload-analysis` and stages reverts for all high-confidence candidates (confidence score >= 85) that have not already been reverted.
+The `ci:payload-revert` command reads the payload results YAML produced by `/ci:payload-analysis` and stages reverts only for candidates that are both high-confidence (`confidence_score >= 85`) and explicitly action-gated (`revert_eligible: true`) and have not already been reverted.
 
 For each qualifying candidate, it creates a TRT JIRA bug, opens a revert PR, and triggers payload validation jobs using the `stage-payload-reverts` skill.
 
@@ -41,7 +41,12 @@ When the number of failing jobs across all candidates exceeds these limits, prio
    Run `/ci:payload-analysis {payload_tag}` first to generate it.
    ```
 
-3. **Filter candidates**: Select candidates with `confidence_score >= 85`. Exclude any that already have an action with `status` of `"open"` or `"merged"` (pre-existing revert).
+3. **Filter candidates**: Select candidates with `confidence_score >= 85` **and**
+   `revert_eligible: true`. Treat a missing eligibility field as false. Verify
+   defensively that all five `revert_gates` have `status: "pass"`; skip and
+   report any inconsistent candidate rather than staging it. Exclude candidates
+   that already have an action with `status` of `"open"` or `"merged"`
+   (pre-existing revert).
 
 4. **Dispatch to `stage-payload-reverts` skill**: Pass all qualifying candidates with their context (results YAML path, payload tag, version, stream, architecture, release controller URL, and failing jobs). The skill updates the results YAML and HTML report in place. The `trigger-payload-job` skill validates that aggregated jobs have `underlying_job_name` set and skips them with an error if not.
 
