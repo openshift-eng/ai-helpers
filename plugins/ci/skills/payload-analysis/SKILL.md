@@ -361,6 +361,27 @@ When two or more investigations reach **contradictory root causes for the same f
 
 **Tenacity booster:** Finding a plausible mechanism is the *midpoint* of the investigation, not the end. When rival explanations exist, your job is to *discriminate between them* with evidence from the failing operation — not to stop at the first mechanism that could work. If the evidence cannot discriminate, record the failure mode as UNRESOLVED with its competing hypotheses rather than committing to a guess (a wrong-PR attribution is far more damaging than an honest "unresolved").
 
+### Step 5c: Build the Executed Causal Chain
+
+For every distinct failure mode, build an ordered chain from the earliest abnormal event to the payload-gating symptom. Assign each observed event one causal role:
+
+1. **Trigger** — the first abnormal event that initiated the failure
+2. **Propagation** — a dependency or controller carried the failure forward
+3. **Amplifier or recovery defect** — retry, fallback, cleanup, or error handling made the original failure worse or persistent
+4. **Detector** — a test or health check reported an already-existing problem
+5. **Terminal symptom** — the final visible error, timeout, invariant, or panic
+
+Anchor every link with a timestamp, log line, object transition, metric, or other artifact from the failing run. Record missing links as unknown. Do not reverse the chain merely because the terminal symptom is easier to find than the trigger.
+
+Use these role-specific rules:
+
+- A detector is not the product or infrastructure cause it detected. If a test reports a real violation initiated by infrastructure, classify the root cause as `infra`; do not call the test the culprit. Classify the test as causal only when its own contract, framework behavior, or implementation is defective.
+- A cleanup failure or diagnostic panic can be an important resilience defect without being the trigger. Report it separately and do not attribute the original failure to the PR that only changed cleanup or observation.
+- A PR that improves detection can make a latent defect newly visible. Treat that PR as the cause only when the newly enforced contract is itself incorrect; otherwise identify the behavior that violated the contract.
+- In a broad merge, identify the smallest changed behavior that executed. Do not recommend reverting the containing PR solely because the failing helper, test, or error string is present in that PR.
+
+Before scoring, state the earliest discriminating event, its causal role, and the evidence ordering it before downstream symptoms. If the earliest available artifact begins after the failure was already in progress, say so and keep the conclusion unresolved unless another independent signal closes the gap.
+
 ### Step 6: Collect Investigation Results and Identify Revert Candidates
 
 Wait for all subagents to complete and collect their analysis results. For each failed job, you now have:
@@ -407,9 +428,24 @@ total: 100
 
 Record this breakdown in the candidate's `rationale` field in the YAML/JSON output. A bare score with no itemized breakdown is not acceptable.
 
-The recorded confidence score MUST equal `min(100, sum of itemized signals)`, each signal at exactly its defined weight, one line of evidence per claimed signal. No unclaimed points, no unlisted signals.
+The raw rubric score MUST equal `min(100, sum of itemized signals)`, each signal at exactly its defined weight, one line of evidence per claimed signal. No unclaimed points, no unlisted signals. The final `confidence_score` may be lower only when the causal-evidence cap below applies.
 
-**Apply the rubric mechanically, then verify the top-tier claims.** Sum the weights for each signal that fires on concrete evidence. Do NOT adjust the score downward based on speculative counter-arguments like "if this were the sole cause, other jobs would also fail" or "this could be a coincidence" — if the error messages reference the PR's changes, that's a match, and the fact that some other jobs didn't fail doesn't negate it. **But when the raw sum exceeds the cap** (you claimed a maximum tier on more than one signal at once), re-verify each maximum-tier claim before recording: is the error-message match a true verbatim string/symbol match (+40), or really only same-subsystem (+10)? Is this genuinely the *sole* modifier of the component (+30)? Downgrade any tier that does not survive this check. This self-skepticism pass removes tier inflation without weakening genuinely strong matches. Trust the rubric — it exists to prevent both over- and under-attribution.
+**Apply the rubric mechanically, then apply the causal-evidence cap.** First sum the weights for each signal that fires on concrete evidence. Re-verify every maximum-tier claim: is the error-message match a true verbatim string/symbol match (+40), or really only same-subsystem (+10)? Is this genuinely the *sole* modifier of the component (+30)? Downgrade any tier that does not survive this check.
+
+The rubric ranks hypotheses; it does not by itself prove causation or authorize a revert. Set the candidate's final confidence to the lower of its raw rubric score and the applicable causal-evidence cap:
+
+| Causal evidence | Cap | Required evidence |
+|-----------------|-----|-------------------|
+| Executed mechanism | 100 | The changed behavior executed before the failure, the proposed chain is observed end-to-end, and credible alternatives are ruled out; or a reliable counterfactual isolates the change |
+| Incomplete mechanism | 80 | The changed code path executed and fits the failure, but the chain has a material missing link or a credible alternative remains |
+| Contextual correlation only | 60 | Evidence is limited to timing, component exclusivity, same-subsystem proximity, multi-job appearance, or a coverage gap |
+| Contradicted | 20 | The same failure persists without the change, the changed path completed successfully during the failing operation, or stronger evidence identifies a different trigger |
+
+Record the raw sum, the selected causal-evidence tier, the cap, and the final confidence in the rationale. The `confidence_score` is the final capped value. This cap is not a subjective penalty: it prevents contextual correlation from masquerading as executed causation.
+
+**Multi-job evidence requires independent causal signatures.** Aggregator membership, reused child runs, and several terminal symptoms produced by one failed cluster are not independent confirmations. Award multi-job correlation only when separate clusters or executions show the same ordered causal signature.
+
+**Counterfactual and experimental-revert evidence must be interpreted asymmetrically.** The same causal signature persisting after a candidate is removed is strong evidence against that candidate. A single passing aggregate after a revert is weak evidence because flakes and infrastructure failures also pass on retry; require paired controls or repeated runs that isolate the change before treating a pass as causal proof.
 
 **Infrastructure exclusion — do not let unrelated PRs accumulate points.** The rubric measures *product-code causation*. When the root cause is affirmatively infrastructure (Step 6.4 definition) or an affirmatively-identified CI-config change (Step 3.6), payload component PRs with **no error-message and no code-path correlation** to the failure must score **at or near zero**. Do not award "new failure mode" or bare "component exclusivity" points to a PR that merely happens to be present in the payload — "new failure mode" fires only when the failure is plausibly attributable to code that changed. A new symptom whose actual cause is a lease timeout, a quota block, or a step-registry edit is not evidence against an unrelated component PR.
 
@@ -440,11 +476,15 @@ For each RHCOS RPM suspect, record:
 
 #### 6.2: Propose Revert Candidates
 
-For each candidate PR with a rubric score of **>= 85**, mark it as a **revert candidate**. A PR qualifies when:
+For each candidate PR with a final causal confidence score of **>= 85**, consider it for the separate **revert action gate**. A PR qualifies only when:
 
-1. The failure clearly maps to the PR's changes
-2. The timing is exact — the job was passing before the originating payload
-3. No other plausible explanation — infrastructure flakiness and platform problems have been ruled out
+1. The changed code path is observed executing before the failure
+2. The executed change explains the full causal chain, not only a detector, amplifier, cleanup failure, or terminal symptom
+3. The timing is exact — the same failure mode passed before the originating payload
+4. Infrastructure, platform, test-framework, and external-dependency alternatives have affirmative evidence against them
+5. Any experimental evidence reliably isolates the change; one unpaired passing retry is insufficient
+
+Record each gate item as pass/fail with evidence. A high hypothesis-ranking score with any failed gate item is **not** a revert candidate.
 
 Per OCP policy, PRs that break payloads MUST be reverted. When confidence is high, the report must clearly state that a revert is required — not optional.
 
@@ -715,7 +755,7 @@ See the `payload-autodl-json` skill for the complete schema, row cardinality rul
 
 ### Step 9: Completeness Review
 
-After generating the initial report and output files, launch a **dedicated subagent** to check that the analysis is complete and well-supported. The reviewer catches lazy or shallow work — it does NOT challenge or re-score rubric-based confidence scores.
+After generating the initial report and output files, launch a **dedicated adversarial subagent** to check that the analysis is complete, causally supported, and safe to act on. The reviewer must falsify the leading conclusion where the evidence permits and independently challenge confidence and revert eligibility.
 
 The reviewer should receive **only** the following (NOT the full conversation history):
 
@@ -727,7 +767,7 @@ The reviewer should receive **only** the following (NOT the full conversation hi
 
 Use this prompt for the reviewer:
 
-> You are a completeness reviewer for a payload failure analysis. Your job is to catch gaps in coverage and shallow analysis — NOT to challenge correct conclusions or lower confidence scores.
+> You are an adversarial reviewer for a payload failure analysis. Begin with the assumption that the leading diagnosis and every revert recommendation are wrong. Falsify them wherever the supplied evidence permits. Check both completeness and causal validity.
 >
 > **Snapshot data**: {summary.json contents — metadata, failed jobs with streaks, test regressions}
 >
@@ -749,10 +789,19 @@ Use this prompt for the reviewer:
 >
 > 5. **Missing RHCOS RPM correlation**: If RHCOS RPM changes exist in the originating payload and failures are variant-isolated or involve OS-level components, was the correlation checked? Were relevant packages surfaced as suspects?
 >
+> 6. **Reversed causal chain**: Does the analysis begin at the earliest abnormal event, or has it mistaken a downstream timeout, invariant, test assertion, cleanup failure, or panic for the trigger? Check the trigger/propagation/amplifier/detector/terminal-symptom roles and their timestamp ordering.
+>
+> 7. **Correlation presented as causation**: Does a candidate rely only on recency, component exclusivity, subsystem proximity, multi-job appearance, or missing presubmit coverage? If changed behavior was not observed executing before the failure, enforce the causal-evidence cap.
+>
+> 8. **Unsafe revert gate**: For every recommended revert, independently verify all five action-gate items from Step 6.2. A rubric score alone never authorizes a revert.
+>
+> 9. **Weak counterfactual**: Treat persistence of the same signature after removing a PR as exculpatory. Do not treat one passing retry after removal as proof unless paired or repeated evidence isolates the change.
+>
 > **Rules**:
-> - Do NOT suggest lowering confidence scores. If the rubric signals fired (error message match, new failure, component exclusivity), the score is correct. Period.
-> - Do NOT suggest that a failure "might be infrastructure" when there is positive evidence linking it to a PR. Infrastructure classification requires affirmative evidence (cloud API errors, quota limits, network timeouts) — not just uncertainty about the code change.
-> - Do NOT second-guess revert recommendations. When confidence >= 85 based on the rubric, the revert is warranted per OCP policy.
+> - Recompute the causal-evidence cap independently and lower the final confidence when the evidence tier is overstated.
+> - Require affirmative evidence before declaring infrastructure, but investigate infrastructure signals even when a product PR is temporally correlated.
+> - Distinguish a test that caused a failure from a test that reported a real infrastructure or product failure.
+> - Remove a revert recommendation when any action-gate item lacks evidence.
 >
 > For each issue found, provide:
 > - **Issue**: One-line description
@@ -765,7 +814,7 @@ After receiving the reviewer's response:
 
 - If coverage gaps are found (missing skill invocation, shallow analysis, wrong skill): re-run the affected subagent analyses, then re-score. Update the HTML report and YAML/JSON files.
 - If the analysis is already thorough: note this in the report.
-- **Never lower rubric-based confidence scores** based on the reviewer's response. The rubric is mechanical — if the signals fired, the score stands.
+- Re-score affected candidates when the reviewer finds an inflated signal, causal-evidence tier, or action-gate failure. Preserve both the raw rubric sum and final capped confidence in the outputs.
 - Populate the "Adversarial Review" section (Step 7.6) in the HTML report with the reviewer's findings and any actions taken.
 
 ### Step 10: Final Self-Check, Save, and Present
