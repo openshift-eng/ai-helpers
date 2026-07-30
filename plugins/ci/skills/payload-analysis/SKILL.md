@@ -404,12 +404,15 @@ Two occurrences share a signature only when their earliest discriminating event,
 
 Starting at the target payload, walk backward through raw child artifacts and:
 
-1. Determine whether the atomic signature is present in each prior payload.
-2. Continue across additional unrelated failures; they do not break the signature streak.
-3. Stop at the first payload where the signature is absent or contradicted.
-4. Set signature onset to the next payload and verify the immediately preceding payload with raw evidence.
+1. Classify each prior payload as one of:
+   - `present`: the same atomic signature is observed.
+   - `verified_absent`: the same operation or reconcile phase executed to completion under a comparable topology and the signature did not occur, or affirmative evidence contradicts the signature.
+   - `unobservable`: the relevant path was not reached, the job failed earlier, the test did not run, or the artifacts cannot establish whether the signature occurred.
+2. Continue across unrelated failures and `unobservable` payloads; neither breaks nor establishes the signature streak.
+3. Stop only at the first `verified_absent` payload.
+4. Set an exact signature onset only when the earliest `present` payload after that boundary is the next chronological payload. If one or more `unobservable` payloads lie between the `verified_absent` boundary and the earliest `present` observation, record an onset interval rather than assigning the signature to the first later observation.
 
-If artifacts cannot distinguish whether the signature is present, mark the boundary unknown. Do not fall back to job or test-name onset and do not award temporal-correlation points.
+Absence is evidence only when there was an opportunity to observe the signature. A payload that failed during provisioning cannot prove that a later test or controller-path failure was absent. When the boundary is `unobservable` or spans an onset interval, do not fall back to job or test-name onset, do not award temporal-correlation points, and mark `exact_signature_timing` as `unknown`.
 
 Establish this before enumerating candidate PRs (Step 6.1). Record all three onsets, the normalized atomic signature, and the raw evidence establishing its boundary.
 
@@ -568,7 +571,10 @@ Persist the decision for every scored candidate in the results YAML as
 the final confidence is at least 85 and all five gates pass. Confidence alone
 must never be interpreted as revert authorization.
 
-Per OCP policy, PRs that break payloads MUST be reverted. When confidence is high, the report must clearly state that a revert is required — not optional.
+Per OCP policy, PRs that break payloads MUST be reverted. When and only when
+`revert_eligible` is `true`, the report must clearly state that a revert is
+required — not optional. A high-confidence hypothesis with any failed or
+unknown gate is not an authorized revert.
 
 For each revert candidate, record: PR URL, description, component, confidence score with rationale.
 

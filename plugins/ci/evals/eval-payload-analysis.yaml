@@ -564,6 +564,7 @@ judges:
           (case_data.get("expected_candidates", []) or [])
           + (case_data.get("expected_ci_config_issues", []) or [])
       )
+      expected_actionable = []
       for expected in expected_causes:
           url = str(expected.get("pr_url", "")).rstrip("/").lower()
           candidate = by_url.get(url)
@@ -576,6 +577,24 @@ judges:
               failures.append(
                   f"Expected candidate {url} scored {actual}, below {minimum}"
               )
+          expected_confidence = int(
+              expected.get("expected_confidence", minimum)
+          )
+          if expected_confidence >= 85:
+              expected_actionable.append((url, candidate))
+
+      if case_data.get("has_revert_candidates") is True:
+          if not expected_actionable:
+              failures.append(
+                  "Case expects a revert candidate but defines no expected "
+                  "cause at or above the revert threshold"
+              )
+          for url, candidate in expected_actionable:
+              if candidate.get("revert_eligible") is not True:
+                  failures.append(
+                      f"Expected actionable candidate {url} was not marked "
+                      "revert_eligible"
+                  )
 
       for url in case_data.get("forbidden_revert_candidates", []) or []:
           normalized = str(url).rstrip("/").lower()
@@ -690,14 +709,30 @@ judges:
       You are evaluating whether the payload analysis skill correctly identified
       revert candidates and applied its confidence scoring rubric.
 
-      The rubric awards points for:
-      - New failure mode: +30 (this specific failure wasn't present in prior payloads)
-      - Component exclusivity: +10 to +30 (fewer PRs touching same component = higher)
-      - Error message match: +40 (errors directly reference code changed by the PR)
-      - Multi-job correlation: +10 (same PR is candidate for multiple failed jobs)
-      - Presubmit coverage gap: +10 (failing scenario not in PR's presubmit tests)
-      - Single candidate: +10 (only one PR touches the affected component)
-      Maximum: 130 (capped at 100). Revert threshold: >= 85.
+      First compute the raw rubric score:
+      - New failure mode: +30 only when the minimal causal signature has a
+        verified boundary in raw artifacts and is plausibly attributable to
+        changed code.
+      - Component exclusivity: +30 for the sole modifier of the affected
+        component, +20 for 2-3 modifiers, or +10 for 4+ modifiers. The sole
+        modifier tier already covers the single-candidate signal.
+      - Error message match: +40 for a direct string, symbol, function, or
+        identifier match; +20-30 for the same executed code path; or +10 for
+        the same subsystem only.
+      - Multi-job correlation: +10 for independent executions with the same
+        causal signature.
+      - Presubmit coverage gap: +10 when the failing scenario is not covered.
+      The raw maximum is 120 and is capped at 100.
+
+      Some treatment outputs additionally cap final confidence by causal
+      evidence: 100 for an executed end-to-end mechanism with alternatives
+      excluded, 80 for an incomplete mechanism, 60 for contextual correlation
+      only, and 20 when contradicted. When the output records such a cap,
+      verify that final confidence is the lower of the capped raw score and
+      causal-evidence cap. When it records `revert_gates`, verify that
+      `revert_eligible` is true only at confidence >= 85 with all five gates
+      passing. Do not penalize a control output solely because it uses the
+      legacy schema without causal-cap or revert-gate fields.
 
       Review the YAML results file:
 
