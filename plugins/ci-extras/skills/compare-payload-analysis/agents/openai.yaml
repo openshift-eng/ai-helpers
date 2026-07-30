@@ -1,0 +1,4 @@
+interface:
+  display_name: "Compare Payload Analyses"
+  short_description: "Blindly compare independent payload analyses"
+  default_prompt: "Use $compare-payload-analysis from CI Extras to independently analyze a payload from the other agent snapshot, then adjudicate both reports."

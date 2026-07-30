@@ -28,6 +28,25 @@ Fetches live CI health data for a given OpenShift release and produces a concise
 
 **Prerequisites:** Requires the openshift-ci-mcp server (bundled with this plugin).
 
+## Skills
+
+### compare-payload-analysis
+
+Independently analyzes a payload from the other payload agent's frozen
+snapshot, then unseals that agent's report and produces an evidence-backed
+"right, wrong, and best combined take" HTML table.
+
+The skill enforces the blind boundary with a two-phase artifact helper: it
+downloads only the snapshot before analysis and will not download the other
+report until the independent HTML, YAML, and JSON outputs have been frozen.
+
+```bash
+/ci-extras:compare-payload-analysis <payload-tag> [--publish-gist]
+```
+
+**Prerequisites:** Requires the `ci` plugin's `payload-analysis` skill,
+`gcloud`, and `gh` when publishing a gist.
+
 ## MCP Server
 
 This plugin bundles the [openshift-ci-mcp](https://github.com/openshift-eng/openshift-ci-mcp) server, which exposes OpenShift CI data directly as tools.

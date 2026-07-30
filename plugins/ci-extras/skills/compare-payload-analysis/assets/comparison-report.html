@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Payload analysis comparison · @@PAYLOAD_TAG@@</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f6f8fa;
+      --surface: #ffffff;
+      --surface-soft: #f3f6f9;
+      --text: #1f2328;
+      --muted: #59636e;
+      --border: #d0d7de;
+      --accent: #0969da;
+      --green: #1a7f37;
+      --green-bg: #dafbe1;
+      --orange: #9a6700;
+      --orange-bg: #fff8c5;
+      --red: #cf222e;
+      --red-bg: #ffebe9;
+      --shadow: 0 12px 34px rgba(31, 35, 40, .08);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at 12% 0%, rgba(9, 105, 218, .10), transparent 30rem),
+        var(--bg);
+      color: var(--text);
+      font: 15px/1.55 ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    main { width: min(1500px, calc(100% - 32px)); margin: 46px auto 64px; }
+    .eyebrow {
+      color: var(--accent);
+      font-size: .78rem;
+      font-weight: 750;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+    h1 { max-width: 1100px; margin: .25rem 0 .5rem; font-size: clamp(1.8rem, 4vw, 3rem); line-height: 1.12; }
+    .subtitle { margin: 0; color: var(--muted); overflow-wrap: anywhere; }
+    .verdict {
+      margin: 26px 0 18px;
+      padding: 22px 24px;
+      border: 1px solid color-mix(in srgb, var(--accent), var(--border) 72%);
+      border-radius: 14px;
+      background: linear-gradient(135deg, color-mix(in srgb, var(--accent), transparent 94%), var(--surface));
+      box-shadow: var(--shadow);
+    }
+    .verdict strong { display: block; margin-bottom: 6px; color: var(--accent); font-size: .78rem; letter-spacing: .09em; text-transform: uppercase; }
+    .verdict p { margin: 0; font-size: 1.08rem; }
+    .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 18px 0; }
+    .stat { padding: 15px 17px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+    .stat b { display: block; font-size: 1.45rem; line-height: 1; }
+    .stat span { color: var(--muted); font-size: .82rem; }
+    .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); box-shadow: var(--shadow); }
+    table { width: 100%; min-width: 1040px; border-collapse: collapse; }
+    th, td { padding: 17px 18px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+    thead th { position: sticky; top: 0; background: var(--surface-soft); color: var(--muted); font-size: .78rem; letter-spacing: .045em; text-transform: uppercase; }
+    tbody th { width: 17%; background: color-mix(in srgb, var(--surface-soft), transparent 35%); }
+    tbody td { width: 27.66%; }
+    tbody tr:last-child > * { border-bottom: 0; }
+    .topic { display: block; margin-top: 9px; font-size: .96rem; }
+    .status { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: .7rem; font-weight: 750; text-transform: uppercase; }
+    .status-correct { color: var(--green); background: var(--green-bg); }
+    .status-mixed { color: var(--orange); background: var(--orange-bg); }
+    .status-incorrect { color: var(--red); background: var(--red-bg); }
+    .right { border-top: 3px solid color-mix(in srgb, var(--green), transparent 28%); }
+    .wrong { border-top: 3px solid color-mix(in srgb, var(--red), transparent 28%); }
+    .combined { border-top: 3px solid color-mix(in srgb, var(--accent), transparent 28%); }
+    .evidence { margin-top: 11px; color: var(--muted); font-size: .82rem; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    footer { margin-top: 18px; color: var(--muted); font-size: .82rem; }
+    footer p { margin: 5px 0; }
+    @media (max-width: 700px) {
+      main { width: min(100% - 20px, 1500px); margin-top: 24px; }
+      .stats { grid-template-columns: 1fr; }
+      .verdict { padding: 18px; }
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0d1117;
+        --surface: #161b22;
+        --surface-soft: #21262d;
+        --text: #e6edf3;
+        --muted: #8b949e;
+        --border: #30363d;
+        --accent: #58a6ff;
+        --green: #3fb950;
+        --green-bg: rgba(46, 160, 67, .15);
+        --orange: #d29922;
+        --orange-bg: rgba(187, 128, 9, .15);
+        --red: #f85149;
+        --red-bg: rgba(248, 81, 73, .15);
+        --shadow: 0 14px 38px rgba(0, 0, 0, .25);
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div class="eyebrow">CI Extras · Blind, evidence-backed adjudication</div>
+      <h1>Payload analysis comparison</h1>
+      <p class="subtitle">@@PAYLOAD_TAG@@</p>
+    </header>
+
+    <section class="verdict">
+      <strong>Best combined verdict</strong>
+      <p>@@VERDICT@@</p>
+    </section>
+
+    <section class="stats" aria-label="Assessment counts">
+      <div class="stat"><b>@@CORRECT_COUNT@@</b><span>supported topics</span></div>
+      <div class="stat"><b>@@MIXED_COUNT@@</b><span>mixed topics</span></div>
+      <div class="stat"><b>@@INCORRECT_COUNT@@</b><span>unsupported topics</span></div>
+    </section>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">Topic</th>
+            <th scope="col">What the other agent got right</th>
+            <th scope="col">What it got wrong or missed</th>
+            <th scope="col">Best combined take</th>
+          </tr>
+        </thead>
+        <tbody>
+          @@ROWS@@
+        </tbody>
+      </table>
+    </div>
+
+    <footer>
+      <p><strong>Reports:</strong> @@SOURCES@@</p>
+      <p>The independent outputs were frozen before the other report was unsealed. Contradictions were adjudicated against primary CI artifacts.</p>
+    </footer>
+  </main>
+</body>
+</html>
