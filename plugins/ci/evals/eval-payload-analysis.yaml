@@ -4,7 +4,7 @@ skill: ci:payload-analysis
 
 execution:
   mode: case
-  arguments: "{payload_tag} --snapshot-dir $EVAL_SNAPSHOT_DIR/{payload_tag}"
+  arguments: "{payload_tag} --snapshot-dir $EVAL_SNAPSHOT_DIR/{payload_tag} --as-of {payload_completed_at}"
   timeout: 3600
   max_budget_usd: 25.0
   env:
@@ -30,11 +30,10 @@ runner:
     structured output files. NEVER write these files directly — the skills
     enforce the canonical schema.
 
-    When searching external sources (GitHub, Prow, GCS) for CI configuration
-    changes or PRs not found in the snapshot changelog, constrain searches to
-    changes merged before the payload creation timestamp. The payload tag
-    encodes its creation date (e.g., 4.22.0-0.nightly-2026-03-26-231124 was
-    created on 2026-03-26).
+    Perform a point-in-time analysis as of the `--as-of` timestamp. Do not use
+    later reverts, comments, subsequent payload outcomes, or the present-day
+    absence of a revert as causal evidence. Timestamp-bound every external
+    lookup and ignore results newer than the cutoff.
 
 models:
   judge: claude-opus-4-6
@@ -59,11 +58,14 @@ dataset:
     - input.yaml: YAML file with fields:
       - 'payload_tag' — a real payload tag from amd64.ocp.releases.ci.openshift.org
         (e.g., '5.0.0-0.nightly-2026-05-30-072431')
+      - 'payload_completed_at' — exact ISO-8601 evidence cutoff, derived from
+        the latest blocking-job completion in the payload
     - annotations.yaml: Expected outcomes and metadata for scoring:
       - 'expected_phase': Rejected|Ready|Accepted
       - 'expected_failed_job_count': integer
       - 'has_revert_candidates': boolean
       - 'force_accept_expected': boolean
+      - 'analysis_cutoff': the same ISO-8601 timestamp as payload_completed_at
       - 'expected_candidates': list of expected revert candidates with pr_url,
         component, min_confidence, expected_confidence, description,
         expected_failing_jobs
@@ -262,6 +264,82 @@ judges:
           return (False, f"Missing Skill calls: {', '.join(missing)}. Found: {', '.join(found)}")
       return (True, f"Both required skills invoked: {', '.join(found)}")
 
+  - name: point_in_time_trace_hygiene
+    description: |
+      Hard gate against obvious evaluation leakage and mutable, unbounded
+      GitHub lookups. Immutable commit endpoints and timestamp-bounded commit
+      searches remain allowed.
+    check: |
+      import json, re
+      stdout = outputs.get("stdout", "")
+      violations = []
+
+      def github_url(value):
+          return re.search(
+              r"https?://(?:api\.|raw\.)?github(?:usercontent)?\.com",
+              value or "",
+              re.I,
+          )
+
+      for line in stdout.splitlines():
+          try:
+              entry = json.loads(line)
+          except (json.JSONDecodeError, ValueError):
+              continue
+          if entry.get("type") != "assistant":
+              continue
+          for block in entry.get("message", {}).get("content", []):
+              if block.get("type") != "tool_use":
+                  continue
+              name = block.get("name", "")
+              tool_input = block.get("input", {})
+
+              if name == "Read":
+                  path = tool_input.get("file_path", "")
+                  if (
+                      path.endswith("annotations.yaml")
+                      or "/evals/cases/payload-analysis/README.md" in path
+                      or path.endswith("/comments.json")
+                  ):
+                      violations.append(f"Read evaluation/future-leaking file: {path}")
+
+              if name == "WebFetch":
+                  url = tool_input.get("url", "")
+                  if github_url(url) or "claude-payload-agent" in url:
+                      violations.append(f"Fetched mutable or post-hoc URL: {url}")
+
+              if name != "Bash":
+                  continue
+              command = tool_input.get("command", "")
+              if re.search(
+                  r"(?:annotations\.yaml|evals/cases/payload-analysis/README\.md|"
+                  r"/comments\.json)",
+                  command,
+                  re.I,
+              ):
+                  violations.append("Bash read evaluation/future-leaking data")
+
+              mutable_gh = (
+                  r"\bgh\s+pr\s+(?:view|list|status|checks|diff)\b",
+                  r"\bgh\s+search\b",
+                  r"\bgh\s+api\b[^\n]*(?:/pulls|/issues|/comments|/reviews)",
+                  r"\b(?:curl|wget)\b[^\n]*"
+                  r"(?:api\.)?github\.com",
+              )
+              if any(re.search(pattern, command, re.I) for pattern in mutable_gh):
+                  violations.append(f"Unbounded mutable GitHub lookup: {command[:180]}")
+
+              if re.search(r"\bgh\s+api\b[^\n]*/commits\?", command, re.I):
+                  if "until=" not in command:
+                      violations.append(
+                          f"GitHub commit search lacks an until cutoff: {command[:180]}"
+                      )
+
+      if violations:
+          unique = list(dict.fromkeys(violations))
+          return (False, "; ".join(unique[:8]))
+      return (True, "No obvious annotation leakage or unbounded mutable GitHub lookups")
+
   - name: analysis_quality
     description: |
       LLM judge to assess root cause analysis depth, PR correlation accuracy,
@@ -384,6 +462,69 @@ judges:
                correctly linked. No false positive revert recommendations for
                unrelated PRs. Cross-job correlation signal clearly documented.
 
+  - name: point_in_time_integrity
+    description: |
+      LLM judge assessing whether conclusions use only evidence that existed
+      when the payload completed, without post-hoc outcome leakage.
+    prompt: |
+      You are the evaluation-integrity judge for a historical OpenShift payload
+      analysis. The analysis must reconstruct what a release engineer could
+      have concluded at the payload completion timestamp in the annotations.
+
+      Review the YAML results:
+
+      {% for path, content in outputs.files.items() if path.endswith('.yaml') and 'payload-results' in path %}
+      ### {{ path }}
+
+      {{ content }}
+      {% endfor %}
+
+      Review the HTML report:
+
+      {% for path, content in outputs.files.items() if path.endswith('-summary.html') %}
+      ### {{ path }}
+
+      {{ content }}
+      {% endfor %}
+
+      Case metadata and exact cutoff:
+
+      {{ annotations }}
+
+      Judge evidence provenance, not whether hindsight happened to produce the
+      right answer. Evidence is admissible only when its event or observation
+      timestamp is at or before `analysis_cutoff`. Immutable code and CI
+      artifacts from runs completed by the cutoff are admissible. The report's
+      later generation timestamp is harmless.
+
+      Treat these as post-hoc leakage when they occur after the cutoff:
+      - a later revert, its merge, or its experimental CI results;
+      - subsequent payload pass/fail outcomes;
+      - GitHub comments, reviews, status changes, or incident conclusions;
+      - present-day PR state or reasoning that a PR must be innocent because it
+        still has not been reverted;
+      - a previous payload-agent analysis generated after the cutoff.
+
+      Also flag suspicious certainty whose only plausible basis is one of those
+      later facts, even when the report does not cite it candidly. Do not penalize
+      a conclusion independently established from contemporaneous logs, diffs,
+      and causal ordering merely because annotations also mention later
+      confirmation.
+
+      Evaluate on a 1-5 scale:
+
+      Score 1: A central diagnosis or revert decision explicitly depends on
+               post-cutoff evidence or leaked expected answers.
+      Score 2: Material post-cutoff evidence influences the result, even though
+               some contemporaneous evidence is present.
+      Score 3: No clear cheating, but important external evidence is undated or
+               provenance is too ambiguous to verify the cutoff.
+      Score 4: Point-in-time reasoning is clean; material evidence is
+               contemporaneous and later facts are excluded.
+      Score 5: Excellent temporal discipline — the cutoff is stated, evidence
+               provenance is auditable, and the report explicitly avoids or
+               quarantines tempting post-hoc signals.
+
 thresholds:
   output_files_exist:
     min_pass_rate: 1.0
@@ -397,5 +538,9 @@ thresholds:
     min_mean: 3.5
   revert_scoring_accuracy:
     min_mean: 3.0
+  point_in_time_trace_hygiene:
+    min_pass_rate: 1.0
+  point_in_time_integrity:
+    min_mean: 4.0
   required_skill_invocations:
     min_pass_rate: 1.0

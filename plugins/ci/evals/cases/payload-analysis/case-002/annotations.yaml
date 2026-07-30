@@ -2,6 +2,7 @@ expected_phase: Rejected
 expected_failed_job_count: 13
 has_revert_candidates: true
 force_accept_expected: false
+analysis_cutoff: "2026-05-30T12:55:22Z"
 
 expected_candidates:
   - pr_url: "https://github.com/openshift/origin/pull/31006"
