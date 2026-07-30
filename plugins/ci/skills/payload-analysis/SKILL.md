@@ -1,7 +1,7 @@
 ---
 name: payload-analysis
 description: Analyze a payload snapshot to identify root causes of blocking job failures, score candidate PRs, and produce an HTML report with revert recommendations
-argument-hint: "<payload-tag> [--snapshot-dir DIR]"
+argument-hint: "<payload-tag> [--snapshot-dir DIR] [--as-of TIMESTAMP]"
 ---
 
 # Payload Analysis
@@ -68,6 +68,8 @@ The first argument is a **full payload tag** (e.g., `4.22.0-0.nightly-2026-02-25
 - `tag`: The specific payload tag to analyze
 - `version`: Extract from the tag (e.g., `4.22` from `4.22.0-0.nightly-...`)
 - `stream`: Extract from the tag (e.g., `nightly` from `4.22.0-0.nightly-...`)
+- `analysis_cutoff`: Optional `--as-of` ISO-8601 timestamp. Evidence newer
+  than this timestamp is inadmissible.
 - `architecture`: Inferred from the tag. The tag format is `<version>-0.<stream>[-<arch>]-<timestamp>`. If no architecture is present between the stream and timestamp, it is `amd64`. Otherwise, the architecture is the segment between the stream and timestamp. Examples:
   - `4.22.0-0.nightly-2026-02-25-152806` → `amd64`
   - `4.22.0-0.nightly-arm64-2026-02-25-152806` → `arm64`
@@ -110,6 +112,20 @@ Read `summary.json` to extract all data needed for analysis. The snapshot has al
 From `summary.json` top-level fields:
 - `payload_tag`, `phase`, `release_url`, `source`, `architecture`, `stream`, `version`
 - `chain_length`, `baseline_tag`, `hours_since_baseline`
+
+For a terminal payload, use the explicit `--as-of` value when supplied.
+Otherwise derive `analysis_cutoff` as the latest final blocking-job
+`transitionTime` in the target `payload.json`. Older snapshots may omit that
+field; read each blocking job's immutable `prowjob.json`
+`status.completionTime` and take the latest. This is the time the payload
+finished, not the timestamp encoded in its tag.
+
+Perform the analysis strictly as of `analysis_cutoff`. A snapshot can contain
+data collected later, so its presence is not proof that it was knowable then.
+Exclude later comments, reviews, reverts, experimental jobs, incident
+conclusions, and subsequent payload outcomes. Never use present-day PR state
+or the fact that a PR still has not been reverted as causal evidence. For every
+external fact, verify that its event timestamp is at or before the cutoff.
 
 **Record `phase` verbatim** from the `summary.json` metadata (`Accepted`, `Rejected`, or `Ready`). Never infer the phase from the job results or from whether failures exist — a payload can be `Accepted` *with* blocking failures (force-accepted) or `Ready` while jobs are still running. The stored phase drives the force-accept decision (Step 6.4) and the executive summary (Step 7.1), so an inferred phase silently corrupts both.
 
@@ -191,7 +207,7 @@ For deeper context, read `build_log.json` (at the `build_log` path) for any fail
 
 For each failed job, check whether changes to the CI step-registry in the `openshift/release` repo correlate with the failure. These changes (modified step scripts, updated URLs, changed environment variables) will never appear in the snapshot's component PR list because they are not payload component changes — but they can break jobs just as effectively.
 
-Extract the date from the `originating_payload` tag (format: `<version>-0.<stream>-YYYY-MM-DD-HHMMSS` or `<version>-0.<stream>-<arch>-YYYY-MM-DD-HHMMSS` for non-amd64). The date is always the last `YYYY-MM-DD` segment before the `HHMMSS` suffix (e.g., `2026-06-16` from `5.0.0-0.nightly-2026-06-16-185706` or `5.0.0-0.nightly-arm64-2026-06-16-185706`). Compute a time window: `since` = originating date minus 1 day at `T00:00:00Z`; `until` = originating date plus 1 day at `T23:59:59Z`.
+Extract the date from the `originating_payload` tag (format: `<version>-0.<stream>-YYYY-MM-DD-HHMMSS` or `<version>-0.<stream>-<arch>-YYYY-MM-DD-HHMMSS` for non-amd64). The date is always the last `YYYY-MM-DD` segment before the `HHMMSS` suffix (e.g., `2026-06-16` from `5.0.0-0.nightly-2026-06-16-185706` or `5.0.0-0.nightly-arm64-2026-06-16-185706`). Compute a time window: `since` = originating date minus 1 day at `T00:00:00Z`; `until` = the earlier of originating date plus 1 day at `T23:59:59Z` and `analysis_cutoff`.
 
 **First, get all step-registry commits in the time window:**
 
@@ -215,8 +231,12 @@ First check the filenames — if none correspond to the failing step or any of i
 If the commit message includes a PR reference (typically `(#NNNNN)`), retrieve the PR details:
 
 ```bash
-gh pr view <pr_number> --repo openshift/release --json number,title,url,mergedAt,body
+gh api "repos/openshift/release/commits/<sha>"
 ```
+
+Use the immutable commit and patch as evidence. Do not open the live PR page:
+its body, comments, reviews, and current state may have changed after
+`analysis_cutoff`.
 
 **After Step 4 subagent results are available**, do a targeted search using the specific step that failed. From the subagent's build log analysis, identify the step-registry path of the step that actually errored (e.g., `gather/must-gather`, `baremetalds/devscripts/proxy`, `ipi/install/install`). Search for recent changes to that exact step and to related steps in the same workflow chain:
 
@@ -263,6 +283,8 @@ You MUST use the following prompt verbatim (substituting the placeholder values)
 > **Non-aggregated jobs**: **Examine the final attempt first**, then compare with previous attempts to determine whether all retries failed the same way. If retries show different failure modes, note this — it distinguishes consistent regressions from intermittent/infrastructure issues. Consistent failures across all attempts strongly indicate a product regression rather than flakiness.
 >
 > **RHCOS version**: This job's cluster runs on **<rhcos_version>**. <rhcos_context>
+>
+> **Evidence cutoff**: Analyze strictly as of **<analysis_cutoff>**. Do not use later GitHub comments or state changes, reverts, experimental jobs, incident conclusions, previous agent reports, or subsequent payload results. Timestamp-bound external searches and ignore anything newer.
 >
 > **RHCOS RPM changes**: Read `<summary_json_path>` and find the entry in `payloads[]` whose `tag` equals `<originating_payload_tag>`. If that entry has an `rhcos_changes[]` array, look up the RHCOS variant matching this job's `rhcos_version` using the tag mapping: `rhel-coreos` → `rhcos9`/`rhcos9-default`, `rhel-coreos-10` → `rhcos10`/`rhcos10-default`, both apply to `rhcos9_10`. Check whether any changed, added, or removed RPM packages overlap with the failure's root cause. If the failure involves OS-level components (kernel, bootloader, systemd, SELinux, rpm-ostree, cri-o, crun, runc, networking) and matching packages changed, note the potential correlation in your ANALYSIS_RESULT.
 >
@@ -334,6 +356,7 @@ Read the target payload's `payload.json` (at `SNAPSHOT_DIR/<payloads[0].payload>
 Convert the Prow URL to a gcsweb URL and use WebFetch to read it.
 
 **Important**: Previous analyses are a secondary input. Always complete your own analysis first, then compare. Use previous findings to bolster confidence, challenge assumptions, or fill gaps — never adopt conclusions without verifying against the snapshot data.
+Skip any previous analysis whose Prow job completed after `analysis_cutoff`.
 
 ### Step 5: Validate Failure Streaks
 
@@ -539,16 +562,19 @@ The kubelet binary is built **from** the `openshift/kubernetes` source. After a 
 
 #### 6.3: Check if Revert Candidates Were Already Reverted
 
-For each revert candidate:
+For each revert candidate, inspect immutable repository commits no newer than
+`analysis_cutoff`; do not query the live PR state:
 
 ```bash
-gh pr list --repo <org>/<repo> --search "revert <pr_number>" --json number,title,url,state,mergedAt --limit 5
+gh api "repos/<org>/<repo>/commits?until=<analysis_cutoff>&per_page=100" \
+  --jq '.[] | select((.commit.message | ascii_downcase) | contains("revert")) | {sha, message: .commit.message, date: .commit.committer.date, url: .html_url}'
 ```
 
-If a revert PR is found:
-- **Merged**: Note when it merged relative to the payload. If after the payload was cut, the fix is expected in the next payload. Do not recommend reverting again.
-- **Open**: Mention the existing revert PR and link to it.
-- **Closed (not merged)**: Ignore.
+Paginate until reaching commits older than the candidate merge. Verify the
+commit diff actually reverts the candidate. If a matching revert commit exists
+at or before the cutoff, record it and do not recommend reverting again. A
+revert created or merged later is inadmissible, even if it confirms the
+diagnosis in hindsight. Do not infer innocence from finding no revert.
 
 #### 6.4: Determine Force-Accept Recommendation
 
@@ -592,6 +618,7 @@ The report must include the following sections:
 <h1>Payload Analysis: {payload_tag}</h1>
 <div class="metadata">
   <p>Architecture: {architecture} | Stream: {stream} | Generated: {timestamp}</p>
+  <p>Evidence cutoff: {analysis_cutoff}</p>
   <p>Release Controller: <a href="{release_url}">{payload_tag}</a></p>
   <p>Snapshot: {snapshot_dir}</p>
 </div>
@@ -836,6 +863,8 @@ Use this prompt for the reviewer:
 >
 > 10. **Wrong streak boundary**: Did candidate selection use the current atomic signature's verified onset, or a longer job/test-name streak? Check that signatures are minimal and that unrelated infrastructure, cleanup, or co-failing tests were not concatenated into the signature. If the preceding payload lacks discriminating artifacts, reject temporal points rather than guessing.
 >
+> 11. **Post-cutoff evidence**: Did any conclusion use a GitHub event, revert, experimental job, incident conclusion, previous agent report, or subsequent payload outcome newer than the payload's analysis cutoff? Did it infer causality from current PR state or the later absence of a revert? Remove that evidence and re-evaluate the conclusion.
+>
 > **Rules**:
 > - Recompute the causal-evidence cap independently and lower the final confidence when the evidence tier is overstated.
 > - Require affirmative evidence before declaring infrastructure, but investigate infrastructure signals even when a product PR is temporally correlated.
@@ -867,6 +896,7 @@ Before presenting, confirm that **all Step 4 investigation subagents and the Ste
 2. **The HTML contains every required section** from Step 7: header + executive summary (including the payload-chain context from Step 7.1), recommended reverts (or the "No Recommended Reverts" verdict), the force-accept verdict when applicable, the blocking-jobs summary table, a collapsible details block for **every** failed job, the RHCOS Changes section when any payload has RHCOS changes, and the Adversarial Review section.
 3. **Cross-output consistency**: phase, failure counts, per-job root causes (including any adjudicated in Step 5b), and scored candidates agree across the HTML, YAML, and JSON.
 4. **Every affirmative root cause appears as a scored `candidates[]` entry** — including causal CI-infrastructure changes, even when `failure_type: infra`.
+5. **The evidence cutoff appears in the HTML**, and no cited external event is newer than it.
 
 If any check fails, fix it before presenting.
 
@@ -902,7 +932,9 @@ Note: PR diff data not available in snapshot. Scoring based on component match a
 
 ## Notes
 
-- The snapshot is a **frozen archive** — it captures release controller, GitHub, and CI data as it was when the snapshot was taken. This enables re-analysis of historical payloads and provides reproducible results.
+- The snapshot is a frozen transport archive, but it may have been collected
+  after the payload completed. Apply `analysis_cutoff` to every embedded and
+  external event so historical re-analysis remains point-in-time reproducible.
 - Subagents still download artifacts from GCS (must-gather, pod logs, step logs) because these are not included in the snapshot. The snapshot provides the data scaffolding; subagents provide deep investigation.
 - The adversarial review adds one subagent call but catches misattributions before they reach the report.
 - For very large numbers of failed jobs (>8), consider whether some share the same underlying failure and group them in the report.
