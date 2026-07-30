@@ -94,6 +94,26 @@
      Cite the dev-guide source for each rule (parenthetical at end of line).
 -->
 
+## Verification bar
+
+<!-- Phase 9.5 — Default: "Every comment must cite file:line evidence from the diff
+     or linked source. If you cannot point to a specific line, do not post the comment.
+     Read surrounding context (at minimum the enclosing function) before flagging — the
+     answer may be ten lines below the diff hunk."
+
+     This prevents hallucinated or context-free comments. Adjust wording to match
+     repo conventions if needed, but always require concrete evidence. -->
+
+## Re-review
+
+<!-- Phase 9.5 — Default: "On re-review of an updated PR, only comment on lines that
+     changed since the last review. Do not re-raise resolved issues or introduce new
+     nits on unchanged code. Converge toward approval."
+
+     This prevents review ping-pong where the reviewer raises new issues on
+     unchanged code each round. Adjust wording if the repo has a different
+     re-review policy. -->
+
 ## Path-specific rules
 
 <!-- Phase 9.5 — Fill from Phase 5 framework split + naming conventions.

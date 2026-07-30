@@ -293,15 +293,18 @@ Style and naming issues are minor at most for all repo types.
 - [ ] Use tool-agnostic severity language ("must fix before merge" / "worth fixing, not blocking" / "suggestion only")
 - [ ] Use glob patterns for skip rules, not prose descriptions
 - [ ] Cite the dev-guide source for each "Always check" rule (parenthetical at end of line)
+- [ ] Include "Verification bar" section — require file:line citations for every comment
+- [ ] Include "Re-review" section — suppress new nits on unchanged code during re-reviews
 - [ ] Validate line count: target 60-80 lines, soft cap 100
 - [ ] **Do NOT** copy CLAUDE.md content — different purposes
 
 **Step 8 — Generate/merge .coderabbit.yaml**:
-- [ ] Use `templates/coderabbit-template.yaml` for structure
-- [ ] Translate "Do not report" globs to negated `path_filters` (e.g., `!zz_generated*`)
+- [ ] Use `templates/coderabbit-template.yaml` for structure — always set `inheritance: true` (inherits org-wide config from `openshift/coderabbit` which already excludes `vendor/**`, `zz_generated*`, `node_modules/**`)
+- [ ] Only add repo-specific exclusions to `path_filters` — skip patterns already covered by org config (vendor, zz_generated, boilerplate)
 - [ ] Translate "Path-specific rules" subsections to `path_instructions` entries
-- [ ] Set `knowledge_base.filePatterns` to `["REVIEW.md"]` — **NEVER add CLAUDE.md** (auto-detected separately)
-- [ ] If a `.coderabbit.yaml` already exists in the repo, merge: preserve existing settings (profile, auto_review, pre_merge_checks), add/update `knowledge_base`, `path_filters`, and `path_instructions`
+- [ ] Set `knowledge_base.filePatterns` to `["REVIEW.md", "AGENTS.md"]` — **NEVER add CLAUDE.md** (auto-detected separately)
+- [ ] `tone_instructions` is optional — only add if the repo has a distinct review culture; org default applies otherwise
+- [ ] If a `.coderabbit.yaml` already exists in the repo, merge: preserve existing settings (profile, auto_review, pre_merge_checks, tools, slop_detection), add/update `knowledge_base`, `path_filters`, and `path_instructions`
 - [ ] Validate YAML syntax: `python3 -c "import yaml; yaml.safe_load(open('.coderabbit.yaml'))"`
 
 ### Phase 10: Validation & Verification

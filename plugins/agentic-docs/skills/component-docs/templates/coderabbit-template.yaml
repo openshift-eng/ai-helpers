@@ -1,31 +1,39 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+#
 # CodeRabbit configuration — structured sidecar for REVIEW.md
 #
 # Phase 9.5 generates this file alongside REVIEW.md. The two must stay in sync:
-# - knowledge_base.filePatterns points at REVIEW.md (NEVER add CLAUDE.md — auto-detected)
+# - knowledge_base.filePatterns points at REVIEW.md + AGENTS.md
 # - path_filters mirrors "Do not report" skip patterns from REVIEW.md (negated globs)
 # - path_instructions mirrors "Path-specific rules" from REVIEW.md
 #
 # This template shows the structure. Phase 9.5 fills in repo-specific values.
+# Inherits org-wide settings from https://github.com/openshift/coderabbit
 
-knowledge_base:
-  code_guidelines:
-    enabled: true
-    filePatterns:
-      - "REVIEW.md"
-      # NEVER add CLAUDE.md here — CodeRabbit auto-detects it separately
+inheritance: true
+language: en-US
+
+# Phase 9.5: Adjust tone to match repo review culture. Remove if org default is fine.
+# tone_instructions: >
+#   Be direct and technical. State the issue, cite file:line, suggest a fix.
+#   No pleasantries or filler.
 
 reviews:
+  profile: chill
+  high_level_summary: true
+  poem: false
+  collapse_walkthrough: true
+  request_changes_workflow: false
+
   path_filters:
     # Phase 9.5: Translate "Do not report" globs to negated path_filters.
-    # Each entry is a negated glob — CodeRabbit skips matching files.
+    # Org config already excludes vendor/** and zz_generated* — only add
+    # repo-specific exclusions here.
     # Example entries (replace with actual Phase 5 discoveries):
     #
-    # - "!zz_generated*"
-    # - "!**/clientset/**"
-    # - "!**/informers/**"
-    # - "!**/listers/**"
-    # - "!vendor/**"
     # - "!assets/**"
+    # - "!**/bindata.go"
+    # - "!payload-manifests/**"
 
   path_instructions:
     # Phase 9.5: Translate "Path-specific rules" subsections to path_instructions.
@@ -41,3 +49,17 @@ reviews:
     #   instructions: |
     #     Jira component annotation required. Always produce JUnit
     #     result. Narrow scope.
+
+  auto_review:
+    enabled: true
+    drafts: false
+
+knowledge_base:
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - "REVIEW.md"
+      - "AGENTS.md"
+      # NEVER add CLAUDE.md here — CodeRabbit auto-detects it separately
+  learnings:
+    scope: local
