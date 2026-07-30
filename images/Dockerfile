@@ -38,10 +38,14 @@ COPY --from=claude-latest /usr/bin/claude /usr/local/bin/claude-latest
 
 # Install Codex CLI (OpenAI coding agent) — standalone Rust binary, no runtime deps
 ARG CODEX_VERSION=0.146.0
+ARG CODEX_SHA256=5ba3b9405543953081f661d0854d266f76e2abbe51d41349355a36de7673776a
 RUN curl -fsSL "https://github.com/openai/codex/releases/download/rust-v${CODEX_VERSION}/codex-x86_64-unknown-linux-musl.tar.gz" \
-    | tar -xz -C /usr/local/bin/ \
+    -o /tmp/codex.tar.gz \
+    && echo "${CODEX_SHA256}  /tmp/codex.tar.gz" | sha256sum -c - \
+    && tar -xzf /tmp/codex.tar.gz -C /usr/local/bin/ \
     && mv /usr/local/bin/codex-x86_64-unknown-linux-musl /usr/local/bin/codex \
-    && chmod +x /usr/local/bin/codex
+    && chmod +x /usr/local/bin/codex \
+    && rm /tmp/codex.tar.gz
 
 # Install Python tools and PCP bindings
 RUN python3 -m pip install --no-cache-dir \
