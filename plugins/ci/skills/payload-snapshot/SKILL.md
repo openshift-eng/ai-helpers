@@ -222,7 +222,10 @@ exists only to opt a test out.
 the failure count, and flakes and informing tests are not added to it.
 Those two are listed by name under `test_failures.flakes[]` and
 `test_failures.informing[]`. Regression onset (`first_failed_in`) is derived
-from gating failures alone.
+from gating failures alone. It matches test names, not normalized failure
+signatures; `onset_basis: test_name` makes that limitation explicit. Use it as
+a search bound, then inspect raw artifacts to find the current causal
+signature's true onset.
 
 #### "Informing job" vs "informing test" — two unrelated concepts
 
@@ -312,6 +315,7 @@ Per-payload regression tracking data. For each failing test in the target payloa
 - `test_name`: the failing test
 - `jobs`: which jobs it fails in
 - `first_failed_in`: the earliest payload in the chain where it was failing
+- `onset_basis`: always `test_name`; this onset does not distinguish different failure mechanisms reported by the same test
 - `payloads_failing`: how many consecutive payloads it has been failing
 - `failure_message`: the error message
 - `failure_text`: full failure output

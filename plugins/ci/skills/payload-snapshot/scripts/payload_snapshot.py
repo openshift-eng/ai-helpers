@@ -1438,6 +1438,7 @@ class RegressionTracker:
                 "jobs": info["jobs"],
                 "lifecycle": info["lifecycle"],
                 "first_failed_in": first_failed_in,
+                "onset_basis": "test_name",
                 "payloads_failing": chain_idx_first + 1,
                 "failure_message": info.get("failure_message", ""),
                 "failure_text": info.get("failure_text", ""),

@@ -146,7 +146,7 @@ For each failed job's `streak.originating_payload`, find the matching entry in `
 - `url`, `component`, `number`, `description`
 - Paths to local artifacts: `diff`, `comments`, `jobs`
 
-Treat this as a **preliminary** list only. The job-level streak merges unrelated failure modes, so its originating payload is frequently earlier than the regression being investigated — and candidates gathered from it can omit the causal PR entirely. Before scoring, re-derive the originating payload **per failure mode** from `test_failures.blocking[].first_failed_in` (Step 5) and collect the candidates from *that* payload.
+Treat this as a **preliminary** list only. The job-level streak merges unrelated failure modes, so its originating payload is frequently earlier than the regression being investigated — and candidates gathered from it can omit the causal PR entirely. `test_failures.blocking[].first_failed_in` is also preliminary: it tracks the test name, not the current minimal causal signature. Before scoring, re-derive the originating payload per atomic signature from raw artifacts (Step 5) and collect candidates from that payload.
 
 For a Sippy-backed originating payload, the PR list remains usable for
 candidate scoring and the normal GitHub diff/comment/job artifacts are still
@@ -337,17 +337,54 @@ Convert the Prow URL to a gcsweb URL and use WebFetch to read it.
 
 ### Step 5: Validate Failure Streaks
 
-After collecting all subagent results, verify that consecutive failures across payloads share the same root cause. A consecutive failure streak does NOT automatically mean the same root cause.
+After collecting all subagent results, verify that consecutive failures across payloads share the same minimal causal signature. A consecutive job or test-name streak does NOT establish a causal streak.
 
 Compare the subagent's root cause analysis for the target payload against previous payload analyses (from Step 4b) or the failure signatures in the snapshot's streak data.
 
 If a job fails in two consecutive payloads but for **different reasons**, treat each as a separate streak=1 failure with its own originating payload and candidate PRs. Re-split the streak and re-assign originating payloads before proceeding to scoring.
 
-**The job-level streak is not a failure mode's originating payload.** `streak.originating_payload` tracks when the *job* started failing, which merges unrelated modes — an infrastructure blip, a flake, and a real regression all read as one streak. Scoring candidates from a payload that predates the actual regression guarantees misattribution: the causal PR is not even in the candidate set.
+Track three distinct onsets:
 
-For each failure mode, take the originating payload from the matching `test_failures.blocking[]` entry's **`first_failed_in`**. When that is later than the job-level streak's, the job's earlier failures are a different mode — score from `first_failed_in`. Confirm the test passed in the preceding payload; where that payload has no per-test data, check its child runs rather than assuming it was failing.
+1. **Job onset** — `streak.originating_payload`; only when the job began failing
+2. **Test-name onset** — `test_failures.blocking[].first_failed_in`; only when that named test began failing
+3. **Signature onset** — the first payload in the current contiguous run containing the same minimal causal signature
 
-Establish this before enumerating candidate PRs (Step 6.1). When the two onsets differ, record both and state which drove scoring.
+Only signature onset determines candidate PRs. Job onset and test-name onset are navigation hints and must never supply temporal points or candidate PRs by themselves.
+
+#### Construct minimal causal signatures
+
+Represent each distinct failure mode as its own atomic signature. Use the smallest stable set of fields that distinguishes the mechanism:
+
+- failing operation or reconcile phase
+- normalized error class or invariant
+- causal component and resource kind
+- one discriminating condition when needed to separate mechanisms
+
+Exclude volatile or non-causal material:
+
+- timestamps, durations that do not define the failure, retry numbers, payload tags, generated names, UIDs, IPs, and request IDs
+- unrelated tests that failed in the same job
+- cleanup fallout and terminal symptoms when an earlier trigger is known
+- incidental infrastructure errors that did not participate in this failure mode
+
+Do not concatenate every error in a job into one signature. A job with a product failure plus quota, DNS, or teardown noise contains multiple atomic signatures. Track each independently. An extra co-occurring signature neither extends nor resets another signature's streak.
+
+Conversely, preserve infrastructure in the signature when it is part of the executed chain. For example, `DNS throttling → ignition record delayed beyond VM deadline` is one signature; an unrelated registry timeout in the same child is another. Match the mechanism, not the entire bag of symptoms.
+
+Two occurrences share a signature only when their earliest discriminating event, failing operation, and normalized error class agree. Treat identical terminal errors with different triggers as different signatures. Treat changed downstream symptoms with the same observed trigger and operation as the same signature.
+
+#### Find the signature boundary
+
+Starting at the target payload, walk backward through raw child artifacts and:
+
+1. Determine whether the atomic signature is present in each prior payload.
+2. Continue across additional unrelated failures; they do not break the signature streak.
+3. Stop at the first payload where the signature is absent or contradicted.
+4. Set signature onset to the next payload and verify the immediately preceding payload with raw evidence.
+
+If artifacts cannot distinguish whether the signature is present, mark the boundary unknown. Do not fall back to job or test-name onset and do not award temporal-correlation points.
+
+Establish this before enumerating candidate PRs (Step 6.1). Record all three onsets, the normalized atomic signature, and the raw evidence establishing its boundary.
 
 ### Step 5b: Adjudicate Conflicting Root Causes
 
@@ -796,6 +833,8 @@ Use this prompt for the reviewer:
 > 8. **Unsafe revert gate**: For every recommended revert, independently verify all five action-gate items from Step 6.2. A rubric score alone never authorizes a revert.
 >
 > 9. **Weak counterfactual**: Treat persistence of the same signature after removing a PR as exculpatory. Do not treat one passing retry after removal as proof unless paired or repeated evidence isolates the change.
+>
+> 10. **Wrong streak boundary**: Did candidate selection use the current atomic signature's verified onset, or a longer job/test-name streak? Check that signatures are minimal and that unrelated infrastructure, cleanup, or co-failing tests were not concatenated into the signature. If the preceding payload lacks discriminating artifacts, reject temporal points rather than guessing.
 >
 > **Rules**:
 > - Recompute the causal-evidence cap independently and lower the final confidence when the evidence tier is overstated.

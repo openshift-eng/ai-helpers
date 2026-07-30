@@ -1,0 +1,66 @@
+expected_phase: Rejected
+expected_failed_job_count: 4
+has_revert_candidates: true
+force_accept_expected: false
+
+expected_candidates:
+  - pr_url: "https://github.com/openshift/oc/pull/2279"
+    component: "cli"
+    min_confidence: 85
+    expected_confidence: 100
+    description: "oc adm upgrade recommend output changed while the TechPreview serial tests still required the removed conditions preamble"
+    expected_failing_jobs:
+      - "aws-ovn-techpreview-serial-1of3"
+      - "aws-ovn-techpreview-serial-2of3"
+
+must_not_conclude:
+  - "HyperShift PR #8871 caused the etcd leader-change failures by rolling or restarting the target HostedCluster etcd StatefulSet"
+  - "The first payload where the aggregated HyperShift test name failed proves that PR #8871 introduced the underlying leader-election signature"
+  - "A single nearby HyperShift PR that touches etcd configuration is sufficient evidence for a revert"
+
+distractors:
+  - "PR #8871 adds TLS security-profile arguments to etcd and is temporally near a six-payload job-level failure streak"
+  - "The aggregated test reports approximately one etcd leader change in 7 of 10 runs, which superficially resembles a rollout"
+  - "The PromQL result groups by pod and job but omits namespace, making another HostedCluster's etcd-0 look like the target etcd-0"
+
+key_evidence:
+  - fact: >-
+      The target HostedCluster and its etcd-0 pod were newly created with the
+      TLS arguments present from first startup. The target pod had
+      restartCount=0, so there was no target StatefulSet rollout or restart
+      caused by PR #8871 during the test.
+    artifacts:
+      - "failed child pod artifact: periodic-ci-openshift-hypershift-release-5.0-periodics-e2e-aws-ovn-conformance/2080077700080340992/artifacts/e2e-aws-ovn-conformance/dump/artifacts/namespaces/clusters-f59953faec06f68d99b5/core/pods/etcd-0.yaml"
+      - "failed child etcd log: periodic-ci-openshift-hypershift-release-5.0-periodics-e2e-aws-ovn-conformance/2080077700080340992/artifacts/e2e-aws-ovn-conformance/dump/artifacts/namespaces/clusters-f59953faec06f68d99b5/core/pods/logs/etcd-0-etcd.log"
+  - fact: >-
+      The external-topology etcd monitor query selects every management-cluster
+      namespace matching clusters-.* and then aggregates away namespace. A
+      leader election from another concurrent HostedCluster can therefore be
+      attributed to the target pod name etcd-0.
+    artifacts:
+      - "openshift/origin test/extended/etcd/leader_changes.go"
+      - "5.0/nightly/5.0.0-0.nightly-2026-07-22-233611/jobs/blocking/aggregated-hypershift-ovn-conformance-5.0/junit/results.json"
+  - fact: >-
+      PR #2279 has direct code-to-assertion evidence in two independent
+      TechPreview serial shards, and its revert PR #2320 merged before this
+      payload completed.
+    artifacts:
+      - "5.0/nightly/5.0.0-0.nightly-2026-07-22-072716/cli, cli-artifacts, deployer, tools/prs/2279/code.diff"
+      - "5.0/nightly/5.0.0-0.nightly-2026-07-22-233611/jobs/blocking/aws-ovn-techpreview-serial-1of3/job.json"
+      - "5.0/nightly/5.0.0-0.nightly-2026-07-22-233611/jobs/blocking/aws-ovn-techpreview-serial-2of3/job.json"
+
+discriminating_signal: >-
+  A causal rollout requires a target-pod lifecycle change. The target etcd-0
+  has no restart and was born with the new arguments, while the metric query
+  crosses HostedCluster namespaces and discards namespace identity. Keep the
+  independently proven oc #2279 recommendation, but reject HyperShift #8871.
+
+notes: >
+  Mixed true-positive and false-positive case. The original Payload Agent
+  correctly recommended openshift/oc#2279 at 100 for two TechPreview serial
+  failures, but also recommended openshift/hypershift#8871 at 95 for the
+  aggregated HyperShift failure. The latter attribution is false: it substitutes
+  job-level temporal onset for the underlying signature onset and never proves
+  the claimed target etcd rollout. The true defect is cross-tenant evidence
+  contamination in the Origin etcd monitor query. Source Payload Agent analysis:
+  https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results/logs/periodic-ci-openshift-release-main-claude-payload-agent/2080077739515187200/artifacts/claude-payload-agent/openshift-claude-payload-agent/artifacts/payload-analysis-5.0.0-0.nightly-2026-07-22-233611-summary.html
