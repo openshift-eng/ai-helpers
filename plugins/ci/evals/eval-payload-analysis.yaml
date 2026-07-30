@@ -68,7 +68,11 @@ dataset:
       - 'analysis_cutoff': the same ISO-8601 timestamp as payload_completed_at
       - 'expected_candidates': list of expected revert candidates with pr_url,
         component, min_confidence, expected_confidence, description,
-        expected_failing_jobs
+        expected_failing_jobs. The failing-job list is the candidate-specific
+        subset it should explain and need not equal expected_failed_job_count.
+      - 'expected_ci_config_issues': optional list of causal CI-configuration
+        PRs outside the payload changelog, with pr_url, min_confidence,
+        description, and expected_failing_jobs
       - 'forbidden_revert_candidates': PR URLs that must not be recommended at
         revert confidence or marked revert-eligible
       - 'required_claims': causal findings that must appear in the analysis;
@@ -556,7 +560,11 @@ judges:
       }
       failures = []
 
-      for expected in case_data.get("expected_candidates", []) or []:
+      expected_causes = (
+          (case_data.get("expected_candidates", []) or [])
+          + (case_data.get("expected_ci_config_issues", []) or [])
+      )
+      for expected in expected_causes:
           url = str(expected.get("pr_url", "")).rstrip("/").lower()
           candidate = by_url.get(url)
           if candidate is None:
@@ -666,6 +674,9 @@ judges:
         rather than generic (just restating test names)?
       - If expected_candidates are listed in annotations, are they identified with
         evidence-based rationale?
+      - If expected_ci_config_issues are listed, are those out-of-payload CI
+        changes identified as structured causal candidates and tied to the
+        expected jobs?
       - Are every required_claim and discriminating signal established from
         evidence, and are must_not_conclude claims avoided?
       - Does the HTML report contain actionable information?
@@ -708,11 +719,13 @@ judges:
 
       {{ annotations }}
 
-      If expected_candidates are listed in annotations, those PRs should be
-      identified with confidence >= min_confidence and linked to the
-      expected_failing_jobs. If expected_candidates is empty, no false positive
-      revert recommendations should appear. Any forbidden_revert_candidates
-      must remain below revert confidence and must not be marked revert-eligible.
+      If expected_candidates or expected_ci_config_issues are listed in
+      annotations, those PRs should be identified with confidence >=
+      min_confidence and linked to the expected_failing_jobs. A CI-configuration
+      cause belongs in structured candidates even though it is outside the
+      payload changelog. If both lists are empty, no false positive revert
+      recommendations should appear. Any forbidden_revert_candidates must
+      remain below revert confidence and must not be marked revert-eligible.
 
       Evaluate on a 1-5 scale:
 
