@@ -35,6 +35,23 @@
       ]
     },
     {
+      "name": "patternfly",
+      "source": {
+        "source": "github",
+        "repo": "rh-uxd/ai-helpers",
+        "path": "plugins/patternfly"
+      },
+      "description": "PatternFly development tools from the UXD team — component scaffolding, design guidance, auditing, migration, test generation, and an MCP server.",
+      "category": "development",
+      "keywords": [
+        "patternfly",
+        "uxd",
+        "react",
+        "design",
+        "mcp"
+      ]
+    },
+    {
       "name": "git",
       "source": "./plugins/git",
       "description": "Git Plugin",
