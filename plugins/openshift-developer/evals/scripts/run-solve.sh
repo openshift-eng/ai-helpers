@@ -30,25 +30,12 @@ WORKSPACE="$(pwd)"
 OUTPUT_DIR="${WORKSPACE}/output"
 REPO_DIR="${EVAL_REPO_DIR:-$(mktemp -d "${HOME}/.cache/eval-solve.XXXXXX")/repo}"
 
-OPENSHIFT_DEV_PLUGIN="$AI_HELPERS_DIR/plugins/openshift-developer"
-CODE_REVIEW_PLUGIN="$AI_HELPERS_DIR/plugins/code-review"
-
 echo "=== Solve Eval: $ISSUE_KEY ==="
 echo "Repo: $REPO_URL"
 echo "Branch: $EVAL_BRANCH"
 echo "Model: $SKILL_MODEL"
 echo "Workspace: $WORKSPACE"
 echo "ai-helpers: $AI_HELPERS_DIR"
-
-# Validate plugins
-if [ ! -f "$OPENSHIFT_DEV_PLUGIN/skills/jira-solve/SKILL.md" ]; then
-  echo "ERROR: solve SKILL.md not found at $OPENSHIFT_DEV_PLUGIN/skills/jira-solve/SKILL.md" >&2
-  exit 1
-fi
-if [ ! -d "$CODE_REVIEW_PLUGIN/.claude-plugin" ]; then
-  echo "ERROR: code-review plugin not found at $CODE_REVIEW_PLUGIN" >&2
-  exit 1
-fi
 
 # Helper: extract token/cost JSON from stream-json output
 extract_tokens() {
@@ -104,7 +91,6 @@ PHASE1_START=$(date +%s)
 
 set +e
 claude -p "/openshift-developer:jira-solve ${ISSUE_KEY} origin --ci" \
-  --plugin-dir "$OPENSHIFT_DEV_PLUGIN" \
   --allowedTools "Bash Read Write Edit Grep Glob WebFetch Agent Skill Task" \
   --max-turns 300 \
   --effort max \
@@ -156,7 +142,6 @@ PHASE2_START=$(date +%s)
 
 set +e
 claude -p "/code-review:pre-commit-review --language go --profile hypershift" \
-  --plugin-dir "$CODE_REVIEW_PLUGIN" \
   --allowedTools "Bash Read Grep Glob Task Agent Skill" \
   --max-turns 225 \
   --effort max \
@@ -187,7 +172,6 @@ PHASE3_START=$(date +%s)
 if [ -n "$REVIEW_FINDINGS" ]; then
   set +e
   claude -p "/openshift-developer:address-review-precommit" \
-    --plugin-dir "$OPENSHIFT_DEV_PLUGIN" \
     --allowedTools "Bash Read Write Edit Grep Glob Agent Skill Task" \
     --max-turns 225 \
     --effort max \
