@@ -17,7 +17,6 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import threading
 import time
 import urllib.error
 import urllib.parse
@@ -47,14 +46,6 @@ PROW_STATE_MAP = {
     "aborted": "Failed",
     "error": "Failed",
 }
-
-FALLBACK_FETCH_ERRORS = (
-    urllib.error.HTTPError,
-    urllib.error.URLError,
-    json.JSONDecodeError,
-    TimeoutError,
-    SystemExit,
-)
 
 
 # ---------------------------------------------------------------------------
@@ -256,47 +247,17 @@ class ReleaseController:
 # ---------------------------------------------------------------------------
 
 class SippyClient:
-    """Client for Sippy's release-controller mirror APIs."""
+    """Client for Sippy APIs, used when release controller data is unavailable."""
 
     SIPPY_BASE = "https://sippy.dptools.openshift.org/api"
-    SIPPY_UI = "https://sippy.dptools.openshift.org/sippy-ng"
 
-    def __init__(
-        self, release: str, architecture: str = "amd64", stream: str = "nightly"
-    ):
+    def __init__(self, release: str):
         self.release = release
-        self.architecture = architecture
-        self.stream = stream
         self._tags_cache: Optional[list] = None
-        self._job_runs_cache: dict[str, list[dict]] = {}
-
-    @staticmethod
-    def _filter(column: str, value: str) -> dict:
-        return {
-            "columnField": column,
-            "operatorValue": "equals",
-            "value": value,
-        }
-
-    @classmethod
-    def _encoded_filter(cls, *items: tuple[str, str]) -> str:
-        filter_json = {
-            "items": [cls._filter(column, value) for column, value in items]
-        }
-        return urllib.parse.quote(json.dumps(filter_json))
 
     def _get_tags(self) -> list[dict]:
         if self._tags_cache is None:
-            filter_value = self._encoded_filter(
-                ("architecture", self.architecture),
-                ("stream", self.stream),
-            )
-            url = (
-                f"{self.SIPPY_BASE}/releases/tags"
-                f"?filter={filter_value}"
-                f"&release={urllib.parse.quote(self.release)}"
-                "&sortField=release_time&sort=desc"
-            )
+            url = f"{self.SIPPY_BASE}/releases/tags?release={urllib.parse.quote(self.release)}"
             self._tags_cache = fetch_json(url, timeout=60)
         return self._tags_cache
 
@@ -306,55 +267,29 @@ class SippyClient:
                 return t
         return None
 
-    def fetch_tags(self) -> list[dict]:
-        """Fetch release tags newest first for this release/arch/stream."""
-        return self._get_tags()
-
     def fetch_job_runs(self, tag_name: str) -> list[dict]:
-        if tag_name in self._job_runs_cache:
-            return self._job_runs_cache[tag_name]
-        filter_value = self._encoded_filter(("release_tag", tag_name))
+        filter_json = json.dumps({"items": [
+            {"columnField": "release_tag", "operatorValue": "equals",
+             "value": tag_name}
+        ]})
         url = (f"{self.SIPPY_BASE}/releases/job_runs"
-               f"?filter={filter_value}"
-               f"&sortField=kind&sort=asc&limit=1000")
-        runs = fetch_json(url, timeout=60)
-        self._job_runs_cache[tag_name] = runs
-        return runs
-
-    def fetch_pull_requests(self, tag_name: str) -> list[dict]:
-        """Fetch PRs introduced by a payload from Sippy."""
-        filter_value = self._encoded_filter(("release_tag", tag_name))
-        url = (
-            f"{self.SIPPY_BASE}/releases/pull_requests"
-            f"?filter={filter_value}"
-            "&sortField=pull_request_id&sort=asc&limit=1000"
-        )
+               f"?filter={urllib.parse.quote(filter_json)}"
+               f"&sortField=kind&sort=asc&limit=200")
         return fetch_json(url, timeout=60)
 
-    def fetch_changelog(
-        self, tag_name: str, from_tag: Optional[str] = None
-    ) -> list[dict]:
-        """Fetch the incremental PR diff, with per-payload PR fallback."""
+    def fetch_changelog(self, tag_name: str, from_tag: Optional[str] = None) -> list[dict]:
+        params = f"toPayload={urllib.parse.quote(tag_name)}"
+        if not from_tag:
+            tag_meta = self.find_tag(tag_name)
+            if tag_meta:
+                from_tag = tag_meta.get("previous_release_tag", "")
         if from_tag:
-            url = (
-                f"{self.SIPPY_BASE}/payloads/diff"
-                f"?toPayload={urllib.parse.quote(tag_name)}"
-                f"&fromPayload={urllib.parse.quote(from_tag)}"
-            )
-            try:
-                return fetch_json(url, timeout=60)
-            except FALLBACK_FETCH_ERRORS as exc:
-                _log(
-                    "  Sippy incremental payload diff unavailable; "
-                    f"using per-payload PR data: {exc}"
-                )
-        return self.fetch_pull_requests(tag_name)
-
-    def release_url(self, tag_name: str) -> str:
-        return (
-            f"{self.SIPPY_UI}/release/{urllib.parse.quote(self.release)}"
-            f"/tags/{urllib.parse.quote(tag_name)}"
-        )
+            params += f"&fromPayload={urllib.parse.quote(from_tag)}"
+        url = f"{self.SIPPY_BASE}/payloads/diff?{params}"
+        try:
+            return fetch_json(url, timeout=60)
+        except Exception:
+            return []
 
     def build_synthetic_payload(self, tag_name: str, tag: "PayloadTag") -> dict:
         tag_meta = self.find_tag(tag_name)
@@ -379,19 +314,18 @@ class SippyClient:
             else:
                 informing_jobs[name] = entry
 
+        rc = ReleaseController(tag.architecture, stream=tag.stream)
         return {
             "phase": phase,
             "results": {
                 "blockingJobs": blocking_jobs,
                 "informingJobs": informing_jobs,
             },
-            "_release_url": self.release_url(tag_name),
+            "_release_url": rc.release_url(tag.stream_name, tag_name),
             "_source": "sippy",
         }
 
-    def build_synthetic_changelog(
-        self, tag_name: str, from_tag: Optional[str] = None
-    ) -> dict:
+    def build_synthetic_changelog(self, tag_name: str, from_tag: Optional[str] = None) -> dict:
         prs = self.fetch_changelog(tag_name, from_tag=from_tag)
         if not isinstance(prs, list):
             return {"changeLogJson": {"updatedImages": []}, "_source": "sippy"}
@@ -440,10 +374,10 @@ class PayloadChain:
 
         try:
             start_idx = tag_names.index(start_tag)
-        except ValueError as exc:
+        except ValueError:
             raise ValueError(
                 f"Tag {start_tag} not found in stream {self.stream_name}"
-            ) from exc
+            )
 
         chain = []
         for i in range(start_idx, min(start_idx + self.max_depth, len(tag_names))):
@@ -475,148 +409,41 @@ class PayloadChain:
 
 
 class SippyPayloadChain:
-    """Walks backwards through Sippy's time-ordered payload tags."""
+    """Walks backwards through payloads using Sippy tag data."""
 
     def __init__(self, sippy: SippyClient, max_depth: int = 20):
         self.sippy = sippy
         self.max_depth = max_depth
 
-    def _all_blocking_passed(self, tag_name: str) -> bool:
-        """Check whether every blocking job in a payload succeeded."""
+    def _has_blocking_failures(self, tag_name: str) -> bool:
+        """Check whether a payload has any failed blocking jobs."""
         runs = self.sippy.fetch_job_runs(tag_name)
-        blocking = [r for r in runs if r.get("kind") == "Blocking"]
-        if not blocking:
-            tag_meta = self.sippy.find_tag(tag_name)
-            return bool(
-                tag_meta
-                and tag_meta.get("phase") == "Accepted"
-                and not tag_meta.get("forced", False)
-                and tag_meta.get("failed_job_names") == []
-            )
-        return all(
-            r.get("state") == "Succeeded" for r in blocking
+        return any(
+            r.get("kind") == "Blocking" and r.get("state") == "Failed"
+            for r in runs
         )
 
     def build(self, start_tag: str) -> list[str]:
-        tag_names = [
-            tag["release_tag"] for tag in self.sippy.fetch_tags()
-            if tag.get("release_tag")
-        ]
-        try:
-            start_index = tag_names.index(start_tag)
-        except ValueError as exc:
-            raise ValueError(f"Tag {start_tag} not found in Sippy") from exc
-
-        chain = []
-        for tag_name in tag_names[
-            start_index:start_index + self.max_depth
-        ]:
-            chain.append(tag_name)
-            if self._all_blocking_passed(tag_name):
-                break
-        return chain
-
-
-class HybridPayloadChain:
-    """Build a complete payload chain from RC data plus Sippy history.
-
-    Release-controller details remain authoritative for retained tags. Sippy's
-    time-ordered tag list identifies payloads that were garbage collected
-    between retained release-controller entries.
-    """
-
-    def __init__(
-        self,
-        rc: ReleaseController,
-        sippy: SippyClient,
-        stream_name: str,
-        max_depth: int = 20,
-    ):
-        self.rc = rc
-        self.sippy = sippy
-        self.stream_name = stream_name
-        self.max_depth = max_depth
-        self.sources: dict[str, str] = {}
-        self._rc_tags: list[str] = []
-        self._sippy_tags: list[str] = []
-        self._sippy_available = True
-        self._warned_sippy = False
-
-    def _load_sippy_tags(self) -> list[str]:
-        if not self._sippy_available:
-            return []
-        try:
-            self._sippy_tags = [
-                tag["release_tag"] for tag in self.sippy.fetch_tags()
-                if tag.get("release_tag")
-            ]
-            return self._sippy_tags
-        except FALLBACK_FETCH_ERRORS as exc:
-            self._sippy_available = False
-            if not self._warned_sippy:
-                _log(
-                    "Warning: Sippy release ancestry is unavailable; "
-                    f"falling back to release-controller ordering: {exc}"
-                )
-                self._warned_sippy = True
-            return []
-
-    @staticmethod
-    def _previous(tag_names: list[str], tag_name: str) -> str:
-        try:
-            index = tag_names.index(tag_name)
-        except ValueError:
-            return ""
-        if index + 1 >= len(tag_names):
-            return ""
-        return tag_names[index + 1]
-
-    def _fetch_details(self, tag_name: str, rc_tag_names: set[str]) -> dict:
-        if tag_name in rc_tag_names:
-            self.sources[tag_name] = "release-controller"
-            return self.rc.fetch_release(self.stream_name, tag_name)
-
-        tag = PayloadTag.parse(tag_name)
-        self.sources[tag_name] = "sippy"
-        return self.sippy.build_synthetic_payload(tag_name, tag)
-
-    def build(self, start_tag: str) -> list[str]:
-        rc_tags = self.rc.fetch_tags(self.stream_name)
-        self._rc_tags = [t["name"] for t in rc_tags]
-        rc_tag_names = set(self._rc_tags)
-        sippy_tag_names = set(self._load_sippy_tags())
-
-        if start_tag not in rc_tag_names and start_tag not in sippy_tag_names:
-            raise ValueError(
-                f"Tag {start_tag} not found in release controller or Sippy"
-            )
-
-        chain: list[str] = []
+        chain = [start_tag]
         current = start_tag
-        for _ in range(self.max_depth):
-            if current in chain:
-                _log(f"Warning: payload ancestry cycle detected at {current}")
+        for _ in range(self.max_depth - 1):
+            tag_meta = self.sippy.find_tag(current)
+            if not tag_meta:
                 break
-            chain.append(current)
-
-            details = self._fetch_details(current, rc_tag_names)
-            rc_chain = PayloadChain(self.rc, self.stream_name)
-            if rc_chain._all_blocking_passed(details):
+            prev = tag_meta.get("previous_release_tag", "")
+            if not prev:
                 break
-
-            sippy_previous = self._previous(self._sippy_tags, current)
-            rc_previous = self._previous(self._rc_tags, current)
-            previous = sippy_previous or rc_previous
-            if not previous:
+            chain.append(prev)
+            if not self._has_blocking_failures(prev):
+                # First payload with all blocking jobs green — include
+                # one more predecessor so this payload gets a changelog.
+                prev_meta = self.sippy.find_tag(prev)
+                if prev_meta:
+                    anchor = prev_meta.get("previous_release_tag", "")
+                    if anchor:
+                        chain.append(anchor)
                 break
-
-            if sippy_previous and sippy_previous not in rc_tag_names:
-                _log(
-                    "  Sippy history restored garbage-collected payload "
-                    f"{sippy_previous} before {current}"
-                )
-            current = previous
-
+            current = prev
         return chain
 
 
@@ -706,7 +533,6 @@ class PayloadDetailCollector(Collector):
         _log(f"  Fetching payload details: {self.tag}")
         details = self.rc.fetch_release(self.stream_name, self.tag)
         details["_release_url"] = self.rc.release_url(self.stream_name, self.tag)
-        details["_source"] = "release-controller"
         return details
 
 
@@ -723,11 +549,7 @@ class ChangelogCollector(Collector):
 
     def _fetch(self) -> dict:
         _log(f"  Fetching changelog: {self.tag} from {self.from_tag}")
-        changelog = self.rc.fetch_changelog(
-            self.stream_name, self.tag, self.from_tag
-        )
-        changelog["_source"] = "release-controller"
-        return changelog
+        return self.rc.fetch_changelog(self.stream_name, self.tag, self.from_tag)
 
 
 class PullRequestCollector(Collector):
@@ -894,48 +716,7 @@ class JUnitCollector(Collector):
         os.makedirs(self.output_dir, exist_ok=True)
         all_results: list[_TestResult] = []
 
-        with _error_scope() as own_errors:
-            junit_files = self._list_junit_files()
-            downloaded, failed_downloads = self._download_and_parse(
-                junit_files, all_results
-            )
-        gcloud_failed = any(
-            not e.get("recovered") for e in own_errors
-        )
-
-        # Nothing was discovered at all.  These collectors only run for
-        # jobs that FAILED, so "no JUnit anywhere" is not evidence of a
-        # clean run — it is an unknown.  Publishing [] here would report a
-        # verified zero for a job whose tests may never have run.
-        if not junit_files:
-            _record_collection_error(
-                "junit_missing",
-                ["gcloud", "storage", "ls", "<junit>"],
-                detail=(
-                    "no JUnit artifacts discovered for a failed job; "
-                    "test results are unknown, not zero"
-                ),
-                stage="junit",
-                job=self.job.name,
-                payload_tag=self.payload_tag,
-            )
-            _log(
-                f"  ERROR: no JUnit discovered for {self.job.name} — "
-                f"leaving results.json absent (unknown, not zero)"
-            )
-            return False
-
-        return self._publish(
-            junit_files, all_results, downloaded, failed_downloads,
-            gcloud_failed,
-        )
-
-    def _download_and_parse(
-        self, junit_files: list[str], all_results: list
-    ) -> tuple[int, int]:
-        """Fetch each JUnit file and parse it; count successes/failures."""
-        downloaded = 0
-        failed_downloads = 0
+        junit_files = self._list_junit_files()
         for gcs_uri in junit_files:
             filename = os.path.basename(gcs_uri)
             local_path = os.path.join(self.output_dir, filename)
@@ -949,72 +730,7 @@ class JUnitCollector(Collector):
 
             if os.path.exists(local_path):
                 results = _parse_junit_xml(local_path, source_name=filename)
-                if results is None:
-                    # Downloaded but unparseable.  Treated as unread, not as
-                    # "no failures" — corrupt XML must never become a zero.
-                    failed_downloads += 1
-                    _record_collection_error(
-                        "junit_unparseable",
-                        ["parse", filename],
-                        detail=f"{filename} is not valid JUnit XML",
-                        stage="junit",
-                        job=self.job.name,
-                        payload_tag=self.payload_tag,
-                    )
-                    continue
-                downloaded += 1
                 all_results.extend(results)
-            else:
-                failed_downloads += 1
-        return downloaded, failed_downloads
-
-    def _publish(
-        self, junit_files: list[str], all_results: list,
-        downloaded: int, failed_downloads: int, gcloud_failed: bool,
-    ) -> bool:
-        """Write results.json unless doing so would misreport the data."""
-        # Refuse to publish an empty result set that was caused by a read
-        # failure.  Writing `[]` here makes the job look clean, and
-        # downstream consumers report "0 test failures" for a job that
-        # actually failed.  Leaving results.json absent means "unknown",
-        # which the summary and the analysis skill treat as such.
-        if gcloud_failed and downloaded == 0:
-            _record_collection_error(
-                "junit_unavailable",
-                ["gcloud", "storage", "cat", "<junit>"],
-                detail=(
-                    "no JUnit XML could be read; results.json intentionally "
-                    "not written so this is not mistaken for zero failures"
-                ),
-                stage="junit",
-                job=self.job.name,
-                payload_tag=self.payload_tag,
-            )
-            _log(
-                f"  ERROR: could not read JUnit for {self.job.name} — "
-                f"leaving results.json absent (unknown, not zero)"
-            )
-            return False
-
-        # Some files read, others not.  The results are real but partial, so
-        # publish them and mark them partial — a count derived from half the
-        # JUnit is not authoritative and must not read as one that is.
-        if failed_downloads:
-            _record_collection_error(
-                "junit_partial",
-                ["gcloud", "storage", "cat", "<junit>"],
-                detail=(
-                    f"{failed_downloads} of {len(junit_files)} JUnit file(s) "
-                    f"could not be read; test_failure_count is a lower bound"
-                ),
-                stage="junit",
-                job=self.job.name,
-                payload_tag=self.payload_tag,
-            )
-            _log(
-                f"  WARNING: partial JUnit for {self.job.name} — "
-                f"{failed_downloads}/{len(junit_files)} file(s) unread"
-            )
 
         failures = _test_results_to_json(all_results)
         _write_json(self.output_path, failures)
@@ -1032,40 +748,18 @@ class JUnitCollector(Collector):
         return True
 
     def _list_junit_files(self) -> list[str]:
-        """Discover JUnit XML files in GCS for this job.
-
-        Tries a recursive glob first, then falls back to bounded-depth
-        probes.  Jobs that emit very large artifact trees (Hypershift e2e
-        can produce 10,000+ cluster resource dumps) make the ``**`` glob
-        slow enough to time out, and a timeout here previously produced a
-        silently empty result set.
-        """
+        """Discover JUnit XML files in GCS for this job."""
         bucket_path = self.job.gcs_bucket_path
         base = f"gs://{bucket_path}"
 
-        with _error_scope() as glob_errors:
-            output = _run_gcloud(
-                ["gcloud", "storage", "ls",
-                 f"{base}/artifacts/**/junit*.xml"],
-                timeout=120,
-            )
-
-        files = [line.strip() for line in (output or "").strip().splitlines()
-                 if line.strip()]
-
-        if not files:
-            _log(
-                f"  warn: recursive glob found no JUnit for {self.job.name} "
-                f"— trying bounded-depth fallback"
-            )
-            files = self._list_junit_files_fallback(base)
-            if files:
-                # The glob's failure is recovered; any probe failures the
-                # fallback itself hit are NOT — they may be missing data.
-                _mark_errors_recovered(glob_errors)
-
-        if not files:
+        output = _run_gcloud(
+            ["gcloud", "storage", "ls", f"{base}/artifacts/**/junit*.xml"],
+            timeout=30,
+        )
+        if not output:
             return []
+
+        files = [l.strip() for l in output.strip().splitlines() if l.strip()]
 
         if self.job.is_aggregated:
             # For aggregated jobs, keep junit_operator.xml and the
@@ -1088,71 +782,6 @@ class JUnitCollector(Collector):
                      or "analysis" in os.path.basename(f)]
         keep = operator + (preferred if preferred else others[:1])
         return keep if keep else files
-
-    def _list_junit_files_fallback(self, base: str) -> list[str]:
-        """Targeted JUnit discovery that avoids a full recursive glob.
-
-        Lists the top-level step directories under ``artifacts/`` and
-        probes each at the depths JUnit files actually appear, rather
-        than enumerating every object in the tree:
-
-          - ``{step}/junit*.xml``
-          - ``{step}/artifacts/junit*.xml``
-          - ``{step}/*/artifacts/junit*.xml``
-
-        Aggregated jobs keep ``junit-aggregated.xml`` far deeper than
-        that, so the aggregator subtree gets its own scoped recursive
-        probe — scoped to one small directory, it stays fast.
-        """
-        dir_output = _run_gcloud(
-            ["gcloud", "storage", "ls", f"{base}/artifacts/"],
-            timeout=60,
-        )
-        if not dir_output:
-            return []
-
-        # Each line is a directory like gs://bucket/path/artifacts/step-name/
-        step_dirs = [
-            d.strip().rstrip("/").split("/")[-1]
-            for d in dir_output.strip().splitlines()
-            if d.strip()
-        ]
-
-        # junit_operator.xml sits directly in artifacts/, not in a step dir.
-        found: list[str] = []
-        top = _run_gcloud(
-            ["gcloud", "storage", "ls", f"{base}/artifacts/junit*.xml"],
-            timeout=60,
-        )
-        if top:
-            found.extend(line.strip() for line in top.strip().splitlines()
-                         if line.strip())
-
-        for step in step_dirs:
-            patterns = [
-                f"{base}/artifacts/{step}/junit*.xml",
-                f"{base}/artifacts/{step}/artifacts/junit*.xml",
-                f"{base}/artifacts/{step}/*/artifacts/junit*.xml",
-            ]
-            # The aggregated report lives several levels below the
-            # aggregator step; a scoped ** over that one subtree is cheap.
-            if "aggregator" in step:
-                patterns.append(f"{base}/artifacts/{step}/**/junit*.xml")
-
-            for pattern in patterns:
-                probe = _run_gcloud(
-                    ["gcloud", "storage", "ls", pattern], timeout=60
-                )
-                if probe:
-                    found.extend(
-                        line.strip() for line in probe.strip().splitlines()
-                        if line.strip()
-                    )
-
-        found = sorted(set(found))
-        if found:
-            _log(f"  fallback found {len(found)} JUnit file(s)")
-        return found
 
     def _detect_underlying_job_name(self) -> Optional[str]:
         """For aggregated jobs, extract the underlying job name from GCS paths."""
@@ -1197,19 +826,10 @@ class BuildLogCollector(Collector):
             return None
 
         gcs_uri = f"gs://{self.job.gcs_bucket_path}/build-log.txt"
-        with _error_scope() as own_errors:
-            raw = _run_gcloud_bytes(
-                ["gcloud", "storage", "cat", gcs_uri], timeout=120
-            )
+        raw = _run_gcloud_bytes(
+            ["gcloud", "storage", "cat", gcs_uri], timeout=120
+        )
         if not raw:
-            if any(not e.get("recovered") for e in own_errors):
-                _record_collection_error(
-                    "build_log_unavailable",
-                    ["gcloud", "storage", "cat", gcs_uri],
-                    detail="build-log.txt could not be read",
-                    stage="build_log",
-                    job=self.job.name,
-                )
             return None
 
         try:
@@ -1406,11 +1026,6 @@ class RegressionTracker:
         self.base_dir = base_dir
         self.chain = chain
         self.target_tag = target_tag
-        self._skipped = {"flake": 0, "informing": 0}
-
-    def non_gating_counts(self) -> dict[str, int]:
-        """Counts of target-payload results excluded from onset tracking."""
-        return dict(self._skipped)
 
     def track(self) -> list[dict]:
         """Analyze failures in the target payload and trace their origins."""
@@ -1465,17 +1080,6 @@ class RegressionTracker:
                 for test in results:
                     name = test.get("name", "")
                     if not name:
-                        continue
-                    # Only gating results establish a regression onset.  A
-                    # flake or an informing test cannot reject a payload, so
-                    # letting one set first_failed_in sends the analysis
-                    # hunting for a culprit that never existed.
-                    if not _is_gating(test):
-                        if tag_dir.endswith(self.target_tag):
-                            if test.get("status") == "flake":
-                                self._skipped["flake"] += 1
-                            else:
-                                self._skipped["informing"] += 1
                         continue
                     if name in failures:
                         if job_name not in failures[name]["jobs"]:
@@ -1600,8 +1204,6 @@ class SummaryGenerator:
         phase = payload_data.get("phase", "Unknown") if payload_data else "Unknown"
         release_url = (payload_data.get("_release_url", "")
                        if payload_data else "")
-        source = (payload_data.get("_source", "release-controller")
-                  if payload_data else "unknown")
         results = payload_data.get("results", {}) if payload_data else {}
 
         blocking = results.get("blockingJobs", {}) or {}
@@ -1629,7 +1231,6 @@ class SummaryGenerator:
             "payload_tag": self.target_tag,
             "phase": phase,
             "release_url": release_url,
-            "source": source,
             "architecture": self.tag.architecture,
             "stream": self.tag.stream,
             "version": self.tag.version,
@@ -1649,15 +1250,9 @@ class SummaryGenerator:
                 "failed_jobs": failed_informing_names,
             },
             "test_failures": {
-                # Gating failures only — these are what can fail a job and
-                # therefore reject the payload.
                 "blocking": [
                     r for r in regressions if r.get("lifecycle") == "blocking"
                 ],
-                # Neither of the following can fail a job or reject a
-                # payload.  They are surfaced for visibility, not for blame.
-                "informing": self._collect_non_gating("informing"),
-                "flakes": self._collect_non_gating("flake"),
             },
             "payloads": payloads,
         }
@@ -1669,14 +1264,7 @@ class SummaryGenerator:
                 for entry in target_rpms
             ]
 
-        # Surface any data that could not be collected.  An empty snapshot
-        # section must never be silently indistinguishable from a clean one.
-        if _COLLECTION_ERRORS:
-            summary["collection_errors"] = list(_COLLECTION_ERRORS)
-        summary["data_complete"] = not _unrecovered_errors()
-
         _write_json(os.path.join(self.base_dir, "summary.json"), summary)
-        _write_collection_state(self.base_dir)
         self._write_agents_md(summary)
         _log("  Generated summary.json, AGENTS.md, and CLAUDE.md")
 
@@ -1727,25 +1315,6 @@ class SummaryGenerator:
             chain_tags,
             "",
         ]
-
-        if not summary.get("data_complete", True):
-            errs = [e for e in summary.get("collection_errors", [])
-                    if not e.get("recovered")]
-            reasons = sorted({e.get("reason", "unknown") for e in errs})
-            lines.extend([
-                "## ⚠️  INCOMPLETE SNAPSHOT",
-                "",
-                f"{len(errs)} collection error(s) occurred: "
-                f"{', '.join(reasons)}.",
-                "See `collection_errors` in `summary.json`.",
-                "",
-                "Data that could not be read is **absent, not empty**. A job",
-                "with `junit_collection_failed: true` and no",
-                "`test_failure_count` has an *unknown* number of test",
-                "failures — do NOT report it as zero, and do not conclude a",
-                "job failed for reasons other than its tests on this basis.",
-                "",
-            ])
 
         if failed_names:
             lines.append("### Failed blocking jobs")
@@ -1798,8 +1367,6 @@ class SummaryGenerator:
             "  payload acceptance. Informing jobs are tracked but don't block.",
             "- **Chain**: The sequence of payloads walking backwards from the",
             "  target until one where all blocking jobs passed (the baseline).",
-            "  Sippy's time-ordered tag list restores garbage-collected tags;",
-            "  retained payload data comes from the release controller.",
             "- **Streaks**: Per-job consecutive failure count from the target",
             "  backwards. `failure_pattern` shows the full history (F=fail,",
             "  S=succeed) across the chain.",
@@ -1812,8 +1379,8 @@ class SummaryGenerator:
             "## summary.json Schema",
             "",
             "Top-level fields:",
-            "- `payload_tag`, `phase`, `release_url`, `source`,",
-            "  `architecture`, `stream`, `version`",
+            "- `payload_tag`, `phase`, `release_url`, `architecture`,",
+            "  `stream`, `version`",
             "- `chain_length`, `baseline_tag`, `hours_since_baseline`",
             "- `blocking_jobs.failed_jobs[]` — each entry has: `name`,",
             "  `state`, `prow_url`, `gcs_url`, `streak` (with",
@@ -1825,8 +1392,7 @@ class SummaryGenerator:
             "  `first_failed_in`, `payloads_failing`, `failure_message`,",
             "  `failure_text`",
             "- `payloads[]` — per-payload entries with `tag`, `phase`,",
-            "  `source`, `changelog_source`, relative paths, `prs[]` with",
-            "  component/diff/comments paths,",
+            "  relative paths, `prs[]` with component/diff/comments paths,",
             "  `rhcos_changes[]` with RPM diffs per RHCOS variant, and",
             "  `rhcos_rpms[]` with rpmdb.sqlite per variant",
             "- `rhcos_rpms[]` — RPMDB per RHCOS variant for the target",
@@ -1902,27 +1468,7 @@ class SummaryGenerator:
                     f"{tag_rel}/jobs/{lifecycle}/{job_name}/junit/results.json"
                 )
                 results_data = _read_json(results_path) or []
-                # Counts only results that could fail the job.  Flakes and
-                # informing tests are listed by name under `test_failures`
-                # but are deliberately not counted here — this number is the
-                # failure count that drives triage.
-                entry["test_failure_count"] = sum(
-                    1 for t in results_data if _is_gating(t)
-                )
-                if _job_junit_state(
-                    job_name, self.target_tag, "junit_partial"
-                ):
-                    # Real results, but not all of them: the count is a
-                    # lower bound, not an authoritative total.
-                    entry["junit_collection_partial"] = True
-            elif any(
-                _job_junit_state(job_name, self.target_tag, r)
-                for r in ("junit_unavailable", "junit_missing",
-                          "junit_unparseable")
-            ):
-                # Data could not be read.  Do NOT emit test_failure_count —
-                # its absence means "unknown", where 0 would mean "clean".
-                entry["junit_collection_failed"] = True
+                entry["test_failure_count"] = len(results_data)
 
             build_log_path = os.path.join(
                 lifecycle_dir, job_name, "build_log.json"
@@ -1940,45 +1486,6 @@ class SummaryGenerator:
             details.append(entry)
         return details
 
-    def _collect_non_gating(self, kind: str) -> list[dict]:
-        """Collect the target payload's non-gating test results.
-
-        ``kind`` is "flake" (failed then passed) or "informing" (opted out
-        of gating via lifecycle). Neither can fail a job, so no regression
-        onset is computed for them — an onset implies a culprit to find.
-        """
-        found: dict[str, dict] = {}
-        lifecycle_dir = os.path.join(
-            self.base_dir, self.target_tag, "jobs", "blocking"
-        )
-        if not os.path.isdir(lifecycle_dir):
-            return []
-        for job_name in sorted(os.listdir(lifecycle_dir)):
-            results = _read_json(os.path.join(
-                lifecycle_dir, job_name, "junit", "results.json"
-            ))
-            if not results:
-                continue
-            for test in results:
-                name = test.get("name", "")
-                if not name:
-                    continue
-                if kind == "flake":
-                    match = test.get("status") == "flake"
-                else:
-                    match = (
-                        test.get("status") in ("failed", "error")
-                        and test.get("test_lifecycle") == "informing"
-                    )
-                if not match:
-                    continue
-                if name in found:
-                    if job_name not in found[name]["jobs"]:
-                        found[name]["jobs"].append(job_name)
-                else:
-                    found[name] = {"test_name": name, "jobs": [job_name]}
-        return sorted(found.values(), key=lambda e: e["test_name"])
-
     def _build_payload_entries(self) -> list[dict]:
         """Build the payloads array with all path references."""
         payloads = []
@@ -1994,7 +1501,6 @@ class SummaryGenerator:
             )
             if pd:
                 entry["phase"] = pd.get("phase", "")
-                entry["source"] = pd.get("_source", "release-controller")
 
             changelog_path = os.path.join(
                 self.base_dir, tag_name, "changelog.json"
@@ -2002,10 +1508,6 @@ class SummaryGenerator:
             if os.path.exists(changelog_path):
                 entry["changelog"] = f"{tag_rel}/changelog.json"
                 changelog = _read_json(changelog_path)
-                if changelog:
-                    entry["changelog_source"] = changelog.get(
-                        "_source", "release-controller"
-                    )
                 prs = _extract_prs(changelog) if changelog else []
                 if prs:
                     entry["prs"] = [
@@ -2108,10 +1610,9 @@ class Snapshotter:
         self.use_sippy = use_sippy
         self.collect_rpmdb = collect_rpmdb
         self.rc = ReleaseController(tag.architecture, stream=tag.stream)
-        self.sippy = SippyClient(
-            tag.version, architecture=tag.architecture, stream=tag.stream
-        )
-        self._payload_sources: dict[str, str] = {}
+        self.sippy: Optional[SippyClient] = None
+        if use_sippy:
+            self.sippy = SippyClient(tag.version)
 
     def run(self) -> None:
         """Execute the full snapshot."""
@@ -2119,16 +1620,6 @@ class Snapshotter:
             self.output_dir, self.tag.version, self.tag.stream
         )
         os.makedirs(base_dir, exist_ok=True)
-
-        # A previous run over this directory may have left JUnit output it
-        # recorded as incomplete.  Drop it so it is re-collected rather than
-        # inherited as trustworthy — but only when we will actually
-        # re-collect, otherwise we would delete the only copy and then
-        # report the result as complete.
-        if self.collect_junit:
-            _invalidate_suspect_junit(base_dir)
-        else:
-            _carry_forward_junit_errors(base_dir)
 
         self._collect_streams(base_dir)
 
@@ -2160,7 +1651,7 @@ class Snapshotter:
     def _collect_streams(self, base_dir: str) -> None:
         """Collect the streams list for this version."""
         path = os.path.join(base_dir, "streams.json")
-        if self.use_sippy:
+        if self.sippy:
             if os.path.exists(path):
                 return
             _log("Skipping streams collection in Sippy mode (RC-only feature)")
@@ -2170,22 +1661,13 @@ class Snapshotter:
 
     def _build_chain(self) -> list[str]:
         """Build the backward payload chain."""
-        if self.use_sippy:
+        if self.sippy:
             chain_builder = SippyPayloadChain(self.sippy, self.max_chain)
-            chain = chain_builder.build(self.tag.raw)
-            self._payload_sources = {tag: "sippy" for tag in chain}
-            return chain
-        chain_builder = HybridPayloadChain(
-            self.rc, self.sippy, self.tag.stream_name, self.max_chain
+            return chain_builder.build(self.tag.raw)
+        chain_builder = PayloadChain(
+            self.rc, self.tag.stream_name, self.max_chain
         )
-        chain = chain_builder.build(self.tag.raw)
-        self._payload_sources = chain_builder.sources
-        return chain
-
-    def _payload_source(self, tag_name: str) -> str:
-        if self.use_sippy:
-            return "sippy"
-        return self._payload_sources.get(tag_name, "release-controller")
+        return chain_builder.build(self.tag.raw)
 
     def _collect_payloads(
         self, base_dir: str, chain: list[str]
@@ -2199,8 +1681,7 @@ class Snapshotter:
             _log(f"\nProcessing payload: {tag_name}")
 
             payload_path = os.path.join(tag_dir, "payload.json")
-            payload_source = self._payload_source(tag_name)
-            if payload_source == "sippy":
+            if self.sippy:
                 if not os.path.exists(payload_path):
                     _log(f"  Fetching payload details from Sippy: {tag_name}")
                     tag_obj = PayloadTag.parse(tag_name)
@@ -2220,21 +1701,10 @@ class Snapshotter:
 
             prev_tag = chain[i + 1]
             changelog_path = os.path.join(tag_dir, "changelog.json")
-            # The release controller cannot diff across a tag it has already
-            # garbage collected. Use Sippy's incremental diff (with its
-            # per-payload PR fallback) whenever either side is unavailable.
-            changelog_source = (
-                "release-controller"
-                if payload_source == "release-controller"
-                and self._payload_source(prev_tag) == "release-controller"
-                else "sippy"
-            )
-            if changelog_source == "sippy":
+            if self.sippy:
                 if not os.path.exists(changelog_path):
                     _log(f"  Fetching changelog from Sippy: {tag_name}")
-                    data = self.sippy.build_synthetic_changelog(
-                        tag_name, from_tag=prev_tag
-                    )
+                    data = self.sippy.build_synthetic_changelog(tag_name, from_tag=prev_tag)
                     os.makedirs(os.path.dirname(changelog_path), exist_ok=True)
                     _write_json(changelog_path, data)
                 else:
@@ -2414,14 +1884,8 @@ class Snapshotter:
 
         new_count = sum(1 for r in regressions if r["payloads_failing"] == 1)
         persistent_count = len(regressions) - new_count
-        _log(f"  Found {len(regressions)} gating test failures: "
+        _log(f"  Found {len(regressions)} failing tests: "
              f"{new_count} new, {persistent_count} persistent")
-        skipped = tracker.non_gating_counts()
-        if skipped["flake"] or skipped["informing"]:
-            _log(f"  Excluded from regression tracking: "
-                 f"{skipped['flake']} flake(s), "
-                 f"{skipped['informing']} informing failure(s) — neither can "
-                 f"fail a job")
 
     def _collect_build_logs(self, base_dir: str, chain: list[str]) -> None:
         """Download and parse build-log.txt for failed jobs.
@@ -2698,367 +2162,29 @@ def _check_gh_auth() -> bool:
         return False
 
 
-# Records every gcloud failure that could hide real data.  A "no match"
-# result is normal (the object simply does not exist) and is NOT recorded.
-# Anything else — a missing binary, a timeout, an auth failure — means the
-# snapshot could not read data that may well exist, and callers must be able
-# to tell that apart from "there was nothing to find".
-_COLLECTION_ERRORS: list[dict] = []
-_COLLECTION_ERRORS_LOCK = threading.Lock()
-
-# Per-thread stack of "operation scopes".  Every recorded error is appended
-# to each active scope as well as the global ledger, so a caller can act on
-# exactly the errors *its own* calls produced.  Positional indexes into the
-# global list are not safe here: collectors run concurrently, so another
-# worker can append between one collector's start and end offsets.
-_ERROR_SCOPES = threading.local()
-
-# stderr fragments that mean "the object does not exist", not "I failed".
-# Keep this narrow: only the specific gcloud "URLs matched no objects"
-# outcome is benign.  Broad tokens like "not found" would swallow 404s
-# and bucket-not-found errors that should be recorded.
-_GCLOUD_NO_MATCH_PATTERNS = (
-    "matched no objects",
-    "matched no such objects",
-)
-
-# stderr fragments that indicate a credentials/permission problem.
-_GCLOUD_AUTH_PATTERNS = (
-    "does not have storage.objects",
-    "anonymous caller",
-    "reauthentication",
-    "credentials",
-    "unauthorized",
-    "forbidden",
-    "403",
-    "401",
-)
-
-
-def _error_scope():
-    """Collect errors recorded by this thread inside the ``with`` body."""
-    return _ErrorScope()
-
-
-class _ErrorScope:
-    """Context manager yielding the list of errors recorded inside it."""
-
-    def __init__(self) -> None:
-        self.entries: list[dict] = []
-
-    def __enter__(self) -> list[dict]:
-        stack = getattr(_ERROR_SCOPES, "stack", None)
-        if stack is None:
-            stack = []
-            _ERROR_SCOPES.stack = stack
-        stack.append(self.entries)
-        return self.entries
-
-    def __exit__(self, *exc) -> None:
-        getattr(_ERROR_SCOPES, "stack", []).pop()
-        return None
-
-
-def _sanitize_detail(text: str) -> str:
-    """Make tool stderr safe to persist in a shareable summary.
-
-    Strips control characters (which can spoof terminal output when the
-    summary is read back) and collapses whitespace.  Diagnostics are
-    truncated: they exist to identify a failure class, not to carry full
-    tool output.
-    """
-    cleaned = "".join(
-        ch if ch.isprintable() else " " for ch in (text or "")
-    )
-    # These diagnostics are persisted into a summary this skill exists to
-    # hand to agents and share.  gcloud auth errors routinely name the
-    # active account, and URLs can carry signed-request parameters; neither
-    # should leave the local environment.
-    cleaned = re.sub(
-        r"[\w.+-]+@[\w-]+\.[\w.-]+", "<redacted-account>", cleaned
-    )
-    cleaned = re.sub(r"\?\S+", "?<redacted-query>", cleaned)
-    return re.sub(r"\s+", " ", cleaned).strip()[:300]
-
-
-def _classify_gcloud_stderr(stderr: str) -> str:
-    """Classify a failed gcloud invocation from its stderr."""
-    low = (stderr or "").lower()
-    if any(p in low for p in _GCLOUD_AUTH_PATTERNS):
-        return "auth"
-    if any(p in low for p in _GCLOUD_NO_MATCH_PATTERNS):
-        return "no_match"
-    return "command_failed"
-
-
-def _record_collection_error(
-    reason: str,
-    command: list[str],
-    detail: str = "",
-    stage: str = "",
-    job: str = "",
-    payload_tag: str = "",
-) -> None:
-    """Record a data-collection failure so it can be surfaced, not swallowed.
-
-    Silently returning empty data makes "I could not read this" look
-    identical to "there is nothing here", which invites downstream
-    consumers to report zero failures for a job that actually failed.
-    """
-    entry: dict = {"reason": reason, "command": " ".join(command[:4])}
-    if detail:
-        entry["detail"] = _sanitize_detail(detail)
-    if stage:
-        entry["stage"] = stage
-    if job:
-        entry["job"] = job
-    if payload_tag:
-        entry["payload_tag"] = payload_tag
-    with _COLLECTION_ERRORS_LOCK:
-        _COLLECTION_ERRORS.append(entry)
-    for scope in getattr(_ERROR_SCOPES, "stack", []):
-        scope.append(entry)
-
-
-def _collection_error_count() -> int:
-    """Number of collection errors recorded so far."""
-    return len(_COLLECTION_ERRORS)
-
-
-COLLECTION_STATE_FILE = "collection_errors.json"
-
-# Reasons that make a job's persisted JUnit output untrustworthy.
-_JUNIT_SUSPECT_REASONS = (
-    "junit_unavailable", "junit_partial", "junit_missing",
-    "junit_unparseable",
-)
-
-
-def _is_within(base: str, target: str) -> bool:
-    """True when ``target`` resolves inside ``base``."""
-    base_r = os.path.realpath(base)
-    target_r = os.path.realpath(target)
-    return target_r == base_r or target_r.startswith(base_r + os.sep)
-
-
-def _safe_component(value: str) -> bool:
-    """True when ``value`` is usable as a single path component."""
-    return bool(value) and value not in (".", "..") and not any(
-        sep in value for sep in (os.sep, "/", "\\")
-    )
-
-
-def _invalidate_suspect_junit(base_dir: str) -> int:
-    """Discard JUnit output that a previous run recorded as incomplete.
-
-    Collection errors live in process memory but ``results.json`` persists,
-    and collectors skip any job whose output already exists.  Without this,
-    re-running over the same directory regenerates the summary from an empty
-    ledger and promotes a partial snapshot to "complete".  Dropping the
-    suspect output forces it to be re-collected and re-judged.
-    """
-    state_path = os.path.join(base_dir, COLLECTION_STATE_FILE)
-    previous = _read_json(state_path)
-    if not previous:
-        return 0
-
-    invalidated = 0
-    invalidated_tags: set[str] = set()
-    for entry in previous:
-        if entry.get("recovered"):
-            continue
-        if entry.get("reason") not in _JUNIT_SUSPECT_REASONS:
-            continue
-        tag, job = entry.get("payload_tag"), entry.get("job")
-        # The ledger is data read back from disk; never let it aim a
-        # recursive delete at a path outside the snapshot directory.
-        if not _safe_component(tag or "") or not _safe_component(job or ""):
-            _log(f"  warn: ignoring unsafe collection-state entry "
-                 f"(tag={tag!r}, job={job!r})")
-            continue
-        for lifecycle in ("blocking", "informing"):
-            junit_dir = os.path.join(
-                base_dir, tag, "jobs", lifecycle, job, "junit"
-            )
-            if not _is_within(base_dir, junit_dir):
-                continue
-            if os.path.isdir(junit_dir):
-                shutil.rmtree(junit_dir, ignore_errors=True)
-                invalidated += 1
-                invalidated_tags.add(tag)
-    for tag in invalidated_tags:
-        reg_path = os.path.join(base_dir, tag, "regressions.json")
-        if _is_within(base_dir, reg_path) and os.path.exists(reg_path):
-            os.remove(reg_path)
-            _log(f"  removed stale regressions.json for {tag}")
-    if invalidated:
-        _log(f"  re-collecting {invalidated} job(s) whose previous JUnit "
-             f"collection was incomplete")
-    return invalidated
-
-
-def _carry_forward_junit_errors(base_dir: str) -> int:
-    """Re-record persisted JUnit failures when JUnit is not re-collected.
-
-    With ``--no-junit`` nothing re-reads the artifacts, so a previous run's
-    partial or unreadable JUnit is still exactly as incomplete as it was.
-    Without carrying those errors forward, the ledger would be rewritten
-    from an empty in-memory list and the stale output would be reported as
-    a complete snapshot.
-    """
-    previous = _read_json(
-        os.path.join(base_dir, COLLECTION_STATE_FILE)
-    ) or []
-    carried = 0
-    for entry in previous:
-        if entry.get("recovered"):
-            continue
-        if entry.get("reason") not in _JUNIT_SUSPECT_REASONS:
-            continue
-        forwarded = dict(entry)
-        forwarded["carried_forward"] = True
-        with _COLLECTION_ERRORS_LOCK:
-            _COLLECTION_ERRORS.append(forwarded)
-        carried += 1
-    if carried:
-        _log(f"  carrying forward {carried} unresolved JUnit collection "
-             f"error(s) from a previous run (JUnit collection is disabled)")
-    return carried
-
-
-def _write_collection_state(base_dir: str) -> None:
-    """Persist the error ledger so a later process can see it."""
-    state_path = os.path.join(base_dir, COLLECTION_STATE_FILE)
-    if _COLLECTION_ERRORS:
-        _write_json(state_path, list(_COLLECTION_ERRORS))
-    elif os.path.exists(state_path):
-        # Everything was collected this time; drop the stale ledger.
-        os.remove(state_path)
-
-
-def _mark_errors_recovered(entries: list[dict]) -> None:
-    """Mark the given error entries as recovered.
-
-    A first-choice read can fail (e.g. a glob times out) and a fallback
-    can then succeed.  The failure is still worth reporting — it is how
-    you learn a timeout needs tuning — but it must not make the snapshot
-    look incomplete when the data was in fact obtained.
-
-    Entries are identified by object, not by position: only the specific
-    failures handed in are recovered, never a concurrent collector's.
-    """
-    for entry in entries:
-        entry["recovered"] = True
-
-
-def _unrecovered_errors() -> list[dict]:
-    """Collection errors that were not resolved by a fallback."""
-    return [e for e in _COLLECTION_ERRORS if not e.get("recovered")]
-
-
-def _unrecovered_error_count() -> int:
-    """Number of unrecovered collection errors."""
-    return len(_unrecovered_errors())
-
-
-def _job_junit_state(job_name: str, payload_tag: str, reason: str) -> bool:
-    """True when this payload's collection of this job hit ``reason``.
-
-    Scoped by payload tag: the same job name recurs in every payload of
-    the chain, so an unscoped match would stamp one payload's job entry
-    with another payload's failure.
-    """
-    return any(
-        e.get("job") == job_name
-        and e.get("payload_tag") == payload_tag
-        and e.get("reason") == reason
-        and not e.get("recovered")
-        for e in _COLLECTION_ERRORS
-    )
-
-
-# Whether gcloud must be run in anonymous mode.  Resolved once, on first
-# use, under a lock — collectors run in a thread pool.
-_GCLOUD_ANONYMOUS: Optional[bool] = None
-_GCLOUD_ANONYMOUS_LOCK = threading.Lock()
-
-
-def _gcloud_env() -> dict:
-    """Environment for gcloud calls, enabling anonymous access if needed.
-
-    The CI artifact buckets are public, but ``gcloud storage`` refuses
-    client-side when no account is configured ("You do not currently have
-    an active account selected") — it never even issues the request.
-    Setting ``CLOUDSDK_AUTH_DISABLE_CREDENTIALS`` makes it read public
-    objects anonymously, so an unauthenticated environment still gets a
-    complete snapshot instead of an empty one.
-    """
-    global _GCLOUD_ANONYMOUS
-    if _GCLOUD_ANONYMOUS is None:
-        with _GCLOUD_ANONYMOUS_LOCK:
-            if _GCLOUD_ANONYMOUS is None:
-                anonymous = not _check_gcloud_credentials()
-                if anonymous:
-                    _log("  note: no gcloud credentials found — reading "
-                         "public artifact buckets anonymously")
-                _GCLOUD_ANONYMOUS = anonymous
-    env = os.environ.copy()
-    if _GCLOUD_ANONYMOUS:
-        env["CLOUDSDK_AUTH_DISABLE_CREDENTIALS"] = "true"
-    return env
-
-
 def _run_gcloud(args: list[str], timeout: int = 120) -> Optional[str]:
-    """Run a gcloud CLI command, returning stdout or None on error.
-
-    Failures other than "no such object" are recorded in
-    ``_COLLECTION_ERRORS`` so callers can distinguish an unreadable
-    source from an empty one.
-    """
+    """Run a gcloud CLI command, returning stdout or None on error."""
     try:
         result = subprocess.run(
-            args, capture_output=True, text=True, timeout=timeout,
-            env=_gcloud_env(),
+            args, capture_output=True, text=True, timeout=timeout
         )
         if result.returncode != 0:
-            reason = _classify_gcloud_stderr(result.stderr)
-            if reason != "no_match":
-                _record_collection_error(reason, args, detail=result.stderr)
             return None
         return result.stdout
-    except subprocess.TimeoutExpired:
-        _record_collection_error(
-            "timeout", args, detail=f"exceeded {timeout}s"
-        )
-        return None
-    except FileNotFoundError:
-        _record_collection_error("gcloud_missing", args)
+    except (subprocess.TimeoutExpired, FileNotFoundError):
         return None
 
 
 def _run_gcloud_bytes(args: list[str], timeout: int = 120) -> Optional[bytes]:
-    """Run a gcloud CLI command, returning raw stdout bytes or None.
-
-    Records failures the same way as :func:`_run_gcloud`.
-    """
+    """Run a gcloud CLI command, returning raw stdout bytes or None."""
     try:
         result = subprocess.run(
-            args, capture_output=True, timeout=timeout, env=_gcloud_env()
+            args, capture_output=True, timeout=timeout
         )
         if result.returncode != 0:
-            stderr = (result.stderr or b"").decode("utf-8", errors="replace")
-            reason = _classify_gcloud_stderr(stderr)
-            if reason != "no_match":
-                _record_collection_error(reason, args, detail=stderr)
             return None
         return result.stdout
-    except subprocess.TimeoutExpired:
-        _record_collection_error(
-            "timeout", args, detail=f"exceeded {timeout}s"
-        )
-        return None
-    except FileNotFoundError:
-        _record_collection_error("gcloud_missing", args)
+    except (subprocess.TimeoutExpired, FileNotFoundError):
         return None
 
 
@@ -3074,62 +2200,21 @@ def _check_gcloud() -> bool:
         return False
 
 
-def _check_gcloud_credentials() -> bool:
-    """Report whether gcloud has an active credential.
-
-    ``gcloud --version`` only proves the binary exists.  An installed but
-    unauthenticated gcloud passes that check and then fails every read,
-    which previously produced a snapshot full of silently empty JUnit
-    data.  Public buckets can still be read anonymously, so a negative
-    result here is a warning rather than a hard failure.
-    """
-    try:
-        result = subprocess.run(
-            ["gcloud", "auth", "list",
-             "--filter=status:ACTIVE", "--format=value(account)"],
-            capture_output=True, text=True, timeout=15,
-        )
-        return result.returncode == 0 and bool(result.stdout.strip())
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        return False
-
-
 def _check_podman() -> bool:
     """Verify that podman is available and functional.
 
     Goes beyond --version: runs 'podman info' which exercises the runtime,
     storage, and namespace setup.  This catches cases where podman is
     installed but cannot operate (e.g. nested containers without
-    appropriate privileges).  On failure, stdout/stderr from the probe are
-    logged so the underlying runtime error (e.g. a namespace or storage
-    driver failure under nested podman) is visible instead of a bare
-    "not available" message.
+    appropriate privileges).
     """
     try:
         result = subprocess.run(
             ["podman", "info"],
             capture_output=True, text=True, timeout=30,
         )
-        if result.returncode != 0:
-            _log(f"'podman info' exited {result.returncode}.")
-            if result.stdout.strip():
-                _log(f"stdout:\n{result.stdout.strip()}")
-            if result.stderr.strip():
-                _log(f"stderr:\n{result.stderr.strip()}")
         return result.returncode == 0
-    except subprocess.TimeoutExpired as e:
-        _log("'podman info' timed out after 30s.")
-        if e.stdout:
-            stdout = e.stdout if isinstance(e.stdout, str) else e.stdout.decode(errors="replace")
-            if stdout.strip():
-                _log(f"stdout:\n{stdout.strip()}")
-        if e.stderr:
-            stderr = e.stderr if isinstance(e.stderr, str) else e.stderr.decode(errors="replace")
-            if stderr.strip():
-                _log(f"stderr:\n{stderr.strip()}")
-        return False
-    except OSError as e:
-        _log(f"'podman info' could not be run: {e}")
+    except (OSError, subprocess.TimeoutExpired):
         return False
 
 
@@ -3222,11 +2307,8 @@ class _TestResult:
     """Parsed test result from JUnit XML."""
 
     name: str
-    status: str  # passed, failed, error, skipped, flake
+    status: str  # passed, failed, error, skipped
     suite_name: str = ""
-    # The testcase's own lifecycle attribute, NOT the job's.  Absent means
-    # the test gates the job; "informing" means it cannot.
-    test_lifecycle: str = ""
     failure_message: str = ""
     failure_text: str = ""
     error_message: str = ""
@@ -3273,17 +2355,12 @@ def _parse_system_out_yaml(text: str) -> dict:
     return result
 
 
-def _parse_junit_xml(
-    source, source_name: str = "<data>"
-) -> Optional[list[_TestResult]]:
+def _parse_junit_xml(source, source_name: str = "<data>") -> list[_TestResult]:
     """Parse JUnit XML, returning a list of _TestResult."""
     try:
         tree = ET.parse(source)
     except (ET.ParseError, OSError):
-        # Return None, not []: an unreadable or corrupt file is not the same
-        # as a file that legitimately contains no failures.  Callers must be
-        # able to tell those apart or corruption becomes a verified zero.
-        return None
+        return []
 
     root = tree.getroot()
     if root.tag == "testsuites":
@@ -3300,7 +2377,6 @@ def _parse_junit_xml(
         suite_name = suite.get("name", "")
         for tc in suite.findall("testcase"):
             name = tc.get("name", "")
-            test_lifecycle = tc.get("lifecycle", "")
             failure_el = tc.find("failure")
             error_el = tc.find("error")
             skipped_el = tc.find("skipped")
@@ -3338,7 +2414,6 @@ def _parse_junit_xml(
                 name=name,
                 status=status,
                 suite_name=suite_name,
-                test_lifecycle=test_lifecycle,
                 failure_message=failure_message,
                 failure_text=failure_text,
                 error_message=error_message,
@@ -3348,56 +2423,19 @@ def _parse_junit_xml(
                 agg_failures=agg_failures,
                 agg_skips=agg_skips,
             ))
-    return _mark_flakes(results)
-
-
-def _mark_flakes(results: list[_TestResult]) -> list[_TestResult]:
-    """Re-label failures as flakes when the same test also passed.
-
-    A test that failed and then passed on retry is a flake.  Flakes do not
-    fail jobs, so counting them as failures overstates what could have
-    rejected a payload — and lets a flake drive regression onset.
-
-    Grouped per (suite, name): the same name in two suites is two tests.
-    """
-    passed: set[tuple[str, str]] = {
-        (r.suite_name, r.name) for r in results if r.status == "passed"
-    }
-    for r in results:
-        if r.status in ("failed", "error") and (r.suite_name, r.name) in passed:
-            r.status = "flake"
     return results
 
 
-def _is_gating(entry: dict) -> bool:
-    """True when this recorded result could actually fail its job.
-
-    Excludes flakes (a later pass cleared them) and tests explicitly opted
-    out via ``lifecycle="informing"`` — informing tests are run to
-    stabilize them and are not expected to gate.
-    """
-    return (
-        entry.get("status") in ("failed", "error")
-        and entry.get("test_lifecycle") != "informing"
-    )
-
-
 def _test_results_to_json(results: list[_TestResult]) -> list[dict]:
-    """Convert _TestResult list to JSON dicts (failures, errors and flakes).
-
-    Flakes are included so consumers can see them, but each entry carries
-    ``status`` and ``test_lifecycle`` so only genuinely gating results are
-    counted as failures.
-    """
+    """Convert _TestResult list to JSON-serializable dicts (failures only)."""
     output = []
     for r in results:
-        if r.status not in ("failed", "error", "flake"):
+        if r.status not in ("failed", "error"):
             continue
         d: dict = {
             "name": r.name,
             "status": r.status,
             "suite_name": r.suite_name,
-            "test_lifecycle": r.test_lifecycle or "blocking",
         }
         if r.failure_message:
             d["failure_message"] = r.failure_message
@@ -3453,21 +2491,12 @@ def main() -> None:
         help="Skip JUnit download, regression tracking",
     )
     parser.add_argument(
-        "--fail-on-incomplete", action="store_true",
-        help=("Exit non-zero if any data could not be collected. Use in "
-              "automation so an incomplete snapshot is not analyzed as "
-              "though it were complete."),
-    )
-    parser.add_argument(
         "--no-rpmdb", action="store_true",
         help="Skip RHCOS RPMDB extraction",
     )
     parser.add_argument(
         "--sippy", action="store_true",
-        help=(
-            "Force Sippy for all payload metadata (default: prefer release "
-            "controller and automatically fall back for historical tags)"
-        ),
+        help="Use Sippy APIs instead of release controller (for historical payloads)",
     )
 
     args = parser.parse_args()
@@ -3493,20 +2522,6 @@ def main() -> None:
         _log("Warning: 'gcloud' CLI not found. JUnit data will not be fetched.")
         _log("Install gcloud SDK to enable JUnit download and regression tracking.\n")
         collect_junit = False
-        # JUnit was requested and cannot be collected, so the snapshot is
-        # incomplete by construction.  Record it: otherwise the completeness
-        # gate sees an empty ledger and reports a complete snapshot.
-        _record_collection_error(
-            "gcloud_missing",
-            ["gcloud", "storage"],
-            detail=("gcloud CLI not available; JUnit, build logs and "
-                    "regression tracking were skipped"),
-            stage="preflight",
-        )
-    elif collect_junit and not _check_gcloud_credentials():
-        _log("Note: 'gcloud' has no active credentials. CI artifact buckets")
-        _log("are public, so they will be read anonymously. Run")
-        _log("'gcloud auth login' if you need private buckets too.\n")
 
     collect_rpmdb = not args.no_rpmdb
     if collect_rpmdb and not _check_podman():
@@ -3515,7 +2530,7 @@ def main() -> None:
         collect_rpmdb = False
 
     if args.sippy:
-        _log("Forcing Sippy APIs for all release payload data.\n")
+        _log("Using Sippy APIs for release controller data.\n")
 
     try:
         snapshotter = Snapshotter(
@@ -3528,39 +2543,6 @@ def main() -> None:
             collect_rpmdb=collect_rpmdb,
         )
         snapshotter.run()
-
-        unrecovered = _unrecovered_errors()
-        recovered = len(_COLLECTION_ERRORS) - len(unrecovered)
-        if recovered:
-            _log("")
-            status = ("data is complete" if not unrecovered
-                      else "see the warning below for what is still missing")
-            _log(f"Note: {recovered} read failure(s) were recovered by a "
-                 f"fallback; {status}. See 'collection_errors' "
-                 f"(recovered: true) in summary.json.")
-        if unrecovered:
-            by_reason: dict[str, int] = {}
-            for e in unrecovered:
-                r = e.get("reason", "unknown")
-                by_reason[r] = by_reason.get(r, 0) + 1
-            _log("")
-            _log("=" * 68)
-            _log(f"WARNING: SNAPSHOT IS INCOMPLETE "
-                 f"({len(unrecovered)} unrecovered collection error(s))")
-            for reason, count in sorted(by_reason.items()):
-                _log(f"  {reason}: {count}")
-            affected = sorted({
-                e["job"] for e in unrecovered if e.get("job")
-            })
-            if affected:
-                _log(f"  affected jobs: {', '.join(affected)}")
-            _log("")
-            _log("Missing data is ABSENT, not empty. Do not interpret a job")
-            _log("without test_failure_count as having zero test failures.")
-            _log("Details: 'collection_errors' in summary.json")
-            _log("=" * 68)
-            if args.fail_on_incomplete:
-                sys.exit(1)
     except urllib.error.HTTPError as e:
         print(f"Error: HTTP {e.code}: {e.reason}", file=sys.stderr)
         sys.exit(1)

@@ -175,4 +175,6 @@ Variant:              ci-4.22
 
 ## See Also
 
-- Related Skill: `ci:prow-job-analysis` (comprehensive Prow CI job failure analysis — test, install, disruption, and more)
+- Related Command: `/ci:analyze-prow-job-test-failure` (analyzes test failures in a Prow job)
+- Related Command: `/ci:analyze-prow-job-install-failure` (analyzes install failures in a Prow job)
+- Related Skill: `ci:prow-job-analyze-test-failure` (detailed test failure analysis)

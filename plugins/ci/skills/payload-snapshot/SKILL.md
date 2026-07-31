@@ -28,10 +28,8 @@ Use this skill when you need to:
 
 3. **Google Cloud SDK (`gcloud`)** — for JUnit test result download
    - Install: `brew install google-cloud-sdk` (macOS) or see https://cloud.google.com/sdk
-   - **Authentication is not required** — the CI artifact buckets are public and
-     are read anonymously when no account is configured
-   - Without `gcloud` entirely, JUnit data is skipped and the snapshot is
-     reported as incomplete (see [Data completeness](#data-completeness))
+   - Authenticate: `gcloud auth login`
+   - Without `gcloud`, JUnit data is skipped; job directories still created
 
 4. **Container runtime (`podman`)** — for RHCOS RPMDB extraction
    - Install: available in most Linux distributions; `brew install podman` on macOS
@@ -40,7 +38,6 @@ Use this skill when you need to:
 
 5. **Network access** to:
    - `*.ocp.releases.ci.openshift.org` (release controller)
-   - `sippy.dptools.openshift.org` (historical payload fallback)
    - `api.github.com` (via `gh` CLI)
    - `storage.googleapis.com` (via `gcloud` CLI)
 
@@ -65,16 +62,13 @@ python3 "$script_path" 4.22.0-0.nightly-2026-02-25-152806 --no-junit
 
 # Skip RPMDB extraction
 python3 "$script_path" 4.22.0-0.nightly-2026-02-25-152806 --no-rpmdb
-
-# Force Sippy for all payload metadata (normally fallback is automatic)
-python3 "$script_path" 4.22.0-0.nightly-2026-02-25-152806 --sippy
 ```
 
 The script will:
 1. Parse the payload tag to determine version, stream, and architecture
 2. Probe all available streams for the version (nightly, ci, across architectures)
-3. Chain backwards through Sippy's time-ordered release tag list until finding one where all blocking jobs passed, restoring tags garbage collected from the release controller
-4. For each payload in the chain, prefer release controller data and changelogs; fall back per historical tag or cross-tag diff to Sippy payload, PR, and job data
+3. Chain backwards through previous payloads until finding one where all blocking jobs passed
+4. For each payload in the chain, download release controller data and the changelog (PR diff)
 5. Split jobs into blocking/informing directories with metadata and GCS browser links
 6. For each failed blocking job, download and parse JUnit XML test results
 7. For each failed blocking job, download build-log.txt from GCS and extract error/warning lines + log tail
@@ -171,9 +165,6 @@ Options:
   --workers N          Parallel workers for API calls (default: 8)
   --no-junit           Skip JUnit download and regression tracking
   --no-rpmdb           Skip RHCOS RPMDB extraction
-  --sippy              Force Sippy for all payload metadata instead of using
-                       the automatic release-controller-first fallback
-  --fail-on-incomplete Exit 1 if any requested data could not be collected
 ```
 
 ## Output Files
@@ -185,97 +176,13 @@ Lists all available streams for the payload's version.
 ### `summary.json`
 
 Comprehensive stream-level triage data — start here. Contains:
-- Payload metadata: `payload_tag`, `phase`, `release_url`, `source`, `architecture`, `stream`, `version`
+- Payload metadata: `payload_tag`, `phase`, `release_url`, `architecture`, `stream`, `version`
 - Chain data: `chain_length`, `baseline_tag`, `hours_since_baseline`
 - `blocking_jobs.failed_jobs[]` — detailed objects with `name`, `state`, `prow_url`, `gcs_url`, and relative path `job_json`. May include: `rhcos_version`, `streak` (with `streak_length`, `originating_payload`, `is_new_failure`, `failure_pattern`), `build_log_errors`, `test_failure_count`, and relative paths `junit_results`, `build_log`
 - `informing_jobs.failed_jobs[]` — job name strings
-- `test_failures.blocking[]` — **gating** failures only: `test_name`, `jobs`, `first_failed_in`, `payloads_failing`, `failure_message`, `failure_text` (full, not truncated). These are the failures that can fail a job and therefore reject the payload.
-- `test_failures.informing[]` / `test_failures.flakes[]` — `test_name`, `jobs`. Neither can fail a job. No onset is tracked for them, because an onset implies there is a culprit to find.
-- `payloads[]` — per-payload entries with `tag`, `phase`, `source`, `changelog_source`, relative file paths, `prs[]` with component/diff/comments paths, and `rhcos_changes[]` with RPM diffs per RHCOS variant
+- `test_failures.blocking[]` — `test_name`, `jobs`, `first_failed_in`, `payloads_failing`, `failure_message`, `failure_text` (full, not truncated)
+- `payloads[]` — per-payload entries with `tag`, `phase`, relative file paths, `prs[]` with component/diff/comments paths, and `rhcos_changes[]` with RPM diffs per RHCOS variant
 - `rhcos_rpms[]` — RPMDB metadata for the target payload's RHCOS variants: `tag`, `name`, `pullspec`, `rpmdb` (relative path to rpmdb.sqlite)
-- `data_complete` — `true` when all requested data was ultimately collected, including via a fallback after an initial read failed. `false` means some requested data could not be read at all.
-- `collection_errors[]` — every read failure encountered. Each entry has `reason`, `command`, and optionally `detail`, `stage`, `job`, `payload_tag`, `recovered`. Reasons: `auth`, `timeout`, `gcloud_missing`, `command_failed`, `junit_unavailable` (nothing readable), `junit_missing` (nothing discovered), `junit_unparseable` (corrupt XML), `junit_partial` (some files unread), `build_log_unavailable`.
-  - `recovered: true` means a fallback subsequently obtained the data. These entries are diagnostic only (useful for spotting a timeout that needs tuning) and do **not** make `data_complete` false.
-  - `data_complete` is `false` only when at least one error was **not** recovered.
-
-<a id="data-completeness"></a>
-#### Only gating results count as failures
-
-A test result falls into exactly one of three categories, and only the last
-can fail a job or reject a payload:
-
-| Category | Rule | Gates? |
-|---|---|---|
-| flake | the same test, in the same suite, both failed and passed | no |
-| informing | the testcase carries `lifecycle="informing"` | no |
-| failure | failed everywhere, no `informing` lifecycle | **yes** |
-
-Informing tests are run to stabilize them and are not expected to gate. A
-missing `lifecycle` attribute means the test **does** gate — the attribute
-exists only to opt a test out.
-
-`results.json` records all three so nothing is hidden, each entry carrying
-`status` (`failed`, `error`, `flake`) and `test_lifecycle` (`blocking`,
-`informing`).
-
-`test_failure_count` on a failed job counts **only gating** results — it is
-the failure count, and flakes and informing tests are not added to it.
-Those two are listed by name under `test_failures.flakes[]` and
-`test_failures.informing[]`. Regression onset (`first_failed_in`) is derived
-from gating failures alone.
-
-#### "Informing job" vs "informing test" — two unrelated concepts
-
-The word "informing" appears in two places with **completely different
-meanings**. Confusing them produces wrong analysis:
-
-| Concept | Where it lives | What it means |
-|---|---|---|
-| **Informing job** | `informing_jobs.failed_jobs[]` in summary.json | A CI *job* that runs for visibility but does **not** gate the payload. Job-level pass/fail. |
-| **Informing test** | `test_failures.informing[]` in summary.json | An individual *test case* whose `lifecycle="informing"` attribute opts it out of gating. Can appear inside **any** job — blocking or informing. |
-
-An informing *test* can run inside a *blocking* job.
-An informing *job* can contain *blocking* tests.
-They are orthogonal. Never combine them in the same section or count.
-
-#### gcloud credentials are not required
-
-The CI artifact buckets are public. When gcloud has no active account it is
-run in anonymous mode automatically, so an unauthenticated environment still
-produces a complete snapshot. Authenticate only if you also need private
-buckets.
-
-#### Missing data is absent, never empty
-
-When a collection step fails, the affected file is **not written** and the
-corresponding summary field is **omitted** — it is never emitted as an empty
-list or a zero count. Specifically:
-
-- If JUnit could not be read for a job, `results.json` is not created, the
-  job entry has **no** `test_failure_count` and `junit_results`, and instead
-  carries `junit_collection_failed: true`.
-- An absent `test_failure_count` therefore means *unknown*, whereas `0` means
-  *verified clean*.
-
-- If **some** JUnit files were read and others were not, `results.json` holds
-  the real results that were obtained and the job entry adds
-  `junit_collection_partial: true`. `test_failure_count` is then a **lower
-  bound**, not a total.
-- A failed job with **no** readable JUnit at all — none discovered
-  (`junit_missing`), or nothing that parsed (`junit_unparseable`) — is left
-  without a count entirely. A job whose tests may never have run is unknown,
-  not clean. A parse failure alongside other readable files is the partial
-  case above, not this one.
-
-Consumers **must** distinguish these. Treating unreadable data as "no test
-failures" makes a broken job look like it failed for some other reason, which
-misdirects root-cause analysis. Check `data_complete` before drawing any
-conclusion from an absence of test failures. Use `--fail-on-incomplete` in
-automation to exit non-zero rather than emit a partial snapshot.
-
-State is persisted to `collection_errors.json` beside `summary.json`, so a
-later process can tell that an existing `results.json` came from an incomplete
-read.
 
 ### `AGENTS.md` / `CLAUDE.md`
 
@@ -347,18 +254,6 @@ PR artifacts from GitHub (unchanged from previous version).
 
 The script chains backwards from the target payload until it finds a payload where **all blocking jobs succeeded**. This is stricter than the `Accepted` phase — a payload can be force-accepted with failed blocking jobs, which does not count as a stop point.
 
-Sippy's release tag list, sorted by `release_time`, is used to identify every
-preceding assembled payload. If a tag is still retained, its payload details
-and changelog come from the release controller. If it has been garbage
-collected, the script constructs compatible `payload.json` and
-`changelog.json` files from Sippy's release tags, pull requests, and job runs
-APIs. A changelog that crosses a garbage-collected tag also comes from Sippy
-because the release controller can no longer compute that diff.
-
-The generated `source` and `changelog_source` fields expose this provenance.
-Sippy-backed data is intentionally partial: RHCOS `nodeImageStreams`, async
-jobs, and `previousAttemptURLs` are unavailable.
-
 For terminal payloads (Accepted/Rejected), jobs showing `Pending` on the release controller are cross-checked against the actual Prow `prowjob.json` artifact to get their real state.
 
 ## Aggregated Jobs
@@ -372,16 +267,10 @@ Aggregated jobs run the same underlying test multiple times with statistical ana
 
 - **Tag not found**: Exits with code 2 and a descriptive error
 - **Release controller unreachable**: Exits with code 1
-- **Historical tag missing from release controller**: Automatically uses Sippy
 - **`gh` not authenticated**: Prints a warning and continues without PR data
-- **`gcloud` not available**: Warns, skips JUnit download, and records
-  `gcloud_missing` so the snapshot is reported incomplete
-- **`gcloud` not authenticated**: Reads the public buckets anonymously
-- **Individual job/PR fetch failure**: Logs a warning, records a collection
-  error, and continues
-- **Idempotent**: Re-running skips files that already exist — except JUnit
-  output a previous run recorded as incomplete, which is discarded and
-  re-collected so a partial snapshot cannot be inherited as complete
+- **`gcloud` not available**: Prints a warning and skips JUnit download
+- **Individual job/PR fetch failure**: Logs a warning and continues
+- **Idempotent**: Re-running skips files that already exist
 
 ## Notes
 

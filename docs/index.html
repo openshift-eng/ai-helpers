@@ -541,7 +541,7 @@ footer a { color: var(--primary); }
     {
       "name": "ci",
       "description": "Tools for working with OpenShift CI and analyzing Prow job results",
-      "version": "0.0.80",
+      "version": "0.0.81",
       "has_readme": true,
       "commands": [
         {
@@ -735,24 +735,6 @@ footer a { color: var(--primary); }
           "meta": ""
         },
         {
-          "name": "bulk-triage-regressions",
-          "description": "Use this skill for Component Readiness triage duty - holistically analyze and triage all untriaged regressions for a set of components in a view, clustering them into root-cause buckets",
-          "description_html": "Use this skill for Component Readiness triage duty - holistically analyze and triage all untriaged regressions for a set of components in a view, clustering them into root-cause buckets",
-          "meta": ""
-        },
-        {
-          "name": "detect-permafail",
-          "description": "Analyze consecutive job failures to determine if they represent a permafail pattern versus flaky failures",
-          "description_html": "Analyze consecutive job failures to determine if they represent a permafail pattern versus flaky failures",
-          "meta": ""
-        },
-        {
-          "name": "diagnose-job-run-symptoms",
-          "description": "Explain which Sippy Symptoms and failure Labels apply to a Prow CI job run, in plain language, given only the Prow URL",
-          "description_html": "Explain which Sippy Symptoms and failure Labels apply to a Prow CI job run, in plain language, given only the Prow URL",
-          "meta": ""
-        },
-        {
           "name": "fetch-jira-issue",
           "description": "Fetch JIRA issue details including status, assignee, comments, and progress classification",
           "description_html": "Fetch JIRA issue details including status, assignee, comments, and progress classification",
@@ -774,12 +756,6 @@ footer a { color: var(--primary); }
           "name": "fetch-payloads",
           "description": "Fetch recent release payloads from the OpenShift release controller",
           "description_html": "Fetch recent release payloads from the OpenShift release controller",
-          "meta": ""
-        },
-        {
-          "name": "fetch-prow-job-runs",
-          "description": "List Prow job runs from the Sippy API using its real filter syntax — find run IDs by job name, variant, result, or time window",
-          "description_html": "List Prow job runs from the Sippy API using its real filter syntax — find run IDs by job name, variant, result, or time window",
           "meta": ""
         },
         {
@@ -819,24 +795,6 @@ footer a { color: var(--primary); }
           "meta": ""
         },
         {
-          "name": "list-symptoms",
-          "description": "List, search, and inspect Sippy Symptoms and Labels — known CI failure signatures — via the public Sippy API",
-          "description_html": "List, search, and inspect Sippy Symptoms and Labels — known CI failure signatures — via the public Sippy API",
-          "meta": ""
-        },
-        {
-          "name": "manage-labels",
-          "description": "Create, update, or delete Sippy job run Labels (the human-readable tags applied by Symptoms) via the authenticated Sippy API",
-          "description_html": "Create, update, or delete Sippy job run Labels (the human-readable tags applied by Symptoms) via the authenticated Sippy API",
-          "meta": ""
-        },
-        {
-          "name": "manage-symptoms",
-          "description": "Create, update, or delete Sippy Symptoms — known CI failure signatures that automatically label job runs — via the authenticated Sippy API",
-          "description_html": "Create, update, or delete Sippy Symptoms — known CI failure signatures that automatically label job runs — via the authenticated Sippy API",
-          "meta": ""
-        },
-        {
           "name": "oc-auth",
           "description": "Helper skill to retrieve OAuth tokens from the correct OpenShift cluster context when multiple clusters are configured",
           "description_html": "Helper skill to retrieve OAuth tokens from the correct OpenShift cluster context when multiple clusters are configured",
@@ -873,9 +831,15 @@ footer a { color: var(--primary); }
           "meta": ""
         },
         {
-          "name": "prow-job-analysis",
-          "description": "Use this skill when debugging a failed Prow CI job.",
-          "description_html": "Use this skill when debugging a failed Prow CI job.",
+          "name": "prow-job-analyze-install-failure",
+          "description": "Analyze OpenShift installation failures in Prow CI jobs by examining installer logs, log bundles, and sosreports. Use when CI job fails \"install should succeed\" tests at bootstrap, cluster creation or other stages.",
+          "description_html": "Analyze OpenShift installation failures in Prow CI jobs by examining installer logs, log bundles, and sosreports. Use when CI job fails &quot;install should succeed&quot; tests at bootstrap, cluster creation or other stages.",
+          "meta": ""
+        },
+        {
+          "name": "prow-job-analyze-metal-install-failure",
+          "description": "Analyze OpenShift bare metal installation failures in Prow CI jobs using dev-scripts artifacts. Use for jobs with \"metal\" in name, for debugging Metal3/Ironic provisioning, installation, or dev-scripts setup failures. You may also use the prow-job-analyze-install-failure skill with this one.",
+          "description_html": "Analyze OpenShift bare metal installation failures in Prow CI jobs using dev-scripts artifacts. Use for jobs with &quot;metal&quot; in name, for debugging Metal3/Ironic provisioning, installation, or dev-scripts setup failures. You may also use the prow-job-analyze-install-failure skill with this one.",
           "meta": ""
         },
         {
@@ -885,9 +849,21 @@ footer a { color: var(--primary); }
           "meta": ""
         },
         {
-          "name": "reevaluate-job-runs",
-          "description": "Retroactively re-run Sippy Symptom detection on completed Prow CI job runs to apply or preview failure Labels",
-          "description_html": "Retroactively re-run Sippy Symptom detection on completed Prow CI job runs to apply or preview failure Labels",
+          "name": "prow-job-analyze-test-failure",
+          "description": "Analyze failed Prow CI tests by inspecting test code, downloading artifacts, and optionally integrating must-gather cluster diagnostics for root cause analysis",
+          "description_html": "Analyze failed Prow CI tests by inspecting test code, downloading artifacts, and optionally integrating must-gather cluster diagnostics for root cause analysis",
+          "meta": ""
+        },
+        {
+          "name": "prow-job-artifact-search",
+          "description": "Search, list, and fetch artifacts from Prow CI job runs stored in GCS using the gcloud CLI",
+          "description_html": "Search, list, and fetch artifacts from Prow CI job runs stored in GCS using the gcloud CLI",
+          "meta": ""
+        },
+        {
+          "name": "prow-job-extract-must-gather",
+          "description": "Extract and decompress must-gather archives from Prow CI job artifacts, generating an interactive HTML file browser with filters",
+          "description_html": "Extract and decompress must-gather archives from Prow CI job artifacts, generating an interactive HTML file browser with filters",
           "meta": ""
         },
         {
