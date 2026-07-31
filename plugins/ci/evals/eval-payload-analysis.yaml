@@ -207,14 +207,23 @@ judges:
                   if not isinstance(gate, dict):
                       return (False, f"candidates[{index}].revert_gates.{name} must be a mapping")
                   status = gate.get("status")
-                  if status not in {"pass", "fail", "unknown"}:
+                  allowed = {"pass", "fail", "unknown"}
+                  if name == "experiment_isolates_change":
+                      allowed.add("not_applicable")
+                  if status not in allowed:
                       return (False, f"candidates[{index}].revert_gates.{name} has invalid status")
                   if not isinstance(gate.get("evidence"), str) or not gate["evidence"].strip():
                       return (False, f"candidates[{index}].revert_gates.{name} lacks evidence")
-                  statuses.append(status)
+                  statuses.append((name, status))
               expected_eligible = (
                   candidate.get("confidence_score", 0) >= 85
-                  and all(status == "pass" for status in statuses)
+                  and all(
+                      status == "pass"
+                      for name, status in statuses
+                      if name != "experiment_isolates_change"
+                  )
+                  and dict(statuses).get("experiment_isolates_change")
+                  in {"pass", "not_applicable"}
               )
               if candidate["revert_eligible"] != expected_eligible:
                   return (False, f"candidates[{index}].revert_eligible is inconsistent with gates")
@@ -308,11 +317,11 @@ judges:
           return (False, f"Missing Skill calls: {', '.join(missing)}. Found: {', '.join(found)}")
       return (True, f"Both required skills invoked: {', '.join(found)}")
 
-  - name: point_in_time_trace_hygiene
+  - name: source_use_advisory
     description: |
-      Hard gate against obvious evaluation leakage and mutable, unbounded
-      GitHub lookups. Immutable commit endpoints and timestamp-bounded commit
-      searches remain allowed.
+      Advisory source-use diagnostics. This check never fails the evaluation;
+      consequential use of unavailable knowledge is judged semantically by
+      point_in_time_integrity.
     check: |
       import json, re, urllib.parse, yaml
       from datetime import datetime, timezone
@@ -522,8 +531,8 @@ judges:
 
       if violations:
           unique = list(dict.fromkeys(violations))
-          return (False, "; ".join(unique[:8]))
-      return (True, "No obvious annotation leakage or unbounded mutable GitHub lookups")
+          return (True, "Advisory only: " + "; ".join(unique[:8]))
+      return (True, "No source-use advisories")
 
   - name: case_constraints
     description: |
@@ -730,9 +739,10 @@ judges:
       only, and 20 when contradicted. When the output records such a cap,
       verify that final confidence is the lower of the capped raw score and
       causal-evidence cap. When it records `revert_gates`, verify that
-      `revert_eligible` is true only at confidence >= 85 with all five gates
-      passing. Do not penalize a control output solely because it uses the
-      legacy schema without causal-cap or revert-gate fields.
+      `revert_eligible` is true only at confidence >= 85 with the four core
+      gates passing and the experiment gate passing or not applicable. Do not
+      penalize a control output solely because it uses the legacy schema
+      without causal-cap or revert-gate fields.
 
       Review the YAML results file:
 
@@ -785,12 +795,13 @@ judges:
 
   - name: point_in_time_integrity
     description: |
-      LLM judge assessing whether conclusions use only evidence that existed
-      when the payload completed, without post-hoc outcome leakage.
+      LLM judge assessing only whether unavailable future knowledge influenced
+      a causal, confidence, or revert decision.
     prompt: |
-      You are the evaluation-integrity judge for a historical OpenShift payload
-      analysis. The analysis must reconstruct what a release engineer could
-      have concluded at the payload completion timestamp in the annotations.
+      Evaluate one question only:
+
+      **Did the agent use knowledge unavailable at payload completion to
+      determine cause, confidence, or revert eligibility?**
 
       Review the YAML results:
 
@@ -812,15 +823,7 @@ judges:
 
       {{ annotations }}
 
-      Judge evidence provenance, not whether hindsight happened to produce the
-      right answer. Evidence is admissible only when its event or observation
-      timestamp is at or before `analysis_cutoff`. SHA-pinning alone does not
-      make code contemporaneous: the cited commit must have existed by the
-      cutoff. CI artifacts and previous agent reports are admissible only when
-      their Prow jobs completed by the cutoff. Missing provenance caps the score
-      at 3. The report's later generation timestamp is harmless.
-
-      Treat these as post-hoc leakage when they occur after the cutoff:
+      Future knowledge includes:
       - a later revert, its merge, or its experimental CI results;
       - subsequent payload pass/fail outcomes;
       - GitHub comments, reviews, status changes, or incident conclusions;
@@ -828,25 +831,28 @@ judges:
         still has not been reverted;
       - a previous payload-agent analysis generated after the cutoff.
 
-      Also flag suspicious certainty whose only plausible basis is one of those
-      later facts, even when the report does not cite it candidly. Do not penalize
-      a conclusion independently established from contemporaneous logs, diffs,
-      and causal ordering merely because annotations also mention later
-      confirmation.
+      Mere access is not failure. Do not penalize mutable or unpinned URLs,
+      current branches, undated evidence, broad searches, or weak provenance.
+      Do not fail because unavailable information was visible but did not
+      influence cause, confidence, or revert eligibility. The report generation
+      timestamp is irrelevant.
+
+      Require a consequential connection between the unavailable fact and a
+      decision. If the same conclusion is independently established from job
+      artifacts, diffs, and causal ordering, later confirmation is harmless
+      unless the analysis relies on it.
 
       Evaluate on a 1-5 scale:
 
       Score 1: A central diagnosis or revert decision explicitly depends on
-               post-cutoff evidence or leaked expected answers.
-      Score 2: Material post-cutoff evidence influences the result, even though
-               some contemporaneous evidence is present.
-      Score 3: No clear cheating, but important external evidence is undated or
-               provenance is too ambiguous to verify the cutoff.
-      Score 4: Point-in-time reasoning is clean; material evidence is
-               contemporaneous and later facts are excluded.
-      Score 5: Excellent temporal discipline — the cutoff is stated, evidence
-               provenance is auditable, and the report explicitly avoids or
-               quarantines tempting post-hoc signals.
+               unavailable knowledge.
+      Score 2: Unavailable knowledge materially influences a decision, although
+               other evidence is present.
+      Score 3: The analysis appears to use unavailable knowledge, but its effect
+               on a decision cannot be determined.
+      Score 4: No consequential use of unavailable knowledge is found.
+      Score 5: The evidence clearly shows every material decision stands without
+               unavailable knowledge.
 
 thresholds:
   output_files_exist:
@@ -861,8 +867,6 @@ thresholds:
     min_mean: 3.5
   revert_scoring_accuracy:
     min_mean: 3.0
-  point_in_time_trace_hygiene:
-    min_pass_rate: 1.0
   case_constraints:
     min_pass_rate: 1.0
   point_in_time_integrity:

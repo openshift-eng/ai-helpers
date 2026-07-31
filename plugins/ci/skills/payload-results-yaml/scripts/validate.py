@@ -21,6 +21,7 @@ REQUIRED_REVERT_GATES = [
     "experiment_isolates_change",
 ]
 REVERT_GATE_STATUSES = {"pass", "fail", "unknown"}
+EXPERIMENT_GATE_STATUSES = REVERT_GATE_STATUSES | {"not_applicable"}
 REQUIRED_RHCOS_SUSPECT_FIELDS = ["rhcos_tag", "package", "failing_jobs"]
 
 
@@ -91,7 +92,7 @@ def validate(path):
                 )
 
             gates = cand.get("revert_gates")
-            all_gates_pass = False
+            gates_authorize_revert = False
             if not isinstance(gates, dict):
                 errors.append(f"candidates[{i}].revert_gates is not a mapping")
             else:
@@ -121,10 +122,15 @@ def validate(path):
                         continue
                     status = gate_data.get("status")
                     evidence = gate_data.get("evidence")
-                    if status not in REVERT_GATE_STATUSES:
+                    allowed_statuses = (
+                        EXPERIMENT_GATE_STATUSES
+                        if gate == "experiment_isolates_change"
+                        else REVERT_GATE_STATUSES
+                    )
+                    if status not in allowed_statuses:
                         errors.append(
                             f"candidates[{i}].revert_gates.{gate}.status "
-                            f"must be one of {sorted(REVERT_GATE_STATUSES)}"
+                            f"must be one of {sorted(allowed_statuses)}"
                         )
                     else:
                         gate_statuses.append(status)
@@ -133,22 +139,24 @@ def validate(path):
                             f"candidates[{i}].revert_gates.{gate}.evidence "
                             "must be a non-empty string"
                         )
-                all_gates_pass = (
+                gates_authorize_revert = (
                     len(gate_statuses) == len(REQUIRED_REVERT_GATES)
-                    and all(status == "pass" for status in gate_statuses)
+                    and all(status == "pass" for status in gate_statuses[:4])
+                    and gate_statuses[4] in {"pass", "not_applicable"}
                 )
 
             expected_eligible = (
                 isinstance(confidence, int)
                 and not isinstance(confidence, bool)
                 and confidence >= 85
-                and all_gates_pass
+                and gates_authorize_revert
             )
             if isinstance(revert_eligible, bool):
                 if revert_eligible != expected_eligible:
                     errors.append(
                         f"candidates[{i}].revert_eligible must equal "
-                        "(confidence_score >= 85 and all revert gates pass)"
+                        "(confidence_score >= 85, all core gates pass, and "
+                        "the experiment gate passes or is not_applicable)"
                     )
 
     rhcos_suspects = data.get("rhcos_suspects")

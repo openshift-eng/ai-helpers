@@ -1,6 +1,6 @@
 ---
 name: prow-job-analysis
-description: Use this skill when debugging a failed Prow CI job.
+description: Debug a failed OpenShift Prow CI job from its Prow, gcsweb, or GCS URL by inspecting artifacts, identifying the earliest failure mechanism, and routing to the relevant install, test, upgrade, infrastructure, or platform reference.
 ---
 
 # Prow Job Analysis
@@ -29,15 +29,21 @@ The user will provide:
   public bucket (no auth required). Without it, every artifact operation works over
   plain HTTPS: [prow_job_artifact_search.py](prow_job_artifact_search.py)
   (stdlib-only `list`/`search`/`fetch`) or `curl` against
-  `https://storage.googleapis.com/test-platform-results/...`.
+  `https://storage.googleapis.com/<bucket>/...`.
 
 ## Investigation Workflow
 
 ### Step 1: Parse URL and Extract Metadata
 
-1. Find `test-platform-results/` in the URL and extract the bucket path
+1. Parse the bucket and object prefix:
+   - Prow UI: `/view/gs/<bucket>/<object-prefix>`
+   - gcsweb: `/gcs/<bucket>/<object-prefix>`
+   - GCS: `gs://<bucket>/<object-prefix>`
 2. Extract `build_id` — pattern `(\d{10,})` in the path
-3. Construct GCS base: `gs://test-platform-results/{bucket-path}/`
+3. Construct GCS base: `gs://<bucket>/<object-prefix>/`
+
+Do not assume the bucket is `test-platform-results`; archived payload jobs can
+use `prow-artifact-archive`.
 
 ### Step 2: Fetch prowjob.json
 
@@ -64,23 +70,20 @@ Parse the job name to determine the environment and expected failure modes:
 | `techpreview` | Tech preview | Feature gates enabled, features may be unstable |
 | `rhcos9`, `rhcos10`, `rhcos9_10`, `rt` | RHCOS variant / RT kernel | OS variant pinned or heterogeneous; OS-level differences (kernel/systemd/SELinux) — see [operating system changes reference](references/operating-system-changes.md) |
 
-### Step 4: Download Key Artifacts
+### Step 4: Inspect Artifacts Progressively
+
+Start with small, high-signal artifacts. Download larger bundles only when a
+material causal link remains unresolved.
 
 ```bash
 mkdir -p .work/prow-job-analysis/{build_id}/logs
 
 # Build log (always)
-gcloud storage cp gs://test-platform-results/{bucket-path}/build-log.txt \
+gcloud storage cp gs://{bucket}/{object-prefix}/build-log.txt \
   .work/prow-job-analysis/{build_id}/logs/ --no-user-output-enabled
 
 # JUnit XML (always — identifies failed tests/steps)
-gcloud storage ls "gs://test-platform-results/{bucket-path}/artifacts/**/junit*.xml" 2>/dev/null
-
-# Node journals (always, when the job created a cluster) — required input for the
-# Step 5 OS-layer check. Gzip-compressed WITHOUT a .gz extension: zcat/zgrep only.
-gcloud storage cp -r \
-  "gs://test-platform-results/{bucket-path}/artifacts/{target}/gather-extra/artifacts/nodes" \
-  .work/prow-job-analysis/{build_id}/ --no-user-output-enabled 2>/dev/null || true
+gcloud storage ls "gs://{bucket}/{object-prefix}/artifacts/**/junit*.xml" 2>/dev/null
 ```
 
 ### Step 5: Classify Failure and Route to Reference
@@ -88,26 +91,30 @@ gcloud storage cp -r \
 Examine the build log and JUnit results to classify the failure, then consult the
 appropriate reference file for detailed analysis procedures.
 
-#### OS-layer evidence check (mandatory for every job, before routing)
+#### OS-layer evidence check
 
 Operating-system (RHCOS) layer breakage frequently masquerades as an unrelated product
 failure: a single RHCOS bump swaps the kernel, cri-o, systemd, NetworkManager, and SELinux
 policy across the whole cluster at once, so the real cause surfaces as a symptom in some
-other domain. Before selecting a row from the routing table, complete BOTH steps:
+other domain. Perform the deeper node-journal check when initial artifacts show
+node readiness, container runtime, MachineConfig, kernel, SELinux, reboot, or
+cross-job OS-boundary signals, or when no earlier cause is established.
 
-**1. Compare runtime versions across boots in the node journals** (downloaded in
-Step 4; gzip-compressed **without** a `.gz` extension — plain `grep` silently matches
-nothing, use `zcat`/`zgrep`):
+Download node journals on demand:
 
 ```bash
+gcloud storage cp -r \
+  "gs://{bucket}/{object-prefix}/artifacts/{target}/gather-extra/artifacts/nodes" \
+  .work/prow-job-analysis/{build_id}/ --no-user-output-enabled
+
 # Runtime versions per boot. End-of-run snapshots (oc_cmds/nodes, nodes.json)
 # show only the final version; changes within the run are visible only here.
 zgrep -hE "Starting CRI-O, version|Container runtime initialized" \
   .work/prow-job-analysis/{build_id}/nodes/*/journal | sort | uniq -c
 ```
 
-**2. Scan the build log, JUnit, `oc_cmds` (node / clusteroperator status),
-MachineConfig data, and the journals for these signals:**
+Also scan the build log, JUnit, `oc_cmds` (node / clusteroperator status),
+MachineConfig data, and the journals for these signals:
 
 - `NetworkPluginNotReady`, or a missing CNI config (`/etc/cni/net.d` empty / no CNI plugin)
 - A `ContainerRuntimeVersion` change on nodes (cri-o version bump between runs)
@@ -118,9 +125,9 @@ MachineConfig data, and the journals for these signals:**
 - `avc: denied` / SELinux denials
 - The same failure spanning multiple unrelated jobs at a payload boundary
 
-If step 1 shows more than one runtime version on any node, or any step-2 signal is
-present, the RHCOS layer is implicated: still route via the table below using whichever
-reference matches the surface symptom, but **also** read
+If more than one runtime version appears on a node, or any listed signal is
+present, the RHCOS layer is implicated. Still route by the surface symptom, but
+also read
 [operating-system-changes.md](references/operating-system-changes.md) alongside it.
 Never clear the OS layer from end-of-run snapshots alone.
 
@@ -166,13 +173,14 @@ Both formats are accepted and interchangeable:
 
 ```text
 # Prow UI
-https://prow.ci.openshift.org/view/gs/test-platform-results/logs/{job}/{build_id}
+https://prow.ci.openshift.org/view/gs/{bucket}/{object-prefix}
 
 # gcsweb (direct GCS browser)
-https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results/logs/{job}/{build_id}
+https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/{bucket}/{object-prefix}
 ```
 
-The GCS bucket is always `test-platform-results`, publicly accessible, no auth required.
+Common public buckets include `test-platform-results` and
+`prow-artifact-archive`.
 
 ## Tips
 

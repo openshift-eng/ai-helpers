@@ -20,7 +20,7 @@ Use this skill when revert candidates have already been identified with high con
 - `revert_candidates`: List of PRs to revert, each with:
   - `pr_url`, `pr_number`, `component`, `confidence_score`, `rationale`
   - `revert_eligible`: Must be `true`
-  - `revert_gates`: All five action gates, each with `status: "pass"` and evidence
+  - `revert_gates`: All five action gates with evidence; the four core gates must pass and the experiment gate must pass or be not applicable
   - `originating_payload_tag`: The payload where this candidate PR first caused failures
   - `failing_jobs`: List of `{job_name, prow_url, is_aggregated, underlying_job_name}`
 
@@ -48,7 +48,8 @@ YAML:
 2. `revert_eligible` is exactly `true`
 3. `revert_gates` contains all five canonical gates from the
    `payload-results-yaml` skill
-4. Every gate has `status: "pass"` and non-empty evidence
+4. The four core gates have `status: "pass"`; `experiment_isolates_change` has
+   `"pass"` or `"not_applicable"`; every gate has non-empty evidence
 
 Reject an ineligible or inconsistent candidate before creating a Jira issue,
 branch, PR, comment, or payload job. Return its PR URL and the failed or missing

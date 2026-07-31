@@ -43,7 +43,8 @@ When the number of failing jobs across all candidates exceeds these limits, prio
 
 3. **Filter candidates**: Select candidates with `confidence_score >= 85` **and**
    `revert_eligible: true`. Treat a missing eligibility field as false. Verify
-   defensively that all five `revert_gates` have `status: "pass"`; skip and
+   defensively that the four core `revert_gates` have `status: "pass"` and
+   `experiment_isolates_change` is `"pass"` or `"not_applicable"`; skip and
    report any inconsistent candidate rather than staging it. Exclude candidates
    that already have an action with `status` of `"open"` or `"merged"`
    (pre-existing revert).

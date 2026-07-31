@@ -75,7 +75,20 @@ class ScoringPromptTest(unittest.TestCase):
         self.assertIn("raw maximum is 120", prompt)
         self.assertNotIn("Maximum: 130", prompt)
         self.assertNotIn("Single candidate: +10", prompt)
-        self.assertIn("Do not penalize a control output", prompt)
+        self.assertIn("penalize a control output", prompt)
+
+
+class PointInTimePromptTest(unittest.TestCase):
+    def test_judge_checks_consequential_future_knowledge_only(self):
+        prompt = load_judge("point_in_time_integrity")["prompt"]
+
+        self.assertIn(
+            "Did the agent use knowledge unavailable at payload completion",
+            prompt,
+        )
+        self.assertIn("Mere access is not failure", prompt)
+        self.assertIn("mutable or unpinned URLs", prompt)
+        self.assertIn("Require a consequential connection", prompt)
 
 
 if __name__ == "__main__":

@@ -35,8 +35,8 @@ candidates:
         status: "pass"
         evidence: "infrastructure and test-framework alternatives were contradicted"
       experiment_isolates_change:
-        status: "pass"
-        evidence: "no experimental evidence was used, so this condition is not applicable"
+        status: "not_applicable"
+        evidence: "no experiment informed this conclusion"
     failing_jobs:
       - "periodic-ci-openshift-release-main-ci-4.22-e2e-aws-ovn"
     actions: []
