@@ -1,8 +1,8 @@
 # Revert and Force-Accept Decisions
 
-Confidence ranks hypotheses. Revert eligibility is a separate action decision.
+Use confidence to rank hypotheses. Use the gates below to authorize actions.
 
-## Revert gates
+## Apply the revert gates
 
 Record all five gates for every candidate:
 
@@ -17,7 +17,7 @@ Record all five gates for every candidate:
 Use `pass`, `fail`, or `unknown`. For `experiment_isolates_change`, use
 `not_applicable` when no experiment informed the conclusion.
 
-Apply gates pessimistically:
+Assign each status from its evidence:
 
 - unavailable diff or unobserved changed behavior makes
   `changed_path_executed` unknown;
@@ -38,15 +38,18 @@ Set `revert_eligible: true` exactly when:
 Only eligible candidates appear under Recommended Reverts. PRs that are merely
 recent, component-exclusive, or adjacent to an error are not eligible.
 
-## Existing revert history
+## Verify existing reverts
 
-Check whether an eligible PR already has an open or merged revert. Verify that
-the revert diff actually removes the candidate change. Record an existing
-revert as an action and do not recommend creating a duplicate.
+For every eligible PR:
 
-## Important non-revert cases
+1. Search for open, closed, and merged revert PRs.
+2. Verify that the revert diff removes the candidate change.
+3. Record a verified open or merged revert as an existing action.
+4. Do not recommend creating a duplicate revert.
 
-Do not recommend reverting:
+## Exclude non-revert cases
+
+Do not recommend a revert for:
 
 - infrastructure failures not introduced by a repository change;
 - flaky tests that also fail on accepted payloads;
@@ -59,7 +62,7 @@ For Kubernetes rebase version skew, record a test failure caused by transient
 build lag and recommend waiting for the rebuilt kubelet/RHCOS. Do not
 force-accept or revert the rebase solely for that lag.
 
-## Force-accept
+## Decide force-accept eligibility
 
 If the payload phase is already Accepted, set
 `force_accept_recommended: false`.
@@ -77,5 +80,8 @@ control-plane blip. Broken CI configuration, credentials, registry URLs,
 persistent misconfiguration, tests, and product defects require human action
 and are not force-accept eligible.
 
-Write gate results, eligibility, existing actions, and force-accept decision to
-`analysis-state.yaml`.
+## Record the result
+
+Write every gate and its evidence, revert eligibility, verified existing
+actions, and the force-accept decision to `analysis-state.yaml`. Complete this
+step only when every candidate and the payload have explicit action decisions.

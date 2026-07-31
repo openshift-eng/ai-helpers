@@ -1,20 +1,22 @@
 # Attribution and Scoring
 
-Map frozen causal signatures to changed behavior. A recent PR is a hypothesis,
-not evidence.
+Test changed behavior against the frozen signatures. Treat every recent change
+as a hypothesis until its execution and causal path are supported.
 
 ## Enumerate candidate changes
 
-For each signature, use its established onset payload:
+For each signature:
 
-- inspect `payloads[].prs[]` and each local `code.diff`;
-- inspect matching RHCOS changes for the job's variant;
-- inspect recent `openshift/release` step-registry changes when the failing
-  operation is CI setup, provisioning, test execution, or teardown.
+1. Use the established signature boundary, not the longer job or test-name
+   streak.
+2. Inspect `payloads[].prs[]` and each local `code.diff`.
+3. Inspect RHCOS changes that apply to the job's variant.
+4. Inspect `openshift/release` step-registry changes when the failing operation
+   is CI setup, provisioning, test execution, or teardown.
+5. Record which candidate set was checked, including an empty set.
 
-Do not use the longer job or test-name streak to select PRs. For Sippy-backed
-payloads, use the archived PR list and diffs while treating unavailable
-release-controller-only fields as unknown.
+For Sippy-backed payloads, use the archived PR list and diffs. Record
+unavailable release-controller-only fields as unknown.
 
 Search CI changes by the exact failing step and its upstream dependencies.
 Generic commit messages are weak filters; filenames and patches are decisive.
@@ -31,8 +33,8 @@ For each `(signature, candidate)` pair:
 4. Follow propagation to the gating symptom.
 5. Challenge the chain with the recorded competing explanations.
 
-A PR matching only a downstream recovery error, detector, cleanup failure, or
-terminal symptom does not explain an earlier trigger.
+Reject the attribution when the candidate matches only a downstream recovery
+error, detector, cleanup failure, or terminal symptom.
 
 If the diff is unavailable, do not claim that its path executed. Component and
 timing correlation alone is capped at 60 and cannot authorize a revert.
@@ -73,14 +75,13 @@ sum, evidence tier, cap, final score, and any missing link.
 
 ## Interpret retries and experiments
 
-Consistent retries establish reproducibility, not category. Product,
-infrastructure, and test defects can all repeat.
+- Use consistent retries as evidence of reproducibility, not cause category.
+- Treat persistence of the same signature after removing a candidate as strong
+  evidence against that candidate.
+- Treat one passing run after removal as weak evidence unless paired or
+  repeated runs isolate the change.
 
-The same signature persisting after a candidate is removed is strong evidence
-against it. One passing retry after removal is weak evidence unless paired or
-repeated runs isolate the change.
-
-## Record non-PR causes
+## Record the result
 
 RHCOS package changes are suspects, not normal PR revert candidates. Record
 package, variant, old/new versions, affected jobs, and causal rationale.
@@ -89,4 +90,7 @@ For each failed job with no causally linked candidate, state why and whether
 the same signature appears elsewhere. An empty candidate list must represent a
 conclusion, not an omitted investigation.
 
-Write all scored candidates and RHCOS suspects to `analysis-state.yaml`.
+Write the candidate set, rubric evidence, raw score, causal cap, final
+confidence, missing links, and RHCOS suspects to `analysis-state.yaml`.
+Complete this step only when every frozen signature has scored candidates or a
+documented no-candidate result.

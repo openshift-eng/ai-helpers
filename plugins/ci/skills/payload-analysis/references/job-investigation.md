@@ -1,42 +1,50 @@
 # Evidence-Only Job Investigation
 
-Investigate every failed blocking job in parallel. This phase determines what
-happened; it does not identify which recent PR to blame.
+Determine what happened in every failed blocking job before considering
+candidate changes.
 
-## Investigator prompt
+## Run the investigations
 
-Use this prompt for each job, substituting its values:
+For each failed blocking job:
 
-> Analyze `<prow_url>` using `ci:prow-job-analysis`.
+1. Start an investigator with the job's Prow URL, retry URLs, aggregation
+   status, RHCOS variant, and known artifact paths.
+2. Require the investigator to use `ci:prow-job-analysis`.
+3. Keep payload PR descriptions, diffs, and candidate rankings out of the
+   investigator's context.
+4. Run independent job investigations in parallel when capacity allows.
+5. Wait for every result before establishing signatures.
+
+Use this prompt, substituting the job values:
+
+> Investigate `<prow_url>` using `ci:prow-job-analysis`.
 >
 > The job has `<retry_count>` retries. Previous attempts:
 > `<previous_attempt_urls>`.
 >
-> For an aggregated job, retries rerun only aggregation over the same children;
-> inspect the final aggregation and then investigate the failed child runs. For
-> a non-aggregated job, inspect the final attempt first and compare earlier
-> attempts. Repetition establishes persistence, not whether the cause is
-> product, infrastructure, or test.
+> If this is an aggregated job, inspect the aggregation result and its failed
+> or incomplete child runs. If it is not aggregated, inspect the final attempt
+> first and compare earlier attempts. Repetition proves persistence, not the
+> cause category.
 >
-> This is an evidence-only investigation. Do not inspect, enumerate, or rank
-> payload PRs. Determine the failure mechanism from job artifacts before any
-> change attribution occurs.
+> Do not inspect, enumerate, or rank payload PRs. Determine the mechanism from
+> job artifacts alone.
 >
-> Start with the build log, JUnit, events, intervals, and targeted pod or
-> controller logs. Download must-gather or other large bundles only when these
-> smaller artifacts do not establish the earliest abnormal event or a material
-> causal link.
+> Inspect the build log, JUnit, events, intervals, and targeted pod or
+> controller logs first. Download larger artifacts only when a material causal
+> link remains unresolved.
 >
-> Split independent failure modes. For each, order the earliest abnormal event,
-> propagation or recovery behavior, detector, and terminal symptom. A test that
-> reports a real product or infrastructure failure is a detector, not its
-> cause. Use unresolved when artifacts do not distinguish credible causes.
+> Split independent failure modes. For each one, identify the earliest abnormal
+> event and order the causal chain through propagation, recovery, detection,
+> and the terminal symptom. A test that reports a real product or
+> infrastructure failure is a detector, not the cause.
 >
-> Record short exact excerpts and artifact paths. For aggregated jobs, extract
-> the underlying job name from child-run artifacts rather than deriving it from
-> the aggregator name.
+> Record short excerpts and artifact paths. Use `unresolved` when the artifacts
+> do not distinguish credible causes. For aggregated jobs, read the underlying
+> job name from child-run artifacts rather than deriving it from the aggregator
+> name.
 >
-> Return the structured block below and do not ask questions.
+> Return the following block:
 
 ```yaml
 ANALYSIS_RESULT:
@@ -68,8 +76,10 @@ ANALYSIS_RESULT:
       missing_evidence: []
 ```
 
-`failed_phase` says where the job surfaced the failure. `cause_category` says
-what produced it. A test assertion that detects a cloud, network, storage, or
+## Classify the result
+
+Use `failed_phase` for where the failure surfaced. Use `cause_category` for what
+produced it. A test assertion that detects a cloud, network, storage, or
 provisioning failure does not make the cause a test.
 
 Set the output-schema `failure_type` to `infra` for an infrastructure cause,
@@ -78,12 +88,15 @@ test/framework defect failed during the test phase, and `install` or `upgrade`
 for product failures in those phases. For an indeterminate cause, use the
 observed phase and `root_cause_summary: unresolved`.
 
-## Collect results
+## Accept the result
 
-Wait for every investigator. A running or incomplete investigator is not a
-result. Re-run only jobs whose structured block is missing or materially
-incomplete.
+Accept an `ANALYSIS_RESULT` only when it:
 
-Copy returned failure modes into `analysis-state.yaml`. Preserve artifact
-references and disagreements; do not reconcile them against candidate changes
-in this phase.
+- covers the correct job and relevant retries or child runs;
+- identifies independent failure modes and the earliest abnormal event;
+- provides artifact references for material causal links;
+- lists credible competing explanations and missing evidence;
+- distinguishes the failed phase from the cause category.
+
+Repeat materially incomplete investigations. Copy accepted results into
+`analysis-state.yaml` without reconciling them against candidate changes.

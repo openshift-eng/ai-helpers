@@ -1,15 +1,20 @@
 # Adversarial Review and Self-Check
 
-Review action decisions without re-running the whole investigation.
+Challenge action-relevant conclusions, correct material defects, and validate
+the outputs.
 
-## When to launch a reviewer
+## Decide whether to run a reviewer
 
 Launch one adversarial reviewer when:
 
 - any candidate scores at least 60; or
 - an unresolved conflict could change a revert or force-accept decision.
 
-Provide only compact decision records:
+If neither condition applies, record why no reviewer was required.
+
+## Prepare the review
+
+Provide the reviewer only:
 
 - each minimal signature and ordered chain with artifact references;
 - each candidate diff reference, score breakdown, evidence cap, and gates;
@@ -17,7 +22,7 @@ Provide only compact decision records:
 
 Do not send the complete snapshot or full logs.
 
-## Reviewer prompt
+Use this prompt:
 
 > Falsify each candidate from the supplied decision records. Check whether it
 > explains the earliest abnormal event rather than a downstream recovery error,
@@ -29,14 +34,19 @@ Do not send the complete snapshot or full logs.
 > Report only material defects, affected jobs, and the evidence needed to
 > resolve them.
 
-If the reviewer finds a material defect, discard that derived conclusion,
-revisit the referenced artifact or diff, and regenerate all outputs. Do not
-patch prose around a stale score.
+## Apply the review
 
-If no reviewer is required, record that there were no candidates or
-action-relevant conflicts requiring adversarial review.
+For every material finding:
 
-## Mechanical self-check
+1. Identify which workflow step produced the defective conclusion.
+2. Revisit the referenced artifact or diff.
+3. Correct `analysis-state.yaml`.
+4. Recompute dependent scores, gates, and decisions.
+5. Regenerate all affected outputs.
+
+Do not patch report prose around a stale conclusion.
+
+## Run the final checks
 
 Confirm:
 
@@ -53,5 +63,6 @@ Confirm:
 9. Informing and flake tests are not presented as independent rejection causes.
 10. No unresolved causal chain is presented as a proven root cause.
 
-Fix every failed check, rerun the schema validators, and then present the three
-output paths plus a concise decision summary.
+Fix every failed check and rerun the schema validators. Complete the analysis
+only when every check passes, then present the three output paths and a concise
+decision summary.

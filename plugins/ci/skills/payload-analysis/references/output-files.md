@@ -1,32 +1,30 @@
 # Output Files
 
-Generate all outputs from `analysis-state.yaml`. Do not independently
-recalculate causes while formatting.
+Generate every output from `analysis-state.yaml`. Do not recalculate causes or
+scores while formatting.
 
-## Payload results YAML
+## Create the payload results YAML
 
-Load `ci:payload-results-yaml` and follow its current schema exactly. Include:
+1. Load `ci:payload-results-yaml`.
+2. Follow its current schema exactly.
+3. Include:
+   - metadata and the snapshot's phase;
+   - every failed blocking job, including jobs with no candidate;
+   - every scored PR or causal CI-configuration candidate;
+   - confidence, rationale, revert gates, and `revert_eligible`;
+   - existing actions;
+   - RHCOS suspects when present.
+4. Preserve unresolved causes as unresolved.
+5. Run the bundled validator and fix every error.
 
-- metadata and the snapshot's phase;
-- every failed blocking job, including jobs with no candidate;
-- every scored PR or causal CI-configuration candidate;
-- confidence, itemized rationale, all revert gates, and `revert_eligible`;
-- existing actions;
-- RHCOS suspects when present.
+## Create the autodl JSON
 
-The job root cause and candidate decisions must match working state. An
-unresolved failure remains unresolved in every output.
+1. Load `ci:payload-autodl-json`.
+2. Generate one row for every `(failed blocking job, candidate)` pair.
+3. Generate the required no-candidate row for each job without a candidate.
+4. Encode every row value as a string.
 
-Validate the YAML with the bundled validator before continuing.
-
-## Autodl JSON
-
-Load `ci:payload-autodl-json` and generate the flat ingestion file. Produce one
-row for every `(failed blocking job, candidate)` pair and the required
-no-candidate row for a failed job without a candidate. All row values are
-strings.
-
-## HTML report
+## Create the HTML report
 
 Create a self-contained dark-mode report with embedded CSS and working links.
 Put decisions before detail. Include:
@@ -64,9 +62,9 @@ Put decisions before detail. Include:
 Use collapsible details for gory evidence. Keep the executive summary and
 actions visible without expanding anything.
 
-## Cross-output consistency
+## Validate all outputs
 
-Before review, verify:
+Verify:
 
 - exact filenames under `OUTPUT_DIR`;
 - every file is non-empty;
@@ -76,3 +74,6 @@ Before review, verify:
   the failure;
 - the HTML never recommends a candidate whose YAML says
   `revert_eligible: false`.
+
+Complete this step only when the YAML validator passes and all three outputs
+agree on every cause and action.

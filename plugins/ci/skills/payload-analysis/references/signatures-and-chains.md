@@ -1,78 +1,77 @@
 # Signatures and Causal Chains
 
-Normalize the evidence before considering candidate changes.
+Convert the job investigations into stable failure records before inspecting
+candidate changes.
 
-## Construct minimal signatures
+## Define each failure mode
 
-Represent each independent mechanism with the smallest stable signature that
-contains:
+1. Separate mechanisms that can occur independently.
+2. Create the smallest stable signature that distinguishes each mechanism.
+3. Include:
+   - the earliest discriminating event;
+   - the failing operation or reconcile phase;
+   - the normalized error class or violated invariant;
+   - one additional discriminator only when required.
+4. Remove generated names, timestamps, IDs, payload tags, retry numbers,
+   cleanup fallout, and unrelated co-failures.
 
-1. the earliest discriminating event;
-2. the failing operation or reconcile phase;
-3. the normalized error class or violated invariant;
-4. one extra discriminator only when needed.
+Keep related infrastructure in the signature when it participates in the
+causal chain. For example, `DNS throttling -> ignition record missed VM
+deadline` is one mechanism. An unrelated registry timeout in the same job is a
+different mechanism.
 
-Exclude generated names, timestamps, IDs, payload tags, retry numbers,
-unrelated co-failures, cleanup fallout, and downstream symptoms.
+## Find the boundary
 
-Keep infrastructure in the signature when it participates in the chain. For
-example, `DNS throttling -> ignition record missed VM deadline` is one
-signature. An unrelated registry timeout from the same job is another.
+For each minimal signature:
 
-A product failure plus incidental quota, DNS, or teardown noise contains
-multiple signatures. An extra co-occurring signature neither extends nor
-resets another signature's streak.
+1. Walk backward through comparable executions.
+2. Classify each execution as:
+   - `present`: the same minimal signature occurred;
+   - `verified_absent`: the relevant operation completed without the signature;
+   - `unobservable`: the operation did not run or evidence is insufficient.
+3. Skip unrelated executions.
+4. Set the onset to the first `present` execution after the nearest
+   `verified_absent` execution.
+5. If an `unobservable` gap prevents an exact onset, record an onset interval.
 
-## Find each signature boundary
+Do not substitute job onset or test-name onset for an unverified signature
+boundary.
 
-Job onset and test-name onset are navigation hints. Only causal-signature onset
-selects candidate changes.
+## Build the causal chain
 
-Walk backward through comparable executions and classify each:
+For each signature:
 
-- `present`: the same minimal signature occurred;
-- `verified_absent`: the relevant operation completed and the signature did not
-  occur;
-- `unobservable`: the operation was not reached or evidence is insufficient.
+1. Order the observed events as applicable:
+   - trigger;
+   - propagation;
+   - amplifier or recovery defect;
+   - detector;
+   - terminal symptom.
+2. Support each material link with a failing-run artifact or deterministic code
+   flow.
+3. Mark speculative or optional links as unresolved.
+4. Check that a later recovery error, volume-attach failure, cleanup failure,
+   timeout, invariant, or panic has not displaced an earlier trigger.
 
-Skip unrelated and unobservable failures. The first `verified_absent`
-execution is the boundary. If an unobservable gap prevents an exact onset,
-record an onset interval and do not substitute job or test-name onset.
+Internal function calls do not each require a log line when the observed input,
+output, and code path make the link necessary.
 
-## Validate causal ordering
+## Resolve conflicts
 
-Build an ordered chain for every signature:
+When investigators disagree:
 
-1. trigger;
-2. propagation;
-3. amplifier or recovery defect;
-4. detector;
-5. terminal symptom.
+- use evidence from the exact failing operation;
+- do not treat success in an adjacent phase as exculpatory;
+- do not treat absence from truncated or missing logs as evidence;
+- do not assume a mechanism executed because it could execute;
+- distinguish a detector or improved diagnostic from the underlying cause.
 
-Not every role must exist. Support each material link with a failing-run
-artifact or deterministic code flow connecting an observed input to an
-observed output. Internal calls do not each need a log line when the path is
-necessary; speculative or optional branches remain missing links.
+Keep the cause unresolved when the evidence does not discriminate. Record the
+competing explanations and missing evidence.
 
-Do not reverse the chain because a terminal symptom is easier to find. A later
-volume-attach, cleanup, timeout, invariant, or panic cannot displace an earlier
-provisioning, networking, quota, storage, or framework trigger.
+## Record the result
 
-## Resolve disagreements
-
-When investigators propose contradictory causes for the same signature, use
-evidence from the exact failing operation:
-
-- success in an adjacent phase does not clear a candidate;
-- absence from truncated or missing logs proves nothing;
-- a mechanism that could execute is not proof that it did;
-- a detector or improved diagnostic may expose a pre-existing defect without
-  causing it.
-
-If the evidence does not discriminate, keep the signature unresolved and
-record the competing explanations. A wrong attribution is worse than an
-honest unresolved result.
-
-Update `analysis-state.yaml` with final signatures, boundaries, ordered chains,
-and unresolved links. These records are now frozen observations. Candidate
-availability must not change them.
+Write each signature, boundary, causal chain, competing explanation, and
+missing link to `analysis-state.yaml`. Mark these observations as frozen.
+Complete this step only when candidate availability can no longer change the
+recorded failure.
