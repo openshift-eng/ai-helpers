@@ -1,9 +1,29 @@
 # Attribution and Scoring
 
-Test changed behavior against the frozen signatures. Treat every recent change
-as a hypothesis until its execution and causal path are supported.
+## Purpose
 
-## Enumerate candidate changes
+Determine which PR, CI, or RHCOS changes explain each frozen failure signature
+and assign evidence-based confidence.
+
+## Inputs
+
+- frozen failure signatures, boundaries, and causal chains;
+- payload PR records and diffs stored in the snapshot;
+- relevant CI and RHCOS change records;
+- competing explanations and missing links.
+
+## Result
+
+Write scored candidates, no-candidate conclusions, and RHCOS suspects to
+`analysis-state.yaml`. Record the rubric evidence, raw score, causal-evidence
+cap, final confidence, and unresolved links for every candidate.
+
+## Actions
+
+Treat every recent change as a hypothesis until its execution and causal path
+are supported.
+
+### Enumerate candidate changes
 
 For each signature:
 
@@ -15,15 +35,15 @@ For each signature:
    is CI setup, provisioning, test execution, or teardown.
 5. Record which candidate set was checked, including an empty set.
 
-For Sippy-backed payloads, use the archived PR list and diffs. Record
-unavailable release-controller-only fields as unknown.
+Use the PR list and diffs stored in the snapshot. Treat unavailable fields as
+unknown.
 
 Search CI changes by the exact failing step and its upstream dependencies.
 Generic commit messages are weak filters; filenames and patches are decisive.
 A causal CI change is a scored candidate even when the job is classified as
 infrastructure.
 
-## Trace from trigger to diff
+### Trace from trigger to diff
 
 For each `(signature, candidate)` pair:
 
@@ -45,7 +65,7 @@ callers, initialization side effects, output streams, and the error-producing
 path. Deterministic code flow plus observed inputs and outputs can establish a
 mechanism without standing up a new cluster.
 
-## Score hypotheses
+### Score hypotheses
 
 Apply the rubric once per atomic signature:
 
@@ -73,7 +93,7 @@ Then cap the score by causal evidence:
 The final confidence is the lower of raw score and evidence cap. Record raw
 sum, evidence tier, cap, final score, and any missing link.
 
-## Interpret retries and experiments
+### Interpret retries and experiments
 
 - Use consistent retries as evidence of reproducibility, not cause category.
 - Treat persistence of the same signature after removing a candidate as strong
@@ -81,7 +101,7 @@ sum, evidence tier, cap, final score, and any missing link.
 - Treat one passing run after removal as weak evidence unless paired or
   repeated runs isolate the change.
 
-## Record the result
+### Record the result
 
 RHCOS package changes are suspects, not normal PR revert candidates. Record
 package, variant, old/new versions, affected jobs, and causal rationale.

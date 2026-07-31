@@ -1,9 +1,25 @@
 # Adversarial Review and Self-Check
 
-Challenge action-relevant conclusions, correct material defects, and validate
-the outputs.
+## Purpose
 
-## Decide whether to run a reviewer
+Falsify action-relevant conclusions, correct material defects in the analysis,
+and verify that the final files are complete and consistent.
+
+## Inputs
+
+- frozen signatures and causal chains;
+- candidate diffs, scores, evidence caps, and action gates;
+- unresolved links and competing explanations;
+- the generated HTML, YAML, and JSON files.
+
+## Result
+
+Leave no unresolved material review finding. Produce validated outputs whose
+causes, scores, and actions agree.
+
+## Actions
+
+### Decide whether to run a reviewer
 
 Launch one adversarial reviewer when:
 
@@ -12,7 +28,7 @@ Launch one adversarial reviewer when:
 
 If neither condition applies, record why no reviewer was required.
 
-## Prepare the review
+### Prepare the review
 
 Provide the reviewer only:
 
@@ -34,7 +50,7 @@ Use this prompt:
 > Report only material defects, affected jobs, and the evidence needed to
 > resolve them.
 
-## Apply the review
+### Apply the review
 
 For every material finding:
 
@@ -46,7 +62,7 @@ For every material finding:
 
 Do not patch report prose around a stale conclusion.
 
-## Run the final checks
+### Run the final checks
 
 Confirm:
 

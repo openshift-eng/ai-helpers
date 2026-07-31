@@ -1,8 +1,25 @@
 # Revert and Force-Accept Decisions
 
-Use confidence to rank hypotheses. Use the gates below to authorize actions.
+## Purpose
 
-## Apply the revert gates
+Convert the causal analysis into safe revert and force-accept decisions.
+Confidence ranks hypotheses; the action gates authorize reverts.
+
+## Inputs
+
+- scored candidates and their causal evidence;
+- competing explanations and missing links;
+- payload phase, failed blocking-job count, and `hours_since_baseline`;
+- existing revert records.
+
+## Result
+
+Write every candidate's gate results and revert eligibility, verified existing
+actions, and the payload's force-accept decision to `analysis-state.yaml`.
+
+## Actions
+
+### Apply the revert gates
 
 Record all five gates for every candidate:
 
@@ -38,7 +55,7 @@ Set `revert_eligible: true` exactly when:
 Only eligible candidates appear under Recommended Reverts. PRs that are merely
 recent, component-exclusive, or adjacent to an error are not eligible.
 
-## Verify existing reverts
+### Verify existing reverts
 
 For every eligible PR:
 
@@ -47,7 +64,7 @@ For every eligible PR:
 3. Record a verified open or merged revert as an existing action.
 4. Do not recommend creating a duplicate revert.
 
-## Exclude non-revert cases
+### Exclude non-revert cases
 
 Do not recommend a revert for:
 
@@ -62,7 +79,7 @@ For Kubernetes rebase version skew, record a test failure caused by transient
 build lag and recommend waiting for the rebuilt kubelet/RHCOS. Do not
 force-accept or revert the rebase solely for that lag.
 
-## Decide force-accept eligibility
+### Decide force-accept eligibility
 
 If the payload phase is already Accepted, set
 `force_accept_recommended: false`.
@@ -80,7 +97,7 @@ control-plane blip. Broken CI configuration, credentials, registry URLs,
 persistent misconfiguration, tests, and product defects require human action
 and are not force-accept eligible.
 
-## Record the result
+### Record the result
 
 Write every gate and its evidence, revert eligibility, verified existing
 actions, and the force-accept decision to `analysis-state.yaml`. Complete this

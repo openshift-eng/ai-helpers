@@ -6,9 +6,54 @@ argument-hint: "<payload-tag> [--snapshot-dir DIR]"
 
 # Payload Analysis
 
-Determine what failed from job evidence before inspecting candidate changes.
-Attribute changes only to the established failure mechanism. Recommend an
-action only after causation is supported.
+## Goal
+
+Analyze one OpenShift payload from a local snapshot produced by
+`ci:payload-snapshot`. Identify the causes of every failed blocking job,
+determine whether each failure is new or persistent, evaluate candidate PR,
+CI, and RHCOS changes, and recommend safe next actions.
+
+Support these payload states:
+
+- **Rejected:** explain every failed blocking job and the rejection.
+- **Ready:** analyze blocking jobs that have already failed.
+- **Accepted:** analyze failures in a payload that may have been force-accepted.
+
+## Inputs
+
+Required:
+
+- a full payload tag, such as
+  `4.22.0-0.nightly-2026-02-25-152806`.
+
+Optional:
+
+- `--snapshot-dir DIR`, pointing to a directory that contains the matching
+  `summary.json`.
+
+The snapshot is the source for payload metadata, payload history, blocking
+jobs, test results, artifact locations, PR data, and RHCOS changes. If no
+matching snapshot exists, create one with `ci:payload-snapshot`.
+
+## Outputs
+
+Write these files to the directory where the skill was invoked:
+
+```text
+payload-analysis-<sanitized-tag>-summary.html
+payload-results-<sanitized-tag>.yaml
+payload-analysis-<sanitized-tag>-autodl.json
+```
+
+The HTML report explains the result for a person. The YAML records candidates,
+action gates, and decisions for downstream payload workflows. The JSON contains
+the denormalized ingestion records.
+
+## Required skills
+
+- Use `ci:prow-job-analysis` to investigate failed jobs.
+- Load `ci:payload-results-yaml` before writing the YAML.
+- Load `ci:payload-autodl-json` before writing the JSON.
 
 ## Working state
 
@@ -96,14 +141,6 @@ explicit force-accept decision.
 
 Load `ci:payload-results-yaml` and `ci:payload-autodl-json`, then read
 [references/output-files.md](references/output-files.md).
-
-Generate these files directly under `OUTPUT_DIR`:
-
-```text
-payload-analysis-<sanitized-tag>-summary.html
-payload-results-<sanitized-tag>.yaml
-payload-analysis-<sanitized-tag>-autodl.json
-```
 
 - Generate all outputs from `analysis-state.yaml`.
 - Put decisions and immediate actions first in the HTML.

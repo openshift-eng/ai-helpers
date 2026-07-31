@@ -1,9 +1,29 @@
 # Evidence-Only Job Investigation
 
-Determine what happened in every failed blocking job before considering
-candidate changes.
+## Purpose
 
-## Run the investigations
+Determine what happened in each failed blocking job from its artifacts, without
+candidate-change information influencing the diagnosis.
+
+## Inputs
+
+For each failed blocking job:
+
+- Prow and artifact URLs;
+- retry and previous-attempt URLs;
+- aggregation status and child-run data;
+- RHCOS variant;
+- artifact paths and known data gaps from the snapshot.
+
+## Result
+
+Return one accepted `ANALYSIS_RESULT` per failed blocking job. Each result
+identifies independent failure modes, the earliest abnormal event, the causal
+chain, competing explanations, and missing evidence.
+
+## Actions
+
+### Run the investigations
 
 For each failed blocking job:
 
@@ -76,7 +96,7 @@ ANALYSIS_RESULT:
       missing_evidence: []
 ```
 
-## Classify the result
+### Classify the result
 
 Use `failed_phase` for where the failure surfaced. Use `cause_category` for what
 produced it. A test assertion that detects a cloud, network, storage, or
@@ -88,7 +108,7 @@ test/framework defect failed during the test phase, and `install` or `upgrade`
 for product failures in those phases. For an indeterminate cause, use the
 observed phase and `root_cause_summary: unresolved`.
 
-## Accept the result
+### Accept the result
 
 Accept an `ANALYSIS_RESULT` only when it:
 

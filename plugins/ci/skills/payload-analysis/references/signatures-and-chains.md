@@ -1,9 +1,26 @@
 # Signatures and Causal Chains
 
-Convert the job investigations into stable failure records before inspecting
-candidate changes.
+## Purpose
 
-## Define each failure mode
+Turn the job investigations into minimal failure signatures, verify when each
+signature began, and record the causal chain before inspecting candidate
+changes.
+
+## Inputs
+
+- accepted `ANALYSIS_RESULT` records;
+- comparable executions from the payload chain;
+- the artifacts referenced by each investigation.
+
+## Result
+
+Write frozen failure-mode records to `analysis-state.yaml`. Each record contains
+a minimal signature, onset or onset interval, ordered causal chain, competing
+explanations, and missing links.
+
+## Actions
+
+### Define each failure mode
 
 1. Separate mechanisms that can occur independently.
 2. Create the smallest stable signature that distinguishes each mechanism.
@@ -20,7 +37,7 @@ causal chain. For example, `DNS throttling -> ignition record missed VM
 deadline` is one mechanism. An unrelated registry timeout in the same job is a
 different mechanism.
 
-## Find the boundary
+### Find the boundary
 
 For each minimal signature:
 
@@ -37,7 +54,7 @@ For each minimal signature:
 Do not substitute job onset or test-name onset for an unverified signature
 boundary.
 
-## Build the causal chain
+### Build the causal chain
 
 For each signature:
 
@@ -56,7 +73,7 @@ For each signature:
 Internal function calls do not each require a log line when the observed input,
 output, and code path make the link necessary.
 
-## Resolve conflicts
+### Resolve conflicts
 
 When investigators disagree:
 
@@ -69,7 +86,7 @@ When investigators disagree:
 Keep the cause unresolved when the evidence does not discriminate. Record the
 competing explanations and missing evidence.
 
-## Record the result
+### Record the result
 
 Write each signature, boundary, causal chain, competing explanation, and
 missing link to `analysis-state.yaml`. Mark these observations as frozen.

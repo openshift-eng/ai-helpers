@@ -1,9 +1,32 @@
 # Output Files
 
-Generate every output from `analysis-state.yaml`. Do not recalculate causes or
-scores while formatting.
+## Purpose
 
-## Create the payload results YAML
+Generate the human-readable report and machine-readable results without
+changing the completed analysis.
+
+## Inputs
+
+- completed `analysis-state.yaml`;
+- `OUTPUT_DIR`;
+- the `ci:payload-results-yaml` schema;
+- the `ci:payload-autodl-json` schema.
+
+## Result
+
+Create three non-empty, mutually consistent files:
+
+```text
+payload-analysis-<sanitized-tag>-summary.html
+payload-results-<sanitized-tag>.yaml
+payload-analysis-<sanitized-tag>-autodl.json
+```
+
+Do not recalculate causes or scores while formatting.
+
+## Actions
+
+### Create the payload results YAML
 
 1. Load `ci:payload-results-yaml`.
 2. Follow its current schema exactly.
@@ -17,14 +40,14 @@ scores while formatting.
 4. Preserve unresolved causes as unresolved.
 5. Run the bundled validator and fix every error.
 
-## Create the autodl JSON
+### Create the autodl JSON
 
 1. Load `ci:payload-autodl-json`.
 2. Generate one row for every `(failed blocking job, candidate)` pair.
 3. Generate the required no-candidate row for each job without a candidate.
 4. Encode every row value as a string.
 
-## Create the HTML report
+### Create the HTML report
 
 Create a self-contained dark-mode report with embedded CSS and working links.
 Put decisions before detail. Include:
@@ -62,7 +85,7 @@ Put decisions before detail. Include:
 Use collapsible details for gory evidence. Keep the executive summary and
 actions visible without expanding anything.
 
-## Validate all outputs
+### Validate all outputs
 
 Verify:
 

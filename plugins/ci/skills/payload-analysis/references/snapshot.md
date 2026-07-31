@@ -1,9 +1,25 @@
 # Snapshot and Scope
 
-Use the snapshot to define the payload and investigation queue. Do not inspect
-candidate PRs in this step.
+## Purpose
 
-## Locate the snapshot
+Locate the payload snapshot, verify its identity and completeness, and build
+the failed-job investigation queue.
+
+## Inputs
+
+- the requested payload tag;
+- optional `--snapshot-dir`;
+- the invocation directory captured as `OUTPUT_DIR`.
+
+## Result
+
+Populate `analysis-state.yaml` with payload metadata, the snapshot directory,
+every failed blocking job, artifact paths, and known data gaps. Do not add
+candidate changes yet.
+
+## Actions
+
+### Locate the snapshot
 
 1. Capture `OUTPUT_DIR="$(pwd)"`.
 2. Parse the payload tag into version, stream, and architecture. Use `amd64`
@@ -17,11 +33,10 @@ candidate PRs in this step.
 6. Set `SNAPSHOT_DIR` to the directory containing `summary.json`. Resolve all
    snapshot paths from this directory.
 
-Use Sippy-backed payload and changelog entries when release-controller data has
-been garbage collected. Record release-controller-only fields as unknown when
-they are unavailable.
+Use the payload and changelog data stored in the snapshot. Record their source
+fields for provenance. Treat unavailable fields as unknown, not empty.
 
-## Record the payload
+### Record the payload
 
 Copy these fields into working state without inferring replacements:
 
@@ -32,7 +47,7 @@ Copy these fields into working state without inferring replacements:
 Do not derive `phase` from job outcomes. Accepted payloads can contain blocking
 failures, and Ready payloads can already contain failed jobs.
 
-## Queue failed jobs
+### Queue failed jobs
 
 For every entry in `blocking_jobs.failed_jobs[]`, record:
 
@@ -54,7 +69,7 @@ Keep these distinctions:
 - informing and flake tests do not independently reject a payload;
 - a missing test count is unknown, not zero.
 
-## Initialize working state
+### Initialize working state
 
 Create `analysis-state.yaml` with:
 
