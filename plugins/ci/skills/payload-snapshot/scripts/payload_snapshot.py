@@ -1252,15 +1252,16 @@ class RpmdbCollector:
 
     RPMDB_PATH = "/usr/lib/sysimage/rpm/rpmdb.sqlite"
 
-    def __init__(self, rpmdb_dir: str, release_pullspec: str):
+    def __init__(self, rpmdb_dir: str, release_pullspec: str, payload_tag: str):
         self.rpmdb_dir = rpmdb_dir
         self.release_pullspec = release_pullspec
+        self.payload_tag = payload_tag
         self._marker = os.path.join(rpmdb_dir, ".complete")
 
     def collect(self) -> list[dict]:
         """Extract rpmdb.sqlite from RHCOS images. Returns summary entries."""
         if os.path.exists(self._marker):
-            _log("    skip (exists): rpmdb/")
+            _log(f"    {self.payload_tag}: skip (exists): rpmdb/")
             return self._read_existing()
 
         image_refs = self._fetch_image_references()
@@ -1269,7 +1270,8 @@ class RpmdbCollector:
 
         rhcos_images = self._filter_rhcos(image_refs)
         if not rhcos_images:
-            _log("    No RHCOS images found in image-references")
+            _log(f"    {self.payload_tag}: No RHCOS images found in "
+                 f"image-references")
             return []
 
         os.makedirs(self.rpmdb_dir, exist_ok=True)
@@ -1281,9 +1283,10 @@ class RpmdbCollector:
             output_path = os.path.join(variant_dir, "rpmdb.sqlite")
             ok = self._extract_rpmdb(pullspec, output_path)
             if not ok:
-                _log(f"    Warning: failed to extract rpmdb from {tag_name}")
+                _log(f"    {self.payload_tag}: Warning: failed to extract "
+                     f"rpmdb from {tag_name}")
                 continue
-            _log(f"    {tag_name}: rpmdb.sqlite extracted")
+            _log(f"    {self.payload_tag}: {tag_name}: rpmdb.sqlite extracted")
 
             summaries.append({
                 "tag": tag_name,
@@ -1309,7 +1312,8 @@ class RpmdbCollector:
         try:
             return json.loads(result.stdout)
         except json.JSONDecodeError:
-            _log("    Warning: invalid JSON in image-references")
+            _log(f"    {self.payload_tag}: Warning: invalid JSON in "
+                 f"image-references")
             return None
 
     def _filter_rhcos(
@@ -2508,7 +2512,9 @@ class Snapshotter:
             if not pullspec:
                 continue
             rpmdb_dir = os.path.join(base_dir, tag_name, "rpmdb")
-            items.append((tag_name, RpmdbCollector(rpmdb_dir, pullspec)))
+            items.append(
+                (tag_name, RpmdbCollector(rpmdb_dir, pullspec, tag_name))
+            )
 
         if not items:
             return {}
