@@ -37,6 +37,7 @@ The user will provide:
 1. **Extract job URLs and flags**
    - Parse all positional arguments as Prow job URLs
    - Parse `--backends` flag if present, split on comma to get backend filter list
+   - Parse `--skip-jira` flag as a boolean option (default: false)
    - Validate at least one URL is provided
 
 2. **Parse each URL** to extract bucket path, job name, and build ID
@@ -538,22 +539,35 @@ For each distinct base backend name, run two JQL queries using `searchJiraIssues
 
 **Query 1 — Labeled disruption cards (high confidence):**
 
-```
-project in (TRT, OCPBUGS) AND labels = "disruption" AND text ~ "{backend_name}" ORDER BY updated DESC
-```
-
-**Query 2 — Broader search (catch unlabeled cards):**
-
-```
-project in (TRT, OCPBUGS) AND text ~ "disruption {backend_name}" ORDER BY updated DESC
+```jql
+project in (TRT, OCPBUGS) AND labels = "disruption" AND status != Closed AND text ~ "{backend_name}" ORDER BY updated DESC
 ```
 
-Use `maxResults: 10` and `fields: ["summary", "status", "labels", "assignee", "updated", "priority"]`
+**Query 2 — Broader search for open unlabeled cards:**
+
+```jql
+project in (TRT, OCPBUGS) AND status != Closed AND text ~ "disruption {backend_name}" ORDER BY updated DESC
+```
+
+**Query 3 — Closed labeled disruption cards (prior investigations):**
+
+```jql
+project in (TRT, OCPBUGS) AND labels = "disruption" AND status = Closed AND text ~ "{backend_name}" ORDER BY updated DESC
+```
+
+**Query 4 — Closed broader search:**
+
+```jql
+project in (TRT, OCPBUGS) AND status = Closed AND text ~ "disruption {backend_name}" ORDER BY updated DESC
+```
+
+Use `maxResults: 10` and `fields: ["summary", "status", "labels", "assignee", "updated", "priority", "resolution"]`
 for each query. Deduplicate results across queries by issue key.
 
-Include both open and closed cards. Closed cards are valuable — they may have been closed
-prematurely, or they document a prior investigation into the same disruption pattern that
-provides context for the current occurrence (root cause, fix applied, affected versions).
+Separating open and closed queries ensures `maxResults` doesn't cause one category to crowd
+out the other. Closed cards are valuable — they may have been closed prematurely, or they
+document a prior investigation into the same disruption pattern that provides context for the
+current occurrence (root cause, fix applied, affected versions).
 
 #### 10.2: Present Results and Offer Actions
 
@@ -573,12 +587,12 @@ with open cards listed first (most actionable), then closed cards (useful for co
 ### Previously Resolved
 | Key | Summary | Resolution | Labels | Updated |
 |-----|---------|------------|--------|---------|
-| [OCPBUGS-999](url) | openshift-api disruption on Azure | Done | disruption | 2026-03-15 |
+| [OCPBUGS-999](url) | openshift-api disruption on Azure | Done - Errata | disruption | 2026-03-15 |
 ```
 
 For each card missing the "disruption" label, note it:
 
-```
+```text
 > OCPBUGS-5678 does not have the "disruption" label. Consider adding it for tracking.
 ```
 
@@ -599,7 +613,7 @@ No existing Jira cards were found tracking this disruption pattern.
 
 Then ask:
 
-```
+```text
 No existing Jira cards were found tracking this disruption pattern.
 
 Would you like to file a disruption bug? (yes/no)
