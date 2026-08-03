@@ -1299,16 +1299,15 @@ class RpmdbCollector:
 
     def _fetch_image_references(self) -> Optional[dict]:
         """Read /release-manifests/image-references from the release image."""
-        output = _run_podman([
+        result = _run_podman([
             "podman", "run", "--rm", "--entrypoint", "cat",
             self.release_pullspec,
             "/release-manifests/image-references",
         ], timeout=300)
-        if output is None:
-            _log("    Warning: failed to read image-references from release image")
+        if result is None or result.returncode != 0:
             return None
         try:
-            return json.loads(output)
+            return json.loads(result.stdout)
         except json.JSONDecodeError:
             _log("    Warning: invalid JSON in image-references")
             return None
@@ -1347,53 +1346,21 @@ class RpmdbCollector:
 
     def _extract_rpmdb(self, pullspec: str, output_path: str) -> bool:
         """Extract rpmdb.sqlite from the RHCOS image via podman cp."""
-        try:
-            cid_result = subprocess.run(
-                ["podman", "create", "--rm", pullspec, "/bin/true"],
-                capture_output=True, text=True, timeout=300,
-            )
-            if cid_result.returncode != 0:
-                _log(f"    podman create failed (exit {cid_result.returncode}) "
-                     f"for {pullspec}")
-                stderr = cid_result.stderr.strip()
-                if stderr:
-                    _log(f"    stderr: {stderr}")
-                return False
-            cid = cid_result.stdout.strip()
+        create = _run_podman(
+            ["podman", "create", "--rm", pullspec, "/bin/true"], timeout=300
+        )
+        if create is None or create.returncode != 0:
+            return False
+        cid = create.stdout.strip()
 
-            try:
-                cp_result = subprocess.run(
-                    ["podman", "cp", f"{cid}:{self.RPMDB_PATH}", output_path],
-                    capture_output=True, text=True, timeout=120,
-                )
-                if cp_result.returncode != 0:
-                    _log(f"    podman cp failed (exit {cp_result.returncode}) "
-                         f"for {pullspec}")
-                    stderr = cp_result.stderr.strip()
-                    if stderr:
-                        _log(f"    stderr: {stderr}")
-                    return False
-                return True
-            finally:
-                try:
-                    rm_result = subprocess.run(
-                        ["podman", "rm", "-f", cid],
-                        capture_output=True, text=True, timeout=30,
-                    )
-                    if rm_result.returncode != 0:
-                        _log(f"    podman rm failed (exit {rm_result.returncode}) "
-                             f"for {cid}")
-                        stderr = rm_result.stderr.strip()
-                        if stderr:
-                            _log(f"    stderr: {stderr}")
-                except (subprocess.TimeoutExpired, OSError) as e:
-                    _log(f"    podman rm failed for {cid}: {e}")
-        except subprocess.TimeoutExpired as e:
-            _log(f"    podman command timed out for {pullspec}: {e}")
-            return False
-        except OSError as e:
-            _log(f"    podman command failed to start for {pullspec}: {e}")
-            return False
+        try:
+            cp = _run_podman(
+                ["podman", "cp", f"{cid}:{self.RPMDB_PATH}", output_path],
+                timeout=120,
+            )
+            return cp is not None and cp.returncode == 0
+        finally:
+            _run_podman(["podman", "rm", "-f", cid], timeout=30)
 
     def _read_existing(self) -> list[dict]:
         """Read summaries from already-extracted rpmdb files."""
@@ -3158,22 +3125,32 @@ def _check_podman() -> bool:
         return False
 
 
-def _run_podman(args: list[str], timeout: int = 300) -> Optional[str]:
-    """Run a podman CLI command, returning stdout or None on error."""
+def _run_podman(
+    args: list[str], timeout: int = 300
+) -> Optional[subprocess.CompletedProcess]:
+    """Run a podman CLI command, logging failures.
+
+    Returns the CompletedProcess (check .returncode — a nonzero exit is
+    already logged but not treated as failure here) or None if the
+    command couldn't even be run.
+    """
     try:
         result = subprocess.run(
             args, capture_output=True, text=True, timeout=timeout
         )
         if result.returncode != 0:
-            stderr = result.stderr.strip()
             _log(f"    podman command failed (exit {result.returncode}): "
                  f"{' '.join(args)}")
+            stderr = result.stderr.strip()
             if stderr:
                 _log(f"    stderr: {stderr}")
-            return None
-        return result.stdout
-    except subprocess.TimeoutExpired:
+        return result
+    except subprocess.TimeoutExpired as e:
         _log(f"    podman command timed out after {timeout}s: {' '.join(args)}")
+        if e.stderr:
+            stderr = e.stderr if isinstance(e.stderr, str) else e.stderr.decode(errors="replace")
+            if stderr.strip():
+                _log(f"    stderr: {stderr.strip()}")
         return None
     except OSError as e:
         _log(f"    podman command failed to start: {' '.join(args)}: {e}")
