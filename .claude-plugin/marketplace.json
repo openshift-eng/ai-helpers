@@ -41,7 +41,7 @@
         "repo": "rh-uxd/ai-helpers",
         "path": "plugins/patternfly"
       },
-      "description": "PatternFly development tools from the UXD team — component scaffolding, design guidance, auditing, migration, test generation, and an MCP server.",
+      "description": "PatternFly development tools from the UXD team \u2014 component scaffolding, design guidance, auditing, migration, test generation, and an MCP server.",
       "category": "development",
       "keywords": [
         "patternfly",
@@ -105,7 +105,7 @@
       "name": "ci",
       "source": "./plugins/ci",
       "description": "A plugin to work with OpenShift CI and analyze Prow job results",
-      "version": "0.0.79",
+      "version": "0.0.80",
       "category": "ci",
       "keywords": [
         "prow",

@@ -1578,13 +1578,15 @@ class SummaryGenerator:
 
     def __init__(self, base_dir: str, chain: list[str], target_tag: str,
                  tag: "PayloadTag", streaks: Optional[dict] = None,
-                 rpmdb_data: Optional[dict[str, list[dict]]] = None):
+                 rpmdb_data: Optional[dict[str, list[dict]]] = None,
+                 rpm_changelogs: Optional[list[dict]] = None):
         self.base_dir = base_dir
         self.chain = chain
         self.target_tag = target_tag
         self.tag = tag
         self.streaks = streaks or {}
         self.rpmdb_data = rpmdb_data or {}
+        self.rpm_changelogs = rpm_changelogs or []
 
     def generate(self) -> None:
         target_dir = os.path.join(self.base_dir, self.target_tag)
@@ -1664,6 +1666,9 @@ class SummaryGenerator:
                 {**entry, "rpmdb": f"{self.target_tag}/rpmdb/{entry['tag']}/rpmdb.sqlite"}
                 for entry in target_rpms
             ]
+
+        if self.rpm_changelogs:
+            summary["rpm_changelogs"] = self.rpm_changelogs
 
         # Surface any data that could not be collected.  An empty snapshot
         # section must never be silently indistinguishable from a clean one.
@@ -1782,6 +1787,8 @@ class SummaryGenerator:
             "    rpmdb/                    # RPMDB from RHCOS images",
             "      rhel-coreos/           # queryable with rpm --dbpath",
             "        rpmdb.sqlite",
+            "        changelogs/          # RPM changelogs vs. baseline",
+            "          <package>.txt",
             "      rhel-coreos-10/",
             "        rpmdb.sqlite",
             "  <older-payload-tag>/      # Each prior payload in the chain",
@@ -1828,6 +1835,13 @@ class SummaryGenerator:
             "- `rhcos_rpms[]` — RPMDB per RHCOS variant for the target",
             "  payload: `tag`, `name`, `pullspec`, `rpmdb` (relative path",
             "  to rpmdb.sqlite — queryable with rpm --dbpath <dir> or sqlite3)",
+            "- `rpm_changelogs[]` — RPM changelogs for packages changed",
+            "  vs. the baseline: `variant`, `package`, `old`, `new`,",
+            "  `changelog` (relative path to the extracted, trimmed",
+            "  `rpm --changelog` output), `boundary_found`, `trim_method`",
+            "  (`rpmdb_diff` — exact, diffed against the baseline's own",
+            "  rpmdb; `version_match` — heuristic version-string cut;",
+            "  `full_dump` — untrimmed, neither approach found a boundary)",
             "",
         ])
 
@@ -2095,7 +2109,8 @@ class Snapshotter:
     def __init__(self, tag: PayloadTag, output_dir: str = "payload",
                  max_chain: int = 20, workers: int = 8,
                  collect_junit: bool = True, use_sippy: bool = False,
-                 collect_rpmdb: bool = True):
+                 collect_rpmdb: bool = True,
+                 collect_rpm_changelogs: bool = True):
         self.tag = tag
         self.output_dir = output_dir
         self.max_chain = max_chain
@@ -2103,6 +2118,7 @@ class Snapshotter:
         self.collect_junit = collect_junit
         self.use_sippy = use_sippy
         self.collect_rpmdb = collect_rpmdb
+        self.collect_rpm_changelogs = collect_rpm_changelogs
         self.rc = ReleaseController(tag.architecture, stream=tag.stream)
         self.sippy = SippyClient(
             tag.version, architecture=tag.architecture, stream=tag.stream
@@ -2148,8 +2164,13 @@ class Snapshotter:
 
         rpmdb_data = self._collect_rpmdb(base_dir, chain)
 
+        rpm_changelogs = self._collect_rpm_changelogs(
+            base_dir, chain, rpmdb_data
+        )
+
         self._generate_summary(base_dir, chain, streaks,
-                               rpmdb_data=rpmdb_data)
+                               rpmdb_data=rpmdb_data,
+                               rpm_changelogs=rpm_changelogs)
 
         _log(f"\nSnapshot complete: {base_dir}/")
 
@@ -2543,10 +2564,189 @@ class Snapshotter:
 
         return rpmdb_data
 
+    def _collect_rpm_changelogs(
+        self, base_dir: str, chain: list[str],
+        rpmdb_data: dict[str, list[dict]],
+    ) -> list[dict]:
+        """Extract RPM changelogs for packages changed vs. the baseline.
+
+        Reuses the per-hop changelog.json files already fetched by
+        _collect_payloads (each diffs chain[i] against chain[i+1]) instead
+        of making a dedicated target-vs-baseline API call: walking the
+        chain oldest-to-newest and folding each hop's rpmDiff.changed into
+        a running per-variant {package: {old, new}} reconstructs the same
+        diff the release page shows for target vs. baseline.
+        """
+        if not self.collect_rpm_changelogs or not self.collect_rpmdb:
+            return []
+        if self.use_sippy or len(chain) < 2:
+            return []
+
+        target_tag = chain[0]
+        baseline_tag = chain[-1]
+        target_rpms = rpmdb_data.get(target_tag)
+        if not target_rpms:
+            return []
+        extracted_variants = {entry["tag"] for entry in target_rpms}
+        baseline_variants = {
+            entry["tag"] for entry in rpmdb_data.get(baseline_tag, [])
+        }
+
+        cumulative: dict[str, dict[str, dict]] = {}
+        for i in range(len(chain) - 2, -1, -1):
+            hop_tag = chain[i]
+            changelog = _read_json(
+                os.path.join(base_dir, hop_tag, "changelog.json")
+            )
+            if changelog is None:
+                # Unreadable, not just empty - the fold below assumes every
+                # hop was seen, so continuing would risk misattributing a
+                # later hop's "old" version as the true baseline version.
+                _log(f"\nSkipping RPM changelogs: could not read "
+                     f"changelog.json for {hop_tag}")
+                return []
+            if not changelog:
+                continue
+            for stream in _extract_rhcos_changes(changelog):
+                variant = stream.get("tag", "")
+                if variant not in extracted_variants:
+                    continue
+                variant_changes = cumulative.setdefault(variant, {})
+                for pkg, versions in (stream.get("changed") or {}).items():
+                    if pkg in variant_changes:
+                        variant_changes[pkg]["new"] = versions.get("new", "")
+                    else:
+                        variant_changes[pkg] = dict(versions)
+
+        if not cumulative:
+            return []
+
+        packages = [
+            (variant, pkg, versions.get("old", ""), versions.get("new", ""))
+            for variant, changes in cumulative.items()
+            for pkg, versions in changes.items()
+            if versions.get("old", "") != versions.get("new", "")
+        ]
+        if not packages:
+            return []
+
+        workers = min(self.workers, 4)
+        _log(f"\nExtracting RPM changelogs for {target_tag} vs. baseline "
+             f"{chain[-1]} ({len(packages)} packages, {workers} workers)...")
+        results = []
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            futures = {
+                pool.submit(
+                    self._extract_one_changelog, target_tag, variant,
+                    os.path.join(base_dir, target_tag, "rpmdb", variant),
+                    pkg, old, new,
+                    os.path.join(base_dir, baseline_tag, "rpmdb", variant)
+                        if variant in baseline_variants else None,
+                ): (variant, pkg)
+                for variant, pkg, old, new in packages
+            }
+            for future in as_completed(futures):
+                variant, pkg = futures[future]
+                try:
+                    entry = future.result()
+                    if entry:
+                        results.append(entry)
+                except Exception as e:
+                    _log(f"    {variant}/{pkg}: error: {e}")
+        return results
+
+    def _extract_one_changelog(
+        self, target_tag: str, variant: str, variant_dir: str,
+        pkg: str, old: str, new: str,
+        baseline_variant_dir: Optional[str] = None,
+    ) -> Optional[dict]:
+        """Extract and trim one package's changelog from the target rpmdb."""
+        if not re.match(r"^[A-Za-z0-9._+-]+$", pkg):
+            _log(f"    {variant}: skipping suspicious package name: {pkg!r}")
+            return None
+
+        rel_path = f"{target_tag}/rpmdb/{variant}/changelogs/{pkg}.txt"
+        output_path = os.path.join(variant_dir, "changelogs", f"{pkg}.txt")
+        if os.path.exists(output_path):
+            cached = _read_changelog_cache_header(output_path)
+            if cached and cached["old"] == old and cached["new"] == new:
+                _log(f"    {variant}/{pkg}: skip (exists)")
+                return {
+                    "variant": variant, "package": pkg, "old": old, "new": new,
+                    "changelog": rel_path,
+                    "boundary_found": cached["boundary_found"],
+                    "trim_method": cached["trim_method"],
+                }
+            _log(f"    {variant}/{pkg}: cached boundary stale, re-extracting")
+
+        target_stdout = self._run_rpm_changelog(variant, pkg, variant_dir)
+        if target_stdout is None:
+            return None
+
+        trimmed = None
+        method = "full_dump"
+        if baseline_variant_dir:
+            baseline_stdout = self._run_rpm_changelog(
+                variant, pkg, baseline_variant_dir, quiet=True
+            )
+            if baseline_stdout is not None:
+                trimmed = _diff_changelog_against_baseline(
+                    target_stdout, baseline_stdout
+                )
+                if trimmed is not None:
+                    method = "rpmdb_diff"
+
+        if trimmed is None:
+            trimmed, found = _trim_changelog_to_new_entries(target_stdout, old)
+            method = "version_match" if found else "full_dump"
+
+        boundary_found = method != "full_dump"
+        header = (f"# {pkg}: {old} -> {new}\n"
+                  f"# boundary_found: {boundary_found}\n"
+                  f"# trim_method: {method}\n\n")
+        _write_text(output_path, header + trimmed + "\n")
+        _log(f"    {variant}/{pkg}: changelog extracted "
+             f"({old} -> {new}, {method})")
+        return {
+            "variant": variant, "package": pkg, "old": old, "new": new,
+            "changelog": rel_path, "boundary_found": boundary_found,
+            "trim_method": method,
+        }
+
+    @staticmethod
+    def _run_rpm_changelog(
+        variant: str, pkg: str, dbpath: str, quiet: bool = False,
+    ) -> Optional[str]:
+        """Run `rpm -q --changelog` against one rpmdb dir.
+
+        quiet=True suppresses failure logging for probes where "unavailable"
+        is expected and not an error (e.g. querying the baseline's rpmdb,
+        which may not have this package extracted at all).
+        """
+        try:
+            result = subprocess.run(
+                ["rpm", "-q", "--changelog", "--dbpath", dbpath, pkg],
+                capture_output=True, text=True, timeout=30,
+            )
+        except (subprocess.TimeoutExpired, OSError) as e:
+            if not quiet:
+                _log(f"    {variant}/{pkg}: rpm --changelog failed: {e}")
+            return None
+        if result.returncode != 0:
+            if not quiet:
+                _log(f"    {variant}/{pkg}: rpm --changelog failed "
+                     f"(exit {result.returncode})")
+                stderr = result.stderr.strip()
+                if stderr:
+                    _log(f"    stderr: {stderr}")
+            return None
+        return result.stdout
+
     def _generate_summary(
         self, base_dir: str, chain: list[str],
         streaks: Optional[dict] = None,
         rpmdb_data: Optional[dict[str, list[dict]]] = None,
+        rpm_changelogs: Optional[list[dict]] = None,
     ) -> None:
         """Generate the stream-level summary."""
         _log("\nGenerating summary...")
@@ -2556,7 +2756,7 @@ class Snapshotter:
 
         generator = SummaryGenerator(
             base_dir, chain, chain[0], self.tag, streaks=streaks,
-            rpmdb_data=rpmdb_data,
+            rpmdb_data=rpmdb_data, rpm_changelogs=rpm_changelogs,
         )
         generator.generate()
 
@@ -2674,6 +2874,94 @@ def _extract_rhcos_changes(changelog: dict) -> list[dict]:
             "removed": rpm_diff.get("removed", {}),
         })
     return results
+
+
+def _split_changelog_entries(changelog_text: str) -> list[str]:
+    """Split `rpm --changelog` output into individual entries, each
+    starting with a "* <date> <name>" header line."""
+    return [
+        e for e in re.split(r"(?=^\* )", changelog_text, flags=re.MULTILINE)
+        if e.strip()
+    ]
+
+
+def _diff_changelog_against_baseline(
+    target_text: str, baseline_text: str
+) -> Optional[str]:
+    """Exact diff of two `rpm --changelog` outputs for the same package,
+    read from the target and baseline RPMDBs.
+
+    RPM changelogs only grow (newest entries prepended), so the baseline's
+    entries should appear verbatim as the oldest contiguous suffix of the
+    target's entries. When that holds, the entries above that suffix are
+    exactly what changed between baseline and target — no version-string
+    guessing needed. Returns None if the invariant doesn't hold (diverged
+    history, or the package wasn't in the baseline at all), so the caller
+    can fall back to a looser heuristic instead of trusting a bogus diff.
+    """
+    baseline_entries = _split_changelog_entries(baseline_text)
+    if not baseline_entries:
+        return None
+    target_entries = _split_changelog_entries(target_text)
+    n = len(baseline_entries)
+    if len(target_entries) < n or target_entries[-n:] != baseline_entries:
+        return None
+    return "".join(target_entries[:-n]).strip("\n")
+
+
+def _trim_changelog_to_new_entries(
+    changelog_text: str, old_version: str
+) -> tuple[str, bool]:
+    """Best-effort trim of `rpm --changelog` output to entries newer than
+    old_version.
+
+    RPM changelog entries have no structured version field — packagers
+    conventionally end each entry's header line with "- <version>". Cut
+    there if found; otherwise return the full changelog unchanged, since a
+    wrong guess is worse than showing extra history.
+    """
+    bare_old = old_version.split(":", 1)[-1]  # strip epoch prefix, if any
+    # Anchor to the trailing version token (preceded by whitespace/"-", and
+    # at end of line) so e.g. old="1.2" doesn't match inside a newer "1.20.3-1".
+    boundary_re = (
+        re.compile(rf"(?:^|[\s-]){re.escape(bare_old)}\s*$")
+        if bare_old else None
+    )
+    kept = []
+    for entry in _split_changelog_entries(changelog_text):
+        first_line = entry.splitlines()[0]
+        if boundary_re and boundary_re.search(first_line):
+            return "".join(kept).strip("\n"), True
+        kept.append(entry)
+    return changelog_text.strip("\n"), False
+
+
+_CHANGELOG_HEADER_RE = re.compile(
+    r"^# .+: (?P<old>\S+) -> (?P<new>\S+)\n"
+    r"# boundary_found: (?P<boundary>True|False)\n"
+    r"# trim_method: (?P<method>\S+)\n"
+)
+
+
+def _read_changelog_cache_header(path: str) -> Optional[dict]:
+    """Parse the (old, new, boundary_found, trim_method) header
+    _extract_one_changelog writes to a changelog file, to check a cached
+    file is still valid for the currently computed old/new before reusing
+    it."""
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            head = f.read(4096)
+    except OSError:
+        return None
+    m = _CHANGELOG_HEADER_RE.match(head)
+    if not m:
+        return None
+    return {
+        "old": m.group("old"),
+        "new": m.group("new"),
+        "boundary_found": m.group("boundary") == "True",
+        "trim_method": m.group("method"),
+    }
 
 
 def _parse_pr_url(url: str) -> Optional[tuple[str, str, int]]:
@@ -3131,6 +3419,18 @@ def _check_podman() -> bool:
         return False
 
 
+def _check_rpm() -> bool:
+    """Verify that the rpm CLI is available."""
+    try:
+        result = subprocess.run(
+            ["rpm", "--version"],
+            capture_output=True, text=True, timeout=10,
+        )
+        return result.returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
 def _run_podman(
     args: list[str], timeout: int = 300
 ) -> Optional[subprocess.CompletedProcess]:
@@ -3480,6 +3780,10 @@ def main() -> None:
         help="Skip RHCOS RPMDB extraction",
     )
     parser.add_argument(
+        "--no-rpm-changelogs", action="store_true",
+        help="Skip RPM changelog extraction for packages changed vs. baseline",
+    )
+    parser.add_argument(
         "--sippy", action="store_true",
         help=(
             "Force Sippy for all payload metadata (default: prefer release "
@@ -3531,6 +3835,12 @@ def main() -> None:
         _log("RHCOS RPMDB data will not be extracted.\n")
         collect_rpmdb = False
 
+    collect_rpm_changelogs = not args.no_rpm_changelogs
+    if collect_rpmdb and collect_rpm_changelogs and not _check_rpm():
+        _log("Warning: rpm CLI not available. RPM changelog extraction "
+             "will be skipped.\n")
+        collect_rpm_changelogs = False
+
     if args.sippy:
         _log("Forcing Sippy APIs for all release payload data.\n")
 
@@ -3543,6 +3853,7 @@ def main() -> None:
             collect_junit=collect_junit,
             use_sippy=args.sippy,
             collect_rpmdb=collect_rpmdb,
+            collect_rpm_changelogs=collect_rpm_changelogs,
         )
         snapshotter.run()
 

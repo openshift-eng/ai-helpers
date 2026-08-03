@@ -66,6 +66,9 @@ python3 "$script_path" 4.22.0-0.nightly-2026-02-25-152806 --no-junit
 # Skip RPMDB extraction
 python3 "$script_path" 4.22.0-0.nightly-2026-02-25-152806 --no-rpmdb
 
+# Skip RPM changelog extraction (RPMDB is still extracted)
+python3 "$script_path" 4.22.0-0.nightly-2026-02-25-152806 --no-rpm-changelogs
+
 # Force Sippy for all payload metadata (normally fallback is automatic)
 python3 "$script_path" 4.22.0-0.nightly-2026-02-25-152806 --sippy
 ```
@@ -82,7 +85,8 @@ The script will:
 9. Track per-job failure streaks — consecutive failures, originating payload, failure pattern
 10. For each unique PR across all changelogs, fetch the git diff, comments, and CI jobs via `gh`
 11. For each payload in the chain, extract the full RPM database from RHCOS images via `podman`
-12. Generate summary.json with comprehensive triage data, plus AGENTS.md/CLAUDE.md for agent orientation
+12. For packages changed between the target and its baseline, extract the relevant RPM changelog via `rpm --changelog`, diffed exactly against the baseline's own RPMDB when available
+13. Generate summary.json with comprehensive triage data, plus AGENTS.md/CLAUDE.md for agent orientation
 
 ### Step 2: Navigate the Snapshot
 
@@ -121,6 +125,8 @@ payload/
         rpmdb/                             # RPMDB from RHCOS images
           rhel-coreos/                     # queryable with rpm --dbpath
             rpmdb.sqlite
+            changelogs/                    # RPM changelogs vs. baseline
+              <package>.txt
           rhel-coreos-10/
             rpmdb.sqlite
 ```
@@ -157,6 +163,12 @@ jq '.[].name' payload/<version>/<stream>/<tag>/jobs/blocking/<job-name>/junit/re
 rpm -qa --dbpath $(pwd)/payload/<version>/<stream>/<tag>/rpmdb/rhel-coreos
 ```
 
+**Read the changelog for a package that changed vs. baseline:**
+```bash
+jq '.rpm_changelogs[] | {variant, package, old, new, changelog}' payload/<version>/<stream>/summary.json
+cat payload/<version>/<stream>/<tag>/rpmdb/<variant>/changelogs/<package>.txt
+```
+
 ## CLI Reference
 
 ```text
@@ -171,6 +183,8 @@ Options:
   --workers N          Parallel workers for API calls (default: 8)
   --no-junit           Skip JUnit download and regression tracking
   --no-rpmdb           Skip RHCOS RPMDB extraction
+  --no-rpm-changelogs  Skip RPM changelog extraction for packages changed
+                       vs. baseline
   --sippy              Force Sippy for all payload metadata instead of using
                        the automatic release-controller-first fallback
   --fail-on-incomplete Exit 1 if any requested data could not be collected
@@ -193,6 +207,7 @@ Comprehensive stream-level triage data — start here. Contains:
 - `test_failures.informing[]` / `test_failures.flakes[]` — `test_name`, `jobs`. Neither can fail a job. No onset is tracked for them, because an onset implies there is a culprit to find.
 - `payloads[]` — per-payload entries with `tag`, `phase`, `source`, `changelog_source`, relative file paths, `prs[]` with component/diff/comments paths, and `rhcos_changes[]` with RPM diffs per RHCOS variant
 - `rhcos_rpms[]` — RPMDB metadata for the target payload's RHCOS variants: `tag`, `name`, `pullspec`, `rpmdb` (relative path to rpmdb.sqlite)
+- `rpm_changelogs[]` — RPM changelogs for packages changed between the target and its baseline (reconstructed from the chain's per-hop `rhcos_changes`, not a dedicated API call): `variant`, `package`, `old`, `new`, `changelog` (relative path to the extracted, trimmed `rpm --changelog` output), `boundary_found`, `trim_method` (`rpmdb_diff` / `version_match` / `full_dump`)
 - `data_complete` — `true` when all requested data was ultimately collected, including via a fallback after an initial read failed. `false` means some requested data could not be read at all.
 - `collection_errors[]` — every read failure encountered. Each entry has `reason`, `command`, and optionally `detail`, `stage`, `job`, `payload_tag`, `recovered`. Reasons: `auth`, `timeout`, `gcloud_missing`, `command_failed`, `junit_unavailable` (nothing readable), `junit_missing` (nothing discovered), `junit_unparseable` (corrupt XML), `junit_partial` (some files unread), `build_log_unavailable`.
   - `recovered: true` means a fallback subsequently obtained the data. These entries are diagnostic only (useful for spotting a timeout that needs tuning) and do **not** make `data_complete` false.
@@ -305,6 +320,17 @@ Only variants with non-empty `rpmDiff` are included. When the snapshot is create
 The `rpmdb.sqlite` file extracted from RHCOS images via `podman`. One directory per RHCOS variant (e.g., `rpmdb/rhel-coreos/`, `rpmdb/rhel-coreos-10/`), each containing `rpmdb.sqlite`. Queryable with `rpm -qa --dbpath <absolute-path-to-variant-dir>` or directly with `sqlite3`.
 
 Extracted for every payload in the chain. Skipped when `podman` is unavailable or `--no-rpmdb` is passed.
+
+### `rpmdb/<variant>/changelogs/<package>.txt`
+
+The `rpm --changelog` output for a package that changed somewhere between the target payload and its baseline, extracted from the target's already-downloaded `rpmdb.sqlite` (no extra image pull). The target-vs-baseline diff is reconstructed by folding the per-hop `rhcos_changes` already present in each chain payload's `changelog.json` — not a dedicated API call.
+
+Each file starts with a small header (`old`, `new`, `boundary_found`, `trim_method`) followed by the changelog text, trimmed to just the entries newer than `old`. Three trim strategies are tried in order, recorded in `trim_method`:
+- `rpmdb_diff` — exact: the baseline payload's RPMDB is also extracted (every payload in the chain gets one), so its `rpm --changelog` output for the same package is diffed against the target's — the baseline's entries should appear verbatim as the target's oldest entries, and whatever's above that is exactly what changed. No version-string guessing.
+- `version_match` — used when the exact diff isn't available (baseline RPMDB missing, or its changelog didn't line up as a clean prefix of the target's): a substring match on the conventional `- <version>` suffix in changelog headers, since RPM changelog entries have no structured version field.
+- `full_dump` — neither approach found a boundary; the full untrimmed changelog is kept instead of guessing wrong. `boundary_found: false` only in this case.
+
+Referenced from `summary.json`'s `rpm_changelogs[]`. Skipped when `rpm` is unavailable, `--no-rpm-changelogs` is passed, RPMDB extraction itself was skipped, or the chain has no baseline (`chain_length < 2`).
 
 ### `regressions.json`
 
