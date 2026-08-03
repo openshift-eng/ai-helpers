@@ -1252,15 +1252,16 @@ class RpmdbCollector:
 
     RPMDB_PATH = "/usr/lib/sysimage/rpm/rpmdb.sqlite"
 
-    def __init__(self, rpmdb_dir: str, release_pullspec: str):
+    def __init__(self, rpmdb_dir: str, release_pullspec: str, payload_tag: str):
         self.rpmdb_dir = rpmdb_dir
         self.release_pullspec = release_pullspec
+        self.payload_tag = payload_tag
         self._marker = os.path.join(rpmdb_dir, ".complete")
 
     def collect(self) -> list[dict]:
         """Extract rpmdb.sqlite from RHCOS images. Returns summary entries."""
         if os.path.exists(self._marker):
-            _log("    skip (exists): rpmdb/")
+            _log(f"    {self.payload_tag}: skip (exists): rpmdb/")
             return self._read_existing()
 
         image_refs = self._fetch_image_references()
@@ -1269,7 +1270,8 @@ class RpmdbCollector:
 
         rhcos_images = self._filter_rhcos(image_refs)
         if not rhcos_images:
-            _log("    No RHCOS images found in image-references")
+            _log(f"    {self.payload_tag}: No RHCOS images found in "
+                 f"image-references")
             return []
 
         os.makedirs(self.rpmdb_dir, exist_ok=True)
@@ -1281,9 +1283,10 @@ class RpmdbCollector:
             output_path = os.path.join(variant_dir, "rpmdb.sqlite")
             ok = self._extract_rpmdb(pullspec, output_path)
             if not ok:
-                _log(f"    Warning: failed to extract rpmdb from {tag_name}")
+                _log(f"    {self.payload_tag}: Warning: failed to extract "
+                     f"rpmdb from {tag_name}")
                 continue
-            _log(f"    {tag_name}: rpmdb.sqlite extracted")
+            _log(f"    {self.payload_tag}: {tag_name}: rpmdb.sqlite extracted")
 
             summaries.append({
                 "tag": tag_name,
@@ -1299,18 +1302,18 @@ class RpmdbCollector:
 
     def _fetch_image_references(self) -> Optional[dict]:
         """Read /release-manifests/image-references from the release image."""
-        output = _run_podman([
+        result = _run_podman([
             "podman", "run", "--rm", "--entrypoint", "cat",
             self.release_pullspec,
             "/release-manifests/image-references",
         ], timeout=300)
-        if output is None:
-            _log("    Warning: failed to read image-references from release image")
+        if result is None or result.returncode != 0:
             return None
         try:
-            return json.loads(output)
+            return json.loads(result.stdout)
         except json.JSONDecodeError:
-            _log("    Warning: invalid JSON in image-references")
+            _log(f"    {self.payload_tag}: Warning: invalid JSON in "
+                 f"image-references")
             return None
 
     def _filter_rhcos(
@@ -1347,28 +1350,21 @@ class RpmdbCollector:
 
     def _extract_rpmdb(self, pullspec: str, output_path: str) -> bool:
         """Extract rpmdb.sqlite from the RHCOS image via podman cp."""
-        try:
-            cid_result = subprocess.run(
-                ["podman", "create", "--rm", pullspec, "/bin/true"],
-                capture_output=True, text=True, timeout=300,
-            )
-            if cid_result.returncode != 0:
-                return False
-            cid = cid_result.stdout.strip()
-
-            try:
-                cp_result = subprocess.run(
-                    ["podman", "cp", f"{cid}:{self.RPMDB_PATH}", output_path],
-                    capture_output=True, text=True, timeout=120,
-                )
-                return cp_result.returncode == 0
-            finally:
-                subprocess.run(
-                    ["podman", "rm", "-f", cid],
-                    capture_output=True, timeout=30,
-                )
-        except (subprocess.TimeoutExpired, OSError):
+        create = _run_podman(
+            ["podman", "create", "--rm", pullspec, "/bin/true"], timeout=300
+        )
+        if create is None or create.returncode != 0:
             return False
+        cid = create.stdout.strip()
+
+        try:
+            cp = _run_podman(
+                ["podman", "cp", f"{cid}:{self.RPMDB_PATH}", output_path],
+                timeout=120,
+            )
+            return cp is not None and cp.returncode == 0
+        finally:
+            _run_podman(["podman", "rm", "-f", cid], timeout=30)
 
     def _read_existing(self) -> list[dict]:
         """Read summaries from already-extracted rpmdb files."""
@@ -2516,7 +2512,9 @@ class Snapshotter:
             if not pullspec:
                 continue
             rpmdb_dir = os.path.join(base_dir, tag_name, "rpmdb")
-            items.append((tag_name, RpmdbCollector(rpmdb_dir, pullspec)))
+            items.append(
+                (tag_name, RpmdbCollector(rpmdb_dir, pullspec, tag_name))
+            )
 
         if not items:
             return {}
@@ -3133,16 +3131,35 @@ def _check_podman() -> bool:
         return False
 
 
-def _run_podman(args: list[str], timeout: int = 300) -> Optional[str]:
-    """Run a podman CLI command, returning stdout or None on error."""
+def _run_podman(
+    args: list[str], timeout: int = 300
+) -> Optional[subprocess.CompletedProcess]:
+    """Run a podman CLI command, logging failures.
+
+    Returns the CompletedProcess (check .returncode — a nonzero exit is
+    already logged but not treated as failure here) or None if the
+    command couldn't even be run.
+    """
     try:
         result = subprocess.run(
             args, capture_output=True, text=True, timeout=timeout
         )
         if result.returncode != 0:
-            return None
-        return result.stdout
-    except (subprocess.TimeoutExpired, OSError):
+            _log(f"    podman command failed (exit {result.returncode}): "
+                 f"{' '.join(args)}")
+            stderr = result.stderr.strip()
+            if stderr:
+                _log(f"    stderr: {stderr}")
+        return result
+    except subprocess.TimeoutExpired as e:
+        _log(f"    podman command timed out after {timeout}s: {' '.join(args)}")
+        if e.stderr:
+            stderr = e.stderr if isinstance(e.stderr, str) else e.stderr.decode(errors="replace")
+            if stderr.strip():
+                _log(f"    stderr: {stderr.strip()}")
+        return None
+    except OSError as e:
+        _log(f"    podman command failed to start: {' '.join(args)}: {e}")
         return None
 
 
