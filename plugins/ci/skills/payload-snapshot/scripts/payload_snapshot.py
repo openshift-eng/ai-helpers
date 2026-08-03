@@ -1353,6 +1353,11 @@ class RpmdbCollector:
                 capture_output=True, text=True, timeout=300,
             )
             if cid_result.returncode != 0:
+                _log(f"    podman create failed (exit {cid_result.returncode}) "
+                     f"for {pullspec}")
+                stderr = cid_result.stderr.strip()
+                if stderr:
+                    _log(f"    stderr: {stderr}")
                 return False
             cid = cid_result.stdout.strip()
 
@@ -1361,13 +1366,33 @@ class RpmdbCollector:
                     ["podman", "cp", f"{cid}:{self.RPMDB_PATH}", output_path],
                     capture_output=True, text=True, timeout=120,
                 )
-                return cp_result.returncode == 0
+                if cp_result.returncode != 0:
+                    _log(f"    podman cp failed (exit {cp_result.returncode}) "
+                         f"for {pullspec}")
+                    stderr = cp_result.stderr.strip()
+                    if stderr:
+                        _log(f"    stderr: {stderr}")
+                    return False
+                return True
             finally:
-                subprocess.run(
-                    ["podman", "rm", "-f", cid],
-                    capture_output=True, timeout=30,
-                )
-        except (subprocess.TimeoutExpired, OSError):
+                try:
+                    rm_result = subprocess.run(
+                        ["podman", "rm", "-f", cid],
+                        capture_output=True, text=True, timeout=30,
+                    )
+                    if rm_result.returncode != 0:
+                        _log(f"    podman rm failed (exit {rm_result.returncode}) "
+                             f"for {cid}")
+                        stderr = rm_result.stderr.strip()
+                        if stderr:
+                            _log(f"    stderr: {stderr}")
+                except (subprocess.TimeoutExpired, OSError) as e:
+                    _log(f"    podman rm failed for {cid}: {e}")
+        except subprocess.TimeoutExpired as e:
+            _log(f"    podman command timed out for {pullspec}: {e}")
+            return False
+        except OSError as e:
+            _log(f"    podman command failed to start for {pullspec}: {e}")
             return False
 
     def _read_existing(self) -> list[dict]:
@@ -3140,9 +3165,18 @@ def _run_podman(args: list[str], timeout: int = 300) -> Optional[str]:
             args, capture_output=True, text=True, timeout=timeout
         )
         if result.returncode != 0:
+            stderr = result.stderr.strip()
+            _log(f"    podman command failed (exit {result.returncode}): "
+                 f"{' '.join(args)}")
+            if stderr:
+                _log(f"    stderr: {stderr}")
             return None
         return result.stdout
-    except (subprocess.TimeoutExpired, OSError):
+    except subprocess.TimeoutExpired:
+        _log(f"    podman command timed out after {timeout}s: {' '.join(args)}")
+        return None
+    except OSError as e:
+        _log(f"    podman command failed to start: {' '.join(args)}: {e}")
         return None
 
 
