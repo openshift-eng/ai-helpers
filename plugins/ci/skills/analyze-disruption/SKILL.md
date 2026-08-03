@@ -27,6 +27,9 @@ The user will provide:
    - Example: `--backends kube-api,oauth-api,openshift-api`
    - If omitted, analyze all backends that show disruption
 
+3. **`--skip-jira` flag** (optional) — skip the Jira search for known disruption cards
+   - By default, the skill searches TRT and OCPBUGS for existing disruption cards after analysis
+
 ## Implementation Steps
 
 ### Step 1: Parse and Validate Input
@@ -34,6 +37,7 @@ The user will provide:
 1. **Extract job URLs and flags**
    - Parse all positional arguments as Prow job URLs
    - Parse `--backends` flag if present, split on comma to get backend filter list
+   - Parse `--skip-jira` flag as a boolean option (default: false)
    - Validate at least one URL is provided
 
 2. **Parse each URL** to extract bucket path, job name, and build ID
@@ -465,6 +469,9 @@ blast radius — e.g., if openshift-api was requested but kube-api, oauth-api, a
 metrics-api were also disrupted simultaneously, that confirms a control plane problem
 rather than an openshift-api-specific issue. Only include backends whose disruption
 overlaps the same window; exclude unrelated disruption at other times.}
+
+## Known Disruption Issues
+{Results from Step 10 Jira search, or "Jira search skipped (--skip-jira)"}
 ```
 
 **For multiple runs — use the same inline linking pattern:**
@@ -500,6 +507,9 @@ name, type (cache/non-cache/cloud/canary), and how many runs (out of N) showed t
 backend disrupted in the same window. Sort by runs-affected descending, then by count.
 This reveals the full blast radius and helps confirm root cause — e.g., if every API
 backend fails together, the problem is control-plane-wide, not backend-specific.}
+
+## Known Disruption Issues
+{Results from Step 10 Jira search, or "Jira search skipped (--skip-jira)"}
 ```
 
 Save the report using a filename that references the backends being analyzed:
@@ -513,6 +523,126 @@ If all backends are analyzed (no `--backends` filter), use the backends that act
 disruption. If the resulting filename would be excessively long (more than 5 backends),
 truncate to the first 5 and append `-and-more` (e.g., `kube-api-oauth-api-openshift-api-cache-oauth-api-cache-openshift-api-and-more-analysis.md`).
 
+### Step 10: Known Disruption Issue Lookup
+
+Skip this step if `--skip-jira` was passed. This step searches Jira for existing cards that
+may already track the disruption pattern identified in the analysis, and offers to file a new
+bug if none are found.
+
+#### 10.1: Search for Known Disruption Cards
+
+Extract the base backend names from the analysis (e.g., `openshift-api`, `kube-api`, `oauth-api`
+— strip `cache-` prefix and `-new-connections`/`-reused-connections` suffixes to get the base name).
+
+For each distinct base backend name, run two JQL queries using `searchJiraIssuesUsingJql`
+(cloudId: `redhat.atlassian.net`):
+
+**Query 1 — Labeled disruption cards (high confidence):**
+
+```jql
+project in (TRT, OCPBUGS) AND labels = "disruption" AND status != Closed AND text ~ "{backend_name}" ORDER BY updated DESC
+```
+
+**Query 2 — Broader search for open unlabeled cards:**
+
+```jql
+project in (TRT, OCPBUGS) AND status != Closed AND text ~ "disruption {backend_name}" ORDER BY updated DESC
+```
+
+**Query 3 — Closed labeled disruption cards (prior investigations):**
+
+```jql
+project in (TRT, OCPBUGS) AND labels = "disruption" AND status = Closed AND text ~ "{backend_name}" ORDER BY updated DESC
+```
+
+**Query 4 — Closed broader search:**
+
+```jql
+project in (TRT, OCPBUGS) AND status = Closed AND text ~ "disruption {backend_name}" ORDER BY updated DESC
+```
+
+Use `maxResults: 10` and `fields: ["summary", "status", "labels", "assignee", "updated", "priority", "resolution"]`
+for each query. Deduplicate results across queries by issue key.
+
+Separating open and closed queries ensures `maxResults` doesn't cause one category to crowd
+out the other. Closed cards are valuable — they may have been closed prematurely, or they
+document a prior investigation into the same disruption pattern that provides context for the
+current occurrence (root cause, fix applied, affected versions).
+
+#### 10.2: Present Results and Offer Actions
+
+**If matching cards are found:**
+
+Add a "Known Disruption Issues" section to the report. Group results into open and closed,
+with open cards listed first (most actionable), then closed cards (useful for context):
+
+```markdown
+## Known Disruption Issues
+
+### Open
+| Key | Summary | Status | Labels | Assignee | Updated |
+|-----|---------|--------|--------|----------|---------|
+| [OCPBUGS-1234](url) | openshift-api disruption on AWS | In Progress | disruption | @engineer | 2026-07-28 |
+
+### Previously Resolved
+| Key | Summary | Resolution | Labels | Updated |
+|-----|---------|------------|--------|---------|
+| [OCPBUGS-999](url) | openshift-api disruption on Azure | Done - Errata | disruption | 2026-03-15 |
+```
+
+For each card missing the "disruption" label, note it:
+
+```text
+> OCPBUGS-5678 does not have the "disruption" label. Consider adding it for tracking.
+```
+
+Ask the user:
+1. Whether any of the found cards match this specific disruption
+2. Whether to add the "disruption" label to any unlabeled cards that match — use `editJiraIssue`
+   to append `"disruption"` to the existing labels array
+
+**If no matching cards are found:**
+
+Add to the report:
+
+```markdown
+## Known Disruption Issues
+
+No existing Jira cards were found tracking this disruption pattern.
+```
+
+Then ask:
+
+```text
+No existing Jira cards were found tracking this disruption pattern.
+
+Would you like to file a disruption bug? (yes/no)
+```
+
+If yes, proceed to Step 10.3.
+
+#### 10.3: File a Disruption Bug (Interactive)
+
+Use the `jira:create` skill to file a bug. Propose the following details for the user to review
+and edit before creation:
+
+- **Project**: `OCPBUGS` (default; ask user if TRT is more appropriate)
+- **Type**: Bug
+- **Summary**: Derived from the analysis — e.g., `"{backend_name} disruption in {job_name} on {platform}"`
+- **Description**: Populated from the analysis report including:
+  - Root cause hypothesis
+  - Affected backends and their types (cache/non-cache)
+  - Job run links (Prow and Sippy Intervals)
+  - Key evidence (timeline data links, etcd signals, OVS stalls, CPU metrics)
+  - Disruption counts and durations
+- **Labels**: `["disruption", "ai-generated-jira"]`
+
+Present the proposed summary and description to the user. Allow them to confirm, edit, or cancel
+before creating. Follow the `jira:create` skill's interactive workflow and project conventions
+(load `jira:jira-conventions` for the target project).
+
+After creation, update the report's "Known Disruption Issues" section with the new bug's key and URL.
+
 ## Error Handling
 
 1. **No disruption found** — If interval files show no disruption events, report that the run is clean and no disruption was detected. This is a valid result, not an error.
@@ -524,6 +654,8 @@ truncate to the first 5 and append `-and-more` (e.g., `kube-api-oauth-api-opensh
 4. **Interval files not found** — If no interval/timeline files are found for a job run, this is a critical error for that run. Report it and skip that run if analyzing multiple runs.
 
 5. **gcloud errors** — When `gcloud storage` commands fail, log the error, report which artifacts could not be downloaded, and continue analysis with the remaining available data.
+
+6. **Jira MCP unavailable** — If the Jira MCP tools are not available or authentication fails, skip Step 10 and note "Jira search skipped (MCP unavailable)" in the Known Disruption Issues section. Do not block the disruption analysis on Jira availability.
 
 ## Performance Considerations
 
