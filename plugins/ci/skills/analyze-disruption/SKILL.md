@@ -539,32 +539,41 @@ For each distinct base backend name, run two JQL queries using `searchJiraIssues
 **Query 1 — Labeled disruption cards (high confidence):**
 
 ```
-project in (TRT, OCPBUGS) AND labels = "disruption" AND status != Closed AND text ~ "{backend_name}" ORDER BY updated DESC
+project in (TRT, OCPBUGS) AND labels = "disruption" AND text ~ "{backend_name}" ORDER BY updated DESC
 ```
 
 **Query 2 — Broader search (catch unlabeled cards):**
 
 ```
-project in (TRT, OCPBUGS) AND status != Closed AND text ~ "disruption {backend_name}" ORDER BY updated DESC
+project in (TRT, OCPBUGS) AND text ~ "disruption {backend_name}" ORDER BY updated DESC
 ```
 
 Use `maxResults: 10` and `fields: ["summary", "status", "labels", "assignee", "updated", "priority"]`
 for each query. Deduplicate results across queries by issue key.
 
+Include both open and closed cards. Closed cards are valuable — they may have been closed
+prematurely, or they document a prior investigation into the same disruption pattern that
+provides context for the current occurrence (root cause, fix applied, affected versions).
+
 #### 10.2: Present Results and Offer Actions
 
 **If matching cards are found:**
 
-Add a "Known Disruption Issues" section to the report:
+Add a "Known Disruption Issues" section to the report. Group results into open and closed,
+with open cards listed first (most actionable), then closed cards (useful for context):
 
 ```markdown
 ## Known Disruption Issues
 
-The following Jira cards may track this disruption:
-
+### Open
 | Key | Summary | Status | Labels | Assignee | Updated |
 |-----|---------|--------|--------|----------|---------|
 | [OCPBUGS-1234](url) | openshift-api disruption on AWS | In Progress | disruption | @engineer | 2026-07-28 |
+
+### Previously Resolved
+| Key | Summary | Resolution | Labels | Updated |
+|-----|---------|------------|--------|---------|
+| [OCPBUGS-999](url) | openshift-api disruption on Azure | Done | disruption | 2026-03-15 |
 ```
 
 For each card missing the "disruption" label, note it:
