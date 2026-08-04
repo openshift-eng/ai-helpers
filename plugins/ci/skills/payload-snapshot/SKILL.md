@@ -38,7 +38,11 @@ Use this skill when you need to:
    - Requires access to the release image registry (e.g., `registry.ci.openshift.org`)
    - Without `podman`, RPMDB data is skipped; all other data is still collected
 
-5. **Network access** to:
+5. **`rpm` CLI** — for the RPM changelog diffs between payloads
+   - Queries the already-extracted RPMDBs locally; no network, no root
+   - Without `rpm`, changelog diffs are skipped; the RPMDBs themselves are still extracted
+
+6. **Network access** to:
    - `*.ocp.releases.ci.openshift.org` (release controller)
    - `sippy.dptools.openshift.org` (historical payload fallback)
    - `api.github.com` (via `gh` CLI)
@@ -66,6 +70,9 @@ python3 "$script_path" 4.22.0-0.nightly-2026-02-25-152806 --no-junit
 # Skip RPMDB extraction
 python3 "$script_path" 4.22.0-0.nightly-2026-02-25-152806 --no-rpmdb
 
+# Skip the RPM changelog diffs (RPMDBs are still extracted)
+python3 "$script_path" 4.22.0-0.nightly-2026-02-25-152806 --no-rpm-changelogs
+
 # Force Sippy for all payload metadata (normally fallback is automatic)
 python3 "$script_path" 4.22.0-0.nightly-2026-02-25-152806 --sippy
 ```
@@ -82,7 +89,8 @@ The script will:
 9. Track per-job failure streaks — consecutive failures, originating payload, failure pattern
 10. For each unique PR across all changelogs, fetch the git diff, comments, and CI jobs via `gh`
 11. For each payload in the chain, extract the full RPM database from RHCOS images via `podman`
-12. Generate summary.json with comprehensive triage data, plus AGENTS.md/CLAUDE.md for agent orientation
+12. Diff the target payload's RPM changelogs against every older payload in the chain, using the extracted RPMDBs
+13. Generate summary.json with comprehensive triage data, plus AGENTS.md/CLAUDE.md for agent orientation
 
 ### Step 2: Navigate the Snapshot
 
@@ -123,6 +131,9 @@ payload/
             rpmdb.sqlite
           rhel-coreos-10/
             rpmdb.sqlite
+        rpm-changelogs/                    # Target payload only
+          rhel-coreos-10/                  # One diff per older payload
+            <older-payload-tag>.md
 ```
 
 ### Step 3: Use the Data
@@ -157,6 +168,16 @@ jq '.[].name' payload/<version>/<stream>/<tag>/jobs/blocking/<job-name>/junit/re
 rpm -qa --dbpath $(pwd)/payload/<version>/<stream>/<tag>/rpmdb/rhel-coreos
 ```
 
+**See what changed in the RHCOS RPMs since the baseline** (inline in summary.json — no file read needed):
+```bash
+jq '.rpm_changelogs[] | select(.diff) | {variant, compared_tag, diff}' payload/<version>/<stream>/summary.json
+```
+
+**Find which payload in the chain introduced a package bump:**
+```bash
+cat payload/<version>/<stream>/<target-tag>/rpm-changelogs/<variant>/<older-tag>.md
+```
+
 ## CLI Reference
 
 ```text
@@ -171,6 +192,8 @@ Options:
   --workers N          Parallel workers for API calls (default: 8)
   --no-junit           Skip JUnit download and regression tracking
   --no-rpmdb           Skip RHCOS RPMDB extraction
+  --no-rpm-changelogs  Skip the RPM changelog diffs between the target payload
+                       and the older payloads in the chain
   --sippy              Force Sippy for all payload metadata instead of using
                        the automatic release-controller-first fallback
   --fail-on-incomplete Exit 1 if any requested data could not be collected
@@ -191,8 +214,9 @@ Comprehensive stream-level triage data — start here. Contains:
 - `informing_jobs.failed_jobs[]` — job name strings
 - `test_failures.blocking[]` — **gating** failures only: `test_name`, `jobs`, `first_failed_in`, `payloads_failing`, `failure_message`, `failure_text` (full, not truncated). These are the failures that can fail a job and therefore reject the payload.
 - `test_failures.informing[]` / `test_failures.flakes[]` — `test_name`, `jobs`. Neither can fail a job. No onset is tracked for them, because an onset implies there is a culprit to find.
-- `payloads[]` — per-payload entries with `tag`, `phase`, `source`, `changelog_source`, relative file paths, `prs[]` with component/diff/comments paths, and `rhcos_changes[]` with RPM diffs per RHCOS variant
+- `payloads[]` — per-payload entries with `tag`, `phase`, `source`, `changelog_source`, relative file paths, `prs[]` with component/diff/comments paths, `rhcos_changes[]` with RPM diffs per RHCOS variant (package versions only — no changelog text), and, on every payload but the target, `rpm_changelogs[]` pointing at the report holding that text
 - `rhcos_rpms[]` — RPMDB metadata for the target payload's RHCOS variants: `tag`, `name`, `pullspec`, `rpmdb` (relative path to rpmdb.sqlite)
+- `rpm_changelogs[]` — one RPM diff per (RHCOS variant, older payload in the chain): `variant`, `compared_tag`, `is_baseline`, `changed`/`added`/`removed` counts, and `changelogs` (relative path to the full report). The oldest surviving comparison per variant — normally the chain baseline — also carries `diff` inline, so target-vs-baseline needs no file read: `diff.changed[]` with `package`, `old`, `new` and `changelog` (the entries that version added), plus `diff.added[]` / `diff.removed[]` with `package` and `version`. The intermediate hops are a subset of that diff and stay behind their `changelogs` path; read them to find which hop introduced a given package bump. If the true chain baseline's RPMDB couldn't be read for a variant, the next-oldest readable comparison takes over `is_baseline`/`diff` instead, flagged with `baseline_rpmdb_missing: true` so consumers know the diff doesn't reach all the way back to the chain's actual start.
 - `data_complete` — `true` when all requested data was ultimately collected, including via a fallback after an initial read failed. `false` means some requested data could not be read at all.
 - `collection_errors[]` — every read failure encountered. Each entry has `reason`, `command`, and optionally `detail`, `stage`, `job`, `payload_tag`, `recovered`. Reasons: `auth`, `timeout`, `gcloud_missing`, `command_failed`, `junit_unavailable` (nothing readable), `junit_missing` (nothing discovered), `junit_unparseable` (corrupt XML), `junit_partial` (some files unread), `build_log_unavailable`.
   - `recovered: true` means a fallback subsequently obtained the data. These entries are diagnostic only (useful for spotting a timeout that needs tuning) and do **not** make `data_complete` false.
@@ -287,7 +311,9 @@ Full release controller response including `blockingJobs`, `informingJobs`, and 
 
 ### `changelog.json`
 
-Release controller diff response with `changeLogJson.updatedImages` listing every PR that changed between this payload and its predecessor. Also contains `nodeImageStreams` at the top level — RPM diffs for each RHCOS variant showing which packages changed between payloads.
+Release controller diff response with `changeLogJson.updatedImages` listing every PR that changed between this payload and its predecessor. Also contains `nodeImageStreams` at the top level — RPM diffs for each RHCOS variant showing which packages changed between payloads, as package names and versions only.
+
+For the target payload, `_rpm_changelogs[]` is injected alongside `_source`: `variant`, `compared_tag` (the predecessor, the same comparison this file describes) and `changelogs`, a path relative to the payload directory pointing at the report that carries the changelog text `nodeImageStreams` lacks. `payload.json` gets the same key.
 
 ### `rhcos_changes[]` (in payloads[] within summary.json)
 
@@ -305,6 +331,24 @@ Only variants with non-empty `rpmDiff` are included. When the snapshot is create
 The `rpmdb.sqlite` file extracted from RHCOS images via `podman`. One directory per RHCOS variant (e.g., `rpmdb/rhel-coreos/`, `rpmdb/rhel-coreos-10/`), each containing `rpmdb.sqlite`. Queryable with `rpm -qa --dbpath <absolute-path-to-variant-dir>` or directly with `sqlite3`.
 
 Extracted for every payload in the chain. Skipped when `podman` is unavailable or `--no-rpmdb` is passed.
+
+### `rpm-changelogs/<variant>/<older-payload-tag>.md`
+
+Written for the target payload only, one file per (RHCOS variant, older payload in the chain) — including the baseline. Each file answers "what do this variant's RPMs have in the target that they did not have in that older payload?", by querying both already-extracted RPMDBs with `rpm` locally. No API calls and no image pulls are involved, and `rhcos_changes[]` (which the release controller computes) is not consulted.
+
+Each file has three sections:
+- **Changed packages** — `<old version> -> <new version>` plus only the changelog entries the new version added. RPM changelogs are additive and grow from the top, so the cut is at the first entry the old version already had. (Not a common-suffix subtraction: rpm trims stale entries off the bottom at build time, so two builds of the same package weeks apart routinely disagree about their oldest entries.) A version bump with no new entry is reported as a rebuild.
+- **New packages** — packages the older payload did not have at all, with their full changelog.
+- **Removed packages** — name and version only. Nothing to read a changelog from.
+
+Deliberate simplifications, because the consumer is an LLM that can read a full dump when it has to:
+- **Each older payload is compared against the target independently.** No attempt is made to follow a package's evolution hop by hop. A package removed and later re-added shows up as "no difference" against the baseline and as some difference against an intermediate payload — that is the honest answer to each of those two questions, and no further reconciliation is done.
+- **A changelog whose history was rewritten degrades to a full dump.** When the two versions share no entries, the whole changelog is emitted rather than guessing a cut point from version strings.
+- **A variant missing from the older payload is skipped**, rather than reported as several hundred new packages.
+
+Indexed by `summary.json`'s `rpm_changelogs[]`, whose baseline entry repeats the same content inline under `diff`. Read these files for the intermediate hops, or when the prose layout is easier than the JSON.
+
+Skipped when `rpm` is unavailable, `--no-rpm-changelogs` is passed, the RPMDBs were not extracted, or the chain has no older payload (`chain_length < 2`).
 
 ### `regressions.json`
 
