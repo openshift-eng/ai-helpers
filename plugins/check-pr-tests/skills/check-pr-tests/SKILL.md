@@ -1044,7 +1044,7 @@ Output this JSON to the console. Only save to `.work/check-pr-tests/{jira_key}/o
 | PR count mismatch (when provided) | Warn but continue with available PRs |
 | Count omitted, no upstream found | Proceed as count=1 (downstream only analysis) |
 | Diff too large (>20k lines) | Fall back to paginated file list; skip full diff analysis |
-| GitHub API rate limit | Display reset time; exit gracefully |
+| GitHub API rate limit | Display reset time and exit with error |
 | `gh search code` returns no results | Note "unable to determine existing coverage"; default to "test required" |
 | Prow artifacts not accessible (GCS auth) | **Error out**. Report: "GCS authentication failed — cannot download JUnit XML from test-platform-results bucket." Guide: "Run `gcloud auth login` and ensure access to gs://test-platform-results." |
 | Prow artifacts expired | **Error out**. Report: "Prow artifacts for job {job_name} have been garbage collected (typically retained 2-8 weeks)." Guide: "Re-trigger the Prow job with `/retest` on the PR to generate fresh artifacts." |
