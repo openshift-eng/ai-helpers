@@ -638,6 +638,36 @@ for each query. Deduplicate results across queries by issue key.
 Closed cards are valuable — they may document a prior investigation into the same disruption
 pattern that provides context (root cause, fix applied, affected versions).
 
+#### 8.1.1: Search by Root Cause Signals
+
+The backend-name queries above find bugs filed about the symptom (which backend was disrupted).
+Many bugs are filed about the root cause mechanism instead (CPU exhaustion, OVS stalls, etcd
+pressure). Build additional JQL queries from the root cause signals identified during analysis.
+
+Check the `concurrent_events` and `key_signals` from the parsed data. For each signal category
+present, run one additional open-card query:
+
+**If OVS stalls were detected** (`OVSVswitchdLog` in concurrent events with `max_poll_interval_ms > 500`):
+
+```jql
+project in (TRT, OCPBUGS) AND status != Closed AND (summary ~ "OVS" OR summary ~ "vswitchd" OR summary ~ "ovs-vswitchd" OR text ~ "vswitchd stall") ORDER BY updated DESC
+```
+
+**If CPU pressure was detected** (`CPUMonitor` in concurrent events):
+
+```jql
+project in (TRT, OCPBUGS) AND status != Closed AND (summary ~ "CPU exhaustion" OR summary ~ "ExtremelyHigh" OR text ~ "ExtremelyHighIndividualControlPlaneCPU" OR summary ~ "high CPU") ORDER BY updated DESC
+```
+
+**If etcd pressure was detected** (`EtcdLog` in concurrent events with count > 0):
+
+```jql
+project in (TRT, OCPBUGS) AND status != Closed AND (summary ~ "etcd leader" OR summary ~ "etcd slow" OR text ~ "took too long" OR summary ~ "etcd pressure") ORDER BY updated DESC
+```
+
+Use the same `maxResults: 10` and field list. Deduplicate all results across all queries
+(backend queries + signal queries) by issue key before presenting.
+
 #### 8.2: Present Results and Offer Actions
 
 **If matching cards are found:**
