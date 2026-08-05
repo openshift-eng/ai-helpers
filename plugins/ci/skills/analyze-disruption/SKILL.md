@@ -320,6 +320,39 @@ Note: Tests that *fail* during the disruption window are usually *victims* of th
 not causes. Tests that *pass* but consistently appear during disruption across runs are more
 likely to be contributing to the resource pressure that triggers it.
 
+#### 5.6: Root-Cause Attribution Rules (learned from real triage incidents)
+
+Apply these before naming an owning component in the report — disruption is almost always a
+*symptom chain*, and attributing it one link too early has misdirected owning teams for weeks
+in real incidents:
+
+1. **A component whose error names a missing upstream dependency is a victim, not an owner —
+   but corroborate before reassigning.** If a disrupted backend's serving pods log
+   "cannot list/watch/reach X" (e.g., a router crash-looping on
+   `failed to list *v1.Route: the server could not find the requested resource`), check X's
+   provider directly (ClusterOperator conditions, APIService availability, endpoints) before
+   blaming either side: provider unhealthy → the disruption belongs upstream (in one real case,
+   router disruption traced through openshift-apiserver to etcd never deploying its static
+   pods); provider healthy → the fault is inside the "victim" after all (RBAC — a real
+   crash-looper failed on `configmaps is forbidden` — client config, or network reachability).
+2. **The end-state oracle is `clusteroperators.json`, not pod existence.** Check the etcd and
+   apiserver ClusterOperator conditions from gather-extra before declaring the control plane
+   healthy — pods scheduled and Running prove nothing about whether cluster etcd/apiservers
+   were actually serving (during bootstrap and some upgrade windows, a different control plane
+   serves the API).
+3. **Extract condition *messages*, not just condition flips.** `ClusterVersion` and
+   `ClusterOperator` interval entries carry the underlying controller error string — a bare
+   "Available=False" interval hides the cause, but its message often names it outright (a real
+   ClusterVersion flap's message named the exact broken controller). Quote the recovered
+   message in the report.
+4. **Read `*_previous.log` for any container that restarted during the disruption window.**
+   The crashed instance's last lines are primary evidence and outrank inferences from the
+   replacement container's healthy logs; a container with `restartCount > 0` whose previous
+   log you did not read is an analysis gap.
+5. **Condition churn ≠ slow rollout.** If an operator's condition flaps continuously (many
+   transitions with `DurationSinceTransition` of ~1s), that is a sync-loop bug (permafail
+   class), not a transient — count transitions before classifying severity.
+
 ### Step 6: Deep-Dive Artifact Download (Optional)
 
 **Only perform this step if the parser output from Step 4.2 is insufficient for root cause
@@ -377,6 +410,43 @@ Check audit logs for endpoint slice modification events during disruption window
 
 - Look for audit events related to `endpointslices` resources
 - Verify that readiness changes triggered appropriate endpoint updates
+
+#### 7.3: Onset Determination and Suspect PRs (when disruption is new or worsening)
+
+If the disruption pattern is a *change* (a backend that used to be clean now disrupts, or
+counts jumped), anchor the onset before hypothesizing:
+
+1. Find the newest **clean** run and the oldest **disrupted** run of the same job (job-history)
+   and compare their payloads (`artifacts/release/artifacts/release-images-latest`, and
+   `release-images-initial` for upgrade jobs — upgrade jobs can regress via either endpoint,
+   and a *skew* between initial and target payloads is itself a known failure mode).
+2. Feed the failing payload to the `fetch-new-prs-in-payload` skill and vet candidates with
+   `gh` — a LIKELY PR names the owning component.
+3. **Scan the owning repo's newest merges for revert PRs**: a fresh `Revert "..."` title citing
+   a TRT/OCPBUGS key hands you the trigger PR, the tracking ticket, and the expected recovery
+   in one query — for currently-live breakage this is frequently faster than any artifact
+   analysis.
+4. Never write "resolved/appeared due to an unidentified payload change" without having run
+   steps 1–3; a real duplicate bug was filed because a cessation was written off as
+   unidentified while the owning repo had merged an `OCPBUGS-*`-titled fix at exactly that
+   boundary.
+
+#### 7.4: Existing Bugs and Known Disruption Families
+
+Before presenting a root-cause hypothesis as novel, check whether it is already tracked:
+
+1. Query `fetch-related-triages` for any Component Readiness regression associated with the
+   disrupted backends' tests, and treat confidence scores as clustering hints — verify against
+   this run's evidence before adopting a match.
+2. Run a **component-scoped JIRA listing** for the suspected owner
+   (`project = OCPBUGS AND component = "<owner>" AND created >= -21d`) and read summaries —
+   owning teams describe defects in developer vocabulary that shares no keywords with the
+   disruption symptom, so text search alone misses existing bugs.
+3. Known recurring disruption families worth ruling in/out first: etcd slow-fdatasync /
+   disk-pressure on Azure control planes (cache-backend disruption), CNI gaps during OVN
+   upgrades (host-to-host + API disruption in the upgrade phase), single-node OVS stalls under
+   CPU starvation (single-source fan-out), and cloud LB/DNS churn (ingress-routed backends
+   only). Each has had tracking tickets — search before filing.
 
 ### Step 8: Cross-Run Comparison (Multiple Runs Only)
 
@@ -460,7 +530,11 @@ The [timeline data]({gcsweb_timeline_url}) shows OVS vswitchd poll intervals up 
 [etcd pod logs]({gcsweb_etcd_url}) confirm apply-too-long warnings at 03:56:00Z...
 
 ## Root Cause Hypothesis
-{Analysis with inline links to supporting evidence}
+{Analysis with inline links to supporting evidence. State the full causal chain (trigger →
+intermediate symptoms → disrupted backends), the owning component with the corroboration
+required by Step 5.6 (upstream health checked, condition messages quoted, previous.log read
+for any restarted container), and whether the issue matches an existing bug/triage or known
+disruption family (Step 7.4) — with the ticket reference if so.}
 
 ## Other Disrupted Backends
 {When --backends filter was used, list other backends that were disrupted during the
@@ -497,7 +571,9 @@ Run 2 [timeline]({gcsweb_timeline_url_2}) shows disk IOPS at 100% ([cloud metric
 {Pattern analysis referencing specific runs with inline links}
 
 ## Root Cause Hypothesis
-{Synthesis with links to key evidence}
+{Synthesis with links to key evidence. Apply the Step 5.6 attribution rules (victim-vs-owner
+with upstream corroboration, quoted condition messages, previous.log for restarted containers)
+and cite any existing bug/triage or known family match from Step 7.4.}
 
 ## Other Disrupted Backends
 {When --backends filter was used, list other backends that were disrupted during the
