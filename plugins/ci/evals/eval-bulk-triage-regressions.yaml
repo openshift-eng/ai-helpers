@@ -292,11 +292,15 @@ judges:
       banned = ann.get("banned_fix_patterns", [])
       if not banned:
           return (True, "No banned fix patterns for this case")
+      neg = re.compile(r"\b(not|never|avoid|do not|don't|instead of|rather than|should be corrected|refut)\b", re.IGNORECASE)
       for b in data.get("buckets", []):
           fix = b.get("suggested_fix") or ""
-          for pat in banned:
-              if re.search(pat, fix, re.IGNORECASE):
-                  return (False, f"Banned fix proposed: /{pat}/ in '{fix[:120]}'")
+          for sentence in re.split(r"(?<=[.;])\s+", fix):
+              if neg.search(sentence):
+                  continue  # negated/refuting mention, not a proposal
+              for pat in banned:
+                  if re.search(pat, sentence, re.IGNORECASE):
+                      return (False, f"Banned fix proposed: /{pat}/ in '{sentence[:120]}'")
       return (True, "No banned fixes proposed")
 
   - name: mechanism_accuracy
