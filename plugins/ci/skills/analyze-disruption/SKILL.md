@@ -195,9 +195,10 @@ analyze the most recent failed runs anyway (disruption may be within threshold b
 
 #### 1.5.3: Convert Selections to Prow URLs
 
-Use the `url` field from the JSON output to get Prow URLs for the selected runs. Set:
+Re-run `find_disruption_runs.py` with `--format json` to get machine-readable output with `url`
+fields. Use the `url` field from the JSON output to get Prow URLs for the selected runs. Set:
 - `--backends` defaults to the Grafana `var-backend` value (unless explicitly overridden)
-- The resolved Prow URLs proceed to Step 1 step 3 (Parse each Prow URL) and then Step 2
+- The resolved Prow URLs proceed to Step 1, item 3 (Parse each Prow URL) and then Step 2
 
 ### Step 2: Download Artifacts for All Runs
 
@@ -622,13 +623,13 @@ excessive API calls:
 **Query 1 — Open cards:**
 
 ```jql
-project in (TRT, OCPBUGS) AND status != Closed AND (labels = "disruption" OR text ~ "disruption") AND text ~ "{backend_name_1} OR {backend_name_2}" ORDER BY updated DESC
+project in (TRT, OCPBUGS) AND status != Closed AND (labels = "disruption" OR text ~ "disruption") AND (text ~ "{backend_name_1}" OR text ~ "{backend_name_2}") ORDER BY updated DESC
 ```
 
 **Query 2 — Closed cards (prior investigations):**
 
 ```jql
-project in (TRT, OCPBUGS) AND status = Closed AND (labels = "disruption" OR text ~ "disruption") AND text ~ "{backend_name_1} OR {backend_name_2}" ORDER BY updated DESC
+project in (TRT, OCPBUGS) AND status = Closed AND (labels = "disruption" OR text ~ "disruption") AND (text ~ "{backend_name_1}" OR text ~ "{backend_name_2}") ORDER BY updated DESC
 ```
 
 Use `maxResults: 10` and `fields: ["summary", "status", "labels", "assignee", "updated", "priority", "resolution"]`

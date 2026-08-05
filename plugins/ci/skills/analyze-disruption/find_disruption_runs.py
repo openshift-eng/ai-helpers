@@ -108,7 +108,11 @@ def fetch_runs(release, filter_dict, limit):
     except urllib.error.URLError as e:
         print("Error: failed to connect to Sippy API: %s" % e.reason, file=sys.stderr)
         sys.exit(1)
-    data = json.loads(body)
+    try:
+        data = json.loads(body)
+    except (ValueError, json.JSONDecodeError):
+        print("Error: invalid JSON from Sippy API", file=sys.stderr)
+        sys.exit(1)
     return data.get("rows") or []
 
 
@@ -129,7 +133,11 @@ def fetch_disruption_data(prow_ids, backend_name=None):
     except (urllib.error.HTTPError, urllib.error.URLError) as e:
         print("Warning: could not fetch disruption data: %s" % e, file=sys.stderr)
         return {}
-    data = json.loads(body)
+    try:
+        data = json.loads(body)
+    except (ValueError, json.JSONDecodeError):
+        print("Warning: invalid JSON from disruption API", file=sys.stderr)
+        return {}
     lookup = {}
     for row in data.get("rows") or []:
         pid = str(row.get("job_run_name", ""))
@@ -234,16 +242,11 @@ def select_representative_runs(rows, disruption_data, base_backend, n=5):
         return sorted([c["index"] for c in candidates])
 
     # Phase 4: Categorize by disruption level
-    non_zero = sorted([c["disruption_seconds"] for c in candidates
-                       if c["disruption_seconds"] > 0])
-
-    if not non_zero:
-        # All runs have 0 disruption — select by job diversity only
-        return _select_by_job_diversity(candidates, n)
+    non_zero = sorted([c["disruption_seconds"] for c in candidates])
 
     if len(non_zero) < 3:
         p50 = non_zero[len(non_zero) // 2]
-        high = [c for c in candidates if c["disruption_seconds"] is not None and c["disruption_seconds"] >= p50]
+        high = [c for c in candidates if c["disruption_seconds"] >= p50]
         low = [c for c in candidates if c not in high]
         tiers = [high, low]
         high_slots = min(len(high), max(1, n // 2))
@@ -255,8 +258,8 @@ def select_representative_runs(rows, disruption_data, base_backend, n=5):
         low_thresh = non_zero[p33_idx]
         high_thresh = non_zero[p66_idx]
 
-        high = [c for c in candidates if c["disruption_seconds"] is not None and c["disruption_seconds"] >= high_thresh]
-        moderate = [c for c in candidates if c["disruption_seconds"] is not None and low_thresh <= c["disruption_seconds"] < high_thresh]
+        high = [c for c in candidates if c["disruption_seconds"] >= high_thresh]
+        moderate = [c for c in candidates if low_thresh <= c["disruption_seconds"] < high_thresh]
         low = [c for c in candidates if c not in high and c not in moderate]
         tiers = [high, moderate, low]
         high_slots = math.ceil(n * 0.4)
@@ -490,7 +493,7 @@ def main(argv=None):
         print("Error: --backend is required (or provide --grafana-url with var-backend)", file=sys.stderr)
         sys.exit(1)
 
-    base_backend, conn_type = parse_backend(backend)
+    base_backend, _conn_type = parse_backend(backend)
 
     cli_overrides = {
         "platform": args.platform,

@@ -364,9 +364,11 @@ def test_select_no_clean_from_unselected_job():
     for i in result:
         pid = str(rows[i]["prow_id"])
         selected_secs.append(max_disruption_for_backend(dd.get(pid, []), "kube-api"))
-    # If job-e wasn't selected, its 0s run should not be the clean comparison
-    if "job-e" not in selected_jobs:
-        assert 0 not in selected_secs
+    # job-e has the lowest disruption (5s) and should not be selected with n=5 and
+    # 8 higher-disruption candidates across 4 other jobs — so its 0s run must not
+    # appear as a clean comparison.
+    assert "job-e" not in selected_jobs
+    assert 0 not in selected_secs
 
 
 def test_select_no_clean_from_unrelated_job():

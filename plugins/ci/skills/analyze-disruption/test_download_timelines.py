@@ -130,6 +130,8 @@ def test_process_run_full_success():
     assert r["job"] == "my-job"
     assert r["target"] == "e2e-gcp-ovn-upgrade"
     assert r["error"] is None
+    assert len(r["timeline_files"]) == 1
+    assert r["timeline_files"][0].endswith("e2e-timelines_spyglass_20260804-000654.json")
 
 
 def test_process_run_prowjob_download_fails():

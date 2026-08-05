@@ -50,11 +50,14 @@ def parse_runs(runs_str):
 
 def download_file(gcs_path, local_path):
     """Download a single file from GCS. Returns True on success."""
-    result = subprocess.run(
-        ["gcloud", "storage", "cp", gcs_path, local_path, "--no-user-output-enabled"],
-        capture_output=True, text=True, timeout=120,
-    )
-    return result.returncode == 0
+    try:
+        result = subprocess.run(
+            ["gcloud", "storage", "cp", gcs_path, local_path, "--no-user-output-enabled"],
+            capture_output=True, text=True, timeout=120,
+        )
+        return result.returncode == 0
+    except (subprocess.TimeoutExpired, OSError):
+        return False
 
 
 def extract_target(prowjob_path):
@@ -75,10 +78,13 @@ def list_timeline_files(job, build_id):
     """List e2e-timelines_spyglass_*.json files in GCS for a job run."""
     gcs_pattern = "gs://%s/logs/%s/%s/artifacts/**/e2e-timelines_spyglass_*.json" % (
         GCS_BUCKET, job, build_id)
-    result = subprocess.run(
-        ["gcloud", "storage", "ls", gcs_pattern],
-        capture_output=True, text=True, timeout=120,
-    )
+    try:
+        result = subprocess.run(
+            ["gcloud", "storage", "ls", gcs_pattern],
+            capture_output=True, text=True, timeout=120,
+        )
+    except (subprocess.TimeoutExpired, OSError):
+        return []
     if result.returncode != 0:
         return []
     return [line.strip() for line in result.stdout.strip().split("\n") if line.strip()]
@@ -115,14 +121,19 @@ def process_run(job, build_id, output_dir):
         result["error"] = "no timeline files found"
         return result
 
+    failed_count = 0
     for gcs_path in gcs_files:
         filename = os.path.basename(gcs_path)
         local_path = os.path.join(logs_dir, filename)
         if download_file(gcs_path, local_path):
             result["timeline_files"].append(local_path)
+        else:
+            failed_count += 1
 
     if not result["timeline_files"]:
-        result["error"] = "all timeline file downloads failed"
+        result["error"] = "all %d timeline file downloads failed" % len(gcs_files)
+    elif failed_count:
+        result["error"] = "%d of %d timeline file downloads failed" % (failed_count, len(gcs_files))
 
     return result
 
@@ -171,7 +182,14 @@ def main(argv=None):
             for job, build_id in runs
         }
         for future in as_completed(futures):
-            results.append(future.result())
+            try:
+                results.append(future.result())
+            except Exception as exc:
+                job, build_id = futures[future]
+                results.append({
+                    "build_id": build_id, "job": job, "target": None,
+                    "timeline_files": [], "error": str(exc),
+                })
 
     results.sort(key=lambda r: r["build_id"])
 

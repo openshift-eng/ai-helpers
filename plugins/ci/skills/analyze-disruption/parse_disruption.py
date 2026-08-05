@@ -369,9 +369,10 @@ def summarize_cpu(events):
 def summarize_e2e_tests(events):
     """Summarize E2ETest events active during disruption.
 
-    Tracks both passed and failed tests. Passed tests that consistently appear
-    during disruption across runs may be causing the resource pressure that
-    triggers disruption. Failed tests are usually victims.
+    Tracks both passed and failed tests. "Passed" includes any non-Error level
+    (Info and Warning). Passed tests that consistently appear during disruption
+    across runs may be causing the resource pressure that triggers disruption.
+    Failed tests (Error level) are usually victims.
     """
     tests = {}
     for e in events:
@@ -651,14 +652,15 @@ def format_summary(data):
 
     backends = summary.get("backends", {})
     if backends:
-        backend_parts = []
-        for name, cnt in sorted(backends.items(), key=lambda x: -x[1]):
+        merged = {}
+        for name, cnt in backends.items():
             short = name
             for suffix in ("-new-connections", "-reused-connections"):
                 if short.endswith(suffix):
                     short = short[: -len(suffix)]
                     break
-            backend_parts.append(f"{short}:{cnt}")
+            merged[short] = merged.get(short, 0) + cnt
+        backend_parts = [f"{s}:{c}" for s, c in sorted(merged.items(), key=lambda x: -x[1])]
         parts.append(" ".join(backend_parts))
 
     ovs = concurrent.get("OVSVswitchdLog")
@@ -867,7 +869,9 @@ def main():
     links = generate_links(args.job_name, args.build_id, args.target, args.files)
 
     blast_radius = None
-    if args.blast_radius and backend_filter:
+    if args.blast_radius and not backend_filter:
+        print("Warning: --blast-radius has no effect without --backends", file=sys.stderr)
+    elif args.blast_radius and backend_filter:
         all_disruptions = extract_disruptions(items, backend_filter=None)
         blast_radius = format_blast_radius(all_disruptions, backend_filter)
 

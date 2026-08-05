@@ -171,8 +171,7 @@ def test_format_summary_strips_connection_suffix():
         },
     )
     result = format_summary(data)
-    assert "kube-api:3" in result
-    assert "kube-api:2" in result
+    assert "kube-api:5" in result
     assert "new-connections" not in result
     assert "reused-connections" not in result
 
