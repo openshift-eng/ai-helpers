@@ -105,10 +105,12 @@ def test_extract_disruption_failures_dedup():
 def test_max_disruption_for_backend_matching():
     entries = [
         {"backend_name": "kube-api-new-connections", "disruption_seconds": 73},
+        {"backend_name": "kube-api-reused-connections", "disruption_seconds": 40},
         {"backend_name": "cache-kube-api-new-connections", "disruption_seconds": 75},
         {"backend_name": "oauth-api-new-connections", "disruption_seconds": 5},
     ]
-    assert max_disruption_for_backend(entries, "kube-api") == 75
+    # Should match both connection types but exclude cache variant
+    assert max_disruption_for_backend(entries, "kube-api") == 73
 
 
 def test_max_disruption_for_backend_no_match():

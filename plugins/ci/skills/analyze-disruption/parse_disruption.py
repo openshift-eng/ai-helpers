@@ -782,6 +782,21 @@ def format_text(data):
             elif source == "CloudMetrics":
                 for metric, info in detail.get("metrics", {}).items():
                     lines.append(f"    {metric}: max {info['max_value']:.1f} ({info['count']} events)")
+            elif source == "E2ETest":
+                failed = detail.get("failed_tests", [])
+                passed = detail.get("passed_tests", [])
+                if failed:
+                    lines.append(f"    Failed ({len(failed)}):")
+                    for t in failed[:10]:
+                        lines.append(f"      - {t}")
+                    if len(failed) > 10:
+                        lines.append(f"      ... and {len(failed) - 10} more")
+                if passed:
+                    lines.append(f"    Passed ({len(passed)}):")
+                    for t in passed[:5]:
+                        lines.append(f"      - {t}")
+                    if len(passed) > 5:
+                        lines.append(f"      ... and {len(passed) - 5} more")
             else:
                 for evt in detail.get("events", [])[:5]:
                     lines.append(f"    {evt['from']} | {evt['level']} | {evt['message'][:120]}")

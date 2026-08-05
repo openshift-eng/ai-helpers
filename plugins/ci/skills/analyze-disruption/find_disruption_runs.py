@@ -156,11 +156,23 @@ def fetch_disruption_data(prow_ids, backend_name=None):
     return lookup
 
 
+def _backend_matches(backend_name, base_backend):
+    """Check if a backend name matches the base (non-cache) backend.
+
+    Matches 'kube-api-new-connections' and 'kube-api-reused-connections' for
+    base 'kube-api', but excludes 'cache-kube-api-new-connections'.
+    """
+    return (
+        backend_name == base_backend
+        or backend_name.startswith(base_backend + "-")
+    ) and not backend_name.startswith("cache-")
+
+
 def max_disruption_for_backend(disruption_entries, base_backend):
     """Find the max disruption seconds matching the base backend name."""
     if not disruption_entries:
         return None
-    matching = [e["disruption_seconds"] for e in disruption_entries if base_backend in e["backend_name"]]
+    matching = [e["disruption_seconds"] for e in disruption_entries if _backend_matches(e["backend_name"], base_backend)]
     if not matching:
         return 0
     return max(matching)

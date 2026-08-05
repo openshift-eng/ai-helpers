@@ -171,6 +171,10 @@ Additional flags:
 - `--auto-select N` — change number of auto-selected runs (default when used: 5)
 - Individual flags (`--release`, `--platform`, `--backend`, etc.) can override URL params
 
+The defaults fetch up to 50 runs over 30 days to give the auto-select algorithm a large enough
+candidate pool for good diversity. For tightly scoped dashboards (single job, recent window),
+narrowing `--limit` or `--since-hours` reduces the Sippy/BigQuery query cost.
+
 #### 1.5.2: Present Candidates and Collect Selection
 
 **Show the COMPLETE table output to the user exactly as printed by the script.** Do NOT
