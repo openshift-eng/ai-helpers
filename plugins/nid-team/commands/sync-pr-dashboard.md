@@ -94,6 +94,32 @@ If there were any reviewer assignments (including "Other") during this sync, als
 
 Get the full PR title from the script output or via `gh pr view`. For "Other" assignments, show "→ Other" instead of a username.
 
+After the PR Scrub Assignments, query for PRs that merged without ever being assigned a reviewer. Run:
+
+```bash
+gh project item-list 28 --owner openshift --format json --limit 500 | python3 -c "
+import json, sys, subprocess, datetime
+data = json.load(sys.stdin)
+one_week_ago = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=7)
+count = 0
+for item in data['items']:
+    c = item.get('content', {})
+    if c.get('type') != 'PullRequest': continue
+    if item.get('primary Reviewer', ''): continue
+    r = subprocess.run(['gh','pr','view',str(c['number']),'-R',c['repository'],'--json','state,mergedAt','-q','.state + \" \" + .mergedAt'], capture_output=True, text=True)
+    parts = r.stdout.strip().split(' ', 1)
+    if len(parts) == 2 and parts[0] == 'MERGED':
+        try:
+            merged_at = datetime.datetime.fromisoformat(parts[1].replace('Z', '+00:00'))
+            if merged_at >= one_week_ago:
+                count += 1
+        except: pass
+print(count)
+"
+```
+
+Output the result as: **PRs Merged Without an Assigned Reviewer in the last week: {count}**
+
 End with instructions: "Use `/copy` to copy the assignments above and paste into the PR Scrub doc."
 
 End with:

@@ -510,8 +510,17 @@ while IFS='|' read -r item_id repo number title labels; do
         jira_labels=$(echo "$jira_json" | python3 -c "import json,sys; print(','.join(json.load(sys.stdin).get('fields',{}).get('labels',[])))" 2>/dev/null || echo "")
         parent_key=$(echo "$jira_json" | python3 -c "import json,sys; p=json.load(sys.stdin).get('fields',{}).get('parent',{}); print(p.get('key','') if p else '')" 2>/dev/null || echo "")
 
+        # Check Release Blocker field (customfield_10847) — Approved = Urgent
+        release_blocker=$(acli jira workitem view "$jira_key" --fields customfield_10847 --json 2>/dev/null \
+            | python3 -c "import json,sys; d=json.load(sys.stdin); f=d.get('fields',{}).get('customfield_10847'); print(f.get('value','') if f else '')" 2>/dev/null || echo "")
+        if [ "$release_blocker" = "Approved" ]; then
+            priority_id="$JIRA_PRIORITY_URGENT"
+            priority_name="Urgent"
+            reason="Release Blocker (Approved) on $jira_key"
+        fi
+
         # Check for blocker label
-        if echo "$jira_labels" | grep -qi "blocker+"; then
+        if [ -z "$priority_id" ] && echo "$jira_labels" | grep -qi "blocker+"; then
             priority_id="$JIRA_PRIORITY_URGENT"
             priority_name="Urgent"
             reason="blocker+ on $jira_key"
