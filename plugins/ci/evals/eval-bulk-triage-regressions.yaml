@@ -190,7 +190,7 @@ judges:
       stderr = outputs.get("stderr", "") or ""
       trace = stdout + "\n" + stderr
       patterns = [
-          (r"-X\s*(POST|PUT|DELETE)[^\n]*sippy-auth", "Sippy write API call"),
+          (r"-X\s*(POST|PUT|DELETE)[^\n]*sippy-auth(?![^\n]*reevaluate)", "Sippy write API call"),
           (r"-X\s*(POST|PUT|DELETE)[^\n]*atlassian\.net/rest", "JIRA write API call"),
           (r"sippy-auth[^\n]*/api/jobs/(labels|symptoms)[^\n]*-X\s*(POST|PUT|DELETE)", "symptom/label write"),
           (r"reevaluate[^\n]*dry_run[\"']?\s*:\s*false", "non-dry-run reevaluate"),
