@@ -113,6 +113,16 @@ def test_max_disruption_for_backend_matching():
     assert max_disruption_for_backend(entries, "kube-api") == 73
 
 
+def test_max_disruption_for_backend_cache_target():
+    entries = [
+        {"backend_name": "cache-kube-api-new-connections", "disruption_seconds": 300},
+        {"backend_name": "cache-kube-api-reused-connections", "disruption_seconds": 50},
+        {"backend_name": "kube-api-new-connections", "disruption_seconds": 73},
+    ]
+    # When the target is a cache backend, only cache variants should match
+    assert max_disruption_for_backend(entries, "cache-kube-api") == 300
+
+
 def test_max_disruption_for_backend_no_match():
     entries = [
         {"backend_name": "oauth-api-new-connections", "disruption_seconds": 5},

@@ -157,15 +157,15 @@ def fetch_disruption_data(prow_ids, backend_name=None):
 
 
 def _backend_matches(backend_name, base_backend):
-    """Check if a backend name matches the base (non-cache) backend.
+    """Check if a backend name matches the base backend, respecting cache-ness.
 
-    Matches 'kube-api-new-connections' and 'kube-api-reused-connections' for
-    base 'kube-api', but excludes 'cache-kube-api-new-connections'.
+    Matches 'kube-api-new-connections' for base 'kube-api', but excludes
+    'cache-kube-api-new-connections'. When the base itself is a cache backend
+    (e.g. 'cache-kube-api'), only cache variants match.
     """
-    return (
-        backend_name == base_backend
-        or backend_name.startswith(base_backend + "-")
-    ) and not backend_name.startswith("cache-")
+    if backend_name.startswith("cache-") != base_backend.startswith("cache-"):
+        return False
+    return backend_name == base_backend or backend_name.startswith(base_backend + "-")
 
 
 def max_disruption_for_backend(disruption_entries, base_backend):
