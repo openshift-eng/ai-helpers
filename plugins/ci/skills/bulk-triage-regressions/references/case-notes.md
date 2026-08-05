@@ -2,18 +2,8 @@
 
 Full narratives behind the compressed rules in `SKILL.md`. Every rule in the skill that cites a case points here; read the relevant case when the one-line summary is not enough to apply the rule. Each case ends with the rules it produced.
 
-*(Cases 1 and 2 — the OCPBUGS-100316 VAP/actuator and OCPBUGS-99918 GID-mapping incidents — were removed from this catalog: a baseline-vs-variant eval run showed the generic Phase 3 rules and mechanism self-review checklist catch both without the narratives. They live on as eval cases under `plugins/ci/evals/cases/bulk-triage-regressions/` (case-001, case-002), which is also the process for future candidates: prefer an eval case over a new narrative here.)*
+*(Cases 1, 2, 3, 6, 7 and 10 were removed from this catalog after baseline-vs-variant eval runs showed the generic Phase 3 rules and mechanism self-review checklist catch them without the narratives. Their ground truth lives on as eval cases under `plugins/ci/evals/cases/bulk-triage-regressions/` (cases 001–005), which is also the process for future candidates: prefer an eval case over a new narrative here. Case 4 was kept deliberately — a variant run without it degraded the covered eval case's classification (permafail mislabeled "resolved"), i.e. it still pays for its tokens.)*
 
-
-## Case 3: etcd cipherSuites bootstrap failure mis-attributed to the crash-looping router
-
-Azure and GCP bootstrap timeouts were attributed to two different theories: an etcd-operator "cipherSuites not found" race (Azure) and "monitoring can't create Routes — Route API not registered" (GCP). An initial refutation of the etcd theory used `pods.json`: "workload pods are running, therefore etcd is fine", and pinned the failure on crash-looping router pods instead. `clusteroperators.json` later proved the refutation wrong: etcd was at `0 nodes active / revision 0` in **every** run — the etcd theory was correct all along. The router was a victim: it looped on `failed to list *v1.Route: the server could not find the requested resource`, i.e. the Route API was never registered because cluster etcd/apiserver never deployed. The bug stayed mis-attributed to the router change for weeks.
-
-Compounding it: a validated router probe-loop symptom fired on 30/33 runs of the bucket — a *true* detection (the loop really happens) that still attributed victim runs to the router, because the signature is producible downstream of a different defect.
-
-During bootstrap the bootstrap-node etcd/apiserver serve the control plane, so pods schedule and run happily while cluster etcd never deploys — pod existence proves nothing about cluster etcd.
-
-Rules: the end-state oracle for bootstrap failures is `clusteroperators.json`, not pod existence; a crash-looper whose error names a missing upstream dependency is a victim, not an owner; a symptom detects a signature, not a cause — when the signature can occur downstream of a different defect, add an upstream-discriminator symptom to adjudicate.
 
 ## Case 4: ~1 Hz operator condition flap mislabeled "self-resolved slow rollout"
 
@@ -26,18 +16,6 @@ Rules: count condition transitions (`LastTransitionTime`/`DurationSinceTransitio
 `verify the cluster readiness and stability` failed with "Cluster operator image-registry is not available" on vSphere; the draft disposition was a product bug against Image Registry. The operator log showed the trigger: the job's test harness replaced the cluster pull secret mid-run, the operator re-synced `installation-pull-secrets` and rolled its single-replica deployment (RWO storage — flaps Available by design during any rollout). Correct disposition: `test` bug against the harness.
 
 Rules: a rollout-flap disposition must name the mutator (which object changed, who wrote it — audit logs or harness step logs), not stop at "the operator detected a configuration change"; single-replica deployments flap by design.
-
-## Case 6: CBO duplicate bug — developer vocabulary defeats keyword search
-
-A cluster-baremetal-operator Progressing-flap bucket had no related triage and no JIRA keyword hits, so a new bug was filed — duplicating an 8-day-old bug on the owning component titled "Do not require metal3-static-ip-manager to progress in vmedia" (zero keyword overlap with the CI-side symptom "baremetal CO flaps Progressing / Applying metal3 resources"), whose fix had merged at exactly the bucket's cessation date. Both the component-scoped JIRA listing and the owning-repo merge-history check would have caught it.
-
-Rules: after determining the owning component, list its recent bugs regardless of keywords and read the summaries; check the owning repo's merges at onset and cessation boundaries; "resolved by unidentified payload change" is banned unless the merge-history check ran and came back empty; an unexplained cessation strongly hints a fix already landed.
-
-## Case 7: SecurityPenetration interference — wrong gating claim, then wrongly left untriaged
-
-A QoS-invariant regression appeared only under `metal/techpreview`. The report claimed the interfering SecurityPenetration tests were "techpreview-gated" — reading `penetration.go` showed they are gated on **baremetal platform** (`skipIfNotBaremetal`), so every metal job in any featureset was exposed; the variant slice reflected job scheduling, not the blast radius. The same bucket was then dispositioned "leave untriaged — mass-failure collateral" despite an accurate root cause: deterministic test interference is an independent mechanism and gets a `test` triage regardless of surrounding noise.
-
-Rules: never write "X-only" about a test/tool unless its source-code skip/gates confirm it; identifying a root cause and leaving the bucket untriaged is a contradiction.
 
 ## Case 8: the symptom catalog as first oracle — and as refuter of "new mechanism" claims
 
@@ -52,12 +30,6 @@ Rules: dry-run the symptom catalog before any artifact dive; a negative grep for
 A stale-triage sweep found three "triaged" metal regressions pointing at a **Closed** toolchain bug while actively failing daily from two entirely new causes — a build-cluster capacity outage and a same-day console regression. Invisible in every untriaged-count metric.
 
 Rule: for every open already-triaged regression, compare `last_failure` against the triage's JIRA resolution date; failures after resolution mean a failed fix or a new cause hiding behind the stale record.
-
-## Case 10: one wrapper regression, four causes
-
-A long-lived install-wrapper regression accumulated four separately-verified causes over its lifetime: toolchain era → operator-flap window → CRI-O node bug → console startup fatal. Each window was separately triaged.
-
-Rule: long-lived wrapper regressions are cause *timelines*; when `last_failure` advances, re-verify the new window from scratch.
 
 ## Case 11: the orchestrator that ended its turn "waiting" — $12, no report
 
