@@ -2,7 +2,7 @@
 
 Full narratives behind the compressed rules in `SKILL.md`. Every rule in the skill that cites a case points here; read the relevant case when the one-line summary is not enough to apply the rule. Each case ends with the rules it produced.
 
-*(Six incidents — the OCPBUGS-100316 VAP/actuator mis-diagnosis, the OCPBUGS-99918 GID-mapping mis-attribution, the etcd-vs-router victim mix-up, the CBO duplicate-bug filing, the SecurityPenetration gating error, and the wrapper cause-timeline lesson — were removed from this catalog after baseline-vs-variant eval runs showed the generic Phase 3 rules and mechanism self-review checklist catch them without the narratives. Their ground truth lives on as eval cases under `plugins/ci/evals/cases/bulk-triage-regressions/` (cases 001–005), which is also the process for future candidates: prefer an eval case over a new narrative here. Case 1 below (the ~1 Hz flap) was kept deliberately — a variant run without it degraded the covered eval case's classification (permafail mislabeled "resolved"), i.e. it still pays for its tokens.)*
+*(Four incidents — the OCPBUGS-100316 VAP/actuator mis-diagnosis, the etcd-vs-router victim mix-up, the CBO duplicate-bug filing, and the SecurityPenetration gating error — were removed from this catalog after baseline-vs-variant eval runs showed the generic Phase 3 rules and mechanism self-review checklist catch them without the narratives. Two others (Cases 12–13 below: the GID-mapping producer trace and the wrapper cause-timeline) were removed and then restored: a per-model benchmark showed the target model (opus-4.6) regresses to the historical mis-attribution without them, even though stronger models do not. Their ground truth lives on as eval cases under `plugins/ci/evals/cases/bulk-triage-regressions/` (cases 001–005), which is also the process for future candidates: prefer an eval case over a new narrative here. Case 1 below (the ~1 Hz flap) was kept deliberately — a variant run without it degraded the covered eval case's classification (permafail mislabeled "resolved"), i.e. it still pays for its tokens.)*
 
 
 ## Case 1: ~1 Hz operator condition flap mislabeled "self-resolved slow rollout"
@@ -75,3 +75,21 @@ Rule: every run cited must be a member of the regression's `job_runs` (and preda
 In one incident, runs died variously of maxPods saturation, memory livelock, and an OVS flow storm — all downstream of a single namespace-deletion blockage, which also amplified an otherwise-transient network defect into node death. A symptom later vanished without its component's fix merging, because the *interacting* defect got fixed instead.
 
 Rules: when run-level root causes look "completely different", look one level up (what leaked, what was stuck, what accumulated); when a symptom vanishes without its fix merging, suspect an interacting defect.
+
+## Case 12: kubelet ID-allocator boundary mis-filed as a CRI-O "malformed GID mapping" (OCPBUGS-99918)
+
+A duty run saw pinns emit `Cannot write gid mappings: 0-4294901760-65536: Invalid argument` on a single pod and filed "CRI-O pinns computes a malformed GID mapping" against CRI-O, describing `4294901760` as "looks malformed (0xFFFF0000), suggesting overflow / wrong base computation".
+
+The owning team's analysis showed:
+
+- **pinns and CRI-O were pass-throughs**: pinns writes what CRI-O gives it; CRI-O passes through what kubelet sends over CRI. The producer was **kubelet's** user-namespace ID allocator randomly picking the top 65536-ID block of the 32-bit space. Fixed upstream in kubelet ([kubernetes/kubernetes#140190](https://github.com/kubernetes/kubernetes/pull/140190)), not CRI-O. The error-emitter was the messenger, not the owner.
+- The "suspicious" constant decoded trivially: `4294901760 + 65536 = 2^32` — exactly the last 65536-ID block of the uint32 space. The kernel rejects mappings that include ID `2^32−1`, which hands you the entire mechanism (allocator boundary condition), not corruption.
+- The filed "computation bug" theory predicted every-pod failure, but the observed rate was n=1 across many runs. The real mechanism (random block selection) predicted ~1/65535 per pod — exactly matching n=1. The report had flagged "single occurrence so far" as a caveat but never confronted the contradiction.
+
+Rules: trace bad values to their producer; decode suspicious constants before writing "malformed"/"overflow"; the claimed mechanism must predict the observed frequency; mark unverified mechanism prose as an explicit hypothesis.
+
+## Case 13: one wrapper regression, four causes
+
+A long-lived install-wrapper regression accumulated four separately-verified causes over its lifetime: toolchain era → operator-flap window → CRI-O node bug → console startup fatal. Each window was separately triaged.
+
+Rule: long-lived wrapper regressions are cause *timelines*; when `last_failure` advances, re-verify the new window from scratch.
