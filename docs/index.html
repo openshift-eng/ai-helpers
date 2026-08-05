@@ -557,7 +557,7 @@ footer a { color: var(--primary); }
           "full_name": "ci:analyze-disruption",
           "description": "Analyze and compare disruption across one or more Prow CI job runs",
           "description_html": "Analyze and compare disruption across one or more Prow CI job runs",
-          "synopsis": "Analyze disruption events across one or more CI job runs, comparing backends to identify root causes:\n```text\n/ci:analyze-disruption \u003cprowjob-url-1\u003e [prowjob-url-2 ...] [--backends backend1,backend2,...]\n```\n\nAlso accepts a Grafana disruption dashboard URL instead of Prow URLs to discover and select runs automatically:\n```text\n/ci:analyze-disruption \u003cgrafana-dashboard-url\u003e [--backends backend1,backend2,...]\n```",
+          "synopsis": "Analyze disruption events across one or more CI job runs, comparing backends to identify root causes:\n```text\n/ci:analyze-disruption \u003cprowjob-url-1\u003e [prowjob-url-2 ...] [--backends backend1,backend2,...] [--skip-jira]\n```\n\nAlso accepts a Grafana disruption dashboard URL instead of Prow URLs to discover and select runs automatically:\n```text\n/ci:analyze-disruption \u003cgrafana-dashboard-url\u003e [--backends backend1,backend2,...] [--skip-jira]\n```",
           "body_html": "Analyze disruption recorded in Prow CI job runs by invoking the &quot;analyze-disruption&quot; skill."
         },
         {

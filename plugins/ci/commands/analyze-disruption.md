@@ -1,6 +1,6 @@
 ---
 description: Analyze and compare disruption across one or more Prow CI job runs
-argument-hint: <prowjob-url-1> [prowjob-url-2 ...] [--backends backend1,backend2,...]
+argument-hint: <prowjob-or-grafana-url> [...] [--backends backend1,...] [--skip-jira]
 ---
 
 ## Name
@@ -9,12 +9,12 @@ ci:analyze-disruption
 ## Synopsis
 Analyze disruption events across one or more CI job runs, comparing backends to identify root causes:
 ```text
-/ci:analyze-disruption <prowjob-url-1> [prowjob-url-2 ...] [--backends backend1,backend2,...]
+/ci:analyze-disruption <prowjob-url-1> [prowjob-url-2 ...] [--backends backend1,backend2,...] [--skip-jira]
 ```
 
 Also accepts a Grafana disruption dashboard URL instead of Prow URLs to discover and select runs automatically:
 ```text
-/ci:analyze-disruption <grafana-dashboard-url> [--backends backend1,backend2,...]
+/ci:analyze-disruption <grafana-dashboard-url> [--backends backend1,backend2,...] [--skip-jira]
 ```
 
 ## Description
