@@ -541,7 +541,7 @@ footer a { color: var(--primary); }
     {
       "name": "ci",
       "description": "Tools for working with OpenShift CI and analyzing Prow job results",
-      "version": "0.0.79",
+      "version": "0.0.80",
       "has_readme": true,
       "commands": [
         {
@@ -609,28 +609,12 @@ footer a { color: var(--primary); }
           "body_html": "\u003cp\u003eDownloads Claude session artifacts from a Prow CI job and allows you to continue one of those sessions locally. This is useful when Claude ran as part of a CI job and you want to pick up where it left off.\u003c/p\u003e\u003cp\u003eThe command accepts:\u003cbr\u003e- \u003cstrong\u003eprowjob-url\u003c/strong\u003e (required): URL to a Prow job run\u003c/p\u003e"
         },
         {
-          "name": "create-symptom",
-          "full_name": "ci:create-symptom",
-          "description": "Interactively create (or update/delete) a Sippy Symptom that auto-labels a known CI failure pattern",
-          "description_html": "Interactively create (or update/delete) a Sippy Symptom that auto-labels a known CI failure pattern",
-          "synopsis": "/ci:create-symptom [description-of-failure]",
-          "body_html": "The \u003ccode\u003eci:create-symptom\u003c/code\u003e command creates a Sippy Symptom — a known-failure signature made of an artifact file pattern and a matcher that, when it matches a CI job run, automatically applies human-readable Labels (like \u003ccode\u003eInfraFailure\u003c/code\u003e) so future failures are recognized without re-debugging. The command walks through an interactive workflow: check for duplicate symptoms, verify (or create) the target labels, confirm the exact payload with the user, then create. It also handles updating or deleting an existing symptom when the user asks."
-        },
-        {
           "name": "detect-permafail",
           "full_name": "ci:detect-permafail",
           "description": "Detect permafail patterns in consecutive job failures",
           "description_html": "Detect permafail patterns in consecutive job failures",
           "synopsis": "/ci:detect-permafail --job-urls=\"[url1,url2,...]\" --job-name=\"job-name\" --pr=\"owner/repo#123\"",
           "body_html": "\u003cp\u003eAnalyzes 2-10 consecutive failures of the same job to determine if they represent a systematic/permanent failure (permafail) versus a flaky failure. This is critical for CI/CD pipeline analysis to distinguish between:\u003c/p\u003e\u003cp\u003e- \u003cstrong\u003ePermafail\u003c/strong\u003e: A systematic failure affecting the same test(s) or infrastructure issue, detected by analyzing comparable runs (same failure type):\u003cbr\u003e  - Separates test failures from infrastructure failures\u003cbr\u003e  - Applies thresholds based on comparable run count (not total URLs)\u003cbr\u003e  - 2-3 comparable runs: All must match (100% required)\u003cbr\u003e  - 4-5 comparable runs: At least 4 must match (80% required)\u003cbr\u003e  - 6-10 comparable runs: At least ceil(count×0.7) must match (70% required)\u003cbr\u003e  - Example: 7 URLs where 5 are test failures and 4 of those 5 have same test → 4/5 = 80% → PERMAFAIL\u003cbr\u003e- \u003cstrong\u003eFlaky\u003c/strong\u003e: Non-deterministic failures with varying root causes, or failures that don&#x27;t meet the permafail thresholds\u003c/p\u003e\u003cp\u003e### How It Works\u003c/p\u003e\u003cp\u003eThe command uses a deterministic Python classifier script for artifact-based failure classification, compares failure signatures across runs, and returns a JSON result with the permafail verdict, confidence score, failure type, and detailed signatures for each run.\u003c/p\u003e"
-        },
-        {
-          "name": "diagnose-job-symptoms",
-          "full_name": "ci:diagnose-job-symptoms",
-          "description": "Explain which Sippy Symptoms and failure Labels apply to a Prow CI job run",
-          "description_html": "Explain which Sippy Symptoms and failure Labels apply to a Prow CI job run",
-          "synopsis": "/ci:diagnose-job-symptoms \u003cprow-job-url\u003e",
-          "body_html": "The \u003ccode\u003eci:diagnose-job-symptoms\u003c/code\u003e command takes a Prow job run URL and explains, in plain language, which Sippy Symptoms — known-failure signatures that match patterns in a run&#x27;s artifact files — applied which Labels (like \u003ccode\u003eInfraFailure\u003c/code\u003e) to that run, including the exact file and line that matched. Use it before debugging a CI failure from scratch to check whether it is already a known failure mode. The default mode needs no authentication."
         },
         {
           "name": "extract-kubeconfig",
@@ -665,28 +649,12 @@ footer a { color: var(--primary); }
           "body_html": "\u003cp\u003eThe ci:list-step command analyzes an OpenShift CI workflow or chain and provides a complete hierarchical breakdown of all the workflow, chain, and ref\u003cbr\u003efiles with their repo paths that make up the workflow or chain.\u003c/p\u003e\u003cp\u003eThe command accepts:\u003cbr\u003e- Workflow/Chain name (required)\u003c/p\u003e\u003cp\u003eIt uses the step-registry-analyzer agent to examine the workflow/chain structure and identify all related components including workflows, chains, refs, and\u003cbr\u003etheir associated command files.\u003c/p\u003e"
         },
         {
-          "name": "list-symptoms",
-          "full_name": "ci:list-symptoms",
-          "description": "List, search, and inspect Sippy Symptoms and Labels (known CI failure signatures)",
-          "description_html": "List, search, and inspect Sippy Symptoms and Labels (known CI failure signatures)",
-          "synopsis": "/ci:list-symptoms [search-text]",
-          "body_html": "The \u003ccode\u003eci:list-symptoms\u003c/code\u003e command lists and searches Sippy Symptoms — known-failure signatures for OpenShift CI that automatically apply human-readable Labels (like \u003ccode\u003eInfraFailure\u003c/code\u003e) to job runs when their artifact files match a pattern. Use it to browse the symptom catalog, check whether a failure pattern already has a symptom before creating one, look up what a label means, or find which symptoms apply a given label. No authentication is required."
-        },
-        {
           "name": "list-unstable-tests",
           "full_name": "ci:list-unstable-tests",
           "description": "List unstable tests with pass rate below 95%",
           "description_html": "List unstable tests with pass rate below 95%",
           "synopsis": "/ci:list-unstable-tests \u003cversion\u003e \u003ckeywords\u003e [sippy-url]",
           "body_html": "\u003cp\u003eThe \u003ccode\u003eci:list-unstable-tests\u003c/code\u003e command queries OpenShift CI test results from Sippy and lists all tests matching the keywords that have a pass rate below 95%. This is useful for quickly identifying unstable tests that need attention.\u003c/p\u003e\u003cp\u003eBy default, it queries the production Sippy instance at \u003ccode\u003esippy.dptools.openshift.org\u003c/code\u003e. You can optionally specify a different Sippy instance URL to query alternative environments (e.g., QE component readiness).\u003c/p\u003e\u003cp\u003eThis command is useful for:\u003cbr\u003e- Identifying unstable tests with inconsistent pass rates\u003cbr\u003e- Finding regression candidates for investigation\u003cbr\u003e- Generating reports of unstable test cases\u003cbr\u003e- Prioritizing test stabilization efforts\u003cbr\u003e- Quality gate checks before releases\u003c/p\u003e"
-        },
-        {
-          "name": "manage-labels",
-          "full_name": "ci:manage-labels",
-          "description": "Create, update, or delete a Sippy Label (the human-readable tags applied by Symptoms)",
-          "description_html": "Create, update, or delete a Sippy Label (the human-readable tags applied by Symptoms)",
-          "synopsis": "/ci:manage-labels [create|update|delete] [label]",
-          "body_html": "The \u003ccode\u003eci:manage-labels\u003c/code\u003e command manages Sippy Labels — the human-readable tags (like \u003ccode\u003eInfraFailure\u003c/code\u003e) that Sippy Symptoms automatically apply to CI job runs when a known failure pattern matches the run&#x27;s artifacts. Use it to create a new label before a symptom references it, fix a label&#x27;s title or explanation, hide a label from certain UI contexts, or remove an obsolete label. Write operations require authentication to the sippy-auth API."
         },
         {
           "name": "payload-experiment",
@@ -719,14 +687,6 @@ footer a { color: var(--primary); }
           "description_html": "Query test results from Sippy by version and test keywords",
           "synopsis": "/ci:query-test-result \u003cversion\u003e \u003ckeywords\u003e [sippy-url]",
           "body_html": "\u003cp\u003eThe \u003ccode\u003eci:query-test-result\u003c/code\u003e command queries OpenShift CI test results from Sippy based on the OpenShift version and test name keywords. It retrieves test statistics including pass rate, number of runs, failures, and links to failed job runs.\u003c/p\u003e\u003cp\u003eBy default, it queries the production Sippy instance at \u003ccode\u003esippy.dptools.openshift.org\u003c/code\u003e. You can optionally specify a different Sippy instance URL to query alternative environments (e.g., QE component readiness).\u003c/p\u003e\u003cp\u003eThis command is useful for:\u003cbr\u003e- Checking the health of specific test cases\u003cbr\u003e- Finding test failure patterns\u003cbr\u003e- Getting links to failed Prow job runs for debugging\u003cbr\u003e- Monitoring test regression trends\u003cbr\u003e- Querying different Sippy instances (production, QE, etc.)\u003c/p\u003e"
-        },
-        {
-          "name": "reevaluate-job-runs",
-          "full_name": "ci:reevaluate-job-runs",
-          "description": "Retroactively re-run Sippy Symptom detection on completed Prow CI job runs",
-          "description_html": "Retroactively re-run Sippy Symptom detection on completed Prow CI job runs",
-          "synopsis": "/ci:reevaluate-job-runs \u003cprow-urls-or-build-ids...\u003e",
-          "body_html": "The \u003ccode\u003eci:reevaluate-job-runs\u003c/code\u003e command asks Sippy to re-scan completed Prow CI job runs against the current set of Symptoms — known-failure signatures that automatically apply human-readable Labels (like \u003ccode\u003eInfraFailure\u003c/code\u003e) when a run&#x27;s artifacts match a pattern. Detection normally runs as artifacts arrive, so reevaluation is for runs that finished \u003cstrong\u003ebefore\u003c/strong\u003e a symptom was created or changed. Reevaluation is idempotent and preserves manually-applied labels."
         },
         {
           "name": "revert-pr",
@@ -814,6 +774,12 @@ footer a { color: var(--primary); }
           "name": "fetch-payloads",
           "description": "Fetch recent release payloads from the OpenShift release controller",
           "description_html": "Fetch recent release payloads from the OpenShift release controller",
+          "meta": ""
+        },
+        {
+          "name": "fetch-prow-job-runs",
+          "description": "List Prow job runs from the Sippy API using its real filter syntax — find run IDs by job name, variant, result, or time window",
+          "description_html": "List Prow job runs from the Sippy API using its real filter syntax — find run IDs by job name, variant, result, or time window",
           "meta": ""
         },
         {
@@ -985,7 +951,7 @@ footer a { color: var(--primary); }
     {
       "name": "ci-extras",
       "description": "MCP server and extended tooling for OpenShift CI data access",
-      "version": "0.0.1",
+      "version": "0.0.2",
       "has_readme": true,
       "commands": [
         {
@@ -997,7 +963,14 @@ footer a { color: var(--primary); }
           "body_html": "\u003cp\u003eFetches live CI health data for a given OpenShift release and produces a concise summary covering payload acceptance, test regressions, and recent failures.\u003c/p\u003e\u003cp\u003eUseful for a quick read on overall release quality before a payload promotion decision or during a release readiness review.\u003c/p\u003e"
         }
       ],
-      "skills": [],
+      "skills": [
+        {
+          "name": "analyze-pr-payload-run",
+          "description": "Analyze a PR payload validation run by fetching the run page and checking each job's status via prowjob.json from GCS",
+          "description_html": "Analyze a PR payload validation run by fetching the run page and checking each job&#x27;s status via prowjob.json from GCS",
+          "meta": ""
+        }
+      ],
       "agents": [],
       "hooks": [],
       "mcp_servers": [
@@ -1532,7 +1505,7 @@ footer a { color: var(--primary); }
     {
       "name": "jira",
       "description": "A plugin to automate tasks with Jira",
-      "version": "0.8.7",
+      "version": "0.9.0",
       "has_readme": true,
       "commands": [
         {
@@ -1662,6 +1635,14 @@ footer a { color: var(--primary); }
           "description_html": "Validate proposed release blockers using Red Hat OpenShift release blocker criteria",
           "synopsis": "```\n/jira:validate-blockers [target-version] [component-filter] [--bug issue-key]\n```\n\n**Note**: `target-version` is required unless `--bug` is provided.",
           "body_html": "\u003cp\u003eThe \u003ccode\u003ejira:validate-blockers\u003c/code\u003e command helps release managers make data-driven decisions on proposed release blockers. It analyzes bugs with &quot;Release Blocker = Proposed&quot; status using Red Hat OpenShift release blocker criteria and provides clear APPROVE/REJECT/DISCUSS recommendations with detailed justification.\u003c/p\u003e\u003cp\u003eThis command is essential for:\u003cbr\u003e- Validating proposed release blockers\u003cbr\u003e- Making blocker approval/rejection decisions\u003cbr\u003e- Understanding why a bug should or shouldn&#x27;t block a release\u003cbr\u003e- Reviewing blocker criteria compliance\u003c/p\u003e"
+        },
+        {
+          "name": "validate-bug",
+          "full_name": "jira:validate-bug",
+          "description": "Diagnose and fix jira/invalid-bug on PRs — runs the same 7 checks as the jira-lifecycle-plugin",
+          "description_html": "Diagnose and fix jira/invalid-bug on PRs — runs the same 7 checks as the jira-lifecycle-plugin",
+          "synopsis": "/jira:validate-bug \u003cPR-URL | PR-number | JIRA-key\u003e [--branch release-4.X|main|master]",
+          "body_html": "\u003cp\u003eThe \u003ccode\u003ejira:validate-bug\u003c/code\u003e command diagnoses why the Prow \u003ccode\u003ejira/invalid-bug\u003c/code\u003e label was applied to a PR. It runs the same 7 validation checks as the \u003ca href=\"https://github.com/openshift-eng/jira-lifecycle-plugin\"\u003ejira-lifecycle-plugin\u003c/a\u003e, reports pass/fail for each check, and offers to fix failing checks via JIRA MCP tools.\u003c/p\u003e\u003cp\u003eThis command is essential for:\u003cbr\u003e- Diagnosing why a PR is stuck with \u003ccode\u003ejira/invalid-bug\u003c/code\u003e\u003cbr\u003e- Understanding which JIRA fields need correction\u003cbr\u003e- Fixing JIRA bugs in-place without manual field hunting\u003cbr\u003e- Batch-diagnosing multiple blocked PRs\u003c/p\u003e"
         }
       ],
       "skills": [
@@ -1735,6 +1716,12 @@ footer a { color: var(--primary); }
           "name": "status-analysis",
           "description": "Shared engine for analyzing Jira issue activity and generating status summaries",
           "description_html": "Shared engine for analyzing Jira issue activity and generating status summaries",
+          "meta": ""
+        },
+        {
+          "name": "validate-bug",
+          "description": "Diagnose and fix jira/invalid-bug on PRs by running the same 7 checks as the jira-lifecycle-plugin",
+          "description_html": "Diagnose and fix jira/invalid-bug on PRs by running the same 7 checks as the jira-lifecycle-plugin",
           "meta": ""
         }
       ],
@@ -2520,7 +2507,7 @@ footer a { color: var(--primary); }
     {
       "name": "openshift-developer",
       "description": "Bundle of curated plugins, skills, and MCP servers useful to any OpenShift engineer",
-      "version": "1.1.13",
+      "version": "1.1.14",
       "has_readme": true,
       "commands": [],
       "skills": [
