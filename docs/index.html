@@ -2727,6 +2727,37 @@ footer a { color: var(--primary); }
       }
     },
     {
+      "name": "rover",
+      "description": "MCP server for querying Red Hat's Rover People directory",
+      "version": "0.1.0",
+      "has_readme": true,
+      "commands": [
+        {
+          "name": "lookup",
+          "full_name": "rover:lookup",
+          "description": "Look up a person in Red Hat's Rover directory by name, Kerberos ID, or email",
+          "description_html": "Look up a person in Red Hat&#x27;s Rover directory by name, Kerberos ID, or email",
+          "synopsis": "/rover:lookup \u003cname, kerberos id, or email\u003e",
+          "body_html": "\u003cp\u003eQueries the Rover People directory to find a person and return their profile information. Accepts a display name, Kerberos uid, or email address.\u003c/p\u003e\u003cp\u003eUseful for quickly finding someone&#x27;s role, manager, team, location, or contact details without leaving the terminal.\u003c/p\u003e"
+        }
+      ],
+      "skills": [],
+      "agents": [],
+      "hooks": [],
+      "mcp_servers": [],
+      "rules": [],
+      "category": "productivity",
+      "keywords": [
+        "rover",
+        "people",
+        "directory",
+        "mcp"
+      ],
+      "author": {
+        "name": "github.com/openshift-eng"
+      }
+    },
+    {
       "name": "snowflake",
       "description": "Snowflake data analysis commands for engineering metrics and reports",
       "version": "0.5.1",

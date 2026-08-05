@@ -558,6 +558,19 @@
         "mlflow",
         "observability"
       ]
+    },
+    {
+      "name": "rover",
+      "source": "./plugins/rover",
+      "description": "MCP server for querying Red Hat's Rover People directory",
+      "version": "0.1.0",
+      "category": "productivity",
+      "keywords": [
+        "rover",
+        "people",
+        "directory",
+        "mcp"
+      ]
     }
   ]
 }

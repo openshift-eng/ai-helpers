@@ -1,0 +1,8 @@
+{
+  "name": "rover",
+  "description": "MCP server for querying Red Hat's Rover People directory",
+  "version": "0.1.0",
+  "author": {
+    "name": "github.com/openshift-eng"
+  }
+}
