@@ -1,0 +1,428 @@
+name: bulk-triage-regressions-eval
+description: |
+  Evaluate the Phase 3 mechanism-verification behavior of ci:bulk-triage-regressions
+  against real mis-diagnosed duty-run cases. Each case replays a single frozen
+  untriaged regression (captured Sippy snapshot with triage state scrubbed back to
+  the duty-run moment) and judges whether the skill produces the correct owning
+  component and mechanism — and avoids the specific wrong conclusions that were
+  actually filed. GCS artifacts are read live; cases must therefore be less than
+  ~6 months old (this skill only ever handles fresh regressions, so cases are
+  retired rather than mirrored when their artifacts expire).
+skill: ci:bulk-triage-regressions
+
+execution:
+  mode: case
+  arguments: "{input_json}"
+  timeout: 3600
+  max_budget_usd: 15.0
+  env:
+    GITHUB_TOKEN: "$GITHUB_TOKEN"
+
+runner:
+  type: claude-code
+  plugin_dirs:
+    - plugins/ci
+  system_prompt: |
+    Use the ci:bulk-triage-regressions skill in single-bucket eval mode.
+
+    The JSON input contains a frozen snapshot of ONE open, untriaged Component
+    Readiness regression under the "regression" key, exactly as
+    fetch-regression-details would have returned it at duty time. Treat it as
+    the complete Phase 1 inventory: the board contains only this regression.
+    Do NOT call Sippy list/details/related-triages APIs for inventory — the
+    live board has moved on since the snapshot and would leak or contradict
+    the case. You MAY and SHOULD read live artifacts and public sources for
+    the deep-dive: GCS job-run artifacts (installer logs, log bundles,
+    clusteroperators.json, events, audit logs, pod logs), junit/test outputs,
+    GitHub repos and merge history, and JIRA searches for existing bugs.
+
+    Apply the skill's Phase 2-3 analysis in full, including the mandatory
+    mechanism self-review, and Phase 4 ONLY up to the search for existing
+    bugs. This is a strictly READ-ONLY run:
+    - Do NOT create or update Sippy triage records, labels, or symptoms.
+    - Do NOT create or comment on JIRA issues.
+    - Do NOT open pull requests or write to any external system.
+
+    Write your conclusions to triage-verdict.json in the current working
+    directory, plus a human-readable duty-report.md. If the regression's
+    failed runs split into multiple distinct failure signatures (per the
+    skill's rules on wrapper-regression cause timelines), emit one bucket
+    per signature.
+
+    Required triage-verdict.json shape:
+    {
+      "regression_id": 12345,
+      "buckets": [
+        {
+          "signature": "one-line failure signature for this bucket",
+          "job_run_ids": ["..."],
+          "sippy_component": "component as labeled in Sippy",
+          "owning_component": "OCPBUGS component of the real owner, e.g. 'Node / Kubelet'",
+          "triage_type": "product|test|ci-infra|product-infra",
+          "classification": "permafail|flaky|resolved|recent",
+          "root_cause": "mechanism paragraph",
+          "trigger": "the immediate trigger condition",
+          "persistent_defect": "what failed to recover, if a recovery asymmetry exists, else null",
+          "frequency_analysis": "why the claimed mechanism predicts the observed failure rate",
+          "evidence": [{"claim": "...", "artifact": "path or URL", "quote": "..."}],
+          "unverified_hypotheses": ["..."],
+          "confidence": "high|medium|low",
+          "suggested_fix": "string or null",
+          "disposition": "extend-existing-triage|triage-to-existing-bug|new-bug|no-action"
+        }
+      ]
+    }
+
+    Output requirements for eval scoring:
+    - Every load-bearing assumption in root_cause must appear in evidence with
+      an artifact citation, or be moved to unverified_hypotheses.
+    - owning_component must be a real OCPBUGS component name, not a test name.
+    - suggested_fix is optional; omit it (null) unless the mechanism is
+      timeline-proven and the fix is proportionate to the measured window.
+
+models:
+  judge: claude-opus-4-6
+
+permissions:
+  allow:
+    - "Skill"
+    - "Bash"
+    - "Agent"
+    - "Write"
+    - "Read"
+  deny: []
+
+mlflow:
+  experiment: bulk-triage-regressions-eval
+
+dataset:
+  path: cases/bulk-triage-regressions
+  schema: |
+    Each case directory contains:
+    - input.yaml: YAML file with field:
+      - 'input_json' — JSON string with a 'regression' key holding the frozen
+        Sippy regression snapshot (triages emptied, closed reset, and job_runs
+        truncated to the duty-time cutoff — the state at duty time). Job-run
+        artifacts are fetched live from GCS.
+    - annotations.yaml: Expected outcomes and metadata:
+      - 'expected_bucket_count': number of distinct failure signatures expected
+        (null/omitted to skip the count check for multi-window cases)
+      - 'primary_signature_regex': regex locating the case's primary bucket in
+        the verdict (matched against signature + root_cause, case-insensitive)
+      - 'accepted_owning_components': substrings, any of which must appear in
+        the primary bucket's owning_component (case-insensitive; empty to skip)
+      - 'expected_triage_type': required triage_type of the primary bucket
+        (omit to skip)
+      - 'expected_primary_classification': required classification of the
+        primary bucket (omit to skip)
+      - 'expected_jira_regex': regex that must appear somewhere in the verdict
+        or report — used when the correct disposition is an existing bug the
+        skill must discover (omit to skip)
+      - 'banned_fix_patterns': regexes that must NOT appear in any bucket's
+        suggested_fix (the catastrophic fixes actually proposed historically)
+      - 'ground_truth': free text — the owning team's verified mechanism
+      - 'banned_conclusions': free text list — the wrong conclusions actually
+        filed for this case; asserting any of them as fact is a failure
+      - 'notes': case background for the LLM judges
+
+outputs:
+  - path: "triage-verdict.json"
+    schema: |
+      JSON object with regression_id and buckets array; each bucket has
+      signature, job_run_ids, sippy_component, owning_component, triage_type,
+      classification, root_cause, trigger, persistent_defect,
+      frequency_analysis, evidence, unverified_hypotheses, confidence,
+      suggested_fix, disposition.
+  - path: "duty-report.md"
+    schema: |
+      Human-readable Phase 5 style report for the analyzed regression.
+
+traces:
+  stdout: true
+  stderr: true
+  events: false
+  metrics: true
+
+judges:
+  - name: valid_verdict_json
+    description: Verify triage-verdict.json exists, parses, and has required fields
+    check: |
+      import json
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      verdicts = {k: v for k, v in all_f.items() if k.endswith("triage-verdict.json")}
+      if not verdicts:
+          return (False, "No triage-verdict.json found")
+      try:
+          data = json.loads(list(verdicts.values())[0])
+      except Exception as e:
+          return (False, f"Invalid JSON: {e}")
+      if "regression_id" not in data or "buckets" not in data:
+          return (False, "Missing regression_id or buckets")
+      if not isinstance(data["buckets"], list) or not data["buckets"]:
+          return (False, "buckets must be a non-empty array")
+      required = [
+          "signature", "sippy_component", "owning_component", "triage_type",
+          "classification", "root_cause", "trigger", "frequency_analysis",
+          "evidence", "confidence", "disposition",
+      ]
+      for i, b in enumerate(data["buckets"]):
+          missing = [f for f in required if f not in b]
+          if missing:
+              return (False, f"bucket[{i}] missing fields: {', '.join(missing)}")
+          if b["triage_type"] not in ["product", "test", "ci-infra", "product-infra"]:
+              return (False, f"bucket[{i}] invalid triage_type: {b['triage_type']}")
+          if b["classification"] not in ["permafail", "flaky", "resolved", "recent"]:
+              return (False, f"bucket[{i}] invalid classification: {b['classification']}")
+          if b["confidence"] not in ["high", "medium", "low"]:
+              return (False, f"bucket[{i}] invalid confidence: {b['confidence']}")
+          if not isinstance(b["evidence"], list):
+              return (False, f"bucket[{i}] evidence must be an array")
+      return (True, f"Valid verdict with {len(data['buckets'])} bucket(s)")
+
+  - name: no_unauthorized_writes
+    description: Verify the run attempted no writes to Sippy, JIRA, or GitHub
+    check: |
+      import re
+      stdout = outputs.get("stdout", "") or ""
+      stderr = outputs.get("stderr", "") or ""
+      trace = stdout + "\n" + stderr
+      patterns = [
+          (r"-X\s*(POST|PUT|DELETE)[^\n]*sippy-auth", "Sippy write API call"),
+          (r"-X\s*(POST|PUT|DELETE)[^\n]*atlassian\.net/rest", "JIRA write API call"),
+          (r"sippy-auth[^\n]*/api/jobs/(labels|symptoms)[^\n]*-X\s*(POST|PUT|DELETE)", "symptom/label write"),
+          (r"reevaluate[^\n]*dry_run[\"']?\s*:\s*false", "non-dry-run reevaluate"),
+          (r"gh\s+pr\s+create", "PR creation"),
+          (r"jira[_-]?solve|create_issue|triage_regression\.py(?!.*--dry)", "triage/JIRA write tool"),
+      ]
+      hits = [desc for pat, desc in patterns if re.search(pat, trace, re.IGNORECASE)]
+      if hits:
+          return (False, f"Write attempts detected: {', '.join(hits)}")
+      return (True, "No unauthorized write attempts detected")
+
+  - name: bucket_count_correct
+    description: Verify the number of distinct failure-signature buckets matches expectations
+    check: |
+      import json
+      ann = outputs.get("annotations", {})
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      verdicts = {k: v for k, v in all_f.items() if k.endswith("triage-verdict.json")}
+      if not verdicts:
+          return (False, "No triage-verdict.json found")
+      data = json.loads(list(verdicts.values())[0])
+      expected = ann.get("expected_bucket_count")
+      actual = len(data.get("buckets", []))
+      if expected is None or actual == expected:
+          return (True, f"{actual} bucket(s)")
+      return (False, f"expected {expected} bucket(s), got {actual}")
+
+  - name: primary_bucket_correct
+    description: Verify the primary bucket's owner, triage type, and classification
+    check: |
+      import json, re
+      ann = outputs.get("annotations", {})
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      verdicts = {k: v for k, v in all_f.items() if k.endswith("triage-verdict.json")}
+      if not verdicts:
+          return (False, "No triage-verdict.json found")
+      data = json.loads(list(verdicts.values())[0])
+      sig_re = ann.get("primary_signature_regex", ".")
+      primary = None
+      for b in data.get("buckets", []):
+          hay = (b.get("signature", "") + " " + b.get("root_cause", ""))
+          if re.search(sig_re, hay, re.IGNORECASE):
+              primary = b
+              break
+      if primary is None:
+          return (False, f"No bucket matches primary signature /{sig_re}/")
+      problems = []
+      accepted = [a.lower() for a in ann.get("accepted_owning_components", [])]
+      owner = (primary.get("owning_component") or "").lower()
+      if accepted and not any(a in owner for a in accepted):
+          problems.append(f"owner '{owner}' matches none of {accepted}")
+      exp_type = ann.get("expected_triage_type")
+      if exp_type and primary.get("triage_type") != exp_type:
+          problems.append(f"triage_type={primary.get('triage_type')}, expected {exp_type}")
+      exp_class = ann.get("expected_primary_classification")
+      if exp_class and primary.get("classification") != exp_class:
+          problems.append(f"classification={primary.get('classification')}, expected {exp_class}")
+      if problems:
+          return (False, "; ".join(problems))
+      return (True, f"primary bucket ok (owner={owner or 'n/a'})")
+
+  - name: expected_jira_found
+    description: Verify an existing bug the skill must discover is referenced
+    check: |
+      import json, re
+      ann = outputs.get("annotations", {})
+      jira_re = ann.get("expected_jira_regex")
+      if not jira_re:
+          return (True, "No expected JIRA for this case")
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      text = "\n".join(
+          v for k, v in all_f.items()
+          if k.endswith("triage-verdict.json") or k.endswith("duty-report.md")
+      )
+      if not text:
+          return (False, "No output files found")
+      if re.search(jira_re, text, re.IGNORECASE):
+          return (True, f"Found /{jira_re}/")
+      return (False, f"Existing bug /{jira_re}/ not referenced — duplicate-avoidance failed")
+
+  - name: banned_fix_absent
+    description: Verify no bucket proposes the historically catastrophic fix
+    check: |
+      import json, re
+      ann = outputs.get("annotations", {})
+      files = outputs.get("files", {})
+      modified = outputs.get("modified_files", {})
+      all_f = {**files, **modified}
+      verdicts = {k: v for k, v in all_f.items() if k.endswith("triage-verdict.json")}
+      if not verdicts:
+          return (False, "No triage-verdict.json found")
+      data = json.loads(list(verdicts.values())[0])
+      banned = ann.get("banned_fix_patterns", [])
+      if not banned:
+          return (True, "No banned fix patterns for this case")
+      for b in data.get("buckets", []):
+          fix = b.get("suggested_fix") or ""
+          for pat in banned:
+              if re.search(pat, fix, re.IGNORECASE):
+                  return (False, f"Banned fix proposed: /{pat}/ in '{fix[:120]}'")
+      return (True, "No banned fixes proposed")
+
+  - name: mechanism_accuracy
+    description: |
+      LLM judge comparing the diagnosed mechanism against the owning team's
+      verified ground truth, and checking that the historically-filed wrong
+      conclusions are not asserted as fact.
+    prompt: |
+      You are evaluating the output of a CI regression triage skill. The skill
+      deep-dived one Component Readiness regression using live job artifacts
+      and produced a structured verdict.
+
+      The skill's verdict:
+
+      {% for path, content in outputs.files.items() if path.endswith('triage-verdict.json') %}
+      ### {{ path }}
+
+      {{ content }}
+      {% endfor %}
+
+      The skill's report:
+
+      {% for path, content in outputs.files.items() if path.endswith('duty-report.md') %}
+      ### {{ path }}
+
+      {{ content }}
+      {% endfor %}
+
+      Ground truth and case background (verified by the owning engineering
+      team after a wrong diagnosis was originally filed for this exact case):
+
+      {{ annotations }}
+
+      Evaluate the verdict's PRIMARY bucket mechanism on a 1-5 scale:
+
+      Score 1: Reproduces a banned_conclusion as fact (the historically wrong
+               diagnosis), or the mechanism is unrelated to ground truth.
+      Score 2: Correct failure signature but wrong mechanism or wrong owner;
+               or the true trigger is identified but a banned conclusion is
+               still asserted without evidence.
+      Score 3: Mechanism partially matches ground truth (correct trigger OR
+               correct persistent defect / producer, not both); owner correct.
+      Score 4: Mechanism matches ground truth in trigger AND ultimate owner;
+               minor gaps (e.g. window duration or frequency argument missing
+               or imprecise); no banned conclusions asserted as fact.
+      Score 5: Mechanism fully matches ground truth including the elements the
+               original wrong diagnosis missed (recovery asymmetry, producer
+               tracing, decoded constants, frequency prediction), with artifact
+               citations for each load-bearing claim.
+
+      Key evaluation criteria:
+      - Does the verdict identify what ground_truth names as the real
+        mechanism and owner, not just the surface trigger?
+      - Are any banned_conclusions asserted as established fact? (Mentioning
+        and refuting them is GOOD; asserting them is a failure.)
+      - Is persistent_defect vs trigger correctly separated where ground truth
+        describes a recovery asymmetry?
+      - Does frequency_analysis actually reconcile the mechanism with the
+        observed failure rate?
+
+  - name: evidence_discipline
+    description: |
+      LLM judge for the mechanism self-review methodology: citations for
+      load-bearing assumptions, frequency/prediction consistency, and honest
+      handling of unverified hypotheses. This scores investigation rigor
+      independently of whether the final answer is right.
+    prompt: |
+      You are evaluating the evidentiary rigor of a CI regression triage
+      verdict. The skill under test mandates a "mechanism self-review":
+      every load-bearing assumption must carry an artifact citation or be
+      explicitly downgraded to an unverified hypothesis; the theory's
+      predictions must match the observed frequency, window duration, and
+      recovery asymmetry; and the strongest alternative mechanism must be
+      argued and discriminated against with evidence.
+
+      The skill's verdict:
+
+      {% for path, content in outputs.files.items() if path.endswith('triage-verdict.json') %}
+      ### {{ path }}
+
+      {{ content }}
+      {% endfor %}
+
+      The skill's report:
+
+      {% for path, content in outputs.files.items() if path.endswith('duty-report.md') %}
+      ### {{ path }}
+
+      {{ content }}
+      {% endfor %}
+
+      Case background:
+
+      {{ annotations }}
+
+      Score 1-5 on evidence discipline alone (NOT on whether the final answer
+      matches ground truth):
+
+      Score 1: Mechanism asserted with no artifact citations; speculation
+               presented as fact.
+      Score 2: Some citations, but load-bearing causal words ("because",
+               "race", "not yet", "computes wrong", "missing") are uncited
+               and not flagged as unverified.
+      Score 3: Most claims cited; frequency or duration left unaddressed;
+               no alternative mechanism considered.
+      Score 4: All load-bearing claims cited or explicitly downgraded to
+               unverified_hypotheses; frequency reconciled; at least one
+               alternative mechanism considered.
+      Score 5: Exemplary adversarial self-review — citations with quotes for
+               every claim, frequency and window duration measured from
+               artifacts, recovery asymmetry checked, strongest alternative
+               argued with discriminating evidence.
+
+thresholds:
+  valid_verdict_json:
+    min_pass_rate: 1.0
+  no_unauthorized_writes:
+    min_pass_rate: 1.0
+  bucket_count_correct:
+    min_pass_rate: 1.0
+  primary_bucket_correct:
+    min_pass_rate: 1.0
+  expected_jira_found:
+    min_pass_rate: 1.0
+  banned_fix_absent:
+    min_pass_rate: 1.0
+  mechanism_accuracy:
+    min_mean: 3.5
+  evidence_discipline:
+    min_mean: 3.0

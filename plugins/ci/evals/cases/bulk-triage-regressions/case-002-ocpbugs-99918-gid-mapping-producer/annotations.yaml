@@ -1,0 +1,68 @@
+expected_bucket_count: 2
+
+primary_signature_regex: "gid mapping|pinns|FailedCreatePodSandBox|user.?namespace"
+
+accepted_owning_components:
+  - "kubelet"
+
+banned_fix_patterns: []
+
+ground_truth: |
+  Metal IPI serial-virtualmedia install wrapper regression 44906
+  ("install should succeed: cluster operator stability", 5.0-main). The
+  regression's 20 job runs split into TWO distinct cause windows:
+  - 2026-07-19 .. 2026-07-21 (19 runs): baremetal cluster-operator
+    stabilization slowness — a different, self-resolved cause (tracked at
+    the time in TRT-2850). Not the primary bucket of this case.
+  - 2026-07-27 (1 run, 2081702276673572864): pod sandbox creation failing
+    continuously on master-2 with "pinns: Cannot write gid mappings:
+    0-4294901760-65536: Invalid argument"; route-controller-manager replica
+    Pending 80+ minutes; openshift-controller-manager never stabilizes.
+
+  Verified mechanism for the pinns bucket (owning team's analysis, which
+  refuted the originally-filed diagnosis):
+  - pinns and CRI-O are PASS-THROUGHS: pinns writes what CRI-O gives it,
+    CRI-O passes through what kubelet sends over CRI. The producer of the
+    GID mapping is KUBELET's user-namespace ID allocator, two hops upstream.
+    Correct owner: Node / Kubelet (upstream fix: kubernetes/kubernetes#140190).
+  - The "suspicious" constant decodes trivially: 4294901760 + 65536 = 2^32.
+    The allocator randomly picked the TOP 65536-ID block of the 32-bit
+    space, and the kernel rejects mappings that include ID 2^32-1. This is
+    an allocator boundary condition, not corruption/overflow/wrong-base.
+  - Frequency prediction: random block selection gives ~1/65535 probability
+    per pod of hitting the top block — matching the observed n=1 across many
+    runs. The originally-filed "computation bug" theory predicted every-pod
+    failure, contradicting the observation.
+
+banned_conclusions:
+  - "CRI-O (or pinns) computes a malformed GID mapping / owns the bug
+    (they are pass-throughs; the producer is kubelet's ID allocator)"
+  - "4294901760 looks malformed (0xFFFF0000), suggesting overflow or a
+    wrong-base computation (it decodes to 2^32 - 65536, the last allocatable
+    block — a boundary condition, not corruption)"
+  - "a deterministic computation bug (which would predict every-pod failure,
+    contradicting the observed single occurrence)"
+
+notes: |
+  Source: case 2 in the skill's references/case-notes.md and OCPBUGS-99918.
+  A real duty run filed "CRI-O pinns computes a malformed GID mapping"
+  against Node / CRI-O; the owning team traced the value to kubelet's
+  user-namespace ID allocator. This case tests: tracing bad values to their
+  producer across the data flow (error-emitter is the messenger), decoding
+  suspicious constants before writing "malformed"/"overflow", and requiring
+  the claimed mechanism to predict the observed frequency (n=1).
+
+  It also tests the cause-timeline rule: the snapshot's 20 runs contain two
+  separate signatures (19 runs of baremetal CO stabilization slowness in
+  July 19-21, 1 run of the pinns failure on July 27), so the verdict must
+  emit two buckets rather than lumping the July 27 run into the earlier
+  cause. The July 19-21 bucket's exact disposition is judged leniently
+  (classification "resolved" with a ci-infra/product owner both acceptable);
+  what matters is that it is separated from the pinns bucket. The kernel-
+  level evidence lives in gather-extra/artifacts/events.json of run
+  2081702276673572864 (FailedCreatePodSandBox events on
+  openshift-route-controller-manager/route-controller-manager-*).
+
+  A verdict scores highest when it names kubelet's allocator as producer,
+  decodes the constant (2^32 - 65536), and reconciles the ~1/65535
+  per-pod probability with the single observed occurrence.

@@ -1,0 +1,63 @@
+expected_bucket_count: null
+
+primary_signature_regex: "etcd|cipherSuites|bootstrap.*(timeout|fail)|revision 0|0 nodes"
+
+accepted_owning_components:
+  - "etcd"
+
+expected_triage_type: "product"
+
+banned_fix_patterns: []
+
+ground_truth: |
+  Azure amd64 techpreview serial install-wrapper regression 41888 ("install
+  should succeed: overall", 5.0-main), snapshot truncated to the duty-time
+  state of 2026-07-08 (24 runs, 2026-06-06 .. 2026-07-08). The window is a
+  cause TIMELINE, not one bucket:
+  - Early-June runs: runc CI jobs failing because runc is not in RHCOS 10
+    (OCPBUGS-89267, Node / CRI-O; created 2026-06-17, later Verified).
+  - The dominant late-June/July window (the primary bucket of this case):
+    bootstrap timeouts caused by cluster-etcd-operator's getCipherSuites()
+    hard-erroring on empty observedConfig during bootstrap (OCPBUGS-94106,
+    Etcd; created 2026-06-30). The end-state oracle proves it:
+    clusteroperators.json in the gathered artifacts shows etcd
+    Available=False with "0 nodes are active; 3 nodes are at revision 0" —
+    cluster etcd never deployed.
+  - In the SAME runs, router pods crash-loop with "failed to list *v1.Route:
+    the server could not find the requested resource". The router is a
+    VICTIM: the Route API was never registered because cluster
+    etcd/apiserver never deployed. A router-owned bug (OCPBUGS-98088,
+    "router startup probe loop after HAProxy sidecar change") was the
+    historically wrong attribution for these bootstrap failures.
+  - Workload pods running in pods.json does NOT prove etcd was fine: during
+    bootstrap the bootstrap-node etcd/apiserver serve the control plane, so
+    pods run happily while cluster etcd never deploys.
+
+banned_conclusions:
+  - "the bootstrap failures are owned by the router / Networking - router
+    (its crash-loop error names a missing upstream dependency; it is a
+    victim of the Route API never registering)"
+  - "etcd was fine because workload pods are running / pods.json shows
+    healthy pods (refuted by clusteroperators.json: etcd Available=False,
+    0 nodes are active, 3 nodes at revision 0)"
+
+notes: |
+  Source: case 3 (and the timeline rule of case 10) in the skill's
+  references/case-notes.md. A real duty run refuted a CORRECT etcd
+  attribution using pods.json ("workload pods are running, therefore etcd
+  is fine") and pinned weeks of Azure/GCP bootstrap failures on the
+  crash-looping router instead; clusteroperators.json later proved etcd was
+  at revision 0 in every run. This case tests: the end-state oracle for
+  bootstrap failures is clusteroperators.json, not pod existence; a
+  crash-looper whose error names a missing upstream dependency is a victim,
+  not an owner; and long-lived wrapper regressions are cause timelines
+  (the early-June runc window must not be lumped into the etcd bucket —
+  hence expected_bucket_count is not fixed, but the primary bucket must be
+  the etcd one).
+
+  The primary bucket scores highest when it names cluster-etcd-operator's
+  cipherSuites/observedConfig failure (or at minimum "etcd never deployed:
+  0 nodes at revision 0") as the mechanism, cites clusteroperators.json,
+  and explicitly dispositions the router crash-loop as downstream victim
+  evidence. Discovering the existing OCPBUGS-94106 via JIRA search is a
+  bonus, reflected in mechanism_accuracy.
