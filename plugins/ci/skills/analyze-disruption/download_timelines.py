@@ -44,6 +44,9 @@ def parse_runs(runs_str):
         if not job or not build_id:
             print("Error: empty job or build_id in %r" % pair, file=sys.stderr)
             sys.exit(1)
+        if os.sep in build_id or "/" in build_id or build_id.startswith("."):
+            print("Error: invalid build_id in %r" % pair, file=sys.stderr)
+            sys.exit(1)
         runs.append((job, build_id))
     return runs
 

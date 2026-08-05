@@ -113,6 +113,9 @@ def fetch_runs(release, filter_dict, limit):
     except (ValueError, json.JSONDecodeError):
         print("Error: invalid JSON from Sippy API", file=sys.stderr)
         sys.exit(1)
+    if not isinstance(data, dict):
+        print("Error: unexpected response type from Sippy API", file=sys.stderr)
+        sys.exit(1)
     return data.get("rows") or []
 
 
@@ -137,6 +140,9 @@ def fetch_disruption_data(prow_ids, backend_name=None):
         data = json.loads(body)
     except (ValueError, json.JSONDecodeError):
         print("Warning: invalid JSON from disruption API", file=sys.stderr)
+        return {}
+    if not isinstance(data, dict):
+        print("Warning: unexpected response type from disruption API", file=sys.stderr)
         return {}
     lookup = {}
     for row in data.get("rows") or []:
