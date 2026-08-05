@@ -1,4 +1,4 @@
-expected_bucket_count: 1
+expected_bucket_count: null
 
 primary_signature_regex: "paramKind|ValidatingAdmissionPolicy|VAP|machine.*(patch|status).*denied|forbidden"
 
@@ -60,6 +60,11 @@ notes: |
   The snapshot contains 3 job runs (2026-07-28 .. 2026-07-30); the richest
   artifacts are in run 2082763128902258688 (machine-controller log with the
   13 denials at 09:56:25-27 and the 300x requeue loop until must-gather).
+  Note the two 2026-07-28 runs fall inside the payload-wide console-operator
+  crash wave (TRT-2858, minTLSVersion breaking 5.0 nightly payloads), so a
+  correct analysis may legitimately emit a second bucket for that window —
+  hence expected_bucket_count is not fixed and the primary bucket is located
+  by the VAP signature regex.
   A verdict that identifies the VAP denial as trigger but names the actuator
   state loss as the persistent defect, without proposing to weaken the
   policy, matches ground truth.

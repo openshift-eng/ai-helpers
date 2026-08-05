@@ -105,8 +105,9 @@ dataset:
         truncated to the duty-time cutoff — the state at duty time). Job-run
         artifacts are fetched live from GCS.
     - annotations.yaml: Expected outcomes and metadata:
-      - 'expected_bucket_count': number of distinct failure signatures expected
-        (null/omitted to skip the count check for multi-window cases)
+      - 'expected_bucket_count': minimum number of distinct failure-signature
+        buckets expected — guards against lumping separate cause windows into
+        one bucket; finer legitimate splits are allowed (null/omitted to skip)
       - 'primary_signature_regex': regex locating the case's primary bucket in
         the verdict (matched against signature + root_cause, case-insensitive)
       - 'accepted_owning_components': substrings, any of which must appear in
@@ -202,7 +203,7 @@ judges:
       return (True, "No unauthorized write attempts detected")
 
   - name: bucket_count_correct
-    description: Verify the number of distinct failure-signature buckets matches expectations
+    description: Verify separate cause windows were not lumped into one bucket
     check: |
       import json
       ann = outputs.get("annotations", {})
@@ -215,9 +216,9 @@ judges:
       data = json.loads(list(verdicts.values())[0])
       expected = ann.get("expected_bucket_count")
       actual = len(data.get("buckets", []))
-      if expected is None or actual == expected:
+      if expected is None or actual >= expected:
           return (True, f"{actual} bucket(s)")
-      return (False, f"expected {expected} bucket(s), got {actual}")
+      return (False, f"expected at least {expected} bucket(s), got {actual} — cause windows lumped")
 
   - name: primary_bucket_correct
     description: Verify the primary bucket's owner, triage type, and classification
